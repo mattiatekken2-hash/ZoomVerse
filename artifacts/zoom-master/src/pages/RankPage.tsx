@@ -10,12 +10,30 @@ interface RankPageProps {
 }
 
 const SEASON_DURATION_MS = 90 * 24 * 60 * 60 * 1000;
-const SEASON_START = new Date("2026-03-01").getTime();
+const SEASON_START = new Date("2026-04-14T00:00:00.000Z").getTime();
 const TOTAL_SEASONS = 6;
 const SEASON_END = SEASON_START + SEASON_DURATION_MS;
 
 const POOL_BASE_ZOOM = 1240000;
 const POOL_ZOOM_RATE = 0.6;
+const LIVE_RANK_START = SEASON_START;
+
+type SeasonWallet = {
+  id: string;
+  name: string;
+  baseBalance: number;
+  farmPerHour: number;
+  bonuses: { unlockAt: number; amount: number }[];
+};
+
+const SEASON_WALLETS: SeasonWallet[] = [
+  { id: "orion", name: "ORION", baseBalance: 960, farmPerHour: 38, bonuses: [{ unlockAt: 8 * 60 * 60 * 1000, amount: 250 }] },
+  { id: "nebula", name: "NEBULA", baseBalance: 760, farmPerHour: 52, bonuses: [{ unlockAt: 18 * 60 * 60 * 1000, amount: 420 }] },
+  { id: "atlas", name: "ATLAS", baseBalance: 620, farmPerHour: 31, bonuses: [{ unlockAt: 30 * 60 * 60 * 1000, amount: 180 }] },
+  { id: "nova", name: "NOVA", baseBalance: 480, farmPerHour: 44, bonuses: [{ unlockAt: 12 * 60 * 60 * 1000, amount: 120 }] },
+  { id: "zenith", name: "ZENITH", baseBalance: 390, farmPerHour: 27, bonuses: [{ unlockAt: 26 * 60 * 60 * 1000, amount: 500 }] },
+  { id: "kirk", name: "KIRK", baseBalance: 250, farmPerHour: 21, bonuses: [{ unlockAt: 40 * 60 * 60 * 1000, amount: 300 }] },
+];
 
 function timeAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
@@ -26,17 +44,45 @@ function timeAgo(ts: number): string {
 
 const ZOOM_PER_TON = 1_000_000;
 
-export function RankPage({ totalEarned, totalTonSpent: _totalTonSpent, feedEvents }: RankPageProps) {
+function getSeasonProgress(now: number): number {
+  if (now <= SEASON_START) return 0;
+  return Math.min((now - SEASON_START) / SEASON_DURATION_MS, 1);
+}
+
+function getLiveWalletBalance(wallet: SeasonWallet, now: number): number {
+  const elapsed = Math.max(0, now - LIVE_RANK_START);
+  const farmed = (elapsed / 3600000) * wallet.farmPerHour;
+  const bonusTotal = wallet.bonuses.reduce((total, bonus) => (
+    elapsed >= bonus.unlockAt ? total + bonus.amount : total
+  ), 0);
+  return wallet.baseBalance + farmed + bonusTotal;
+}
+
+function formatZoom(amount: number): string {
+  return Math.floor(amount).toLocaleString();
+}
+
+export function RankPage({ balance, totalEarned, totalTonSpent: _totalTonSpent, feedEvents }: RankPageProps) {
   const [activeSection, setActiveSection] = useState<"season" | "exchange">("season");
   const feedRef = useRef<HTMLDivElement>(null);
   const [poolZoom, setPoolZoom] = useState(POOL_BASE_ZOOM);
+  const [currentTime, setCurrentTime] = useState(Date.now());
   const sessionStart = useRef(Date.now());
   const [convertInput, setConvertInput] = useState("");
 
-  const now = Date.now();
-  const seasonProgress = Math.min((now - SEASON_START) / SEASON_DURATION_MS, 1);
+  const seasonProgress = getSeasonProgress(currentTime);
   const currentSeason = 1;
-  const isExchangeOpen = now >= SEASON_END;
+  const isExchangeOpen = currentTime >= SEASON_END;
+  const seasonProgressPercent = seasonProgress * 100;
+  const liveLeaderboard = [
+    { id: "you", name: "YOU", balance, isUser: true },
+    ...SEASON_WALLETS.map((wallet) => ({
+      id: wallet.id,
+      name: wallet.name,
+      balance: getLiveWalletBalance(wallet, currentTime),
+      isUser: false,
+    })),
+  ].sort((a, b) => b.balance - a.balance);
 
   const estimatedTon = useCallback(() => {
     const zoom = parseFloat(convertInput.replace(/,/g, ""));
@@ -46,6 +92,7 @@ export function RankPage({ totalEarned, totalTonSpent: _totalTonSpent, feedEvent
 
   useEffect(() => {
     const interval = setInterval(() => {
+      setCurrentTime(Date.now());
       const elapsed = (Date.now() - sessionStart.current) / 1000;
       setPoolZoom(POOL_BASE_ZOOM + elapsed * POOL_ZOOM_RATE);
     }, 1000);
@@ -72,16 +119,16 @@ export function RankPage({ totalEarned, totalTonSpent: _totalTonSpent, feedEvent
         <div className="rounded-xl p-3 border mb-3" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}>
           <div className="flex justify-between text-xs mb-2" style={{ color: "rgba(255,255,255,0.4)" }}>
             <span className="font-bold">Season {currentSeason} of {TOTAL_SEASONS}</span>
-            <span className="font-bold neon-text">{Math.round(seasonProgress * 100)}%</span>
+            <span className="font-bold neon-text">{seasonProgressPercent.toFixed(2)}%</span>
           </div>
           <div className="w-full h-2 rounded-full overflow-hidden mb-3" style={{ background: "rgba(255,255,255,0.06)" }}>
             <div
               className="h-full rounded-full"
               style={{
-                width: `${seasonProgress * 100}%`,
+                width: `${seasonProgressPercent}%`,
                 background: "linear-gradient(90deg, #c471ed, #00f2fe, #ffd700)",
                 boxShadow: "0 0 10px rgba(0,242,254,0.6)",
-                transition: "width 0.5s ease",
+                transition: "width 1s linear",
               }}
             />
           </div>
@@ -136,18 +183,44 @@ export function RankPage({ totalEarned, totalTonSpent: _totalTonSpent, feedEvent
 
       {activeSection === "season" && (
         <>
-          {/* User rank */}
+          {/* Live season rank */}
           <div className="px-4 mb-3 flex-shrink-0">
             <div
-              className="rounded-xl border flex items-center gap-3 px-4 py-3"
-              style={{ borderColor: "rgba(0,242,254,0.2)", background: "rgba(0,242,254,0.04)" }}
+              className="rounded-2xl border p-3"
+              style={{ borderColor: "rgba(0,242,254,0.16)", background: "rgba(0,242,254,0.035)" }}
             >
-              <div className="font-black text-sm w-5 text-center flex-shrink-0" style={{ color: "rgba(255,255,255,0.3)" }}>—</div>
-              <div className="flex-1 font-bold text-sm neon-text">
-                YOU <span className="text-xs opacity-40 ml-1">(you)</span>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full" style={{ background: "#00f2fe", boxShadow: "0 0 6px #00f2fe" }} />
+                  <span className="font-black text-sm neon-text tracking-wide">LIVE SEASON RANK</span>
+                </div>
+                <span className="text-[10px] font-bold uppercase" style={{ color: "rgba(0,242,254,0.45)" }}>wallet sync</span>
               </div>
-              <div className="text-xs font-black" style={{ color: "rgba(255,255,255,0.4)" }}>
-                {Math.floor(totalEarned).toLocaleString()} $ZOOM
+              <div className="flex flex-col gap-1.5">
+                {liveLeaderboard.map((entry, index) => (
+                  <div
+                    key={entry.id}
+                    className="rounded-xl border flex items-center gap-3 px-3 py-2 transition-all"
+                    style={{
+                      borderColor: entry.isUser ? "rgba(0,242,254,0.28)" : "rgba(255,255,255,0.05)",
+                      background: entry.isUser ? "rgba(0,242,254,0.08)" : "rgba(255,255,255,0.02)",
+                    }}
+                  >
+                    <div className="font-black text-sm w-6 text-center flex-shrink-0" style={{ color: entry.isUser ? "#00f2fe" : "rgba(255,255,255,0.28)" }}>
+                      #{index + 1}
+                    </div>
+                    <div className={entry.isUser ? "flex-1 font-black text-sm neon-text" : "flex-1 font-bold text-sm"} style={{ color: entry.isUser ? undefined : "rgba(255,255,255,0.58)" }}>
+                      {entry.name}
+                      {entry.isUser && <span className="text-xs opacity-40 ml-1">(you)</span>}
+                    </div>
+                    <div className="text-xs font-black tabular-nums" style={{ color: entry.isUser ? "#00f2fe" : "rgba(255,255,255,0.42)" }}>
+                      {formatZoom(entry.balance)} $ZOOM
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="text-[10px] mt-2 leading-relaxed" style={{ color: "rgba(255,255,255,0.25)" }}>
+                Rankings are recalculated live from each wallet balance. Farming income and unlocked bonuses immediately change scores and positions.
               </div>
             </div>
           </div>

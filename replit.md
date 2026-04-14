@@ -40,3 +40,8 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
   - Rank: tier progression based on total coins earned; mock leaderboard
   - Progress saved to localStorage
   - Three.js 3D planet with CSS fallback when WebGL is unavailable
+
+## Recent Changes
+
+- Updated ZOOM MASTER Rank page so Season 1 progress is reset from April 14, 2026 and advances smoothly over the 90-day season.
+- Updated Zoom Season ranking to use live wallet balances: the current user rank is based on `balance`, and the visible leaderboard re-sorts automatically as balances change.
