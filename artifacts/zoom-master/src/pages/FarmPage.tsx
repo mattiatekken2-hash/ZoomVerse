@@ -266,7 +266,6 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                       onClick={() => { haptic(6); onStopFarming(planet.id); }}
                       data-testid={`btn-stop-${planet.id}`}
                     >
-                      <span style={{ fontSize: 14 }}>⏸</span>
                       <span>FARMING</span>
                       <span style={{ fontSize: 8, opacity: 0.7 }}>{formatDuration(remaining)}</span>
                     </button>
