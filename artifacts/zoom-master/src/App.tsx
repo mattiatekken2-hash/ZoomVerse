@@ -92,6 +92,8 @@ export default function App() {
             referralCode={state.referralCode}
             referralCount={state.referralCount}
             lastDailyClaimAt={state.lastDailyClaimAt}
+            referralSpeedBonus={state.referralSpeedBonus}
+            referredBy={state.referredBy}
             onClaimDaily={claimDaily}
             onRedeemCode={redeemCode}
           />

@@ -5,6 +5,8 @@ interface EarnPageProps {
   referralCode: string;
   referralCount: number;
   lastDailyClaimAt: number;
+  referralSpeedBonus: number;
+  referredBy: string | null;
   onClaimDaily: () => void;
   onRedeemCode: (code: string) => { success: boolean; amount?: number; isSun?: boolean; error?: string };
 }
@@ -20,7 +22,7 @@ const MILESTONES = [
 
 const DAILY_INTERVAL = 24 * 60 * 60 * 1000;
 
-export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClaimDaily, onRedeemCode }: EarnPageProps) {
+export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, referralSpeedBonus, referredBy, onClaimDaily, onRedeemCode }: EarnPageProps) {
   const [copied, setCopied] = useState(false);
   const [redeemInput, setRedeemInput] = useState("");
   const [redeemStatus, setRedeemStatus] = useState<{ type: "success" | "error" | "sun"; message: string } | null>(null);
@@ -31,7 +33,7 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
   const hLeft = Math.floor(nextClaimIn / 3600000);
   const mLeft = Math.floor((nextClaimIn % 3600000) / 60000);
 
-  const referralLink = `https://t.me/ZoomMasterBot?start=${referralCode}`;
+  const referralLink = `https://t.me/ZoomVerse_bot/app?startapp=${referralCode}`;
 
   const handleCopy = () => {
     haptic();
@@ -180,12 +182,32 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
             </button>
           </div>
           <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
-            <span>Code:</span>
+            <span>ID:</span>
             <span className="font-bold font-mono gold-text">{referralCode}</span>
             <span>·</span>
             <span className="font-bold" style={{ color: "#00e676" }}>{referralCount} invited</span>
           </div>
         </div>
+
+        {/* Referral Speed Bonus Banner */}
+        {referralSpeedBonus > 0 && (
+          <div
+            className="rounded-2xl p-4 border flex items-center gap-3"
+            style={{ borderColor: "rgba(0,230,118,0.25)", background: "rgba(0,230,118,0.06)" }}
+          >
+            <div className="text-2xl">⚡</div>
+            <div className="flex-1">
+              <div className="font-black text-sm" style={{ color: "#00e676" }}>
+                +{Math.round(referralSpeedBonus * 100)}% Farming Speed Active
+              </div>
+              <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                {referredBy
+                  ? `You joined via a friend's invite — enjoy the speed boost!`
+                  : "Referral speed bonus active"}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Milestones */}
         <div className="rounded-2xl p-4 border" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}>

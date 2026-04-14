@@ -59,6 +59,9 @@ export interface GameState {
   currentCraftRarity: PlanetType | null;
   usedRedeemCodes: string[];
   sun: SunState | null;
+  telegramId: string | null;
+  referredBy: string | null;
+  referralSpeedBonus: number;
 }
 
 export const PLANET_CONFIG: Record<PlanetType, {
@@ -142,6 +145,17 @@ function makeReferralCode(): string {
   return "ZOOM-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
+function getTelegramContext(): { telegramId: string | null; startParam: string | null } {
+  try {
+    const tg = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number }; start_param?: string } } } }).Telegram?.WebApp?.initDataUnsafe;
+    const telegramId = tg?.user?.id ? String(tg.user.id) : null;
+    const startParam = tg?.start_param || null;
+    return { telegramId, startParam };
+  } catch {
+    return { telegramId: null, startParam: null };
+  }
+}
+
 const INITIAL_STATE: GameState = {
   version: STATE_VERSION,
   balance: 300,
@@ -161,6 +175,9 @@ const INITIAL_STATE: GameState = {
   currentCraftRarity: null,
   usedRedeemCodes: [],
   sun: null,
+  telegramId: null,
+  referredBy: null,
+  referralSpeedBonus: 0,
 };
 
 function migratePlanet(p: unknown): Planet {
@@ -173,23 +190,46 @@ function migratePlanet(p: unknown): Planet {
 }
 
 function loadState(): GameState {
+  const { telegramId, startParam } = getTelegramContext();
+
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as GameState;
       if (parsed.version === STATE_VERSION) {
-        return {
+        const base: GameState = {
           ...INITIAL_STATE,
           ...parsed,
           planets: (parsed.planets || []).map(migratePlanet),
           pendingPlanet: parsed.pendingPlanet ? migratePlanet(parsed.pendingPlanet) : null,
           usedRedeemCodes: parsed.usedRedeemCodes || [],
           sun: parsed.sun || null,
+          referralSpeedBonus: parsed.referralSpeedBonus ?? 0,
+          referredBy: parsed.referredBy ?? null,
+          telegramId: parsed.telegramId ?? null,
+        };
+        const resolvedTelegramId = telegramId || base.telegramId;
+        return {
+          ...base,
+          telegramId: resolvedTelegramId,
+          referralCode: resolvedTelegramId || base.referralCode,
         };
       }
     }
   } catch { /**/ }
-  return { ...INITIAL_STATE, referralCode: makeReferralCode() };
+
+  const isNewUser = true;
+  const referredBy = (startParam && isNewUser) ? startParam : null;
+  const referralSpeedBonus = referredBy ? 0.10 : 0;
+  const referralCode = telegramId || makeReferralCode();
+
+  return {
+    ...INITIAL_STATE,
+    referralCode,
+    telegramId,
+    referredBy,
+    referralSpeedBonus,
+  };
 }
 
 function saveState(state: GameState) {
@@ -337,12 +377,13 @@ export function useGameState() {
   useEffect(() => {
     const interval = setInterval(() => {
       setState((prev) => {
+        const speedMultiplier = 1 + (prev.referralSpeedBonus || 0);
         let earned = 0;
         prev.planets.forEach((p) => {
-          if (isFarmActive(p)) earned += p.rate / 3600;
+          if (isFarmActive(p)) earned += (p.rate / 3600) * speedMultiplier;
         });
         if (prev.sun && isSunActive(prev.sun)) {
-          earned += SUN_CONFIG.rate / 3600;
+          earned += (SUN_CONFIG.rate / 3600) * speedMultiplier;
         }
         if (earned === 0) return prev;
         return {
