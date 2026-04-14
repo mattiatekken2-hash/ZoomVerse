@@ -4,7 +4,8 @@ import { haptic } from "../utils/haptic";
 
 interface RankPageProps {
   balance: number;
-  totalEarned: number;
+  seasonPoolEarned: number;
+  activeFarmRate: number;
   totalTonSpent: number;
   feedEvents: FeedEvent[];
 }
@@ -13,27 +14,6 @@ const SEASON_DURATION_MS = 90 * 24 * 60 * 60 * 1000;
 const SEASON_START = new Date("2026-04-14T00:00:00.000Z").getTime();
 const TOTAL_SEASONS = 6;
 const SEASON_END = SEASON_START + SEASON_DURATION_MS;
-
-const POOL_BASE_ZOOM = 1240000;
-const POOL_ZOOM_RATE = 0.6;
-const LIVE_RANK_START = SEASON_START;
-
-type SeasonWallet = {
-  id: string;
-  name: string;
-  baseBalance: number;
-  farmPerHour: number;
-  bonuses: { unlockAt: number; amount: number }[];
-};
-
-const SEASON_WALLETS: SeasonWallet[] = [
-  { id: "orion", name: "ORION", baseBalance: 960, farmPerHour: 38, bonuses: [{ unlockAt: 8 * 60 * 60 * 1000, amount: 250 }] },
-  { id: "nebula", name: "NEBULA", baseBalance: 760, farmPerHour: 52, bonuses: [{ unlockAt: 18 * 60 * 60 * 1000, amount: 420 }] },
-  { id: "atlas", name: "ATLAS", baseBalance: 620, farmPerHour: 31, bonuses: [{ unlockAt: 30 * 60 * 60 * 1000, amount: 180 }] },
-  { id: "nova", name: "NOVA", baseBalance: 480, farmPerHour: 44, bonuses: [{ unlockAt: 12 * 60 * 60 * 1000, amount: 120 }] },
-  { id: "zenith", name: "ZENITH", baseBalance: 390, farmPerHour: 27, bonuses: [{ unlockAt: 26 * 60 * 60 * 1000, amount: 500 }] },
-  { id: "kirk", name: "KIRK", baseBalance: 250, farmPerHour: 21, bonuses: [{ unlockAt: 40 * 60 * 60 * 1000, amount: 300 }] },
-];
 
 function timeAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
@@ -49,25 +29,14 @@ function getSeasonProgress(now: number): number {
   return Math.min((now - SEASON_START) / SEASON_DURATION_MS, 1);
 }
 
-function getLiveWalletBalance(wallet: SeasonWallet, now: number): number {
-  const elapsed = Math.max(0, now - LIVE_RANK_START);
-  const farmed = (elapsed / 3600000) * wallet.farmPerHour;
-  const bonusTotal = wallet.bonuses.reduce((total, bonus) => (
-    elapsed >= bonus.unlockAt ? total + bonus.amount : total
-  ), 0);
-  return wallet.baseBalance + farmed + bonusTotal;
-}
-
 function formatZoom(amount: number): string {
   return Math.floor(amount).toLocaleString();
 }
 
-export function RankPage({ balance, totalEarned, totalTonSpent: _totalTonSpent, feedEvents }: RankPageProps) {
+export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSpent: _totalTonSpent, feedEvents }: RankPageProps) {
   const [activeSection, setActiveSection] = useState<"season" | "exchange">("season");
   const feedRef = useRef<HTMLDivElement>(null);
-  const [poolZoom, setPoolZoom] = useState(POOL_BASE_ZOOM);
   const [currentTime, setCurrentTime] = useState(Date.now());
-  const sessionStart = useRef(Date.now());
   const [convertInput, setConvertInput] = useState("");
 
   const seasonProgress = getSeasonProgress(currentTime);
@@ -76,12 +45,6 @@ export function RankPage({ balance, totalEarned, totalTonSpent: _totalTonSpent, 
   const seasonProgressPercent = seasonProgress * 100;
   const liveLeaderboard = [
     { id: "you", name: "YOU", balance, isUser: true },
-    ...SEASON_WALLETS.map((wallet) => ({
-      id: wallet.id,
-      name: wallet.name,
-      balance: getLiveWalletBalance(wallet, currentTime),
-      isUser: false,
-    })),
   ].sort((a, b) => b.balance - a.balance);
 
   const estimatedTon = useCallback(() => {
@@ -93,8 +56,6 @@ export function RankPage({ balance, totalEarned, totalTonSpent: _totalTonSpent, 
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(Date.now());
-      const elapsed = (Date.now() - sessionStart.current) / 1000;
-      setPoolZoom(POOL_BASE_ZOOM + elapsed * POOL_ZOOM_RATE);
     }, 1000);
     return () => clearInterval(interval);
   }, []);
@@ -220,7 +181,7 @@ export function RankPage({ balance, totalEarned, totalTonSpent: _totalTonSpent, 
                 ))}
               </div>
               <div className="text-[10px] mt-2 leading-relaxed" style={{ color: "rgba(255,255,255,0.25)" }}>
-                Rankings are recalculated live from each wallet balance. Farming income and unlocked bonuses immediately change scores and positions.
+                Rankings show only real connected wallets. Demo players have been removed; new real players will appear here when their wallet balances are synced.
               </div>
             </div>
           </div>
@@ -279,14 +240,14 @@ export function RankPage({ balance, totalEarned, totalTonSpent: _totalTonSpent, 
               >
                 <div className="text-xs mb-1" style={{ color: "rgba(255,255,255,0.35)" }}>Total $ZOOM Accumulated</div>
                 <div className="font-black text-2xl neon-text" style={{ letterSpacing: "-0.02em" }}>
-                  {Math.floor(poolZoom + totalEarned).toLocaleString()}
+                  {formatZoom(seasonPoolEarned)}
                 </div>
                 <div className="text-xs mt-1" style={{ color: "rgba(0,242,254,0.5)" }}>
-                  +{POOL_ZOOM_RATE}/s · growing live
+                  +{activeFarmRate.toLocaleString()}/hr · active real farming
                 </div>
               </div>
               <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
-                All $ZOOM earned in the ecosystem accumulates here. Exchangeable for TON at Season 1 end.
+                Reset to 0. Only $ZOOM generated by active real farming is added here. Exchangeable for TON at Season 1 end.
               </div>
             </div>
 

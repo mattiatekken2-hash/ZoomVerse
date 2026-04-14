@@ -97,7 +97,8 @@ export default function App() {
         return (
           <RankPage
             balance={state.balance}
-            totalEarned={state.totalEarned}
+            seasonPoolEarned={state.seasonPoolEarned}
+            activeFarmRate={totalRate}
             totalTonSpent={state.totalTonSpent}
             feedEvents={state.feedEvents}
           />

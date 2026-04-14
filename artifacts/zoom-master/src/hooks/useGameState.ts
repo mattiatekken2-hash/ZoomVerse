@@ -48,6 +48,7 @@ export interface GameState {
   planets: Planet[];
   maxSlots: number;
   totalEarned: number;
+  seasonPoolEarned: number;
   craftsCompleted: number;
   totalTonSpent: number;
   referralCode: string;
@@ -145,6 +146,7 @@ const INITIAL_STATE: GameState = {
   planets: [],
   maxSlots: 2,
   totalEarned: 0,
+  seasonPoolEarned: 0,
   craftsCompleted: 0,
   totalTonSpent: 0,
   referralCode: makeReferralCode(),
@@ -285,7 +287,12 @@ export function useGameState() {
           earned += SUN_CONFIG.rate / 3600;
         }
         if (earned === 0) return prev;
-        return { ...prev, balance: prev.balance + earned, totalEarned: prev.totalEarned + earned };
+        return {
+          ...prev,
+          balance: prev.balance + earned,
+          totalEarned: prev.totalEarned + earned,
+          seasonPoolEarned: prev.seasonPoolEarned + earned,
+        };
       });
     }, 1000);
     return () => clearInterval(interval);
