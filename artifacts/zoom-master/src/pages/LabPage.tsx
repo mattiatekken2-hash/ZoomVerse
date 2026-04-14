@@ -1,147 +1,152 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { PlanetCanvas } from "../components/PlanetCanvas";
 import type { Planet } from "../hooks/useGameState";
+import { PLANET_CONFIG } from "../hooks/useGameState";
 
 interface LabPageProps {
   balance: number;
   taps: number;
   goal: number;
   planets: Planet[];
-  maxSlots: number;
   onCraft: () => { completed: boolean; planet?: Planet; tapsLeft?: number };
 }
 
-interface FloatingText {
-  id: number;
-  text: string;
-  x: number;
-  y: number;
-}
+interface FloatMsg { id: number; text: string; color: string }
 
-const CRAFT_COLORS: Record<string, string> = {
-  BASIC: "#00f2fe",
-  GOLD: "#ffd700",
-  COSMIC: "#c471ed",
-  VOID: "#ff416c",
-};
-
-export function LabPage({ balance, taps, goal, planets, maxSlots, onCraft }: LabPageProps) {
-  const [status, setStatus] = useState("TAP TO CRAFT A PLANET");
-  const [statusColor, setStatusColor] = useState("#00f2fe");
-  const [floats, setFloats] = useState<FloatingText[]>([]);
-  const [lastPlanet, setLastPlanet] = useState<Planet | null>(null);
-  const [showSuccess, setShowSuccess] = useState(false);
+export function LabPage({ balance, taps, goal, planets, onCraft }: LabPageProps) {
+  const [status, setStatus] = useState("TAP TO FORGE A PLANET");
   const [craftedColor, setCraftedColor] = useState<string | undefined>(undefined);
+  const [isRevealing, setIsRevealing] = useState(false);
+  const [floats, setFloats] = useState<FloatMsg[]>([]);
+  const [revealedPlanet, setRevealedPlanet] = useState<Planet | null>(null);
+  const timeoutRef = useRef<number | null>(null);
+
+  const isFull = planets.length >= 2;
+  const canCraft = !isFull && balance >= 1;
+
+  const addFloat = useCallback((text: string, color: string) => {
+    const id = Date.now();
+    setFloats(prev => [...prev, { id, text, color }]);
+    setTimeout(() => setFloats(prev => prev.filter(f => f.id !== id)), 1400);
+  }, []);
 
   const handleCraft = useCallback(() => {
-    if (craftedColor) {
-      setCraftedColor(undefined);
-    }
+    if (!canCraft) return;
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+
     const result = onCraft();
     if (result.completed && result.planet) {
       const p = result.planet;
-      setLastPlanet(p);
       setCraftedColor(p.color);
-      setStatus(`${p.name} PLANET CRAFTED! SENT TO FARM`);
-      setStatusColor(p.color);
-      setShowSuccess(true);
-      const id = Date.now();
-      setFloats((prev) => [...prev, { id, text: `+${p.name}!`, x: 50, y: 50 }]);
-      setTimeout(() => {
-        setFloats((prev) => prev.filter((f) => f.id !== id));
-        setShowSuccess(false);
-        setStatus("TAP TO CRAFT A PLANET");
-        setStatusColor("#00f2fe");
-        setLastPlanet(null);
-      }, 2500);
+      setIsRevealing(true);
+      setRevealedPlanet(p);
+      setStatus(`${PLANET_CONFIG[p.name].label.toUpperCase()} PLANET FORGED!`);
+      addFloat(`✦ ${PLANET_CONFIG[p.name].label}!`, p.color);
+
+      timeoutRef.current = window.setTimeout(() => {
+        setIsRevealing(false);
+        setRevealedPlanet(null);
+        setStatus("TAP TO FORGE A PLANET");
+        setCraftedColor(undefined);
+      }, 3000);
     } else if (!result.completed && result.tapsLeft !== undefined) {
       const pct = Math.round(((goal - result.tapsLeft) / goal) * 100);
-      setStatus(`CRAFTING... ${pct}% COMPLETE`);
-      setStatusColor("#00f2fe");
+      setStatus(`FORGING... ${pct}%`);
+      addFloat("-1 🪐", "rgba(255,255,255,0.3)");
     }
-  }, [onCraft, goal, craftedColor]);
+  }, [canCraft, onCraft, goal, addFloat]);
 
-  const isFull = planets.length >= 2;
-  const planetColor = craftedColor;
+  const rarityClass: Record<string, string> = {
+    BASIC: "basic-text",
+    RARE: "rare-text",
+    EPIC: "epic-text",
+    GOLD: "gold-text",
+  };
 
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
-      <div className="relative flex-1" style={{ minHeight: 0 }}>
+      <div className="relative flex-1" style={{ minHeight: 0 }} onClick={canCraft ? handleCraft : undefined}>
         <PlanetCanvas
-          onPunch={isFull ? undefined : handleCraft}
+          onPunch={canCraft ? handleCraft : undefined}
           progress={taps}
           goal={goal}
-          planetColor={planetColor}
+          planetColor={craftedColor}
+          isRevealing={isRevealing}
         />
 
-        {floats.map((f) => (
+        {floats.map(f => (
           <div
             key={f.id}
-            className="absolute pointer-events-none font-black text-2xl earning-float z-50"
+            className="absolute pointer-events-none font-black text-xl float-up"
             style={{
-              left: `${f.x}%`,
-              top: `${f.y}%`,
+              left: "50%", top: "40%",
               transform: "translate(-50%, -50%)",
-              color: planetColor || "#00f2fe",
-              textShadow: `0 0 12px ${planetColor || "#00f2fe"}`,
+              color: f.color,
+              textShadow: `0 0 12px ${f.color}`,
+              zIndex: 50,
             }}
           >
             {f.text}
           </div>
         ))}
-      </div>
 
-      <div className="px-5 pb-6 pt-3 flex flex-col gap-3 flex-shrink-0">
         {isFull && (
-          <div className="text-center text-xs font-bold tracking-widest uppercase text-amber-400 bg-amber-400/10 border border-amber-400/20 rounded-xl py-2">
-            Farm is full — sell or unlock more slots
+          <div
+            className="absolute inset-0 flex items-center justify-center"
+            style={{ background: "rgba(6,8,16,0.5)", backdropFilter: "blur(4px)", zIndex: 20 }}
+          >
+            <div className="glass rounded-2xl px-6 py-4 text-center">
+              <div className="text-amber-400 font-black text-base tracking-widest mb-1">FARM FULL</div>
+              <div className="text-xs text-muted-foreground">Release a planet to keep crafting</div>
+            </div>
           </div>
         )}
-        <div
-          className="text-center text-xs font-bold tracking-widest uppercase py-1 transition-colors duration-300"
-          style={{ color: statusColor }}
-          data-testid="craft-status"
-        >
-          {status}
-        </div>
+      </div>
 
-        {showSuccess && lastPlanet && (
+      <div className="flex-shrink-0 px-5 pb-6 pt-2 flex flex-col gap-3">
+        {revealedPlanet ? (
           <div
-            className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl border font-bold text-sm slot-enter"
+            className="slot-enter rounded-2xl px-4 py-3 flex items-center justify-between border"
             style={{
-              borderColor: lastPlanet.color + "44",
-              background: lastPlanet.color + "12",
-              color: lastPlanet.color,
-              boxShadow: `0 0 20px ${lastPlanet.color}30`,
+              borderColor: revealedPlanet.color + "44",
+              background: revealedPlanet.color + "10",
+              boxShadow: `0 0 24px ${revealedPlanet.color}25`,
             }}
           >
-            <span style={{ textShadow: `0 0 8px ${lastPlanet.color}` }}>
-              ★ {lastPlanet.name} PLANET
+            <div className="flex items-center gap-3">
+              <div
+                className="w-3 h-3 rounded-full"
+                style={{ background: revealedPlanet.color, boxShadow: `0 0 8px ${revealedPlanet.color}` }}
+              />
+              <span className={`font-black text-sm tracking-wider ${rarityClass[revealedPlanet.name]}`}>
+                {PLANET_CONFIG[revealedPlanet.name].label.toUpperCase()} PLANET
+              </span>
+            </div>
+            <span className="text-xs text-muted-foreground font-bold">
+              +{revealedPlanet.rate.toLocaleString()}/hr
             </span>
-            <span className="text-muted-foreground font-normal text-xs">
-              +{lastPlanet.rate}/hr
-            </span>
+          </div>
+        ) : (
+          <div
+            className="text-center text-xs font-bold tracking-widest uppercase py-1"
+            style={{ color: craftedColor || "rgba(0,242,254,0.7)" }}
+            data-testid="craft-status"
+          >
+            {status}
           </div>
         )}
 
         <button
-          className="w-full py-5 rounded-2xl font-black text-xl tracking-wider uppercase relative overflow-hidden transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-          onClick={isFull ? undefined : handleCraft}
-          disabled={isFull || balance < 1}
+          className="btn-craft"
+          onClick={handleCraft}
+          disabled={!canCraft}
           data-testid="button-craft"
-          style={{
-            background: isFull
-              ? "rgba(255,255,255,0.05)"
-              : "linear-gradient(135deg, #00f2fe, #4facfe)",
-            color: isFull ? "rgba(255,255,255,0.3)" : "#000",
-            boxShadow: isFull ? "none" : "0 0 24px rgba(0,242,254,0.4), 0 4px 16px rgba(0,0,0,0.4)",
-          }}
         >
-          {isFull ? "FARM FULL" : "CRAFT PLANET"}
+          {isFull ? "FARM FULL" : balance < 1 ? "NO $ZOOM" : "FORGE PLANET"}
         </button>
 
-        <div className="flex justify-between text-xs text-muted-foreground">
-          <span>Cost: 1 coin / tap</span>
+        <div className="flex justify-between text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+          <span>1 $ZOOM per tap · 20 taps</span>
           <span>{Math.max(0, 2 - planets.length)} slot{Math.max(0, 2 - planets.length) !== 1 ? "s" : ""} free</span>
         </div>
       </div>

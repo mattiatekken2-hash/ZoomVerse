@@ -1,120 +1,152 @@
+import { useEffect, useRef, useState } from "react";
+import type { FeedEvent } from "../hooks/useGameState";
+
 interface RankPageProps {
   balance: number;
   totalEarned: number;
-  craftsCompleted: number;
+  totalTonSpent: number;
+  feedEvents: FeedEvent[];
 }
 
-const TIERS = [
-  { name: "Cadet", minEarned: 0, color: "#888", icon: "○" },
-  { name: "Pilot", minEarned: 500, color: "#00f2fe", icon: "◎" },
-  { name: "Commander", minEarned: 2000, color: "#00e676", icon: "◉" },
-  { name: "Admiral", minEarned: 10000, color: "#ffd700", icon: "★" },
-  { name: "Galaxy Lord", minEarned: 50000, color: "#c471ed", icon: "✦" },
-  { name: "Void Master", minEarned: 200000, color: "#ff416c", icon: "⬡" },
+const SEASON_DURATION_MS = 90 * 24 * 60 * 60 * 1000;
+const SEASON_START = new Date("2026-03-01").getTime();
+
+const MOCK_WHALE = [
+  { rank: 1, name: "cosmicwolf", value: 142.5, color: "#ffd700" },
+  { rank: 2, name: "stardust99", value: 89.2, color: "#ffd700" },
+  { rank: 3, name: "deepspace42", value: 67.8, color: "#c471ed" },
+  { rank: 4, name: "nebula_k", value: 44.1, color: "#4facfe" },
+  { rank: 5, name: "YOU", value: 0, color: "#00f2fe", isYou: true },
 ];
 
-const MOCK_LEADERBOARD = [
-  { rank: 1, name: "cosmicwolf", earned: 485200, color: "#ff416c" },
-  { rank: 2, name: "stardust99", earned: 312500, color: "#c471ed" },
-  { rank: 3, name: "voidwalker", earned: 198700, color: "#ffd700" },
-  { rank: 4, name: "nebula_king", earned: 87300, color: "#00f2fe" },
-  { rank: 5, name: "YOU", earned: 0, color: "#00e676", isYou: true },
+const MOCK_WEALTH = [
+  { rank: 1, name: "voidwalker_", value: 485200, color: "#ffd700" },
+  { rank: 2, name: "galaxis", value: 312500, color: "#ffd700" },
+  { rank: 3, name: "luminos", value: 198700, color: "#c471ed" },
+  { rank: 4, name: "astrox", value: 87300, color: "#4facfe" },
+  { rank: 5, name: "YOU", value: 0, color: "#00f2fe", isYou: true },
 ];
 
-export function RankPage({ totalEarned, craftsCompleted }: RankPageProps) {
-  const currentTier = [...TIERS].reverse().find((t) => totalEarned >= t.minEarned) ?? TIERS[0];
-  const nextTier = TIERS[TIERS.indexOf(currentTier) + 1];
+function timeAgo(ts: number): string {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s/60)}m ago`;
+  return `${Math.floor(s/3600)}h ago`;
+}
 
-  const progress = nextTier
-    ? Math.min((totalEarned - currentTier.minEarned) / (nextTier.minEarned - currentTier.minEarned), 1)
-    : 1;
+export function RankPage({ balance, totalEarned, totalTonSpent, feedEvents }: RankPageProps) {
+  const [activeTab, setActiveTab] = useState<"whale" | "wealth">("whale");
+  const feedRef = useRef<HTMLDivElement>(null);
+
+  const now = Date.now();
+  const seasonProgress = Math.min((now - SEASON_START) / SEASON_DURATION_MS, 1);
+  const daysLeft = Math.max(0, Math.ceil((SEASON_START + SEASON_DURATION_MS - now) / 86400000));
+
+  const whaleList = MOCK_WHALE.map(e => ({ ...e, value: e.isYou ? totalTonSpent : e.value }));
+  const wealthList = MOCK_WEALTH.map(e => ({ ...e, value: e.isYou ? Math.floor(totalEarned) : e.value }));
+  const list = activeTab === "whale" ? whaleList : wealthList;
+  const unit = activeTab === "whale" ? "TON" : "$ZOOM";
+
+  useEffect(() => {
+    if (feedRef.current) {
+      feedRef.current.scrollTop = 0;
+    }
+  }, [feedEvents.length]);
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto">
+    <div className="flex flex-col h-full overflow-hidden">
       <div className="px-5 pt-4 pb-2 flex-shrink-0">
-        <h2 className="font-black text-xl tracking-tight">Ranking</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">Your planetary standing</p>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-black text-lg tracking-tight">Season 1</h2>
+          <span className="text-xs font-bold px-3 py-1 rounded-full border" style={{ borderColor: "rgba(0,242,254,0.2)", color: "#00f2fe" }}>
+            {daysLeft}d left
+          </span>
+        </div>
+
+        <div className="rounded-xl p-3 border mb-1" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}>
+          <div className="flex justify-between text-xs mb-2" style={{ color: "rgba(255,255,255,0.4)" }}>
+            <span className="font-bold">Season 1 of 6</span>
+            <span className="font-bold neon-text">{Math.round(seasonProgress * 100)}%</span>
+          </div>
+          <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${seasonProgress * 100}%`,
+                background: "linear-gradient(90deg, #c471ed, #00f2fe, #ffd700)",
+                boxShadow: "0 0 10px rgba(0,242,254,0.6)",
+                transition: "width 0.5s ease",
+              }}
+            />
+          </div>
+          <div className="text-xs mt-1.5" style={{ color: "rgba(255,255,255,0.25)" }}>
+            Withdraw & Exchange opens at season end
+          </div>
+        </div>
       </div>
 
-      <div className="px-5 py-4 flex-shrink-0">
-        <div
-          className="rounded-2xl border p-4 flex flex-col gap-3"
-          style={{ borderColor: currentTier.color + "44", background: currentTier.color + "08" }}
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className="text-4xl font-black w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-              style={{ background: currentTier.color + "20", color: currentTier.color, boxShadow: `0 0 20px ${currentTier.color}40` }}
-            >
-              {currentTier.icon}
+      <div className="px-5 flex gap-2 flex-shrink-0 mb-3">
+        {(["whale", "wealth"] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setActiveTab(t)}
+            className="flex-1 py-2 rounded-xl text-xs font-black tracking-wider uppercase border transition-all"
+            style={{
+              borderColor: activeTab === t ? "rgba(0,242,254,0.3)" : "rgba(255,255,255,0.06)",
+              background: activeTab === t ? "rgba(0,242,254,0.06)" : "transparent",
+              color: activeTab === t ? "#00f2fe" : "rgba(255,255,255,0.3)",
+            }}
+          >
+            {t === "whale" ? "🐳 Whale Rank" : "💰 Wealth Rank"}
+          </button>
+        ))}
+      </div>
+
+      <div className="px-4 flex flex-col gap-2 flex-shrink-0">
+        {list.map(entry => (
+          <div
+            key={entry.rank}
+            className="rounded-xl border flex items-center gap-3 px-3 py-2.5"
+            style={{
+              borderColor: entry.isYou ? "rgba(0,242,254,0.2)" : "rgba(255,255,255,0.05)",
+              background: entry.isYou ? "rgba(0,242,254,0.05)" : "transparent",
+            }}
+            data-testid={`rank-entry-${entry.rank}`}
+          >
+            <div className="font-black text-sm w-5 text-center flex-shrink-0" style={{ color: entry.rank <= 3 ? "#ffd700" : "rgba(255,255,255,0.3)" }}>
+              {entry.rank}
             </div>
-            <div>
-              <div className="font-black text-lg tracking-wide" style={{ color: currentTier.color }}>
-                {currentTier.name}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {Math.floor(totalEarned).toLocaleString()} coins earned &bull; {craftsCompleted} crafts
-              </div>
+            <div className="flex-1 font-bold text-sm" style={{ color: entry.isYou ? "#00f2fe" : "rgba(255,255,255,0.8)" }}>
+              {entry.name}{entry.isYou && <span className="text-xs ml-1 opacity-50">(you)</span>}
+            </div>
+            <div className="text-xs font-black" style={{ color: entry.rank <= 3 ? "#ffd700" : "rgba(255,255,255,0.4)" }}>
+              {activeTab === "whale" ? `${entry.value.toFixed(1)}` : Math.floor(entry.value).toLocaleString()} {unit}
             </div>
           </div>
-
-          {nextTier && (
-            <div>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-muted-foreground">Progress to {nextTier.name}</span>
-                <span style={{ color: nextTier.color }}>{Math.round(progress * 100)}%</span>
-              </div>
-              <div className="w-full h-2 rounded-full bg-white/5 overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${progress * 100}%`,
-                    background: `linear-gradient(90deg, ${currentTier.color}, ${nextTier.color})`,
-                    boxShadow: `0 0 8px ${nextTier.color}80`,
-                  }}
-                />
-              </div>
-              <div className="text-xs text-muted-foreground mt-1 text-right">
-                {nextTier.minEarned.toLocaleString()} coins needed
-              </div>
-            </div>
-          )}
-        </div>
+        ))}
       </div>
 
-      <div className="px-5 pb-4">
-        <div className="text-xs text-muted-foreground font-semibold tracking-widest uppercase mb-3">
-          Global Leaderboard
+      <div className="px-4 mt-4 flex-shrink-0">
+        <div className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: "rgba(255,255,255,0.3)" }}>
+          ⚡ Live Activity
         </div>
-        <div className="flex flex-col gap-2">
-          {MOCK_LEADERBOARD.map((entry) => (
+      </div>
+      <div ref={feedRef} className="flex-1 overflow-y-auto px-4 pb-4" style={{ minHeight: 0 }}>
+        <div className="flex flex-col gap-1.5">
+          {feedEvents.length === 0 && (
+            <div className="text-xs text-center py-4" style={{ color: "rgba(255,255,255,0.2)" }}>
+              Waiting for activity...
+            </div>
+          )}
+          {feedEvents.map(ev => (
             <div
-              key={entry.rank}
-              className="rounded-xl border flex items-center gap-3 px-4 py-3"
-              style={{
-                borderColor: entry.isYou ? entry.color + "44" : "rgba(255,255,255,0.06)",
-                background: entry.isYou ? entry.color + "10" : "transparent",
-              }}
-              data-testid={`leaderboard-rank-${entry.rank}`}
+              key={ev.id}
+              className="feed-item rounded-xl px-3 py-2 border flex items-center gap-2"
+              style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.02)" }}
             >
-              <div
-                className="font-black text-sm w-6 text-center flex-shrink-0"
-                style={{ color: entry.rank <= 3 ? entry.color : "rgba(255,255,255,0.4)" }}
-              >
-                {entry.rank}
-              </div>
-              <div
-                className="flex-1 font-bold text-sm"
-                style={{ color: entry.isYou ? entry.color : "rgba(255,255,255,0.85)" }}
-              >
-                {entry.name}
-                {entry.isYou && (
-                  <span className="text-xs font-normal ml-1 opacity-60">(you)</span>
-                )}
-              </div>
-              <div className="text-xs font-bold text-muted-foreground">
-                {entry.isYou ? Math.floor(totalEarned).toLocaleString() : entry.earned.toLocaleString()}
-              </div>
+              <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#00f2fe", boxShadow: "0 0 4px #00f2fe" }} />
+              <div className="flex-1 text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>{ev.text}</div>
+              <div className="text-xs flex-shrink-0" style={{ color: "rgba(255,255,255,0.2)" }}>{timeAgo(ev.timestamp)}</div>
             </div>
           ))}
         </div>

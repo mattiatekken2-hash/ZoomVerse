@@ -1,0 +1,109 @@
+Specifiche Tecniche DEFINITIVE: ZOOM (V.29 - MASTER)
+
+1. NOME
+• App Name: Il nome ufficiale è ZOOM.
+
+• Valuta $ZOOM (Icona)🪐
+
+2. ZOOM (INTERAZIONE & CRAFTING)
+
+• Area 3D Lab: Interfaccia centrale con rendering 3D del pianeta che si materializza progressivamente durante la costruzione.
+
+• Meccanica Tap: Ogni "Tap" consuma 1 $ZOOM. La quantità di tap/ZOOM cresce esponenzialmente con la rarità.
+• Rarity RNG: Il Tier finale (Basic(grigio), Rare(blu), Epic(viola), Gold (oro) viene rivelato solo a costruzione ultimata.
+
+• Palette-Matched Formation: Gli effetti 3D e le particelle durante il crafting devono riflettere i colori del pianeta finale.
+
+• Smart Lock: Interazione disabilitata se il saldo $ZOOM è 0.
+
+3. FARMING & GERARCHIA RENDIMENTI
+
+UI Pianeta: un volta generato , Intorno al pianeta 3D inserire 3 widget: Farm (tempo residuo), Burn (stato attivazione), Sell (tasto rapido per Marketplace).
+
+• Burn: Recupero del 15% degli $ZOOM spesi distruggendo il pianeta.
+
+•Farm : si ferma dopo 7g e bisogna pagare in ton per attivare.
+
+• Ritiro Giornaliero: Il farming si ferma se non viene riscosso manualmente ogni 24 ore.
+
+Se un pianeta viene listato nel mercato,questo non genera più farm
+
+•Costo generazione pianeta variabile a seconda della rarità
+
+• Costo Attivazione (TON) Scalabile: 
+Il prezzo per attivare il farming non è fisso, ma dipende dalla rarità del pianeta:
+
+• BASIC: Costo attivazione minimo..
+• GOLD: Costo attivazione massimo
+
+• Rendimento Variabile: La produzione oraria di $ZOOM dipende strettamente dalla rarità del pianeta:
+
+• BASIC: Rendimento minimo.
+• GOLD: Rendimento massimo (escluso il Sole).
+
+• Visualizzazione: Il pianeta ruota in 3D solo durante il farming attivo.
+
+4. GESTIONE SLOT (PROGRESSIONE COSTI)
+
+• 2 slot gratis iniziali
+
+• Progressione: +0.25 TON per ogni slot successivo e puoi comparne all’infinito 
+
+5. DURATA STAGIONI, GLOBAL RANKS & EXCHANGE
+
+• Durata Season: Ogni stagione dura esattamente 3 mesi.
+• Chiusura Season & Withdraw: Al termine dei 3 mesi si apre ufficialmente la possibilità di effettuare il prelievo e l'Exchange dei $ZOOM in TON.
+
+• Algoritmo di Cambio: Il valore dell'Exchange verrà calcolato in base alle statistiche individuali: totale depositi effettuati, $ZOOM accumulati e attività generale (Inserire Widget in live ).
+
+• Season Bar: Indicatore visivo Stagione 1 di 6.
+
+• Widget Ranks: Whale Rank (TON spesi) e Wealth Rank ($ZOOM)
+
+6. MARKETPLACE P2P & FILTRI
+
+• Tassa: 25% in $ZOOM.
+
+• Filtri: Ricerca per rarità e prezzi con prompt visivo dei filtri attivi 
+• Attivazione: Fee in TON necessaria post-acquisto per riavviare il farm.
+
+7. EARN & REFERRAL
+Creare un referrals link per ogni utente in app , in modo da copiarlo e inviarlo.
+• Daily Reward: 100 $ZOOM gratis/24h.
+• Bonus Invito Base: 20 $ZOOM per ogni nuovo utente invitato.
+• Milestones Scalabili: Al raggiungimento di soglie specifiche, l'utente riceve premi fissi in $ZOOM che aumentano di valore:
+5-200 inviti con premi fissi
+
+• Visualizzazione: Barra di progresso dedicata per le milestones nel pannello Earn
+
+8. SHOP
+
+• The "SUN": 20 pezzi a 10 TON. Non vendibile nel Marketplace.
+
+• Performance: Rendimento fisso superiore a qualsiasi pianeta GOLD.
+
+• Attivazione: Fee in TON necessaria dopo l'acquisto.
+
+3 Bundle speciali con prezzi in Zoom pagando in TON.
+
+3. SISTEMA DI WALLET
+
+Ogni acquisto e azione invia i TON direttamente al wallet dello sviluppatore:
+
+WALLET:
+
+UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS
+
+﻿﻿Automazione: Il sistema deve associare automaticamente il pagamento all'utente e accreditare istantaneamente gli asset
+($ZOOM o modelli).
+
+Widget Prelievi: Tasto "Withdraw"
+Per accedere al prelievo a fine stagione è necessario un deposito totale di 10 TON effettuato durante la stagione.
+
+10. LIVE ACTIVITY FEED (SOCIAL PROOF & MONITORING)
+
+
+• Contenuto: Feed in tempo reale delle attività globali della piattaforma per monitoraggio e FOMO.
+• "Il SOLE è stato acquistato! (Disponibili: X/20)"
+• “Il Sole é stato generato da [Nome]”
+• "Milestone [5/20/50/100/200] inviti raggiunta da [Nome]"

@@ -5,90 +5,124 @@ interface PlanetCanvasProps {
   progress: number;
   goal: number;
   planetColor?: string;
+  isRevealing?: boolean;
 }
 
-function CSSPlanet({ color, onClick }: { color: string; onClick?: () => void }) {
-  const [pulse, setPulse] = useState(false);
+const DEFAULT_COLOR = "#4facfe";
 
-  const handleClick = () => {
-    if (!onClick) return;
-    setPulse(true);
-    setTimeout(() => setPulse(false), 300);
-    onClick();
-  };
+function CSSSphere({
+  color,
+  size,
+  isRevealing,
+}: {
+  color: string;
+  size: number;
+  isRevealing: boolean;
+}) {
+  const alpha30 = color + "4d";
+  const alpha15 = color + "26";
+  const alpha08 = color + "14";
 
   return (
-    <div
-      className="relative flex items-center justify-center w-full h-full cursor-pointer"
-      onClick={handleClick}
-      data-testid="planet-css"
-    >
-      <div className="relative" style={{ width: 180, height: 180 }}>
+    <div className="planet-wrap" style={{ width: size, height: size }}>
+      <div
+        className="planet-outer-glow"
+        style={{
+          width: size * 1.7,
+          height: size * 1.7,
+          background: `radial-gradient(circle, ${alpha15} 0%, ${alpha08} 40%, transparent 70%)`,
+          filter: "blur(20px)",
+        }}
+      />
+      <div
+        className="planet-ring"
+        style={{
+          width: size * 1.55,
+          height: size * 1.55,
+          borderColor: color,
+          opacity: 0.25,
+        }}
+      />
+      <div
+        className="planet-ring"
+        style={{
+          width: size * 1.35,
+          height: size * 1.35,
+          borderColor: color,
+          opacity: 0.15,
+          animationDuration: "18s",
+          animationDirection: "reverse",
+        }}
+      />
+      <div
+        className={`planet-sphere ${isRevealing ? "reveal-in" : ""}`}
+        style={{
+          width: size,
+          height: size,
+          background: `
+            radial-gradient(
+              circle at 35% 30%,
+              rgba(255,255,255,0.22) 0%,
+              ${color}cc 20%,
+              ${color}99 45%,
+              ${color}66 65%,
+              ${color}33 80%,
+              ${color}11 100%
+            )`,
+          boxShadow: `
+            0 0 ${size * 0.4}px ${alpha30},
+            0 0 ${size * 0.8}px ${alpha15},
+            inset -${size * 0.12}px -${size * 0.06}px ${size * 0.2}px rgba(0,0,0,0.5)
+          `,
+        }}
+      >
+        <div className="planet-highlight" />
         <div
-          className="absolute inset-0 rounded-full transition-transform duration-200"
+          className="planet-surface-lines"
           style={{
-            background: `radial-gradient(circle at 35% 35%, ${color}cc, ${color}44 50%, ${color}11 80%, transparent)`,
-            boxShadow: `0 0 40px ${color}50, 0 0 80px ${color}25, inset 0 0 40px ${color}20`,
-            transform: pulse ? "scale(0.88)" : "scale(1)",
-          }}
-        />
-        <div
-          className="absolute inset-0 rounded-full"
-          style={{
-            background: `conic-gradient(transparent 60%, ${color}22 80%, transparent 90%)`,
-            animation: "spin 6s linear infinite",
-          }}
-        />
-        <div
-          className="absolute rounded-full"
-          style={{
-            width: "140%",
-            height: "20%",
-            top: "40%",
-            left: "-20%",
-            background: `linear-gradient(90deg, transparent, ${color}30, ${color}50, ${color}30, transparent)`,
-            transform: "rotateX(70deg)",
-          }}
-        />
-        <div
-          className="absolute inset-0 rounded-full"
-          style={{
-            background: `radial-gradient(circle at 35% 35%, rgba(255,255,255,0.15) 0%, transparent 50%)`,
+            background: `repeating-linear-gradient(
+              -30deg,
+              transparent,
+              transparent 8px,
+              ${alpha08} 8px,
+              ${alpha08} 9px
+            )`,
           }}
         />
       </div>
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
+      <div
+        className="scan-line"
+        style={{ top: 0, zIndex: 10, opacity: 0.4, mixBlendMode: "screen" }}
+      />
     </div>
   );
 }
 
-function ThreePlanet({ onPunch, planetColor }: { onPunch?: () => void; planetColor?: string }) {
+function ThreePlanet({
+  onPunch,
+  planetColor,
+  isRevealing,
+  size,
+}: {
+  onPunch?: () => void;
+  planetColor: string;
+  isRevealing: boolean;
+  size: number;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const rendererRef = useRef<unknown>(null);
-  const planetRef = useRef<unknown>(null);
   const frameRef = useRef<number>(0);
+  const meshRef = useRef<unknown>(null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let mounted = true;
-
     async function init() {
       try {
         const THREE = await import("three");
         const gsapMod = await import("gsap");
         const gsap = gsapMod.default;
-
         const container = containerRef.current;
         if (!container || !mounted) return;
-
-        const w = container.clientWidth;
-        const h = container.clientHeight;
-
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 1000);
-        camera.position.z = 4;
 
         let renderer: THREE.WebGLRenderer;
         try {
@@ -98,146 +132,135 @@ function ThreePlanet({ onPunch, planetColor }: { onPunch?: () => void; planetCol
           return;
         }
 
-        renderer.setSize(w, h);
+        renderer.setSize(size, size);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         container.appendChild(renderer.domElement);
-        rendererRef.current = renderer;
 
-        const color = new THREE.Color(planetColor || "#00f2fe");
-        const geometry = new THREE.IcosahedronGeometry(1.5, 5);
-        const material = new THREE.MeshStandardMaterial({
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1000);
+        camera.position.z = 4.2;
+
+        const color = new THREE.Color(planetColor);
+        const geo = new THREE.IcosahedronGeometry(1.6, 6);
+        const mat = new THREE.MeshStandardMaterial({
           color,
           wireframe: true,
           emissive: color,
-          emissiveIntensity: 0.3,
+          emissiveIntensity: 0.35,
         });
-        const planet = new THREE.Mesh(geometry, material);
-        scene.add(planet);
-        planetRef.current = planet;
+        const mesh = new THREE.Mesh(geo, mat);
+        scene.add(mesh);
+        meshRef.current = mesh;
 
-        const innerGeo = new THREE.IcosahedronGeometry(1.35, 3);
-        const innerMat = new THREE.MeshStandardMaterial({
-          color,
-          transparent: true,
-          opacity: 0.05,
-          side: THREE.BackSide,
-        });
+        const innerGeo = new THREE.IcosahedronGeometry(1.45, 3);
+        const innerMat = new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.06, side: THREE.BackSide });
         scene.add(new THREE.Mesh(innerGeo, innerMat));
 
-        const light1 = new THREE.PointLight(0xffffff, 3);
-        light1.position.set(5, 5, 5);
-        scene.add(light1);
-        const light2 = new THREE.PointLight(0x00f2fe, 1.5);
-        light2.position.set(-4, -3, 2);
-        scene.add(light2);
-        scene.add(new THREE.AmbientLight(0x111122, 1.5));
+        const l1 = new THREE.PointLight(0xffffff, 3); l1.position.set(5, 5, 5); scene.add(l1);
+        const l2 = new THREE.PointLight(new THREE.Color(planetColor), 2); l2.position.set(-4, -3, 2); scene.add(l2);
+        scene.add(new THREE.AmbientLight(0x111122, 2));
 
         const starsGeo = new THREE.BufferGeometry();
         const positions: number[] = [];
-        for (let i = 0; i < 800; i++) {
-          positions.push(
-            (Math.random() - 0.5) * 80,
-            (Math.random() - 0.5) * 80,
-            (Math.random() - 0.5) * 80
-          );
+        for (let i = 0; i < 1000; i++) {
+          positions.push((Math.random()-0.5)*80, (Math.random()-0.5)*80, (Math.random()-0.5)*80);
         }
         starsGeo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-        const stars = new THREE.Points(
-          starsGeo,
-          new THREE.PointsMaterial({ color: 0xffffff, size: 0.08, transparent: true, opacity: 0.6 })
-        );
+        const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.07, transparent: true, opacity: 0.5 }));
         scene.add(stars);
 
         const handleClick = () => {
           if (!onPunch) return;
           onPunch();
-          gsap.fromTo(
-            planet.scale,
-            { x: 1.15, y: 1.15, z: 1.15 },
-            { x: 1, y: 1, z: 1, duration: 0.25, ease: "elastic.out(1, 0.3)" }
-          );
+          gsap.fromTo(mesh.scale, { x:1.18, y:1.18, z:1.18 }, { x:1, y:1, z:1, duration:0.3, ease:"elastic.out(1,0.3)" });
         };
-
         container.addEventListener("click", handleClick);
 
         function animate() {
           frameRef.current = requestAnimationFrame(animate);
-          planet.rotation.y += 0.006;
-          planet.rotation.x += 0.002;
-          stars.rotation.y += 0.0005;
+          mesh.rotation.y += 0.006;
+          mesh.rotation.x += 0.002;
+          stars.rotation.y += 0.0004;
           renderer.render(scene, camera);
         }
         animate();
 
-        const handleResize = () => {
-          const w2 = container.clientWidth;
-          const h2 = container.clientHeight;
-          camera.aspect = w2 / h2;
-          camera.updateProjectionMatrix();
-          renderer.setSize(w2, h2);
-        };
-        window.addEventListener("resize", handleResize);
-
         return () => {
           container.removeEventListener("click", handleClick);
-          window.removeEventListener("resize", handleResize);
           cancelAnimationFrame(frameRef.current);
           renderer.dispose();
-          if (container.contains(renderer.domElement)) {
-            container.removeChild(renderer.domElement);
-          }
+          if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement);
         };
-      } catch {
-        if (mounted) setFailed(true);
-      }
+      } catch { if (mounted) setFailed(true); }
     }
-
     const cleanup = init();
-    return () => {
-      mounted = false;
-      cleanup.then((fn) => fn?.());
-    };
+    return () => { mounted = false; cleanup.then(fn => fn?.()); };
   }, []);
 
   useEffect(() => {
-    const planet = planetRef.current as { material?: { color: unknown; emissive: unknown } } | null;
-    if (!planet?.material) return;
+    const mesh = meshRef.current as { material?: { color: unknown; emissive: unknown } } | null;
+    if (!mesh?.material) return;
     import("three").then((THREE) => {
-      const color = new THREE.Color(planetColor || "#00f2fe");
-      (planet.material as { color: typeof color; emissive: typeof color }).color = color;
-      (planet.material as { color: typeof color; emissive: typeof color }).emissive = color;
+      const c = new THREE.Color(planetColor);
+      (mesh.material as { color: typeof c; emissive: typeof c }).color = c;
+      (mesh.material as { color: typeof c; emissive: typeof c }).emissive = c;
     });
   }, [planetColor]);
 
   if (failed) {
-    return (
-      <CSSPlanet color={planetColor || "#00f2fe"} onClick={onPunch} />
-    );
+    return <CSSSphere color={planetColor} size={size} isRevealing={isRevealing} />;
   }
-
-  return <div ref={containerRef} className="w-full h-full cursor-pointer" data-testid="planet-canvas" />;
+  return (
+    <div
+      ref={containerRef}
+      style={{ width: size, height: size, cursor: onPunch ? "pointer" : "default" }}
+      data-testid="planet-canvas"
+    />
+  );
 }
 
-export function PlanetCanvas({ onPunch, progress, goal, planetColor }: PlanetCanvasProps) {
+export function PlanetCanvas({ onPunch, progress, goal, planetColor, isRevealing = false }: PlanetCanvasProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState(220);
+  const color = planetColor || DEFAULT_COLOR;
   const pct = Math.min(progress / goal, 1);
 
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => {
+      const h = el.clientHeight;
+      const w = el.clientWidth;
+      setSize(Math.min(w * 0.72, h * 0.72, 300));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
-    <div className="relative w-full h-full">
-      <ThreePlanet onPunch={onPunch} planetColor={planetColor} />
-      <div className="absolute bottom-0 left-0 right-0 px-6 pb-2">
-        <div className="flex justify-between text-xs mb-1">
-          <span className="text-muted-foreground font-semibold tracking-wider uppercase">Craft Progress</span>
-          <span className="neon-text font-bold">{progress}/{goal}</span>
+    <div ref={containerRef} className="relative w-full h-full flex flex-col items-center justify-center">
+      <div
+        className="flex items-center justify-center cursor-pointer"
+        onClick={onPunch}
+        style={{ width: size, height: size }}
+        data-testid="planet-wrap"
+      >
+        <CSSSphere color={color} size={size} isRevealing={isRevealing} />
+      </div>
+
+      <div className="absolute bottom-0 left-0 right-0 px-6 pb-2 pt-4">
+        <div className="flex justify-between text-xs mb-1.5">
+          <span className="font-semibold tracking-wider uppercase" style={{ color: "rgba(255,255,255,0.4)" }}>
+            Craft Progress
+          </span>
+          <span className="font-bold" style={{ color }}>
+            {progress}/{goal}
+          </span>
         </div>
-        <div className="w-full h-1.5 rounded-full bg-white/5 overflow-hidden">
-          <div
-            className="h-full rounded-full transition-all duration-200"
-            style={{
-              width: `${pct * 100}%`,
-              background: "linear-gradient(90deg, #00f2fe, #4facfe)",
-              boxShadow: "0 0 8px rgba(0,242,254,0.6)",
-            }}
-          />
+        <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+          <div className="progress-bar-fill" style={{ width: `${pct * 100}%`, background: `linear-gradient(90deg, ${color}, ${color}cc)`, boxShadow: `0 0 10px ${color}` }} />
         </div>
       </div>
     </div>

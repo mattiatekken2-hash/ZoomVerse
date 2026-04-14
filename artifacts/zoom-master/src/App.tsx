@@ -1,130 +1,187 @@
 import { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useGameState } from "./hooks/useGameState";
+import { NebulaBackground } from "./components/NebulaBackground";
 import { LabPage } from "./pages/LabPage";
 import { FarmPage } from "./pages/FarmPage";
-import { ShopPage } from "./pages/ShopPage";
+import { MarketPage } from "./pages/MarketPage";
+import { EarnPage } from "./pages/EarnPage";
 import { RankPage } from "./pages/RankPage";
+import { ShopPage } from "./pages/ShopPage";
 
-type Tab = "lab" | "farm" | "shop" | "rank";
+type Tab = "lab" | "farm" | "market" | "earn" | "rank" | "shop";
 
-const NAV_ITEMS: { id: Tab; label: string; icon: string }[] = [
-  { id: "lab", label: "LAB", icon: "◈" },
-  { id: "farm", label: "FARM", icon: "⬡" },
-  { id: "shop", label: "SHOP", icon: "◇" },
+const NAV: { id: Tab; label: string; icon: string }[] = [
+  { id: "lab", label: "LAB", icon: "⬡" },
+  { id: "farm", label: "FARM", icon: "🌿" },
+  { id: "market", label: "MARKET", icon: "💫" },
+  { id: "earn", label: "EARN", icon: "🎁" },
   { id: "rank", label: "RANK", icon: "★" },
 ];
 
+const pageVariants = {
+  enter: { opacity: 0, y: 12, scale: 0.98 },
+  center: { opacity: 1, y: 0, scale: 1 },
+  exit: { opacity: 0, y: -8, scale: 0.99 },
+};
+
+const pageTransition = { duration: 0.22, ease: [0.25, 0.1, 0.25, 1] };
+
 export default function App() {
   const [tab, setTab] = useState<Tab>("lab");
-  const { state, craft, removePlanet, unlockSlot } = useGameState();
+  const { state, craft, collectPlanet, burnPlanet, listPlanet, claimDaily } = useGameState();
 
-  const totalRate = state.planets.reduce((a, p) => a + p.rate, 0);
+  const totalRate = state.planets
+    .filter(p => !p.isListedInMarket)
+    .reduce((a, p) => a + p.rate, 0);
 
-  return (
-    <div
-      className="flex flex-col overflow-hidden"
-      style={{ height: "100dvh", background: "#020308" }}
-    >
-      <header className="flex items-center justify-between px-5 py-4 flex-shrink-0 relative z-10">
-        <div className="font-black text-lg tracking-widest neon-text">ZOOM.</div>
-        <div className="flex items-center gap-3">
-          {totalRate > 0 && (
-            <div className="text-xs text-muted-foreground font-medium">
-              +{totalRate}/hr
-            </div>
-          )}
-          <div
-            className="flex items-center gap-2 px-4 py-2 rounded-full border font-black text-sm"
-            style={{
-              borderColor: "rgba(0,242,254,0.25)",
-              background: "rgba(0,242,254,0.06)",
-              boxShadow: "0 0 12px rgba(0,242,254,0.1)",
-            }}
-            data-testid="balance-display"
-          >
-            <span style={{ fontSize: 12 }}>🪐</span>
-            <span className="neon-text">{Math.floor(state.balance).toLocaleString()}</span>
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 overflow-hidden relative" style={{ minHeight: 0 }}>
-        <div style={{ display: tab === "lab" ? "flex" : "none", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+  const renderPage = () => {
+    switch (tab) {
+      case "lab":
+        return (
           <LabPage
             balance={state.balance}
             taps={state.taps}
             goal={state.goal}
             planets={state.planets}
-            maxSlots={state.maxSlots}
             onCraft={craft}
           />
-        </div>
-        <div style={{ display: tab === "farm" ? "flex" : "none", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+        );
+      case "farm":
+        return (
           <FarmPage
             planets={state.planets}
-            maxSlots={state.maxSlots}
             balance={state.balance}
-            onRemove={removePlanet}
-            onUnlock={unlockSlot}
+            onCollect={collectPlanet}
+            onBurn={burnPlanet}
+            onList={listPlanet}
           />
-        </div>
-        <div style={{ display: tab === "shop" ? "flex" : "none", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-          <ShopPage balance={state.balance} />
-        </div>
-        <div style={{ display: tab === "rank" ? "flex" : "none", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+        );
+      case "market":
+        return (
+          <MarketPage
+            balance={state.balance}
+            myListings={state.planets}
+          />
+        );
+      case "earn":
+        return (
+          <EarnPage
+            referralCode={state.referralCode}
+            referralCount={state.referralCount}
+            lastDailyClaimAt={state.lastDailyClaimAt}
+            onClaimDaily={claimDaily}
+          />
+        );
+      case "rank":
+        return (
           <RankPage
             balance={state.balance}
             totalEarned={state.totalEarned}
-            craftsCompleted={state.craftsCompleted}
+            totalTonSpent={state.totalTonSpent}
+            feedEvents={state.feedEvents}
           />
+        );
+      case "shop":
+        return <ShopPage balance={state.balance} />;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="flex flex-col overflow-hidden relative" style={{ height: "100dvh", background: "#060810" }}>
+      <NebulaBackground />
+
+      <header
+        className="flex items-center justify-between px-5 py-3.5 flex-shrink-0 relative z-20"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
+      >
+        <div
+          className="font-black text-lg tracking-widest neon-text cursor-pointer"
+          onClick={() => setTab("lab")}
+        >
+          ZOOM.
         </div>
+        <div className="flex items-center gap-3">
+          {totalRate > 0 && (
+            <div className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.3)" }}>
+              +{totalRate.toLocaleString()}/hr
+            </div>
+          )}
+          <div
+            className="glass-neon flex items-center gap-1.5 px-3.5 py-2 rounded-full font-black text-sm cursor-pointer"
+            onClick={() => setTab("shop")}
+            data-testid="balance-display"
+          >
+            <span style={{ fontSize: 13 }}>🪐</span>
+            <span className="neon-text">{Math.floor(state.balance).toLocaleString()}</span>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 overflow-hidden relative z-10" style={{ minHeight: 0 }}>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={tab}
+            variants={pageVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={pageTransition}
+            style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}
+          >
+            {renderPage()}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       <nav
-        className="flex flex-shrink-0 border-t"
+        className="flex-shrink-0 relative z-20"
         style={{
-          height: 72,
-          borderColor: "rgba(255,255,255,0.05)",
-          background: "rgba(2,3,8,0.95)",
-          backdropFilter: "blur(12px)",
+          height: 70,
+          background: "rgba(6,8,16,0.92)",
+          backdropFilter: "blur(24px)",
+          WebkitBackdropFilter: "blur(24px)",
+          borderTop: "1px solid rgba(255,255,255,0.05)",
         }}
       >
-        {NAV_ITEMS.map((item) => {
-          const isActive = tab === item.id;
-          return (
-            <button
-              key={item.id}
-              className="flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-200 active:scale-90"
-              onClick={() => setTab(item.id)}
-              data-testid={`nav-${item.id}`}
-              style={{
-                color: isActive ? "#00f2fe" : "rgba(255,255,255,0.25)",
-              }}
-            >
-              <div
-                className="text-xl transition-all duration-200"
-                style={{
-                  textShadow: isActive ? "0 0 10px rgba(0,242,254,0.8)" : "none",
-                  transform: isActive ? "scale(1.1)" : "scale(1)",
-                }}
+        <div className="flex h-full">
+          {NAV.map((item) => {
+            const isActive = tab === item.id;
+            return (
+              <button
+                key={item.id}
+                className="flex-1 flex flex-col items-center justify-center gap-0.5 relative transition-all duration-150 active:scale-90"
+                onClick={() => setTab(item.id)}
+                data-testid={`nav-${item.id}`}
+                style={{ color: isActive ? "#00f2fe" : "rgba(255,255,255,0.2)" }}
               >
-                {item.icon}
-              </div>
-              <div
-                className="text-xs font-bold tracking-widest"
-                style={{ fontSize: 9 }}
-              >
-                {item.label}
-              </div>
-              {isActive && (
-                <div
-                  className="absolute top-0 h-0.5 w-8 rounded-full"
-                  style={{ background: "#00f2fe", boxShadow: "0 0 8px rgba(0,242,254,0.8)" }}
-                />
-              )}
-            </button>
-          );
-        })}
+                {isActive && (
+                  <motion.div
+                    layoutId="nav-indicator"
+                    className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full"
+                    style={{ background: "#00f2fe", boxShadow: "0 0 10px rgba(0,242,254,0.9)" }}
+                    transition={{ duration: 0.2 }}
+                  />
+                )}
+                <motion.div
+                  animate={{ scale: isActive ? 1.15 : 1 }}
+                  transition={{ duration: 0.15 }}
+                  style={{
+                    fontSize: 17,
+                    textShadow: isActive ? "0 0 12px rgba(0,242,254,0.9)" : "none",
+                  }}
+                >
+                  {item.icon}
+                </motion.div>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>
+                  {item.label}
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </nav>
     </div>
   );
