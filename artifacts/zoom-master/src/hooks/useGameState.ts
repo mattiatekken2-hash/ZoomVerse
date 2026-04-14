@@ -148,9 +148,23 @@ function makeReferralCode(): string {
 
 function getTelegramContext(): { telegramId: string | null; startParam: string | null } {
   try {
-    const tg = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number }; start_param?: string } } } }).Telegram?.WebApp?.initDataUnsafe;
-    const telegramId = tg?.user?.id ? String(tg.user.id) : null;
-    const startParam = tg?.start_param || localStorage.getItem("zoom-start-param") || null;
+    const webApp = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number }; start_param?: string }; initData?: string } } }).Telegram?.WebApp;
+    const unsafe = webApp?.initDataUnsafe;
+    const telegramId = unsafe?.user?.id ? String(unsafe.user.id) : null;
+
+    let startParam: string | null = unsafe?.start_param || null;
+
+    if (!startParam && webApp?.initData) {
+      try {
+        const params = new URLSearchParams(webApp.initData);
+        startParam = params.get("start_param");
+      } catch { /**/ }
+    }
+
+    if (!startParam) {
+      startParam = localStorage.getItem("zoom-start-param");
+    }
+
     return { telegramId, startParam };
   } catch {
     return { telegramId: null, startParam: null };
