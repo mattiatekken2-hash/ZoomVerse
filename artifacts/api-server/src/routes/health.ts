@@ -8,4 +8,8 @@ router.get("/healthz", (_req, res) => {
   res.json(data);
 });
 
+router.get("/ping", (_req, res) => {
+  res.status(200).send("pong");
+});
+
 export default router;
