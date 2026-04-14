@@ -278,7 +278,6 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                       onClick={() => { if (!isListed) { haptic(6); onStartFarming(planet.id); } }}
                       data-testid={`btn-farm-${planet.id}`}
                     >
-                      <span style={{ fontSize: 14 }}>▶</span>
                       <span>START</span>
                       <span style={{ fontSize: 8, opacity: 0.7 }}>Farm</span>
                     </button>
@@ -291,7 +290,6 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                     onClick={() => !isListed && handleBurnClick(planet.id)}
                     data-testid={`btn-burn-${planet.id}`}
                   >
-                    <span style={{ fontSize: 14 }}>🔥</span>
                     <span>{confirmBurn === planet.id ? "SURE?" : "BURN"}</span>
                     <span style={{ fontSize: 8, opacity: 0.7 }}>+{refund}</span>
                   </button>
@@ -312,7 +310,6 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                       onClick={() => openSellPopup(planet)}
                       data-testid={`btn-sell-${planet.id}`}
                     >
-                      <span style={{ fontSize: 14 }}>💫</span>
                       <span>SELL</span>
                       <span style={{ fontSize: 8, opacity: 0.7 }}>Market</span>
                     </button>
