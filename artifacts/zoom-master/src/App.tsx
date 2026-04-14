@@ -8,7 +8,6 @@ import { MarketPage } from "./pages/MarketPage";
 import { EarnPage } from "./pages/EarnPage";
 import { RankPage } from "./pages/RankPage";
 import { ShopPage } from "./pages/ShopPage";
-import { haptic } from "./utils/haptic";
 
 type Tab = "lab" | "farm" | "market" | "earn" | "rank" | "shop";
 
@@ -126,7 +125,7 @@ export default function App() {
       >
         <div
           className="font-black text-lg tracking-widest neon-text cursor-pointer"
-          onClick={() => { haptic(5); setTab("lab"); }}
+          onClick={() => setTab("lab")}
         >
           ZOOM
         </div>
@@ -138,7 +137,7 @@ export default function App() {
           )}
           <div
             className="glass-neon flex items-center gap-1.5 px-3.5 py-2 rounded-full font-black text-sm cursor-pointer"
-            onClick={() => { haptic(5); setTab("shop"); }}
+            onClick={() => setTab("shop")}
             data-testid="balance-display"
           >
             <span style={{ fontSize: 13 }}>🪐</span>
@@ -180,7 +179,7 @@ export default function App() {
               <button
                 key={item.id}
                 className="flex-1 flex flex-col items-center justify-center gap-0.5 relative transition-all duration-150 active:scale-90"
-                onClick={() => { haptic(5); setTab(item.id); }}
+                onClick={() => setTab(item.id)}
                 data-testid={`nav-${item.id}`}
                 style={{ color: isActive ? "#00f2fe" : "rgba(255,255,255,0.2)" }}
               >

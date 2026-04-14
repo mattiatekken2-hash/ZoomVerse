@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { WalletPopup } from "../components/WalletPopup";
-import { haptic } from "../utils/haptic";
+
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 
@@ -21,14 +21,12 @@ export function ShopPage({ hasSun }: ShopPageProps) {
   const sunAvailable = 18;
 
   const handleCopyWallet = () => {
-    haptic(8);
     navigator.clipboard.writeText(WALLET).catch(() => {});
     setWalletCopied(true);
     setTimeout(() => setWalletCopied(false), 2000);
   };
 
   const openPopup = (amount: string, purpose: string) => {
-    haptic(8);
     setPopup({ amount, purpose });
   };
 

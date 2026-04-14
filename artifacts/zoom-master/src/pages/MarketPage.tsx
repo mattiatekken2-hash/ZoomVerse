@@ -2,7 +2,7 @@ import { useState } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
-import { haptic } from "../utils/haptic";
+
 
 const RARITY_FILTERS: (PlanetType | "ALL")[] = ["ALL", "BASIC", "RARE", "EPIC", "GOLD"];
 
@@ -45,7 +45,6 @@ export function MarketPage({ balance, myListings, maxSlots, onBuy, onUnlist }: M
   const filtered = filter === "ALL" ? userListings : userListings.filter((l) => l.name === filter);
 
   const handleBuy = (listing: MarketListing) => {
-    haptic();
     const result = onBuy(listing);
     if (result.success) {
       showToast(`${PLANET_CONFIG[listing.name].label} planet added to your farm!`, true);
@@ -71,7 +70,7 @@ export function MarketPage({ balance, myListings, maxSlots, onBuy, onUnlist }: M
             {RARITY_FILTERS.map((f) => (
               <button
                 key={f}
-                onClick={() => { haptic(5); setFilter(f); }}
+                onClick={() => setFilter(f)}
                 className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold tracking-wider border transition-all"
                 style={{
                   borderColor: filter === f
@@ -163,7 +162,7 @@ export function MarketPage({ balance, myListings, maxSlots, onBuy, onUnlist }: M
                     <button
                       className="px-4 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95"
                       style={{ borderColor: "rgba(255,215,0,0.3)", background: "rgba(255,215,0,0.07)", color: "#ffd700" }}
-                      onClick={() => { haptic(); onUnlist(listing.id); }}
+                      onClick={() => onUnlist(listing.id)}
                       data-testid={`btn-unlist-${listing.id}`}
                     >
                       Delist

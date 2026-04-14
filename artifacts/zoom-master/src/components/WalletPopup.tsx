@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { haptic } from "../utils/haptic";
+
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 
@@ -20,7 +20,6 @@ export function WalletPopup({ isOpen, amount, purpose, instruction, copyLabel, o
   if (!isOpen) return null;
 
   const handleCopy = () => {
-    haptic(8);
     navigator.clipboard.writeText(WALLET).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -83,7 +82,7 @@ export function WalletPopup({ isOpen, amount, purpose, instruction, copyLabel, o
         </div>
 
         <button
-          onClick={() => { haptic(5); onClose(); }}
+          onClick={() => onClose()}
           className="w-full py-3 rounded-xl font-bold text-sm transition-all active:scale-95"
           style={{ color: "rgba(255,255,255,0.35)", border: "1px solid rgba(255,255,255,0.08)" }}
         >

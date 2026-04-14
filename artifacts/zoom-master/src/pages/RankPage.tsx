@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { FeedEvent } from "../hooks/useGameState";
-import { haptic } from "../utils/haptic";
+
 import { fetchLeaderboard, type LeaderboardEntry } from "../utils/api";
 
 interface RankPageProps {
@@ -145,7 +145,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
         {(["season", "exchange"] as const).map(s => (
           <button
             key={s}
-            onClick={() => { haptic(5); setActiveSection(s); }}
+            onClick={() => setActiveSection(s)}
             className="flex-1 py-2 rounded-xl text-xs font-black tracking-wider uppercase border transition-all"
             style={{
               borderColor: activeSection === s ? "rgba(0,242,254,0.3)" : "rgba(255,255,255,0.06)",
@@ -337,7 +337,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                   type="number"
                   min={0}
                   value={convertInput}
-                  onChange={e => { haptic(3); setConvertInput(e.target.value); }}
+                  onChange={e => setConvertInput(e.target.value)}
                   placeholder="Enter $ZOOM amount"
                   className="w-full rounded-xl px-4 py-3.5 text-base font-bold pr-20 outline-none"
                   style={{

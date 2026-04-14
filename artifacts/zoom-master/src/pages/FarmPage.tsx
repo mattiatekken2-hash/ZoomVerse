@@ -3,7 +3,7 @@ import { PlanetOrb } from "../components/PlanetOrb";
 import type { Planet, SunState } from "../hooks/useGameState";
 import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, needsCollect } from "../hooks/useGameState";
 import { WalletPopup } from "../components/WalletPopup";
-import { haptic } from "../utils/haptic";
+
 
 interface FarmPageProps {
   planets: Planet[];
@@ -46,7 +46,6 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
     + (sun && isSunActive(sun) ? SUN_CONFIG.rate : 0);
 
   const handleBurnClick = (id: string) => {
-    haptic(8);
     if (confirmBurn === id) {
       onBurn(id);
       setConfirmBurn(null);
@@ -57,7 +56,6 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
   };
 
   const openSellPopup = (planet: Planet) => {
-    haptic(6);
     const cfg = PLANET_CONFIG[planet.name];
     const suggested = Math.floor(planet.craftCost * 2.5);
     setSellPopup({ planetId: planet.id, planetName: cfg.label, planetColor: planet.color });
@@ -69,7 +67,6 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
     if (!sellPopup) return;
     const price = parseInt(sellPrice, 10);
     if (!price || price <= 0) return;
-    haptic(10);
     onSell(sellPopup.planetId, price);
     setSellPopup(null);
     setSellPrice("");
@@ -160,7 +157,6 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                 <button
                   className={`btn-widget flex-1 ${sunActive ? "btn-glass-farm-active" : "btn-glass-farm"}`}
                   onClick={() => {
-                    haptic(6);
                     if (sunActive) onStopSunFarming();
                     else onStartSunFarming();
                   }}
@@ -173,7 +169,6 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                 <button
                   className={`btn-widget flex-1 ${confirmBurn === "sun" ? "btn-glass-burn-confirm" : "btn-glass-burn"}`}
                   onClick={() => {
-                    haptic(8);
                     if (confirmBurn === "sun") {
                       onBurnSun();
                       setConfirmBurn(null);
@@ -253,7 +248,7 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                   {needsDaily ? (
                     <button
                       className="btn-widget btn-glass-collect"
-                      onClick={() => { haptic(8); onCollect(planet.id); }}
+                      onClick={() => onCollect(planet.id)}
                       data-testid={`btn-collect-${planet.id}`}
                     >
                       <span style={{ fontSize: 14 }}>⚡</span>
@@ -263,7 +258,7 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                   ) : active ? (
                     <button
                       className="btn-widget btn-glass-farm-active"
-                      onClick={() => { haptic(6); onStopFarming(planet.id); }}
+                      onClick={() => onStopFarming(planet.id)}
                       data-testid={`btn-stop-${planet.id}`}
                     >
                       <span>FARMING</span>
@@ -274,7 +269,7 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                       className={`btn-widget ${isListed ? "" : "btn-glass-farm"}`}
                       disabled={isListed}
                       style={isListed ? { borderColor: "rgba(255,255,255,0.04)", background: "transparent", color: "rgba(255,255,255,0.15)", cursor: "not-allowed", opacity: 0.4 } : undefined}
-                      onClick={() => { if (!isListed) { haptic(6); onStartFarming(planet.id); } }}
+                      onClick={() => { if (!isListed) onStartFarming(planet.id); }}
                       data-testid={`btn-farm-${planet.id}`}
                     >
                       <span>START</span>
@@ -296,7 +291,7 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                   {isListed ? (
                     <button
                       className="btn-widget btn-glass-listed"
-                      onClick={() => { haptic(6); onUnlist(planet.id); }}
+                      onClick={() => onUnlist(planet.id)}
                       data-testid={`btn-unlist-${planet.id}`}
                     >
                       <span style={{ fontSize: 14 }}>✕</span>
@@ -333,7 +328,7 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
           <div
             className="rounded-2xl border border-dashed flex flex-col items-center justify-center py-8 gap-2 transition-all active:scale-[0.98]"
             style={{ borderColor: "rgba(255,215,0,0.22)", background: "rgba(255,215,0,0.025)", cursor: "pointer", minHeight: 100 }}
-            onClick={() => { haptic(8); setSlotWalletOpen(true); }}
+            onClick={() => setSlotWalletOpen(true)}
             data-testid="slot-locked"
           >
             <div style={{ fontSize: 20, opacity: 0.45 }}>🔒</div>
