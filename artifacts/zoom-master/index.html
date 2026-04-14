@@ -6,6 +6,14 @@
       const tg = window.Telegram.WebApp;
       tg.ready();
       tg.expand();
+
+      // Persist start_param immediately before React mounts
+      try {
+        const sp = tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+        if (sp) {
+          localStorage.setItem("zoom-start-param", sp);
+        }
+      } catch(e) {}
     </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />

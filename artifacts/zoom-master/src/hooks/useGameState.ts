@@ -150,7 +150,7 @@ function getTelegramContext(): { telegramId: string | null; startParam: string |
   try {
     const tg = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number }; start_param?: string } } } }).Telegram?.WebApp?.initDataUnsafe;
     const telegramId = tg?.user?.id ? String(tg.user.id) : null;
-    const startParam = tg?.start_param || null;
+    const startParam = tg?.start_param || localStorage.getItem("zoom-start-param") || null;
     return { telegramId, startParam };
   } catch {
     return { telegramId: null, startParam: null };
@@ -350,7 +350,11 @@ export function useGameState() {
     if (!telegramId) return;
 
     (async () => {
-      await registerUser(telegramId, startParam ?? undefined);
+      const result = await registerUser(telegramId, startParam ?? undefined);
+
+      if (result.isNew && startParam) {
+        try { localStorage.removeItem("zoom-start-param"); } catch { /**/ }
+      }
 
       const count = await fetchReferralCount(telegramId);
       setState((prev) => ({ ...prev, referralCount: count }));

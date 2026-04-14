@@ -19,6 +19,8 @@ router.post("/referral/register", async (req, res) => {
 
   const { telegramId, referredBy } = parsed.data;
 
+  console.log(`[register] telegramId=${telegramId} referredBy=${referredBy ?? "none"}`);
+
   try {
     const inserted = await db
       .insert(usersTable)
