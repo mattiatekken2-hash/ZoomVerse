@@ -158,12 +158,7 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
 
               <div className="flex gap-2">
                 <button
-                  className="btn-widget flex-1"
-                  style={{
-                    borderColor: sunActive ? "rgba(255,179,71,0.35)" : "rgba(0,242,254,0.25)",
-                    background: sunActive ? "rgba(255,179,71,0.07)" : "rgba(0,242,254,0.06)",
-                    color: sunActive ? "#ffb347" : "#00f2fe",
-                  }}
+                  className={`btn-widget flex-1 ${sunActive ? "btn-glass-farm-active" : "btn-glass-farm"}`}
                   onClick={() => {
                     haptic(6);
                     if (sunActive) onStopSunFarming();
@@ -176,12 +171,7 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                 </button>
 
                 <button
-                  className="btn-widget flex-1"
-                  style={{
-                    borderColor: confirmBurn === "sun" ? "rgba(255,65,108,0.5)" : "rgba(255,255,255,0.08)",
-                    background: confirmBurn === "sun" ? "rgba(255,65,108,0.1)" : "transparent",
-                    color: confirmBurn === "sun" ? "#ff416c" : "rgba(255,255,255,0.3)",
-                  }}
+                  className={`btn-widget flex-1 ${confirmBurn === "sun" ? "btn-glass-burn-confirm" : "btn-glass-burn"}`}
                   onClick={() => {
                     haptic(8);
                     if (confirmBurn === "sun") {
@@ -262,85 +252,69 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                 <div className="flex gap-2">
                   {needsDaily ? (
                     <button
-                      className="btn-widget"
-                      style={{ borderColor: "rgba(255,165,0,0.5)", background: "rgba(255,165,0,0.09)", color: "#ffa500" }}
+                      className="btn-widget btn-glass-collect"
                       onClick={() => { haptic(8); onCollect(planet.id); }}
                       data-testid={`btn-collect-${planet.id}`}
                     >
                       <span style={{ fontSize: 14 }}>⚡</span>
                       <span>COLLECT</span>
-                      <span style={{ fontSize: 8, opacity: 0.6 }}>Daily</span>
+                      <span style={{ fontSize: 8, opacity: 0.7 }}>Daily</span>
                     </button>
                   ) : active ? (
                     <button
-                      className="btn-widget"
-                      style={{ borderColor: "rgba(0,230,118,0.3)", background: "rgba(0,230,118,0.06)", color: "#00e676" }}
+                      className="btn-widget btn-glass-farm-active"
                       onClick={() => { haptic(6); onStopFarming(planet.id); }}
                       data-testid={`btn-stop-${planet.id}`}
                     >
                       <span style={{ fontSize: 14 }}>⏸</span>
                       <span>FARMING</span>
-                      <span style={{ fontSize: 8, opacity: 0.6 }}>{formatDuration(remaining)}</span>
+                      <span style={{ fontSize: 8, opacity: 0.7 }}>{formatDuration(remaining)}</span>
                     </button>
                   ) : (
                     <button
-                      className="btn-widget"
+                      className={`btn-widget ${isListed ? "" : "btn-glass-farm"}`}
                       disabled={isListed}
-                      style={{
-                        borderColor: isListed ? "rgba(255,255,255,0.04)" : "rgba(0,242,254,0.25)",
-                        background: isListed ? "transparent" : "rgba(0,242,254,0.06)",
-                        color: isListed ? "rgba(255,255,255,0.15)" : "#00f2fe",
-                        cursor: isListed ? "not-allowed" : "pointer",
-                        opacity: isListed ? 0.4 : 1,
-                      }}
+                      style={isListed ? { borderColor: "rgba(255,255,255,0.04)", background: "transparent", color: "rgba(255,255,255,0.15)", cursor: "not-allowed", opacity: 0.4 } : undefined}
                       onClick={() => { if (!isListed) { haptic(6); onStartFarming(planet.id); } }}
                       data-testid={`btn-farm-${planet.id}`}
                     >
                       <span style={{ fontSize: 14 }}>▶</span>
                       <span>START</span>
-                      <span style={{ fontSize: 8, opacity: 0.6 }}>Farm</span>
+                      <span style={{ fontSize: 8, opacity: 0.7 }}>Farm</span>
                     </button>
                   )}
 
                   <button
-                    className="btn-widget"
+                    className={`btn-widget ${isListed ? "" : confirmBurn === planet.id ? "btn-glass-burn-confirm" : "btn-glass-burn"}`}
                     disabled={isListed}
-                    style={{
-                      borderColor: confirmBurn === planet.id ? "rgba(255,65,108,0.5)" : "rgba(255,255,255,0.08)",
-                      background: confirmBurn === planet.id ? "rgba(255,65,108,0.1)" : "transparent",
-                      color: isListed ? "rgba(255,255,255,0.12)" : confirmBurn === planet.id ? "#ff416c" : "rgba(255,255,255,0.3)",
-                      cursor: isListed ? "not-allowed" : "pointer",
-                      opacity: isListed ? 0.35 : 1,
-                    }}
+                    style={isListed ? { borderColor: "rgba(255,255,255,0.06)", background: "transparent", color: "rgba(255,255,255,0.12)", cursor: "not-allowed", opacity: 0.3 } : undefined}
                     onClick={() => !isListed && handleBurnClick(planet.id)}
                     data-testid={`btn-burn-${planet.id}`}
                   >
                     <span style={{ fontSize: 14 }}>🔥</span>
                     <span>{confirmBurn === planet.id ? "SURE?" : "BURN"}</span>
-                    <span style={{ fontSize: 8, opacity: 0.6 }}>+{refund}</span>
+                    <span style={{ fontSize: 8, opacity: 0.7 }}>+{refund}</span>
                   </button>
 
                   {isListed ? (
                     <button
-                      className="btn-widget"
-                      style={{ borderColor: "rgba(255,215,0,0.4)", background: "rgba(255,215,0,0.07)", color: "#ffd700" }}
+                      className="btn-widget btn-glass-listed"
                       onClick={() => { haptic(6); onUnlist(planet.id); }}
                       data-testid={`btn-unlist-${planet.id}`}
                     >
                       <span style={{ fontSize: 14 }}>✕</span>
                       <span>LISTED</span>
-                      <span style={{ fontSize: 8, opacity: 0.6 }}>Delist</span>
+                      <span style={{ fontSize: 8, opacity: 0.7 }}>Delist</span>
                     </button>
                   ) : (
                     <button
-                      className="btn-widget"
-                      style={{ borderColor: "rgba(255,255,255,0.08)", background: "transparent", color: "rgba(255,255,255,0.3)" }}
+                      className="btn-widget btn-glass-sell"
                       onClick={() => openSellPopup(planet)}
                       data-testid={`btn-sell-${planet.id}`}
                     >
                       <span style={{ fontSize: 14 }}>💫</span>
                       <span>SELL</span>
-                      <span style={{ fontSize: 8, opacity: 0.6 }}>Market</span>
+                      <span style={{ fontSize: 8, opacity: 0.7 }}>Market</span>
                     </button>
                   )}
                 </div>

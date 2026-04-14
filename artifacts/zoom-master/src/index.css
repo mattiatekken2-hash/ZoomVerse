@@ -463,6 +463,129 @@
 }
 .btn-widget:active { transform: scale(0.93); }
 
+/* ======== GLASSMORPHISM FARM BUTTONS ======== */
+.btn-glass-farm {
+  background: rgba(0, 255, 136, 0.07);
+  border-color: rgba(0, 255, 136, 0.45) !important;
+  color: #00ff88 !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow:
+    0 0 12px rgba(0, 255, 136, 0.18),
+    inset 0 1px 0 rgba(0, 255, 136, 0.15),
+    inset 0 0 16px rgba(0, 255, 136, 0.05);
+  text-shadow: 0 0 8px rgba(0, 255, 136, 0.6);
+}
+.btn-glass-farm:hover {
+  background: rgba(0, 255, 136, 0.12);
+  box-shadow:
+    0 0 20px rgba(0, 255, 136, 0.28),
+    inset 0 1px 0 rgba(0, 255, 136, 0.2),
+    inset 0 0 20px rgba(0, 255, 136, 0.08);
+}
+
+.btn-glass-farm-active {
+  background: rgba(0, 255, 136, 0.1);
+  border-color: rgba(0, 255, 136, 0.55) !important;
+  color: #00ff88 !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow:
+    0 0 18px rgba(0, 255, 136, 0.3),
+    inset 0 1px 0 rgba(0, 255, 136, 0.25),
+    inset 0 0 20px rgba(0, 255, 136, 0.08);
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.8);
+  animation: btn-farm-pulse 2s ease-in-out infinite alternate;
+}
+@keyframes btn-farm-pulse {
+  from { box-shadow: 0 0 14px rgba(0, 255, 136, 0.25), inset 0 1px 0 rgba(0, 255, 136, 0.2), inset 0 0 16px rgba(0, 255, 136, 0.06); }
+  to   { box-shadow: 0 0 26px rgba(0, 255, 136, 0.42), inset 0 1px 0 rgba(0, 255, 136, 0.3), inset 0 0 24px rgba(0, 255, 136, 0.1); }
+}
+
+.btn-glass-burn {
+  background: rgba(255, 100, 30, 0.07);
+  border-color: rgba(255, 100, 30, 0.45) !important;
+  color: #ff6420 !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow:
+    0 0 12px rgba(255, 100, 30, 0.18),
+    inset 0 1px 0 rgba(255, 140, 0, 0.15),
+    inset 0 0 16px rgba(255, 80, 0, 0.06);
+  text-shadow: 0 0 8px rgba(255, 100, 30, 0.6);
+}
+.btn-glass-burn:hover {
+  background: rgba(255, 100, 30, 0.13);
+  box-shadow:
+    0 0 20px rgba(255, 100, 30, 0.3),
+    inset 0 1px 0 rgba(255, 140, 0, 0.2),
+    inset 0 0 20px rgba(255, 80, 0, 0.09);
+}
+
+.btn-glass-burn-confirm {
+  background: rgba(255, 65, 108, 0.12);
+  border-color: rgba(255, 65, 108, 0.6) !important;
+  color: #ff416c !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow:
+    0 0 20px rgba(255, 65, 108, 0.35),
+    inset 0 1px 0 rgba(255, 65, 108, 0.25),
+    inset 0 0 20px rgba(255, 65, 108, 0.1);
+  text-shadow: 0 0 10px rgba(255, 65, 108, 0.9);
+}
+
+.btn-glass-sell {
+  background: rgba(0, 180, 255, 0.07);
+  border-color: rgba(0, 180, 255, 0.45) !important;
+  color: #00b4ff !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow:
+    0 0 12px rgba(0, 180, 255, 0.18),
+    inset 0 1px 0 rgba(79, 172, 254, 0.15),
+    inset 0 0 16px rgba(0, 180, 255, 0.05);
+  text-shadow: 0 0 8px rgba(0, 180, 255, 0.6);
+}
+.btn-glass-sell:hover {
+  background: rgba(0, 180, 255, 0.12);
+  box-shadow:
+    0 0 20px rgba(0, 180, 255, 0.28),
+    inset 0 1px 0 rgba(79, 172, 254, 0.2),
+    inset 0 0 20px rgba(0, 180, 255, 0.08);
+}
+
+.btn-glass-collect {
+  background: rgba(255, 165, 0, 0.08);
+  border-color: rgba(255, 165, 0, 0.5) !important;
+  color: #ffa500 !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow:
+    0 0 14px rgba(255, 165, 0, 0.22),
+    inset 0 1px 0 rgba(255, 165, 0, 0.18),
+    inset 0 0 16px rgba(255, 165, 0, 0.06);
+  text-shadow: 0 0 8px rgba(255, 165, 0, 0.7);
+  animation: btn-collect-pulse 1.5s ease-in-out infinite alternate;
+}
+@keyframes btn-collect-pulse {
+  from { box-shadow: 0 0 10px rgba(255,165,0,0.2), inset 0 0 12px rgba(255,165,0,0.05); }
+  to   { box-shadow: 0 0 22px rgba(255,165,0,0.4), inset 0 0 20px rgba(255,165,0,0.1); }
+}
+
+.btn-glass-listed {
+  background: rgba(255, 215, 0, 0.07);
+  border-color: rgba(255, 215, 0, 0.4) !important;
+  color: #ffd700 !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow:
+    0 0 12px rgba(255, 215, 0, 0.16),
+    inset 0 1px 0 rgba(255, 215, 0, 0.14),
+    inset 0 0 14px rgba(255, 215, 0, 0.05);
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+}
+
 /* ======== RARITY BADGES ======== */
 .rarity-basic { color: #8892b0; border-color: rgba(136,146,176,0.3); background: rgba(136,146,176,0.06); }
 .rarity-rare { color: #4facfe; border-color: rgba(79,172,254,0.3); background: rgba(79,172,254,0.06); }
