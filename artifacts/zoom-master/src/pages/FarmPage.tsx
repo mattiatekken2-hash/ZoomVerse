@@ -9,9 +9,11 @@ interface FarmPageProps {
   planets: Planet[];
   sun: SunState | null;
   balance: number;
+  maxSlots: number;
   onCollect: (id: string) => void;
   onCollectSun: () => void;
   onActivateSun: () => void;
+  onUnlockSlot: () => void;
   onBurn: (id: string) => void;
   onStartFarming: (id: string) => void;
   onStopFarming: (id: string) => void;
@@ -32,11 +34,12 @@ const RARITY_CLASS: Record<string, string> = {
   GOLD: "rarity-gold",
 };
 
-export function FarmPage({ planets, sun, onCollect, onCollectSun, onActivateSun, onBurn, onStartFarming, onStopFarming, onSell, onUnlist }: FarmPageProps) {
+export function FarmPage({ planets, sun, maxSlots, onCollect, onCollectSun, onActivateSun, onUnlockSlot, onBurn, onStartFarming, onStopFarming, onSell, onUnlist }: FarmPageProps) {
   const [confirmBurn, setConfirmBurn] = useState<string | null>(null);
   const [sellPopup, setSellPopup] = useState<SellPopup | null>(null);
   const [sellPrice, setSellPrice] = useState("");
   const [sunWalletOpen, setSunWalletOpen] = useState(false);
+  const [slotWalletOpen, setSlotWalletOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const totalRate = planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0)
@@ -87,7 +90,7 @@ export function FarmPage({ planets, sun, onCollect, onCollectSun, onActivateSun,
         <div>
           <h2 className="font-black text-lg tracking-tight">My Planets</h2>
           <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-            {planets.length}/2 slots · {totalRate > 0 ? `+${totalRate.toLocaleString()} $ZOOM/hr` : "No active farming"}
+            {planets.length}/{maxSlots} slots · {totalRate > 0 ? `+${totalRate.toLocaleString()} $ZOOM/hr` : "No active farming"}
           </p>
         </div>
         {totalRate > 0 && (
@@ -345,7 +348,7 @@ export function FarmPage({ planets, sun, onCollect, onCollectSun, onActivateSun,
             );
           })}
 
-          {Array.from({ length: Math.max(0, 2 - planets.length) }).map((_, i) => (
+          {Array.from({ length: Math.max(0, maxSlots - planets.length) }).map((_, i) => (
             <div
               key={`empty-${i}`}
               className="rounded-2xl border border-dashed flex flex-col items-center justify-center py-10 gap-3"
@@ -358,8 +361,9 @@ export function FarmPage({ planets, sun, onCollect, onCollectSun, onActivateSun,
           ))}
 
           <div
-            className="rounded-2xl border border-dashed flex flex-col items-center justify-center py-8 gap-2"
-            style={{ borderColor: "rgba(255,215,0,0.12)", background: "rgba(255,215,0,0.015)", cursor: "not-allowed", minHeight: 100 }}
+            className="rounded-2xl border border-dashed flex flex-col items-center justify-center py-8 gap-2 transition-all active:scale-[0.98]"
+            style={{ borderColor: "rgba(255,215,0,0.22)", background: "rgba(255,215,0,0.025)", cursor: "pointer", minHeight: 100 }}
+            onClick={() => { haptic(8); setSlotWalletOpen(true); }}
             data-testid="slot-locked"
           >
             <div style={{ fontSize: 20, opacity: 0.45 }}>🔒</div>
@@ -453,6 +457,16 @@ export function FarmPage({ planets, sun, onCollect, onCollectSun, onActivateSun,
           confirmLabel="Confirm — Activate SUN"
         />
       )}
+      <WalletPopup
+        isOpen={slotWalletOpen}
+        amount="0.25 TON"
+        purpose="Unlock Farm Slot"
+        instruction="Send TON to this address to unlock your slot."
+        copyLabel="Copy Link"
+        onClose={() => setSlotWalletOpen(false)}
+        onConfirm={onUnlockSlot}
+        confirmLabel="Confirm — Unlock Slot"
+      />
     </div>
   );
 }

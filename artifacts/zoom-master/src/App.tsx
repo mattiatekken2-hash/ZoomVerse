@@ -35,7 +35,7 @@ export default function App() {
     collectPlanet, burnPlanet,
     startFarming, stopFarming,
     listPlanet, unlistPlanet, buyPlanet,
-    claimDaily, activateSun, collectSun,
+    unlockSlot, claimDaily, activateSun, acquireSun, collectSun,
   } = useGameState();
 
   const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
@@ -51,6 +51,7 @@ export default function App() {
             taps={state.taps}
             goal={state.goal}
             planets={state.planets}
+            maxSlots={state.maxSlots}
             currentCraftRarity={state.currentCraftRarity}
             pendingPlanet={state.pendingPlanet}
             onCraft={craft}
@@ -63,9 +64,11 @@ export default function App() {
             planets={state.planets}
             sun={state.sun}
             balance={state.balance}
+            maxSlots={state.maxSlots}
             onCollect={collectPlanet}
             onCollectSun={collectSun}
             onActivateSun={activateSun}
+            onUnlockSlot={unlockSlot}
             onBurn={burnPlanet}
             onStartFarming={startFarming}
             onStopFarming={stopFarming}
@@ -104,7 +107,7 @@ export default function App() {
           />
         );
       case "shop":
-        return <ShopPage balance={state.balance} hasSun={!!state.sun?.isOwned} />;
+        return <ShopPage balance={state.balance} hasSun={!!state.sun?.isOwned} onAcquireSun={acquireSun} />;
       default:
         return null;
     }

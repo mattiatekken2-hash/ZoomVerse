@@ -131,6 +131,10 @@ const SUN_CODES = ["SUN-ALPHA", "SUN-OMEGA", "SUN-PRIME", "SUN-NOVA", "SUN-CORE"
 
 const STATE_VERSION = 4;
 const STORAGE_KEY = "zoom-master-v4";
+const LIVE_EVENT_KEY = "zoom-master-live-activity-event";
+const LIVE_EVENT_CHANNEL = "zoom-master-live-activity";
+const MAX_FEED_EVENTS = 50;
+const PLAYER_NAME = "Username";
 const FARM_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 const DAILY_COLLECT_MS = 24 * 60 * 60 * 1000;
 
@@ -192,6 +196,30 @@ function saveState(state: GameState) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch { /**/ }
+}
+
+function publishFeedEvent(event: FeedEvent) {
+  try {
+    localStorage.setItem(LIVE_EVENT_KEY, JSON.stringify(event));
+  } catch { /**/ }
+  try {
+    const channel = new BroadcastChannel(LIVE_EVENT_CHANNEL);
+    channel.postMessage(event);
+    channel.close();
+  } catch { /**/ }
+}
+
+function withFeedEvent(state: GameState, text: string): GameState {
+  const event: FeedEvent = {
+    id: `${Date.now()}-${Math.random().toString(36).substring(2)}`,
+    text,
+    timestamp: Date.now(),
+  };
+  publishFeedEvent(event);
+  return {
+    ...state,
+    feedEvents: [event, ...state.feedEvents].slice(0, MAX_FEED_EVENTS),
+  };
 }
 
 function rollRarity(): PlanetType {
@@ -277,6 +305,36 @@ export function useGameState() {
   useEffect(() => { saveState(state); }, [state]);
 
   useEffect(() => {
+    const addIncomingEvent = (event: FeedEvent) => {
+      setState((prev) => {
+        if (!event?.id || prev.feedEvents.some((item) => item.id === event.id)) return prev;
+        return {
+          ...prev,
+          feedEvents: [event, ...prev.feedEvents].slice(0, MAX_FEED_EVENTS),
+        };
+      });
+    };
+
+    const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(LIVE_EVENT_CHANNEL) : null;
+    if (channel) {
+      channel.onmessage = (message) => addIncomingEvent(message.data as FeedEvent);
+    }
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== LIVE_EVENT_KEY || !event.newValue) return;
+      try {
+        addIncomingEvent(JSON.parse(event.newValue) as FeedEvent);
+      } catch { /**/ }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      channel?.close();
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       setState((prev) => {
         let earned = 0;
@@ -318,7 +376,9 @@ export function useGameState() {
     if (newTaps >= goal) {
       const planet = makePlanet(rarity);
       setState((prev) => ({
-        ...prev,
+        ...(planet.name === "GOLD"
+          ? withFeedEvent(prev, `${PLAYER_NAME} ha appena forgiato un pianeta GOLD!`)
+          : prev),
         balance: newBalance,
         taps: 0,
         goal: 50,
@@ -401,6 +461,23 @@ export function useGameState() {
           lastCollectedAt: now,
         },
       };
+    });
+  }, []);
+
+  const acquireSun = useCallback(() => {
+    setState((prev) => {
+      if (prev.sun?.isOwned) return prev;
+      return withFeedEvent({
+        ...prev,
+        sun: {
+          isOwned: true,
+          isActive: false,
+          activationCost: SUN_CONFIG.activationCostBase,
+          cycleCount: 0,
+          farmStartedAt: 0,
+          lastCollectedAt: 0,
+        },
+      }, `${PLAYER_NAME} ha acquisito il SOLE!`);
     });
   }, []);
 
@@ -532,6 +609,6 @@ export function useGameState() {
     startFarming, stopFarming,
     listPlanet, unlistPlanet, buyPlanet,
     unlockSlot, claimDaily,
-    activateSun, collectSun,
+    activateSun, acquireSun, collectSun,
   };
 }

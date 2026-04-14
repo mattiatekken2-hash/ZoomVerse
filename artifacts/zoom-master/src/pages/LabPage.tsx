@@ -9,6 +9,7 @@ interface LabPageProps {
   taps: number;
   goal: number;
   planets: Planet[];
+  maxSlots: number;
   currentCraftRarity: PlanetType | null;
   pendingPlanet: Planet | null;
   onCraft: () => { completed: boolean; planet?: Planet; tapsLeft?: number };
@@ -20,13 +21,13 @@ interface FloatMsg { id: number; text: string; color: string }
 const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
-export function LabPage({ balance, taps, goal, planets, currentCraftRarity, pendingPlanet, onCraft, onClaim }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, onCraft, onClaim }: LabPageProps) {
   const [status, setStatus] = useState("TAP TO FORGE A PLANET");
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const timeoutRef = useRef<number | null>(null);
 
-  const isFull = planets.length >= 2 && !pendingPlanet;
-  const canCraft = !pendingPlanet && planets.length < 2 && balance >= 1;
+  const isFull = planets.length >= maxSlots && !pendingPlanet;
+  const canCraft = !pendingPlanet && planets.length < maxSlots && balance >= 1;
 
   const progress = goal > 0 ? taps / goal : 0;
 
@@ -176,7 +177,7 @@ export function LabPage({ balance, taps, goal, planets, currentCraftRarity, pend
               ? `${PLANET_CONFIG[currentCraftRarity].tapsNeeded} taps · 1 $ZOOM each`
               : "1 $ZOOM per tap"}
           </span>
-          <span>{Math.max(0, 2 - planets.length)} slot{Math.max(0, 2 - planets.length) !== 1 ? "s" : ""} free</span>
+          <span>{Math.max(0, maxSlots - planets.length)} slot{Math.max(0, maxSlots - planets.length) !== 1 ? "s" : ""} free</span>
         </div>
       </div>
     </div>

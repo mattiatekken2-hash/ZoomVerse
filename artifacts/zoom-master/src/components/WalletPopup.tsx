@@ -7,12 +7,14 @@ interface WalletPopupProps {
   isOpen: boolean;
   amount: string;
   purpose: string;
+  instruction?: string;
+  copyLabel?: string;
   onClose: () => void;
   onConfirm?: () => void;
   confirmLabel?: string;
 }
 
-export function WalletPopup({ isOpen, amount, purpose, onClose, onConfirm, confirmLabel }: WalletPopupProps) {
+export function WalletPopup({ isOpen, amount, purpose, instruction, copyLabel, onClose, onConfirm, confirmLabel }: WalletPopupProps) {
   const [copied, setCopied] = useState(false);
   const [hasCopied, setHasCopied] = useState(false);
 
@@ -80,12 +82,12 @@ export function WalletPopup({ isOpen, amount, purpose, onClose, onConfirm, confi
               boxShadow: copied ? "0 0 16px rgba(0,230,118,0.2)" : "none",
             }}
           >
-            {copied ? "✓ ADDRESS COPIED!" : "📋 COPY ADDRESS"}
+            {copied ? "✓ COPIED!" : (copyLabel || "📋 COPY ADDRESS")}
           </button>
         </div>
 
         <div className="text-xs mb-4 text-center" style={{ color: "rgba(255,255,255,0.3)" }}>
-          Open your TON wallet app, send {amount} to the address above, then confirm below
+          {instruction || `Open your TON wallet app, send ${amount} to the address above, then confirm below`}
         </div>
 
         {onConfirm && (

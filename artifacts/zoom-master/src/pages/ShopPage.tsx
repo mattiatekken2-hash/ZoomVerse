@@ -13,11 +13,12 @@ const BUNDLES = [
 interface ShopPageProps {
   balance: number;
   hasSun: boolean;
+  onAcquireSun: () => void;
 }
 
-export function ShopPage({ hasSun }: ShopPageProps) {
+export function ShopPage({ hasSun, onAcquireSun }: ShopPageProps) {
   const [walletCopied, setWalletCopied] = useState(false);
-  const [popup, setPopup] = useState<{ amount: string; purpose: string } | null>(null);
+  const [popup, setPopup] = useState<{ amount: string; purpose: string; onConfirm?: () => void; confirmLabel?: string } | null>(null);
   const sunAvailable = 18;
 
   const handleCopyWallet = () => {
@@ -27,9 +28,9 @@ export function ShopPage({ hasSun }: ShopPageProps) {
     setTimeout(() => setWalletCopied(false), 2000);
   };
 
-  const openPopup = (amount: string, purpose: string) => {
+  const openPopup = (amount: string, purpose: string, onConfirm?: () => void, confirmLabel?: string) => {
     haptic(8);
-    setPopup({ amount, purpose });
+    setPopup({ amount, purpose, onConfirm, confirmLabel });
   };
 
   return (
@@ -112,7 +113,7 @@ export function ShopPage({ hasSun }: ShopPageProps) {
               {hasSun ? "You already own THE SUN — check your Farm to activate" : "Get a SUN-**** code from official channels or buy below"}
             </div>
             <button
-              onClick={() => !hasSun && openPopup("10 TON", "Purchase THE SUN")}
+              onClick={() => !hasSun && openPopup("10 TON", "Purchase THE SUN", onAcquireSun, "Confirm — Acquire SUN")}
               disabled={hasSun}
               className="w-full py-4 rounded-xl font-black text-base tracking-wider text-center transition-all active:scale-95"
               style={{
@@ -185,6 +186,8 @@ export function ShopPage({ hasSun }: ShopPageProps) {
           amount={popup.amount}
           purpose={popup.purpose}
           onClose={() => setPopup(null)}
+          onConfirm={popup.onConfirm}
+          confirmLabel={popup.confirmLabel}
         />
       )}
     </div>
