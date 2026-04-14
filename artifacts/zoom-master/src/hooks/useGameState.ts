@@ -45,6 +45,9 @@ export interface GameState {
   referralCount: number;
   lastDailyClaimAt: number;
   feedEvents: FeedEvent[];
+  pendingPlanet: Planet | null;
+  currentCraftRarity: PlanetType | null;
+  usedRedeemCodes: string[];
 }
 
 export const PLANET_CONFIG: Record<PlanetType, {
@@ -55,6 +58,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
   label: string;
   craftCost: number;
   activationTon: number;
+  tapsNeeded: number;
 }> = {
   BASIC: {
     rate: 10,
@@ -64,6 +68,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     label: "Basic",
     craftCost: 20,
     activationTon: 0.05,
+    tapsNeeded: 15,
   },
   RARE: {
     rate: 80,
@@ -73,6 +78,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     label: "Rare",
     craftCost: 40,
     activationTon: 0.15,
+    tapsNeeded: 25,
   },
   EPIC: {
     rate: 400,
@@ -82,6 +88,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     label: "Epic",
     craftCost: 80,
     activationTon: 0.5,
+    tapsNeeded: 40,
   },
   GOLD: {
     rate: 2000,
@@ -91,12 +98,19 @@ export const PLANET_CONFIG: Record<PlanetType, {
     label: "Gold",
     craftCost: 150,
     activationTon: 1.0,
+    tapsNeeded: 60,
   },
 };
 
-const CRAFT_GOAL = 20;
-const STATE_VERSION = 2;
-const STORAGE_KEY = "zoom-master-v2";
+const REDEEM_CODES: Record<string, number> = {
+  "ZOOMSTART": 500,
+  "ZOOMLUCKY": 1000,
+  "ZOOMBIG": 2500,
+  "ZOOMLAUNCH": 750,
+};
+
+const STATE_VERSION = 3;
+const STORAGE_KEY = "zoom-master-v3";
 const FARM_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 const DAILY_COLLECT_MS = 24 * 60 * 60 * 1000;
 
@@ -108,7 +122,7 @@ const INITIAL_STATE: GameState = {
   version: STATE_VERSION,
   balance: 2000,
   taps: 0,
-  goal: CRAFT_GOAL,
+  goal: 15,
   planets: [],
   maxSlots: 2,
   totalEarned: 0,
@@ -118,6 +132,9 @@ const INITIAL_STATE: GameState = {
   referralCount: 0,
   lastDailyClaimAt: 0,
   feedEvents: [],
+  pendingPlanet: null,
+  currentCraftRarity: null,
+  usedRedeemCodes: [],
 };
 
 function migratePlanet(p: unknown): Planet {
@@ -139,6 +156,8 @@ function loadState(): GameState {
           ...INITIAL_STATE,
           ...parsed,
           planets: (parsed.planets || []).map(migratePlanet),
+          pendingPlanet: parsed.pendingPlanet ? migratePlanet(parsed.pendingPlanet) : null,
+          usedRedeemCodes: parsed.usedRedeemCodes || [],
         };
       }
     }
@@ -152,19 +171,22 @@ function saveState(state: GameState) {
   } catch { /**/ }
 }
 
-function rollPlanet(): Planet {
+function rollRarity(): PlanetType {
   const r = Math.random();
   let cumulative = 0;
-  let chosen: PlanetType = "BASIC";
   for (const [type, cfg] of Object.entries(PLANET_CONFIG) as [PlanetType, typeof PLANET_CONFIG[PlanetType]][]) {
     cumulative += cfg.chance;
-    if (r <= cumulative) { chosen = type; break; }
+    if (r <= cumulative) return type;
   }
-  const cfg = PLANET_CONFIG[chosen];
+  return "BASIC";
+}
+
+function makePlanet(rarity: PlanetType): Planet {
+  const cfg = PLANET_CONFIG[rarity];
   const now = Date.now();
   return {
     id: `${now}-${Math.random().toString(36).substring(2)}`,
-    name: chosen,
+    name: rarity,
     rate: cfg.rate,
     color: cfg.color,
     glowColor: cfg.glowColor,
@@ -206,19 +228,6 @@ export function formatDuration(ms: number): string {
   return `${m}m`;
 }
 
-const FEED_TEMPLATES = [
-  (name: string) => `${name} crafted a GOLD planet! 🌟`,
-  (name: string) => `${name} reached 20 referral milestone!`,
-  (name: string) => `${name} purchased THE SUN ☀️`,
-  (name: string) => `${name} sold an EPIC planet for 840 $ZOOM`,
-  (name: string) => `${name} crafted a RARE planet`,
-  (name: string) => `${name} collected 2,400 $ZOOM from farming`,
-  (name: string) => `THE SUN minted! (Available: 18/20)`,
-  (name: string) => `${name} unlocked a new farm slot`,
-];
-
-const FAKE_NAMES = ["cosmicwolf", "stardust99", "voidwalker_", "nebula_k", "deepspace42", "astrox", "solarmind", "darkstar7", "galaxis", "luminos"];
-
 export function useGameState() {
   const [state, setState] = useState<GameState>(loadState);
   const stateRef = useRef(state);
@@ -241,41 +250,72 @@ export function useGameState() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const template = FEED_TEMPLATES[Math.floor(Math.random() * FEED_TEMPLATES.length)];
-      const name = FAKE_NAMES[Math.floor(Math.random() * FAKE_NAMES.length)];
-      const event: FeedEvent = {
-        id: `${Date.now()}-${Math.random()}`,
-        text: template(name),
-        timestamp: Date.now(),
-      };
-      setState((prev) => ({
-        ...prev,
-        feedEvents: [event, ...prev.feedEvents].slice(0, 20),
-      }));
-    }, 7000 + Math.random() * 8000);
-    return () => clearInterval(interval);
-  }, []);
-
   const craft = useCallback((): { completed: boolean; planet?: Planet; tapsLeft?: number } => {
     const current = stateRef.current;
+    if (current.pendingPlanet) return { completed: false };
     if (current.planets.length >= current.maxSlots) return { completed: false };
     if (current.balance < 1) return { completed: false };
+
+    let rarity = current.currentCraftRarity;
+    let goal = current.goal;
+
+    if (rarity === null) {
+      rarity = rollRarity();
+      goal = PLANET_CONFIG[rarity].tapsNeeded;
+    }
+
     const newTaps = current.taps + 1;
     const newBalance = current.balance - 1;
-    if (newTaps >= current.goal) {
-      const planet = rollPlanet();
+
+    if (newTaps >= goal) {
+      const planet = makePlanet(rarity);
       setState((prev) => ({
-        ...prev, balance: newBalance, taps: 0,
-        planets: [...prev.planets, planet],
+        ...prev,
+        balance: newBalance,
+        taps: 0,
+        goal: 15,
+        currentCraftRarity: null,
+        pendingPlanet: planet,
         craftsCompleted: prev.craftsCompleted + 1,
       }));
       return { completed: true, planet };
     } else {
-      setState((prev) => ({ ...prev, balance: newBalance, taps: newTaps }));
-      return { completed: false, tapsLeft: current.goal - newTaps };
+      setState((prev) => ({
+        ...prev,
+        balance: newBalance,
+        taps: newTaps,
+        goal,
+        currentCraftRarity: rarity,
+      }));
+      return { completed: false, tapsLeft: goal - newTaps };
     }
+  }, []);
+
+  const claimCraft = useCallback(() => {
+    setState((prev) => {
+      if (!prev.pendingPlanet) return prev;
+      return {
+        ...prev,
+        planets: [...prev.planets, prev.pendingPlanet],
+        pendingPlanet: null,
+      };
+    });
+  }, []);
+
+  const redeemCode = useCallback((code: string): { success: boolean; amount?: number; error?: string } => {
+    const upperCode = code.trim().toUpperCase();
+    const amount = REDEEM_CODES[upperCode];
+    if (!amount) return { success: false, error: "Invalid code" };
+    const current = stateRef.current;
+    if (current.usedRedeemCodes.includes(upperCode)) {
+      return { success: false, error: "Code already used" };
+    }
+    setState((prev) => ({
+      ...prev,
+      balance: prev.balance + amount,
+      usedRedeemCodes: [...prev.usedRedeemCodes, upperCode],
+    }));
+    return { success: true, amount };
   }, []);
 
   const collectPlanet = useCallback((id: string) => {
@@ -391,7 +431,8 @@ export function useGameState() {
   }, []);
 
   return {
-    state, craft, collectPlanet, burnPlanet,
+    state, craft, claimCraft, redeemCode,
+    collectPlanet, burnPlanet,
     startFarming, stopFarming,
     listPlanet, unlistPlanet, buyPlanet,
     unlockSlot, claimDaily,

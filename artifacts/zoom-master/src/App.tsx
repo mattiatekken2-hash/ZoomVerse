@@ -13,10 +13,10 @@ type Tab = "lab" | "farm" | "market" | "earn" | "rank" | "shop";
 
 const NAV: { id: Tab; label: string; icon: string }[] = [
   { id: "lab", label: "LAB", icon: "⬡" },
-  { id: "farm", label: "FARM", icon: "🌿" },
+  { id: "farm", label: "FARM", icon: "🪐" },
   { id: "market", label: "MARKET", icon: "💫" },
   { id: "earn", label: "EARN", icon: "🎁" },
-  { id: "rank", label: "RANK", icon: "★" },
+  { id: "rank", label: "RANK", icon: "🏆" },
 ];
 
 const pageVariants = {
@@ -30,7 +30,8 @@ const pageTransition = { duration: 0.22, ease: [0.25, 0.1, 0.25, 1] };
 export default function App() {
   const [tab, setTab] = useState<Tab>("lab");
   const {
-    state, craft, collectPlanet, burnPlanet,
+    state, craft, claimCraft, redeemCode,
+    collectPlanet, burnPlanet,
     startFarming, stopFarming,
     listPlanet, unlistPlanet, buyPlanet,
     claimDaily,
@@ -49,7 +50,10 @@ export default function App() {
             taps={state.taps}
             goal={state.goal}
             planets={state.planets}
+            currentCraftRarity={state.currentCraftRarity}
+            pendingPlanet={state.pendingPlanet}
             onCraft={craft}
+            onClaim={claimCraft}
           />
         );
       case "farm":
@@ -82,6 +86,7 @@ export default function App() {
             referralCount={state.referralCount}
             lastDailyClaimAt={state.lastDailyClaimAt}
             onClaimDaily={claimDaily}
+            onRedeemCode={redeemCode}
           />
         );
       case "rank":
@@ -112,7 +117,7 @@ export default function App() {
           className="font-black text-lg tracking-widest neon-text cursor-pointer"
           onClick={() => setTab("lab")}
         >
-          ZOOM.
+          ZOOM
         </div>
         <div className="flex items-center gap-3">
           {totalRate > 0 && (

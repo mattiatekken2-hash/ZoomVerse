@@ -5,10 +5,12 @@ interface EarnPageProps {
   referralCount: number;
   lastDailyClaimAt: number;
   onClaimDaily: () => void;
+  onRedeemCode: (code: string) => { success: boolean; amount?: number; error?: string };
 }
 
 const MILESTONES = [
   { count: 5, reward: 500 },
+  { count: 10, reward: 1000 },
   { count: 20, reward: 2000 },
   { count: 50, reward: 5000 },
   { count: 100, reward: 12000 },
@@ -17,8 +19,10 @@ const MILESTONES = [
 
 const DAILY_INTERVAL = 24 * 60 * 60 * 1000;
 
-export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClaimDaily }: EarnPageProps) {
+export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClaimDaily, onRedeemCode }: EarnPageProps) {
   const [copied, setCopied] = useState(false);
+  const [redeemInput, setRedeemInput] = useState("");
+  const [redeemStatus, setRedeemStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const now = Date.now();
   const canClaim = now - lastDailyClaimAt >= DAILY_INTERVAL;
@@ -32,6 +36,18 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
     navigator.clipboard.writeText(referralLink).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleRedeem = () => {
+    if (!redeemInput.trim()) return;
+    const result = onRedeemCode(redeemInput);
+    if (result.success) {
+      setRedeemStatus({ type: "success", message: `+${result.amount?.toLocaleString()} $ZOOM credited!` });
+      setRedeemInput("");
+    } else {
+      setRedeemStatus({ type: "error", message: result.error || "Invalid code" });
+    }
+    setTimeout(() => setRedeemStatus(null), 3000);
   };
 
   const nextMilestone = MILESTONES.find(m => m.count > referralCount);
@@ -69,6 +85,60 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
           >
             {canClaim ? "CLAIM 100 $ZOOM" : `${hLeft}h ${mLeft}m remaining`}
           </button>
+        </div>
+
+        <div
+          className="rounded-2xl p-5 border"
+          style={{ borderColor: "rgba(0,230,118,0.15)", background: "rgba(0,230,118,0.03)" }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div className="text-xl">🎟️</div>
+            <div className="font-black text-base" style={{ color: "#00e676" }}>Redeem Code</div>
+          </div>
+          <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
+            Enter a promo code to instantly credit $ZOOM to your balance
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={redeemInput}
+              onChange={e => setRedeemInput(e.target.value.toUpperCase())}
+              onKeyDown={e => e.key === "Enter" && handleRedeem()}
+              placeholder="ENTER CODE"
+              className="flex-1 px-3 py-2.5 rounded-xl text-sm font-mono font-bold uppercase outline-none"
+              style={{
+                background: "rgba(0,0,0,0.3)",
+                border: "1px solid rgba(0,230,118,0.2)",
+                color: "#00e676",
+                letterSpacing: "0.08em",
+              }}
+              data-testid="input-redeem-code"
+            />
+            <button
+              onClick={handleRedeem}
+              className="px-4 py-2.5 rounded-xl font-black text-sm tracking-wider uppercase transition-all active:scale-95"
+              style={{
+                background: "rgba(0,230,118,0.12)",
+                color: "#00e676",
+                border: "1px solid rgba(0,230,118,0.25)",
+              }}
+              data-testid="button-redeem"
+            >
+              GO
+            </button>
+          </div>
+          {redeemStatus && (
+            <div
+              className="mt-2 text-xs font-bold text-center py-2 rounded-xl"
+              style={{
+                color: redeemStatus.type === "success" ? "#00e676" : "#ff5252",
+                background: redeemStatus.type === "success" ? "rgba(0,230,118,0.08)" : "rgba(255,82,82,0.08)",
+                border: `1px solid ${redeemStatus.type === "success" ? "rgba(0,230,118,0.2)" : "rgba(255,82,82,0.2)"}`,
+              }}
+            >
+              {redeemStatus.message}
+            </div>
+          )}
         </div>
 
         <div className="rounded-2xl p-5 border" style={{ borderColor: "rgba(255,215,0,0.15)", background: "rgba(255,215,0,0.03)" }}>

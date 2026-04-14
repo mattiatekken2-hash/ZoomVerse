@@ -1,6 +1,10 @@
+import { useState } from "react";
+
 interface ShopPageProps {
   balance: number;
 }
+
+const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 
 const BUNDLES = [
   { id: "b1", name: "Starter Pack", desc: "2,000 $ZOOM + 1 Basic Planet guaranteed", priceTon: 0.5, zoom: 2000, color: "#8892b0" },
@@ -8,8 +12,15 @@ const BUNDLES = [
   { id: "b3", name: "Legend Pack", desc: "25,000 $ZOOM + 1 Epic Planet guaranteed", priceTon: 4.0, zoom: 25000, color: "#c471ed" },
 ];
 
-export function ShopPage({ balance }: ShopPageProps) {
+export function ShopPage({ balance: _balance }: ShopPageProps) {
+  const [copiedWallet, setCopiedWallet] = useState(false);
   const sunAvailable = 18;
+
+  const handleCopyWallet = () => {
+    navigator.clipboard.writeText(WALLET).catch(() => {});
+    setCopiedWallet(true);
+    setTimeout(() => setCopiedWallet(false), 2000);
+  };
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -52,7 +63,7 @@ export function ShopPage({ balance }: ShopPageProps) {
             </div>
           </div>
           <div className="flex flex-wrap gap-2 mb-4">
-            {["Not tradeable", "Max yield", "Activation fee in TON", "Fixed 10,000/hr"].map(tag => (
+            {["Not tradeable", "Max yield", "Not farmable", "Fixed 10,000/hr"].map(tag => (
               <span
                 key={tag}
                 className="text-xs px-2 py-0.5 rounded-full"
@@ -62,7 +73,8 @@ export function ShopPage({ balance }: ShopPageProps) {
               </span>
             ))}
           </div>
-          <div className="w-full py-4 rounded-xl font-black text-base tracking-wider text-center border"
+          <div
+            className="w-full py-4 rounded-xl font-black text-base tracking-wider text-center border mb-4"
             style={{
               background: "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,165,0,0.1))",
               color: "#ffd700",
@@ -72,6 +84,31 @@ export function ShopPage({ balance }: ShopPageProps) {
             data-testid="sun-price"
           >
             10 TON
+          </div>
+
+          <div className="text-xs mb-2 text-center" style={{ color: "rgba(255,255,255,0.3)" }}>
+            Send payment to official ZOOM wallet
+          </div>
+          <div
+            className="rounded-xl px-3 py-3 flex items-center justify-between gap-2 border"
+            style={{ borderColor: "rgba(255,215,0,0.15)", background: "rgba(0,0,0,0.4)" }}
+          >
+            <span className="text-xs font-mono truncate flex-1" style={{ color: "rgba(255,215,0,0.7)" }}>
+              {WALLET}
+            </span>
+            <button
+              onClick={handleCopyWallet}
+              className="flex-shrink-0 px-3 py-1.5 rounded-lg font-bold text-xs transition-all active:scale-95"
+              style={{
+                background: copiedWallet ? "rgba(0,230,118,0.15)" : "rgba(255,215,0,0.12)",
+                color: copiedWallet ? "#00e676" : "#ffd700",
+                border: `1px solid ${copiedWallet ? "rgba(0,230,118,0.3)" : "rgba(255,215,0,0.25)"}`,
+                whiteSpace: "nowrap",
+              }}
+              data-testid="button-copy-wallet"
+            >
+              {copiedWallet ? "✓ Copied" : "Copy Link"}
+            </button>
           </div>
         </div>
 
@@ -107,16 +144,6 @@ export function ShopPage({ balance }: ShopPageProps) {
               </div>
             ))}
           </div>
-        </div>
-
-        <div className="text-center text-xs py-2" style={{ color: "rgba(255,255,255,0.15)" }}>
-          All TON payments go directly to the official ZOOM wallet
-        </div>
-        <div
-          className="text-center text-xs py-2 px-4 rounded-xl font-mono break-all"
-          style={{ background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.2)", border: "1px solid rgba(255,255,255,0.05)" }}
-        >
-          UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS
         </div>
       </div>
     </div>
