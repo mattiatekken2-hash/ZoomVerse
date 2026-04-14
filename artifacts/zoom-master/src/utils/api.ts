@@ -61,6 +61,21 @@ export async function syncBalance(params: {
   } catch { /**/ }
 }
 
+export interface Grants {
+  bonusSlots: number;
+  bonusSun: boolean;
+}
+
+export async function fetchGrants(telegramId: string): Promise<Grants> {
+  try {
+    const res = await fetch(`${API_BASE}/grants/${encodeURIComponent(telegramId)}`);
+    if (!res.ok) return { bonusSlots: 0, bonusSun: false };
+    return res.json();
+  } catch {
+    return { bonusSlots: 0, bonusSun: false };
+  }
+}
+
 export interface LeaderboardEntry {
   rank: number;
   telegramId: string;

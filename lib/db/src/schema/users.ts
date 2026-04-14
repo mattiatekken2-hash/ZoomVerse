@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, real } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, real, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -9,6 +9,8 @@ export const usersTable = pgTable("users", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   zoomBalance: real("zoom_balance").notNull().default(0),
   firstName: text("first_name"),
+  bonusSlots: integer("bonus_slots").notNull().default(0),
+  bonusSun: boolean("bonus_sun").notNull().default(false),
 });
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({ createdAt: true });
