@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import type { FeedEvent } from "../hooks/useGameState";
 import { haptic } from "../utils/haptic";
 
@@ -24,17 +24,25 @@ function timeAgo(ts: number): string {
   return `${Math.floor(s / 3600)}h ago`;
 }
 
+const ZOOM_PER_TON = 1_000_000;
+
 export function RankPage({ totalEarned, totalTonSpent: _totalTonSpent, feedEvents }: RankPageProps) {
   const [activeSection, setActiveSection] = useState<"season" | "exchange">("season");
   const feedRef = useRef<HTMLDivElement>(null);
   const [poolZoom, setPoolZoom] = useState(POOL_BASE_ZOOM);
   const sessionStart = useRef(Date.now());
+  const [convertInput, setConvertInput] = useState("");
 
   const now = Date.now();
   const seasonProgress = Math.min((now - SEASON_START) / SEASON_DURATION_MS, 1);
-  const daysLeft = Math.max(0, Math.ceil((SEASON_END - now) / 86400000));
   const currentSeason = 1;
   const isExchangeOpen = now >= SEASON_END;
+
+  const estimatedTon = useCallback(() => {
+    const zoom = parseFloat(convertInput.replace(/,/g, ""));
+    if (!zoom || zoom <= 0) return null;
+    return (zoom / ZOOM_PER_TON).toFixed(6);
+  }, [convertInput]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -56,8 +64,8 @@ export function RankPage({ totalEarned, totalTonSpent: _totalTonSpent, feedEvent
           <h2 className="font-black text-lg tracking-tight flex items-center gap-2">
             🏆 Season {currentSeason}
           </h2>
-          <span className="text-xs font-bold px-3 py-1 rounded-full border" style={{ borderColor: "rgba(0,242,254,0.2)", color: "#00f2fe" }}>
-            {daysLeft}d left
+          <span className="text-xs font-bold px-3 py-1 rounded-full border" style={{ borderColor: "rgba(0,242,254,0.15)", color: "rgba(0,242,254,0.6)" }}>
+            In progress
           </span>
         </div>
 
@@ -103,7 +111,7 @@ export function RankPage({ totalEarned, totalTonSpent: _totalTonSpent, feedEvent
             })}
           </div>
           <div className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.2)" }}>
-            Exchange opens at Season 1 end
+            Exchange activates when Season 1 concludes
           </div>
         </div>
       </div>
@@ -224,7 +232,7 @@ export function RankPage({ totalEarned, totalTonSpent: _totalTonSpent, feedEvent
               <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
                 {isExchangeOpen
                   ? "Season 1 has ended. Exchange your $ZOOM for TON now."
-                  : `Unlocks at Season 1 end · ${daysLeft} days remaining`}
+                  : "The exchange activates at the end of Season 1"}
               </div>
               <div
                 className="w-full py-3 rounded-xl font-black text-sm tracking-wider text-center border"
@@ -235,7 +243,69 @@ export function RankPage({ totalEarned, totalTonSpent: _totalTonSpent, feedEvent
                   cursor: isExchangeOpen ? "pointer" : "not-allowed",
                 }}
               >
-                {isExchangeOpen ? "EXCHANGE NOW" : `EXCHANGE (opens in ${daysLeft}d)`}
+                {isExchangeOpen ? "EXCHANGE NOW" : "EXCHANGE"}
+              </div>
+            </div>
+
+            {/* Conversion Simulator */}
+            <div
+              className="rounded-2xl p-4 border"
+              style={{ borderColor: "rgba(255,215,0,0.12)", background: "rgba(255,215,0,0.025)" }}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <span style={{ fontSize: 14 }}>🧮</span>
+                <span className="font-black text-sm tracking-wide" style={{ color: "#ffd700" }}>Conversion Simulator</span>
+              </div>
+              <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.35)" }}>
+                Simulate how much TON your $ZOOM could be worth. Rate: 1,000,000 $ZOOM = 1 TON
+              </div>
+
+              <div className="relative mb-2">
+                <input
+                  type="number"
+                  min={0}
+                  value={convertInput}
+                  onChange={e => { haptic(3); setConvertInput(e.target.value); }}
+                  placeholder="Enter $ZOOM amount"
+                  className="w-full rounded-xl px-4 py-3.5 text-base font-bold pr-20 outline-none"
+                  style={{
+                    background: "rgba(0,0,0,0.3)",
+                    border: "1px solid rgba(255,215,0,0.18)",
+                    color: "rgba(255,215,0,0.9)",
+                    caretColor: "#ffd700",
+                  }}
+                  inputMode="numeric"
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold" style={{ color: "rgba(255,215,0,0.45)" }}>
+                  $ZOOM
+                </span>
+              </div>
+
+              <div
+                className="rounded-xl px-4 py-3 mb-3 flex items-center justify-between border"
+                style={{ borderColor: "rgba(255,215,0,0.1)", background: "rgba(255,215,0,0.04)" }}
+              >
+                <span className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.4)" }}>Estimated value</span>
+                <span className="font-black text-lg gold-text">
+                  {estimatedTon() != null ? `≈ ${estimatedTon()} TON` : "—"}
+                </span>
+              </div>
+
+              <button
+                disabled
+                className="w-full py-3.5 rounded-xl font-black text-sm tracking-widest uppercase border"
+                style={{
+                  background: "rgba(255,255,255,0.03)",
+                  color: "rgba(255,255,255,0.18)",
+                  borderColor: "rgba(255,255,255,0.06)",
+                  cursor: "not-allowed",
+                  letterSpacing: "0.1em",
+                }}
+              >
+                CONVERT (Disabled)
+              </button>
+              <div className="text-xs text-center mt-2" style={{ color: "rgba(255,255,255,0.2)", lineHeight: 1.5 }}>
+                Real conversion is based on the final pool at Season 1 end. This is a simulation only.
               </div>
             </div>
 
