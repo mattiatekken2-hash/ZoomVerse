@@ -118,7 +118,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
 };
 
 export const SUN_CONFIG = {
-  rate: 10000,
+  rate: 1000,
   color: "#ffb347",
   glowColor: "rgba(255,179,71,0.6)",
   activationCostBase: 0.5,

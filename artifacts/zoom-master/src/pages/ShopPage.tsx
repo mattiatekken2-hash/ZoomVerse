@@ -97,7 +97,7 @@ export function ShopPage({ hasSun }: ShopPageProps) {
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mb-4">
-              {["Not tradeable", "Max yield", "10,000/hr", "Activation fee in TON"].map(tag => (
+              {["Not tradeable", "Max yield", "1,000/hr", "Activation fee in TON"].map(tag => (
                 <span key={tag} className="text-xs px-2 py-0.5 rounded-full" style={{ background: "rgba(255,179,71,0.08)", color: "rgba(255,179,71,0.7)", border: "1px solid rgba(255,179,71,0.15)" }}>
                   {tag}
                 </span>

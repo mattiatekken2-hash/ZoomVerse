@@ -123,14 +123,26 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                     style={{
                       width: 72, height: 72,
                       borderRadius: "50%",
-                      background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.3) 0%, #ffb347ee 20%, #ff8c00cc 55%, #ff450088 80%, #ff220033 100%)",
+                      position: "relative",
+                      overflow: "hidden",
+                      background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35) 0%, #ffb347ee 20%, #ff8c00cc 50%, #ff450099 78%, #ff220044 100%)",
                       boxShadow: sunActive
                         ? "0 0 40px rgba(255,179,71,0.7), 0 0 80px rgba(255,140,0,0.3), inset -8px -4px 16px rgba(0,0,0,0.4)"
                         : "0 0 20px rgba(255,179,71,0.3), inset -8px -4px 16px rgba(0,0,0,0.4)",
                       flexShrink: 0,
-                      animation: sunActive ? "planet-breathe 3s ease-in-out infinite alternate" : "none",
+                      animation: sunActive ? "planet-rotate 18s linear infinite" : "none",
                     }}
-                  />
+                  >
+                    <div style={{
+                      position: "absolute",
+                      inset: 0,
+                      borderRadius: "50%",
+                      opacity: sunActive ? 0.18 : 0,
+                      background: "repeating-linear-gradient(-32deg, transparent, transparent 7px, rgba(255,220,80,0.5) 7px, rgba(255,220,80,0.5) 8px)",
+                      transition: "opacity 0.5s",
+                      pointerEvents: "none",
+                    }} />
+                  </div>
                   {sunActive && (
                     <div
                       className="absolute -top-1 -right-1 w-3 h-3 rounded-full pulse-soft"
