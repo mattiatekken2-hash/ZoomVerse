@@ -8,9 +8,11 @@ export function hapticLight() {
   try {
     const hf = tgHaptic();
     if (hf) {
-      hf.impactOccurred("light");
+      hf.selectionChanged
+        ? hf.selectionChanged()
+        : hf.impactOccurred("soft");
     } else {
-      navigator.vibrate?.(5);
+      navigator.vibrate?.(2);
     }
   } catch { /**/ }
 }
