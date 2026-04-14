@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useGameState, isFarmActive } from "./hooks/useGameState";
+import { haptic } from "./utils/haptic";
 import { NebulaBackground } from "./components/NebulaBackground";
 import { LabPage } from "./pages/LabPage";
 import { FarmPage } from "./pages/FarmPage";
@@ -169,7 +170,7 @@ export default function App() {
               <button
                 key={item.id}
                 className="flex-1 flex flex-col items-center justify-center gap-0.5 relative transition-all duration-150 active:scale-90"
-                onClick={() => setTab(item.id)}
+                onClick={() => { haptic(5); setTab(item.id); }}
                 data-testid={`nav-${item.id}`}
                 style={{ color: isActive ? "#00f2fe" : "rgba(255,255,255,0.2)" }}
               >

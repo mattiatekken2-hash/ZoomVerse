@@ -34,26 +34,7 @@ function CSSSphere({
           filter: "blur(20px)",
         }}
       />
-      <div
-        className="planet-ring"
-        style={{
-          width: size * 1.55,
-          height: size * 1.55,
-          borderColor: color,
-          opacity: 0.25,
-        }}
-      />
-      <div
-        className="planet-ring"
-        style={{
-          width: size * 1.35,
-          height: size * 1.35,
-          borderColor: color,
-          opacity: 0.15,
-          animationDuration: "18s",
-          animationDirection: "reverse",
-        }}
-      />
+      
       <div
         className={`planet-sphere ${isRevealing ? "reveal-in" : ""}`}
         style={{

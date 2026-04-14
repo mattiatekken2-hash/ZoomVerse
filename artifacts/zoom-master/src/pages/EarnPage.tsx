@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { haptic } from "../utils/haptic";
 
 interface EarnPageProps {
   referralCode: string;
@@ -33,12 +34,14 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
   const referralLink = `https://t.me/ZoomMasterBot?start=${referralCode}`;
 
   const handleCopy = () => {
+    haptic();
     navigator.clipboard.writeText(referralLink).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleRedeem = () => {
+    haptic();
     if (!redeemInput.trim()) return;
     const result = onRedeemCode(redeemInput);
     if (result.success) {
@@ -72,7 +75,7 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
           </div>
           <button
             className="w-full py-4 rounded-xl font-black text-base tracking-wider uppercase transition-all active:scale-95 border"
-            onClick={onClaimDaily}
+            onClick={() => { haptic(10); onClaimDaily(); }}
             disabled={!canClaim}
             style={{
               background: canClaim ? "linear-gradient(135deg, #00f2fe, #4facfe)" : "rgba(255,255,255,0.04)",

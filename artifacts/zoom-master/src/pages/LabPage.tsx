@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import { PlanetCanvas } from "../components/PlanetCanvas";
 import type { Planet, PlanetType } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
+import { haptic } from "../utils/haptic";
 
 interface LabPageProps {
   balance: number;
@@ -58,6 +59,7 @@ export function LabPage({ balance, taps, goal, planets, currentCraftRarity, pend
 
   const handleCraft = useCallback(() => {
     if (!canCraft) return;
+    haptic(6);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
     const result = onCraft();
@@ -73,6 +75,7 @@ export function LabPage({ balance, taps, goal, planets, currentCraftRarity, pend
   }, [canCraft, onCraft, goal, addFloat]);
 
   const handleClaim = useCallback(() => {
+    haptic(10);
     onClaim();
     setStatus("TAP TO FORGE A PLANET");
   }, [onClaim]);

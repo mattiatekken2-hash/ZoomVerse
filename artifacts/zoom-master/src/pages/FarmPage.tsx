@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
+import { haptic } from "../utils/haptic";
 import type { Planet } from "../hooks/useGameState";
 import { PLANET_CONFIG, isFarmActive, getFarmTimeRemaining, formatDuration, needsCollect } from "../hooks/useGameState";
 
@@ -36,6 +37,7 @@ export function FarmPage({ planets, onCollect, onBurn, onStartFarming, onStopFar
   const totalRate = planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
 
   const handleBurnClick = (id: string) => {
+    haptic(8);
     if (confirmBurn === id) {
       onBurn(id);
       setConfirmBurn(null);
@@ -57,6 +59,7 @@ export function FarmPage({ planets, onCollect, onBurn, onStartFarming, onStopFar
     if (!sellPopup) return;
     const price = parseInt(sellPrice, 10);
     if (!price || price <= 0) return;
+    haptic(10);
     onSell(sellPopup.planetId, price);
     setSellPopup(null);
     setSellPrice("");
