@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "ZOOM MASTER"
+version = "1.0.0"
+id = "artifacts/zoom-master"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23677
+
+[services.development]
+run = "pnpm --filter @workspace/zoom-master run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/zoom-master", "run", "build" ]
+publicDir = "artifacts/zoom-master/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23677"
+BASE_PATH = "/"

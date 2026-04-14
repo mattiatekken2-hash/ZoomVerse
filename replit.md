@@ -25,3 +25,18 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+
+## Artifacts
+
+### ZOOM MASTER (`artifacts/zoom-master`)
+- **Type**: react-vite, frontend only (no backend)
+- **Preview path**: `/`
+- **Stack**: React, TypeScript, Vite, Three.js, GSAP, Tailwind CSS
+- **Game**: Planet crafting clicker/idle game
+  - Lab: tap/click to craft planets (20 taps per planet, costs 1 coin each tap)
+  - Planet types: BASIC (10/hr, 65%), GOLD (100/hr, 25%), COSMIC (500/hr, 8%), VOID (2000/hr, 2%)
+  - Farm: up to 6 slots passively earn coins; unlock extra slots for 250 coins
+  - Shop: placeholder upgrades displayed
+  - Rank: tier progression based on total coins earned; mock leaderboard
+  - Progress saved to localStorage
+  - Three.js 3D planet with CSS fallback when WebGL is unavailable
