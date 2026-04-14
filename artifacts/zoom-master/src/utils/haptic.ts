@@ -1,44 +1,34 @@
-type TelegramWebApp = {
-  HapticFeedback?: {
-    impactOccurred: (style: "light" | "medium" | "heavy" | "rigid" | "soft") => void;
-    notificationOccurred: (type: "error" | "success" | "warning") => void;
-    selectionChanged: () => void;
-  };
-};
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
-function getTgHaptic() {
-  try {
-    return (window as unknown as { Telegram?: { WebApp?: TelegramWebApp } })
-      .Telegram?.WebApp?.HapticFeedback ?? null;
-  } catch {
-    return null;
-  }
+function tgHaptic() {
+  return (window as any)?.Telegram?.WebApp?.HapticFeedback ?? null;
 }
 
 export function hapticLight() {
   try {
-    const tg = getTgHaptic();
-    if (tg) {
-      tg.impactOccurred("light");
-      return;
-    }
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-      navigator.vibrate(3);
+    const hf = tgHaptic();
+    if (hf) {
+      hf.impactOccurred("light");
+    } else {
+      navigator.vibrate?.(5);
     }
   } catch { /**/ }
 }
 
-export function haptic(duration: number = 8) {
+export function haptic(input: number | "light" | "medium" | "heavy" = "medium") {
   try {
-    const tg = getTgHaptic();
-    if (tg) {
-      if (duration <= 5) tg.impactOccurred("light");
-      else if (duration <= 10) tg.impactOccurred("medium");
-      else tg.impactOccurred("heavy");
-      return;
+    const hf = tgHaptic();
+    let style: "light" | "medium" | "heavy";
+    if (typeof input === "number") {
+      style = input <= 5 ? "light" : input <= 10 ? "medium" : "heavy";
+    } else {
+      style = input;
     }
-    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-      navigator.vibrate(duration);
+    if (hf) {
+      hf.impactOccurred(style);
+    } else {
+      const ms = style === "light" ? 5 : style === "medium" ? 10 : 18;
+      navigator.vibrate?.(ms);
     }
   } catch { /**/ }
 }
