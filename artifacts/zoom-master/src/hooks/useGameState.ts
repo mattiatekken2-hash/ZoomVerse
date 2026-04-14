@@ -12,6 +12,8 @@ export interface Planet {
   farmStartedAt: number;
   lastCollectedAt: number;
   isListedInMarket: boolean;
+  isFarmingActive: boolean;
+  marketPrice: number | null;
   craftCost: number;
 }
 
@@ -19,6 +21,14 @@ export interface FeedEvent {
   id: string;
   text: string;
   timestamp: number;
+}
+
+export interface MarketListing {
+  id: string;
+  name: PlanetType;
+  price: number;
+  seller: string;
+  rate: number;
 }
 
 export interface GameState {
@@ -110,13 +120,26 @@ const INITIAL_STATE: GameState = {
   feedEvents: [],
 };
 
+function migratePlanet(p: unknown): Planet {
+  const raw = p as Partial<Planet>;
+  return {
+    isFarmingActive: false,
+    marketPrice: null,
+    ...raw,
+  } as Planet;
+}
+
 function loadState(): GameState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as GameState;
       if (parsed.version === STATE_VERSION) {
-        return { ...INITIAL_STATE, ...parsed };
+        return {
+          ...INITIAL_STATE,
+          ...parsed,
+          planets: (parsed.planets || []).map(migratePlanet),
+        };
       }
     }
   } catch { /**/ }
@@ -149,11 +172,14 @@ function rollPlanet(): Planet {
     farmStartedAt: now,
     lastCollectedAt: now,
     isListedInMarket: false,
+    isFarmingActive: false,
+    marketPrice: null,
     craftCost: cfg.craftCost,
   };
 }
 
 export function isFarmActive(planet: Planet): boolean {
+  if (!planet.isFarmingActive) return false;
   if (planet.isListedInMarket) return false;
   const now = Date.now();
   if (now - planet.farmStartedAt > FARM_DURATION_MS) return false;
@@ -236,16 +262,12 @@ export function useGameState() {
     const current = stateRef.current;
     if (current.planets.length >= current.maxSlots) return { completed: false };
     if (current.balance < 1) return { completed: false };
-
     const newTaps = current.taps + 1;
     const newBalance = current.balance - 1;
-
     if (newTaps >= current.goal) {
       const planet = rollPlanet();
       setState((prev) => ({
-        ...prev,
-        balance: newBalance,
-        taps: 0,
+        ...prev, balance: newBalance, taps: 0,
         planets: [...prev.planets, planet],
         craftsCompleted: prev.craftsCompleted + 1,
       }));
@@ -278,21 +300,86 @@ export function useGameState() {
     });
   }, []);
 
-  const listPlanet = useCallback((id: string) => {
+  const startFarming = useCallback((id: string) => {
     setState((prev) => ({
       ...prev,
       planets: prev.planets.map((p) =>
-        p.id === id ? { ...p, isListedInMarket: !p.isListedInMarket } : p
+        p.id === id && !p.isListedInMarket
+          ? { ...p, isFarmingActive: true, farmStartedAt: Date.now(), lastCollectedAt: Date.now() }
+          : p
       ),
     }));
   }, []);
 
+  const stopFarming = useCallback((id: string) => {
+    setState((prev) => ({
+      ...prev,
+      planets: prev.planets.map((p) =>
+        p.id === id ? { ...p, isFarmingActive: false } : p
+      ),
+    }));
+  }, []);
+
+  const listPlanet = useCallback((id: string, price: number) => {
+    setState((prev) => ({
+      ...prev,
+      planets: prev.planets.map((p) =>
+        p.id === id
+          ? { ...p, isListedInMarket: true, isFarmingActive: false, marketPrice: price }
+          : p
+      ),
+    }));
+  }, []);
+
+  const unlistPlanet = useCallback((id: string) => {
+    setState((prev) => ({
+      ...prev,
+      planets: prev.planets.map((p) =>
+        p.id === id ? { ...p, isListedInMarket: false, marketPrice: null } : p
+      ),
+    }));
+  }, []);
+
+  const buyPlanet = useCallback((listing: MarketListing): { success: boolean; reason?: string } => {
+    const current = stateRef.current;
+    if (current.planets.length >= current.maxSlots) {
+      return { success: false, reason: "No free slots available" };
+    }
+    const fee = Math.floor(listing.price * 0.25);
+    const total = listing.price + fee;
+    if (current.balance < total) {
+      return { success: false, reason: "Insufficient $ZOOM balance" };
+    }
+    const isOwnListing = current.planets.some(p => p.id === listing.id && p.isListedInMarket);
+    if (isOwnListing) {
+      return { success: false, reason: "Cannot buy your own listing" };
+    }
+    const cfg = PLANET_CONFIG[listing.name];
+    const now = Date.now();
+    const newPlanet: Planet = {
+      id: `bought-${now}-${Math.random().toString(36).substring(2)}`,
+      name: listing.name,
+      rate: cfg.rate,
+      color: cfg.color,
+      glowColor: cfg.glowColor,
+      createdAt: now,
+      farmStartedAt: now,
+      lastCollectedAt: now,
+      isListedInMarket: false,
+      isFarmingActive: false,
+      marketPrice: null,
+      craftCost: listing.price,
+    };
+    setState((prev) => ({
+      ...prev,
+      balance: prev.balance - total,
+      planets: [...prev.planets, newPlanet],
+    }));
+    return { success: true };
+  }, []);
+
   const unlockSlot = useCallback(() => {
-    setState((prev) => {
-      const cost = (prev.maxSlots - 1) * 0.25;
-      if (prev.totalTonSpent < cost) return prev;
-      return { ...prev, maxSlots: prev.maxSlots + 1 };
-    });
+    setState((prev) => ({ ...prev, maxSlots: prev.maxSlots + 1 }));
   }, []);
 
   const claimDaily = useCallback(() => {
@@ -303,5 +390,10 @@ export function useGameState() {
     });
   }, []);
 
-  return { state, craft, collectPlanet, burnPlanet, listPlanet, unlockSlot, claimDaily };
+  return {
+    state, craft, collectPlanet, burnPlanet,
+    startFarming, stopFarming,
+    listPlanet, unlistPlanet, buyPlanet,
+    unlockSlot, claimDaily,
+  };
 }

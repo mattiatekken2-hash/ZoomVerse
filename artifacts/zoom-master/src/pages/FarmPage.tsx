@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
 import type { Planet } from "../hooks/useGameState";
 import { PLANET_CONFIG, isFarmActive, getFarmTimeRemaining, formatDuration, needsCollect } from "../hooks/useGameState";
@@ -8,7 +8,16 @@ interface FarmPageProps {
   balance: number;
   onCollect: (id: string) => void;
   onBurn: (id: string) => void;
-  onList: (id: string) => void;
+  onStartFarming: (id: string) => void;
+  onStopFarming: (id: string) => void;
+  onSell: (id: string, price: number) => void;
+  onUnlist: (id: string) => void;
+}
+
+interface SellPopup {
+  planetId: string;
+  planetName: string;
+  planetColor: string;
 }
 
 const RARITY_CLASS: Record<string, string> = {
@@ -18,8 +27,13 @@ const RARITY_CLASS: Record<string, string> = {
   GOLD: "rarity-gold",
 };
 
-export function FarmPage({ planets, onCollect, onBurn, onList }: FarmPageProps) {
+export function FarmPage({ planets, onCollect, onBurn, onStartFarming, onStopFarming, onSell, onUnlist }: FarmPageProps) {
   const [confirmBurn, setConfirmBurn] = useState<string | null>(null);
+  const [sellPopup, setSellPopup] = useState<SellPopup | null>(null);
+  const [sellPrice, setSellPrice] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const totalRate = planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
 
   const handleBurnClick = (id: string) => {
     if (confirmBurn === id) {
@@ -31,15 +45,35 @@ export function FarmPage({ planets, onCollect, onBurn, onList }: FarmPageProps) 
     }
   };
 
-  const totalRate = planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
+  const openSellPopup = (planet: Planet) => {
+    const cfg = PLANET_CONFIG[planet.name];
+    const suggested = Math.floor(planet.craftCost * 2.5);
+    setSellPopup({ planetId: planet.id, planetName: cfg.label, planetColor: planet.color });
+    setSellPrice(String(suggested));
+    setTimeout(() => inputRef.current?.focus(), 100);
+  };
+
+  const confirmSell = () => {
+    if (!sellPopup) return;
+    const price = parseInt(sellPrice, 10);
+    if (!price || price <= 0) return;
+    onSell(sellPopup.planetId, price);
+    setSellPopup(null);
+    setSellPrice("");
+  };
+
+  const cancelSell = () => {
+    setSellPopup(null);
+    setSellPrice("");
+  };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
       <div className="px-5 pt-4 pb-2 flex-shrink-0 flex items-center justify-between">
         <div>
           <h2 className="font-black text-lg tracking-tight">My Planets</h2>
           <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-            {planets.length}/2 slots · {totalRate.toLocaleString()} $ZOOM/hr farming
+            {planets.length}/2 slots · {totalRate > 0 ? `+${totalRate.toLocaleString()} $ZOOM/hr` : "No active farming"}
           </p>
         </div>
         {totalRate > 0 && (
@@ -57,15 +91,16 @@ export function FarmPage({ planets, onCollect, onBurn, onList }: FarmPageProps) 
             const needsDaily = needsCollect(planet);
             const refund = Math.floor(planet.craftCost * 0.15);
             const cfg = PLANET_CONFIG[planet.name];
+            const isListed = planet.isListedInMarket;
 
             return (
               <div
                 key={planet.id}
                 className="slot-enter rounded-2xl p-4 border"
                 style={{
-                  borderColor: planet.color + "30",
+                  borderColor: isListed ? "rgba(255,215,0,0.3)" : planet.color + "30",
                   background: `linear-gradient(135deg, ${planet.color}08 0%, rgba(6,8,16,0.6) 100%)`,
-                  boxShadow: active ? `0 0 24px ${planet.color}15` : "none",
+                  boxShadow: active ? `0 0 28px ${planet.color}18` : "none",
                 }}
                 data-testid={`planet-card-${planet.id}`}
               >
@@ -78,12 +113,16 @@ export function FarmPage({ planets, onCollect, onBurn, onList }: FarmPageProps) 
                         style={{ background: "#00e676", boxShadow: "0 0 8px #00e676" }}
                       />
                     )}
+                    {isListed && !active && (
+                      <div
+                        className="absolute -top-1 -right-1 w-3 h-3 rounded-full"
+                        style={{ background: "#ffd700", boxShadow: "0 0 8px #ffd700" }}
+                      />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span
-                        className={`font-black text-base tracking-wide ${RARITY_CLASS[planet.name]}`}
-                      >
+                      <span className={`font-black text-base tracking-wide ${RARITY_CLASS[planet.name]}`}>
                         {cfg.label.toUpperCase()}
                       </span>
                       <span
@@ -94,63 +133,118 @@ export function FarmPage({ planets, onCollect, onBurn, onList }: FarmPageProps) 
                       </span>
                     </div>
                     <div className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>
-                      {active ? `+${planet.rate.toLocaleString()} $ZOOM/hr` : "Farming paused"}
+                      {active
+                        ? `+${planet.rate.toLocaleString()} $ZOOM/hr · ${formatDuration(remaining)} left`
+                        : isListed
+                        ? `Listed for ${planet.marketPrice?.toLocaleString()} $ZOOM`
+                        : "Farming stopped"}
                     </div>
-                    {planet.isListedInMarket && (
-                      <div className="text-xs font-bold mt-1" style={{ color: "#ffd700" }}>
-                        Listed in Market
-                      </div>
-                    )}
                   </div>
                 </div>
 
                 <div className="flex gap-2">
-                  <button
-                    className="btn-widget"
-                    style={{
-                      borderColor: needsDaily ? "rgba(255,165,0,0.4)" : active ? "rgba(0,230,118,0.3)" : "rgba(255,255,255,0.08)",
-                      background: needsDaily ? "rgba(255,165,0,0.08)" : active ? "rgba(0,230,118,0.06)" : "transparent",
-                      color: needsDaily ? "#ffa500" : active ? "#00e676" : "rgba(255,255,255,0.3)",
-                    }}
-                    onClick={() => needsDaily ? onCollect(planet.id) : undefined}
-                    data-testid={`btn-farm-${planet.id}`}
-                  >
-                    <span style={{ fontSize: 14 }}>{needsDaily ? "⚡" : active ? "🌿" : "⏸"}</span>
-                    <span>{needsDaily ? "COLLECT" : active ? "FARMING" : "PAUSED"}</span>
-                    {active && !needsDaily && (
+                  {/* FARM BUTTON */}
+                  {needsDaily ? (
+                    <button
+                      className="btn-widget"
+                      style={{
+                        borderColor: "rgba(255,165,0,0.5)",
+                        background: "rgba(255,165,0,0.09)",
+                        color: "#ffa500",
+                      }}
+                      onClick={() => onCollect(planet.id)}
+                      data-testid={`btn-collect-${planet.id}`}
+                    >
+                      <span style={{ fontSize: 14 }}>⚡</span>
+                      <span>COLLECT</span>
+                      <span style={{ fontSize: 8, opacity: 0.6 }}>Daily</span>
+                    </button>
+                  ) : active ? (
+                    <button
+                      className="btn-widget"
+                      style={{
+                        borderColor: "rgba(0,230,118,0.3)",
+                        background: "rgba(0,230,118,0.06)",
+                        color: "#00e676",
+                      }}
+                      onClick={() => onStopFarming(planet.id)}
+                      data-testid={`btn-stop-${planet.id}`}
+                    >
+                      <span style={{ fontSize: 14 }}>⏸</span>
+                      <span>FARMING</span>
                       <span style={{ fontSize: 8, opacity: 0.6 }}>{formatDuration(remaining)}</span>
-                    )}
-                  </button>
+                    </button>
+                  ) : (
+                    <button
+                      className="btn-widget"
+                      disabled={isListed}
+                      style={{
+                        borderColor: isListed ? "rgba(255,255,255,0.04)" : "rgba(0,242,254,0.25)",
+                        background: isListed ? "transparent" : "rgba(0,242,254,0.06)",
+                        color: isListed ? "rgba(255,255,255,0.15)" : "#00f2fe",
+                        cursor: isListed ? "not-allowed" : "pointer",
+                        opacity: isListed ? 0.4 : 1,
+                      }}
+                      onClick={() => !isListed && onStartFarming(planet.id)}
+                      data-testid={`btn-farm-${planet.id}`}
+                    >
+                      <span style={{ fontSize: 14 }}>▶</span>
+                      <span>START</span>
+                      <span style={{ fontSize: 8, opacity: 0.6 }}>Farm</span>
+                    </button>
+                  )}
 
+                  {/* BURN BUTTON */}
                   <button
                     className="btn-widget"
+                    disabled={isListed}
                     style={{
                       borderColor: confirmBurn === planet.id ? "rgba(255,65,108,0.5)" : "rgba(255,255,255,0.08)",
                       background: confirmBurn === planet.id ? "rgba(255,65,108,0.1)" : "transparent",
-                      color: confirmBurn === planet.id ? "#ff416c" : "rgba(255,255,255,0.3)",
+                      color: isListed ? "rgba(255,255,255,0.12)" : confirmBurn === planet.id ? "#ff416c" : "rgba(255,255,255,0.3)",
+                      cursor: isListed ? "not-allowed" : "pointer",
+                      opacity: isListed ? 0.35 : 1,
                     }}
-                    onClick={() => handleBurnClick(planet.id)}
+                    onClick={() => !isListed && handleBurnClick(planet.id)}
                     data-testid={`btn-burn-${planet.id}`}
                   >
                     <span style={{ fontSize: 14 }}>🔥</span>
                     <span>{confirmBurn === planet.id ? "SURE?" : "BURN"}</span>
-                    <span style={{ fontSize: 8, opacity: 0.6 }}>+{refund} $ZOOM</span>
+                    <span style={{ fontSize: 8, opacity: 0.6 }}>+{refund}</span>
                   </button>
 
-                  <button
-                    className="btn-widget"
-                    style={{
-                      borderColor: planet.isListedInMarket ? "rgba(255,215,0,0.4)" : "rgba(255,255,255,0.08)",
-                      background: planet.isListedInMarket ? "rgba(255,215,0,0.06)" : "transparent",
-                      color: planet.isListedInMarket ? "#ffd700" : "rgba(255,255,255,0.3)",
-                    }}
-                    onClick={() => onList(planet.id)}
-                    data-testid={`btn-sell-${planet.id}`}
-                  >
-                    <span style={{ fontSize: 14 }}>💫</span>
-                    <span>{planet.isListedInMarket ? "LISTED" : "SELL"}</span>
-                    <span style={{ fontSize: 8, opacity: 0.6 }}>Market</span>
-                  </button>
+                  {/* SELL / UNLIST BUTTON */}
+                  {isListed ? (
+                    <button
+                      className="btn-widget"
+                      style={{
+                        borderColor: "rgba(255,215,0,0.4)",
+                        background: "rgba(255,215,0,0.07)",
+                        color: "#ffd700",
+                      }}
+                      onClick={() => onUnlist(planet.id)}
+                      data-testid={`btn-unlist-${planet.id}`}
+                    >
+                      <span style={{ fontSize: 14 }}>✕</span>
+                      <span>LISTED</span>
+                      <span style={{ fontSize: 8, opacity: 0.6 }}>Tap to delist</span>
+                    </button>
+                  ) : (
+                    <button
+                      className="btn-widget"
+                      style={{
+                        borderColor: "rgba(255,255,255,0.08)",
+                        background: "transparent",
+                        color: "rgba(255,255,255,0.3)",
+                      }}
+                      onClick={() => openSellPopup(planet)}
+                      data-testid={`btn-sell-${planet.id}`}
+                    >
+                      <span style={{ fontSize: 14 }}>💫</span>
+                      <span>SELL</span>
+                      <span style={{ fontSize: 8, opacity: 0.6 }}>Market</span>
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -169,29 +263,111 @@ export function FarmPage({ planets, onCollect, onBurn, onList }: FarmPageProps) 
           ))}
 
           <div
-            className="rounded-2xl border border-dashed flex flex-col items-center justify-center py-10 gap-2"
+            className="rounded-2xl border border-dashed flex flex-col items-center justify-center py-8 gap-2"
             style={{
-              borderColor: "rgba(255,215,0,0.15)",
-              background: "rgba(255,215,0,0.02)",
+              borderColor: "rgba(255,215,0,0.12)",
+              background: "rgba(255,215,0,0.015)",
               cursor: "not-allowed",
-              minHeight: 120,
+              minHeight: 100,
             }}
             data-testid="slot-locked"
           >
-            <div style={{ fontSize: 22, opacity: 0.5 }}>🔒</div>
-            <div className="font-bold text-xs tracking-widest uppercase" style={{ color: "rgba(255,215,0,0.5)" }}>
-              0.25 TON
-            </div>
-            <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>to unlock</div>
+            <div style={{ fontSize: 20, opacity: 0.45 }}>🔒</div>
+            <div className="font-bold text-xs tracking-widest uppercase" style={{ color: "rgba(255,215,0,0.45)" }}>0.25 TON</div>
+            <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)" }}>to unlock</div>
           </div>
         </div>
 
         {planets.length === 0 && (
-          <div className="text-center text-xs py-6" style={{ color: "rgba(255,255,255,0.25)" }}>
+          <div className="text-center text-xs py-4" style={{ color: "rgba(255,255,255,0.22)" }}>
             Forge your first planet in the Lab
           </div>
         )}
       </div>
+
+      {/* SELL PRICE POPUP */}
+      {sellPopup && (
+        <div
+          className="absolute inset-0 flex items-end justify-center z-50"
+          style={{ background: "rgba(6,8,16,0.82)", backdropFilter: "blur(12px)" }}
+          onClick={(e) => e.target === e.currentTarget && cancelSell()}
+        >
+          <div
+            className="w-full glass-strong rounded-t-3xl px-5 pt-6 pb-8"
+            style={{ boxShadow: `0 -20px 60px ${sellPopup.planetColor}20` }}
+          >
+            <div className="flex items-center gap-3 mb-5">
+              <div
+                className="w-4 h-4 rounded-full flex-shrink-0"
+                style={{ background: sellPopup.planetColor, boxShadow: `0 0 10px ${sellPopup.planetColor}` }}
+              />
+              <div className="font-black text-base" style={{ color: sellPopup.planetColor }}>
+                List {sellPopup.planetName} Planet
+              </div>
+            </div>
+            <div className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Set your asking price in $ZOOM. A 25% marketplace fee will be deducted on sale.
+            </div>
+
+            <div className="relative mb-2">
+              <input
+                ref={inputRef}
+                type="number"
+                min={1}
+                value={sellPrice}
+                onChange={(e) => setSellPrice(e.target.value)}
+                className="w-full rounded-xl px-4 py-4 text-xl font-black pr-20 outline-none"
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: `1px solid ${sellPopup.planetColor}44`,
+                  color: "white",
+                  caretColor: sellPopup.planetColor,
+                }}
+                placeholder="Enter price"
+                inputMode="numeric"
+              />
+              <span
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold"
+                style={{ color: "rgba(255,255,255,0.35)" }}
+              >
+                $ZOOM
+              </span>
+            </div>
+
+            {sellPrice && parseInt(sellPrice) > 0 && (
+              <div className="text-xs mb-4 px-1" style={{ color: "rgba(255,255,255,0.35)" }}>
+                Buyer pays {Math.floor(parseInt(sellPrice) * 1.25).toLocaleString()} $ZOOM total · You receive {parseInt(sellPrice).toLocaleString()}
+              </div>
+            )}
+
+            <div className="flex gap-3 mt-4">
+              <button
+                className="flex-1 py-3.5 rounded-xl font-bold text-sm border transition-all active:scale-95"
+                style={{ borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.4)" }}
+                onClick={cancelSell}
+              >
+                Cancel
+              </button>
+              <button
+                className="flex-1 py-3.5 rounded-xl font-black text-sm transition-all active:scale-95"
+                disabled={!sellPrice || parseInt(sellPrice) <= 0}
+                style={{
+                  background: (!sellPrice || parseInt(sellPrice) <= 0)
+                    ? "rgba(255,255,255,0.05)"
+                    : `linear-gradient(135deg, ${sellPopup.planetColor}cc, ${sellPopup.planetColor}88)`,
+                  color: (!sellPrice || parseInt(sellPrice) <= 0) ? "rgba(255,255,255,0.2)" : "#060810",
+                  boxShadow: (!sellPrice || parseInt(sellPrice) <= 0)
+                    ? "none" : `0 0 20px ${sellPopup.planetColor}40`,
+                }}
+                onClick={confirmSell}
+                data-testid="btn-confirm-sell"
+              >
+                List for {sellPrice ? parseInt(sellPrice).toLocaleString() : "—"} $ZOOM
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useGameState } from "./hooks/useGameState";
+import { useGameState, isFarmActive } from "./hooks/useGameState";
 import { NebulaBackground } from "./components/NebulaBackground";
 import { LabPage } from "./pages/LabPage";
 import { FarmPage } from "./pages/FarmPage";
@@ -29,10 +29,15 @@ const pageTransition = { duration: 0.22, ease: [0.25, 0.1, 0.25, 1] };
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("lab");
-  const { state, craft, collectPlanet, burnPlanet, listPlanet, claimDaily } = useGameState();
+  const {
+    state, craft, collectPlanet, burnPlanet,
+    startFarming, stopFarming,
+    listPlanet, unlistPlanet, buyPlanet,
+    claimDaily,
+  } = useGameState();
 
   const totalRate = state.planets
-    .filter(p => !p.isListedInMarket)
+    .filter(isFarmActive)
     .reduce((a, p) => a + p.rate, 0);
 
   const renderPage = () => {
@@ -54,7 +59,10 @@ export default function App() {
             balance={state.balance}
             onCollect={collectPlanet}
             onBurn={burnPlanet}
-            onList={listPlanet}
+            onStartFarming={startFarming}
+            onStopFarming={stopFarming}
+            onSell={listPlanet}
+            onUnlist={unlistPlanet}
           />
         );
       case "market":
@@ -62,6 +70,9 @@ export default function App() {
           <MarketPage
             balance={state.balance}
             myListings={state.planets}
+            maxSlots={state.maxSlots}
+            onBuy={buyPlanet}
+            onUnlist={unlistPlanet}
           />
         );
       case "earn":
