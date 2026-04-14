@@ -95,7 +95,7 @@ export function FarmPage({ planets, maxSlots, balance, onRemove, onUnlock }: Far
           </div>
         ))}
 
-        {Array.from({ length: Math.max(0, maxSlots - planets.length) }).map((_, i) => (
+        {Array.from({ length: Math.max(0, 2 - planets.length) }).map((_, i) => (
           <div
             key={`empty-${i}`}
             className="rounded-2xl border border-dashed flex flex-col items-center justify-center gap-2 py-8"
@@ -107,33 +107,17 @@ export function FarmPage({ planets, maxSlots, balance, onRemove, onUnlock }: Far
           </div>
         ))}
 
-        {maxSlots < 6 && (
-          <button
-            className="rounded-2xl border border-dashed flex flex-col items-center justify-center gap-2 py-8 transition-all active:scale-95 disabled:opacity-30"
-            style={{
-              borderColor: canUnlock ? "#ffd70044" : "rgba(255,255,255,0.08)",
-              minHeight: 160,
-              background: canUnlock ? "#ffd70008" : "transparent",
-            }}
-            onClick={onUnlock}
-            disabled={!canUnlock}
-            data-testid="button-unlock-slot"
-          >
-            <div
-              className="text-3xl"
-              style={{ color: canUnlock ? "#ffd700" : "rgba(255,255,255,0.2)" }}
-            >
-              +
-            </div>
-            <div
-              className="text-xs font-bold uppercase tracking-wider"
-              style={{ color: canUnlock ? "#ffd700" : "rgba(255,255,255,0.25)" }}
-            >
-              Unlock Slot
-            </div>
-            <div className="text-xs text-muted-foreground">250 coins</div>
-          </button>
-        )}
+        <div
+          className="rounded-2xl border border-dashed flex flex-col items-center justify-center gap-2 py-8 opacity-40"
+          style={{ borderColor: "rgba(255,215,0,0.25)", minHeight: 160, background: "rgba(255,215,0,0.03)", cursor: "not-allowed" }}
+          data-testid="slot-locked"
+        >
+          <div className="text-2xl" style={{ color: "rgba(255,215,0,0.5)" }}>🔒</div>
+          <div className="text-xs font-bold uppercase tracking-wider" style={{ color: "rgba(255,215,0,0.6)" }}>
+            0.25 TON
+          </div>
+          <div className="text-xs text-muted-foreground opacity-70">to unlock</div>
+        </div>
       </div>
 
       <div className="px-5 py-3 flex-shrink-0">

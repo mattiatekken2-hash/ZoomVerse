@@ -31,12 +31,17 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, onCraft }: Lab
   const [floats, setFloats] = useState<FloatingText[]>([]);
   const [lastPlanet, setLastPlanet] = useState<Planet | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [craftedColor, setCraftedColor] = useState<string | undefined>(undefined);
 
   const handleCraft = useCallback(() => {
+    if (craftedColor) {
+      setCraftedColor(undefined);
+    }
     const result = onCraft();
     if (result.completed && result.planet) {
       const p = result.planet;
       setLastPlanet(p);
+      setCraftedColor(p.color);
       setStatus(`${p.name} PLANET CRAFTED! SENT TO FARM`);
       setStatusColor(p.color);
       setShowSuccess(true);
@@ -54,10 +59,10 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, onCraft }: Lab
       setStatus(`CRAFTING... ${pct}% COMPLETE`);
       setStatusColor("#00f2fe");
     }
-  }, [onCraft, goal]);
+  }, [onCraft, goal, craftedColor]);
 
-  const isFull = planets.length >= maxSlots;
-  const planetColor = lastPlanet ? lastPlanet.color : undefined;
+  const isFull = planets.length >= 2;
+  const planetColor = craftedColor;
 
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
@@ -137,7 +142,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, onCraft }: Lab
 
         <div className="flex justify-between text-xs text-muted-foreground">
           <span>Cost: 1 coin / tap</span>
-          <span>{maxSlots - planets.length} slot{maxSlots - planets.length !== 1 ? "s" : ""} free</span>
+          <span>{Math.max(0, 2 - planets.length)} slot{Math.max(0, 2 - planets.length) !== 1 ? "s" : ""} free</span>
         </div>
       </div>
     </div>
