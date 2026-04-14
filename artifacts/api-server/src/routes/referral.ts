@@ -20,18 +20,13 @@ router.post("/referral/register", async (req, res) => {
   const { telegramId, referredBy } = parsed.data;
 
   try {
-    const existing = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.telegramId, telegramId))
-      .limit(1);
-
-    const isNew = existing.length === 0;
-
-    await db
+    const inserted = await db
       .insert(usersTable)
       .values({ telegramId, referredBy: referredBy ?? null, referralCount: 0 })
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .returning({ telegramId: usersTable.telegramId });
+
+    const isNew = inserted.length > 0;
 
     if (isNew && referredBy) {
       await db
