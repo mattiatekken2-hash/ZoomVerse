@@ -89,4 +89,12 @@ router.post("/referral/reset", async (req, res) => {
   }
 });
 
+router.post("/referral/debug", (req, res) => {
+  const { telegramId, initData, initDataUnsafe, startParam, localStorageParam } = req.body as Record<string, string>;
+  console.log(`[debug] id=${telegramId} startParam=${startParam ?? "null"} ls=${localStorageParam ?? "null"}`);
+  console.log(`[debug] initData=${initData ?? "empty"}`);
+  console.log(`[debug] initDataUnsafe=${initDataUnsafe ?? "empty"}`);
+  res.json({ received: true });
+});
+
 export default router;

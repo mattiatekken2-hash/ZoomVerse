@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralCount } from "../utils/api";
+import { registerUser, fetchReferralCount, debugTelegramContext } from "../utils/api";
 
 export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD";
 
@@ -361,6 +361,20 @@ export function useGameState() {
 
   useEffect(() => {
     const { telegramId, startParam } = getTelegramContext();
+
+    const webApp = (window as unknown as { Telegram?: { WebApp?: { initData?: string; initDataUnsafe?: unknown } } }).Telegram?.WebApp;
+    const rawInitData = webApp?.initData ?? "";
+    const rawUnsafe = webApp?.initDataUnsafe ? JSON.stringify(webApp.initDataUnsafe) : "";
+    const lsParam = (() => { try { return localStorage.getItem("zoom-start-param"); } catch { return null; } })();
+
+    debugTelegramContext({
+      telegramId,
+      initData: rawInitData,
+      initDataUnsafe: rawUnsafe,
+      startParam,
+      localStorageParam: lsParam,
+    });
+
     if (!telegramId) return;
 
     (async () => {

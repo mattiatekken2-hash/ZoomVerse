@@ -1,5 +1,21 @@
 const API_BASE = `${window.location.origin}/api`;
 
+export async function debugTelegramContext(data: {
+  telegramId: string | null;
+  initData: string;
+  initDataUnsafe: string;
+  startParam: string | null;
+  localStorageParam: string | null;
+}): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/referral/debug`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  } catch { /**/ }
+}
+
 export async function registerUser(
   telegramId: string,
   referredBy?: string | null,
