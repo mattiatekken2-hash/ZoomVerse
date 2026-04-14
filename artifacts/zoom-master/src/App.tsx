@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useGameState, isFarmActive } from "./hooks/useGameState";
-import { haptic } from "./utils/haptic";
+import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/useGameState";
 import { NebulaBackground } from "./components/NebulaBackground";
 import { LabPage } from "./pages/LabPage";
 import { FarmPage } from "./pages/FarmPage";
@@ -9,6 +8,7 @@ import { MarketPage } from "./pages/MarketPage";
 import { EarnPage } from "./pages/EarnPage";
 import { RankPage } from "./pages/RankPage";
 import { ShopPage } from "./pages/ShopPage";
+import { haptic } from "./utils/haptic";
 
 type Tab = "lab" | "farm" | "market" | "earn" | "rank" | "shop";
 
@@ -35,12 +35,12 @@ export default function App() {
     collectPlanet, burnPlanet,
     startFarming, stopFarming,
     listPlanet, unlistPlanet, buyPlanet,
-    claimDaily,
+    claimDaily, activateSun, collectSun,
   } = useGameState();
 
-  const totalRate = state.planets
-    .filter(isFarmActive)
-    .reduce((a, p) => a + p.rate, 0);
+  const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
+  const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate : 0;
+  const totalRate = planetRate + sunRate;
 
   const renderPage = () => {
     switch (tab) {
@@ -61,8 +61,11 @@ export default function App() {
         return (
           <FarmPage
             planets={state.planets}
+            sun={state.sun}
             balance={state.balance}
             onCollect={collectPlanet}
+            onCollectSun={collectSun}
+            onActivateSun={activateSun}
             onBurn={burnPlanet}
             onStartFarming={startFarming}
             onStopFarming={stopFarming}
@@ -100,7 +103,7 @@ export default function App() {
           />
         );
       case "shop":
-        return <ShopPage balance={state.balance} />;
+        return <ShopPage balance={state.balance} hasSun={!!state.sun?.isOwned} />;
       default:
         return null;
     }
@@ -116,7 +119,7 @@ export default function App() {
       >
         <div
           className="font-black text-lg tracking-widest neon-text cursor-pointer"
-          onClick={() => setTab("lab")}
+          onClick={() => { haptic(5); setTab("lab"); }}
         >
           ZOOM
         </div>
@@ -128,7 +131,7 @@ export default function App() {
           )}
           <div
             className="glass-neon flex items-center gap-1.5 px-3.5 py-2 rounded-full font-black text-sm cursor-pointer"
-            onClick={() => setTab("shop")}
+            onClick={() => { haptic(5); setTab("shop"); }}
             data-testid="balance-display"
           >
             <span style={{ fontSize: 13 }}>🪐</span>

@@ -17,26 +17,8 @@ interface LabPageProps {
 
 interface FloatMsg { id: number; text: string; color: string }
 
-function interpolateColor(t: number): string {
-  const stops = [
-    { pos: 0.0, r: 136, g: 146, b: 176 },
-    { pos: 0.35, r: 79, g: 172, b: 254 },
-    { pos: 0.65, r: 196, g: 113, b: 237 },
-    { pos: 1.0, r: 255, g: 215, b: 0 },
-  ];
-  const clamped = Math.max(0, Math.min(1, t));
-  let i = 0;
-  for (let k = 0; k < stops.length - 1; k++) {
-    if (clamped >= stops[k].pos && clamped <= stops[k + 1].pos) { i = k; break; }
-  }
-  const from = stops[i];
-  const to = stops[i + 1];
-  const local = (clamped - from.pos) / (to.pos - from.pos);
-  const r = Math.round(from.r + (to.r - from.r) * local);
-  const g = Math.round(from.g + (to.g - from.g) * local);
-  const b = Math.round(from.b + (to.b - from.b) * local);
-  return `rgb(${r},${g},${b})`;
-}
+const GREY = "#8892b0";
+const REVEAL_THRESHOLD = 0.90;
 
 export function LabPage({ balance, taps, goal, planets, currentCraftRarity, pendingPlanet, onCraft, onClaim }: LabPageProps) {
   const [status, setStatus] = useState("TAP TO FORGE A PLANET");
@@ -46,10 +28,13 @@ export function LabPage({ balance, taps, goal, planets, currentCraftRarity, pend
   const isFull = planets.length >= 2 && !pendingPlanet;
   const canCraft = !pendingPlanet && planets.length < 2 && balance >= 1;
 
-  const progress = taps / goal;
-  const dynamicColor = currentCraftRarity
+  const progress = goal > 0 ? taps / goal : 0;
+
+  const dynamicColor = pendingPlanet
+    ? pendingPlanet.color
+    : currentCraftRarity && progress >= REVEAL_THRESHOLD
     ? PLANET_CONFIG[currentCraftRarity].color
-    : interpolateColor(progress);
+    : GREY;
 
   const addFloat = useCallback((text: string, color: string) => {
     const id = Date.now();
@@ -70,12 +55,12 @@ export function LabPage({ balance, taps, goal, planets, currentCraftRarity, pend
     } else if (!result.completed && result.tapsLeft !== undefined) {
       const pct = Math.round(((goal - result.tapsLeft) / goal) * 100);
       setStatus(`FORGING... ${pct}%`);
-      addFloat("-1 🪐", "rgba(255,255,255,0.3)");
+      addFloat("-1 🪐", "rgba(255,255,255,0.25)");
     }
   }, [canCraft, onCraft, goal, addFloat]);
 
   const handleClaim = useCallback(() => {
-    haptic(10);
+    haptic(12);
     onClaim();
     setStatus("TAP TO FORGE A PLANET");
   }, [onClaim]);
@@ -87,8 +72,6 @@ export function LabPage({ balance, taps, goal, planets, currentCraftRarity, pend
     GOLD: "gold-text",
   };
 
-  const planetDisplayColor = pendingPlanet ? pendingPlanet.color : dynamicColor;
-
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
       <div className="relative flex-1" style={{ minHeight: 0 }} onClick={canCraft ? handleCraft : undefined}>
@@ -96,7 +79,7 @@ export function LabPage({ balance, taps, goal, planets, currentCraftRarity, pend
           onPunch={canCraft ? handleCraft : undefined}
           progress={taps}
           goal={goal}
-          planetColor={planetDisplayColor}
+          planetColor={dynamicColor}
           isRevealing={!!pendingPlanet}
         />
 
@@ -105,7 +88,7 @@ export function LabPage({ balance, taps, goal, planets, currentCraftRarity, pend
             key={f.id}
             className="absolute pointer-events-none font-black text-xl float-up"
             style={{
-              left: "50%", top: "40%",
+              left: "50%", top: "38%",
               transform: "translate(-50%, -50%)",
               color: f.color,
               textShadow: `0 0 12px ${f.color}`,
@@ -123,7 +106,7 @@ export function LabPage({ balance, taps, goal, planets, currentCraftRarity, pend
           >
             <div className="glass rounded-2xl px-6 py-4 text-center">
               <div className="text-amber-400 font-black text-base tracking-widest mb-1">FARM FULL</div>
-              <div className="text-xs text-muted-foreground">Release a planet to keep crafting</div>
+              <div className="text-xs text-muted-foreground">Burn or sell a planet to continue</div>
             </div>
           </div>
         )}
@@ -159,7 +142,7 @@ export function LabPage({ balance, taps, goal, planets, currentCraftRarity, pend
               style={{
                 background: `linear-gradient(135deg, ${pendingPlanet.color}, ${pendingPlanet.color}bb)`,
                 color: "#060810",
-                boxShadow: `0 0 24px ${pendingPlanet.color}66`,
+                boxShadow: `0 0 28px ${pendingPlanet.color}66`,
                 borderColor: "transparent",
               }}
               data-testid="button-claim-planet"
@@ -171,7 +154,7 @@ export function LabPage({ balance, taps, goal, planets, currentCraftRarity, pend
           <>
             <div
               className="text-center text-xs font-bold tracking-widest uppercase py-1"
-              style={{ color: dynamicColor }}
+              style={{ color: dynamicColor === GREY ? "rgba(255,255,255,0.4)" : dynamicColor }}
               data-testid="craft-status"
             >
               {status}
@@ -190,7 +173,7 @@ export function LabPage({ balance, taps, goal, planets, currentCraftRarity, pend
         <div className="flex justify-between text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
           <span>
             {currentCraftRarity
-              ? `${PLANET_CONFIG[currentCraftRarity].label} · ${PLANET_CONFIG[currentCraftRarity].tapsNeeded} taps`
+              ? `${PLANET_CONFIG[currentCraftRarity].tapsNeeded} taps · 1 $ZOOM each`
               : "1 $ZOOM per tap"}
           </span>
           <span>{Math.max(0, 2 - planets.length)} slot{Math.max(0, 2 - planets.length) !== 1 ? "s" : ""} free</span>

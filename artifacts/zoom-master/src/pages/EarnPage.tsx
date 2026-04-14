@@ -6,7 +6,7 @@ interface EarnPageProps {
   referralCount: number;
   lastDailyClaimAt: number;
   onClaimDaily: () => void;
-  onRedeemCode: (code: string) => { success: boolean; amount?: number; error?: string };
+  onRedeemCode: (code: string) => { success: boolean; amount?: number; isSun?: boolean; error?: string };
 }
 
 const MILESTONES = [
@@ -23,7 +23,7 @@ const DAILY_INTERVAL = 24 * 60 * 60 * 1000;
 export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClaimDaily, onRedeemCode }: EarnPageProps) {
   const [copied, setCopied] = useState(false);
   const [redeemInput, setRedeemInput] = useState("");
-  const [redeemStatus, setRedeemStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [redeemStatus, setRedeemStatus] = useState<{ type: "success" | "error" | "sun"; message: string } | null>(null);
 
   const now = Date.now();
   const canClaim = now - lastDailyClaimAt >= DAILY_INTERVAL;
@@ -45,12 +45,16 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
     if (!redeemInput.trim()) return;
     const result = onRedeemCode(redeemInput);
     if (result.success) {
-      setRedeemStatus({ type: "success", message: `+${result.amount?.toLocaleString()} $ZOOM credited!` });
+      if (result.isSun) {
+        setRedeemStatus({ type: "sun", message: "☀️ THE SUN added to your inventory! Go to Farm to activate." });
+      } else {
+        setRedeemStatus({ type: "success", message: `+${result.amount?.toLocaleString()} $ZOOM credited!` });
+      }
       setRedeemInput("");
     } else {
       setRedeemStatus({ type: "error", message: result.error || "Invalid code" });
     }
-    setTimeout(() => setRedeemStatus(null), 3000);
+    setTimeout(() => setRedeemStatus(null), 4000);
   };
 
   const nextMilestone = MILESTONES.find(m => m.count > referralCount);
@@ -64,6 +68,7 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
       </div>
 
       <div className="px-4 pb-4 flex flex-col gap-4">
+        {/* Daily Claim */}
         <div
           className="rounded-2xl p-5 border flex flex-col items-center gap-3"
           style={{ borderColor: "rgba(0,242,254,0.15)", background: "rgba(0,242,254,0.04)" }}
@@ -71,7 +76,7 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
           <div className="text-4xl">🎁</div>
           <div className="font-black text-xl tracking-wide neon-text">Daily Reward</div>
           <div className="text-sm text-center" style={{ color: "rgba(255,255,255,0.5)" }}>
-            100 $ZOOM every 24 hours. Free.
+            50 $ZOOM every 24 hours. Free.
           </div>
           <button
             className="w-full py-4 rounded-xl font-black text-base tracking-wider uppercase transition-all active:scale-95 border"
@@ -86,20 +91,21 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
             }}
             data-testid="button-claim-daily"
           >
-            {canClaim ? "CLAIM 100 $ZOOM" : `${hLeft}h ${mLeft}m remaining`}
+            {canClaim ? "CLAIM 50 $ZOOM" : `${hLeft}h ${mLeft}m remaining`}
           </button>
         </div>
 
+        {/* Redeem Code */}
         <div
           className="rounded-2xl p-5 border"
-          style={{ borderColor: "rgba(0,230,118,0.15)", background: "rgba(0,230,118,0.03)" }}
+          style={{ borderColor: "rgba(255,179,71,0.2)", background: "rgba(255,179,71,0.03)" }}
         >
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-2">
             <div className="text-xl">🎟️</div>
-            <div className="font-black text-base" style={{ color: "#00e676" }}>Redeem Code</div>
+            <div className="font-black text-base" style={{ color: "#ffb347" }}>Redeem Code</div>
           </div>
-          <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
-            Enter a promo code to instantly credit $ZOOM to your balance
+          <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.4)" }}>
+            Enter a promo or SUN code (SUN-****) to claim instant rewards
           </div>
           <div className="flex gap-2">
             <input
@@ -107,13 +113,13 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
               value={redeemInput}
               onChange={e => setRedeemInput(e.target.value.toUpperCase())}
               onKeyDown={e => e.key === "Enter" && handleRedeem()}
-              placeholder="ENTER CODE"
+              placeholder="ZOOM-**** or SUN-****"
               className="flex-1 px-3 py-2.5 rounded-xl text-sm font-mono font-bold uppercase outline-none"
               style={{
                 background: "rgba(0,0,0,0.3)",
-                border: "1px solid rgba(0,230,118,0.2)",
-                color: "#00e676",
-                letterSpacing: "0.08em",
+                border: "1px solid rgba(255,179,71,0.2)",
+                color: "#ffb347",
+                letterSpacing: "0.06em",
               }}
               data-testid="input-redeem-code"
             />
@@ -121,9 +127,9 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
               onClick={handleRedeem}
               className="px-4 py-2.5 rounded-xl font-black text-sm tracking-wider uppercase transition-all active:scale-95"
               style={{
-                background: "rgba(0,230,118,0.12)",
-                color: "#00e676",
-                border: "1px solid rgba(0,230,118,0.25)",
+                background: "rgba(255,179,71,0.12)",
+                color: "#ffb347",
+                border: "1px solid rgba(255,179,71,0.25)",
               }}
               data-testid="button-redeem"
             >
@@ -132,11 +138,11 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
           </div>
           {redeemStatus && (
             <div
-              className="mt-2 text-xs font-bold text-center py-2 rounded-xl"
+              className="mt-2.5 text-xs font-bold text-center py-2.5 rounded-xl"
               style={{
-                color: redeemStatus.type === "success" ? "#00e676" : "#ff5252",
-                background: redeemStatus.type === "success" ? "rgba(0,230,118,0.08)" : "rgba(255,82,82,0.08)",
-                border: `1px solid ${redeemStatus.type === "success" ? "rgba(0,230,118,0.2)" : "rgba(255,82,82,0.2)"}`,
+                color: redeemStatus.type === "error" ? "#ff5252" : redeemStatus.type === "sun" ? "#ffb347" : "#00e676",
+                background: redeemStatus.type === "error" ? "rgba(255,82,82,0.08)" : redeemStatus.type === "sun" ? "rgba(255,179,71,0.1)" : "rgba(0,230,118,0.08)",
+                border: `1px solid ${redeemStatus.type === "error" ? "rgba(255,82,82,0.2)" : redeemStatus.type === "sun" ? "rgba(255,179,71,0.25)" : "rgba(0,230,118,0.2)"}`,
               }}
             >
               {redeemStatus.message}
@@ -144,6 +150,7 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
           )}
         </div>
 
+        {/* Referral */}
         <div className="rounded-2xl p-5 border" style={{ borderColor: "rgba(255,215,0,0.15)", background: "rgba(255,215,0,0.03)" }}>
           <div className="flex items-center gap-2 mb-3">
             <div className="text-xl">🔗</div>
@@ -152,7 +159,6 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
           <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
             +20 $ZOOM per new user who joins via your link
           </div>
-
           <div
             className="rounded-xl px-3 py-2.5 mb-3 flex items-center justify-between gap-2 border"
             style={{ borderColor: "rgba(255,215,0,0.15)", background: "rgba(0,0,0,0.3)" }}
@@ -173,29 +179,26 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
               {copied ? "✓ Copied" : "Copy"}
             </button>
           </div>
-
           <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
-            <span>Your code:</span>
+            <span>Code:</span>
             <span className="font-bold font-mono gold-text">{referralCode}</span>
             <span>·</span>
             <span className="font-bold" style={{ color: "#00e676" }}>{referralCount} invited</span>
           </div>
         </div>
 
+        {/* Milestones */}
         <div className="rounded-2xl p-4 border" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}>
           <div className="font-black text-sm tracking-wide mb-3" style={{ color: "rgba(255,255,255,0.7)" }}>
             Referral Milestones
           </div>
-
           {nextMilestone && (
             <div className="mb-4">
               <div className="flex justify-between text-xs mb-1.5">
                 <span style={{ color: "rgba(255,255,255,0.4)" }}>
                   Next: {nextMilestone.count} invites → {nextMilestone.reward.toLocaleString()} $ZOOM
                 </span>
-                <span className="font-bold neon-text">
-                  {referralCount}/{nextMilestone.count}
-                </span>
+                <span className="font-bold neon-text">{referralCount}/{nextMilestone.count}</span>
               </div>
               <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
                 <div
@@ -209,7 +212,6 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
               </div>
             </div>
           )}
-
           <div className="flex flex-col gap-2">
             {MILESTONES.map(m => {
               const done = referralCount >= m.count;
@@ -236,7 +238,6 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, onClai
               );
             })}
           </div>
-
           {prevMilestone && (
             <div className="mt-2 text-center text-xs" style={{ color: "rgba(0,230,118,0.7)" }}>
               Last claimed: {prevMilestone.count} invites milestone ✓

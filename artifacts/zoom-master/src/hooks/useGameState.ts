@@ -17,6 +17,15 @@ export interface Planet {
   craftCost: number;
 }
 
+export interface SunState {
+  isOwned: boolean;
+  isActive: boolean;
+  activationCost: number;
+  cycleCount: number;
+  farmStartedAt: number;
+  lastCollectedAt: number;
+}
+
 export interface FeedEvent {
   id: string;
   text: string;
@@ -48,6 +57,7 @@ export interface GameState {
   pendingPlanet: Planet | null;
   currentCraftRarity: PlanetType | null;
   usedRedeemCodes: string[];
+  sun: SunState | null;
 }
 
 export const PLANET_CONFIG: Record<PlanetType, {
@@ -61,45 +71,52 @@ export const PLANET_CONFIG: Record<PlanetType, {
   tapsNeeded: number;
 }> = {
   BASIC: {
-    rate: 10,
+    rate: 2,
     color: "#8892b0",
     glowColor: "rgba(136,146,176,0.5)",
-    chance: 0.55,
+    chance: 0.70,
     label: "Basic",
     craftCost: 20,
     activationTon: 0.05,
-    tapsNeeded: 15,
+    tapsNeeded: 50,
   },
   RARE: {
-    rate: 80,
+    rate: 15,
     color: "#4facfe",
     glowColor: "rgba(79,172,254,0.5)",
-    chance: 0.28,
+    chance: 0.22,
     label: "Rare",
     craftCost: 40,
     activationTon: 0.15,
-    tapsNeeded: 25,
+    tapsNeeded: 100,
   },
   EPIC: {
-    rate: 400,
+    rate: 80,
     color: "#c471ed",
     glowColor: "rgba(196,113,237,0.5)",
-    chance: 0.13,
+    chance: 0.07,
     label: "Epic",
     craftCost: 80,
     activationTon: 0.5,
-    tapsNeeded: 40,
+    tapsNeeded: 250,
   },
   GOLD: {
-    rate: 2000,
+    rate: 500,
     color: "#ffd700",
     glowColor: "rgba(255,215,0,0.5)",
-    chance: 0.04,
+    chance: 0.01,
     label: "Gold",
     craftCost: 150,
     activationTon: 1.0,
-    tapsNeeded: 60,
+    tapsNeeded: 500,
   },
+};
+
+export const SUN_CONFIG = {
+  rate: 10000,
+  color: "#ffb347",
+  glowColor: "rgba(255,179,71,0.6)",
+  activationCostBase: 0.5,
 };
 
 const REDEEM_CODES: Record<string, number> = {
@@ -109,8 +126,10 @@ const REDEEM_CODES: Record<string, number> = {
   "ZOOMLAUNCH": 750,
 };
 
-const STATE_VERSION = 3;
-const STORAGE_KEY = "zoom-master-v3";
+const SUN_CODES = ["SUN-ALPHA", "SUN-OMEGA", "SUN-PRIME", "SUN-NOVA", "SUN-CORE"];
+
+const STATE_VERSION = 4;
+const STORAGE_KEY = "zoom-master-v4";
 const FARM_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
 const DAILY_COLLECT_MS = 24 * 60 * 60 * 1000;
 
@@ -120,9 +139,9 @@ function makeReferralCode(): string {
 
 const INITIAL_STATE: GameState = {
   version: STATE_VERSION,
-  balance: 2000,
+  balance: 300,
   taps: 0,
-  goal: 15,
+  goal: 50,
   planets: [],
   maxSlots: 2,
   totalEarned: 0,
@@ -135,6 +154,7 @@ const INITIAL_STATE: GameState = {
   pendingPlanet: null,
   currentCraftRarity: null,
   usedRedeemCodes: [],
+  sun: null,
 };
 
 function migratePlanet(p: unknown): Planet {
@@ -158,6 +178,7 @@ function loadState(): GameState {
           planets: (parsed.planets || []).map(migratePlanet),
           pendingPlanet: parsed.pendingPlanet ? migratePlanet(parsed.pendingPlanet) : null,
           usedRedeemCodes: parsed.usedRedeemCodes || [],
+          sun: parsed.sun || null,
         };
       }
     }
@@ -209,13 +230,31 @@ export function isFarmActive(planet: Planet): boolean {
   return true;
 }
 
+export function isSunActive(sun: SunState): boolean {
+  if (!sun.isActive) return false;
+  const now = Date.now();
+  if (now - sun.farmStartedAt > FARM_DURATION_MS) return false;
+  if (now - sun.lastCollectedAt > DAILY_COLLECT_MS) return false;
+  return true;
+}
+
 export function getFarmTimeRemaining(planet: Planet): number {
   const expiry = planet.farmStartedAt + FARM_DURATION_MS;
   return Math.max(0, expiry - Date.now());
 }
 
+export function getSunTimeRemaining(sun: SunState): number {
+  if (!sun.isActive) return 0;
+  const expiry = sun.farmStartedAt + FARM_DURATION_MS;
+  return Math.max(0, expiry - Date.now());
+}
+
 export function needsCollect(planet: Planet): boolean {
   return Date.now() - planet.lastCollectedAt > DAILY_COLLECT_MS * 0.9 && isFarmActive(planet);
+}
+
+export function sunNeedsCollect(sun: SunState): boolean {
+  return isSunActive(sun) && Date.now() - sun.lastCollectedAt > DAILY_COLLECT_MS * 0.9;
 }
 
 export function formatDuration(ms: number): string {
@@ -238,11 +277,13 @@ export function useGameState() {
   useEffect(() => {
     const interval = setInterval(() => {
       setState((prev) => {
-        if (prev.planets.length === 0) return prev;
         let earned = 0;
         prev.planets.forEach((p) => {
           if (isFarmActive(p)) earned += p.rate / 3600;
         });
+        if (prev.sun && isSunActive(prev.sun)) {
+          earned += SUN_CONFIG.rate / 3600;
+        }
         if (earned === 0) return prev;
         return { ...prev, balance: prev.balance + earned, totalEarned: prev.totalEarned + earned };
       });
@@ -273,7 +314,7 @@ export function useGameState() {
         ...prev,
         balance: newBalance,
         taps: 0,
-        goal: 15,
+        goal: 50,
         currentCraftRarity: null,
         pendingPlanet: planet,
         craftsCompleted: prev.craftsCompleted + 1,
@@ -302,20 +343,68 @@ export function useGameState() {
     });
   }, []);
 
-  const redeemCode = useCallback((code: string): { success: boolean; amount?: number; error?: string } => {
+  const redeemCode = useCallback((code: string): { success: boolean; amount?: number; isSun?: boolean; error?: string } => {
     const upperCode = code.trim().toUpperCase();
-    const amount = REDEEM_CODES[upperCode];
-    if (!amount) return { success: false, error: "Invalid code" };
     const current = stateRef.current;
     if (current.usedRedeemCodes.includes(upperCode)) {
       return { success: false, error: "Code already used" };
     }
+    if (SUN_CODES.includes(upperCode)) {
+      if (current.sun?.isOwned) {
+        return { success: false, error: "You already own THE SUN" };
+      }
+      setState((prev) => ({
+        ...prev,
+        usedRedeemCodes: [...prev.usedRedeemCodes, upperCode],
+        sun: {
+          isOwned: true,
+          isActive: false,
+          activationCost: SUN_CONFIG.activationCostBase,
+          cycleCount: 0,
+          farmStartedAt: 0,
+          lastCollectedAt: 0,
+        },
+      }));
+      return { success: true, isSun: true };
+    }
+    const amount = REDEEM_CODES[upperCode];
+    if (!amount) return { success: false, error: "Invalid code" };
     setState((prev) => ({
       ...prev,
       balance: prev.balance + amount,
       usedRedeemCodes: [...prev.usedRedeemCodes, upperCode],
     }));
     return { success: true, amount };
+  }, []);
+
+  const activateSun = useCallback(() => {
+    const now = Date.now();
+    setState((prev) => {
+      if (!prev.sun?.isOwned) return prev;
+      const newCycleCount = (prev.sun.cycleCount || 0) + 1;
+      const nextCost = SUN_CONFIG.activationCostBase * Math.pow(2, newCycleCount);
+      return {
+        ...prev,
+        sun: {
+          ...prev.sun,
+          isActive: true,
+          cycleCount: newCycleCount,
+          activationCost: nextCost,
+          farmStartedAt: now,
+          lastCollectedAt: now,
+        },
+      };
+    });
+  }, []);
+
+  const collectSun = useCallback(() => {
+    setState((prev) => {
+      if (!prev.sun) return prev;
+      return {
+        ...prev,
+        sun: { ...prev.sun, lastCollectedAt: Date.now() },
+      };
+    });
   }, []);
 
   const collectPlanet = useCallback((id: string) => {
@@ -426,7 +515,7 @@ export function useGameState() {
     const now = Date.now();
     setState((prev) => {
       if (now - prev.lastDailyClaimAt < DAILY_COLLECT_MS) return prev;
-      return { ...prev, balance: prev.balance + 100, lastDailyClaimAt: now };
+      return { ...prev, balance: prev.balance + 50, lastDailyClaimAt: now };
     });
   }, []);
 
@@ -436,5 +525,6 @@ export function useGameState() {
     startFarming, stopFarming,
     listPlanet, unlistPlanet, buyPlanet,
     unlockSlot, claimDaily,
+    activateSun, collectSun,
   };
 }

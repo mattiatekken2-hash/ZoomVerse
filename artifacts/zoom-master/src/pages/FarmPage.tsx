@@ -1,13 +1,17 @@
 import { useState, useRef } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
+import type { Planet, SunState } from "../hooks/useGameState";
+import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, needsCollect, sunNeedsCollect } from "../hooks/useGameState";
+import { WalletPopup } from "../components/WalletPopup";
 import { haptic } from "../utils/haptic";
-import type { Planet } from "../hooks/useGameState";
-import { PLANET_CONFIG, isFarmActive, getFarmTimeRemaining, formatDuration, needsCollect } from "../hooks/useGameState";
 
 interface FarmPageProps {
   planets: Planet[];
+  sun: SunState | null;
   balance: number;
   onCollect: (id: string) => void;
+  onCollectSun: () => void;
+  onActivateSun: () => void;
   onBurn: (id: string) => void;
   onStartFarming: (id: string) => void;
   onStopFarming: (id: string) => void;
@@ -28,13 +32,15 @@ const RARITY_CLASS: Record<string, string> = {
   GOLD: "rarity-gold",
 };
 
-export function FarmPage({ planets, onCollect, onBurn, onStartFarming, onStopFarming, onSell, onUnlist }: FarmPageProps) {
+export function FarmPage({ planets, sun, onCollect, onCollectSun, onActivateSun, onBurn, onStartFarming, onStopFarming, onSell, onUnlist }: FarmPageProps) {
   const [confirmBurn, setConfirmBurn] = useState<string | null>(null);
   const [sellPopup, setSellPopup] = useState<SellPopup | null>(null);
   const [sellPrice, setSellPrice] = useState("");
+  const [sunWalletOpen, setSunWalletOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const totalRate = planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
+  const totalRate = planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0)
+    + (sun && isSunActive(sun) ? SUN_CONFIG.rate : 0);
 
   const handleBurnClick = (id: string) => {
     haptic(8);
@@ -48,6 +54,7 @@ export function FarmPage({ planets, onCollect, onBurn, onStartFarming, onStopFar
   };
 
   const openSellPopup = (planet: Planet) => {
+    haptic(6);
     const cfg = PLANET_CONFIG[planet.name];
     const suggested = Math.floor(planet.craftCost * 2.5);
     setSellPopup({ planetId: planet.id, planetName: cfg.label, planetColor: planet.color });
@@ -70,6 +77,10 @@ export function FarmPage({ planets, onCollect, onBurn, onStartFarming, onStopFar
     setSellPrice("");
   };
 
+  const sunActive = sun ? isSunActive(sun) : false;
+  const sunRemaining = sun && sun.isActive ? getSunTimeRemaining(sun) : 0;
+  const sunCollect = sun ? sunNeedsCollect(sun) : false;
+
   return (
     <div className="flex flex-col h-full relative">
       <div className="px-5 pt-4 pb-2 flex-shrink-0 flex items-center justify-between">
@@ -88,6 +99,106 @@ export function FarmPage({ planets, onCollect, onBurn, onStartFarming, onStopFar
 
       <div className="flex-1 overflow-y-auto px-4 pb-4">
         <div className="flex flex-col gap-3">
+
+          {/* SUN CARD */}
+          {sun?.isOwned && (
+            <div
+              className="slot-enter rounded-2xl p-4 border relative overflow-hidden"
+              style={{
+                borderColor: "rgba(255,179,71,0.35)",
+                background: "linear-gradient(135deg, rgba(255,179,71,0.09) 0%, rgba(255,140,0,0.04) 100%)",
+                boxShadow: sunActive ? "0 0 32px rgba(255,179,71,0.18)" : "none",
+              }}
+            >
+              <div
+                className="absolute top-0 right-0 w-28 h-28 rounded-full pointer-events-none"
+                style={{
+                  background: "radial-gradient(circle, rgba(255,179,71,0.18) 0%, transparent 70%)",
+                  filter: "blur(16px)",
+                  transform: "translate(30%,-30%)",
+                }}
+              />
+              <div className="flex items-center gap-4 mb-4">
+                <div style={{ position: "relative" }}>
+                  <div
+                    style={{
+                      width: 72, height: 72,
+                      borderRadius: "50%",
+                      background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.3) 0%, #ffb347ee 20%, #ff8c00cc 55%, #ff450088 80%, #ff220033 100%)",
+                      boxShadow: sunActive
+                        ? "0 0 40px rgba(255,179,71,0.7), 0 0 80px rgba(255,140,0,0.3), inset -8px -4px 16px rgba(0,0,0,0.4)"
+                        : "0 0 20px rgba(255,179,71,0.3), inset -8px -4px 16px rgba(0,0,0,0.4)",
+                      flexShrink: 0,
+                      animation: sunActive ? "planet-breathe 3s ease-in-out infinite alternate" : "none",
+                    }}
+                  />
+                  {sunActive && (
+                    <div
+                      className="absolute -top-1 -right-1 w-3 h-3 rounded-full pulse-soft"
+                      style={{ background: "#00e676", boxShadow: "0 0 8px #00e676" }}
+                    />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-black text-base tracking-wide gold-text">☀️ THE SUN</span>
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(255,215,0,0.12)", color: "#ffd700", border: "1px solid rgba(255,215,0,0.25)", fontSize: 9 }}>
+                      EXCLUSIVE
+                    </span>
+                  </div>
+                  <div className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>
+                    {sunActive
+                      ? `+${SUN_CONFIG.rate.toLocaleString()} $ZOOM/hr · ${formatDuration(sunRemaining)} left`
+                      : "Requires TON activation to farm"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                {sunCollect ? (
+                  <button
+                    className="btn-widget"
+                    style={{ borderColor: "rgba(255,165,0,0.5)", background: "rgba(255,165,0,0.09)", color: "#ffa500" }}
+                    onClick={() => { haptic(8); onCollectSun(); }}
+                  >
+                    <span style={{ fontSize: 14 }}>⚡</span>
+                    <span>COLLECT</span>
+                    <span style={{ fontSize: 8, opacity: 0.6 }}>Daily</span>
+                  </button>
+                ) : sunActive ? (
+                  <button
+                    className="btn-widget flex-1"
+                    style={{ borderColor: "rgba(255,179,71,0.3)", background: "rgba(255,179,71,0.06)", color: "#ffb347" }}
+                    onClick={() => haptic(5)}
+                  >
+                    <span style={{ fontSize: 14 }}>☀️</span>
+                    <span>ACTIVE</span>
+                    <span style={{ fontSize: 8, opacity: 0.6 }}>{formatDuration(sunRemaining)}</span>
+                  </button>
+                ) : (
+                  <button
+                    className="btn-widget flex-1"
+                    style={{ borderColor: "rgba(255,215,0,0.35)", background: "rgba(255,215,0,0.07)", color: "#ffd700" }}
+                    onClick={() => { haptic(8); setSunWalletOpen(true); }}
+                  >
+                    <span style={{ fontSize: 14 }}>⚡</span>
+                    <span>ACTIVATE</span>
+                    <span style={{ fontSize: 8, opacity: 0.7 }}>{sun.activationCost} TON</span>
+                  </button>
+                )}
+                <div
+                  className="flex-shrink-0 flex flex-col items-center justify-center px-3 rounded-xl border text-xs"
+                  style={{ borderColor: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.2)", fontSize: 9 }}
+                >
+                  <span>🔒</span>
+                  <span>Not</span>
+                  <span>tradeable</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* REGULAR PLANETS */}
           {planets.map((planet) => {
             const active = isFarmActive(planet);
             const remaining = getFarmTimeRemaining(planet);
@@ -146,16 +257,11 @@ export function FarmPage({ planets, onCollect, onBurn, onStartFarming, onStopFar
                 </div>
 
                 <div className="flex gap-2">
-                  {/* FARM BUTTON */}
                   {needsDaily ? (
                     <button
                       className="btn-widget"
-                      style={{
-                        borderColor: "rgba(255,165,0,0.5)",
-                        background: "rgba(255,165,0,0.09)",
-                        color: "#ffa500",
-                      }}
-                      onClick={() => onCollect(planet.id)}
+                      style={{ borderColor: "rgba(255,165,0,0.5)", background: "rgba(255,165,0,0.09)", color: "#ffa500" }}
+                      onClick={() => { haptic(8); onCollect(planet.id); }}
                       data-testid={`btn-collect-${planet.id}`}
                     >
                       <span style={{ fontSize: 14 }}>⚡</span>
@@ -165,12 +271,8 @@ export function FarmPage({ planets, onCollect, onBurn, onStartFarming, onStopFar
                   ) : active ? (
                     <button
                       className="btn-widget"
-                      style={{
-                        borderColor: "rgba(0,230,118,0.3)",
-                        background: "rgba(0,230,118,0.06)",
-                        color: "#00e676",
-                      }}
-                      onClick={() => onStopFarming(planet.id)}
+                      style={{ borderColor: "rgba(0,230,118,0.3)", background: "rgba(0,230,118,0.06)", color: "#00e676" }}
+                      onClick={() => { haptic(6); onStopFarming(planet.id); }}
                       data-testid={`btn-stop-${planet.id}`}
                     >
                       <span style={{ fontSize: 14 }}>⏸</span>
@@ -188,7 +290,7 @@ export function FarmPage({ planets, onCollect, onBurn, onStartFarming, onStopFar
                         cursor: isListed ? "not-allowed" : "pointer",
                         opacity: isListed ? 0.4 : 1,
                       }}
-                      onClick={() => !isListed && onStartFarming(planet.id)}
+                      onClick={() => { if (!isListed) { haptic(6); onStartFarming(planet.id); } }}
                       data-testid={`btn-farm-${planet.id}`}
                     >
                       <span style={{ fontSize: 14 }}>▶</span>
@@ -197,7 +299,6 @@ export function FarmPage({ planets, onCollect, onBurn, onStartFarming, onStopFar
                     </button>
                   )}
 
-                  {/* BURN BUTTON */}
                   <button
                     className="btn-widget"
                     disabled={isListed}
@@ -216,30 +317,21 @@ export function FarmPage({ planets, onCollect, onBurn, onStartFarming, onStopFar
                     <span style={{ fontSize: 8, opacity: 0.6 }}>+{refund}</span>
                   </button>
 
-                  {/* SELL / UNLIST BUTTON */}
                   {isListed ? (
                     <button
                       className="btn-widget"
-                      style={{
-                        borderColor: "rgba(255,215,0,0.4)",
-                        background: "rgba(255,215,0,0.07)",
-                        color: "#ffd700",
-                      }}
-                      onClick={() => onUnlist(planet.id)}
+                      style={{ borderColor: "rgba(255,215,0,0.4)", background: "rgba(255,215,0,0.07)", color: "#ffd700" }}
+                      onClick={() => { haptic(6); onUnlist(planet.id); }}
                       data-testid={`btn-unlist-${planet.id}`}
                     >
                       <span style={{ fontSize: 14 }}>✕</span>
                       <span>LISTED</span>
-                      <span style={{ fontSize: 8, opacity: 0.6 }}>Tap to delist</span>
+                      <span style={{ fontSize: 8, opacity: 0.6 }}>Delist</span>
                     </button>
                   ) : (
                     <button
                       className="btn-widget"
-                      style={{
-                        borderColor: "rgba(255,255,255,0.08)",
-                        background: "transparent",
-                        color: "rgba(255,255,255,0.3)",
-                      }}
+                      style={{ borderColor: "rgba(255,255,255,0.08)", background: "transparent", color: "rgba(255,255,255,0.3)" }}
                       onClick={() => openSellPopup(planet)}
                       data-testid={`btn-sell-${planet.id}`}
                     >
@@ -267,21 +359,16 @@ export function FarmPage({ planets, onCollect, onBurn, onStartFarming, onStopFar
 
           <div
             className="rounded-2xl border border-dashed flex flex-col items-center justify-center py-8 gap-2"
-            style={{
-              borderColor: "rgba(255,215,0,0.12)",
-              background: "rgba(255,215,0,0.015)",
-              cursor: "not-allowed",
-              minHeight: 100,
-            }}
+            style={{ borderColor: "rgba(255,215,0,0.12)", background: "rgba(255,215,0,0.015)", cursor: "not-allowed", minHeight: 100 }}
             data-testid="slot-locked"
           >
             <div style={{ fontSize: 20, opacity: 0.45 }}>🔒</div>
             <div className="font-bold text-xs tracking-widest uppercase" style={{ color: "rgba(255,215,0,0.45)" }}>0.25 TON</div>
-            <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)" }}>to unlock</div>
+            <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)" }}>to unlock slot</div>
           </div>
         </div>
 
-        {planets.length === 0 && (
+        {planets.length === 0 && !sun?.isOwned && (
           <div className="text-center text-xs py-4" style={{ color: "rgba(255,255,255,0.22)" }}>
             Forge your first planet in the Lab
           </div>
@@ -300,18 +387,14 @@ export function FarmPage({ planets, onCollect, onBurn, onStartFarming, onStopFar
             style={{ boxShadow: `0 -20px 60px ${sellPopup.planetColor}20` }}
           >
             <div className="flex items-center gap-3 mb-5">
-              <div
-                className="w-4 h-4 rounded-full flex-shrink-0"
-                style={{ background: sellPopup.planetColor, boxShadow: `0 0 10px ${sellPopup.planetColor}` }}
-              />
+              <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ background: sellPopup.planetColor, boxShadow: `0 0 10px ${sellPopup.planetColor}` }} />
               <div className="font-black text-base" style={{ color: sellPopup.planetColor }}>
                 List {sellPopup.planetName} Planet
               </div>
             </div>
             <div className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
-              Set your asking price in $ZOOM. A 25% marketplace fee will be deducted on sale.
+              Set your asking price in $ZOOM. A 25% marketplace fee applies on sale.
             </div>
-
             <div className="relative mb-2">
               <input
                 ref={inputRef}
@@ -320,29 +403,19 @@ export function FarmPage({ planets, onCollect, onBurn, onStartFarming, onStopFar
                 value={sellPrice}
                 onChange={(e) => setSellPrice(e.target.value)}
                 className="w-full rounded-xl px-4 py-4 text-xl font-black pr-20 outline-none"
-                style={{
-                  background: "rgba(255,255,255,0.06)",
-                  border: `1px solid ${sellPopup.planetColor}44`,
-                  color: "white",
-                  caretColor: sellPopup.planetColor,
-                }}
+                style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${sellPopup.planetColor}44`, color: "white", caretColor: sellPopup.planetColor }}
                 placeholder="Enter price"
                 inputMode="numeric"
               />
-              <span
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold"
-                style={{ color: "rgba(255,255,255,0.35)" }}
-              >
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "rgba(255,255,255,0.35)" }}>
                 $ZOOM
               </span>
             </div>
-
             {sellPrice && parseInt(sellPrice) > 0 && (
               <div className="text-xs mb-4 px-1" style={{ color: "rgba(255,255,255,0.35)" }}>
                 Buyer pays {Math.floor(parseInt(sellPrice) * 1.25).toLocaleString()} $ZOOM total · You receive {parseInt(sellPrice).toLocaleString()}
               </div>
             )}
-
             <div className="flex gap-3 mt-4">
               <button
                 className="flex-1 py-3.5 rounded-xl font-bold text-sm border transition-all active:scale-95"
@@ -355,12 +428,9 @@ export function FarmPage({ planets, onCollect, onBurn, onStartFarming, onStopFar
                 className="flex-1 py-3.5 rounded-xl font-black text-sm transition-all active:scale-95"
                 disabled={!sellPrice || parseInt(sellPrice) <= 0}
                 style={{
-                  background: (!sellPrice || parseInt(sellPrice) <= 0)
-                    ? "rgba(255,255,255,0.05)"
-                    : `linear-gradient(135deg, ${sellPopup.planetColor}cc, ${sellPopup.planetColor}88)`,
+                  background: (!sellPrice || parseInt(sellPrice) <= 0) ? "rgba(255,255,255,0.05)" : `linear-gradient(135deg, ${sellPopup.planetColor}cc, ${sellPopup.planetColor}88)`,
                   color: (!sellPrice || parseInt(sellPrice) <= 0) ? "rgba(255,255,255,0.2)" : "#060810",
-                  boxShadow: (!sellPrice || parseInt(sellPrice) <= 0)
-                    ? "none" : `0 0 20px ${sellPopup.planetColor}40`,
+                  boxShadow: (!sellPrice || parseInt(sellPrice) <= 0) ? "none" : `0 0 20px ${sellPopup.planetColor}40`,
                 }}
                 onClick={confirmSell}
                 data-testid="btn-confirm-sell"
@@ -370,6 +440,18 @@ export function FarmPage({ planets, onCollect, onBurn, onStartFarming, onStopFar
             </div>
           </div>
         </div>
+      )}
+
+      {/* SUN WALLET POPUP */}
+      {sun && (
+        <WalletPopup
+          isOpen={sunWalletOpen}
+          amount={`${sun.activationCost} TON`}
+          purpose="Activate THE SUN"
+          onClose={() => setSunWalletOpen(false)}
+          onConfirm={onActivateSun}
+          confirmLabel="Confirm — Activate SUN"
+        />
       )}
     </div>
   );
