@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { registerUser, fetchReferralCount } from "../utils/api";
 
 export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD";
 
@@ -343,6 +344,18 @@ export function useGameState() {
   stateRef.current = state;
 
   useEffect(() => { saveState(state); }, [state]);
+
+  useEffect(() => {
+    const { telegramId, startParam } = getTelegramContext();
+    if (!telegramId) return;
+
+    (async () => {
+      await registerUser(telegramId, startParam ?? undefined);
+
+      const count = await fetchReferralCount(telegramId);
+      setState((prev) => ({ ...prev, referralCount: count }));
+    })();
+  }, []);
 
   useEffect(() => {
     const addIncomingEvent = (event: FeedEvent) => {
