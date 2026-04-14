@@ -46,3 +46,35 @@ export async function fetchReferralCount(telegramId: string): Promise<number> {
     return 0;
   }
 }
+
+export async function syncBalance(params: {
+  telegramId: string;
+  firstName?: string | null;
+  zoomBalance: number;
+}): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/balance/sync`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+  } catch { /**/ }
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  telegramId: string;
+  firstName: string;
+  zoomBalance: number;
+}
+
+export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
+  try {
+    const res = await fetch(`${API_BASE}/leaderboard`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.leaderboard) ? data.leaderboard : [];
+  } catch {
+    return [];
+  }
+}

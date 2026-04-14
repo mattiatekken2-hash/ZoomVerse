@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { FeedEvent } from "../hooks/useGameState";
 import { haptic } from "../utils/haptic";
+import { fetchLeaderboard, type LeaderboardEntry } from "../utils/api";
 
 interface RankPageProps {
   balance: number;
@@ -8,6 +9,7 @@ interface RankPageProps {
   activeFarmRate: number;
   totalTonSpent: number;
   feedEvents: FeedEvent[];
+  telegramId: string | null;
 }
 
 const SEASON_DURATION_MS = 90 * 24 * 60 * 60 * 1000;
@@ -33,19 +35,33 @@ function formatZoom(amount: number): string {
   return Math.floor(amount).toLocaleString();
 }
 
-export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSpent: _totalTonSpent, feedEvents }: RankPageProps) {
+export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSpent: _totalTonSpent, feedEvents, telegramId }: RankPageProps) {
   const [activeSection, setActiveSection] = useState<"season" | "exchange">("season");
   const feedRef = useRef<HTMLDivElement>(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [convertInput, setConvertInput] = useState("");
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [loadingLb, setLoadingLb] = useState(true);
 
   const seasonProgress = getSeasonProgress(currentTime);
   const currentSeason = 1;
   const isExchangeOpen = currentTime >= SEASON_END;
   const seasonProgressPercent = seasonProgress * 100;
-  const liveLeaderboard = [
-    { id: "you", name: "YOU", balance, isUser: true },
-  ].sort((a, b) => b.balance - a.balance);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoadingLb(true);
+      const data = await fetchLeaderboard();
+      if (!cancelled) {
+        setLeaderboard(data);
+        setLoadingLb(false);
+      }
+    };
+    load();
+    const interval = setInterval(load, 30_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   const estimatedTon = useCallback(() => {
     const zoom = parseFloat(convertInput.replace(/,/g, ""));
@@ -158,30 +174,52 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                 <span className="text-[10px] font-bold uppercase" style={{ color: "rgba(0,242,254,0.45)" }}>wallet sync</span>
               </div>
               <div className="flex flex-col gap-1.5">
-                {liveLeaderboard.map((entry, index) => (
+                {loadingLb && leaderboard.length === 0 && (
+                  <div className="text-xs text-center py-3" style={{ color: "rgba(255,255,255,0.2)" }}>Loading...</div>
+                )}
+                {!loadingLb && leaderboard.length === 0 && (
+                  <div className="text-xs text-center py-3" style={{ color: "rgba(255,255,255,0.2)" }}>No players yet — start farming to appear here</div>
+                )}
+                {leaderboard.map((entry) => {
+                  const isUser = !!telegramId && entry.telegramId === telegramId;
+                  const medal = entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : entry.rank === 3 ? "🥉" : null;
+                  return (
+                    <div
+                      key={entry.telegramId}
+                      className="rounded-xl border flex items-center gap-3 px-3 py-2 transition-all"
+                      style={{
+                        borderColor: isUser ? "rgba(0,242,254,0.28)" : "rgba(255,255,255,0.05)",
+                        background: isUser ? "rgba(0,242,254,0.08)" : "rgba(255,255,255,0.02)",
+                      }}
+                    >
+                      <div className="font-black text-sm w-7 text-center flex-shrink-0" style={{ color: isUser ? "#00f2fe" : "rgba(255,255,255,0.28)" }}>
+                        {medal ?? `#${entry.rank}`}
+                      </div>
+                      <div className={isUser ? "flex-1 font-black text-sm neon-text" : "flex-1 font-bold text-sm"} style={{ color: isUser ? undefined : "rgba(255,255,255,0.58)" }}>
+                        {entry.firstName}
+                        {isUser && <span className="text-xs opacity-40 ml-1">(you)</span>}
+                      </div>
+                      <div className="text-xs font-black tabular-nums" style={{ color: isUser ? "#00f2fe" : "rgba(255,255,255,0.42)" }}>
+                        {formatZoom(entry.zoomBalance)} $ZOOM
+                      </div>
+                    </div>
+                  );
+                })}
+                {telegramId && leaderboard.length > 0 && !leaderboard.some(e => e.telegramId === telegramId) && (
                   <div
-                    key={entry.id}
-                    className="rounded-xl border flex items-center gap-3 px-3 py-2 transition-all"
-                    style={{
-                      borderColor: entry.isUser ? "rgba(0,242,254,0.28)" : "rgba(255,255,255,0.05)",
-                      background: entry.isUser ? "rgba(0,242,254,0.08)" : "rgba(255,255,255,0.02)",
-                    }}
+                    className="rounded-xl border flex items-center gap-3 px-3 py-2 mt-1"
+                    style={{ borderColor: "rgba(0,242,254,0.15)", background: "rgba(0,242,254,0.04)" }}
                   >
-                    <div className="font-black text-sm w-6 text-center flex-shrink-0" style={{ color: entry.isUser ? "#00f2fe" : "rgba(255,255,255,0.28)" }}>
-                      #{index + 1}
-                    </div>
-                    <div className={entry.isUser ? "flex-1 font-black text-sm neon-text" : "flex-1 font-bold text-sm"} style={{ color: entry.isUser ? undefined : "rgba(255,255,255,0.58)" }}>
-                      {entry.name}
-                      {entry.isUser && <span className="text-xs opacity-40 ml-1">(you)</span>}
-                    </div>
-                    <div className="text-xs font-black tabular-nums" style={{ color: entry.isUser ? "#00f2fe" : "rgba(255,255,255,0.42)" }}>
-                      {formatZoom(entry.balance)} $ZOOM
+                    <div className="font-black text-sm w-7 text-center flex-shrink-0" style={{ color: "rgba(0,242,254,0.5)" }}>—</div>
+                    <div className="flex-1 font-black text-sm neon-text opacity-60">YOU</div>
+                    <div className="text-xs font-black tabular-nums" style={{ color: "rgba(0,242,254,0.5)" }}>
+                      {formatZoom(balance)} $ZOOM
                     </div>
                   </div>
-                ))}
+                )}
               </div>
               <div className="text-[10px] mt-2 leading-relaxed" style={{ color: "rgba(255,255,255,0.25)" }}>
-                Rankings show only real connected wallets. Demo players have been removed; new real players will appear here when their wallet balances are synced.
+                Top 5 players by $ZOOM balance, updated in real time from the server.
               </div>
             </div>
           </div>

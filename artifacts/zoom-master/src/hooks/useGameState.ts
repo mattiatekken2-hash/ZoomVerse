@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralCount, debugTelegramContext } from "../utils/api";
+import { registerUser, fetchReferralCount, debugTelegramContext, syncBalance } from "../utils/api";
 
 export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD";
 
@@ -146,11 +146,12 @@ function makeReferralCode(): string {
   return "ZOOM-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-function getTelegramContext(): { telegramId: string | null; startParam: string | null } {
+function getTelegramContext(): { telegramId: string | null; startParam: string | null; firstName: string | null } {
   try {
-    const webApp = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number }; start_param?: string }; initData?: string } } }).Telegram?.WebApp;
+    const webApp = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number; first_name?: string }; start_param?: string }; initData?: string } } }).Telegram?.WebApp;
     const unsafe = webApp?.initDataUnsafe;
     const telegramId = unsafe?.user?.id ? String(unsafe.user.id) : null;
+    const firstName = unsafe?.user?.first_name ?? null;
 
     let startParam: string | null = unsafe?.start_param || null;
 
@@ -165,9 +166,9 @@ function getTelegramContext(): { telegramId: string | null; startParam: string |
       startParam = localStorage.getItem("zoom-start-param");
     }
 
-    return { telegramId, startParam };
+    return { telegramId, startParam, firstName };
   } catch {
-    return { telegramId: null, startParam: null };
+    return { telegramId: null, startParam: null, firstName: null };
   }
 }
 
@@ -205,7 +206,7 @@ function migratePlanet(p: unknown): Planet {
 }
 
 function loadState(): GameState {
-  const { telegramId, startParam } = getTelegramContext();
+  const { telegramId, startParam, firstName: _firstName } = getTelegramContext();
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -360,7 +361,7 @@ export function useGameState() {
   useEffect(() => { saveState(state); }, [state]);
 
   useEffect(() => {
-    const { telegramId, startParam } = getTelegramContext();
+    const { telegramId, startParam, firstName } = getTelegramContext();
 
     const webApp = (window as unknown as { Telegram?: { WebApp?: { initData?: string; initDataUnsafe?: unknown } } }).Telegram?.WebApp;
     const rawInitData = webApp?.initData ?? "";
@@ -388,8 +389,70 @@ export function useGameState() {
       }
 
       const count = await fetchReferralCount(telegramId);
-      setState((prev) => ({ ...prev, referralCount: count }));
+      setState((prev) => {
+        const updated = { ...prev, referralCount: count };
+        syncBalance({ telegramId, firstName, zoomBalance: Math.floor(updated.balance) });
+        return updated;
+      });
     })();
+  }, []);
+
+  useEffect(() => {
+    const doSync = () => {
+      const { telegramId, firstName } = getTelegramContext();
+      if (!telegramId) return;
+      const balance = Math.floor(stateRef.current.balance);
+      syncBalance({ telegramId, firstName, zoomBalance: balance });
+    };
+
+    const interval = setInterval(doSync, 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState !== "visible") return;
+
+      const { telegramId, firstName } = getTelegramContext();
+
+      const saved = (() => {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return null;
+          const parsed = JSON.parse(raw) as GameState;
+          return parsed.version === STATE_VERSION ? parsed : null;
+        } catch {
+          return null;
+        }
+      })();
+
+      if (saved) {
+        setState((prev) => ({
+          ...prev,
+          balance: Math.max(prev.balance, saved.balance),
+          totalEarned: Math.max(prev.totalEarned, saved.totalEarned),
+          seasonPoolEarned: Math.max(prev.seasonPoolEarned, saved.seasonPoolEarned),
+          planets: saved.planets.map((p) => ({
+            ...p,
+            isFarmingActive: prev.planets.find((pp) => pp.id === p.id)?.isFarmingActive ?? p.isFarmingActive,
+          })),
+          sun: saved.sun ?? prev.sun,
+        }));
+      }
+
+      if (telegramId) {
+        fetchReferralCount(telegramId).then((count) => {
+          setState((prev) => {
+            const updated = { ...prev, referralCount: count };
+            syncBalance({ telegramId, firstName, zoomBalance: Math.floor(updated.balance) });
+            return updated;
+          });
+        });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
   }, []);
 
   useEffect(() => {

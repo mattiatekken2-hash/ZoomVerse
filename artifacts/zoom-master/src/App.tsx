@@ -106,6 +106,7 @@ export default function App() {
             activeFarmRate={totalRate}
             totalTonSpent={state.totalTonSpent}
             feedEvents={state.feedEvents}
+            telegramId={state.telegramId}
           />
         );
       case "shop":
