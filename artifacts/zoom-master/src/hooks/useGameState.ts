@@ -373,6 +373,9 @@ export function useGameState() {
       initDataUnsafe: rawUnsafe,
       startParam,
       localStorageParam: lsParam,
+      href: window.location.href,
+      hash: window.location.hash,
+      search: window.location.search,
     });
 
     if (!telegramId) return;

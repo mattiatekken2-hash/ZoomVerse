@@ -6,6 +6,9 @@ export async function debugTelegramContext(data: {
   initDataUnsafe: string;
   startParam: string | null;
   localStorageParam: string | null;
+  href?: string;
+  hash?: string;
+  search?: string;
 }): Promise<void> {
   try {
     await fetch(`${API_BASE}/referral/debug`, {
