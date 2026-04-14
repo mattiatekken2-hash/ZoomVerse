@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
 import type { Planet, SunState } from "../hooks/useGameState";
-import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, needsCollect, sunNeedsCollect } from "../hooks/useGameState";
+import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, needsCollect } from "../hooks/useGameState";
 import { WalletPopup } from "../components/WalletPopup";
 import { haptic } from "../utils/haptic";
 
@@ -11,10 +11,12 @@ interface FarmPageProps {
   balance: number;
   maxSlots: number;
   onCollect: (id: string) => void;
-  onCollectSun: () => void;
   onBurn: (id: string) => void;
   onStartFarming: (id: string) => void;
   onStopFarming: (id: string) => void;
+  onStartSunFarming: () => void;
+  onStopSunFarming: () => void;
+  onBurnSun: () => void;
   onSell: (id: string, price: number) => void;
   onUnlist: (id: string) => void;
 }
@@ -32,7 +34,7 @@ const RARITY_CLASS: Record<string, string> = {
   GOLD: "rarity-gold",
 };
 
-export function FarmPage({ planets, sun, maxSlots, onCollect, onCollectSun, onBurn, onStartFarming, onStopFarming, onSell, onUnlist }: FarmPageProps) {
+export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist }: FarmPageProps) {
   const [confirmBurn, setConfirmBurn] = useState<string | null>(null);
   const [sellPopup, setSellPopup] = useState<SellPopup | null>(null);
   const [sellPrice, setSellPrice] = useState("");
@@ -80,7 +82,6 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onCollectSun, onBu
 
   const sunActive = sun ? isSunActive(sun) : false;
   const sunRemaining = sun && sun.isActive ? getSunTimeRemaining(sun) : 0;
-  const sunCollect = sun ? sunNeedsCollect(sun) : false;
 
   return (
     <div className="flex flex-col h-full relative">
@@ -150,51 +151,52 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onCollectSun, onBu
                   <div className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>
                     {sunActive
                       ? `+${SUN_CONFIG.rate.toLocaleString()} $ZOOM/hr · ${formatDuration(sunRemaining)} left`
-                      : "Requires TON activation to farm"}
+                      : "Farming paused"}
                   </div>
                 </div>
               </div>
 
               <div className="flex gap-2">
-                {sunCollect ? (
-                  <button
-                    className="btn-widget"
-                    style={{ borderColor: "rgba(255,165,0,0.5)", background: "rgba(255,165,0,0.09)", color: "#ffa500" }}
-                    onClick={() => { haptic(8); onCollectSun(); }}
-                  >
-                    <span style={{ fontSize: 14 }}>⚡</span>
-                    <span>COLLECT</span>
-                    <span style={{ fontSize: 8, opacity: 0.6 }}>Daily</span>
-                  </button>
-                ) : sunActive ? (
-                  <button
-                    className="btn-widget flex-1"
-                    style={{ borderColor: "rgba(255,179,71,0.3)", background: "rgba(255,179,71,0.06)", color: "#ffb347" }}
-                    onClick={() => haptic(5)}
-                  >
-                    <span style={{ fontSize: 14 }}>☀️</span>
-                    <span>ACTIVE</span>
-                    <span style={{ fontSize: 8, opacity: 0.6 }}>{formatDuration(sunRemaining)}</span>
-                  </button>
-                ) : (
-                  <button
-                    className="btn-widget flex-1"
-                    style={{ borderColor: "rgba(255,215,0,0.35)", background: "rgba(255,215,0,0.07)", color: "#ffd700" }}
-                    onClick={() => { haptic(8); setSunWalletOpen(true); }}
-                  >
-                    <span style={{ fontSize: 14 }}>⚡</span>
-                    <span>ACTIVATE</span>
-                    <span style={{ fontSize: 8, opacity: 0.7 }}>{sun.activationCost} TON</span>
-                  </button>
-                )}
-                <div
-                  className="flex-shrink-0 flex flex-col items-center justify-center px-3 rounded-xl border text-xs"
-                  style={{ borderColor: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.2)", fontSize: 9 }}
+                <button
+                  className="btn-widget flex-1"
+                  style={{
+                    borderColor: sunActive ? "rgba(255,179,71,0.35)" : "rgba(0,242,254,0.25)",
+                    background: sunActive ? "rgba(255,179,71,0.07)" : "rgba(0,242,254,0.06)",
+                    color: sunActive ? "#ffb347" : "#00f2fe",
+                  }}
+                  onClick={() => {
+                    haptic(6);
+                    if (sunActive) onStopSunFarming();
+                    else onStartSunFarming();
+                  }}
                 >
-                  <span>🔒</span>
-                  <span>Not</span>
-                  <span>tradeable</span>
-                </div>
+                  <span style={{ fontSize: 14 }}>{sunActive ? "⏸" : "▶"}</span>
+                  <span>{sunActive ? "PAUSE" : "FARM"}</span>
+                  <span style={{ fontSize: 8, opacity: 0.6 }}>{sunActive ? formatDuration(sunRemaining) : "Start"}</span>
+                </button>
+
+                <button
+                  className="btn-widget flex-1"
+                  style={{
+                    borderColor: confirmBurn === "sun" ? "rgba(255,65,108,0.5)" : "rgba(255,255,255,0.08)",
+                    background: confirmBurn === "sun" ? "rgba(255,65,108,0.1)" : "transparent",
+                    color: confirmBurn === "sun" ? "#ff416c" : "rgba(255,255,255,0.3)",
+                  }}
+                  onClick={() => {
+                    haptic(8);
+                    if (confirmBurn === "sun") {
+                      onBurnSun();
+                      setConfirmBurn(null);
+                    } else {
+                      setConfirmBurn("sun");
+                      setTimeout(() => setConfirmBurn(null), 2500);
+                    }
+                  }}
+                >
+                  <span style={{ fontSize: 14 }}>🔥</span>
+                  <span>{confirmBurn === "sun" ? "SURE?" : "BURN"}</span>
+                  <span style={{ fontSize: 8, opacity: 0.6 }}>Sun</span>
+                </button>
               </div>
             </div>
           )}

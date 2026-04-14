@@ -35,7 +35,7 @@ export default function App() {
     collectPlanet, burnPlanet,
     startFarming, stopFarming,
     listPlanet, unlistPlanet, buyPlanet,
-    claimDaily, collectSun,
+    claimDaily, startSunFarming, stopSunFarming, burnSun,
   } = useGameState();
 
   const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
@@ -66,10 +66,12 @@ export default function App() {
             balance={state.balance}
             maxSlots={state.maxSlots}
             onCollect={collectPlanet}
-            onCollectSun={collectSun}
             onBurn={burnPlanet}
             onStartFarming={startFarming}
             onStopFarming={stopFarming}
+            onStartSunFarming={startSunFarming}
+            onStopSunFarming={stopSunFarming}
+            onBurnSun={burnSun}
             onSell={listPlanet}
             onUnlist={unlistPlanet}
           />

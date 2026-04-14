@@ -48,3 +48,4 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 - Reset the Rank Live $ZOOM Pool to 0 by tracking `seasonPoolEarned`, which only increases from real active farming ticks, and removed all fake/demo leaderboard wallets from Zoom Season.
 - Added live activity events for GOLD planet forging and THE SUN acquisition, plus a clickable 0.25 TON Farm slot unlock wallet popup with the configured TON address.
 - Disabled automatic payment confirmation actions in wallet popups: payment popups now only show the address/copy action and no longer unlock slots, activate THE SUN, or acquire items immediately.
+- Updated THE SUN card in Farm with FARM/PAUSE and BURN controls matching planet interaction patterns.

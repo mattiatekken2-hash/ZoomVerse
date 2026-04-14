@@ -464,6 +464,45 @@ export function useGameState() {
     });
   }, []);
 
+  const startSunFarming = useCallback(() => {
+    const now = Date.now();
+    setState((prev) => {
+      if (!prev.sun?.isOwned) return prev;
+      return {
+        ...prev,
+        sun: {
+          ...prev.sun,
+          isActive: true,
+          farmStartedAt: now,
+          lastCollectedAt: now,
+        },
+      };
+    });
+  }, []);
+
+  const stopSunFarming = useCallback(() => {
+    setState((prev) => {
+      if (!prev.sun) return prev;
+      return {
+        ...prev,
+        sun: {
+          ...prev.sun,
+          isActive: false,
+        },
+      };
+    });
+  }, []);
+
+  const burnSun = useCallback(() => {
+    setState((prev) => {
+      if (!prev.sun) return prev;
+      return {
+        ...prev,
+        sun: null,
+      };
+    });
+  }, []);
+
   const acquireSun = useCallback(() => {
     setState((prev) => {
       if (prev.sun?.isOwned) return prev;
@@ -610,5 +649,6 @@ export function useGameState() {
     listPlanet, unlistPlanet, buyPlanet,
     unlockSlot, claimDaily,
     activateSun, acquireSun, collectSun,
+    startSunFarming, stopSunFarming, burnSun,
   };
 }
