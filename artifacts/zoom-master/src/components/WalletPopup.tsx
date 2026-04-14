@@ -16,7 +16,6 @@ interface WalletPopupProps {
 
 export function WalletPopup({ isOpen, amount, purpose, instruction, copyLabel, onClose, onConfirm, confirmLabel }: WalletPopupProps) {
   const [copied, setCopied] = useState(false);
-  const [hasCopied, setHasCopied] = useState(false);
 
   if (!isOpen) return null;
 
@@ -24,14 +23,7 @@ export function WalletPopup({ isOpen, amount, purpose, instruction, copyLabel, o
     haptic(8);
     navigator.clipboard.writeText(WALLET).catch(() => {});
     setCopied(true);
-    setHasCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleConfirm = () => {
-    haptic(10);
-    onConfirm?.();
-    onClose();
   };
 
   return (
@@ -89,24 +81,6 @@ export function WalletPopup({ isOpen, amount, purpose, instruction, copyLabel, o
         <div className="text-xs mb-4 text-center" style={{ color: "rgba(255,255,255,0.3)" }}>
           {instruction || `Open your TON wallet app, send ${amount} to the address above, then confirm below`}
         </div>
-
-        {onConfirm && (
-          <button
-            onClick={handleConfirm}
-            disabled={!hasCopied}
-            className="w-full py-4 rounded-2xl font-black text-base tracking-wider uppercase transition-all active:scale-95 mb-3"
-            style={{
-              background: hasCopied
-                ? "linear-gradient(135deg, #ffd700, #ffb347)"
-                : "rgba(255,255,255,0.05)",
-              color: hasCopied ? "#060810" : "rgba(255,255,255,0.2)",
-              boxShadow: hasCopied ? "0 0 24px rgba(255,215,0,0.4)" : "none",
-              cursor: hasCopied ? "pointer" : "not-allowed",
-            }}
-          >
-            {hasCopied ? (confirmLabel || "I've Sent the Payment") : "Copy address first ↑"}
-          </button>
-        )}
 
         <button
           onClick={() => { haptic(5); onClose(); }}

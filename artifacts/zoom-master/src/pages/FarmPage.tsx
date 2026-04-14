@@ -12,8 +12,6 @@ interface FarmPageProps {
   maxSlots: number;
   onCollect: (id: string) => void;
   onCollectSun: () => void;
-  onActivateSun: () => void;
-  onUnlockSlot: () => void;
   onBurn: (id: string) => void;
   onStartFarming: (id: string) => void;
   onStopFarming: (id: string) => void;
@@ -34,7 +32,7 @@ const RARITY_CLASS: Record<string, string> = {
   GOLD: "rarity-gold",
 };
 
-export function FarmPage({ planets, sun, maxSlots, onCollect, onCollectSun, onActivateSun, onUnlockSlot, onBurn, onStartFarming, onStopFarming, onSell, onUnlist }: FarmPageProps) {
+export function FarmPage({ planets, sun, maxSlots, onCollect, onCollectSun, onBurn, onStartFarming, onStopFarming, onSell, onUnlist }: FarmPageProps) {
   const [confirmBurn, setConfirmBurn] = useState<string | null>(null);
   const [sellPopup, setSellPopup] = useState<SellPopup | null>(null);
   const [sellPrice, setSellPrice] = useState("");
@@ -453,8 +451,6 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onCollectSun, onAc
           amount={`${sun.activationCost} TON`}
           purpose="Activate THE SUN"
           onClose={() => setSunWalletOpen(false)}
-          onConfirm={onActivateSun}
-          confirmLabel="Confirm — Activate SUN"
         />
       )}
       <WalletPopup
@@ -464,8 +460,6 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onCollectSun, onAc
         instruction="Send TON to this address to unlock your slot."
         copyLabel="Copy Link"
         onClose={() => setSlotWalletOpen(false)}
-        onConfirm={onUnlockSlot}
-        confirmLabel="Confirm — Unlock Slot"
       />
     </div>
   );
