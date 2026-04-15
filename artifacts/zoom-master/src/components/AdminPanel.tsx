@@ -59,6 +59,7 @@ export function AdminPanel({ telegramId }: Props) {
     else if (type === "planets") ok = await adminAddPlanets(ADMIN_ID, id, Math.floor(val), planetType);
     else if (type === "slots") ok = await adminUnlockSlots(ADMIN_ID, id, Math.floor(val));
     setLoading(null);
+    if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
     showFeedback(ok ? "✓ Fatto!" : "✗ Errore", ok);
   }, [targetId, amount, planetType]);
 
@@ -72,6 +73,7 @@ export function AdminPanel({ telegramId }: Props) {
     setLoading("global");
     const ok = await adminGlobalBonus(ADMIN_ID, val);
     setLoading(null);
+    if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
     showFeedback(ok ? "✓ Bonus inviato a tutti!" : "✗ Errore", ok);
   }, [globalAmount]);
 

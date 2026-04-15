@@ -51,14 +51,19 @@ export async function syncBalance(params: {
   telegramId: string;
   firstName?: string | null;
   zoomBalance: number;
-}): Promise<void> {
+}): Promise<number> {
   try {
-    await fetch(`${API_BASE}/balance/sync`, {
+    const res = await fetch(`${API_BASE}/balance/sync`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
     });
-  } catch { /**/ }
+    if (!res.ok) return params.zoomBalance;
+    const data = await res.json();
+    return typeof data.zoomBalance === "number" ? data.zoomBalance : params.zoomBalance;
+  } catch {
+    return params.zoomBalance;
+  }
 }
 
 export interface Grants {

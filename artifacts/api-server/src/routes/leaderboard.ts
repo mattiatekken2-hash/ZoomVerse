@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const router: IRouter = Router();
@@ -21,18 +21,20 @@ router.post("/balance/sync", async (req, res) => {
   const { telegramId, firstName, zoomBalance } = parsed.data;
 
   try {
-    await db
+    const rows = await db
       .insert(usersTable)
       .values({ telegramId, zoomBalance, firstName: firstName ?? null, referralCount: 0 })
       .onConflictDoUpdate({
         target: usersTable.telegramId,
         set: {
-          zoomBalance,
+          zoomBalance: sql`GREATEST(${usersTable.zoomBalance}, ${zoomBalance})`,
           ...(firstName ? { firstName } : {}),
         },
-      });
+      })
+      .returning({ zoomBalance: usersTable.zoomBalance });
 
-    res.json({ ok: true });
+    const serverBalance = rows[0]?.zoomBalance ?? zoomBalance;
+    res.json({ ok: true, zoomBalance: serverBalance });
   } catch (err) {
     console.error("[balance/sync] error:", err);
     res.status(500).json({ error: "Database error" });

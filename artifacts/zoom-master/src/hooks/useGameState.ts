@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralCount, debugTelegramContext, syncBalance, fetchGrants } from "../utils/api";
+import { registerUser, fetchReferralCount, debugTelegramContext, syncBalance, fetchGrants, type Grants } from "../utils/api";
 
 export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD";
 
@@ -471,15 +471,94 @@ export function useGameState() {
   }, []);
 
   useEffect(() => {
-    const doSync = () => {
+    const applyGrants = (grants: Grants) => {
+      setState((prev) => {
+        let updated = { ...prev };
+
+        if (grants.bonusSun && !updated.sun?.isOwned) {
+          updated = {
+            ...updated,
+            sun: {
+              isOwned: true,
+              isActive: false,
+              activationCost: SUN_CONFIG.activationCostBase,
+              cycleCount: 0,
+              farmStartedAt: 0,
+              lastCollectedAt: 0,
+            },
+          };
+        }
+
+        const bonusTypes: Array<{ key: keyof Grants; claimedKey: keyof GameState; type: PlanetType }> = [
+          { key: "bonusBasic", claimedKey: "claimedBonusBasic", type: "BASIC" },
+          { key: "bonusRare",  claimedKey: "claimedBonusRare",  type: "RARE" },
+          { key: "bonusEpic",  claimedKey: "claimedBonusEpic",  type: "EPIC" },
+          { key: "bonusGold",  claimedKey: "claimedBonusGold",  type: "GOLD" },
+        ];
+        const now = Date.now();
+        const newPlanets: Planet[] = [];
+        const claimedUpdates: Partial<GameState> = {};
+
+        for (const { key, claimedKey, type } of bonusTypes) {
+          const serverCount = (grants[key] as number) ?? 0;
+          const claimedCount = (updated[claimedKey] as number) ?? 0;
+          const toAdd = serverCount - claimedCount;
+          if (toAdd > 0) {
+            const cfg = PLANET_CONFIG[type];
+            for (let i = 0; i < toAdd; i++) {
+              newPlanets.push({
+                id: `bonus-${type}-${now}-${i}-${Math.random().toString(36).slice(2)}`,
+                name: type,
+                rate: cfg.rate,
+                color: cfg.color,
+                glowColor: cfg.glowColor,
+                createdAt: now,
+                farmStartedAt: now,
+                lastCollectedAt: now,
+                isListedInMarket: false,
+                isFarmingActive: false,
+                marketPrice: null,
+                craftCost: cfg.craftCost,
+              });
+            }
+            claimedUpdates[claimedKey] = serverCount as never;
+          }
+        }
+
+        if (newPlanets.length > 0) {
+          updated = { ...updated, ...claimedUpdates, planets: [...updated.planets, ...newPlanets] };
+        }
+
+        return updated;
+      });
+    };
+
+    const doSync = async () => {
       const { telegramId, firstName } = getTelegramContext();
       if (!telegramId) return;
-      const balance = Math.floor(stateRef.current.balance);
-      syncBalance({ telegramId, firstName, zoomBalance: balance });
+      const localBalance = Math.floor(stateRef.current.balance);
+
+      const [serverBalance, grants] = await Promise.all([
+        syncBalance({ telegramId, firstName, zoomBalance: localBalance }),
+        fetchGrants(telegramId),
+      ]);
+
+      applyGrants(grants);
+
+      if (serverBalance > stateRef.current.balance) {
+        setState((prev) => ({ ...prev, balance: serverBalance }));
+      }
     };
 
     const interval = setInterval(doSync, 30_000);
-    return () => clearInterval(interval);
+
+    const handleAdminRefresh = () => { doSync(); };
+    window.addEventListener("zoom-admin-refresh", handleAdminRefresh);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("zoom-admin-refresh", handleAdminRefresh);
+    };
   }, []);
 
   useEffect(() => {
