@@ -1,11 +1,11 @@
 {
-  "updatedAt": "2026-04-15T07:58:15.512Z",
+  "updatedAt": "2026-04-15T08:05:59.973Z",
   "users": [
     {
       "telegramId": "8144744644",
-      "zoomBalance": 0,
-      "bonusSlots": 0,
-      "bonusSun": false,
+      "zoomBalance": 113,
+      "bonusSlots": 1,
+      "bonusSun": true,
       "bonusBasic": 0,
       "bonusRare": 0,
       "bonusEpic": 0,

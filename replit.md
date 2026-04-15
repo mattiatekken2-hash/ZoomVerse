@@ -45,6 +45,7 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 
 - Fixed the ZOOM MASTER universal admin panel so admin asset actions use the typed Telegram ID with fallback to `8144744644`, show target-specific confirmation feedback, write a synchronous server snapshot after admin mutations, apply slot grants from server data, and refresh authoritative server assets on app resume/section changes with per-user local storage separation.
 - Provisioned the missing PostgreSQL `users` table and adjusted balance refresh so admin credits and Zoom Season leaderboard reads return successful server data instead of 500 errors.
+- Fixed bonus planet reconciliation so admin planet removals delete excess server-granted planets and burned bonus planets are saved immediately without being recreated on refresh.
 - Updated ZOOM MASTER Rank page so Season 1 progress is reset from April 14, 2026 and advances smoothly over the 90-day season.
 - Updated Zoom Season ranking to use live wallet balances: the current user rank is based on `balance`, and the visible leaderboard re-sorts automatically as balances change.
 - Reset the Rank Live $ZOOM Pool to 0 by tracking `seasonPoolEarned`, which only increases from real active farming ticks, and removed all fake/demo leaderboard wallets from Zoom Season.

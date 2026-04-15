@@ -67,6 +67,7 @@ export interface GameState {
   claimedBonusRare: number;
   claimedBonusEpic: number;
   claimedBonusGold: number;
+  claimedBonusSun: boolean;
 }
 
 export const PLANET_CONFIG: Record<PlanetType, {
@@ -206,6 +207,7 @@ const INITIAL_STATE: GameState = {
   claimedBonusRare: 0,
   claimedBonusEpic: 0,
   claimedBonusGold: 0,
+  claimedBonusSun: false,
 };
 
 function migratePlanet(p: unknown): Planet {
@@ -245,6 +247,7 @@ function loadState(): GameState {
           referralSpeedBonus: parsed.referralSpeedBonus ?? 0,
           referredBy: parsed.referredBy ?? null,
           telegramId: parsed.telegramId ?? null,
+          claimedBonusSun: parsed.claimedBonusSun ?? false,
         };
         const resolvedTelegramId = telegramId || base.telegramId;
         return {
@@ -425,10 +428,11 @@ export function useGameState() {
         };
 
         // Apply bonus sun from server (grant sun if not already owned)
-        if (grants.bonusSun && !updated.sun?.isOwned) {
+        if (grants.bonusSun) {
           updated = {
             ...updated,
-            sun: {
+            claimedBonusSun: true,
+            sun: updated.sun?.isOwned ? updated.sun : {
               isOwned: true,
               isActive: false,
               activationCost: SUN_CONFIG.activationCostBase,
@@ -437,6 +441,8 @@ export function useGameState() {
               lastCollectedAt: 0,
             },
           };
+        } else if (updated.claimedBonusSun) {
+          updated = { ...updated, sun: null, claimedBonusSun: false };
         }
 
         updated = {
@@ -458,7 +464,8 @@ export function useGameState() {
         for (const { key, claimedKey, type } of bonusTypes) {
           const serverCount = (grants as unknown as Record<string, number>)[key] ?? 0;
           const claimedCount = (updated[claimedKey] as number) ?? 0;
-          const toAdd = serverCount - claimedCount;
+          const existingBonusCount = updated.planets.filter((planet) => planet.name === type && planet.id.startsWith(`bonus-${type}-`)).length;
+          const toAdd = serverCount - Math.max(claimedCount, existingBonusCount);
           if (toAdd > 0) {
             const cfg = PLANET_CONFIG[type];
             for (let i = 0; i < toAdd; i++) {
@@ -478,10 +485,21 @@ export function useGameState() {
               });
             }
             claimedUpdates[claimedKey] = serverCount;
+          } else if (toAdd < 0) {
+            let toRemove = Math.abs(toAdd);
+            updated = {
+              ...updated,
+              planets: updated.planets.filter((planet) => {
+                if (toRemove <= 0 || planet.name !== type || !planet.id.startsWith(`bonus-${type}-`)) return true;
+                toRemove -= 1;
+                return false;
+              }),
+            };
+            claimedUpdates[claimedKey] = serverCount;
           }
         }
 
-        if (newPlanets.length > 0) {
+        if (newPlanets.length > 0 || Object.keys(claimedUpdates).length > 0) {
           updated = {
             ...updated,
             ...claimedUpdates,
@@ -500,10 +518,11 @@ export function useGameState() {
       setState((prev) => {
         let updated = { ...prev };
 
-        if (grants.bonusSun && !updated.sun?.isOwned) {
+        if (grants.bonusSun) {
           updated = {
             ...updated,
-            sun: {
+            claimedBonusSun: true,
+            sun: updated.sun?.isOwned ? updated.sun : {
               isOwned: true,
               isActive: false,
               activationCost: SUN_CONFIG.activationCostBase,
@@ -512,6 +531,8 @@ export function useGameState() {
               lastCollectedAt: 0,
             },
           };
+        } else if (updated.claimedBonusSun) {
+          updated = { ...updated, sun: null, claimedBonusSun: false };
         }
 
         updated = {
@@ -532,7 +553,8 @@ export function useGameState() {
         for (const { key, claimedKey, type } of bonusTypes) {
           const serverCount = (grants[key] as number) ?? 0;
           const claimedCount = (updated[claimedKey] as number) ?? 0;
-          const toAdd = serverCount - claimedCount;
+          const existingBonusCount = updated.planets.filter((planet) => planet.name === type && planet.id.startsWith(`bonus-${type}-`)).length;
+          const toAdd = serverCount - Math.max(claimedCount, existingBonusCount);
           if (toAdd > 0) {
             const cfg = PLANET_CONFIG[type];
             for (let i = 0; i < toAdd; i++) {
@@ -552,10 +574,21 @@ export function useGameState() {
               });
             }
             claimedUpdates[claimedKey] = serverCount as never;
+          } else if (toAdd < 0) {
+            let toRemove = Math.abs(toAdd);
+            updated = {
+              ...updated,
+              planets: updated.planets.filter((planet) => {
+                if (toRemove <= 0 || planet.name !== type || !planet.id.startsWith(`bonus-${type}-`)) return true;
+                toRemove -= 1;
+                return false;
+              }),
+            };
+            claimedUpdates[claimedKey] = serverCount as never;
           }
         }
 
-        if (newPlanets.length > 0) {
+        if (newPlanets.length > 0 || Object.keys(claimedUpdates).length > 0) {
           updated = { ...updated, ...claimedUpdates, planets: [...updated.planets, ...newPlanets] };
         }
 
@@ -892,11 +925,18 @@ export function useGameState() {
       const planet = prev.planets.find((p) => p.id === id);
       if (!planet) return prev;
       const refund = Math.floor(planet.craftCost * 0.15);
-      return {
+      const bonusPlanetCount = prev.planets.filter((p) => p.name === planet.name && p.id.startsWith(`bonus-${planet.name}-`)).length;
+      const updated = {
         ...prev,
         balance: prev.balance + refund,
         planets: prev.planets.filter((p) => p.id !== id),
+        claimedBonusBasic: planet.name === "BASIC" ? Math.max(prev.claimedBonusBasic, bonusPlanetCount) : prev.claimedBonusBasic,
+        claimedBonusRare: planet.name === "RARE" ? Math.max(prev.claimedBonusRare, bonusPlanetCount) : prev.claimedBonusRare,
+        claimedBonusEpic: planet.name === "EPIC" ? Math.max(prev.claimedBonusEpic, bonusPlanetCount) : prev.claimedBonusEpic,
+        claimedBonusGold: planet.name === "GOLD" ? Math.max(prev.claimedBonusGold, bonusPlanetCount) : prev.claimedBonusGold,
       };
+      saveState(updated);
+      return updated;
     });
   }, []);
 
