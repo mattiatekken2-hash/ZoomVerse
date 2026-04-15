@@ -716,8 +716,12 @@ export function useGameState() {
           window.dispatchEvent(new Event("zoom-data-refresh"));
         })();
 
-        fetchReferralCount(telegramId).then((count) => {
-          setState((prev) => ({ ...prev, referralCount: count }));
+        fetchReferralData(telegramId).then((refData) => {
+          setState((prev) => ({
+            ...prev,
+            referralCount: refData.referralCount,
+            claimedMilestones: refData.claimedMilestones,
+          }));
         });
       }
     };

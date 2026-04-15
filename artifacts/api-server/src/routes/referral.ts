@@ -80,7 +80,21 @@ router.post("/referral/register", async (req, res) => {
 
     const isNew = inserted.length > 0;
 
-    if (isNew && referredBy && referredBy !== telegramId) {
+    let shouldCreditReferrer = isNew && !!referredBy && referredBy !== telegramId;
+
+    if (!isNew && referredBy && referredBy !== telegramId) {
+      const [existingUser] = await db.select().from(usersTable)
+        .where(eq(usersTable.telegramId, telegramId)).limit(1);
+      if (existingUser && !existingUser.referredBy) {
+        await db.update(usersTable)
+          .set({ referredBy })
+          .where(eq(usersTable.telegramId, telegramId));
+        shouldCreditReferrer = true;
+        console.log(`[referral] Late-linked user ${telegramId} to referrer ${referredBy}`);
+      }
+    }
+
+    if (shouldCreditReferrer && referredBy) {
       await db
         .insert(usersTable)
         .values({ telegramId: referredBy, referralCount: 1, zoomBalance: REFERRAL_BONUS })
@@ -92,7 +106,7 @@ router.post("/referral/register", async (req, res) => {
           },
         });
 
-      console.log(`[referral] +${REFERRAL_BONUS} ZOOM credited to referrer ${referredBy} for new user ${telegramId}`);
+      console.log(`[referral] +${REFERRAL_BONUS} ZOOM credited to referrer ${referredBy} for user ${telegramId}`);
 
       await checkAndCreditMilestones(referredBy);
     }
