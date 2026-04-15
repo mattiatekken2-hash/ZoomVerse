@@ -6,6 +6,11 @@
       const tg = window.Telegram.WebApp;
       tg.ready();
       tg.expand();
+      try { tg.disableVerticalSwipes(); } catch(e) {}
+      try { tg.setHeaderColor('#060810'); } catch(e) {}
+      try { tg.setBackgroundColor('#060810'); } catch(e) {}
+      try { tg.setBottomBarColor('#060810'); } catch(e) {}
+      try { if (tg.requestFullscreen) tg.requestFullscreen(); } catch(e) {}
 
       // Persist start_param immediately before React mounts
       try {
@@ -16,7 +21,7 @@
       } catch(e) {}
     </script>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>ZOOM MASTER</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com">

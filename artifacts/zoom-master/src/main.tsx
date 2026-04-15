@@ -10,21 +10,39 @@ function configureTelegramViewport() {
         WebApp?: {
           ready?: () => void;
           expand?: () => void;
+          requestFullscreen?: () => void;
+          isFullscreen?: boolean;
           setHeaderColor?: (color: string) => void;
           setBackgroundColor?: (color: string) => void;
           setBottomBarColor?: (color: string) => void;
           disableVerticalSwipes?: () => void;
+          isVerticalSwipesEnabled?: boolean;
+          version?: string;
+          onEvent?: (event: string, cb: () => void) => void;
         };
       };
     }).Telegram?.WebApp;
-    webApp?.setHeaderColor?.("#060810");
-    webApp?.setBackgroundColor?.("#060810");
-    webApp?.setBottomBarColor?.("#060810");
-    webApp?.disableVerticalSwipes?.();
-    webApp?.expand?.();
-    webApp?.ready?.();
-    requestAnimationFrame(() => webApp?.expand?.());
-    setTimeout(() => webApp?.expand?.(), 250);
+    if (!webApp) return;
+
+    webApp.setHeaderColor?.("#060810");
+    webApp.setBackgroundColor?.("#060810");
+    webApp.setBottomBarColor?.("#060810");
+    webApp.disableVerticalSwipes?.();
+    webApp.expand?.();
+    webApp.ready?.();
+
+    const tryFullscreen = () => {
+      try {
+        if (webApp.requestFullscreen && !webApp.isFullscreen) {
+          webApp.requestFullscreen();
+        }
+      } catch { /**/ }
+    };
+
+    tryFullscreen();
+    requestAnimationFrame(() => { webApp.expand?.(); tryFullscreen(); });
+    setTimeout(() => { webApp.expand?.(); tryFullscreen(); }, 300);
+    setTimeout(tryFullscreen, 800);
   } catch { /**/ }
 }
 
