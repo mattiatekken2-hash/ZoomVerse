@@ -85,3 +85,8 @@ externalPort = 9000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+BOT_TOKEN = "8737646692:AAGNtU1l0rOEp-6nzONsJ15HXbcTUDmxa8o"
