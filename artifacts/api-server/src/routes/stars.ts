@@ -264,9 +264,10 @@ router.post("/stars/webhook", async (req, res) => {
     return;
   }
 
-  if (update.message?.text?.startsWith("/start") && update.message.from) {
-    const parts = update.message.text.split(" ");
-    const referrerId = parts[1]?.trim();
+  if (update.message?.from && (update.message.text?.startsWith("/start") || update.message.text?.toLowerCase() === "play zoom")) {
+    const text = update.message.text || "";
+    const parts = text.split(" ");
+    const referrerId = parts.length > 1 ? parts[1]?.trim() : undefined;
     const userId = String(update.message.from.id);
 
     if (referrerId && referrerId !== userId && /^\d+$/.test(referrerId)) {
@@ -295,20 +296,23 @@ router.post("/stars/webhook", async (req, res) => {
       } else if (!existingUser) {
         console.log(`[webhook] Stored pending referral for new user ${userId} → ${referrerId}`);
       }
+    } else {
+      console.log(`[webhook] /start from ${userId} (no referral)`);
     }
 
     const chatId = update.message.from.id;
+    const appDomain = process.env["REPLIT_DOMAINS"]?.split(",")[0] || process.env["REPLIT_DEV_DOMAIN"] || "";
     try {
       await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chat_id: chatId,
-          text: "🚀 Welcome to ZOOM MASTER! Tap below to launch the game:",
+          text: "🚀 Welcome to Zoom! Tap below to launch the game:",
           reply_markup: {
             inline_keyboard: [[{
-              text: "🎮 Open ZOOM MASTER",
-              web_app: { url: `https://${process.env["REPLIT_DEV_DOMAIN"] || process.env["REPLIT_DOMAINS"]?.split(",")[0] || ""}` },
+              text: "🎮 Open Zoom",
+              web_app: { url: `https://${appDomain}` },
             }]],
           },
         }),
