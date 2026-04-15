@@ -231,10 +231,27 @@ router.post("/ton/confirm", async (req, res) => {
   }
 });
 
+const pendingReferrals = new Map<string, string>();
+
+router.get("/referral/pending/:telegramId", (req, res) => {
+  const { telegramId } = req.params;
+  const referrer = pendingReferrals.get(telegramId);
+  if (referrer) {
+    pendingReferrals.delete(telegramId);
+    res.json({ referrer });
+  } else {
+    res.json({ referrer: null });
+  }
+});
+
 router.post("/stars/webhook", async (req, res) => {
   const update = req.body as {
     pre_checkout_query?: { id: string; invoice_payload: string };
-    message?: { successful_payment?: { invoice_payload: string; telegram_payment_charge_id: string; total_amount: number } };
+    message?: {
+      from?: { id: number; first_name?: string };
+      text?: string;
+      successful_payment?: { invoice_payload: string; telegram_payment_charge_id: string; total_amount: number };
+    };
   };
 
   if (update.pre_checkout_query) {
@@ -245,6 +262,40 @@ router.post("/stars/webhook", async (req, res) => {
     });
     res.json({ ok: true });
     return;
+  }
+
+  if (update.message?.text?.startsWith("/start") && update.message.from) {
+    const parts = update.message.text.split(" ");
+    const referrerId = parts[1]?.trim();
+    const userId = String(update.message.from.id);
+
+    if (referrerId && referrerId !== userId && /^\d+$/.test(referrerId)) {
+      console.log(`[webhook] /start from ${userId} with referrer ${referrerId}`);
+      pendingReferrals.set(userId, referrerId);
+
+      const [existingUser] = await db.select().from(usersTable)
+        .where(eq(usersTable.telegramId, userId)).limit(1);
+
+      if (existingUser && !existingUser.referredBy) {
+        await db.update(usersTable)
+          .set({ referredBy: referrerId })
+          .where(eq(usersTable.telegramId, userId));
+
+        await db
+          .insert(usersTable)
+          .values({ telegramId: referrerId, referralCount: 1, zoomBalance: 20 })
+          .onConflictDoUpdate({
+            target: usersTable.telegramId,
+            set: {
+              referralCount: sql`${usersTable.referralCount} + 1`,
+              zoomBalance: sql`${usersTable.zoomBalance} + 20`,
+            },
+          });
+        console.log(`[webhook] Late-linked ${userId} → referrer ${referrerId}, +20 ZOOM credited`);
+      } else if (!existingUser) {
+        console.log(`[webhook] Stored pending referral for new user ${userId} → ${referrerId}`);
+      }
+    }
   }
 
   if (update.message?.successful_payment) {

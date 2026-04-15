@@ -52,6 +52,17 @@ export interface ReferralData {
   claimedMilestones: number[];
 }
 
+export async function fetchPendingReferral(telegramId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_BASE}/referral/pending/${encodeURIComponent(telegramId)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.referrer || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchReferralData(telegramId: string): Promise<ReferralData> {
   try {
     const res = await fetch(`${API_BASE}/referral/${encodeURIComponent(telegramId)}`);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, type Grants } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, type Grants } from "../utils/api";
 
 async function calibrateServerOffset(): Promise<number> {
   try {
@@ -462,9 +462,18 @@ export function useGameState() {
 
       setState((prev) => settleFarmingState(prev, Date.now()));
 
-      const result = await registerUser(telegramId, startParam ?? undefined);
+      let referrer = startParam;
+      if (!referrer) {
+        const pending = await fetchPendingReferral(telegramId);
+        if (pending) {
+          referrer = pending;
+          console.log(`[referral] Got pending referral from server: ${pending}`);
+        }
+      }
 
-      if (result.isNew && startParam) {
+      const result = await registerUser(telegramId, referrer ?? undefined);
+
+      if (result.isNew && referrer) {
         try { localStorage.removeItem("zoom-start-param"); } catch { /**/ }
       }
 
