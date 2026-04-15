@@ -1,20 +1,10 @@
 {
-  "updatedAt": "2026-04-15T20:24:09.544Z",
+  "updatedAt": "2026-04-15T08:26:34.997Z",
   "users": [
     {
-      "telegramId": "8144744644",
-      "zoomBalance": 2338,
-      "bonusSlots": 8,
-      "bonusSun": true,
-      "bonusBasic": 0,
-      "bonusRare": 0,
-      "bonusEpic": 0,
-      "bonusGold": 1
-    },
-    {
       "telegramId": "5770790001",
-      "zoomBalance": 1403,
-      "bonusSlots": 6,
+      "zoomBalance": 1352,
+      "bonusSlots": 1,
       "bonusSun": false,
       "bonusBasic": 0,
       "bonusRare": 0,
@@ -22,24 +12,14 @@
       "bonusGold": 0
     },
     {
-      "telegramId": "7931866049",
-      "zoomBalance": 300,
-      "bonusSlots": 0,
-      "bonusSun": false,
+      "telegramId": "8144744644",
+      "zoomBalance": 2118,
+      "bonusSlots": 6,
+      "bonusSun": true,
       "bonusBasic": 0,
       "bonusRare": 0,
       "bonusEpic": 0,
-      "bonusGold": 0
-    },
-    {
-      "telegramId": "1218161083",
-      "zoomBalance": 359,
-      "bonusSlots": 0,
-      "bonusSun": false,
-      "bonusBasic": 0,
-      "bonusRare": 0,
-      "bonusEpic": 0,
-      "bonusGold": 0
+      "bonusGold": 1
     }
   ]
 }

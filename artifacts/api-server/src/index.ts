@@ -64,19 +64,16 @@ async function registerTelegramWebhook() {
     return;
   }
 
-  if (process.env["NODE_ENV"] === "development") {
-    logger.info("Skipping webhook registration in dev mode (production webhook preserved)");
-    return;
-  }
+  const devDomain = process.env["REPLIT_DEV_DOMAIN"];
+  const deployDomain = process.env["REPLIT_DOMAINS"];
+  const domain = deployDomain?.split(",")[0] || devDomain;
 
-  const deployDomain = process.env["REPLIT_DOMAINS"]?.split(",")[0];
-
-  if (!deployDomain) {
+  if (!domain) {
     logger.warn("No domain available for webhook registration");
     return;
   }
 
-  const webhookUrl = `https://${deployDomain}/api/stars/webhook`;
+  const webhookUrl = `https://${domain}/api/stars/webhook`;
 
   try {
     const res = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
