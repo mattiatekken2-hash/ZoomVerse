@@ -184,6 +184,24 @@ router.post("/referral/reset", async (req, res) => {
   }
 });
 
+router.post("/referral/unlink", async (req, res) => {
+  const { telegramId } = req.body as { telegramId?: string };
+  if (!telegramId) {
+    res.status(400).json({ error: "Missing telegramId" });
+    return;
+  }
+  try {
+    await db
+      .update(usersTable)
+      .set({ referredBy: null })
+      .where(eq(usersTable.telegramId, telegramId));
+    console.log(`[referral] Unlinked referrer for ${telegramId}`);
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 router.post("/referral/debug", (req, res) => {
   const { telegramId, initData, initDataUnsafe, startParam, localStorageParam, href, hash, search } = req.body as Record<string, string>;
   console.log(`[debug] id=${telegramId} startParam=${startParam ?? "null"} ls=${localStorageParam ?? "null"}`);
