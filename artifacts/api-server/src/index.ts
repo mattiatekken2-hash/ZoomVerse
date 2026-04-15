@@ -36,6 +36,7 @@ server.on("error", (err: NodeJS.ErrnoException) => {
 server.listen(port, () => {
   logger.info({ port }, "Server listening");
   startKeepAlive();
+  registerTelegramWebhook();
 });
 
 function startKeepAlive() {
@@ -54,6 +55,44 @@ function startKeepAlive() {
     });
     req.end();
   }, intervalMs).unref();
+}
+
+async function registerTelegramWebhook() {
+  const botToken = process.env["BOT_TOKEN"];
+  if (!botToken) {
+    logger.warn("BOT_TOKEN not set — skipping webhook registration");
+    return;
+  }
+
+  const devDomain = process.env["REPLIT_DEV_DOMAIN"];
+  const deployDomain = process.env["REPLIT_DOMAINS"];
+  const domain = deployDomain?.split(",")[0] || devDomain;
+
+  if (!domain) {
+    logger.warn("No domain available for webhook registration");
+    return;
+  }
+
+  const webhookUrl = `https://${domain}/api/stars/webhook`;
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        url: webhookUrl,
+        allowed_updates: ["message", "pre_checkout_query"],
+      }),
+    });
+    const data = await res.json() as { ok: boolean; description?: string };
+    if (data.ok) {
+      logger.info({ webhookUrl }, "Telegram webhook registered");
+    } else {
+      logger.error({ description: data.description }, "Failed to register Telegram webhook");
+    }
+  } catch (err) {
+    logger.error({ err }, "Error registering Telegram webhook");
+  }
 }
 
 process.on("uncaughtException", (err) => {
