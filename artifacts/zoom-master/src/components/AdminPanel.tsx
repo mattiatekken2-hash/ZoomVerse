@@ -5,6 +5,9 @@ import {
   adminAddPlanets,
   adminUnlockSlots,
   adminGlobalBonus,
+  adminRemoveZoom,
+  adminRemovePlanets,
+  adminRemoveSlots,
 } from "../utils/api";
 
 const ADMIN_ID = "8144744644";
@@ -33,6 +36,7 @@ interface Props {
 
 export function AdminPanel({ telegramId }: Props) {
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"add" | "remove">("add");
   const [targetId, setTargetId] = useState("");
   const [amount, setAmount] = useState("");
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
@@ -55,13 +59,19 @@ export function AdminPanel({ telegramId }: Props) {
     }
     setLoading(type);
     let ok = false;
-    if (type === "zoom") ok = await adminCreditZoom(ADMIN_ID, id, val);
-    else if (type === "planets") ok = await adminAddPlanets(ADMIN_ID, id, Math.floor(val), planetType);
-    else if (type === "slots") ok = await adminUnlockSlots(ADMIN_ID, id, Math.floor(val));
+    if (mode === "add") {
+      if (type === "zoom") ok = await adminCreditZoom(ADMIN_ID, id, val);
+      else if (type === "planets") ok = await adminAddPlanets(ADMIN_ID, id, Math.floor(val), planetType);
+      else if (type === "slots") ok = await adminUnlockSlots(ADMIN_ID, id, Math.floor(val));
+    } else {
+      if (type === "zoom") ok = await adminRemoveZoom(ADMIN_ID, id, val);
+      else if (type === "planets") ok = await adminRemovePlanets(ADMIN_ID, id, Math.floor(val), planetType);
+      else if (type === "slots") ok = await adminRemoveSlots(ADMIN_ID, id, Math.floor(val));
+    }
     setLoading(null);
     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
     showFeedback(ok ? "✓ Fatto!" : "✗ Errore", ok);
-  }, [targetId, amount, planetType]);
+  }, [targetId, amount, planetType, mode]);
 
   const handleGlobalBonus = useCallback(async () => {
     haptic();
@@ -218,35 +228,68 @@ export function AdminPanel({ telegramId }: Props) {
                   style={inputStyle}
                 />
 
+                {/* Add / Remove toggle */}
+                <div style={{ display: "flex", gap: 6, background: "rgba(255,255,255,0.04)", borderRadius: 10, padding: 4 }}>
+                  {(["add", "remove"] as const).map((m) => (
+                    <motion.button
+                      key={m}
+                      whileTap={{ scale: 0.93 }}
+                      onClick={() => { haptic(); setMode(m); }}
+                      style={{
+                        flex: 1,
+                        padding: "7px",
+                        borderRadius: 8,
+                        border: "none",
+                        background: mode === m
+                          ? m === "add" ? "rgba(0,242,100,0.18)" : "rgba(255,60,60,0.18)"
+                          : "transparent",
+                        color: mode === m
+                          ? m === "add" ? "#00f264" : "#ff5555"
+                          : "rgba(255,255,255,0.3)",
+                        fontSize: 12,
+                        fontWeight: 800,
+                        cursor: "pointer",
+                        transition: "all 0.15s",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      {m === "add" ? "➕ Aggiungi" : "➖ Rimuovi"}
+                    </motion.button>
+                  ))}
+                </div>
+
                 {/* Action buttons */}
                 <div style={{ display: "flex", gap: 8 }}>
                   {([
                     { type: "zoom" as ActionType,    label: "🪐 ZOOM",    color: "#00f2fe" },
                     { type: "planets" as ActionType, label: "🌍 Pianeti", color: "#c471ed" },
                     { type: "slots" as ActionType,   label: "📦 Slot",    color: "#4facfe" },
-                  ]).map(({ type, label, color }) => (
-                    <motion.button
-                      key={type}
-                      whileTap={{ scale: 0.93 }}
-                      onClick={() => handleAction(type)}
-                      disabled={loading !== null}
-                      style={{
-                        flex: 1,
-                        padding: "9px 4px",
-                        borderRadius: 10,
-                        border: `1px solid ${color}33`,
-                        background: `${color}14`,
-                        color,
-                        fontSize: 11,
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        opacity: loading !== null ? 0.5 : 1,
-                        transition: "opacity 0.15s",
-                      }}
-                    >
-                      {loading === type ? "..." : label}
-                    </motion.button>
-                  ))}
+                  ]).map(({ type, label, color }) => {
+                    const btnColor = mode === "remove" ? "#ff5555" : color;
+                    return (
+                      <motion.button
+                        key={type}
+                        whileTap={{ scale: 0.93 }}
+                        onClick={() => handleAction(type)}
+                        disabled={loading !== null}
+                        style={{
+                          flex: 1,
+                          padding: "9px 4px",
+                          borderRadius: 10,
+                          border: `1px solid ${btnColor}44`,
+                          background: `${btnColor}14`,
+                          color: btnColor,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          opacity: loading !== null ? 0.5 : 1,
+                          transition: "all 0.2s",
+                        }}
+                      >
+                        {loading === type ? "..." : label}
+                      </motion.button>
+                    );
+                  })}
                 </div>
 
                 {/* Planet type selector */}

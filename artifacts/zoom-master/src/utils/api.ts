@@ -120,6 +120,39 @@ export async function adminUnlockSlots(adminId: string, telegramId: string, coun
   } catch { return false; }
 }
 
+export async function adminRemoveZoom(adminId: string, telegramId: string, amount: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/remove-zoom`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId, amount }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function adminRemovePlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "GOLD" | "SUN"): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/remove-planets`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId, count, planetType }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function adminRemoveSlots(adminId: string, telegramId: string, count: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/remove-slots`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId, count }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminGlobalBonus(adminId: string, amount: number): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/global-bonus`, {

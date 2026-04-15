@@ -36,6 +36,25 @@ const GlobalBonusBody = z.object({
   amount: z.number().positive(),
 });
 
+const RemoveZoomBody = z.object({
+  adminId: z.string(),
+  telegramId: z.string().min(1),
+  amount: z.number().positive(),
+});
+
+const RemovePlanetsBody = z.object({
+  adminId: z.string(),
+  telegramId: z.string().min(1),
+  count: z.number().int().positive(),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "GOLD", "SUN"]),
+});
+
+const RemoveSlotsBody = z.object({
+  adminId: z.string(),
+  telegramId: z.string().min(1),
+  count: z.number().int().positive(),
+});
+
 router.post("/admin/credit-zoom", async (req, res) => {
   const parsed = CreditZoomBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
@@ -121,6 +140,64 @@ router.post("/admin/global-bonus", async (req, res) => {
     await db
       .update(usersTable)
       .set({ zoomBalance: sql`${usersTable.zoomBalance} + ${amount}` });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/remove-zoom", async (req, res) => {
+  const parsed = RemoveZoomBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const { telegramId, amount } = parsed.data;
+  try {
+    await db
+      .update(usersTable)
+      .set({ zoomBalance: sql`GREATEST(0, ${usersTable.zoomBalance} - ${amount})` })
+      .where(sql`${usersTable.telegramId} = ${telegramId}`);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/remove-planets", async (req, res) => {
+  const parsed = RemovePlanetsBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const { telegramId, count, planetType } = parsed.data;
+  try {
+    if (planetType === "SUN") {
+      await db.update(usersTable).set({ bonusSun: false }).where(sql`${usersTable.telegramId} = ${telegramId}`);
+    } else if (planetType === "BASIC") {
+      await db.update(usersTable).set({ bonusBasic: sql`GREATEST(0, ${usersTable.bonusBasic} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
+    } else if (planetType === "RARE") {
+      await db.update(usersTable).set({ bonusRare: sql`GREATEST(0, ${usersTable.bonusRare} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
+    } else if (planetType === "EPIC") {
+      await db.update(usersTable).set({ bonusEpic: sql`GREATEST(0, ${usersTable.bonusEpic} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
+    } else if (planetType === "GOLD") {
+      await db.update(usersTable).set({ bonusGold: sql`GREATEST(0, ${usersTable.bonusGold} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/remove-slots", async (req, res) => {
+  const parsed = RemoveSlotsBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const { telegramId, count } = parsed.data;
+  try {
+    await db
+      .update(usersTable)
+      .set({ bonusSlots: sql`GREATEST(0, ${usersTable.bonusSlots} - ${count})` })
+      .where(sql`${usersTable.telegramId} = ${telegramId}`);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
