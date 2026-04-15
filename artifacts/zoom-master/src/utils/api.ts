@@ -164,6 +164,17 @@ export async function adminGlobalBonus(adminId: string, amount: number): Promise
   } catch { return false; }
 }
 
+export async function fetchBalance(telegramId: string): Promise<number | null> {
+  try {
+    const res = await fetch(`${API_BASE}/balance/${encodeURIComponent(telegramId)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data.zoomBalance === "number" ? data.zoomBalance : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface LeaderboardEntry {
   rank: number;
   telegramId: string;

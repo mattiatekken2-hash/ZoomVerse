@@ -552,7 +552,20 @@ export function useGameState() {
 
     const interval = setInterval(doSync, 30_000);
 
-    const handleAdminRefresh = () => { doSync(); };
+    const handleAdminRefresh = async () => {
+      const { telegramId, firstName } = getTelegramContext();
+      if (!telegramId) return;
+
+      const serverBalance = await fetchBalance(telegramId);
+      if (serverBalance !== null) {
+        setState((prev) => ({ ...prev, balance: serverBalance }));
+        stateRef.current = { ...stateRef.current, balance: serverBalance };
+        await syncBalance({ telegramId, firstName: firstName ?? "", zoomBalance: serverBalance });
+      }
+
+      const grants = await fetchGrants(telegramId);
+      if (grants) applyGrants(grants);
+    };
     window.addEventListener("zoom-admin-refresh", handleAdminRefresh);
 
     return () => {
