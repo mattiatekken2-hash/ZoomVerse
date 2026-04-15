@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   adminCreditZoom,
@@ -29,8 +29,6 @@ export function AdminPanel({ telegramId }: Props) {
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
   const [loading, setLoading] = useState<ActionType | "global" | null>(null);
-  const constraintsRef = useRef<HTMLDivElement>(null);
-
   const showFeedback = (msg: string, ok: boolean) => {
     setFeedback({ msg, ok });
     setTimeout(() => setFeedback(null), 2500);
@@ -115,24 +113,9 @@ export function AdminPanel({ telegramId }: Props) {
               }}
             />
 
-            {/* Drag constraints container */}
-            <div
-              ref={constraintsRef}
-              style={{
-                position: "fixed",
-                inset: 0,
-                zIndex: 51,
-                pointerEvents: "none",
-              }}
-            />
-
-            {/* Draggable panel */}
+            {/* Panel */}
             <motion.div
               key="panel"
-              drag
-              dragConstraints={constraintsRef}
-              dragMomentum={false}
-              dragElastic={0.08}
               initial={{ opacity: 0, scale: 0.92 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.88 }}
@@ -153,7 +136,6 @@ export function AdminPanel({ telegramId }: Props) {
                 backdropFilter: "blur(28px)",
                 WebkitBackdropFilter: "blur(28px)",
                 boxShadow: "0 12px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,242,254,0.07) inset",
-                touchAction: "none",
               }}
             >
               {/* Drag handle */}
@@ -161,7 +143,7 @@ export function AdminPanel({ telegramId }: Props) {
                 style={{
                   padding: "16px 20px 12px",
                   borderBottom: "1px solid rgba(255,255,255,0.05)",
-                  cursor: "grab",
+                  cursor: "default",
                   userSelect: "none",
                   display: "flex",
                   alignItems: "center",
@@ -172,7 +154,7 @@ export function AdminPanel({ telegramId }: Props) {
                   <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: "0.12em", color: "#00f2fe", textShadow: "0 0 12px rgba(0,242,254,0.6)" }}>
                     ⚙ ADMIN PANEL
                   </div>
-                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginTop: 2 }}>Trascina per spostare</div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginTop: 2 }}>Accesso riservato</div>
                 </div>
                 <button
                   onClick={() => { haptic(); setOpen(false); }}
