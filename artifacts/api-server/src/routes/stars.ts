@@ -296,6 +296,26 @@ router.post("/stars/webhook", async (req, res) => {
         console.log(`[webhook] Stored pending referral for new user ${userId} → ${referrerId}`);
       }
     }
+
+    const chatId = update.message.from.id;
+    try {
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: "🚀 Welcome to ZOOM MASTER! Tap below to launch the game:",
+          reply_markup: {
+            inline_keyboard: [[{
+              text: "🎮 Open ZOOM MASTER",
+              web_app: { url: `https://${process.env["REPLIT_DEV_DOMAIN"] || process.env["REPLIT_DOMAINS"]?.split(",")[0] || ""}` },
+            }]],
+          },
+        }),
+      });
+    } catch (err) {
+      console.error("[webhook] Failed to send welcome message:", err);
+    }
   }
 
   if (update.message?.successful_payment) {

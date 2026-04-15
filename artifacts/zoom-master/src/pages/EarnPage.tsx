@@ -34,7 +34,7 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, referr
   const hLeft = Math.floor(nextClaimIn / 3600000);
   const mLeft = Math.floor((nextClaimIn % 3600000) / 60000);
 
-  const referralLink = `https://t.me/ZoomVerse_bot/app?startapp=${referralCode}`;
+  const referralLink = `https://t.me/ZoomVerse_bot?start=${referralCode}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(referralLink).catch(() => {});
