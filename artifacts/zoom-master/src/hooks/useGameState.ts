@@ -410,17 +410,18 @@ export function useGameState() {
         try { localStorage.removeItem("zoom-start-param"); } catch { /**/ }
       }
 
-      const [count, grants, balanceRecord] = await Promise.all([
+      const localBalance = Math.floor(stateRef.current.balance);
+      const [count, grants, serverBalance] = await Promise.all([
         fetchReferralCount(telegramId),
         fetchGrants(telegramId),
-        fetchBalanceRecord(telegramId),
+        syncBalance({ telegramId, firstName, zoomBalance: localBalance }),
       ]);
 
       setState((prev) => {
         let updated = {
           ...prev,
           referralCount: count,
-          balance: balanceRecord?.exists && !result.isNew ? balanceRecord.zoomBalance : prev.balance,
+          balance: serverBalance,
         };
 
         // Apply bonus sun from server (grant sun if not already owned)
@@ -567,18 +568,15 @@ export function useGameState() {
       if (!telegramId) return;
       const localBalance = Math.floor(stateRef.current.balance);
 
-      const [balanceRecord, grants] = await Promise.all([
-        fetchBalanceRecord(telegramId),
+      const [serverBalance, grants] = await Promise.all([
+        syncBalance({ telegramId, firstName, zoomBalance: localBalance }),
         fetchGrants(telegramId),
       ]);
 
-      const authoritativeBalance = balanceRecord?.exists ? balanceRecord.zoomBalance : localBalance;
-      await syncBalance({ telegramId, firstName, zoomBalance: Math.floor(authoritativeBalance) });
-
       applyGrants(grants);
 
-      if (balanceRecord?.exists) {
-        setState((prev) => ({ ...prev, balance: balanceRecord.zoomBalance }));
+      if (serverBalance !== stateRef.current.balance) {
+        setState((prev) => ({ ...prev, balance: serverBalance }));
       }
     };
 
@@ -592,19 +590,18 @@ export function useGameState() {
       if (balanceRecord?.exists) {
         setState((prev) => ({ ...prev, balance: balanceRecord.zoomBalance }));
         stateRef.current = { ...stateRef.current, balance: balanceRecord.zoomBalance };
-        await syncBalance({ telegramId, firstName: firstName ?? "", zoomBalance: balanceRecord.zoomBalance });
       }
 
       const grants = await fetchGrants(telegramId);
       if (grants) applyGrants(grants);
     };
     window.addEventListener("zoom-admin-refresh", handleAdminRefresh);
-    window.addEventListener("zoom-data-refresh", handleAdminRefresh);
+    window.addEventListener("zoom-data-refresh", doSync);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener("zoom-admin-refresh", handleAdminRefresh);
-      window.removeEventListener("zoom-data-refresh", handleAdminRefresh);
+      window.removeEventListener("zoom-data-refresh", doSync);
     };
   }, []);
 
