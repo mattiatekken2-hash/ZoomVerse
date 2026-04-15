@@ -11,6 +11,7 @@ export const usersTable = pgTable("users", {
   firstName: text("first_name"),
   bonusSlots: integer("bonus_slots").notNull().default(0),
   bonusSun: boolean("bonus_sun").notNull().default(false),
+  bonusPlanets: integer("bonus_planets").notNull().default(0),
 });
 
 export const insertUserSchema = createInsertSchema(usersTable).omit({ createdAt: true });

@@ -63,6 +63,7 @@ export interface GameState {
   telegramId: string | null;
   referredBy: string | null;
   referralSpeedBonus: number;
+  claimedBonusPlanets: number;
 }
 
 export const PLANET_CONFIG: Record<PlanetType, {
@@ -194,6 +195,7 @@ const INITIAL_STATE: GameState = {
   telegramId: null,
   referredBy: null,
   referralSpeedBonus: 0,
+  claimedBonusPlanets: 0,
 };
 
 function migratePlanet(p: unknown): Planet {
@@ -408,6 +410,34 @@ export function useGameState() {
               farmStartedAt: 0,
               lastCollectedAt: 0,
             },
+          };
+        }
+
+        // Apply pending bonus planets (only new ones not yet claimed)
+        const newPlanetsCount = grants.bonusPlanets - (updated.claimedBonusPlanets ?? 0);
+        if (newPlanetsCount > 0) {
+          const now = Date.now();
+          const newPlanets = Array.from({ length: newPlanetsCount }, (_, i) => {
+            const cfg = PLANET_CONFIG["BASIC"];
+            return {
+              id: `bonus-${now}-${i}`,
+              name: "BASIC" as PlanetType,
+              rate: cfg.rate,
+              color: cfg.color,
+              glowColor: cfg.glowColor,
+              createdAt: now,
+              farmStartedAt: now,
+              lastCollectedAt: now,
+              isListedInMarket: false,
+              isFarmingActive: false,
+              marketPrice: null,
+              craftCost: cfg.craftCost,
+            };
+          });
+          updated = {
+            ...updated,
+            planets: [...updated.planets, ...newPlanets],
+            claimedBonusPlanets: grants.bonusPlanets,
           };
         }
 

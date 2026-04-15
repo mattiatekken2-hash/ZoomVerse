@@ -64,16 +64,61 @@ export async function syncBalance(params: {
 export interface Grants {
   bonusSlots: number;
   bonusSun: boolean;
+  bonusPlanets: number;
 }
 
 export async function fetchGrants(telegramId: string): Promise<Grants> {
   try {
     const res = await fetch(`${API_BASE}/grants/${encodeURIComponent(telegramId)}`);
-    if (!res.ok) return { bonusSlots: 0, bonusSun: false };
+    if (!res.ok) return { bonusSlots: 0, bonusSun: false, bonusPlanets: 0 };
     return res.json();
   } catch {
-    return { bonusSlots: 0, bonusSun: false };
+    return { bonusSlots: 0, bonusSun: false, bonusPlanets: 0 };
   }
+}
+
+export async function adminCreditZoom(adminId: string, telegramId: string, amount: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/credit-zoom`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId, amount }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function adminAddPlanets(adminId: string, telegramId: string, count: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/add-planets`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId, count }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function adminUnlockSlots(adminId: string, telegramId: string, count: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/unlock-slots`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId, count }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function adminGlobalBonus(adminId: string, amount: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/global-bonus`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, amount }),
+    });
+    return res.ok;
+  } catch { return false; }
 }
 
 export interface LeaderboardEntry {

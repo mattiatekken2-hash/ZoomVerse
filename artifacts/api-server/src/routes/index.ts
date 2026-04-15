@@ -3,6 +3,7 @@ import healthRouter from "./health";
 import referralRouter from "./referral";
 import leaderboardRouter from "./leaderboard";
 import grantsRouter from "./grants";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -10,5 +11,6 @@ router.use(healthRouter);
 router.use(referralRouter);
 router.use(leaderboardRouter);
 router.use(grantsRouter);
+router.use(adminRouter);
 
 export default router;

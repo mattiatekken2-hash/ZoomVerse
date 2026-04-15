@@ -9,16 +9,24 @@ router.get("/grants/:telegramId", async (req, res) => {
   try {
     const { telegramId } = req.params;
     const [user] = await db
-      .select({ bonusSlots: usersTable.bonusSlots, bonusSun: usersTable.bonusSun })
+      .select({
+        bonusSlots: usersTable.bonusSlots,
+        bonusSun: usersTable.bonusSun,
+        bonusPlanets: usersTable.bonusPlanets,
+      })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
       .limit(1);
 
     if (!user) {
-      return res.json({ bonusSlots: 0, bonusSun: false });
+      return res.json({ bonusSlots: 0, bonusSun: false, bonusPlanets: 0 });
     }
 
-    res.json({ bonusSlots: user.bonusSlots, bonusSun: user.bonusSun });
+    res.json({
+      bonusSlots: user.bonusSlots,
+      bonusSun: user.bonusSun,
+      bonusPlanets: user.bonusPlanets,
+    });
   } catch (err) {
     res.status(500).json({ error: "Internal server error" });
   }

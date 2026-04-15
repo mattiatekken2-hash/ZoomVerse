@@ -8,6 +8,7 @@ import { MarketPage } from "./pages/MarketPage";
 import { EarnPage } from "./pages/EarnPage";
 import { RankPage } from "./pages/RankPage";
 import { ShopPage } from "./pages/ShopPage";
+import { AdminPanel } from "./components/AdminPanel";
 
 type Tab = "lab" | "farm" | "market" | "earn" | "rank" | "shop";
 
@@ -161,6 +162,8 @@ export default function App() {
           </motion.div>
         </AnimatePresence>
       </main>
+
+      {state.telegramId && <AdminPanel telegramId={state.telegramId} />}
 
       <nav
         className="flex-shrink-0 relative z-20"
