@@ -396,11 +396,6 @@ export function useGameState() {
       setState((prev) => {
         let updated = { ...prev, referralCount: count };
 
-        // Apply bonus slots from server
-        if (grants.bonusSlots > 0) {
-          updated = { ...updated, maxSlots: Math.max(updated.maxSlots, 2 + grants.bonusSlots) };
-        }
-
         // Apply bonus sun from server (grant sun if not already owned)
         if (grants.bonusSun && !updated.sun?.isOwned) {
           updated = {
