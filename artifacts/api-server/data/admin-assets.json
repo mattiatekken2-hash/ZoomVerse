@@ -1,15 +1,25 @@
 {
-  "updatedAt": "2026-04-15T08:10:26.793Z",
+  "updatedAt": "2026-04-15T08:26:34.997Z",
   "users": [
     {
-      "telegramId": "8144744644",
-      "zoomBalance": 113,
+      "telegramId": "5770790001",
+      "zoomBalance": 1352,
       "bonusSlots": 1,
       "bonusSun": false,
       "bonusBasic": 0,
       "bonusRare": 0,
-      "bonusEpic": 0,
+      "bonusEpic": 1,
       "bonusGold": 0
+    },
+    {
+      "telegramId": "8144744644",
+      "zoomBalance": 2118,
+      "bonusSlots": 6,
+      "bonusSun": true,
+      "bonusBasic": 0,
+      "bonusRare": 0,
+      "bonusEpic": 0,
+      "bonusGold": 1
     }
   ]
 }
