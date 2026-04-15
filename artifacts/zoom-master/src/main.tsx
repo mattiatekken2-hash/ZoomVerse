@@ -3,6 +3,33 @@ import App from "./App";
 import "./index.css";
 import { hapticLight } from "./utils/haptic";
 
+function configureTelegramViewport() {
+  try {
+    const webApp = (window as unknown as {
+      Telegram?: {
+        WebApp?: {
+          ready?: () => void;
+          expand?: () => void;
+          setHeaderColor?: (color: string) => void;
+          setBackgroundColor?: (color: string) => void;
+          setBottomBarColor?: (color: string) => void;
+          disableVerticalSwipes?: () => void;
+        };
+      };
+    }).Telegram?.WebApp;
+    webApp?.setHeaderColor?.("#060810");
+    webApp?.setBackgroundColor?.("#060810");
+    webApp?.setBottomBarColor?.("#060810");
+    webApp?.disableVerticalSwipes?.();
+    webApp?.expand?.();
+    webApp?.ready?.();
+    requestAnimationFrame(() => webApp?.expand?.());
+    setTimeout(() => webApp?.expand?.(), 250);
+  } catch { /**/ }
+}
+
+configureTelegramViewport();
+
 const SCROLL_TAGS = new Set(["HTML", "BODY"]);
 const SCROLL_CLASSES = ["overflow-y-auto", "overflow-auto", "overflow-x-auto"];
 

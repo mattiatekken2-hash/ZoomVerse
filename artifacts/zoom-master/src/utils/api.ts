@@ -1,5 +1,16 @@
 const API_BASE = `${window.location.origin}/api`;
 
+export async function fetchServerTime(): Promise<number> {
+  try {
+    const res = await fetch(`${API_BASE}/time?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return Date.now();
+    const data = await res.json();
+    return typeof data.serverTime === "number" ? data.serverTime : Date.now();
+  } catch {
+    return Date.now();
+  }
+}
+
 export async function debugTelegramContext(data: {
   telegramId: string | null;
   initData: string;

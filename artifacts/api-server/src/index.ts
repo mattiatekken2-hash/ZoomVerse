@@ -39,7 +39,7 @@ server.listen(port, () => {
 });
 
 function startKeepAlive() {
-  const intervalMs = 4 * 60 * 1000;
+  const intervalMs = 60 * 1000;
 
   setInterval(() => {
     const req = http.request(

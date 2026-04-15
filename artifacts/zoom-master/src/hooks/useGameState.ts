@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralCount, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, type Grants } from "../utils/api";
+import { registerUser, fetchReferralCount, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, type Grants } from "../utils/api";
 
 export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD";
 
@@ -68,6 +68,7 @@ export interface GameState {
   claimedBonusEpic: number;
   claimedBonusGold: number;
   claimedBonusSun: boolean;
+  lastFarmingSettledAt: number;
 }
 
 export const PLANET_CONFIG: Record<PlanetType, {
@@ -208,6 +209,7 @@ const INITIAL_STATE: GameState = {
   claimedBonusEpic: 0,
   claimedBonusGold: 0,
   claimedBonusSun: false,
+  lastFarmingSettledAt: Date.now(),
 };
 
 function migratePlanet(p: unknown): Planet {
@@ -248,6 +250,7 @@ function loadState(): GameState {
           referredBy: parsed.referredBy ?? null,
           telegramId: parsed.telegramId ?? null,
           claimedBonusSun: parsed.claimedBonusSun ?? false,
+          lastFarmingSettledAt: parsed.lastFarmingSettledAt ?? Date.now(),
         };
         const resolvedTelegramId = telegramId || base.telegramId;
         return {
@@ -378,9 +381,41 @@ export function formatDuration(ms: number): string {
   return `${m}m`;
 }
 
+function settleFarmingState(state: GameState, now: number): GameState {
+  const from = Math.min(state.lastFarmingSettledAt || now, now);
+  if (now <= from) return { ...state, lastFarmingSettledAt: now };
+
+  const speedMultiplier = 1 + (state.referralSpeedBonus || 0);
+  let earned = 0;
+
+  for (const planet of state.planets) {
+    if (!planet.isFarmingActive || planet.isListedInMarket) continue;
+    const start = Math.max(from, planet.farmStartedAt, planet.lastCollectedAt);
+    const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+    if (end > start) earned += (planet.rate / 3_600_000) * (end - start) * speedMultiplier;
+  }
+
+  if (state.sun?.isActive) {
+    const start = Math.max(from, state.sun.farmStartedAt, state.sun.lastCollectedAt);
+    const end = Math.min(now, state.sun.farmStartedAt + FARM_DURATION_MS, state.sun.lastCollectedAt + DAILY_COLLECT_MS);
+    if (end > start) earned += (SUN_CONFIG.rate / 3_600_000) * (end - start) * speedMultiplier;
+  }
+
+  if (earned <= 0) return { ...state, lastFarmingSettledAt: now };
+
+  return {
+    ...state,
+    balance: state.balance + earned,
+    totalEarned: state.totalEarned + earned,
+    seasonPoolEarned: state.seasonPoolEarned + earned,
+    lastFarmingSettledAt: now,
+  };
+}
+
 export function useGameState() {
   const [state, setState] = useState<GameState>(loadState);
   const stateRef = useRef(state);
+  const serverOffsetRef = useRef(0);
   stateRef.current = state;
 
   useEffect(() => { saveState(state); }, [state]);
