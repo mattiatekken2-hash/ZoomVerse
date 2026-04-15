@@ -160,29 +160,9 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, referr
           <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
             +20 $ZOOM per new user who joins via your link. Milestone bonuses auto-credited!
           </div>
-          <div
-            className="rounded-xl px-3 py-2.5 mb-3 flex items-center justify-between gap-2 border"
-            style={{ borderColor: "rgba(255,215,0,0.15)", background: "rgba(0,0,0,0.3)" }}
-          >
-            <span className="text-xs font-mono truncate" style={{ color: "rgba(255,255,255,0.5)" }}>
-              {referralLink}
-            </span>
-            <button
-              onClick={handleCopy}
-              className="flex-shrink-0 px-3 py-1.5 rounded-lg font-bold text-xs transition-all active:scale-95"
-              style={{
-                background: copied ? "rgba(0,230,118,0.15)" : "rgba(255,215,0,0.1)",
-                color: copied ? "#00e676" : "#ffd700",
-                border: `1px solid ${copied ? "rgba(0,230,118,0.3)" : "rgba(255,215,0,0.2)"}`,
-              }}
-              data-testid="button-copy-referral"
-            >
-              {copied ? "✓ Copied" : "Copy"}
-            </button>
-          </div>
           <button
             onClick={() => {
-              const text = encodeURIComponent("Join ZOOM MASTER and earn $ZOOM!");
+              const text = encodeURIComponent("Join Zoom and earn $ZOOM!");
               const url = encodeURIComponent(referralLink);
               window.open(`https://t.me/share/url?url=${url}&text=${text}`, "_blank");
             }}
