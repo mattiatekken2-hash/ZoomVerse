@@ -1,6 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralCount, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, type Grants } from "../utils/api";
 
+async function calibrateServerOffset(): Promise<number> {
+  try {
+    const t0 = Date.now();
+    const serverTime = await fetchServerTime();
+    const t1 = Date.now();
+    const rtt = t1 - t0;
+    return serverTime - (t0 + rtt / 2);
+  } catch {
+    return 0;
+  }
+}
+
 export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD";
 
 export interface Planet {
@@ -382,8 +394,8 @@ export function formatDuration(ms: number): string {
 }
 
 function settleFarmingState(state: GameState, now: number): GameState {
-  const from = Math.min(state.lastFarmingSettledAt || now, now);
-  if (now <= from) return { ...state, lastFarmingSettledAt: now };
+  const from = state.lastFarmingSettledAt || now;
+  if (now <= from) return state;
 
   const speedMultiplier = 1 + (state.referralSpeedBonus || 0);
   let earned = 0;
@@ -442,6 +454,11 @@ export function useGameState() {
     if (!telegramId) return;
 
     (async () => {
+      const offset = await calibrateServerOffset();
+      serverOffsetRef.current = offset;
+
+      setState((prev) => settleFarmingState(prev, Date.now()));
+
       const result = await registerUser(telegramId, startParam ?? undefined);
 
       if (result.isNew && startParam) {
@@ -677,40 +694,26 @@ export function useGameState() {
     const handleVisibility = () => {
       if (document.visibilityState !== "visible") return;
 
+      const localNow = Date.now();
+      setState((prev) => settleFarmingState(prev, localNow));
+      stateRef.current = settleFarmingState(stateRef.current, localNow);
+
       const { telegramId, firstName } = getTelegramContext();
 
-      const saved = (() => {
-        try {
-          const raw = localStorage.getItem(getStorageKey(telegramId));
-          if (!raw) return null;
-          const parsed = JSON.parse(raw) as GameState;
-          return parsed.version === STATE_VERSION ? parsed : null;
-        } catch {
-          return null;
-        }
-      })();
-
-      if (saved) {
-        setState((prev) => ({
-          ...prev,
-          balance: Math.max(prev.balance, saved.balance),
-          totalEarned: Math.max(prev.totalEarned, saved.totalEarned),
-          seasonPoolEarned: Math.max(prev.seasonPoolEarned, saved.seasonPoolEarned),
-          planets: saved.planets.map((p) => ({
-            ...p,
-            isFarmingActive: prev.planets.find((pp) => pp.id === p.id)?.isFarmingActive ?? p.isFarmingActive,
-          })),
-          sun: saved.sun ?? prev.sun,
-        }));
-      }
-
       if (telegramId) {
-        window.dispatchEvent(new Event("zoom-data-refresh"));
-        fetchReferralCount(telegramId).then((count) => {
+        (async () => {
           setState((prev) => {
-            const updated = { ...prev, referralCount: count };
-            return updated;
+            const settled = settleFarmingState(prev, Date.now());
+            stateRef.current = settled;
+            syncBalance({ telegramId, firstName, zoomBalance: Math.floor(settled.balance) });
+            return settled;
           });
+
+          window.dispatchEvent(new Event("zoom-data-refresh"));
+        })();
+
+        fetchReferralCount(telegramId).then((count) => {
+          setState((prev) => ({ ...prev, referralCount: count }));
         });
       }
     };
@@ -751,23 +754,7 @@ export function useGameState() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setState((prev) => {
-        const speedMultiplier = 1 + (prev.referralSpeedBonus || 0);
-        let earned = 0;
-        prev.planets.forEach((p) => {
-          if (isFarmActive(p)) earned += (p.rate / 3600) * speedMultiplier;
-        });
-        if (prev.sun && isSunActive(prev.sun)) {
-          earned += (SUN_CONFIG.rate / 3600) * speedMultiplier;
-        }
-        if (earned === 0) return prev;
-        return {
-          ...prev,
-          balance: prev.balance + earned,
-          totalEarned: prev.totalEarned + earned,
-          seasonPoolEarned: prev.seasonPoolEarned + earned,
-        };
-      });
+      setState((prev) => settleFarmingState(prev, Date.now()));
     }, 1000);
     return () => clearInterval(interval);
   }, []);
