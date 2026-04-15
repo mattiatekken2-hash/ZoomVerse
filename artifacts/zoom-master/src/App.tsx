@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { TonConnectUIProvider } from "@tonconnect/ui-react";
 import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/useGameState";
 import { NebulaBackground } from "./components/NebulaBackground";
 import { LabPage } from "./pages/LabPage";
@@ -9,6 +10,8 @@ import { EarnPage } from "./pages/EarnPage";
 import { RankPage } from "./pages/RankPage";
 import { ShopPage } from "./pages/ShopPage";
 import { AdminPanel } from "./components/AdminPanel";
+
+const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
 type Tab = "lab" | "farm" | "market" | "earn" | "rank" | "shop";
 
@@ -115,13 +118,14 @@ export default function App() {
           />
         );
       case "shop":
-        return <ShopPage balance={state.balance} hasSun={!!state.sun?.isOwned} />;
+        return <ShopPage balance={state.balance} hasSun={!!state.sun?.isOwned} telegramId={state.telegramId} />;
       default:
         return null;
     }
   };
 
   return (
+    <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
     <div className="flex flex-col overflow-hidden relative" style={{ height: "100dvh", background: "#060810", paddingTop: "calc(env(safe-area-inset-top, 0px) + 56px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
       <NebulaBackground />
 
@@ -218,5 +222,6 @@ export default function App() {
         </div>
       </nav>
     </div>
+    </TonConnectUIProvider>
   );
 }

@@ -200,6 +200,43 @@ export interface LeaderboardEntry {
   zoomBalance: number;
 }
 
+export interface StarsCatalogItem {
+  id: string;
+  title: string;
+  description: string;
+  starsPrice: number;
+  zoomAmount?: number;
+  itemType: string;
+}
+
+export async function fetchStarsCatalog(): Promise<StarsCatalogItem[]> {
+  try {
+    const res = await fetch(`${API_BASE}/stars/catalog`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.items) ? data.items : [];
+  } catch { return []; }
+}
+
+export async function createStarsInvoice(telegramId: string, itemId: string): Promise<{ invoiceUrl?: string; txnId?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/stars/create-invoice`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId, itemId }),
+    });
+    return res.json();
+  } catch { return { error: "Network error" }; }
+}
+
+export async function checkStarsTransaction(txnId: number): Promise<{ status: string; itemId?: string; itemName?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/stars/txn/${txnId}`);
+    if (!res.ok) return { status: "unknown" };
+    return res.json();
+  } catch { return { status: "unknown" }; }
+}
+
 export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
   try {
     const res = await fetch(`${API_BASE}/leaderboard`);
