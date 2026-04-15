@@ -64,16 +64,21 @@ export async function syncBalance(params: {
 export interface Grants {
   bonusSlots: number;
   bonusSun: boolean;
-  bonusPlanets: number;
+  bonusBasic: number;
+  bonusRare: number;
+  bonusEpic: number;
+  bonusGold: number;
 }
+
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0 };
 
 export async function fetchGrants(telegramId: string): Promise<Grants> {
   try {
     const res = await fetch(`${API_BASE}/grants/${encodeURIComponent(telegramId)}`);
-    if (!res.ok) return { bonusSlots: 0, bonusSun: false, bonusPlanets: 0 };
+    if (!res.ok) return EMPTY_GRANTS;
     return res.json();
   } catch {
-    return { bonusSlots: 0, bonusSun: false, bonusPlanets: 0 };
+    return EMPTY_GRANTS;
   }
 }
 
@@ -88,12 +93,12 @@ export async function adminCreditZoom(adminId: string, telegramId: string, amoun
   } catch { return false; }
 }
 
-export async function adminAddPlanets(adminId: string, telegramId: string, count: number): Promise<boolean> {
+export async function adminAddPlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "GOLD" | "SUN"): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/add-planets`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ adminId, telegramId, count }),
+      body: JSON.stringify({ adminId, telegramId, count, planetType }),
     });
     return res.ok;
   } catch { return false; }

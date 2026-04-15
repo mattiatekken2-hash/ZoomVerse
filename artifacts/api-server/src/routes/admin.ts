@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { z } from "zod";
 
 const router = Router();
@@ -22,6 +22,7 @@ const AddPlanetsBody = z.object({
   adminId: z.string(),
   telegramId: z.string().min(1),
   count: z.number().int().positive(),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "GOLD", "SUN"]),
 });
 
 const UnlockSlotsBody = z.object({
@@ -60,17 +61,32 @@ router.post("/admin/add-planets", async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
   if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
 
-  const { telegramId, count } = parsed.data;
+  const { telegramId, count, planetType } = parsed.data;
   try {
-    await db
-      .insert(usersTable)
-      .values({ telegramId, zoomBalance: 0, referralCount: 0, bonusPlanets: count })
-      .onConflictDoUpdate({
-        target: usersTable.telegramId,
-        set: { bonusPlanets: sql`${usersTable.bonusPlanets} + ${count}` },
-      });
+    if (planetType === "SUN") {
+      await db
+        .insert(usersTable)
+        .values({ telegramId, zoomBalance: 0, referralCount: 0, bonusSun: true })
+        .onConflictDoUpdate({
+          target: usersTable.telegramId,
+          set: { bonusSun: true },
+        });
+    } else if (planetType === "BASIC") {
+      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusBasic: count })
+        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusBasic: sql`${usersTable.bonusBasic} + ${count}` } });
+    } else if (planetType === "RARE") {
+      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusRare: count })
+        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusRare: sql`${usersTable.bonusRare} + ${count}` } });
+    } else if (planetType === "EPIC") {
+      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusEpic: count })
+        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusEpic: sql`${usersTable.bonusEpic} + ${count}` } });
+    } else if (planetType === "GOLD") {
+      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusGold: count })
+        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusGold: sql`${usersTable.bonusGold} + ${count}` } });
+    }
     res.json({ ok: true });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Database error" });
   }
 });

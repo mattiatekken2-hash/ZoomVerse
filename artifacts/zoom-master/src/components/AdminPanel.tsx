@@ -9,6 +9,9 @@ import {
 
 const ADMIN_ID = "8144744644";
 
+type PlanetChoice = "BASIC" | "RARE" | "EPIC" | "GOLD" | "SUN";
+type ActionType = "zoom" | "planets" | "slots";
+
 function haptic() {
   try {
     const tg = (window as unknown as { Telegram?: { WebApp?: { HapticFeedback?: { impactOccurred: (s: string) => void } } } }).Telegram?.WebApp;
@@ -16,19 +19,27 @@ function haptic() {
   } catch { /**/ }
 }
 
+const PLANET_OPTIONS: { type: PlanetChoice; label: string; color: string }[] = [
+  { type: "BASIC",  label: "Basic",  color: "#8892b0" },
+  { type: "RARE",   label: "Rare",   color: "#4facfe" },
+  { type: "EPIC",   label: "Epic",   color: "#c471ed" },
+  { type: "GOLD",   label: "Gold",   color: "#ffd700" },
+  { type: "SUN",    label: "Sole ☀️", color: "#ffb347" },
+];
+
 interface Props {
   telegramId: string;
 }
-
-type ActionType = "zoom" | "planets" | "slots";
 
 export function AdminPanel({ telegramId }: Props) {
   const [open, setOpen] = useState(false);
   const [targetId, setTargetId] = useState("");
   const [amount, setAmount] = useState("");
+  const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
   const [loading, setLoading] = useState<ActionType | "global" | null>(null);
+
   const showFeedback = (msg: string, ok: boolean) => {
     setFeedback({ msg, ok });
     setTimeout(() => setFeedback(null), 2500);
@@ -45,11 +56,11 @@ export function AdminPanel({ telegramId }: Props) {
     setLoading(type);
     let ok = false;
     if (type === "zoom") ok = await adminCreditZoom(ADMIN_ID, id, val);
-    else if (type === "planets") ok = await adminAddPlanets(ADMIN_ID, id, Math.floor(val));
+    else if (type === "planets") ok = await adminAddPlanets(ADMIN_ID, id, Math.floor(val), planetType);
     else if (type === "slots") ok = await adminUnlockSlots(ADMIN_ID, id, Math.floor(val));
     setLoading(null);
     showFeedback(ok ? "✓ Fatto!" : "✗ Errore", ok);
-  }, [targetId, amount]);
+  }, [targetId, amount, planetType]);
 
   const handleGlobalBonus = useCallback(async () => {
     haptic();
@@ -65,6 +76,18 @@ export function AdminPanel({ telegramId }: Props) {
   }, [globalAmount]);
 
   if (telegramId !== ADMIN_ID) return null;
+
+  const inputStyle: React.CSSProperties = {
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: 10,
+    padding: "10px 12px",
+    color: "#fff",
+    fontSize: 13,
+    outline: "none",
+    width: "100%",
+    boxSizing: "border-box",
+  };
 
   return (
     <>
@@ -95,7 +118,6 @@ export function AdminPanel({ telegramId }: Props) {
       <AnimatePresence>
         {open && (
           <>
-            {/* Backdrop — tap outside to close */}
             <motion.div
               key="backdrop"
               initial={{ opacity: 0 }}
@@ -113,7 +135,6 @@ export function AdminPanel({ telegramId }: Props) {
               }}
             />
 
-            {/* Panel */}
             <motion.div
               key="panel"
               initial={{ opacity: 0, scale: 0.92 }}
@@ -138,18 +159,15 @@ export function AdminPanel({ telegramId }: Props) {
                 boxShadow: "0 12px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,242,254,0.07) inset",
               }}
             >
-              {/* Drag handle */}
-              <div
-                style={{
-                  padding: "16px 20px 12px",
-                  borderBottom: "1px solid rgba(255,255,255,0.05)",
-                  cursor: "default",
-                  userSelect: "none",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
+              {/* Header */}
+              <div style={{
+                padding: "16px 20px 12px",
+                borderBottom: "1px solid rgba(255,255,255,0.05)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                userSelect: "none",
+              }}>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: "0.12em", color: "#00f2fe", textShadow: "0 0 12px rgba(0,242,254,0.6)" }}>
                     ⚙ ADMIN PANEL
@@ -179,22 +197,14 @@ export function AdminPanel({ telegramId }: Props) {
 
               {/* Content */}
               <div style={{ padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+
+                {/* ID + amount fields */}
                 <input
                   value={targetId}
                   onChange={(e) => setTargetId(e.target.value)}
                   placeholder="Telegram ID utente"
                   onFocus={() => haptic()}
-                  style={{
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: 10,
-                    padding: "10px 12px",
-                    color: "#fff",
-                    fontSize: 13,
-                    outline: "none",
-                    width: "100%",
-                    boxSizing: "border-box",
-                  }}
+                  style={inputStyle}
                 />
                 <input
                   value={amount}
@@ -203,24 +213,15 @@ export function AdminPanel({ telegramId }: Props) {
                   type="number"
                   min="1"
                   onFocus={() => haptic()}
-                  style={{
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: 10,
-                    padding: "10px 12px",
-                    color: "#fff",
-                    fontSize: 13,
-                    outline: "none",
-                    width: "100%",
-                    boxSizing: "border-box",
-                  }}
+                  style={inputStyle}
                 />
 
+                {/* Action buttons */}
                 <div style={{ display: "flex", gap: 8 }}>
                   {([
-                    { type: "zoom" as ActionType, label: "💰 ZOOM", color: "#00f2fe" },
-                    { type: "planets" as ActionType, label: "🪐 Pianeti", color: "#c471ed" },
-                    { type: "slots" as ActionType, label: "📦 Slot", color: "#4facfe" },
+                    { type: "zoom" as ActionType,    label: "🪐 ZOOM",    color: "#00f2fe" },
+                    { type: "planets" as ActionType, label: "🌍 Pianeti", color: "#c471ed" },
+                    { type: "slots" as ActionType,   label: "📦 Slot",    color: "#4facfe" },
                   ]).map(({ type, label, color }) => (
                     <motion.button
                       key={type}
@@ -246,8 +247,42 @@ export function AdminPanel({ telegramId }: Props) {
                   ))}
                 </div>
 
+                {/* Planet type selector */}
+                <div style={{ marginTop: 2 }}>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginBottom: 6, letterSpacing: "0.08em" }}>
+                    TIPO PIANETA
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {PLANET_OPTIONS.map(({ type, label, color }) => {
+                      const selected = planetType === type;
+                      return (
+                        <motion.button
+                          key={type}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => { haptic(); setPlanetType(type); }}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: 8,
+                            border: `1px solid ${selected ? color : color + "44"}`,
+                            background: selected ? `${color}22` : "transparent",
+                            color: selected ? color : color + "99",
+                            fontSize: 11,
+                            fontWeight: selected ? 800 : 600,
+                            cursor: "pointer",
+                            transition: "all 0.15s",
+                            boxShadow: selected ? `0 0 8px ${color}44` : "none",
+                          }}
+                        >
+                          {label}
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
 
+                {/* Global bonus */}
                 <input
                   value={globalAmount}
                   onChange={(e) => setGlobalAmount(e.target.value)}
@@ -255,17 +290,7 @@ export function AdminPanel({ telegramId }: Props) {
                   type="number"
                   min="1"
                   onFocus={() => haptic()}
-                  style={{
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,215,0,0.18)",
-                    borderRadius: 10,
-                    padding: "10px 12px",
-                    color: "#fff",
-                    fontSize: 13,
-                    outline: "none",
-                    width: "100%",
-                    boxSizing: "border-box",
-                  }}
+                  style={{ ...inputStyle, border: "1px solid rgba(255,215,0,0.18)" }}
                 />
                 <motion.button
                   whileTap={{ scale: 0.93 }}

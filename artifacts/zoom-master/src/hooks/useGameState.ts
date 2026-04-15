@@ -63,7 +63,10 @@ export interface GameState {
   telegramId: string | null;
   referredBy: string | null;
   referralSpeedBonus: number;
-  claimedBonusPlanets: number;
+  claimedBonusBasic: number;
+  claimedBonusRare: number;
+  claimedBonusEpic: number;
+  claimedBonusGold: number;
 }
 
 export const PLANET_CONFIG: Record<PlanetType, {
@@ -195,7 +198,10 @@ const INITIAL_STATE: GameState = {
   telegramId: null,
   referredBy: null,
   referralSpeedBonus: 0,
-  claimedBonusPlanets: 0,
+  claimedBonusBasic: 0,
+  claimedBonusRare: 0,
+  claimedBonusEpic: 0,
+  claimedBonusGold: 0,
 };
 
 function migratePlanet(p: unknown): Planet {
@@ -413,31 +419,48 @@ export function useGameState() {
           };
         }
 
-        // Apply pending bonus planets (only new ones not yet claimed)
-        const newPlanetsCount = grants.bonusPlanets - (updated.claimedBonusPlanets ?? 0);
-        if (newPlanetsCount > 0) {
-          const now = Date.now();
-          const newPlanets = Array.from({ length: newPlanetsCount }, (_, i) => {
-            const cfg = PLANET_CONFIG["BASIC"];
-            return {
-              id: `bonus-${now}-${i}`,
-              name: "BASIC" as PlanetType,
-              rate: cfg.rate,
-              color: cfg.color,
-              glowColor: cfg.glowColor,
-              createdAt: now,
-              farmStartedAt: now,
-              lastCollectedAt: now,
-              isListedInMarket: false,
-              isFarmingActive: false,
-              marketPrice: null,
-              craftCost: cfg.craftCost,
-            };
-          });
+        // Apply pending bonus planets per type (only new ones not yet claimed)
+        const bonusTypes: Array<{ key: "bonusBasic" | "bonusRare" | "bonusEpic" | "bonusGold"; claimedKey: "claimedBonusBasic" | "claimedBonusRare" | "claimedBonusEpic" | "claimedBonusGold"; type: PlanetType }> = [
+          { key: "bonusBasic", claimedKey: "claimedBonusBasic", type: "BASIC" },
+          { key: "bonusRare", claimedKey: "claimedBonusRare", type: "RARE" },
+          { key: "bonusEpic", claimedKey: "claimedBonusEpic", type: "EPIC" },
+          { key: "bonusGold", claimedKey: "claimedBonusGold", type: "GOLD" },
+        ];
+        const now = Date.now();
+        const newPlanets: Planet[] = [];
+        const claimedUpdates: Partial<GameState> = {};
+
+        for (const { key, claimedKey, type } of bonusTypes) {
+          const serverCount = (grants as unknown as Record<string, number>)[key] ?? 0;
+          const claimedCount = (updated[claimedKey] as number) ?? 0;
+          const toAdd = serverCount - claimedCount;
+          if (toAdd > 0) {
+            const cfg = PLANET_CONFIG[type];
+            for (let i = 0; i < toAdd; i++) {
+              newPlanets.push({
+                id: `bonus-${type}-${now}-${i}`,
+                name: type,
+                rate: cfg.rate,
+                color: cfg.color,
+                glowColor: cfg.glowColor,
+                createdAt: now,
+                farmStartedAt: now,
+                lastCollectedAt: now,
+                isListedInMarket: false,
+                isFarmingActive: false,
+                marketPrice: null,
+                craftCost: cfg.craftCost,
+              });
+            }
+            claimedUpdates[claimedKey] = serverCount;
+          }
+        }
+
+        if (newPlanets.length > 0) {
           updated = {
             ...updated,
+            ...claimedUpdates,
             planets: [...updated.planets, ...newPlanets],
-            claimedBonusPlanets: grants.bonusPlanets,
           };
         }
 
