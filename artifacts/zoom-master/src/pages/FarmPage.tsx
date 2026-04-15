@@ -125,10 +125,10 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                       borderRadius: "50%",
                       position: "relative",
                       overflow: "hidden",
-                      background: "radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35) 0%, #ffb347ee 20%, #ff8c00cc 50%, #ff450099 78%, #ff220044 100%)",
+                      background: "radial-gradient(circle at 40% 35%, #fff8e1 0%, #ffe082 12%, #ffb347 28%, #ff8c00 48%, #e65100 68%, #bf360c 85%, #4e1a00 100%)",
                       boxShadow: sunActive
-                        ? "0 0 40px rgba(255,179,71,0.7), 0 0 80px rgba(255,140,0,0.3), inset -8px -4px 16px rgba(0,0,0,0.4)"
-                        : "0 0 20px rgba(255,179,71,0.3), inset -8px -4px 16px rgba(0,0,0,0.4)",
+                        ? "0 0 50px rgba(255,160,0,0.8), 0 0 100px rgba(255,100,0,0.4), 0 0 150px rgba(255,60,0,0.15), inset -6px -4px 14px rgba(0,0,0,0.3)"
+                        : "0 0 25px rgba(255,160,0,0.35), 0 0 50px rgba(255,100,0,0.12), inset -6px -4px 14px rgba(0,0,0,0.3)",
                       flexShrink: 0,
                       animation: sunActive ? "planet-rotate 18s linear infinite" : "none",
                     }}
@@ -137,9 +137,7 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                       position: "absolute",
                       inset: 0,
                       borderRadius: "50%",
-                      opacity: sunActive ? 0.18 : 0,
-                      background: "repeating-linear-gradient(-32deg, transparent, transparent 7px, rgba(255,220,80,0.5) 7px, rgba(255,220,80,0.5) 8px)",
-                      transition: "opacity 0.5s",
+                      background: "radial-gradient(circle at 30% 25%, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 35%)",
                       pointerEvents: "none",
                     }} />
                   </div>
@@ -152,7 +150,7 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-black text-base tracking-wide gold-text">☀️ THE SUN</span>
+                    <span className="font-black text-base tracking-wide gold-text">THE SUN</span>
                     <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(255,215,0,0.12)", color: "#ffd700", border: "1px solid rgba(255,215,0,0.25)", fontSize: 9 }}>
                       EXCLUSIVE
                     </span>
@@ -173,7 +171,6 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                     else onStartSunFarming();
                   }}
                 >
-                  <span style={{ fontSize: 14 }}>{sunActive ? "⏸" : "▶"}</span>
                   <span>{sunActive ? "PAUSE" : "FARM"}</span>
                   <span style={{ fontSize: 8, opacity: 0.6 }}>{sunActive ? formatDuration(sunRemaining) : "Start"}</span>
                 </button>
@@ -190,7 +187,6 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                     }
                   }}
                 >
-                  <span style={{ fontSize: 14 }}>🔥</span>
                   <span>{confirmBurn === "sun" ? "SURE?" : "BURN"}</span>
                   <span style={{ fontSize: 8, opacity: 0.6 }}>Sun</span>
                 </button>
