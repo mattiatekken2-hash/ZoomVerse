@@ -114,7 +114,7 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, referr
               value={redeemInput}
               onChange={e => setRedeemInput(e.target.value.toUpperCase())}
               onKeyDown={e => e.key === "Enter" && handleRedeem()}
-              placeholder="ZOOM-**** or SUN-****"
+              placeholder=""
               className="flex-1 px-3 py-2.5 rounded-xl text-sm font-mono font-bold uppercase outline-none"
               style={{
                 background: "rgba(0,0,0,0.3)",
