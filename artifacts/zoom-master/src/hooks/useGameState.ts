@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralCount, debugTelegramContext, syncBalance } from "../utils/api";
+import { registerUser, fetchReferralCount, debugTelegramContext, syncBalance, fetchGrants } from "../utils/api";
 
 export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD";
 
@@ -388,9 +388,34 @@ export function useGameState() {
         try { localStorage.removeItem("zoom-start-param"); } catch { /**/ }
       }
 
-      const count = await fetchReferralCount(telegramId);
+      const [count, grants] = await Promise.all([
+        fetchReferralCount(telegramId),
+        fetchGrants(telegramId),
+      ]);
+
       setState((prev) => {
-        const updated = { ...prev, referralCount: count };
+        let updated = { ...prev, referralCount: count };
+
+        // Apply bonus slots from server
+        if (grants.bonusSlots > 0) {
+          updated = { ...updated, maxSlots: Math.max(updated.maxSlots, 2 + grants.bonusSlots) };
+        }
+
+        // Apply bonus sun from server (grant sun if not already owned)
+        if (grants.bonusSun && !updated.sun?.isOwned) {
+          updated = {
+            ...updated,
+            sun: {
+              isOwned: true,
+              isActive: false,
+              activationCost: SUN_CONFIG.activationCostBase,
+              cycleCount: 0,
+              farmStartedAt: 0,
+              lastCollectedAt: 0,
+            },
+          };
+        }
+
         syncBalance({ telegramId, firstName, zoomBalance: Math.floor(updated.balance) });
         return updated;
       });
