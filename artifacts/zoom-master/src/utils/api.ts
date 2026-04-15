@@ -79,7 +79,7 @@ const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, bonusBasic: 0, bo
 
 export async function fetchGrants(telegramId: string): Promise<Grants> {
   try {
-    const res = await fetch(`${API_BASE}/grants/${encodeURIComponent(telegramId)}`);
+    const res = await fetch(`${API_BASE}/grants/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return EMPTY_GRANTS;
     return res.json();
   } catch {
@@ -165,11 +165,18 @@ export async function adminGlobalBonus(adminId: string, amount: number): Promise
 }
 
 export async function fetchBalance(telegramId: string): Promise<number | null> {
+  const data = await fetchBalanceRecord(telegramId);
+  return data ? data.zoomBalance : null;
+}
+
+export async function fetchBalanceRecord(telegramId: string): Promise<{ zoomBalance: number; exists: boolean } | null> {
   try {
-    const res = await fetch(`${API_BASE}/balance/${encodeURIComponent(telegramId)}`);
+    const res = await fetch(`${API_BASE}/balance/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return null;
     const data = await res.json();
-    return typeof data.zoomBalance === "number" ? data.zoomBalance : null;
+    return typeof data.zoomBalance === "number"
+      ? { zoomBalance: data.zoomBalance, exists: data.exists !== false }
+      : null;
   } catch {
     return null;
   }

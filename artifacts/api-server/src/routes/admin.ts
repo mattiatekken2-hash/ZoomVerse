@@ -3,13 +3,38 @@ import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
+import fs from "node:fs";
+import path from "node:path";
 
 const router = Router();
 
 const ADMIN_ID = "8144744644";
+const ADMIN_ASSET_SNAPSHOT = path.resolve(process.cwd(), "data", "admin-assets.json");
 
 function isAdmin(adminId: string): boolean {
   return adminId === ADMIN_ID;
+}
+
+async function writeAdminAssetSnapshot() {
+  const rows = await db
+    .select({
+      telegramId: usersTable.telegramId,
+      zoomBalance: usersTable.zoomBalance,
+      bonusSlots: usersTable.bonusSlots,
+      bonusSun: usersTable.bonusSun,
+      bonusBasic: usersTable.bonusBasic,
+      bonusRare: usersTable.bonusRare,
+      bonusEpic: usersTable.bonusEpic,
+      bonusGold: usersTable.bonusGold,
+    })
+    .from(usersTable);
+
+  fs.mkdirSync(path.dirname(ADMIN_ASSET_SNAPSHOT), { recursive: true });
+  fs.writeFileSync(
+    ADMIN_ASSET_SNAPSHOT,
+    JSON.stringify({ updatedAt: new Date().toISOString(), users: rows }, null, 2),
+    "utf8",
+  );
 }
 
 const CreditZoomBody = z.object({
@@ -69,6 +94,7 @@ router.post("/admin/credit-zoom", async (req, res) => {
         target: usersTable.telegramId,
         set: { zoomBalance: sql`${usersTable.zoomBalance} + ${amount}` },
       });
+    await writeAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
@@ -103,6 +129,7 @@ router.post("/admin/add-planets", async (req, res) => {
       await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusGold: count })
         .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusGold: sql`${usersTable.bonusGold} + ${count}` } });
     }
+    await writeAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
@@ -124,6 +151,7 @@ router.post("/admin/unlock-slots", async (req, res) => {
         target: usersTable.telegramId,
         set: { bonusSlots: sql`${usersTable.bonusSlots} + ${count}` },
       });
+    await writeAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
@@ -140,6 +168,7 @@ router.post("/admin/global-bonus", async (req, res) => {
     await db
       .update(usersTable)
       .set({ zoomBalance: sql`${usersTable.zoomBalance} + ${amount}` });
+    await writeAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
@@ -157,6 +186,7 @@ router.post("/admin/remove-zoom", async (req, res) => {
       .update(usersTable)
       .set({ zoomBalance: sql`GREATEST(0, ${usersTable.zoomBalance} - ${amount})` })
       .where(sql`${usersTable.telegramId} = ${telegramId}`);
+    await writeAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
@@ -181,6 +211,7 @@ router.post("/admin/remove-planets", async (req, res) => {
     } else if (planetType === "GOLD") {
       await db.update(usersTable).set({ bonusGold: sql`GREATEST(0, ${usersTable.bonusGold} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
     }
+    await writeAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
@@ -198,6 +229,7 @@ router.post("/admin/remove-slots", async (req, res) => {
       .update(usersTable)
       .set({ bonusSlots: sql`GREATEST(0, ${usersTable.bonusSlots} - ${count})` })
       .where(sql`${usersTable.telegramId} = ${telegramId}`);
+    await writeAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Database error" });

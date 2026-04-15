@@ -77,11 +77,11 @@ router.get("/balance/:telegramId", async (req, res) => {
       .limit(1);
 
     if (rows.length === 0) {
-      res.json({ zoomBalance: 0, firstName: null });
+      res.json({ zoomBalance: 0, firstName: null, exists: false });
       return;
     }
 
-    res.json({ zoomBalance: rows[0]!.zoomBalance, firstName: rows[0]!.firstName });
+    res.json({ zoomBalance: rows[0]!.zoomBalance, firstName: rows[0]!.firstName, exists: true });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
   }

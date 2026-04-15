@@ -51,27 +51,29 @@ export function AdminPanel({ telegramId }: Props) {
 
   const handleAction = useCallback(async (type: ActionType) => {
     haptic();
-    const id = targetId.trim();
+    const id = targetId.trim() || ADMIN_ID;
     const val = parseFloat(amount);
-    if (!id || isNaN(val) || val <= 0) {
-      showFeedback("ID o valore non valido", false);
+    if (isNaN(val) || val <= 0) {
+      showFeedback("Valore non valido", false);
       return;
     }
     setLoading(type);
     let ok = false;
     if (mode === "add") {
-      if (type === "zoom") ok = await adminCreditZoom(ADMIN_ID, id, val);
-      else if (type === "planets") ok = await adminAddPlanets(ADMIN_ID, id, Math.floor(val), planetType);
-      else if (type === "slots") ok = await adminUnlockSlots(ADMIN_ID, id, Math.floor(val));
+      if (type === "zoom") ok = await adminCreditZoom(telegramId, id, val);
+      else if (type === "planets") ok = await adminAddPlanets(telegramId, id, Math.floor(val), planetType);
+      else if (type === "slots") ok = await adminUnlockSlots(telegramId, id, Math.floor(val));
     } else {
-      if (type === "zoom") ok = await adminRemoveZoom(ADMIN_ID, id, val);
-      else if (type === "planets") ok = await adminRemovePlanets(ADMIN_ID, id, Math.floor(val), planetType);
-      else if (type === "slots") ok = await adminRemoveSlots(ADMIN_ID, id, Math.floor(val));
+      if (type === "zoom") ok = await adminRemoveZoom(telegramId, id, val);
+      else if (type === "planets") ok = await adminRemovePlanets(telegramId, id, Math.floor(val), planetType);
+      else if (type === "slots") ok = await adminRemoveSlots(telegramId, id, Math.floor(val));
     }
     setLoading(null);
     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-    showFeedback(ok ? "✓ Fatto!" : "✗ Errore", ok);
-  }, [targetId, amount, planetType, mode]);
+    const direction = mode === "add" ? "aggiunti" : "rimossi";
+    const item = type === "zoom" ? `${val} $ZOOM` : type === "slots" ? `${Math.floor(val)} slot` : `${Math.floor(val)} ${planetType === "SUN" ? "Sole" : `pianeti ${planetType}`}`;
+    showFeedback(ok ? `✓ ${item} ${direction} a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+  }, [targetId, amount, planetType, mode, telegramId]);
 
   const handleGlobalBonus = useCallback(async () => {
     haptic();
@@ -81,11 +83,11 @@ export function AdminPanel({ telegramId }: Props) {
       return;
     }
     setLoading("global");
-    const ok = await adminGlobalBonus(ADMIN_ID, val);
+    const ok = await adminGlobalBonus(telegramId, val);
     setLoading(null);
     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
     showFeedback(ok ? "✓ Bonus inviato a tutti!" : "✗ Errore", ok);
-  }, [globalAmount]);
+  }, [globalAmount, telegramId]);
 
   if (telegramId !== ADMIN_ID) return null;
 
@@ -214,7 +216,7 @@ export function AdminPanel({ telegramId }: Props) {
                 <input
                   value={targetId}
                   onChange={(e) => setTargetId(e.target.value)}
-                  placeholder="Telegram ID utente"
+                  placeholder="Telegram ID utente (vuoto = 8144744644)"
                   onFocus={() => haptic()}
                   style={inputStyle}
                 />

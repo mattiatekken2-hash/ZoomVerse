@@ -42,6 +42,11 @@ export default function App() {
   const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate : 0;
   const totalRate = planetRate + sunRate;
 
+  const switchTab = (nextTab: Tab) => {
+    setTab(nextTab);
+    window.dispatchEvent(new Event("zoom-data-refresh"));
+  };
+
   const renderPage = () => {
     switch (tab) {
       case "lab":
@@ -126,7 +131,7 @@ export default function App() {
       >
         <div
           className="font-black text-lg tracking-widest neon-text cursor-pointer"
-          onClick={() => setTab("lab")}
+          onClick={() => switchTab("lab")}
         >
           ZOOM
         </div>
@@ -138,7 +143,7 @@ export default function App() {
           )}
           <div
             className="glass-neon flex items-center gap-1.5 px-3.5 py-2 rounded-full font-black text-sm cursor-pointer"
-            onClick={() => setTab("shop")}
+            onClick={() => switchTab("shop")}
             data-testid="balance-display"
           >
             <span style={{ fontSize: 13 }}>🪐</span>
@@ -182,7 +187,7 @@ export default function App() {
               <button
                 key={item.id}
                 className="flex-1 flex flex-col items-center justify-center gap-0.5 relative transition-all duration-150 active:scale-90"
-                onClick={() => setTab(item.id)}
+                onClick={() => switchTab(item.id)}
                 data-testid={`nav-${item.id}`}
                 style={{ color: isActive ? "#00f2fe" : "rgba(255,255,255,0.2)" }}
               >

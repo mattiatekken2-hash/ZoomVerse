@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralCount, debugTelegramContext, syncBalance, fetchGrants, type Grants } from "../utils/api";
+import { registerUser, fetchReferralCount, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, type Grants } from "../utils/api";
 
 export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD";
 
@@ -150,6 +150,10 @@ function makeReferralCode(): string {
   return "ZOOM-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
+function getStorageKey(telegramId: string | null): string {
+  return telegramId ? `${STORAGE_KEY}:${telegramId}` : STORAGE_KEY;
+}
+
 function getTelegramContext(): { telegramId: string | null; startParam: string | null; firstName: string | null } {
   try {
     const webApp = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number; first_name?: string }; start_param?: string }; initData?: string } } }).Telegram?.WebApp;
@@ -217,10 +221,20 @@ function loadState(): GameState {
   const { telegramId, startParam, firstName: _firstName } = getTelegramContext();
 
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(getStorageKey(telegramId)) ?? localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as GameState;
       if (parsed.version === STATE_VERSION) {
+        if (telegramId && parsed.telegramId !== telegramId) {
+          const referredBy = startParam ? startParam : null;
+          return {
+            ...INITIAL_STATE,
+            referralCode: telegramId,
+            telegramId,
+            referredBy,
+            referralSpeedBonus: referredBy ? 0.10 : 0,
+          };
+        }
         const base: GameState = {
           ...INITIAL_STATE,
           ...parsed,
@@ -258,7 +272,7 @@ function loadState(): GameState {
 
 function saveState(state: GameState) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(getStorageKey(state.telegramId), JSON.stringify(state));
   } catch { /**/ }
 }
 
@@ -396,13 +410,18 @@ export function useGameState() {
         try { localStorage.removeItem("zoom-start-param"); } catch { /**/ }
       }
 
-      const [count, grants] = await Promise.all([
+      const [count, grants, balanceRecord] = await Promise.all([
         fetchReferralCount(telegramId),
         fetchGrants(telegramId),
+        fetchBalanceRecord(telegramId),
       ]);
 
       setState((prev) => {
-        let updated = { ...prev, referralCount: count };
+        let updated = {
+          ...prev,
+          referralCount: count,
+          balance: balanceRecord?.exists && !result.isNew ? balanceRecord.zoomBalance : prev.balance,
+        };
 
         // Apply bonus sun from server (grant sun if not already owned)
         if (grants.bonusSun && !updated.sun?.isOwned) {
@@ -418,6 +437,11 @@ export function useGameState() {
             },
           };
         }
+
+        updated = {
+          ...updated,
+          maxSlots: Math.max(INITIAL_STATE.maxSlots, INITIAL_STATE.maxSlots + grants.bonusSlots),
+        };
 
         // Apply pending bonus planets per type (only new ones not yet claimed)
         const bonusTypes: Array<{ key: "bonusBasic" | "bonusRare" | "bonusEpic" | "bonusGold"; claimedKey: "claimedBonusBasic" | "claimedBonusRare" | "claimedBonusEpic" | "claimedBonusGold"; type: PlanetType }> = [
@@ -489,6 +513,11 @@ export function useGameState() {
           };
         }
 
+        updated = {
+          ...updated,
+          maxSlots: Math.max(INITIAL_STATE.maxSlots, INITIAL_STATE.maxSlots + grants.bonusSlots),
+        };
+
         const bonusTypes: Array<{ key: keyof Grants; claimedKey: keyof GameState; type: PlanetType }> = [
           { key: "bonusBasic", claimedKey: "claimedBonusBasic", type: "BASIC" },
           { key: "bonusRare",  claimedKey: "claimedBonusRare",  type: "RARE" },
@@ -538,15 +567,18 @@ export function useGameState() {
       if (!telegramId) return;
       const localBalance = Math.floor(stateRef.current.balance);
 
-      const [serverBalance, grants] = await Promise.all([
-        syncBalance({ telegramId, firstName, zoomBalance: localBalance }),
+      const [balanceRecord, grants] = await Promise.all([
+        fetchBalanceRecord(telegramId),
         fetchGrants(telegramId),
       ]);
 
+      const authoritativeBalance = balanceRecord?.exists ? balanceRecord.zoomBalance : localBalance;
+      await syncBalance({ telegramId, firstName, zoomBalance: Math.floor(authoritativeBalance) });
+
       applyGrants(grants);
 
-      if (serverBalance > stateRef.current.balance) {
-        setState((prev) => ({ ...prev, balance: serverBalance }));
+      if (balanceRecord?.exists) {
+        setState((prev) => ({ ...prev, balance: balanceRecord.zoomBalance }));
       }
     };
 
@@ -556,21 +588,23 @@ export function useGameState() {
       const { telegramId, firstName } = getTelegramContext();
       if (!telegramId) return;
 
-      const serverBalance = await fetchBalance(telegramId);
-      if (serverBalance !== null) {
-        setState((prev) => ({ ...prev, balance: serverBalance }));
-        stateRef.current = { ...stateRef.current, balance: serverBalance };
-        await syncBalance({ telegramId, firstName: firstName ?? "", zoomBalance: serverBalance });
+      const balanceRecord = await fetchBalanceRecord(telegramId);
+      if (balanceRecord?.exists) {
+        setState((prev) => ({ ...prev, balance: balanceRecord.zoomBalance }));
+        stateRef.current = { ...stateRef.current, balance: balanceRecord.zoomBalance };
+        await syncBalance({ telegramId, firstName: firstName ?? "", zoomBalance: balanceRecord.zoomBalance });
       }
 
       const grants = await fetchGrants(telegramId);
       if (grants) applyGrants(grants);
     };
     window.addEventListener("zoom-admin-refresh", handleAdminRefresh);
+    window.addEventListener("zoom-data-refresh", handleAdminRefresh);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener("zoom-admin-refresh", handleAdminRefresh);
+      window.removeEventListener("zoom-data-refresh", handleAdminRefresh);
     };
   }, []);
 
@@ -582,7 +616,7 @@ export function useGameState() {
 
       const saved = (() => {
         try {
-          const raw = localStorage.getItem(STORAGE_KEY);
+          const raw = localStorage.getItem(getStorageKey(telegramId));
           if (!raw) return null;
           const parsed = JSON.parse(raw) as GameState;
           return parsed.version === STATE_VERSION ? parsed : null;
@@ -606,10 +640,10 @@ export function useGameState() {
       }
 
       if (telegramId) {
+        window.dispatchEvent(new Event("zoom-data-refresh"));
         fetchReferralCount(telegramId).then((count) => {
           setState((prev) => {
             const updated = { ...prev, referralCount: count };
-            syncBalance({ telegramId, firstName, zoomBalance: Math.floor(updated.balance) });
             return updated;
           });
         });
