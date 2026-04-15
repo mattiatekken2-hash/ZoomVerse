@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
-import { WalletPopup } from "../components/WalletPopup";
-import { createStarsInvoice, checkStarsTransaction } from "../utils/api";
+import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase } from "../utils/api";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 
@@ -33,7 +32,6 @@ interface ShopPageProps {
 export function ShopPage({ hasSun, telegramId }: ShopPageProps) {
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
-  const [popup, setPopup] = useState<{ amount: string; purpose: string } | null>(null);
   const [buying, setBuying] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [payMode, setPayMode] = useState<"stars" | "ton">("stars");
@@ -60,11 +58,17 @@ export function ShopPage({ hasSun, telegramId }: ShopPageProps) {
         if (webApp?.openInvoice) {
           webApp.openInvoice(result.invoiceUrl, async (status) => {
             if (status === "paid" && result.txnId) {
-              await checkStarsTransaction(result.txnId);
-              setMessage(`${item.title} purchased!`);
-              window.dispatchEvent(new Event("zoom-data-refresh"));
+              const confirmResult = await confirmStarsPurchase(result.txnId, telegramId);
+              if (confirmResult.ok) {
+                setMessage(`${item.title} purchased!`);
+                window.dispatchEvent(new Event("zoom-data-refresh"));
+              } else {
+                setMessage(confirmResult.error || "Credit failed");
+              }
             } else if (status === "cancelled") {
               setMessage("Payment cancelled");
+            } else if (status === "failed") {
+              setMessage("Payment failed");
             }
             setBuying(null);
           });
@@ -79,8 +83,47 @@ export function ShopPage({ hasSun, telegramId }: ShopPageProps) {
     }
   };
 
-  const handleTonBuy = (item: ShopItem) => {
-    setPopup({ amount: `${item.tonPrice} TON`, purpose: `Purchase ${item.title}` });
+  const handleTonBuy = async (item: ShopItem) => {
+    if (!telegramId) { setMessage("Telegram ID missing"); return; }
+
+    if (!connectedAddress) {
+      tonConnectUI.openModal();
+      setMessage("Connect your wallet first");
+      return;
+    }
+
+    setBuying(item.id);
+    try {
+      const nanotons = BigInt(Math.round(item.tonPrice * 1e9)).toString();
+
+      const txResult = await tonConnectUI.sendTransaction({
+        validUntil: Math.floor(Date.now() / 1000) + 300,
+        messages: [
+          {
+            address: WALLET,
+            amount: nanotons,
+          },
+        ],
+      });
+
+      const boc = txResult.boc || "";
+      const confirmResult = await confirmTonPurchase(telegramId, item.id, connectedAddress, item.tonPrice, boc);
+      if (confirmResult.ok) {
+        setMessage(`${item.title} purchased!`);
+        window.dispatchEvent(new Event("zoom-data-refresh"));
+      } else {
+        setMessage(confirmResult.error || "Credit failed");
+      }
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (errMsg.includes("cancel") || errMsg.includes("reject") || errMsg.includes("Interrupted")) {
+        setMessage("Payment cancelled");
+      } else {
+        setMessage("TON payment failed");
+        console.error("[ton] sendTransaction error:", err);
+      }
+    }
+    setBuying(null);
   };
 
   const handleConnectWallet = () => {
@@ -130,7 +173,7 @@ export function ShopPage({ hasSun, telegramId }: ShopPageProps) {
               border: payMode === "stars" ? "1px solid rgba(255,215,0,0.25)" : "1px solid transparent",
             }}
           >
-            ⭐ STARS
+            STARS
           </button>
           <button
             onClick={() => setPayMode("ton")}
@@ -141,7 +184,7 @@ export function ShopPage({ hasSun, telegramId }: ShopPageProps) {
               border: payMode === "ton" ? "1px solid rgba(0,136,255,0.25)" : "1px solid transparent",
             }}
           >
-            💎 TON
+            TON
           </button>
         </div>
       </div>
@@ -178,8 +221,9 @@ export function ShopPage({ hasSun, telegramId }: ShopPageProps) {
             <button
               onClick={() => {
                 if (hasSun) return;
-                if (payMode === "stars") handleStarsBuy({ id: "the_sun", title: "THE SUN", desc: "Exclusive", starsPrice: 1000, tonPrice: 10, color: "#ffb347", icon: "☀", type: "sun" });
-                else handleTonBuy({ id: "the_sun", title: "THE SUN", desc: "Exclusive", starsPrice: 1000, tonPrice: 10, color: "#ffb347", icon: "☀", type: "sun" });
+                const sunItem: ShopItem = { id: "the_sun", title: "THE SUN", desc: "Exclusive", starsPrice: 1000, tonPrice: 10, color: "#ffb347", icon: "☀", type: "sun" };
+                if (payMode === "stars") handleStarsBuy(sunItem);
+                else handleTonBuy(sunItem);
               }}
               disabled={hasSun || buying === "the_sun"}
               className="w-full py-4 rounded-xl font-black text-base tracking-wider text-center transition-all active:scale-95"
@@ -244,15 +288,6 @@ export function ShopPage({ hasSun, telegramId }: ShopPageProps) {
           ))}
         </div>
       </div>
-
-      {popup && (
-        <WalletPopup
-          isOpen={true}
-          amount={popup.amount}
-          purpose={popup.purpose}
-          onClose={() => setPopup(null)}
-        />
-      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db, transactionsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, transactionsTable, usersTable } from "@workspace/db";
+import { eq, sql, and } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -11,17 +11,60 @@ interface StarsItem {
   title: string;
   description: string;
   starsPrice: number;
+  tonPrice: number;
   zoomAmount?: number;
   itemType: string;
 }
 
 const STARS_CATALOG: StarsItem[] = [
-  { id: "starter_pack", title: "Starter Pack", description: "2,000 $ZOOM + 1 Basic Planet", starsPrice: 50, zoomAmount: 2000, itemType: "bundle" },
-  { id: "explorer_pack", title: "Explorer Pack", description: "8,000 $ZOOM + 1 Rare Planet", starsPrice: 150, zoomAmount: 8000, itemType: "bundle" },
-  { id: "legend_pack", title: "Legend Pack", description: "25,000 $ZOOM + 1 Epic Planet", starsPrice: 400, zoomAmount: 25000, itemType: "bundle" },
-  { id: "the_sun", title: "THE SUN", description: "Exclusive limited-edition star — 1000 $ZOOM/hr", starsPrice: 1000, itemType: "sun" },
-  { id: "extra_slot", title: "Extra Slot", description: "Unlock 1 additional planet slot", starsPrice: 25, itemType: "slot" },
+  { id: "starter_pack", title: "Starter Pack", description: "2,000 $ZOOM + 1 Basic Planet", starsPrice: 50, tonPrice: 0.5, zoomAmount: 2000, itemType: "bundle" },
+  { id: "explorer_pack", title: "Explorer Pack", description: "8,000 $ZOOM + 1 Rare Planet", starsPrice: 150, tonPrice: 1.5, zoomAmount: 8000, itemType: "bundle" },
+  { id: "legend_pack", title: "Legend Pack", description: "25,000 $ZOOM + 1 Epic Planet", starsPrice: 400, tonPrice: 4.0, zoomAmount: 25000, itemType: "bundle" },
+  { id: "the_sun", title: "THE SUN", description: "Exclusive limited-edition star — 1000 $ZOOM/hr", starsPrice: 1000, tonPrice: 10, itemType: "sun" },
+  { id: "extra_slot", title: "Extra Slot", description: "Unlock 1 additional planet slot", starsPrice: 25, tonPrice: 0.25, itemType: "slot" },
 ];
+
+function findItem(itemId: string): StarsItem | undefined {
+  return STARS_CATALOG.find((i) => i.id === itemId);
+}
+
+async function creditUser(item: StarsItem, telegramId: string) {
+  if (item.itemType === "bundle" && item.zoomAmount) {
+    await db.update(usersTable)
+      .set({ zoomBalance: sql`${usersTable.zoomBalance} + ${item.zoomAmount}` })
+      .where(eq(usersTable.telegramId, telegramId));
+
+    const planetType = item.id === "starter_pack" ? "bonusBasic"
+      : item.id === "explorer_pack" ? "bonusRare"
+      : "bonusEpic";
+    await db.update(usersTable)
+      .set({ [planetType]: sql`${usersTable[planetType]} + 1` })
+      .where(eq(usersTable.telegramId, telegramId));
+  } else if (item.itemType === "sun") {
+    await db.update(usersTable)
+      .set({ bonusSun: true })
+      .where(eq(usersTable.telegramId, telegramId));
+  } else if (item.itemType === "slot") {
+    await db.update(usersTable)
+      .set({ bonusSlots: sql`${usersTable.bonusSlots} + 1` })
+      .where(eq(usersTable.telegramId, telegramId));
+  }
+}
+
+async function atomicCreditIfPending(txnId: number, paymentId: string, item: StarsItem, telegramId: string): Promise<boolean> {
+  const updated = await db.update(transactionsTable)
+    .set({ status: "completed", telegramPaymentId: paymentId })
+    .where(and(
+      eq(transactionsTable.id, txnId),
+      eq(transactionsTable.status, "pending")
+    ))
+    .returning();
+
+  if (updated.length === 0) return false;
+
+  await creditUser(item, telegramId);
+  return true;
+}
 
 router.get("/stars/catalog", (_req, res) => {
   res.json({ items: STARS_CATALOG });
@@ -38,7 +81,7 @@ router.post("/stars/create-invoice", async (req, res) => {
     return;
   }
 
-  const item = STARS_CATALOG.find((i) => i.id === itemId);
+  const item = findItem(itemId);
   if (!item) {
     res.status(404).json({ error: "Item not found" });
     return;
@@ -73,6 +116,7 @@ router.post("/stars/create-invoice", async (req, res) => {
 
     const data = await invoiceRes.json() as { ok: boolean; result?: string; description?: string };
     if (!data.ok || !data.result) {
+      console.error("[stars] createInvoiceLink failed:", data);
       res.status(500).json({ error: data.description || "Failed to create invoice" });
       return;
     }
@@ -80,6 +124,109 @@ router.post("/stars/create-invoice", async (req, res) => {
     res.json({ invoiceUrl: data.result, txnId: txn.id });
   } catch (err) {
     console.error("[stars] create-invoice error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+router.post("/stars/confirm", async (req, res) => {
+  const { txnId, telegramId } = req.body as { txnId?: number; telegramId?: string };
+  if (!txnId || !telegramId) {
+    res.status(400).json({ error: "Missing txnId or telegramId" });
+    return;
+  }
+
+  try {
+    const [txn] = await db.select().from(transactionsTable)
+      .where(eq(transactionsTable.id, txnId))
+      .limit(1);
+
+    if (!txn) {
+      res.status(404).json({ error: "Transaction not found" });
+      return;
+    }
+
+    if (txn.status === "completed") {
+      res.json({ ok: true, alreadyCredited: true });
+      return;
+    }
+
+    if (txn.telegramId !== telegramId) {
+      res.status(403).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const item = findItem(txn.itemId || "");
+    if (!item) {
+      res.status(404).json({ error: "Item not found" });
+      return;
+    }
+
+    const credited = await atomicCreditIfPending(txnId, `stars_confirm_${txnId}_${Date.now()}`, item, telegramId);
+    if (!credited) {
+      res.json({ ok: true, alreadyCredited: true });
+      return;
+    }
+
+    console.log(`[stars] Credited user ${telegramId} for item ${item.id} (txn ${txnId})`);
+    res.json({ ok: true, itemId: item.id, itemName: item.title });
+  } catch (err) {
+    console.error("[stars] confirm error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+router.post("/ton/confirm", async (req, res) => {
+  const { telegramId, itemId, walletAddress, tonAmount, boc } = req.body as {
+    telegramId?: string;
+    itemId?: string;
+    walletAddress?: string;
+    tonAmount?: number;
+    boc?: string;
+  };
+
+  if (!telegramId || !itemId || !walletAddress) {
+    res.status(400).json({ error: "Missing required fields" });
+    return;
+  }
+
+  const item = findItem(itemId);
+  if (!item) {
+    res.status(404).json({ error: "Item not found" });
+    return;
+  }
+
+  const paymentId = boc
+    ? `ton_${boc.substring(0, 64)}`
+    : `ton_${walletAddress}_${telegramId}_${itemId}_${Date.now()}`;
+
+  const existing = await db.select().from(transactionsTable)
+    .where(eq(transactionsTable.telegramPaymentId, paymentId))
+    .limit(1);
+
+  if (existing.length > 0) {
+    res.json({ ok: true, alreadyCredited: true });
+    return;
+  }
+
+  try {
+    const [txn] = await db.insert(transactionsTable).values({
+      telegramId,
+      type: item.itemType,
+      currency: "TON",
+      amount: item.zoomAmount || 0,
+      tonAmount: tonAmount || item.tonPrice,
+      itemId: item.id,
+      itemName: item.title,
+      status: "completed",
+      telegramPaymentId: paymentId,
+    }).returning();
+
+    await creditUser(item, telegramId);
+
+    console.log(`[ton] Credited user ${telegramId} for item ${item.id} (txn ${txn.id}) from wallet ${walletAddress}`);
+    res.json({ ok: true, txnId: txn.id, itemId: item.id, itemName: item.title });
+  } catch (err) {
+    console.error("[ton] confirm error:", err);
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -105,41 +252,12 @@ router.post("/stars/webhook", async (req, res) => {
     try {
       const payloadData = JSON.parse(payment.invoice_payload) as { txnId: number; itemId: string; telegramId: string };
 
-      await db.update(transactionsTable)
-        .set({
-          status: "completed",
-          telegramPaymentId: payment.telegram_payment_charge_id,
-        })
-        .where(eq(transactionsTable.id, payloadData.txnId));
-
-      const item = STARS_CATALOG.find((i) => i.id === payloadData.itemId);
+      const item = findItem(payloadData.itemId);
       if (item) {
-        const { usersTable } = await import("@workspace/db");
-        const { sql } = await import("drizzle-orm");
-
-        if (item.itemType === "bundle" && item.zoomAmount) {
-          await db.update(usersTable)
-            .set({ zoomBalance: sql`${usersTable.zoomBalance} + ${item.zoomAmount}` })
-            .where(eq(usersTable.telegramId, payloadData.telegramId));
-
-          const planetType = item.id === "starter_pack" ? "bonusBasic"
-            : item.id === "explorer_pack" ? "bonusRare"
-            : "bonusEpic";
-          await db.update(usersTable)
-            .set({ [planetType]: sql`${usersTable[planetType]} + 1` })
-            .where(eq(usersTable.telegramId, payloadData.telegramId));
-        } else if (item.itemType === "sun") {
-          await db.update(usersTable)
-            .set({ bonusSun: true })
-            .where(eq(usersTable.telegramId, payloadData.telegramId));
-        } else if (item.itemType === "slot") {
-          await db.update(usersTable)
-            .set({ bonusSlots: sql`${usersTable.bonusSlots} + 1` })
-            .where(eq(usersTable.telegramId, payloadData.telegramId));
-        }
+        await atomicCreditIfPending(payloadData.txnId, payment.telegram_payment_charge_id, item, payloadData.telegramId);
       }
     } catch (err) {
-      console.error("[stars] webhook payment processing error:", err);
+      console.error("[stars] webhook error:", err);
     }
     res.json({ ok: true });
     return;

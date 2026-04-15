@@ -237,6 +237,28 @@ export async function checkStarsTransaction(txnId: number): Promise<{ status: st
   } catch { return { status: "unknown" }; }
 }
 
+export async function confirmStarsPurchase(txnId: number, telegramId: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/stars/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ txnId, telegramId }),
+    });
+    return res.json();
+  } catch { return { ok: false, error: "Network error" }; }
+}
+
+export async function confirmTonPurchase(telegramId: string, itemId: string, walletAddress: string, tonAmount: number, boc?: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/ton/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId, itemId, walletAddress, tonAmount, boc }),
+    });
+    return res.json();
+  } catch { return { ok: false, error: "Network error" }; }
+}
+
 export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
   try {
     const res = await fetch(`${API_BASE}/leaderboard`);
