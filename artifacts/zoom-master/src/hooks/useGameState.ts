@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralCount, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, type Grants } from "../utils/api";
+import { registerUser, fetchReferralData, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, type Grants } from "../utils/api";
 
 async function calibrateServerOffset(): Promise<number> {
   try {
@@ -81,6 +81,7 @@ export interface GameState {
   claimedBonusGold: number;
   claimedBonusSun: boolean;
   lastFarmingSettledAt: number;
+  claimedMilestones: number[];
 }
 
 export const PLANET_CONFIG: Record<PlanetType, {
@@ -222,6 +223,7 @@ const INITIAL_STATE: GameState = {
   claimedBonusGold: 0,
   claimedBonusSun: false,
   lastFarmingSettledAt: Date.now(),
+  claimedMilestones: [],
 };
 
 function migratePlanet(p: unknown): Planet {
@@ -263,6 +265,7 @@ function loadState(): GameState {
           telegramId: parsed.telegramId ?? null,
           claimedBonusSun: parsed.claimedBonusSun ?? false,
           lastFarmingSettledAt: parsed.lastFarmingSettledAt ?? Date.now(),
+          claimedMilestones: parsed.claimedMilestones ?? [],
         };
         const resolvedTelegramId = telegramId || base.telegramId;
         return {
@@ -466,8 +469,8 @@ export function useGameState() {
       }
 
       const localBalance = Math.floor(stateRef.current.balance);
-      const [count, grants, serverBalance] = await Promise.all([
-        fetchReferralCount(telegramId),
+      const [refData, grants, serverBalance] = await Promise.all([
+        fetchReferralData(telegramId),
         fetchGrants(telegramId),
         syncBalance({ telegramId, firstName, zoomBalance: localBalance }),
       ]);
@@ -475,7 +478,8 @@ export function useGameState() {
       setState((prev) => {
         let updated = {
           ...prev,
-          referralCount: count,
+          referralCount: refData.referralCount,
+          claimedMilestones: refData.claimedMilestones,
           balance: serverBalance,
         };
 

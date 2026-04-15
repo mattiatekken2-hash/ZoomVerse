@@ -7,6 +7,7 @@ interface EarnPageProps {
   lastDailyClaimAt: number;
   referralSpeedBonus: number;
   referredBy: string | null;
+  claimedMilestones: number[];
   onClaimDaily: () => void;
   onRedeemCode: (code: string) => { success: boolean; amount?: number; isSun?: boolean; error?: string };
 }
@@ -22,7 +23,7 @@ const MILESTONES = [
 
 const DAILY_INTERVAL = 24 * 60 * 60 * 1000;
 
-export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, referralSpeedBonus, referredBy, onClaimDaily, onRedeemCode }: EarnPageProps) {
+export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, referralSpeedBonus, referredBy, claimedMilestones, onClaimDaily, onRedeemCode }: EarnPageProps) {
   const [copied, setCopied] = useState(false);
   const [redeemInput, setRedeemInput] = useState("");
   const [redeemStatus, setRedeemStatus] = useState<{ type: "success" | "error" | "sun"; message: string } | null>(null);
@@ -157,7 +158,7 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, referr
             <div className="font-black text-base gold-text">Referral Program</div>
           </div>
           <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
-            +20 $ZOOM per new user who joins via your link
+            +20 $ZOOM per new user who joins via your link. Milestone bonuses auto-credited!
           </div>
           <div
             className="rounded-xl px-3 py-2.5 mb-3 flex items-center justify-between gap-2 border"
@@ -179,6 +180,21 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, referr
               {copied ? "✓ Copied" : "Copy"}
             </button>
           </div>
+          <button
+            onClick={() => {
+              const text = encodeURIComponent("Join ZOOM MASTER and earn $ZOOM!");
+              const url = encodeURIComponent(referralLink);
+              window.open(`https://t.me/share/url?url=${url}&text=${text}`, "_blank");
+            }}
+            className="w-full py-3 mb-3 rounded-xl font-black text-sm tracking-wider uppercase transition-all active:scale-95"
+            style={{
+              background: "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,179,71,0.1))",
+              color: "#ffd700",
+              border: "1px solid rgba(255,215,0,0.25)",
+            }}
+          >
+            INVITE FRIENDS
+          </button>
           <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
             <span>ID:</span>
             <span className="font-bold font-mono gold-text">{referralCode}</span>
@@ -234,33 +250,34 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, referr
           )}
           <div className="flex flex-col gap-2">
             {MILESTONES.map(m => {
-              const done = referralCount >= m.count;
+              const reached = referralCount >= m.count;
+              const claimed = claimedMilestones.includes(m.count);
               const isCurrent = m === nextMilestone;
               return (
                 <div
                   key={m.count}
                   className="flex items-center justify-between py-2 px-3 rounded-xl border"
                   style={{
-                    borderColor: done ? "rgba(0,230,118,0.2)" : isCurrent ? "rgba(0,242,254,0.15)" : "rgba(255,255,255,0.05)",
-                    background: done ? "rgba(0,230,118,0.05)" : "transparent",
+                    borderColor: claimed ? "rgba(0,230,118,0.2)" : isCurrent ? "rgba(0,242,254,0.15)" : "rgba(255,255,255,0.05)",
+                    background: claimed ? "rgba(0,230,118,0.05)" : "transparent",
                   }}
                 >
                   <div className="flex items-center gap-2">
-                    <div style={{ fontSize: 14 }}>{done ? "✅" : isCurrent ? "⏳" : "○"}</div>
-                    <span className="text-xs font-bold" style={{ color: done ? "#00e676" : isCurrent ? "#00f2fe" : "rgba(255,255,255,0.3)" }}>
+                    <div style={{ fontSize: 14 }}>{claimed ? "✅" : reached ? "🎉" : isCurrent ? "⏳" : "○"}</div>
+                    <span className="text-xs font-bold" style={{ color: claimed ? "#00e676" : reached ? "#ffd700" : isCurrent ? "#00f2fe" : "rgba(255,255,255,0.3)" }}>
                       {m.count} invites
                     </span>
                   </div>
-                  <span className="text-xs font-black" style={{ color: done ? "#00e676" : "rgba(255,255,255,0.4)" }}>
-                    +{m.reward.toLocaleString()} $ZOOM
+                  <span className="text-xs font-black" style={{ color: claimed ? "#00e676" : "rgba(255,255,255,0.4)" }}>
+                    {claimed ? "✓ Claimed" : `+${m.reward.toLocaleString()} $ZOOM`}
                   </span>
                 </div>
               );
             })}
           </div>
-          {prevMilestone && (
+          {claimedMilestones.length > 0 && (
             <div className="mt-2 text-center text-xs" style={{ color: "rgba(0,230,118,0.7)" }}>
-              Last claimed: {prevMilestone.count} invites milestone ✓
+              {claimedMilestones.length} milestone{claimedMilestones.length > 1 ? "s" : ""} claimed ✓
             </div>
           )}
         </div>

@@ -102,6 +102,7 @@ export default function App() {
             lastDailyClaimAt={state.lastDailyClaimAt}
             referralSpeedBonus={state.referralSpeedBonus}
             referredBy={state.referredBy}
+            claimedMilestones={state.claimedMilestones}
             onClaimDaily={claimDaily}
             onRedeemCode={redeemCode}
           />

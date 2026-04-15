@@ -15,6 +15,7 @@ export const usersTable = pgTable("users", {
   bonusRare: integer("bonus_rare").notNull().default(0),
   bonusEpic: integer("bonus_epic").notNull().default(0),
   bonusGold: integer("bonus_gold").notNull().default(0),
+  claimedMilestones: text("claimed_milestones").notNull().default(""),
 }, (table) => [
   index("idx_users_zoom_balance").on(table.zoomBalance),
   index("idx_users_referred_by").on(table.referredBy),

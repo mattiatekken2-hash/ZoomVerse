@@ -47,14 +47,41 @@ export async function registerUser(
   }
 }
 
-export async function fetchReferralCount(telegramId: string): Promise<number> {
+export interface ReferralData {
+  referralCount: number;
+  claimedMilestones: number[];
+}
+
+export async function fetchReferralData(telegramId: string): Promise<ReferralData> {
   try {
     const res = await fetch(`${API_BASE}/referral/${encodeURIComponent(telegramId)}`);
-    if (!res.ok) return 0;
+    if (!res.ok) return { referralCount: 0, claimedMilestones: [] };
     const data = await res.json();
-    return typeof data.referralCount === "number" ? data.referralCount : 0;
+    return {
+      referralCount: typeof data.referralCount === "number" ? data.referralCount : 0,
+      claimedMilestones: Array.isArray(data.claimedMilestones) ? data.claimedMilestones : [],
+    };
   } catch {
-    return 0;
+    return { referralCount: 0, claimedMilestones: [] };
+  }
+}
+
+export async function fetchReferralCount(telegramId: string): Promise<number> {
+  const data = await fetchReferralData(telegramId);
+  return data.referralCount;
+}
+
+export async function checkMilestones(telegramId: string): Promise<{ credited: number; milestonesClaimed: number[] }> {
+  try {
+    const res = await fetch(`${API_BASE}/referral/check-milestones`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId }),
+    });
+    if (!res.ok) return { credited: 0, milestonesClaimed: [] };
+    return res.json();
+  } catch {
+    return { credited: 0, milestonesClaimed: [] };
   }
 }
 

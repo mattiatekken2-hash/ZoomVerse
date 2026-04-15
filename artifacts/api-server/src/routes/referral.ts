@@ -5,6 +5,56 @@ import { z } from "zod";
 
 const router: IRouter = Router();
 
+const REFERRAL_BONUS = 20;
+
+const MILESTONES = [
+  { count: 5, reward: 500 },
+  { count: 10, reward: 1000 },
+  { count: 20, reward: 2000 },
+  { count: 50, reward: 5000 },
+  { count: 100, reward: 12000 },
+  { count: 200, reward: 30000 },
+];
+
+function getClaimedSet(raw: string): Set<number> {
+  if (!raw) return new Set();
+  return new Set(raw.split(",").map(Number).filter(n => !isNaN(n)));
+}
+
+function setToString(s: Set<number>): string {
+  return [...s].sort((a, b) => a - b).join(",");
+}
+
+async function checkAndCreditMilestones(telegramId: string) {
+  const [user] = await db.select().from(usersTable)
+    .where(eq(usersTable.telegramId, telegramId)).limit(1);
+  if (!user) return { credited: 0, milestonesClaimed: [] as number[] };
+
+  const claimed = getClaimedSet(user.claimedMilestones || "");
+  let totalReward = 0;
+  const newlyClaimed: number[] = [];
+
+  for (const m of MILESTONES) {
+    if (user.referralCount >= m.count && !claimed.has(m.count)) {
+      claimed.add(m.count);
+      totalReward += m.reward;
+      newlyClaimed.push(m.count);
+    }
+  }
+
+  if (totalReward > 0) {
+    await db.update(usersTable)
+      .set({
+        zoomBalance: sql`${usersTable.zoomBalance} + ${totalReward}`,
+        claimedMilestones: setToString(claimed),
+      })
+      .where(eq(usersTable.telegramId, telegramId));
+    console.log(`[referral] Milestone rewards for ${telegramId}: +${totalReward} ZOOM (milestones: ${newlyClaimed.join(",")})`);
+  }
+
+  return { credited: totalReward, milestonesClaimed: newlyClaimed };
+}
+
 const RegisterBody = z.object({
   telegramId: z.string().min(1),
   referredBy: z.string().min(1).nullish(),
@@ -30,18 +80,26 @@ router.post("/referral/register", async (req, res) => {
 
     const isNew = inserted.length > 0;
 
-    if (isNew && referredBy) {
+    if (isNew && referredBy && referredBy !== telegramId) {
       await db
         .insert(usersTable)
-        .values({ telegramId: referredBy, referralCount: 1 })
+        .values({ telegramId: referredBy, referralCount: 1, zoomBalance: REFERRAL_BONUS })
         .onConflictDoUpdate({
           target: usersTable.telegramId,
-          set: { referralCount: sql`${usersTable.referralCount} + 1` },
+          set: {
+            referralCount: sql`${usersTable.referralCount} + 1`,
+            zoomBalance: sql`${usersTable.zoomBalance} + ${REFERRAL_BONUS}`,
+          },
         });
+
+      console.log(`[referral] +${REFERRAL_BONUS} ZOOM credited to referrer ${referredBy} for new user ${telegramId}`);
+
+      await checkAndCreditMilestones(referredBy);
     }
 
     res.json({ ok: true, isNew });
   } catch (err) {
+    console.error("[referral] register error:", err);
     res.status(500).json({ error: "Database error" });
   }
 });
@@ -62,12 +120,35 @@ router.get("/referral/:telegramId", async (req, res) => {
       .limit(1);
 
     if (rows.length === 0) {
-      res.json({ telegramId, referralCount: 0 });
+      res.json({ telegramId, referralCount: 0, claimedMilestones: [] });
       return;
     }
 
-    res.json({ telegramId, referralCount: rows[0]!.referralCount });
+    const claimed = getClaimedSet(rows[0]!.claimedMilestones || "");
+
+    res.json({
+      telegramId,
+      referralCount: rows[0]!.referralCount,
+      claimedMilestones: [...claimed],
+    });
   } catch (err) {
+    console.error("[referral] fetch error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/referral/check-milestones", async (req, res) => {
+  const { telegramId } = req.body as { telegramId?: string };
+  if (!telegramId) {
+    res.status(400).json({ error: "Missing telegramId" });
+    return;
+  }
+
+  try {
+    const result = await checkAndCreditMilestones(telegramId);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error("[referral] milestone check error:", err);
     res.status(500).json({ error: "Database error" });
   }
 });
@@ -81,7 +162,7 @@ router.post("/referral/reset", async (req, res) => {
   try {
     await db
       .update(usersTable)
-      .set({ referralCount: 0 })
+      .set({ referralCount: 0, claimedMilestones: "" })
       .where(eq(usersTable.telegramId, telegramId));
     res.json({ ok: true });
   } catch {
