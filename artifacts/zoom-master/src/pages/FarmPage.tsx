@@ -208,9 +208,9 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                 key={planet.id}
                 className="slot-enter rounded-2xl p-4 border"
                 style={{
-                  borderColor: isListed ? "rgba(255,215,0,0.3)" : planet.color + "30",
-                  background: `linear-gradient(135deg, ${planet.color}08 0%, rgba(6,8,16,0.6) 100%)`,
-                  boxShadow: active ? `0 0 28px ${planet.color}18` : "none",
+                  borderColor: isListed ? "rgba(255,215,0,0.3)" : planet.color + "40",
+                  background: `linear-gradient(135deg, ${planet.color}0d 0%, rgba(6,8,16,0.6) 100%)`,
+                  boxShadow: active ? `0 0 32px ${planet.color}22, 0 0 60px ${planet.color}08` : `0 0 16px ${planet.color}08`,
                 }}
                 data-testid={`planet-card-${planet.id}`}
               >

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
+import { fetchMarketListings, buyFromMarket, type ServerMarketListing } from "../utils/api";
 
 
 const RARITY_FILTERS: (PlanetType | "ALL")[] = ["ALL", "BASIC", "RARE", "EPIC", "GOLD"];
@@ -17,20 +18,39 @@ interface MarketPageProps {
   balance: number;
   myListings: Planet[];
   maxSlots: number;
+  telegramId: string | null;
   onBuy: (listing: MarketListing) => { success: boolean; reason?: string };
   onUnlist: (id: string) => void;
+  onServerBuyComplete: (planetType: PlanetType, planetRate: number, pricePaid: number) => void;
 }
 
 interface Toast { text: string; ok: boolean }
 
-export function MarketPage({ balance, myListings, maxSlots, onBuy, onUnlist }: MarketPageProps) {
+export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete }: MarketPageProps) {
   const [filter, setFilter] = useState<PlanetType | "ALL">("ALL");
   const [toast, setToast] = useState<Toast | null>(null);
+  const [serverListings, setServerListings] = useState<ServerMarketListing[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const showToast = (text: string, ok: boolean) => {
     setToast({ text, ok });
     setTimeout(() => setToast(null), 2500);
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      const listings = await fetchMarketListings();
+      if (!cancelled) {
+        setServerListings(listings);
+        setLoading(false);
+      }
+    };
+    load();
+    const interval = setInterval(load, 15_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   const userListings: MarketListing[] = myListings
     .filter((p) => p.isListedInMarket && p.marketPrice)
@@ -42,9 +62,48 @@ export function MarketPage({ balance, myListings, maxSlots, onBuy, onUnlist }: M
       rate: p.rate,
     }));
 
-  const filtered = filter === "ALL" ? userListings : userListings.filter((l) => l.name === filter);
+  const otherListings = serverListings.filter(
+    (l) => l.sellerTelegramId !== telegramId
+  );
 
-  const handleBuy = (listing: MarketListing) => {
+  const allDisplayListings = [
+    ...userListings.map((l) => ({ ...l, isLocal: true as const, serverId: undefined as number | undefined })),
+    ...otherListings.map((l) => ({
+      id: `server-${l.id}`,
+      name: l.planetType as PlanetType,
+      price: l.price,
+      seller: l.sellerName || `Player ${l.sellerTelegramId.slice(-4)}`,
+      rate: l.planetRate,
+      isLocal: false as const,
+      serverId: l.id,
+    })),
+  ];
+
+  const filtered = filter === "ALL" ? allDisplayListings : allDisplayListings.filter((l) => l.name === filter);
+
+  const handleBuyServer = async (serverId: number, planetType: PlanetType, planetRate: number, price: number) => {
+    if (!telegramId) return;
+    const fee = Math.floor(price * 0.25);
+    const total = price + fee;
+    if (balance < total) {
+      showToast("Insufficient $ZOOM balance", false);
+      return;
+    }
+    if (myListings.filter((p) => !p.isListedInMarket).length >= maxSlots) {
+      showToast("No free slots available", false);
+      return;
+    }
+    const result = await buyFromMarket(telegramId, serverId);
+    if (result.ok) {
+      onServerBuyComplete(planetType, planetRate, total);
+      setServerListings((prev) => prev.filter((l) => l.id !== serverId));
+      showToast(`${PLANET_CONFIG[planetType].label} planet added to your farm!`, true);
+    } else {
+      showToast(result.error ?? "Purchase failed", false);
+    }
+  };
+
+  const handleBuyLocal = (listing: MarketListing) => {
     const result = onBuy(listing);
     if (result.success) {
       showToast(`${PLANET_CONFIG[listing.name].label} planet added to your farm!`, true);
@@ -65,7 +124,6 @@ export function MarketPage({ balance, myListings, maxSlots, onBuy, onUnlist }: M
       <div className="flex-1 overflow-y-auto px-4 pb-4">
         <div className="flex flex-col gap-3">
 
-          {/* FILTER PILLS */}
           <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
             {RARITY_FILTERS.map((f) => (
               <button
@@ -90,9 +148,15 @@ export function MarketPage({ balance, myListings, maxSlots, onBuy, onUnlist }: M
             ))}
           </div>
 
-          {/* USER LISTINGS */}
+          {loading && serverListings.length === 0 && filtered.length === 0 && (
+            <div className="text-center py-10 flex flex-col items-center gap-2">
+              <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>Loading marketplace...</div>
+            </div>
+          )}
+
           {filtered.map((listing) => {
             const cfg = PLANET_CONFIG[listing.name];
+            if (!cfg) return null;
             const rarityColor = RARITY_COLORS[listing.name];
             const fakePlanet = {
               id: listing.id,
@@ -111,8 +175,8 @@ export function MarketPage({ balance, myListings, maxSlots, onBuy, onUnlist }: M
 
             const fee = Math.floor(listing.price * 0.25);
             const total = listing.price + fee;
-            const isOwn = listing.seller === "you";
-            const canBuy = !isOwn && balance >= total && myListings.length < maxSlots;
+            const isOwn = listing.isLocal;
+            const canBuy = !isOwn && balance >= total && myListings.filter((p) => !p.isListedInMarket).length < maxSlots;
 
             return (
               <div
@@ -136,9 +200,13 @@ export function MarketPage({ balance, myListings, maxSlots, onBuy, onUnlist }: M
                       </span>
                       <span
                         className="text-xs px-2 py-0.5 rounded-full border font-bold"
-                        style={{ color: "#ffd700", borderColor: "rgba(255,215,0,0.25)", background: "rgba(255,215,0,0.06)" }}
+                        style={{
+                          color: isOwn ? "#ffd700" : "#00f2fe",
+                          borderColor: isOwn ? "rgba(255,215,0,0.25)" : "rgba(0,242,254,0.25)",
+                          background: isOwn ? "rgba(255,215,0,0.06)" : "rgba(0,242,254,0.06)",
+                        }}
                       >
-                        👤 you
+                        {isOwn ? "👤 you" : `👤 ${listing.seller}`}
                       </span>
                     </div>
                     <div className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.45)" }}>
@@ -159,21 +227,44 @@ export function MarketPage({ balance, myListings, maxSlots, onBuy, onUnlist }: M
                     <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
                       Total: {total.toLocaleString()} $ZOOM
                     </div>
-                    <button
-                      className="px-4 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95"
-                      style={{ borderColor: "rgba(255,215,0,0.3)", background: "rgba(255,215,0,0.07)", color: "#ffd700" }}
-                      onClick={() => onUnlist(listing.id)}
-                      data-testid={`btn-unlist-${listing.id}`}
-                    >
-                      Delist
-                    </button>
+                    {isOwn ? (
+                      <button
+                        className="px-4 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95"
+                        style={{ borderColor: "rgba(255,215,0,0.3)", background: "rgba(255,215,0,0.07)", color: "#ffd700" }}
+                        onClick={() => onUnlist(listing.id)}
+                        data-testid={`btn-unlist-${listing.id}`}
+                      >
+                        Delist
+                      </button>
+                    ) : (
+                      <button
+                        className="px-4 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95"
+                        disabled={!canBuy}
+                        style={{
+                          borderColor: canBuy ? "rgba(0,230,118,0.3)" : "rgba(255,255,255,0.06)",
+                          background: canBuy ? "rgba(0,230,118,0.08)" : "transparent",
+                          color: canBuy ? "#00e676" : "rgba(255,255,255,0.15)",
+                          cursor: canBuy ? "pointer" : "not-allowed",
+                        }}
+                        onClick={() => {
+                          if (listing.serverId) {
+                            handleBuyServer(listing.serverId, listing.name, listing.rate, listing.price);
+                          } else {
+                            handleBuyLocal(listing as MarketListing);
+                          }
+                        }}
+                        data-testid={`btn-buy-${listing.id}`}
+                      >
+                        Buy
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
             );
           })}
 
-          {filtered.length === 0 && (
+          {!loading && filtered.length === 0 && (
             <div className="text-center py-10 flex flex-col items-center gap-2">
               <div style={{ fontSize: 32, opacity: 0.15 }}>◌</div>
               <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>

@@ -40,6 +40,26 @@ export const transactionsTable = pgTable("transactions", {
   index("idx_txn_payment_id").on(table.telegramPaymentId),
 ]);
 
+export const marketListingsTable = pgTable("market_listings", {
+  id: serial("id").primaryKey(),
+  sellerTelegramId: text("seller_telegram_id").notNull(),
+  sellerName: text("seller_name"),
+  planetType: text("planet_type").notNull(),
+  planetRate: integer("planet_rate").notNull(),
+  price: integer("price").notNull(),
+  status: text("status").notNull().default("active"),
+  buyerTelegramId: text("buyer_telegram_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  soldAt: timestamp("sold_at"),
+}, (table) => [
+  index("idx_market_status").on(table.status),
+  index("idx_market_seller").on(table.sellerTelegramId),
+]);
+
+export const insertMarketListingSchema = createInsertSchema(marketListingsTable).omit({ id: true, createdAt: true, soldAt: true });
+export type InsertMarketListing = z.infer<typeof insertMarketListingSchema>;
+export type MarketListing = typeof marketListingsTable.$inferSelect;
+
 export const insertUserSchema = createInsertSchema(usersTable).omit({ createdAt: true });
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof usersTable.$inferSelect;

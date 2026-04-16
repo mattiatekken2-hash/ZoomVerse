@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { FeedEvent } from "../hooks/useGameState";
 
-import { fetchLeaderboard, type LeaderboardEntry } from "../utils/api";
+import { fetchLeaderboard, fetchGlobalPool, type LeaderboardEntry } from "../utils/api";
 
 interface RankPageProps {
   balance: number;
@@ -42,6 +42,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
   const [convertInput, setConvertInput] = useState("");
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loadingLb, setLoadingLb] = useState(true);
+  const [globalPool, setGlobalPool] = useState(0);
 
   const seasonProgress = getSeasonProgress(currentTime);
   const currentSeason = 1;
@@ -52,14 +53,15 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
     let cancelled = false;
     const load = async () => {
       setLoadingLb(true);
-      const data = await fetchLeaderboard();
+      const [data, pool] = await Promise.all([fetchLeaderboard(), fetchGlobalPool()]);
       if (!cancelled) {
         setLeaderboard(data);
+        setGlobalPool(pool);
         setLoadingLb(false);
       }
     };
     load();
-    const interval = setInterval(load, 30_000);
+    const interval = setInterval(load, 15_000);
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
@@ -276,12 +278,15 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                 className="rounded-xl p-4 border mb-3"
                 style={{ borderColor: "rgba(0,242,254,0.12)", background: "rgba(0,242,254,0.04)" }}
               >
-                <div className="text-xs mb-1" style={{ color: "rgba(255,255,255,0.35)" }}>Total $ZOOM Accumulated</div>
+                <div className="text-xs mb-1" style={{ color: "rgba(255,255,255,0.35)" }}>Total $ZOOM Accumulated (All Players)</div>
                 <div className="font-black text-2xl neon-text" style={{ letterSpacing: "-0.02em" }}>
-                  {formatZoom(seasonPoolEarned)}
+                  {formatZoom(globalPool)}
                 </div>
                 <div className="text-xs mt-1" style={{ color: "rgba(0,242,254,0.5)" }}>
-                  +{activeFarmRate.toLocaleString()}/hr · active real farming
+                  +{activeFarmRate.toLocaleString()}/hr · your active farming
+                </div>
+                <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.2)" }}>
+                  Your pool: {formatZoom(seasonPoolEarned)} $ZOOM
                 </div>
               </div>
               <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>

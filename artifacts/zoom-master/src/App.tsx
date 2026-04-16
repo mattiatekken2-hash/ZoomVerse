@@ -37,7 +37,7 @@ export default function App() {
     state, craft, claimCraft, redeemCode,
     collectPlanet, burnPlanet,
     startFarming, stopFarming,
-    listPlanet, unlistPlanet, buyPlanet,
+    listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     claimDaily, startSunFarming, stopSunFarming, burnSun,
   } = useGameState();
 
@@ -90,8 +90,10 @@ export default function App() {
             balance={state.balance}
             myListings={state.planets}
             maxSlots={state.maxSlots}
+            telegramId={state.telegramId}
             onBuy={buyPlanet}
             onUnlist={unlistPlanet}
+            onServerBuyComplete={serverBuyComplete}
           />
         );
       case "earn":

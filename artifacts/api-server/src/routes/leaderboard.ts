@@ -67,6 +67,19 @@ router.get("/leaderboard", async (_req, res) => {
   }
 });
 
+router.get("/global-pool", async (_req, res) => {
+  try {
+    const [result] = await db
+      .select({ total: sql<number>`COALESCE(SUM(${usersTable.zoomBalance}), 0)` })
+      .from(usersTable);
+
+    res.json({ totalPool: result?.total ?? 0 });
+  } catch (err) {
+    console.error("[global-pool] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 router.get("/balance/:telegramId", async (req, res) => {
   const { telegramId } = req.params;
   try {

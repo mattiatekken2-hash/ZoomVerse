@@ -307,3 +307,81 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
     return [];
   }
 }
+
+export async function fetchGlobalPool(): Promise<number> {
+  try {
+    const res = await fetch(`${API_BASE}/global-pool?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return typeof data.totalPool === "number" ? data.totalPool : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export interface ServerMarketListing {
+  id: number;
+  sellerTelegramId: string;
+  sellerName: string | null;
+  planetType: string;
+  planetRate: number;
+  price: number;
+  status: string;
+  createdAt: string;
+}
+
+export async function fetchMarketListings(): Promise<ServerMarketListing[]> {
+  try {
+    const res = await fetch(`${API_BASE}/market/listings?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.listings) ? data.listings : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function listOnMarket(params: {
+  sellerTelegramId: string;
+  sellerName?: string;
+  planetType: string;
+  planetRate: number;
+  price: number;
+}): Promise<{ ok: boolean; listing?: ServerMarketListing }> {
+  try {
+    const res = await fetch(`${API_BASE}/market/list`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    return res.json();
+  } catch {
+    return { ok: false };
+  }
+}
+
+export async function buyFromMarket(buyerTelegramId: string, listingId: number): Promise<{ ok: boolean; planetType?: string; planetRate?: number; pricePaid?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/market/buy`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ buyerTelegramId, listingId }),
+    });
+    return res.json();
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function delistFromMarket(sellerTelegramId: string, listingId: number): Promise<{ ok: boolean }> {
+  try {
+    const res = await fetch(`${API_BASE}/market/delist`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sellerTelegramId, listingId }),
+    });
+    return res.json();
+  } catch {
+    return { ok: false };
+  }
+}

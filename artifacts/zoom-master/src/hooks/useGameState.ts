@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, type Grants } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, type Grants } from "../utils/api";
 
 async function calibrateServerOffset(): Promise<number> {
   try {
@@ -28,6 +28,7 @@ export interface Planet {
   isFarmingActive: boolean;
   marketPrice: number | null;
   craftCost: number;
+  serverListingId?: number;
 }
 
 export interface SunState {
@@ -297,6 +298,32 @@ function saveState(state: GameState) {
   } catch { /**/ }
 }
 
+let _syncTimer: ReturnType<typeof setTimeout> | null = null;
+let _lastSyncedBalance = -1;
+
+function debouncedSyncToServer(state: GameState, delay = 2000) {
+  const { telegramId } = getTelegramContext();
+  if (!telegramId) return;
+  const balance = Math.floor(state.balance);
+  if (balance === _lastSyncedBalance) return;
+  if (_syncTimer) clearTimeout(_syncTimer);
+  _syncTimer = setTimeout(() => {
+    _lastSyncedBalance = balance;
+    const firstName = getTelegramContext().firstName;
+    syncBalance({ telegramId, firstName, zoomBalance: balance });
+  }, delay);
+}
+
+function immediateSyncToServer(state: GameState) {
+  const { telegramId } = getTelegramContext();
+  if (!telegramId) return;
+  const balance = Math.floor(state.balance);
+  _lastSyncedBalance = balance;
+  if (_syncTimer) { clearTimeout(_syncTimer); _syncTimer = null; }
+  const firstName = getTelegramContext().firstName;
+  syncBalance({ telegramId, firstName, zoomBalance: balance });
+}
+
 function publishFeedEvent(event: FeedEvent) {
   try {
     localStorage.setItem(LIVE_EVENT_KEY, JSON.stringify(event));
@@ -433,7 +460,10 @@ export function useGameState() {
   const serverOffsetRef = useRef(0);
   stateRef.current = state;
 
-  useEffect(() => { saveState(state); }, [state]);
+  useEffect(() => {
+    saveState(state);
+    debouncedSyncToServer(state);
+  }, [state]);
 
   useEffect(() => {
     const { telegramId, startParam, firstName } = getTelegramContext();
@@ -735,8 +765,18 @@ export function useGameState() {
       }
     };
 
+    const handleBeforeUnload = () => {
+      const settled = settleFarmingState(stateRef.current, Date.now());
+      saveState(settled);
+      immediateSyncToServer(settled);
+    };
+
     document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
   }, []);
 
   useEffect(() => {
@@ -1000,23 +1040,55 @@ export function useGameState() {
   }, []);
 
   const listPlanet = useCallback((id: string, price: number) => {
-    setState((prev) => ({
-      ...prev,
-      planets: prev.planets.map((p) =>
-        p.id === id
-          ? { ...p, isListedInMarket: true, isFarmingActive: false, marketPrice: price }
-          : p
-      ),
-    }));
+    setState((prev) => {
+      const planet = prev.planets.find((p) => p.id === id);
+      if (!planet) return prev;
+      const { telegramId, firstName } = getTelegramContext();
+      if (telegramId) {
+        listOnMarket({
+          sellerTelegramId: telegramId,
+          sellerName: firstName ?? undefined,
+          planetType: planet.name,
+          planetRate: planet.rate,
+          price,
+        }).then((result) => {
+          if (result.ok && result.listing) {
+            setState((s) => ({
+              ...s,
+              planets: s.planets.map((p) =>
+                p.id === id ? { ...p, serverListingId: result.listing!.id } : p
+              ),
+            }));
+          }
+        });
+      }
+      return {
+        ...prev,
+        planets: prev.planets.map((p) =>
+          p.id === id
+            ? { ...p, isListedInMarket: true, isFarmingActive: false, marketPrice: price }
+            : p
+        ),
+      };
+    });
   }, []);
 
   const unlistPlanet = useCallback((id: string) => {
-    setState((prev) => ({
-      ...prev,
-      planets: prev.planets.map((p) =>
-        p.id === id ? { ...p, isListedInMarket: false, marketPrice: null } : p
-      ),
-    }));
+    setState((prev) => {
+      const planet = prev.planets.find((p) => p.id === id);
+      if (planet?.serverListingId) {
+        const { telegramId } = getTelegramContext();
+        if (telegramId) {
+          delistFromMarket(telegramId, planet.serverListingId);
+        }
+      }
+      return {
+        ...prev,
+        planets: prev.planets.map((p) =>
+          p.id === id ? { ...p, isListedInMarket: false, marketPrice: null, serverListingId: undefined } : p
+        ),
+      };
+    });
   }, []);
 
   const buyPlanet = useCallback((listing: MarketListing): { success: boolean; reason?: string } => {
@@ -1057,6 +1129,30 @@ export function useGameState() {
     return { success: true };
   }, []);
 
+  const serverBuyComplete = useCallback((planetType: PlanetType, planetRate: number, pricePaid: number) => {
+    const cfg = PLANET_CONFIG[planetType];
+    const now = Date.now();
+    const newPlanet: Planet = {
+      id: `bought-${now}-${Math.random().toString(36).substring(2)}`,
+      name: planetType,
+      rate: planetRate,
+      color: cfg.color,
+      glowColor: cfg.glowColor,
+      createdAt: now,
+      farmStartedAt: now,
+      lastCollectedAt: now,
+      isListedInMarket: false,
+      isFarmingActive: false,
+      marketPrice: null,
+      craftCost: pricePaid,
+    };
+    setState((prev) => ({
+      ...prev,
+      balance: prev.balance - pricePaid,
+      planets: [...prev.planets, newPlanet],
+    }));
+  }, []);
+
   const unlockSlot = useCallback(() => {
     setState((prev) => ({ ...prev, maxSlots: prev.maxSlots + 1 }));
   }, []);
@@ -1073,7 +1169,7 @@ export function useGameState() {
     state, craft, claimCraft, redeemCode,
     collectPlanet, burnPlanet,
     startFarming, stopFarming,
-    listPlanet, unlistPlanet, buyPlanet,
+    listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     unlockSlot, claimDaily,
     activateSun, acquireSun, collectSun,
     startSunFarming, stopSunFarming, burnSun,

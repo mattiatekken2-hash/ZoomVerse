@@ -43,6 +43,13 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 
 ## Recent Changes
 
+- **Official Production Overhaul**:
+  - **Instant DB Sync**: Balance changes debounce-sync to server in 2s (instead of 30s). `beforeunload` and `visibilitychange` handlers ensure no data loss on page exit. Every state change triggers async server sync.
+  - **P2P Marketplace**: New `market_listings` DB table + API endpoints (`/market/list`, `/market/buy`, `/market/delist`, `/market/listings`). Users listing a planet creates a server-side record visible to ALL users. Buyers pay 25% fee, seller receives full price, planet transfers atomically. Slot freed immediately on listing.
+  - **Global Live Zoom Pool**: New `/api/global-pool` endpoint sums all users' `zoomBalance`. Displayed in the Rank/Exchange tab as real-time counter updated every 15s.
+  - **Glow Restyling**: All planets (Basic, Rare, Epic, Gold) now have premium multi-layer glow effects matching THE SUN's style — double atmosphere layers, enhanced radial gradients, stronger box-shadows, and inner light reflections.
+  - **Production URL**: API_BASE uses `window.location.origin` (auto-resolves to deployed domain). Webhook registration uses `REPLIT_DOMAINS`. Server runs on Reserved VM for always-on uptime.
+
 - Fixed the ZOOM MASTER universal admin panel so admin asset actions use the typed Telegram ID with fallback to `8144744644`, show target-specific confirmation feedback, write a synchronous server snapshot after admin mutations, apply slot grants from server data, and refresh authoritative server assets on app resume/section changes with per-user local storage separation.
 - Provisioned the missing PostgreSQL `users` table and adjusted balance refresh so admin credits and Zoom Season leaderboard reads return successful server data instead of 500 errors.
 - Fixed bonus planet reconciliation so admin planet removals delete excess server-granted planets and burned bonus planets are saved immediately without being recreated on refresh.
