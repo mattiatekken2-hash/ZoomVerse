@@ -97,8 +97,8 @@ export const PLANET_CONFIG: Record<PlanetType, {
 }> = {
   BASIC: {
     rate: 2,
-    color: "#8892b0",
-    glowColor: "rgba(136,146,176,0.5)",
+    color: "#64b5f6",
+    glowColor: "rgba(100,181,246,0.5)",
     chance: 0.74,
     label: "Basic",
     craftCost: 20,
@@ -298,30 +298,41 @@ function saveState(state: GameState) {
   } catch { /**/ }
 }
 
-let _syncTimer: ReturnType<typeof setTimeout> | null = null;
 let _lastSyncedBalance = -1;
-
-function debouncedSyncToServer(state: GameState, delay = 2000) {
-  const { telegramId } = getTelegramContext();
-  if (!telegramId) return;
-  const balance = Math.floor(state.balance);
-  if (balance === _lastSyncedBalance) return;
-  if (_syncTimer) clearTimeout(_syncTimer);
-  _syncTimer = setTimeout(() => {
-    _lastSyncedBalance = balance;
-    const firstName = getTelegramContext().firstName;
-    syncBalance({ telegramId, firstName, zoomBalance: balance });
-  }, delay);
-}
+let _syncInFlight = false;
+let _pendingSyncBalance = -1;
 
 function immediateSyncToServer(state: GameState) {
   const { telegramId } = getTelegramContext();
   if (!telegramId) return;
   const balance = Math.floor(state.balance);
+  if (balance === _lastSyncedBalance) return;
+
+  if (_syncInFlight) {
+    _pendingSyncBalance = balance;
+    return;
+  }
+
   _lastSyncedBalance = balance;
-  if (_syncTimer) { clearTimeout(_syncTimer); _syncTimer = null; }
+  _syncInFlight = true;
   const firstName = getTelegramContext().firstName;
-  syncBalance({ telegramId, firstName, zoomBalance: balance });
+  syncBalance({ telegramId, firstName, zoomBalance: balance })
+    .then(() => {
+      _syncInFlight = false;
+      if (_pendingSyncBalance >= 0 && _pendingSyncBalance !== _lastSyncedBalance) {
+        const nextBalance = _pendingSyncBalance;
+        _pendingSyncBalance = -1;
+        const { telegramId: tid, firstName: fn } = getTelegramContext();
+        if (tid) {
+          _lastSyncedBalance = nextBalance;
+          _syncInFlight = true;
+          syncBalance({ telegramId: tid, firstName: fn, zoomBalance: nextBalance })
+            .then(() => { _syncInFlight = false; })
+            .catch(() => { _syncInFlight = false; });
+        }
+      }
+    })
+    .catch(() => { _syncInFlight = false; });
 }
 
 function publishFeedEvent(event: FeedEvent) {
@@ -462,7 +473,7 @@ export function useGameState() {
 
   useEffect(() => {
     saveState(state);
-    debouncedSyncToServer(state);
+    immediateSyncToServer(state);
   }, [state]);
 
   useEffect(() => {
@@ -519,7 +530,7 @@ export function useGameState() {
           ...prev,
           referralCount: refData.referralCount,
           claimedMilestones: refData.claimedMilestones,
-          balance: serverBalance,
+          balance: Math.max(prev.balance, serverBalance),
         };
 
         // Apply bonus sun from server (grant sun if not already owned)
@@ -703,21 +714,22 @@ export function useGameState() {
 
       applyGrants(grants);
 
-      if (serverBalance !== stateRef.current.balance) {
-        setState((prev) => ({ ...prev, balance: serverBalance }));
-      }
+      setState((prev) => {
+        const best = Math.max(prev.balance, serverBalance);
+        if (best === prev.balance) return prev;
+        return { ...prev, balance: best };
+      });
     };
 
     const interval = setInterval(doSync, 30_000);
 
     const handleAdminRefresh = async () => {
-      const { telegramId, firstName } = getTelegramContext();
+      const { telegramId } = getTelegramContext();
       if (!telegramId) return;
 
       const balanceRecord = await fetchBalanceRecord(telegramId);
       if (balanceRecord?.exists) {
-        setState((prev) => ({ ...prev, balance: balanceRecord.zoomBalance }));
-        stateRef.current = { ...stateRef.current, balance: balanceRecord.zoomBalance };
+        setState((prev) => ({ ...prev, balance: Math.max(prev.balance, balanceRecord.zoomBalance) }));
       }
 
       const grants = await fetchGrants(telegramId);
@@ -768,7 +780,16 @@ export function useGameState() {
     const handleBeforeUnload = () => {
       const settled = settleFarmingState(stateRef.current, Date.now());
       saveState(settled);
-      immediateSyncToServer(settled);
+      const { telegramId, firstName } = getTelegramContext();
+      if (telegramId) {
+        const balance = Math.floor(settled.balance);
+        const payload = JSON.stringify({ telegramId, firstName, zoomBalance: balance });
+        const url = `${window.location.origin}/api/balance/sync`;
+        const sent = navigator.sendBeacon?.(url, new Blob([payload], { type: "application/json" }));
+        if (!sent) {
+          fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, keepalive: true }).catch(() => {});
+        }
+      }
     };
 
     document.addEventListener("visibilitychange", handleVisibility);

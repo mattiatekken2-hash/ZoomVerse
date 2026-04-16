@@ -8,12 +8,6 @@ interface PlanetOrbProps {
 
 export function PlanetOrb({ planet, size = 60, animate = true }: PlanetOrbProps) {
   const c = planet.color;
-  const alpha80 = c + "cc";
-  const alpha60 = c + "99";
-  const alpha40 = c + "66";
-  const alpha30 = c + "4d";
-  const alpha20 = c + "33";
-  const alpha10 = c + "1a";
 
   return (
     <div
@@ -30,11 +24,11 @@ export function PlanetOrb({ planet, size = 60, animate = true }: PlanetOrbProps)
       <div
         style={{
           position: "absolute",
-          width: size * 2,
-          height: size * 2,
+          width: size * 2.4,
+          height: size * 2.4,
           borderRadius: "50%",
-          background: `radial-gradient(circle, ${alpha40} 0%, ${alpha20} 30%, ${alpha10} 55%, transparent 75%)`,
-          filter: `blur(${size * 0.22}px)`,
+          background: `radial-gradient(circle, ${c}55 0%, ${c}22 35%, ${c}08 60%, transparent 78%)`,
+          filter: `blur(${size * 0.25}px)`,
           animation: animate ? "planet-breathe 3s ease-in-out infinite alternate" : "none",
           pointerEvents: "none",
         }}
@@ -42,13 +36,12 @@ export function PlanetOrb({ planet, size = 60, animate = true }: PlanetOrbProps)
       <div
         style={{
           position: "absolute",
-          width: size * 1.6,
-          height: size * 1.6,
+          width: size * 1.7,
+          height: size * 1.7,
           borderRadius: "50%",
-          background: `radial-gradient(circle, ${alpha30} 0%, transparent 60%)`,
-          filter: `blur(${size * 0.12}px)`,
+          background: `radial-gradient(circle, ${c}44 0%, ${c}18 40%, transparent 65%)`,
+          filter: `blur(${size * 0.1}px)`,
           pointerEvents: "none",
-          opacity: 0.7,
         }}
       />
       <div
@@ -60,22 +53,23 @@ export function PlanetOrb({ planet, size = 60, animate = true }: PlanetOrbProps)
           overflow: "hidden",
           background: `
             radial-gradient(
-              circle at 35% 30%,
-              rgba(255,255,255,0.35) 0%,
-              ${c}ee 15%,
-              ${c}cc 32%,
-              ${c}99 50%,
-              ${c}55 70%,
-              ${c}22 90%,
+              circle at 38% 32%,
+              #ffffff88 0%,
+              #ffffff44 8%,
+              ${c} 22%,
+              ${c}dd 40%,
+              ${c}88 60%,
+              ${c}44 80%,
               ${c}11 100%
             )
           `,
           boxShadow: `
-            0 0 ${size * 0.5}px ${alpha60},
-            0 0 ${size * 0.9}px ${alpha40},
-            0 0 ${size * 1.4}px ${alpha20},
-            inset -${size * 0.12}px -${size * 0.06}px ${size * 0.2}px rgba(0,0,0,0.5),
-            inset ${size * 0.05}px ${size * 0.04}px ${size * 0.1}px rgba(255,255,255,0.12)
+            0 0 ${size * 0.35}px ${c}aa,
+            0 0 ${size * 0.7}px ${c}66,
+            0 0 ${size * 1.2}px ${c}33,
+            0 0 ${size * 1.8}px ${c}18,
+            inset -${size * 0.08}px -${size * 0.04}px ${size * 0.15}px ${c}33,
+            inset ${size * 0.06}px ${size * 0.05}px ${size * 0.12}px #ffffff22
           `,
           animation: animate ? "planet-rotate 10s linear infinite" : "none",
         }}
@@ -83,51 +77,36 @@ export function PlanetOrb({ planet, size = 60, animate = true }: PlanetOrbProps)
         <div
           style={{
             position: "absolute",
-            top: "8%",
-            left: "12%",
-            width: "38%",
-            height: "38%",
+            top: "6%",
+            left: "10%",
+            width: "42%",
+            height: "42%",
             borderRadius: "50%",
-            background: "radial-gradient(circle at 40% 35%, rgba(255,255,255,0.38) 0%, rgba(255,255,255,0) 65%)",
-            filter: `blur(${size * 0.05}px)`,
-            pointerEvents: "none",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            borderRadius: "50%",
-            opacity: 0.1,
-            background: `repeating-linear-gradient(
-              -28deg,
-              transparent,
-              transparent 6px,
-              ${alpha10} 6px,
-              ${alpha10} 7px
-            )`,
-            pointerEvents: "none",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            borderRadius: "50%",
-            background: `radial-gradient(circle at 70% 70%, ${alpha20} 0%, transparent 50%)`,
-            pointerEvents: "none",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: "14%",
-            right: "16%",
-            width: "18%",
-            height: "10%",
-            borderRadius: "50%",
-            background: "rgba(0,0,0,0.18)",
+            background: "radial-gradient(circle at 42% 38%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.15) 40%, transparent 70%)",
             filter: `blur(${size * 0.04}px)`,
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "50%",
+            background: `radial-gradient(circle at 65% 65%, ${c}30 0%, transparent 55%)`,
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            top: "15%",
+            left: "20%",
+            width: "25%",
+            height: "12%",
+            borderRadius: "50%",
+            background: `rgba(255,255,255,0.08)`,
+            filter: `blur(${size * 0.03}px)`,
+            transform: "rotate(-15deg)",
             pointerEvents: "none",
           }}
         />

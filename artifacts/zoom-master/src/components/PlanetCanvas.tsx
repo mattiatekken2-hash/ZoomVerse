@@ -19,22 +19,28 @@ function CSSSphere({
   size: number;
   isRevealing: boolean;
 }) {
-  const alpha30 = color + "4d";
-  const alpha15 = color + "26";
-  const alpha08 = color + "14";
-
   return (
     <div className="planet-wrap" style={{ width: size, height: size }}>
       <div
         className="planet-outer-glow"
         style={{
-          width: size * 1.7,
-          height: size * 1.7,
-          background: `radial-gradient(circle, ${alpha15} 0%, ${alpha08} 40%, transparent 70%)`,
-          filter: "blur(20px)",
+          width: size * 2.2,
+          height: size * 2.2,
+          background: `radial-gradient(circle, ${color}44 0%, ${color}18 35%, ${color}08 55%, transparent 75%)`,
+          filter: `blur(${size * 0.15}px)`,
         }}
       />
-      
+      <div
+        style={{
+          position: "absolute",
+          width: size * 1.6,
+          height: size * 1.6,
+          borderRadius: "50%",
+          background: `radial-gradient(circle, ${color}33 0%, ${color}11 40%, transparent 65%)`,
+          filter: `blur(${size * 0.08}px)`,
+          pointerEvents: "none",
+        }}
+      />
       <div
         className={`planet-sphere ${isRevealing ? "reveal-in" : ""}`}
         style={{
@@ -42,32 +48,44 @@ function CSSSphere({
           height: size,
           background: `
             radial-gradient(
-              circle at 35% 30%,
-              rgba(255,255,255,0.22) 0%,
-              ${color}cc 20%,
-              ${color}99 45%,
-              ${color}66 65%,
-              ${color}33 80%,
+              circle at 38% 32%,
+              #ffffff66 0%,
+              #ffffff33 8%,
+              ${color} 22%,
+              ${color}dd 40%,
+              ${color}88 60%,
+              ${color}44 80%,
               ${color}11 100%
             )`,
           boxShadow: `
-            0 0 ${size * 0.4}px ${alpha30},
-            0 0 ${size * 0.8}px ${alpha15},
-            inset -${size * 0.12}px -${size * 0.06}px ${size * 0.2}px rgba(0,0,0,0.5)
+            0 0 ${size * 0.35}px ${color}aa,
+            0 0 ${size * 0.7}px ${color}55,
+            0 0 ${size * 1.2}px ${color}28,
+            inset -${size * 0.08}px -${size * 0.04}px ${size * 0.15}px ${color}33,
+            inset ${size * 0.06}px ${size * 0.05}px ${size * 0.12}px #ffffff18
           `,
         }}
       >
-        <div className="planet-highlight" />
         <div
-          className="planet-surface-lines"
           style={{
-            background: `repeating-linear-gradient(
-              -30deg,
-              transparent,
-              transparent 8px,
-              ${alpha08} 8px,
-              ${alpha08} 9px
-            )`,
+            position: "absolute",
+            top: "6%",
+            left: "10%",
+            width: "42%",
+            height: "42%",
+            borderRadius: "50%",
+            background: "radial-gradient(circle at 42% 38%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.12) 40%, transparent 70%)",
+            filter: `blur(${size * 0.03}px)`,
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            borderRadius: "50%",
+            background: `radial-gradient(circle at 65% 65%, ${color}25 0%, transparent 55%)`,
+            pointerEvents: "none",
           }}
         />
       </div>

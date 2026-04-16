@@ -389,7 +389,6 @@
   position: relative;
   overflow: hidden;
   animation: planet-rotate 8s linear infinite;
-  box-shadow: inset -20px -10px 40px rgba(0,0,0,0.6);
 }
 @keyframes planet-rotate {
   from { transform: rotate(0deg); }
