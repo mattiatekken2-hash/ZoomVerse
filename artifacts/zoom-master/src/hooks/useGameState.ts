@@ -518,19 +518,26 @@ export function useGameState() {
         try { localStorage.removeItem("zoom-start-param"); } catch { /**/ }
       }
 
-      const localBalance = Math.floor(stateRef.current.balance);
-      const [refData, grants, serverBalance] = await Promise.all([
+      const [refData, grants, balanceRecord] = await Promise.all([
         fetchReferralData(telegramId),
         fetchGrants(telegramId),
-        syncBalance({ telegramId, firstName, zoomBalance: localBalance }),
+        fetchBalanceRecord(telegramId),
       ]);
 
+      const serverBalance = balanceRecord?.exists ? balanceRecord.zoomBalance : 0;
+      const localBalance = Math.floor(stateRef.current.balance);
+      const adminCredit = serverBalance > localBalance ? serverBalance - localBalance : 0;
+      const finalBalance = stateRef.current.balance + adminCredit;
+
+      syncBalance({ telegramId, firstName, zoomBalance: Math.floor(finalBalance) });
+
       setState((prev) => {
+        const credit = serverBalance > Math.floor(prev.balance) ? serverBalance - Math.floor(prev.balance) : 0;
         let updated = {
           ...prev,
           referralCount: refData.referralCount,
           claimedMilestones: refData.claimedMilestones,
-          balance: Math.max(prev.balance, serverBalance),
+          balance: prev.balance + credit,
         };
 
         // Apply bonus sun from server (grant sun if not already owned)
@@ -707,29 +714,30 @@ export function useGameState() {
       if (!telegramId) return;
       const localBalance = Math.floor(stateRef.current.balance);
 
-      const [serverBalance, grants] = await Promise.all([
+      const [, grants] = await Promise.all([
         syncBalance({ telegramId, firstName, zoomBalance: localBalance }),
         fetchGrants(telegramId),
       ]);
 
       applyGrants(grants);
-
-      setState((prev) => {
-        const best = Math.max(prev.balance, serverBalance);
-        if (best === prev.balance) return prev;
-        return { ...prev, balance: best };
-      });
     };
 
     const interval = setInterval(doSync, 30_000);
 
     const handleAdminRefresh = async () => {
-      const { telegramId } = getTelegramContext();
+      const { telegramId, firstName } = getTelegramContext();
       if (!telegramId) return;
 
       const balanceRecord = await fetchBalanceRecord(telegramId);
-      if (balanceRecord?.exists) {
-        setState((prev) => ({ ...prev, balance: Math.max(prev.balance, balanceRecord.zoomBalance) }));
+      if (balanceRecord?.exists && balanceRecord.zoomBalance > stateRef.current.balance) {
+        const credit = balanceRecord.zoomBalance - Math.floor(stateRef.current.balance);
+        if (credit > 0) {
+          setState((prev) => {
+            const newBal = prev.balance + credit;
+            syncBalance({ telegramId, firstName, zoomBalance: Math.floor(newBal) });
+            return { ...prev, balance: newBal };
+          });
+        }
       }
 
       const grants = await fetchGrants(telegramId);

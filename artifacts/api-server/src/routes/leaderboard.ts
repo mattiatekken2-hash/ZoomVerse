@@ -21,20 +21,18 @@ router.post("/balance/sync", async (req, res) => {
   const { telegramId, firstName, zoomBalance } = parsed.data;
 
   try {
-    const rows = await db
+    await db
       .insert(usersTable)
       .values({ telegramId, zoomBalance, firstName: firstName ?? null, referralCount: 0 })
       .onConflictDoUpdate({
         target: usersTable.telegramId,
         set: {
-          zoomBalance: sql`GREATEST(${usersTable.zoomBalance}, ${zoomBalance})`,
+          zoomBalance,
           ...(firstName ? { firstName } : {}),
         },
-      })
-      .returning({ zoomBalance: usersTable.zoomBalance });
+      });
 
-    const serverBalance = rows[0]?.zoomBalance ?? zoomBalance;
-    res.json({ ok: true, zoomBalance: serverBalance });
+    res.json({ ok: true, zoomBalance });
   } catch (err) {
     console.error("[balance/sync] error:", err);
     res.status(500).json({ error: "Database error" });
