@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, type Grants } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, type Grants } from "../utils/api";
 
 async function calibrateServerOffset(): Promise<number> {
   try {
@@ -873,6 +873,8 @@ export function useGameState() {
 
     if (newTaps >= goal) {
       const planet = makePlanet(rarity);
+      const { telegramId: tid } = getTelegramContext();
+      if (tid) recordCraft(tid, planet.name);
       setState((prev) => ({
         ...(planet.name === "GOLD"
           ? withFeedEvent(prev, `${PLAYER_NAME} ha appena forgiato un pianeta GOLD!`)

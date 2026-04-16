@@ -98,4 +98,69 @@ router.get("/balance/:telegramId", async (req, res) => {
   }
 });
 
+router.get("/profile/:telegramId", async (req, res) => {
+  const { telegramId } = req.params;
+  try {
+    const rows = await db
+      .select({
+        createdAt: usersTable.createdAt,
+        totalCraftedBasic: usersTable.totalCraftedBasic,
+        totalCraftedRare: usersTable.totalCraftedRare,
+        totalCraftedEpic: usersTable.totalCraftedEpic,
+        totalCraftedGold: usersTable.totalCraftedGold,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, telegramId))
+      .limit(1);
+
+    if (rows.length === 0) {
+      res.json({ exists: false });
+      return;
+    }
+
+    res.json({
+      exists: true,
+      createdAt: rows[0]!.createdAt,
+      crafted: {
+        BASIC: rows[0]!.totalCraftedBasic,
+        RARE: rows[0]!.totalCraftedRare,
+        EPIC: rows[0]!.totalCraftedEpic,
+        GOLD: rows[0]!.totalCraftedGold,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+const CraftBody = z.object({
+  telegramId: z.string().min(1),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "GOLD"]),
+});
+
+router.post("/craft/record", async (req, res) => {
+  const parsed = CraftBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body" }); return; }
+
+  const { telegramId, planetType } = parsed.data;
+  const fieldMap = {
+    BASIC: "totalCraftedBasic" as const,
+    RARE: "totalCraftedRare" as const,
+    EPIC: "totalCraftedEpic" as const,
+    GOLD: "totalCraftedGold" as const,
+  };
+  const field = fieldMap[planetType];
+
+  try {
+    await db
+      .update(usersTable)
+      .set({ [field]: sql`${usersTable[field]} + 1` })
+      .where(eq(usersTable.telegramId, telegramId));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[craft/record] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 export default router;

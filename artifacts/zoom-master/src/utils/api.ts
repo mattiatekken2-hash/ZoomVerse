@@ -297,6 +297,30 @@ export async function confirmTonPurchase(telegramId: string, itemId: string, wal
   } catch { return { ok: false, error: "Network error" }; }
 }
 
+export interface UserProfile {
+  exists: boolean;
+  createdAt?: string;
+  crafted?: { BASIC: number; RARE: number; EPIC: number; GOLD: number };
+}
+
+export async function fetchProfile(telegramId: string): Promise<UserProfile> {
+  try {
+    const res = await fetch(`${API_BASE}/profile/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return { exists: false };
+    return res.json();
+  } catch { return { exists: false }; }
+}
+
+export async function recordCraft(telegramId: string, planetType: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/craft/record`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId, planetType }),
+    });
+  } catch { /**/ }
+}
+
 export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
   try {
     const res = await fetch(`${API_BASE}/leaderboard`);

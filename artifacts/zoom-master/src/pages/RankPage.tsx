@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { FeedEvent } from "../hooks/useGameState";
 
-import { fetchLeaderboard, fetchGlobalPool, type LeaderboardEntry } from "../utils/api";
+import { fetchLeaderboard, fetchGlobalPool, fetchProfile, type LeaderboardEntry, type UserProfile } from "../utils/api";
 
 interface RankPageProps {
   balance: number;
@@ -10,6 +10,7 @@ interface RankPageProps {
   totalTonSpent: number;
   feedEvents: FeedEvent[];
   telegramId: string | null;
+  visible?: boolean;
 }
 
 const SEASON_DURATION_MS = 90 * 24 * 60 * 60 * 1000;
@@ -35,7 +36,7 @@ function formatZoom(amount: number): string {
   return Math.floor(amount).toLocaleString();
 }
 
-export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSpent: _totalTonSpent, feedEvents, telegramId }: RankPageProps) {
+export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSpent: _totalTonSpent, feedEvents, telegramId, visible }: RankPageProps) {
   const [activeSection, setActiveSection] = useState<"season" | "exchange">("season");
   const feedRef = useRef<HTMLDivElement>(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -43,6 +44,13 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loadingLb, setLoadingLb] = useState(true);
   const [globalPool, setGlobalPool] = useState(0);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  useEffect(() => {
+    if (telegramId && visible) {
+      fetchProfile(telegramId).then(setProfile);
+    }
+  }, [telegramId, visible]);
 
   const seasonProgress = getSeasonProgress(currentTime);
   const currentSeason = 1;
@@ -162,6 +170,36 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
 
       {activeSection === "season" && (
         <>
+          {profile?.exists && (
+            <div className="px-4 mb-3 flex-shrink-0">
+              <div className="rounded-2xl border p-3" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="font-black text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>My Profile</span>
+                  {profile.createdAt && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(0,242,254,0.08)", color: "rgba(0,242,254,0.6)", border: "1px solid rgba(0,242,254,0.15)" }}>
+                      Joined: {new Date(profile.createdAt).toLocaleDateString("it-IT")}
+                    </span>
+                  )}
+                </div>
+                {profile.crafted && (
+                  <div className="grid grid-cols-4 gap-2">
+                    {([
+                      { key: "BASIC", label: "Basic", color: "#8892b0" },
+                      { key: "RARE", label: "Rare", color: "#4facfe" },
+                      { key: "EPIC", label: "Epic", color: "#c471ed" },
+                      { key: "GOLD", label: "Gold", color: "#ffd700" },
+                    ] as const).map(({ key, label, color }) => (
+                      <div key={key} className="rounded-lg p-2 text-center" style={{ background: color + "10", border: `1px solid ${color}20` }}>
+                        <div className="font-black text-base" style={{ color }}>{profile.crafted![key]}</div>
+                        <div className="text-[9px] font-bold uppercase" style={{ color: color + "90" }}>{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Live season rank */}
           <div className="px-4 mb-3 flex-shrink-0">
             <div

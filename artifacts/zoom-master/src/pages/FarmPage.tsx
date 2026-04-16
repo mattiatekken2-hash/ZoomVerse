@@ -48,7 +48,7 @@ export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onB
     const result = onCollect(id);
     if (result.defect) {
       setDefectMsg("Il nucleo del pianeta e' instabile: raccolta fallita!");
-      setTimeout(() => setDefectMsg(null), 3000);
+      setTimeout(() => setDefectMsg(null), 1000);
     }
   };
 

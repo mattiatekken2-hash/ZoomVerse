@@ -16,6 +16,10 @@ export const usersTable = pgTable("users", {
   bonusEpic: integer("bonus_epic").notNull().default(0),
   bonusGold: integer("bonus_gold").notNull().default(0),
   claimedMilestones: text("claimed_milestones").notNull().default(""),
+  totalCraftedBasic: integer("total_crafted_basic").notNull().default(0),
+  totalCraftedRare: integer("total_crafted_rare").notNull().default(0),
+  totalCraftedEpic: integer("total_crafted_epic").notNull().default(0),
+  totalCraftedGold: integer("total_crafted_gold").notNull().default(0),
 }, (table) => [
   index("idx_users_zoom_balance").on(table.zoomBalance),
   index("idx_users_referred_by").on(table.referredBy),

@@ -155,6 +155,7 @@ export default function App() {
                   totalTonSpent={state.totalTonSpent}
                   feedEvents={state.feedEvents}
                   telegramId={state.telegramId}
+                  visible={tab === "rank"}
                 />
               )}
               {t === "shop" && (
