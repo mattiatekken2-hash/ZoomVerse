@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { PlanetCanvas } from "../components/PlanetCanvas";
+import { FortuneWheel } from "../components/FortuneWheel";
 import type { Planet, PlanetType } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 
@@ -12,8 +13,11 @@ interface LabPageProps {
   maxSlots: number;
   currentCraftRarity: PlanetType | null;
   pendingPlanet: Planet | null;
+  telegramId: string;
+  firstName?: string;
   onCraft: () => { completed: boolean; planet?: Planet; tapsLeft?: number };
   onClaim: () => void;
+  onWheelPrize: (prize: string, zoomAmount: number) => void;
 }
 
 interface FloatMsg { id: number; text: string; color: string }
@@ -21,9 +25,10 @@ interface FloatMsg { id: number; text: string; color: string }
 const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, onCraft, onClaim }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, telegramId, firstName, onCraft, onClaim, onWheelPrize }: LabPageProps) {
   const [status, setStatus] = useState("TAP TO FORGE A PLANET");
   const [floats, setFloats] = useState<FloatMsg[]>([]);
+  const [wheelOpen, setWheelOpen] = useState(false);
   const timeoutRef = useRef<number | null>(null);
 
   const isFull = planets.length >= maxSlots && !pendingPlanet;
@@ -71,8 +76,34 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     GOLD: "gold-text",
   };
 
+  if (wheelOpen) {
+    return (
+      <FortuneWheel
+        telegramId={telegramId}
+        firstName={firstName}
+        onClose={() => setWheelOpen(false)}
+        onPrizeGranted={onWheelPrize}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
+      <button
+        onClick={() => setWheelOpen(true)}
+        className="absolute right-3 top-3 z-30 flex items-center justify-center"
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: "50%",
+          background: "linear-gradient(135deg, #7c4dff, #00e5ff)",
+          boxShadow: "0 0 20px rgba(0,229,255,0.5), 0 0 40px rgba(124,77,255,0.3)",
+          animation: "wheel-pulse 2s ease-in-out infinite",
+        }}
+      >
+        <span className="text-xl" style={{ filter: "drop-shadow(0 0 4px rgba(255,255,255,0.8))" }}>🎡</span>
+      </button>
+
       <div className="relative flex-1" style={{ minHeight: 0 }} onClick={canCraft ? handleCraft : undefined}>
         <PlanetCanvas
           onPunch={canCraft ? handleCraft : undefined}

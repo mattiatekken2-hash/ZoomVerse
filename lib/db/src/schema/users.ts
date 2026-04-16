@@ -56,6 +56,19 @@ export const marketListingsTable = pgTable("market_listings", {
   index("idx_market_seller").on(table.sellerTelegramId),
 ]);
 
+export const spinLogsTable = pgTable("spin_logs", {
+  id: serial("id").primaryKey(),
+  telegramId: text("telegram_id").notNull(),
+  firstName: text("first_name"),
+  prize: text("prize").notNull(),
+  starsSpent: integer("stars_spent").notNull().default(0),
+  isFree: boolean("is_free").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => [
+  index("idx_spin_telegram_id").on(table.telegramId),
+  index("idx_spin_created_at").on(table.createdAt),
+]);
+
 export const insertMarketListingSchema = createInsertSchema(marketListingsTable).omit({ id: true, createdAt: true, soldAt: true });
 export type InsertMarketListing = z.infer<typeof insertMarketListingSchema>;
 export type MarketListing = typeof marketListingsTable.$inferSelect;

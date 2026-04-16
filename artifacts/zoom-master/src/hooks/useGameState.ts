@@ -1194,6 +1194,15 @@ export function useGameState() {
     });
   }, []);
 
+  const wheelPrize = useCallback((prize: string, zoomAmount: number) => {
+    if (prize === "ZOOM" && zoomAmount > 0) {
+      setState((prev) => ({
+        ...prev,
+        balance: prev.balance + zoomAmount,
+      }));
+    }
+  }, []);
+
   return {
     state, craft, claimCraft, redeemCode,
     collectPlanet, burnPlanet,
@@ -1202,5 +1211,6 @@ export function useGameState() {
     unlockSlot, claimDaily,
     activateSun, acquireSun, collectSun,
     startSunFarming, stopSunFarming, burnSun,
+    wheelPrize,
   };
 }
