@@ -58,6 +58,25 @@ export function WheelPage({ telegramId }: WheelPageProps) {
   useEffect(() => { fetchWheelConfig().then(setPrizes); }, []);
   useEffect(() => { refreshStatus(); }, [refreshStatus]);
 
+  // Auto-refresh spins (admin credits + visibility/focus)
+  useEffect(() => {
+    if (!telegramId) return;
+    const onRefresh = () => { refreshStatus(); };
+    const onVisible = () => { if (document.visibilityState === "visible") refreshStatus(); };
+    window.addEventListener("zoom-admin-refresh", onRefresh);
+    window.addEventListener("zoom-data-refresh", onRefresh);
+    window.addEventListener("focus", onRefresh);
+    document.addEventListener("visibilitychange", onVisible);
+    const poll = setInterval(refreshStatus, 6000);
+    return () => {
+      window.removeEventListener("zoom-admin-refresh", onRefresh);
+      window.removeEventListener("zoom-data-refresh", onRefresh);
+      window.removeEventListener("focus", onRefresh);
+      document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(poll);
+    };
+  }, [telegramId, refreshStatus]);
+
   // Live countdown
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -150,6 +169,9 @@ export function WheelPage({ telegramId }: WheelPageProps) {
       setWinFlash(true);
       spawnParticles(r.prize.color);
       setTimeout(() => setWinFlash(false), 2500);
+      // Pull updated balance + grants (planet bonuses) from server immediately
+      window.dispatchEvent(new Event("zoom-data-refresh"));
+      window.dispatchEvent(new Event("zoom-admin-refresh"));
     }, 5200);
   };
 
