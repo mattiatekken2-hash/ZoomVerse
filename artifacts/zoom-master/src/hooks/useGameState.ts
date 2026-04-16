@@ -97,8 +97,8 @@ export const PLANET_CONFIG: Record<PlanetType, {
 }> = {
   BASIC: {
     rate: 2,
-    color: "#64b5f6",
-    glowColor: "rgba(100,181,246,0.5)",
+    color: "#8892b0",
+    glowColor: "rgba(136,146,176,0.5)",
     chance: 0.74,
     label: "Basic",
     craftCost: 20,

@@ -10,6 +10,33 @@ interface PlanetCanvasProps {
 
 const DEFAULT_COLOR = "#4facfe";
 
+const LAB_GRADIENTS: Record<string, string[]> = {
+  "#8892b0": ["#d0d4e0", "#b0b8cc", "#8892b0", "#6b7394", "#4a5270"],
+  "#4facfe": ["#e0f0ff", "#a0d4ff", "#4facfe", "#2d8bdb", "#1a5fa0"],
+  "#c471ed": ["#f0d4ff", "#d898f0", "#c471ed", "#a050cc", "#7a30a0"],
+  "#ffd700": ["#fff8e1", "#ffe082", "#ffd700", "#e6b800", "#b8860b"],
+};
+
+function getLabStops(color: string): string[] {
+  return LAB_GRADIENTS[color] || [
+    lighten(color, 0.5), lighten(color, 0.25), color, darken(color, 0.2), darken(color, 0.4)
+  ];
+}
+
+function lighten(hex: string, amount: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgb(${Math.min(255, Math.round(r + (255 - r) * amount))},${Math.min(255, Math.round(g + (255 - g) * amount))},${Math.min(255, Math.round(b + (255 - b) * amount))})`;
+}
+
+function darken(hex: string, amount: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgb(${Math.round(r * (1 - amount))},${Math.round(g * (1 - amount))},${Math.round(b * (1 - amount))})`;
+}
+
 function CSSSphere({
   color,
   size,
@@ -19,6 +46,8 @@ function CSSSphere({
   size: number;
   isRevealing: boolean;
 }) {
+  const [s0, s1, s2, s3, s4] = getLabStops(color);
+
   return (
     <div className="planet-wrap" style={{ width: size, height: size }}>
       <div
@@ -26,19 +55,8 @@ function CSSSphere({
         style={{
           width: size * 2.2,
           height: size * 2.2,
-          background: `radial-gradient(circle, ${color}44 0%, ${color}18 35%, ${color}08 55%, transparent 75%)`,
+          background: `radial-gradient(circle, ${color}55 0%, ${color}20 40%, transparent 70%)`,
           filter: `blur(${size * 0.15}px)`,
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          width: size * 1.6,
-          height: size * 1.6,
-          borderRadius: "50%",
-          background: `radial-gradient(circle, ${color}33 0%, ${color}11 40%, transparent 65%)`,
-          filter: `blur(${size * 0.08}px)`,
-          pointerEvents: "none",
         }}
       />
       <div
@@ -46,45 +64,25 @@ function CSSSphere({
         style={{
           width: size,
           height: size,
-          background: `
-            radial-gradient(
-              circle at 38% 32%,
-              #ffffff66 0%,
-              #ffffff33 8%,
-              ${color} 22%,
-              ${color}dd 40%,
-              ${color}88 60%,
-              ${color}44 80%,
-              ${color}11 100%
-            )`,
+          background: `radial-gradient(circle at 40% 35%, ${s0} 0%, ${s1} 15%, ${s2} 35%, ${s3} 60%, ${s4} 85%, ${s4} 100%)`,
           boxShadow: `
-            0 0 ${size * 0.35}px ${color}aa,
-            0 0 ${size * 0.7}px ${color}55,
-            0 0 ${size * 1.2}px ${color}28,
-            inset -${size * 0.08}px -${size * 0.04}px ${size * 0.15}px ${color}33,
-            inset ${size * 0.06}px ${size * 0.05}px ${size * 0.12}px #ffffff18
+            0 0 ${size * 0.4}px ${color}99,
+            0 0 ${size * 0.8}px ${color}44,
+            0 0 ${size * 1.3}px ${color}18,
+            inset -${size * 0.06}px -${size * 0.04}px ${size * 0.12}px rgba(0,0,0,0.25)
           `,
         }}
       >
         <div
           style={{
             position: "absolute",
-            top: "6%",
-            left: "10%",
-            width: "42%",
-            height: "42%",
+            top: "8%",
+            left: "12%",
+            width: "38%",
+            height: "38%",
             borderRadius: "50%",
-            background: "radial-gradient(circle at 42% 38%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.12) 40%, transparent 70%)",
+            background: "radial-gradient(circle at 45% 40%, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.15) 50%, transparent 75%)",
             filter: `blur(${size * 0.03}px)`,
-            pointerEvents: "none",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            borderRadius: "50%",
-            background: `radial-gradient(circle at 65% 65%, ${color}25 0%, transparent 55%)`,
             pointerEvents: "none",
           }}
         />

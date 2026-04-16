@@ -6,8 +6,31 @@ interface PlanetOrbProps {
   animate?: boolean;
 }
 
+const PLANET_GRADIENTS: Record<string, { stops: string[]; glowAlpha: number }> = {
+  BASIC: {
+    stops: ["#d0d4e0", "#b0b8cc", "#8892b0", "#6b7394", "#4a5270"],
+    glowAlpha: 0.5,
+  },
+  RARE: {
+    stops: ["#e0f0ff", "#a0d4ff", "#4facfe", "#2d8bdb", "#1a5fa0"],
+    glowAlpha: 0.6,
+  },
+  EPIC: {
+    stops: ["#f0d4ff", "#d898f0", "#c471ed", "#a050cc", "#7a30a0"],
+    glowAlpha: 0.6,
+  },
+  GOLD: {
+    stops: ["#fff8e1", "#ffe082", "#ffd700", "#e6b800", "#b8860b"],
+    glowAlpha: 0.7,
+  },
+};
+
+const DEFAULT_GRADIENT = PLANET_GRADIENTS.BASIC;
+
 export function PlanetOrb({ planet, size = 60, animate = true }: PlanetOrbProps) {
   const c = planet.color;
+  const grad = PLANET_GRADIENTS[planet.name] || DEFAULT_GRADIENT;
+  const [s0, s1, s2, s3, s4] = grad.stops;
 
   return (
     <div
@@ -24,23 +47,12 @@ export function PlanetOrb({ planet, size = 60, animate = true }: PlanetOrbProps)
       <div
         style={{
           position: "absolute",
-          width: size * 2.4,
-          height: size * 2.4,
+          width: size * 2.2,
+          height: size * 2.2,
           borderRadius: "50%",
-          background: `radial-gradient(circle, ${c}55 0%, ${c}22 35%, ${c}08 60%, transparent 78%)`,
-          filter: `blur(${size * 0.25}px)`,
+          background: `radial-gradient(circle, ${c}55 0%, ${c}20 40%, transparent 70%)`,
+          filter: `blur(${size * 0.2}px)`,
           animation: animate ? "planet-breathe 3s ease-in-out infinite alternate" : "none",
-          pointerEvents: "none",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          width: size * 1.7,
-          height: size * 1.7,
-          borderRadius: "50%",
-          background: `radial-gradient(circle, ${c}44 0%, ${c}18 40%, transparent 65%)`,
-          filter: `blur(${size * 0.1}px)`,
           pointerEvents: "none",
         }}
       />
@@ -51,25 +63,12 @@ export function PlanetOrb({ planet, size = 60, animate = true }: PlanetOrbProps)
           borderRadius: "50%",
           position: "relative",
           overflow: "hidden",
-          background: `
-            radial-gradient(
-              circle at 38% 32%,
-              #ffffff88 0%,
-              #ffffff44 8%,
-              ${c} 22%,
-              ${c}dd 40%,
-              ${c}88 60%,
-              ${c}44 80%,
-              ${c}11 100%
-            )
-          `,
+          background: `radial-gradient(circle at 40% 35%, ${s0} 0%, ${s1} 15%, ${s2} 35%, ${s3} 60%, ${s4} 85%, ${s4} 100%)`,
           boxShadow: `
-            0 0 ${size * 0.35}px ${c}aa,
-            0 0 ${size * 0.7}px ${c}66,
-            0 0 ${size * 1.2}px ${c}33,
-            0 0 ${size * 1.8}px ${c}18,
-            inset -${size * 0.08}px -${size * 0.04}px ${size * 0.15}px ${c}33,
-            inset ${size * 0.06}px ${size * 0.05}px ${size * 0.12}px #ffffff22
+            0 0 ${size * 0.4}px ${c}99,
+            0 0 ${size * 0.8}px ${c}44,
+            0 0 ${size * 1.3}px ${c}18,
+            inset -${size * 0.06}px -${size * 0.04}px ${size * 0.12}px rgba(0,0,0,0.25)
           `,
           animation: animate ? "planet-rotate 10s linear infinite" : "none",
         }}
@@ -77,36 +76,13 @@ export function PlanetOrb({ planet, size = 60, animate = true }: PlanetOrbProps)
         <div
           style={{
             position: "absolute",
-            top: "6%",
-            left: "10%",
-            width: "42%",
-            height: "42%",
+            top: "8%",
+            left: "12%",
+            width: "38%",
+            height: "38%",
             borderRadius: "50%",
-            background: "radial-gradient(circle at 42% 38%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.15) 40%, transparent 70%)",
-            filter: `blur(${size * 0.04}px)`,
-            pointerEvents: "none",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            borderRadius: "50%",
-            background: `radial-gradient(circle at 65% 65%, ${c}30 0%, transparent 55%)`,
-            pointerEvents: "none",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            top: "15%",
-            left: "20%",
-            width: "25%",
-            height: "12%",
-            borderRadius: "50%",
-            background: `rgba(255,255,255,0.08)`,
+            background: "radial-gradient(circle at 45% 40%, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.15) 50%, transparent 75%)",
             filter: `blur(${size * 0.03}px)`,
-            transform: "rotate(-15deg)",
             pointerEvents: "none",
           }}
         />

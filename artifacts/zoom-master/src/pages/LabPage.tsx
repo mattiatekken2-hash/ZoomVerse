@@ -18,7 +18,7 @@ interface LabPageProps {
 
 interface FloatMsg { id: number; text: string; color: string }
 
-const GREY = "#64b5f6";
+const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
 export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, onCraft, onClaim }: LabPageProps) {
