@@ -60,7 +60,7 @@ export default function App() {
           className="font-black text-lg tracking-widest neon-text cursor-pointer"
           onClick={() => switchTab("lab")}
         >
-          ZOOM
+          ZOOM BETA
         </div>
         <div className="flex items-center gap-3">
           {totalRate > 0 && (
