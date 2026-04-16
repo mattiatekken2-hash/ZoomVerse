@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db/schema";
-import { sql } from "drizzle-orm";
+import { usersTable, appSettingsTable } from "@workspace/db/schema";
+import { sql, eq } from "drizzle-orm";
 import { z } from "zod";
 import fs from "node:fs";
 import path from "node:path";
@@ -233,6 +233,89 @@ router.post("/admin/remove-slots", async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
+  }
+});
+
+// ----- SPINS -----
+const SpinsBody = z.object({
+  adminId: z.string(),
+  telegramId: z.string().min(1),
+  count: z.number().int().positive(),
+});
+
+router.post("/admin/credit-spins", async (req, res) => {
+  const parsed = SpinsBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+  const { telegramId, count } = parsed.data;
+  try {
+    await db.insert(usersTable)
+      .values({ telegramId, zoomBalance: 0, referralCount: 0, wheelSpins: count })
+      .onConflictDoUpdate({
+        target: usersTable.telegramId,
+        set: { wheelSpins: sql`${usersTable.wheelSpins} + ${count}` },
+      });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/credit-spins]", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/remove-spins", async (req, res) => {
+  const parsed = SpinsBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+  const { telegramId, count } = parsed.data;
+  try {
+    await db.update(usersTable)
+      .set({ wheelSpins: sql`GREATEST(0, ${usersTable.wheelSpins} - ${count})` })
+      .where(sql`${usersTable.telegramId} = ${telegramId}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/remove-spins]", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// ----- RESET SEASON -----
+const ResetSeasonBody = z.object({ adminId: z.string() });
+
+router.post("/admin/reset-season", async (req, res) => {
+  const parsed = ResetSeasonBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+  try {
+    await db.update(usersTable).set({
+      zoomBalance: 0,
+      totalCraftedBasic: 0,
+      totalCraftedRare: 0,
+      totalCraftedEpic: 0,
+      totalCraftedGold: 0,
+      claimedMilestones: "",
+    });
+    const epoch = Date.now();
+    await db.insert(appSettingsTable)
+      .values({ key: "season_epoch", valueNum: epoch, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: appSettingsTable.key,
+        set: { valueNum: epoch, updatedAt: new Date() },
+      });
+    await writeAdminAssetSnapshot();
+    res.json({ ok: true, epoch });
+  } catch (err) {
+    console.error("[admin/reset-season]", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// ----- PUBLIC: season epoch -----
+router.get("/season/epoch", async (_req, res) => {
+  try {
+    const [row] = await db.select().from(appSettingsTable).where(eq(appSettingsTable.key, "season_epoch")).limit(1);
+    res.json({ epoch: row?.valueNum ?? 0 });
+  } catch {
+    res.json({ epoch: 0 });
   }
 });
 

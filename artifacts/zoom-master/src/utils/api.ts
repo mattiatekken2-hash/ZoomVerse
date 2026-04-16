@@ -234,6 +234,48 @@ export async function adminGlobalBonus(adminId: string, amount: number): Promise
   } catch { return false; }
 }
 
+export async function adminCreditSpins(adminId: string, telegramId: string, count: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/credit-spins`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId, count }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function adminRemoveSpins(adminId: string, telegramId: string, count: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/remove-spins`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId, count }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function adminResetSeason(adminId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/reset-season`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function fetchSeasonEpoch(): Promise<number> {
+  try {
+    const res = await fetch(`${API_BASE}/season/epoch?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return typeof data.epoch === "number" ? data.epoch : 0;
+  } catch { return 0; }
+}
+
 export async function fetchBalance(telegramId: string): Promise<number | null> {
   const data = await fetchBalanceRecord(telegramId);
   return data ? data.zoomBalance : null;

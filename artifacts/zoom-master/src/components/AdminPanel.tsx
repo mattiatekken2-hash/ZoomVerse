@@ -8,12 +8,15 @@ import {
   adminRemoveZoom,
   adminRemovePlanets,
   adminRemoveSlots,
+  adminCreditSpins,
+  adminRemoveSpins,
+  adminResetSeason,
 } from "../utils/api";
 
 const ADMIN_ID = "8144744644";
 
 type PlanetChoice = "BASIC" | "RARE" | "EPIC" | "GOLD" | "SUN";
-type ActionType = "zoom" | "planets" | "slots";
+type ActionType = "zoom" | "planets" | "slots" | "spins";
 
 function haptic() {
   try {
@@ -42,7 +45,8 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const showFeedback = (msg: string, ok: boolean) => {
     setFeedback({ msg, ok });
@@ -63,15 +67,20 @@ export function AdminPanel({ telegramId }: Props) {
       if (type === "zoom") ok = await adminCreditZoom(telegramId, id, val);
       else if (type === "planets") ok = await adminAddPlanets(telegramId, id, Math.floor(val), planetType);
       else if (type === "slots") ok = await adminUnlockSlots(telegramId, id, Math.floor(val));
+      else if (type === "spins") ok = await adminCreditSpins(telegramId, id, Math.floor(val));
     } else {
       if (type === "zoom") ok = await adminRemoveZoom(telegramId, id, val);
       else if (type === "planets") ok = await adminRemovePlanets(telegramId, id, Math.floor(val), planetType);
       else if (type === "slots") ok = await adminRemoveSlots(telegramId, id, Math.floor(val));
+      else if (type === "spins") ok = await adminRemoveSpins(telegramId, id, Math.floor(val));
     }
     setLoading(null);
     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
     const direction = mode === "add" ? "aggiunti" : "rimossi";
-    const item = type === "zoom" ? `${val} $ZOOM` : type === "slots" ? `${Math.floor(val)} slot` : `${Math.floor(val)} ${planetType === "SUN" ? "Sole" : `pianeti ${planetType}`}`;
+    const item = type === "zoom" ? `${val} $ZOOM`
+      : type === "slots" ? `${Math.floor(val)} slot`
+      : type === "spins" ? `${Math.floor(val)} spin`
+      : `${Math.floor(val)} ${planetType === "SUN" ? "Sole" : `pianeti ${planetType}`}`;
     showFeedback(ok ? `✓ ${item} ${direction} a ID ${id}` : `✗ Errore per ID ${id}`, ok);
   }, [targetId, amount, planetType, mode, telegramId]);
 
@@ -261,11 +270,12 @@ export function AdminPanel({ telegramId }: Props) {
                 </div>
 
                 {/* Action buttons */}
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   {([
                     { type: "zoom" as ActionType,    label: "🪐 ZOOM",    color: "#00f2fe" },
                     { type: "planets" as ActionType, label: "🌍 Pianeti", color: "#c471ed" },
                     { type: "slots" as ActionType,   label: "📦 Slot",    color: "#4facfe" },
+                    { type: "spins" as ActionType,   label: "🎡 Spin",    color: "#ffd700" },
                   ]).map(({ type, label, color }) => {
                     const btnColor = mode === "remove" ? "#ff5555" : color;
                     return (
@@ -359,6 +369,50 @@ export function AdminPanel({ telegramId }: Props) {
                 >
                   {loading === "global" ? "..." : "⚡ BONUS ZOOM GLOBALE"}
                 </motion.button>
+
+                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+
+                {/* Reset Season - destructive */}
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
+                  RESET STAGIONE
+                </div>
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={async () => {
+                    haptic();
+                    if (!confirmReset) {
+                      setConfirmReset(true);
+                      setTimeout(() => setConfirmReset(false), 4000);
+                      return;
+                    }
+                    setLoading("reset");
+                    const ok = await adminResetSeason(telegramId);
+                    setLoading(null);
+                    setConfirmReset(false);
+                    if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+                    showFeedback(ok ? "✓ Stagione resettata per tutti" : "✗ Errore reset", ok);
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: `1px solid ${confirmReset ? "rgba(255,60,60,0.6)" : "rgba(255,60,60,0.25)"}`,
+                    background: confirmReset ? "rgba(255,60,60,0.18)" : "rgba(255,60,60,0.08)",
+                    color: "#ff5555",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "all 0.2s",
+                    boxShadow: confirmReset ? "0 0 14px rgba(255,60,60,0.3)" : "none",
+                  }}
+                >
+                  {loading === "reset" ? "..." : confirmReset ? "⚠ CONFERMA RESET (tap)" : "🔄 RESET STAGIONE (Zoom + Exchange)"}
+                </motion.button>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.4 }}>
+                  Azzera $ZOOM, pool stagionale, conteggi craft e claim per tutti gli utenti.
+                </div>
 
                 <AnimatePresence>
                   {feedback && (

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, type Grants } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, type Grants } from "../utils/api";
 
 async function calibrateServerOffset(): Promise<number> {
   try {
@@ -488,6 +488,32 @@ export function useGameState() {
     saveState(state);
     immediateSyncToServer(state);
   }, [state]);
+
+  // Season-epoch sync: if admin reset the season, wipe client-side counters
+  useEffect(() => {
+    let cancelled = false;
+    const SEASON_EPOCH_KEY = "zoom-season-epoch";
+    const check = async () => {
+      const serverEpoch = await fetchSeasonEpoch();
+      if (cancelled || !serverEpoch) return;
+      let localEpoch = 0;
+      try { localEpoch = Number(localStorage.getItem(SEASON_EPOCH_KEY) || "0"); } catch { /**/ }
+      if (serverEpoch > localEpoch) {
+        try { localStorage.setItem(SEASON_EPOCH_KEY, String(serverEpoch)); } catch { /**/ }
+        setState((prev) => ({
+          ...prev,
+          balance: 0,
+          totalEarned: 0,
+          seasonPoolEarned: 0,
+          totalTonSpent: 0,
+          claimedMilestones: [],
+        }));
+      }
+    };
+    check();
+    const interval = setInterval(check, 30_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
 
   useEffect(() => {
     const { telegramId, startParam, firstName } = getTelegramContext();
