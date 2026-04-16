@@ -12,6 +12,7 @@ router.get("/grants/:telegramId", async (req, res) => {
       .select({
         bonusSlots: usersTable.bonusSlots,
         bonusSun: usersTable.bonusSun,
+        sunCount: usersTable.sunCount,
         bonusBasic: usersTable.bonusBasic,
         bonusRare: usersTable.bonusRare,
         bonusEpic: usersTable.bonusEpic,
@@ -22,12 +23,13 @@ router.get("/grants/:telegramId", async (req, res) => {
       .limit(1);
 
     if (!user) {
-      return res.json({ bonusSlots: 0, bonusSun: false, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0 });
+      return res.json({ bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0 });
     }
 
     res.json({
       bonusSlots: user.bonusSlots,
       bonusSun: user.bonusSun,
+      sunCount: user.sunCount,
       bonusBasic: user.bonusBasic,
       bonusRare: user.bonusRare,
       bonusEpic: user.bonusEpic,

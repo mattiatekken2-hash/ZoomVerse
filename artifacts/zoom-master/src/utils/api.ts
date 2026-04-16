@@ -118,13 +118,34 @@ export async function syncBalance(params: {
 export interface Grants {
   bonusSlots: number;
   bonusSun: boolean;
+  sunCount: number;
   bonusBasic: number;
   bonusRare: number;
   bonusEpic: number;
   bonusGold: number;
 }
 
-const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0 };
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0 };
+
+export interface SunStock {
+  sold: number;
+  remaining: number;
+  max: number;
+  maxPerUser: number;
+  userCount: number;
+}
+
+export async function fetchSunStock(telegramId?: string): Promise<SunStock> {
+  try {
+    const params = new URLSearchParams({ t: String(Date.now()) });
+    if (telegramId) params.set("telegramId", telegramId);
+    const res = await fetch(`${API_BASE}/sun/stock?${params.toString()}`, { cache: "no-store" });
+    if (!res.ok) return { sold: 0, remaining: 50, max: 50, maxPerUser: 5, userCount: 0 };
+    return res.json();
+  } catch {
+    return { sold: 0, remaining: 50, max: 50, maxPerUser: 5, userCount: 0 };
+  }
+}
 
 export async function fetchGrants(telegramId: string): Promise<Grants> {
   try {

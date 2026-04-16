@@ -81,6 +81,7 @@ export interface GameState {
   claimedBonusEpic: number;
   claimedBonusGold: number;
   claimedBonusSun: boolean;
+  sunCount: number;
   lastFarmingSettledAt: number;
   claimedMilestones: number[];
   defectPlanets: string[];
@@ -224,6 +225,7 @@ const INITIAL_STATE: GameState = {
   claimedBonusEpic: 0,
   claimedBonusGold: 0,
   claimedBonusSun: false,
+  sunCount: 0,
   lastFarmingSettledAt: Date.now(),
   claimedMilestones: [],
   defectPlanets: [],
@@ -459,7 +461,10 @@ function settleFarmingState(state: GameState, now: number): GameState {
   if (state.sun?.isActive) {
     const start = Math.max(from, state.sun.farmStartedAt, state.sun.lastCollectedAt);
     const end = Math.min(now, state.sun.farmStartedAt + FARM_DURATION_MS, state.sun.lastCollectedAt + DAILY_COLLECT_MS);
-    if (end > start) earned += (SUN_CONFIG.rate / 3_600_000) * (end - start) * speedMultiplier;
+    if (end > start) {
+      const sunMultiplier = Math.max(1, state.sunCount || 1);
+      earned += (SUN_CONFIG.rate * sunMultiplier / 3_600_000) * (end - start) * speedMultiplier;
+    }
   }
 
   if (earned <= 0) return { ...state, lastFarmingSettledAt: now };
@@ -552,6 +557,7 @@ export function useGameState() {
           updated = {
             ...updated,
             claimedBonusSun: true,
+            sunCount: Math.max(1, grants.sunCount || 1),
             sun: updated.sun?.isOwned ? updated.sun : {
               isOwned: true,
               isActive: false,
@@ -562,7 +568,7 @@ export function useGameState() {
             },
           };
         } else if (updated.claimedBonusSun) {
-          updated = { ...updated, sun: null, claimedBonusSun: false };
+          updated = { ...updated, sun: null, claimedBonusSun: false, sunCount: 0 };
         }
 
         updated = {
@@ -642,6 +648,7 @@ export function useGameState() {
           updated = {
             ...updated,
             claimedBonusSun: true,
+            sunCount: Math.max(1, grants.sunCount || 1),
             sun: updated.sun?.isOwned ? updated.sun : {
               isOwned: true,
               isActive: false,
@@ -652,7 +659,7 @@ export function useGameState() {
             },
           };
         } else if (updated.claimedBonusSun) {
-          updated = { ...updated, sun: null, claimedBonusSun: false };
+          updated = { ...updated, sun: null, claimedBonusSun: false, sunCount: 0 };
         }
 
         updated = {

@@ -16,6 +16,9 @@ interface StarsItem {
   itemType: string;
 }
 
+const SUN_MAX_PER_USER = 5;
+const SUN_MAX_GLOBAL = 50;
+
 const STARS_CATALOG: StarsItem[] = [
   { id: "starter_pack", title: "Starter Pack", description: "2,000 $ZOOM + 1 Basic Planet", starsPrice: 50, tonPrice: 0.5, zoomAmount: 2000, itemType: "bundle" },
   { id: "explorer_pack", title: "Explorer Pack", description: "8,000 $ZOOM + 1 Rare Planet", starsPrice: 150, tonPrice: 1.5, zoomAmount: 8000, itemType: "bundle" },
@@ -41,15 +44,54 @@ async function creditUser(item: StarsItem, telegramId: string) {
       .set({ [planetType]: sql`${usersTable[planetType]} + 1` })
       .where(eq(usersTable.telegramId, telegramId));
   } else if (item.itemType === "sun") {
-    await db.update(usersTable)
-      .set({ bonusSun: true })
-      .where(eq(usersTable.telegramId, telegramId));
+    const result = await db.execute(sql`
+      UPDATE users
+      SET sun_count = sun_count + 1, bonus_sun = true
+      WHERE telegram_id = ${telegramId}
+        AND sun_count < ${SUN_MAX_PER_USER}
+        AND (SELECT COALESCE(SUM(sun_count), 0) FROM users) < ${SUN_MAX_GLOBAL}
+      RETURNING sun_count
+    `);
+    if (!result.rows || result.rows.length === 0) {
+      console.error(`[creditUser] SUN credit denied for ${telegramId} (limit reached at credit time)`);
+      throw new Error("SUN_LIMIT_REACHED");
+    }
   } else if (item.itemType === "slot") {
     await db.update(usersTable)
       .set({ bonusSlots: sql`${usersTable.bonusSlots} + 1` })
       .where(eq(usersTable.telegramId, telegramId));
   }
 }
+
+async function getSunStock(): Promise<{ sold: number; remaining: number }> {
+  const [row] = await db.select({ sold: sql<number>`COALESCE(SUM(${usersTable.sunCount}), 0)::int` }).from(usersTable);
+  const sold = Number(row?.sold ?? 0);
+  return { sold, remaining: Math.max(0, SUN_MAX_GLOBAL - sold) };
+}
+
+async function getUserSunCount(telegramId: string): Promise<number> {
+  const [row] = await db.select({ c: usersTable.sunCount }).from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
+  return row?.c ?? 0;
+}
+
+async function checkSunPurchasable(telegramId: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const [stock, userCount] = await Promise.all([getSunStock(), getUserSunCount(telegramId)]);
+  if (userCount >= SUN_MAX_PER_USER) return { ok: false, reason: `You already own the maximum of ${SUN_MAX_PER_USER} SUNs` };
+  if (stock.remaining <= 0) return { ok: false, reason: "SUN sold out" };
+  return { ok: true };
+}
+
+router.get("/sun/stock", async (req, res) => {
+  try {
+    const telegramId = (req.query["telegramId"] as string) || "";
+    const stock = await getSunStock();
+    const userCount = telegramId ? await getUserSunCount(telegramId) : 0;
+    res.json({ ...stock, max: SUN_MAX_GLOBAL, maxPerUser: SUN_MAX_PER_USER, userCount });
+  } catch (err) {
+    console.error("[sun/stock] error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
 
 async function atomicCreditIfPending(txnId: number, paymentId: string, item: StarsItem, telegramId: string): Promise<boolean> {
   const updated = await db.update(transactionsTable)
@@ -85,6 +127,14 @@ router.post("/stars/create-invoice", async (req, res) => {
   if (!item) {
     res.status(404).json({ error: "Item not found" });
     return;
+  }
+
+  if (item.itemType === "sun") {
+    const check = await checkSunPurchasable(telegramId);
+    if (!check.ok) {
+      res.status(409).json({ error: check.reason });
+      return;
+    }
   }
 
   try {
@@ -161,6 +211,14 @@ router.post("/stars/confirm", async (req, res) => {
       return;
     }
 
+    if (item.itemType === "sun") {
+      const check = await checkSunPurchasable(telegramId);
+      if (!check.ok) {
+        res.status(409).json({ error: check.reason });
+        return;
+      }
+    }
+
     const credited = await atomicCreditIfPending(txnId, `stars_confirm_${txnId}_${Date.now()}`, item, telegramId);
     if (!credited) {
       res.json({ ok: true, alreadyCredited: true });
@@ -193,6 +251,14 @@ router.post("/ton/confirm", async (req, res) => {
   if (!item) {
     res.status(404).json({ error: "Item not found" });
     return;
+  }
+
+  if (item.itemType === "sun") {
+    const check = await checkSunPurchasable(telegramId);
+    if (!check.ok) {
+      res.status(409).json({ error: check.reason });
+      return;
+    }
   }
 
   const paymentId = boc

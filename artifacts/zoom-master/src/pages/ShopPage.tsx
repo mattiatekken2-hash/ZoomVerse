@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
-import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase } from "../utils/api";
+import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase, fetchSunStock, type SunStock } from "../utils/api";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 
@@ -29,12 +29,26 @@ interface ShopPageProps {
   telegramId?: string | null;
 }
 
-export function ShopPage({ hasSun, telegramId }: ShopPageProps) {
+export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
   const [buying, setBuying] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [payMode, setPayMode] = useState<"stars" | "ton">("stars");
+  const [sunStock, setSunStock] = useState<SunStock | null>(null);
+
+  const refreshSunStock = async () => {
+    if (!telegramId) return;
+    const stock = await fetchSunStock(telegramId);
+    setSunStock(stock);
+  };
+
+  useEffect(() => {
+    refreshSunStock();
+    const id = setInterval(refreshSunStock, 15000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [telegramId]);
 
   useEffect(() => {
     if (message) {
@@ -42,6 +56,10 @@ export function ShopPage({ hasSun, telegramId }: ShopPageProps) {
       return () => clearTimeout(t);
     }
   }, [message]);
+
+  const sunSoldOut = !!sunStock && sunStock.remaining <= 0;
+  const sunUserMaxed = !!sunStock && sunStock.userCount >= sunStock.maxPerUser;
+  const sunDisabled = sunSoldOut || sunUserMaxed;
 
   const handleStarsBuy = async (item: ShopItem) => {
     if (!telegramId) { setMessage("Telegram ID missing"); return; }
@@ -204,39 +222,40 @@ export function ShopPage({ hasSun, telegramId }: ShopPageProps) {
               <div>
                 <div className="font-black text-xl tracking-wide" style={{ color: "#ffb347" }}>THE SUN</div>
                 <div className="text-xs mt-1" style={{ color: "rgba(255,179,71,0.6)" }}>
-                  Limited Edition · Exclusive
+                  Limited Edition · {sunStock ? `${sunStock.remaining}/${sunStock.max} left` : "Exclusive"}
                 </div>
               </div>
               <div className="px-3 py-1.5 rounded-full text-xs font-bold" style={{ background: "rgba(255,179,71,0.15)", color: "#ffb347", border: "1px solid rgba(255,179,71,0.3)" }}>
-                EXCLUSIVE
+                {sunStock ? `OWNED ${sunStock.userCount}/${sunStock.maxPerUser}` : "EXCLUSIVE"}
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mb-4">
-              {["Not tradeable", "Max yield", "1,000/hr"].map(tag => (
+              {["Not tradeable", "Max yield", "1,000/hr each", `Max ${sunStock?.maxPerUser ?? 5}/user`].map(tag => (
                 <span key={tag} className="text-xs px-2 py-0.5 rounded-full" style={{ background: "rgba(255,179,71,0.08)", color: "rgba(255,179,71,0.7)", border: "1px solid rgba(255,179,71,0.15)" }}>
                   {tag}
                 </span>
               ))}
             </div>
             <button
-              onClick={() => {
-                if (hasSun) return;
+              onClick={async () => {
+                if (sunDisabled) return;
                 const sunItem: ShopItem = { id: "the_sun", title: "THE SUN", desc: "Exclusive", starsPrice: 1000, tonPrice: 10, color: "#ffb347", icon: "☀", type: "sun" };
-                if (payMode === "stars") handleStarsBuy(sunItem);
-                else handleTonBuy(sunItem);
+                if (payMode === "stars") await handleStarsBuy(sunItem);
+                else await handleTonBuy(sunItem);
+                refreshSunStock();
               }}
-              disabled={hasSun || buying === "the_sun"}
+              disabled={sunDisabled || buying === "the_sun"}
               className="w-full py-4 rounded-xl font-black text-base tracking-wider text-center transition-all active:scale-95"
               style={{
-                background: hasSun ? "rgba(255,255,255,0.04)" : "linear-gradient(135deg, rgba(255,179,71,0.2), rgba(255,140,0,0.15))",
-                color: hasSun ? "rgba(255,255,255,0.2)" : "#ffb347",
-                boxShadow: hasSun ? "none" : "0 0 20px rgba(255,179,71,0.2)",
-                border: `1px solid ${hasSun ? "rgba(255,255,255,0.06)" : "rgba(255,179,71,0.3)"}`,
-                cursor: hasSun ? "not-allowed" : "pointer",
+                background: sunDisabled ? "rgba(255,255,255,0.04)" : "linear-gradient(135deg, rgba(255,179,71,0.2), rgba(255,140,0,0.15))",
+                color: sunDisabled ? "rgba(255,255,255,0.2)" : "#ffb347",
+                boxShadow: sunDisabled ? "none" : "0 0 20px rgba(255,179,71,0.2)",
+                border: `1px solid ${sunDisabled ? "rgba(255,255,255,0.06)" : "rgba(255,179,71,0.3)"}`,
+                cursor: sunDisabled ? "not-allowed" : "pointer",
                 opacity: buying === "the_sun" ? 0.6 : 1,
               }}
             >
-              {hasSun ? "Already Owned" : buying === "the_sun" ? "Processing..." : payMode === "stars" ? "BUY — ⭐ 1,000 Stars" : "BUY — 10 TON"}
+              {sunSoldOut ? "Sold Out" : sunUserMaxed ? `Max ${sunStock?.maxPerUser ?? 5} Reached` : buying === "the_sun" ? "Processing..." : payMode === "stars" ? "BUY — ⭐ 1,000 Stars" : "BUY — 10 TON"}
             </button>
           </div>
 
