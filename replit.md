@@ -43,6 +43,11 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 
 ## Recent Changes
 
+- **Instant Navigation (SPA)**: Replaced `AnimatePresence mode="wait"` with visibility-based tab switching. All visited pages stay mounted in the DOM and toggle via `display: none/flex`. First visit of each tab mounts the component; subsequent visits are instant with no re-render or animation delay. Zero lag between tab clicks.
+- **Broken Planet Odds (4%)**: On collect, 4% chance the planet's harvest fails — accumulated earnings for that cycle are subtracted and a red warning toast appears: "Il nucleo del pianeta e' instabile: raccolta fallita!" Toast auto-dismisses after 3 seconds.
+- **Dynamic Farm Yields**: Every farming tick adds a random bonus of 0-10 $ZOOM/hr on top of the base rate. This applies to all planet types, maintaining rarity hierarchy.
+- **GOLD planet rebalanced**: Farm rate lowered from 500/hr to 150/hr. Drop chance reduced from 0.5% to 0.2% (rarer than before). BASIC chance increased to 74.8% to compensate.
+
 - **Official Production Overhaul**:
   - **Instant DB Sync (Client-Authoritative)**: Every balance change triggers immediate server sync (no debounce). Uses queue-based sync to avoid flooding: if a sync is in-flight, the next one queues and fires as soon as the current one completes. `beforeunload` uses `navigator.sendBeacon` for guaranteed delivery on page close. `visibilitychange` settles farming and syncs on resume. **Client is authoritative for balance**: server stores whatever the client sends (no GREATEST), `doSync` only pushes to server (never pulls balance back), and admin credits are detected on init by reading server balance first via `fetchBalanceRecord` and computing the difference.
   - **P2P Marketplace**: New `market_listings` DB table + API endpoints (`/market/list`, `/market/buy`, `/market/delist`, `/market/listings`). Users listing a planet creates a server-side record visible to ALL users. Buyers pay 25% fee, seller receives full price. Buy uses PostgreSQL transaction with optimistic locking (`UPDATE ... WHERE status='active'` + RETURNING) to prevent double-spend race conditions.

@@ -10,7 +10,8 @@ interface FarmPageProps {
   sun: SunState | null;
   balance: number;
   maxSlots: number;
-  onCollect: (id: string) => void;
+  defectPlanets: string[];
+  onCollect: (id: string) => { defect: boolean };
   onBurn: (id: string) => void;
   onStartFarming: (id: string) => void;
   onStopFarming: (id: string) => void;
@@ -34,13 +35,22 @@ const RARITY_CLASS: Record<string, string> = {
   GOLD: "rarity-gold",
 };
 
-export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist }: FarmPageProps) {
+export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist }: FarmPageProps) {
   const [confirmBurn, setConfirmBurn] = useState<string | null>(null);
   const [sellPopup, setSellPopup] = useState<SellPopup | null>(null);
   const [sellPrice, setSellPrice] = useState("");
   const [sunWalletOpen, setSunWalletOpen] = useState(false);
   const [slotWalletOpen, setSlotWalletOpen] = useState(false);
+  const [defectMsg, setDefectMsg] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleCollect = (id: string) => {
+    const result = onCollect(id);
+    if (result.defect) {
+      setDefectMsg("Il nucleo del pianeta e' instabile: raccolta fallita!");
+      setTimeout(() => setDefectMsg(null), 3000);
+    }
+  };
 
   const totalRate = planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0)
     + (sun && isSunActive(sun) ? SUN_CONFIG.rate : 0);
@@ -82,6 +92,19 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
 
   return (
     <div className="flex flex-col h-full relative">
+      {defectMsg && (
+        <div
+          className="absolute top-2 left-4 right-4 z-50 rounded-xl px-4 py-3 text-center text-sm font-bold animate-pulse"
+          style={{
+            background: "linear-gradient(135deg, rgba(255,50,50,0.25) 0%, rgba(180,30,30,0.35) 100%)",
+            border: "1px solid rgba(255,80,80,0.5)",
+            color: "#ff5252",
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          ⚠ {defectMsg}
+        </div>
+      )}
       <div className="px-5 pt-4 pb-2 flex-shrink-0 flex items-center justify-between">
         <div>
           <h2 className="font-black text-lg tracking-tight">My Planets</h2>
@@ -202,6 +225,7 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
             const refund = Math.floor(planet.craftCost * 0.15);
             const cfg = PLANET_CONFIG[planet.name];
             const isListed = planet.isListedInMarket;
+            void defectPlanets;
 
             return (
               <div
@@ -256,7 +280,7 @@ export function FarmPage({ planets, sun, maxSlots, onCollect, onBurn, onStartFar
                   {needsDaily ? (
                     <button
                       className="btn-widget btn-glass-collect"
-                      onClick={() => onCollect(planet.id)}
+                      onClick={() => handleCollect(planet.id)}
                       data-testid={`btn-collect-${planet.id}`}
                     >
                       <span style={{ fontSize: 14 }}>⚡</span>

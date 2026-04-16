@@ -83,6 +83,7 @@ export interface GameState {
   claimedBonusSun: boolean;
   lastFarmingSettledAt: number;
   claimedMilestones: number[];
+  defectPlanets: string[];
 }
 
 export const PLANET_CONFIG: Record<PlanetType, {
@@ -99,7 +100,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     rate: 2,
     color: "#8892b0",
     glowColor: "rgba(136,146,176,0.5)",
-    chance: 0.74,
+    chance: 0.748,
     label: "Basic",
     craftCost: 20,
     activationTon: 0.05,
@@ -126,10 +127,10 @@ export const PLANET_CONFIG: Record<PlanetType, {
     tapsNeeded: 250,
   },
   GOLD: {
-    rate: 500,
+    rate: 150,
     color: "#ffd700",
     glowColor: "rgba(255,215,0,0.5)",
-    chance: 0.005,
+    chance: 0.002,
     label: "Gold",
     craftCost: 150,
     activationTon: 1.0,
@@ -225,6 +226,7 @@ const INITIAL_STATE: GameState = {
   claimedBonusSun: false,
   lastFarmingSettledAt: Date.now(),
   claimedMilestones: [],
+  defectPlanets: [],
 };
 
 function migratePlanet(p: unknown): Planet {
@@ -434,6 +436,9 @@ export function formatDuration(ms: number): string {
   return `${m}m`;
 }
 
+const DEFECT_CHANCE = 0.04;
+const DYNAMIC_BONUS_MAX = 10;
+
 function settleFarmingState(state: GameState, now: number): GameState {
   const from = state.lastFarmingSettledAt || now;
   if (now <= from) return state;
@@ -445,7 +450,10 @@ function settleFarmingState(state: GameState, now: number): GameState {
     if (!planet.isFarmingActive || planet.isListedInMarket) continue;
     const start = Math.max(from, planet.farmStartedAt, planet.lastCollectedAt);
     const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
-    if (end > start) earned += (planet.rate / 3_600_000) * (end - start) * speedMultiplier;
+    if (end > start) {
+      const dynamicRate = planet.rate + Math.random() * DYNAMIC_BONUS_MAX;
+      earned += (dynamicRate / 3_600_000) * (end - start) * speedMultiplier;
+    }
   }
 
   if (state.sun?.isActive) {
@@ -1019,13 +1027,35 @@ export function useGameState() {
     });
   }, []);
 
-  const collectPlanet = useCallback((id: string) => {
-    setState((prev) => ({
-      ...prev,
-      planets: prev.planets.map((p) =>
-        p.id === id ? { ...p, lastCollectedAt: Date.now() } : p
-      ),
-    }));
+  const collectPlanet = useCallback((id: string): { defect: boolean } => {
+    const isDefect = Math.random() < DEFECT_CHANCE;
+    setState((prev) => {
+      const now = Date.now();
+      if (isDefect) {
+        const planet = prev.planets.find((p) => p.id === id);
+        if (planet && planet.isFarmingActive) {
+          const speedMultiplier = 1 + (prev.referralSpeedBonus || 0);
+          const start = Math.max(planet.lastCollectedAt, planet.farmStartedAt);
+          const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+          const elapsed = Math.max(0, end - start);
+          const lost = (planet.rate / 3_600_000) * elapsed * speedMultiplier;
+          return {
+            ...prev,
+            balance: Math.max(0, prev.balance - lost),
+            planets: prev.planets.map((p) =>
+              p.id === id ? { ...p, lastCollectedAt: now } : p
+            ),
+          };
+        }
+      }
+      return {
+        ...prev,
+        planets: prev.planets.map((p) =>
+          p.id === id ? { ...p, lastCollectedAt: now } : p
+        ),
+      };
+    });
+    return { defect: isDefect };
   }, []);
 
   const burnPlanet = useCallback((id: string) => {

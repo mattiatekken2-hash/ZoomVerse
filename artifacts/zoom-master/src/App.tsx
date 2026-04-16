@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useState, useMemo } from "react";
+import { motion } from "framer-motion";
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
 import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/useGameState";
 import { NebulaBackground } from "./components/NebulaBackground";
@@ -23,13 +23,7 @@ const NAV: { id: Tab; label: string; icon: string }[] = [
   { id: "rank", label: "RANK", icon: "🏆" },
 ];
 
-const pageVariants = {
-  enter: { opacity: 0, y: 12, scale: 0.98 },
-  center: { opacity: 1, y: 0, scale: 1 },
-  exit: { opacity: 0, y: -8, scale: 0.99 },
-};
-
-const pageTransition = { duration: 0.22, ease: [0.25, 0.1, 0.25, 1] };
+const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "rank", "shop"];
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("lab");
@@ -45,86 +39,12 @@ export default function App() {
   const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate : 0;
   const totalRate = planetRate + sunRate;
 
+  const visitedTabs = useMemo(() => new Set<Tab>(["lab"]), []);
+  if (!visitedTabs.has(tab)) visitedTabs.add(tab);
+
   const switchTab = (nextTab: Tab) => {
     setTab(nextTab);
     window.dispatchEvent(new Event("zoom-data-refresh"));
-  };
-
-  const renderPage = () => {
-    switch (tab) {
-      case "lab":
-        return (
-          <LabPage
-            balance={state.balance}
-            taps={state.taps}
-            goal={state.goal}
-            planets={state.planets}
-            maxSlots={state.maxSlots}
-            currentCraftRarity={state.currentCraftRarity}
-            pendingPlanet={state.pendingPlanet}
-            onCraft={craft}
-            onClaim={claimCraft}
-          />
-        );
-      case "farm":
-        return (
-          <FarmPage
-            planets={state.planets}
-            sun={state.sun}
-            balance={state.balance}
-            maxSlots={state.maxSlots}
-            onCollect={collectPlanet}
-            onBurn={burnPlanet}
-            onStartFarming={startFarming}
-            onStopFarming={stopFarming}
-            onStartSunFarming={startSunFarming}
-            onStopSunFarming={stopSunFarming}
-            onBurnSun={burnSun}
-            onSell={listPlanet}
-            onUnlist={unlistPlanet}
-          />
-        );
-      case "market":
-        return (
-          <MarketPage
-            balance={state.balance}
-            myListings={state.planets}
-            maxSlots={state.maxSlots}
-            telegramId={state.telegramId}
-            onBuy={buyPlanet}
-            onUnlist={unlistPlanet}
-            onServerBuyComplete={serverBuyComplete}
-          />
-        );
-      case "earn":
-        return (
-          <EarnPage
-            referralCode={state.referralCode}
-            referralCount={state.referralCount}
-            lastDailyClaimAt={state.lastDailyClaimAt}
-            referralSpeedBonus={state.referralSpeedBonus}
-            referredBy={state.referredBy}
-            claimedMilestones={state.claimedMilestones}
-            onClaimDaily={claimDaily}
-            onRedeemCode={redeemCode}
-          />
-        );
-      case "rank":
-        return (
-          <RankPage
-            balance={state.balance}
-            seasonPoolEarned={state.seasonPoolEarned}
-            activeFarmRate={totalRate}
-            totalTonSpent={state.totalTonSpent}
-            feedEvents={state.feedEvents}
-            telegramId={state.telegramId}
-          />
-        );
-      case "shop":
-        return <ShopPage balance={state.balance} hasSun={!!state.sun?.isOwned} telegramId={state.telegramId} />;
-      default:
-        return null;
-    }
   };
 
   return (
@@ -160,19 +80,89 @@ export default function App() {
       </header>
 
       <main className="flex-1 overflow-hidden relative z-10" style={{ minHeight: 0 }}>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={tab}
-            variants={pageVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={pageTransition}
-            style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}
-          >
-            {renderPage()}
-          </motion.div>
-        </AnimatePresence>
+        {ALL_TABS.map((t) => {
+          const isActive = tab === t;
+          if (!visitedTabs.has(t)) return null;
+          return (
+            <div
+              key={t}
+              style={{
+                height: "100%",
+                display: isActive ? "flex" : "none",
+                flexDirection: "column",
+                overflow: "hidden",
+              }}
+            >
+              {t === "lab" && (
+                <LabPage
+                  balance={state.balance}
+                  taps={state.taps}
+                  goal={state.goal}
+                  planets={state.planets}
+                  maxSlots={state.maxSlots}
+                  currentCraftRarity={state.currentCraftRarity}
+                  pendingPlanet={state.pendingPlanet}
+                  onCraft={craft}
+                  onClaim={claimCraft}
+                />
+              )}
+              {t === "farm" && (
+                <FarmPage
+                  planets={state.planets}
+                  sun={state.sun}
+                  balance={state.balance}
+                  maxSlots={state.maxSlots}
+                  defectPlanets={state.defectPlanets || []}
+                  onCollect={collectPlanet}
+                  onBurn={burnPlanet}
+                  onStartFarming={startFarming}
+                  onStopFarming={stopFarming}
+                  onStartSunFarming={startSunFarming}
+                  onStopSunFarming={stopSunFarming}
+                  onBurnSun={burnSun}
+                  onSell={listPlanet}
+                  onUnlist={unlistPlanet}
+                />
+              )}
+              {t === "market" && (
+                <MarketPage
+                  balance={state.balance}
+                  myListings={state.planets}
+                  maxSlots={state.maxSlots}
+                  telegramId={state.telegramId}
+                  onBuy={buyPlanet}
+                  onUnlist={unlistPlanet}
+                  onServerBuyComplete={serverBuyComplete}
+                />
+              )}
+              {t === "earn" && (
+                <EarnPage
+                  referralCode={state.referralCode}
+                  referralCount={state.referralCount}
+                  lastDailyClaimAt={state.lastDailyClaimAt}
+                  referralSpeedBonus={state.referralSpeedBonus}
+                  referredBy={state.referredBy}
+                  claimedMilestones={state.claimedMilestones}
+                  onClaimDaily={claimDaily}
+                  onRedeemCode={redeemCode}
+                />
+              )}
+              {t === "rank" && (
+                <RankPage
+                  balance={state.balance}
+                  seasonPoolEarned={state.seasonPoolEarned}
+                  activeFarmRate={totalRate}
+                  totalTonSpent={state.totalTonSpent}
+                  feedEvents={state.feedEvents}
+                  telegramId={state.telegramId}
+                />
+              )}
+              {t === "shop" && (
+                <ShopPage balance={state.balance} hasSun={!!state.sun?.isOwned} telegramId={state.telegramId} />
+              )}
+            </div>
+          );
+        })}
       </main>
 
       {state.telegramId && <AdminPanel telegramId={state.telegramId} />}
