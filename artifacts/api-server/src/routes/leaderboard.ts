@@ -49,7 +49,7 @@ router.get("/leaderboard", async (_req, res) => {
       })
       .from(usersTable)
       .orderBy(desc(usersTable.zoomBalance))
-      .limit(5);
+      .limit(100);
 
     const leaderboard = rows.map((row, index) => ({
       rank: index + 1,
