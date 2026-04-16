@@ -308,13 +308,7 @@ router.post("/stars/webhook", async (req, res) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chat_id: chatId,
-          text: "🚀 Welcome to Zoom! Tap below to launch the game:",
-          reply_markup: {
-            inline_keyboard: [[{
-              text: "🎮 Open Zoom",
-              web_app: { url: `https://${appDomain}` },
-            }]],
-          },
+          text: "🚀 Welcome to Zoom! Use the 'Play' button in the menu to launch the game.",
         }),
       });
     } catch (err) {
