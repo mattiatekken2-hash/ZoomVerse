@@ -231,7 +231,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                 {!loadingLb && leaderboard.length === 0 && (
                   <div className="text-xs text-center py-3" style={{ color: "rgba(255,255,255,0.2)" }}>No players yet — start farming to appear here</div>
                 )}
-                {leaderboard.map((entry) => {
+                {leaderboard.slice(0, 10).map((entry) => {
                   const isUser = !!telegramId && entry.telegramId === telegramId;
                   const medal = entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : entry.rank === 3 ? "🥉" : null;
                   return (
@@ -270,7 +270,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                 )}
               </div>
               <div className="text-[10px] mt-2 leading-relaxed" style={{ color: "rgba(255,255,255,0.25)" }}>
-                Top 5 players by $ZOOM balance, updated in real time from the server.
+                Top 10 players by $ZOOM balance, updated in real time from the server.
               </div>
             </div>
           </div>
