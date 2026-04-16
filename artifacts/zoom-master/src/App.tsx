@@ -39,7 +39,6 @@ export default function App() {
     startFarming, stopFarming,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     claimDaily, startSunFarming, stopSunFarming, burnSun,
-    wheelPrize,
   } = useGameState();
 
   const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
@@ -63,11 +62,8 @@ export default function App() {
             maxSlots={state.maxSlots}
             currentCraftRarity={state.currentCraftRarity}
             pendingPlanet={state.pendingPlanet}
-            telegramId={state.telegramId}
-            firstName={(window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { first_name?: string } } } } }).Telegram?.WebApp?.initDataUnsafe?.user?.first_name}
             onCraft={craft}
             onClaim={claimCraft}
-            onWheelPrize={wheelPrize}
           />
         );
       case "farm":

@@ -373,67 +373,6 @@ export async function buyFromMarket(buyerTelegramId: string, listingId: number):
   }
 }
 
-export interface WheelStatus {
-  spinsToday: number;
-  hasFreeSpinToday: boolean;
-  nextCost: number;
-}
-
-export async function fetchWheelStatus(telegramId: string): Promise<WheelStatus> {
-  try {
-    const res = await fetch(`${API_BASE}/wheel/status/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return { spinsToday: 0, hasFreeSpinToday: true, nextCost: 0 };
-    return res.json();
-  } catch {
-    return { spinsToday: 0, hasFreeSpinToday: true, nextCost: 0 };
-  }
-}
-
-export interface SpinResult {
-  ok: boolean;
-  prize: string;
-  zoomAmount: number;
-  starsCost: number;
-  isFree: boolean;
-  spinsToday: number;
-  nextCost: number;
-  error?: string;
-}
-
-export async function spinWheel(telegramId: string, firstName?: string): Promise<SpinResult> {
-  try {
-    const res = await fetch(`${API_BASE}/wheel/spin`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ telegramId, firstName }),
-    });
-    return res.json();
-  } catch {
-    return { ok: false, prize: "", zoomAmount: 0, starsCost: 0, isFree: false, spinsToday: 0, nextCost: 0, error: "Network error" };
-  }
-}
-
-export interface SpinLogEntry {
-  id: number;
-  firstName: string | null;
-  telegramId: string;
-  prize: string;
-  starsSpent: number;
-  isFree: boolean;
-  createdAt: string;
-}
-
-export async function fetchSpinLog(): Promise<SpinLogEntry[]> {
-  try {
-    const res = await fetch(`${API_BASE}/wheel/log?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data.logs) ? data.logs : [];
-  } catch {
-    return [];
-  }
-}
-
 export async function delistFromMarket(sellerTelegramId: string, listingId: number): Promise<{ ok: boolean }> {
   try {
     const res = await fetch(`${API_BASE}/market/delist`, {

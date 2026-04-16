@@ -41,18 +41,6 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
   - Progress saved to localStorage
   - Three.js 3D planet with CSS fallback when WebGL is unavailable
 
-## Fortune Wheel
-- **DB**: `spin_logs` table tracks all spins (telegramId, prize, starsSpent, isFree, createdAt)
-- **API**: `GET /api/wheel/status/:id` (free spin check + cost), `POST /api/wheel/spin` (server-side roll), `GET /api/wheel/log` (recent 30 spins)
-- **Probabilities**: ZOOM 73.94%, RARE 20%, BLACK_HOLE 5%, EPIC 1%, GOLD 0.05%, SUN 0.01%, TON/STARS 0%
-- **Pricing**: 1 free spin/day, then Stars: 20, 25, 30, 35... (resets daily UTC)
-- **Near-miss logic**: Landing always tries to stop near TON jackpot segment for psychological effect
-- **Black Hole glow**: Canvas detects when pointer passes over Black Hole during spin, applies purple glow
-- **TON segment**: Visually thin (0.3 weight vs 1.0 normal) and sparkly gradient
-- **Variable-width segments**: SEGMENT_ANGLES/SEGMENT_STARTS arrays computed from weight for non-uniform slicing
-- **Prize claim**: Planet prizes (RARE/EPIC/GOLD/SUN) increment user's bonus columns; ZOOM prizes add to zoomBalance
-- **Files**: `artifacts/api-server/src/routes/wheel.ts`, `artifacts/zoom-master/src/components/FortuneWheel.tsx`, `artifacts/zoom-master/src/pages/LabPage.tsx`
-
 ## Recent Changes
 
 - **Official Production Overhaul**:
