@@ -176,6 +176,9 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
             WebkitOverflowScrolling: "touch",
             touchAction: "pan-y",
             overscrollBehavior: "contain",
+            transform: "translateZ(0)",
+            willChange: "scroll-position",
+            contain: "layout paint",
           }}
         >
           {profile?.exists && (

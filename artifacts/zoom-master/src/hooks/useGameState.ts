@@ -516,7 +516,6 @@ export function useGameState() {
         const pending = await fetchPendingReferral(telegramId);
         if (pending) {
           referrer = pending;
-          console.log(`[referral] Got pending referral from server: ${pending}`);
         }
       }
 
