@@ -342,6 +342,54 @@ export async function recordCraft(telegramId: string, planetType: string): Promi
   } catch { /**/ }
 }
 
+export interface WheelPrizeConfig {
+  index: number;
+  type: "zoom" | "planet";
+  zoomAmount?: number;
+  planetType?: "BASIC" | "RARE" | "EPIC";
+  label: string;
+  color: string;
+}
+
+export async function fetchWheelConfig(): Promise<WheelPrizeConfig[]> {
+  try {
+    const res = await fetch(`${API_BASE}/wheel/config`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.prizes) ? data.prizes : [];
+  } catch { return []; }
+}
+
+export async function fetchWheelSpins(telegramId: string): Promise<number> {
+  try {
+    const res = await fetch(`${API_BASE}/wheel/spins/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return typeof data.spins === "number" ? data.spins : 0;
+  } catch { return 0; }
+}
+
+export interface WheelSpinResult {
+  prizeIndex: number;
+  prize: { type: "zoom" | "planet"; zoomAmount?: number; planetType?: "BASIC" | "RARE" | "EPIC"; label: string; color: string };
+  spinsRemaining: number;
+}
+
+export async function spinWheel(telegramId: string): Promise<{ ok: boolean; result?: WheelSpinResult; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/wheel/spin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { ok: false, error: data.error || "Spin failed" };
+    }
+    return { ok: true, result: await res.json() };
+  } catch { return { ok: false, error: "Network error" }; }
+}
+
 export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
   try {
     const res = await fetch(`${API_BASE}/leaderboard`);

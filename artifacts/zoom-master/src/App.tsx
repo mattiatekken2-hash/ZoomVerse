@@ -9,21 +9,23 @@ import { MarketPage } from "./pages/MarketPage";
 import { EarnPage } from "./pages/EarnPage";
 import { RankPage } from "./pages/RankPage";
 import { ShopPage } from "./pages/ShopPage";
+import { WheelPage } from "./pages/WheelPage";
 import { AdminPanel } from "./components/AdminPanel";
 
 const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
-type Tab = "lab" | "farm" | "market" | "earn" | "rank" | "shop";
+type Tab = "lab" | "farm" | "market" | "earn" | "wheel" | "rank" | "shop";
 
 const NAV: { id: Tab; label: string; icon: string }[] = [
   { id: "lab", label: "LAB", icon: "⬡" },
   { id: "farm", label: "FARM", icon: "🪐" },
   { id: "market", label: "MARKET", icon: "💫" },
+  { id: "wheel", label: "WHEEL", icon: "🎡" },
   { id: "earn", label: "EARN", icon: "🎁" },
   { id: "rank", label: "RANK", icon: "🏆" },
 ];
 
-const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "rank", "shop"];
+const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "wheel", "rank", "shop"];
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("lab");
@@ -160,6 +162,9 @@ export default function App() {
               )}
               {t === "shop" && (
                 <ShopPage balance={state.balance} hasSun={!!state.sun?.isOwned} telegramId={state.telegramId} />
+              )}
+              {t === "wheel" && (
+                <WheelPage telegramId={state.telegramId} />
               )}
             </div>
           );

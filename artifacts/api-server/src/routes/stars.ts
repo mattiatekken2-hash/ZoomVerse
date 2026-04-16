@@ -25,6 +25,9 @@ const STARS_CATALOG: StarsItem[] = [
   { id: "legend_pack", title: "Legend Pack", description: "25,000 $ZOOM + 1 Epic Planet", starsPrice: 400, tonPrice: 4.0, zoomAmount: 25000, itemType: "bundle" },
   { id: "the_sun", title: "THE SUN", description: "Exclusive limited-edition star — 1000 $ZOOM/hr", starsPrice: 1000, tonPrice: 10, itemType: "sun" },
   { id: "extra_slot", title: "Extra Slot", description: "Unlock 1 additional planet slot", starsPrice: 25, tonPrice: 0.25, itemType: "slot" },
+  { id: "wheel_spin_1",  title: "1 Wheel Spin",   description: "1 spin on the Fortune Wheel",   starsPrice: 50,  tonPrice: 0.5, zoomAmount: 1,  itemType: "wheel_spin" },
+  { id: "wheel_spin_5",  title: "5 Wheel Spins",  description: "5 spins on the Fortune Wheel — 20% off",  starsPrice: 200, tonPrice: 2.0, zoomAmount: 5,  itemType: "wheel_spin" },
+  { id: "wheel_spin_10", title: "10 Wheel Spins", description: "10 spins on the Fortune Wheel — 30% off", starsPrice: 350, tonPrice: 3.5, zoomAmount: 10, itemType: "wheel_spin" },
 ];
 
 function findItem(itemId: string): StarsItem | undefined {
@@ -59,6 +62,11 @@ async function creditUser(item: StarsItem, telegramId: string) {
   } else if (item.itemType === "slot") {
     await db.update(usersTable)
       .set({ bonusSlots: sql`${usersTable.bonusSlots} + 1` })
+      .where(eq(usersTable.telegramId, telegramId));
+  } else if (item.itemType === "wheel_spin") {
+    const spins = item.zoomAmount || 1;
+    await db.update(usersTable)
+      .set({ wheelSpins: sql`${usersTable.wheelSpins} + ${spins}` })
       .where(eq(usersTable.telegramId, telegramId));
   }
 }

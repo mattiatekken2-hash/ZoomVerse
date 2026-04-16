@@ -6,6 +6,7 @@ import grantsRouter from "./grants";
 import adminRouter from "./admin";
 import starsRouter from "./stars";
 import marketplaceRouter from "./marketplace";
+import wheelRouter from "./wheel";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(grantsRouter);
 router.use(adminRouter);
 router.use(starsRouter);
 router.use(marketplaceRouter);
+router.use(wheelRouter);
 
 export default router;
