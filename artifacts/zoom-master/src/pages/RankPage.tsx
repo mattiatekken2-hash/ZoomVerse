@@ -169,9 +169,17 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
       </div>
 
       {activeSection === "season" && (
-        <>
+        <div
+          className="flex-1 overflow-y-auto"
+          style={{
+            minHeight: 0,
+            WebkitOverflowScrolling: "touch",
+            touchAction: "pan-y",
+            overscrollBehavior: "contain",
+          }}
+        >
           {profile?.exists && (
-            <div className="px-4 mb-3 flex-shrink-0">
+            <div className="px-4 mb-3">
               <div className="rounded-2xl border p-3" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="font-black text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>My Profile</span>
@@ -201,7 +209,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
           )}
 
           {/* Live season rank */}
-          <div className="px-4 mb-3 flex-shrink-0">
+          <div className="px-4 mb-3">
             <div
               className="rounded-2xl border p-3"
               style={{ borderColor: "rgba(0,242,254,0.16)", background: "rgba(0,242,254,0.035)" }}
@@ -213,15 +221,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                 </div>
                 <span className="text-[10px] font-bold uppercase" style={{ color: "rgba(0,242,254,0.45)" }}>wallet sync</span>
               </div>
-              <div
-                className="flex flex-col gap-1.5 overflow-y-auto pr-1"
-                style={{
-                  maxHeight: 320,
-                  WebkitOverflowScrolling: "touch",
-                  touchAction: "pan-y",
-                  overscrollBehavior: "contain",
-                }}
-              >
+              <div className="flex flex-col gap-1.5">
                 {loadingLb && leaderboard.length === 0 && (
                   <div className="text-xs text-center py-3" style={{ color: "rgba(255,255,255,0.2)" }}>Loading...</div>
                 )}
@@ -272,12 +272,12 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
             </div>
           </div>
 
-          <div className="px-4 flex-shrink-0">
+          <div className="px-4">
             <div className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: "rgba(255,255,255,0.2)" }}>
               ⚡ Live Activity
             </div>
           </div>
-          <div ref={feedRef} className="flex-1 overflow-y-auto px-4 pb-4" style={{ minHeight: 0 }}>
+          <div ref={feedRef} className="px-4 pb-4">
             <div className="flex flex-col gap-1.5">
               {feedEvents.length === 0 && (
                 <div className="text-xs text-center py-8 flex flex-col items-center gap-2">
@@ -298,7 +298,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
               ))}
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {activeSection === "exchange" && (
