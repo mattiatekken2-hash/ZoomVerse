@@ -864,7 +864,8 @@ export function useGameState() {
 
     if (rarity === null) {
       rarity = rollRarity();
-      goal = PLANET_CONFIG[rarity].tapsNeeded;
+      const baseTaps = PLANET_CONFIG[rarity].tapsNeeded;
+      goal = baseTaps + Math.floor(Math.random() * 11);
     }
 
     const newTaps = current.taps + 1;
