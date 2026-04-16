@@ -55,7 +55,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     } else if (!result.completed && result.tapsLeft !== undefined) {
       const pct = Math.round(((goal - result.tapsLeft) / goal) * 100);
       setStatus(`FORGING... ${pct}%`);
-      addFloat("-1 🪐", "rgba(255,255,255,0.25)");
+      addFloat("+1", "rgba(255,255,255,0.25)");
     }
   }, [canCraft, onCraft, goal, addFloat]);
 
