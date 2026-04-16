@@ -344,10 +344,14 @@ export async function recordCraft(telegramId: string, planetType: string): Promi
 
 export interface WheelPrizeConfig {
   index: number;
-  type: "zoom" | "planet";
+  type: "zoom" | "planet" | "stars" | "ton";
   zoomAmount?: number;
   planetType?: "BASIC" | "RARE" | "EPIC";
+  starsAmount?: number;
+  tonAmount?: number;
   label: string;
+  shortLabel: string;
+  icon: string;
   color: string;
 }
 
@@ -360,18 +364,45 @@ export async function fetchWheelConfig(): Promise<WheelPrizeConfig[]> {
   } catch { return []; }
 }
 
-export async function fetchWheelSpins(telegramId: string): Promise<number> {
+export interface WheelStatus {
+  spins: number;
+  canClaimDaily: boolean;
+  nextClaimAt: number;
+}
+
+export async function fetchWheelStatus(telegramId: string): Promise<WheelStatus> {
   try {
-    const res = await fetch(`${API_BASE}/wheel/spins/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return 0;
-    const data = await res.json();
-    return typeof data.spins === "number" ? data.spins : 0;
-  } catch { return 0; }
+    const res = await fetch(`${API_BASE}/wheel/status/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return { spins: 0, canClaimDaily: false, nextClaimAt: 0 };
+    return res.json();
+  } catch { return { spins: 0, canClaimDaily: false, nextClaimAt: 0 }; }
+}
+
+export async function claimWheelDaily(telegramId: string): Promise<{ ok: boolean; spins?: number; nextClaimAt?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/wheel/claim-daily`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data.error || "Claim failed", ...data };
+    return { ok: true, ...data };
+  } catch { return { ok: false, error: "Network error" }; }
 }
 
 export interface WheelSpinResult {
   prizeIndex: number;
-  prize: { type: "zoom" | "planet"; zoomAmount?: number; planetType?: "BASIC" | "RARE" | "EPIC"; label: string; color: string };
+  prize: {
+    type: "zoom" | "planet" | "stars" | "ton";
+    zoomAmount?: number;
+    planetType?: "BASIC" | "RARE" | "EPIC";
+    starsAmount?: number;
+    tonAmount?: number;
+    label: string;
+    color: string;
+    icon: string;
+  };
   spinsRemaining: number;
 }
 
