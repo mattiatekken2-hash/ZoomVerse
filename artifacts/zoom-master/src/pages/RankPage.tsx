@@ -213,7 +213,15 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                 </div>
                 <span className="text-[10px] font-bold uppercase" style={{ color: "rgba(0,242,254,0.45)" }}>wallet sync</span>
               </div>
-              <div className="flex flex-col gap-1.5 overflow-y-auto pr-1" style={{ maxHeight: 240 }}>
+              <div
+                className="flex flex-col gap-1.5 overflow-y-auto pr-1"
+                style={{
+                  maxHeight: 320,
+                  WebkitOverflowScrolling: "touch",
+                  touchAction: "pan-y",
+                  overscrollBehavior: "contain",
+                }}
+              >
                 {loadingLb && leaderboard.length === 0 && (
                   <div className="text-xs text-center py-3" style={{ color: "rgba(255,255,255,0.2)" }}>Loading...</div>
                 )}
