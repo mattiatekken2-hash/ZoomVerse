@@ -783,13 +783,26 @@ export function useGameState() {
       const grants = await fetchGrants(telegramId);
       if (grants) applyGrants(grants);
     };
+    const handleLocalCredit = (e: Event) => {
+      const detail = (e as CustomEvent<{ amount: number }>).detail;
+      const amount = detail?.amount;
+      if (!amount || amount <= 0) return;
+      const { telegramId, firstName } = getTelegramContext();
+      setState((prev) => {
+        const newBal = prev.balance + amount;
+        if (telegramId) syncBalance({ telegramId, firstName, zoomBalance: Math.floor(newBal) });
+        return { ...prev, balance: newBal, totalEarned: prev.totalEarned + amount };
+      });
+    };
     window.addEventListener("zoom-admin-refresh", handleAdminRefresh);
     window.addEventListener("zoom-data-refresh", doSync);
+    window.addEventListener("zoom-credit-local", handleLocalCredit as EventListener);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener("zoom-admin-refresh", handleAdminRefresh);
       window.removeEventListener("zoom-data-refresh", doSync);
+      window.removeEventListener("zoom-credit-local", handleLocalCredit as EventListener);
     };
   }, []);
 

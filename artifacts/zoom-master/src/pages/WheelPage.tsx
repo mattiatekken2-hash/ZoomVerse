@@ -169,7 +169,11 @@ export function WheelPage({ telegramId }: WheelPageProps) {
       setWinFlash(true);
       spawnParticles(r.prize.color);
       setTimeout(() => setWinFlash(false), 2500);
-      // Pull updated balance + grants (planet bonuses) from server immediately
+      // Credit ZOOM prize directly to local state (server already added it)
+      if (r.prize.type === "zoom" && r.prize.zoomAmount) {
+        window.dispatchEvent(new CustomEvent("zoom-credit-local", { detail: { amount: r.prize.zoomAmount } }));
+      }
+      // Pull updated balance + grants (planet bonuses) from server
       window.dispatchEvent(new Event("zoom-data-refresh"));
       window.dispatchEvent(new Event("zoom-admin-refresh"));
     }, 5200);
