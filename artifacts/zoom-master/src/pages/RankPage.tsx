@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { FeedEvent } from "../hooks/useGameState";
 
-import { fetchLeaderboard, fetchGlobalPool, fetchProfile, type LeaderboardEntry, type UserProfile } from "../utils/api";
+import { fetchLeaderboard, fetchGlobalPool, fetchProfile, fetchSeasonEpoch, type LeaderboardEntry, type UserProfile } from "../utils/api";
 
 interface RankPageProps {
   balance: number;
@@ -14,9 +14,8 @@ interface RankPageProps {
 }
 
 const SEASON_DURATION_MS = 90 * 24 * 60 * 60 * 1000;
-const SEASON_START = new Date("2026-04-14T00:00:00.000Z").getTime();
+const DEFAULT_SEASON_START = new Date("2026-04-14T00:00:00.000Z").getTime();
 const TOTAL_SEASONS = 6;
-const SEASON_END = SEASON_START + SEASON_DURATION_MS;
 
 function timeAgo(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
@@ -27,9 +26,9 @@ function timeAgo(ts: number): string {
 
 const ZOOM_PER_TON = 1_000_000;
 
-function getSeasonProgress(now: number): number {
-  if (now <= SEASON_START) return 0;
-  return Math.min((now - SEASON_START) / SEASON_DURATION_MS, 1);
+function getSeasonProgress(now: number, seasonStart: number): number {
+  if (now <= seasonStart) return 0;
+  return Math.min((now - seasonStart) / SEASON_DURATION_MS, 1);
 }
 
 function formatZoom(amount: number): string {
@@ -45,6 +44,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
   const [loadingLb, setLoadingLb] = useState(true);
   const [globalPool, setGlobalPool] = useState(0);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [seasonStart, setSeasonStart] = useState<number>(DEFAULT_SEASON_START);
 
   useEffect(() => {
     if (telegramId && visible) {
@@ -52,9 +52,22 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
     }
   }, [telegramId, visible]);
 
-  const seasonProgress = getSeasonProgress(currentTime);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const epoch = await fetchSeasonEpoch();
+      if (!cancelled && epoch && epoch > 0) setSeasonStart(epoch);
+    };
+    load();
+    const onRefresh = () => load();
+    window.addEventListener("zoom-admin-refresh", onRefresh);
+    const interval = setInterval(load, 30_000);
+    return () => { cancelled = true; clearInterval(interval); window.removeEventListener("zoom-admin-refresh", onRefresh); };
+  }, []);
+
+  const seasonProgress = getSeasonProgress(currentTime, seasonStart);
   const currentSeason = 1;
-  const isExchangeOpen = currentTime >= SEASON_END;
+  const isExchangeOpen = currentTime >= seasonStart + SEASON_DURATION_MS;
   const seasonProgressPercent = seasonProgress * 100;
 
   useEffect(() => {
