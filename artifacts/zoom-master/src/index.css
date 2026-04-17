@@ -665,3 +665,48 @@
   0%, 100% { opacity: 0.35; }
   50% { opacity: 0.75; }
 }
+
+@keyframes labFragmentFly {
+  0% {
+    transform: translate(calc(-50% + var(--fx, 0px)), calc(-50% + var(--fy, 0px))) scale(1);
+    opacity: 1;
+  }
+  60% { opacity: 1; }
+  100% {
+    transform: translate(-50%, -50%) scale(0.2);
+    opacity: 0;
+  }
+}
+.lab-fragment {
+  animation: labFragmentFly 0.7s cubic-bezier(.55,.05,.85,.55) forwards;
+}
+
+@keyframes labPlanetBump {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+.lab-planet-bump {
+  animation: labPlanetBump 0.4s cubic-bezier(.2,.8,.2,1);
+}
+
+.lab-stars-a, .lab-stars-b {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(1px 1px at 12% 18%, rgba(255,255,255,0.6), transparent 60%),
+    radial-gradient(1px 1px at 38% 72%, rgba(255,255,255,0.4), transparent 60%),
+    radial-gradient(1px 1px at 62% 28%, rgba(255,255,255,0.5), transparent 60%),
+    radial-gradient(1px 1px at 84% 64%, rgba(255,255,255,0.55), transparent 60%),
+    radial-gradient(1px 1px at 22% 88%, rgba(255,255,255,0.35), transparent 60%),
+    radial-gradient(1px 1px at 71% 12%, rgba(255,255,255,0.5), transparent 60%);
+}
+.lab-stars-a { animation: star-twinkle-a 5s ease-in-out infinite; }
+.lab-stars-b {
+  background-image:
+    radial-gradient(1px 1px at 28% 42%, rgba(255,255,255,0.4), transparent 60%),
+    radial-gradient(1px 1px at 56% 84%, rgba(255,255,255,0.45), transparent 60%),
+    radial-gradient(1px 1px at 8% 56%, rgba(255,255,255,0.4), transparent 60%),
+    radial-gradient(1px 1px at 92% 32%, rgba(255,255,255,0.5), transparent 60%);
+  animation: star-twinkle-b 7s ease-in-out infinite;
+}

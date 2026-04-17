@@ -81,6 +81,8 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           goal={goal}
           planetColor={dynamicColor}
           isRevealing={!!pendingPlanet}
+          pendingPlanet={pendingPlanet}
+          currentCraftRarity={progress >= REVEAL_THRESHOLD ? currentCraftRarity : null}
         />
 
         {floats.map(f => (
