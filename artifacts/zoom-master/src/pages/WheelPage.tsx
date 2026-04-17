@@ -14,6 +14,32 @@ interface WheelPageProps {
   telegramId?: string | null;
 }
 
+/**
+ * Static prize layout, mirrored from `WHEEL_PRIZES` in
+ * `artifacts/api-server/src/routes/wheel.ts`. Used as the *initial* state for
+ * `prizes` so the entire wheel — segments, colors, labels, icons — paints
+ * instantly on the very first render of the tab. The async `fetchWheelConfig`
+ * still runs in the background and replaces this with the server payload, so
+ * if the catalog ever changes server-side the UI catches up automatically;
+ * but the user never sees an empty/half-built wheel while waiting on the
+ * network. The server remains authoritative for prize selection (`/wheel/spin`),
+ * this constant is purely for visual rendering.
+ */
+const DEFAULT_WHEEL_PRIZES: WheelPrizeConfig[] = [
+  { index: 0,  type: "zoom",   zoomAmount: 100,   label: "100 $ZOOM",   shortLabel: "100",   icon: "🪐", color: "#8892b0" },
+  { index: 1,  type: "stars",  starsAmount: 100,  label: "100 STARS",   shortLabel: "100",   icon: "⭐", color: "#ffd700" },
+  { index: 2,  type: "zoom",   zoomAmount: 500,   label: "500 $ZOOM",   shortLabel: "500",   icon: "🪐", color: "#4facfe" },
+  { index: 3,  type: "ton",    tonAmount: 1,      label: "1 TON",       shortLabel: "1",     icon: "💎", color: "#0098ea" },
+  { index: 4,  type: "zoom",   zoomAmount: 1000,  label: "1K $ZOOM",    shortLabel: "1K",    icon: "🪐", color: "#00f2fe" },
+  { index: 5,  type: "planet", planetType: "BASIC", label: "BASIC PLANET", shortLabel: "BASIC", icon: "◇", color: "#a0aec0" },
+  { index: 6,  type: "zoom",   zoomAmount: 2500,  label: "2.5K $ZOOM",  shortLabel: "2.5K",  icon: "🪐", color: "#43e97b" },
+  { index: 7,  type: "stars",  starsAmount: 200,  label: "200 STARS",   shortLabel: "200",   icon: "⭐", color: "#ffb347" },
+  { index: 8,  type: "planet", planetType: "RARE",  label: "RARE PLANET",  shortLabel: "RARE",  icon: "◈", color: "#4facfe" },
+  { index: 9,  type: "ton",    tonAmount: 10,     label: "10 TON",      shortLabel: "10",    icon: "💎", color: "#00d4ff" },
+  { index: 10, type: "zoom",   zoomAmount: 5000,  label: "5K $ZOOM",    shortLabel: "5K",    icon: "🪐", color: "#f093fb" },
+  { index: 11, type: "planet", planetType: "EPIC",  label: "EPIC PLANET",  shortLabel: "EPIC",  icon: "⬡", color: "#c471ed" },
+];
+
 const SPIN_PACKS = [
   { id: "wheel_spin_1",  spins: 1,  stars: 50,  badge: "" },
   { id: "wheel_spin_5",  spins: 5,  stars: 200, badge: "-20%" },
@@ -30,7 +56,10 @@ function getTg(): TgWebApp | null {
 interface Particle { id: number; x: number; y: number; dx: number; dy: number; color: string; size: number; }
 
 export function WheelPage({ telegramId }: WheelPageProps) {
-  const [prizes, setPrizes] = useState<WheelPrizeConfig[]>([]);
+  // Seed with the static catalog so the wheel structure is in the DOM on the
+  // first frame (no opacity gate, no skeleton). The fetch below upgrades it
+  // silently if the server config differs.
+  const [prizes, setPrizes] = useState<WheelPrizeConfig[]>(DEFAULT_WHEEL_PRIZES);
   const [spins, setSpins] = useState(0);
   const [canClaimDaily, setCanClaimDaily] = useState(false);
   const [nextClaimAt, setNextClaimAt] = useState(0);
@@ -61,7 +90,13 @@ export function WheelPage({ telegramId }: WheelPageProps) {
     setNextClaimAt(s.nextClaimAt);
   }, [telegramId]);
 
-  useEffect(() => { fetchWheelConfig().then(setPrizes); }, []);
+  // Background sync: only replace seed if server actually returned a non-empty
+  // catalog (otherwise an early/failed fetch would blank the wheel).
+  useEffect(() => {
+    fetchWheelConfig().then((cfg) => {
+      if (Array.isArray(cfg) && cfg.length > 0) setPrizes(cfg);
+    });
+  }, []);
   useEffect(() => { refreshStatus(); }, [refreshStatus]);
 
   // Auto-refresh spins (admin credits + visibility/focus)
