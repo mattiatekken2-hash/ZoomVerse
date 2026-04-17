@@ -4,16 +4,21 @@ function tgHaptic() {
   return (window as any)?.Telegram?.WebApp?.HapticFeedback ?? null;
 }
 
+// Always fire BOTH the Telegram HapticFeedback API and navigator.vibrate. On
+// some Telegram client versions the WebApp haptic API silently no-ops; using
+// both as a belt-and-suspenders ensures the device actually buzzes on Android.
+// (iOS Safari ignores navigator.vibrate, so on iOS only the Telegram API
+// matters — but firing both is harmless.)
 export function hapticLight() {
   try {
     const hf = tgHaptic();
     if (hf) {
-      hf.selectionChanged
-        ? hf.selectionChanged()
-        : hf.impactOccurred("soft");
-    } else {
-      navigator.vibrate?.(2);
+      try {
+        if (hf.selectionChanged) hf.selectionChanged();
+        else hf.impactOccurred("light");
+      } catch { /**/ }
     }
+    try { navigator.vibrate?.(8); } catch { /**/ }
   } catch { /**/ }
 }
 
@@ -27,10 +32,11 @@ export function haptic(input: number | "light" | "medium" | "heavy" = "medium") 
       style = input;
     }
     if (hf) {
-      hf.impactOccurred(style);
-    } else {
-      const ms = style === "light" ? 5 : style === "medium" ? 10 : 18;
-      navigator.vibrate?.(ms);
+      try { hf.impactOccurred(style); } catch { /**/ }
     }
+    try {
+      const ms = style === "light" ? 8 : style === "medium" ? 14 : 22;
+      navigator.vibrate?.(ms);
+    } catch { /**/ }
   } catch { /**/ }
 }

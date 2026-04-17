@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { PlanetCanvas } from "../components/PlanetCanvas";
 import type { Planet, PlanetType } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
+import { hapticLight } from "../utils/haptic";
 
 
 interface LabPageProps {
@@ -75,6 +76,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
   const handleCraft = useCallback(() => {
     if (!canCraft) return;
+    hapticLight();
     const result = onCraft();
     if (result.completed && result.broken && result.brokenRarity) {
       try {
