@@ -32,7 +32,7 @@ export default function App() {
   const {
     state, craft, claimCraft, redeemCode,
     collectPlanet, burnPlanet,
-    startFarming, stopFarming,
+    startFarming, stopFarming, reactivatePlanet,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     claimDaily, startSunFarming, stopSunFarming, burnSun,
   } = useGameState();
@@ -119,6 +119,7 @@ export default function App() {
                   onBurn={burnPlanet}
                   onStartFarming={startFarming}
                   onStopFarming={stopFarming}
+                  onReactivate={reactivatePlanet}
                   onStartSunFarming={startSunFarming}
                   onStopSunFarming={stopSunFarming}
                   onBurnSun={burnSun}

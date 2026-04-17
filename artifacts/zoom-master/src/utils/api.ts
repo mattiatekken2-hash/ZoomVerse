@@ -632,3 +632,38 @@ export async function delistFromMarket(sellerTelegramId: string, listingId: numb
     return { ok: false };
   }
 }
+
+export interface MyListing {
+  id: number;
+  planetType: string;
+  planetRate: number;
+  price: number;
+  status: string;
+  lastActivatedAt: number;
+  expired: boolean;
+  reactivationFee: number;
+}
+
+export async function fetchMyListings(telegramId: string): Promise<MyListing[]> {
+  try {
+    const res = await fetch(`${API_BASE}/market/my-listings/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.listings) ? data.listings : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function reactivateListing(sellerTelegramId: string, listingId: number): Promise<{ ok: boolean; fee?: number; newBalance?: number; required?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/market/reactivate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sellerTelegramId, listingId }),
+    });
+    return res.json();
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}

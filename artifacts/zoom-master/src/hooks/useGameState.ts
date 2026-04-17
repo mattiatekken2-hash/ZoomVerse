@@ -161,8 +161,14 @@ const LIVE_EVENT_KEY = "zoom-master-live-activity-event";
 const LIVE_EVENT_CHANNEL = "zoom-master-live-activity";
 const MAX_FEED_EVENTS = 50;
 const PLAYER_NAME = "Username";
-const FARM_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+const FARM_DURATION_MS = 24 * 60 * 60 * 1000;
 const DAILY_COLLECT_MS = 24 * 60 * 60 * 1000;
+export const REACTIVATION_FEE: Record<PlanetType, number> = {
+  BASIC: 5,
+  RARE: 25,
+  EPIC: 100,
+  GOLD: 250,
+};
 
 function makeReferralCode(): string {
   return "ZOOM-" + Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -399,6 +405,16 @@ export function isFarmActive(planet: Planet): boolean {
   if (now - planet.farmStartedAt > FARM_DURATION_MS) return false;
   if (now - planet.lastCollectedAt > DAILY_COLLECT_MS) return false;
   return true;
+}
+
+export function isFarmExpired(planet: Planet): boolean {
+  if (planet.isListedInMarket) return false;
+  if (!planet.farmStartedAt) return false;
+  return Date.now() - planet.farmStartedAt >= FARM_DURATION_MS;
+}
+
+export function getReactivationFee(planet: Planet): number {
+  return REACTIVATION_FEE[planet.name] ?? 5;
 }
 
 export function isSunActive(sun: SunState): boolean {
@@ -786,12 +802,13 @@ export function useGameState() {
     const handleLocalCredit = (e: Event) => {
       const detail = (e as CustomEvent<{ amount: number }>).detail;
       const amount = detail?.amount;
-      if (!amount || amount <= 0) return;
+      if (!amount || amount === 0) return;
       const { telegramId, firstName } = getTelegramContext();
       setState((prev) => {
-        const newBal = prev.balance + amount;
+        const newBal = Math.max(0, prev.balance + amount);
         if (telegramId) syncBalance({ telegramId, firstName, zoomBalance: Math.floor(newBal) });
-        return { ...prev, balance: newBal, totalEarned: prev.totalEarned + amount };
+        const totalEarnedDelta = amount > 0 ? amount : 0;
+        return { ...prev, balance: newBal, totalEarned: prev.totalEarned + totalEarnedDelta };
       });
     };
     window.addEventListener("zoom-admin-refresh", handleAdminRefresh);
@@ -1137,6 +1154,25 @@ export function useGameState() {
     }));
   }, []);
 
+  const reactivatePlanet = useCallback((id: string): { ok: boolean; reason?: string } => {
+    const current = stateRef.current;
+    const planet = current.planets.find((p) => p.id === id);
+    if (!planet) return { ok: false, reason: "Planet not found" };
+    if (planet.isListedInMarket) return { ok: false, reason: "Listed for sale" };
+    const fee = REACTIVATION_FEE[planet.name] ?? 5;
+    if (current.balance < fee) return { ok: false, reason: `Need ${fee} $ZOOM` };
+    setState((prev) => ({
+      ...prev,
+      balance: prev.balance - fee,
+      planets: prev.planets.map((p) =>
+        p.id === id
+          ? { ...p, isFarmingActive: true, farmStartedAt: Date.now(), lastCollectedAt: Date.now() }
+          : p
+      ),
+    }));
+    return { ok: true };
+  }, []);
+
   const stopFarming = useCallback((id: string) => {
     setState((prev) => ({
       ...prev,
@@ -1275,7 +1311,7 @@ export function useGameState() {
   return {
     state, craft, claimCraft, redeemCode,
     collectPlanet, burnPlanet,
-    startFarming, stopFarming,
+    startFarming, stopFarming, reactivatePlanet,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     unlockSlot, claimDaily,
     activateSun, acquireSun, collectSun,

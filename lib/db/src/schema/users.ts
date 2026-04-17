@@ -60,6 +60,7 @@ export const marketListingsTable = pgTable("market_listings", {
   status: text("status").notNull().default("active"),
   buyerTelegramId: text("buyer_telegram_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  lastActivatedAt: timestamp("last_activated_at").notNull().defaultNow(),
   soldAt: timestamp("sold_at"),
 }, (table) => [
   index("idx_market_status").on(table.status),

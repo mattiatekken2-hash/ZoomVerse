@@ -54,6 +54,13 @@ router.get("/market/activity/stream", (req, res) => {
 });
 
 const MARKETPLACE_FEE = 0.25;
+const LISTING_TTL_MS = 24 * 60 * 60 * 1000;
+const REACTIVATION_FEE: Record<string, number> = {
+  BASIC: 5,
+  RARE: 25,
+  EPIC: 100,
+  GOLD: 250,
+};
 
 const ListBody = z.object({
   sellerTelegramId: z.string().min(1),
@@ -94,17 +101,100 @@ router.post("/market/list", async (req, res) => {
 
 router.get("/market/listings", async (_req, res) => {
   try {
-    const rows = await db
-      .select()
-      .from(marketListingsTable)
-      .where(eq(marketListingsTable.status, "active"))
-      .orderBy(desc(marketListingsTable.createdAt))
-      .limit(100);
-
-    res.json({ listings: rows });
+    const cutoff = new Date(Date.now() - LISTING_TTL_MS);
+    const rows = await db.execute(sql`
+      SELECT * FROM market_listings
+      WHERE status = 'active' AND last_activated_at > ${cutoff}
+      ORDER BY created_at DESC
+      LIMIT 100
+    `);
+    res.json({ listings: rows.rows });
   } catch (err) {
     console.error("[market/listings] error:", err);
     res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.get("/market/my-listings/:telegramId", async (req, res) => {
+  try {
+    const rows = await db
+      .select()
+      .from(marketListingsTable)
+      .where(and(
+        eq(marketListingsTable.sellerTelegramId, req.params.telegramId),
+        eq(marketListingsTable.status, "active"),
+      ))
+      .orderBy(desc(marketListingsTable.createdAt))
+      .limit(50);
+    const now = Date.now();
+    const enriched = rows.map((r) => {
+      const lastAct = r.lastActivatedAt instanceof Date ? r.lastActivatedAt.getTime() : new Date(r.lastActivatedAt).getTime();
+      const expired = now - lastAct >= LISTING_TTL_MS;
+      const fee = REACTIVATION_FEE[r.planetType] ?? 5;
+      return { ...r, lastActivatedAt: lastAct, expired, reactivationFee: fee };
+    });
+    res.json({ listings: enriched });
+  } catch (err) {
+    console.error("[market/my-listings] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+const ReactivateBody = z.object({
+  sellerTelegramId: z.string().min(1),
+  listingId: z.number().int().positive(),
+});
+
+router.post("/market/reactivate", async (req, res) => {
+  const parsed = ReactivateBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body" });
+    return;
+  }
+  const { sellerTelegramId, listingId } = parsed.data;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const txDb = drizzle(client);
+    const [listing] = await txDb
+      .select()
+      .from(marketListingsTable)
+      .where(and(
+        eq(marketListingsTable.id, listingId),
+        eq(marketListingsTable.sellerTelegramId, sellerTelegramId),
+        eq(marketListingsTable.status, "active"),
+      ))
+      .limit(1);
+    if (!listing) {
+      await client.query("ROLLBACK");
+      res.status(404).json({ error: "Listing not found" });
+      return;
+    }
+    const fee = REACTIVATION_FEE[listing.planetType] ?? 5;
+    const [seller] = await txDb
+      .select({ zoomBalance: usersTable.zoomBalance })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, sellerTelegramId))
+      .limit(1);
+    if (!seller || seller.zoomBalance < fee) {
+      await client.query("ROLLBACK");
+      res.status(400).json({ error: "Insufficient $ZOOM balance", required: fee });
+      return;
+    }
+    await txDb.update(usersTable)
+      .set({ zoomBalance: sql`${usersTable.zoomBalance} - ${fee}` })
+      .where(eq(usersTable.telegramId, sellerTelegramId));
+    await txDb.update(marketListingsTable)
+      .set({ lastActivatedAt: new Date() })
+      .where(eq(marketListingsTable.id, listingId));
+    await client.query("COMMIT");
+    res.json({ ok: true, fee, newBalance: seller.zoomBalance - fee });
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[market/reactivate] error:", err);
+    res.status(500).json({ error: "Database error" });
+  } finally {
+    client.release();
   }
 });
 
