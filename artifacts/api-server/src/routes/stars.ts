@@ -139,7 +139,7 @@ interface StarsItem {
 }
 
 const SUN_MAX_PER_USER = 5;
-const SUN_MAX_GLOBAL = 50;
+const SUN_MAX_GLOBAL = 100;
 
 const STARS_CATALOG: StarsItem[] = [
   { id: "starter_pack", title: "Starter Pack", description: "2,000 $ZOOM + 1 Basic Planet", starsPrice: 50, tonPrice: 0.5, zoomAmount: 2000, itemType: "bundle" },
