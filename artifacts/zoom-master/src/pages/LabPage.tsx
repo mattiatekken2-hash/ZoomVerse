@@ -93,8 +93,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     if (result.completed && result.planet) {
       const p = result.planet;
       addFloat(`✦ ${PLANET_CONFIG[p.name].label}!`, p.color);
-    } else if (!result.completed) {
-      addFloat("+1", "rgba(255,255,255,0.25)");
     }
   }, [canCraft, onCraft, addFloat]);
 
