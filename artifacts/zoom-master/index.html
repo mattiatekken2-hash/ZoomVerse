@@ -40,18 +40,20 @@
           window.addEventListener("error", function (e) {
             try {
               var src = (e && e.target && (e.target.src || e.target.href)) || "";
-              if (!reloaded && /\/assets\/.*\.(js|css|mjs)/.test(src)) {
-                reloaded = true;
-                if (window.caches && caches.keys) {
-                  caches.keys().then(function (ks) {
-                    return Promise.all(ks.map(function (k) { return caches.delete(k); }));
-                  }).finally(function () {
-                    location.replace(location.pathname + "?_=" + Date.now());
-                  });
-                } else {
-                  location.replace(location.pathname + "?_=" + Date.now());
-                }
-              }
+              if (reloaded || !/\/assets\/.*\.(js|css|mjs)/.test(src)) return;
+              // loop guard: max 1 auto-reload per 60s window
+              var now = Date.now();
+              var last = 0;
+              try { last = parseInt(sessionStorage.getItem("zoom-cache-reload") || "0", 10) || 0; } catch (_) {}
+              if (now - last < 60000) return;
+              reloaded = true;
+              try { sessionStorage.setItem("zoom-cache-reload", String(now)); } catch (_) {}
+              var done = function () { location.replace(location.pathname + "?_=" + now); };
+              if (window.caches && caches.keys) {
+                caches.keys().then(function (ks) {
+                  return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+                }).then(done, done);
+              } else { done(); }
             } catch (_) {}
           }, true);
         } catch (e) {}

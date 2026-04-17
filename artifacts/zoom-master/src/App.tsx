@@ -11,6 +11,7 @@ import { RankPage } from "./pages/RankPage";
 import { ShopPage } from "./pages/ShopPage";
 import { WheelPage } from "./pages/WheelPage";
 import { AdminPanel } from "./components/AdminPanel";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
@@ -128,15 +129,17 @@ export default function App() {
                 />
               )}
               {t === "market" && (
-                <MarketPage
-                  balance={state.balance}
-                  myListings={state.planets}
-                  maxSlots={state.maxSlots}
-                  telegramId={state.telegramId}
-                  onBuy={buyPlanet}
-                  onUnlist={unlistPlanet}
-                  onServerBuyComplete={serverBuyComplete}
-                />
+                <ErrorBoundary label="Market" onReset={() => setTab("lab")}>
+                  <MarketPage
+                    balance={state.balance}
+                    myListings={state.planets}
+                    maxSlots={state.maxSlots}
+                    telegramId={state.telegramId}
+                    onBuy={buyPlanet}
+                    onUnlist={unlistPlanet}
+                    onServerBuyComplete={serverBuyComplete}
+                  />
+                </ErrorBoundary>
               )}
               {t === "earn" && (
                 <EarnPage
