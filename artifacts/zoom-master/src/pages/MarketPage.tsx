@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
-import { fetchMarketListings, buyFromMarket, fetchMarketSales, openMarketActivityStream, fetchMyListings, reactivateListing, type ServerMarketListing, type MarketSale, type MyListing } from "../utils/api";
+import { fetchMarketListings, buyFromMarket, fetchMarketSales, openMarketActivityStream, type ServerMarketListing, type MarketSale } from "../utils/api";
 
 
 const RARITY_FILTERS: (PlanetType | "ALL")[] = ["ALL", "BASIC", "RARE", "EPIC", "GOLD"];
@@ -32,56 +32,12 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
   const [serverListings, setServerListings] = useState<ServerMarketListing[]>([]);
   const [loading, setLoading] = useState(true);
   const [sales, setSales] = useState<MarketSale[]>([]);
-  const [tab, setTab] = useState<"listings" | "activity" | "mine">("listings");
+  const [tab, setTab] = useState<"listings" | "activity">("listings");
   const [pulseId, setPulseId] = useState<number | null>(null);
-  const [mine, setMine] = useState<MyListing[]>([]);
-  const [reactivatingId, setReactivatingId] = useState<number | null>(null);
-  const [, forceTick] = useState(0);
 
   const showToast = (text: string, ok: boolean) => {
     setToast({ text, ok });
     setTimeout(() => setToast(null), 2500);
-  };
-
-  const refreshMyListings = async () => {
-    if (!telegramId) return;
-    const list = await fetchMyListings(telegramId);
-    setMine(list);
-  };
-
-  useEffect(() => {
-    if (!telegramId) return;
-    refreshMyListings();
-    const interval = setInterval(refreshMyListings, 30_000);
-    const onRefresh = () => refreshMyListings();
-    window.addEventListener("zoom-data-refresh", onRefresh);
-    return () => { clearInterval(interval); window.removeEventListener("zoom-data-refresh", onRefresh); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [telegramId]);
-
-  useEffect(() => {
-    const i = setInterval(() => forceTick((n) => n + 1), 1000);
-    return () => clearInterval(i);
-  }, []);
-
-  const handleReactivate = async (l: MyListing) => {
-    if (!telegramId) return;
-    if (balance < l.reactivationFee) {
-      showToast(`Need ${l.reactivationFee} $ZOOM to reactivate`, false);
-      return;
-    }
-    setReactivatingId(l.id);
-    const r = await reactivateListing(telegramId, l.id);
-    setReactivatingId(null);
-    if (r.ok) {
-      showToast(`Listing reactivated · -${r.fee} $ZOOM`, true);
-      await refreshMyListings();
-      const fresh = await fetchMarketListings();
-      setServerListings(fresh);
-      window.dispatchEvent(new CustomEvent("zoom-credit-local", { detail: { amount: -(r.fee ?? 0) } }));
-    } else {
-      showToast(r.error ?? "Reactivation failed", false);
-    }
   };
 
   useEffect(() => {
@@ -204,22 +160,7 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
             data-testid="tab-activity"
           >
             <span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5" style={{ background: "#00e676", boxShadow: "0 0 8px #00e676", animation: "pulse 1.5s infinite" }} />
-            Live
-          </button>
-          <button
-            onClick={() => setTab("mine")}
-            className="flex-1 py-2 rounded-xl text-xs font-black tracking-wider uppercase border transition-all relative"
-            style={{
-              borderColor: tab === "mine" ? "rgba(255,215,0,0.4)" : "rgba(255,255,255,0.06)",
-              background: tab === "mine" ? "rgba(255,215,0,0.08)" : "transparent",
-              color: tab === "mine" ? "#ffd700" : "rgba(255,255,255,0.35)",
-            }}
-            data-testid="tab-mine"
-          >
-            ⚡ Mine
-            {mine.some((m) => m.expired) && (
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full" style={{ background: "#ff5252", boxShadow: "0 0 6px #ff5252", animation: "pulse 1.2s infinite" }} />
-            )}
+            Live Activity
           </button>
         </div>
       </div>
@@ -294,107 +235,6 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
                     </div>
                     <div className="text-[9px] font-bold" style={{ color: "rgba(255,255,255,0.3)" }}>$ZOOM</div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : tab === "mine" ? (
-          <div className="flex flex-col gap-2 mt-2">
-            {!telegramId && (
-              <div className="text-center py-10 text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
-                Open in Telegram to manage your listings
-              </div>
-            )}
-            {telegramId && mine.length === 0 && (
-              <div className="text-center py-10 flex flex-col items-center gap-2">
-                <div style={{ fontSize: 32, opacity: 0.15 }}>📦</div>
-                <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
-                  No active listings yet
-                </div>
-                <div className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.2)" }}>
-                  Listings stay online for 24h, then need reactivation
-                </div>
-              </div>
-            )}
-            {mine.map((l) => {
-              const cfg = PLANET_CONFIG[l.planetType as PlanetType];
-              if (!cfg) return null;
-              const rarityColor = RARITY_COLORS[l.planetType] ?? "#8892b0";
-              const fakePlanet = {
-                id: `mine-${l.id}`,
-                name: l.planetType as PlanetType,
-                color: cfg.color,
-                glowColor: cfg.glowColor,
-                rate: l.planetRate,
-                craftCost: 0,
-                createdAt: 0,
-                farmStartedAt: 0,
-                lastCollectedAt: 0,
-                isListedInMarket: false,
-                isFarmingActive: false,
-              } as Planet;
-              const remaining = Math.max(0, l.lastActivatedAt + 24 * 60 * 60 * 1000 - Date.now());
-              const hLeft = Math.floor(remaining / 3600000);
-              const mLeft = Math.floor((remaining % 3600000) / 60000);
-              const canAfford = balance >= l.reactivationFee;
-              return (
-                <div
-                  key={l.id}
-                  className="rounded-2xl border p-3"
-                  style={{
-                    borderColor: l.expired ? "rgba(255,82,82,0.4)" : rarityColor + "33",
-                    background: l.expired
-                      ? "linear-gradient(135deg, rgba(255,82,82,0.06) 0%, rgba(6,8,16,0.6) 100%)"
-                      : `linear-gradient(135deg, ${rarityColor}06 0%, rgba(6,8,16,0.55) 100%)`,
-                  }}
-                  data-testid={`mine-${l.id}`}
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <PlanetOrb planet={fakePlanet} size={48} animate={!l.expired} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-[11px] font-black px-2 py-0.5 rounded-full" style={{ color: rarityColor, background: rarityColor + "14", border: `1px solid ${rarityColor}33` }}>
-                          {cfg.label}
-                        </span>
-                        {l.expired ? (
-                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ color: "#ff5252", background: "rgba(255,82,82,0.12)", border: "1px solid rgba(255,82,82,0.4)" }}>
-                            ⏱ EXPIRED · OFFLINE
-                          </span>
-                        ) : (
-                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ color: "#00e676", background: "rgba(0,230,118,0.12)", border: "1px solid rgba(0,230,118,0.4)" }}>
-                            ● ONLINE · {hLeft}h {mLeft}m left
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] font-bold mt-1" style={{ color: "rgba(255,255,255,0.6)" }}>
-                        {l.price.toLocaleString()} <span style={{ color: "rgba(255,255,255,0.3)" }}>$ZOOM · +{l.planetRate.toLocaleString()}/hr</span>
-                      </div>
-                    </div>
-                  </div>
-                  {l.expired ? (
-                    <button
-                      className="w-full py-2.5 rounded-xl text-xs font-black tracking-wider uppercase transition-all active:scale-95"
-                      disabled={!canAfford || reactivatingId === l.id}
-                      onClick={() => handleReactivate(l)}
-                      style={{
-                        background: canAfford
-                          ? `linear-gradient(135deg, ${rarityColor}cc, ${rarityColor}88)`
-                          : "rgba(255,82,82,0.1)",
-                        color: canAfford ? "#060810" : "#ff6b6b",
-                        boxShadow: canAfford ? `0 0 18px ${rarityColor}44` : "none",
-                        border: canAfford ? "none" : "1px solid rgba(255,82,82,0.3)",
-                        cursor: canAfford ? "pointer" : "not-allowed",
-                        opacity: reactivatingId === l.id ? 0.6 : 1,
-                      }}
-                      data-testid={`btn-reactivate-listing-${l.id}`}
-                    >
-                      {reactivatingId === l.id ? "REACTIVATING..." : `🔄 REACTIVATE · ${l.reactivationFee} $ZOOM`}
-                    </button>
-                  ) : (
-                    <div className="text-[10px] text-center py-1" style={{ color: "rgba(255,255,255,0.3)" }}>
-                      Visible to buyers · auto-expires in 24h
-                    </div>
-                  )}
                 </div>
               );
             })}

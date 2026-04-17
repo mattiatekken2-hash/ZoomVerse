@@ -646,36 +646,6 @@
   to { transform: translateX(0); opacity: 1; }
 }
 
-/* Lab — Primordial spark + dynamic planet creation */
-@keyframes primordial-breathe {
-  0%, 100% { transform: scale(1); opacity: 0.85; }
-  50% { transform: scale(1.18); opacity: 1; }
-}
-@keyframes spark-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.95; filter: brightness(1); }
-  50% { transform: scale(1.45); opacity: 1; filter: brightness(1.5); }
-}
-@keyframes crack-pulse {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 1; }
-}
-@keyframes tap-pulse {
-  0% { filter: brightness(1); }
-  35% { filter: brightness(1.45); }
-  100% { filter: brightness(1); }
-}
-@keyframes fragment-fly {
-  0% {
-    transform: translate(var(--dx), var(--dy)) scale(1);
-    opacity: 0;
-  }
-  20% { opacity: 1; }
-  100% {
-    transform: translate(0, 0) scale(0.2);
-    opacity: 0;
-  }
-}
-
 /* Nav active indicator */
 .nav-active-dot {
   position: absolute;

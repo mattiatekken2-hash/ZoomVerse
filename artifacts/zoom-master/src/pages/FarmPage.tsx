@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
 import type { Planet, SunState } from "../hooks/useGameState";
-import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isFarmExpired, isSunActive, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, needsCollect, getReactivationFee } from "../hooks/useGameState";
+import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, needsCollect } from "../hooks/useGameState";
 import { WalletPopup } from "../components/WalletPopup";
 
 
@@ -15,7 +15,6 @@ interface FarmPageProps {
   onBurn: (id: string) => void;
   onStartFarming: (id: string) => void;
   onStopFarming: (id: string) => void;
-  onReactivate: (id: string) => { ok: boolean; reason?: string };
   onStartSunFarming: () => void;
   onStopSunFarming: () => void;
   onBurnSun: () => void;
@@ -36,7 +35,7 @@ const RARITY_CLASS: Record<string, string> = {
   GOLD: "rarity-gold",
 };
 
-export function FarmPage({ planets, sun, balance, maxSlots, defectPlanets, onCollect, onBurn, onStartFarming, onStopFarming, onReactivate, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist }: FarmPageProps) {
+export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist }: FarmPageProps) {
   const [confirmBurn, setConfirmBurn] = useState<string | null>(null);
   const [sellPopup, setSellPopup] = useState<SellPopup | null>(null);
   const [sellPrice, setSellPrice] = useState("");
@@ -221,14 +220,11 @@ export function FarmPage({ planets, sun, balance, maxSlots, defectPlanets, onCol
           {/* REGULAR PLANETS */}
           {planets.map((planet) => {
             const active = isFarmActive(planet);
-            const expired = !active && isFarmExpired(planet);
             const remaining = getFarmTimeRemaining(planet);
             const needsDaily = needsCollect(planet);
             const refund = Math.floor(planet.craftCost * 0.15);
             const cfg = PLANET_CONFIG[planet.name];
             const isListed = planet.isListedInMarket;
-            const reactFee = getReactivationFee(planet);
-            const canAfford = balance >= reactFee;
             void defectPlanets;
 
             return (
@@ -270,14 +266,12 @@ export function FarmPage({ planets, sun, balance, maxSlots, defectPlanets, onCol
                         {planet.name}
                       </span>
                     </div>
-                    <div className="text-xs font-bold" style={{ color: expired ? "#ff6b6b" : "rgba(255,255,255,0.5)" }}>
+                    <div className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>
                       {active
                         ? `+${planet.rate.toLocaleString()} $ZOOM/hr · ${formatDuration(remaining)} left`
                         : isListed
                         ? `Listed for ${planet.marketPrice?.toLocaleString()} $ZOOM`
-                        : expired
-                        ? `⏱ Expired · Reactivate for ${reactFee} $ZOOM`
-                        : "Ready to farm"}
+                        : "Farming stopped"}
                     </div>
                   </div>
                 </div>
@@ -301,29 +295,6 @@ export function FarmPage({ planets, sun, balance, maxSlots, defectPlanets, onCol
                     >
                       <span>FARMING</span>
                       <span style={{ fontSize: 8, opacity: 0.7 }}>{formatDuration(remaining)}</span>
-                    </button>
-                  ) : expired && !isListed ? (
-                    <button
-                      className="btn-widget"
-                      disabled={!canAfford}
-                      style={{
-                        background: canAfford
-                          ? `linear-gradient(135deg, ${planet.color}33, ${planet.color}1a)`
-                          : "rgba(255,80,80,0.08)",
-                        border: `1px solid ${canAfford ? planet.color + "66" : "rgba(255,80,80,0.3)"}`,
-                        color: canAfford ? planet.color : "#ff6b6b",
-                        boxShadow: canAfford ? `0 0 12px ${planet.color}33` : "none",
-                        cursor: canAfford ? "pointer" : "not-allowed",
-                        opacity: canAfford ? 1 : 0.6,
-                      }}
-                      onClick={() => {
-                        const r = onReactivate(planet.id);
-                        if (!r.ok && r.reason) { setDefectMsg(r.reason); setTimeout(() => setDefectMsg(null), 1500); }
-                      }}
-                      data-testid={`btn-reactivate-${planet.id}`}
-                    >
-                      <span>{canAfford ? "REACTIVATE" : "NEED $ZOOM"}</span>
-                      <span style={{ fontSize: 8, opacity: 0.8 }}>{reactFee} $ZOOM</span>
                     </button>
                   ) : (
                     <button
