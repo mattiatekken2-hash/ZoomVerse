@@ -225,7 +225,7 @@ export function AdminPanel({ telegramId }: Props) {
                 <input
                   value={targetId}
                   onChange={(e) => setTargetId(e.target.value)}
-                  placeholder="Telegram ID utente (vuoto = 8144744644)"
+                  placeholder="Telegram ID o @username (vuoto = 8144744644)"
                   onFocus={() => haptic()}
                   style={inputStyle}
                 />

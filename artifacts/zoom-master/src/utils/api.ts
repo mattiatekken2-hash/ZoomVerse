@@ -33,12 +33,19 @@ export async function debugTelegramContext(data: {
 export async function registerUser(
   telegramId: string,
   referredBy?: string | null,
+  firstName?: string | null,
+  username?: string | null,
 ): Promise<{ ok: boolean; isNew: boolean }> {
   try {
     const res = await fetch(`${API_BASE}/referral/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ telegramId, referredBy: referredBy ?? undefined }),
+      body: JSON.stringify({
+        telegramId,
+        referredBy: referredBy ?? undefined,
+        firstName: firstName ?? undefined,
+        username: username ?? undefined,
+      }),
     });
     if (!res.ok) return { ok: false, isNew: false };
     return res.json();
@@ -99,6 +106,7 @@ export async function checkMilestones(telegramId: string): Promise<{ credited: n
 export async function syncBalance(params: {
   telegramId: string;
   firstName?: string | null;
+  username?: string | null;
   zoomBalance: number;
 }): Promise<number> {
   try {

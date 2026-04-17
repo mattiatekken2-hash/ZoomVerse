@@ -8,6 +8,7 @@ const router: IRouter = Router();
 const SyncBody = z.object({
   telegramId: z.string().min(1),
   firstName: z.string().optional(),
+  username: z.string().optional(),
   zoomBalance: z.number().min(0),
 });
 
@@ -18,7 +19,8 @@ router.post("/balance/sync", async (req, res) => {
     return;
   }
 
-  const { telegramId, firstName, zoomBalance } = parsed.data;
+  const { telegramId, firstName, username, zoomBalance } = parsed.data;
+  const normalizedUsername = username ? username.replace(/^@/, "").toLowerCase() : null;
 
   try {
     // SERVER-AUTHORITATIVE: never let a client-supplied balance ERASE a higher
@@ -29,12 +31,13 @@ router.post("/balance/sync", async (req, res) => {
     // farming gains still get persisted, but purchases can never disappear.
     const [row] = await db
       .insert(usersTable)
-      .values({ telegramId, zoomBalance, firstName: firstName ?? null, referralCount: 0 })
+      .values({ telegramId, zoomBalance, firstName: firstName ?? null, username: normalizedUsername, referralCount: 0 })
       .onConflictDoUpdate({
         target: usersTable.telegramId,
         set: {
           zoomBalance: sql`GREATEST(${usersTable.zoomBalance}, ${zoomBalance})`,
           ...(firstName ? { firstName } : {}),
+          ...(normalizedUsername ? { username: normalizedUsername } : {}),
         },
       })
       .returning({ zoomBalance: usersTable.zoomBalance });

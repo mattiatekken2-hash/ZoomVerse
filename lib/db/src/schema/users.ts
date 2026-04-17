@@ -9,6 +9,7 @@ export const usersTable = pgTable("users", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   zoomBalance: real("zoom_balance").notNull().default(0),
   firstName: text("first_name"),
+  username: text("username"),
   bonusSlots: integer("bonus_slots").notNull().default(0),
   bonusSun: boolean("bonus_sun").notNull().default(false),
   sunCount: integer("sun_count").notNull().default(0),
@@ -61,6 +62,7 @@ export const marketListingsTable = pgTable("market_listings", {
   buyerTelegramId: text("buyer_telegram_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   soldAt: timestamp("sold_at"),
+  lastActivatedAt: timestamp("last_activated_at"),
 }, (table) => [
   index("idx_market_status").on(table.status),
   index("idx_market_seller").on(table.sellerTelegramId),

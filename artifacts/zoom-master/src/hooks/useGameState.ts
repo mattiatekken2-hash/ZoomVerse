@@ -180,12 +180,13 @@ function getStorageKey(telegramId: string | null): string {
   return telegramId ? `${STORAGE_KEY}:${telegramId}` : STORAGE_KEY;
 }
 
-function getTelegramContext(): { telegramId: string | null; startParam: string | null; firstName: string | null } {
+function getTelegramContext(): { telegramId: string | null; startParam: string | null; firstName: string | null; username: string | null } {
   try {
-    const webApp = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number; first_name?: string }; start_param?: string }; initData?: string } } }).Telegram?.WebApp;
+    const webApp = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number; first_name?: string; username?: string }; start_param?: string }; initData?: string } } }).Telegram?.WebApp;
     const unsafe = webApp?.initDataUnsafe;
     const telegramId = unsafe?.user?.id ? String(unsafe.user.id) : null;
     const firstName = unsafe?.user?.first_name ?? null;
+    const username = unsafe?.user?.username ?? null;
 
     let startParam: string | null = unsafe?.start_param || null;
 
@@ -200,9 +201,9 @@ function getTelegramContext(): { telegramId: string | null; startParam: string |
       startParam = localStorage.getItem("zoom-start-param");
     }
 
-    return { telegramId, startParam, firstName };
+    return { telegramId, startParam, firstName, username };
   } catch {
-    return { telegramId: null, startParam: null, firstName: null };
+    return { telegramId: null, startParam: null, firstName: null, username: null };
   }
 }
 
@@ -361,18 +362,20 @@ function immediateSyncToServer(state: GameState) {
 
   _lastSyncedBalance = balance;
   _syncInFlight = true;
-  const firstName = getTelegramContext().firstName;
-  syncBalance({ telegramId, firstName, zoomBalance: balance })
+  const ctx_ = getTelegramContext();
+  const firstName = ctx_.firstName;
+  const username = ctx_.username;
+  syncBalance({ telegramId, firstName, username, zoomBalance: balance })
     .then(() => {
       _syncInFlight = false;
       if (_pendingSyncBalance >= 0 && _pendingSyncBalance !== _lastSyncedBalance) {
         const nextBalance = _pendingSyncBalance;
         _pendingSyncBalance = -1;
-        const { telegramId: tid, firstName: fn } = getTelegramContext();
+        const { telegramId: tid, firstName: fn, username: un } = getTelegramContext();
         if (tid) {
           _lastSyncedBalance = nextBalance;
           _syncInFlight = true;
-          syncBalance({ telegramId: tid, firstName: fn, zoomBalance: nextBalance })
+          syncBalance({ telegramId: tid, firstName: fn, username: un, zoomBalance: nextBalance })
             .then(() => { _syncInFlight = false; })
             .catch(() => { _syncInFlight = false; });
         }
@@ -608,7 +611,7 @@ export function useGameState() {
   }, []);
 
   useEffect(() => {
-    const { telegramId, startParam, firstName } = getTelegramContext();
+    const { telegramId, startParam, firstName, username } = getTelegramContext();
 
     const webApp = (window as unknown as { Telegram?: { WebApp?: { initData?: string; initDataUnsafe?: unknown } } }).Telegram?.WebApp;
     const rawInitData = webApp?.initData ?? "";
@@ -642,7 +645,7 @@ export function useGameState() {
         }
       }
 
-      const result = await registerUser(telegramId, referrer ?? undefined);
+      const result = await registerUser(telegramId, referrer ?? undefined, firstName, username);
 
       if (result.isNew && referrer) {
         try { localStorage.removeItem("zoom-start-param"); } catch { /**/ }
@@ -659,7 +662,7 @@ export function useGameState() {
       const adminCredit = serverBalance > localBalance ? serverBalance - localBalance : 0;
       const finalBalance = stateRef.current.balance + adminCredit;
 
-      syncBalance({ telegramId, firstName, zoomBalance: Math.floor(finalBalance) });
+      syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(finalBalance) });
 
       setState((prev) => {
         const credit = serverBalance > Math.floor(prev.balance) ? serverBalance - Math.floor(prev.balance) : 0;
@@ -751,7 +754,7 @@ export function useGameState() {
           };
         }
 
-        syncBalance({ telegramId, firstName, zoomBalance: Math.floor(updated.balance) });
+        syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(updated.balance) });
         return updated;
       });
     })();
@@ -842,12 +845,12 @@ export function useGameState() {
     };
 
     const doSync = async () => {
-      const { telegramId, firstName } = getTelegramContext();
+      const { telegramId, firstName, username } = getTelegramContext();
       if (!telegramId) return;
       const localBalance = Math.floor(stateRef.current.balance);
 
       const [, grants] = await Promise.all([
-        syncBalance({ telegramId, firstName, zoomBalance: localBalance }),
+        syncBalance({ telegramId, firstName, username, zoomBalance: localBalance }),
         fetchGrants(telegramId),
       ]);
 
@@ -884,10 +887,10 @@ export function useGameState() {
       const detail = (e as CustomEvent<{ amount: number }>).detail;
       const amount = detail?.amount;
       if (!amount || amount <= 0) return;
-      const { telegramId, firstName } = getTelegramContext();
+      const { telegramId, firstName, username } = getTelegramContext();
       setState((prev) => {
         const newBal = prev.balance + amount;
-        if (telegramId) syncBalance({ telegramId, firstName, zoomBalance: Math.floor(newBal) });
+        if (telegramId) syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(newBal) });
         return { ...prev, balance: newBal, totalEarned: prev.totalEarned + amount };
       });
     };
@@ -911,14 +914,14 @@ export function useGameState() {
       setState((prev) => settleFarmingState(prev, localNow));
       stateRef.current = settleFarmingState(stateRef.current, localNow);
 
-      const { telegramId, firstName } = getTelegramContext();
+      const { telegramId, firstName, username } = getTelegramContext();
 
       if (telegramId) {
         (async () => {
           setState((prev) => {
             const settled = settleFarmingState(prev, Date.now());
             stateRef.current = settled;
-            syncBalance({ telegramId, firstName, zoomBalance: Math.floor(settled.balance) });
+            syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(settled.balance) });
             return settled;
           });
 
@@ -938,7 +941,7 @@ export function useGameState() {
     const handleBeforeUnload = () => {
       const settled = settleFarmingState(stateRef.current, Date.now());
       saveState(settled);
-      const { telegramId, firstName } = getTelegramContext();
+      const { telegramId, firstName, username } = getTelegramContext();
       if (telegramId) {
         const balance = Math.floor(settled.balance);
         const payload = JSON.stringify({ telegramId, firstName, zoomBalance: balance });
@@ -1298,7 +1301,7 @@ export function useGameState() {
     setState((prev) => {
       const planet = prev.planets.find((p) => p.id === id);
       if (!planet) return prev;
-      const { telegramId, firstName } = getTelegramContext();
+      const { telegramId, firstName, username } = getTelegramContext();
       if (telegramId) {
         listOnMarket({
           sellerTelegramId: telegramId,

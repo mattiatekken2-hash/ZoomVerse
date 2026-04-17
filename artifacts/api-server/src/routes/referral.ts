@@ -58,6 +58,8 @@ async function checkAndCreditMilestones(telegramId: string) {
 const RegisterBody = z.object({
   telegramId: z.string().min(1),
   referredBy: z.string().min(1).nullish(),
+  firstName: z.string().nullish(),
+  username: z.string().nullish(),
 });
 
 router.post("/referral/register", async (req, res) => {
@@ -67,15 +69,22 @@ router.post("/referral/register", async (req, res) => {
     return;
   }
 
-  const { telegramId, referredBy } = parsed.data;
+  const { telegramId, referredBy, firstName, username } = parsed.data;
+  const normalizedUsername = username ? username.replace(/^@/, "").toLowerCase() : null;
 
-  console.log(`[register] telegramId=${telegramId} referredBy=${referredBy ?? "none"}`);
+  console.log(`[register] telegramId=${telegramId} username=${normalizedUsername ?? "none"} referredBy=${referredBy ?? "none"}`);
 
   try {
     const inserted = await db
       .insert(usersTable)
-      .values({ telegramId, referredBy: referredBy ?? null, referralCount: 0 })
-      .onConflictDoNothing()
+      .values({ telegramId, referredBy: referredBy ?? null, referralCount: 0, firstName: firstName ?? null, username: normalizedUsername })
+      .onConflictDoUpdate({
+        target: usersTable.telegramId,
+        set: {
+          ...(firstName ? { firstName } : {}),
+          ...(normalizedUsername ? { username: normalizedUsername } : {}),
+        },
+      })
       .returning({ telegramId: usersTable.telegramId });
 
     const isNew = inserted.length > 0;

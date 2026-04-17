@@ -16,6 +16,28 @@ function isAdmin(adminId: string): boolean {
   return adminId === ADMIN_ID;
 }
 
+/**
+ * Resolves an admin-provided target identifier into a numeric Telegram ID.
+ * Accepts either a numeric telegram_id or an @username / username string,
+ * looking up the username column we now persist on register/sync.
+ * Returns null if the username cannot be matched to any user.
+ */
+async function resolveTargetTelegramId(input: string): Promise<string | null> {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  // numeric telegram id passes through unchanged
+  if (/^\d+$/.test(trimmed)) return trimmed;
+  // strip leading @ and lowercase
+  const handle = trimmed.replace(/^@/, "").toLowerCase();
+  if (!handle) return null;
+  const [row] = await db
+    .select({ telegramId: usersTable.telegramId })
+    .from(usersTable)
+    .where(sql`LOWER(${usersTable.username}) = ${handle}`)
+    .limit(1);
+  return row?.telegramId ?? null;
+}
+
 async function writeAdminAssetSnapshot() {
   const rows = await db
     .select({
@@ -86,7 +108,9 @@ router.post("/admin/credit-zoom", async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
   if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
 
-  const { telegramId, amount } = parsed.data;
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  const { amount } = parsed.data;
   try {
     await db
       .insert(usersTable)
@@ -107,7 +131,9 @@ router.post("/admin/add-planets", async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
   if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
 
-  const { telegramId, count, planetType } = parsed.data;
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  const { count, planetType } = parsed.data;
   try {
     if (planetType === "SUN") {
       await db
@@ -143,7 +169,9 @@ router.post("/admin/unlock-slots", async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
   if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
 
-  const { telegramId, count } = parsed.data;
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  const { count } = parsed.data;
   try {
     await db
       .insert(usersTable)
@@ -181,7 +209,9 @@ router.post("/admin/remove-zoom", async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
   if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
 
-  const { telegramId, amount } = parsed.data;
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  const { amount } = parsed.data;
   try {
     await db
       .update(usersTable)
@@ -199,10 +229,12 @@ router.post("/admin/remove-planets", async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
   if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
 
-  const { telegramId, count, planetType } = parsed.data;
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  const { count, planetType } = parsed.data;
   try {
     if (planetType === "SUN") {
-      await db.update(usersTable).set({ bonusSun: false }).where(sql`${usersTable.telegramId} = ${telegramId}`);
+      await db.update(usersTable).set({ bonusSun: false, sunCount: 0 }).where(sql`${usersTable.telegramId} = ${telegramId}`);
     } else if (planetType === "BASIC") {
       await db.update(usersTable).set({ bonusBasic: sql`GREATEST(0, ${usersTable.bonusBasic} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
     } else if (planetType === "RARE") {
@@ -224,7 +256,9 @@ router.post("/admin/remove-slots", async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
   if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
 
-  const { telegramId, count } = parsed.data;
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  const { count } = parsed.data;
   try {
     await db
       .update(usersTable)
@@ -248,7 +282,9 @@ router.post("/admin/credit-spins", async (req, res) => {
   const parsed = SpinsBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
   if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
-  const { telegramId, count } = parsed.data;
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  const { count } = parsed.data;
   try {
     await db.insert(usersTable)
       .values({ telegramId, zoomBalance: 0, referralCount: 0, wheelSpins: count })
@@ -267,7 +303,9 @@ router.post("/admin/remove-spins", async (req, res) => {
   const parsed = SpinsBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
   if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
-  const { telegramId, count } = parsed.data;
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  const { count } = parsed.data;
   try {
     await db.update(usersTable)
       .set({ wheelSpins: sql`GREATEST(0, ${usersTable.wheelSpins} - ${count})` })
