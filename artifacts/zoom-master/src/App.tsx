@@ -67,41 +67,100 @@ export default function App() {
   const mutedRef = useRef<boolean>(muted);
   useEffect(() => { mutedRef.current = muted; }, [muted]);
 
+  const gainRef = useRef<GainNode | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
   useEffect(() => {
-    const TARGET_VOLUME = 0.22;
-    const FADE_IN_MS = 2200;
-    const FADE_OUT_MS = 600;
+    const TARGET_VOLUME = 0.18;
+    const FADE_IN_S = 2.2;
+    const FADE_OUT_S = 0.6;
 
     const audio = new Audio(`${import.meta.env.BASE_URL}bgm.mp3`);
     audio.loop = true;
-    audio.volume = 0;
     audio.preload = "auto";
+    audio.crossOrigin = "anonymous";
+    // Keep element volume at 1 — we control level via the Web Audio gain node
+    // so fades and the final mix happen with sample-accurate float precision
+    // instead of the WebView's coarse volume mixer (which is what was causing
+    // the grainy / lo-fi feel).
+    audio.volume = 1;
     audioRef.current = audio;
 
-    let fadeRaf: number | null = null;
-    const fadeTo = (target: number, durationMs: number) => {
-      if (fadeRaf != null) cancelAnimationFrame(fadeRaf);
-      const start = performance.now();
-      const from = audio.volume;
-      const ease = (t: number) => t * t * (3 - 2 * t);
-      const step = (now: number) => {
-        const t = Math.min(1, (now - start) / durationMs);
-        audio.volume = Math.max(0, Math.min(1, from + (target - from) * ease(t)));
-        if (t < 1) fadeRaf = requestAnimationFrame(step);
-        else {
-          fadeRaf = null;
-          if (target === 0 && !audio.paused) audio.pause();
+    // Web Audio chain: source → lowpass (tames harsh top end on tiny phone
+    // speakers) → gentle compressor (prevents peak clipping in the WebView
+    // mixer) → gain (smooth fades). Built lazily on first user gesture so we
+    // don't trip Safari's autoplay policy.
+    let chainBuilt = false;
+    const buildChain = () => {
+      if (chainBuilt) return;
+      try {
+        const Ctx: typeof AudioContext =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (!Ctx) return;
+        const ctx = new Ctx();
+        audioCtxRef.current = ctx;
+        const source = ctx.createMediaElementSource(audio);
+        const lowpass = ctx.createBiquadFilter();
+        lowpass.type = "lowpass";
+        lowpass.frequency.value = 14000;
+        lowpass.Q.value = 0.7;
+        const comp = ctx.createDynamicsCompressor();
+        comp.threshold.value = -18;
+        comp.knee.value = 24;
+        comp.ratio.value = 3;
+        comp.attack.value = 0.01;
+        comp.release.value = 0.25;
+        const gain = ctx.createGain();
+        gain.gain.value = 0;
+        gainRef.current = gain;
+        source.connect(lowpass);
+        lowpass.connect(comp);
+        comp.connect(gain);
+        gain.connect(ctx.destination);
+        chainBuilt = true;
+      } catch {
+        /* fall back to plain HTMLAudio playback */
+      }
+    };
+
+    const fadeTo = (target: number, seconds: number) => {
+      const ctx = audioCtxRef.current;
+      const gain = gainRef.current;
+      if (ctx && gain) {
+        const now = ctx.currentTime;
+        gain.gain.cancelScheduledValues(now);
+        // Use setTargetAtTime for a smooth, audio-rate exponential fade —
+        // perceptually clean, no zipper noise.
+        gain.gain.setValueAtTime(gain.gain.value, now);
+        gain.gain.linearRampToValueAtTime(target, now + seconds);
+        if (target === 0) {
+          window.setTimeout(() => { if (!audio.paused) audio.pause(); }, seconds * 1000 + 50);
         }
-      };
-      fadeRaf = requestAnimationFrame(step);
+      } else {
+        // Fallback path (no Web Audio): coarse but smooth ramp on element.
+        const startV = audio.volume;
+        const start = performance.now();
+        const dur = seconds * 1000;
+        const step = (now: number) => {
+          const t = Math.min(1, (now - start) / dur);
+          const eased = t * t * (3 - 2 * t);
+          audio.volume = Math.max(0, Math.min(1, startV + (target - startV) * eased));
+          if (t < 1) requestAnimationFrame(step);
+          else if (target === 0 && !audio.paused) audio.pause();
+        };
+        requestAnimationFrame(step);
+      }
     };
 
     const tryPlay = () => {
-      audio.play().then(() => fadeTo(TARGET_VOLUME, FADE_IN_MS)).catch(() => {});
+      buildChain();
+      const ctx = audioCtxRef.current;
+      if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
+      audio.play().then(() => fadeTo(TARGET_VOLUME, FADE_IN_S)).catch(() => {});
     };
     if (!mutedRef.current) {
       tryPlay();
-      // Retry quickly a few times in case the WebView is still initializing.
       const t1 = setTimeout(() => { if (!mutedRef.current && audioRef.current?.paused) tryPlay(); }, 100);
       const t2 = setTimeout(() => { if (!mutedRef.current && audioRef.current?.paused) tryPlay(); }, 500);
       const t3 = setTimeout(() => { if (!mutedRef.current && audioRef.current?.paused) tryPlay(); }, 1500);
@@ -112,7 +171,7 @@ export default function App() {
       const a = audioRef.current;
       if (!a) return;
       if (mutedRef.current) {
-        if (!a.paused) fadeTo(0, FADE_OUT_MS);
+        if (!a.paused) fadeTo(0, FADE_OUT_S);
         return;
       }
       if (a.paused) tryPlay();
