@@ -59,30 +59,24 @@ function isScrollContainer(el: Element): boolean {
   return style.overflowY === "auto" || style.overflowY === "scroll";
 }
 
-document.addEventListener(
-  "touchstart",
-  (e) => {
-    let el = e.target as Element | null;
-    while (el && el !== document.body) {
-      if (isScrollContainer(el)) return;
-      const tag = el.tagName;
-      if (tag === "BUTTON" || tag === "A" || tag === "INPUT" || tag === "SELECT" || tag === "LABEL") {
-        hapticLight();
-        return;
-      }
-      if (el.getAttribute("role") === "button" || el.getAttribute("tabindex") === "0") {
-        hapticLight();
-        return;
-      }
-      const style = window.getComputedStyle(el);
-      if (style.cursor === "pointer") {
-        hapticLight();
-        return;
-      }
-      el = el.parentElement;
-    }
-  },
-  { passive: true },
-);
+const NO_HAPTIC_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
+
+function tapHandler(e: Event) {
+  let el = e.target as Element | null;
+  // Walk up to detect text inputs and scroll containers — skip haptic in those
+  // cases. Otherwise fire on every tap so the whole game feels alive.
+  while (el && el !== document.body) {
+    if (NO_HAPTIC_TAGS.has(el.tagName)) return;
+    if (el.getAttribute && el.getAttribute("contenteditable") === "true") return;
+    if (isScrollContainer(el)) return;
+    el = el.parentElement;
+  }
+  hapticLight();
+}
+
+// Use both touchstart (mobile) and pointerdown (covers stylus / mouse / Telegram
+// desktop). Passive so we never block scroll.
+document.addEventListener("touchstart", tapHandler, { passive: true });
+document.addEventListener("pointerdown", tapHandler, { passive: true });
 
 createRoot(document.getElementById("root")!).render(<App />);
