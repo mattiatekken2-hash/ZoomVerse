@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { PlanetCanvas } from "../components/PlanetCanvas";
 import type { Planet, PlanetType } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
@@ -22,9 +22,7 @@ const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
 export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, onCraft, onClaim }: LabPageProps) {
-  const [status, setStatus] = useState("TAP THE PRIMORDIAL LIGHT");
   const [floats, setFloats] = useState<FloatMsg[]>([]);
-  const timeoutRef = useRef<number | null>(null);
 
   const isFull = planets.length >= maxSlots && !pendingPlanet;
   const canCraft = !pendingPlanet && planets.length < maxSlots && balance >= 1;
@@ -45,24 +43,17 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
   const handleCraft = useCallback(() => {
     if (!canCraft) return;
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
     const result = onCraft();
     if (result.completed && result.planet) {
       const p = result.planet;
-      setStatus(`CORE FRACTURED — ${PLANET_CONFIG[p.name].label.toUpperCase()} READY`);
       addFloat(`✦ ${PLANET_CONFIG[p.name].label}!`, p.color);
-    } else if (!result.completed && result.tapsLeft !== undefined) {
-      const done = goal - result.tapsLeft;
-      const pct = Math.round((done / goal) * 100);
-      setStatus(done < 3 ? "AGGREGATING FRAGMENTS..." : pct >= 90 ? `CORE UNSTABLE... ${pct}%` : `FORGING MASS... ${pct}%`);
+    } else if (!result.completed) {
       addFloat("+1", "rgba(255,255,255,0.25)");
     }
-  }, [canCraft, onCraft, goal, addFloat]);
+  }, [canCraft, onCraft, addFloat]);
 
   const handleClaim = useCallback(() => {
     onClaim();
-    setStatus("TAP THE PRIMORDIAL LIGHT");
   }, [onClaim]);
 
   const rarityClass: Record<string, string> = {
@@ -154,13 +145,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           </>
         ) : (
           <>
-            <div
-              className="text-center text-xs font-bold tracking-widest uppercase py-1"
-              style={{ color: dynamicColor === GREY ? "rgba(255,255,255,0.4)" : dynamicColor }}
-              data-testid="craft-status"
-            >
-              {status}
-            </div>
             <button
               className="btn-craft"
               onClick={handleCraft}
