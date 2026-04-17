@@ -38,288 +38,376 @@ function darken(hex: string, amount: number): string {
   return `rgb(${Math.round(r * (1 - amount))},${Math.round(g * (1 - amount))},${Math.round(b * (1 - amount))})`;
 }
 
-interface Fragment {
-  id: number;
-  startX: number;
-  startY: number;
-  size: number;
-  color: string;
-  duration: number;
-}
-
-interface CrackPath {
-  d: string;
-  delay: number;
-  duration: number;
-}
-
-function generateCracks(seed: number): CrackPath[] {
-  const rng = (() => {
-    let s = seed;
-    return () => {
-      s = (s * 9301 + 49297) % 233280;
-      return s / 233280;
-    };
-  })();
-  const paths: CrackPath[] = [];
-  const lineCount = 7;
-  for (let i = 0; i < lineCount; i++) {
-    const cx = 50, cy = 50;
-    const angle = (i / lineCount) * Math.PI * 2 + rng() * 0.6;
-    let x = cx + Math.cos(angle) * (8 + rng() * 6);
-    let y = cy + Math.sin(angle) * (8 + rng() * 6);
-    let d = `M ${cx + Math.cos(angle) * 4} ${cy + Math.sin(angle) * 4} L ${x} ${y}`;
-    const segs = 3 + Math.floor(rng() * 3);
-    for (let s = 0; s < segs; s++) {
-      const branchAngle = angle + (rng() - 0.5) * 1.4;
-      const len = 6 + rng() * 8;
-      const nx = x + Math.cos(branchAngle) * len;
-      const ny = y + Math.sin(branchAngle) * len;
-      // Clamp inside circle
-      const dist = Math.sqrt((nx - cx) ** 2 + (ny - cy) ** 2);
-      if (dist > 46) break;
-      d += ` L ${nx} ${ny}`;
-      x = nx; y = ny;
-    }
-    paths.push({ d, delay: rng() * 0.6, duration: 1.2 + rng() * 0.8 });
-  }
-  return paths;
-}
-
-const CRACK_PATHS = generateCracks(42);
-
-function Planet({
-  color,
-  size,
-  pct,
-  fractured,
-  fragments,
-  bumpKey,
-}: {
-  color: string;
-  size: number;
-  pct: number;
-  fractured: boolean;
-  fragments: Fragment[];
-  bumpKey: number;
-}) {
+function CSSFallback({ color, size, pct, fractured }: { color: string; size: number; pct: number; fractured: boolean }) {
   const [s0, s1, s2, s3, s4] = getLabStops(color);
-  const planetSize = size * (0.14 + pct * 0.86);
-  const showNebula = pct < 0.04 && !fractured;
-  const showPlanet = pct > 0 || fractured;
+  const planetSize = size * (0.12 + pct * 0.88);
+  const showNebula = pct < 0.04;
+  return (
+    <div className="planet-wrap" style={{ width: size, height: size }}>
+      {showNebula && (
+        <div
+          style={{
+            position: "absolute",
+            width: size * 0.9, height: size * 0.9,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(200,210,255,0.45) 0%, rgba(120,140,200,0.18) 35%, transparent 70%)",
+            filter: `blur(${size * 0.08}px)`,
+            animation: "nebulaPulse 2.4s ease-in-out infinite",
+          }}
+        />
+      )}
+      <div
+        className="planet-outer-glow"
+        style={{
+          width: planetSize * 2.2, height: planetSize * 2.2,
+          background: `radial-gradient(circle, ${color}55 0%, ${color}20 40%, transparent 70%)`,
+          filter: `blur(${planetSize * 0.15}px)`,
+          opacity: pct,
+        }}
+      />
+      <div
+        className="planet-sphere"
+        style={{
+          width: planetSize, height: planetSize,
+          background: `radial-gradient(circle at 40% 35%, ${s0} 0%, ${s1} 15%, ${s2} 35%, ${s3} 60%, ${s4} 85%, ${s4} 100%)`,
+          boxShadow: `0 0 ${planetSize * 0.4}px ${color}99, 0 0 ${planetSize * 0.8}px ${color}44, inset -${planetSize * 0.06}px -${planetSize * 0.04}px ${planetSize * 0.12}px rgba(0,0,0,0.25)`,
+          transition: "width 0.25s ease-out, height 0.25s ease-out",
+        }}
+      >
+        {fractured && (
+          <div
+            style={{
+              position: "absolute", inset: 0, borderRadius: "50%",
+              background: `repeating-conic-gradient(from 0deg, transparent 0deg, ${color} 2deg, transparent 4deg, transparent 30deg)`,
+              mixBlendMode: "screen", opacity: 0.55,
+              animation: "crackPulse 1.4s ease-in-out infinite",
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
 
+interface ThreeRefs {
+  planetGroup: any;
+  planetMesh: any;
+  cracksMesh: any;
+  nebulaPoints: any;
+  nebulaMaterial: any;
+  fragments: Array<{ mesh: any; vel: { x: number; y: number; z: number }; life: number; maxLife: number }>;
+  scene: any;
+  THREE: any;
+  pointLight: any;
+  innerMesh: any;
+}
+
+function ThreeScene({
+  onPunch,
+  planetColor,
+  progress,
+  goal,
+  size,
+  isRevealing,
+}: {
+  onPunch?: () => void;
+  planetColor: string;
+  progress: number;
+  goal: number;
+  size: number;
+  isRevealing: boolean;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const refs = useRef<ThreeRefs | null>(null);
+  const frameRef = useRef<number>(0);
+  const [failed, setFailed] = useState(false);
+  const lastProgressRef = useRef(progress);
+  const targetScaleRef = useRef(0.12);
+  const fracturedRef = useRef(false);
+  const colorRef = useRef(planetColor);
+  const onPunchRef = useRef(onPunch);
+
+  useEffect(() => { onPunchRef.current = onPunch; }, [onPunch]);
+
+  useEffect(() => {
+    let mounted = true;
+    let cleanupFn: (() => void) | null = null;
+
+    (async () => {
+      try {
+        const THREE = await import("three");
+        const gsapMod = await import("gsap");
+        const gsap = gsapMod.default;
+        const container = containerRef.current;
+        if (!container || !mounted) return;
+
+        let renderer: any;
+        try {
+          renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, failIfMajorPerformanceCaveat: false });
+        } catch { if (mounted) setFailed(true); return; }
+
+        renderer.setSize(size, size);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1000);
+        camera.position.z = 4.5;
+
+        // --- Stars
+        const starsGeo = new THREE.BufferGeometry();
+        const starPositions: number[] = [];
+        for (let i = 0; i < 800; i++) {
+          starPositions.push((Math.random() - 0.5) * 80, (Math.random() - 0.5) * 80, (Math.random() - 0.5) * 80);
+        }
+        starsGeo.setAttribute("position", new THREE.Float32BufferAttribute(starPositions, 3));
+        const stars = new THREE.Points(starsGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.06, transparent: true, opacity: 0.45 }));
+        scene.add(stars);
+
+        // --- Lights
+        const ambient = new THREE.AmbientLight(0x222244, 1.5);
+        scene.add(ambient);
+        const keyLight = new THREE.PointLight(0xffffff, 2.5);
+        keyLight.position.set(5, 5, 5);
+        scene.add(keyLight);
+        const rimLight = new THREE.PointLight(new THREE.Color(planetColor), 2);
+        rimLight.position.set(-4, -3, 2);
+        scene.add(rimLight);
+
+        // --- Nebula (initial primordial light)
+        const nebulaGeo = new THREE.BufferGeometry();
+        const nebPositions: number[] = [];
+        const nebColors: number[] = [];
+        const nebCount = 350;
+        for (let i = 0; i < nebCount; i++) {
+          const r = 0.6 + Math.random() * 1.5;
+          const t = Math.random() * Math.PI * 2;
+          const p = (Math.random() - 0.5) * Math.PI;
+          nebPositions.push(r * Math.cos(p) * Math.cos(t), r * Math.cos(p) * Math.sin(t), r * Math.sin(p));
+          const tint = 0.6 + Math.random() * 0.4;
+          nebColors.push(0.7 * tint, 0.78 * tint, 1.0 * tint);
+        }
+        nebulaGeo.setAttribute("position", new THREE.Float32BufferAttribute(nebPositions, 3));
+        nebulaGeo.setAttribute("color", new THREE.Float32BufferAttribute(nebColors, 3));
+        const nebulaMaterial = new THREE.PointsMaterial({
+          size: 0.12, vertexColors: true, transparent: true, opacity: 0.85,
+          blending: THREE.AdditiveBlending, depthWrite: false,
+        });
+        const nebulaPoints = new THREE.Points(nebulaGeo, nebulaMaterial);
+        scene.add(nebulaPoints);
+
+        // --- Planet group
+        const planetGroup = new THREE.Group();
+        planetGroup.scale.setScalar(0.12);
+        scene.add(planetGroup);
+
+        const color = new THREE.Color(planetColor);
+        const planetGeo = new THREE.IcosahedronGeometry(1.6, 5);
+        const planetMat = new THREE.MeshStandardMaterial({
+          color, wireframe: true, emissive: color, emissiveIntensity: 0.4,
+        });
+        const planetMesh = new THREE.Mesh(planetGeo, planetMat);
+        planetGroup.add(planetMesh);
+
+        const innerGeo = new THREE.IcosahedronGeometry(1.55, 3);
+        const innerMat = new THREE.MeshStandardMaterial({ color, transparent: true, opacity: 0.08, side: THREE.BackSide });
+        const innerMesh = new THREE.Mesh(innerGeo, innerMat);
+        planetGroup.add(innerMesh);
+
+        // --- Cracks (visible when fractured)
+        const crackGeo = new THREE.BufferGeometry();
+        const crackPositions: number[] = [];
+        const lineCount = 14;
+        for (let i = 0; i < lineCount; i++) {
+          const start = new THREE.Vector3().setFromSphericalCoords(1.62, Math.random() * Math.PI, Math.random() * Math.PI * 2);
+          let cur = start.clone();
+          crackPositions.push(cur.x, cur.y, cur.z);
+          const segCount = 6 + Math.floor(Math.random() * 4);
+          for (let s = 0; s < segCount; s++) {
+            const next = cur.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5));
+            next.setLength(1.62 + (Math.random() - 0.5) * 0.05);
+            crackPositions.push(next.x, next.y, next.z);
+            crackPositions.push(next.x, next.y, next.z);
+            cur = next;
+          }
+          crackPositions.push(cur.x, cur.y, cur.z);
+        }
+        crackGeo.setAttribute("position", new THREE.Float32BufferAttribute(crackPositions, 3));
+        const crackMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+        const cracksMesh = new THREE.LineSegments(crackGeo, crackMat);
+        planetGroup.add(cracksMesh);
+
+        refs.current = {
+          planetGroup, planetMesh, cracksMesh, nebulaPoints, nebulaMaterial,
+          fragments: [], scene, THREE, pointLight: rimLight, innerMesh,
+        };
+
+        // --- Click handler with fragment burst
+        const handleClick = () => {
+          if (!onPunchRef.current) return;
+          onPunchRef.current();
+          gsap.fromTo(planetGroup.scale,
+            { x: targetScaleRef.current * 1.18, y: targetScaleRef.current * 1.18, z: targetScaleRef.current * 1.18 },
+            { x: targetScaleRef.current, y: targetScaleRef.current, z: targetScaleRef.current, duration: 0.35, ease: "elastic.out(1,0.4)" });
+        };
+        container.addEventListener("click", handleClick);
+        container.addEventListener("touchstart", (e) => { e.preventDefault(); handleClick(); }, { passive: false });
+
+        const clock = new THREE.Clock();
+
+        function animate() {
+          frameRef.current = requestAnimationFrame(animate);
+          const dt = Math.min(clock.getDelta(), 0.05);
+          const t = clock.elapsedTime;
+
+          // Smooth scale
+          const cur = planetGroup.scale.x;
+          const next = cur + (targetScaleRef.current - cur) * Math.min(1, dt * 6);
+          planetGroup.scale.setScalar(next);
+
+          // Rotate
+          planetMesh.rotation.y += 0.005;
+          planetMesh.rotation.x += 0.0015;
+          innerMesh.rotation.y -= 0.003;
+          stars.rotation.y += 0.0003;
+
+          // Nebula pulse + fade
+          const nebOpacity = nebulaMaterial.opacity;
+          const targetNeb = next > 0.16 ? 0 : 0.85;
+          nebulaMaterial.opacity = nebOpacity + (targetNeb - nebOpacity) * Math.min(1, dt * 3);
+          nebulaPoints.rotation.y += 0.002;
+          nebulaPoints.rotation.x += 0.0008;
+          const pulse = 0.95 + Math.sin(t * 2.4) * 0.08;
+          nebulaPoints.scale.setScalar(pulse);
+
+          // Cracks pulse
+          if (fracturedRef.current) {
+            const target = 0.55 + Math.sin(t * 3.5) * 0.25;
+            crackMat.opacity = crackMat.opacity + (target - crackMat.opacity) * Math.min(1, dt * 4);
+          } else {
+            crackMat.opacity = crackMat.opacity * (1 - Math.min(1, dt * 4));
+          }
+
+          // Fragments
+          const refsCur = refs.current;
+          if (refsCur) {
+            for (let i = refsCur.fragments.length - 1; i >= 0; i--) {
+              const f = refsCur.fragments[i];
+              f.life += dt;
+              const k = Math.min(1, f.life / f.maxLife);
+              // Move toward center (ease-in)
+              f.mesh.position.x += (0 - f.mesh.position.x) * Math.min(1, dt * (2 + k * 8));
+              f.mesh.position.y += (0 - f.mesh.position.y) * Math.min(1, dt * (2 + k * 8));
+              f.mesh.position.z += (0 - f.mesh.position.z) * Math.min(1, dt * (2 + k * 8));
+              const s = (1 - k) * 0.18;
+              f.mesh.scale.setScalar(s);
+              f.mesh.material.opacity = 1 - k;
+              if (f.life >= f.maxLife) {
+                planetGroup.add(f.mesh); planetGroup.remove(f.mesh);
+                scene.remove(f.mesh);
+                f.mesh.geometry.dispose();
+                f.mesh.material.dispose();
+                refsCur.fragments.splice(i, 1);
+                // Tiny bump on impact
+                gsap.fromTo(planetGroup.scale,
+                  { x: next * 1.06, y: next * 1.06, z: next * 1.06 },
+                  { x: targetScaleRef.current, y: targetScaleRef.current, z: targetScaleRef.current, duration: 0.18, ease: "power2.out" });
+              }
+            }
+          }
+
+          renderer.render(scene, camera);
+        }
+        animate();
+
+        cleanupFn = () => {
+          container.removeEventListener("click", handleClick);
+          cancelAnimationFrame(frameRef.current);
+          renderer.dispose();
+          if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement);
+        };
+      } catch {
+        if (mounted) setFailed(true);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+      if (cleanupFn) cleanupFn();
+    };
+  }, [size]);
+
+  // --- React to progress changes: spawn fragments + update target scale + fracture
+  useEffect(() => {
+    const r = refs.current;
+    if (!r) { lastProgressRef.current = progress; return; }
+    const THREE = r.THREE;
+    const delta = progress - lastProgressRef.current;
+    lastProgressRef.current = progress;
+
+    const pct = goal > 0 ? Math.min(progress / goal, 1) : 0;
+    targetScaleRef.current = 0.12 + pct * 0.88;
+    fracturedRef.current = pct >= 0.999 || isRevealing;
+
+    if (delta > 0) {
+      const burst = Math.min(8, Math.max(3, Math.round(delta * 4)));
+      for (let i = 0; i < burst; i++) {
+        const geo = new THREE.SphereGeometry(0.12, 8, 8);
+        const c = new THREE.Color(colorRef.current);
+        const mat = new THREE.MeshBasicMaterial({
+          color: c, transparent: true, opacity: 1,
+          blending: THREE.AdditiveBlending, depthWrite: false,
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        const theta = Math.random() * Math.PI * 2;
+        const phi = (Math.random() - 0.5) * Math.PI;
+        const dist = 2.4 + Math.random() * 1.2;
+        mesh.position.set(
+          dist * Math.cos(phi) * Math.cos(theta),
+          dist * Math.cos(phi) * Math.sin(theta),
+          dist * Math.sin(phi),
+        );
+        r.scene.add(mesh);
+        r.fragments.push({
+          mesh, vel: { x: 0, y: 0, z: 0 },
+          life: 0, maxLife: 0.55 + Math.random() * 0.25,
+        });
+      }
+    }
+  }, [progress, goal, isRevealing]);
+
+  // --- React to color changes
+  useEffect(() => {
+    colorRef.current = planetColor;
+    const r = refs.current;
+    if (!r) return;
+    const THREE = r.THREE;
+    const c = new THREE.Color(planetColor);
+    if (r.planetMesh?.material) {
+      r.planetMesh.material.color = c;
+      r.planetMesh.material.emissive = c;
+    }
+    if (r.innerMesh?.material) r.innerMesh.material.color = c;
+    if (r.cracksMesh?.material) r.cracksMesh.material.color = c;
+    if (r.pointLight) r.pointLight.color = c;
+  }, [planetColor]);
+
+  if (failed) {
+    const pct = goal > 0 ? Math.min(progress / goal, 1) : 0;
+    return <CSSFallback color={planetColor} size={size} pct={pct} fractured={pct >= 0.999 || isRevealing} />;
+  }
   return (
     <div
-      style={{
-        position: "relative",
-        width: size,
-        height: size,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      {/* Primordial Nebula (only at start) */}
-      {showNebula && (
-        <>
-          <div
-            style={{
-              position: "absolute",
-              width: size * 0.95,
-              height: size * 0.95,
-              borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(200,210,255,0.35) 0%, rgba(140,160,220,0.18) 30%, rgba(80,100,180,0.06) 55%, transparent 75%)",
-              filter: `blur(${size * 0.06}px)`,
-              animation: "nebulaPulse 2.6s ease-in-out infinite",
-              pointerEvents: "none",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              width: size * 0.55,
-              height: size * 0.55,
-              borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(220,230,255,0.7) 0%, rgba(170,190,240,0.25) 40%, transparent 75%)",
-              filter: `blur(${size * 0.04}px)`,
-              animation: "nebulaPulse 1.8s ease-in-out infinite reverse",
-              pointerEvents: "none",
-            }}
-          />
-          <div
-            style={{
-              position: "absolute",
-              width: size * 0.16,
-              height: size * 0.16,
-              borderRadius: "50%",
-              background: "radial-gradient(circle, #ffffff 0%, rgba(220,230,255,0.7) 40%, transparent 70%)",
-              filter: `blur(${size * 0.012}px)`,
-              animation: "primordialCore 1.4s ease-in-out infinite",
-              pointerEvents: "none",
-            }}
-          />
-          {/* Drifting sparks */}
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              style={{
-                position: "absolute",
-                width: 3,
-                height: 3,
-                borderRadius: "50%",
-                background: "#cfd8ff",
-                boxShadow: "0 0 8px #cfd8ff",
-                opacity: 0.7,
-                animation: `nebSpark${i % 3} ${2.4 + (i % 3) * 0.6}s ease-in-out infinite`,
-                animationDelay: `${i * 0.3}s`,
-                pointerEvents: "none",
-              }}
-            />
-          ))}
-        </>
-      )}
-
-      {/* Planet (Farm style) */}
-      {showPlanet && (
-        <div
-          key={`planet-${bumpKey}`}
-          style={{
-            position: "absolute",
-            width: planetSize,
-            height: planetSize,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "width 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), height 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)",
-            animation: "planetBump 0.32s ease-out",
-          }}
-        >
-          {/* Outer glow */}
-          <div
-            style={{
-              position: "absolute",
-              width: planetSize * 2.2,
-              height: planetSize * 2.2,
-              borderRadius: "50%",
-              background: `radial-gradient(circle, ${color}55 0%, ${color}20 40%, transparent 70%)`,
-              filter: `blur(${planetSize * 0.2}px)`,
-              animation: "planet-breathe 3s ease-in-out infinite alternate",
-              pointerEvents: "none",
-              opacity: Math.min(1, 0.3 + pct),
-            }}
-          />
-          {/* Main sphere — matches PlanetOrb */}
-          <div
-            style={{
-              width: planetSize,
-              height: planetSize,
-              borderRadius: "50%",
-              position: "relative",
-              overflow: "hidden",
-              background: `radial-gradient(circle at 40% 35%, ${s0} 0%, ${s1} 15%, ${s2} 35%, ${s3} 60%, ${s4} 85%, ${s4} 100%)`,
-              boxShadow: `
-                0 0 ${planetSize * 0.4}px ${color}99,
-                0 0 ${planetSize * 0.8}px ${color}44,
-                0 0 ${planetSize * 1.3}px ${color}18,
-                inset -${planetSize * 0.06}px -${planetSize * 0.04}px ${planetSize * 0.12}px rgba(0,0,0,0.25)
-              `,
-              animation: "planet-rotate 10s linear infinite",
-            }}
-          >
-            {/* Highlight */}
-            <div
-              style={{
-                position: "absolute",
-                top: "8%",
-                left: "12%",
-                width: "38%",
-                height: "38%",
-                borderRadius: "50%",
-                background: "radial-gradient(circle at 45% 40%, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.15) 50%, transparent 75%)",
-                filter: `blur(${planetSize * 0.03}px)`,
-                pointerEvents: "none",
-              }}
-            />
-
-            {/* Fracture cracks (SVG overlay) */}
-            {fractured && (
-              <svg
-                viewBox="0 0 100 100"
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  width: "100%",
-                  height: "100%",
-                  mixBlendMode: "screen",
-                  pointerEvents: "none",
-                }}
-              >
-                <defs>
-                  <radialGradient id="crackMask" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="white" stopOpacity="1" />
-                    <stop offset="80%" stopColor="white" stopOpacity="1" />
-                    <stop offset="100%" stopColor="white" stopOpacity="0" />
-                  </radialGradient>
-                  <mask id="circleMask">
-                    <circle cx="50" cy="50" r="50" fill="url(#crackMask)" />
-                  </mask>
-                </defs>
-                <g mask="url(#circleMask)">
-                  {CRACK_PATHS.map((p, i) => (
-                    <path
-                      key={i}
-                      d={p.d}
-                      stroke={color}
-                      strokeWidth={0.7}
-                      fill="none"
-                      strokeLinecap="round"
-                      style={{
-                        filter: `drop-shadow(0 0 2px ${color}) drop-shadow(0 0 4px ${color})`,
-                        animation: `crackFlicker ${p.duration}s ease-in-out infinite`,
-                        animationDelay: `${p.delay}s`,
-                      }}
-                    />
-                  ))}
-                </g>
-              </svg>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Fragments (incoming particles) */}
-      {fragments.map((f) => (
-        <div
-          key={f.id}
-          style={{
-            position: "absolute",
-            left: "50%",
-            top: "50%",
-            width: f.size,
-            height: f.size,
-            borderRadius: "50%",
-            background: `radial-gradient(circle, ${f.color} 0%, ${f.color}aa 50%, transparent 80%)`,
-            boxShadow: `0 0 ${f.size * 1.5}px ${f.color}, 0 0 ${f.size * 3}px ${f.color}66`,
-            transform: `translate(${f.startX}px, ${f.startY}px)`,
-            animation: `fragmentFly ${f.duration}s cubic-bezier(0.5, 0, 0.85, 0.3) forwards`,
-            pointerEvents: "none",
-            ["--fx" as never]: `${f.startX}px`,
-            ["--fy" as never]: `${f.startY}px`,
-          } as React.CSSProperties}
-        />
-      ))}
-    </div>
+      ref={containerRef}
+      style={{ width: size, height: size, cursor: onPunch ? "pointer" : "default", touchAction: "manipulation" }}
+      data-testid="planet-canvas"
+    />
   );
 }
 
 export function PlanetCanvas({ onPunch, progress, goal, planetColor, isRevealing = false }: PlanetCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(260);
-  const [fragments, setFragments] = useState<Fragment[]>([]);
-  const [bumpKey, setBumpKey] = useState(0);
-  const lastProgressRef = useRef(progress);
-  const fragIdRef = useRef(0);
-
   const color = planetColor || DEFAULT_COLOR;
   const pct = goal > 0 ? Math.min(progress / goal, 1) : 0;
   const isPrimordial = pct < 0.04 && !isRevealing;
@@ -339,37 +427,6 @@ export function PlanetCanvas({ onPunch, progress, goal, planetColor, isRevealing
     return () => ro.disconnect();
   }, []);
 
-  // Spawn fragments + bump on tap (progress increments)
-  useEffect(() => {
-    const delta = progress - lastProgressRef.current;
-    lastProgressRef.current = progress;
-    if (delta <= 0) return;
-
-    const burst = 5;
-    const newFrags: Fragment[] = [];
-    for (let i = 0; i < burst; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const dist = size * (0.32 + Math.random() * 0.18);
-      newFrags.push({
-        id: ++fragIdRef.current,
-        startX: Math.cos(angle) * dist - 4,
-        startY: Math.sin(angle) * dist - 4,
-        size: 6 + Math.random() * 4,
-        color,
-        duration: 0.45 + Math.random() * 0.2,
-      });
-    }
-    setFragments((prev) => [...prev, ...newFrags]);
-    setBumpKey((k) => k + 1);
-
-    const maxDur = Math.max(...newFrags.map((f) => f.duration)) * 1000 + 50;
-    const ids = new Set(newFrags.map((f) => f.id));
-    const t = setTimeout(() => {
-      setFragments((prev) => prev.filter((f) => !ids.has(f.id)));
-    }, maxDur);
-    return () => clearTimeout(t);
-  }, [progress, size, color]);
-
   const accent = isFractured ? color : isPrimordial ? "rgba(180,200,255,0.85)" : color;
 
   return (
@@ -377,16 +434,16 @@ export function PlanetCanvas({ onPunch, progress, goal, planetColor, isRevealing
       <div
         className="flex items-center justify-center"
         onClick={onPunch}
-        style={{ width: size, height: size, cursor: onPunch ? "pointer" : "default", touchAction: "manipulation" }}
+        style={{ width: size, height: size, cursor: onPunch ? "pointer" : "default" }}
         data-testid="planet-wrap"
       >
-        <Planet
-          color={color === GREY ? "#8892b0" : color}
+        <ThreeScene
+          onPunch={onPunch}
+          planetColor={color === GREY ? "#8892b0" : color}
+          progress={progress}
+          goal={goal}
           size={size}
-          pct={pct}
-          fractured={isFractured}
-          fragments={fragments}
-          bumpKey={bumpKey}
+          isRevealing={isRevealing}
         />
       </div>
 

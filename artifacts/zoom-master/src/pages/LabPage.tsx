@@ -19,6 +19,7 @@ interface LabPageProps {
 interface FloatMsg { id: number; text: string; color: string }
 
 const GREY = "#8892b0";
+const REVEAL_THRESHOLD = 0.90;
 
 export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, onCraft, onClaim }: LabPageProps) {
   const [status, setStatus] = useState("TAP THE PRIMORDIAL LIGHT");
@@ -30,13 +31,11 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
   const progress = goal > 0 ? taps / goal : 0;
 
-  // Show planet rarity color from the first tap (currentCraftRarity is set on tap 1)
   const dynamicColor = pendingPlanet
     ? pendingPlanet.color
-    : currentCraftRarity
+    : currentCraftRarity && progress >= REVEAL_THRESHOLD
     ? PLANET_CONFIG[currentCraftRarity].color
     : GREY;
-  void progress;
 
   const addFloat = useCallback((text: string, color: string) => {
     const id = Date.now();
