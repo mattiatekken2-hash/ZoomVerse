@@ -133,7 +133,7 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
       id: `server-${l.id}`,
       name: l.planetType as PlanetType,
       price: l.price,
-      seller: l.sellerName || `Player ${l.sellerTelegramId.slice(-4)}`,
+      seller: l.sellerName || (l.sellerTelegramId ? `Player ${String(l.sellerTelegramId).slice(-4)}` : "Anon"),
       rate: l.planetRate,
       isLocal: false as const,
       serverId: l.id,
