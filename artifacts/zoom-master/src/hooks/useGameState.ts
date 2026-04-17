@@ -148,7 +148,9 @@ export const SUN_CONFIG = {
   rate: 1000,
   color: "#ffb347",
   glowColor: "rgba(255,179,71,0.6)",
-  activationCostBase: 0.5,
+  // SUN is purchased once for 10 TON and farms freely thereafter — no
+  // per-cycle activation cost. Field kept at 0 for backward state compat.
+  activationCostBase: 0,
 };
 
 const REDEEM_CODES: Record<string, number> = {
@@ -1033,15 +1035,15 @@ export function useGameState() {
     const now = Date.now();
     setState((prev) => {
       if (!prev.sun?.isOwned) return prev;
-      const newCycleCount = (prev.sun.cycleCount || 0) + 1;
-      const nextCost = SUN_CONFIG.activationCostBase * Math.pow(2, newCycleCount);
+      // No activation cost — SUN was paid for once at purchase (10 TON).
+      // Each new cycle simply resets the timer for free.
       return {
         ...prev,
         sun: {
           ...prev.sun,
           isActive: true,
-          cycleCount: newCycleCount,
-          activationCost: nextCost,
+          cycleCount: (prev.sun.cycleCount || 0) + 1,
+          activationCost: 0,
           farmStartedAt: now,
           lastCollectedAt: now,
         },
