@@ -687,7 +687,7 @@
   100% { transform: scale(1); }
 }
 .lab-planet-bump {
-  animation: labPlanetBump 0.4s cubic-bezier(.2,.8,.2,1);
+  animation: none;
 }
 
 .lab-stars-a, .lab-stars-b {

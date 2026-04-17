@@ -109,22 +109,16 @@ export function PlanetCanvas({
     return () => ro.disconnect();
   }, []);
 
-  // Imperative bump + fragments on each tap. We deliberately bypass React state
-  // for the visual feedback to avoid re-rendering PlanetOrb (heavy conic gradients)
+  // Imperative fragments on each tap. We deliberately bypass React state for
+  // the visual feedback to avoid re-rendering PlanetOrb (heavy conic gradients)
   // on every click — that was the main source of lag during fast tapping.
+  // Note: the per-tap "bump" scaling animation has been intentionally removed —
+  // the planet must remain visually stable and only grow linearly with the
+  // Forging Mass percentage (handled by the `planetSize` size prop below).
   useEffect(() => {
     const delta = progress - lastProgressRef.current;
     lastProgressRef.current = progress;
     if (delta <= 0) return;
-
-    // Restart bump animation imperatively (no key change → no PlanetOrb remount)
-    const wrap = planetWrapRef.current;
-    if (wrap) {
-      wrap.classList.remove("lab-planet-bump");
-      // Force reflow so the animation restarts even on rapid taps
-      void wrap.offsetWidth;
-      wrap.classList.add("lab-planet-bump");
-    }
 
     // Spawn 2 lightweight fragment DOM nodes directly (not via React state)
     const layer = fragmentLayerRef.current;
