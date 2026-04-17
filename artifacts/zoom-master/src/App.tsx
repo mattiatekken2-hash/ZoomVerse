@@ -68,13 +68,37 @@ export default function App() {
   useEffect(() => { mutedRef.current = muted; }, [muted]);
 
   useEffect(() => {
+    const TARGET_VOLUME = 0.22;
+    const FADE_IN_MS = 2200;
+    const FADE_OUT_MS = 600;
+
     const audio = new Audio(`${import.meta.env.BASE_URL}bgm.mp3`);
     audio.loop = true;
-    audio.volume = 0.35;
+    audio.volume = 0;
     audio.preload = "auto";
     audioRef.current = audio;
 
-    const tryPlay = () => { audio.play().catch(() => {}); };
+    let fadeRaf: number | null = null;
+    const fadeTo = (target: number, durationMs: number) => {
+      if (fadeRaf != null) cancelAnimationFrame(fadeRaf);
+      const start = performance.now();
+      const from = audio.volume;
+      const ease = (t: number) => t * t * (3 - 2 * t);
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / durationMs);
+        audio.volume = Math.max(0, Math.min(1, from + (target - from) * ease(t)));
+        if (t < 1) fadeRaf = requestAnimationFrame(step);
+        else {
+          fadeRaf = null;
+          if (target === 0 && !audio.paused) audio.pause();
+        }
+      };
+      fadeRaf = requestAnimationFrame(step);
+    };
+
+    const tryPlay = () => {
+      audio.play().then(() => fadeTo(TARGET_VOLUME, FADE_IN_MS)).catch(() => {});
+    };
     if (!mutedRef.current) {
       tryPlay();
       // Retry quickly a few times in case the WebView is still initializing.
@@ -88,7 +112,7 @@ export default function App() {
       const a = audioRef.current;
       if (!a) return;
       if (mutedRef.current) {
-        if (!a.paused) a.pause();
+        if (!a.paused) fadeTo(0, FADE_OUT_MS);
         return;
       }
       if (a.paused) tryPlay();
@@ -122,11 +146,37 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    try { localStorage.setItem("zoom-bgm-muted", muted ? "1" : "0"); } catch {/**/}
+    // The actual play/pause + fade is driven by onUserGesture / tryPlay inside
+    // the audio-init effect, which already handles smooth fade in/out based on
+    // mutedRef. Toggling mute here just updates persistence; the next user
+    // gesture (or the immediate one that triggered the toggle) will fade.
     const a = audioRef.current;
     if (!a) return;
-    if (muted) { a.pause(); }
-    else { a.play().catch(() => {}); }
-    try { localStorage.setItem("zoom-bgm-muted", muted ? "1" : "0"); } catch {/**/}
+    if (muted && !a.paused) {
+      // Smooth fade out via a short ramp.
+      const start = performance.now();
+      const from = a.volume;
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / 600);
+        a.volume = Math.max(0, from * (1 - t));
+        if (t < 1) requestAnimationFrame(step);
+        else if (!a.paused) a.pause();
+      };
+      requestAnimationFrame(step);
+    } else if (!muted && a.paused) {
+      a.volume = 0;
+      a.play().then(() => {
+        const start = performance.now();
+        const step = (now: number) => {
+          const t = Math.min(1, (now - start) / 2200);
+          const eased = t * t * (3 - 2 * t);
+          a.volume = 0.22 * eased;
+          if (t < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      }).catch(() => {});
+    }
   }, [muted]);
 
   return (
