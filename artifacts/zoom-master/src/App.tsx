@@ -42,7 +42,7 @@ export default function App() {
   useGlobalInit(state.telegramId);
 
   const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
-  const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate : 0;
+  const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate * Math.max(1, state.sunCount || 1) : 0;
   const totalRate = planetRate + sunRate;
 
   const visitedTabs = useMemo(() => new Set<Tab>(["lab"]), []);
