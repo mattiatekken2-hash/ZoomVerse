@@ -11,11 +11,19 @@ const TON_WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 const TON_WALLET_RAW = Address.parse(TON_WALLET).toRawString().toLowerCase();
 const TONAPI_TOKEN = process.env["TONAPI_TOKEN"] || "";
 
+interface TonApiMsg {
+  msg_type?: "ext_in_msg" | "int_msg" | string;
+  value?: string;
+  destination?: { address: string };
+  source?: { address: string };
+}
+
 interface TonApiTx {
   hash: string;
   success?: boolean;
   account?: { address: string };
-  in_msg?: { value?: string; destination?: { address: string }; source?: { address: string } };
+  in_msg?: TonApiMsg;
+  out_msgs?: TonApiMsg[];
 }
 
 function computeMsgHashFromBoc(boc: string): string | null {
@@ -45,9 +53,33 @@ async function fetchTxByMsgHash(msgHashHex: string): Promise<TonApiTx | null> {
   }
 }
 
+function tryParseRaw(addr: string | undefined): string | null {
+  if (!addr) return null;
+  try { return Address.parse(addr).toRawString().toLowerCase(); } catch { return null; }
+}
+
 /**
  * Cryptographically verifies that `boc` is an on-chain payment of >= expectedNano nanotons
  * to TON_WALLET. Returns the on-chain tx hash, or a reason string for failure.
+ *
+ * IMPORTANT TON message-type handling:
+ * The BOC the user signs through TonConnect is almost always an EXTERNAL message
+ * (`ext_in_msg`). When TonAPI returns the resulting transaction:
+ *   - `in_msg` describes the external message that *triggered* the user's wallet:
+ *     `in_msg.destination` = the user's own wallet (it received the signed payload),
+ *     `in_msg.source` is empty, and `in_msg.value` is 0 (externals carry no TON).
+ *   - The actual on-chain payment lives in `out_msgs[]`: the user's wallet emits
+ *     an internal message whose `destination` is the project wallet and whose
+ *     `value` is the real TON amount.
+ *
+ * For internal-message BOCs (rare here, but possible if a wallet/multisig forwards
+ * a pre-built int_msg) the destination/value are on `in_msg` and the sender is
+ * `in_msg.source`.
+ *
+ * Sender binding (anti-spoofing): the connected TonConnect wallet must be the
+ * actual originator of the payment. For ext_in_msg the originator is
+ * `tx.account.address` (the wallet whose `seqno` was bumped). For int_msg it is
+ * `in_msg.source`.
  */
 async function verifyTonBoc(boc: string, expectedNano: bigint, expectedSenderRaw: string): Promise<{ ok: true; msgHash: string; txHash: string } | { ok: false; reason: string; retriable: boolean }> {
   const msgHash = computeMsgHashFromBoc(boc);
@@ -57,26 +89,41 @@ async function verifyTonBoc(boc: string, expectedNano: bigint, expectedSenderRaw
   if (!tx) return { ok: false, reason: "Tx not yet on-chain", retriable: true };
   if (tx.success === false) return { ok: false, reason: "Tx failed on-chain", retriable: false };
 
-  const destStr = tx.in_msg?.destination?.address || tx.account?.address;
-  if (!destStr) return { ok: false, reason: "No destination on tx", retriable: false };
-  let destRaw: string;
-  try { destRaw = Address.parse(destStr).toRawString().toLowerCase(); }
-  catch { return { ok: false, reason: "Bad destination addr", retriable: false }; }
-  if (destRaw !== TON_WALLET_RAW) return { ok: false, reason: "Wrong destination wallet", retriable: false };
+  // Resolve the *actual* payment leg (destination + value + sender) depending on
+  // whether the BOC was an external or an internal message.
+  const isExternal = tx.in_msg?.msg_type === "ext_in_msg";
 
-  // Bind sender: the on-chain in_msg.source MUST match the wallet the user
-  // connected via TonConnect. This prevents an attacker from claiming a
-  // payment proof originated from someone else's wallet.
-  const srcStr = tx.in_msg?.source?.address;
-  if (!srcStr) return { ok: false, reason: "No sender on tx", retriable: false };
-  let srcRaw: string;
-  try { srcRaw = Address.parse(srcStr).toRawString().toLowerCase(); }
-  catch { return { ok: false, reason: "Bad sender addr", retriable: false }; }
-  if (srcRaw !== expectedSenderRaw) return { ok: false, reason: "Sender wallet mismatch", retriable: false };
+  let paymentDestRaw: string | null = null;
+  let paymentValue: bigint = 0n;
+  let paymentSenderRaw: string | null = null;
 
-  const value = BigInt(tx.in_msg?.value || "0");
+  if (isExternal) {
+    // Find the out_msg that actually pays the project wallet. A wallet contract
+    // can emit multiple out_msgs (e.g. wallet-v5 batched send), so we scan all
+    // of them and pick the one targeting TON_WALLET.
+    const outs = Array.isArray(tx.out_msgs) ? tx.out_msgs : [];
+    for (const m of outs) {
+      const destRaw = tryParseRaw(m.destination?.address);
+      if (destRaw === TON_WALLET_RAW) {
+        paymentDestRaw = destRaw;
+        paymentValue += BigInt(m.value || "0"); // sum if multiple legs target the same wallet
+      }
+    }
+    paymentSenderRaw = tryParseRaw(tx.account?.address);
+  } else {
+    // Internal message: payment data is on in_msg directly.
+    paymentDestRaw = tryParseRaw(tx.in_msg?.destination?.address);
+    paymentValue = BigInt(tx.in_msg?.value || "0");
+    paymentSenderRaw = tryParseRaw(tx.in_msg?.source?.address);
+  }
+
+  if (!paymentDestRaw) return { ok: false, reason: "No payment leg to project wallet", retriable: false };
+  if (paymentDestRaw !== TON_WALLET_RAW) return { ok: false, reason: "Wrong destination wallet", retriable: false };
+  if (!paymentSenderRaw) return { ok: false, reason: "No sender on tx", retriable: false };
+  if (paymentSenderRaw !== expectedSenderRaw) return { ok: false, reason: "Sender wallet mismatch", retriable: false };
+
   const tolerance = expectedNano / 50n; // 2% tolerance for forwarding fees
-  if (value + tolerance < expectedNano) return { ok: false, reason: `Insufficient amount: ${value} < ${expectedNano}`, retriable: false };
+  if (paymentValue + tolerance < expectedNano) return { ok: false, reason: `Insufficient amount: ${paymentValue} < ${expectedNano}`, retriable: false };
 
   return { ok: true, msgHash, txHash: tx.hash };
 }
