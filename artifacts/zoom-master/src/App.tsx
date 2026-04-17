@@ -1,5 +1,4 @@
 import { useState, useMemo } from "react";
-import { motion } from "framer-motion";
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
 import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/useGameState";
 import { useGlobalInit } from "./store/globalStore";
@@ -202,29 +201,26 @@ export default function App() {
             return (
               <button
                 key={item.id}
-                className="flex-1 flex flex-col items-center justify-center gap-0.5 relative transition-all duration-150 active:scale-90"
+                className="flex-1 flex flex-col items-center justify-center gap-0.5 relative"
                 onClick={() => switchTab(item.id)}
                 data-testid={`nav-${item.id}`}
                 style={{ color: isActive ? "#00f2fe" : "rgba(255,255,255,0.2)" }}
               >
                 {isActive && (
-                  <motion.div
-                    layoutId="nav-indicator"
+                  <div
                     className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full"
                     style={{ background: "#00f2fe", boxShadow: "0 0 10px rgba(0,242,254,0.9)" }}
-                    transition={{ duration: 0.2 }}
                   />
                 )}
-                <motion.div
-                  animate={{ scale: isActive ? 1.15 : 1 }}
-                  transition={{ duration: 0.15 }}
+                <div
                   style={{
                     fontSize: 17,
+                    transform: isActive ? "scale(1.15)" : "scale(1)",
                     textShadow: isActive ? "0 0 12px rgba(0,242,254,0.9)" : "none",
                   }}
                 >
                   {item.icon}
-                </motion.div>
+                </div>
                 <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>
                   {item.label}
                 </div>

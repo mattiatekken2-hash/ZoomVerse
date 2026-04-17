@@ -592,7 +592,7 @@
 .rarity-gold { color: #ffd700; border-color: rgba(255,215,0,0.3); background: rgba(255,215,0,0.06); }
 
 /* ======== ANIMATIONS ======== */
-.slot-enter { animation: slot-in 0.45s cubic-bezier(0.175,0.885,0.32,1.275) forwards; }
+.slot-enter { animation: none; }
 @keyframes slot-in {
   from { transform: scale(0.5) translateY(20px); opacity: 0; }
   to { transform: scale(1) translateY(0); opacity: 1; }
