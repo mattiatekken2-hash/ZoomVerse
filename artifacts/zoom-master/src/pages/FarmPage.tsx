@@ -8,6 +8,7 @@ import { WalletPopup } from "../components/WalletPopup";
 interface FarmPageProps {
   planets: Planet[];
   sun: SunState | null;
+  sunCount?: number;
   balance: number;
   maxSlots: number;
   defectPlanets: string[];
@@ -35,7 +36,9 @@ const RARITY_CLASS: Record<string, string> = {
   GOLD: "rarity-gold",
 };
 
-export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist }: FarmPageProps) {
+export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist }: FarmPageProps) {
+  const sunMultiplier = Math.max(1, sunCount || (sun?.isOwned ? 1 : 0));
+  const sunDisplayRate = SUN_CONFIG.rate * sunMultiplier;
   const [confirmBurn, setConfirmBurn] = useState<string | null>(null);
   const [sellPopup, setSellPopup] = useState<SellPopup | null>(null);
   const [sellPrice, setSellPrice] = useState("");
@@ -53,7 +56,7 @@ export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onB
   };
 
   const totalRate = planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0)
-    + (sun && isSunActive(sun) ? SUN_CONFIG.rate : 0);
+    + (sun && isSunActive(sun) ? sunDisplayRate : 0);
 
   const handleBurnClick = (id: string) => {
     if (confirmBurn === id) {
@@ -221,6 +224,11 @@ export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onB
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-black text-base tracking-wide gold-text" style={sunExpired ? { opacity: 0.55 } : undefined}>THE SUN</span>
+                    {sunMultiplier > 1 && (
+                      <span className="text-xs font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(255,179,71,0.18)", color: "#ffb347", border: "1px solid rgba(255,179,71,0.45)", fontSize: 10 }}>
+                        ×{sunMultiplier}
+                      </span>
+                    )}
                     <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(255,215,0,0.12)", color: "#ffd700", border: "1px solid rgba(255,215,0,0.25)", fontSize: 9, opacity: sunExpired ? 0.55 : 1 }}>
                       EXCLUSIVE
                     </span>

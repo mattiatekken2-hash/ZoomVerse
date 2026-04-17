@@ -124,6 +124,7 @@ export default function App() {
                 <FarmPage
                   planets={state.planets}
                   sun={state.sun}
+                  sunCount={state.sunCount}
                   balance={state.balance}
                   maxSlots={state.maxSlots}
                   defectPlanets={state.defectPlanets || []}
