@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { PlanetOrb } from "./PlanetOrb";
 import type { Planet, PlanetType } from "../hooks/useGameState";
 
@@ -63,11 +63,12 @@ export function PlanetCanvas({
   currentCraftRarity,
 }: PlanetCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const planetWrapRef = useRef<HTMLDivElement>(null);
+  const fragmentLayerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(280);
-  const [bumpKey, setBumpKey] = useState(0);
-  const [fragments, setFragments] = useState<Fragment[]>([]);
   const fragIdRef = useRef(0);
   const lastProgressRef = useRef(progress);
+  const sizeRef = useRef(280);
 
   const color = planetColor || DEFAULT_COLOR;
   const pct = goal > 0 ? Math.min(progress / goal, 1) : 0;
@@ -83,13 +84,20 @@ export function PlanetCanvas({
   const displayColor = pendingPlanet?.color || color;
   const orbPlanet: Planet = pendingPlanet ?? makeOrbPlanet(displayRarity, displayColor);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const update = () => {
       const h = el.clientHeight;
       const w = el.clientWidth;
-      setSize(Math.min(w * 0.78, h * 0.78, 360));
+      // Ignore zero-size measurements (happens when tab is hidden via display:none).
+      // Without this guard, the planet would shrink to 0 and re-animate to full size
+      // every time the user re-enters the LAB tab.
+      if (w <= 1 || h <= 1) return;
+      const next = Math.min(w * 0.78, h * 0.78, 360);
+      if (Math.abs(next - sizeRef.current) < 0.5) return;
+      sizeRef.current = next;
+      setSize(next);
     };
     update();
     const ro = new ResizeObserver(update);
@@ -97,31 +105,58 @@ export function PlanetCanvas({
     return () => ro.disconnect();
   }, []);
 
-  // Spawn fragments on each tap (progress increment)
+  // Imperative bump + fragments on each tap. We deliberately bypass React state
+  // for the visual feedback to avoid re-rendering PlanetOrb (heavy conic gradients)
+  // on every click — that was the main source of lag during fast tapping.
   useEffect(() => {
     const delta = progress - lastProgressRef.current;
     lastProgressRef.current = progress;
     if (delta <= 0) return;
-    const burst = Math.min(7, Math.max(3, Math.round(delta * 4)));
-    const now = Date.now();
-    const newOnes: Fragment[] = [];
-    for (let i = 0; i < burst; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const dist = 0.55 + Math.random() * 0.35; // 55–90% of half-size
-      newOnes.push({
-        id: fragIdRef.current++,
-        startX: Math.cos(angle) * dist,
-        startY: Math.sin(angle) * dist,
-        born: now,
-      });
+
+    // Restart bump animation imperatively (no key change → no PlanetOrb remount)
+    const wrap = planetWrapRef.current;
+    if (wrap) {
+      wrap.classList.remove("lab-planet-bump");
+      // Force reflow so the animation restarts even on rapid taps
+      void wrap.offsetWidth;
+      wrap.classList.add("lab-planet-bump");
     }
-    setFragments((prev) => [...prev, ...newOnes]);
-    setBumpKey((k) => k + 1);
-    // Cleanup fragments after their animation
-    window.setTimeout(() => {
-      setFragments((prev) => prev.filter((f) => Date.now() - f.born < 800));
-    }, 850);
-  }, [progress]);
+
+    // Spawn 2 lightweight fragment DOM nodes directly (not via React state)
+    const layer = fragmentLayerRef.current;
+    if (layer && sizeRef.current > 0) {
+      const burst = 2;
+      const half = sizeRef.current / 2;
+      const dotSize = Math.max(6, sizeRef.current * 0.025);
+      for (let i = 0; i < burst; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 0.55 + Math.random() * 0.35;
+        const fx = Math.cos(angle) * dist * half;
+        const fy = Math.sin(angle) * dist * half;
+        const dot = document.createElement("div");
+        dot.className = "lab-fragment";
+        const id = `f-${fragIdRef.current++}`;
+        dot.dataset["fid"] = id;
+        const s = dot.style;
+        s.position = "absolute";
+        s.left = "50%";
+        s.top = "50%";
+        s.width = `${dotSize}px`;
+        s.height = `${dotSize}px`;
+        s.borderRadius = "50%";
+        s.background = displayColor;
+        s.boxShadow = `0 0 10px ${displayColor}, 0 0 22px ${displayColor}88`;
+        s.pointerEvents = "none";
+        s.setProperty("--fx", `${fx}px`);
+        s.setProperty("--fy", `${fy}px`);
+        layer.appendChild(dot);
+        // Self-remove on animation end (fallback timeout if event doesn't fire)
+        const cleanup = () => { dot.remove(); };
+        dot.addEventListener("animationend", cleanup, { once: true });
+        window.setTimeout(cleanup, 900);
+      }
+    }
+  }, [progress, displayColor]);
 
   const planetSize = size * (0.12 + pct * 0.88);
   const handleClick = () => { if (onPunch) onPunch(); };
@@ -185,14 +220,14 @@ export function PlanetCanvas({
         {/* The actual planet — same asset as Farm, scaled by progress */}
         {!isPrimordial && (
           <div
-            key={`bump-${bumpKey}`}
-            className="lab-planet-bump"
+            ref={planetWrapRef}
             style={{
               width: planetSize,
               height: planetSize,
               transition: "width 0.28s cubic-bezier(.2,.8,.2,1), height 0.28s cubic-bezier(.2,.8,.2,1)",
               position: "relative",
               filter: isFractured ? `drop-shadow(0 0 ${planetSize * 0.18}px ${displayColor})` : "none",
+              willChange: "transform",
             }}
             data-testid="lab-planet-orb"
           >
@@ -246,26 +281,11 @@ export function PlanetCanvas({
           </div>
         )}
 
-        {/* Fragments aggregating to center on each tap */}
-        {fragments.map((f) => (
-          <div
-            key={f.id}
-            className="lab-fragment"
-            style={{
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              width: Math.max(6, size * 0.025),
-              height: Math.max(6, size * 0.025),
-              borderRadius: "50%",
-              background: displayColor,
-              boxShadow: `0 0 10px ${displayColor}, 0 0 22px ${displayColor}88`,
-              pointerEvents: "none",
-              ["--fx" as any]: `${f.startX * (size / 2)}px`,
-              ["--fy" as any]: `${f.startY * (size / 2)}px`,
-            }}
-          />
-        ))}
+        {/* Fragment layer — populated imperatively to avoid React re-renders on rapid taps */}
+        <div
+          ref={fragmentLayerRef}
+          style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
+        />
       </div>
 
       <div className="absolute bottom-0 left-0 right-0 px-6 pb-2 pt-4">
