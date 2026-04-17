@@ -51,7 +51,7 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
       }
     };
     load();
-    const interval = setInterval(load, 15_000);
+    const interval = setInterval(() => { if (!document.hidden) load(); }, 15_000);
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 

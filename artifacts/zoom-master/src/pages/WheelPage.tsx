@@ -67,7 +67,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
     window.addEventListener("zoom-data-refresh", onRefresh);
     window.addEventListener("focus", onRefresh);
     document.addEventListener("visibilitychange", onVisible);
-    const poll = setInterval(refreshStatus, 6000);
+    const poll = setInterval(() => { if (!document.hidden) refreshStatus(); }, 8000);
     return () => {
       window.removeEventListener("zoom-admin-refresh", onRefresh);
       window.removeEventListener("zoom-data-refresh", onRefresh);

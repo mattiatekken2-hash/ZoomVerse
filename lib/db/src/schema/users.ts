@@ -41,7 +41,7 @@ export const transactionsTable = pgTable("transactions", {
   tonAmount: real("ton_amount"),
   itemId: text("item_id"),
   itemName: text("item_name"),
-  telegramPaymentId: text("telegram_payment_id"),
+  telegramPaymentId: text("telegram_payment_id").unique(),
   status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [

@@ -484,10 +484,31 @@ export function useGameState() {
   const serverOffsetRef = useRef(0);
   stateRef.current = state;
 
+  // Throttle save+sync: writes & network traffic are expensive on every state change.
+  // Debounce 400ms so rapid taps coalesce into one save+sync. Always flush on hide/unload.
   useEffect(() => {
-    saveState(state);
-    immediateSyncToServer(state);
+    const t = setTimeout(() => {
+      saveState(stateRef.current);
+      immediateSyncToServer(stateRef.current);
+    }, 400);
+    return () => clearTimeout(t);
   }, [state]);
+
+  useEffect(() => {
+    const flush = () => {
+      saveState(stateRef.current);
+      immediateSyncToServer(stateRef.current);
+    };
+    const onVisibility = () => { if (document.hidden) flush(); };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+    };
+  }, []);
 
   // Season-epoch sync: if admin reset the season, wipe client-side counters
   useEffect(() => {

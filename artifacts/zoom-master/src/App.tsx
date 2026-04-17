@@ -46,7 +46,14 @@ export default function App() {
 
   const switchTab = (nextTab: Tab) => {
     setTab(nextTab);
-    window.dispatchEvent(new Event("zoom-data-refresh"));
+    // Throttle: only fire global refresh if user hasn't switched in last 4s.
+    // Pages that need fresh data on activation listen to "zoom-tab-active" with their tab id.
+    const now = Date.now();
+    const last = (window as unknown as { __zoomLastRefresh?: number }).__zoomLastRefresh || 0;
+    if (now - last > 4000) {
+      (window as unknown as { __zoomLastRefresh?: number }).__zoomLastRefresh = now;
+      window.dispatchEvent(new Event("zoom-data-refresh"));
+    }
   };
 
   return (

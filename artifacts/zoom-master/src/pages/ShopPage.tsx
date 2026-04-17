@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
-import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase, fetchSunStock, type SunStock } from "../utils/api";
+import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase, fetchSunStock, pollTxnUntilFinal, type SunStock } from "../utils/api";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 
@@ -45,7 +45,7 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
 
   useEffect(() => {
     refreshSunStock();
-    const id = setInterval(refreshSunStock, 15000);
+    const id = setInterval(() => { if (!document.hidden) refreshSunStock(); }, 20000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [telegramId]);
@@ -76,12 +76,19 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
         if (webApp?.openInvoice) {
           webApp.openInvoice(result.invoiceUrl, async (status) => {
             if (status === "paid" && result.txnId) {
-              const confirmResult = await confirmStarsPurchase(result.txnId, telegramId);
-              if (confirmResult.ok) {
+              setMessage("Confirming payment…");
+              // Webhook is the only path that credits; poll until it does.
+              const final = await pollTxnUntilFinal(result.txnId, { maxMs: 60_000, intervalMs: 2_000 });
+              if (final?.status === "completed") {
                 setMessage(`${item.title} purchased!`);
                 window.dispatchEvent(new Event("zoom-data-refresh"));
+              } else if (final?.status === "failed") {
+                setMessage("Payment failed");
               } else {
-                setMessage(confirmResult.error || "Credit failed");
+                // Final fallback — call confirm to get latest known status.
+                const c = await confirmStarsPurchase(result.txnId, telegramId);
+                setMessage(c.ok ? `${item.title} purchased!` : "Awaiting confirmation…");
+                if (c.ok) window.dispatchEvent(new Event("zoom-data-refresh"));
               }
             } else if (status === "cancelled") {
               setMessage("Payment cancelled");
@@ -126,7 +133,21 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
 
       const boc = txResult.boc || "";
       const confirmResult = await confirmTonPurchase(telegramId, item.id, connectedAddress, item.tonPrice, boc);
-      if (confirmResult.ok) {
+      if (confirmResult.alreadyCredited) {
+        setMessage(`${item.title} purchased!`);
+        window.dispatchEvent(new Event("zoom-data-refresh"));
+      } else if (confirmResult.pending && confirmResult.txnId) {
+        setMessage("Verifying payment on-chain…");
+        const final = await pollTxnUntilFinal(confirmResult.txnId);
+        if (final?.status === "completed") {
+          setMessage(`${item.title} purchased!`);
+          window.dispatchEvent(new Event("zoom-data-refresh"));
+        } else if (final?.status === "failed") {
+          setMessage("Payment not detected on-chain. Contact support if TON was sent.");
+        } else {
+          setMessage("Still awaiting confirmation. Item will be credited automatically.");
+        }
+      } else if (confirmResult.ok) {
         setMessage(`${item.title} purchased!`);
         window.dispatchEvent(new Event("zoom-data-refresh"));
       } else {

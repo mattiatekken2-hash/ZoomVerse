@@ -349,15 +349,36 @@ export async function confirmStarsPurchase(txnId: number, telegramId: string): P
   } catch { return { ok: false, error: "Network error" }; }
 }
 
-export async function confirmTonPurchase(telegramId: string, itemId: string, walletAddress: string, tonAmount: number, boc?: string): Promise<{ ok: boolean; error?: string }> {
+export async function confirmTonPurchase(telegramId: string, itemId: string, walletAddress: string, tonAmount: number, boc?: string): Promise<{ ok: boolean; error?: string; pending?: boolean; txnId?: number; alreadyCredited?: boolean }> {
   try {
     const res = await fetch(`${API_BASE}/ton/confirm`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ telegramId, itemId, walletAddress, tonAmount, boc }),
     });
-    return res.json();
+    const data = await res.json();
+    return { ...data, ok: res.ok || res.status === 202 };
   } catch { return { ok: false, error: "Network error" }; }
+}
+
+export async function fetchTxnStatus(txnId: number): Promise<{ status: string; itemId?: string; itemName?: string } | null> {
+  try {
+    const res = await fetch(`${API_BASE}/stars/txn/${txnId}`);
+    if (!res.ok) return null;
+    return res.json();
+  } catch { return null; }
+}
+
+export async function pollTxnUntilFinal(txnId: number, opts: { maxMs?: number; intervalMs?: number } = {}): Promise<{ status: string; itemName?: string } | null> {
+  const maxMs = opts.maxMs ?? 180_000;
+  const intervalMs = opts.intervalMs ?? 4_000;
+  const start = Date.now();
+  while (Date.now() - start < maxMs) {
+    const s = await fetchTxnStatus(txnId);
+    if (s && (s.status === "completed" || s.status === "failed")) return s;
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  return null;
 }
 
 export interface UserProfile {

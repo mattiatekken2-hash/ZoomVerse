@@ -61,7 +61,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
     load();
     const onRefresh = () => load();
     window.addEventListener("zoom-admin-refresh", onRefresh);
-    const interval = setInterval(load, 30_000);
+    const interval = setInterval(() => { if (!document.hidden) load(); }, 30_000);
     return () => { cancelled = true; clearInterval(interval); window.removeEventListener("zoom-admin-refresh", onRefresh); };
   }, []);
 
@@ -82,7 +82,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
       }
     };
     load();
-    const interval = setInterval(load, 15_000);
+    const interval = setInterval(() => { if (!document.hidden) load(); }, 15_000);
     return () => { cancelled = true; clearInterval(interval); };
   }, []);
 
