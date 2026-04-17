@@ -230,7 +230,11 @@ export function PlanetCanvas({
             }}
             data-testid="lab-planet-orb"
           >
-            <PlanetOrb planet={orbPlanet} size={planetSize} animate={true} />
+            {/* `animate={false}` keeps the planet body perfectly stationary
+                during the LAB tap-build phase. The off-center highlight in the
+                rotating gradient was perceived as wobble; the planet now grows
+                linearly via the wrapper width/height transition only. */}
+            <PlanetOrb planet={orbPlanet} size={planetSize} animate={false} />
 
             {/* Fracture cracks overlay — only at 100% */}
             {isFractured && (
