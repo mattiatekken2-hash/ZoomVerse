@@ -310,6 +310,40 @@ function saveState(state: GameState) {
   } catch { /**/ }
 }
 
+// Non-blocking persistence scheduler. Each call replaces the pending state and
+// the actual JSON.stringify + localStorage write happens during the browser's
+// idle time (or next animation frame as fallback). This keeps the tap thread
+// at 60fps even when state grows large (many planets, feed events, etc).
+let _pendingPersistState: GameState | null = null;
+let _persistScheduled = false;
+type IdleCallback = (cb: () => void, opts?: { timeout?: number }) => number;
+const _scheduleIdle: IdleCallback =
+  typeof window !== "undefined" && typeof (window as unknown as { requestIdleCallback?: IdleCallback }).requestIdleCallback === "function"
+    ? (window as unknown as { requestIdleCallback: IdleCallback }).requestIdleCallback.bind(window)
+    : ((cb: () => void) => window.setTimeout(cb, 0)) as IdleCallback;
+
+function schedulePersist(state: GameState) {
+  _pendingPersistState = state;
+  if (_persistScheduled) return;
+  _persistScheduled = true;
+  _scheduleIdle(() => {
+    _persistScheduled = false;
+    const s = _pendingPersistState;
+    _pendingPersistState = null;
+    if (s) saveState(s);
+  }, { timeout: 200 });
+}
+
+// Force-flush pending persist (used on page hide / unload to guarantee writes).
+function flushPersist() {
+  if (_pendingPersistState) {
+    const s = _pendingPersistState;
+    _pendingPersistState = null;
+    _persistScheduled = false;
+    saveState(s);
+  }
+}
+
 let _lastSyncedBalance = -1;
 let _syncInFlight = false;
 let _pendingSyncBalance = -1;
@@ -532,6 +566,7 @@ export function useGameState() {
 
   useEffect(() => {
     const flush = () => {
+      flushPersist();
       saveState(stateRef.current);
       immediateSyncToServer(stateRef.current);
     };
@@ -976,7 +1011,8 @@ export function useGameState() {
     if (newTaps >= goal) {
       const planet = makePlanet(rarity);
       const { telegramId: tid } = getTelegramContext();
-      if (tid) recordCraft(tid, planet.name);
+      // Fire-and-forget — never await on the tap critical path.
+      if (tid) { void recordCraft(tid, planet.name); }
       setState((prev) => {
         const next: GameState = {
           ...(planet.name === "GOLD"
@@ -989,10 +1025,9 @@ export function useGameState() {
           pendingPlanet: planet,
           craftsCompleted: prev.craftsCompleted + 1,
         };
-        // Immediate flush: persist tap progress to localStorage synchronously
-        // so it survives page hide / tab switch / accidental reload without
-        // waiting for the 400ms debounce.
-        saveState(next);
+        // Persist in idle time so the tap stays at 60fps. Page-hide and unload
+        // listeners flush this synchronously to guarantee durability.
+        schedulePersist(next);
         return next;
       });
       return { completed: true, planet };
@@ -1005,7 +1040,7 @@ export function useGameState() {
           goal,
           currentCraftRarity: rarity,
         };
-        saveState(next);
+        schedulePersist(next);
         return next;
       });
       return { completed: false, tapsLeft: goal - newTaps };

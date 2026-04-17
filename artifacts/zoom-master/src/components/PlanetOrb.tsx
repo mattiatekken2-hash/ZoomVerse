@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { Planet } from "../hooks/useGameState";
 
 interface PlanetOrbProps {
@@ -27,7 +28,7 @@ const PLANET_GRADIENTS: Record<string, { stops: string[]; glowAlpha: number }> =
 
 const DEFAULT_GRADIENT = PLANET_GRADIENTS.BASIC;
 
-export function PlanetOrb({ planet, size = 60, animate = true }: PlanetOrbProps) {
+function PlanetOrbImpl({ planet, size = 60, animate = true }: PlanetOrbProps) {
   const c = planet.color;
   const grad = PLANET_GRADIENTS[planet.name] || DEFAULT_GRADIENT;
   const [s0, s1, s2, s3, s4] = grad.stops;
@@ -90,3 +91,14 @@ export function PlanetOrb({ planet, size = 60, animate = true }: PlanetOrbProps)
     </div>
   );
 }
+
+// Memoized: PlanetOrb is rendered inside PlanetCanvas which re-renders on every
+// tap (progress prop changes). Without memo, the heavy radial-gradient + glow
+// box-shadow would re-evaluate ~10× per second during fast tapping. We compare
+// the visual props that actually affect rendering (planet name/color, size, animate).
+export const PlanetOrb = memo(PlanetOrbImpl, (prev, next) =>
+  prev.size === next.size &&
+  prev.animate === next.animate &&
+  prev.planet.name === next.planet.name &&
+  prev.planet.color === next.planet.color
+);
