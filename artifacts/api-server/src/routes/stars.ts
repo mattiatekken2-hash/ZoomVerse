@@ -164,6 +164,41 @@ async function checkSunPurchasable(telegramId: string): Promise<{ ok: true } | {
   return { ok: true };
 }
 
+/**
+ * BACKEND-REVENUE-TRACKER
+ * Returns the global revenue pool: the sum of every confirmed payment
+ * (TON + Telegram Stars) flowing through the bot. Only `status = 'completed'`
+ * rows are counted, which means:
+ *  - Stars purchases are aggregated only after the Telegram webhook with a
+ *    valid `x-telegram-bot-api-secret-token` flips the txn to "completed".
+ *  - TON purchases are aggregated only after on-chain verification via
+ *    tonapi.io confirms a payment of >= expected nano to the project wallet
+ *    from the same TonConnect wallet that initiated the purchase.
+ * "pending" and "failed" txns are ignored, so refunds/fraud attempts cannot
+ * inflate the counter. Read-only and cache-busting.
+ */
+router.get("/total-pool", async (_req, res) => {
+  try {
+    const [row] = await db
+      .select({
+        ton: sql<string>`COALESCE(SUM(${transactionsTable.tonAmount}), 0)::text`,
+        stars: sql<string>`COALESCE(SUM(${transactionsTable.starsAmount}), 0)::text`,
+        count: sql<string>`COUNT(*)::text`,
+      })
+      .from(transactionsTable)
+      .where(eq(transactionsTable.status, "completed"));
+    res.set("Cache-Control", "no-store");
+    res.json({
+      ton: Number(row?.ton ?? 0),
+      stars: Number(row?.stars ?? 0),
+      count: Number(row?.count ?? 0),
+    });
+  } catch (err) {
+    console.error("[total-pool] error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
 router.get("/sun/stock", async (req, res) => {
   try {
     const telegramId = (req.query["telegramId"] as string) || "";

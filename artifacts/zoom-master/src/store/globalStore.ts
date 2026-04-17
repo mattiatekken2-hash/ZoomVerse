@@ -7,11 +7,13 @@ import {
   fetchDailyStatus,
   fetchMarketListings,
   fetchMarketSales,
+  fetchTotalPool,
   type LeaderboardEntry,
   type UserProfile,
   type DailyStatus,
   type ServerMarketListing,
   type MarketSale,
+  type TotalPool,
 } from "../utils/api";
 
 export interface GlobalCache {
@@ -22,6 +24,7 @@ export interface GlobalCache {
   daily: DailyStatus | null;
   marketListings: ServerMarketListing[];
   marketSales: MarketSale[];
+  totalPool: TotalPool;
   initialized: boolean;
   lastFetch: number;
 }
@@ -34,6 +37,7 @@ const initial: GlobalCache = {
   daily: null,
   marketListings: [],
   marketSales: [],
+  totalPool: { ton: 0, stars: 0, count: 0 },
   initialized: false,
   lastFetch: 0,
 };
@@ -73,6 +77,7 @@ async function refreshAll(telegramId: string | null) {
       fetchLeaderboard().then((lb) => set({ leaderboard: lb })).catch(() => {}),
       fetchGlobalPool().then((p) => set({ globalPool: p })).catch(() => {}),
       fetchMarketListings().then((m) => set({ marketListings: m })).catch(() => {}),
+      fetchTotalPool().then((tp) => set({ totalPool: tp })).catch(() => {}),
     ];
     if (telegramId) {
       tasks.push(fetchProfile(telegramId).then((p) => set({ profile: p })).catch(() => {}));

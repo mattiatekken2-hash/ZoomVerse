@@ -48,6 +48,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
   const profile = useGlobalStore((s) => s.profile);
   const seasonEpoch = useGlobalStore((s) => s.seasonEpoch);
   const initialized = useGlobalStore((s) => s.initialized);
+  const totalPool = useGlobalStore((s) => s.totalPool);
   const seasonStart = seasonEpoch && seasonEpoch > 0 ? seasonEpoch : DEFAULT_SEASON_START;
   const loadingLb = !initialized && leaderboard.length === 0;
 
@@ -133,22 +134,67 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
         </div>
       </div>
 
-      {/* Section Tabs */}
-      <div className="px-5 flex gap-2 flex-shrink-0 mb-3">
-        {(["season", "exchange"] as const).map(s => (
-          <button
-            key={s}
-            onClick={() => setActiveSection(s)}
-            className="flex-1 py-2 rounded-xl text-xs font-black tracking-wider uppercase border transition-all"
-            style={{
-              borderColor: activeSection === s ? "rgba(0,242,254,0.3)" : "rgba(255,255,255,0.06)",
-              background: activeSection === s ? "rgba(0,242,254,0.06)" : "transparent",
-              color: activeSection === s ? "#00f2fe" : "rgba(255,255,255,0.3)",
-            }}
+      {/* Section Tabs + TOTAL POOL widget (live revenue from confirmed
+          TON + Stars payments). The widget sits between the two tab buttons,
+          updated automatically every 15s by the global store. */}
+      <div className="px-5 flex items-stretch gap-2 flex-shrink-0 mb-3">
+        <button
+          onClick={() => setActiveSection("season")}
+          className="flex-1 min-w-0 py-2 rounded-xl text-xs font-black tracking-wider uppercase border transition-all"
+          style={{
+            borderColor: activeSection === "season" ? "rgba(0,242,254,0.3)" : "rgba(255,255,255,0.06)",
+            background: activeSection === "season" ? "rgba(0,242,254,0.06)" : "transparent",
+            color: activeSection === "season" ? "#00f2fe" : "rgba(255,255,255,0.3)",
+          }}
+        >
+          🪐 Zoom Season
+        </button>
+
+        <div
+          className="flex-shrink-0 rounded-xl border px-2.5 py-1.5 flex flex-col items-center justify-center"
+          style={{
+            borderColor: "rgba(255,215,0,0.22)",
+            background: "linear-gradient(135deg, rgba(255,215,0,0.08), rgba(255,215,0,0.02))",
+            boxShadow: "0 0 14px rgba(255,215,0,0.08)",
+            minWidth: 96,
+          }}
+          data-testid="widget-total-pool"
+          title={`Total revenue from ${totalPool.count} confirmed payments`}
+        >
+          <div className="flex items-center gap-1 leading-none">
+            <span style={{ fontSize: 11 }}>👛</span>
+            <span
+              className="font-black tracking-widest uppercase"
+              style={{ color: "#ffd700", fontSize: 8, letterSpacing: "0.12em" }}
+            >
+              Total Pool
+            </span>
+          </div>
+          <div
+            className="font-black tabular-nums leading-tight mt-0.5"
+            style={{ color: "#ffd700", fontSize: 10 }}
           >
-            {s === "season" ? "🪐 Zoom Season" : "⚡ Exchange"}
-          </button>
-        ))}
+            {totalPool.ton.toFixed(2)} <span style={{ opacity: 0.7, fontSize: 8 }}>TON</span>
+          </div>
+          <div
+            className="font-bold tabular-nums leading-tight"
+            style={{ color: "rgba(255,215,0,0.7)", fontSize: 9 }}
+          >
+            {totalPool.stars.toLocaleString()} <span style={{ opacity: 0.8, fontSize: 7 }}>★</span>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setActiveSection("exchange")}
+          className="flex-1 min-w-0 py-2 rounded-xl text-xs font-black tracking-wider uppercase border transition-all"
+          style={{
+            borderColor: activeSection === "exchange" ? "rgba(0,242,254,0.3)" : "rgba(255,255,255,0.06)",
+            background: activeSection === "exchange" ? "rgba(0,242,254,0.06)" : "transparent",
+            color: activeSection === "exchange" ? "#00f2fe" : "rgba(255,255,255,0.3)",
+          }}
+        >
+          ⚡ Exchange
+        </button>
       </div>
 
       {activeSection === "season" && (

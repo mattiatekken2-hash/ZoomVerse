@@ -147,6 +147,30 @@ export async function fetchSunStock(telegramId?: string): Promise<SunStock> {
   }
 }
 
+export interface TotalPool {
+  ton: number;
+  stars: number;
+  count: number;
+}
+
+const EMPTY_TOTAL_POOL: TotalPool = { ton: 0, stars: 0, count: 0 };
+
+/** Aggregated revenue across all confirmed TON + Stars purchases. */
+export async function fetchTotalPool(): Promise<TotalPool> {
+  try {
+    const res = await fetch(`${API_BASE}/total-pool?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return EMPTY_TOTAL_POOL;
+    const j = await res.json() as Partial<TotalPool>;
+    return {
+      ton: Number(j?.ton ?? 0),
+      stars: Number(j?.stars ?? 0),
+      count: Number(j?.count ?? 0),
+    };
+  } catch {
+    return EMPTY_TOTAL_POOL;
+  }
+}
+
 export async function fetchGrants(telegramId: string): Promise<Grants> {
   try {
     const res = await fetch(`${API_BASE}/grants/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });

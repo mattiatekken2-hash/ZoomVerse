@@ -417,7 +417,6 @@ export function WheelPage({ telegramId }: WheelPageProps) {
                   on a circular wrapper, so the soft shadow renders once and
                   doesn't follow the rotation. */}
             <div
-              ref={wheelSvgWrapRef}
               className="absolute inset-0"
               style={{
                 transform: `translateZ(0) rotateZ(${rotation}deg)`,
@@ -582,7 +581,6 @@ export function WheelPage({ telegramId }: WheelPageProps) {
               }}
             />
             <div
-              ref={pointerBallRef}
               className="absolute left-1/2 -translate-x-1/2 z-20 rounded-full pointer-events-none"
               style={{
                 top: 16,
