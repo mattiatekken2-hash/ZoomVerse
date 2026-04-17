@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
 import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/useGameState";
 import { useGlobalInit } from "./store/globalStore";
@@ -60,6 +60,45 @@ export default function App() {
     }
   };
 
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [muted, setMuted] = useState<boolean>(() => {
+    try { return localStorage.getItem("zoom-bgm-muted") === "1"; } catch { return false; }
+  });
+
+  useEffect(() => {
+    const audio = new Audio(`${import.meta.env.BASE_URL}bgm.mp3`);
+    audio.loop = true;
+    audio.volume = 0.35;
+    audio.preload = "auto";
+    audioRef.current = audio;
+
+    const tryPlay = () => { audio.play().catch(() => {}); };
+    if (!muted) tryPlay();
+
+    const onUserGesture = () => {
+      if (!audioRef.current) return;
+      if (!audioRef.current.paused) return;
+      if (!muted) tryPlay();
+    };
+    window.addEventListener("pointerdown", onUserGesture, { once: false });
+    window.addEventListener("touchstart", onUserGesture, { once: false });
+
+    return () => {
+      window.removeEventListener("pointerdown", onUserGesture);
+      window.removeEventListener("touchstart", onUserGesture);
+      audio.pause();
+      audioRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (muted) { a.pause(); }
+    else { a.play().catch(() => {}); }
+    try { localStorage.setItem("zoom-bgm-muted", muted ? "1" : "0"); } catch {/**/}
+  }, [muted]);
+
   return (
     <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
     <div className="flex flex-col overflow-hidden relative" style={{ height: "100dvh", background: "#060810", paddingTop: "calc(env(safe-area-inset-top, 0px) + 56px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
@@ -89,6 +128,15 @@ export default function App() {
             <span style={{ fontSize: 13 }}>🪐</span>
             <span className="neon-text">{Math.floor(state.balance).toLocaleString()}</span>
           </div>
+          <button
+            type="button"
+            aria-label={muted ? "Unmute music" : "Mute music"}
+            onClick={() => setMuted((m) => !m)}
+            className="glass-neon rounded-full flex items-center justify-center"
+            style={{ width: 32, height: 32, fontSize: 14, border: "none", color: "rgba(255,255,255,0.85)", cursor: "pointer" }}
+          >
+            {muted ? "🔇" : "🔊"}
+          </button>
         </div>
       </header>
 
