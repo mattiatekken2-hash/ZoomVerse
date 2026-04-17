@@ -77,15 +77,19 @@ async function registerTelegramWebhook() {
   }
 
   const webhookUrl = `https://${deployDomain}/api/stars/webhook`;
+  const secretToken = process.env["TELEGRAM_WEBHOOK_SECRET"] || "";
 
   try {
+    const body: Record<string, unknown> = {
+      url: webhookUrl,
+      allowed_updates: ["message", "pre_checkout_query"],
+    };
+    if (secretToken) body["secret_token"] = secretToken;
+
     const res = await fetch(`https://api.telegram.org/bot${botToken}/setWebhook`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        url: webhookUrl,
-        allowed_updates: ["message", "pre_checkout_query"],
-      }),
+      body: JSON.stringify(body),
     });
     const data = await res.json() as { ok: boolean; description?: string };
     if (data.ok) {

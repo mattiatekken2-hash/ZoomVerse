@@ -358,10 +358,10 @@ export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onB
           ))}
 
           <div
-            className="rounded-2xl border border-dashed flex flex-col items-center justify-center py-8 gap-2 transition-all active:scale-[0.98]"
-            style={{ borderColor: "rgba(255,215,0,0.22)", background: "rgba(255,215,0,0.025)", cursor: "pointer", minHeight: 100 }}
-            onClick={() => setSlotWalletOpen(true)}
+            className="rounded-2xl border border-dashed flex flex-col items-center justify-center py-8 gap-2"
+            style={{ borderColor: "rgba(255,215,0,0.22)", background: "rgba(255,215,0,0.025)", cursor: "default", minHeight: 100, pointerEvents: "none", userSelect: "none" }}
             data-testid="slot-locked"
+            aria-disabled="true"
           >
             <div style={{ fontSize: 20, opacity: 0.45 }}>🔒</div>
             <div className="font-bold text-xs tracking-widest uppercase" style={{ color: "rgba(255,215,0,0.45)" }}>0.25 TON</div>

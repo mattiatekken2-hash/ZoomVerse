@@ -5,6 +5,46 @@ import { eq, sql, and } from "drizzle-orm";
 const router: IRouter = Router();
 
 const BOT_TOKEN = process.env["BOT_TOKEN"] || "";
+const TELEGRAM_WEBHOOK_SECRET = process.env["TELEGRAM_WEBHOOK_SECRET"] || "";
+const TON_WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
+const TONCENTER_API_KEY = process.env["TONCENTER_API_KEY"] || "";
+
+interface TonCenterTx {
+  utime: number;
+  transaction_id: { hash: string };
+  in_msg?: { value: string; source: string };
+}
+
+async function verifyTonPaymentOnChain(expectedTon: number, ourWallet: string): Promise<{ hash: string; source: string; valueNano: string } | null> {
+  try {
+    const url = `https://toncenter.com/api/v2/getTransactions?address=${encodeURIComponent(ourWallet)}&limit=40`;
+    const headers: Record<string, string> = {};
+    if (TONCENTER_API_KEY) headers["X-API-Key"] = TONCENTER_API_KEY;
+    const res = await fetch(url, { headers });
+    if (!res.ok) {
+      console.warn("[ton-verify] toncenter HTTP", res.status);
+      return null;
+    }
+    const data = await res.json() as { ok: boolean; result?: TonCenterTx[] };
+    if (!data.ok || !data.result) return null;
+    const expectedNano = BigInt(Math.round(expectedTon * 1e9));
+    const tolerance = expectedNano / 50n; // 2% tolerance for fees
+    const minTime = Math.floor(Date.now() / 1000) - 900; // last 15 minutes
+    for (const tx of data.result) {
+      if (tx.utime < minTime) continue;
+      const inMsg = tx.in_msg;
+      if (!inMsg?.value) continue;
+      const val = BigInt(inMsg.value);
+      if (val + tolerance >= expectedNano) {
+        return { hash: tx.transaction_id.hash, source: inMsg.source, valueNano: inMsg.value };
+      }
+    }
+    return null;
+  } catch (err) {
+    console.error("[ton-verify] error:", err);
+    return null;
+  }
+}
 
 interface StarsItem {
   id: string;
@@ -102,6 +142,7 @@ router.get("/sun/stock", async (req, res) => {
 });
 
 async function atomicCreditIfPending(txnId: number, paymentId: string, item: StarsItem, telegramId: string): Promise<boolean> {
+  // 1. Atomically claim the txn (only one concurrent caller wins)
   const updated = await db.update(transactionsTable)
     .set({ status: "completed", telegramPaymentId: paymentId })
     .where(and(
@@ -112,8 +153,17 @@ async function atomicCreditIfPending(txnId: number, paymentId: string, item: Sta
 
   if (updated.length === 0) return false;
 
-  await creditUser(item, telegramId);
-  return true;
+  // 2. Credit; if it fails (e.g. SUN limit), roll the txn back to "failed"
+  try {
+    await creditUser(item, telegramId);
+    return true;
+  } catch (err) {
+    console.error(`[atomicCredit] credit failed for txn ${txnId}, marking failed:`, err);
+    await db.update(transactionsTable)
+      .set({ status: "failed" })
+      .where(eq(transactionsTable.id, txnId));
+    throw err;
+  }
 }
 
 router.get("/stars/catalog", (_req, res) => {
@@ -241,6 +291,38 @@ router.post("/stars/confirm", async (req, res) => {
   }
 });
 
+async function backgroundVerifyTon(txnId: number, item: StarsItem, telegramId: string, expectedTon: number) {
+  const attempts = [4_000, 8_000, 12_000, 16_000, 20_000, 30_000, 30_000, 30_000]; // up to ~150s
+  for (let i = 0; i < attempts.length; i++) {
+    await new Promise((r) => setTimeout(r, attempts[i]));
+    const found = await verifyTonPaymentOnChain(expectedTon, TON_WALLET);
+    if (!found) continue;
+    // Verify the on-chain hash isn't already used by another txn (prevent double-claim of same payment)
+    const dupePid = `ton_chain_${found.hash}`;
+    const existing = await db.select().from(transactionsTable)
+      .where(eq(transactionsTable.telegramPaymentId, dupePid)).limit(1);
+    if (existing.length > 0 && existing[0].id !== txnId) {
+      console.warn(`[ton-bg] tx hash ${found.hash} already linked to txn ${existing[0].id}`);
+      continue;
+    }
+    try {
+      const credited = await atomicCreditIfPending(txnId, dupePid, item, telegramId);
+      if (credited) {
+        console.log(`[ton-bg] verified+credited txn ${txnId} via on-chain hash ${found.hash}`);
+        return;
+      }
+    } catch (err) {
+      console.error(`[ton-bg] credit failed for txn ${txnId}:`, err);
+      return;
+    }
+  }
+  // Timed out — mark as failed if still pending
+  await db.update(transactionsTable)
+    .set({ status: "failed" })
+    .where(and(eq(transactionsTable.id, txnId), eq(transactionsTable.status, "pending")));
+  console.warn(`[ton-bg] verification timed out for txn ${txnId}`);
+}
+
 router.post("/ton/confirm", async (req, res) => {
   const { telegramId, itemId, walletAddress, tonAmount, boc } = req.body as {
     telegramId?: string;
@@ -250,8 +332,8 @@ router.post("/ton/confirm", async (req, res) => {
     boc?: string;
   };
 
-  if (!telegramId || !itemId || !walletAddress) {
-    res.status(400).json({ error: "Missing required fields" });
+  if (!telegramId || !itemId || !walletAddress || !boc) {
+    res.status(400).json({ error: "Missing required fields (telegramId, itemId, walletAddress, boc)" });
     return;
   }
 
@@ -261,6 +343,9 @@ router.post("/ton/confirm", async (req, res) => {
     return;
   }
 
+  // Server-authoritative amount: ignore client-sent tonAmount, use catalog price
+  const expectedTon = item.tonPrice;
+
   if (item.itemType === "sun") {
     const check = await checkSunPurchasable(telegramId);
     if (!check.ok) {
@@ -269,16 +354,19 @@ router.post("/ton/confirm", async (req, res) => {
     }
   }
 
-  const paymentId = boc
-    ? `ton_${boc.substring(0, 64)}`
-    : `ton_${walletAddress}_${telegramId}_${itemId}_${Date.now()}`;
-
+  const bocPaymentId = `ton_boc_${boc.substring(0, 96)}`;
   const existing = await db.select().from(transactionsTable)
-    .where(eq(transactionsTable.telegramPaymentId, paymentId))
+    .where(eq(transactionsTable.telegramPaymentId, bocPaymentId))
     .limit(1);
 
   if (existing.length > 0) {
-    res.json({ ok: true, alreadyCredited: true });
+    const txn = existing[0];
+    if (txn.status === "completed") {
+      res.json({ ok: true, alreadyCredited: true, txnId: txn.id });
+      return;
+    }
+    // Still pending — return current state, background already running
+    res.status(202).json({ ok: true, pending: true, txnId: txn.id });
     return;
   }
 
@@ -288,17 +376,39 @@ router.post("/ton/confirm", async (req, res) => {
       type: item.itemType,
       currency: "TON",
       amount: item.zoomAmount || 0,
-      tonAmount: tonAmount || item.tonPrice,
+      tonAmount: expectedTon,
       itemId: item.id,
       itemName: item.title,
-      status: "completed",
-      telegramPaymentId: paymentId,
+      status: "pending",
+      telegramPaymentId: bocPaymentId,
     }).returning();
 
-    await creditUser(item, telegramId);
+    // Try a quick first verification (covers fast-confirming txs)
+    const fast = await verifyTonPaymentOnChain(expectedTon, TON_WALLET);
+    if (fast) {
+      const chainPid = `ton_chain_${fast.hash}`;
+      const dupe = await db.select().from(transactionsTable)
+        .where(eq(transactionsTable.telegramPaymentId, chainPid)).limit(1);
+      if (dupe.length === 0) {
+        try {
+          const credited = await atomicCreditIfPending(txn.id, chainPid, item, telegramId);
+          if (credited) {
+            console.log(`[ton] fast-verified+credited txn ${txn.id} (item ${item.id}) hash=${fast.hash}`);
+            res.json({ ok: true, verified: true, txnId: txn.id, itemId: item.id, itemName: item.title });
+            return;
+          }
+        } catch (err) {
+          res.status(500).json({ error: "Credit failed", txnId: txn.id });
+          return;
+        }
+      }
+    }
 
-    console.log(`[ton] Credited user ${telegramId} for item ${item.id} (txn ${txn.id}) from wallet ${walletAddress}`);
-    res.json({ ok: true, txnId: txn.id, itemId: item.id, itemName: item.title });
+    // Schedule background polling — frontend polls /stars/txn/:txnId
+    void backgroundVerifyTon(txn.id, item, telegramId, expectedTon);
+    res.status(202).json({ ok: true, pending: true, txnId: txn.id, message: "Awaiting on-chain confirmation" });
+    void tonAmount;
+    void walletAddress;
   } catch (err) {
     console.error("[ton] confirm error:", err);
     res.status(500).json({ error: "Internal error" });
@@ -319,6 +429,16 @@ router.get("/referral/pending/:telegramId", (req, res) => {
 });
 
 router.post("/stars/webhook", async (req, res) => {
+  // Verify Telegram secret token (set via setWebhook). In dev (no secret), skip.
+  if (TELEGRAM_WEBHOOK_SECRET) {
+    const provided = req.header("x-telegram-bot-api-secret-token");
+    if (provided !== TELEGRAM_WEBHOOK_SECRET) {
+      console.warn("[stars/webhook] rejected: invalid secret token");
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+  }
+
   const update = req.body as {
     pre_checkout_query?: { id: string; invoice_payload: string };
     message?: {
