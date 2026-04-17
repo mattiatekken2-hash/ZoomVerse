@@ -148,9 +148,10 @@ export const SUN_CONFIG = {
   rate: 1000,
   color: "#ffb347",
   glowColor: "rgba(255,179,71,0.6)",
-  // SUN is purchased once for 10 TON and farms freely thereafter — no
-  // per-cycle activation cost. Field kept at 0 for backward state compat.
+  // SUN is purchased once for 10 TON. Each new 24h cycle requires a
+  // reactivation fee in $ZOOM (same model as planets, scaled to its 24,000/cycle output).
   activationCostBase: 0,
+  reactivationFee: 12000,
 };
 
 const REDEEM_CODES: Record<string, number> = {
@@ -433,6 +434,20 @@ export function isFarmExpired(planet: Planet): boolean {
 
 export function getReactivationFee(planet: Planet): number {
   return PLANET_CONFIG[planet.name].reactivationFee;
+}
+
+/**
+ * SUN cycle (24h) has elapsed since the last activation and a $ZOOM
+ * reactivation fee is required to start a new cycle.
+ */
+export function isSunExpired(sun: SunState | null): boolean {
+  if (!sun?.isOwned) return false;
+  if (sun.farmStartedAt <= 0) return false;
+  return Date.now() - sun.farmStartedAt > FARM_DURATION_MS;
+}
+
+export function getSunReactivationFee(): number {
+  return SUN_CONFIG.reactivationFee;
 }
 
 export function getSunTimeRemaining(sun: SunState): number {
@@ -1051,12 +1066,26 @@ export function useGameState() {
     });
   }, []);
 
-  const startSunFarming = useCallback(() => {
-    const now = Date.now();
+  const startSunFarming = useCallback((): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: true };
     setState((prev) => {
-      if (!prev.sun?.isOwned) return prev;
-      return {
+      if (!prev.sun?.isOwned) {
+        outcome = { ok: false, reason: "SUN not owned" };
+        return prev;
+      }
+      const now = Date.now();
+      // First start (right after purchase) is free; subsequent reactivations
+      // after the 24h cycle elapsed cost a $ZOOM fee.
+      const wasStarted = prev.sun.farmStartedAt > 0;
+      const expired = wasStarted && now - prev.sun.farmStartedAt > FARM_DURATION_MS;
+      const fee = expired ? SUN_CONFIG.reactivationFee : 0;
+      if (fee > 0 && prev.balance < fee) {
+        outcome = { ok: false, reason: `Need ${fee.toLocaleString()} $ZOOM to reactivate SUN` };
+        return prev;
+      }
+      const updated: GameState = {
         ...prev,
+        balance: prev.balance - fee,
         sun: {
           ...prev.sun,
           isActive: true,
@@ -1064,7 +1093,10 @@ export function useGameState() {
           lastCollectedAt: now,
         },
       };
+      saveState(updated);
+      return updated;
     });
+    return outcome;
   }, []);
 
   const stopSunFarming = useCallback(() => {

@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
 import type { Planet, SunState } from "../hooks/useGameState";
-import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, getReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, needsCollect } from "../hooks/useGameState";
+import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getSunReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, needsCollect } from "../hooks/useGameState";
 import { WalletPopup } from "../components/WalletPopup";
 
 
@@ -15,7 +15,7 @@ interface FarmPageProps {
   onBurn: (id: string) => void;
   onStartFarming: (id: string) => { ok: boolean; reason?: string };
   onStopFarming: (id: string) => void;
-  onStartSunFarming: () => void;
+  onStartSunFarming: () => { ok: boolean; reason?: string };
   onStopSunFarming: () => void;
   onBurnSun: () => void;
   onSell: (id: string, price: number) => void;
@@ -88,7 +88,17 @@ export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onB
   };
 
   const sunActive = sun ? isSunActive(sun) : false;
+  const sunExpired = isSunExpired(sun);
+  const sunReactivationFee = getSunReactivationFee();
   const sunRemaining = sun && sun.isActive ? getSunTimeRemaining(sun) : 0;
+
+  const handleSunStartOrReactivate = () => {
+    const res = onStartSunFarming();
+    if (!res.ok) {
+      setDefectMsg(res.reason ?? "Cannot start SUN farming");
+      setTimeout(() => setDefectMsg(null), 1800);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full relative">
@@ -127,7 +137,7 @@ export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onB
             <div
               className="slot-enter rounded-2xl p-4 border relative overflow-hidden"
               style={{
-                borderColor: "rgba(255,179,71,0.35)",
+                borderColor: sunExpired ? "rgba(255,255,255,0.08)" : "rgba(255,179,71,0.35)",
                 background: "linear-gradient(135deg, rgba(255,179,71,0.09) 0%, rgba(255,140,0,0.04) 100%)",
                 boxShadow: sunActive ? "0 0 32px rgba(255,179,71,0.18)" : "none",
               }}
@@ -141,7 +151,13 @@ export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onB
                 }}
               />
               <div className="flex items-center gap-4 mb-4">
-                <div style={{ position: "relative" }}>
+                <div
+                  style={{
+                    position: "relative",
+                    filter: sunExpired ? "grayscale(1) brightness(0.45)" : undefined,
+                    transition: "filter 0.4s ease",
+                  }}
+                >
                   <div
                     style={{
                       width: 72, height: 72,
@@ -164,39 +180,78 @@ export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onB
                       pointerEvents: "none",
                     }} />
                   </div>
+                  {sunExpired && (
+                    <div
+                      className="absolute inset-0 rounded-full pointer-events-none"
+                      style={{ background: "radial-gradient(circle, rgba(0,0,0,0.55) 30%, rgba(0,0,0,0.85) 100%)" }}
+                    />
+                  )}
                   {sunActive && (
                     <div
                       className="absolute -top-1 -right-1 w-3 h-3 rounded-full pulse-soft"
                       style={{ background: "#00e676", boxShadow: "0 0 8px #00e676" }}
                     />
                   )}
+                  {sunExpired && (
+                    <div
+                      className="absolute -top-1 -right-1 w-3 h-3 rounded-full"
+                      style={{ background: "#ff5252", boxShadow: "0 0 8px #ff5252" }}
+                    />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-black text-base tracking-wide gold-text">THE SUN</span>
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(255,215,0,0.12)", color: "#ffd700", border: "1px solid rgba(255,215,0,0.25)", fontSize: 9 }}>
+                    <span className="font-black text-base tracking-wide gold-text" style={sunExpired ? { opacity: 0.55 } : undefined}>THE SUN</span>
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(255,215,0,0.12)", color: "#ffd700", border: "1px solid rgba(255,215,0,0.25)", fontSize: 9, opacity: sunExpired ? 0.55 : 1 }}>
                       EXCLUSIVE
                     </span>
+                    {sunExpired && (
+                      <span
+                        className="text-xs font-black px-2 py-0.5 rounded-full"
+                        style={{ fontSize: 9, background: "rgba(255,82,82,0.15)", color: "#ff5252", border: "1px solid rgba(255,82,82,0.35)" }}
+                      >
+                        EXPIRED
+                      </span>
+                    )}
                   </div>
-                  <div className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>
+                  <div className="text-xs font-bold" style={{ color: sunExpired ? "rgba(255,82,82,0.75)" : "rgba(255,255,255,0.5)" }}>
                     {sunActive
                       ? `+${SUN_CONFIG.rate.toLocaleString()} $ZOOM/hr · ${formatDuration(sunRemaining)} left`
+                      : sunExpired
+                      ? `Cycle ended · Reactivate for ${sunReactivationFee.toLocaleString()} $ZOOM`
                       : "Farming paused"}
                   </div>
                 </div>
               </div>
 
               <div className="flex gap-2">
+                {sunExpired ? (
+                  <button
+                    className="btn-widget flex-1"
+                    style={{
+                      background: "linear-gradient(135deg, rgba(255,179,71,0.22) 0%, rgba(255,140,0,0.12) 100%)",
+                      border: "1px solid rgba(255,179,71,0.5)",
+                      color: "#ffb347",
+                      boxShadow: "0 0 14px rgba(255,179,71,0.25)",
+                    }}
+                    onClick={handleSunStartOrReactivate}
+                    data-testid="btn-reactivate-sun"
+                  >
+                    <span>REACTIVATE</span>
+                    <span style={{ fontSize: 8, opacity: 0.85 }}>{sunReactivationFee.toLocaleString()} $ZOOM</span>
+                  </button>
+                ) : (
                 <button
                   className={`btn-widget flex-1 ${sunActive ? "btn-glass-farm-active" : "btn-glass-farm"}`}
                   onClick={() => {
                     if (sunActive) onStopSunFarming();
-                    else onStartSunFarming();
+                    else handleSunStartOrReactivate();
                   }}
                 >
                   <span>{sunActive ? "PAUSE" : "FARM"}</span>
                   <span style={{ fontSize: 8, opacity: 0.6 }}>{sunActive ? formatDuration(sunRemaining) : "Start"}</span>
                 </button>
+                )}
 
                 <button
                   className={`btn-widget flex-1 ${confirmBurn === "sun" ? "btn-glass-burn-confirm" : "btn-glass-burn"}`}
