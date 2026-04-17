@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -138,11 +138,8 @@ router.post("/daily/claim", async (req, res) => {
         dailyStreakDay: newDay,
         dailyStreakCycle: newCycle,
         lastDailyClaimAt: new Date(now),
-        zoomBalance: (await db
-          .select({ b: usersTable.zoomBalance })
-          .from(usersTable)
-          .where(eq(usersTable.telegramId, telegramId))
-          .limit(1))[0].b + reward,
+        zoomBalance: sql`${usersTable.zoomBalance} + ${reward}`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
       .where(eq(usersTable.telegramId, telegramId));
 

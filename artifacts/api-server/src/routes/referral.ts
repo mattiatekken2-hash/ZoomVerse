@@ -46,6 +46,7 @@ async function checkAndCreditMilestones(telegramId: string) {
     await db.update(usersTable)
       .set({
         zoomBalance: sql`${usersTable.zoomBalance} + ${totalReward}`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
         claimedMilestones: setToString(claimed),
       })
       .where(eq(usersTable.telegramId, telegramId));
@@ -106,12 +107,13 @@ router.post("/referral/register", async (req, res) => {
     if (shouldCreditReferrer && referredBy) {
       await db
         .insert(usersTable)
-        .values({ telegramId: referredBy, referralCount: 1, zoomBalance: REFERRAL_BONUS })
+        .values({ telegramId: referredBy, referralCount: 1, zoomBalance: REFERRAL_BONUS, balanceEpoch: 1 })
         .onConflictDoUpdate({
           target: usersTable.telegramId,
           set: {
             referralCount: sql`${usersTable.referralCount} + 1`,
             zoomBalance: sql`${usersTable.zoomBalance} + ${REFERRAL_BONUS}`,
+            balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
           },
         });
 

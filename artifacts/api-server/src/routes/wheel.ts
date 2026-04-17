@@ -153,7 +153,10 @@ router.post("/wheel/spin", async (req, res) => {
 
     if (prize.type === "zoom" && prize.zoomAmount) {
       await db.update(usersTable)
-        .set({ zoomBalance: sql`${usersTable.zoomBalance} + ${prize.zoomAmount}` })
+        .set({
+          zoomBalance: sql`${usersTable.zoomBalance} + ${prize.zoomAmount}`,
+          balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+        })
         .where(eq(usersTable.telegramId, telegramId));
     } else if (prize.type === "planet" && prize.planetType) {
       const col = prize.planetType === "BASIC" ? "bonusBasic"

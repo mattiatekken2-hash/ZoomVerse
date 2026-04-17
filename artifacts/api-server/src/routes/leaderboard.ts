@@ -24,13 +24,19 @@ router.post("/balance/sync", async (req, res) => {
   const normalizedUsername = username ? username.replace(/^@/, "").toLowerCase() : null;
 
   try {
-    // SERVER-AUTHORITATIVE WITH EPOCH:
-    // - If the client's epoch is up-to-date with the server's, we keep the
-    //   GREATEST(server, client) merge so legit farming gains get persisted
-    //   while in-flight credits (Stars/TON, wheel rewards) are never erased.
-    // - If the server has a NEWER epoch (admin mutation, reset, etc.), the
-    //   server wins — client's balance is ignored and overwritten on next
-    //   read so reductions/resets actually propagate.
+    // CLIENT-AUTHORITATIVE WITH EPOCH FENCING:
+    // - The client is the source of truth for its current balance whenever its
+    //   epoch matches the server's. This is essential because *spends* (LAB
+    //   tap-crafting, planet/SUN reactivation fees) happen client-side and
+    //   must be persisted as decrements — using GREATEST(server, client) here
+    //   would let the older server value resurrect the spent ZOOM on the next
+    //   sync, which is exactly the bug we are fixing.
+    // - Whenever the server makes an authoritative balance change (admin
+    //   credit/remove, Stars/TON purchase credit, wheel/daily/referral reward,
+    //   marketplace buy/sell), the corresponding endpoint MUST bump
+    //   balance_epoch. On the next sync, server epoch > client epoch ⇒ the
+    //   server's value wins and the client's stale value is ignored. The
+    //   client then snaps to the server value via reconcileFromSyncResponse.
     const ce = clientEpoch ?? 0;
     const [row] = await db
       .insert(usersTable)
@@ -38,7 +44,7 @@ router.post("/balance/sync", async (req, res) => {
       .onConflictDoUpdate({
         target: usersTable.telegramId,
         set: {
-          zoomBalance: sql`CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.zoomBalance} ELSE GREATEST(${usersTable.zoomBalance}, ${zoomBalance}) END`,
+          zoomBalance: sql`CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.zoomBalance} ELSE GREATEST(0, ${zoomBalance}) END`,
           ...(firstName ? { firstName } : {}),
           ...(normalizedUsername ? { username: normalizedUsername } : {}),
         },

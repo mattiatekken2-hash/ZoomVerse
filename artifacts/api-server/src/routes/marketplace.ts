@@ -172,11 +172,17 @@ router.post("/market/buy", async (req, res) => {
     }
 
     await txDb.update(usersTable)
-      .set({ zoomBalance: sql`${usersTable.zoomBalance} - ${totalCost}` })
+      .set({
+        zoomBalance: sql`${usersTable.zoomBalance} - ${totalCost}`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
       .where(eq(usersTable.telegramId, buyerTelegramId));
 
     await txDb.update(usersTable)
-      .set({ zoomBalance: sql`${usersTable.zoomBalance} + ${listing.price}` })
+      .set({
+        zoomBalance: sql`${usersTable.zoomBalance} + ${listing.price}`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
       .where(eq(usersTable.telegramId, listing.sellerTelegramId));
 
     await client.query("COMMIT");

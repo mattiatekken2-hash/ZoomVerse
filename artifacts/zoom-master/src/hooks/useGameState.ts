@@ -360,14 +360,19 @@ export function setCurrentBalanceEpoch(epoch: number): void {
   if (typeof epoch === "number" && epoch > _currentBalanceEpoch) _currentBalanceEpoch = epoch;
 }
 
-// Called after every /balance/sync response. If the server returned a value
-// lower than what we sent (admin mutation rejected our merge), reconcile the
-// local game state down to the server value — otherwise the next sync will
-// re-send the stale higher value with the now-current epoch and win via
-// GREATEST, undoing the admin action.
-function reconcileFromSyncResponse(sentBalance: number, res: { zoomBalance: number; balanceEpoch: number }): void {
+// Called after every /balance/sync response. The server is authoritative
+// whenever its epoch is higher than the one we sent — that means an
+// authoritative balance change happened on the server (admin mutation,
+// Stars/TON purchase credit, marketplace buy/sell, wheel/daily/referral
+// reward) since our last sync. In that case we MUST snap the local state
+// to the server value (regardless of whether it is higher or lower) so the
+// next outgoing sync doesn't echo back the stale value and overwrite the
+// authoritative change.
+function reconcileFromSyncResponse(sentBalance: number, sentEpoch: number, res: { zoomBalance: number; balanceEpoch: number }): void {
   setCurrentBalanceEpoch(res.balanceEpoch);
-  if (res.zoomBalance < sentBalance) {
+  const serverAdvanced = res.balanceEpoch > sentEpoch;
+  const valueDiverged = res.zoomBalance !== sentBalance;
+  if (serverAdvanced && valueDiverged) {
     try {
       window.dispatchEvent(new CustomEvent("zoom-server-balance-snap", {
         detail: { balance: res.zoomBalance, epoch: res.balanceEpoch },
@@ -394,9 +399,10 @@ function immediateSyncToServer(state: GameState) {
   const ctx_ = getTelegramContext();
   const firstName = ctx_.firstName;
   const username = ctx_.username;
-  syncBalance({ telegramId, firstName, username, zoomBalance: balance, clientEpoch: _currentBalanceEpoch })
+  const sentEpoch = _currentBalanceEpoch;
+  syncBalance({ telegramId, firstName, username, zoomBalance: balance, clientEpoch: sentEpoch })
     .then((res) => {
-      reconcileFromSyncResponse(balance, res);
+      reconcileFromSyncResponse(balance, sentEpoch, res);
       _syncInFlight = false;
       if (_pendingSyncBalance >= 0 && _pendingSyncBalance !== _lastSyncedBalance) {
         const nextBalance = _pendingSyncBalance;
@@ -405,8 +411,9 @@ function immediateSyncToServer(state: GameState) {
         if (tid) {
           _lastSyncedBalance = nextBalance;
           _syncInFlight = true;
-          syncBalance({ telegramId: tid, firstName: fn, username: un, zoomBalance: nextBalance, clientEpoch: _currentBalanceEpoch })
-            .then((r2) => { reconcileFromSyncResponse(nextBalance, r2); _syncInFlight = false; })
+          const sentEpoch2 = _currentBalanceEpoch;
+          syncBalance({ telegramId: tid, firstName: fn, username: un, zoomBalance: nextBalance, clientEpoch: sentEpoch2 })
+            .then((r2) => { reconcileFromSyncResponse(nextBalance, sentEpoch2, r2); _syncInFlight = false; })
             .catch(() => { _syncInFlight = false; });
         }
       }
@@ -799,8 +806,8 @@ export function useGameState() {
 
         {
           const sent = Math.floor(updated.balance);
-          syncBalance({ telegramId, firstName, username, zoomBalance: sent, clientEpoch: _currentBalanceEpoch })
-            .then((r) => reconcileFromSyncResponse(sent, r));
+          {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, clientEpoch: sentEpoch })
+            .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r));}
         }
         return updated;
       });
@@ -896,11 +903,12 @@ export function useGameState() {
       if (!telegramId) return;
       const localBalance = Math.floor(stateRef.current.balance);
 
+      const sentEpoch = _currentBalanceEpoch;
       const [syncRes, grants] = await Promise.all([
-        syncBalance({ telegramId, firstName, username, zoomBalance: localBalance, clientEpoch: _currentBalanceEpoch }),
+        syncBalance({ telegramId, firstName, username, zoomBalance: localBalance, clientEpoch: sentEpoch }),
         fetchGrants(telegramId),
       ]);
-      reconcileFromSyncResponse(localBalance, syncRes);
+      reconcileFromSyncResponse(localBalance, sentEpoch, syncRes);
 
       applyGrants(grants);
     };
@@ -939,8 +947,8 @@ export function useGameState() {
         const newBal = prev.balance + amount;
         if (telegramId) {
           const sent = Math.floor(newBal);
-          syncBalance({ telegramId, firstName, username, zoomBalance: sent, clientEpoch: _currentBalanceEpoch })
-            .then((r) => reconcileFromSyncResponse(sent, r));
+          {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, clientEpoch: sentEpoch })
+            .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r));}
         }
         return { ...prev, balance: newBal, totalEarned: prev.totalEarned + amount };
       });
@@ -988,8 +996,8 @@ export function useGameState() {
             stateRef.current = settled;
             {
               const sent = Math.floor(settled.balance);
-              syncBalance({ telegramId, firstName, username, zoomBalance: sent, clientEpoch: _currentBalanceEpoch })
-                .then((r) => reconcileFromSyncResponse(sent, r));
+              {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, clientEpoch: sentEpoch })
+                .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r));}
             }
             return settled;
           });
@@ -1013,7 +1021,7 @@ export function useGameState() {
       const { telegramId, firstName, username } = getTelegramContext();
       if (telegramId) {
         const balance = Math.floor(settled.balance);
-        const payload = JSON.stringify({ telegramId, firstName, zoomBalance: balance });
+        const payload = JSON.stringify({ telegramId, firstName, username, zoomBalance: balance, clientEpoch: _currentBalanceEpoch });
         const url = `${window.location.origin}/api/balance/sync`;
         const sent = navigator.sendBeacon?.(url, new Blob([payload], { type: "application/json" }));
         if (!sent) {

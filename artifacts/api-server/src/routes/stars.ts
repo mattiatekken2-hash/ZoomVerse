@@ -159,7 +159,10 @@ function findItem(itemId: string): StarsItem | undefined {
 async function creditUser(item: StarsItem, telegramId: string) {
   if (item.itemType === "bundle" && item.zoomAmount) {
     await db.update(usersTable)
-      .set({ zoomBalance: sql`${usersTable.zoomBalance} + ${item.zoomAmount}` })
+      .set({
+        zoomBalance: sql`${usersTable.zoomBalance} + ${item.zoomAmount}`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
       .where(eq(usersTable.telegramId, telegramId));
 
     const planetType = item.id === "starter_pack" ? "bonusBasic"
@@ -592,12 +595,13 @@ router.post("/stars/webhook", async (req, res) => {
 
         await db
           .insert(usersTable)
-          .values({ telegramId: referrerId, referralCount: 1, zoomBalance: 20 })
+          .values({ telegramId: referrerId, referralCount: 1, zoomBalance: 20, balanceEpoch: 1 })
           .onConflictDoUpdate({
             target: usersTable.telegramId,
             set: {
               referralCount: sql`${usersTable.referralCount} + 1`,
               zoomBalance: sql`${usersTable.zoomBalance} + 20`,
+              balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
             },
           });
         console.log(`[webhook] Late-linked ${userId} → referrer ${referrerId}, +20 ZOOM credited`);
