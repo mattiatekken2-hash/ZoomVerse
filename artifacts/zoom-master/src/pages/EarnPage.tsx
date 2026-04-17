@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { fetchDailyStatus, claimDailyReward, type DailyStatus } from "../utils/api";
 
 
 interface EarnPageProps {
@@ -8,9 +9,12 @@ interface EarnPageProps {
   referralSpeedBonus: number;
   referredBy: string | null;
   claimedMilestones: number[];
+  telegramId: string | null;
   onClaimDaily: () => void;
   onRedeemCode: (code: string) => { success: boolean; amount?: number; isSun?: boolean; error?: string };
 }
+
+const DAILY_REWARDS_BASE = [50, 100, 200, 400, 800, 1500, 3000];
 
 const MILESTONES = [
   { count: 5, reward: 500 },
@@ -21,18 +25,61 @@ const MILESTONES = [
   { count: 200, reward: 30000 },
 ];
 
-const DAILY_INTERVAL = 24 * 60 * 60 * 1000;
-
-export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, referralSpeedBonus, referredBy, claimedMilestones, onClaimDaily, onRedeemCode }: EarnPageProps) {
+export function EarnPage({ referralCode, referralCount, referralSpeedBonus, referredBy, claimedMilestones, telegramId, onRedeemCode }: EarnPageProps) {
+  const firstName = (() => {
+    try { return (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.first_name ?? null; } catch { return null; }
+  })();
   const [copied, setCopied] = useState(false);
   const [redeemInput, setRedeemInput] = useState("");
   const [redeemStatus, setRedeemStatus] = useState<{ type: "success" | "error" | "sun"; message: string } | null>(null);
+  const [daily, setDaily] = useState<DailyStatus | null>(null);
+  const [claiming, setClaiming] = useState(false);
+  const [claimMsg, setClaimMsg] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
-  const now = Date.now();
-  const canClaim = now - lastDailyClaimAt >= DAILY_INTERVAL;
-  const nextClaimIn = lastDailyClaimAt + DAILY_INTERVAL - now;
-  const hLeft = Math.floor(nextClaimIn / 3600000);
-  const mLeft = Math.floor((nextClaimIn % 3600000) / 60000);
+  const refreshDaily = useCallback(async () => {
+    if (!telegramId) return;
+    const s = await fetchDailyStatus(telegramId);
+    if (s) setDaily(s);
+  }, [telegramId]);
+
+  useEffect(() => { refreshDaily(); }, [refreshDaily]);
+  useEffect(() => {
+    const i = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(i);
+  }, []);
+
+  const nextAvailable = daily?.nextAvailableAt ?? 0;
+  void tick;
+  const canClaim = !!daily?.canClaim;
+  const remainingMs = Math.max(0, nextAvailable - Date.now());
+  const hLeft = Math.floor(remainingMs / 3600000);
+  const mLeft = Math.floor((remainingMs % 3600000) / 60000);
+  const sLeft = Math.floor((remainingMs % 60000) / 1000);
+
+  const cycle = daily?.streakCycle ?? 0;
+  const cyclePct = Math.round((1 + cycle * 0.01 - 1) * 10000) / 100;
+  const rewardsPreview = daily?.rewardsPreview ?? DAILY_REWARDS_BASE;
+  const currentDay = daily?.streakDay ?? 0;
+  const upcomingDay = daily?.upcomingDay ?? 1;
+  const upcomingReward = daily?.upcomingReward ?? DAILY_REWARDS_BASE[0];
+
+  const handleClaimStreak = async () => {
+    if (!telegramId || claiming || !canClaim) return;
+    setClaiming(true);
+    const res = await claimDailyReward(telegramId, firstName ?? undefined);
+    setClaiming(false);
+    if (res.ok && res.reward) {
+      setClaimMsg(`+${res.reward.toLocaleString()} $ZOOM (Day ${res.day})`);
+      window.dispatchEvent(new CustomEvent("zoom-credit-local", { detail: { amount: res.reward } }));
+      window.dispatchEvent(new Event("zoom-data-refresh"));
+      await refreshDaily();
+      setTimeout(() => setClaimMsg(null), 3500);
+    } else {
+      setClaimMsg(res.error || "Claim failed");
+      setTimeout(() => setClaimMsg(null), 3500);
+    }
+  };
 
   const referralLink = `https://t.me/ZoomVerse_bot?start=${referralCode}`;
 
@@ -69,31 +116,98 @@ export function EarnPage({ referralCode, referralCount, lastDailyClaimAt, referr
       </div>
 
       <div className="px-4 pb-4 flex flex-col gap-4">
-        {/* Daily Claim */}
+        {/* 7-Day Streak Daily Reward */}
         <div
-          className="rounded-2xl p-5 border flex flex-col items-center gap-3"
+          className="rounded-2xl p-4 border"
           style={{ borderColor: "rgba(0,242,254,0.15)", background: "rgba(0,242,254,0.04)" }}
         >
-          <div className="text-4xl">🎁</div>
-          <div className="font-black text-xl tracking-wide neon-text">Daily Reward</div>
-          <div className="text-sm text-center" style={{ color: "rgba(255,255,255,0.5)" }}>
-            50 $ZOOM every 24 hours. Free.
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <div className="text-2xl">🎁</div>
+              <div>
+                <div className="font-black text-base tracking-wide neon-text">Daily Streak</div>
+                <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  7-DAY LOOP · CYCLE {cycle + 1} · +{cyclePct.toFixed(0)}% BONUS
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.35)" }}>NEXT</div>
+              <div className="text-sm font-black neon-text">+{Math.round(upcomingReward).toLocaleString()}</div>
+            </div>
           </div>
+
+          <div className="grid grid-cols-7 gap-1.5 mb-3">
+            {rewardsPreview.map((amt, i) => {
+              const dayNum = i + 1;
+              const isClaimed = dayNum <= currentDay;
+              const isNext = dayNum === upcomingDay && canClaim;
+              const isMega = dayNum === 7;
+              return (
+                <div
+                  key={dayNum}
+                  className="rounded-lg p-1.5 flex flex-col items-center justify-center border transition-all"
+                  style={{
+                    aspectRatio: "1 / 1.15",
+                    borderColor: isClaimed
+                      ? "rgba(0,230,118,0.4)"
+                      : isNext
+                        ? "#00f2fe"
+                        : isMega
+                          ? "rgba(255,215,0,0.25)"
+                          : "rgba(255,255,255,0.06)",
+                    background: isClaimed
+                      ? "rgba(0,230,118,0.1)"
+                      : isNext
+                        ? "rgba(0,242,254,0.12)"
+                        : isMega
+                          ? "rgba(255,215,0,0.05)"
+                          : "rgba(255,255,255,0.02)",
+                    boxShadow: isNext ? "0 0 12px rgba(0,242,254,0.5)" : "none",
+                  }}
+                  data-testid={`day-${dayNum}`}
+                >
+                  <div className="text-[8px] font-bold tracking-wider" style={{ color: isClaimed ? "#00e676" : isNext ? "#00f2fe" : isMega ? "#ffd700" : "rgba(255,255,255,0.4)" }}>
+                    D{dayNum}
+                  </div>
+                  <div className="text-[10px] font-black leading-tight mt-0.5" style={{ color: isClaimed ? "#00e676" : isNext ? "#fff" : isMega ? "#ffd700" : "rgba(255,255,255,0.55)" }}>
+                    {amt >= 1000 ? `${(amt / 1000).toFixed(amt % 1000 === 0 ? 0 : 1)}K` : Math.round(amt)}
+                  </div>
+                  {isClaimed && <div className="text-[8px]" style={{ color: "#00e676" }}>✓</div>}
+                </div>
+              );
+            })}
+          </div>
+
           <button
-            className="w-full py-4 rounded-xl font-black text-base tracking-wider uppercase transition-all active:scale-95 border"
-            onClick={() => onClaimDaily()}
-            disabled={!canClaim}
+            className="w-full py-3.5 rounded-xl font-black text-sm tracking-wider uppercase transition-all active:scale-95 border"
+            onClick={handleClaimStreak}
+            disabled={!canClaim || claiming}
             style={{
-              background: canClaim ? "linear-gradient(135deg, #00f2fe, #4facfe)" : "rgba(255,255,255,0.04)",
-              color: canClaim ? "#060810" : "rgba(255,255,255,0.2)",
-              boxShadow: canClaim ? "0 0 24px rgba(0,242,254,0.4)" : "none",
-              borderColor: canClaim ? "transparent" : "rgba(255,255,255,0.06)",
-              cursor: canClaim ? "pointer" : "not-allowed",
+              background: canClaim && !claiming ? "linear-gradient(135deg, #00f2fe, #4facfe)" : "rgba(255,255,255,0.04)",
+              color: canClaim && !claiming ? "#060810" : "rgba(255,255,255,0.2)",
+              boxShadow: canClaim && !claiming ? "0 0 24px rgba(0,242,254,0.4)" : "none",
+              borderColor: canClaim && !claiming ? "transparent" : "rgba(255,255,255,0.06)",
+              cursor: canClaim && !claiming ? "pointer" : "not-allowed",
             }}
             data-testid="button-claim-daily"
           >
-            {canClaim ? "CLAIM 50 $ZOOM" : `${hLeft}h ${mLeft}m remaining`}
+            {claiming
+              ? "CLAIMING..."
+              : canClaim
+                ? `CLAIM DAY ${upcomingDay} — +${Math.round(upcomingReward).toLocaleString()} $ZOOM`
+                : `NEXT IN ${hLeft}h ${mLeft}m ${sLeft}s`}
           </button>
+
+          {claimMsg && (
+            <div className="mt-2 text-center text-xs font-bold py-2 rounded-lg" style={{ color: "#00e676", background: "rgba(0,230,118,0.08)", border: "1px solid rgba(0,230,118,0.2)" }}>
+              {claimMsg}
+            </div>
+          )}
+
+          <div className="mt-2 text-[10px] text-center" style={{ color: "rgba(255,255,255,0.3)" }}>
+            Miss 24h after available → streak resets to Day 1
+          </div>
         </div>
 
         {/* Redeem Code */}

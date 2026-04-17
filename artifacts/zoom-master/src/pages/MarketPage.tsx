@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
-import { fetchMarketListings, buyFromMarket, type ServerMarketListing } from "../utils/api";
+import { fetchMarketListings, buyFromMarket, fetchMarketSales, openMarketActivityStream, type ServerMarketListing, type MarketSale } from "../utils/api";
 
 
 const RARITY_FILTERS: (PlanetType | "ALL")[] = ["ALL", "BASIC", "RARE", "EPIC", "GOLD"];
@@ -31,6 +31,9 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
   const [toast, setToast] = useState<Toast | null>(null);
   const [serverListings, setServerListings] = useState<ServerMarketListing[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sales, setSales] = useState<MarketSale[]>([]);
+  const [tab, setTab] = useState<"listings" | "activity">("listings");
+  const [pulseId, setPulseId] = useState<number | null>(null);
 
   const showToast = (text: string, ok: boolean) => {
     setToast({ text, ok });
@@ -50,6 +53,20 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
     load();
     const interval = setInterval(load, 15_000);
     return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchMarketSales().then((s) => { if (!cancelled) setSales(s); });
+    const close = openMarketActivityStream((sale) => {
+      setSales((prev) => {
+        if (prev.some((p) => p.id === sale.id)) return prev;
+        return [sale, ...prev].slice(0, 20);
+      });
+      setPulseId(sale.id);
+      setTimeout(() => setPulseId((id) => (id === sale.id ? null : id)), 2200);
+    });
+    return () => { cancelled = true; close(); };
   }, []);
 
   const userListings: MarketListing[] = myListings
@@ -119,9 +136,110 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
         <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
           25% $ZOOM fee · P2P trading · {filtered.length} listings
         </p>
+        <div className="flex gap-2 mt-3">
+          <button
+            onClick={() => setTab("listings")}
+            className="flex-1 py-2 rounded-xl text-xs font-black tracking-wider uppercase border transition-all"
+            style={{
+              borderColor: tab === "listings" ? "rgba(0,242,254,0.4)" : "rgba(255,255,255,0.06)",
+              background: tab === "listings" ? "rgba(0,242,254,0.08)" : "transparent",
+              color: tab === "listings" ? "#00f2fe" : "rgba(255,255,255,0.35)",
+            }}
+            data-testid="tab-listings"
+          >
+            🛒 Listings
+          </button>
+          <button
+            onClick={() => setTab("activity")}
+            className="flex-1 py-2 rounded-xl text-xs font-black tracking-wider uppercase border transition-all relative"
+            style={{
+              borderColor: tab === "activity" ? "rgba(0,230,118,0.4)" : "rgba(255,255,255,0.06)",
+              background: tab === "activity" ? "rgba(0,230,118,0.08)" : "transparent",
+              color: tab === "activity" ? "#00e676" : "rgba(255,255,255,0.35)",
+            }}
+            data-testid="tab-activity"
+          >
+            <span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5" style={{ background: "#00e676", boxShadow: "0 0 8px #00e676", animation: "pulse 1.5s infinite" }} />
+            Live Activity
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-4">
+        {tab === "activity" ? (
+          <div className="flex flex-col gap-2 mt-2">
+            {sales.length === 0 && (
+              <div className="text-center py-10 flex flex-col items-center gap-2">
+                <div style={{ fontSize: 32, opacity: 0.15 }}>📡</div>
+                <div className="text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+                  Waiting for the next sale...
+                </div>
+              </div>
+            )}
+            {sales.map((s) => {
+              const cfg = PLANET_CONFIG[s.planetType as PlanetType];
+              if (!cfg) return null;
+              const rarityColor = RARITY_COLORS[s.planetType] ?? "#8892b0";
+              const fakePlanet = {
+                id: `sale-${s.id}`,
+                name: s.planetType as PlanetType,
+                color: cfg.color,
+                glowColor: cfg.glowColor,
+                rate: s.planetRate,
+                craftCost: 0,
+                createdAt: 0,
+                farmStartedAt: 0,
+                lastCollectedAt: 0,
+                isListedInMarket: false,
+                isFarmingActive: false,
+              } as Planet;
+              const ago = Math.max(0, Math.floor((Date.now() - s.soldAt) / 1000));
+              const agoLabel = ago < 60 ? `${ago}s ago` : ago < 3600 ? `${Math.floor(ago / 60)}m ago` : `${Math.floor(ago / 3600)}h ago`;
+              const isPulsing = pulseId === s.id;
+              return (
+                <div
+                  key={s.id}
+                  className="rounded-xl border flex items-center gap-3 px-3 py-2.5"
+                  style={{
+                    borderColor: isPulsing ? "#00e676" : rarityColor + "22",
+                    background: isPulsing
+                      ? "rgba(0,230,118,0.08)"
+                      : `linear-gradient(135deg, ${rarityColor}06 0%, rgba(6,8,16,0.55) 100%)`,
+                    boxShadow: isPulsing ? "0 0 24px rgba(0,230,118,0.45)" : "none",
+                    transition: "all 0.4s ease",
+                  }}
+                  data-testid={`sale-${s.id}`}
+                >
+                  <PlanetOrb planet={fakePlanet} size={42} animate={false} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full" style={{ color: rarityColor, background: rarityColor + "14", border: `1px solid ${rarityColor}33` }}>
+                        {cfg.label}
+                      </span>
+                      {isPulsing && (
+                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ color: "#00e676", background: "rgba(0,230,118,0.15)", border: "1px solid rgba(0,230,118,0.4)" }}>
+                          NEW
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] font-bold mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.7)" }}>
+                      <span style={{ color: "#ffd700" }}>{s.buyerName}</span>
+                      <span style={{ color: "rgba(255,255,255,0.4)" }}> bought from </span>
+                      <span style={{ color: "#4facfe" }}>{s.sellerName}</span>
+                    </div>
+                    <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>{agoLabel}</div>
+                  </div>
+                  <div className="flex flex-col items-end flex-shrink-0">
+                    <div className="text-xs font-black" style={{ color: rarityColor }}>
+                      {s.price.toLocaleString()}
+                    </div>
+                    <div className="text-[9px] font-bold" style={{ color: "rgba(255,255,255,0.3)" }}>$ZOOM</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
         <div className="flex flex-col gap-3">
 
           <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
@@ -273,6 +391,7 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
             </div>
           )}
         </div>
+        )}
       </div>
 
       {toast && (

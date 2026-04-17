@@ -147,6 +147,7 @@ export default function App() {
                   claimedMilestones={state.claimedMilestones}
                   onClaimDaily={claimDaily}
                   onRedeemCode={redeemCode}
+                  telegramId={state.telegramId}
                 />
               )}
               {t === "rank" && (

@@ -3,8 +3,55 @@ import { db, pool, usersTable, marketListingsTable } from "@workspace/db";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { z } from "zod";
+import { addClient, removeClient, broadcastSale } from "../lib/activityBus";
 
 const router: IRouter = Router();
+
+router.get("/market/sales", async (_req, res) => {
+  try {
+    const rows = await db.execute(sql`
+      SELECT m.id, m.planet_type, m.planet_rate, m.price, m.sold_at,
+             COALESCE(s.first_name, m.seller_name, 'Anon') AS seller_name,
+             COALESCE(b.first_name, 'Anon') AS buyer_name
+      FROM market_listings m
+      LEFT JOIN users s ON s.telegram_id = m.seller_telegram_id
+      LEFT JOIN users b ON b.telegram_id = m.buyer_telegram_id
+      WHERE m.status = 'sold' AND m.sold_at IS NOT NULL
+      ORDER BY m.sold_at DESC
+      LIMIT 20
+    `);
+    const sales = rows.rows.map((r: any) => ({
+      id: Number(r.id),
+      planetType: String(r.planet_type),
+      planetRate: Number(r.planet_rate),
+      price: Number(r.price),
+      sellerName: String(r.seller_name),
+      buyerName: String(r.buyer_name),
+      soldAt: r.sold_at instanceof Date ? r.sold_at.getTime() : new Date(r.sold_at).getTime(),
+    }));
+    res.json({ sales });
+  } catch (err) {
+    console.error("[market/sales] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.get("/market/activity/stream", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+  res.write(`event: ready\ndata: {}\n\n`);
+  addClient(res);
+  const heartbeat = setInterval(() => {
+    try { res.write(`: hb\n\n`); } catch { /* */ }
+  }, 25_000);
+  req.on("close", () => {
+    clearInterval(heartbeat);
+    removeClient(res);
+  });
+});
 
 const MARKETPLACE_FEE = 0.25;
 
@@ -133,6 +180,20 @@ router.post("/market/buy", async (req, res) => {
       .where(eq(usersTable.telegramId, listing.sellerTelegramId));
 
     await client.query("COMMIT");
+
+    try {
+      const [sellerInfo] = await db.select({ name: usersTable.firstName }).from(usersTable).where(eq(usersTable.telegramId, listing.sellerTelegramId)).limit(1);
+      const [buyerInfo] = await db.select({ name: usersTable.firstName }).from(usersTable).where(eq(usersTable.telegramId, buyerTelegramId)).limit(1);
+      broadcastSale({
+        id: listing.id,
+        planetType: listing.planetType,
+        planetRate: listing.planetRate,
+        price: listing.price,
+        sellerName: sellerInfo?.name || listing.sellerName || "Anon",
+        buyerName: buyerInfo?.name || "Anon",
+        soldAt: Date.now(),
+      });
+    } catch (e) { console.error("[market/buy] broadcast failed:", e); }
 
     res.json({
       ok: true,

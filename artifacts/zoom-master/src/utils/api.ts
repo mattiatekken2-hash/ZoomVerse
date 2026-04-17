@@ -463,6 +463,87 @@ export async function spinWheel(telegramId: string): Promise<{ ok: boolean; resu
   } catch { return { ok: false, error: "Network error" }; }
 }
 
+export interface DailyStatus {
+  streakDay: number;
+  streakCycle: number;
+  lastClaimAt: number;
+  nextAvailableAt: number;
+  hardResetAt: number;
+  canClaim: boolean;
+  willHardReset: boolean;
+  upcomingDay: number;
+  upcomingReward: number;
+  cycleMultiplier: number;
+  rewardsPreview: number[];
+}
+
+export async function fetchDailyStatus(telegramId: string): Promise<DailyStatus | null> {
+  try {
+    const res = await fetch(`${API_BASE}/daily/status/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return res.json();
+  } catch { return null; }
+}
+
+export async function claimDailyReward(telegramId: string, firstName?: string): Promise<{ ok: boolean; reward?: number; day?: number; cycle?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/daily/claim`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId, firstName }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data.error || "Claim failed" };
+    return { ok: true, ...data };
+  } catch { return { ok: false, error: "Network error" }; }
+}
+
+export interface MarketSale {
+  id: number;
+  planetType: "BASIC" | "RARE" | "EPIC" | "GOLD";
+  planetRate: number;
+  price: number;
+  sellerName: string;
+  buyerName: string;
+  soldAt: number;
+}
+
+export async function fetchMarketSales(): Promise<MarketSale[]> {
+  try {
+    const res = await fetch(`${API_BASE}/market/sales?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.sales) ? data.sales : [];
+  } catch { return []; }
+}
+
+export function openMarketActivityStream(onSale: (sale: MarketSale) => void): () => void {
+  let es: EventSource | null = null;
+  let closed = false;
+  let retry: ReturnType<typeof setTimeout> | null = null;
+
+  const connect = () => {
+    if (closed) return;
+    try {
+      es = new EventSource(`${API_BASE}/market/activity/stream`);
+      es.addEventListener("sale", (e) => {
+        try { onSale(JSON.parse((e as MessageEvent).data)); } catch { /* */ }
+      });
+      es.onerror = () => {
+        try { es?.close(); } catch { /* */ }
+        es = null;
+        if (!closed) retry = setTimeout(connect, 3000);
+      };
+    } catch { if (!closed) retry = setTimeout(connect, 3000); }
+  };
+  connect();
+  return () => {
+    closed = true;
+    if (retry) clearTimeout(retry);
+    try { es?.close(); } catch { /* */ }
+  };
+}
+
 export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
   try {
     const res = await fetch(`${API_BASE}/leaderboard`);

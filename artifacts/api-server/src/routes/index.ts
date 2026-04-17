@@ -7,6 +7,7 @@ import adminRouter from "./admin";
 import starsRouter from "./stars";
 import marketplaceRouter from "./marketplace";
 import wheelRouter from "./wheel";
+import dailyRouter from "./daily";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(adminRouter);
 router.use(starsRouter);
 router.use(marketplaceRouter);
 router.use(wheelRouter);
+router.use(dailyRouter);
 
 export default router;

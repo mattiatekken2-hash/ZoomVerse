@@ -23,6 +23,9 @@ export const usersTable = pgTable("users", {
   totalCraftedGold: integer("total_crafted_gold").notNull().default(0),
   wheelSpins: integer("wheel_spins").notNull().default(0),
   lastWheelDailyAt: timestamp("last_wheel_daily_at"),
+  dailyStreakDay: integer("daily_streak_day").notNull().default(0),
+  dailyStreakCycle: integer("daily_streak_cycle").notNull().default(0),
+  lastDailyClaimAt: timestamp("last_daily_claim_at"),
 }, (table) => [
   index("idx_users_zoom_balance").on(table.zoomBalance),
   index("idx_users_referred_by").on(table.referredBy),
