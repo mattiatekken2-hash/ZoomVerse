@@ -665,3 +665,49 @@
   0%, 100% { opacity: 0.35; }
   50% { opacity: 0.75; }
 }
+
+@keyframes primordialCore {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.25); }
+}
+
+@keyframes nebSpark0 {
+  0% { transform: translate(-30px, -10px) scale(0.6); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translate(28px, 18px) scale(1); opacity: 0; }
+}
+@keyframes nebSpark1 {
+  0% { transform: translate(20px, -25px) scale(0.5); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translate(-22px, 24px) scale(1); opacity: 0; }
+}
+@keyframes nebSpark2 {
+  0% { transform: translate(-15px, 28px) scale(0.7); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translate(18px, -26px) scale(1.1); opacity: 0; }
+}
+
+@keyframes planetBump {
+  0% { transform: scale(0.92); }
+  60% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+
+@keyframes fragmentFly {
+  0% {
+    transform: translate(var(--fx), var(--fy)) scale(1);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(0px, 0px) scale(0.2);
+    opacity: 0;
+  }
+}
+
+@keyframes crackFlicker {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
