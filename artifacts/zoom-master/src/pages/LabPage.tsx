@@ -162,13 +162,13 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
                 className="font-black tracking-widest"
                 style={{ fontSize: 14, color: "#ff5555", textShadow: "0 0 12px rgba(255,80,80,0.7)", letterSpacing: "0.18em" }}
               >
-                PIANETA ROTTO!
+                PLANET BROKEN!
               </div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 6, fontWeight: 600 }}>
-                Il tuo {PLANET_CONFIG[brokenFlash.rarity].label} si è frantumato durante la costruzione.
+                Your {PLANET_CONFIG[brokenFlash.rarity].label} shattered during construction.
               </div>
               <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 4, fontWeight: 500 }}>
-                Riprova al prossimo craft.
+                Try again on the next craft.
               </div>
             </div>
           </div>
