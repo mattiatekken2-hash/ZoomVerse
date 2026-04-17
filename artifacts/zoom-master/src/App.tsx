@@ -64,6 +64,8 @@ export default function App() {
   const [muted, setMuted] = useState<boolean>(() => {
     try { return localStorage.getItem("zoom-bgm-muted") === "1"; } catch { return false; }
   });
+  const mutedRef = useRef<boolean>(muted);
+  useEffect(() => { mutedRef.current = muted; }, [muted]);
 
   useEffect(() => {
     const audio = new Audio(`${import.meta.env.BASE_URL}bgm.mp3`);
@@ -73,15 +75,19 @@ export default function App() {
     audioRef.current = audio;
 
     const tryPlay = () => { audio.play().catch(() => {}); };
-    if (!muted) tryPlay();
+    if (!mutedRef.current) tryPlay();
 
     const onUserGesture = () => {
-      if (!audioRef.current) return;
-      if (!audioRef.current.paused) return;
-      if (!muted) tryPlay();
+      const a = audioRef.current;
+      if (!a) return;
+      if (mutedRef.current) {
+        if (!a.paused) a.pause();
+        return;
+      }
+      if (a.paused) tryPlay();
     };
-    window.addEventListener("pointerdown", onUserGesture, { once: false });
-    window.addEventListener("touchstart", onUserGesture, { once: false });
+    window.addEventListener("pointerdown", onUserGesture);
+    window.addEventListener("touchstart", onUserGesture);
 
     return () => {
       window.removeEventListener("pointerdown", onUserGesture);
