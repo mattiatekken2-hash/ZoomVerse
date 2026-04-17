@@ -292,6 +292,17 @@ export async function adminRemoveSpins(adminId: string, telegramId: string, coun
   } catch { return false; }
 }
 
+export async function adminForceDelist(adminId: string, listingId: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/force-delist`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, listingId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminResetSeason(adminId: string): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/reset-season`, {

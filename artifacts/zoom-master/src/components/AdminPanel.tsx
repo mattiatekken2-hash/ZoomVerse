@@ -11,6 +11,7 @@ import {
   adminCreditSpins,
   adminRemoveSpins,
   adminResetSeason,
+  adminForceDelist,
 } from "../utils/api";
 
 const ADMIN_ID = "8144744644";
@@ -45,8 +46,9 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
+  const [delistId, setDelistId] = useState("");
 
   const showFeedback = (msg: string, ok: boolean) => {
     setFeedback({ msg, ok });
@@ -369,6 +371,55 @@ export function AdminPanel({ telegramId }: Props) {
                 >
                   {loading === "global" ? "..." : "⚡ BONUS ZOOM GLOBALE"}
                 </motion.button>
+
+                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+
+                {/* Force delist marketplace listing */}
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
+                  RIMUOVI LISTING DAL MERCATO
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    value={delistId}
+                    onChange={(e) => setDelistId(e.target.value)}
+                    placeholder="ID listing"
+                    type="number"
+                    min="1"
+                    onFocus={() => haptic()}
+                    style={{ ...inputStyle, flex: 1, border: "1px solid rgba(255,60,60,0.18)" }}
+                  />
+                  <motion.button
+                    whileTap={{ scale: 0.93 }}
+                    onClick={async () => {
+                      haptic();
+                      const id = parseInt(delistId, 10);
+                      if (!Number.isFinite(id) || id <= 0) {
+                        showFeedback("✗ ID non valido", false);
+                        return;
+                      }
+                      setLoading("delist");
+                      const ok = await adminForceDelist(telegramId, id);
+                      setLoading(null);
+                      if (ok) setDelistId("");
+                      showFeedback(ok ? `✓ Listing #${id} rimosso` : `✗ Listing non trovato`, ok);
+                    }}
+                    disabled={loading !== null}
+                    style={{
+                      padding: "0 14px",
+                      borderRadius: 10,
+                      border: "1px solid rgba(255,60,60,0.3)",
+                      background: "rgba(255,60,60,0.1)",
+                      color: "#ff5555",
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      opacity: loading !== null ? 0.5 : 1,
+                      letterSpacing: "0.05em",
+                    }}
+                  >
+                    {loading === "delist" ? "..." : "🗑 DELIST"}
+                  </motion.button>
+                </div>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
 

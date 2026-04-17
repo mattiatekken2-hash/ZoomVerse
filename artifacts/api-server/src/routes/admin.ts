@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, transactionsTable } from "@workspace/db";
+import { db, transactionsTable, marketListingsTable } from "@workspace/db";
 import { usersTable, appSettingsTable } from "@workspace/db/schema";
 import { and } from "drizzle-orm";
 import { sql, eq } from "drizzle-orm";
@@ -304,6 +304,35 @@ router.post("/admin/credit-spins", async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error("[admin/credit-spins]", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// ----- MARKETPLACE FORCE-DELIST -----
+const ForceDelistBody = z.object({
+  adminId: z.string(),
+  listingId: z.number().int().positive(),
+});
+
+router.post("/admin/force-delist", async (req, res) => {
+  const parsed = ForceDelistBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+  try {
+    const result = await db
+      .update(marketListingsTable)
+      .set({ status: "delisted" })
+      .where(
+        and(
+          eq(marketListingsTable.id, parsed.data.listingId),
+          eq(marketListingsTable.status, "active"),
+        ),
+      )
+      .returning();
+    if (result.length === 0) return res.status(404).json({ error: "Listing not found or already delisted" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/force-delist]", err);
     res.status(500).json({ error: "Database error" });
   }
 });
