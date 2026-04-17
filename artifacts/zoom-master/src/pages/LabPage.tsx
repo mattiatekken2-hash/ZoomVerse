@@ -22,7 +22,7 @@ const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
 export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, onCraft, onClaim }: LabPageProps) {
-  const [status, setStatus] = useState("TAP TO FORGE A PLANET");
+  const [status, setStatus] = useState("TAP THE PRIMORDIAL LIGHT");
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const timeoutRef = useRef<number | null>(null);
 
@@ -50,18 +50,19 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     const result = onCraft();
     if (result.completed && result.planet) {
       const p = result.planet;
-      setStatus(`${PLANET_CONFIG[p.name].label.toUpperCase()} PLANET FORGED!`);
+      setStatus(`CORE FRACTURED — ${PLANET_CONFIG[p.name].label.toUpperCase()} READY`);
       addFloat(`✦ ${PLANET_CONFIG[p.name].label}!`, p.color);
     } else if (!result.completed && result.tapsLeft !== undefined) {
-      const pct = Math.round(((goal - result.tapsLeft) / goal) * 100);
-      setStatus(`FORGING... ${pct}%`);
+      const done = goal - result.tapsLeft;
+      const pct = Math.round((done / goal) * 100);
+      setStatus(done < 3 ? "AGGREGATING FRAGMENTS..." : pct >= 90 ? `CORE UNSTABLE... ${pct}%` : `FORGING MASS... ${pct}%`);
       addFloat("+1", "rgba(255,255,255,0.25)");
     }
   }, [canCraft, onCraft, goal, addFloat]);
 
   const handleClaim = useCallback(() => {
     onClaim();
-    setStatus("TAP TO FORGE A PLANET");
+    setStatus("TAP THE PRIMORDIAL LIGHT");
   }, [onClaim]);
 
   const rarityClass: Record<string, string> = {
