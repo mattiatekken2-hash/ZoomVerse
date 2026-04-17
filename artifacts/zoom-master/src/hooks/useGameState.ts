@@ -161,7 +161,7 @@ const LIVE_EVENT_KEY = "zoom-master-live-activity-event";
 const LIVE_EVENT_CHANNEL = "zoom-master-live-activity";
 const MAX_FEED_EVENTS = 50;
 const PLAYER_NAME = "Username";
-const FARM_DURATION_MS = 7 * 24 * 60 * 60 * 1000;
+const FARM_DURATION_MS = 24 * 60 * 60 * 1000;
 const DAILY_COLLECT_MS = 24 * 60 * 60 * 1000;
 
 function makeReferralCode(): string {
