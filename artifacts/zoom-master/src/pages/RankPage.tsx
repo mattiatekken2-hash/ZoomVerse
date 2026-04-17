@@ -229,8 +229,9 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                       <div className="font-black text-sm w-7 text-center flex-shrink-0" style={{ color: isUser ? "#00f2fe" : "rgba(255,255,255,0.28)" }}>
                         {medal ?? `#${entry.rank}`}
                       </div>
-                      <div className={isUser ? "flex-1 font-black text-sm neon-text" : "flex-1 font-bold text-sm tracking-wider"} style={{ color: isUser ? undefined : "rgba(255,255,255,0.45)" }}>
-                        {isUser ? <>YOU<span className="text-xs opacity-40 ml-1">(you)</span></> : `Player #${entry.rank}`}
+                      <div className={isUser ? "flex-1 font-black text-sm neon-text" : "flex-1 font-bold text-sm"} style={{ color: isUser ? undefined : "rgba(255,255,255,0.58)" }}>
+                        {entry.firstName}
+                        {isUser && <span className="text-xs opacity-40 ml-1">(you)</span>}
                       </div>
                       <div className="text-xs font-black tabular-nums" style={{ color: isUser ? "#00f2fe" : "rgba(255,255,255,0.42)" }}>
                         {formatZoom(entry.zoomBalance)} $ZOOM

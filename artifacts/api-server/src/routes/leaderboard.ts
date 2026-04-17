@@ -48,6 +48,7 @@ router.get("/leaderboard", async (_req, res) => {
         zoomBalance: usersTable.zoomBalance,
       })
       .from(usersTable)
+      .where(sql`${usersTable.zoomBalance} > 0`)
       .orderBy(desc(usersTable.zoomBalance))
       .limit(100);
 
