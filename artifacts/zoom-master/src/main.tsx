@@ -59,23 +59,20 @@ function isScrollContainer(el: Element): boolean {
   return style.overflowY === "auto" || style.overflowY === "scroll";
 }
 
+// Fire a soft haptic on EVERY touch in the app — only skip when the user is
+// actually typing in a text field (where buzzing on every keystroke would feel
+// wrong). Everything else — scrolling, swiping, tapping any element — gets the
+// gentle vibration so the whole game feels alive.
 const NO_HAPTIC_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
 
 function tapHandler(e: Event) {
-  let el = e.target as Element | null;
-  // Walk up to detect text inputs and scroll containers — skip haptic in those
-  // cases. Otherwise fire on every tap so the whole game feels alive.
-  while (el && el !== document.body) {
-    if (NO_HAPTIC_TAGS.has(el.tagName)) return;
-    if (el.getAttribute && el.getAttribute("contenteditable") === "true") return;
-    if (isScrollContainer(el)) return;
-    el = el.parentElement;
-  }
+  const target = e.target as Element | null;
+  if (target && NO_HAPTIC_TAGS.has(target.tagName)) return;
+  if (target && (target as HTMLElement).isContentEditable) return;
   hapticLight();
 }
 
-// Use both touchstart (mobile) and pointerdown (covers stylus / mouse / Telegram
-// desktop). Passive so we never block scroll.
+// touchstart for mobile, pointerdown covers desktop / stylus / Telegram web.
 document.addEventListener("touchstart", tapHandler, { passive: true });
 document.addEventListener("pointerdown", tapHandler, { passive: true });
 
