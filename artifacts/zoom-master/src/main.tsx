@@ -2,7 +2,6 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { hapticLight } from "./utils/haptic";
-import { ErrorBoundary } from "./components/ErrorBoundary";
 
 function configureTelegramViewport() {
   try {
@@ -86,8 +85,4 @@ document.addEventListener(
   { passive: true },
 );
 
-createRoot(document.getElementById("root")!).render(
-  <ErrorBoundary>
-    <App />
-  </ErrorBoundary>,
-);
+createRoot(document.getElementById("root")!).render(<App />);

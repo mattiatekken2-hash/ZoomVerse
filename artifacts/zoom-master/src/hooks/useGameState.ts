@@ -870,15 +870,10 @@ export function useGameState() {
       }
     };
 
-    const handleFocus = () => handleVisibility();
     document.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener("focus", handleFocus);
-    window.addEventListener("pageshow", handleFocus);
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener("focus", handleFocus);
-      window.removeEventListener("pageshow", handleFocus);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, []);

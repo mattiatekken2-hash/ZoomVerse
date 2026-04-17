@@ -22,43 +22,7 @@
     </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
     <title>ZOOM MASTER</title>
-    <script>
-      // Self-heal stale Telegram WebView caches: if a chunk 404s after redeploy,
-      // unregister service workers, clear caches, and force a fresh reload once.
-      (function () {
-        try {
-          if ("serviceWorker" in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function (regs) {
-              regs.forEach(function (r) { try { r.unregister(); } catch (e) {} });
-            }).catch(function () {});
-          }
-          var reloaded = false;
-          window.addEventListener("error", function (e) {
-            try {
-              var src = (e && e.target && (e.target.src || e.target.href)) || "";
-              if (reloaded || !/\/assets\/.*\.(js|css|mjs)/.test(src)) return;
-              // loop guard: max 1 auto-reload per 60s window
-              var now = Date.now();
-              var last = 0;
-              try { last = parseInt(sessionStorage.getItem("zoom-cache-reload") || "0", 10) || 0; } catch (_) {}
-              if (now - last < 60000) return;
-              reloaded = true;
-              try { sessionStorage.setItem("zoom-cache-reload", String(now)); } catch (_) {}
-              var done = function () { location.replace(location.pathname + "?_=" + now); };
-              if (window.caches && caches.keys) {
-                caches.keys().then(function (ks) {
-                  return Promise.all(ks.map(function (k) { return caches.delete(k); }));
-                }).then(done, done);
-              } else { done(); }
-            } catch (_) {}
-          }, true);
-        } catch (e) {}
-      })();
-    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
