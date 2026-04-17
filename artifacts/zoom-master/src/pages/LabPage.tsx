@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { PlanetCanvas } from "../components/PlanetCanvas";
 import type { Planet, PlanetType } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
@@ -14,6 +14,7 @@ interface LabPageProps {
   pendingPlanet: Planet | null;
   onCraft: () => { completed: boolean; planet?: Planet; tapsLeft?: number };
   onClaim: () => void;
+  visible?: boolean;
 }
 
 interface FloatMsg { id: number; text: string; color: string }
@@ -21,8 +22,10 @@ interface FloatMsg { id: number; text: string; color: string }
 const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, onCraft, onClaim }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, onCraft, onClaim, visible = true }: LabPageProps) {
   const [floats, setFloats] = useState<FloatMsg[]>([]);
+  const floatIdRef = useRef(0);
+  const floatTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
 
   const isFull = planets.length >= maxSlots && !pendingPlanet;
   const canCraft = !pendingPlanet && planets.length < maxSlots && balance >= 1;
@@ -35,11 +38,38 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     ? PLANET_CONFIG[currentCraftRarity].color
     : GREY;
 
-  const addFloat = useCallback((text: string, color: string) => {
-    const id = Date.now();
-    setFloats(prev => [...prev, { id, text, color }]);
-    setTimeout(() => setFloats(prev => prev.filter(f => f.id !== id)), 1400);
+  const clearAllFloats = useCallback(() => {
+    floatTimersRef.current.forEach(t => clearTimeout(t));
+    floatTimersRef.current.clear();
+    setFloats([]);
   }, []);
+
+  // Flush all pending +1 floats whenever LAB is hidden (tab switch) or the
+  // browser tab is backgrounded. CSS animations replay from frame 0 when an
+  // element comes back from `display: none`, so without this floats added
+  // right before a tab switch would re-appear as ghost +1 on return.
+  useEffect(() => {
+    if (!visible) clearAllFloats();
+  }, [visible, clearAllFloats]);
+
+  useEffect(() => {
+    const onVis = () => { if (document.hidden) clearAllFloats(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [clearAllFloats]);
+
+  useEffect(() => () => clearAllFloats(), [clearAllFloats]);
+
+  const addFloat = useCallback((text: string, color: string) => {
+    if (!visible || document.hidden) return;
+    const id = ++floatIdRef.current;
+    setFloats(prev => [...prev, { id, text, color }]);
+    const timer = setTimeout(() => {
+      setFloats(prev => prev.filter(f => f.id !== id));
+      floatTimersRef.current.delete(id);
+    }, 1400);
+    floatTimersRef.current.set(id, timer);
+  }, [visible]);
 
   const handleCraft = useCallback(() => {
     if (!canCraft) return;

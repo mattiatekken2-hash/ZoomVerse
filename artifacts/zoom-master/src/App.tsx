@@ -117,6 +117,7 @@ export default function App() {
                   pendingPlanet={state.pendingPlanet}
                   onCraft={craft}
                   onClaim={claimCraft}
+                  visible={tab === "lab"}
                 />
               )}
               {t === "farm" && (

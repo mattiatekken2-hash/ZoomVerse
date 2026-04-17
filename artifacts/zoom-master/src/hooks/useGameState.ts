@@ -977,26 +977,37 @@ export function useGameState() {
       const planet = makePlanet(rarity);
       const { telegramId: tid } = getTelegramContext();
       if (tid) recordCraft(tid, planet.name);
-      setState((prev) => ({
-        ...(planet.name === "GOLD"
-          ? withFeedEvent(prev, `${PLAYER_NAME} ha appena forgiato un pianeta GOLD!`)
-          : prev),
-        balance: newBalance,
-        taps: 0,
-        goal: 50,
-        currentCraftRarity: null,
-        pendingPlanet: planet,
-        craftsCompleted: prev.craftsCompleted + 1,
-      }));
+      setState((prev) => {
+        const next: GameState = {
+          ...(planet.name === "GOLD"
+            ? withFeedEvent(prev, `${PLAYER_NAME} ha appena forgiato un pianeta GOLD!`)
+            : prev),
+          balance: newBalance,
+          taps: 0,
+          goal: 50,
+          currentCraftRarity: null,
+          pendingPlanet: planet,
+          craftsCompleted: prev.craftsCompleted + 1,
+        };
+        // Immediate flush: persist tap progress to localStorage synchronously
+        // so it survives page hide / tab switch / accidental reload without
+        // waiting for the 400ms debounce.
+        saveState(next);
+        return next;
+      });
       return { completed: true, planet };
     } else {
-      setState((prev) => ({
-        ...prev,
-        balance: newBalance,
-        taps: newTaps,
-        goal,
-        currentCraftRarity: rarity,
-      }));
+      setState((prev) => {
+        const next: GameState = {
+          ...prev,
+          balance: newBalance,
+          taps: newTaps,
+          goal,
+          currentCraftRarity: rarity,
+        };
+        saveState(next);
+        return next;
+      });
       return { completed: false, tapsLeft: goal - newTaps };
     }
   }, []);
