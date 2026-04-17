@@ -114,10 +114,13 @@ router.post("/admin/credit-zoom", async (req, res) => {
   try {
     await db
       .insert(usersTable)
-      .values({ telegramId, zoomBalance: amount, referralCount: 0 })
+      .values({ telegramId, zoomBalance: amount, referralCount: 0, balanceEpoch: 1 })
       .onConflictDoUpdate({
         target: usersTable.telegramId,
-        set: { zoomBalance: sql`${usersTable.zoomBalance} + ${amount}` },
+        set: {
+          zoomBalance: sql`${usersTable.zoomBalance} + ${amount}`,
+          balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+        },
       });
     await writeAdminAssetSnapshot();
     res.json({ ok: true });
@@ -196,7 +199,10 @@ router.post("/admin/global-bonus", async (req, res) => {
   try {
     await db
       .update(usersTable)
-      .set({ zoomBalance: sql`${usersTable.zoomBalance} + ${amount}` });
+      .set({
+        zoomBalance: sql`${usersTable.zoomBalance} + ${amount}`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      });
     await writeAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
@@ -215,7 +221,10 @@ router.post("/admin/remove-zoom", async (req, res) => {
   try {
     await db
       .update(usersTable)
-      .set({ zoomBalance: sql`GREATEST(0, ${usersTable.zoomBalance} - ${amount})` })
+      .set({
+        zoomBalance: sql`GREATEST(0, ${usersTable.zoomBalance} - ${amount})`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
       .where(sql`${usersTable.telegramId} = ${telegramId}`);
     await writeAdminAssetSnapshot();
     res.json({ ok: true });
@@ -327,6 +336,7 @@ router.post("/admin/reset-season", async (req, res) => {
   try {
     await db.update(usersTable).set({
       zoomBalance: 0,
+      balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       totalCraftedBasic: 0,
       totalCraftedRare: 0,
       totalCraftedEpic: 0,

@@ -84,6 +84,7 @@ export interface GameState {
   sunCount: number;
   lastFarmingSettledAt: number;
   claimedMilestones: number[];
+  lastBalanceEpoch: number;
   defectPlanets: string[];
 }
 
@@ -238,6 +239,7 @@ const INITIAL_STATE: GameState = {
   lastFarmingSettledAt: Date.now(),
   claimedMilestones: [],
   defectPlanets: [],
+  lastBalanceEpoch: 0,
 };
 
 function migratePlanet(p: unknown): Planet {
@@ -280,6 +282,7 @@ function loadState(): GameState {
           claimedBonusSun: parsed.claimedBonusSun ?? false,
           lastFarmingSettledAt: parsed.lastFarmingSettledAt ?? Date.now(),
           claimedMilestones: parsed.claimedMilestones ?? [],
+          lastBalanceEpoch: parsed.lastBalanceEpoch ?? 0,
         };
         const resolvedTelegramId = telegramId || base.telegramId;
         return {
@@ -348,6 +351,32 @@ function flushPersist() {
 let _lastSyncedBalance = -1;
 let _syncInFlight = false;
 let _pendingSyncBalance = -1;
+// Tracks the most recent server balanceEpoch we've observed. Sent on every
+// /balance/sync so the server can detect stale clients (e.g. after admin
+// mutations) and overwrite their balance instead of merging.
+let _currentBalanceEpoch = 0;
+export function getCurrentBalanceEpoch(): number { return _currentBalanceEpoch; }
+export function setCurrentBalanceEpoch(epoch: number): void {
+  if (typeof epoch === "number" && epoch > _currentBalanceEpoch) _currentBalanceEpoch = epoch;
+}
+
+// Called after every /balance/sync response. If the server returned a value
+// lower than what we sent (admin mutation rejected our merge), reconcile the
+// local game state down to the server value — otherwise the next sync will
+// re-send the stale higher value with the now-current epoch and win via
+// GREATEST, undoing the admin action.
+function reconcileFromSyncResponse(sentBalance: number, res: { zoomBalance: number; balanceEpoch: number }): void {
+  setCurrentBalanceEpoch(res.balanceEpoch);
+  if (res.zoomBalance < sentBalance) {
+    try {
+      window.dispatchEvent(new CustomEvent("zoom-server-balance-snap", {
+        detail: { balance: res.zoomBalance, epoch: res.balanceEpoch },
+      }));
+    } catch { /**/ }
+    _lastSyncedBalance = res.zoomBalance;
+    _pendingSyncBalance = -1;
+  }
+}
 
 function immediateSyncToServer(state: GameState) {
   const { telegramId } = getTelegramContext();
@@ -365,8 +394,9 @@ function immediateSyncToServer(state: GameState) {
   const ctx_ = getTelegramContext();
   const firstName = ctx_.firstName;
   const username = ctx_.username;
-  syncBalance({ telegramId, firstName, username, zoomBalance: balance })
-    .then(() => {
+  syncBalance({ telegramId, firstName, username, zoomBalance: balance, clientEpoch: _currentBalanceEpoch })
+    .then((res) => {
+      reconcileFromSyncResponse(balance, res);
       _syncInFlight = false;
       if (_pendingSyncBalance >= 0 && _pendingSyncBalance !== _lastSyncedBalance) {
         const nextBalance = _pendingSyncBalance;
@@ -375,8 +405,8 @@ function immediateSyncToServer(state: GameState) {
         if (tid) {
           _lastSyncedBalance = nextBalance;
           _syncInFlight = true;
-          syncBalance({ telegramId: tid, firstName: fn, username: un, zoomBalance: nextBalance })
-            .then(() => { _syncInFlight = false; })
+          syncBalance({ telegramId: tid, firstName: fn, username: un, zoomBalance: nextBalance, clientEpoch: _currentBalanceEpoch })
+            .then((r2) => { reconcileFromSyncResponse(nextBalance, r2); _syncInFlight = false; })
             .catch(() => { _syncInFlight = false; });
         }
       }
@@ -658,19 +688,32 @@ export function useGameState() {
       ]);
 
       const serverBalance = balanceRecord?.exists ? balanceRecord.zoomBalance : 0;
+      const serverEpoch = balanceRecord?.balanceEpoch ?? 0;
+      const localEpoch = stateRef.current.lastBalanceEpoch ?? 0;
       const localBalance = Math.floor(stateRef.current.balance);
-      const adminCredit = serverBalance > localBalance ? serverBalance - localBalance : 0;
-      const finalBalance = stateRef.current.balance + adminCredit;
+      // If server epoch advanced, admin/system performed an authoritative
+      // change (credit/remove/reset) — server wins, even if client is higher.
+      // Otherwise, only credit upwards (protect in-flight purchases).
+      const epochAdvanced = serverEpoch > localEpoch;
+      const finalBalance = epochAdvanced
+        ? serverBalance
+        : stateRef.current.balance + (serverBalance > localBalance ? serverBalance - localBalance : 0);
 
-      syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(finalBalance) });
+      setCurrentBalanceEpoch(serverEpoch);
+      const syncRes = await syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(finalBalance), clientEpoch: serverEpoch });
+      setCurrentBalanceEpoch(syncRes.balanceEpoch);
 
       setState((prev) => {
-        const credit = serverBalance > Math.floor(prev.balance) ? serverBalance - Math.floor(prev.balance) : 0;
+        const epochAdvancedNow = serverEpoch > (prev.lastBalanceEpoch ?? 0);
+        const newBalance = epochAdvancedNow
+          ? serverBalance
+          : prev.balance + (serverBalance > Math.floor(prev.balance) ? serverBalance - Math.floor(prev.balance) : 0);
         let updated = {
           ...prev,
           referralCount: refData.referralCount,
           claimedMilestones: refData.claimedMilestones,
-          balance: prev.balance + credit,
+          balance: newBalance,
+          lastBalanceEpoch: syncRes.balanceEpoch,
         };
 
         // Apply bonus sun from server (grant sun if not already owned)
@@ -754,7 +797,11 @@ export function useGameState() {
           };
         }
 
-        syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(updated.balance) });
+        {
+          const sent = Math.floor(updated.balance);
+          syncBalance({ telegramId, firstName, username, zoomBalance: sent, clientEpoch: _currentBalanceEpoch })
+            .then((r) => reconcileFromSyncResponse(sent, r));
+        }
         return updated;
       });
     })();
@@ -849,10 +896,11 @@ export function useGameState() {
       if (!telegramId) return;
       const localBalance = Math.floor(stateRef.current.balance);
 
-      const [, grants] = await Promise.all([
-        syncBalance({ telegramId, firstName, username, zoomBalance: localBalance }),
+      const [syncRes, grants] = await Promise.all([
+        syncBalance({ telegramId, firstName, username, zoomBalance: localBalance, clientEpoch: _currentBalanceEpoch }),
         fetchGrants(telegramId),
       ]);
+      reconcileFromSyncResponse(localBalance, syncRes);
 
       applyGrants(grants);
     };
@@ -867,16 +915,15 @@ export function useGameState() {
       if (balanceRecord?.exists) {
         const serverBal = Math.floor(balanceRecord.zoomBalance);
         const localBal = Math.floor(stateRef.current.balance);
+        // Adopt the server's epoch so subsequent syncs are not rejected.
+        setCurrentBalanceEpoch(balanceRecord.balanceEpoch);
         if (serverBal !== localBal) {
-          // Snap local to server in BOTH directions:
-          //  - server > local: admin credited zoom → grant it locally.
-          //  - server < local: admin removed zoom → discard the local excess
-          //    (otherwise the next syncBalance would push the stale higher
-          //    value back to the DB and undo the admin action).
-          // Mark this as the last synced balance so the syncer doesn't fight us.
+          // Snap local to server in BOTH directions: credits AND removals.
           _lastSyncedBalance = serverBal;
           _pendingSyncBalance = -1;
-          setState((prev) => ({ ...prev, balance: serverBal }));
+          setState((prev) => ({ ...prev, balance: serverBal, lastBalanceEpoch: balanceRecord.balanceEpoch }));
+        } else {
+          setState((prev) => ({ ...prev, lastBalanceEpoch: balanceRecord.balanceEpoch }));
         }
       }
 
@@ -890,19 +937,37 @@ export function useGameState() {
       const { telegramId, firstName, username } = getTelegramContext();
       setState((prev) => {
         const newBal = prev.balance + amount;
-        if (telegramId) syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(newBal) });
+        if (telegramId) {
+          const sent = Math.floor(newBal);
+          syncBalance({ telegramId, firstName, username, zoomBalance: sent, clientEpoch: _currentBalanceEpoch })
+            .then((r) => reconcileFromSyncResponse(sent, r));
+        }
         return { ...prev, balance: newBal, totalEarned: prev.totalEarned + amount };
       });
+    };
+    const handleServerSnap = (e: Event) => {
+      const detail = (e as CustomEvent<{ balance: number; epoch: number }>).detail;
+      if (!detail || typeof detail.balance !== "number") return;
+      // Server rejected our merge (admin mutation in progress) — snap local
+      // state down to the authoritative server value so the next sync doesn't
+      // re-send the stale higher value.
+      setState((prev) => ({
+        ...prev,
+        balance: detail.balance,
+        lastBalanceEpoch: Math.max(prev.lastBalanceEpoch ?? 0, detail.epoch ?? 0),
+      }));
     };
     window.addEventListener("zoom-admin-refresh", handleAdminRefresh);
     window.addEventListener("zoom-data-refresh", doSync);
     window.addEventListener("zoom-credit-local", handleLocalCredit as EventListener);
+    window.addEventListener("zoom-server-balance-snap", handleServerSnap as EventListener);
 
     return () => {
       clearInterval(interval);
       window.removeEventListener("zoom-admin-refresh", handleAdminRefresh);
       window.removeEventListener("zoom-data-refresh", doSync);
       window.removeEventListener("zoom-credit-local", handleLocalCredit as EventListener);
+      window.removeEventListener("zoom-server-balance-snap", handleServerSnap as EventListener);
     };
   }, []);
 
@@ -921,7 +986,11 @@ export function useGameState() {
           setState((prev) => {
             const settled = settleFarmingState(prev, Date.now());
             stateRef.current = settled;
-            syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(settled.balance) });
+            {
+              const sent = Math.floor(settled.balance);
+              syncBalance({ telegramId, firstName, username, zoomBalance: sent, clientEpoch: _currentBalanceEpoch })
+                .then((r) => reconcileFromSyncResponse(sent, r));
+            }
             return settled;
           });
 

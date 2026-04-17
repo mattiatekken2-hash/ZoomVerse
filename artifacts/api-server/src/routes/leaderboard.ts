@@ -10,6 +10,7 @@ const SyncBody = z.object({
   firstName: z.string().optional(),
   username: z.string().optional(),
   zoomBalance: z.number().min(0),
+  clientEpoch: z.number().int().nonnegative().optional(),
 });
 
 router.post("/balance/sync", async (req, res) => {
@@ -19,30 +20,32 @@ router.post("/balance/sync", async (req, res) => {
     return;
   }
 
-  const { telegramId, firstName, username, zoomBalance } = parsed.data;
+  const { telegramId, firstName, username, zoomBalance, clientEpoch } = parsed.data;
   const normalizedUsername = username ? username.replace(/^@/, "").toLowerCase() : null;
 
   try {
-    // SERVER-AUTHORITATIVE: never let a client-supplied balance ERASE a higher
-    // server balance. This protects in-flight credits (Stars/TON purchases,
-    // wheel rewards, referral bonuses) from being clobbered by a stale local
-    // balance that the client computed before the credit landed.
-    // The on-conflict update keeps the GREATER of (server, client) so legit
-    // farming gains still get persisted, but purchases can never disappear.
+    // SERVER-AUTHORITATIVE WITH EPOCH:
+    // - If the client's epoch is up-to-date with the server's, we keep the
+    //   GREATEST(server, client) merge so legit farming gains get persisted
+    //   while in-flight credits (Stars/TON, wheel rewards) are never erased.
+    // - If the server has a NEWER epoch (admin mutation, reset, etc.), the
+    //   server wins — client's balance is ignored and overwritten on next
+    //   read so reductions/resets actually propagate.
+    const ce = clientEpoch ?? 0;
     const [row] = await db
       .insert(usersTable)
       .values({ telegramId, zoomBalance, firstName: firstName ?? null, username: normalizedUsername, referralCount: 0 })
       .onConflictDoUpdate({
         target: usersTable.telegramId,
         set: {
-          zoomBalance: sql`GREATEST(${usersTable.zoomBalance}, ${zoomBalance})`,
+          zoomBalance: sql`CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.zoomBalance} ELSE GREATEST(${usersTable.zoomBalance}, ${zoomBalance}) END`,
           ...(firstName ? { firstName } : {}),
           ...(normalizedUsername ? { username: normalizedUsername } : {}),
         },
       })
-      .returning({ zoomBalance: usersTable.zoomBalance });
+      .returning({ zoomBalance: usersTable.zoomBalance, balanceEpoch: usersTable.balanceEpoch });
 
-    res.json({ ok: true, zoomBalance: row?.zoomBalance ?? zoomBalance });
+    res.json({ ok: true, zoomBalance: row?.zoomBalance ?? zoomBalance, balanceEpoch: row?.balanceEpoch ?? 0 });
   } catch (err) {
     console.error("[balance/sync] error:", err);
     res.status(500).json({ error: "Database error" });
@@ -93,17 +96,17 @@ router.get("/balance/:telegramId", async (req, res) => {
   const { telegramId } = req.params;
   try {
     const rows = await db
-      .select({ zoomBalance: usersTable.zoomBalance, firstName: usersTable.firstName })
+      .select({ zoomBalance: usersTable.zoomBalance, firstName: usersTable.firstName, balanceEpoch: usersTable.balanceEpoch })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
       .limit(1);
 
     if (rows.length === 0) {
-      res.json({ zoomBalance: 0, firstName: null, exists: false });
+      res.json({ zoomBalance: 0, firstName: null, exists: false, balanceEpoch: 0 });
       return;
     }
 
-    res.json({ zoomBalance: rows[0]!.zoomBalance, firstName: rows[0]!.firstName, exists: true });
+    res.json({ zoomBalance: rows[0]!.zoomBalance, firstName: rows[0]!.firstName, exists: true, balanceEpoch: rows[0]!.balanceEpoch });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
   }

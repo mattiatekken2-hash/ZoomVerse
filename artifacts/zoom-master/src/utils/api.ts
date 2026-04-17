@@ -108,18 +108,22 @@ export async function syncBalance(params: {
   firstName?: string | null;
   username?: string | null;
   zoomBalance: number;
-}): Promise<number> {
+  clientEpoch?: number;
+}): Promise<{ zoomBalance: number; balanceEpoch: number }> {
   try {
     const res = await fetch(`${API_BASE}/balance/sync`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
     });
-    if (!res.ok) return params.zoomBalance;
+    if (!res.ok) return { zoomBalance: params.zoomBalance, balanceEpoch: params.clientEpoch ?? 0 };
     const data = await res.json();
-    return typeof data.zoomBalance === "number" ? data.zoomBalance : params.zoomBalance;
+    return {
+      zoomBalance: typeof data.zoomBalance === "number" ? data.zoomBalance : params.zoomBalance,
+      balanceEpoch: typeof data.balanceEpoch === "number" ? data.balanceEpoch : (params.clientEpoch ?? 0),
+    };
   } catch {
-    return params.zoomBalance;
+    return { zoomBalance: params.zoomBalance, balanceEpoch: params.clientEpoch ?? 0 };
   }
 }
 
@@ -313,13 +317,13 @@ export async function fetchBalance(telegramId: string): Promise<number | null> {
   return data ? data.zoomBalance : null;
 }
 
-export async function fetchBalanceRecord(telegramId: string): Promise<{ zoomBalance: number; exists: boolean } | null> {
+export async function fetchBalanceRecord(telegramId: string): Promise<{ zoomBalance: number; exists: boolean; balanceEpoch: number } | null> {
   try {
     const res = await fetch(`${API_BASE}/balance/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return null;
     const data = await res.json();
     return typeof data.zoomBalance === "number"
-      ? { zoomBalance: data.zoomBalance, exists: data.exists !== false }
+      ? { zoomBalance: data.zoomBalance, exists: data.exists !== false, balanceEpoch: typeof data.balanceEpoch === "number" ? data.balanceEpoch : 0 }
       : null;
   } catch {
     return null;
