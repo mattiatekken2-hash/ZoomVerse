@@ -21,18 +21,25 @@ router.post("/balance/sync", async (req, res) => {
   const { telegramId, firstName, zoomBalance } = parsed.data;
 
   try {
-    await db
+    // SERVER-AUTHORITATIVE: never let a client-supplied balance ERASE a higher
+    // server balance. This protects in-flight credits (Stars/TON purchases,
+    // wheel rewards, referral bonuses) from being clobbered by a stale local
+    // balance that the client computed before the credit landed.
+    // The on-conflict update keeps the GREATER of (server, client) so legit
+    // farming gains still get persisted, but purchases can never disappear.
+    const [row] = await db
       .insert(usersTable)
       .values({ telegramId, zoomBalance, firstName: firstName ?? null, referralCount: 0 })
       .onConflictDoUpdate({
         target: usersTable.telegramId,
         set: {
-          zoomBalance,
+          zoomBalance: sql`GREATEST(${usersTable.zoomBalance}, ${zoomBalance})`,
           ...(firstName ? { firstName } : {}),
         },
-      });
+      })
+      .returning({ zoomBalance: usersTable.zoomBalance });
 
-    res.json({ ok: true, zoomBalance });
+    res.json({ ok: true, zoomBalance: row?.zoomBalance ?? zoomBalance });
   } catch (err) {
     console.error("[balance/sync] error:", err);
     res.status(500).json({ error: "Database error" });
