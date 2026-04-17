@@ -44,8 +44,14 @@ export function WheelPage({ telegramId }: WheelPageProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [highlightIdx, setHighlightIdx] = useState<number | null>(null);
   const [particles, setParticles] = useState<Particle[]>([]);
-  const [pointerPulse, setPointerPulse] = useState(false);
   const particleId = useRef(0);
+  // Direct-DOM refs to avoid React re-renders on every wheel tick during spin.
+  const pointerRef = useRef<HTMLDivElement | null>(null);
+  // Captured at the moment a spin starts so the pulse-tick RAF can compute the
+  // true rotation along the full multi-turn path (target − previous, NOT
+  // `rotation - (rotation % 360)` which would collapse 7+ turns into <360°).
+  const spinFromRef = useRef(0);
+  const spinToRef = useRef(0);
 
   const refreshStatus = useCallback(async () => {
     if (!telegramId) return;
@@ -93,31 +99,53 @@ export function WheelPage({ telegramId }: WheelPageProps) {
   const segments = prizes.length;
   const segAngle = segments > 0 ? 360 / segments : 0;
 
-  // Pointer ticks during spin (visual only)
+  // Pointer ticks during spin — direct DOM updates only (no React re-renders).
+  // We never call setState from this loop so the entire wheel stays on the
+  // GPU compositor at 60fps. Brightness is applied as a CSS custom property
+  // and decays automatically.
   useEffect(() => {
     if (!spinning) return;
+    const pointerEl = pointerRef.current;
+    if (!pointerEl) return;
+
     const start = performance.now();
     const duration = 5200;
+    // True spin path captured by handleSpin BEFORE setRotation. The wheel
+    // travels from `spinFromRef` to `spinToRef` along ~7+ full turns, so we
+    // must use those endpoints (not the post-state `rotation` modulo) to get
+    // accurate per-segment ticks across the entire spin.
+    const startRot = spinFromRef.current;
+    const totalDelta = spinToRef.current - startRot;
     let lastSeg = -1;
     let raf = 0;
+    let resetTimer: number | null = null;
+
     const loop = (t: number) => {
       const elapsed = t - start;
       if (elapsed >= duration) return;
       const progress = elapsed / duration;
-      // Ease-out cubic for current rotation snapshot
       const eased = 1 - Math.pow(1 - progress, 3);
-      const totalDelta = rotation - (rotation - (rotation % 360));
-      const currentRot = (rotation - totalDelta) + totalDelta * eased;
-      const segIdx = Math.floor(((360 - ((currentRot % 360) + 360) % 360 + segAngle / 2) % 360) / segAngle);
+      const currentRot = startRot + totalDelta * eased;
+      const segIdx = segAngle > 0
+        ? Math.floor(((360 - ((currentRot % 360) + 360) % 360 + segAngle / 2) % 360) / segAngle)
+        : -1;
       if (segIdx !== lastSeg) {
         lastSeg = segIdx;
-        setPointerPulse(true);
-        setTimeout(() => setPointerPulse(false), 60);
+        // Direct style touch — no state, no re-render.
+        pointerEl.style.filter = "drop-shadow(0 4px 10px rgba(255,51,102,0.7)) brightness(1.45)";
+        if (resetTimer) clearTimeout(resetTimer);
+        resetTimer = window.setTimeout(() => {
+          pointerEl.style.filter = "drop-shadow(0 4px 10px rgba(255,51,102,0.7))";
+        }, 70);
       }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (resetTimer) clearTimeout(resetTimer);
+      if (pointerEl) pointerEl.style.filter = "drop-shadow(0 4px 10px rgba(255,51,102,0.7))";
+    };
   }, [spinning, rotation, segAngle]);
 
   const spawnParticles = (color: string) => {
@@ -159,6 +187,9 @@ export function WheelPage({ telegramId }: WheelPageProps) {
     const targetMod = (360 - prizeCenter + jitter + 360) % 360;
     const delta = ((targetMod - currentMod) + 360) % 360;
     const newRotation = rotation + turns * 360 + delta;
+    // Capture true spin endpoints for the pulse-tick RAF (see effect above).
+    spinFromRef.current = rotation;
+    spinToRef.current = newRotation;
     setRotation(newRotation);
 
     window.setTimeout(() => {
@@ -374,17 +405,32 @@ export function WheelPage({ telegramId }: WheelPageProps) {
               }}
             />
 
-            {/* Spinning wheel SVG */}
+            {/* Spinning wheel SVG.
+                The whole rotation lives on a single GPU-promoted layer:
+                - `translateZ(0)` + `backface-visibility: hidden` force its own
+                  compositor layer so the browser doesn't repaint the SVG on
+                  every frame, only re-composites the rotated layer.
+                - `contain: paint` isolates the layout/paint scope.
+                - The previous `filter: drop-shadow(...)` on the SVG was a
+                  per-frame pixel filter (very expensive while rotating); it has
+                  been moved to the static parent container as a `box-shadow`
+                  on a circular wrapper, so the soft shadow renders once and
+                  doesn't follow the rotation. */}
             <div
+              ref={wheelSvgWrapRef}
               className="absolute inset-0"
               style={{
-                transform: `rotateZ(${rotation}deg)`,
+                transform: `translateZ(0) rotateZ(${rotation}deg)`,
                 transition: spinning ? "transform 5.2s cubic-bezier(0.17, 0.85, 0.18, 1)" : "transform 0.4s ease-out",
                 transformOrigin: "50% 50%",
                 willChange: "transform",
+                backfaceVisibility: "hidden",
+                contain: "paint",
+                borderRadius: "50%",
+                boxShadow: "0 12px 28px rgba(0,0,0,0.8)",
               }}
             >
-              <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ display: "block", filter: "drop-shadow(0 12px 28px rgba(0,0,0,0.8))" }}>
+              <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ display: "block" }}>
                 <defs>
                   {prizes.map((p) => (
                     <radialGradient key={p.index} id={`segGrad${p.index}`} cx="50%" cy="50%" r="80%">
@@ -515,8 +561,10 @@ export function WheelPage({ telegramId }: WheelPageProps) {
               />
             </div>
 
-            {/* Pointer (top, fixed) */}
+            {/* Pointer (top, fixed). The brightness pulse during spin is
+                applied via a direct ref (no React state churn). */}
             <div
+              ref={pointerRef}
               className="absolute left-1/2 z-20 pointer-events-none"
               style={{
                 top: -14,
@@ -525,14 +573,16 @@ export function WheelPage({ telegramId }: WheelPageProps) {
                 borderLeft: "18px solid transparent",
                 borderRight: "18px solid transparent",
                 borderTop: "32px solid #ff3366",
-                filter: `drop-shadow(0 4px 10px rgba(255,51,102,0.7)) ${pointerPulse ? "brightness(1.4)" : ""}`,
+                filter: "drop-shadow(0 4px 10px rgba(255,51,102,0.7))",
                 transformOrigin: "50% 0%",
-                transform: `translateX(-50%) ${pointerPulse ? "translateY(2px)" : ""}`,
+                transform: "translateX(-50%)",
                 animation: !spinning ? "pointerBob 2.5s ease-in-out infinite" : "none",
-                transition: "filter 0.05s",
+                transition: "filter 0.07s linear",
+                willChange: "filter",
               }}
             />
             <div
+              ref={pointerBallRef}
               className="absolute left-1/2 -translate-x-1/2 z-20 rounded-full pointer-events-none"
               style={{
                 top: 16,
