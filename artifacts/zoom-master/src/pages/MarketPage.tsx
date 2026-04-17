@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
-import { fetchMarketListings, buyFromMarket, fetchMarketSales, openMarketActivityStream, type ServerMarketListing, type MarketSale } from "../utils/api";
+import { buyFromMarket, openMarketActivityStream } from "../utils/api";
+import { useGlobalStore, pushMarketSale, refreshMarketListings } from "../store/globalStore";
 
 
 const RARITY_FILTERS: (PlanetType | "ALL")[] = ["ALL", "BASIC", "RARE", "EPIC", "GOLD"];
@@ -29,9 +30,10 @@ interface Toast { text: string; ok: boolean }
 export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete }: MarketPageProps) {
   const [filter, setFilter] = useState<PlanetType | "ALL">("ALL");
   const [toast, setToast] = useState<Toast | null>(null);
-  const [serverListings, setServerListings] = useState<ServerMarketListing[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [sales, setSales] = useState<MarketSale[]>([]);
+  const serverListings = useGlobalStore((s) => s.marketListings);
+  const sales = useGlobalStore((s) => s.marketSales);
+  const initialized = useGlobalStore((s) => s.initialized);
+  const loading = !initialized && serverListings.length === 0;
   const [tab, setTab] = useState<"listings" | "activity">("listings");
   const [pulseId, setPulseId] = useState<number | null>(null);
 
@@ -41,32 +43,12 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
   };
 
   useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      const listings = await fetchMarketListings();
-      if (!cancelled) {
-        setServerListings(listings);
-        setLoading(false);
-      }
-    };
-    load();
-    const interval = setInterval(() => { if (!document.hidden) load(); }, 15_000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchMarketSales().then((s) => { if (!cancelled) setSales(s); });
     const close = openMarketActivityStream((sale) => {
-      setSales((prev) => {
-        if (prev.some((p) => p.id === sale.id)) return prev;
-        return [sale, ...prev].slice(0, 20);
-      });
+      pushMarketSale(sale);
       setPulseId(sale.id);
       setTimeout(() => setPulseId((id) => (id === sale.id ? null : id)), 2200);
     });
-    return () => { cancelled = true; close(); };
+    return () => { close(); };
   }, []);
 
   const userListings: MarketListing[] = myListings
@@ -113,7 +95,7 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
     const result = await buyFromMarket(telegramId, serverId);
     if (result.ok) {
       onServerBuyComplete(planetType, planetRate, total);
-      setServerListings((prev) => prev.filter((l) => l.id !== serverId));
+      void refreshMarketListings();
       showToast(`${PLANET_CONFIG[planetType].label} planet added to your farm!`, true);
     } else {
       showToast(result.error ?? "Purchase failed", false);

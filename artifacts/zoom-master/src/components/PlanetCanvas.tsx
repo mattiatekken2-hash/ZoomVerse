@@ -71,9 +71,13 @@ export function PlanetCanvas({
   const sizeRef = useRef(280);
 
   const color = planetColor || DEFAULT_COLOR;
-  const pct = goal > 0 ? Math.min(progress / goal, 1) : 0;
-  const isPrimordial = pct < 0.04 && !isRevealing;
-  const isFractured = pct >= 0.999 || isRevealing;
+  const rawPct = goal > 0 ? Math.min(progress / goal, 1) : 0;
+  // Lock visual progress to 100% while a planet is pending claim — prevents the
+  // sphere from snapping back to a small primordial ember after the FORGE counter
+  // resets to 0/50. Display state only resets after the user claims the reveal.
+  const pct = pendingPlanet ? 1 : rawPct;
+  const isPrimordial = pct < 0.04 && !isRevealing && !pendingPlanet;
+  const isFractured = pct >= 0.999 || isRevealing || !!pendingPlanet;
 
   // Determine which planet to render: pendingPlanet wins, then committed rarity, else use color
   const displayRarity: PlanetType = pendingPlanet
@@ -158,6 +162,7 @@ export function PlanetCanvas({
     }
   }, [progress, displayColor]);
 
+  // Use locked pct so the planet stays at scale 1.0 throughout reveal/claim
   const planetSize = size * (0.12 + pct * 0.88);
   const handleClick = () => { if (onPunch) onPunch(); };
 

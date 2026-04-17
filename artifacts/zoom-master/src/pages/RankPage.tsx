@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { FeedEvent } from "../hooks/useGameState";
-
-import { fetchLeaderboard, fetchGlobalPool, fetchProfile, fetchSeasonEpoch, type LeaderboardEntry, type UserProfile } from "../utils/api";
+import { useGlobalStore } from "../store/globalStore";
 
 interface RankPageProps {
   balance: number;
@@ -36,55 +35,26 @@ function formatZoom(amount: number): string {
 }
 
 export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSpent: _totalTonSpent, feedEvents, telegramId, visible }: RankPageProps) {
+  void telegramId;
+  void visible;
   const [activeSection, setActiveSection] = useState<"season" | "exchange">("season");
   const feedRef = useRef<HTMLDivElement>(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [convertInput, setConvertInput] = useState("");
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [loadingLb, setLoadingLb] = useState(true);
-  const [globalPool, setGlobalPool] = useState(0);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [seasonStart, setSeasonStart] = useState<number>(DEFAULT_SEASON_START);
 
-  useEffect(() => {
-    if (telegramId && visible) {
-      fetchProfile(telegramId).then(setProfile);
-    }
-  }, [telegramId, visible]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      const epoch = await fetchSeasonEpoch();
-      if (!cancelled && epoch && epoch > 0) setSeasonStart(epoch);
-    };
-    load();
-    const onRefresh = () => load();
-    window.addEventListener("zoom-admin-refresh", onRefresh);
-    const interval = setInterval(() => { if (!document.hidden) load(); }, 30_000);
-    return () => { cancelled = true; clearInterval(interval); window.removeEventListener("zoom-admin-refresh", onRefresh); };
-  }, []);
+  // All shared data is pre-loaded centrally — no per-mount fetch, no pop-in
+  const leaderboard = useGlobalStore((s) => s.leaderboard);
+  const globalPool = useGlobalStore((s) => s.globalPool);
+  const profile = useGlobalStore((s) => s.profile);
+  const seasonEpoch = useGlobalStore((s) => s.seasonEpoch);
+  const initialized = useGlobalStore((s) => s.initialized);
+  const seasonStart = seasonEpoch && seasonEpoch > 0 ? seasonEpoch : DEFAULT_SEASON_START;
+  const loadingLb = !initialized && leaderboard.length === 0;
 
   const seasonProgress = getSeasonProgress(currentTime, seasonStart);
   const currentSeason = 1;
   const isExchangeOpen = currentTime >= seasonStart + SEASON_DURATION_MS;
   const seasonProgressPercent = seasonProgress * 100;
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setLoadingLb(true);
-      const [data, pool] = await Promise.all([fetchLeaderboard(), fetchGlobalPool()]);
-      if (!cancelled) {
-        setLeaderboard(data);
-        setGlobalPool(pool);
-        setLoadingLb(false);
-      }
-    };
-    load();
-    const interval = setInterval(() => { if (!document.hidden) load(); }, 15_000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, []);
 
   const estimatedTon = useCallback(() => {
     const zoom = parseFloat(convertInput.replace(/,/g, ""));

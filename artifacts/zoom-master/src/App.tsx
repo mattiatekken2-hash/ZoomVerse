@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
 import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/useGameState";
+import { useGlobalInit } from "./store/globalStore";
 import { NebulaBackground } from "./components/NebulaBackground";
 import { LabPage } from "./pages/LabPage";
 import { FarmPage } from "./pages/FarmPage";
@@ -36,6 +37,10 @@ export default function App() {
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     claimDaily, startSunFarming, stopSunFarming, burnSun,
   } = useGameState();
+
+  // Centralized global data fetch — Season epoch, leaderboard, profile, daily, market.
+  // Pages read from the global store so tab switches show pre-loaded data with no pop-in.
+  useGlobalInit(state.telegramId);
 
   const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
   const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate : 0;

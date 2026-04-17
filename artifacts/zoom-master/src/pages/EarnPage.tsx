@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
-import { fetchDailyStatus, claimDailyReward, type DailyStatus } from "../utils/api";
+import { useEffect, useState } from "react";
+import { claimDailyReward } from "../utils/api";
+import { useGlobalStore, refreshDailyStatus } from "../store/globalStore";
 
 
 interface EarnPageProps {
@@ -32,18 +33,11 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
   const [copied, setCopied] = useState(false);
   const [redeemInput, setRedeemInput] = useState("");
   const [redeemStatus, setRedeemStatus] = useState<{ type: "success" | "error" | "sun"; message: string } | null>(null);
-  const [daily, setDaily] = useState<DailyStatus | null>(null);
+  const daily = useGlobalStore((s) => s.daily);
   const [claiming, setClaiming] = useState(false);
   const [claimMsg, setClaimMsg] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
-  const refreshDaily = useCallback(async () => {
-    if (!telegramId) return;
-    const s = await fetchDailyStatus(telegramId);
-    if (s) setDaily(s);
-  }, [telegramId]);
-
-  useEffect(() => { refreshDaily(); }, [refreshDaily]);
   useEffect(() => {
     const i = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(i);
@@ -73,7 +67,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
       setClaimMsg(`+${res.reward.toLocaleString()} $ZOOM (Day ${res.day})`);
       window.dispatchEvent(new CustomEvent("zoom-credit-local", { detail: { amount: res.reward } }));
       window.dispatchEvent(new Event("zoom-data-refresh"));
-      await refreshDaily();
+      await refreshDailyStatus();
       setTimeout(() => setClaimMsg(null), 3500);
     } else {
       setClaimMsg(res.error || "Claim failed");
