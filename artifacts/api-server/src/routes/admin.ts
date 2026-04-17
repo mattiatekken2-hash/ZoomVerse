@@ -1,6 +1,7 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
+import { db, transactionsTable } from "@workspace/db";
 import { usersTable, appSettingsTable } from "@workspace/db/schema";
+import { and } from "drizzle-orm";
 import { sql, eq } from "drizzle-orm";
 import { z } from "zod";
 import fs from "node:fs";
@@ -305,6 +306,31 @@ router.post("/admin/reset-season", async (req, res) => {
     res.json({ ok: true, epoch });
   } catch (err) {
     console.error("[admin/reset-season]", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// ----- MARK TON TRANSACTION COMPLETED (recovery) -----
+const MarkTonBody = z.object({
+  adminId: z.string(),
+  txnId: z.number().int().positive(),
+});
+
+router.post("/admin/mark-ton-completed", async (req, res) => {
+  const parsed = MarkTonBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+  try {
+    const result = await db.update(transactionsTable)
+      .set({ status: "completed" })
+      .where(and(
+        eq(transactionsTable.id, parsed.data.txnId),
+        sql`${transactionsTable.status} <> 'completed'`,
+      ))
+      .returning({ id: transactionsTable.id, status: transactionsTable.status, tonAmount: transactionsTable.tonAmount });
+    res.json({ ok: true, updated: result });
+  } catch (err) {
+    console.error("[admin/mark-ton-completed]", err);
     res.status(500).json({ error: "Database error" });
   }
 });
