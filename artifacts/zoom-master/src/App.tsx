@@ -75,7 +75,14 @@ export default function App() {
     audioRef.current = audio;
 
     const tryPlay = () => { audio.play().catch(() => {}); };
-    if (!mutedRef.current) tryPlay();
+    if (!mutedRef.current) {
+      tryPlay();
+      // Retry quickly a few times in case the WebView is still initializing.
+      const t1 = setTimeout(() => { if (!mutedRef.current && audioRef.current?.paused) tryPlay(); }, 100);
+      const t2 = setTimeout(() => { if (!mutedRef.current && audioRef.current?.paused) tryPlay(); }, 500);
+      const t3 = setTimeout(() => { if (!mutedRef.current && audioRef.current?.paused) tryPlay(); }, 1500);
+      (audio as unknown as { _timers: number[] })._timers = [t1, t2, t3] as unknown as number[];
+    }
 
     const onUserGesture = () => {
       const a = audioRef.current;
@@ -86,12 +93,29 @@ export default function App() {
       }
       if (a.paused) tryPlay();
     };
+    // Listen on as many "first interaction" channels as possible so the music
+    // starts the instant the WebView allows audio (Telegram launch animation,
+    // first scroll, first tap, focus from background, etc.).
     window.addEventListener("pointerdown", onUserGesture);
     window.addEventListener("touchstart", onUserGesture);
+    window.addEventListener("touchend", onUserGesture);
+    window.addEventListener("click", onUserGesture);
+    window.addEventListener("keydown", onUserGesture);
+    window.addEventListener("scroll", onUserGesture, { passive: true });
+    window.addEventListener("focus", onUserGesture);
+    document.addEventListener("visibilitychange", onUserGesture);
 
     return () => {
       window.removeEventListener("pointerdown", onUserGesture);
       window.removeEventListener("touchstart", onUserGesture);
+      window.removeEventListener("touchend", onUserGesture);
+      window.removeEventListener("click", onUserGesture);
+      window.removeEventListener("keydown", onUserGesture);
+      window.removeEventListener("scroll", onUserGesture);
+      window.removeEventListener("focus", onUserGesture);
+      document.removeEventListener("visibilitychange", onUserGesture);
+      const timers = (audio as unknown as { _timers?: number[] })._timers;
+      if (timers) timers.forEach((id) => clearTimeout(id));
       audio.pause();
       audioRef.current = null;
     };
