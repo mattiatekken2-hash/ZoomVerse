@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, type Grants } from "../utils/api";
+import { toast } from "./use-toast";
 
 async function calibrateServerOffset(): Promise<number> {
   try {
@@ -757,6 +758,7 @@ export function useGameState() {
         const now = Date.now();
         const newPlanets: Planet[] = [];
         const claimedUpdates: Partial<GameState> = {};
+        const blockedByFullSlots: Array<{ type: PlanetType; count: number }> = [];
 
         for (const { key, claimedKey, type } of bonusTypes) {
           const serverCount = (grants as unknown as Record<string, number>)[key] ?? 0;
@@ -764,8 +766,12 @@ export function useGameState() {
           const existingBonusCount = updated.planets.filter((planet) => planet.name === type && planet.id.startsWith(`bonus-${type}-`)).length;
           const toAdd = serverCount - Math.max(claimedCount, existingBonusCount);
           if (toAdd > 0) {
+            const availableSlots = updated.maxSlots - updated.planets.length - newPlanets.length;
+            const actuallyAdd = Math.min(toAdd, Math.max(0, availableSlots));
+            const blocked = toAdd - actuallyAdd;
+            if (blocked > 0) blockedByFullSlots.push({ type, count: blocked });
             const cfg = PLANET_CONFIG[type];
-            for (let i = 0; i < toAdd; i++) {
+            for (let i = 0; i < actuallyAdd; i++) {
               newPlanets.push({
                 id: `bonus-${type}-${now}-${i}`,
                 name: type,
@@ -781,7 +787,11 @@ export function useGameState() {
                 craftCost: cfg.craftCost,
               });
             }
-            claimedUpdates[claimedKey] = serverCount;
+            // Only mark as claimed what we actually added — the rest stays
+            // pending on the server until the user frees a slot.
+            if (actuallyAdd > 0) {
+              claimedUpdates[claimedKey] = Math.max(claimedCount, existingBonusCount) + actuallyAdd;
+            }
           } else if (toAdd < 0) {
             let toRemove = Math.abs(toAdd);
             updated = {
@@ -802,6 +812,16 @@ export function useGameState() {
             ...claimedUpdates,
             planets: [...updated.planets, ...newPlanets],
           };
+        }
+
+        if (blockedByFullSlots.length > 0) {
+          const parts = blockedByFullSlots.map((b) => `${b.count} ${PLANET_CONFIG[b.type].label}`).join(", ");
+          setTimeout(() => {
+            toast({
+              title: "Slot pieni",
+              description: `Libera uno slot per ricevere il tuo bonus: ${parts}`,
+            });
+          }, 0);
         }
 
         {
@@ -851,6 +871,7 @@ export function useGameState() {
         const now = Date.now();
         const newPlanets: Planet[] = [];
         const claimedUpdates: Partial<GameState> = {};
+        const blockedByFullSlots: Array<{ type: PlanetType; count: number }> = [];
 
         for (const { key, claimedKey, type } of bonusTypes) {
           const serverCount = (grants[key] as number) ?? 0;
@@ -858,8 +879,12 @@ export function useGameState() {
           const existingBonusCount = updated.planets.filter((planet) => planet.name === type && planet.id.startsWith(`bonus-${type}-`)).length;
           const toAdd = serverCount - Math.max(claimedCount, existingBonusCount);
           if (toAdd > 0) {
+            const availableSlots = updated.maxSlots - updated.planets.length - newPlanets.length;
+            const actuallyAdd = Math.min(toAdd, Math.max(0, availableSlots));
+            const blocked = toAdd - actuallyAdd;
+            if (blocked > 0) blockedByFullSlots.push({ type, count: blocked });
             const cfg = PLANET_CONFIG[type];
-            for (let i = 0; i < toAdd; i++) {
+            for (let i = 0; i < actuallyAdd; i++) {
               newPlanets.push({
                 id: `bonus-${type}-${now}-${i}-${Math.random().toString(36).slice(2)}`,
                 name: type,
@@ -875,7 +900,9 @@ export function useGameState() {
                 craftCost: cfg.craftCost,
               });
             }
-            claimedUpdates[claimedKey] = serverCount as never;
+            if (actuallyAdd > 0) {
+              claimedUpdates[claimedKey] = (Math.max(claimedCount, existingBonusCount) + actuallyAdd) as never;
+            }
           } else if (toAdd < 0) {
             let toRemove = Math.abs(toAdd);
             updated = {
@@ -892,6 +919,16 @@ export function useGameState() {
 
         if (newPlanets.length > 0 || Object.keys(claimedUpdates).length > 0) {
           updated = { ...updated, ...claimedUpdates, planets: [...updated.planets, ...newPlanets] };
+        }
+
+        if (blockedByFullSlots.length > 0) {
+          const parts = blockedByFullSlots.map((b) => `${b.count} ${PLANET_CONFIG[b.type].label}`).join(", ");
+          setTimeout(() => {
+            toast({
+              title: "Slot pieni",
+              description: `Libera uno slot per ricevere il tuo bonus: ${parts}`,
+            });
+          }, 0);
         }
 
         return updated;
