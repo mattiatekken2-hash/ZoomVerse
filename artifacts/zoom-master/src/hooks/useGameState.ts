@@ -96,6 +96,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
   craftCost: number;
   activationTon: number;
   tapsNeeded: number;
+  reactivationFee: number;
 }> = {
   BASIC: {
     rate: 2,
@@ -106,6 +107,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     craftCost: 20,
     activationTon: 0.05,
     tapsNeeded: 50,
+    reactivationFee: 25,
   },
   RARE: {
     rate: 15,
@@ -116,6 +118,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     craftCost: 40,
     activationTon: 0.15,
     tapsNeeded: 100,
+    reactivationFee: 200,
   },
   EPIC: {
     rate: 80,
@@ -126,6 +129,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     craftCost: 80,
     activationTon: 0.5,
     tapsNeeded: 250,
+    reactivationFee: 1000,
   },
   GOLD: {
     rate: 150,
@@ -136,6 +140,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     craftCost: 150,
     activationTon: 1.0,
     tapsNeeded: 500,
+    reactivationFee: 2000,
   },
 };
 
@@ -412,6 +417,20 @@ export function isSunActive(sun: SunState): boolean {
 export function getFarmTimeRemaining(planet: Planet): number {
   const expiry = planet.farmStartedAt + FARM_DURATION_MS;
   return Math.max(0, expiry - Date.now());
+}
+
+/**
+ * Planet's 24h farming cycle has elapsed and the user must pay a reactivation
+ * fee to start a new cycle. Excludes never-started planets and listed planets.
+ */
+export function isFarmExpired(planet: Planet): boolean {
+  if (planet.isListedInMarket) return false;
+  if (planet.farmStartedAt <= 0) return false;
+  return Date.now() - planet.farmStartedAt > FARM_DURATION_MS;
+}
+
+export function getReactivationFee(planet: Planet): number {
+  return PLANET_CONFIG[planet.name].reactivationFee;
 }
 
 export function getSunTimeRemaining(sun: SunState): number {
@@ -1147,15 +1166,38 @@ export function useGameState() {
     });
   }, []);
 
-  const startFarming = useCallback((id: string) => {
-    setState((prev) => ({
-      ...prev,
-      planets: prev.planets.map((p) =>
-        p.id === id && !p.isListedInMarket
-          ? { ...p, isFarmingActive: true, farmStartedAt: Date.now(), lastCollectedAt: Date.now() }
-          : p
-      ),
-    }));
+  const startFarming = useCallback((id: string): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: true };
+    setState((prev) => {
+      const planet = prev.planets.find((p) => p.id === id);
+      if (!planet || planet.isListedInMarket) {
+        outcome = { ok: false, reason: "Planet unavailable" };
+        return prev;
+      }
+      const now = Date.now();
+      // A planet is "expired" if its 24h cycle elapsed AND it had been started before.
+      // First-time start (right after craft) is free; subsequent reactivations cost
+      // a rarity-based $ZOOM fee.
+      const wasStarted = planet.farmStartedAt > 0;
+      const expired = wasStarted && now - planet.farmStartedAt > FARM_DURATION_MS;
+      const fee = expired ? PLANET_CONFIG[planet.name].reactivationFee : 0;
+      if (fee > 0 && prev.balance < fee) {
+        outcome = { ok: false, reason: `Need ${fee.toLocaleString()} $ZOOM to reactivate` };
+        return prev;
+      }
+      const updated: GameState = {
+        ...prev,
+        balance: prev.balance - fee,
+        planets: prev.planets.map((p) =>
+          p.id === id
+            ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
+            : p
+        ),
+      };
+      saveState(updated);
+      return updated;
+    });
+    return outcome;
   }, []);
 
   const stopFarming = useCallback((id: string) => {

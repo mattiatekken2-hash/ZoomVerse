@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
 import type { Planet, SunState } from "../hooks/useGameState";
-import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, needsCollect } from "../hooks/useGameState";
+import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, getReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, needsCollect } from "../hooks/useGameState";
 import { WalletPopup } from "../components/WalletPopup";
 
 
@@ -13,7 +13,7 @@ interface FarmPageProps {
   defectPlanets: string[];
   onCollect: (id: string) => { defect: boolean };
   onBurn: (id: string) => void;
-  onStartFarming: (id: string) => void;
+  onStartFarming: (id: string) => { ok: boolean; reason?: string };
   onStopFarming: (id: string) => void;
   onStartSunFarming: () => void;
   onStopSunFarming: () => void;
@@ -225,26 +225,55 @@ export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onB
             const refund = Math.floor(planet.craftCost * 0.15);
             const cfg = PLANET_CONFIG[planet.name];
             const isListed = planet.isListedInMarket;
+            const expired = isFarmExpired(planet);
+            const reactivationFee = getReactivationFee(planet);
             void defectPlanets;
+
+            const handleStartOrReactivate = () => {
+              if (isListed) return;
+              const res = onStartFarming(planet.id);
+              if (!res.ok) {
+                setDefectMsg(res.reason ?? "Cannot start farming");
+                setTimeout(() => setDefectMsg(null), 1800);
+              }
+            };
 
             return (
               <div
                 key={planet.id}
                 className="slot-enter rounded-2xl p-4 border"
                 style={{
-                  borderColor: isListed ? "rgba(255,215,0,0.3)" : planet.color + "40",
+                  borderColor: isListed ? "rgba(255,215,0,0.3)" : expired ? "rgba(255,255,255,0.08)" : planet.color + "40",
                   background: `linear-gradient(135deg, ${planet.color}0d 0%, rgba(6,8,16,0.6) 100%)`,
                   boxShadow: active ? `0 0 32px ${planet.color}22, 0 0 60px ${planet.color}08` : `0 0 16px ${planet.color}08`,
                 }}
                 data-testid={`planet-card-${planet.id}`}
               >
                 <div className="flex items-center gap-4 mb-4">
-                  <div style={{ position: "relative" }}>
+                  <div
+                    style={{
+                      position: "relative",
+                      filter: expired ? "grayscale(1) brightness(0.45)" : undefined,
+                      transition: "filter 0.4s ease",
+                    }}
+                  >
                     <PlanetOrb planet={planet} size={72} animate={active} />
+                    {expired && (
+                      <div
+                        className="absolute inset-0 rounded-full pointer-events-none"
+                        style={{ background: "radial-gradient(circle, rgba(0,0,0,0.55) 30%, rgba(0,0,0,0.85) 100%)" }}
+                      />
+                    )}
                     {active && (
                       <div
                         className="absolute -top-1 -right-1 w-3 h-3 rounded-full pulse-soft"
                         style={{ background: "#00e676", boxShadow: "0 0 8px #00e676" }}
+                      />
+                    )}
+                    {expired && !isListed && (
+                      <div
+                        className="absolute -top-1 -right-1 w-3 h-3 rounded-full"
+                        style={{ background: "#ff5252", boxShadow: "0 0 8px #ff5252" }}
                       />
                     )}
                     {isListed && !active && (
@@ -256,19 +285,29 @@ export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onB
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`font-black text-base tracking-wide ${RARITY_CLASS[planet.name]}`}>
+                      <span className={`font-black text-base tracking-wide ${RARITY_CLASS[planet.name]}`} style={expired ? { opacity: 0.55 } : undefined}>
                         {cfg.label.toUpperCase()}
                       </span>
                       <span
                         className={`text-xs font-bold px-2 py-0.5 rounded-full border ${RARITY_CLASS[planet.name]}`}
-                        style={{ fontSize: 9 }}
+                        style={{ fontSize: 9, opacity: expired ? 0.55 : 1 }}
                       >
                         {planet.name}
                       </span>
+                      {expired && (
+                        <span
+                          className="text-xs font-black px-2 py-0.5 rounded-full"
+                          style={{ fontSize: 9, background: "rgba(255,82,82,0.15)", color: "#ff5252", border: "1px solid rgba(255,82,82,0.35)" }}
+                        >
+                          EXPIRED
+                        </span>
+                      )}
                     </div>
-                    <div className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>
+                    <div className="text-xs font-bold" style={{ color: expired ? "rgba(255,82,82,0.75)" : "rgba(255,255,255,0.5)" }}>
                       {active
                         ? `+${planet.rate.toLocaleString()} $ZOOM/hr · ${formatDuration(remaining)} left`
+                        : expired
+                        ? `Cycle ended · Reactivate for ${reactivationFee.toLocaleString()} $ZOOM`
                         : isListed
                         ? `Listed for ${planet.marketPrice?.toLocaleString()} $ZOOM`
                         : "Farming stopped"}
@@ -296,12 +335,27 @@ export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onB
                       <span>FARMING</span>
                       <span style={{ fontSize: 8, opacity: 0.7 }}>{formatDuration(remaining)}</span>
                     </button>
+                  ) : expired ? (
+                    <button
+                      className="btn-widget"
+                      style={{
+                        background: `linear-gradient(135deg, ${planet.color}33 0%, ${planet.color}1a 100%)`,
+                        border: `1px solid ${planet.color}66`,
+                        color: planet.color,
+                        boxShadow: `0 0 14px ${planet.color}33`,
+                      }}
+                      onClick={handleStartOrReactivate}
+                      data-testid={`btn-reactivate-${planet.id}`}
+                    >
+                      <span>REACTIVATE</span>
+                      <span style={{ fontSize: 8, opacity: 0.85 }}>{reactivationFee.toLocaleString()} $ZOOM</span>
+                    </button>
                   ) : (
                     <button
                       className={`btn-widget ${isListed ? "" : "btn-glass-farm"}`}
                       disabled={isListed}
                       style={isListed ? { borderColor: "rgba(255,255,255,0.04)", background: "transparent", color: "rgba(255,255,255,0.15)", cursor: "not-allowed", opacity: 0.4 } : undefined}
-                      onClick={() => { if (!isListed) onStartFarming(planet.id); }}
+                      onClick={handleStartOrReactivate}
                       data-testid={`btn-farm-${planet.id}`}
                     >
                       <span>START</span>
