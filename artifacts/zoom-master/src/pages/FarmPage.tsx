@@ -129,7 +129,23 @@ export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onB
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 pb-4">
+      {/* Native-like scroll container.
+          - `WebkitOverflowScrolling: touch` enables momentum scroll on iOS WebView (Telegram mini-app).
+          - `touchAction: pan-y` tells the browser the only gesture is vertical pan, so it can scroll on the compositor without waiting for JS.
+          - `overscrollBehavior: contain` blocks chain-scroll to the parent and disables pull-to-refresh jitter.
+          - `transform: translateZ(0)` + `willChange: scroll-position` promote the scroller to its own GPU layer so frames are composited, not repainted.
+          - `contain: layout paint` isolates layout/paint scope. */}
+      <div
+        className="flex-1 overflow-y-auto px-4 pb-4"
+        style={{
+          WebkitOverflowScrolling: "touch",
+          touchAction: "pan-y",
+          overscrollBehavior: "contain",
+          transform: "translateZ(0)",
+          willChange: "scroll-position",
+          contain: "layout paint",
+        }}
+      >
         <div className="flex flex-col gap-3">
 
           {/* SUN CARD */}
@@ -140,7 +156,10 @@ export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onB
                 borderColor: sunExpired ? "rgba(255,255,255,0.08)" : "rgba(255,179,71,0.35)",
                 background: "linear-gradient(135deg, rgba(255,179,71,0.09) 0%, rgba(255,140,0,0.04) 100%)",
                 boxShadow: sunActive ? "0 0 32px rgba(255,179,71,0.18)" : "none",
-              }}
+                contain: "layout style paint",
+                contentVisibility: "auto",
+                containIntrinsicSize: "200px",
+              } as React.CSSProperties}
             >
               <div
                 className="absolute top-0 right-0 w-28 h-28 rounded-full pointer-events-none"
@@ -301,7 +320,14 @@ export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onB
                   borderColor: isListed ? "rgba(255,215,0,0.3)" : expired ? "rgba(255,255,255,0.08)" : planet.color + "40",
                   background: `linear-gradient(135deg, ${planet.color}0d 0%, rgba(6,8,16,0.6) 100%)`,
                   boxShadow: active ? `0 0 32px ${planet.color}22, 0 0 60px ${planet.color}08` : `0 0 16px ${planet.color}08`,
-                }}
+                  // Per-card paint isolation. Off-screen cards skip layout & paint entirely
+                  // (`content-visibility: auto`), which is the single biggest win for scroll smoothness
+                  // when the list grows. `contain-intrinsic-size` reserves space so the scrollbar
+                  // length stays accurate even before off-screen cards have been painted.
+                  contain: "layout style paint",
+                  contentVisibility: "auto",
+                  containIntrinsicSize: "200px",
+                } as React.CSSProperties}
                 data-testid={`planet-card-${planet.id}`}
               >
                 <div className="flex items-center gap-4 mb-4">
@@ -458,7 +484,13 @@ export function FarmPage({ planets, sun, maxSlots, defectPlanets, onCollect, onB
             <div
               key={`empty-${i}`}
               className="rounded-2xl border border-dashed flex flex-col items-center justify-center py-10 gap-3"
-              style={{ borderColor: "rgba(255,255,255,0.07)", minHeight: 140 }}
+              style={{
+                borderColor: "rgba(255,255,255,0.07)",
+                minHeight: 140,
+                contain: "layout style paint",
+                contentVisibility: "auto",
+                containIntrinsicSize: "140px",
+              } as React.CSSProperties}
               data-testid={`slot-empty-${i}`}
             >
               <div style={{ fontSize: 32, opacity: 0.15 }}>◌</div>
