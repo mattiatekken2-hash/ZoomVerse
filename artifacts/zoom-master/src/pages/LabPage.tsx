@@ -12,7 +12,7 @@ interface LabPageProps {
   maxSlots: number;
   currentCraftRarity: PlanetType | null;
   pendingPlanet: Planet | null;
-  onCraft: () => { completed: boolean; planet?: Planet; tapsLeft?: number };
+  onCraft: () => { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType };
   onClaim: () => void;
   visible?: boolean;
 }
@@ -26,6 +26,8 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
   const floatTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+  const [brokenFlash, setBrokenFlash] = useState<{ id: number; rarity: PlanetType } | null>(null);
+  const brokenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isFull = planets.length >= maxSlots && !pendingPlanet;
   const canCraft = !pendingPlanet && planets.length < maxSlots && balance >= 1;
@@ -74,6 +76,20 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   const handleCraft = useCallback(() => {
     if (!canCraft) return;
     const result = onCraft();
+    if (result.completed && result.broken && result.brokenRarity) {
+      try {
+        const tg = (window as unknown as { Telegram?: { WebApp?: { HapticFeedback?: { notificationOccurred?: (s: string) => void } } } }).Telegram?.WebApp;
+        tg?.HapticFeedback?.notificationOccurred?.("error");
+      } catch { /**/ }
+      const id = ++floatIdRef.current;
+      setBrokenFlash({ id, rarity: result.brokenRarity });
+      if (brokenTimerRef.current) clearTimeout(brokenTimerRef.current);
+      brokenTimerRef.current = setTimeout(() => {
+        setBrokenFlash((curr) => (curr && curr.id === id ? null : curr));
+        brokenTimerRef.current = null;
+      }, 2600);
+      return;
+    }
     if (result.completed && result.planet) {
       const p = result.planet;
       addFloat(`✦ ${PLANET_CONFIG[p.name].label}!`, p.color);
@@ -81,6 +97,10 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       addFloat("+1", "rgba(255,255,255,0.25)");
     }
   }, [canCraft, onCraft, addFloat]);
+
+  useEffect(() => () => {
+    if (brokenTimerRef.current) clearTimeout(brokenTimerRef.current);
+  }, []);
 
   const handleClaim = useCallback(() => {
     onClaim();
@@ -121,6 +141,40 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             {f.text}
           </div>
         ))}
+
+        {brokenFlash && (
+          <div
+            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            style={{ zIndex: 60 }}
+          >
+            <div
+              key={brokenFlash.id}
+              className="broken-pop rounded-2xl px-7 py-5 text-center"
+              style={{
+                background: "rgba(20, 6, 8, 0.92)",
+                border: "1.5px solid rgba(255, 80, 80, 0.55)",
+                boxShadow: "0 0 28px rgba(255, 60, 60, 0.45), 0 0 0 1px rgba(255,80,80,0.12) inset",
+                backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
+                maxWidth: "min(82vw, 320px)",
+              }}
+            >
+              <div style={{ fontSize: 38, lineHeight: 1, marginBottom: 6 }}>💥</div>
+              <div
+                className="font-black tracking-widest"
+                style={{ fontSize: 14, color: "#ff5555", textShadow: "0 0 12px rgba(255,80,80,0.7)", letterSpacing: "0.18em" }}
+              >
+                PIANETA ROTTO!
+              </div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 6, fontWeight: 600 }}>
+                Il tuo {PLANET_CONFIG[brokenFlash.rarity].label} si è frantumato durante la costruzione.
+              </div>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 4, fontWeight: 500 }}>
+                Riprova al prossimo craft.
+              </div>
+            </div>
+          </div>
+        )}
 
         {isFull && (
           <div

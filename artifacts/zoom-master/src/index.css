@@ -608,6 +608,16 @@
   0%, 100% { opacity: 0.7; }
   50% { opacity: 1; }
 }
+.broken-pop { animation: broken-pop 2.6s cubic-bezier(0.34,1.56,0.64,1) forwards; transform-origin: center; }
+@keyframes broken-pop {
+  0%   { transform: scale(0.4) rotate(-6deg); opacity: 0; }
+  12%  { transform: scale(1.12) rotate(3deg); opacity: 1; }
+  18%  { transform: scale(0.96) rotate(-2deg); }
+  24%  { transform: scale(1.03) rotate(1.5deg); }
+  30%  { transform: scale(1) rotate(0); }
+  85%  { transform: scale(1) rotate(0); opacity: 1; }
+  100% { transform: scale(0.92) rotate(0); opacity: 0; }
+}
 .reveal-in { animation: reveal-in 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards; }
 @keyframes reveal-in {
   from { transform: scale(0) rotate(-180deg); opacity: 0; }

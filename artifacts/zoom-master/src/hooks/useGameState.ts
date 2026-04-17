@@ -998,7 +998,7 @@ export function useGameState() {
     return () => clearInterval(interval);
   }, []);
 
-  const craft = useCallback((): { completed: boolean; planet?: Planet; tapsLeft?: number } => {
+  const craft = useCallback((): { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: "BASIC" | "RARE" | "EPIC" | "GOLD" } => {
     const current = stateRef.current;
     if (current.pendingPlanet) return { completed: false };
     if (current.planets.length >= current.maxSlots) return { completed: false };
@@ -1017,6 +1017,28 @@ export function useGameState() {
     const newBalance = current.balance - 1;
 
     if (newTaps >= goal) {
+      // 4% chance the planet shatters during construction. The player loses
+      // the ZOOM and taps spent, but no planet is added to the inventory.
+      const BREAK_CHANCE = 0.04;
+      const isBroken = Math.random() < BREAK_CHANCE;
+
+      if (isBroken) {
+        const brokenRarity = rarity;
+        setState((prev) => {
+          const next: GameState = {
+            ...prev,
+            balance: newBalance,
+            taps: 0,
+            goal: 50,
+            currentCraftRarity: null,
+            pendingPlanet: null,
+          };
+          schedulePersist(next);
+          return next;
+        });
+        return { completed: true, broken: true, brokenRarity };
+      }
+
       const planet = makePlanet(rarity);
       const { telegramId: tid } = getTelegramContext();
       // Fire-and-forget — never await on the tap critical path.
