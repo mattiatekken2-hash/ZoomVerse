@@ -857,18 +857,23 @@ export function useGameState() {
     const interval = setInterval(doSync, 30_000);
 
     const handleAdminRefresh = async () => {
-      const { telegramId, firstName } = getTelegramContext();
+      const { telegramId } = getTelegramContext();
       if (!telegramId) return;
 
       const balanceRecord = await fetchBalanceRecord(telegramId);
-      if (balanceRecord?.exists && balanceRecord.zoomBalance > stateRef.current.balance) {
-        const credit = balanceRecord.zoomBalance - Math.floor(stateRef.current.balance);
-        if (credit > 0) {
-          setState((prev) => {
-            const newBal = prev.balance + credit;
-            syncBalance({ telegramId, firstName, zoomBalance: Math.floor(newBal) });
-            return { ...prev, balance: newBal };
-          });
+      if (balanceRecord?.exists) {
+        const serverBal = Math.floor(balanceRecord.zoomBalance);
+        const localBal = Math.floor(stateRef.current.balance);
+        if (serverBal !== localBal) {
+          // Snap local to server in BOTH directions:
+          //  - server > local: admin credited zoom → grant it locally.
+          //  - server < local: admin removed zoom → discard the local excess
+          //    (otherwise the next syncBalance would push the stale higher
+          //    value back to the DB and undo the admin action).
+          // Mark this as the last synced balance so the syncer doesn't fight us.
+          _lastSyncedBalance = serverBal;
+          _pendingSyncBalance = -1;
+          setState((prev) => ({ ...prev, balance: serverBal }));
         }
       }
 
