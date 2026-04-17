@@ -133,47 +133,60 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             </div>
           </div>
         )}
-      </div>
 
-      <div className="flex-shrink-0 px-5 pb-6 pt-2 flex flex-col gap-3">
-        {pendingPlanet ? (
-          <>
+        {/* CLAIM button — overlaid centered above the planet so the user can
+            tap it directly without reaching the bottom of the screen. */}
+        {pendingPlanet && (
+          <div
+            className="absolute left-1/2 flex flex-col items-center gap-3"
+            style={{
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              zIndex: 30,
+              pointerEvents: "none",
+            }}
+          >
             <div
-              className="slot-enter rounded-2xl px-4 py-3 flex items-center justify-between border"
+              className="rounded-full px-4 py-1.5 flex items-center gap-2 border"
               style={{
-                borderColor: pendingPlanet.color + "44",
-                background: pendingPlanet.color + "10",
-                boxShadow: `0 0 24px ${pendingPlanet.color}25`,
+                borderColor: pendingPlanet.color + "55",
+                background: "rgba(6,8,16,0.65)",
+                backdropFilter: "blur(8px)",
+                boxShadow: `0 0 20px ${pendingPlanet.color}33`,
+                pointerEvents: "auto",
               }}
             >
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-3 h-3 rounded-full"
-                  style={{ background: pendingPlanet.color, boxShadow: `0 0 8px ${pendingPlanet.color}` }}
-                />
-                <span className={`font-black text-sm tracking-wider ${rarityClass[pendingPlanet.name]}`}>
-                  {PLANET_CONFIG[pendingPlanet.name].label.toUpperCase()} PLANET
-                </span>
-              </div>
-              <span className="text-xs text-muted-foreground font-bold">
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{ background: pendingPlanet.color, boxShadow: `0 0 6px ${pendingPlanet.color}` }}
+              />
+              <span className={`font-black text-xs tracking-wider ${rarityClass[pendingPlanet.name]}`}>
+                {PLANET_CONFIG[pendingPlanet.name].label.toUpperCase()}
+              </span>
+              <span className="text-[10px] font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>
                 +{pendingPlanet.rate.toLocaleString()}/hr
               </span>
             </div>
             <button
-              className="w-full py-4 rounded-xl font-black text-base tracking-wider uppercase transition-all active:scale-95 border"
+              className="px-8 py-3.5 rounded-xl font-black text-sm tracking-wider uppercase active:scale-95 border whitespace-nowrap"
               onClick={handleClaim}
               style={{
                 background: `linear-gradient(135deg, ${pendingPlanet.color}, ${pendingPlanet.color}bb)`,
                 color: "#060810",
-                boxShadow: `0 0 28px ${pendingPlanet.color}66`,
+                boxShadow: `0 0 32px ${pendingPlanet.color}88, 0 4px 16px rgba(0,0,0,0.4)`,
                 borderColor: "transparent",
+                pointerEvents: "auto",
               }}
               data-testid="button-claim-planet"
             >
               CLAIM PLANET
             </button>
-          </>
-        ) : (
+          </div>
+        )}
+      </div>
+
+      <div className="flex-shrink-0 px-5 pb-6 pt-2 flex flex-col gap-3">
+        {!pendingPlanet && (
           <>
             <button
               className="btn-craft"
@@ -186,14 +199,16 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           </>
         )}
 
-        <div className="flex justify-between text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
-          <span>
-            {currentCraftRarity
-              ? `${PLANET_CONFIG[currentCraftRarity].tapsNeeded} taps · 1 $ZOOM each`
-              : "1 $ZOOM per tap"}
-          </span>
-          <span>{Math.max(0, maxSlots - planets.length)} slot{Math.max(0, maxSlots - planets.length) !== 1 ? "s" : ""} free</span>
-        </div>
+        {!pendingPlanet && (
+          <div className="flex justify-between text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+            <span>
+              {currentCraftRarity
+                ? `${PLANET_CONFIG[currentCraftRarity].tapsNeeded} taps · 1 $ZOOM each`
+                : "1 $ZOOM per tap"}
+            </span>
+            <span>{Math.max(0, maxSlots - planets.length)} slot{Math.max(0, maxSlots - planets.length) !== 1 ? "s" : ""} free</span>
+          </div>
+        )}
       </div>
     </div>
   );
