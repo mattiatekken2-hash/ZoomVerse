@@ -82,6 +82,7 @@ export default function App() {
     const audio = new Audio(`${import.meta.env.BASE_URL}bgm.mp3`);
     audio.loop = true;
     audio.preload = "auto";
+    audio.crossOrigin = "anonymous";
     // Keep element volume at 1 — we control level via the Web Audio gain node
     // so fades and the final mix happen with sample-accurate float precision
     // instead of the WebView's coarse volume mixer (which is what was causing
@@ -166,26 +167,7 @@ export default function App() {
           if (gainRef.current) gainRef.current.gain.value = 0;
           else audio.volume = 0;
         } else {
-          // Smooth, perceptually-natural fade-in. We use an exponential ramp
-          // (human hearing is logarithmic, so a linear gain ramp from 0 sounds
-          // like a sudden onset followed by silence — that was the "strange
-          // sound" on first tap). We also delay the ramp by ~120 ms so the
-          // audio thread has time to actually start emitting samples before
-          // the curve begins; otherwise the ramp races ahead of the buffer
-          // and the first samples arrive mid-curve at an arbitrary level.
-          const ctx2 = audioCtxRef.current;
-          const gain2 = gainRef.current;
-          if (ctx2 && gain2) {
-            try {
-              const start = ctx2.currentTime + 0.12;
-              gain2.gain.cancelScheduledValues(ctx2.currentTime);
-              gain2.gain.setValueAtTime(0.0001, ctx2.currentTime);
-              gain2.gain.setValueAtTime(0.0001, start);
-              gain2.gain.exponentialRampToValueAtTime(TARGET_VOLUME, start + FADE_IN_S);
-            } catch { fadeTo(TARGET_VOLUME, FADE_IN_S); }
-          } else {
-            fadeTo(TARGET_VOLUME, FADE_IN_S);
-          }
+          fadeTo(TARGET_VOLUME, FADE_IN_S);
         }
       }).catch(() => {});
     };
@@ -202,79 +184,6 @@ export default function App() {
       // Mute / unmute is handled separately in the [muted] effect below.
       if (a.paused) tryPlay();
     };
-
-    // Background / foreground handling — fix the "unplugged speaker" pop that
-    // occurs when the OS or WebView abruptly cuts a still-playing audio stream
-    // (Telegram swiped-down, screen locked, app backgrounded, tab closed).
-    // The trick is to ramp the gain to 0 in a few milliseconds *before* the
-    // page is hidden, then suspend the AudioContext so the hardware mixer
-    // closes cleanly with zero amplitude. On return we resume + fade back up.
-    const POP_FADE_S = 0.05;
-    const RESUME_FADE_S = 0.6;
-    const TARGET_VOLUME_BG = 0.18;
-    const fastFadeToZero = () => {
-      const ctx = audioCtxRef.current;
-      const gain = gainRef.current;
-      if (!ctx || !gain) {
-        const a = audioRef.current;
-        if (a) a.volume = 0;
-        return;
-      }
-      try {
-        const now = ctx.currentTime;
-        gain.gain.cancelScheduledValues(now);
-        gain.gain.setValueAtTime(gain.gain.value, now);
-        gain.gain.linearRampToValueAtTime(0.0001, now + POP_FADE_S);
-      } catch { /* ignore */ }
-    };
-    const suspendAudio = () => {
-      fastFadeToZero();
-      const ctx = audioCtxRef.current;
-      const a = audioRef.current;
-      // Wait for the ramp to land, then HARD-PAUSE the media element and
-      // suspend the AudioContext. Pausing the element is what stops the
-      // background "slow-motion / detuned" artifact: when the WebView throttles
-      // the page, the audio thread keeps draining the same buffer at reduced
-      // priority, so samples stretch and pitch drops. Pausing freezes the
-      // playhead entirely so there's nothing left to stretch.
-      setTimeout(() => {
-        try { if (a && !a.paused) a.pause(); } catch { /* ignore */ }
-        try { if (ctx && ctx.state === "running") void ctx.suspend(); } catch { /* ignore */ }
-      }, Math.ceil(POP_FADE_S * 1000) + 10);
-    };
-    const resumeAudio = () => {
-      const ctx = audioCtxRef.current;
-      const gain = gainRef.current;
-      if (ctx && ctx.state === "suspended") {
-        ctx.resume().catch(() => {});
-      }
-      const a = audioRef.current;
-      // Make sure gain is at zero before the element starts producing samples
-      // again — otherwise the first frame after resume hits the speaker at
-      // whatever value the ramp left, producing a click on its own.
-      if (gain && ctx) {
-        try {
-          gain.gain.cancelScheduledValues(ctx.currentTime);
-          gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-        } catch { /* ignore */ }
-      }
-      if (a && a.paused && !mutedRef.current) a.play().catch(() => {});
-      if (ctx && gain && !mutedRef.current) {
-        try {
-          const now = ctx.currentTime;
-          gain.gain.linearRampToValueAtTime(TARGET_VOLUME_BG, now + RESUME_FADE_S);
-        } catch { /* ignore */ }
-      }
-    };
-    const onVisibility = () => {
-      if (document.hidden) suspendAudio();
-      else { resumeAudio(); onUserGesture(); }
-    };
-    const onPageHide = () => suspendAudio();
-    const onPageShow = () => resumeAudio();
-    const onBlur = () => suspendAudio();
-    const onFocus = () => { resumeAudio(); onUserGesture(); };
-
     // Listen on as many "first interaction" channels as possible so the music
     // starts the instant the WebView allows audio (Telegram launch animation,
     // first scroll, first tap, focus from background, etc.).
@@ -284,11 +193,8 @@ export default function App() {
     window.addEventListener("click", onUserGesture);
     window.addEventListener("keydown", onUserGesture);
     window.addEventListener("scroll", onUserGesture, { passive: true });
-    window.addEventListener("focus", onFocus);
-    window.addEventListener("blur", onBlur);
-    window.addEventListener("pagehide", onPageHide);
-    window.addEventListener("pageshow", onPageShow);
-    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", onUserGesture);
+    document.addEventListener("visibilitychange", onUserGesture);
 
     return () => {
       window.removeEventListener("pointerdown", onUserGesture);
@@ -297,23 +203,11 @@ export default function App() {
       window.removeEventListener("click", onUserGesture);
       window.removeEventListener("keydown", onUserGesture);
       window.removeEventListener("scroll", onUserGesture);
-      window.removeEventListener("focus", onFocus);
-      window.removeEventListener("blur", onBlur);
-      window.removeEventListener("pagehide", onPageHide);
-      window.removeEventListener("pageshow", onPageShow);
-      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", onUserGesture);
+      document.removeEventListener("visibilitychange", onUserGesture);
       const timers = (audio as unknown as { _timers?: number[] })._timers;
       if (timers) timers.forEach((id) => clearTimeout(id));
-      // Click-free teardown: fade to silence, then pause + close once the ramp
-      // has landed in hardware. Pausing before the ramp completes is what was
-      // creating the unplugged-speaker pop.
-      fastFadeToZero();
-      const ctx = audioCtxRef.current;
-      const a = audioRef.current;
-      setTimeout(() => {
-        try { a?.pause(); } catch { /* ignore */ }
-        try { if (ctx && ctx.state !== "closed") void ctx.close(); } catch { /* ignore */ }
-      }, Math.ceil(POP_FADE_S * 1000) + 20);
+      audio.pause();
       audioRef.current = null;
     };
   }, []);
