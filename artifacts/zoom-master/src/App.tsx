@@ -184,6 +184,67 @@ export default function App() {
       // Mute / unmute is handled separately in the [muted] effect below.
       if (a.paused) tryPlay();
     };
+
+    // Background / foreground handling — fix the "unplugged speaker" pop that
+    // occurs when the OS or WebView abruptly cuts a still-playing audio stream
+    // (Telegram swiped-down, screen locked, app backgrounded, tab closed).
+    // The trick is to ramp the gain to 0 in a few milliseconds *before* the
+    // page is hidden, then suspend the AudioContext so the hardware mixer
+    // closes cleanly with zero amplitude. On return we resume + fade back up.
+    const POP_FADE_S = 0.05;
+    const RESUME_FADE_S = 0.6;
+    const TARGET_VOLUME_BG = 0.18;
+    const fastFadeToZero = () => {
+      const ctx = audioCtxRef.current;
+      const gain = gainRef.current;
+      if (!ctx || !gain) {
+        const a = audioRef.current;
+        if (a) a.volume = 0;
+        return;
+      }
+      try {
+        const now = ctx.currentTime;
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.setValueAtTime(gain.gain.value, now);
+        gain.gain.linearRampToValueAtTime(0.0001, now + POP_FADE_S);
+      } catch { /* ignore */ }
+    };
+    const suspendAudio = () => {
+      fastFadeToZero();
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      // Wait for the ramp to land before suspending — otherwise the suspend
+      // itself becomes the discontinuity that produces the pop.
+      setTimeout(() => {
+        try { if (ctx.state === "running") void ctx.suspend(); } catch { /* ignore */ }
+      }, Math.ceil(POP_FADE_S * 1000) + 10);
+    };
+    const resumeAudio = () => {
+      const ctx = audioCtxRef.current;
+      const gain = gainRef.current;
+      if (ctx && ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+      const a = audioRef.current;
+      if (a && a.paused && !mutedRef.current) a.play().catch(() => {});
+      if (ctx && gain && !mutedRef.current) {
+        try {
+          const now = ctx.currentTime;
+          gain.gain.cancelScheduledValues(now);
+          gain.gain.setValueAtTime(gain.gain.value, now);
+          gain.gain.linearRampToValueAtTime(TARGET_VOLUME_BG, now + RESUME_FADE_S);
+        } catch { /* ignore */ }
+      }
+    };
+    const onVisibility = () => {
+      if (document.hidden) suspendAudio();
+      else { resumeAudio(); onUserGesture(); }
+    };
+    const onPageHide = () => suspendAudio();
+    const onPageShow = () => resumeAudio();
+    const onBlur = () => suspendAudio();
+    const onFocus = () => { resumeAudio(); onUserGesture(); };
+
     // Listen on as many "first interaction" channels as possible so the music
     // starts the instant the WebView allows audio (Telegram launch animation,
     // first scroll, first tap, focus from background, etc.).
@@ -193,8 +254,11 @@ export default function App() {
     window.addEventListener("click", onUserGesture);
     window.addEventListener("keydown", onUserGesture);
     window.addEventListener("scroll", onUserGesture, { passive: true });
-    window.addEventListener("focus", onUserGesture);
-    document.addEventListener("visibilitychange", onUserGesture);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       window.removeEventListener("pointerdown", onUserGesture);
@@ -203,11 +267,23 @@ export default function App() {
       window.removeEventListener("click", onUserGesture);
       window.removeEventListener("keydown", onUserGesture);
       window.removeEventListener("scroll", onUserGesture);
-      window.removeEventListener("focus", onUserGesture);
-      document.removeEventListener("visibilitychange", onUserGesture);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("pageshow", onPageShow);
+      document.removeEventListener("visibilitychange", onVisibility);
       const timers = (audio as unknown as { _timers?: number[] })._timers;
       if (timers) timers.forEach((id) => clearTimeout(id));
-      audio.pause();
+      // Click-free teardown: fade to silence, then pause + close once the ramp
+      // has landed in hardware. Pausing before the ramp completes is what was
+      // creating the unplugged-speaker pop.
+      fastFadeToZero();
+      const ctx = audioCtxRef.current;
+      const a = audioRef.current;
+      setTimeout(() => {
+        try { a?.pause(); } catch { /* ignore */ }
+        try { if (ctx && ctx.state !== "closed") void ctx.close(); } catch { /* ignore */ }
+      }, Math.ceil(POP_FADE_S * 1000) + 20);
       audioRef.current = null;
     };
   }, []);
