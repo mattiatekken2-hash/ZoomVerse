@@ -130,7 +130,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           <MysteryBoxWidget telegramId={telegramId} />
         </>
       )}
-      <div className="relative flex-1" style={{ minHeight: 0 }} onClick={canCraft ? handleCraft : undefined}>
+      <div className="relative flex-1" style={{ minHeight: 0 }}>
         <PlanetCanvas
           onPunch={canCraft ? handleCraft : undefined}
           progress={taps}
