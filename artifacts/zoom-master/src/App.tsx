@@ -212,11 +212,16 @@ export default function App() {
     const suspendAudio = () => {
       fastFadeToZero();
       const ctx = audioCtxRef.current;
-      if (!ctx) return;
-      // Wait for the ramp to land before suspending — otherwise the suspend
-      // itself becomes the discontinuity that produces the pop.
+      const a = audioRef.current;
+      // Wait for the ramp to land, then HARD-PAUSE the media element and
+      // suspend the AudioContext. Pausing the element is what stops the
+      // background "slow-motion / detuned" artifact: when the WebView throttles
+      // the page, the audio thread keeps draining the same buffer at reduced
+      // priority, so samples stretch and pitch drops. Pausing freezes the
+      // playhead entirely so there's nothing left to stretch.
       setTimeout(() => {
-        try { if (ctx.state === "running") void ctx.suspend(); } catch { /* ignore */ }
+        try { if (a && !a.paused) a.pause(); } catch { /* ignore */ }
+        try { if (ctx && ctx.state === "running") void ctx.suspend(); } catch { /* ignore */ }
       }, Math.ceil(POP_FADE_S * 1000) + 10);
     };
     const resumeAudio = () => {
@@ -226,12 +231,19 @@ export default function App() {
         ctx.resume().catch(() => {});
       }
       const a = audioRef.current;
+      // Make sure gain is at zero before the element starts producing samples
+      // again — otherwise the first frame after resume hits the speaker at
+      // whatever value the ramp left, producing a click on its own.
+      if (gain && ctx) {
+        try {
+          gain.gain.cancelScheduledValues(ctx.currentTime);
+          gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+        } catch { /* ignore */ }
+      }
       if (a && a.paused && !mutedRef.current) a.play().catch(() => {});
       if (ctx && gain && !mutedRef.current) {
         try {
           const now = ctx.currentTime;
-          gain.gain.cancelScheduledValues(now);
-          gain.gain.setValueAtTime(gain.gain.value, now);
           gain.gain.linearRampToValueAtTime(TARGET_VOLUME_BG, now + RESUME_FADE_S);
         } catch { /* ignore */ }
       }
