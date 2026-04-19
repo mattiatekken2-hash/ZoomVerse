@@ -329,6 +329,8 @@ export default function App() {
                   maxSlots={state.maxSlots}
                   currentCraftRarity={state.currentCraftRarity}
                   pendingPlanet={state.pendingPlanet}
+                  hasAutoTap={!!state.hasAutoTap}
+                  telegramId={state.telegramId}
                   onCraft={craft}
                   onClaim={claimCraft}
                   visible={tab === "lab"}

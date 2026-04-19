@@ -17,13 +17,14 @@ router.get("/grants/:telegramId", async (req, res) => {
         bonusRare: usersTable.bonusRare,
         bonusEpic: usersTable.bonusEpic,
         bonusGold: usersTable.bonusGold,
+        hasAutoTap: usersTable.hasAutoTap,
       })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
       .limit(1);
 
     if (!user) {
-      return res.json({ bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0 });
+      return res.json({ bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, hasAutoTap: false });
     }
 
     res.json({
@@ -34,6 +35,7 @@ router.get("/grants/:telegramId", async (req, res) => {
       bonusRare: user.bonusRare,
       bonusEpic: user.bonusEpic,
       bonusGold: user.bonusGold,
+      hasAutoTap: user.hasAutoTap,
     });
   } catch (err) {
     res.status(500).json({ error: "Internal server error" });

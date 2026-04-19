@@ -150,6 +150,7 @@ const STARS_CATALOG: StarsItem[] = [
   { id: "wheel_spin_1",  title: "1 Wheel Spin",   description: "1 spin on the Fortune Wheel",   starsPrice: 50,  tonPrice: 0.5, zoomAmount: 1,  itemType: "wheel_spin" },
   { id: "wheel_spin_5",  title: "5 Wheel Spins",  description: "5 spins on the Fortune Wheel — 20% off",  starsPrice: 200, tonPrice: 2.0, zoomAmount: 5,  itemType: "wheel_spin" },
   { id: "wheel_spin_10", title: "10 Wheel Spins", description: "10 spins on the Fortune Wheel — 30% off", starsPrice: 350, tonPrice: 3.5, zoomAmount: 10, itemType: "wheel_spin" },
+  { id: "auto_tap", title: "Auto-Tap", description: "Hold-to-tap auto-clicker on the FORGE PLANET", starsPrice: 300, tonPrice: 3, itemType: "auto_tap" },
 ];
 
 function findItem(itemId: string): StarsItem | undefined {
@@ -192,6 +193,10 @@ async function creditUser(item: StarsItem, telegramId: string) {
     const spins = item.zoomAmount || 1;
     await db.update(usersTable)
       .set({ wheelSpins: sql`${usersTable.wheelSpins} + ${spins}` })
+      .where(eq(usersTable.telegramId, telegramId));
+  } else if (item.itemType === "auto_tap") {
+    await db.update(usersTable)
+      .set({ hasAutoTap: true })
       .where(eq(usersTable.telegramId, telegramId));
   }
 }

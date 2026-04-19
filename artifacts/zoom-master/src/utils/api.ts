@@ -135,9 +135,10 @@ export interface Grants {
   bonusRare: number;
   bonusEpic: number;
   bonusGold: number;
+  hasAutoTap: boolean;
 }
 
-const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0 };
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, hasAutoTap: false };
 
 export interface SunStock {
   sold: number;

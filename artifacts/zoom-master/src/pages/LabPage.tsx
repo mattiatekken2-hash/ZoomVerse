@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { PlanetCanvas } from "../components/PlanetCanvas";
+import { AutoTapWidget } from "../components/AutoTapWidget";
 import type { Planet, PlanetType } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
@@ -13,6 +14,8 @@ interface LabPageProps {
   maxSlots: number;
   currentCraftRarity: PlanetType | null;
   pendingPlanet: Planet | null;
+  hasAutoTap: boolean;
+  telegramId: string | null;
   onCraft: () => { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType };
   onClaim: () => void;
   visible?: boolean;
@@ -23,7 +26,7 @@ interface FloatMsg { id: number; text: string; color: string }
 const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, onCraft, onClaim, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, telegramId, onCraft, onClaim, visible = true }: LabPageProps) {
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
   const floatTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
@@ -115,6 +118,14 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
+      {visible && (
+        <AutoTapWidget
+          hasAutoTap={hasAutoTap}
+          canCraft={canCraft}
+          telegramId={telegramId}
+          onTap={handleCraft}
+        />
+      )}
       <div className="relative flex-1" style={{ minHeight: 0 }} onClick={canCraft ? handleCraft : undefined}>
         <PlanetCanvas
           onPunch={canCraft ? handleCraft : undefined}
