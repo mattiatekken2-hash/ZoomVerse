@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { PlanetCanvas } from "../components/PlanetCanvas";
 import { AutoTapWidget } from "../components/AutoTapWidget";
+import { MysteryBoxWidget } from "../components/MysteryBoxWidget";
 import type { Planet, PlanetType } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
@@ -119,12 +120,15 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
       {visible && (
-        <AutoTapWidget
-          hasAutoTap={hasAutoTap}
-          canCraft={canCraft}
-          telegramId={telegramId}
-          onTap={handleCraft}
-        />
+        <>
+          <AutoTapWidget
+            hasAutoTap={hasAutoTap}
+            canCraft={canCraft}
+            telegramId={telegramId}
+            onTap={handleCraft}
+          />
+          <MysteryBoxWidget telegramId={telegramId} />
+        </>
       )}
       <div className="relative flex-1" style={{ minHeight: 0 }} onClick={canCraft ? handleCraft : undefined}>
         <PlanetCanvas

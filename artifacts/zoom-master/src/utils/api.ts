@@ -409,9 +409,39 @@ export async function confirmTonPurchase(telegramId: string, itemId: string, wal
   } catch { return { ok: false, error: "Network error" }; }
 }
 
-export async function fetchTxnStatus(txnId: number): Promise<{ status: string; itemId?: string; itemName?: string } | null> {
+export interface MysteryBoxStock { sunsAwarded: number; sunsCap: number; sunsRemaining: number }
+export interface MysteryBoxActivityItem { id: number; userName: string; award: string; awardLabel: string; openedAt: number }
+
+export async function fetchMysteryBoxStock(): Promise<MysteryBoxStock | null> {
   try {
-    const res = await fetch(`${API_BASE}/stars/txn/${txnId}`);
+    const res = await fetch(`${API_BASE}/mystery-box/stock`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return res.json();
+  } catch { return null; }
+}
+
+export async function fetchMysteryBoxActivity(limit = 30): Promise<MysteryBoxActivityItem[]> {
+  try {
+    const res = await fetch(`${API_BASE}/mystery-box/activity?limit=${limit}`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data?.items) ? data.items : [];
+  } catch { return []; }
+}
+
+export function openMysteryBoxStream(onEvent: (ev: MysteryBoxActivityItem) => void): () => void {
+  const url = `${API_BASE}/mystery-box/activity/stream`;
+  const es = new EventSource(url);
+  es.addEventListener("open", (e: MessageEvent) => {
+    try { onEvent(JSON.parse(e.data)); } catch { /* ignore */ }
+  });
+  return () => { try { es.close(); } catch { /* ignore */ } };
+}
+
+export async function fetchTxnStatus(txnId: number, telegramId?: string): Promise<{ status: string; itemId?: string; itemName?: string; award?: string | null } | null> {
+  try {
+    const qs = telegramId ? `?telegramId=${encodeURIComponent(telegramId)}` : "";
+    const res = await fetch(`${API_BASE}/stars/txn/${txnId}${qs}`);
     if (!res.ok) return null;
     return res.json();
   } catch { return null; }

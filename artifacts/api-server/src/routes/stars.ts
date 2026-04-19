@@ -1,7 +1,9 @@
 import { Router, type IRouter } from "express";
 import { db, transactionsTable, usersTable } from "@workspace/db";
+import { appSettingsTable } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { Cell, Address } from "@ton/core";
+import { broadcastBoxOpen } from "../lib/activityBus";
 
 const router: IRouter = Router();
 
@@ -151,15 +153,131 @@ const STARS_CATALOG: StarsItem[] = [
   { id: "wheel_spin_5",  title: "5 Wheel Spins",  description: "5 spins on the Fortune Wheel — 20% off",  starsPrice: 200, tonPrice: 2.0, zoomAmount: 5,  itemType: "wheel_spin" },
   { id: "wheel_spin_10", title: "10 Wheel Spins", description: "10 spins on the Fortune Wheel — 30% off", starsPrice: 350, tonPrice: 3.5, zoomAmount: 10, itemType: "wheel_spin" },
   { id: "auto_tap", title: "Auto-Tap", description: "Hold-to-tap auto-clicker on the FORGE PLANET", starsPrice: 300, tonPrice: 3, itemType: "auto_tap" },
+  { id: "mystery_box", title: "Mystery Box", description: "Open a space crate — chance for Rare/Epic/Gold and a tiny shot at THE SUN", starsPrice: 150, tonPrice: 1.5, itemType: "mystery_box" },
 ];
+
+const MYSTERY_BOX_SUN_GLOBAL_CAP = 50;
+const MYSTERY_BOX_SUN_COUNTER_KEY = "mystery_box_suns_awarded";
+
+type MysteryAward = "basic" | "rare" | "epic" | "gold" | "sun";
+
+function awardLabel(a: MysteryAward): string {
+  switch (a) {
+    case "basic": return "a Basic Planet";
+    case "rare": return "a Rare Planet";
+    case "epic": return "an Epic Planet";
+    case "gold": return "a Gold Planet";
+    case "sun": return "THE SUN ☀️";
+  }
+}
+
+async function readMysterySunsAwarded(): Promise<number> {
+  const [row] = await db.select().from(appSettingsTable).where(eq(appSettingsTable.key, MYSTERY_BOX_SUN_COUNTER_KEY)).limit(1);
+  return Number(row?.valueNum ?? 0);
+}
+
+/**
+ * Mystery Box drop table:
+ *  - SUN: 0.01% (1 in 10000), capped at 50 globally; if cap hit → falls back to Gold
+ *  - Rare: 30%
+ *  - Epic: 30%
+ *  - Gold: 30%
+ *  - Basic: ~9.99% (remainder)
+ *
+ * SUN allocation is fully atomic: a single DB transaction increments the
+ * mystery-counter (respecting BOTH the per-feature cap AND the absolute global
+ * SUN supply cap, on INSERT and UPDATE branches), then increments the user's
+ * sun_count (respecting the per-user cap). If either step is blocked the entire
+ * transaction rolls back so no slot is "burned" and we fall back to Gold.
+ */
+async function rollMysteryBox(telegramId: string): Promise<MysteryAward> {
+  const r = Math.floor(Math.random() * 10000);
+  if (r === 0) {
+    let sunGranted = false;
+    try {
+      await db.transaction(async (tx) => {
+        // Increment the mystery-counter row, only if BOTH caps still allow it.
+        // Both INSERT (first ever) and UPDATE branches gate on the global supply.
+        const claim = await tx.execute(sql`
+          INSERT INTO app_settings (key, value_num, updated_at)
+          SELECT ${MYSTERY_BOX_SUN_COUNTER_KEY}, 1, NOW()
+          WHERE (SELECT COALESCE(SUM(sun_count), 0) FROM users) < ${SUN_MAX_GLOBAL}
+          ON CONFLICT (key) DO UPDATE
+            SET value_num = app_settings.value_num + 1, updated_at = NOW()
+            WHERE COALESCE(app_settings.value_num, 0) < ${MYSTERY_BOX_SUN_GLOBAL_CAP}
+              AND (SELECT COALESCE(SUM(sun_count), 0) FROM users) < ${SUN_MAX_GLOBAL}
+          RETURNING value_num
+        `);
+        if (!claim.rows || claim.rows.length === 0) {
+          throw new Error("MYSTERY_SUN_CAP_REACHED");
+        }
+        // Apply SUN to user, respecting per-user cap. If blocked, ROLLBACK
+        // (the throw triggers it) so the global counter is not incremented.
+        const sunRes = await tx.execute(sql`
+          UPDATE users
+          SET sun_count = sun_count + 1, bonus_sun = true
+          WHERE telegram_id = ${telegramId}
+            AND sun_count < ${SUN_MAX_PER_USER}
+          RETURNING sun_count
+        `);
+        if (!sunRes.rows || sunRes.rows.length === 0) {
+          throw new Error("USER_SUN_CAP_REACHED");
+        }
+        sunGranted = true;
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg !== "MYSTERY_SUN_CAP_REACHED" && msg !== "USER_SUN_CAP_REACHED") {
+        console.error("[mystery_box] SUN allocation tx failed:", err);
+      }
+    }
+    if (sunGranted) return "sun";
+    return "gold";
+  }
+  if (r < 3000) return "rare";
+  if (r < 6000) return "epic";
+  if (r < 9000) return "gold";
+  return "basic";
+}
+
+async function applyMysteryAward(award: MysteryAward, telegramId: string): Promise<void> {
+  if (award === "sun") return; // already credited inside rollMysteryBox
+  const col = award === "basic" ? "bonusBasic"
+    : award === "rare" ? "bonusRare"
+    : award === "epic" ? "bonusEpic"
+    : "bonusGold";
+  await db.update(usersTable)
+    .set({ [col]: sql`${usersTable[col as "bonusBasic"]} + 1` })
+    .where(eq(usersTable.telegramId, telegramId));
+}
 
 function findItem(itemId: string): StarsItem | undefined {
   return STARS_CATALOG.find((i) => i.id === itemId);
 }
 
-async function creditUser(item: StarsItem, telegramId: string) {
+// `tx` is intentionally typed loosely (`any`) because Drizzle's PgTransaction
+// generic is not exported in a stable way across versions; both the top-level
+// `db` and the transaction client share the same callable interface here.
+type DbExecutor = typeof db;
+
+async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string): Promise<{ award?: MysteryAward }> {
+  if (item.itemType === "mystery_box") {
+    // SUN allocation has its own internal transaction (rollMysteryBox); other
+    // awards are inlined here so they share the outer credit transaction.
+    const award = await rollMysteryBox(telegramId);
+    if (award !== "sun") {
+      const col = award === "basic" ? "bonusBasic"
+        : award === "rare" ? "bonusRare"
+        : award === "epic" ? "bonusEpic"
+        : "bonusGold";
+      await tx.update(usersTable)
+        .set({ [col]: sql`${usersTable[col as "bonusBasic"]} + 1` })
+        .where(eq(usersTable.telegramId, telegramId));
+    }
+    return { award };
+  }
   if (item.itemType === "bundle" && item.zoomAmount) {
-    await db.update(usersTable)
+    await tx.update(usersTable)
       .set({
         zoomBalance: sql`${usersTable.zoomBalance} + ${item.zoomAmount}`,
         balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
@@ -169,11 +287,11 @@ async function creditUser(item: StarsItem, telegramId: string) {
     const planetType = item.id === "starter_pack" ? "bonusBasic"
       : item.id === "explorer_pack" ? "bonusRare"
       : "bonusEpic";
-    await db.update(usersTable)
+    await tx.update(usersTable)
       .set({ [planetType]: sql`${usersTable[planetType]} + 1` })
       .where(eq(usersTable.telegramId, telegramId));
   } else if (item.itemType === "sun") {
-    const result = await db.execute(sql`
+    const result = await tx.execute(sql`
       UPDATE users
       SET sun_count = sun_count + 1, bonus_sun = true
       WHERE telegram_id = ${telegramId}
@@ -182,23 +300,24 @@ async function creditUser(item: StarsItem, telegramId: string) {
       RETURNING sun_count
     `);
     if (!result.rows || result.rows.length === 0) {
-      console.error(`[creditUser] SUN credit denied for ${telegramId} (limit reached at credit time)`);
+      console.error(`[creditUserTx] SUN credit denied for ${telegramId} (limit reached at credit time)`);
       throw new Error("SUN_LIMIT_REACHED");
     }
   } else if (item.itemType === "slot") {
-    await db.update(usersTable)
+    await tx.update(usersTable)
       .set({ bonusSlots: sql`${usersTable.bonusSlots} + 1` })
       .where(eq(usersTable.telegramId, telegramId));
   } else if (item.itemType === "wheel_spin") {
     const spins = item.zoomAmount || 1;
-    await db.update(usersTable)
+    await tx.update(usersTable)
       .set({ wheelSpins: sql`${usersTable.wheelSpins} + ${spins}` })
       .where(eq(usersTable.telegramId, telegramId));
   } else if (item.itemType === "auto_tap") {
-    await db.update(usersTable)
+    await tx.update(usersTable)
       .set({ hasAutoTap: true })
       .where(eq(usersTable.telegramId, telegramId));
   }
+  return {};
 }
 
 async function getSunStock(): Promise<{ sold: number; remaining: number }> {
@@ -267,28 +386,68 @@ router.get("/sun/stock", async (req, res) => {
 });
 
 async function atomicCreditIfPending(txnId: number, paymentId: string, item: StarsItem, telegramId: string): Promise<boolean> {
-  // 1. Atomically claim the txn (only one concurrent caller wins)
-  const updated = await db.update(transactionsTable)
-    .set({ status: "completed", telegramPaymentId: paymentId })
-    .where(and(
-      eq(transactionsTable.id, txnId),
-      eq(transactionsTable.status, "pending")
-    ))
-    .returning();
-
-  if (updated.length === 0) return false;
-
-  // 2. Credit; if it fails (e.g. SUN limit), roll the txn back to "failed"
+  // For mystery boxes we MUST persist `award` together with `status=completed`
+  // so a crash between credit and award-write cannot leave the row in an
+  // inconsistent state (status completed but award null). Credit + status flip
+  // + award write all run in a single DB transaction; on any error the whole
+  // transaction rolls back and the txn stays "pending" for retry.
+  let creditedAward: MysteryAward | undefined;
+  let didFlip = false;
   try {
-    await creditUser(item, telegramId);
-    return true;
+    await db.transaction(async (tx) => {
+      const updated = await tx.update(transactionsTable)
+        .set({ status: "completed", telegramPaymentId: paymentId })
+        .where(and(
+          eq(transactionsTable.id, txnId),
+          eq(transactionsTable.status, "pending")
+        ))
+        .returning();
+      if (updated.length === 0) return; // already-completed or already-failed: leave it
+      didFlip = true;
+
+      const result = await creditUserTx(tx, item, telegramId);
+      if (result.award) {
+        await tx.update(transactionsTable)
+          .set({ award: result.award })
+          .where(eq(transactionsTable.id, txnId));
+        creditedAward = result.award;
+      }
+    });
   } catch (err) {
     console.error(`[atomicCredit] credit failed for txn ${txnId}, marking failed:`, err);
-    await db.update(transactionsTable)
-      .set({ status: "failed" })
-      .where(eq(transactionsTable.id, txnId));
+    // Outside the rolled-back tx, mark explicitly as failed so the user gets a
+    // definitive answer and the row isn't retried forever.
+    try {
+      await db.update(transactionsTable)
+        .set({ status: "failed" })
+        .where(and(eq(transactionsTable.id, txnId), eq(transactionsTable.status, "pending")));
+    } catch (e2) {
+      console.error(`[atomicCredit] failed to mark txn ${txnId} as failed:`, e2);
+    }
     throw err;
   }
+
+  if (!didFlip) return false;
+
+  // Broadcast the mystery-box opening AFTER the tx committed, so external
+  // subscribers never see an event that was rolled back.
+  if (creditedAward) {
+    try {
+      const [u] = await db.select({ first: usersTable.firstName, uname: usersTable.username })
+        .from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
+      const name = u?.first || (u?.uname ? `@${u.uname}` : "Anon");
+      broadcastBoxOpen({
+        id: txnId,
+        userName: name,
+        award: creditedAward,
+        awardLabel: awardLabel(creditedAward),
+        openedAt: Date.now(),
+      });
+    } catch (e) {
+      console.warn("[mystery_box] broadcast failed:", e);
+    }
+  }
+  return true;
 }
 
 router.get("/stars/catalog", (_req, res) => {
@@ -658,7 +817,18 @@ router.get("/stars/txn/:txnId", async (req, res) => {
 
   const [txn] = await db.select().from(transactionsTable).where(eq(transactionsTable.id, txnId)).limit(1);
   if (!txn) { res.status(404).json({ error: "Not found" }); return; }
-  res.json({ status: txn.status, itemId: txn.itemId, itemName: txn.itemName });
+  // The `award` (Mystery Box prize) is gated to the owner so external callers
+  // cannot enumerate other users' rolls. The owner proves ownership by passing
+  // their own telegramId; status/itemName remain public to preserve existing
+  // status-polling flows used by other widgets.
+  const claimedTelegramId = (req.query["telegramId"] as string) || "";
+  const isOwner = !!claimedTelegramId && claimedTelegramId === txn.telegramId;
+  res.json({
+    status: txn.status,
+    itemId: txn.itemId,
+    itemName: txn.itemName,
+    award: isOwner ? (txn.award ?? null) : null,
+  });
 });
 
 export default router;

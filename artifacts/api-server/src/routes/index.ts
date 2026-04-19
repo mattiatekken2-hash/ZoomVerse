@@ -8,6 +8,7 @@ import starsRouter from "./stars";
 import marketplaceRouter from "./marketplace";
 import wheelRouter from "./wheel";
 import dailyRouter from "./daily";
+import mysteryBoxRouter from "./mysteryBox";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(starsRouter);
 router.use(marketplaceRouter);
 router.use(wheelRouter);
 router.use(dailyRouter);
+router.use(mysteryBoxRouter);
 
 export default router;
