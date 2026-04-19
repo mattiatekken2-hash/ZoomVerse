@@ -273,7 +273,9 @@ export function MysteryBoxWidget({ telegramId }: MysteryBoxWidgetProps) {
             background: "rgba(6,8,16,0.88)",
             backdropFilter: "blur(8px)",
             zIndex: 110, display: "flex",
-            alignItems: "center", justifyContent: "center", padding: 20,
+            alignItems: "flex-start", justifyContent: "center",
+            padding: "140px 20px 20px",
+            overflowY: "auto",
           }}
         >
           <div
