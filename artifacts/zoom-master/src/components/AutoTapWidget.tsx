@@ -195,7 +195,7 @@ export function AutoTapWidget({ hasAutoTap, canCraft, telegramId, onTap }: AutoT
               AUTO-TAP
             </div>
             <div className="text-xs" style={{ color: "rgba(255,255,255,0.6)", marginBottom: 18, lineHeight: 1.5 }}>
-              Tieni premuto il widget per generare tap automatici sul FORGE PLANET. Acquisto una tantum.
+              Hold the widget to auto-tap the FORGE PLANET. One-time purchase.
             </div>
             <div className="font-black text-2xl" style={{ color: "#fff", marginBottom: 16 }}>
               {PRICE_TON} TON

@@ -294,7 +294,7 @@ export function MysteryBoxWidget({ telegramId }: MysteryBoxWidgetProps) {
               MYSTERY BOX
             </div>
             <div className="text-xs" style={{ color: "rgba(255,255,255,0.55)", marginBottom: 14, lineHeight: 1.5 }}>
-              Apri il forziere spaziale: prova a vincere un pianeta Rare, Epic, Gold o — molto raramente — THE SUN.
+              Open the space crate: try to win a Rare, Epic, Gold planet — or, very rarely, THE SUN.
             </div>
 
             {/* Crate stage */}
