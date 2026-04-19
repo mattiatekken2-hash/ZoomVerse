@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, type Grants } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, type Grants } from "../utils/api";
 import { toast } from "./use-toast";
 
 async function calibrateServerOffset(): Promise<number> {
@@ -1545,6 +1545,73 @@ export function useGameState() {
       balance: prev.balance - pricePaid,
       planets: [...prev.planets, newPlanet],
     }));
+  }, []);
+
+  // ---- ANTI-DUPLICATION RECONCILIATION ----
+  // When a planet I listed gets bought (or admin-delisted), the asset must
+  // leave my local inventory immediately. The server is already the source of
+  // truth (status='sold' on market_listings, balance credited atomically) — we
+  // just need to mirror that here so the same logical asset never coexists in
+  // both seller and buyer inventories.
+  useEffect(() => {
+    // 1) Live channel: SSE broadcasts every successful sale. If the listingId
+    //    matches one of my listed planets, drop it from my array.
+    const close = openMarketActivityStream((sale) => {
+      setState((prev) => {
+        const idx = prev.planets.findIndex(
+          (p) => p.isListedInMarket && p.serverListingId === sale.id,
+        );
+        if (idx === -1) return prev;
+        const next = prev.planets.slice();
+        next.splice(idx, 1);
+        return { ...prev, planets: next };
+      });
+    });
+
+    // 2) Reconcile on resume / periodic poll: if any of my listed planets are
+    //    no longer present in the active listings on the server (because they
+    //    were sold while I was offline, or force-delisted by admin), remove
+    //    them locally. This catches anything the SSE missed.
+    let cancelled = false;
+    const reconcile = async () => {
+      const myListed = stateRef.current.planets.filter(
+        (p) => p.isListedInMarket && typeof p.serverListingId === "number",
+      );
+      if (myListed.length === 0) return;
+      try {
+        const active = await fetchMarketListings();
+        if (cancelled) return;
+        const activeIds = new Set(active.map((l) => l.id));
+        const goneIds = new Set(
+          myListed
+            .filter((p) => !activeIds.has(p.serverListingId as number))
+            .map((p) => p.serverListingId as number),
+        );
+        if (goneIds.size === 0) return;
+        setState((prev) => ({
+          ...prev,
+          planets: prev.planets.filter(
+            (p) =>
+              !(
+                p.isListedInMarket &&
+                typeof p.serverListingId === "number" &&
+                goneIds.has(p.serverListingId)
+              ),
+          ),
+        }));
+      } catch { /* ignore */ }
+    };
+    void reconcile();
+    const onVisible = () => { if (!document.hidden) void reconcile(); };
+    document.addEventListener("visibilitychange", onVisible);
+    const interval = setInterval(reconcile, 30_000);
+
+    return () => {
+      cancelled = true;
+      close();
+      document.removeEventListener("visibilitychange", onVisible);
+      clearInterval(interval);
+    };
   }, []);
 
   const unlockSlot = useCallback(() => {
