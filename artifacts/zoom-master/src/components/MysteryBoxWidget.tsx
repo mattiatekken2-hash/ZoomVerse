@@ -341,16 +341,16 @@ export function MysteryBoxWidget({ telegramId }: MysteryBoxWidgetProps) {
               <div className="font-black text-2xl" style={{ color: "#fff", marginBottom: 8 }}>{PRICE_TON} TON</div>
             )}
 
-            {/* Drop chances */}
+            {/* Possible rewards (no probabilities shown) */}
             {phase === "idle" && (
               <div style={{
                 display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6,
                 marginBottom: 14, fontSize: 10, color: "rgba(255,255,255,0.7)",
               }}>
-                <Drop label="Rare" pct="30%" color={RARITY_COLORS.rare} />
-                <Drop label="Epic" pct="30%" color={RARITY_COLORS.epic} />
-                <Drop label="Gold" pct="30%" color={RARITY_COLORS.gold} />
-                <Drop label="Basic" pct="~10%" color={RARITY_COLORS.basic} />
+                <Reward label="Rare" color={RARITY_COLORS.rare} />
+                <Reward label="Epic" color={RARITY_COLORS.epic} />
+                <Reward label="Gold" color={RARITY_COLORS.gold} />
+                <Reward label="Basic" color={RARITY_COLORS.basic} />
                 <div style={{
                   gridColumn: "1 / -1",
                   padding: "6px 8px",
@@ -359,13 +359,9 @@ export function MysteryBoxWidget({ telegramId }: MysteryBoxWidgetProps) {
                   border: "1px solid rgba(255,174,0,0.35)",
                   color: "#ffae00",
                   fontWeight: 700,
+                  textAlign: "center",
                 }}>
-                  ☀️ THE SUN — 1 / 10,000
-                  {stock && (
-                    <span style={{ color: "rgba(255,255,255,0.55)", fontWeight: 500, marginLeft: 6 }}>
-                      ({stock.sunsAwarded}/{stock.sunsCap} dropped)
-                    </span>
-                  )}
+                  ☀️ THE SUN — ultra rare
                 </div>
               </div>
             )}
@@ -461,16 +457,15 @@ export function MysteryBoxWidget({ telegramId }: MysteryBoxWidgetProps) {
   );
 }
 
-function Drop({ label, pct, color }: { label: string; pct: string; color: string }) {
+function Reward({ label, color }: { label: string; color: string }) {
   return (
     <div style={{
-      display: "flex", alignItems: "center", justifyContent: "space-between",
+      display: "flex", alignItems: "center", justifyContent: "center",
       padding: "5px 8px", borderRadius: 8,
       background: "rgba(255,255,255,0.03)",
       border: `1px solid ${color}33`,
     }}>
       <span style={{ color, fontWeight: 800 }}>{label}</span>
-      <span style={{ color: "rgba(255,255,255,0.85)", fontWeight: 700 }}>{pct}</span>
     </div>
   );
 }
