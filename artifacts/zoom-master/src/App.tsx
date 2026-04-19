@@ -75,6 +75,10 @@ export default function App() {
     const FADE_IN_S = 2.2;
     const FADE_OUT_S = 0.6;
 
+    // Track #3 (background music). Loops forever once user gesture allows
+    // playback. Mute / unmute NEVER pauses the element — they only ramp the
+    // gain node — so the playhead keeps advancing in the background and
+    // un-muting resumes from the current position instantly, with no restart.
     const audio = new Audio(`${import.meta.env.BASE_URL}bgm.mp3`);
     audio.loop = true;
     audio.preload = "auto";
@@ -124,21 +128,17 @@ export default function App() {
       }
     };
 
+    // Smooth volume ramp via Web Audio gain (no element pause). Falls back to
+    // an animated `audio.volume` ramp when Web Audio is unavailable.
     const fadeTo = (target: number, seconds: number) => {
       const ctx = audioCtxRef.current;
       const gain = gainRef.current;
       if (ctx && gain) {
         const now = ctx.currentTime;
         gain.gain.cancelScheduledValues(now);
-        // Use setTargetAtTime for a smooth, audio-rate exponential fade —
-        // perceptually clean, no zipper noise.
         gain.gain.setValueAtTime(gain.gain.value, now);
         gain.gain.linearRampToValueAtTime(target, now + seconds);
-        if (target === 0) {
-          window.setTimeout(() => { if (!audio.paused) audio.pause(); }, seconds * 1000 + 50);
-        }
       } else {
-        // Fallback path (no Web Audio): coarse but smooth ramp on element.
         const startV = audio.volume;
         const start = performance.now();
         const dur = seconds * 1000;
@@ -147,33 +147,41 @@ export default function App() {
           const eased = t * t * (3 - 2 * t);
           audio.volume = Math.max(0, Math.min(1, startV + (target - startV) * eased));
           if (t < 1) requestAnimationFrame(step);
-          else if (target === 0 && !audio.paused) audio.pause();
         };
         requestAnimationFrame(step);
       }
     };
 
+    // Start the track once. After this, we never pause: mute just ramps gain
+    // to 0, leaving the playhead running so unmute resumes from where the
+    // music currently is. Volume / `muted` are also set as a hard fallback
+    // when no Web Audio chain is available.
     const tryPlay = () => {
       buildChain();
       const ctx = audioCtxRef.current;
       if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
-      audio.play().then(() => fadeTo(TARGET_VOLUME, FADE_IN_S)).catch(() => {});
+      audio.muted = mutedRef.current;
+      audio.play().then(() => {
+        if (mutedRef.current) {
+          // Already muted — keep gain at 0, nothing to fade.
+          if (gainRef.current) gainRef.current.gain.value = 0;
+          else audio.volume = 0;
+        } else {
+          fadeTo(TARGET_VOLUME, FADE_IN_S);
+        }
+      }).catch(() => {});
     };
-    if (!mutedRef.current) {
-      tryPlay();
-      const t1 = setTimeout(() => { if (!mutedRef.current && audioRef.current?.paused) tryPlay(); }, 100);
-      const t2 = setTimeout(() => { if (!mutedRef.current && audioRef.current?.paused) tryPlay(); }, 500);
-      const t3 = setTimeout(() => { if (!mutedRef.current && audioRef.current?.paused) tryPlay(); }, 1500);
-      (audio as unknown as { _timers: number[] })._timers = [t1, t2, t3] as unknown as number[];
-    }
+    tryPlay();
+    const t1 = setTimeout(() => { if (audioRef.current?.paused) tryPlay(); }, 100);
+    const t2 = setTimeout(() => { if (audioRef.current?.paused) tryPlay(); }, 500);
+    const t3 = setTimeout(() => { if (audioRef.current?.paused) tryPlay(); }, 1500);
+    (audio as unknown as { _timers: number[] })._timers = [t1, t2, t3] as unknown as number[];
 
     const onUserGesture = () => {
       const a = audioRef.current;
       if (!a) return;
-      if (mutedRef.current) {
-        if (!a.paused) fadeTo(0, FADE_OUT_S);
-        return;
-      }
+      // If the WebView blocked autoplay, the first user gesture starts it.
+      // Mute / unmute is handled separately in the [muted] effect below.
       if (a.paused) tryPlay();
     };
     // Listen on as many "first interaction" channels as possible so the music
@@ -206,35 +214,54 @@ export default function App() {
 
   useEffect(() => {
     try { localStorage.setItem("zoom-bgm-muted", muted ? "1" : "0"); } catch {/**/}
-    // The actual play/pause + fade is driven by onUserGesture / tryPlay inside
-    // the audio-init effect, which already handles smooth fade in/out based on
-    // mutedRef. Toggling mute here just updates persistence; the next user
-    // gesture (or the immediate one that triggered the toggle) will fade.
     const a = audioRef.current;
     if (!a) return;
-    if (muted && !a.paused) {
-      // Smooth fade out via a short ramp.
-      const start = performance.now();
-      const from = a.volume;
-      const step = (now: number) => {
-        const t = Math.min(1, (now - start) / 600);
-        a.volume = Math.max(0, from * (1 - t));
-        if (t < 1) requestAnimationFrame(step);
-        else if (!a.paused) a.pause();
-      };
-      requestAnimationFrame(step);
-    } else if (!muted && a.paused) {
-      a.volume = 0;
-      a.play().then(() => {
+
+    // Mute / unmute is purely a volume change — the audio element keeps
+    // playing in the background so unmute resumes from the current playhead
+    // position, never restarts from zero.
+    const TARGET_VOLUME = 0.18;
+    const FADE_OUT_S = 0.6;
+    const FADE_IN_S = 1.4;
+    const ctx = audioCtxRef.current;
+    const gain = gainRef.current;
+
+    if (muted) {
+      if (ctx && gain) {
+        const now = ctx.currentTime;
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.setValueAtTime(gain.gain.value, now);
+        gain.gain.linearRampToValueAtTime(0, now + FADE_OUT_S);
+      } else {
+        // No Web Audio: fall back to the element's `muted` flag (instant) +
+        // volume=0 so the user truly hears nothing on every device.
+        a.volume = 0;
+        a.muted = true;
+      }
+    } else {
+      // Make sure the element flag is off so audio is audible again.
+      a.muted = false;
+      // If the WebView had paused the element (e.g. backgrounded the tab),
+      // resume playback — currentTime is preserved so it continues from
+      // where it stopped, not from the beginning.
+      if (a.paused) a.play().catch(() => {});
+      if (ctx && gain) {
+        if (ctx.state === "suspended") ctx.resume().catch(() => {});
+        const now = ctx.currentTime;
+        gain.gain.cancelScheduledValues(now);
+        gain.gain.setValueAtTime(gain.gain.value, now);
+        gain.gain.linearRampToValueAtTime(TARGET_VOLUME, now + FADE_IN_S);
+      } else {
         const start = performance.now();
+        const from = a.volume;
         const step = (now: number) => {
-          const t = Math.min(1, (now - start) / 2200);
+          const t = Math.min(1, (now - start) / (FADE_IN_S * 1000));
           const eased = t * t * (3 - 2 * t);
-          a.volume = 0.22 * eased;
+          a.volume = from + (TARGET_VOLUME - from) * eased;
           if (t < 1) requestAnimationFrame(step);
         };
         requestAnimationFrame(step);
-      }).catch(() => {});
+      }
     }
   }, [muted]);
 
