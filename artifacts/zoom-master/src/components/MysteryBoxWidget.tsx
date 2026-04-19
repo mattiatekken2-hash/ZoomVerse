@@ -202,12 +202,15 @@ export function MysteryBoxWidget({ telegramId }: MysteryBoxWidgetProps) {
         }
       `}</style>
 
-      {/* Closed widget — top center */}
+      {/* Closed widget — top center, always anchored just below the ZOOM BETA
+          header. Uses safe-area-inset-top + header height (56px padding-top on
+          App container + ~52px header content) so it stays visible without
+          scrolling on every device (iPhone notch, Android, desktop). */}
       <button
         onClick={handleOpenClick}
         style={{
           position: "fixed",
-          top: 70,
+          top: "calc(env(safe-area-inset-top, 0px) + 64px)",
           left: "50%",
           transform: "translateX(-50%)",
           display: "flex",
@@ -238,7 +241,7 @@ export function MysteryBoxWidget({ telegramId }: MysteryBoxWidgetProps) {
         <div
           style={{
             position: "fixed",
-            top: 116,
+            top: "calc(env(safe-area-inset-top, 0px) + 110px)",
             left: "50%",
             transform: "translateX(-50%)",
             maxWidth: "90%",
