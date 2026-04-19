@@ -252,15 +252,30 @@ function migratePlanet(p: unknown): Planet {
   } as Planet;
 }
 
+// True when loadState() did NOT find a matching localStorage entry for the
+// current Telegram user — i.e. this device is opening this account for the
+// first time (or after clearing storage). The first server sync uses this to
+// snap balance/state to the server values instead of merging with the local
+// defaults (which would otherwise resurrect the 300-ZOOM starting balance and
+// overwrite the real server-side balance via the next /balance/sync call).
+let _lastLoadWasFresh = true;
+export function consumeWasFreshLoad(): boolean {
+  const v = _lastLoadWasFresh;
+  _lastLoadWasFresh = false;
+  return v;
+}
+
 function loadState(): GameState {
   const { telegramId, startParam, firstName: _firstName } = getTelegramContext();
 
   try {
-    const raw = localStorage.getItem(getStorageKey(telegramId)) ?? localStorage.getItem(STORAGE_KEY);
+    const matchingKey = localStorage.getItem(getStorageKey(telegramId));
+    const raw = matchingKey ?? localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as GameState;
       if (parsed.version === STATE_VERSION) {
         if (telegramId && parsed.telegramId !== telegramId) {
+          _lastLoadWasFresh = true;
           const referredBy = startParam ? startParam : null;
           return {
             ...INITIAL_STATE,
@@ -286,6 +301,11 @@ function loadState(): GameState {
           lastBalanceEpoch: parsed.lastBalanceEpoch ?? 0,
         };
         const resolvedTelegramId = telegramId || base.telegramId;
+        // Only treat as "fresh load" when we did NOT find an entry keyed to the
+        // current Telegram user. If matchingKey is null we fell back to a
+        // legacy un-keyed entry (or someone else's), so still treat as fresh
+        // and let server be authoritative on first sync.
+        _lastLoadWasFresh = !matchingKey;
         return {
           ...base,
           telegramId: resolvedTelegramId,
@@ -295,6 +315,7 @@ function loadState(): GameState {
     }
   } catch { /**/ }
 
+  _lastLoadWasFresh = true;
   const isNewUser = true;
   const referredBy = (startParam && isNewUser) ? startParam : null;
   const referralSpeedBonus = referredBy ? 0.10 : 0;
@@ -699,11 +720,18 @@ export function useGameState() {
       const serverEpoch = balanceRecord?.balanceEpoch ?? 0;
       const localEpoch = stateRef.current.lastBalanceEpoch ?? 0;
       const localBalance = Math.floor(stateRef.current.balance);
+      const wasFreshLoad = consumeWasFreshLoad();
+      // CROSS-DEVICE SYNC: when this device is opening this Telegram account
+      // for the first time (no localStorage entry yet), the local balance is
+      // just the 300-ZOOM default — never trust it. Snap to the server value
+      // so PC/phone always show the same balance.
       // If server epoch advanced, admin/system performed an authoritative
       // change (credit/remove/reset) — server wins, even if client is higher.
       // Otherwise, only credit upwards (protect in-flight purchases).
       const epochAdvanced = serverEpoch > localEpoch;
-      const finalBalance = epochAdvanced
+      const finalBalance = wasFreshLoad && balanceRecord?.exists
+        ? serverBalance
+        : epochAdvanced
         ? serverBalance
         : stateRef.current.balance + (serverBalance > localBalance ? serverBalance - localBalance : 0);
 
