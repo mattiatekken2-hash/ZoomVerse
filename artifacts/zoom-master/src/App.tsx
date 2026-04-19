@@ -82,7 +82,6 @@ export default function App() {
     const audio = new Audio(`${import.meta.env.BASE_URL}bgm.mp3`);
     audio.loop = true;
     audio.preload = "auto";
-    audio.crossOrigin = "anonymous";
     // Keep element volume at 1 — we control level via the Web Audio gain node
     // so fades and the final mix happen with sample-accurate float precision
     // instead of the WebView's coarse volume mixer (which is what was causing
@@ -167,7 +166,26 @@ export default function App() {
           if (gainRef.current) gainRef.current.gain.value = 0;
           else audio.volume = 0;
         } else {
-          fadeTo(TARGET_VOLUME, FADE_IN_S);
+          // Smooth, perceptually-natural fade-in. We use an exponential ramp
+          // (human hearing is logarithmic, so a linear gain ramp from 0 sounds
+          // like a sudden onset followed by silence — that was the "strange
+          // sound" on first tap). We also delay the ramp by ~120 ms so the
+          // audio thread has time to actually start emitting samples before
+          // the curve begins; otherwise the ramp races ahead of the buffer
+          // and the first samples arrive mid-curve at an arbitrary level.
+          const ctx2 = audioCtxRef.current;
+          const gain2 = gainRef.current;
+          if (ctx2 && gain2) {
+            try {
+              const start = ctx2.currentTime + 0.12;
+              gain2.gain.cancelScheduledValues(ctx2.currentTime);
+              gain2.gain.setValueAtTime(0.0001, ctx2.currentTime);
+              gain2.gain.setValueAtTime(0.0001, start);
+              gain2.gain.exponentialRampToValueAtTime(TARGET_VOLUME, start + FADE_IN_S);
+            } catch { fadeTo(TARGET_VOLUME, FADE_IN_S); }
+          } else {
+            fadeTo(TARGET_VOLUME, FADE_IN_S);
+          }
         }
       }).catch(() => {});
     };
