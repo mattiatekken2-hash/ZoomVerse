@@ -109,12 +109,12 @@ export function PixelAvatar({
     const occupant = slotOccupants[slotIndex];
     if (occupant) return; // Locked once filled.
     if (!selectedInvId || !onPlaceWhitePlanet) {
-      flashWhiteMsg("Seleziona prima un pianeta dall'inventario");
+      flashWhiteMsg("Select a planet from the inventory first");
       return;
     }
     const res = onPlaceWhitePlanet(selectedInvId, slotIndex);
     if (!res.ok) {
-      flashWhiteMsg(res.reason || "Impossibile posizionare");
+      flashWhiteMsg(res.reason || "Cannot place planet");
       return;
     }
     setSelectedInvId(null);
@@ -548,7 +548,7 @@ export function PixelAvatar({
                           onCollect={onCollectWhitePlanet}
                           onReactivate={(id) => {
                             const res = onReactivateWhitePlanet?.(id);
-                            if (res && !res.ok) flashWhiteMsg(res.reason || "Riattivazione fallita");
+                            if (res && !res.ok) flashWhiteMsg(res.reason || "Reactivation failed");
                           }}
                         />
                       ) : (
@@ -589,7 +589,7 @@ export function PixelAvatar({
                       marginBottom: 8,
                     }}
                   >
-                    Inventario · Tocca per selezionare, poi tocca uno slot
+                    Inventory · Tap to select, then tap a slot
                   </div>
                   <div
                     style={{
@@ -628,7 +628,7 @@ export function PixelAvatar({
                     fontStyle: "italic",
                   }}
                 >
-                  Sblocca la White Collection per ricevere 4 pianeti bianchi esclusivi
+                  Unlock the White Collection to receive 4 exclusive white planets
                 </div>
               )}
 
@@ -642,7 +642,7 @@ export function PixelAvatar({
                     opacity: 0.8,
                   }}
                 >
-                  Tutti i 4 pianeti bianchi sono stati posizionati 🔒
+                  All 4 white planets have been placed 🔒
                 </div>
               )}
             </div>
