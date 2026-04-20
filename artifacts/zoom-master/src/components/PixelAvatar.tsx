@@ -41,16 +41,16 @@ export function PixelAvatar({ size = 60 }: { size?: number }) {
   };
 
   const handleDeposit = () => {
-    setDepositMsg("Generazione indirizzo wallet in corso...");
+    setDepositMsg("Generating wallet address...");
   };
 
   const handleWithdraw = () => {
     const n = parseFloat(withdrawAmount);
     if (!Number.isFinite(n) || n <= 0) {
-      setWithdrawMsg("Inserisci un importo valido");
+      setWithdrawMsg("Enter a valid amount");
       return;
     }
-    setWithdrawMsg(`Richiesta di prelievo di ${n} TON inviata`);
+    setWithdrawMsg(`Withdrawal request for ${n} TON sent`);
   };
 
   return (
@@ -282,7 +282,7 @@ export function PixelAvatar({ size = 60 }: { size?: number }) {
                   marginBottom: 10,
                 }}
               >
-                Il Tuo Portafoglio
+                Your Wallet
               </div>
 
               <div
@@ -297,7 +297,7 @@ export function PixelAvatar({ size = 60 }: { size?: number }) {
                   justifyContent: "space-between",
                 }}
               >
-                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>Saldo</span>
+                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>Balance</span>
                 <span style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>0.00 TON</span>
               </div>
 
@@ -306,7 +306,7 @@ export function PixelAvatar({ size = 60 }: { size?: number }) {
                 style={{ width: "100%", marginBottom: 10 }}
                 onClick={handleDeposit}
               >
-                DEPOSITA TON
+                DEPOSIT TON
               </button>
 
               {depositMsg && (
@@ -330,7 +330,7 @@ export function PixelAvatar({ size = 60 }: { size?: number }) {
                   className="pixel-modal-input"
                   type="number"
                   inputMode="decimal"
-                  placeholder="Importo TON"
+                  placeholder="TON amount"
                   value={withdrawAmount}
                   onChange={(e) => setWithdrawAmount(e.target.value)}
                 />
@@ -339,7 +339,7 @@ export function PixelAvatar({ size = 60 }: { size?: number }) {
                   style={{ whiteSpace: "nowrap" }}
                   onClick={handleWithdraw}
                 >
-                  PRELEVA TON
+                  WITHDRAW TON
                 </button>
               </div>
 
@@ -396,7 +396,7 @@ export function PixelAvatar({ size = 60 }: { size?: number }) {
                   fontStyle: "italic",
                 }}
               >
-                Sblocca questa farm con il pianeta SUN
+                Unlock this farm with the SUN planet
               </div>
             </div>
           </div>
