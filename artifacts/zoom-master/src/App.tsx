@@ -11,6 +11,7 @@ import { RankPage } from "./pages/RankPage";
 import { ShopPage } from "./pages/ShopPage";
 import { WheelPage } from "./pages/WheelPage";
 import { AdminPanel } from "./components/AdminPanel";
+import { playLabBlip } from "./utils/labSfx";
 
 const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
@@ -215,7 +216,10 @@ export default function App() {
           )}
           <div
             className="glass-neon flex items-center gap-1.5 px-3.5 py-2 rounded-full font-black text-sm cursor-pointer"
-            onClick={() => switchTab("shop")}
+            onClick={() => {
+              if (activeTab === "lab") playLabBlip();
+              switchTab("shop");
+            }}
             data-testid="balance-display"
           >
             <span style={{ fontSize: 13 }}>🪐</span>
