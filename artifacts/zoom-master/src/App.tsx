@@ -260,6 +260,7 @@ export default function App() {
                   hasAutoTap={!!state.hasAutoTap}
                   whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
                   whitePlanets={state.whitePlanets || []}
+                  tonBalance={state.tonBalance || 0}
                   telegramId={state.telegramId}
                   onCraft={craft}
                   onClaim={claimCraft}

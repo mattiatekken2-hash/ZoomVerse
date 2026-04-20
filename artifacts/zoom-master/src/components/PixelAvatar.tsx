@@ -8,6 +8,7 @@ import {
   getReactivationFee,
   needsCollect,
   formatDuration,
+  getWhitePlanetPendingTon,
   type Planet,
 } from "../hooks/useGameState";
 
@@ -42,6 +43,7 @@ interface PixelAvatarProps {
   whitePlanets?: Planet[];
   whiteCollectionUnlocked?: boolean;
   balance?: number;
+  tonBalance?: number;
   onPlaceWhitePlanet?: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
   onCollectWhitePlanet?: (planetId: string) => void;
   onReactivateWhitePlanet?: (planetId: string) => { ok: boolean; reason?: string };
@@ -51,7 +53,8 @@ export function PixelAvatar({
   size = 60,
   whitePlanets = [],
   whiteCollectionUnlocked = false,
-  balance = 0,
+  balance: _balance = 0,
+  tonBalance = 0,
   onPlaceWhitePlanet,
   onCollectWhitePlanet,
   onReactivateWhitePlanet,
@@ -69,9 +72,19 @@ export function PixelAvatar({
 
   useEffect(() => {
     if (!open) return;
-    const t = window.setInterval(() => setTick((n) => n + 1), 30_000);
+    // Tick once a second so the live TON balance and slot timers refresh smoothly.
+    const t = window.setInterval(() => setTick((n) => n + 1), 1000);
     return () => window.clearInterval(t);
   }, [open]);
+
+  // Real-time TON balance shown in the modal: persisted balance + uncollected
+  // pending earnings from each placed white planet (capped at 24h per planet).
+  const liveTonBalance = (() => {
+    const now = Date.now();
+    let pending = 0;
+    for (const p of whitePlanets) pending += getWhitePlanetPendingTon(p, now);
+    return tonBalance + pending;
+  })();
 
   const cell = size / 12;
 
@@ -511,15 +524,42 @@ export function PixelAvatar({
             <div>
               <div
                 style={{
-                  fontSize: 11,
-                  fontWeight: 800,
-                  letterSpacing: "0.18em",
-                  color: "#fff",
-                  textTransform: "uppercase",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
                   marginBottom: 10,
+                  gap: 8,
                 }}
               >
-                White Collection Farm
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: "0.18em",
+                    color: "#fff",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  White Collection Farm
+                </div>
+                {whiteCollectionUnlocked && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: WHITE_GLOW,
+                      padding: "4px 9px",
+                      borderRadius: 8,
+                      background: `${WHITE_GLOW}14`,
+                      border: `1px solid ${WHITE_GLOW}55`,
+                      whiteSpace: "nowrap",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                    title="Persisted TON balance + uncollected pending earnings (live)"
+                  >
+                    {liveTonBalance.toFixed(6)} TON
+                  </div>
+                )}
               </div>
 
               {/* 4-slot grid */}
@@ -544,7 +584,7 @@ export function PixelAvatar({
                       {occupant ? (
                         <SlotContent
                           planet={occupant}
-                          balance={balance}
+                          tonBalance={tonBalance}
                           onCollect={onCollectWhitePlanet}
                           onReactivate={(id) => {
                             const res = onReactivateWhitePlanet?.(id);
@@ -655,18 +695,19 @@ export function PixelAvatar({
 
 interface SlotContentProps {
   planet: Planet;
-  balance: number;
+  tonBalance: number;
   onCollect?: (id: string) => void;
   onReactivate?: (id: string) => void;
 }
 
-function SlotContent({ planet, balance, onCollect, onReactivate }: SlotContentProps) {
+function SlotContent({ planet, tonBalance, onCollect, onReactivate }: SlotContentProps) {
   const active = isFarmActive(planet);
   const expired = isFarmExpired(planet);
   const remaining = getFarmTimeRemaining(planet);
   const fee = getReactivationFee(planet);
   const showCollect = needsCollect(planet);
   const cfg = PLANET_CONFIG[planet.name];
+  const canPay = tonBalance >= fee;
 
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
@@ -689,12 +730,12 @@ function SlotContent({ planet, balance, onCollect, onReactivate }: SlotContentPr
       {expired && !showCollect && onReactivate && (
         <button
           className="white-slot-action reactivate"
-          disabled={balance < fee}
-          style={balance < fee ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
+          disabled={!canPay}
+          style={!canPay ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
           onClick={(e) => { e.stopPropagation(); onReactivate(planet.id); }}
-          title={`${fee.toLocaleString()} $ZOOM`}
+          title={`${fee.toFixed(4)} TON`}
         >
-          REACT · {fee >= 1000 ? `${(fee / 1000).toFixed(1)}k` : fee}
+          REACT · {fee.toFixed(3)}
         </button>
       )}
     </div>

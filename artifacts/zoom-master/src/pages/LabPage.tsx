@@ -20,6 +20,7 @@ interface LabPageProps {
   hasAutoTap: boolean;
   whiteCollectionUnlocked: boolean;
   whitePlanets: Planet[];
+  tonBalance: number;
   telegramId: string | null;
   onCraft: () => { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType };
   onClaim: () => void;
@@ -34,7 +35,7 @@ interface FloatMsg { id: number; text: string; color: string }
 const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, whitePlanets, telegramId, onCraft, onClaim, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, whitePlanets, tonBalance, telegramId, onCraft, onClaim, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, visible = true }: LabPageProps) {
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
   const floatTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
@@ -279,6 +280,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
               whitePlanets={whitePlanets}
               whiteCollectionUnlocked={whiteCollectionUnlocked}
               balance={balance}
+              tonBalance={tonBalance}
               onPlaceWhitePlanet={onPlaceWhitePlanet}
               onCollectWhitePlanet={onCollectWhitePlanet}
               onReactivateWhitePlanet={onReactivateWhitePlanet}

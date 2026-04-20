@@ -10,6 +10,7 @@ const SyncBody = z.object({
   firstName: z.string().optional(),
   username: z.string().optional(),
   zoomBalance: z.number().min(0),
+  tonBalance: z.number().min(0).optional(),
   clientEpoch: z.number().int().nonnegative().optional(),
 });
 
@@ -20,7 +21,7 @@ router.post("/balance/sync", async (req, res) => {
     return;
   }
 
-  const { telegramId, firstName, username, zoomBalance, clientEpoch } = parsed.data;
+  const { telegramId, firstName, username, zoomBalance, tonBalance, clientEpoch } = parsed.data;
   const normalizedUsername = username ? username.replace(/^@/, "").toLowerCase() : null;
 
   try {
@@ -38,20 +39,47 @@ router.post("/balance/sync", async (req, res) => {
     //   server's value wins and the client's stale value is ignored. The
     //   client then snaps to the server value via reconcileFromSyncResponse.
     const ce = clientEpoch ?? 0;
+    const tb = typeof tonBalance === "number" ? Math.max(0, tonBalance) : 0;
     const [row] = await db
       .insert(usersTable)
-      .values({ telegramId, zoomBalance, firstName: firstName ?? null, username: normalizedUsername, referralCount: 0 })
+      .values({
+        telegramId,
+        zoomBalance,
+        tonBalance: tb,
+        firstName: firstName ?? null,
+        username: normalizedUsername,
+        referralCount: 0,
+      })
       .onConflictDoUpdate({
         target: usersTable.telegramId,
         set: {
           zoomBalance: sql`CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.zoomBalance} ELSE GREATEST(0, ${zoomBalance}) END`,
+          // TON balance follows the same epoch-fencing rule as ZOOM: the client
+          // is authoritative when its epoch matches, otherwise the stored
+          // server value wins (so server-side credits like admin grants are
+          // preserved). Only persist a TON value when the client actually sent
+          // one in this sync request.
+          ...(typeof tonBalance === "number"
+            ? {
+                tonBalance: sql`CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.tonBalance} ELSE GREATEST(0, ${tb}) END`,
+              }
+            : {}),
           ...(firstName ? { firstName } : {}),
           ...(normalizedUsername ? { username: normalizedUsername } : {}),
         },
       })
-      .returning({ zoomBalance: usersTable.zoomBalance, balanceEpoch: usersTable.balanceEpoch });
+      .returning({
+        zoomBalance: usersTable.zoomBalance,
+        tonBalance: usersTable.tonBalance,
+        balanceEpoch: usersTable.balanceEpoch,
+      });
 
-    res.json({ ok: true, zoomBalance: row?.zoomBalance ?? zoomBalance, balanceEpoch: row?.balanceEpoch ?? 0 });
+    res.json({
+      ok: true,
+      zoomBalance: row?.zoomBalance ?? zoomBalance,
+      tonBalance: row?.tonBalance ?? tb,
+      balanceEpoch: row?.balanceEpoch ?? 0,
+    });
   } catch (err) {
     console.error("[balance/sync] error:", err);
     res.status(500).json({ error: "Database error" });

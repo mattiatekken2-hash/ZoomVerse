@@ -101,6 +101,9 @@ export interface GameState {
   // be burned, sold, or listed. `slotIndex` is null while in inventory and
   // becomes 0..3 (immutable) once placed in the PixelAvatar slot grid.
   whitePlanets: Planet[];
+  // Accumulated TON earnings from White Collection planets (claimed via COLLECT).
+  // Reactivation fees for white planets are deducted from this balance.
+  tonBalance: number;
   lastFarmingSettledAt: number;
   claimedMilestones: number[];
   lastBalanceEpoch: number;
@@ -117,6 +120,9 @@ export const PLANET_CONFIG: Record<PlanetType, {
   activationTon: number;
   tapsNeeded: number;
   reactivationFee: number;
+  // For White Collection planets only: the rate is in TON/hour and the
+  // reactivationFee is in TON. For all other planets these fields are ZOOM.
+  isTonFarming?: boolean;
 }> = {
   BASIC: {
     rate: 2,
@@ -164,8 +170,11 @@ export const PLANET_CONFIG: Record<PlanetType, {
   },
   // White Collection — only obtainable via the 30 TON shop bundle.
   // chance: 0 ensures rollRarity() in the Lab can never produce them.
+  // Each white planet farms TON, not ZOOM. Combined rate of all 4 = 0.00462 TON/h
+  // (≈ 0.111 TON/day total). Reactivation fee is paid in TON (deducted from
+  // the user's accumulated tonBalance).
   WHITE1: {
-    rate: 50,
+    rate: 0.001155,
     color: "#ffffff",
     glowColor: "rgba(255,255,255,0.55)",
     chance: 0,
@@ -173,10 +182,11 @@ export const PLANET_CONFIG: Record<PlanetType, {
     craftCost: 0,
     activationTon: 0,
     tapsNeeded: 0,
-    reactivationFee: 500,
+    reactivationFee: 0.005,
+    isTonFarming: true,
   },
   WHITE2: {
-    rate: 60,
+    rate: 0.001155,
     color: "#f8faff",
     glowColor: "rgba(248,250,255,0.55)",
     chance: 0,
@@ -184,10 +194,11 @@ export const PLANET_CONFIG: Record<PlanetType, {
     craftCost: 0,
     activationTon: 0,
     tapsNeeded: 0,
-    reactivationFee: 600,
+    reactivationFee: 0.005,
+    isTonFarming: true,
   },
   WHITE3: {
-    rate: 75,
+    rate: 0.001155,
     color: "#f0f4ff",
     glowColor: "rgba(240,244,255,0.55)",
     chance: 0,
@@ -195,10 +206,11 @@ export const PLANET_CONFIG: Record<PlanetType, {
     craftCost: 0,
     activationTon: 0,
     tapsNeeded: 0,
-    reactivationFee: 800,
+    reactivationFee: 0.005,
+    isTonFarming: true,
   },
   WHITE4: {
-    rate: 100,
+    rate: 0.001155,
     color: "#e8eeff",
     glowColor: "rgba(232,238,255,0.6)",
     chance: 0,
@@ -206,7 +218,8 @@ export const PLANET_CONFIG: Record<PlanetType, {
     craftCost: 0,
     activationTon: 0,
     tapsNeeded: 0,
-    reactivationFee: 1000,
+    reactivationFee: 0.005,
+    isTonFarming: true,
   },
 };
 
@@ -305,6 +318,7 @@ const INITIAL_STATE: GameState = {
   whiteCollectionUnlocked: false,
   claimedWhiteCollection: false,
   whitePlanets: [],
+  tonBalance: 0,
   lastFarmingSettledAt: Date.now(),
   claimedMilestones: [],
   defectPlanets: [],
@@ -370,6 +384,7 @@ function loadState(): GameState {
           lastBalanceEpoch: parsed.lastBalanceEpoch ?? 0,
           claimedWhiteCollection: parsed.claimedWhiteCollection ?? false,
           whitePlanets: (parsed.whitePlanets || []).map(migratePlanet),
+          tonBalance: parsed.tonBalance ?? 0,
         };
         const resolvedTelegramId = telegramId || base.telegramId;
         // Only treat as "fresh load" when we did NOT find an entry keyed to the
@@ -442,6 +457,7 @@ function flushPersist() {
 }
 
 let _lastSyncedBalance = -1;
+let _lastSyncedTonBalance = -1;
 let _syncInFlight = false;
 let _pendingSyncBalance = -1;
 // Tracks the most recent server balanceEpoch we've observed. Sent on every
@@ -461,7 +477,12 @@ export function setCurrentBalanceEpoch(epoch: number): void {
 // to the server value (regardless of whether it is higher or lower) so the
 // next outgoing sync doesn't echo back the stale value and overwrite the
 // authoritative change.
-function reconcileFromSyncResponse(sentBalance: number, sentEpoch: number, res: { zoomBalance: number; balanceEpoch: number }): void {
+function reconcileFromSyncResponse(
+  sentBalance: number,
+  sentEpoch: number,
+  res: { zoomBalance: number; balanceEpoch: number; tonBalance?: number },
+  sentTonBalance?: number,
+): void {
   setCurrentBalanceEpoch(res.balanceEpoch);
   const serverAdvanced = res.balanceEpoch > sentEpoch;
   const valueDiverged = res.zoomBalance !== sentBalance;
@@ -474,13 +495,35 @@ function reconcileFromSyncResponse(sentBalance: number, sentEpoch: number, res: 
     _lastSyncedBalance = res.zoomBalance;
     _pendingSyncBalance = -1;
   }
+  // Same epoch-fence check for TON: if the server advanced and its TON value
+  // diverges from what we sent, snap local tonBalance to the server's value.
+  if (
+    serverAdvanced &&
+    typeof res.tonBalance === "number" &&
+    typeof sentTonBalance === "number" &&
+    Math.abs((res.tonBalance ?? 0) - (sentTonBalance ?? 0)) > 1e-9
+  ) {
+    try {
+      window.dispatchEvent(new CustomEvent("zoom-server-ton-snap", {
+        detail: { tonBalance: res.tonBalance, epoch: res.balanceEpoch },
+      }));
+    } catch { /**/ }
+    // Mirror the ZOOM snap behaviour: record the snapped value as the most
+    // recently synced one so the next outgoing sync (triggered by the snap's
+    // setState) doesn't re-send the now-stale local value.
+    _lastSyncedTonBalance = res.tonBalance;
+  }
 }
 
 function immediateSyncToServer(state: GameState) {
   const { telegramId } = getTelegramContext();
   if (!telegramId) return;
   const balance = Math.floor(state.balance);
-  if (balance === _lastSyncedBalance) return;
+  const tonNow = Math.max(0, state.tonBalance || 0);
+  // Sync if EITHER currency changed since the last sync — TON-only changes
+  // (collect/reactivate of white planets) must persist promptly too.
+  const tonChanged = Math.abs(tonNow - _lastSyncedTonBalance) > 1e-9;
+  if (balance === _lastSyncedBalance && !tonChanged) return;
 
   if (_syncInFlight) {
     _pendingSyncBalance = balance;
@@ -488,14 +531,16 @@ function immediateSyncToServer(state: GameState) {
   }
 
   _lastSyncedBalance = balance;
+  _lastSyncedTonBalance = tonNow;
   _syncInFlight = true;
   const ctx_ = getTelegramContext();
   const firstName = ctx_.firstName;
   const username = ctx_.username;
   const sentEpoch = _currentBalanceEpoch;
-  syncBalance({ telegramId, firstName, username, zoomBalance: balance, clientEpoch: sentEpoch })
+  const sentTon = Math.max(0, state.tonBalance || 0);
+  syncBalance({ telegramId, firstName, username, zoomBalance: balance, tonBalance: sentTon, clientEpoch: sentEpoch })
     .then((res) => {
-      reconcileFromSyncResponse(balance, sentEpoch, res);
+      reconcileFromSyncResponse(balance, sentEpoch, res, sentTon);
       _syncInFlight = false;
       if (_pendingSyncBalance >= 0 && _pendingSyncBalance !== _lastSyncedBalance) {
         const nextBalance = _pendingSyncBalance;
@@ -505,8 +550,12 @@ function immediateSyncToServer(state: GameState) {
           _lastSyncedBalance = nextBalance;
           _syncInFlight = true;
           const sentEpoch2 = _currentBalanceEpoch;
-          syncBalance({ telegramId: tid, firstName: fn, username: un, zoomBalance: nextBalance, clientEpoch: sentEpoch2 })
-            .then((r2) => { reconcileFromSyncResponse(nextBalance, sentEpoch2, r2); _syncInFlight = false; })
+          // Re-send the same TON value we just sent: this follow-up sync is
+          // only chasing the deferred ZOOM update; tonBalance state is owned
+          // by setState callbacks and we don't have access to it here.
+          const sentTon2 = sentTon;
+          syncBalance({ telegramId: tid, firstName: fn, username: un, zoomBalance: nextBalance, tonBalance: sentTon2, clientEpoch: sentEpoch2 })
+            .then((r2) => { reconcileFromSyncResponse(nextBalance, sentEpoch2, r2, sentTon2); _syncInFlight = false; })
             .catch(() => { _syncInFlight = false; });
         }
       }
@@ -626,6 +675,21 @@ export function getReactivationFee(planet: Planet): number {
 }
 
 /**
+ * Real-time TON pending on a single placed white planet (uncollected since
+ * lastCollectedAt, capped to the 24h DAILY_COLLECT_MS window). Used by the UI
+ * to show a live-ticking TON balance in the Pixel-Avatar modal.
+ */
+export function getWhitePlanetPendingTon(planet: Planet, now: number = Date.now()): number {
+  if (planet.slotIndex == null || !planet.isFarmingActive) return 0;
+  const cfg = PLANET_CONFIG[planet.name];
+  if (!cfg.isTonFarming) return 0;
+  const start = Math.max(planet.farmStartedAt, planet.lastCollectedAt);
+  const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+  if (end <= start) return 0;
+  return (cfg.rate / 3_600_000) * (end - start);
+}
+
+/**
  * SUN cycle (24h) has elapsed since the last activation and a $ZOOM
  * reactivation fee is required to start a new cycle.
  */
@@ -683,18 +747,10 @@ function settleFarmingState(state: GameState, now: number): GameState {
     }
   }
 
-  // White Collection planets that have been placed in a slot (slotIndex !== null)
-  // and are actively farming follow the same 24h-cycle income model.
-  for (const planet of state.whitePlanets || []) {
-    if (planet.slotIndex == null) continue;
-    if (!planet.isFarmingActive) continue;
-    const start = Math.max(from, planet.farmStartedAt, planet.lastCollectedAt);
-    const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
-    if (end > start) {
-      const dynamicRate = planet.rate + Math.random() * DYNAMIC_BONUS_MAX;
-      earned += (dynamicRate / 3_600_000) * (end - start) * speedMultiplier;
-    }
-  }
+  // White Collection planets earn TON (not ZOOM) and accumulate into tonBalance
+  // when the user presses COLLECT. Real-time pending TON for display is computed
+  // separately via getWhitePlanetPendingTon(); here we only need to update the
+  // settle timestamp — actual TON crediting happens on collectWhitePlanet().
 
   if (state.sun?.isActive) {
     const start = Math.max(from, state.sun.farmStartedAt, state.sun.lastCollectedAt);
@@ -842,7 +898,12 @@ export function useGameState() {
         : stateRef.current.balance + (serverBalance > localBalance ? serverBalance - localBalance : 0);
 
       setCurrentBalanceEpoch(serverEpoch);
-      const syncRes = await syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(finalBalance), clientEpoch: serverEpoch });
+      // Pull authoritative TON balance from /grants and seed local state with
+      // it before syncing back, so other devices' TON earnings/spends are
+      // reflected immediately on this device.
+      const serverTonBalance = Math.max(0, grants.tonBalance ?? 0);
+      const sentTon = serverTonBalance;
+      const syncRes = await syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(finalBalance), tonBalance: sentTon, clientEpoch: serverEpoch });
       setCurrentBalanceEpoch(syncRes.balanceEpoch);
 
       setState((prev) => {
@@ -855,6 +916,10 @@ export function useGameState() {
           referralCount: refData.referralCount,
           claimedMilestones: refData.claimedMilestones,
           balance: newBalance,
+          // Server is the source of truth for TON balance on app load (it
+          // captures collects/spends from other devices). After this seeding,
+          // the local client becomes authoritative under epoch fencing.
+          tonBalance: serverTonBalance,
           lastBalanceEpoch: syncRes.balanceEpoch,
         };
 
@@ -975,8 +1040,9 @@ export function useGameState() {
 
         {
           const sent = Math.floor(updated.balance);
-          {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, clientEpoch: sentEpoch })
-            .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r));}
+          const sentTon = Math.max(0, updated.tonBalance || 0);
+          {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, tonBalance: sentTon, clientEpoch: sentEpoch })
+            .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon));}
         }
         return updated;
       });
@@ -1100,11 +1166,12 @@ export function useGameState() {
       const localBalance = Math.floor(stateRef.current.balance);
 
       const sentEpoch = _currentBalanceEpoch;
+      const sentTon = Math.max(0, stateRef.current.tonBalance || 0);
       const [syncRes, grants] = await Promise.all([
-        syncBalance({ telegramId, firstName, username, zoomBalance: localBalance, clientEpoch: sentEpoch }),
+        syncBalance({ telegramId, firstName, username, zoomBalance: localBalance, tonBalance: sentTon, clientEpoch: sentEpoch }),
         fetchGrants(telegramId),
       ]);
-      reconcileFromSyncResponse(localBalance, sentEpoch, syncRes);
+      reconcileFromSyncResponse(localBalance, sentEpoch, syncRes, sentTon);
 
       applyGrants(grants);
     };
@@ -1143,8 +1210,9 @@ export function useGameState() {
         const newBal = prev.balance + amount;
         if (telegramId) {
           const sent = Math.floor(newBal);
-          {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, clientEpoch: sentEpoch })
-            .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r));}
+          const sentTon = Math.max(0, prev.tonBalance || 0);
+          {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, tonBalance: sentTon, clientEpoch: sentEpoch })
+            .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon));}
         }
         return { ...prev, balance: newBal, totalEarned: prev.totalEarned + amount };
       });
@@ -1161,10 +1229,20 @@ export function useGameState() {
         lastBalanceEpoch: Math.max(prev.lastBalanceEpoch ?? 0, detail.epoch ?? 0),
       }));
     };
+    const handleServerTonSnap = (e: Event) => {
+      const detail = (e as CustomEvent<{ tonBalance: number; epoch: number }>).detail;
+      if (!detail || typeof detail.tonBalance !== "number") return;
+      setState((prev) => ({
+        ...prev,
+        tonBalance: Math.max(0, detail.tonBalance),
+        lastBalanceEpoch: Math.max(prev.lastBalanceEpoch ?? 0, detail.epoch ?? 0),
+      }));
+    };
     window.addEventListener("zoom-admin-refresh", handleAdminRefresh);
     window.addEventListener("zoom-data-refresh", doSync);
     window.addEventListener("zoom-credit-local", handleLocalCredit as EventListener);
     window.addEventListener("zoom-server-balance-snap", handleServerSnap as EventListener);
+    window.addEventListener("zoom-server-ton-snap", handleServerTonSnap as EventListener);
 
     return () => {
       clearInterval(interval);
@@ -1172,6 +1250,7 @@ export function useGameState() {
       window.removeEventListener("zoom-data-refresh", doSync);
       window.removeEventListener("zoom-credit-local", handleLocalCredit as EventListener);
       window.removeEventListener("zoom-server-balance-snap", handleServerSnap as EventListener);
+      window.removeEventListener("zoom-server-ton-snap", handleServerTonSnap as EventListener);
     };
   }, []);
 
@@ -1192,8 +1271,9 @@ export function useGameState() {
             stateRef.current = settled;
             {
               const sent = Math.floor(settled.balance);
-              {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, clientEpoch: sentEpoch })
-                .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r));}
+              const sentTon = Math.max(0, settled.tonBalance || 0);
+              {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, tonBalance: sentTon, clientEpoch: sentEpoch })
+                .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon));}
             }
             return settled;
           });
@@ -1217,7 +1297,8 @@ export function useGameState() {
       const { telegramId, firstName, username } = getTelegramContext();
       if (telegramId) {
         const balance = Math.floor(settled.balance);
-        const payload = JSON.stringify({ telegramId, firstName, username, zoomBalance: balance, clientEpoch: _currentBalanceEpoch });
+        const tonBalance = Math.max(0, settled.tonBalance || 0);
+        const payload = JSON.stringify({ telegramId, firstName, username, zoomBalance: balance, tonBalance, clientEpoch: _currentBalanceEpoch });
         const url = `${window.location.origin}/api/balance/sync`;
         const sent = navigator.sendBeacon?.(url, new Blob([payload], { type: "application/json" }));
         if (!sent) {
@@ -1825,24 +1906,24 @@ export function useGameState() {
   }, []);
 
   // Reactivate a placed white planet whose 24h cycle has expired. Costs the
-  // planet's reactivationFee in $ZOOM (per PLANET_CONFIG).
+  // planet's reactivationFee in TON (deducted from accumulated tonBalance).
   const reactivateWhitePlanet = useCallback((id: string): { ok: boolean; reason?: string } => {
     let outcome: { ok: boolean; reason?: string } = { ok: true };
     setState((prev) => {
       const planet = prev.whitePlanets.find((p) => p.id === id);
       if (!planet || planet.slotIndex == null) {
-        outcome = { ok: false, reason: "Pianeta non in slot" };
+        outcome = { ok: false, reason: "Planet not placed" };
         return prev;
       }
       const fee = PLANET_CONFIG[planet.name].reactivationFee;
-      if (prev.balance < fee) {
-        outcome = { ok: false, reason: `Servono ${fee.toLocaleString()} $ZOOM per riattivare` };
+      if ((prev.tonBalance || 0) < fee) {
+        outcome = { ok: false, reason: `Need ${fee.toFixed(4)} TON to reactivate` };
         return prev;
       }
       const now = Date.now();
       return {
         ...prev,
-        balance: prev.balance - fee,
+        tonBalance: (prev.tonBalance || 0) - fee,
         whitePlanets: prev.whitePlanets.map((p) =>
           p.id === id
             ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
@@ -1853,11 +1934,22 @@ export function useGameState() {
     return outcome;
   }, []);
 
+  // Collect TON earnings from a placed white planet. Computes the pending TON
+  // accumulated since lastCollectedAt (capped to 24h) and credits it to
+  // tonBalance, then resets the per-planet collect timestamp.
   const collectWhitePlanet = useCallback((id: string) => {
     setState((prev) => {
+      const planet = prev.whitePlanets.find((p) => p.id === id);
+      if (!planet || planet.slotIndex == null || !planet.isFarmingActive) return prev;
       const now = Date.now();
+      const cfg = PLANET_CONFIG[planet.name];
+      const start = Math.max(planet.farmStartedAt, planet.lastCollectedAt);
+      const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+      const earnedTon = end > start ? (cfg.rate / 3_600_000) * (end - start) : 0;
+      if (earnedTon <= 0) return prev;
       return {
         ...prev,
+        tonBalance: (prev.tonBalance || 0) + earnedTon,
         whitePlanets: prev.whitePlanets.map((p) =>
           p.id === id ? { ...p, lastCollectedAt: now } : p
         ),
