@@ -135,11 +135,13 @@ export function PlanetCanvas({
       chargeRef.current = Math.max(0, chargeRef.current - dt * 1.25);
       const c = chargeRef.current;
       const p = progressRef.current;
-      // Speed cap grows with overall progress (110 → 760 deg/s) and the
-      // current speed is that cap scaled by the live charge. At rest the
-      // rings are fully stopped (speed = 0).
-      const cap = 110 + Math.pow(p, 0.85) * 650;
-      const speed = c * cap;
+      // Baseline: a slow, relaxing rotation always present (~22 deg/s)
+      // so the orbits never look frozen when the user isn't tapping.
+      // On top of that, taps add a charge-driven boost whose ceiling
+      // grows with overall progress (up to ~720 deg/s near full charge).
+      const baseline = 22;
+      const boostCap = 90 + Math.pow(p, 0.85) * 630;
+      const speed = baseline + c * boostCap;
       angleA = (angleA + speed * dt) % 360;
       angleB = (angleB - speed * 1.35 * dt) % 360;
       const a = orbitARef.current;
