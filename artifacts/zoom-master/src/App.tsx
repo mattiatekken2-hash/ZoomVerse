@@ -90,10 +90,12 @@ export default function App() {
     audio.volume = 1;
     audioRef.current = audio;
 
-    // Web Audio chain: source → lowpass (tames harsh top end on tiny phone
-    // speakers) → gentle compressor (prevents peak clipping in the WebView
-    // mixer) → gain (smooth fades). Built lazily on first user gesture so we
-    // don't trip Safari's autoplay policy.
+    // Minimal Web Audio chain: source → gain (smooth fades) → destination.
+    // We deliberately removed the lowpass + compressor: on the Telegram
+    // WebView (especially iOS) they introduced audible distortion / a
+    // "grainy" feel instead of cleaning the signal. The source MP3 is
+    // already a high-quality 320 kbps stereo file, so we let it through
+    // un-processed and only use the gain node for sample-accurate fades.
     let chainBuilt = false;
     const buildChain = () => {
       if (chainBuilt) return;
@@ -105,22 +107,10 @@ export default function App() {
         const ctx = new Ctx();
         audioCtxRef.current = ctx;
         const source = ctx.createMediaElementSource(audio);
-        const lowpass = ctx.createBiquadFilter();
-        lowpass.type = "lowpass";
-        lowpass.frequency.value = 14000;
-        lowpass.Q.value = 0.7;
-        const comp = ctx.createDynamicsCompressor();
-        comp.threshold.value = -18;
-        comp.knee.value = 24;
-        comp.ratio.value = 3;
-        comp.attack.value = 0.01;
-        comp.release.value = 0.25;
         const gain = ctx.createGain();
         gain.gain.value = 0;
         gainRef.current = gain;
-        source.connect(lowpass);
-        lowpass.connect(comp);
-        comp.connect(gain);
+        source.connect(gain);
         gain.connect(ctx.destination);
         chainBuilt = true;
       } catch {
