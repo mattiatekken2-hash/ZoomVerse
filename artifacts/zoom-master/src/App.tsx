@@ -259,6 +259,7 @@ export default function App() {
                   pendingPlanet={state.pendingPlanet}
                   hasAutoTap={!!state.hasAutoTap}
                   whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
+                  whiteCollectionBundles={Number(state.whiteCollectionBundles) || 0}
                   whitePlanets={state.whitePlanets || []}
                   tonBalance={state.tonBalance || 0}
                   telegramId={state.telegramId}

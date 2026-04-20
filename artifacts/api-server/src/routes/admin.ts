@@ -208,6 +208,7 @@ router.post("/admin/unlock-white-collection", async (req, res) => {
       .update(usersTable)
       .set({
         whiteCollectionUnlocked: true,
+        whiteCollectionBundles: sql`${usersTable.whiteCollectionBundles} + 1`,
         balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
       .where(eq(usersTable.telegramId, telegramId));

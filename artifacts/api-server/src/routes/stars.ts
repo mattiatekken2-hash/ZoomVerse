@@ -319,32 +319,31 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string)
       .set({ hasAutoTap: true })
       .where(eq(usersTable.telegramId, telegramId));
   } else if (item.itemType === "white_collection") {
+    // Serialize all White Collection credits via a transaction-scoped advisory
+    // lock so the global cap is enforced strictly even under concurrent buys.
+    // The lock id is an arbitrary stable bigint dedicated to this resource.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(7913042041)`);
+    // Atomically increment bundle count, gated by GLOBAL cap on the SUM of bundles
+    // across all users. No per-user cap (a single user could buy all 10).
     const result = await tx.execute(sql`
       UPDATE users
-      SET white_collection_unlocked = true
+      SET white_collection_bundles = white_collection_bundles + 1,
+          white_collection_unlocked = true
       WHERE telegram_id = ${telegramId}
-        AND white_collection_unlocked = false
-        AND (SELECT COUNT(*) FROM users WHERE white_collection_unlocked = true) < ${WHITE_COLLECTION_MAX_GLOBAL}
-      RETURNING white_collection_unlocked
+        AND (SELECT COALESCE(SUM(white_collection_bundles), 0) FROM users) < ${WHITE_COLLECTION_MAX_GLOBAL}
+      RETURNING white_collection_bundles
     `);
     if (!result.rows || result.rows.length === 0) {
-      const [u] = await tx.select({ unlocked: usersTable.whiteCollectionUnlocked })
-        .from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
-      if (u?.unlocked) {
-        // already owned — idempotent success
-      } else {
-        console.error(`[creditUserTx] WHITE_COLLECTION sold out at credit time for ${telegramId}`);
-        throw new Error("WHITE_COLLECTION_SOLD_OUT");
-      }
+      console.error(`[creditUserTx] WHITE_COLLECTION sold out at credit time for ${telegramId}`);
+      throw new Error("WHITE_COLLECTION_SOLD_OUT");
     }
   }
   return {};
 }
 
 async function getWhiteCollectionStock(): Promise<{ sold: number; remaining: number; max: number }> {
-  const [row] = await db.select({ sold: sql<number>`COUNT(*)::int` })
-    .from(usersTable)
-    .where(eq(usersTable.whiteCollectionUnlocked, true));
+  const [row] = await db.select({ sold: sql<number>`COALESCE(SUM(${usersTable.whiteCollectionBundles}), 0)::int` })
+    .from(usersTable);
   const sold = Number(row?.sold ?? 0);
   return { sold, remaining: Math.max(0, WHITE_COLLECTION_MAX_GLOBAL - sold), max: WHITE_COLLECTION_MAX_GLOBAL };
 }
@@ -661,9 +660,6 @@ router.post("/ton/confirm", async (req, res) => {
 
   if (item.itemType === "white_collection") {
     const stock = await getWhiteCollectionStock();
-    const [u] = await db.select({ unlocked: usersTable.whiteCollectionUnlocked })
-      .from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
-    if (u?.unlocked) { res.status(409).json({ error: "Already unlocked" }); return; }
     if (stock.remaining <= 0) { res.status(409).json({ error: "White Collection sold out" }); return; }
   }
 

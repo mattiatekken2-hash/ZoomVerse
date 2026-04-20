@@ -50,6 +50,7 @@ interface PixelAvatarProps {
   size?: number;
   whitePlanets?: Planet[];
   whiteCollectionUnlocked?: boolean;
+  whiteCollectionBundles?: number;
   balance?: number;
   tonBalance?: number;
   telegramId?: string | null;
@@ -62,6 +63,7 @@ export function PixelAvatar({
   size = 60,
   whitePlanets = [],
   whiteCollectionUnlocked = false,
+  whiteCollectionBundles = 0,
   balance: _balance = 0,
   tonBalance = 0,
   telegramId = null,
@@ -69,6 +71,12 @@ export function PixelAvatar({
   onCollectWhitePlanet,
   onReactivateWhitePlanet,
 }: PixelAvatarProps) {
+  // Each bundle unlocks 4 slots. Backwards-compat: if the legacy unlocked flag
+  // is true but bundles is 0 (pre-migration cache), assume 1 bundle = 4 slots.
+  const effectiveBundles = whiteCollectionBundles > 0
+    ? whiteCollectionBundles
+    : (whiteCollectionUnlocked ? 1 : 0);
+  const maxWhiteSlots = effectiveBundles * 4;
   const [tapped, setTapped] = useState(false);
   const [open, setOpen] = useState(false);
   const [depositMsg, setDepositMsg] = useState<string | null>(null);
@@ -170,8 +178,8 @@ export function PixelAvatar({
 
   // Sort the inventory (unplaced) and slot occupants for stable rendering.
   const inventory = whitePlanets.filter((p) => p.slotIndex == null);
-  const slotOccupants: (Planet | null)[] = [0, 1, 2, 3].map(
-    (i) => whitePlanets.find((p) => p.slotIndex === i) || null
+  const slotOccupants: (Planet | null)[] = Array.from({ length: maxWhiteSlots }, (_, i) =>
+    whitePlanets.find((p) => p.slotIndex === i) || null
   );
 
   const flashWhiteMsg = (msg: string) => {
@@ -180,6 +188,7 @@ export function PixelAvatar({
   };
 
   const handleSlotClick = (slotIndex: number) => {
+    if (slotIndex < 0 || slotIndex >= maxWhiteSlots) return;
     const occupant = slotOccupants[slotIndex];
     if (occupant) return; // Locked once filled.
     if (!selectedInvId || !onPlaceWhitePlanet) {
@@ -682,16 +691,19 @@ export function PixelAvatar({
                 )}
               </div>
 
-              {/* 4-slot grid */}
+              {/* Slot grid: 4 columns, 1 row per bundle. Scrolls vertically when many bundles are owned. */}
               <div
                 style={{
                   display: "grid",
                   gridTemplateColumns: "repeat(4, 1fr)",
                   gap: 10,
                   marginBottom: 10,
+                  maxHeight: maxWhiteSlots > 12 ? 360 : undefined,
+                  overflowY: maxWhiteSlots > 12 ? "auto" : "visible",
+                  paddingRight: maxWhiteSlots > 12 ? 4 : 0,
                 }}
               >
-                {[0, 1, 2, 3].map((i) => {
+                {slotOccupants.map((_occupantUnused, i) => {
                   const occupant = slotOccupants[i];
                   const targetable = !occupant && !!selectedInvId;
                   return (
@@ -792,7 +804,21 @@ export function PixelAvatar({
                 </div>
               )}
 
-              {whiteCollectionUnlocked && inventory.length === 0 && slotOccupants.every((o) => o) && (
+              {whiteCollectionUnlocked && effectiveBundles > 1 && (
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "rgba(255,255,255,0.55)",
+                    textAlign: "center",
+                    marginTop: 4,
+                    letterSpacing: "0.08em",
+                  }}
+                >
+                  {effectiveBundles}× bundles · {maxWhiteSlots} slots
+                </div>
+              )}
+
+              {whiteCollectionUnlocked && maxWhiteSlots > 0 && inventory.length === 0 && slotOccupants.every((o) => o) && (
                 <div
                   style={{
                     fontSize: 11,
@@ -802,7 +828,7 @@ export function PixelAvatar({
                     opacity: 0.8,
                   }}
                 >
-                  All 4 white planets have been placed 🔒
+                  All {maxWhiteSlots} white planets have been placed 🔒
                 </div>
               )}
             </div>

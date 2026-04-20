@@ -10,10 +10,11 @@ const NEON_CYAN = "#0fd9ff";
 interface Props {
   telegramId: string | null;
   unlocked?: boolean;
+  ownedBundles?: number;
   onUnlocked?: () => void;
 }
 
-export function WhiteCollectionWidget({ telegramId, unlocked = false, onUnlocked }: Props) {
+export function WhiteCollectionWidget({ telegramId, unlocked = false, ownedBundles = 0, onUnlocked }: Props) {
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
   const [open, setOpen] = useState(false);
@@ -46,7 +47,6 @@ export function WhiteCollectionWidget({ telegramId, unlocked = false, onUnlocked
   const soldOut = !!stock && stock.remaining <= 0;
 
   const handleBuy = async () => {
-    if (unlocked) { setMessage("Already unlocked"); return; }
     if (!telegramId) { setMessage("Telegram ID missing"); return; }
     if (!connectedAddress) {
       tonConnectUI.openModal();
@@ -316,10 +316,10 @@ export function WhiteCollectionWidget({ telegramId, unlocked = false, onUnlocked
               <button
                 className="wc-buy-btn"
                 onClick={handleBuy}
-                disabled={buying || unlocked || soldOut}
+                disabled={buying || soldOut}
                 data-testid="button-buy-white-collection"
               >
-                {unlocked ? "OWNED" : soldOut ? "SOLD OUT" : buying ? "PROCESSING…" : "BUY"}
+                {soldOut ? "SOLD OUT" : buying ? "PROCESSING…" : ownedBundles > 0 ? `BUY ANOTHER (OWN ${ownedBundles})` : "BUY"}
               </button>
             </div>
 

@@ -93,13 +93,18 @@ export interface GameState {
   sunCount: number;
   hasAutoTap: boolean;
   whiteCollectionUnlocked: boolean;
-  // Set true once we've materialized the 4 WHITE planets locally so we don't
-  // re-grant them on every grants poll. Keyed per-user via storage.
-  claimedWhiteCollection: boolean;
-  // The 4 white planets (one of each WHITE1..WHITE4). They live OUTSIDE the
-  // regular `planets` array so they never appear on the FarmPage and can't
-  // be burned, sold, or listed. `slotIndex` is null while in inventory and
-  // becomes 0..3 (immutable) once placed in the PixelAvatar slot grid.
+  // Number of White Collection bundles this user owns (each bundle = 4 white
+  // planets + 4 slots). Global cap of 10 bundles is enforced server-side.
+  whiteCollectionBundles: number;
+  // Number of bundles already materialized locally (1 bundle = 4 planets
+  // appended to whitePlanets). When grants reports a higher bundle count,
+  // we materialize the delta. Per-user via storage.
+  claimedWhiteCollectionBundles: number;
+  // White planets owned by the user. Each bundle adds 4 fresh planets
+  // (WHITE1..WHITE4). They live OUTSIDE the regular `planets` array so they
+  // never appear on the FarmPage and can't be burned, sold, or listed.
+  // `slotIndex` is null while in inventory and becomes 0..(maxSlots-1)
+  // (immutable) once placed in the PixelAvatar slot grid.
   whitePlanets: Planet[];
   // Accumulated TON earnings from White Collection planets (claimed via COLLECT).
   // Reactivation fees for white planets are deducted from this balance.
@@ -316,7 +321,8 @@ const INITIAL_STATE: GameState = {
   sunCount: 0,
   hasAutoTap: false,
   whiteCollectionUnlocked: false,
-  claimedWhiteCollection: false,
+  whiteCollectionBundles: 0,
+  claimedWhiteCollectionBundles: 0,
   whitePlanets: [],
   tonBalance: 0,
   lastFarmingSettledAt: Date.now(),
@@ -382,7 +388,10 @@ function loadState(): GameState {
           lastFarmingSettledAt: parsed.lastFarmingSettledAt ?? Date.now(),
           claimedMilestones: parsed.claimedMilestones ?? [],
           lastBalanceEpoch: parsed.lastBalanceEpoch ?? 0,
-          claimedWhiteCollection: parsed.claimedWhiteCollection ?? false,
+          whiteCollectionBundles: (parsed as unknown as Record<string, unknown>).whiteCollectionBundles as number ?? (parsed.whiteCollectionUnlocked ? 1 : 0),
+          claimedWhiteCollectionBundles:
+            (parsed as unknown as Record<string, unknown>).claimedWhiteCollectionBundles as number
+            ?? ((parsed as unknown as Record<string, unknown>).claimedWhiteCollection ? 1 : 0),
           whitePlanets: (parsed.whitePlanets || []).map(migratePlanet),
           tonBalance: parsed.tonBalance ?? 0,
         };
@@ -597,12 +606,12 @@ function rollRarity(): PlanetType {
   return "BASIC";
 }
 
-function makeWhiteCollectionPlanets(): Planet[] {
+function makeWhiteCollectionPlanets(bundleIndex = 0): Planet[] {
   const now = Date.now();
   return WHITE_PLANET_TYPES.map((type, i) => {
     const cfg = PLANET_CONFIG[type];
     return {
-      id: `white-${type}-${now}-${i}-${Math.random().toString(36).slice(2)}`,
+      id: `white-${type}-b${bundleIndex}-${now}-${i}-${Math.random().toString(36).slice(2)}`,
       name: type,
       rate: cfg.rate,
       color: cfg.color,
@@ -942,23 +951,31 @@ export function useGameState() {
           updated = { ...updated, sun: null, claimedBonusSun: false, sunCount: 0 };
         }
 
+        const serverBundles = Math.max(0, Number(grants.whiteCollectionBundles ?? 0));
         updated = {
           ...updated,
           maxSlots: Math.max(INITIAL_STATE.maxSlots, INITIAL_STATE.maxSlots + grants.bonusSlots),
           hasAutoTap: !!grants.hasAutoTap,
-          whiteCollectionUnlocked: !!grants.whiteCollectionUnlocked,
+          whiteCollectionUnlocked: !!grants.whiteCollectionUnlocked || serverBundles > 0,
+          whiteCollectionBundles: serverBundles,
         };
 
-        // White Collection: when the unlock flag flips true, materialize the
-        // 4 white planets ONCE into the inventory. Re-grants are blocked by
-        // claimedWhiteCollection so re-purchases (if ever allowed) won't
-        // duplicate. We do not auto-revoke when the flag goes false — once
-        // the user owns them, they are permanent.
-        if (updated.whiteCollectionUnlocked && !updated.claimedWhiteCollection && (updated.whitePlanets || []).length === 0) {
+        // White Collection: each owned bundle materializes 4 fresh white
+        // planets exactly once. We track how many bundles have already been
+        // materialized via claimedWhiteCollectionBundles so re-grants never
+        // duplicate. White planets are permanent — we do not auto-revoke
+        // even if the server count goes down.
+        const claimedBundles = Math.max(0, updated.claimedWhiteCollectionBundles ?? 0);
+        if (serverBundles > claimedBundles) {
+          const toMaterialize = serverBundles - claimedBundles;
+          const newWhitePlanets: Planet[] = [];
+          for (let b = 0; b < toMaterialize; b++) {
+            newWhitePlanets.push(...makeWhiteCollectionPlanets(claimedBundles + b));
+          }
           updated = {
             ...updated,
-            claimedWhiteCollection: true,
-            whitePlanets: makeWhiteCollectionPlanets(),
+            claimedWhiteCollectionBundles: serverBundles,
+            whitePlanets: [...(updated.whitePlanets || []), ...newWhitePlanets],
           };
         }
 
@@ -1072,18 +1089,26 @@ export function useGameState() {
           updated = { ...updated, sun: null, claimedBonusSun: false, sunCount: 0 };
         }
 
+        const serverBundles2 = Math.max(0, Number(grants.whiteCollectionBundles ?? 0));
         updated = {
           ...updated,
           maxSlots: Math.max(INITIAL_STATE.maxSlots, INITIAL_STATE.maxSlots + grants.bonusSlots),
           hasAutoTap: !!grants.hasAutoTap,
-          whiteCollectionUnlocked: !!grants.whiteCollectionUnlocked,
+          whiteCollectionUnlocked: !!grants.whiteCollectionUnlocked || serverBundles2 > 0,
+          whiteCollectionBundles: serverBundles2,
         };
 
-        if (updated.whiteCollectionUnlocked && !updated.claimedWhiteCollection && (updated.whitePlanets || []).length === 0) {
+        const claimedBundles2 = Math.max(0, updated.claimedWhiteCollectionBundles ?? 0);
+        if (serverBundles2 > claimedBundles2) {
+          const toMaterialize2 = serverBundles2 - claimedBundles2;
+          const newWhitePlanets2: Planet[] = [];
+          for (let b = 0; b < toMaterialize2; b++) {
+            newWhitePlanets2.push(...makeWhiteCollectionPlanets(claimedBundles2 + b));
+          }
           updated = {
             ...updated,
-            claimedWhiteCollection: true,
-            whitePlanets: makeWhiteCollectionPlanets(),
+            claimedWhiteCollectionBundles: serverBundles2,
+            whitePlanets: [...(updated.whitePlanets || []), ...newWhitePlanets2],
           };
         }
 

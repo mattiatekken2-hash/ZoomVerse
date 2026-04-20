@@ -19,6 +19,7 @@ interface LabPageProps {
   pendingPlanet: Planet | null;
   hasAutoTap: boolean;
   whiteCollectionUnlocked: boolean;
+  whiteCollectionBundles: number;
   whitePlanets: Planet[];
   tonBalance: number;
   telegramId: string | null;
@@ -35,7 +36,7 @@ interface FloatMsg { id: number; text: string; color: string }
 const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, whitePlanets, tonBalance, telegramId, onCraft, onClaim, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, tonBalance, telegramId, onCraft, onClaim, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, visible = true }: LabPageProps) {
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
   const floatTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
@@ -136,7 +137,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             onTap={handleCraft}
           />
           <MysteryBoxWidget telegramId={telegramId} />
-          <WhiteCollectionWidget telegramId={telegramId} unlocked={whiteCollectionUnlocked} />
+          <WhiteCollectionWidget telegramId={telegramId} unlocked={whiteCollectionUnlocked} ownedBundles={whiteCollectionBundles} />
         </>
       )}
       <div className="relative flex-1" style={{ minHeight: 0 }} onClick={canCraft ? handleCraft : undefined}>
@@ -279,6 +280,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
               size={60}
               whitePlanets={whitePlanets}
               whiteCollectionUnlocked={whiteCollectionUnlocked}
+              whiteCollectionBundles={whiteCollectionBundles}
               balance={balance}
               tonBalance={tonBalance}
               telegramId={telegramId}
