@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { playLabBlip } from "../utils/labSfx";
 
 const D = "#0a0a14";
 const H = "#e8ecff";
@@ -31,7 +30,6 @@ export function PixelAvatar({ size = 60 }: { size?: number }) {
 
   const handleTap = () => {
     setTapped(true);
-    playLabBlip();
     window.setTimeout(() => setTapped(false), 220);
   };
 

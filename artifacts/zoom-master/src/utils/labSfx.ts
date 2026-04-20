@@ -20,15 +20,15 @@ function isMuted(): boolean {
 }
 
 /**
- * Tiny synthesized 8-bit "soft pop" blip — a short harmonic chirp with a
- * gentle envelope. Designed to feel clean and retro, not piercing.
- * Throttled to one play per ~60ms so rapid taps don't machine-gun.
- * Honors the global mute flag (`zoom-bgm-muted`).
+ * "Forge thump" — a short, deep retro-game craft sound used when the user
+ * presses FORGE PLANET. A descending square-wave bass body gives weight,
+ * and a brief metallic ping on top gives that crafted / forged feel.
+ * Honors the global mute flag and is throttled to avoid rapid repeats.
  */
-export function playLabBlip(): void {
+export function playForgeThump(): void {
   if (isMuted()) return;
   const now = performance.now();
-  if (now - lastPlay < 60) return;
+  if (now - lastPlay < 80) return;
   lastPlay = now;
 
   const c = getCtx();
@@ -36,39 +36,37 @@ export function playLabBlip(): void {
   if (c.state === "suspended") c.resume().catch(() => {});
 
   const t0 = c.currentTime;
-  const dur = 0.12;
+  const dur = 0.22;
 
-  // Fundamental: triangle wave for that soft chiptune feel.
-  const osc = c.createOscillator();
-  osc.type = "triangle";
-  osc.frequency.setValueAtTime(880, t0);
-  osc.frequency.exponentialRampToValueAtTime(1320, t0 + 0.05);
-  osc.frequency.exponentialRampToValueAtTime(660, t0 + dur);
+  // Bass body: square wave dropping from 220 → 90 Hz for that retro thump.
+  const bass = c.createOscillator();
+  bass.type = "square";
+  bass.frequency.setValueAtTime(220, t0);
+  bass.frequency.exponentialRampToValueAtTime(90, t0 + dur);
 
-  // Harmonic shimmer one octave up, quieter.
-  const harm = c.createOscillator();
-  harm.type = "sine";
-  harm.frequency.setValueAtTime(1760, t0);
-  harm.frequency.exponentialRampToValueAtTime(2200, t0 + 0.04);
+  const bassEnv = c.createGain();
+  bassEnv.gain.setValueAtTime(0.0001, t0);
+  bassEnv.gain.exponentialRampToValueAtTime(0.22, t0 + 0.01);
+  bassEnv.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
 
-  // Envelope: quick attack, soft exponential decay.
-  const env = c.createGain();
-  env.gain.setValueAtTime(0.0001, t0);
-  env.gain.exponentialRampToValueAtTime(0.18, t0 + 0.008);
-  env.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  // Metallic ping on top: short triangle blip for the "craft" cue.
+  const ping = c.createOscillator();
+  ping.type = "triangle";
+  ping.frequency.setValueAtTime(1200, t0);
+  ping.frequency.exponentialRampToValueAtTime(900, t0 + 0.08);
 
-  const harmEnv = c.createGain();
-  harmEnv.gain.setValueAtTime(0.0001, t0);
-  harmEnv.gain.exponentialRampToValueAtTime(0.06, t0 + 0.008);
-  harmEnv.gain.exponentialRampToValueAtTime(0.0001, t0 + dur * 0.7);
+  const pingEnv = c.createGain();
+  pingEnv.gain.setValueAtTime(0.0001, t0);
+  pingEnv.gain.exponentialRampToValueAtTime(0.09, t0 + 0.005);
+  pingEnv.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.09);
 
-  osc.connect(env);
-  harm.connect(harmEnv);
-  env.connect(c.destination);
-  harmEnv.connect(c.destination);
+  bass.connect(bassEnv);
+  ping.connect(pingEnv);
+  bassEnv.connect(c.destination);
+  pingEnv.connect(c.destination);
 
-  osc.start(t0);
-  harm.start(t0);
-  osc.stop(t0 + dur + 0.02);
-  harm.stop(t0 + dur + 0.02);
+  bass.start(t0);
+  ping.start(t0);
+  bass.stop(t0 + dur + 0.02);
+  ping.stop(t0 + 0.12);
 }
