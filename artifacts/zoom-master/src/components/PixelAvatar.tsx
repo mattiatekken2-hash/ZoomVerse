@@ -336,8 +336,9 @@ export function PixelAvatar({ size = 60 }: { size?: number }) {
                 />
                 <button
                   className="pixel-modal-btn secondary"
-                  style={{ whiteSpace: "nowrap" }}
-                  onClick={handleWithdraw}
+                  style={{ whiteSpace: "nowrap", opacity: 0.5, cursor: "not-allowed", filter: "grayscale(0.4)" }}
+                  disabled
+                  title="Coming soon"
                 >
                   WITHDRAW TON
                 </button>
