@@ -343,6 +343,14 @@ export function PixelAvatar({ size = 60 }: { size?: number }) {
                 </button>
               </div>
 
+              <input
+                className="pixel-modal-input"
+                type="text"
+                placeholder="Withdraw address (coming soon)"
+                disabled
+                style={{ marginTop: 10, opacity: 0.55, cursor: "not-allowed" }}
+              />
+
               {withdrawMsg && (
                 <div
                   style={{
