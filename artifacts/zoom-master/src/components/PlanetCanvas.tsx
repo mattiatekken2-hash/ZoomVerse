@@ -200,7 +200,11 @@ export function PlanetCanvas({
   }, [progress, displayColor, forgePhase]);
 
   // Fixed core size: stays 40-50px regardless of progress.
-  const coreSize = Math.max(40, Math.min(50, size * 0.16));
+  // Core grows subtly with progress — from a small pinpoint at the start
+  // up to ~1.6x at full charge, just enough to feel like it's "filling up"
+  // without dominating the canvas.
+  const coreBase = Math.max(40, Math.min(50, size * 0.16));
+  const coreSize = coreBase * (1 + pct * 0.6);
   // Orbit radii scale with container so the rings don't crowd the core but
   // also don't escape the canvas on small phones.
   const orbitARadius = Math.max(coreSize * 1.35, size * 0.22);
