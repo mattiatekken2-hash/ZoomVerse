@@ -287,39 +287,72 @@
   100% { opacity: 0.4; }
 }
 
-/* Shooting Stars / Meteors */
-.meteor {
+/* Individual twinkling "hero" stars — each pulses on its own timing,
+   driven by inline animationDuration/Delay set in NebulaBackground.tsx,
+   so the sky shimmers asynchronously instead of in lockstep. */
+.twinkle-star {
   position: absolute;
-  height: 1.5px;
-  background: linear-gradient(90deg, rgba(255,255,255,0.9), rgba(255,255,255,0));
   border-radius: 50%;
   pointer-events: none;
+  opacity: 0.4;
+  animation-name: hero-twinkle;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  will-change: opacity, transform;
 }
-.meteor-1 {
-  width: 120px;
-  top: 12%;
-  left: -140px;
-  transform: rotate(-25deg);
-  animation: meteor-fly 12s linear 3s infinite;
+@keyframes hero-twinkle {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50%      { opacity: 1;    transform: scale(1.25); }
 }
-.meteor-2 {
-  width: 80px;
-  top: 35%;
-  left: -100px;
-  transform: rotate(-18deg);
-  animation: meteor-fly 9s linear 7.5s infinite;
+
+/* Comets — long animation periods with most of the cycle off-screen so
+   one only crosses the sky every 30-60 seconds. The visible streak lasts
+   about 4 seconds, the rest is dead time. */
+.comet {
+  position: absolute;
+  pointer-events: none;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0) 0%,
+    rgba(255,255,255,0.35) 30%,
+    rgba(180,220,255,0.85) 70%,
+    #ffffff 100%
+  );
+  filter: drop-shadow(0 0 6px rgba(180,220,255,0.85)) drop-shadow(0 0 14px rgba(120,180,255,0.55));
+  opacity: 0;
+  will-change: transform, opacity;
 }
-.meteor-3 {
-  width: 60px;
-  top: 60%;
-  left: -80px;
-  transform: rotate(-30deg);
-  animation: meteor-fly 15s linear 1.5s infinite;
+.comet-1 {
+  width: 180px;
+  top: 18%;
+  left: -200px;
+  transform: rotate(-22deg);
+  animation: comet-fly-a 38s linear 6s infinite;
 }
-@keyframes meteor-fly {
-  0% { transform: translateX(0) rotate(-25deg); opacity: 1; }
-  80% { opacity: 0.8; }
-  100% { transform: translateX(120vw) rotate(-25deg); opacity: 0; }
+.comet-2 {
+  width: 140px;
+  top: 58%;
+  left: -180px;
+  transform: rotate(-16deg);
+  animation: comet-fly-b 52s linear 24s infinite;
+}
+@keyframes comet-fly-a {
+  0%   { transform: translate3d(0, 0, 0) rotate(-22deg); opacity: 0; }
+  2%   { opacity: 0; }
+  4%   { opacity: 1; }
+  14%  { opacity: 1; }
+  18%  { transform: translate3d(120vw, 38vh, 0) rotate(-22deg); opacity: 0; }
+  100% { transform: translate3d(120vw, 38vh, 0) rotate(-22deg); opacity: 0; }
+}
+@keyframes comet-fly-b {
+  0%   { transform: translate3d(0, 0, 0) rotate(-16deg); opacity: 0; }
+  3%   { opacity: 0; }
+  5%   { opacity: 1; }
+  13%  { opacity: 1; }
+  17%  { transform: translate3d(120vw, 22vh, 0) rotate(-16deg); opacity: 0; }
+  100% { transform: translate3d(120vw, 22vh, 0) rotate(-16deg); opacity: 0; }
 }
 
 /* ======== GLASSMORPHISM ======== */
