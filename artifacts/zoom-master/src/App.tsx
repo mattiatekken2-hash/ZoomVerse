@@ -257,6 +257,7 @@ export default function App() {
                   currentCraftRarity={state.currentCraftRarity}
                   pendingPlanet={state.pendingPlanet}
                   hasAutoTap={!!state.hasAutoTap}
+                  whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
                   telegramId={state.telegramId}
                   onCraft={craft}
                   onClaim={claimCraft}

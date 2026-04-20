@@ -29,6 +29,7 @@ export const usersTable = pgTable("users", {
   dailyStreakCycle: integer("daily_streak_cycle").notNull().default(0),
   lastDailyClaimAt: timestamp("last_daily_claim_at"),
   hasAutoTap: boolean("has_auto_tap").notNull().default(false),
+  whiteCollectionUnlocked: boolean("white_collection_unlocked").notNull().default(false),
 }, (table) => [
   index("idx_users_zoom_balance").on(table.zoomBalance),
   index("idx_users_referred_by").on(table.referredBy),

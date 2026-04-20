@@ -84,6 +84,7 @@ export interface GameState {
   claimedBonusSun: boolean;
   sunCount: number;
   hasAutoTap: boolean;
+  whiteCollectionUnlocked: boolean;
   lastFarmingSettledAt: number;
   claimedMilestones: number[];
   lastBalanceEpoch: number;
@@ -239,6 +240,7 @@ const INITIAL_STATE: GameState = {
   claimedBonusSun: false,
   sunCount: 0,
   hasAutoTap: false,
+  whiteCollectionUnlocked: false,
   lastFarmingSettledAt: Date.now(),
   claimedMilestones: [],
   defectPlanets: [],
@@ -777,6 +779,7 @@ export function useGameState() {
           ...updated,
           maxSlots: Math.max(INITIAL_STATE.maxSlots, INITIAL_STATE.maxSlots + grants.bonusSlots),
           hasAutoTap: !!grants.hasAutoTap,
+          whiteCollectionUnlocked: !!grants.whiteCollectionUnlocked,
         };
 
         // Apply pending bonus planets per type (only new ones not yet claimed)
@@ -892,6 +895,7 @@ export function useGameState() {
           ...updated,
           maxSlots: Math.max(INITIAL_STATE.maxSlots, INITIAL_STATE.maxSlots + grants.bonusSlots),
           hasAutoTap: !!grants.hasAutoTap,
+          whiteCollectionUnlocked: !!grants.whiteCollectionUnlocked,
         };
 
         const bonusTypes: Array<{ key: keyof Grants; claimedKey: keyof GameState; type: PlanetType }> = [

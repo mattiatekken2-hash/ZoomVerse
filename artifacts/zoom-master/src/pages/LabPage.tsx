@@ -3,6 +3,7 @@ import { PlanetCanvas } from "../components/PlanetCanvas";
 import { AutoTapWidget } from "../components/AutoTapWidget";
 import { MysteryBoxWidget } from "../components/MysteryBoxWidget";
 import { PixelAvatar } from "../components/PixelAvatar";
+import { WhiteCollectionWidget } from "../components/WhiteCollectionWidget";
 import type { Planet, PlanetType } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
@@ -17,6 +18,7 @@ interface LabPageProps {
   currentCraftRarity: PlanetType | null;
   pendingPlanet: Planet | null;
   hasAutoTap: boolean;
+  whiteCollectionUnlocked: boolean;
   telegramId: string | null;
   onCraft: () => { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType };
   onClaim: () => void;
@@ -28,7 +30,7 @@ interface FloatMsg { id: number; text: string; color: string }
 const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, telegramId, onCraft, onClaim, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, telegramId, onCraft, onClaim, visible = true }: LabPageProps) {
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
   const floatTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
@@ -129,6 +131,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             onTap={handleCraft}
           />
           <MysteryBoxWidget telegramId={telegramId} />
+          <WhiteCollectionWidget telegramId={telegramId} unlocked={whiteCollectionUnlocked} />
         </>
       )}
       <div className="relative flex-1" style={{ minHeight: 0 }} onClick={canCraft ? handleCraft : undefined}>
