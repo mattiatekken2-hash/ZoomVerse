@@ -165,14 +165,15 @@ export function PlanetCanvas({
         // Subtle scale: 1.0 → 1.6 over the build.
         const scale = 1 + p * 0.6;
         core.style.transform = `translate(-50%, -50%) scale(${scale})`;
-        // Glow intensifies (alpha + radius) without triggering layout.
-        const glowR = 20 + p * 40;
-        const glowSpread = 10 + p * 20;
-        const alpha = Math.floor(60 + p * 120).toString(16).padStart(2, "0");
-        const whiteAlpha = (0.3 + p * 0.4).toFixed(2);
+        // Glow already starts bright and broad (matching the desired
+        // "lighthouse" baseline look) and intensifies further on tap.
+        const glowR = 50 + p * 30;
+        const glowSpread = 22 + p * 16;
+        const alpha = Math.floor(150 + p * 80).toString(16).padStart(2, "0");
+        const whiteAlpha = (0.55 + p * 0.3).toFixed(2);
         core.style.boxShadow =
           `0 0 ${glowR}px ${glowSpread}px ${col}${alpha}, ` +
-          `0 0 ${60 + p * 60}px rgba(255,255,255,${whiteAlpha})`;
+          `0 0 ${100 + p * 60}px rgba(255,255,255,${whiteAlpha})`;
       }
 
       rafId = requestAnimationFrame(tick);
@@ -310,9 +311,14 @@ export function PlanetCanvas({
               borderRadius: "50%",
               background: "radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(240,245,255,0.95) 35%, rgba(180,200,255,0.6) 70%, transparent 100%)",
               transform: "translate(-50%, -50%) scale(1)",
+              // Inline baseline glow so the very first paint (before the rAF
+              // loop's first tick) already shows the bright halo.
+              boxShadow:
+                `0 0 50px 22px ${displayColor}96, ` +
+                `0 0 100px rgba(255,255,255,0.55)`,
               willChange: "transform, box-shadow",
-              // Glow + scale are mutated imperatively by the rAF loop so taps
-              // never trigger React re-renders or paint thrash.
+              // Glow + scale are then mutated imperatively by the rAF loop
+              // so taps never trigger React re-renders or paint thrash.
             }}
             data-testid="forge-core"
           />
