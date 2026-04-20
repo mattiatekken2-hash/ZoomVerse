@@ -1,5 +1,47 @@
 const API_BASE = `${window.location.origin}/api`;
 
+/**
+ * Tell the server a planet started farming. The server uses this to
+ * schedule the "Farm full" Telegram notification 24h later. Fire-and-forget
+ * — failures are silently ignored so a network blip never blocks gameplay.
+ */
+export function notifyFarmStart(telegramId: string, planetId: string, planetType: string, isWhite = false): void {
+  if (!telegramId || !planetId) return;
+  fetch(`${API_BASE}/farm/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ telegramId, planetId, planetType, isWhite }),
+    keepalive: true,
+  }).catch(() => { /* ignore */ });
+}
+
+/**
+ * Stamp the planet's cycle as collected so the server's cron skips the
+ * "Farm full" notification (the user is clearly still engaged).
+ */
+export function notifyFarmCollect(telegramId: string, planetId: string): void {
+  if (!telegramId || !planetId) return;
+  fetch(`${API_BASE}/farm/collect`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ telegramId, planetId }),
+    keepalive: true,
+  }).catch(() => { /* ignore */ });
+}
+
+/**
+ * Cancel a scheduled "Farm full" notification (planet sold/burned/stopped).
+ */
+export function notifyFarmStop(telegramId: string, planetId: string): void {
+  if (!telegramId || !planetId) return;
+  fetch(`${API_BASE}/farm/stop`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ telegramId, planetId }),
+    keepalive: true,
+  }).catch(() => { /* ignore */ });
+}
+
 export async function fetchServerTime(): Promise<number> {
   try {
     const res = await fetch(`${API_BASE}/time?t=${Date.now()}`, { cache: "no-store" });

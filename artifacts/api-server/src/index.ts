@@ -1,6 +1,10 @@
 import http from "node:http";
 import app from "./app";
 import { logger } from "./lib/logger";
+import { sendBotMessage } from "./lib/notify";
+import { fetchPendingFarmNotifications, markFarmNotified } from "./routes/farm";
+
+const FARM_FULL_MESSAGE = "⚡ Your Farm is full! Collect your TON and restart the engines to keep earning.";
 
 const rawPort = process.env["PORT"];
 
@@ -37,7 +41,34 @@ server.listen(port, () => {
   logger.info({ port }, "Server listening");
   startKeepAlive();
   registerTelegramWebhook();
+  startFarmNotificationCron();
 });
+
+function startFarmNotificationCron() {
+  // Scan every 60s for cycles whose 24h has elapsed and that the user
+  // hasn't already collected. Send the bot reminder, then stamp notified_at
+  // so we don't re-send. Re-activation by the user resets notified_at via
+  // /farm/start, which makes the next cycle eligible again.
+  const intervalMs = 60 * 1000;
+  const tick = async () => {
+    try {
+      const rows = await fetchPendingFarmNotifications(100);
+      if (rows.length === 0) return;
+      for (const row of rows) {
+        const ok = await sendBotMessage(row.telegramId, FARM_FULL_MESSAGE);
+        // Always mark notified — even on failure (403/blocked) — so we don't
+        // hammer Telegram on every cron tick for users who blocked the bot.
+        await markFarmNotified(row.id).catch((e) => logger.warn({ err: e, id: row.id }, "[farm-cron] markNotified failed"));
+        if (ok) logger.info({ telegramId: row.telegramId, planetId: row.planetId }, "[farm-cron] sent farm-full notification");
+      }
+    } catch (err) {
+      logger.warn({ err }, "[farm-cron] tick failed");
+    }
+  };
+  // Fire once 5s after boot so devs can see logs quickly.
+  setTimeout(tick, 5_000).unref();
+  setInterval(tick, intervalMs).unref();
+}
 
 function startKeepAlive() {
   const intervalMs = 60 * 1000;

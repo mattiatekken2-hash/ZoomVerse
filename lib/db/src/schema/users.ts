@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, real, boolean, index, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, real, boolean, index, serial, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -106,3 +106,21 @@ export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type Transaction = typeof transactionsTable.$inferSelect;
 
 export type TonWithdrawal = typeof tonWithdrawalsTable.$inferSelect;
+
+export const farmCyclesTable = pgTable("farm_cycles", {
+  id: serial("id").primaryKey(),
+  telegramId: text("telegram_id").notNull(),
+  planetId: text("planet_id").notNull(),
+  planetType: text("planet_type").notNull(),
+  isWhite: boolean("is_white").notNull().default(false),
+  activatedAt: timestamp("activated_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+  collectedAt: timestamp("collected_at"),
+  notifiedAt: timestamp("notified_at"),
+}, (table) => [
+  uniqueIndex("uq_farm_cycles_telegram_planet").on(table.telegramId, table.planetId),
+  index("idx_farm_cycles_expires_at").on(table.expiresAt),
+  index("idx_farm_cycles_notified_at").on(table.notifiedAt),
+]);
+
+export type FarmCycle = typeof farmCyclesTable.$inferSelect;

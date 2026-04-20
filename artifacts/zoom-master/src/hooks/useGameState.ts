@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, type Grants } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, type Grants } from "../utils/api";
 import { toast } from "./use-toast";
 
 async function calibrateServerOffset(): Promise<number> {
@@ -1607,6 +1607,7 @@ export function useGameState() {
   const collectPlanet = useCallback((id: string): { defect: boolean } => {
     const isDefect = Math.random() < DEFECT_CHANCE;
     setState((prev) => {
+      if (prev.telegramId) notifyFarmCollect(prev.telegramId, id);
       const now = Date.now();
       if (isDefect) {
         const planet = prev.planets.find((p) => p.id === id);
@@ -1639,6 +1640,7 @@ export function useGameState() {
     setState((prev) => {
       const planet = prev.planets.find((p) => p.id === id);
       if (!planet) return prev;
+      if (prev.telegramId) notifyFarmStop(prev.telegramId, id);
       const refund = Math.floor(planet.craftCost * 0.15);
       const bonusPlanetCount = prev.planets.filter((p) => p.name === planet.name && p.id.startsWith(`bonus-${planet.name}-`)).length;
       const updated = {
@@ -1684,18 +1686,22 @@ export function useGameState() {
         ),
       };
       saveState(updated);
+      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, false);
       return updated;
     });
     return outcome;
   }, []);
 
   const stopFarming = useCallback((id: string) => {
-    setState((prev) => ({
-      ...prev,
-      planets: prev.planets.map((p) =>
-        p.id === id ? { ...p, isFarmingActive: false } : p
-      ),
-    }));
+    setState((prev) => {
+      if (prev.telegramId) notifyFarmStop(prev.telegramId, id);
+      return {
+        ...prev,
+        planets: prev.planets.map((p) =>
+          p.id === id ? { ...p, isFarmingActive: false } : p
+        ),
+      };
+    });
   }, []);
 
   const listPlanet = useCallback((id: string, price: number) => {
@@ -1919,6 +1925,7 @@ export function useGameState() {
         return prev;
       }
       const now = Date.now();
+      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, target.name, true);
       return {
         ...prev,
         whitePlanets: prev.whitePlanets.map((p) =>
@@ -1947,6 +1954,7 @@ export function useGameState() {
         return prev;
       }
       const now = Date.now();
+      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
       return {
         ...prev,
         tonBalance: (prev.tonBalance || 0) - fee,
@@ -1973,6 +1981,7 @@ export function useGameState() {
       const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
       const earnedTon = end > start ? (cfg.rate / 3_600_000) * (end - start) : 0;
       if (earnedTon <= 0) return prev;
+      if (prev.telegramId) notifyFarmCollect(prev.telegramId, id);
       return {
         ...prev,
         tonBalance: (prev.tonBalance || 0) + earnedTon,

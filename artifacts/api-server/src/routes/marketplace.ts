@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { addClient, removeClient, broadcastSale } from "../lib/activityBus";
+import { sendBotMessage } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -200,6 +201,14 @@ router.post("/market/buy", async (req, res) => {
         soldAt: Date.now(),
       });
     } catch (e) { console.error("[market/buy] broadcast failed:", e); }
+
+    // Fire-and-forget: notify the seller that their listing was bought.
+    // We don't await so a slow Telegram call doesn't delay the response,
+    // and the helper itself is failure-tolerant (returns false on 403/etc).
+    sendBotMessage(
+      listing.sellerTelegramId,
+      "💰 Great news! One of your planets has been sold! Check your balance.",
+    ).catch((e) => console.error("[market/buy] seller notify failed:", e));
 
     res.json({
       ok: true,
