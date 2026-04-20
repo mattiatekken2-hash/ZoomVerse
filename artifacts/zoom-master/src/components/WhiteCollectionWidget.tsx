@@ -20,12 +20,31 @@ export function WhiteCollectionWidget({ telegramId, unlocked = false, onUnlocked
   const [open, setOpen] = useState(false);
   const [buying, setBuying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [stock, setStock] = useState<{ sold: number; remaining: number; max: number } | null>(null);
 
   useEffect(() => {
     if (!message) return;
     const t = setTimeout(() => setMessage(null), 4000);
     return () => clearTimeout(t);
   }, [message]);
+
+  const fetchStock = async () => {
+    try {
+      const r = await fetch(`${import.meta.env.BASE_URL}api/white-collection/stock`);
+      if (r.ok) setStock(await r.json());
+    } catch { /* ignore */ }
+  };
+
+  useEffect(() => {
+    fetchStock();
+    const onRefresh = () => fetchStock();
+    window.addEventListener("zoom-data-refresh", onRefresh);
+    return () => window.removeEventListener("zoom-data-refresh", onRefresh);
+  }, []);
+
+  useEffect(() => { if (open) fetchStock(); }, [open]);
+
+  const soldOut = !!stock && stock.remaining <= 0;
 
   const handleBuy = async () => {
     if (unlocked) { setMessage("Already unlocked"); return; }
@@ -127,8 +146,7 @@ export function WhiteCollectionWidget({ telegramId, unlocked = false, onUnlocked
         style={{
           position: "fixed",
           right: 12,
-          top: "50%",
-          transform: "translateY(-50%)",
+          top: 200,
           width: 60,
           height: 60,
           borderRadius: 14,
@@ -235,6 +253,19 @@ export function WhiteCollectionWidget({ telegramId, unlocked = false, onUnlocked
             </div>
 
             <div style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              gap: 6, marginBottom: 14,
+              fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase",
+              color: soldOut ? "#ff5577" : NEON_GREEN, fontWeight: 800,
+            }}>
+              {stock
+                ? soldOut
+                  ? "SOLD OUT"
+                  : <>Limited: <b style={{ color: "#fff" }}>{stock.remaining}</b> / {stock.max} left</>
+                : "Loading…"}
+            </div>
+
+            <div style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
               gap: 12, padding: "14px 16px", borderRadius: 14,
               background: `linear-gradient(135deg, rgba(57,255,126,0.06), rgba(15,217,255,0.04))`,
@@ -247,10 +278,10 @@ export function WhiteCollectionWidget({ telegramId, unlocked = false, onUnlocked
               <button
                 className="wc-buy-btn"
                 onClick={handleBuy}
-                disabled={buying || unlocked}
+                disabled={buying || unlocked || soldOut}
                 data-testid="button-buy-white-collection"
               >
-                {unlocked ? "OWNED" : buying ? "PROCESSING…" : "BUY"}
+                {unlocked ? "OWNED" : soldOut ? "SOLD OUT" : buying ? "PROCESSING…" : "BUY"}
               </button>
             </div>
 

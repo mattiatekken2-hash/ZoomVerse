@@ -142,6 +142,7 @@ interface StarsItem {
 
 const SUN_MAX_PER_USER = 5;
 const SUN_MAX_GLOBAL = 100;
+const WHITE_COLLECTION_MAX_GLOBAL = 10;
 
 const STARS_CATALOG: StarsItem[] = [
   { id: "starter_pack", title: "Starter Pack", description: "2,000 $ZOOM + 1 Basic Planet", starsPrice: 50, tonPrice: 0.5, zoomAmount: 2000, itemType: "bundle" },
@@ -318,11 +319,34 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string)
       .set({ hasAutoTap: true })
       .where(eq(usersTable.telegramId, telegramId));
   } else if (item.itemType === "white_collection") {
-    await tx.update(usersTable)
-      .set({ whiteCollectionUnlocked: true })
-      .where(eq(usersTable.telegramId, telegramId));
+    const result = await tx.execute(sql`
+      UPDATE users
+      SET white_collection_unlocked = true
+      WHERE telegram_id = ${telegramId}
+        AND white_collection_unlocked = false
+        AND (SELECT COUNT(*) FROM users WHERE white_collection_unlocked = true) < ${WHITE_COLLECTION_MAX_GLOBAL}
+      RETURNING white_collection_unlocked
+    `);
+    if (!result.rows || result.rows.length === 0) {
+      const [u] = await tx.select({ unlocked: usersTable.whiteCollectionUnlocked })
+        .from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
+      if (u?.unlocked) {
+        // already owned — idempotent success
+      } else {
+        console.error(`[creditUserTx] WHITE_COLLECTION sold out at credit time for ${telegramId}`);
+        throw new Error("WHITE_COLLECTION_SOLD_OUT");
+      }
+    }
   }
   return {};
+}
+
+async function getWhiteCollectionStock(): Promise<{ sold: number; remaining: number; max: number }> {
+  const [row] = await db.select({ sold: sql<number>`COUNT(*)::int` })
+    .from(usersTable)
+    .where(eq(usersTable.whiteCollectionUnlocked, true));
+  const sold = Number(row?.sold ?? 0);
+  return { sold, remaining: Math.max(0, WHITE_COLLECTION_MAX_GLOBAL - sold), max: WHITE_COLLECTION_MAX_GLOBAL };
 }
 
 async function getSunStock(): Promise<{ sold: number; remaining: number }> {
@@ -374,6 +398,16 @@ router.get("/total-pool", async (_req, res) => {
     });
   } catch (err) {
     console.error("[total-pool] error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+router.get("/white-collection/stock", async (_req, res) => {
+  try {
+    const stock = await getWhiteCollectionStock();
+    res.json(stock);
+  } catch (err) {
+    console.error("[white-collection/stock] error:", err);
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -623,6 +657,14 @@ router.post("/ton/confirm", async (req, res) => {
   if (item.itemType === "sun") {
     const check = await checkSunPurchasable(telegramId);
     if (!check.ok) { res.status(409).json({ error: check.reason }); return; }
+  }
+
+  if (item.itemType === "white_collection") {
+    const stock = await getWhiteCollectionStock();
+    const [u] = await db.select({ unlocked: usersTable.whiteCollectionUnlocked })
+      .from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
+    if (u?.unlocked) { res.status(409).json({ error: "Already unlocked" }); return; }
+    if (stock.remaining <= 0) { res.status(409).json({ error: "White Collection sold out" }); return; }
   }
 
   // Normalize the connected wallet to raw form; payment must originate from this address.
