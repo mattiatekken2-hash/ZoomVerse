@@ -789,20 +789,6 @@
   animation: forgeCorePulse 1.6s ease-in-out infinite;
 }
 
-/* Sparkles around the core during construction — each instance scales
-   itself with its own duration/delay (set inline) so they shimmer in a
-   pleasant non-uniform way. */
-@keyframes forgeSparkle {
-  0%, 100% { opacity: 0.15; transform: scale(0.5); }
-  45%      { opacity: 1;    transform: scale(1.4); }
-  55%      { opacity: 1;    transform: scale(1.4); }
-}
-.forge-sparkle {
-  animation-name: forgeSparkle;
-  animation-iteration-count: infinite;
-  animation-timing-function: ease-in-out;
-}
-
 @keyframes labPlanetBump {
   0% { transform: scale(1); }
   35% { transform: scale(1.08); }
