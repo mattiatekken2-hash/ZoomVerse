@@ -653,6 +653,33 @@ export interface WheelFeedEntry {
   prizeType: "zoom" | "planet" | "stars" | "ton";
 }
 
+export interface MaintenanceStatus {
+  enabled: boolean;
+  message: string;
+  updatedAt: number;
+}
+
+export async function fetchMaintenanceStatus(): Promise<MaintenanceStatus> {
+  try {
+    const res = await fetch(`${API_BASE}/maintenance/status?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return { enabled: false, message: "", updatedAt: 0 };
+    return res.json();
+  } catch { return { enabled: false, message: "", updatedAt: 0 }; }
+}
+
+export async function adminSetMaintenance(adminId: string, enabled: boolean, message?: string): Promise<{ ok: boolean; enabled?: boolean; message?: string; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/maintenance`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, enabled, message }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data.error || "Failed" };
+    return { ok: true, ...data };
+  } catch { return { ok: false, error: "Network error" }; }
+}
+
 export async function fetchWheelFeed(): Promise<WheelFeedEntry[]> {
   try {
     const res = await fetch(`${API_BASE}/wheel/feed?t=${Date.now()}`, { cache: "no-store" });

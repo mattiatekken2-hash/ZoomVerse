@@ -9,6 +9,8 @@ import {
   adminApproveWithdrawal,
   adminRejectWithdrawal,
   type TonWithdrawal,
+  fetchMaintenanceStatus,
+  adminSetMaintenance,
   adminGlobalBonus,
   adminRemoveZoom,
   adminRemovePlanets,
@@ -56,15 +58,42 @@ export function AdminPanel({ telegramId }: Props) {
   const [delistId, setDelistId] = useState("");
   const [pendingWithdrawals, setPendingWithdrawals] = useState<TonWithdrawal[]>([]);
   const [withdrawalLoadingId, setWithdrawalLoadingId] = useState<number | null>(null);
+  const [maintEnabled, setMaintEnabled] = useState(false);
+  const [maintMessage, setMaintMessage] = useState("We're upgrading the game. Back online shortly.");
+  const [maintLoading, setMaintLoading] = useState(false);
 
   const refreshPendingWithdrawals = useCallback(async () => {
     const list = await adminFetchWithdrawals(telegramId, "pending");
     setPendingWithdrawals(list);
   }, [telegramId]);
 
+  const refreshMaintenance = useCallback(async () => {
+    const s = await fetchMaintenanceStatus();
+    setMaintEnabled(!!s.enabled);
+    if (s.message) setMaintMessage(s.message);
+  }, []);
+
   useEffect(() => {
-    if (open && telegramId === ADMIN_ID) refreshPendingWithdrawals();
-  }, [open, telegramId, refreshPendingWithdrawals]);
+    if (open && telegramId === ADMIN_ID) {
+      refreshPendingWithdrawals();
+      refreshMaintenance();
+    }
+  }, [open, telegramId, refreshPendingWithdrawals, refreshMaintenance]);
+
+  const handleToggleMaintenance = useCallback(async (next: boolean) => {
+    haptic();
+    setMaintLoading(true);
+    const res = await adminSetMaintenance(telegramId, next, maintMessage);
+    setMaintLoading(false);
+    if (res.ok) {
+      setMaintEnabled(!!res.enabled);
+      if (res.message) setMaintMessage(res.message);
+      window.dispatchEvent(new Event("zoom-admin-refresh"));
+      showFeedback(next ? "✓ Maintenance ON — users locked out" : "✓ Maintenance OFF — game live", true);
+    } else {
+      showFeedback(`✗ ${res.error || "Failed"}`, false);
+    }
+  }, [telegramId, maintMessage]);
 
   const showFeedback = (msg: string, ok: boolean) => {
     setFeedback({ msg, ok });
@@ -238,6 +267,93 @@ export function AdminPanel({ telegramId }: Props) {
 
               {/* Content */}
               <div style={{ padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+
+                {/* MAINTENANCE MODE */}
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 8,
+                    padding: 12,
+                    borderRadius: 12,
+                    background: maintEnabled
+                      ? "linear-gradient(135deg, rgba(255,179,71,0.18), rgba(255,179,71,0.06))"
+                      : "rgba(255,255,255,0.04)",
+                    border: `1px solid ${maintEnabled ? "rgba(255,179,71,0.5)" : "rgba(255,255,255,0.08)"}`,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 18 }}>🛠️</span>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: "0.08em", color: maintEnabled ? "#ffb347" : "rgba(255,255,255,0.85)" }}>
+                          MAINTENANCE MODE
+                        </div>
+                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)" }}>
+                          {maintEnabled ? "Users see a lock screen" : "Game is live for everyone"}
+                        </div>
+                      </div>
+                    </div>
+                    <motion.button
+                      whileTap={{ scale: 0.92 }}
+                      disabled={maintLoading}
+                      onClick={() => handleToggleMaintenance(!maintEnabled)}
+                      style={{
+                        position: "relative",
+                        width: 50,
+                        height: 28,
+                        borderRadius: 14,
+                        border: "none",
+                        background: maintEnabled ? "#ffb347" : "rgba(255,255,255,0.15)",
+                        cursor: maintLoading ? "wait" : "pointer",
+                        opacity: maintLoading ? 0.6 : 1,
+                        transition: "background 0.2s",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 3,
+                          left: maintEnabled ? 25 : 3,
+                          width: 22,
+                          height: 22,
+                          borderRadius: "50%",
+                          background: "#fff",
+                          transition: "left 0.2s",
+                          boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
+                        }}
+                      />
+                    </motion.button>
+                  </div>
+                  <input
+                    value={maintMessage}
+                    onChange={(e) => setMaintMessage(e.target.value)}
+                    placeholder="Message shown to users…"
+                    onFocus={() => haptic()}
+                    style={{ ...inputStyle, fontSize: 12, padding: "8px 10px" }}
+                  />
+                  {maintEnabled && (
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      disabled={maintLoading}
+                      onClick={() => handleToggleMaintenance(true)}
+                      style={{
+                        padding: "6px 10px",
+                        borderRadius: 8,
+                        border: "1px solid rgba(255,179,71,0.4)",
+                        background: "rgba(255,179,71,0.1)",
+                        color: "#ffb347",
+                        fontSize: 10,
+                        fontWeight: 800,
+                        letterSpacing: "0.05em",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {maintLoading ? "..." : "💬 UPDATE MESSAGE"}
+                    </motion.button>
+                  )}
+                </div>
 
                 {/* ID + amount fields */}
                 <input

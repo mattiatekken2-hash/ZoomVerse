@@ -11,6 +11,9 @@ import { RankPage } from "./pages/RankPage";
 import { ShopPage } from "./pages/ShopPage";
 import { WheelPage } from "./pages/WheelPage";
 import { AdminPanel } from "./components/AdminPanel";
+import { fetchMaintenanceStatus } from "./utils/api";
+
+const MAINTENANCE_ADMIN_ID = "8144744644";
 
 const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
@@ -41,6 +44,25 @@ export default function App() {
   // Centralized global data fetch — Season epoch, leaderboard, profile, daily, market.
   // Pages read from the global store so tab switches show pre-loaded data with no pop-in.
   useGlobalInit(state.telegramId);
+
+  // Maintenance mode: poll status, show fullscreen overlay for non-admins.
+  const [maintenance, setMaintenance] = useState<{ enabled: boolean; message: string }>({ enabled: false, message: "" });
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const s = await fetchMaintenanceStatus();
+      if (alive) setMaintenance({ enabled: !!s.enabled, message: s.message || "" });
+    };
+    load();
+    const id = setInterval(() => { if (!document.hidden) load(); }, 20000);
+    const onVis = () => { if (document.visibilityState === "visible") load(); };
+    const onAdmin = () => { load(); };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("zoom-admin-refresh", onAdmin);
+    return () => { alive = false; clearInterval(id); document.removeEventListener("visibilitychange", onVis); window.removeEventListener("zoom-admin-refresh", onAdmin); };
+  }, []);
+  const isAdmin = state.telegramId === MAINTENANCE_ADMIN_ID;
+  const showMaintenance = maintenance.enabled && !isAdmin;
 
   const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
   const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate * Math.max(1, state.sunCount || 1) : 0;
@@ -193,10 +215,45 @@ export default function App() {
     }
   }, [muted]);
 
+  if (showMaintenance) {
+    return (
+      <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
+        <div
+          className="flex flex-col items-center justify-center text-center px-6"
+          style={{ height: "100dvh", background: "#060810", paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+        >
+          <NebulaBackground />
+          <div className="relative z-10 max-w-sm">
+            <div style={{ fontSize: 64, marginBottom: 18 }}>🛠️</div>
+            <div className="font-black text-2xl tracking-widest neon-text mb-3">UNDER MAINTENANCE</div>
+            <div className="text-sm" style={{ color: "rgba(255,255,255,0.65)", lineHeight: 1.55 }}>
+              {maintenance.message || "We're upgrading the game. Back online shortly."}
+            </div>
+            <div
+              className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black tracking-widest"
+              style={{ background: "rgba(255,179,71,0.12)", color: "#ffb347", border: "1px solid rgba(255,179,71,0.4)" }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#ffb347", boxShadow: "0 0 10px #ffb347" }} />
+              GAME PAUSED
+            </div>
+          </div>
+        </div>
+      </TonConnectUIProvider>
+    );
+  }
+
   return (
     <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
     <div className="flex flex-col overflow-hidden relative" style={{ height: "100dvh", background: "#060810", paddingTop: "calc(env(safe-area-inset-top, 0px) + 56px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
       <NebulaBackground />
+      {isAdmin && maintenance.enabled && (
+        <div
+          className="flex-shrink-0 text-center text-xs font-black tracking-widest py-1.5 relative z-30"
+          style={{ background: "rgba(255,179,71,0.18)", color: "#ffb347", borderBottom: "1px solid rgba(255,179,71,0.4)" }}
+        >
+          🛠️ MAINTENANCE MODE ACTIVE — only you can see the app
+        </div>
+      )}
 
       <header
         className="flex items-center justify-between px-5 py-3.5 flex-shrink-0 relative z-20"
