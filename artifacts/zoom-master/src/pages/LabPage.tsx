@@ -330,7 +330,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
               whitePlanets={whitePlanets}
               whiteCollectionUnlocked={whiteCollectionUnlocked}
               whiteCollectionBundles={whiteCollectionBundles}
-              balance={balance}
               tonBalance={tonBalance}
               telegramId={telegramId}
               onPlaceWhitePlanet={onPlaceWhitePlanet}

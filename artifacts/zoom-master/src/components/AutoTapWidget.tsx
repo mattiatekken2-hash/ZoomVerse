@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, memo } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { confirmTonPurchase, pollTxnUntilFinal } from "../utils/api";
 
@@ -13,7 +13,7 @@ interface AutoTapWidgetProps {
   onTap: () => void;
 }
 
-export function AutoTapWidget({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapWidgetProps) {
+function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapWidgetProps) {
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
   const [showBuy, setShowBuy] = useState(false);
@@ -238,3 +238,5 @@ export function AutoTapWidget({ hasAutoTap, canCraft, telegramId, onTap }: AutoT
     </>
   );
 }
+
+export const AutoTapWidget = memo(AutoTapWidgetBase);

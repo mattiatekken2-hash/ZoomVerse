@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { PlanetOrb } from "./PlanetOrb";
 import {
   PLANET_CONFIG,
@@ -51,7 +51,6 @@ interface PixelAvatarProps {
   whitePlanets?: Planet[];
   whiteCollectionUnlocked?: boolean;
   whiteCollectionBundles?: number;
-  balance?: number;
   tonBalance?: number;
   telegramId?: string | null;
   onPlaceWhitePlanet?: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
@@ -59,12 +58,11 @@ interface PixelAvatarProps {
   onReactivateWhitePlanet?: (planetId: string) => { ok: boolean; reason?: string };
 }
 
-export function PixelAvatar({
+function PixelAvatarBase({
   size = 60,
   whitePlanets = [],
   whiteCollectionUnlocked = false,
   whiteCollectionBundles = 0,
-  balance: _balance = 0,
   tonBalance = 0,
   telegramId = null,
   onPlaceWhitePlanet,
@@ -887,3 +885,5 @@ function SlotContent({ planet, tonBalance, onCollect, onReactivate }: SlotConten
     </div>
   );
 }
+
+export const PixelAvatar = memo(PixelAvatarBase);

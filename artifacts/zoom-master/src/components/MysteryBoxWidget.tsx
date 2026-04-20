@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, memo } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import {
   confirmTonPurchase,
@@ -35,7 +35,7 @@ interface MysteryBoxWidgetProps {
 
 type Phase = "idle" | "buying" | "verifying" | "shaking" | "revealed";
 
-export function MysteryBoxWidget({ telegramId }: MysteryBoxWidgetProps) {
+function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
   const [open, setOpen] = useState(false);
@@ -522,3 +522,5 @@ function PixelCrate({ size, animate }: { size: number; animate: boolean }) {
     </svg>
   );
 }
+
+export const MysteryBoxWidget = memo(MysteryBoxWidgetBase);

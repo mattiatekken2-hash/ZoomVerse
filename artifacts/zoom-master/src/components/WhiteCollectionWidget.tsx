@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { confirmTonPurchase, pollTxnUntilFinal } from "../utils/api";
 
@@ -14,7 +14,7 @@ interface Props {
   onUnlocked?: () => void;
 }
 
-export function WhiteCollectionWidget({ telegramId, unlocked = false, ownedBundles = 0, onUnlocked }: Props) {
+function WhiteCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles = 0, onUnlocked }: Props) {
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
   const [open, setOpen] = useState(false);
@@ -338,3 +338,5 @@ export function WhiteCollectionWidget({ telegramId, unlocked = false, ownedBundl
     </>
   );
 }
+
+export const WhiteCollectionWidget = memo(WhiteCollectionWidgetBase);
