@@ -1,13 +1,15 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import {
   fetchWheelConfig,
   fetchWheelStatus,
+  fetchWheelFeed,
   spinWheel,
   claimWheelDaily,
   createStarsInvoice,
   confirmStarsPurchase,
   type WheelPrizeConfig,
   type WheelSpinResult,
+  type WheelFeedEntry,
 } from "../utils/api";
 
 interface WheelPageProps {
@@ -54,6 +56,225 @@ function getTg(): TgWebApp | null {
 }
 
 interface Particle { id: number; x: number; y: number; dx: number; dy: number; color: string; size: number; }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Memoized wheel disc. Re-renders ONLY when prizes or highlightIdx change.
+// Insulates the heavy SVG (12 segments + 24 studs + gradients) from the
+// per-second countdown ticker and the feed polling that happen in the parent.
+// ─────────────────────────────────────────────────────────────────────────────
+interface WheelDiscProps {
+  prizes: WheelPrizeConfig[];
+  highlightIdx: number | null;
+  size: number;
+}
+const WheelDisc = memo(function WheelDisc({ prizes, highlightIdx, size }: WheelDiscProps) {
+  const RADIUS = size / 2;
+  const CENTER = RADIUS;
+  const segments = prizes.length;
+  const segAngle = segments > 0 ? 360 / segments : 0;
+  const polar = (angleDeg: number, r: number) => {
+    const a = (angleDeg - 90) * (Math.PI / 180);
+    return { x: CENTER + r * Math.cos(a), y: CENTER + r * Math.sin(a) };
+  };
+  const buildSegmentPath = (i: number) => {
+    const start = i * segAngle;
+    const end = (i + 1) * segAngle;
+    const p1 = polar(start, RADIUS);
+    const p2 = polar(end, RADIUS);
+    const large = segAngle > 180 ? 1 : 0;
+    return `M ${CENTER} ${CENTER} L ${p1.x} ${p1.y} A ${RADIUS} ${RADIUS} 0 ${large} 1 ${p2.x} ${p2.y} Z`;
+  };
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: "block" }}>
+      <defs>
+        {prizes.map((p) => (
+          <radialGradient key={p.index} id={`segGrad${p.index}`} cx="50%" cy="50%" r="80%">
+            <stop offset="0%" stopColor={p.color} stopOpacity="1" />
+            <stop offset="60%" stopColor={p.color} stopOpacity="0.75" />
+            <stop offset="100%" stopColor={p.color} stopOpacity="0.45" />
+          </radialGradient>
+        ))}
+        <radialGradient id="rimGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="92%" stopColor="rgba(0,0,0,0)" />
+          <stop offset="95%" stopColor="#fff5cc" />
+          <stop offset="97%" stopColor="#ffd700" />
+          <stop offset="100%" stopColor="#7a5a00" />
+        </radialGradient>
+        <radialGradient id="hubGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#fffbe6" />
+          <stop offset="40%" stopColor="#ffd700" />
+          <stop offset="100%" stopColor="#a87b00" />
+        </radialGradient>
+        <radialGradient id="centerJewel" cx="35%" cy="35%" r="65%">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="35%" stopColor="#00f2fe" />
+          <stop offset="100%" stopColor="#0066aa" />
+        </radialGradient>
+      </defs>
+      {prizes.map((p, i) => {
+        const isHi = highlightIdx === p.index;
+        const mid = i * segAngle + segAngle / 2;
+        const lpIcon = polar(mid, RADIUS * 0.78);
+        const lpText = polar(mid, RADIUS * 0.5);
+        return (
+          <g key={p.index}>
+            <path
+              d={buildSegmentPath(i)}
+              fill={`url(#segGrad${p.index})`}
+              stroke="rgba(255,215,0,0.55)"
+              strokeWidth={1.5}
+              style={{
+                filter: isHi ? `drop-shadow(0 0 18px ${p.color}) drop-shadow(0 0 6px #fff)` : "none",
+                transition: "filter 0.4s",
+              }}
+            />
+            <path d={buildSegmentPath(i)} fill="url(#hubGrad)" opacity={0.08} />
+            <text
+              x={lpIcon.x}
+              y={lpIcon.y}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize={16}
+              transform={`rotate(${mid} ${lpIcon.x} ${lpIcon.y})`}
+              style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.7))" }}
+            >
+              {p.icon}
+            </text>
+            <text
+              x={lpText.x}
+              y={lpText.y}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fill="white"
+              fontSize={p.shortLabel.length > 3 ? 9 : 11}
+              fontWeight={900}
+              transform={`rotate(${mid} ${lpText.x} ${lpText.y})`}
+              style={{ textShadow: "0 1px 3px rgba(0,0,0,0.9)", letterSpacing: "0.04em" }}
+            >
+              {p.shortLabel}
+            </text>
+          </g>
+        );
+      })}
+      <circle cx={CENTER} cy={CENTER} r={RADIUS - 1} fill="none" stroke="url(#rimGrad)" strokeWidth={7} />
+      <circle cx={CENTER} cy={CENTER} r={RADIUS - 5} fill="none" stroke="rgba(255,215,0,0.3)" strokeWidth={1} />
+      {Array.from({ length: 24 }).map((_, k) => {
+        const a = (k / 24) * 360;
+        const sp = polar(a, RADIUS - 9);
+        return (
+          <g key={k}>
+            <circle cx={sp.x} cy={sp.y} r={2.8} fill="#ffd700" />
+            <circle cx={sp.x - 0.5} cy={sp.y - 0.5} r={1} fill="#fffbe6" opacity={0.9} />
+          </g>
+        );
+      })}
+      <circle cx={CENTER} cy={CENTER} r={RADIUS * 0.35} fill="none" stroke="rgba(255,215,0,0.5)" strokeWidth={2} />
+      <circle cx={CENTER} cy={CENTER} r={RADIUS * 0.35 - 2} fill="rgba(10,14,26,0.85)" />
+      <circle cx={CENTER} cy={CENTER} r={28} fill="url(#hubGrad)" />
+      <circle cx={CENTER} cy={CENTER} r={22} fill="#0a0e1a" />
+      <circle cx={CENTER} cy={CENTER} r={18} fill="url(#centerJewel)" />
+      <circle cx={CENTER - 4} cy={CENTER - 4} r={5} fill="rgba(255,255,255,0.7)" />
+    </svg>
+  );
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Live spin feed marquee. Self-contained: owns its polling + scroll animation.
+// Keeps the parent's render tree small so the wheel never re-renders for it.
+// ─────────────────────────────────────────────────────────────────────────────
+const WheelFeedTicker = memo(function WheelFeedTicker() {
+  const [entries, setEntries] = useState<WheelFeedEntry[]>([]);
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const e = await fetchWheelFeed();
+      if (alive) setEntries(e);
+    };
+    load();
+    const id = setInterval(() => { if (!document.hidden) load(); }, 6000);
+    const onVis = () => { if (document.visibilityState === "visible") load(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { alive = false; clearInterval(id); document.removeEventListener("visibilitychange", onVis); };
+  }, []);
+
+  // Repeat entries to make the marquee seamless when there are few items.
+  const display = useMemo(() => {
+    if (entries.length === 0) return [];
+    const reps = entries.length < 6 ? Math.ceil(8 / entries.length) : 2;
+    const out: WheelFeedEntry[] = [];
+    for (let i = 0; i < reps; i++) out.push(...entries);
+    return out;
+  }, [entries]);
+
+  if (entries.length === 0) {
+    return (
+      <div
+        className="rounded-xl px-3 py-2 mb-2 flex items-center gap-2"
+        style={{
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(0,242,254,0.15)",
+        }}
+      >
+        <span className="text-[10px] font-black tracking-widest" style={{ color: "rgba(0,242,254,0.7)" }}>
+          ● LIVE
+        </span>
+        <span className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+          Waiting for the next spin…
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="rounded-xl mb-2 relative overflow-hidden"
+      style={{
+        background: "linear-gradient(90deg, rgba(0,242,254,0.08), rgba(196,113,237,0.05))",
+        border: "1px solid rgba(0,242,254,0.2)",
+        height: 36,
+      }}
+    >
+      <style>{`
+        @keyframes feedScroll {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+      `}</style>
+      <div
+        className="absolute left-0 top-0 bottom-0 z-10 flex items-center px-2"
+        style={{
+          background: "linear-gradient(90deg, rgba(10,14,26,0.95) 60%, rgba(10,14,26,0))",
+          paddingRight: 14,
+        }}
+      >
+        <span
+          className="text-[10px] font-black tracking-widest px-1.5 py-0.5 rounded"
+          style={{ color: "#00f2fe", background: "rgba(0,242,254,0.12)", border: "1px solid rgba(0,242,254,0.35)" }}
+        >
+          ● LIVE
+        </span>
+      </div>
+      <div
+        className="flex items-center gap-5 absolute top-0 bottom-0 whitespace-nowrap"
+        style={{
+          paddingLeft: 70,
+          animation: `feedScroll ${Math.max(18, display.length * 3)}s linear infinite`,
+          willChange: "transform",
+        }}
+      >
+        {display.map((e, idx) => (
+          <div key={`${e.ts}-${idx}`} className="flex items-center gap-1.5 text-xs">
+            <span style={{ color: "rgba(255,255,255,0.55)" }}>{e.name}</span>
+            <span style={{ color: "rgba(255,255,255,0.35)" }}>won</span>
+            <span style={{ fontSize: 13 }}>{e.prizeIcon}</span>
+            <span className="font-black" style={{ color: e.prizeColor }}>{e.prizeLabel}</span>
+            <span style={{ color: "rgba(255,255,255,0.15)" }}>·</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+});
 
 export function WheelPage({ telegramId }: WheelPageProps) {
   // Seed with the static catalog so the wheel structure is in the DOM on the
@@ -294,24 +515,10 @@ export function WheelPage({ telegramId }: WheelPageProps) {
     }
   };
 
-  // Wheel geometry
+  // Wheel geometry — only the size is needed at the parent level; all path
+  // math now lives inside the memoized <WheelDisc /> child.
   const SIZE = 300;
   const RADIUS = SIZE / 2;
-  const CENTER = RADIUS;
-
-  const polar = (angleDeg: number, r: number) => {
-    const a = (angleDeg - 90) * (Math.PI / 180);
-    return { x: CENTER + r * Math.cos(a), y: CENTER + r * Math.sin(a) };
-  };
-
-  const buildSegmentPath = (i: number) => {
-    const start = i * segAngle;
-    const end = (i + 1) * segAngle;
-    const p1 = polar(start, RADIUS);
-    const p2 = polar(end, RADIUS);
-    const large = segAngle > 180 ? 1 : 0;
-    return `M ${CENTER} ${CENTER} L ${p1.x} ${p1.y} A ${RADIUS} ${RADIUS} 0 ${large} 1 ${p2.x} ${p2.y} Z`;
-  };
 
   const countdown = useMemo(() => {
     if (canClaimDaily || !nextClaimAt) return "";
@@ -349,6 +556,9 @@ export function WheelPage({ telegramId }: WheelPageProps) {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-4" style={{ touchAction: "pan-y" }}>
+        {/* Live spin feed (memoized + self-polling — does NOT trigger wheel re-render) */}
+        <WheelFeedTicker />
+
         {/* Wheel stage */}
         <div
           className="relative mx-auto my-2"
@@ -464,119 +674,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
                 boxShadow: "0 12px 28px rgba(0,0,0,0.8)",
               }}
             >
-              <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ display: "block" }}>
-                <defs>
-                  {prizes.map((p) => (
-                    <radialGradient key={p.index} id={`segGrad${p.index}`} cx="50%" cy="50%" r="80%">
-                      <stop offset="0%" stopColor={p.color} stopOpacity="1" />
-                      <stop offset="60%" stopColor={p.color} stopOpacity="0.75" />
-                      <stop offset="100%" stopColor={p.color} stopOpacity="0.45" />
-                    </radialGradient>
-                  ))}
-                  <radialGradient id="rimGrad" cx="50%" cy="50%" r="50%">
-                    <stop offset="92%" stopColor="rgba(0,0,0,0)" />
-                    <stop offset="95%" stopColor="#fff5cc" />
-                    <stop offset="97%" stopColor="#ffd700" />
-                    <stop offset="100%" stopColor="#7a5a00" />
-                  </radialGradient>
-                  <radialGradient id="hubGrad" cx="50%" cy="50%" r="50%">
-                    <stop offset="0%" stopColor="#fffbe6" />
-                    <stop offset="40%" stopColor="#ffd700" />
-                    <stop offset="100%" stopColor="#a87b00" />
-                  </radialGradient>
-                  <radialGradient id="centerJewel" cx="35%" cy="35%" r="65%">
-                    <stop offset="0%" stopColor="#ffffff" />
-                    <stop offset="35%" stopColor="#00f2fe" />
-                    <stop offset="100%" stopColor="#0066aa" />
-                  </radialGradient>
-                </defs>
-
-                {/* Segments */}
-                {prizes.map((p, i) => {
-                  const isHi = highlightIdx === p.index;
-                  return (
-                    <g key={p.index}>
-                      <path
-                        d={buildSegmentPath(i)}
-                        fill={`url(#segGrad${p.index})`}
-                        stroke="rgba(255,215,0,0.55)"
-                        strokeWidth={1.5}
-                        style={{
-                          filter: isHi ? `drop-shadow(0 0 18px ${p.color}) drop-shadow(0 0 6px #fff)` : "none",
-                          transition: "filter 0.4s",
-                        }}
-                      />
-                      {/* Inner shine band */}
-                      <path
-                        d={buildSegmentPath(i)}
-                        fill="url(#hubGrad)"
-                        opacity={0.08}
-                      />
-                      {/* Label + icon */}
-                      {(() => {
-                        const mid = i * segAngle + segAngle / 2;
-                        const lpIcon = polar(mid, RADIUS * 0.78);
-                        const lpText = polar(mid, RADIUS * 0.5);
-                        const rotLabel = mid;
-                        return (
-                          <g>
-                            <text
-                              x={lpIcon.x}
-                              y={lpIcon.y}
-                              textAnchor="middle"
-                              dominantBaseline="middle"
-                              fontSize={16}
-                              transform={`rotate(${rotLabel} ${lpIcon.x} ${lpIcon.y})`}
-                              style={{ filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.7))" }}
-                            >
-                              {p.icon}
-                            </text>
-                            <text
-                              x={lpText.x}
-                              y={lpText.y}
-                              textAnchor="middle"
-                              dominantBaseline="middle"
-                              fill="white"
-                              fontSize={p.shortLabel.length > 3 ? 9 : 11}
-                              fontWeight={900}
-                              transform={`rotate(${rotLabel} ${lpText.x} ${lpText.y})`}
-                              style={{ textShadow: "0 1px 3px rgba(0,0,0,0.9)", letterSpacing: "0.04em" }}
-                            >
-                              {p.shortLabel}
-                            </text>
-                          </g>
-                        );
-                      })()}
-                    </g>
-                  );
-                })}
-
-                {/* Outer rim */}
-                <circle cx={CENTER} cy={CENTER} r={RADIUS - 1} fill="none" stroke="url(#rimGrad)" strokeWidth={7} />
-                <circle cx={CENTER} cy={CENTER} r={RADIUS - 5} fill="none" stroke="rgba(255,215,0,0.3)" strokeWidth={1} />
-
-                {/* Studs around the rim */}
-                {Array.from({ length: 24 }).map((_, k) => {
-                  const a = (k / 24) * 360;
-                  const sp = polar(a, RADIUS - 9);
-                  return (
-                    <g key={k}>
-                      <circle cx={sp.x} cy={sp.y} r={2.8} fill="#ffd700" />
-                      <circle cx={sp.x - 0.5} cy={sp.y - 0.5} r={1} fill="#fffbe6" opacity={0.9} />
-                    </g>
-                  );
-                })}
-
-                {/* Inner divider ring */}
-                <circle cx={CENTER} cy={CENTER} r={RADIUS * 0.35} fill="none" stroke="rgba(255,215,0,0.5)" strokeWidth={2} />
-                <circle cx={CENTER} cy={CENTER} r={RADIUS * 0.35 - 2} fill="rgba(10,14,26,0.85)" />
-
-                {/* Center hub */}
-                <circle cx={CENTER} cy={CENTER} r={28} fill="url(#hubGrad)" />
-                <circle cx={CENTER} cy={CENTER} r={22} fill="#0a0e1a" />
-                <circle cx={CENTER} cy={CENTER} r={18} fill="url(#centerJewel)" />
-                <circle cx={CENTER - 4} cy={CENTER - 4} r={5} fill="rgba(255,255,255,0.7)" />
-              </svg>
+              <WheelDisc prizes={prizes} highlightIdx={highlightIdx} size={SIZE} />
 
               {/* Pulsing center overlay (HTML for animation) */}
               <div

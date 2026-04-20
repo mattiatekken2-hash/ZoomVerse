@@ -644,6 +644,24 @@ export interface WheelSpinResult {
   spinsRemaining: number;
 }
 
+export interface WheelFeedEntry {
+  ts: number;
+  name: string;
+  prizeLabel: string;
+  prizeIcon: string;
+  prizeColor: string;
+  prizeType: "zoom" | "planet" | "stars" | "ton";
+}
+
+export async function fetchWheelFeed(): Promise<WheelFeedEntry[]> {
+  try {
+    const res = await fetch(`${API_BASE}/wheel/feed?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.entries) ? data.entries : [];
+  } catch { return []; }
+}
+
 export async function spinWheel(telegramId: string): Promise<{ ok: boolean; result?: WheelSpinResult; error?: string }> {
   try {
     const res = await fetch(`${API_BASE}/wheel/spin`, {

@@ -128,6 +128,31 @@ router.post("/wheel/claim-daily", async (req, res) => {
   }
 });
 
+interface FeedEntry {
+  ts: number;
+  name: string;
+  prizeLabel: string;
+  prizeIcon: string;
+  prizeColor: string;
+  prizeType: "zoom" | "planet" | "stars" | "ton";
+}
+const FEED_MAX = 40;
+const recentSpins: FeedEntry[] = [];
+function pushFeed(entry: FeedEntry) {
+  recentSpins.unshift(entry);
+  if (recentSpins.length > FEED_MAX) recentSpins.length = FEED_MAX;
+}
+function maskName(first: string | null | undefined, username: string | null | undefined, telegramId: string): string {
+  const raw = (first && first.trim()) || (username && username.trim()) || `Player${telegramId.slice(-4)}`;
+  if (raw.length <= 2) return raw + "•";
+  if (raw.length <= 4) return raw.slice(0, 2) + "•".repeat(raw.length - 2);
+  return raw.slice(0, 3) + "•".repeat(Math.min(3, raw.length - 4)) + raw.slice(-1);
+}
+
+router.get("/wheel/feed", (_req, res) => {
+  res.json({ entries: recentSpins });
+});
+
 router.post("/wheel/spin", async (req, res) => {
   const { telegramId } = req.body as { telegramId?: string };
   if (!telegramId) {
@@ -168,6 +193,24 @@ router.post("/wheel/spin", async (req, res) => {
     }
 
     const remaining = Number((dec.rows[0] as { wheel_spins: number }).wheel_spins);
+
+    // Push to public feed (best-effort, non-blocking on errors)
+    try {
+      const [u] = await db
+        .select({ first: usersTable.firstName, username: usersTable.username })
+        .from(usersTable)
+        .where(eq(usersTable.telegramId, telegramId))
+        .limit(1);
+      pushFeed({
+        ts: Date.now(),
+        name: maskName(u?.first ?? null, u?.username ?? null, telegramId),
+        prizeLabel: prize.label,
+        prizeIcon: prize.icon,
+        prizeColor: prize.color,
+        prizeType: prize.type,
+      });
+    } catch { /* ignore */ }
+
     res.json({
       prizeIndex: prize.index,
       prize: {
