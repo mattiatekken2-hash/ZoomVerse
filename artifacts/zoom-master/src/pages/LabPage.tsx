@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { PlanetCanvas } from "../components/PlanetCanvas";
 import { AutoTapWidget } from "../components/AutoTapWidget";
 import { MysteryBoxWidget } from "../components/MysteryBoxWidget";
+import { PixelAvatar } from "../components/PixelAvatar";
 import type { Planet, PlanetType } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
@@ -256,16 +257,18 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
       <div className="flex-shrink-0 px-5 pb-6 pt-2 flex flex-col gap-3">
         {!pendingPlanet && (
-          <>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <button
               className="btn-craft"
               onClick={handleCraft}
               disabled={!canCraft}
               data-testid="button-craft"
+              style={{ flex: 1 }}
             >
               {isFull ? "FARM FULL" : balance < 1 ? "NO $ZOOM" : "FORGE PLANET"}
             </button>
-          </>
+            <PixelAvatar size={60} />
+          </div>
         )}
 
         {!pendingPlanet && (
