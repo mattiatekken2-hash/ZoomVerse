@@ -72,6 +72,10 @@ export function PlanetCanvas({
   const orbitARef = useRef<HTMLDivElement>(null);
   const orbitBRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef(0);
+  // "Spin charge" — bumped on every tap, decays quickly when the user
+  // stops tapping. Drives orbit speed so the rings visibly slow to a halt
+  // a moment after tapping stops, instead of locking to absolute progress.
+  const chargeRef = useRef(0);
   const [size, setSize] = useState(280);
   const sizeRef = useRef(280);
   const fragIdRef = useRef(0);
@@ -114,8 +118,10 @@ export function PlanetCanvas({
   }, [pct]);
 
   // Single rAF loop drives both orbital rings during the tap-build phase.
-  // Speed scales linearly with charge (60 deg/s at 0% → 720 deg/s at 100%),
-  // giving the user the felt sense of "winding up" the energy.
+  // Speed is driven by `chargeRef` (bumped on each tap, decays over time),
+  // so the rings spin up while the user taps and gracefully slow to a stop
+  // when they pause. Charge also scales the speed cap by overall progress
+  // so a fully-charged ring near 100% spins faster than one near 5%.
   useEffect(() => {
     if (forgePhase !== "idle") return;
     let rafId = 0;
@@ -125,10 +131,15 @@ export function PlanetCanvas({
     const tick = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
+      // Decay charge: ~0.8s from full to zero of inactivity.
+      chargeRef.current = Math.max(0, chargeRef.current - dt * 1.25);
+      const c = chargeRef.current;
       const p = progressRef.current;
-      // Ease the ramp slightly so the early speed feels responsive but the
-      // late acceleration is dramatic.
-      const speed = 60 + Math.pow(p, 0.85) * 700;
+      // Speed cap grows with overall progress (110 → 760 deg/s) and the
+      // current speed is that cap scaled by the live charge. At rest the
+      // rings are fully stopped (speed = 0).
+      const cap = 110 + Math.pow(p, 0.85) * 650;
+      const speed = c * cap;
       angleA = (angleA + speed * dt) % 360;
       angleB = (angleB - speed * 1.35 * dt) % 360;
       const a = orbitARef.current;
@@ -148,6 +159,10 @@ export function PlanetCanvas({
     lastProgressRef.current = progress;
     if (delta <= 0) return;
     if (forgePhase !== "idle") return;
+
+    // Each tap bumps the spin charge so the orbits accelerate while tapping
+    // and naturally decelerate to a stop when the user pauses.
+    chargeRef.current = Math.min(1, chargeRef.current + 0.22 * delta);
 
     const layer = fragmentLayerRef.current;
     if (!layer || sizeRef.current <= 0) return;
