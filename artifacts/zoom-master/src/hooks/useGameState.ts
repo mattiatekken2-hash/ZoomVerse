@@ -14,7 +14,13 @@ async function calibrateServerOffset(): Promise<number> {
   }
 }
 
-export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD";
+export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4";
+
+export const WHITE_PLANET_TYPES: PlanetType[] = ["WHITE1", "WHITE2", "WHITE3", "WHITE4"];
+
+export function isWhitePlanet(name: PlanetType): boolean {
+  return name === "WHITE1" || name === "WHITE2" || name === "WHITE3" || name === "WHITE4";
+}
 
 export interface Planet {
   id: string;
@@ -30,6 +36,8 @@ export interface Planet {
   marketPrice: number | null;
   craftCost: number;
   serverListingId?: number;
+  // Only used by White Collection planets. null = in inventory, 0..3 = placed in that slot (immutable).
+  slotIndex?: number | null;
 }
 
 export interface SunState {
@@ -85,6 +93,14 @@ export interface GameState {
   sunCount: number;
   hasAutoTap: boolean;
   whiteCollectionUnlocked: boolean;
+  // Set true once we've materialized the 4 WHITE planets locally so we don't
+  // re-grant them on every grants poll. Keyed per-user via storage.
+  claimedWhiteCollection: boolean;
+  // The 4 white planets (one of each WHITE1..WHITE4). They live OUTSIDE the
+  // regular `planets` array so they never appear on the FarmPage and can't
+  // be burned, sold, or listed. `slotIndex` is null while in inventory and
+  // becomes 0..3 (immutable) once placed in the PixelAvatar slot grid.
+  whitePlanets: Planet[];
   lastFarmingSettledAt: number;
   claimedMilestones: number[];
   lastBalanceEpoch: number;
@@ -145,6 +161,52 @@ export const PLANET_CONFIG: Record<PlanetType, {
     activationTon: 1.0,
     tapsNeeded: 500,
     reactivationFee: 2000,
+  },
+  // White Collection — only obtainable via the 30 TON shop bundle.
+  // chance: 0 ensures rollRarity() in the Lab can never produce them.
+  WHITE1: {
+    rate: 50,
+    color: "#ffffff",
+    glowColor: "rgba(255,255,255,0.55)",
+    chance: 0,
+    label: "White Planet 1",
+    craftCost: 0,
+    activationTon: 0,
+    tapsNeeded: 0,
+    reactivationFee: 500,
+  },
+  WHITE2: {
+    rate: 60,
+    color: "#f8faff",
+    glowColor: "rgba(248,250,255,0.55)",
+    chance: 0,
+    label: "White Planet 2",
+    craftCost: 0,
+    activationTon: 0,
+    tapsNeeded: 0,
+    reactivationFee: 600,
+  },
+  WHITE3: {
+    rate: 75,
+    color: "#f0f4ff",
+    glowColor: "rgba(240,244,255,0.55)",
+    chance: 0,
+    label: "White Planet 3",
+    craftCost: 0,
+    activationTon: 0,
+    tapsNeeded: 0,
+    reactivationFee: 800,
+  },
+  WHITE4: {
+    rate: 100,
+    color: "#e8eeff",
+    glowColor: "rgba(232,238,255,0.6)",
+    chance: 0,
+    label: "White Planet 4",
+    craftCost: 0,
+    activationTon: 0,
+    tapsNeeded: 0,
+    reactivationFee: 1000,
   },
 };
 
@@ -241,6 +303,8 @@ const INITIAL_STATE: GameState = {
   sunCount: 0,
   hasAutoTap: false,
   whiteCollectionUnlocked: false,
+  claimedWhiteCollection: false,
+  whitePlanets: [],
   lastFarmingSettledAt: Date.now(),
   claimedMilestones: [],
   defectPlanets: [],
@@ -252,6 +316,7 @@ function migratePlanet(p: unknown): Planet {
   return {
     isFarmingActive: false,
     marketPrice: null,
+    slotIndex: null,
     ...raw,
   } as Planet;
 }
@@ -303,6 +368,8 @@ function loadState(): GameState {
           lastFarmingSettledAt: parsed.lastFarmingSettledAt ?? Date.now(),
           claimedMilestones: parsed.claimedMilestones ?? [],
           lastBalanceEpoch: parsed.lastBalanceEpoch ?? 0,
+          claimedWhiteCollection: parsed.claimedWhiteCollection ?? false,
+          whitePlanets: (parsed.whitePlanets || []).map(migratePlanet),
         };
         const resolvedTelegramId = telegramId || base.telegramId;
         // Only treat as "fresh load" when we did NOT find an entry keyed to the
@@ -481,6 +548,28 @@ function rollRarity(): PlanetType {
   return "BASIC";
 }
 
+function makeWhiteCollectionPlanets(): Planet[] {
+  const now = Date.now();
+  return WHITE_PLANET_TYPES.map((type, i) => {
+    const cfg = PLANET_CONFIG[type];
+    return {
+      id: `white-${type}-${now}-${i}-${Math.random().toString(36).slice(2)}`,
+      name: type,
+      rate: cfg.rate,
+      color: cfg.color,
+      glowColor: cfg.glowColor,
+      createdAt: now,
+      farmStartedAt: 0,
+      lastCollectedAt: 0,
+      isListedInMarket: false,
+      isFarmingActive: false,
+      marketPrice: null,
+      craftCost: 0,
+      slotIndex: null,
+    };
+  });
+}
+
 function makePlanet(rarity: PlanetType): Planet {
   const cfg = PLANET_CONFIG[rarity];
   const now = Date.now();
@@ -586,6 +675,19 @@ function settleFarmingState(state: GameState, now: number): GameState {
 
   for (const planet of state.planets) {
     if (!planet.isFarmingActive || planet.isListedInMarket) continue;
+    const start = Math.max(from, planet.farmStartedAt, planet.lastCollectedAt);
+    const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+    if (end > start) {
+      const dynamicRate = planet.rate + Math.random() * DYNAMIC_BONUS_MAX;
+      earned += (dynamicRate / 3_600_000) * (end - start) * speedMultiplier;
+    }
+  }
+
+  // White Collection planets that have been placed in a slot (slotIndex !== null)
+  // and are actively farming follow the same 24h-cycle income model.
+  for (const planet of state.whitePlanets || []) {
+    if (planet.slotIndex == null) continue;
+    if (!planet.isFarmingActive) continue;
     const start = Math.max(from, planet.farmStartedAt, planet.lastCollectedAt);
     const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
     if (end > start) {
@@ -782,6 +884,19 @@ export function useGameState() {
           whiteCollectionUnlocked: !!grants.whiteCollectionUnlocked,
         };
 
+        // White Collection: when the unlock flag flips true, materialize the
+        // 4 white planets ONCE into the inventory. Re-grants are blocked by
+        // claimedWhiteCollection so re-purchases (if ever allowed) won't
+        // duplicate. We do not auto-revoke when the flag goes false — once
+        // the user owns them, they are permanent.
+        if (updated.whiteCollectionUnlocked && !updated.claimedWhiteCollection && (updated.whitePlanets || []).length === 0) {
+          updated = {
+            ...updated,
+            claimedWhiteCollection: true,
+            whitePlanets: makeWhiteCollectionPlanets(),
+          };
+        }
+
         // Apply pending bonus planets per type (only new ones not yet claimed)
         const bonusTypes: Array<{ key: "bonusBasic" | "bonusRare" | "bonusEpic" | "bonusGold"; claimedKey: "claimedBonusBasic" | "claimedBonusRare" | "claimedBonusEpic" | "claimedBonusGold"; type: PlanetType }> = [
           { key: "bonusBasic", claimedKey: "claimedBonusBasic", type: "BASIC" },
@@ -897,6 +1012,14 @@ export function useGameState() {
           hasAutoTap: !!grants.hasAutoTap,
           whiteCollectionUnlocked: !!grants.whiteCollectionUnlocked,
         };
+
+        if (updated.whiteCollectionUnlocked && !updated.claimedWhiteCollection && (updated.whitePlanets || []).length === 0) {
+          updated = {
+            ...updated,
+            claimedWhiteCollection: true,
+            whitePlanets: makeWhiteCollectionPlanets(),
+          };
+        }
 
         const bonusTypes: Array<{ key: keyof Grants; claimedKey: keyof GameState; type: PlanetType }> = [
           { key: "bonusBasic", claimedKey: "claimedBonusBasic", type: "BASIC" },
@@ -1148,7 +1271,7 @@ export function useGameState() {
     return () => clearInterval(interval);
   }, []);
 
-  const craft = useCallback((): { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: "BASIC" | "RARE" | "EPIC" | "GOLD" } => {
+  const craft = useCallback((): { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType } => {
     const current = stateRef.current;
     if (current.pendingPlanet) return { completed: false };
     if (current.planets.length >= current.maxSlots) return { completed: false };
@@ -1662,6 +1785,86 @@ export function useGameState() {
     });
   }, []);
 
+  // ---- WHITE COLLECTION ACTIONS ----
+  // Place an unplaced (slotIndex == null) white planet into a specific slot.
+  // Once placed, the planet is permanently bound to that slot — there is no
+  // unplace, no burn, no sell. Placement also auto-starts its first farming
+  // cycle (free, like a freshly-crafted regular planet).
+  const placeWhitePlanet = useCallback((id: string, slotIndex: number): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: true };
+    setState((prev) => {
+      const target = prev.whitePlanets.find((p) => p.id === id);
+      if (!target) {
+        outcome = { ok: false, reason: "Pianeta non trovato" };
+        return prev;
+      }
+      if (target.slotIndex != null) {
+        outcome = { ok: false, reason: "Già posizionato" };
+        return prev;
+      }
+      if (slotIndex < 0 || slotIndex > 3) {
+        outcome = { ok: false, reason: "Slot non valido" };
+        return prev;
+      }
+      const occupied = prev.whitePlanets.some((p) => p.slotIndex === slotIndex);
+      if (occupied) {
+        outcome = { ok: false, reason: "Slot occupato" };
+        return prev;
+      }
+      const now = Date.now();
+      return {
+        ...prev,
+        whitePlanets: prev.whitePlanets.map((p) =>
+          p.id === id
+            ? { ...p, slotIndex, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
+            : p
+        ),
+      };
+    });
+    return outcome;
+  }, []);
+
+  // Reactivate a placed white planet whose 24h cycle has expired. Costs the
+  // planet's reactivationFee in $ZOOM (per PLANET_CONFIG).
+  const reactivateWhitePlanet = useCallback((id: string): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: true };
+    setState((prev) => {
+      const planet = prev.whitePlanets.find((p) => p.id === id);
+      if (!planet || planet.slotIndex == null) {
+        outcome = { ok: false, reason: "Pianeta non in slot" };
+        return prev;
+      }
+      const fee = PLANET_CONFIG[planet.name].reactivationFee;
+      if (prev.balance < fee) {
+        outcome = { ok: false, reason: `Servono ${fee.toLocaleString()} $ZOOM per riattivare` };
+        return prev;
+      }
+      const now = Date.now();
+      return {
+        ...prev,
+        balance: prev.balance - fee,
+        whitePlanets: prev.whitePlanets.map((p) =>
+          p.id === id
+            ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
+            : p
+        ),
+      };
+    });
+    return outcome;
+  }, []);
+
+  const collectWhitePlanet = useCallback((id: string) => {
+    setState((prev) => {
+      const now = Date.now();
+      return {
+        ...prev,
+        whitePlanets: prev.whitePlanets.map((p) =>
+          p.id === id ? { ...p, lastCollectedAt: now } : p
+        ),
+      };
+    });
+  }, []);
+
   return {
     state, craft, claimCraft, redeemCode,
     collectPlanet, burnPlanet,
@@ -1670,5 +1873,6 @@ export function useGameState() {
     unlockSlot, claimDaily,
     activateSun, acquireSun, collectSun,
     startSunFarming, stopSunFarming, burnSun,
+    placeWhitePlanet, reactivateWhitePlanet, collectWhitePlanet,
   };
 }

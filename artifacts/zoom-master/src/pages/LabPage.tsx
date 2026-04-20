@@ -19,9 +19,13 @@ interface LabPageProps {
   pendingPlanet: Planet | null;
   hasAutoTap: boolean;
   whiteCollectionUnlocked: boolean;
+  whitePlanets: Planet[];
   telegramId: string | null;
   onCraft: () => { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType };
   onClaim: () => void;
+  onPlaceWhitePlanet: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
+  onCollectWhitePlanet: (planetId: string) => void;
+  onReactivateWhitePlanet: (planetId: string) => { ok: boolean; reason?: string };
   visible?: boolean;
 }
 
@@ -30,7 +34,7 @@ interface FloatMsg { id: number; text: string; color: string }
 const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, telegramId, onCraft, onClaim, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, whitePlanets, telegramId, onCraft, onClaim, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, visible = true }: LabPageProps) {
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
   const floatTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
@@ -270,7 +274,15 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             >
               {isFull ? "FARM FULL" : balance < 1 ? "NO $ZOOM" : "FORGE PLANET"}
             </button>
-            <PixelAvatar size={60} />
+            <PixelAvatar
+              size={60}
+              whitePlanets={whitePlanets}
+              whiteCollectionUnlocked={whiteCollectionUnlocked}
+              balance={balance}
+              onPlaceWhitePlanet={onPlaceWhitePlanet}
+              onCollectWhitePlanet={onCollectWhitePlanet}
+              onReactivateWhitePlanet={onReactivateWhitePlanet}
+            />
           </div>
         )}
 

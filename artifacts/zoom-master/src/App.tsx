@@ -35,6 +35,7 @@ export default function App() {
     startFarming, stopFarming,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     claimDaily, startSunFarming, stopSunFarming, burnSun,
+    placeWhitePlanet, reactivateWhitePlanet, collectWhitePlanet,
   } = useGameState();
 
   // Centralized global data fetch — Season epoch, leaderboard, profile, daily, market.
@@ -258,9 +259,13 @@ export default function App() {
                   pendingPlanet={state.pendingPlanet}
                   hasAutoTap={!!state.hasAutoTap}
                   whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
+                  whitePlanets={state.whitePlanets || []}
                   telegramId={state.telegramId}
                   onCraft={craft}
                   onClaim={claimCraft}
+                  onPlaceWhitePlanet={placeWhitePlanet}
+                  onCollectWhitePlanet={collectWhitePlanet}
+                  onReactivateWhitePlanet={reactivateWhitePlanet}
                   visible={tab === "lab"}
                 />
               )}

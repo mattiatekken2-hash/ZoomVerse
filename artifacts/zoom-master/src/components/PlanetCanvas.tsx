@@ -22,12 +22,21 @@ const RARITY_FROM_COLOR: Record<string, PlanetType> = {
   "#ffd700": "GOLD",
 };
 
-const RATE_BY_TYPE: Record<PlanetType, number> = { BASIC: 2, RARE: 15, EPIC: 80, GOLD: 150 };
+// White Collection planets are never crafted in the Lab, but the type is part
+// of the PlanetType union — include them here as no-ops for type completeness.
+const RATE_BY_TYPE: Record<PlanetType, number> = {
+  BASIC: 2, RARE: 15, EPIC: 80, GOLD: 150,
+  WHITE1: 0, WHITE2: 0, WHITE3: 0, WHITE4: 0,
+};
 const GLOW_BY_TYPE: Record<PlanetType, string> = {
   BASIC: "rgba(136,146,176,0.5)",
   RARE: "rgba(79,172,254,0.5)",
   EPIC: "rgba(196,113,237,0.5)",
   GOLD: "rgba(255,215,0,0.5)",
+  WHITE1: "rgba(255,255,255,0.5)",
+  WHITE2: "rgba(248,250,255,0.5)",
+  WHITE3: "rgba(240,244,255,0.5)",
+  WHITE4: "rgba(232,238,255,0.5)",
 };
 
 interface Fragment {

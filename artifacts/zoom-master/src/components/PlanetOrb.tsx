@@ -24,6 +24,22 @@ const PLANET_GRADIENTS: Record<string, { stops: string[]; glowAlpha: number }> =
     stops: ["#fff8e1", "#ffe082", "#ffd700", "#e6b800", "#b8860b"],
     glowAlpha: 0.7,
   },
+  WHITE1: {
+    stops: ["#ffffff", "#fafbff", "#eef0f7", "#cdd2e0", "#9ea3b8"],
+    glowAlpha: 0.55,
+  },
+  WHITE2: {
+    stops: ["#ffffff", "#f4f7ff", "#e2e8f5", "#bcc3d9", "#8c93ad"],
+    glowAlpha: 0.55,
+  },
+  WHITE3: {
+    stops: ["#ffffff", "#f0f4ff", "#dde3f5", "#b3bcd6", "#7d85a3"],
+    glowAlpha: 0.6,
+  },
+  WHITE4: {
+    stops: ["#ffffff", "#eaf0ff", "#d2dbf2", "#a5afcc", "#6c7596"],
+    glowAlpha: 0.65,
+  },
 };
 
 const DEFAULT_GRADIENT = PLANET_GRADIENTS.BASIC;
