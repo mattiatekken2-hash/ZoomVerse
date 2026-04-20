@@ -71,7 +71,9 @@ export function PlanetCanvas({
   const fragmentLayerRef = useRef<HTMLDivElement>(null);
   const orbitARef = useRef<HTMLDivElement>(null);
   const orbitBRef = useRef<HTMLDivElement>(null);
+  const coreRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef(0);
+  const displayColorRef = useRef<string>(DEFAULT_COLOR);
   // "Spin charge" — bumped on every tap, decays quickly when the user
   // stops tapping. Drives orbit speed so the rings visibly slow to a halt
   // a moment after tapping stops, instead of locking to absolute progress.
@@ -112,10 +114,15 @@ export function PlanetCanvas({
     return () => ro.disconnect();
   }, []);
 
-  // Track progress in a ref so the rAF loop can read it without re-subscribing.
+  // Track progress + color in refs so the rAF loop can read them without
+  // triggering re-renders. The core's visual state (scale + glow) is then
+  // mutated imperatively so taps never cause React reconciliation.
   useEffect(() => {
     progressRef.current = pct;
   }, [pct]);
+  useEffect(() => {
+    displayColorRef.current = displayColor;
+  }, [displayColor]);
 
   // Single rAF loop drives both orbital rings during the tap-build phase.
   // Speed is driven by `chargeRef` (bumped on each tap, decays over time),
@@ -128,6 +135,8 @@ export function PlanetCanvas({
     let angleA = 0;
     let angleB = 0;
     let last = performance.now();
+    let lastAppliedPct = -1;
+    let lastAppliedColor = "";
     const tick = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
@@ -135,10 +144,7 @@ export function PlanetCanvas({
       chargeRef.current = Math.max(0, chargeRef.current - dt * 1.25);
       const c = chargeRef.current;
       const p = progressRef.current;
-      // Baseline: a slow, relaxing rotation always present (~22 deg/s)
-      // so the orbits never look frozen when the user isn't tapping.
-      // On top of that, taps add a charge-driven boost whose ceiling
-      // grows with overall progress (up to ~720 deg/s near full charge).
+      // Orbit rotation (rings are removed but ref writes are cheap no-ops).
       const baseline = 22;
       const boostCap = 90 + Math.pow(p, 0.85) * 630;
       const speed = baseline + c * boostCap;
@@ -148,6 +154,27 @@ export function PlanetCanvas({
       const b = orbitBRef.current;
       if (a) a.style.transform = `translate(-50%, -50%) rotate(${angleA}deg)`;
       if (b) b.style.transform = `translate(-50%, -50%) rotate(${angleB}deg)`;
+
+      // Core: scale + glow driven imperatively from progress. Only writes
+      // when the value changes meaningfully so we don't repaint each frame.
+      const core = coreRef.current;
+      const col = displayColorRef.current;
+      if (core && (Math.abs(p - lastAppliedPct) > 0.005 || col !== lastAppliedColor)) {
+        lastAppliedPct = p;
+        lastAppliedColor = col;
+        // Subtle scale: 1.0 → 1.6 over the build.
+        const scale = 1 + p * 0.6;
+        core.style.transform = `translate(-50%, -50%) scale(${scale})`;
+        // Glow intensifies (alpha + radius) without triggering layout.
+        const glowR = 20 + p * 40;
+        const glowSpread = 10 + p * 20;
+        const alpha = Math.floor(60 + p * 120).toString(16).padStart(2, "0");
+        const whiteAlpha = (0.3 + p * 0.4).toFixed(2);
+        core.style.boxShadow =
+          `0 0 ${glowR}px ${glowSpread}px ${col}${alpha}, ` +
+          `0 0 ${60 + p * 60}px rgba(255,255,255,${whiteAlpha})`;
+      }
+
       rafId = requestAnimationFrame(tick);
     };
     rafId = requestAnimationFrame(tick);
@@ -199,12 +226,10 @@ export function PlanetCanvas({
     }
   }, [progress, displayColor, forgePhase]);
 
-  // Fixed core size: stays 40-50px regardless of progress.
-  // Core grows subtly with progress — from a small pinpoint at the start
-  // up to ~1.6x at full charge, just enough to feel like it's "filling up"
-  // without dominating the canvas.
-  const coreBase = Math.max(40, Math.min(50, size * 0.16));
-  const coreSize = coreBase * (1 + pct * 0.6);
+  // Core has a FIXED rendered size; growth is applied via transform: scale
+  // by the rAF loop, which keeps each tap on the GPU compositor (no layout,
+  // no repaint of width/height). Final visual size = coreSize * (1 + pct*0.6).
+  const coreSize = Math.max(40, Math.min(50, size * 0.16));
   // Orbit radii scale with container so the rings don't crowd the core but
   // also don't escape the canvas on small phones.
   const orbitARadius = Math.max(coreSize * 1.35, size * 0.22);
@@ -272,6 +297,7 @@ export function PlanetCanvas({
             (not bigger) as charge approaches 100%. */}
         {showCoreAndOrbits && (
           <div
+            ref={coreRef}
             className="forge-core"
             style={{
               position: "absolute",
@@ -283,9 +309,10 @@ export function PlanetCanvas({
               marginTop: -coreSize / 2,
               borderRadius: "50%",
               background: "radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(240,245,255,0.95) 35%, rgba(180,200,255,0.6) 70%, transparent 100%)",
-              boxShadow: `0 0 ${20 + pct * 40}px ${10 + pct * 20}px ${displayColor}${Math.floor(60 + pct * 120).toString(16).padStart(2, "0")}, 0 0 ${60 + pct * 60}px rgba(255,255,255,${0.3 + pct * 0.4})`,
-              willChange: "box-shadow",
-              transition: "box-shadow 0.2s ease-out",
+              transform: "translate(-50%, -50%) scale(1)",
+              willChange: "transform, box-shadow",
+              // Glow + scale are mutated imperatively by the rAF loop so taps
+              // never trigger React re-renders or paint thrash.
             }}
             data-testid="forge-core"
           />
