@@ -228,6 +228,17 @@ export async function adminUnlockSlots(adminId: string, telegramId: string, coun
   } catch { return false; }
 }
 
+export async function adminUnlockWhiteCollection(adminId: string, telegramId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/unlock-white-collection`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminRemoveZoom(adminId: string, telegramId: string, amount: number): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/remove-zoom`, {

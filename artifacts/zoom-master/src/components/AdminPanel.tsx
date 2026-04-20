@@ -4,6 +4,7 @@ import {
   adminCreditZoom,
   adminAddPlanets,
   adminUnlockSlots,
+  adminUnlockWhiteCollection,
   adminGlobalBonus,
   adminRemoveZoom,
   adminRemovePlanets,
@@ -46,7 +47,7 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "white" | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [delistId, setDelistId] = useState("");
 
@@ -338,6 +339,39 @@ export function AdminPanel({ telegramId }: Props) {
                     })}
                   </div>
                 </div>
+
+                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+
+                {/* White Collection unlock */}
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={async () => {
+                    haptic();
+                    const id = targetId.trim() || ADMIN_ID;
+                    setLoading("white");
+                    const ok = await adminUnlockWhiteCollection(telegramId, id);
+                    setLoading(null);
+                    if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+                    showFeedback(ok ? `✓ White Collection unlocked for ID ${id}` : `✗ Error for ID ${id}`, ok);
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(255,255,255,0.4)",
+                    background: "rgba(255,255,255,0.08)",
+                    color: "#ffffff",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "opacity 0.15s",
+                    boxShadow: "0 0 14px rgba(255,255,255,0.15)",
+                  }}
+                >
+                  {loading === "white" ? "..." : "🤍 GRANT WHITE COLLECTION (4 planets)"}
+                </motion.button>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
 
