@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { confirmTonPurchase, pollTxnUntilFinal } from "../utils/api";
-import nftImage from "@assets/IMG_9138_1776651580553.png";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 const PRICE_TON = 30;
@@ -118,6 +117,41 @@ export function WhiteCollectionWidget({ telegramId, unlocked = false, onUnlocked
         .wc-tile-img {
           animation: whiteCollFloat 3.2s ease-in-out infinite;
         }
+        @keyframes wcPlanetSpin {
+          from { background-position: 0% 50%; }
+          to   { background-position: 200% 50%; }
+        }
+        .wc-planet {
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          background:
+            radial-gradient(circle at 30% 28%, #ffffff 0%, #f3f7ff 22%, #cfd8e8 55%, #8a94ad 90%, #5a6478 100%),
+            linear-gradient(90deg, #ffffff, #d8def0, #ffffff, #d8def0, #ffffff);
+          background-size: 100% 100%, 200% 100%;
+          background-blend-mode: multiply;
+          animation: wcPlanetSpin 6s linear infinite;
+          box-shadow:
+            inset -8px -10px 18px rgba(40,50,80,0.55),
+            inset 6px 8px 14px rgba(255,255,255,0.85),
+            0 0 10px rgba(255,255,255,0.5);
+          position: relative;
+          overflow: hidden;
+        }
+        .wc-planet::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          border-radius: 50%;
+          background: radial-gradient(circle at 70% 75%, transparent 55%, rgba(0,0,0,0.45) 100%);
+          pointer-events: none;
+        }
+        .wc-planet-lg {
+          box-shadow:
+            inset -16px -20px 32px rgba(40,50,80,0.55),
+            inset 12px 14px 26px rgba(255,255,255,0.9),
+            0 0 22px rgba(255,255,255,0.55);
+        }
         .wc-tile-frame {
           animation: whiteCollGlow 2.6s ease-in-out infinite;
         }
@@ -161,12 +195,8 @@ export function WhiteCollectionWidget({ telegramId, unlocked = false, onUnlocked
         className="wc-tile-frame"
         data-testid="button-white-collection"
       >
-        <div className="wc-tile-img" style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <img
-            src={nftImage}
-            alt="White Collection"
-            style={{ width: "100%", height: "100%", objectFit: "contain", filter: `drop-shadow(0 0 6px ${NEON_CYAN}aa)` }}
-          />
+        <div className="wc-tile-img" style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", filter: `drop-shadow(0 0 6px ${NEON_CYAN}aa)` }}>
+          <div className="wc-planet" aria-label="White Collection planet" />
         </div>
       </button>
 
@@ -228,12 +258,8 @@ export function WhiteCollectionWidget({ telegramId, unlocked = false, onUnlocked
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}
               >
-                <div className="wc-tile-img" style={{ width: "100%", height: "100%" }}>
-                  <img
-                    src={nftImage}
-                    alt="White Collection NFT"
-                    style={{ width: "100%", height: "100%", objectFit: "contain", filter: `drop-shadow(0 0 12px ${NEON_CYAN}cc)` }}
-                  />
+                <div className="wc-tile-img" style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", filter: `drop-shadow(0 0 12px ${NEON_CYAN}cc)` }}>
+                  <div className="wc-planet wc-planet-lg" aria-label="White Collection planet" />
                 </div>
               </div>
             </div>
