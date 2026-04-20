@@ -3,7 +3,6 @@ import { PlanetCanvas } from "../components/PlanetCanvas";
 import { AutoTapWidget } from "../components/AutoTapWidget";
 import { MysteryBoxWidget } from "../components/MysteryBoxWidget";
 import { PixelAvatar } from "../components/PixelAvatar";
-import { playForgeThump } from "../utils/labSfx";
 import type { Planet, PlanetType } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
@@ -83,7 +82,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   const handleCraft = useCallback(() => {
     if (!canCraft) return;
     hapticLight();
-    playForgeThump();
     const result = onCraft();
     if (result.completed && result.broken && result.brokenRarity) {
       try {
