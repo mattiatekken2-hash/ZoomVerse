@@ -127,11 +127,12 @@ export function AutoTapWidget({ hasAutoTap, canCraft, telegramId, onTap }: AutoT
         className="active:scale-95"
         style={{
           position: "fixed",
+          // Anchored bottom-left, just above the FORGE PLANET button row
+          // (button row ≈ 70px + bottom nav 70px + safe-area bottom).
           left: 12,
-          top: "50%",
-          transform: "translateY(-50%)",
-          width: 56,
-          height: 56,
+          bottom: "calc(env(safe-area-inset-bottom, 0px) + 158px)",
+          width: 52,
+          height: 52,
           borderRadius: "50%",
           background: holding
             ? "radial-gradient(circle, rgba(0,242,254,0.35), rgba(0,242,254,0.08))"
