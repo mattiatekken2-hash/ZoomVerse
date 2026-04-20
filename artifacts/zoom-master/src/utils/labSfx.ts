@@ -20,9 +20,11 @@ function isMuted(): boolean {
 }
 
 /**
- * "Forge thump" — a short, deep retro-game craft sound used when the user
- * presses FORGE PLANET. A descending square-wave bass body gives weight,
- * and a brief metallic ping on top gives that crafted / forged feel.
+ * "Forge chime" — a warm, pleasant craft cue used when the user presses
+ * FORGE PLANET. Built from a soft major-chord arpeggio (C5 / E5 / G5)
+ * played on sine waves with a gentle attack and a long, smooth decay.
+ * No square waves and no harsh metallic ping — designed to feel rewarding
+ * and easy on the ears even after many taps.
  * Honors the global mute flag and is throttled to avoid rapid repeats.
  */
 export function playForgeThump(): void {
@@ -36,37 +38,56 @@ export function playForgeThump(): void {
   if (c.state === "suspended") c.resume().catch(() => {});
 
   const t0 = c.currentTime;
-  const dur = 0.22;
 
-  // Bass body: square wave dropping from 220 → 90 Hz for that retro thump.
-  const bass = c.createOscillator();
-  bass.type = "square";
-  bass.frequency.setValueAtTime(220, t0);
-  bass.frequency.exponentialRampToValueAtTime(90, t0 + dur);
+  // Master bus with a tiny low-pass to soften any high-frequency edge.
+  const master = c.createGain();
+  master.gain.value = 0.9;
+  const tone = c.createBiquadFilter();
+  tone.type = "lowpass";
+  tone.frequency.value = 4500;
+  tone.Q.value = 0.4;
+  master.connect(tone);
+  tone.connect(c.destination);
 
-  const bassEnv = c.createGain();
-  bassEnv.gain.setValueAtTime(0.0001, t0);
-  bassEnv.gain.exponentialRampToValueAtTime(0.22, t0 + 0.01);
-  bassEnv.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  // Soft major chord (C5 E5 G5) as a quick arpeggio: each note offset by
+  // ~25 ms so it lands like a gentle chime rather than a single hit.
+  const notes = [
+    { freq: 523.25, delay: 0.000, level: 0.20, dur: 0.55 }, // C5
+    { freq: 659.25, delay: 0.025, level: 0.16, dur: 0.55 }, // E5
+    { freq: 783.99, delay: 0.050, level: 0.14, dur: 0.60 }, // G5
+  ];
 
-  // Metallic ping on top: short triangle blip for the "craft" cue.
-  const ping = c.createOscillator();
-  ping.type = "triangle";
-  ping.frequency.setValueAtTime(1200, t0);
-  ping.frequency.exponentialRampToValueAtTime(900, t0 + 0.08);
+  for (const n of notes) {
+    const start = t0 + n.delay;
+    const end = start + n.dur;
 
-  const pingEnv = c.createGain();
-  pingEnv.gain.setValueAtTime(0.0001, t0);
-  pingEnv.gain.exponentialRampToValueAtTime(0.09, t0 + 0.005);
-  pingEnv.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.09);
+    const osc = c.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(n.freq, start);
 
-  bass.connect(bassEnv);
-  ping.connect(pingEnv);
-  bassEnv.connect(c.destination);
-  pingEnv.connect(c.destination);
+    // Subtle detuned partial one octave up adds shimmer without harshness.
+    const shimmer = c.createOscillator();
+    shimmer.type = "sine";
+    shimmer.frequency.setValueAtTime(n.freq * 2, start);
 
-  bass.start(t0);
-  ping.start(t0);
-  bass.stop(t0 + dur + 0.02);
-  ping.stop(t0 + 0.12);
+    const env = c.createGain();
+    env.gain.setValueAtTime(0.0001, start);
+    env.gain.exponentialRampToValueAtTime(n.level, start + 0.015);
+    env.gain.exponentialRampToValueAtTime(0.0001, end);
+
+    const shimmerEnv = c.createGain();
+    shimmerEnv.gain.setValueAtTime(0.0001, start);
+    shimmerEnv.gain.exponentialRampToValueAtTime(n.level * 0.25, start + 0.015);
+    shimmerEnv.gain.exponentialRampToValueAtTime(0.0001, start + n.dur * 0.55);
+
+    osc.connect(env);
+    shimmer.connect(shimmerEnv);
+    env.connect(master);
+    shimmerEnv.connect(master);
+
+    osc.start(start);
+    shimmer.start(start);
+    osc.stop(end + 0.02);
+    shimmer.stop(end + 0.02);
+  }
 }
