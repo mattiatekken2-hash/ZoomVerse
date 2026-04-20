@@ -1049,8 +1049,8 @@ export function useGameState() {
           const parts = blockedByFullSlots.map((b) => `${b.count} ${PLANET_CONFIG[b.type].label}`).join(", ");
           setTimeout(() => {
             toast({
-              title: "Slot pieni",
-              description: `Libera uno slot per ricevere il tuo bonus: ${parts}`,
+              title: "Slots full",
+              description: `Free up a slot to receive your bonus: ${parts}`,
             });
           }, 0);
         }
@@ -1175,8 +1175,8 @@ export function useGameState() {
           const parts = blockedByFullSlots.map((b) => `${b.count} ${PLANET_CONFIG[b.type].label}`).join(", ");
           setTimeout(() => {
             toast({
-              title: "Slot pieni",
-              description: `Libera uno slot per ricevere il tuo bonus: ${parts}`,
+              title: "Slots full",
+              description: `Free up a slot to receive your bonus: ${parts}`,
             });
           }, 0);
         }
@@ -1901,20 +1901,21 @@ export function useGameState() {
     setState((prev) => {
       const target = prev.whitePlanets.find((p) => p.id === id);
       if (!target) {
-        outcome = { ok: false, reason: "Pianeta non trovato" };
+        outcome = { ok: false, reason: "Planet not found" };
         return prev;
       }
       if (target.slotIndex != null) {
-        outcome = { ok: false, reason: "Già posizionato" };
+        outcome = { ok: false, reason: "Already placed" };
         return prev;
       }
-      if (slotIndex < 0 || slotIndex > 3) {
-        outcome = { ok: false, reason: "Slot non valido" };
+      const maxWhiteSlots = (prev.whiteCollectionBundles || (prev.whiteCollectionUnlocked ? 1 : 0)) * 4;
+      if (slotIndex < 0 || slotIndex >= maxWhiteSlots) {
+        outcome = { ok: false, reason: "Invalid slot" };
         return prev;
       }
       const occupied = prev.whitePlanets.some((p) => p.slotIndex === slotIndex);
       if (occupied) {
-        outcome = { ok: false, reason: "Slot occupato" };
+        outcome = { ok: false, reason: "Slot occupied" };
         return prev;
       }
       const now = Date.now();
