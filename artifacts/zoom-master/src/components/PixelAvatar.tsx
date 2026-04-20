@@ -539,7 +539,7 @@ export function PixelAvatar({
               {whiteCollectionUnlocked ? (
                 <>
                   <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 4, marginBottom: 6 }}>
-                    Min {WITHDRAWAL_MIN_TON} TON · Fee {WITHDRAWAL_FEE_TON} TON · 1 request / {WITHDRAWAL_COOLDOWN_HOURS}h · Manual approval
+                    Min {WITHDRAWAL_MIN_TON} TON · Fee {WITHDRAWAL_FEE_TON} TON
                   </div>
                   <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
                     <input
