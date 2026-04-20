@@ -41,7 +41,7 @@ export function PixelAvatar({ size = 60 }: { size?: number }) {
   };
 
   const handleDeposit = () => {
-    setDepositMsg("Generating wallet address...");
+    setDepositMsg("Coming soon");
   };
 
   const handleWithdraw = () => {
