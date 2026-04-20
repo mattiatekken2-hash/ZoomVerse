@@ -232,6 +232,86 @@ export async function adminUnlockSlots(adminId: string, telegramId: string, coun
   } catch { return false; }
 }
 
+// === TON Withdrawals (manual processing by admin) ===
+export const WITHDRAWAL_MIN_TON = 10;
+export const WITHDRAWAL_FEE_TON = 0.02;
+export const WITHDRAWAL_COOLDOWN_HOURS = 24;
+
+export interface TonWithdrawal {
+  id: number;
+  telegramId: string;
+  amountTon: number;
+  feeTon: number;
+  walletAddress: string;
+  status: "pending" | "paid" | "rejected";
+  txHash: string | null;
+  rejectReason: string | null;
+  createdAt: string;
+  processedAt: string | null;
+  processedBy: string | null;
+  firstName?: string | null;
+  username?: string | null;
+}
+
+export async function requestTonWithdrawal(params: { telegramId: string; amountTon: number; walletAddress: string }): Promise<{ ok: boolean; error?: string; newTonBalance?: number; balanceEpoch?: number }> {
+  try {
+    const res = await fetch(`${API_BASE}/withdrawals/request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data?.error || "Errore richiesta" };
+    return { ok: true, newTonBalance: data.newTonBalance, balanceEpoch: data.balanceEpoch };
+  } catch {
+    return { ok: false, error: "Errore di rete" };
+  }
+}
+
+export async function fetchMyWithdrawals(telegramId: string): Promise<TonWithdrawal[]> {
+  try {
+    const res = await fetch(`${API_BASE}/withdrawals/me/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data?.withdrawals) ? data.withdrawals : [];
+  } catch { return []; }
+}
+
+export async function adminFetchWithdrawals(adminId: string, status: "pending" | "paid" | "rejected" = "pending"): Promise<TonWithdrawal[]> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/withdrawals?adminId=${encodeURIComponent(adminId)}&status=${status}&t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data?.withdrawals) ? data.withdrawals : [];
+  } catch { return []; }
+}
+
+export async function adminApproveWithdrawal(adminId: string, withdrawalId: number, txHash: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/withdrawals/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, withdrawalId, txHash }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data?.error || "Errore" };
+    return { ok: true };
+  } catch { return { ok: false, error: "Errore di rete" }; }
+}
+
+export async function adminRejectWithdrawal(adminId: string, withdrawalId: number, reason?: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/withdrawals/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, withdrawalId, reason }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data?.error || "Errore" };
+    return { ok: true };
+  } catch { return { ok: false, error: "Errore di rete" }; }
+}
+
 export async function adminUnlockWhiteCollection(adminId: string, telegramId: string): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/unlock-white-collection`, {

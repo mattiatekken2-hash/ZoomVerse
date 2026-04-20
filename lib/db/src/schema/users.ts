@@ -77,6 +77,25 @@ export const insertMarketListingSchema = createInsertSchema(marketListingsTable)
 export type InsertMarketListing = z.infer<typeof insertMarketListingSchema>;
 export type MarketListing = typeof marketListingsTable.$inferSelect;
 
+export const tonWithdrawalsTable = pgTable("ton_withdrawals", {
+  id: serial("id").primaryKey(),
+  telegramId: text("telegram_id").notNull(),
+  amountTon: real("amount_ton").notNull(),
+  feeTon: real("fee_ton").notNull().default(0),
+  walletAddress: text("wallet_address").notNull(),
+  // pending | paid | rejected
+  status: text("status").notNull().default("pending"),
+  txHash: text("tx_hash"),
+  rejectReason: text("reject_reason"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  processedAt: timestamp("processed_at"),
+  processedBy: text("processed_by"),
+}, (table) => [
+  index("idx_withdrawals_telegram_id").on(table.telegramId),
+  index("idx_withdrawals_status").on(table.status),
+  index("idx_withdrawals_created_at").on(table.createdAt),
+]);
+
 export const insertUserSchema = createInsertSchema(usersTable).omit({ createdAt: true });
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof usersTable.$inferSelect;
@@ -84,3 +103,5 @@ export type User = typeof usersTable.$inferSelect;
 export const insertTransactionSchema = createInsertSchema(transactionsTable).omit({ id: true, createdAt: true });
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type Transaction = typeof transactionsTable.$inferSelect;
+
+export type TonWithdrawal = typeof tonWithdrawalsTable.$inferSelect;

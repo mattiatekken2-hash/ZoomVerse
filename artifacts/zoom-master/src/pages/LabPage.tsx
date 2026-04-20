@@ -281,6 +281,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
               whiteCollectionUnlocked={whiteCollectionUnlocked}
               balance={balance}
               tonBalance={tonBalance}
+              telegramId={telegramId}
               onPlaceWhitePlanet={onPlaceWhitePlanet}
               onCollectWhitePlanet={onCollectWhitePlanet}
               onReactivateWhitePlanet={onReactivateWhitePlanet}

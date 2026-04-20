@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PlanetOrb } from "./PlanetOrb";
 import {
   PLANET_CONFIG,
@@ -11,6 +11,14 @@ import {
   getWhitePlanetPendingTon,
   type Planet,
 } from "../hooks/useGameState";
+import {
+  requestTonWithdrawal,
+  fetchMyWithdrawals,
+  WITHDRAWAL_MIN_TON,
+  WITHDRAWAL_FEE_TON,
+  WITHDRAWAL_COOLDOWN_HOURS,
+  type TonWithdrawal,
+} from "../utils/api";
 
 const D = "#0a0a14";
 const H = "#e8ecff";
@@ -44,6 +52,7 @@ interface PixelAvatarProps {
   whiteCollectionUnlocked?: boolean;
   balance?: number;
   tonBalance?: number;
+  telegramId?: string | null;
   onPlaceWhitePlanet?: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
   onCollectWhitePlanet?: (planetId: string) => void;
   onReactivateWhitePlanet?: (planetId: string) => { ok: boolean; reason?: string };
@@ -55,6 +64,7 @@ export function PixelAvatar({
   whiteCollectionUnlocked = false,
   balance: _balance = 0,
   tonBalance = 0,
+  telegramId = null,
   onPlaceWhitePlanet,
   onCollectWhitePlanet,
   onReactivateWhitePlanet,
@@ -63,7 +73,23 @@ export function PixelAvatar({
   const [open, setOpen] = useState(false);
   const [depositMsg, setDepositMsg] = useState<string | null>(null);
   const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawWallet, setWithdrawWallet] = useState("");
   const [withdrawMsg, setWithdrawMsg] = useState<string | null>(null);
+  const [withdrawErr, setWithdrawErr] = useState<string | null>(null);
+  const [submittingWithdraw, setSubmittingWithdraw] = useState(false);
+  const [myWithdrawals, setMyWithdrawals] = useState<TonWithdrawal[]>([]);
+
+  const refreshWithdrawals = useCallback(async () => {
+    if (!telegramId) return;
+    const list = await fetchMyWithdrawals(telegramId);
+    setMyWithdrawals(list);
+  }, [telegramId]);
+
+  useEffect(() => {
+    if (open && whiteCollectionUnlocked && telegramId) {
+      refreshWithdrawals();
+    }
+  }, [open, whiteCollectionUnlocked, telegramId, refreshWithdrawals]);
   // Currently selected unplaced planet (in inventory). Tap a slot to assign.
   const [selectedInvId, setSelectedInvId] = useState<string | null>(null);
   const [whiteMsg, setWhiteMsg] = useState<string | null>(null);
@@ -98,13 +124,48 @@ export function PixelAvatar({
     setDepositMsg("Coming soon");
   };
 
-  const handleWithdraw = () => {
-    const n = parseFloat(withdrawAmount);
-    if (!Number.isFinite(n) || n <= 0) {
-      setWithdrawMsg("Enter a valid amount");
+  const handleWithdraw = async () => {
+    setWithdrawErr(null);
+    setWithdrawMsg(null);
+    if (!whiteCollectionUnlocked) {
+      setWithdrawErr("White Collection holders only");
       return;
     }
-    setWithdrawMsg(`Withdrawal request for ${n} TON sent`);
+    if (!telegramId) {
+      setWithdrawErr("Session not ready");
+      return;
+    }
+    const n = parseFloat(withdrawAmount);
+    if (!Number.isFinite(n) || n < WITHDRAWAL_MIN_TON) {
+      setWithdrawErr(`Minimum amount: ${WITHDRAWAL_MIN_TON} TON`);
+      return;
+    }
+    const total = n + WITHDRAWAL_FEE_TON;
+    if (liveTonBalance < total) {
+      setWithdrawErr(`Insufficient TON. Need ${total.toFixed(4)} TON (amount + ${WITHDRAWAL_FEE_TON} fee)`);
+      return;
+    }
+    const wallet = withdrawWallet.trim();
+    if (!wallet) {
+      setWithdrawErr("Enter your TON wallet address");
+      return;
+    }
+    setSubmittingWithdraw(true);
+    const res = await requestTonWithdrawal({ telegramId, amountTon: n, walletAddress: wallet });
+    setSubmittingWithdraw(false);
+    if (!res.ok) {
+      setWithdrawErr(res.error || "Withdrawal failed");
+      return;
+    }
+    // Sync local state with the new server-side TON balance and epoch.
+    if (typeof res.newTonBalance === "number" && typeof res.balanceEpoch === "number") {
+      window.dispatchEvent(new CustomEvent("zoom-server-ton-snap", {
+        detail: { tonBalance: res.newTonBalance, epoch: res.balanceEpoch },
+      }));
+    }
+    setWithdrawMsg(`Request submitted. You will receive ${n.toFixed(4)} TON after admin approval.`);
+    setWithdrawAmount("");
+    refreshWithdrawals();
   };
 
   // Sort the inventory (unplaced) and slot occupants for stable rendering.
@@ -448,7 +509,7 @@ export function PixelAvatar({
                 }}
               >
                 <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>Balance</span>
-                <span style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>0.00 TON</span>
+                <span style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>{liveTonBalance.toFixed(4)} TON</span>
               </div>
 
               <button
@@ -475,47 +536,106 @@ export function PixelAvatar({
                 </div>
               )}
 
-              <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                <input
-                  className="pixel-modal-input"
-                  type="number"
-                  inputMode="decimal"
-                  placeholder="TON amount"
-                  value={withdrawAmount}
-                  onChange={(e) => setWithdrawAmount(e.target.value)}
-                />
-                <button
-                  className="pixel-modal-btn secondary"
-                  style={{ whiteSpace: "nowrap", opacity: 0.5, cursor: "not-allowed", filter: "grayscale(0.4)" }}
-                  disabled
-                  title="Coming soon"
-                  onClick={handleWithdraw}
-                >
-                  WITHDRAW TON
-                </button>
-              </div>
+              {whiteCollectionUnlocked ? (
+                <>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 4, marginBottom: 6 }}>
+                    Min {WITHDRAWAL_MIN_TON} TON · Fee {WITHDRAWAL_FEE_TON} TON · 1 request / {WITHDRAWAL_COOLDOWN_HOURS}h · Manual approval
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                    <input
+                      className="pixel-modal-input"
+                      type="number"
+                      inputMode="decimal"
+                      placeholder={`Amount (min ${WITHDRAWAL_MIN_TON})`}
+                      value={withdrawAmount}
+                      onChange={(e) => setWithdrawAmount(e.target.value)}
+                      disabled={submittingWithdraw}
+                    />
+                    <button
+                      className="pixel-modal-btn secondary"
+                      style={{ whiteSpace: "nowrap", opacity: submittingWithdraw ? 0.6 : 1 }}
+                      disabled={submittingWithdraw}
+                      onClick={handleWithdraw}
+                    >
+                      {submittingWithdraw ? "..." : "WITHDRAW"}
+                    </button>
+                  </div>
 
-              <input
-                className="pixel-modal-input"
-                type="text"
-                placeholder="Withdraw address (coming soon)"
-                disabled
-                style={{ marginTop: 10, opacity: 0.55, cursor: "not-allowed" }}
-              />
+                  <input
+                    className="pixel-modal-input"
+                    type="text"
+                    placeholder="Your TON wallet address (UQ... / EQ...)"
+                    value={withdrawWallet}
+                    onChange={(e) => setWithdrawWallet(e.target.value)}
+                    disabled={submittingWithdraw}
+                    style={{ marginTop: 10 }}
+                  />
 
-              {withdrawMsg && (
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: NEON_PURPLE,
-                    marginTop: 10,
-                    padding: "8px 12px",
-                    background: "rgba(192,96,255,0.08)",
-                    borderRadius: 8,
-                    border: `1px solid ${NEON_PURPLE}33`,
-                  }}
-                >
-                  {withdrawMsg}
+                  {withdrawErr && (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#ff7a7a",
+                        marginTop: 10,
+                        padding: "8px 12px",
+                        background: "rgba(255,80,80,0.08)",
+                        borderRadius: 8,
+                        border: "1px solid rgba(255,80,80,0.25)",
+                      }}
+                    >
+                      {withdrawErr}
+                    </div>
+                  )}
+
+                  {withdrawMsg && (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: NEON_PURPLE,
+                        marginTop: 10,
+                        padding: "8px 12px",
+                        background: "rgba(192,96,255,0.08)",
+                        borderRadius: 8,
+                        border: `1px solid ${NEON_PURPLE}33`,
+                      }}
+                    >
+                      {withdrawMsg}
+                    </div>
+                  )}
+
+                  {myWithdrawals.length > 0 && (
+                    <div style={{ marginTop: 14 }}>
+                      <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,255,255,0.55)", textTransform: "uppercase", marginBottom: 6 }}>
+                        Recent withdrawals
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 180, overflowY: "auto" }}>
+                        {myWithdrawals.slice(0, 8).map((w) => {
+                          const color = w.status === "paid" ? "#3ddc97" : w.status === "rejected" ? "#ff7a7a" : "#f5d36a";
+                          return (
+                            <div key={w.id} style={{ fontSize: 11, padding: "6px 10px", borderRadius: 8, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                                <span style={{ color: "#fff", fontWeight: 700 }}>{w.amountTon.toFixed(4)} TON</span>
+                                <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 10 }}>{new Date(w.createdAt).toLocaleString()}</span>
+                                {w.status === "paid" && w.txHash && (
+                                  <a href={`https://tonscan.org/tx/${w.txHash}`} target="_blank" rel="noreferrer" style={{ color: NEON, fontSize: 10, textDecoration: "underline", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    View tx
+                                  </a>
+                                )}
+                                {w.status === "rejected" && w.rejectReason && (
+                                  <span style={{ color: "rgba(255,122,122,0.85)", fontSize: 10 }}>{w.rejectReason}</span>
+                                )}
+                              </div>
+                              <span style={{ color, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em" }}>{w.status}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", padding: "12px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 10, border: "1px dashed rgba(255,255,255,0.12)", marginTop: 4 }}>
+                  TON withdrawals are available to White Collection holders only.
                 </div>
               )}
             </div>

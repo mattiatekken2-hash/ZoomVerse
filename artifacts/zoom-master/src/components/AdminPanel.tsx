@@ -1,10 +1,14 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   adminCreditZoom,
   adminAddPlanets,
   adminUnlockSlots,
   adminUnlockWhiteCollection,
+  adminFetchWithdrawals,
+  adminApproveWithdrawal,
+  adminRejectWithdrawal,
+  type TonWithdrawal,
   adminGlobalBonus,
   adminRemoveZoom,
   adminRemovePlanets,
@@ -50,6 +54,17 @@ export function AdminPanel({ telegramId }: Props) {
   const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "white" | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [delistId, setDelistId] = useState("");
+  const [pendingWithdrawals, setPendingWithdrawals] = useState<TonWithdrawal[]>([]);
+  const [withdrawalLoadingId, setWithdrawalLoadingId] = useState<number | null>(null);
+
+  const refreshPendingWithdrawals = useCallback(async () => {
+    const list = await adminFetchWithdrawals(telegramId, "pending");
+    setPendingWithdrawals(list);
+  }, [telegramId]);
+
+  useEffect(() => {
+    if (open && telegramId === ADMIN_ID) refreshPendingWithdrawals();
+  }, [open, telegramId, refreshPendingWithdrawals]);
 
   const showFeedback = (msg: string, ok: boolean) => {
     setFeedback({ msg, ok });
@@ -457,6 +472,65 @@ export function AdminPanel({ telegramId }: Props) {
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
 
+                {/* TON Withdrawal Requests */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
+                    PRELIEVI TON ({pendingWithdrawals.length})
+                  </div>
+                  <motion.button
+                    whileTap={{ scale: 0.93 }}
+                    onClick={() => { haptic(); refreshPendingWithdrawals(); }}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      background: "rgba(255,255,255,0.04)",
+                      color: "rgba(255,255,255,0.7)",
+                      fontSize: 10,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    ↻ AGGIORNA
+                  </motion.button>
+                </div>
+                {pendingWithdrawals.length === 0 ? (
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", padding: "8px 10px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 8 }}>
+                    Nessuna richiesta in attesa.
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 280, overflowY: "auto" }}>
+                    {pendingWithdrawals.map((w) => (
+                      <WithdrawalRow
+                        key={w.id}
+                        w={w}
+                        loading={withdrawalLoadingId === w.id}
+                        onApprove={async (txHash) => {
+                          haptic();
+                          setWithdrawalLoadingId(w.id);
+                          const res = await adminApproveWithdrawal(telegramId, w.id, txHash);
+                          setWithdrawalLoadingId(null);
+                          showFeedback(res.ok ? `✓ Prelievo #${w.id} approvato` : `✗ ${res.error || "Errore"}`, res.ok);
+                          if (res.ok) refreshPendingWithdrawals();
+                        }}
+                        onReject={async (reason) => {
+                          haptic();
+                          setWithdrawalLoadingId(w.id);
+                          const res = await adminRejectWithdrawal(telegramId, w.id, reason);
+                          setWithdrawalLoadingId(null);
+                          showFeedback(res.ok ? `✓ Prelievo #${w.id} rifiutato e rimborsato` : `✗ ${res.error || "Errore"}`, res.ok);
+                          if (res.ok) {
+                            refreshPendingWithdrawals();
+                            window.dispatchEvent(new Event("zoom-admin-refresh"));
+                          }
+                        }}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+
                 {/* Reset Season - destructive */}
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
                   RESET STAGIONE
@@ -526,5 +600,160 @@ export function AdminPanel({ telegramId }: Props) {
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+interface WithdrawalRowProps {
+  w: TonWithdrawal;
+  loading: boolean;
+  onApprove: (txHash: string) => void;
+  onReject: (reason?: string) => void;
+}
+
+function WithdrawalRow({ w, loading, onApprove, onReject }: WithdrawalRowProps) {
+  const [txHash, setTxHash] = useState("");
+  const [showReject, setShowReject] = useState(false);
+  const [reason, setReason] = useState("");
+  const userLabel = w.firstName || w.username || w.telegramId;
+
+  const copy = (text: string) => {
+    try { navigator.clipboard?.writeText(text); } catch { /* noop */ }
+  };
+
+  return (
+    <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: 1 }}>
+          <span style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>
+            {w.amountTon.toFixed(4)} TON <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 600, fontSize: 11 }}>(fee {w.feeTon.toFixed(4)})</span>
+          </span>
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)" }}>
+            {userLabel} · ID {w.telegramId}
+          </span>
+          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)" }}>
+            {new Date(w.createdAt).toLocaleString()}
+          </span>
+        </div>
+        <span style={{ fontSize: 9, fontWeight: 800, color: "#f5d36a", background: "rgba(245,211,106,0.1)", padding: "3px 8px", borderRadius: 6, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+          #{w.id}
+        </span>
+      </div>
+
+      <div
+        onClick={() => copy(w.walletAddress)}
+        title="Tap per copiare"
+        style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", background: "rgba(0,0,0,0.25)", padding: "6px 8px", borderRadius: 6, fontFamily: "monospace", wordBreak: "break-all", cursor: "pointer", border: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        {w.walletAddress}
+      </div>
+
+      {!showReject ? (
+        <>
+          <input
+            type="text"
+            placeholder="TX hash dopo invio"
+            value={txHash}
+            onChange={(e) => setTxHash(e.target.value)}
+            disabled={loading}
+            style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "8px 10px", color: "#fff", fontSize: 11, outline: "none", width: "100%", boxSizing: "border-box", fontFamily: "monospace" }}
+          />
+          <div style={{ display: "flex", gap: 6 }}>
+            <motion.button
+              whileTap={{ scale: 0.94 }}
+              onClick={() => {
+                if (!txHash.trim()) return;
+                onApprove(txHash.trim());
+              }}
+              disabled={loading || !txHash.trim()}
+              style={{
+                flex: 1,
+                padding: "9px",
+                borderRadius: 8,
+                border: "1px solid rgba(0,242,100,0.4)",
+                background: "rgba(0,242,100,0.12)",
+                color: "#00f264",
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: loading || !txHash.trim() ? "not-allowed" : "pointer",
+                opacity: loading || !txHash.trim() ? 0.5 : 1,
+                letterSpacing: "0.05em",
+              }}
+            >
+              {loading ? "..." : "✓ APPROVA"}
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.94 }}
+              onClick={() => setShowReject(true)}
+              disabled={loading}
+              style={{
+                flex: 1,
+                padding: "9px",
+                borderRadius: 8,
+                border: "1px solid rgba(255,60,60,0.4)",
+                background: "rgba(255,60,60,0.1)",
+                color: "#ff7a7a",
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.5 : 1,
+                letterSpacing: "0.05em",
+              }}
+            >
+              ✗ RIFIUTA
+            </motion.button>
+          </div>
+        </>
+      ) : (
+        <>
+          <input
+            type="text"
+            placeholder="Motivo rifiuto (opzionale)"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            disabled={loading}
+            style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(255,60,60,0.3)", borderRadius: 8, padding: "8px 10px", color: "#fff", fontSize: 11, outline: "none", width: "100%", boxSizing: "border-box" }}
+          />
+          <div style={{ display: "flex", gap: 6 }}>
+            <motion.button
+              whileTap={{ scale: 0.94 }}
+              onClick={() => onReject(reason.trim() || undefined)}
+              disabled={loading}
+              style={{
+                flex: 1,
+                padding: "9px",
+                borderRadius: 8,
+                border: "1px solid rgba(255,60,60,0.5)",
+                background: "rgba(255,60,60,0.18)",
+                color: "#ff7a7a",
+                fontSize: 11,
+                fontWeight: 800,
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.5 : 1,
+                letterSpacing: "0.05em",
+              }}
+            >
+              {loading ? "..." : "CONFERMA RIFIUTO + RIMBORSO"}
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.94 }}
+              onClick={() => { setShowReject(false); setReason(""); }}
+              disabled={loading}
+              style={{
+                padding: "9px 14px",
+                borderRadius: 8,
+                border: "1px solid rgba(255,255,255,0.15)",
+                background: "rgba(255,255,255,0.04)",
+                color: "rgba(255,255,255,0.7)",
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              ANNULLA
+            </motion.button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
