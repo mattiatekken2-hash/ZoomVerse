@@ -192,7 +192,7 @@ export function PixelAvatar({ size = 60 }: { size?: number }) {
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",
-            padding: "120px 18px 24px",
+            padding: "210px 18px 24px",
             overflowY: "auto",
           }}
           onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
