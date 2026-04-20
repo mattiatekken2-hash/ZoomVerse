@@ -67,95 +67,48 @@ export default function App() {
   const mutedRef = useRef<boolean>(muted);
   useEffect(() => { mutedRef.current = muted; }, [muted]);
 
-  const gainRef = useRef<GainNode | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-
   useEffect(() => {
     const TARGET_VOLUME = 0.18;
     const FADE_IN_S = 2.2;
-    const FADE_OUT_S = 0.6;
 
-    // Track #3 (background music). Loops forever once user gesture allows
-    // playback. Mute / unmute NEVER pauses the element — they only ramp the
-    // gain node — so the playhead keeps advancing in the background and
-    // un-muting resumes from the current position instantly, with no restart.
+    // Background music. We deliberately use a plain HTMLAudioElement and
+    // do NOT route through Web Audio (no createMediaElementSource, no
+    // GainNode, no filters). Inside Telegram's in-app WebView (especially
+    // on iOS) the Web Audio graph resamples the stream and adds an audible
+    // "grainy / lo-fi" texture, even with a minimal source→gain chain.
+    // Bypassing it lets the OS audio renderer play the 320 kbps MP3 at
+    // native quality. Fades are done by animating `audio.volume`.
     const audio = new Audio(`${import.meta.env.BASE_URL}bgm.mp3`);
     audio.loop = true;
     audio.preload = "auto";
-    audio.crossOrigin = "anonymous";
-    // Keep element volume at 1 — we control level via the Web Audio gain node
-    // so fades and the final mix happen with sample-accurate float precision
-    // instead of the WebView's coarse volume mixer (which is what was causing
-    // the grainy / lo-fi feel).
-    audio.volume = 1;
+    audio.volume = mutedRef.current ? 0 : 0;
+    audio.muted = mutedRef.current;
     audioRef.current = audio;
 
-    // Minimal Web Audio chain: source → gain (smooth fades) → destination.
-    // We deliberately removed the lowpass + compressor: on the Telegram
-    // WebView (especially iOS) they introduced audible distortion / a
-    // "grainy" feel instead of cleaning the signal. The source MP3 is
-    // already a high-quality 320 kbps stereo file, so we let it through
-    // un-processed and only use the gain node for sample-accurate fades.
-    let chainBuilt = false;
-    const buildChain = () => {
-      if (chainBuilt) return;
-      try {
-        const Ctx: typeof AudioContext =
-          window.AudioContext ||
-          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-        if (!Ctx) return;
-        const ctx = new Ctx();
-        audioCtxRef.current = ctx;
-        const source = ctx.createMediaElementSource(audio);
-        const gain = ctx.createGain();
-        gain.gain.value = 0;
-        gainRef.current = gain;
-        source.connect(gain);
-        gain.connect(ctx.destination);
-        chainBuilt = true;
-      } catch {
-        /* fall back to plain HTMLAudio playback */
-      }
-    };
-
-    // Smooth volume ramp via Web Audio gain (no element pause). Falls back to
-    // an animated `audio.volume` ramp when Web Audio is unavailable.
+    // Smooth `audio.volume` ramp using requestAnimationFrame.
+    let fadeRaf = 0;
     const fadeTo = (target: number, seconds: number) => {
-      const ctx = audioCtxRef.current;
-      const gain = gainRef.current;
-      if (ctx && gain) {
-        const now = ctx.currentTime;
-        gain.gain.cancelScheduledValues(now);
-        gain.gain.setValueAtTime(gain.gain.value, now);
-        gain.gain.linearRampToValueAtTime(target, now + seconds);
-      } else {
-        const startV = audio.volume;
-        const start = performance.now();
-        const dur = seconds * 1000;
-        const step = (now: number) => {
-          const t = Math.min(1, (now - start) / dur);
-          const eased = t * t * (3 - 2 * t);
-          audio.volume = Math.max(0, Math.min(1, startV + (target - startV) * eased));
-          if (t < 1) requestAnimationFrame(step);
-        };
-        requestAnimationFrame(step);
-      }
+      if (fadeRaf) cancelAnimationFrame(fadeRaf);
+      const startV = audio.volume;
+      const start = performance.now();
+      const dur = Math.max(1, seconds * 1000);
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / dur);
+        const eased = t * t * (3 - 2 * t);
+        audio.volume = Math.max(0, Math.min(1, startV + (target - startV) * eased));
+        if (t < 1) fadeRaf = requestAnimationFrame(step);
+        else fadeRaf = 0;
+      };
+      fadeRaf = requestAnimationFrame(step);
     };
 
-    // Start the track once. After this, we never pause: mute just ramps gain
-    // to 0, leaving the playhead running so unmute resumes from where the
-    // music currently is. Volume / `muted` are also set as a hard fallback
-    // when no Web Audio chain is available.
+    // Start the track. We never pause on mute — just ramp volume to 0 — so
+    // the playhead keeps advancing and unmute resumes from the same spot.
     const tryPlay = () => {
-      buildChain();
-      const ctx = audioCtxRef.current;
-      if (ctx && ctx.state === "suspended") ctx.resume().catch(() => {});
       audio.muted = mutedRef.current;
       audio.play().then(() => {
         if (mutedRef.current) {
-          // Already muted — keep gain at 0, nothing to fade.
-          if (gainRef.current) gainRef.current.gain.value = 0;
-          else audio.volume = 0;
+          audio.volume = 0;
         } else {
           fadeTo(TARGET_VOLUME, FADE_IN_S);
         }
@@ -211,47 +164,31 @@ export default function App() {
     // playing in the background so unmute resumes from the current playhead
     // position, never restarts from zero.
     const TARGET_VOLUME = 0.18;
-    const FADE_OUT_S = 0.6;
     const FADE_IN_S = 1.4;
-    const ctx = audioCtxRef.current;
-    const gain = gainRef.current;
+
+    const animateVolume = (target: number, seconds: number) => {
+      const start = performance.now();
+      const from = a.volume;
+      const dur = Math.max(1, seconds * 1000);
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / dur);
+        const eased = t * t * (3 - 2 * t);
+        a.volume = Math.max(0, Math.min(1, from + (target - from) * eased));
+        if (t < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    };
 
     if (muted) {
-      if (ctx && gain) {
-        const now = ctx.currentTime;
-        gain.gain.cancelScheduledValues(now);
-        gain.gain.setValueAtTime(gain.gain.value, now);
-        gain.gain.linearRampToValueAtTime(0, now + FADE_OUT_S);
-      } else {
-        // No Web Audio: fall back to the element's `muted` flag (instant) +
-        // volume=0 so the user truly hears nothing on every device.
-        a.volume = 0;
-        a.muted = true;
-      }
+      // Instant silence + volume=0 so it's truly muted on every device.
+      a.muted = true;
+      a.volume = 0;
     } else {
-      // Make sure the element flag is off so audio is audible again.
       a.muted = false;
-      // If the WebView had paused the element (e.g. backgrounded the tab),
-      // resume playback — currentTime is preserved so it continues from
-      // where it stopped, not from the beginning.
+      // If the WebView paused the element while backgrounded, resume from
+      // the current playhead (currentTime is preserved).
       if (a.paused) a.play().catch(() => {});
-      if (ctx && gain) {
-        if (ctx.state === "suspended") ctx.resume().catch(() => {});
-        const now = ctx.currentTime;
-        gain.gain.cancelScheduledValues(now);
-        gain.gain.setValueAtTime(gain.gain.value, now);
-        gain.gain.linearRampToValueAtTime(TARGET_VOLUME, now + FADE_IN_S);
-      } else {
-        const start = performance.now();
-        const from = a.volume;
-        const step = (now: number) => {
-          const t = Math.min(1, (now - start) / (FADE_IN_S * 1000));
-          const eased = t * t * (3 - 2 * t);
-          a.volume = from + (TARGET_VOLUME - from) * eased;
-          if (t < 1) requestAnimationFrame(step);
-        };
-        requestAnimationFrame(step);
-      }
+      animateVolume(TARGET_VOLUME, FADE_IN_S);
     }
   }, [muted]);
 
