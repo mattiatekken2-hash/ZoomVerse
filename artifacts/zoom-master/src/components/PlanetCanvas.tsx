@@ -296,6 +296,61 @@ export function PlanetCanvas({
             Stays a small intense pinpoint of light through the entire
             tap-build phase. Brightness pulses subtly and grows MORE intense
             (not bigger) as charge approaches 100%. */}
+        {/* ─── SPARKLES around the core during construction ──────────────
+            Small bright dots positioned around the core with individually
+            staggered twinkle animations, giving the planet a "shimmering
+            jewel" feel while building. Pure CSS, no per-tap work. */}
+        {showCoreAndOrbits && (
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              width: 0,
+              height: 0,
+              transform: "translate(-50%, -50%)",
+              pointerEvents: "none",
+            }}
+          >
+            {[
+              { a: 18,  r: 0.32, d: 0.0, dur: 1.6, s: 1.0 },
+              { a: 65,  r: 0.42, d: 0.4, dur: 2.1, s: 1.4 },
+              { a: 112, r: 0.28, d: 0.9, dur: 1.9, s: 0.9 },
+              { a: 158, r: 0.46, d: 0.2, dur: 2.3, s: 1.2 },
+              { a: 205, r: 0.30, d: 1.1, dur: 1.7, s: 1.0 },
+              { a: 248, r: 0.40, d: 0.6, dur: 2.0, s: 1.3 },
+              { a: 295, r: 0.34, d: 1.4, dur: 1.8, s: 1.1 },
+              { a: 338, r: 0.44, d: 0.8, dur: 2.2, s: 1.0 },
+            ].map((sp, i) => {
+              const r = sp.r * size * 0.5;
+              const x = Math.cos((sp.a * Math.PI) / 180) * r;
+              const y = Math.sin((sp.a * Math.PI) / 180) * r;
+              const dot = 3 * sp.s;
+              return (
+                <div
+                  key={`spk-${i}`}
+                  className="forge-sparkle"
+                  style={{
+                    position: "absolute",
+                    left: x,
+                    top: y,
+                    width: dot,
+                    height: dot,
+                    marginLeft: -dot / 2,
+                    marginTop: -dot / 2,
+                    borderRadius: "50%",
+                    background: "#ffffff",
+                    boxShadow: `0 0 ${dot * 2}px #ffffff, 0 0 ${dot * 4}px ${displayColor}cc`,
+                    animationDuration: `${sp.dur}s`,
+                    animationDelay: `${sp.d}s`,
+                    willChange: "opacity, transform",
+                  }}
+                />
+              );
+            })}
+          </div>
+        )}
+
         {showCoreAndOrbits && (
           <div
             ref={coreRef}
