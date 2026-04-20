@@ -117,26 +117,36 @@ export function WhiteCollectionWidget({ telegramId, unlocked = false, onUnlocked
         .wc-tile-img {
           animation: whiteCollFloat 3.2s ease-in-out infinite;
         }
-        @keyframes wcPlanetSpin {
-          from { background-position: 0% 50%; }
-          to   { background-position: 200% 50%; }
-        }
         .wc-planet {
           width: 100%;
           height: 100%;
           border-radius: 50%;
           background:
-            radial-gradient(circle at 30% 28%, #ffffff 0%, #f3f7ff 22%, #cfd8e8 55%, #8a94ad 90%, #5a6478 100%),
-            linear-gradient(90deg, #ffffff, #d8def0, #ffffff, #d8def0, #ffffff);
-          background-size: 100% 100%, 200% 100%;
-          background-blend-mode: multiply;
-          animation: wcPlanetSpin 6s linear infinite;
+            /* craters — small dark spots with subtle highlight */
+            radial-gradient(ellipse 14% 12% at 22% 38%, rgba(60,65,85,0.55) 0%, rgba(60,65,85,0.25) 55%, transparent 70%),
+            radial-gradient(ellipse 9% 8% at 60% 30%, rgba(70,75,95,0.5) 0%, transparent 65%),
+            radial-gradient(ellipse 11% 10% at 72% 58%, rgba(55,60,80,0.55) 0%, transparent 65%),
+            radial-gradient(ellipse 7% 6% at 38% 65%, rgba(70,75,95,0.55) 0%, transparent 65%),
+            radial-gradient(ellipse 6% 5% at 50% 82%, rgba(80,85,105,0.5) 0%, transparent 65%),
+            radial-gradient(ellipse 5% 4% at 18% 70%, rgba(70,75,95,0.5) 0%, transparent 65%),
+            radial-gradient(ellipse 8% 7% at 82% 22%, rgba(70,75,95,0.5) 0%, transparent 65%),
+            radial-gradient(ellipse 4% 3% at 44% 18%, rgba(70,75,95,0.55) 0%, transparent 65%),
+            /* base sphere with highlight */
+            radial-gradient(circle at 30% 28%, #ffffff 0%, #f3f7ff 22%, #cfd8e8 55%, #8a94ad 90%, #5a6478 100%);
+          background-size: 100% 100%;
+          animation: wcPlanetSpin 14s linear infinite;
           box-shadow:
             inset -8px -10px 18px rgba(40,50,80,0.55),
             inset 6px 8px 14px rgba(255,255,255,0.85),
             0 0 10px rgba(255,255,255,0.5);
           position: relative;
           overflow: hidden;
+        }
+        @keyframes wcPlanetSpin {
+          from { background-position:
+            0% 50%, 0% 50%, 0% 50%, 0% 50%, 0% 50%, 0% 50%, 0% 50%, 0% 50%, 0% 50%; }
+          to   { background-position:
+            300% 50%, 300% 50%, 300% 50%, 300% 50%, 300% 50%, 300% 50%, 300% 50%, 300% 50%, 0% 50%; }
         }
         .wc-planet::after {
           content: "";
@@ -265,9 +275,11 @@ export function WhiteCollectionWidget({ telegramId, unlocked = false, onUnlocked
             </div>
 
             <div style={{
-              fontSize: 18, fontWeight: 900, letterSpacing: "0.04em",
+              fontFamily: "'Orbitron', 'Inter', sans-serif",
+              fontSize: 20, fontWeight: 900, letterSpacing: "0.18em",
               textAlign: "center", marginBottom: 6, color: "#fff",
-              textShadow: `0 0 12px ${NEON_CYAN}88`,
+              textShadow: `0 0 12px ${NEON_CYAN}88, 0 0 24px ${NEON_CYAN}44`,
+              textTransform: "uppercase",
             }}>
               White Collection Limited
             </div>
