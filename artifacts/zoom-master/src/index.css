@@ -692,6 +692,70 @@
   animation: labFragmentFly 0.7s cubic-bezier(.55,.05,.85,.55) forwards;
 }
 
+/* ─── Forge cinematic animations ───────────────────────────────────
+   The forge sequence runs: idle → flash (220ms) → waiting (2000ms) →
+   revealed. All transforms use translate/rotate/scale only so the GPU
+   compositor handles them and we never trigger a layout reflow. */
+
+@keyframes forgeFlash {
+  0%   { opacity: 0; transform: scale(0.4); }
+  20%  { opacity: 1; transform: scale(1.0); }
+  100% { opacity: 0; transform: scale(1.6); }
+}
+.forge-flash {
+  animation: forgeFlash 220ms ease-out forwards;
+}
+
+@keyframes forgeShake {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  10% { transform: translate3d(-2px, 1px, 0); }
+  20% { transform: translate3d(2px, -1px, 0); }
+  30% { transform: translate3d(-2px, 2px, 0); }
+  40% { transform: translate3d(2px, 1px, 0); }
+  50% { transform: translate3d(-1px, -2px, 0); }
+  60% { transform: translate3d(2px, 2px, 0); }
+  70% { transform: translate3d(-2px, -1px, 0); }
+  80% { transform: translate3d(1px, 2px, 0); }
+  90% { transform: translate3d(-1px, -1px, 0); }
+}
+.forge-shake {
+  animation: forgeShake 320ms ease-in-out infinite;
+}
+
+@keyframes forgeConverge {
+  0%   { opacity: 0; transform: rotate(var(--angle, 0deg)) translateY(calc(var(--r, 80px) * -1)) scale(1); }
+  15%  { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--angle, 0deg)) translateY(0) scale(0.3); }
+}
+.forge-converge {
+  animation: forgeConverge 1.6s cubic-bezier(.55,.05,.55,1) forwards;
+}
+
+@keyframes forgeReveal {
+  0%   { opacity: 0; transform: scale(0.2); }
+  60%  { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1.0); }
+}
+.forge-reveal {
+  animation: forgeReveal 480ms cubic-bezier(.2,.9,.3,1) forwards;
+}
+
+@keyframes forgeClaimFadeIn {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.forge-claim-fade-in {
+  animation: forgeClaimFadeIn 360ms cubic-bezier(.2,.9,.3,1) forwards;
+}
+
+@keyframes forgeCorePulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.06); }
+}
+.forge-core {
+  animation: forgeCorePulse 1.6s ease-in-out infinite;
+}
+
 @keyframes labPlanetBump {
   0% { transform: scale(1); }
   35% { transform: scale(1.08); }

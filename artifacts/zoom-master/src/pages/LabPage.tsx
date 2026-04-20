@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { PlanetCanvas } from "../components/PlanetCanvas";
+import { PlanetCanvas, type ForgePhase } from "../components/PlanetCanvas";
 import { AutoTapWidget } from "../components/AutoTapWidget";
 import { MysteryBoxWidget } from "../components/MysteryBoxWidget";
 import { PixelAvatar } from "../components/PixelAvatar";
@@ -42,6 +42,51 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   const floatTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const [brokenFlash, setBrokenFlash] = useState<{ id: number; rarity: PlanetType } | null>(null);
   const brokenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Forge phase state machine: drives the visual sequence after the user
+  // hits 100% — flash → 2s dramatic wait → planet reveal → claim button.
+  // The pendingPlanet from the parent already exists from the moment craft
+  // completes; we just gate when the user *sees* the planet so the moment
+  // feels earned.
+  const [forgePhase, setForgePhase] = useState<ForgePhase>("idle");
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const claimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showClaim, setShowClaim] = useState(false);
+
+  useEffect(() => {
+    if (pendingPlanet && forgePhase === "idle") {
+      // Just completed a craft — kick off the cinematic.
+      setForgePhase("flash");
+      setShowClaim(false);
+      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+      if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+      if (claimTimerRef.current) clearTimeout(claimTimerRef.current);
+      flashTimerRef.current = setTimeout(() => {
+        setForgePhase("waiting");
+      }, 220);
+      revealTimerRef.current = setTimeout(() => {
+        setForgePhase("revealed");
+      }, 220 + 2000);
+      // Claim button fades in shortly after the planet appears.
+      claimTimerRef.current = setTimeout(() => {
+        setShowClaim(true);
+      }, 220 + 2000 + 400);
+    } else if (!pendingPlanet && forgePhase !== "idle") {
+      // User claimed (or pendingPlanet cleared otherwise) — reset.
+      setForgePhase("idle");
+      setShowClaim(false);
+      if (flashTimerRef.current) { clearTimeout(flashTimerRef.current); flashTimerRef.current = null; }
+      if (revealTimerRef.current) { clearTimeout(revealTimerRef.current); revealTimerRef.current = null; }
+      if (claimTimerRef.current) { clearTimeout(claimTimerRef.current); claimTimerRef.current = null; }
+    }
+  }, [pendingPlanet, forgePhase]);
+
+  useEffect(() => () => {
+    if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+    if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+    if (claimTimerRef.current) clearTimeout(claimTimerRef.current);
+  }, []);
 
   const isFull = planets.length >= maxSlots && !pendingPlanet;
   const canCraft = !pendingPlanet && planets.length < maxSlots && balance >= 1;
@@ -140,15 +185,19 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           <WhiteCollectionWidget telegramId={telegramId} unlocked={whiteCollectionUnlocked} ownedBundles={whiteCollectionBundles} />
         </>
       )}
-      <div className="relative flex-1" style={{ minHeight: 0 }} onClick={canCraft ? handleCraft : undefined}>
+      <div
+        className="relative flex-1"
+        style={{ minHeight: 0 }}
+        onClick={canCraft && forgePhase === "idle" ? handleCraft : undefined}
+      >
         <PlanetCanvas
-          onPunch={canCraft ? handleCraft : undefined}
+          onPunch={canCraft && forgePhase === "idle" ? handleCraft : undefined}
           progress={taps}
           goal={goal}
           planetColor={dynamicColor}
-          isRevealing={!!pendingPlanet}
           pendingPlanet={pendingPlanet}
           currentCraftRarity={progress >= REVEAL_THRESHOLD ? currentCraftRarity : null}
+          forgePhase={forgePhase}
         />
 
         {floats.map(f => (
@@ -213,11 +262,11 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           </div>
         )}
 
-        {/* CLAIM button — overlaid centered above the planet so the user can
-            tap it directly without reaching the bottom of the screen. */}
-        {pendingPlanet && (
+        {/* CLAIM button — only shown after the planet reveal animation
+            completes so the moment feels earned. Fades in via CSS. */}
+        {pendingPlanet && showClaim && (
           <div
-            className="absolute left-1/2 flex flex-col items-center gap-3"
+            className="absolute left-1/2 flex flex-col items-center gap-3 forge-claim-fade-in"
             style={{
               top: "50%",
               transform: "translate(-50%, -50%)",
