@@ -339,11 +339,15 @@ export function WheelPage({ telegramId }: WheelPageProps) {
     };
   }, [telegramId, refreshStatus]);
 
-  // Live countdown
+  // Live countdown — paused during spin so we don't trigger any parent
+  // re-render while the wheel is rotating (every state churn risks the
+  // browser re-evaluating the rotating layer's transform/style).
   useEffect(() => {
+    if (spinning) return;
+    setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [spinning]);
 
   useEffect(() => {
     if (message) {
@@ -637,18 +641,23 @@ export function WheelPage({ telegramId }: WheelPageProps) {
               />
             ))}
 
-            {/* Rotating outer rim shimmer */}
-            <div
-              className="absolute pointer-events-none"
-              style={{
-                inset: -8,
-                borderRadius: "50%",
-                background: "conic-gradient(from 0deg, rgba(255,215,0,0.4) 0%, rgba(255,215,0,0) 25%, rgba(0,242,254,0.4) 50%, rgba(0,242,254,0) 75%, rgba(255,215,0,0.4) 100%)",
-                filter: "blur(4px)",
-                animation: spinning ? "rimRotate 1.2s linear infinite" : "rimRotate 8s linear infinite",
-                opacity: 0.8,
-              }}
-            />
+            {/* Rotating outer rim shimmer — completely hidden during spin
+                because conic-gradient + blur(4px) is a notorious mobile
+                compositor offender that causes per-frame paint cost while
+                the heavy SVG rotation is also in flight. */}
+            {!spinning && (
+              <div
+                className="absolute pointer-events-none"
+                style={{
+                  inset: -8,
+                  borderRadius: "50%",
+                  background: "conic-gradient(from 0deg, rgba(255,215,0,0.4) 0%, rgba(255,215,0,0) 25%, rgba(0,242,254,0.4) 50%, rgba(0,242,254,0) 75%, rgba(255,215,0,0.4) 100%)",
+                  filter: "blur(4px)",
+                  animation: "rimRotate 8s linear infinite",
+                  opacity: 0.8,
+                }}
+              />
+            )}
 
             {/* Spinning wheel SVG.
                 The whole rotation lives on a single GPU-promoted layer:
