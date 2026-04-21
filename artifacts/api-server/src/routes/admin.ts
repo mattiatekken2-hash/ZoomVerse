@@ -521,6 +521,71 @@ router.post("/admin/reconcile-referrals", async (req, res) => {
   }
 });
 
+/**
+ * Reconcile stuck Stars purchases by pulling the bot's actual Stars-payment
+ * history from Telegram (`getStarTransactions`) and crediting any pending DB
+ * rows whose `txnId` (encoded in `invoice_payload`) matches a real payment.
+ *
+ * Use this when the webhook didn't fire (or fired but failed) and users have
+ * paid Stars without receiving their item. Idempotent: only flips
+ * `pending` → `completed` and credits exactly once per row, gated by the
+ * existing atomic `UPDATE ... WHERE status='pending'` semantics in the
+ * crediting path. Never double-credits a completed row.
+ */
+router.post("/admin/reconcile-stars", async (req, res) => {
+  const adminId = (req.body?.adminId as string) || "";
+  if (!isAdmin(adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const BOT_TOKEN = process.env["BOT_TOKEN"] || "";
+  if (!BOT_TOKEN) return res.status(500).json({ error: "BOT_TOKEN not set" });
+
+  // Lazy-import to avoid circular dep at module load.
+  const { reconcilePendingStarPayment } = await import("./stars-reconcile");
+
+  type StarsTx = {
+    id: string;
+    date: number;
+    source?: { transaction_type?: string; invoice_payload?: string; user?: { id: number } };
+    amount?: number;
+  };
+
+  const collected: StarsTx[] = [];
+  let offset = 0;
+  // Telegram returns up to 100 per page. Walk forward until we get a short page.
+  for (let i = 0; i < 50; i++) {
+    const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getStarTransactions?limit=100&offset=${offset}`);
+    const data = await r.json() as { ok: boolean; result?: { transactions?: StarsTx[] } };
+    const page = data?.result?.transactions || [];
+    if (page.length === 0) break;
+    collected.push(...page);
+    if (page.length < 100) break;
+    offset += page.length;
+  }
+
+  const results: Array<{ txnId: number; status: string; reason?: string }> = [];
+  for (const t of collected) {
+    if (t.source?.transaction_type !== "invoice_payment") continue;
+    const payload = t.source?.invoice_payload;
+    if (!payload) continue;
+    let parsed: { txnId?: number; itemId?: string; telegramId?: string };
+    try { parsed = JSON.parse(payload); } catch { continue; }
+    if (typeof parsed.txnId !== "number" || !parsed.itemId || !parsed.telegramId) continue;
+    const r = await reconcilePendingStarPayment(parsed.txnId, parsed.itemId, parsed.telegramId, t.id);
+    results.push({ txnId: parsed.txnId, status: r.status, ...(r.reason ? { reason: r.reason } : {}) });
+  }
+
+  res.json({
+    ok: true,
+    starTxnsScanned: collected.length,
+    invoiceMatches: results.length,
+    credited: results.filter((r) => r.status === "credited").length,
+    alreadyDone: results.filter((r) => r.status === "already_done").length,
+    notFound: results.filter((r) => r.status === "not_found").length,
+    errors: results.filter((r) => r.status === "error"),
+    results,
+  });
+});
+
 // ----- PUBLIC: season epoch -----
 router.get("/season/epoch", async (_req, res) => {
   try {

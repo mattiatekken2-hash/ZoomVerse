@@ -772,6 +772,16 @@ router.post("/stars/webhook", async (req, res) => {
     };
   };
 
+  // Diagnostic logging: dump the keys of every incoming update so we can see
+  // exactly what Telegram is delivering. This is critical for tracking down
+  // why successful_payment events were not being processed.
+  const updateKeys = Object.keys(update || {});
+  const messageKeys = update?.message ? Object.keys(update.message) : [];
+  console.log(`[stars/webhook] update keys=[${updateKeys.join(",")}] msgKeys=[${messageKeys.join(",")}]`);
+  if (update?.message?.successful_payment) {
+    console.log(`[stars/webhook] SUCCESSFUL_PAYMENT: payload=${update.message.successful_payment.invoice_payload} chargeId=${update.message.successful_payment.telegram_payment_charge_id} amount=${update.message.successful_payment.total_amount}`);
+  }
+
   if (update.pre_checkout_query) {
     await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerPreCheckoutQuery`, {
       method: "POST",
