@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { usersTable, tonWithdrawalsTable } from "@workspace/db/schema";
 import { eq, and, desc, sql, ne, gt } from "drizzle-orm";
 import { z } from "zod";
+import { sendWithdrawalChannelMessage } from "../lib/notify";
 
 const router = Router();
 
@@ -209,6 +210,18 @@ router.post("/admin/withdrawals/approve", async (req, res) => {
     if (updated.length === 0) {
       return res.status(404).json({ ok: false, error: "Richiesta non trovata o già elaborata" });
     }
+
+    // Fire-and-forget channel announcement (don't block the response on Telegram).
+    const w = updated[0];
+    const amount = Number(w.amountTon ?? 0).toFixed(4).replace(/\.?0+$/, "");
+    const shortAddr = w.address ? `${w.address.slice(0, 6)}…${w.address.slice(-4)}` : "—";
+    const msg =
+      `✅ <b>Withdrawal Paid</b>\n` +
+      `💎 <b>${amount} TON</b>\n` +
+      `👤 User ID: <code>${w.telegramId}</code>\n` +
+      `📬 ${shortAddr}`;
+    void sendWithdrawalChannelMessage(msg);
+
     res.json({ ok: true, withdrawal: updated[0] });
   } catch (err) {
     res.status(500).json({ ok: false, error: "Errore interno" });
