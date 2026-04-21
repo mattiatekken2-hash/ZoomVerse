@@ -84,6 +84,11 @@ const UnlockWhiteCollectionBody = z.object({
   telegramId: z.string().min(1),
 });
 
+const GrantAutoTapBody = z.object({
+  adminId: z.string(),
+  telegramId: z.string().min(1),
+});
+
 const GlobalBonusBody = z.object({
   adminId: z.string(),
   amount: z.number().positive(),
@@ -144,12 +149,19 @@ router.post("/admin/add-planets", async (req, res) => {
   const { count, planetType } = parsed.data;
   try {
     if (planetType === "SUN") {
+      // Grant SUN: set bonus_sun flag, bump sun_count by `count` (multiple
+      // suns stack the multiplier), and bump balance_epoch so the client
+      // discards any cached state and re-applies the grant on next sync.
       await db
         .insert(usersTable)
-        .values({ telegramId, zoomBalance: 0, referralCount: 0, bonusSun: true })
+        .values({ telegramId, zoomBalance: 0, referralCount: 0, bonusSun: true, sunCount: count, balanceEpoch: 1 })
         .onConflictDoUpdate({
           target: usersTable.telegramId,
-          set: { bonusSun: true },
+          set: {
+            bonusSun: true,
+            sunCount: sql`GREATEST(${usersTable.sunCount}, 0) + ${count}`,
+            balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+          },
         });
     } else if (planetType === "BASIC") {
       await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusBasic: count })
@@ -191,6 +203,33 @@ router.post("/admin/unlock-slots", async (req, res) => {
     await writeAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/grant-auto-tap", async (req, res) => {
+  const parsed = GrantAutoTapBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+
+  try {
+    await db
+      .insert(usersTable)
+      .values({ telegramId, zoomBalance: 0, referralCount: 0, hasAutoTap: true, balanceEpoch: 1 })
+      .onConflictDoUpdate({
+        target: usersTable.telegramId,
+        set: {
+          hasAutoTap: true,
+          balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+        },
+      });
+    await writeAdminAssetSnapshot();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/grant-auto-tap] error:", err);
     res.status(500).json({ error: "Database error" });
   }
 });

@@ -275,6 +275,17 @@ export async function adminUnlockSlots(adminId: string, telegramId: string, coun
   } catch { return false; }
 }
 
+export async function adminGrantAutoTap(adminId: string, telegramId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/grant-auto-tap`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 // === TON Withdrawals (manual processing by admin) ===
 export const WITHDRAWAL_MIN_TON = 10;
 export const WITHDRAWAL_FEE_TON = 0.02;

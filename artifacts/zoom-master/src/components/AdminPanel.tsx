@@ -5,6 +5,7 @@ import {
   adminAddPlanets,
   adminUnlockSlots,
   adminUnlockWhiteCollection,
+  adminGrantAutoTap,
   adminFetchWithdrawals,
   adminApproveWithdrawal,
   adminRejectWithdrawal,
@@ -54,7 +55,7 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "white" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "white" | "autotap" | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [delistId, setDelistId] = useState("");
   const [pendingWithdrawals, setPendingWithdrawals] = useState<TonWithdrawal[]>([]);
@@ -503,6 +504,37 @@ export function AdminPanel({ telegramId }: Props) {
                   }}
                 >
                   {loading === "white" ? "..." : "🤍 GRANT WHITE COLLECTION (4 planets)"}
+                </motion.button>
+
+                {/* Auto-Tap grant */}
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={async () => {
+                    haptic();
+                    const id = targetId.trim() || ADMIN_ID;
+                    setLoading("autotap");
+                    const ok = await adminGrantAutoTap(telegramId, id);
+                    setLoading(null);
+                    if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+                    showFeedback(ok ? `✓ Auto-Tap accreditato a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(0,242,254,0.4)",
+                    background: "rgba(0,242,254,0.1)",
+                    color: "#00f2fe",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "opacity 0.15s",
+                    boxShadow: "0 0 14px rgba(0,242,254,0.15)",
+                  }}
+                >
+                  {loading === "autotap" ? "..." : "⚡ GRANT AUTO-TAP"}
                 </motion.button>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
