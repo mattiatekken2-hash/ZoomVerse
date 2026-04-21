@@ -256,7 +256,7 @@ function AppShellWithState() {
           className="font-black text-lg tracking-widest neon-text cursor-pointer"
           onClick={() => switchTab("lab")}
         >
-          ZOOM BETA
+          ZOOM
         </div>
         <div className="flex items-center gap-3">
           {totalRate > 0 && (
