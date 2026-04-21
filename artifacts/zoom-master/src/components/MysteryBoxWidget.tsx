@@ -210,27 +210,26 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
           position: "fixed",
           top: 270,
           right: 12,
+          width: 60,
+          height: 60,
           display: "flex",
           alignItems: "center",
-          gap: 10,
-          padding: "6px 12px 6px 8px",
+          justifyContent: "center",
+          padding: 4,
           borderRadius: 14,
-          background: "linear-gradient(135deg, rgba(28,18,52,0.92), rgba(10,8,24,0.92))",
+          background: "rgba(8,12,28,0.78)",
           border: "1.5px solid rgba(192,96,255,0.5)",
           animation: "mb-glow 2.4s ease-in-out infinite",
           color: "#fff",
           zIndex: 35,
           cursor: "pointer",
           backdropFilter: "blur(8px)",
+          WebkitTapHighlightColor: "transparent",
         }}
         data-testid="button-mystery-box"
         aria-label="Open Mystery Box"
       >
-        <PixelCrate size={36} animate />
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.1 }}>
-          <span style={{ fontWeight: 900, fontSize: 11, letterSpacing: 1.2, color: "#c060ff" }}>MYSTERY BOX</span>
-          <span style={{ fontWeight: 700, fontSize: 10, color: "rgba(255,255,255,0.65)" }}>{PRICE_TON} TON · open</span>
-        </div>
+        <PixelCrate size={40} animate />
       </button>
 
       {/* Live ticker under the widget */}
