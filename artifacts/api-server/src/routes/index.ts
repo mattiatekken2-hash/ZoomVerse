@@ -12,6 +12,7 @@ import mysteryBoxRouter from "./mysteryBox";
 import withdrawalsRouter from "./withdrawals";
 import maintenanceRouter from "./maintenance";
 import farmRouter from "./farm";
+import userRouter from "./user";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(mysteryBoxRouter);
 router.use(withdrawalsRouter);
 router.use(maintenanceRouter);
 router.use(farmRouter);
+router.use(userRouter);
 
 export default router;

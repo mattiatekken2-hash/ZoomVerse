@@ -3,6 +3,7 @@ import { PlanetOrb } from "../components/PlanetOrb";
 import type { Planet, SunState } from "../hooks/useGameState";
 import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getSunReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, needsCollect } from "../hooks/useGameState";
 import { WalletPopup } from "../components/WalletPopup";
+import { useT } from "../i18n/LanguageContext";
 
 
 interface FarmPageProps {
@@ -37,6 +38,7 @@ const RARITY_CLASS: Record<string, string> = {
 };
 
 export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist }: FarmPageProps) {
+  const { t } = useT();
   const sunMultiplier = Math.max(1, sunCount || (sun?.isOwned ? 1 : 0));
   const sunDisplayRate = SUN_CONFIG.rate * sunMultiplier;
   const [confirmBurn, setConfirmBurn] = useState<string | null>(null);
@@ -412,7 +414,7 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
                       data-testid={`btn-collect-${planet.id}`}
                     >
                       <span style={{ fontSize: 14 }}>⚡</span>
-                      <span>COLLECT</span>
+                      <span>{t("farm.collect")}</span>
                       <span style={{ fontSize: 8, opacity: 0.7 }}>Daily</span>
                     </button>
                   ) : active ? (
@@ -421,7 +423,7 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
                       onClick={() => onStopFarming(planet.id)}
                       data-testid={`btn-stop-${planet.id}`}
                     >
-                      <span>FARMING</span>
+                      <span>{t("farm.farming")}</span>
                       <span style={{ fontSize: 8, opacity: 0.7 }}>{formatDuration(remaining)}</span>
                     </button>
                   ) : expired ? (

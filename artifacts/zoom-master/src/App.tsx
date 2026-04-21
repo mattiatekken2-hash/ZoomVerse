@@ -11,6 +11,8 @@ import { RankPage } from "./pages/RankPage";
 import { ShopPage } from "./pages/ShopPage";
 import { WheelPage } from "./pages/WheelPage";
 import { AdminPanel } from "./components/AdminPanel";
+import { LanguageSwitcher } from "./components/LanguageSwitcher";
+import { LanguageProvider, useT } from "./i18n/LanguageContext";
 import { fetchMaintenanceStatus } from "./utils/api";
 
 const MAINTENANCE_ADMIN_ID = "8144744644";
@@ -19,18 +21,26 @@ const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
 type Tab = "lab" | "farm" | "market" | "earn" | "wheel" | "rank" | "shop";
 
-const NAV: { id: Tab; label: string; icon: string }[] = [
-  { id: "lab", label: "LAB", icon: "⬡" },
-  { id: "farm", label: "FARM", icon: "🪐" },
-  { id: "market", label: "MARKET", icon: "💫" },
-  { id: "wheel", label: "WHEEL", icon: "🎡" },
-  { id: "earn", label: "EARN", icon: "🎁" },
-  { id: "rank", label: "RANK", icon: "🏆" },
+const NAV: { id: Tab; labelKey: string; icon: string }[] = [
+  { id: "lab", labelKey: "nav.lab", icon: "⬡" },
+  { id: "farm", labelKey: "nav.farm", icon: "🪐" },
+  { id: "market", labelKey: "nav.market", icon: "💫" },
+  { id: "wheel", labelKey: "nav.wheel", icon: "🎡" },
+  { id: "earn", labelKey: "nav.earn", icon: "🎁" },
+  { id: "rank", labelKey: "nav.rank", icon: "🏆" },
 ];
 
 const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "wheel", "rank", "shop"];
 
 export default function App() {
+  return (
+    <LanguageProvider>
+      <AppShellWithState />
+    </LanguageProvider>
+  );
+}
+
+function AppShellWithState() {
   const [tab, setTab] = useState<Tab>("lab");
   const {
     state, craft, claimCraft, redeemCode,
@@ -215,29 +225,12 @@ export default function App() {
     }
   }, [muted]);
 
+  const { t } = useT();
+
   if (showMaintenance) {
     return (
       <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
-        <div
-          className="flex flex-col items-center justify-center text-center px-6"
-          style={{ height: "100dvh", background: "#060810", paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
-        >
-          <NebulaBackground />
-          <div className="relative z-10 max-w-sm">
-            <div style={{ fontSize: 64, marginBottom: 18 }}>🛠️</div>
-            <div className="font-black text-2xl tracking-widest neon-text mb-3">UNDER MAINTENANCE</div>
-            <div className="text-sm" style={{ color: "rgba(255,255,255,0.65)", lineHeight: 1.55 }}>
-              {maintenance.message || "We're upgrading the game. Back online shortly."}
-            </div>
-            <div
-              className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black tracking-widest"
-              style={{ background: "rgba(255,179,71,0.12)", color: "#ffb347", border: "1px solid rgba(255,179,71,0.4)" }}
-            >
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#ffb347", boxShadow: "0 0 10px #ffb347" }} />
-              GAME PAUSED
-            </div>
-          </div>
-        </div>
+        <MaintenanceScreen message={maintenance.message} />
       </TonConnectUIProvider>
     );
   }
@@ -251,7 +244,7 @@ export default function App() {
           className="flex-shrink-0 text-center text-xs font-black tracking-widest py-1.5 relative z-30"
           style={{ background: "rgba(255,179,71,0.18)", color: "#ffb347", borderBottom: "1px solid rgba(255,179,71,0.4)" }}
         >
-          🛠️ MAINTENANCE MODE ACTIVE — only you can see the app
+          🛠️ {t("maint.banner")}
         </div>
       )}
 
@@ -268,7 +261,7 @@ export default function App() {
         <div className="flex items-center gap-3">
           {totalRate > 0 && (
             <div className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.3)" }}>
-              +{totalRate.toLocaleString()}/hr
+              +{totalRate.toLocaleString()}{t("header.perHour")}
             </div>
           )}
           <div
@@ -288,6 +281,7 @@ export default function App() {
           >
             {muted ? "🔇" : "🔊"}
           </button>
+          <LanguageSwitcher />
         </div>
       </header>
 
@@ -432,7 +426,7 @@ export default function App() {
                   {item.icon}
                 </div>
                 <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>
-                  {item.label}
+                  {t(item.labelKey)}
                 </div>
               </button>
             );
@@ -441,5 +435,31 @@ export default function App() {
       </nav>
     </div>
     </TonConnectUIProvider>
+  );
+}
+
+function MaintenanceScreen({ message }: { message: string }) {
+  const { t } = useT();
+  return (
+    <div
+      className="flex flex-col items-center justify-center text-center px-6"
+      style={{ height: "100dvh", background: "#060810", paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+    >
+      <NebulaBackground />
+      <div className="relative z-10 max-w-sm">
+        <div style={{ fontSize: 64, marginBottom: 18 }}>🛠️</div>
+        <div className="font-black text-2xl tracking-widest neon-text mb-3">{t("maint.title")}</div>
+        <div className="text-sm" style={{ color: "rgba(255,255,255,0.65)", lineHeight: 1.55 }}>
+          {message || t("maint.default")}
+        </div>
+        <div
+          className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black tracking-widest"
+          style={{ background: "rgba(255,179,71,0.12)", color: "#ffb347", border: "1px solid rgba(255,179,71,0.4)" }}
+        >
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#ffb347", boxShadow: "0 0 10px #ffb347" }} />
+          {t("maint.paused")}
+        </div>
+      </div>
+    </div>
   );
 }

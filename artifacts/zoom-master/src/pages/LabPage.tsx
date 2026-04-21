@@ -7,6 +7,7 @@ import { WhiteCollectionWidget } from "../components/WhiteCollectionWidget";
 import type { Planet, PlanetType } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
+import { useT } from "../i18n/LanguageContext";
 
 
 interface LabPageProps {
@@ -37,6 +38,7 @@ const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
 export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, tonBalance, telegramId, onCraft, onClaim, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, visible = true }: LabPageProps) {
+  const { t } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
   const floatTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
@@ -256,8 +258,8 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             style={{ background: "rgba(6,8,16,0.5)", backdropFilter: "blur(4px)", zIndex: 20 }}
           >
             <div className="glass rounded-2xl px-6 py-4 text-center">
-              <div className="text-amber-400 font-black text-base tracking-widest mb-1">FARM FULL</div>
-              <div className="text-xs text-muted-foreground">Burn or sell a planet to continue</div>
+              <div className="text-amber-400 font-black text-base tracking-widest mb-1">{t("lab.farmFull")}</div>
+              <div className="text-xs text-muted-foreground">{t("lab.farmFullHint")}</div>
             </div>
           </div>
         )}
@@ -323,7 +325,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
               data-testid="button-craft"
               style={{ flex: 1 }}
             >
-              {isFull ? "FARM FULL" : balance < 1 ? "NO $ZOOM" : "FORGE PLANET"}
+              {isFull ? t("lab.farmFull") : balance < 1 ? t("lab.noZoom") : t("lab.forgePlanet")}
             </button>
             <PixelAvatar
               size={60}
@@ -344,9 +346,9 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             <span>
               {currentCraftRarity
                 ? `${PLANET_CONFIG[currentCraftRarity].tapsNeeded} taps · 1 $ZOOM each`
-                : "1 $ZOOM per tap"}
+                : t("lab.perTap")}
             </span>
-            <span>{Math.max(0, maxSlots - planets.length)} slot{Math.max(0, maxSlots - planets.length) !== 1 ? "s" : ""} free</span>
+            <span>{t("lab.slotsFree", { n: Math.max(0, maxSlots - planets.length) })}</span>
           </div>
         )}
       </div>

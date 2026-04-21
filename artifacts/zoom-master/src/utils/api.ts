@@ -930,3 +930,23 @@ export async function delistFromMarket(sellerTelegramId: string, listingId: numb
     return { ok: false };
   }
 }
+
+export async function fetchUserLanguage(telegramId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_BASE}/user/${encodeURIComponent(telegramId)}/language`);
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => ({}));
+    return typeof data?.language === "string" ? data.language : null;
+  } catch { return null; }
+}
+
+export async function setUserLanguage(telegramId: string, language: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/user/language`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId, language }),
+    });
+    return res.ok;
+  } catch { return false; }
+}

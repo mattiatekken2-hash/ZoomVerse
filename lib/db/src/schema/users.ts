@@ -32,6 +32,7 @@ export const usersTable = pgTable("users", {
   whiteCollectionUnlocked: boolean("white_collection_unlocked").notNull().default(false),
   whiteCollectionBundles: integer("white_collection_bundles").notNull().default(0),
   tonBalance: real("ton_balance").notNull().default(0),
+  language: text("language").notNull().default("en"),
 }, (table) => [
   index("idx_users_zoom_balance").on(table.zoomBalance),
   index("idx_users_referred_by").on(table.referredBy),

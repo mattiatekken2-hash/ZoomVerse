@@ -214,7 +214,8 @@ router.post("/admin/withdrawals/approve", async (req, res) => {
     // Fire-and-forget channel announcement (don't block the response on Telegram).
     const w = updated[0];
     const amount = Number(w.amountTon ?? 0).toFixed(4).replace(/\.?0+$/, "");
-    const shortAddr = w.address ? `${w.address.slice(0, 6)}…${w.address.slice(-4)}` : "—";
+    const addr = typeof w.walletAddress === "string" ? w.walletAddress : "";
+    const shortAddr = addr.length >= 12 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : (addr || "—");
     const msg =
       `✅ <b>Withdrawal Paid</b>\n` +
       `💎 <b>${amount} TON</b>\n` +
