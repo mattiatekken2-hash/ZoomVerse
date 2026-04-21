@@ -19,6 +19,7 @@ import {
   adminRemoveSpins,
   adminResetSeason,
   adminForceDelist,
+  adminReconcileReferrals,
 } from "../utils/api";
 
 const ADMIN_ID = "8144744644";
@@ -687,6 +688,48 @@ export function AdminPanel({ telegramId }: Props) {
                 </motion.button>
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.4 }}>
                   Azzera $ZOOM, pool stagionale, conteggi craft e claim per tutti gli utenti.
+                </div>
+
+                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+
+                {/* Reconcile referral counts - safe data fix */}
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
+                  RICONCILIA REFERRAL
+                </div>
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={async () => {
+                    haptic();
+                    setLoading("reset");
+                    const res = await adminReconcileReferrals(telegramId);
+                    setLoading(null);
+                    if (res.ok) {
+                      window.dispatchEvent(new Event("zoom-admin-refresh"));
+                      const delta = res.delta ?? 0;
+                      showFeedback(`✓ Referral riallineati: ${res.before} → ${res.after} (${delta >= 0 ? "+" : ""}${delta})`, true);
+                    } else {
+                      showFeedback(`✗ ${res.error || "Errore"}`, false);
+                    }
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(0,242,254,0.25)",
+                    background: "rgba(0,242,254,0.08)",
+                    color: "#00f2fe",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "all 0.2s",
+                  }}
+                >
+                  🧮 RICONCILIA CONTEGGIO REFERRAL
+                </motion.button>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.4 }}>
+                  Riallinea il conteggio referral di ogni utente al numero reale di invitati. Non tocca i $ZOOM già accreditati.
                 </div>
 
                 <AnimatePresence>

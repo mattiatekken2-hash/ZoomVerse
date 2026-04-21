@@ -442,6 +442,46 @@ router.post("/admin/mark-ton-completed", async (req, res) => {
   }
 });
 
+// ----- ADMIN: reconcile referral counts -----
+// One-shot data fix: rewrite each user's referral_count to the actual number
+// of users that have them as referred_by. Does NOT touch zoom_balance or
+// claimed_milestones — bonuses already paid out stay with the users.
+router.post("/admin/reconcile-referrals", async (req, res) => {
+  const { adminId } = (req.body ?? {}) as { adminId?: string };
+  if (!adminId || !isAdmin(adminId)) {
+    res.status(403).json({ ok: false, error: "Forbidden" });
+    return;
+  }
+  try {
+    const beforeRow = await db.execute(sql`SELECT COALESCE(SUM(referral_count), 0)::int AS total FROM users`);
+    const before = Number((beforeRow as unknown as { rows: { total: number }[] }).rows[0]?.total ?? 0);
+
+    // Reset everyone to 0 first, then set to actual count for users who
+    // really have referred anyone. Keeps accounting trivially correct.
+    await db.execute(sql`UPDATE users SET referral_count = 0 WHERE referral_count <> 0`);
+    await db.execute(sql`
+      UPDATE users u
+      SET referral_count = actual.cnt
+      FROM (
+        SELECT referred_by AS rid, COUNT(*)::int AS cnt
+        FROM users
+        WHERE referred_by IS NOT NULL
+        GROUP BY referred_by
+      ) actual
+      WHERE u.telegram_id = actual.rid
+    `);
+
+    const afterRow = await db.execute(sql`SELECT COALESCE(SUM(referral_count), 0)::int AS total FROM users`);
+    const after = Number((afterRow as unknown as { rows: { total: number }[] }).rows[0]?.total ?? 0);
+
+    console.log(`[admin/reconcile-referrals] before=${before} after=${after} delta=${after - before}`);
+    res.json({ ok: true, before, after, delta: after - before });
+  } catch (err) {
+    console.error("[admin/reconcile-referrals]", err);
+    res.status(500).json({ ok: false, error: "Database error" });
+  }
+});
+
 // ----- PUBLIC: season epoch -----
 router.get("/season/epoch", async (_req, res) => {
   try {

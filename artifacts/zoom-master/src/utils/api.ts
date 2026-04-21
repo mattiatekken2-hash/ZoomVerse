@@ -443,6 +443,21 @@ export async function adminForceDelist(adminId: string, listingId: number): Prom
   } catch { return false; }
 }
 
+export async function adminReconcileReferrals(adminId: string): Promise<{ ok: boolean; before?: number; after?: number; delta?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/reconcile-referrals`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data?.error || `HTTP ${res.status}` };
+    return { ok: true, before: data?.before, after: data?.after, delta: data?.delta };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export async function adminResetSeason(adminId: string): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/reset-season`, {
