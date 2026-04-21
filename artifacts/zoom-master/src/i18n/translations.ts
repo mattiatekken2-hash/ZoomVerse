@@ -57,6 +57,7 @@ const en: Dict = {
   "common.cancel": "Cancel",
   "common.loading": "Loading…",
   "common.language": "Language",
+  "common.slotsFull": "Slots full",
 };
 
 const ru: Dict = {
@@ -101,6 +102,7 @@ const ru: Dict = {
   "common.cancel": "Отмена",
   "common.loading": "Загрузка…",
   "common.language": "Язык",
+  "common.slotsFull": "Слоты заполнены",
 };
 
 const uk: Dict = {
@@ -145,6 +147,7 @@ const uk: Dict = {
   "common.cancel": "Скасувати",
   "common.loading": "Завантаження…",
   "common.language": "Мова",
+  "common.slotsFull": "Слоти заповнені",
 };
 
 export const DICTS: Record<Lang, Dict> = { en, ru, uk };

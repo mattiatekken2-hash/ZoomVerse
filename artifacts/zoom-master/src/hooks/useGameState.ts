@@ -426,6 +426,12 @@ function loadState(): GameState {
 }
 
 function saveState(state: GameState) {
+  // Discard any queued idle write — this snapshot is newer and authoritative.
+  // Without this, a stale schedulePersist payload (e.g. from a tap a few ms
+  // earlier) could fire AFTER us and resurrect items that were just removed
+  // (burned planets, sold items, etc.) on the next reload.
+  _pendingPersistState = null;
+  _persistScheduled = false;
   try {
     localStorage.setItem(getStorageKey(state.telegramId), JSON.stringify(state));
   } catch { /**/ }
@@ -1456,15 +1462,26 @@ export function useGameState() {
     }
   }, []);
 
-  const claimCraft = useCallback(() => {
+  const claimCraft = useCallback((): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: true };
     setState((prev) => {
-      if (!prev.pendingPlanet) return prev;
+      if (!prev.pendingPlanet) { outcome = { ok: false, reason: "No planet to claim" }; return prev; }
+      // Hard slot guard: between the moment the planet finished forging and
+      // the moment the user taps "claim", they may have received planets from
+      // other sources (mystery box, market buy, bonus). Refuse and keep the
+      // pendingPlanet so the user can free a slot and try again.
+      if (prev.planets.length >= prev.maxSlots) {
+        outcome = { ok: false, reason: "Slots full" };
+        try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: "Slots full", ok: false } })); } catch { /**/ }
+        return prev;
+      }
       return {
         ...prev,
         planets: [...prev.planets, prev.pendingPlanet],
         pendingPlanet: null,
       };
     });
+    return outcome;
   }, []);
 
   const redeemCode = useCallback((code: string): { success: boolean; amount?: number; isSun?: boolean; error?: string } => {

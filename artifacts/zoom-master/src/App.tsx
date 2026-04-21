@@ -42,6 +42,30 @@ export default function App() {
 
 function AppShellWithState() {
   const [tab, setTab] = useState<Tab>("lab");
+  const { t } = useT();
+
+  // Global toast — listens for window 'zoom-toast' CustomEvents and shows a
+  // brief banner. Used by useGameState (e.g. claimCraft when slots are full).
+  const [globalToast, setGlobalToast] = useState<{ text: string; ok: boolean } | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    const onToast = (e: Event) => {
+      const detail = (e as CustomEvent<{ text: string; ok: boolean }>).detail;
+      if (!detail) return;
+      const text = detail.text === "Slots full" ? t("common.slotsFull") : detail.text;
+      setGlobalToast({ text, ok: !!detail.ok });
+      if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = window.setTimeout(() => {
+        setGlobalToast(null);
+        toastTimerRef.current = null;
+      }, 2500);
+    };
+    window.addEventListener("zoom-toast", onToast);
+    return () => {
+      window.removeEventListener("zoom-toast", onToast);
+      if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
+    };
+  }, [t]);
   const {
     state, craft, claimCraft, redeemCode,
     collectPlanet, burnPlanet,
@@ -224,8 +248,6 @@ function AppShellWithState() {
       animateVolume(TARGET_VOLUME, FADE_IN_S);
     }
   }, [muted]);
-
-  const { t } = useT();
 
   if (showMaintenance) {
     return (
@@ -433,6 +455,22 @@ function AppShellWithState() {
           })}
         </div>
       </nav>
+      {globalToast && (
+        <div
+          className="fixed left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-xs font-black tracking-widest"
+          style={{
+            top: 70,
+            zIndex: 9999,
+            background: globalToast.ok ? "rgba(0,230,118,0.15)" : "rgba(255,65,108,0.15)",
+            border: `1px solid ${globalToast.ok ? "rgba(0,230,118,0.3)" : "rgba(255,65,108,0.3)"}`,
+            color: globalToast.ok ? "#00e676" : "#ff416c",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+          }}
+        >
+          {globalToast.text}
+        </div>
+      )}
     </div>
     </TonConnectUIProvider>
   );
