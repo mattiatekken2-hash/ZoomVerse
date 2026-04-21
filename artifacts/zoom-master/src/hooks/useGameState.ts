@@ -425,6 +425,11 @@ function loadState(): GameState {
   };
 }
 
+// Monotonic write counter — incremented every time saveState writes. Used to
+// detect "I queued a stale snapshot, but a fresher write happened before me"
+// in scheduled/idle persist callbacks so they don't overwrite newer data.
+let _writeSeq = 0;
+let _lastSavedAt = 0;
 function saveState(state: GameState) {
   // Discard any queued idle write — this snapshot is newer and authoritative.
   // Without this, a stale schedulePersist payload (e.g. from a tap a few ms
@@ -432,6 +437,8 @@ function saveState(state: GameState) {
   // (burned planets, sold items, etc.) on the next reload.
   _pendingPersistState = null;
   _persistScheduled = false;
+  _writeSeq++;
+  _lastSavedAt = Date.now();
   try {
     localStorage.setItem(getStorageKey(state.telegramId), JSON.stringify(state));
   } catch { /**/ }
@@ -453,10 +460,16 @@ function schedulePersist(state: GameState) {
   _pendingPersistState = state;
   if (_persistScheduled) return;
   _persistScheduled = true;
+  const seqAtSchedule = _writeSeq;
   _scheduleIdle(() => {
     _persistScheduled = false;
     const s = _pendingPersistState;
     _pendingPersistState = null;
+    // If anyone wrote authoritatively while we were queued, the snapshot we
+    // captured is potentially stale (e.g. user burned/sold/listed an item
+    // between schedule and idle). Skip — the authoritative writer already
+    // persisted the truth.
+    if (_writeSeq !== seqAtSchedule) return;
     if (s) saveState(s);
   }, { timeout: 200 });
 }
@@ -806,7 +819,14 @@ export function useGameState() {
   useEffect(() => {
     const flush = () => {
       flushPersist();
-      saveState(stateRef.current);
+      // If a destructive op (burn/sell/list/buy) just persisted authoritatively
+      // within the last 250ms, stateRef.current may still be the PRE-op value
+      // because React hasn't yet committed the new state. Writing it here
+      // would resurrect burned/sold items on the next reload. Skip — the
+      // destructive op already saved the truth.
+      if (Date.now() - _lastSavedAt > 250) {
+        saveState(stateRef.current);
+      }
       immediateSyncToServer(stateRef.current);
     };
     const onVisibility = () => { if (document.hidden) flush(); };
@@ -1324,7 +1344,14 @@ export function useGameState() {
 
     const handleBeforeUnload = () => {
       const settled = settleFarmingState(stateRef.current, Date.now());
-      saveState(settled);
+      // If a destructive op (burn/sell/list) just persisted authoritatively
+      // (within the last 250ms) and React hasn't yet committed the new state
+      // to stateRef, writing stateRef here would clobber the authoritative
+      // write with the pre-op snapshot. Skip the redundant write — the
+      // destructive op already saved the truth.
+      if (Date.now() - _lastSavedAt > 250) {
+        saveState(settled);
+      }
       const { telegramId, firstName, username } = getTelegramContext();
       if (telegramId) {
         const balance = Math.floor(settled.balance);
@@ -1669,6 +1696,11 @@ export function useGameState() {
         claimedBonusEpic: planet.name === "EPIC" ? Math.max(prev.claimedBonusEpic, bonusPlanetCount) : prev.claimedBonusEpic,
         claimedBonusGold: planet.name === "GOLD" ? Math.max(prev.claimedBonusGold, bonusPlanetCount) : prev.claimedBonusGold,
       };
+      // Sync stateRef synchronously: if the user closes the app within a few
+      // ms of pressing burn (before React commits), the visibility/unload
+      // flush handler reads stateRef.current. Without this line, that handler
+      // would write the PRE-burn snapshot and resurrect the planet on reload.
+      stateRef.current = updated;
       saveState(updated);
       return updated;
     });
@@ -1744,7 +1776,7 @@ export function useGameState() {
           }
         });
       }
-      return {
+      const updated = {
         ...prev,
         planets: prev.planets.map((p) =>
           p.id === id
@@ -1752,6 +1784,9 @@ export function useGameState() {
             : p
         ),
       };
+      stateRef.current = updated;
+      saveState(updated);
+      return updated;
     });
   }, []);
 
@@ -1764,12 +1799,15 @@ export function useGameState() {
           delistFromMarket(telegramId, planet.serverListingId);
         }
       }
-      return {
+      const updated = {
         ...prev,
         planets: prev.planets.map((p) =>
           p.id === id ? { ...p, isListedInMarket: false, marketPrice: null, serverListingId: undefined } : p
         ),
       };
+      stateRef.current = updated;
+      saveState(updated);
+      return updated;
     });
   }, []);
 
@@ -1803,11 +1841,16 @@ export function useGameState() {
       marketPrice: null,
       craftCost: listing.price,
     };
-    setState((prev) => ({
-      ...prev,
-      balance: prev.balance - total,
-      planets: [...prev.planets, newPlanet],
-    }));
+    setState((prev) => {
+      const updated = {
+        ...prev,
+        balance: prev.balance - total,
+        planets: [...prev.planets, newPlanet],
+      };
+      stateRef.current = updated;
+      saveState(updated);
+      return updated;
+    });
     return { success: true };
   }, []);
 
@@ -1828,11 +1871,16 @@ export function useGameState() {
       marketPrice: null,
       craftCost: pricePaid,
     };
-    setState((prev) => ({
-      ...prev,
-      balance: prev.balance - pricePaid,
-      planets: [...prev.planets, newPlanet],
-    }));
+    setState((prev) => {
+      const updated = {
+        ...prev,
+        balance: prev.balance - pricePaid,
+        planets: [...prev.planets, newPlanet],
+      };
+      stateRef.current = updated;
+      saveState(updated);
+      return updated;
+    });
   }, []);
 
   // ---- ANTI-DUPLICATION RECONCILIATION ----
