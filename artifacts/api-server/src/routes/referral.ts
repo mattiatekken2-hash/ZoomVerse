@@ -76,19 +76,29 @@ router.post("/referral/register", async (req, res) => {
   console.log(`[register] telegramId=${telegramId} username=${normalizedUsername ?? "none"} referredBy=${referredBy ?? "none"}`);
 
   try {
+    // Use ON CONFLICT DO NOTHING + RETURNING so we can reliably tell
+    // whether this was a true insert (returns 1 row) or an existing user
+    // (returns 0 rows). The previous DO UPDATE variant always returned
+    // the row, which made every app reopen with a stored start_param
+    // re-credit the referrer (+20 ZOOM each time + double-count milestones).
     const inserted = await db
       .insert(usersTable)
       .values({ telegramId, referredBy: referredBy ?? null, referralCount: 0, firstName: firstName ?? null, username: normalizedUsername })
-      .onConflictDoUpdate({
-        target: usersTable.telegramId,
-        set: {
-          ...(firstName ? { firstName } : {}),
-          ...(normalizedUsername ? { username: normalizedUsername } : {}),
-        },
-      })
+      .onConflictDoNothing({ target: usersTable.telegramId })
       .returning({ telegramId: usersTable.telegramId });
 
     const isNew = inserted.length > 0;
+
+    // For existing users, refresh first_name/username separately so we keep
+    // those columns up to date without affecting the new/existing detection.
+    if (!isNew && (firstName || normalizedUsername)) {
+      await db.update(usersTable)
+        .set({
+          ...(firstName ? { firstName } : {}),
+          ...(normalizedUsername ? { username: normalizedUsername } : {}),
+        })
+        .where(eq(usersTable.telegramId, telegramId));
+    }
 
     let shouldCreditReferrer = isNew && !!referredBy && referredBy !== telegramId;
 
