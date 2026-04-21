@@ -202,14 +202,14 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
         }
       `}</style>
 
-      {/* Closed widget — top center */}
+      {/* Closed widget — top right, just below the White Collection avatar
+          (which sits at right:12 / top:200 with height 60 → bottom 260). */}
       <button
         onClick={handleOpenClick}
         style={{
           position: "fixed",
-          top: 70,
-          left: "50%",
-          transform: "translateX(-50%)",
+          top: 270,
+          right: 12,
           display: "flex",
           alignItems: "center",
           gap: 10,
@@ -238,10 +238,9 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
         <div
           style={{
             position: "fixed",
-            top: 116,
-            left: "50%",
-            transform: "translateX(-50%)",
-            maxWidth: "90%",
+            top: 320,
+            right: 12,
+            maxWidth: "60%",
             padding: "3px 10px",
             borderRadius: 10,
             background: "rgba(6,8,16,0.7)",
