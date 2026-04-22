@@ -156,6 +156,10 @@ const STARS_CATALOG: StarsItem[] = [
   { id: "auto_tap", title: "Auto-Tap", description: "Hold-to-tap auto-clicker on the FORGE PLANET", starsPrice: 300, tonPrice: 3, itemType: "auto_tap" },
   { id: "mystery_box", title: "Mystery Box", description: "Open a space crate — chance for Rare/Epic/Gold and a tiny shot at THE SUN", starsPrice: 150, tonPrice: 1.5, itemType: "mystery_box" },
   { id: "white_collection", title: "White Collection Limited", description: "Unlock 4 exclusive farm slots. Speed: 0.00462 TON/h. Requires SUN module.", starsPrice: 3000, tonPrice: 30, itemType: "white_collection" },
+  // Reactivation fee for an expired white-planet farming cycle. Same per-tier
+  // fee for W1..W4 (0.005 TON). Server records the payment but applies no
+  // grant — the client toggles the specific planet's farming state on success.
+  { id: "white_react", title: "White Planet Reactivation", description: "Restart an expired white-planet farming cycle", starsPrice: 50, tonPrice: 0.005, itemType: "white_react" },
 ];
 
 const MYSTERY_BOX_SUN_GLOBAL_CAP = 50;
@@ -318,6 +322,10 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string)
     await tx.update(usersTable)
       .set({ hasAutoTap: true })
       .where(eq(usersTable.telegramId, telegramId));
+  } else if (item.itemType === "white_react") {
+    // Reactivation is a paid action with no server-side grant. The transaction
+    // row records the payment for audit; the client flips the planet's
+    // farming-state on success. Intentional no-op here.
   } else if (item.itemType === "white_collection") {
     // Serialize all White Collection credits via a transaction-scoped advisory
     // lock so the global cap is enforced strictly even under concurrent buys.
