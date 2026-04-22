@@ -49,7 +49,6 @@ async function writeAdminAssetSnapshot() {
       bonusRare: usersTable.bonusRare,
       bonusEpic: usersTable.bonusEpic,
       bonusGold: usersTable.bonusGold,
-      bonusV1: usersTable.bonusV1,
     })
     .from(usersTable);
 
@@ -77,7 +76,7 @@ const AddPlanetsBody = z.object({
   adminId: z.string(),
   telegramId: z.string().min(1),
   count: z.number().int().positive(),
-  planetType: z.enum(["BASIC", "RARE", "EPIC", "GOLD", "V1", "SUN"]),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "GOLD", "SUN"]),
 });
 
 const UnlockSlotsBody = z.object({
@@ -209,9 +208,6 @@ router.post("/admin/add-planets", async (req, res) => {
     } else if (planetType === "GOLD") {
       await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusGold: count })
         .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusGold: sql`${usersTable.bonusGold} + ${count}` } });
-    } else if (planetType === "V1") {
-      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusV1: count })
-        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusV1: sql`${usersTable.bonusV1} + ${count}` } });
     }
     await writeAdminAssetSnapshot();
     res.json({ ok: true });
@@ -358,8 +354,6 @@ router.post("/admin/remove-planets", async (req, res) => {
       await db.update(usersTable).set({ bonusEpic: sql`GREATEST(0, ${usersTable.bonusEpic} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
     } else if (planetType === "GOLD") {
       await db.update(usersTable).set({ bonusGold: sql`GREATEST(0, ${usersTable.bonusGold} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
-    } else if (planetType === "V1") {
-      await db.update(usersTable).set({ bonusV1: sql`GREATEST(0, ${usersTable.bonusV1} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
     }
     await writeAdminAssetSnapshot();
     res.json({ ok: true });

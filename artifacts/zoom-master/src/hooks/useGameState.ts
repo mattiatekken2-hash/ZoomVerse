@@ -114,7 +114,6 @@ export interface GameState {
   claimedBonusRare: number;
   claimedBonusEpic: number;
   claimedBonusGold: number;
-  claimedBonusV1: number;
   claimedBonusSun: boolean;
   sunCount: number;
   hasAutoTap: boolean;
@@ -359,7 +358,6 @@ const INITIAL_STATE: GameState = {
   claimedBonusRare: 0,
   claimedBonusEpic: 0,
   claimedBonusGold: 0,
-  claimedBonusV1: 0,
   claimedBonusSun: false,
   sunCount: 0,
   hasAutoTap: false,
@@ -1052,12 +1050,11 @@ export function useGameState() {
         }
 
         // Apply pending bonus planets per type (only new ones not yet claimed)
-        const bonusTypes: Array<{ key: "bonusBasic" | "bonusRare" | "bonusEpic" | "bonusGold" | "bonusV1"; claimedKey: "claimedBonusBasic" | "claimedBonusRare" | "claimedBonusEpic" | "claimedBonusGold" | "claimedBonusV1"; type: PlanetType }> = [
+        const bonusTypes: Array<{ key: "bonusBasic" | "bonusRare" | "bonusEpic" | "bonusGold"; claimedKey: "claimedBonusBasic" | "claimedBonusRare" | "claimedBonusEpic" | "claimedBonusGold"; type: PlanetType }> = [
           { key: "bonusBasic", claimedKey: "claimedBonusBasic", type: "BASIC" },
           { key: "bonusRare", claimedKey: "claimedBonusRare", type: "RARE" },
           { key: "bonusEpic", claimedKey: "claimedBonusEpic", type: "EPIC" },
           { key: "bonusGold", claimedKey: "claimedBonusGold", type: "GOLD" },
-          { key: "bonusV1", claimedKey: "claimedBonusV1", type: "V1" },
         ];
         const now = serverNow();
         const newPlanets: Planet[] = [];
@@ -1190,7 +1187,6 @@ export function useGameState() {
           { key: "bonusRare",  claimedKey: "claimedBonusRare",  type: "RARE" },
           { key: "bonusEpic",  claimedKey: "claimedBonusEpic",  type: "EPIC" },
           { key: "bonusGold",  claimedKey: "claimedBonusGold",  type: "GOLD" },
-          { key: "bonusV1",    claimedKey: "claimedBonusV1",    type: "V1" },
         ];
         const now = serverNow();
         const newPlanets: Planet[] = [];

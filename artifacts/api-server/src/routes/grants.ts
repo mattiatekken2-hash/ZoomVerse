@@ -17,7 +17,6 @@ router.get("/grants/:telegramId", async (req, res) => {
         bonusRare: usersTable.bonusRare,
         bonusEpic: usersTable.bonusEpic,
         bonusGold: usersTable.bonusGold,
-        bonusV1: usersTable.bonusV1,
         hasAutoTap: usersTable.hasAutoTap,
         whiteCollectionUnlocked: usersTable.whiteCollectionUnlocked,
         whiteCollectionBundles: usersTable.whiteCollectionBundles,
@@ -28,7 +27,7 @@ router.get("/grants/:telegramId", async (req, res) => {
       .limit(1);
 
     if (!user) {
-      return res.json({ bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusV1: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, tonBalance: 0 });
+      return res.json({ bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, tonBalance: 0 });
     }
 
     res.json({
@@ -39,7 +38,6 @@ router.get("/grants/:telegramId", async (req, res) => {
       bonusRare: user.bonusRare,
       bonusEpic: user.bonusEpic,
       bonusGold: user.bonusGold,
-      bonusV1: user.bonusV1,
       hasAutoTap: user.hasAutoTap,
       whiteCollectionUnlocked: user.whiteCollectionUnlocked,
       whiteCollectionBundles: user.whiteCollectionBundles ?? 0,

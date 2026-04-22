@@ -18,7 +18,6 @@ export const usersTable = pgTable("users", {
   bonusRare: integer("bonus_rare").notNull().default(0),
   bonusEpic: integer("bonus_epic").notNull().default(0),
   bonusGold: integer("bonus_gold").notNull().default(0),
-  bonusV1: integer("bonus_v1").notNull().default(0),
   claimedMilestones: text("claimed_milestones").notNull().default(""),
   totalCraftedBasic: integer("total_crafted_basic").notNull().default(0),
   totalCraftedRare: integer("total_crafted_rare").notNull().default(0),

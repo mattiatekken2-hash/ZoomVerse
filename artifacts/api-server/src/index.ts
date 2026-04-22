@@ -3,21 +3,6 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { sendBotMessage } from "./lib/notify";
 import { fetchPendingFarmNotifications, markFarmNotified } from "./routes/farm";
-import { db } from "@workspace/db";
-import { sql } from "drizzle-orm";
-
-// Idempotent boot-time migrations for columns that the deployed image needs
-// before the new code paths run. Safer than relying on a separate migration
-// step on the GCE deploy target. ADD COLUMN IF NOT EXISTS is a no-op once
-// the column already exists in the production schema.
-async function ensureBootMigrations(): Promise<void> {
-  try {
-    await db.execute(sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS bonus_v1 integer NOT NULL DEFAULT 0`);
-    logger.info("Boot migrations applied");
-  } catch (err) {
-    logger.error({ err }, "Boot migrations failed");
-  }
-}
 
 const FARM_FULL_MESSAGE = "⚡ Your Farm is full! Collect your TON and restart the engines to keep earning.";
 
@@ -54,7 +39,6 @@ server.on("error", (err: NodeJS.ErrnoException) => {
 
 server.listen(port, () => {
   logger.info({ port }, "Server listening");
-  void ensureBootMigrations();
   startKeepAlive();
   registerTelegramWebhook();
   startFarmNotificationCron();
