@@ -66,6 +66,12 @@ const CreditZoomBody = z.object({
   amount: z.number().positive(),
 });
 
+const CreditTonBody = z.object({
+  adminId: z.string(),
+  telegramId: z.string().min(1),
+  amount: z.number().positive(),
+});
+
 const AddPlanetsBody = z.object({
   adminId: z.string(),
   telegramId: z.string().min(1),
@@ -135,6 +141,33 @@ router.post("/admin/credit-zoom", async (req, res) => {
     await writeAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/credit-ton", async (req, res) => {
+  const parsed = CreditTonBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  const { amount } = parsed.data;
+  try {
+    await db
+      .insert(usersTable)
+      .values({ telegramId, zoomBalance: 0, referralCount: 0, tonBalance: amount, balanceEpoch: 1 })
+      .onConflictDoUpdate({
+        target: usersTable.telegramId,
+        set: {
+          tonBalance: sql`${usersTable.tonBalance} + ${amount}`,
+          balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+        },
+      });
+    await writeAdminAssetSnapshot();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Database error" });
   }
 });
