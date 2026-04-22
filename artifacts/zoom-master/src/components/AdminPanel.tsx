@@ -6,6 +6,7 @@ import {
   adminUnlockSlots,
   adminUnlockWhiteCollection,
   adminGrantAutoTap,
+  adminTestWithdrawalChannel,
   adminFetchWithdrawals,
   adminApproveWithdrawal,
   adminRejectWithdrawal,
@@ -535,6 +536,36 @@ export function AdminPanel({ telegramId }: Props) {
                   }}
                 >
                   {loading === "autotap" ? "..." : "⚡ GRANT AUTO-TAP"}
+                </motion.button>
+
+                {/* Test withdrawal-channel announcement */}
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={async () => {
+                    haptic();
+                    setLoading("test-wd-chan");
+                    const ok = await adminTestWithdrawalChannel(telegramId);
+                    setLoading(null);
+                    showFeedback(ok ? "✓ Messaggio test inviato nel canale" : "✗ Bot non può scrivere nel canale", ok);
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(255,200,80,0.35)",
+                    background: "rgba(40,30,15,0.55)",
+                    color: "#ffc850",
+                    fontFamily: "'Press Start 2P', monospace",
+                    fontSize: 9,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "opacity 0.15s",
+                    boxShadow: "0 0 14px rgba(255,200,80,0.15)",
+                  }}
+                >
+                  {loading === "test-wd-chan" ? "..." : "🧪 TEST WITHDRAWAL CHANNEL"}
                 </motion.button>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />

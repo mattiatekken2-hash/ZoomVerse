@@ -286,6 +286,19 @@ export async function adminGrantAutoTap(adminId: string, telegramId: string): Pr
   } catch { return false; }
 }
 
+export async function adminTestWithdrawalChannel(adminId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/test-withdrawal-channel`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId }),
+    });
+    if (!res.ok) return false;
+    const data = await res.json().catch(() => ({} as { sent?: boolean }));
+    return Boolean(data?.sent);
+  } catch { return false; }
+}
+
 // === TON Withdrawals (manual processing by admin) ===
 export const WITHDRAWAL_MIN_TON = 10;
 export const WITHDRAWAL_FEE_TON = 0.02;

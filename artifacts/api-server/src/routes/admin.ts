@@ -586,6 +586,28 @@ router.post("/admin/reconcile-stars", async (req, res) => {
   });
 });
 
+/**
+ * Send a fake "Withdrawal Paid" message to the configured withdrawals chat /
+ * forum topic, using the same exact format the real approval flow posts.
+ * Lets the admin verify the bot has channel write access without paying out
+ * a real withdrawal. Marked clearly as TEST in the body so it's not mistaken
+ * for a real payout if anyone sees it.
+ */
+router.post("/admin/test-withdrawal-channel", async (req, res) => {
+  const adminId = (req.body?.adminId as string) || "";
+  if (!isAdmin(adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const { sendWithdrawalChannelMessage } = await import("../lib/notify");
+  const msg =
+    `🧪 <b>TEST — Withdrawal Paid</b>\n` +
+    `💎 <b>1.2345 TON</b>\n` +
+    `👤 User ID: <code>${adminId}</code>\n` +
+    `📬 UQAB…cdef\n` +
+    `<i>(messaggio di test, ignorare)</i>`;
+  const ok = await sendWithdrawalChannelMessage(msg);
+  res.json({ ok, sent: ok });
+});
+
 // ----- PUBLIC: season epoch -----
 router.get("/season/epoch", async (_req, res) => {
   try {
