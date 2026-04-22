@@ -2090,6 +2090,11 @@ export function useGameState() {
     return outcome;
   }, []);
 
+  // Legacy reactivate path. The reactivation fee is paid on-chain via
+  // TonConnect to the project wallet — the in-game tonBalance is reserved
+  // for withdrawals and must NEVER be debited here. This function is kept
+  // as an alias of markWhitePlanetReactivated to avoid silent regressions
+  // if any caller still wires it up.
   const reactivateWhitePlanet = useCallback((id: string): { ok: boolean; reason?: string } => {
     let outcome: { ok: boolean; reason?: string } = { ok: true };
     setState((prev) => {
@@ -2098,16 +2103,10 @@ export function useGameState() {
         outcome = { ok: false, reason: "Planet not placed" };
         return prev;
       }
-      const fee = PLANET_CONFIG[planet.name].reactivationFee;
-      if ((prev.tonBalance || 0) < fee) {
-        outcome = { ok: false, reason: `Need ${fee.toFixed(4)} TON to reactivate` };
-        return prev;
-      }
       const now = serverNow();
       if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
       return {
         ...prev,
-        tonBalance: (prev.tonBalance || 0) - fee,
         whitePlanets: prev.whitePlanets.map((p) =>
           p.id === id
             ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
