@@ -257,16 +257,25 @@ function PixelAvatarBase({
           align-items: center;
           justify-content: center;
           cursor: pointer;
+          overflow: hidden;
         }
         .pixel-farm-slot.targetable {
           border-color: ${WHITE_GLOW}aa;
           background: rgba(223,232,255,0.06);
           animation: whiteSlotPulse 1.6s ease-in-out infinite;
         }
+        /* Filled cells host variable-height content (orb + label + status +
+           optional COLLECT/REACT button). Drop the square aspect-ratio so the
+           cell grows vertically to fit; pin a min-height that fits the tallest
+           variant so all cells in the row stay visually aligned. */
         .pixel-farm-slot.filled {
           border: 1px solid ${WHITE_GLOW}55;
           background: rgba(223,232,255,0.05);
           cursor: default;
+          aspect-ratio: auto;
+          min-height: 110px;
+          align-items: stretch;
+          justify-content: flex-start;
         }
         .pixel-farm-slot.locked-tag::after {
           content: "🔒";
