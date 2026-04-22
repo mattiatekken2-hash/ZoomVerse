@@ -718,7 +718,7 @@ function PixelAvatarBase({
                       key={i}
                       className={`pixel-farm-slot ${occupant ? "filled locked-tag" : ""} ${targetable ? "targetable" : ""}`}
                       style={{ position: "relative", padding: occupant ? 6 : 0, flexDirection: "column" }}
-                      onClick={() => handleSlotClick(i)}
+                      onClick={occupant ? undefined : () => handleSlotClick(i)}
                     >
                       {occupant ? (
                         <SlotContent
@@ -876,15 +876,22 @@ function SlotContent({ planet, tonBalance, onCollect, onReactivate }: SlotConten
           : "stopped"}
       </div>
       {showCollect && onCollect && (
-        <button className="white-slot-action collect" onClick={(e) => { e.stopPropagation(); onCollect(planet.id); }}>
+        <button
+          type="button"
+          className="white-slot-action collect"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onCollect(planet.id); }}
+        >
           COLLECT
         </button>
       )}
       {expired && !showCollect && onReactivate && (
         <button
+          type="button"
           className="white-slot-action reactivate"
           disabled={!canPay}
           style={!canPay ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => { e.stopPropagation(); onReactivate(planet.id); }}
           title={`${fee.toFixed(4)} TON`}
         >
