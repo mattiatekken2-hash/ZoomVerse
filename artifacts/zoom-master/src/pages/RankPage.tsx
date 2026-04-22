@@ -228,6 +228,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                       { key: "RARE", label: "Rare", color: "#4facfe" },
                       { key: "EPIC", label: "Epic", color: "#c471ed" },
                       { key: "GOLD", label: "Gold", color: "#ffd700" },
+                      { key: "V1", label: "V1", color: "#f5fbff" },
                     ] as const).map(({ key, label, color }) => (
                       <div key={key} className="rounded-lg p-2 text-center" style={{ background: color + "10", border: `1px solid ${color}20` }}>
                         <div className="font-black text-base" style={{ color }}>{profile.crafted![key]}</div>

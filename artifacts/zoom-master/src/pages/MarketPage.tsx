@@ -6,10 +6,11 @@ import { buyFromMarket, openMarketActivityStream } from "../utils/api";
 import { useGlobalStore, pushMarketSale, refreshMarketListings } from "../store/globalStore";
 
 
-const RARITY_FILTERS: (PlanetType | "ALL")[] = ["ALL", "BASIC", "RARE", "EPIC", "GOLD"];
+const RARITY_FILTERS: (PlanetType | "ALL")[] = ["ALL", "BASIC", "RARE", "EPIC", "GOLD", "V1"];
 
 const RARITY_COLORS: Record<string, string> = {
   BASIC: "#8892b0",
+  V1: "#f5fbff",
   RARE: "#4facfe",
   EPIC: "#c471ed",
   GOLD: "#ffd700",

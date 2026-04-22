@@ -640,7 +640,7 @@ export async function pollTxnUntilFinal(txnId: number, opts: { maxMs?: number; i
 export interface UserProfile {
   exists: boolean;
   createdAt?: string;
-  crafted?: { BASIC: number; RARE: number; EPIC: number; GOLD: number };
+  crafted?: { BASIC: number; RARE: number; EPIC: number; GOLD: number; V1?: number };
 }
 
 export async function fetchProfile(telegramId: string): Promise<UserProfile> {

@@ -24,6 +24,11 @@ const PLANET_GRADIENTS: Record<string, { stops: string[]; glowAlpha: number }> =
     stops: ["#fff8e1", "#ffe082", "#ffd700", "#e6b800", "#b8860b"],
     glowAlpha: 0.7,
   },
+  // V1 — bright moon-white. Crater overlay is rendered separately below.
+  V1: {
+    stops: ["#ffffff", "#fbfdff", "#eef3fa", "#c8d0dc", "#9098a8"],
+    glowAlpha: 0.75,
+  },
   WHITE1: {
     stops: ["#ffffff", "#fafbff", "#eef0f7", "#cdd2e0", "#9ea3b8"],
     glowAlpha: 0.55,
@@ -103,6 +108,37 @@ function PlanetOrbImpl({ planet, size = 60, animate = true }: PlanetOrbProps) {
             pointerEvents: "none",
           }}
         />
+        {/* V1 — moon-like crater spots overlay. Only rendered for V1 so the
+            other planets keep their clean orb look. The craters are subtle
+            grey radial blobs at fixed positions, scaled with the orb size
+            so the texture stays consistent across the lab/farm/market. */}
+        {planet.name === "V1" && (
+          <>
+            {[
+              { top: "22%", left: "55%", w: "18%", h: "18%", op: 0.45 },
+              { top: "48%", left: "20%", w: "22%", h: "22%", op: 0.40 },
+              { top: "62%", left: "60%", w: "14%", h: "14%", op: 0.50 },
+              { top: "30%", left: "30%", w: "10%", h: "10%", op: 0.35 },
+              { top: "70%", left: "38%", w: "9%",  h: "9%",  op: 0.42 },
+              { top: "18%", left: "78%", w: "8%",  h: "8%",  op: 0.32 },
+            ].map((c, i) => (
+              <div
+                key={`v1c-${i}`}
+                style={{
+                  position: "absolute",
+                  top: c.top,
+                  left: c.left,
+                  width: c.w,
+                  height: c.h,
+                  borderRadius: "50%",
+                  background: `radial-gradient(circle at 40% 40%, rgba(120,128,148,${c.op}) 0%, rgba(150,158,178,${c.op * 0.6}) 55%, transparent 80%)`,
+                  filter: `blur(${size * 0.012}px)`,
+                  pointerEvents: "none",
+                }}
+              />
+            ))}
+          </>
+        )}
       </div>
     </div>
   );

@@ -39,7 +39,7 @@ async function refreshServerOffset(): Promise<void> {
   } catch { /* keep last known offset */ }
 }
 
-export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4";
+export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD" | "V1" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4";
 
 export const WHITE_PLANET_TYPES: PlanetType[] = ["WHITE1", "WHITE2", "WHITE3", "WHITE4"];
 
@@ -158,7 +158,9 @@ export const PLANET_CONFIG: Record<PlanetType, {
     rate: 2,
     color: "#8892b0",
     glowColor: "rgba(136,146,176,0.5)",
-    chance: 0.7945,
+    // Reduced by 0.00005 to make room for V1 (0.005% drop) so the cumulative
+    // probability sum across all rollable rarities still equals exactly 1.
+    chance: 0.79445,
     label: "Basic",
     craftCost: 20,
     activationTon: 0.05,
@@ -197,6 +199,20 @@ export const PLANET_CONFIG: Record<PlanetType, {
     activationTon: 1.0,
     tapsNeeded: 500,
     reactivationFee: 2000,
+  },
+  // V1 — ultra-rare apex planet. ~10× rarer than Gold (1 in 20,000 forge).
+  // Bright white "moon-like" appearance with crater spots (rendered in
+  // PlanetOrb). Strongest output and highest costs in the game.
+  V1: {
+    rate: 400,
+    color: "#f5fbff",
+    glowColor: "rgba(245,251,255,0.7)",
+    chance: 0.00005,
+    label: "V1",
+    craftCost: 250,
+    activationTon: 2.0,
+    tapsNeeded: 1000,
+    reactivationFee: 4000,
   },
   // White Collection — only obtainable via the 30 TON shop bundle.
   // chance: 0 ensures rollRarity() in the Lab can never produce them.
@@ -2045,8 +2061,32 @@ export function useGameState() {
     return outcome;
   }, []);
 
-  // Reactivate a placed white planet whose 24h cycle has expired. Costs the
-  // planet's reactivationFee in TON (deducted from accumulated tonBalance).
+  // Flip a white planet back to active without touching tonBalance. Used after
+  // the user pays the reactivation fee on-chain via TonConnect (same flow as
+  // SUN/shop purchases). The fee is collected by the project wallet directly,
+  // not deducted from the in-game tonBalance — so this method must NOT debit.
+  const markWhitePlanetReactivated = useCallback((id: string): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: true };
+    setState((prev) => {
+      const planet = prev.whitePlanets.find((p) => p.id === id);
+      if (!planet || planet.slotIndex == null) {
+        outcome = { ok: false, reason: "Planet not placed" };
+        return prev;
+      }
+      const now = serverNow();
+      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
+      return {
+        ...prev,
+        whitePlanets: prev.whitePlanets.map((p) =>
+          p.id === id
+            ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
+            : p
+        ),
+      };
+    });
+    return outcome;
+  }, []);
+
   const reactivateWhitePlanet = useCallback((id: string): { ok: boolean; reason?: string } => {
     let outcome: { ok: boolean; reason?: string } = { ok: true };
     setState((prev) => {
@@ -2107,6 +2147,6 @@ export function useGameState() {
     unlockSlot, claimDaily,
     activateSun, acquireSun, collectSun,
     startSunFarming, stopSunFarming, burnSun,
-    placeWhitePlanet, reactivateWhitePlanet, collectWhitePlanet,
+    placeWhitePlanet, reactivateWhitePlanet, markWhitePlanetReactivated, collectWhitePlanet,
   };
 }

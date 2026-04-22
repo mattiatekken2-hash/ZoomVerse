@@ -35,6 +35,7 @@ const RARITY_CLASS: Record<string, string> = {
   RARE: "rarity-rare",
   EPIC: "rarity-epic",
   GOLD: "rarity-gold",
+  V1: "rarity-gold",
 };
 
 export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist }: FarmPageProps) {
