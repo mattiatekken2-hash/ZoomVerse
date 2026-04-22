@@ -155,7 +155,7 @@ const STARS_CATALOG: StarsItem[] = [
   { id: "wheel_spin_10", title: "10 Wheel Spins", description: "10 spins on the Fortune Wheel — 30% off", starsPrice: 350, tonPrice: 3.5, zoomAmount: 10, itemType: "wheel_spin" },
   { id: "auto_tap", title: "Auto-Tap", description: "Hold-to-tap auto-clicker on the FORGE PLANET", starsPrice: 300, tonPrice: 3, itemType: "auto_tap" },
   { id: "mystery_box", title: "Mystery Box", description: "Open a space crate — chance for Rare/Epic/Gold and a tiny shot at THE SUN", starsPrice: 150, tonPrice: 1.5, itemType: "mystery_box" },
-  { id: "white_collection", title: "White Collection Limited", description: "Unlock 4 exclusive white farm slots. Each planet farms 0.02772 TON / 24h (~0.001155 TON/h). Combined ~0.111 TON/day across all 4. Reactivation 0.005 TON per planet per cycle. Requires SUN module.", starsPrice: 2000, tonPrice: 20, itemType: "white_collection" },
+  { id: "white_collection", title: "White Collection Limited", description: "Unlock 4 exclusive farm slots. Speed: 0.00462 TON/h. Requires SUN module.", starsPrice: 2000, tonPrice: 20, itemType: "white_collection" },
   // Reactivation fee for an expired white-planet farming cycle. Same per-tier
   // fee for W1..W4 (0.005 TON). Server records the payment but applies no
   // grant — the client toggles the specific planet's farming state on success.

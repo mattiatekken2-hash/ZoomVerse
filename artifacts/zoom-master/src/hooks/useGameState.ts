@@ -1815,9 +1815,6 @@ export function useGameState() {
     setState((prev) => {
       const planet = prev.planets.find((p) => p.id === id);
       if (!planet) return prev;
-      // V1 (apex / "moon") cannot be sold on the marketplace — it is a
-      // permanent collectible. Silently no-op if somehow invoked from the UI.
-      if (planet.name === "V1") return prev;
       const { telegramId, firstName, username } = getTelegramContext();
       if (telegramId) {
         listOnMarket({
