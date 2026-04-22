@@ -351,6 +351,16 @@ function PixelAvatarBase({
           color: #fff;
           cursor: pointer;
           text-transform: uppercase;
+          /* Critical for iOS WebView (Telegram): without manipulation the
+             300ms double-tap delay can swallow the click; without explicit
+             pointer-events the button could be transparent to touches if a
+             parent set pointer-events:none. z-index ensures we sit above any
+             pseudo-element (e.g. ::after lock badge). */
+          touch-action: manipulation;
+          pointer-events: auto;
+          position: relative;
+          z-index: 2;
+          -webkit-tap-highlight-color: rgba(255,255,255,0.15);
         }
         .white-slot-action:active { transform: scale(0.96); }
         .white-slot-action.collect {
