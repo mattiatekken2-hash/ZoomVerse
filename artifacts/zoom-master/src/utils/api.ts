@@ -180,13 +180,14 @@ export interface Grants {
   bonusRare: number;
   bonusEpic: number;
   bonusGold: number;
+  bonusV1: number;
   hasAutoTap: boolean;
   whiteCollectionUnlocked: boolean;
   whiteCollectionBundles: number;
   tonBalance: number;
 }
 
-const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, tonBalance: 0 };
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusV1: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, tonBalance: 0 };
 
 export interface SunStock {
   sold: number;
