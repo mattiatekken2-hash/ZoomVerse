@@ -2077,9 +2077,17 @@ export function useGameState() {
         return prev;
       }
       const now = serverNow();
+      // CRITICAL: credit any uncollected pending TON earnings BEFORE resetting
+      // the cycle timestamps. Otherwise the player loses all TON that was
+      // farmed-but-not-yet-collected when REACT is pressed.
+      const cfg = PLANET_CONFIG[planet.name];
+      const start = Math.max(planet.farmStartedAt, planet.lastCollectedAt);
+      const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+      const pendingTon = end > start ? (cfg.rate / 3_600_000) * (end - start) : 0;
       if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
       return {
         ...prev,
+        tonBalance: (prev.tonBalance || 0) + pendingTon,
         whitePlanets: prev.whitePlanets.map((p) =>
           p.id === id
             ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
@@ -2098,16 +2106,22 @@ export function useGameState() {
         outcome = { ok: false, reason: "Planet not placed" };
         return prev;
       }
-      const fee = PLANET_CONFIG[planet.name].reactivationFee;
+      const cfg = PLANET_CONFIG[planet.name];
+      const fee = cfg.reactivationFee;
       if ((prev.tonBalance || 0) < fee) {
         outcome = { ok: false, reason: `Need ${fee.toFixed(4)} TON to reactivate` };
         return prev;
       }
       const now = serverNow();
+      // Same fix as markWhitePlanetReactivated: credit pending earnings before
+      // resetting the cycle so REACT does not silently destroy farmed TON.
+      const start = Math.max(planet.farmStartedAt, planet.lastCollectedAt);
+      const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+      const pendingTon = end > start ? (cfg.rate / 3_600_000) * (end - start) : 0;
       if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
       return {
         ...prev,
-        tonBalance: (prev.tonBalance || 0) - fee,
+        tonBalance: (prev.tonBalance || 0) - fee + pendingTon,
         whitePlanets: prev.whitePlanets.map((p) =>
           p.id === id
             ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
