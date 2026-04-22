@@ -2,6 +2,20 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, type Grants } from "../utils/api";
 import { toast } from "./use-toast";
 
+// Server-authoritative clock: every farming/idle-income time check is computed
+// against this value, NOT the device clock. Calibrated against /api/server-time
+// so a tampered phone clock cannot accelerate ZOOM/TON accrual.
+let _serverOffsetMs = 0;
+let _serverOffsetReady = false;
+
+export function serverNow(): number {
+  return Date.now() + _serverOffsetMs;
+}
+
+export function isServerClockReady(): boolean {
+  return _serverOffsetReady;
+}
+
 async function calibrateServerOffset(): Promise<number> {
   try {
     const t0 = Date.now();
@@ -12,6 +26,17 @@ async function calibrateServerOffset(): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+async function refreshServerOffset(): Promise<void> {
+  try {
+    const offset = await calibrateServerOffset();
+    // Sanity check: if RTT-noise produced something insane, ignore it.
+    if (Number.isFinite(offset) && Math.abs(offset) < 365 * 24 * 3_600_000) {
+      _serverOffsetMs = offset;
+      _serverOffsetReady = true;
+    }
+  } catch { /* keep last known offset */ }
 }
 
 export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4";
@@ -325,7 +350,7 @@ const INITIAL_STATE: GameState = {
   claimedWhiteCollectionBundles: 0,
   whitePlanets: [],
   tonBalance: 0,
-  lastFarmingSettledAt: Date.now(),
+  lastFarmingSettledAt: serverNow(),
   claimedMilestones: [],
   defectPlanets: [],
   lastBalanceEpoch: 0,
@@ -385,7 +410,7 @@ function loadState(): GameState {
           referredBy: parsed.referredBy ?? null,
           telegramId: parsed.telegramId ?? null,
           claimedBonusSun: parsed.claimedBonusSun ?? false,
-          lastFarmingSettledAt: parsed.lastFarmingSettledAt ?? Date.now(),
+          lastFarmingSettledAt: parsed.lastFarmingSettledAt ?? serverNow(),
           claimedMilestones: parsed.claimedMilestones ?? [],
           lastBalanceEpoch: parsed.lastBalanceEpoch ?? 0,
           whiteCollectionBundles: (parsed as unknown as Record<string, unknown>).whiteCollectionBundles as number ?? (parsed.whiteCollectionUnlocked ? 1 : 0),
@@ -626,7 +651,7 @@ function rollRarity(): PlanetType {
 }
 
 function makeWhiteCollectionPlanets(bundleIndex = 0): Planet[] {
-  const now = Date.now();
+  const now = serverNow();
   return WHITE_PLANET_TYPES.map((type, i) => {
     const cfg = PLANET_CONFIG[type];
     return {
@@ -649,9 +674,9 @@ function makeWhiteCollectionPlanets(bundleIndex = 0): Planet[] {
 
 function makePlanet(rarity: PlanetType): Planet {
   const cfg = PLANET_CONFIG[rarity];
-  const now = Date.now();
+  const now = serverNow();
   return {
-    id: `${now}-${Math.random().toString(36).substring(2)}`,
+    id: `${Date.now()}-${Math.random().toString(36).substring(2)}`,
     name: rarity,
     rate: cfg.rate,
     color: cfg.color,
@@ -669,7 +694,7 @@ function makePlanet(rarity: PlanetType): Planet {
 export function isFarmActive(planet: Planet): boolean {
   if (!planet.isFarmingActive) return false;
   if (planet.isListedInMarket) return false;
-  const now = Date.now();
+  const now = serverNow();
   if (now - planet.farmStartedAt > FARM_DURATION_MS) return false;
   if (now - planet.lastCollectedAt > DAILY_COLLECT_MS) return false;
   return true;
@@ -677,7 +702,7 @@ export function isFarmActive(planet: Planet): boolean {
 
 export function isSunActive(sun: SunState): boolean {
   if (!sun.isActive) return false;
-  const now = Date.now();
+  const now = serverNow();
   if (now - sun.farmStartedAt > FARM_DURATION_MS) return false;
   if (now - sun.lastCollectedAt > DAILY_COLLECT_MS) return false;
   return true;
@@ -685,7 +710,7 @@ export function isSunActive(sun: SunState): boolean {
 
 export function getFarmTimeRemaining(planet: Planet): number {
   const expiry = planet.farmStartedAt + FARM_DURATION_MS;
-  return Math.max(0, expiry - Date.now());
+  return Math.max(0, expiry - serverNow());
 }
 
 /**
@@ -695,7 +720,7 @@ export function getFarmTimeRemaining(planet: Planet): number {
 export function isFarmExpired(planet: Planet): boolean {
   if (planet.isListedInMarket) return false;
   if (planet.farmStartedAt <= 0) return false;
-  return Date.now() - planet.farmStartedAt > FARM_DURATION_MS;
+  return serverNow() - planet.farmStartedAt > FARM_DURATION_MS;
 }
 
 export function getReactivationFee(planet: Planet): number {
@@ -707,7 +732,7 @@ export function getReactivationFee(planet: Planet): number {
  * lastCollectedAt, capped to the 24h DAILY_COLLECT_MS window). Used by the UI
  * to show a live-ticking TON balance in the Pixel-Avatar modal.
  */
-export function getWhitePlanetPendingTon(planet: Planet, now: number = Date.now()): number {
+export function getWhitePlanetPendingTon(planet: Planet, now: number = serverNow()): number {
   if (planet.slotIndex == null || !planet.isFarmingActive) return 0;
   const cfg = PLANET_CONFIG[planet.name];
   if (!cfg.isTonFarming) return 0;
@@ -724,7 +749,7 @@ export function getWhitePlanetPendingTon(planet: Planet, now: number = Date.now(
 export function isSunExpired(sun: SunState | null): boolean {
   if (!sun?.isOwned) return false;
   if (sun.farmStartedAt <= 0) return false;
-  return Date.now() - sun.farmStartedAt > FARM_DURATION_MS;
+  return serverNow() - sun.farmStartedAt > FARM_DURATION_MS;
 }
 
 export function getSunReactivationFee(): number {
@@ -734,15 +759,15 @@ export function getSunReactivationFee(): number {
 export function getSunTimeRemaining(sun: SunState): number {
   if (!sun.isActive) return 0;
   const expiry = sun.farmStartedAt + FARM_DURATION_MS;
-  return Math.max(0, expiry - Date.now());
+  return Math.max(0, expiry - serverNow());
 }
 
 export function needsCollect(planet: Planet): boolean {
-  return Date.now() - planet.lastCollectedAt > DAILY_COLLECT_MS * 0.9 && isFarmActive(planet);
+  return serverNow() - planet.lastCollectedAt > DAILY_COLLECT_MS * 0.9 && isFarmActive(planet);
 }
 
 export function sunNeedsCollect(sun: SunState): boolean {
-  return isSunActive(sun) && Date.now() - sun.lastCollectedAt > DAILY_COLLECT_MS * 0.9;
+  return isSunActive(sun) && serverNow() - sun.lastCollectedAt > DAILY_COLLECT_MS * 0.9;
 }
 
 export function formatDuration(ms: number): string {
@@ -888,10 +913,13 @@ export function useGameState() {
     if (!telegramId) return;
 
     (async () => {
-      const offset = await calibrateServerOffset();
+      // Calibrate server clock BEFORE settling so the first balance
+      // computation already uses server-authoritative time.
+      await refreshServerOffset();
+      const offset = _serverOffsetMs;
       serverOffsetRef.current = offset;
 
-      setState((prev) => settleFarmingState(prev, Date.now()));
+      setState((prev) => settleFarmingState(prev, serverNow()));
 
       let referrer = startParam;
       if (!referrer) {
@@ -1012,7 +1040,7 @@ export function useGameState() {
           { key: "bonusEpic", claimedKey: "claimedBonusEpic", type: "EPIC" },
           { key: "bonusGold", claimedKey: "claimedBonusGold", type: "GOLD" },
         ];
-        const now = Date.now();
+        const now = serverNow();
         const newPlanets: Planet[] = [];
         const claimedUpdates: Partial<GameState> = {};
         const blockedByFullSlots: Array<{ type: PlanetType; count: number }> = [];
@@ -1144,7 +1172,7 @@ export function useGameState() {
           { key: "bonusEpic",  claimedKey: "claimedBonusEpic",  type: "EPIC" },
           { key: "bonusGold",  claimedKey: "claimedBonusGold",  type: "GOLD" },
         ];
-        const now = Date.now();
+        const now = serverNow();
         const newPlanets: Planet[] = [];
         const claimedUpdates: Partial<GameState> = {};
         const blockedByFullSlots: Array<{ type: PlanetType; count: number }> = [];
@@ -1309,7 +1337,7 @@ export function useGameState() {
     const handleVisibility = () => {
       if (document.visibilityState !== "visible") return;
 
-      const localNow = Date.now();
+      const localNow = serverNow();
       setState((prev) => settleFarmingState(prev, localNow));
       stateRef.current = settleFarmingState(stateRef.current, localNow);
 
@@ -1318,7 +1346,7 @@ export function useGameState() {
       if (telegramId) {
         (async () => {
           setState((prev) => {
-            const settled = settleFarmingState(prev, Date.now());
+            const settled = settleFarmingState(prev, serverNow());
             stateRef.current = settled;
             {
               const sent = Math.floor(settled.balance);
@@ -1343,7 +1371,7 @@ export function useGameState() {
     };
 
     const handleBeforeUnload = () => {
-      const settled = settleFarmingState(stateRef.current, Date.now());
+      const settled = settleFarmingState(stateRef.current, serverNow());
       // If a destructive op (burn/sell/list) just persisted authoritatively
       // (within the last 250ms) and React hasn't yet committed the new state
       // to stateRef, writing stateRef here would clobber the authoritative
@@ -1405,7 +1433,7 @@ export function useGameState() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setState((prev) => settleFarmingState(prev, Date.now()));
+      setState((prev) => settleFarmingState(prev, serverNow()));
     }, 1000);
     return () => clearInterval(interval);
   }, []);
@@ -1546,7 +1574,7 @@ export function useGameState() {
   }, []);
 
   const activateSun = useCallback(() => {
-    const now = Date.now();
+    const now = serverNow();
     setState((prev) => {
       if (!prev.sun?.isOwned) return prev;
       // No activation cost — SUN was paid for once at purchase (10 TON).
@@ -1572,7 +1600,7 @@ export function useGameState() {
         outcome = { ok: false, reason: "SUN not owned" };
         return prev;
       }
-      const now = Date.now();
+      const now = serverNow();
       // First start (right after purchase) is free; subsequent reactivations
       // after the 24h cycle elapsed cost a $ZOOM fee.
       const wasStarted = prev.sun.farmStartedAt > 0;
@@ -1643,7 +1671,7 @@ export function useGameState() {
       if (!prev.sun) return prev;
       return {
         ...prev,
-        sun: { ...prev.sun, lastCollectedAt: Date.now() },
+        sun: { ...prev.sun, lastCollectedAt: serverNow() },
       };
     });
   }, []);
@@ -1652,7 +1680,7 @@ export function useGameState() {
     const isDefect = Math.random() < DEFECT_CHANCE;
     setState((prev) => {
       if (prev.telegramId) notifyFarmCollect(prev.telegramId, id);
-      const now = Date.now();
+      const now = serverNow();
       if (isDefect) {
         const planet = prev.planets.find((p) => p.id === id);
         if (planet && planet.isFarmingActive) {
@@ -1714,7 +1742,7 @@ export function useGameState() {
         outcome = { ok: false, reason: "Planet unavailable" };
         return prev;
       }
-      const now = Date.now();
+      const now = serverNow();
       // A planet is "expired" if its 24h cycle elapsed AND it had been started before.
       // First-time start (right after craft) is free; subsequent reactivations cost
       // a rarity-based $ZOOM fee.
@@ -1826,9 +1854,9 @@ export function useGameState() {
       return { success: false, reason: "Cannot buy your own listing" };
     }
     const cfg = PLANET_CONFIG[listing.name];
-    const now = Date.now();
+    const now = serverNow();
     const newPlanet: Planet = {
-      id: `bought-${now}-${Math.random().toString(36).substring(2)}`,
+      id: `bought-${Date.now()}-${Math.random().toString(36).substring(2)}`,
       name: listing.name,
       rate: cfg.rate,
       color: cfg.color,
@@ -1856,9 +1884,9 @@ export function useGameState() {
 
   const serverBuyComplete = useCallback((planetType: PlanetType, planetRate: number, pricePaid: number) => {
     const cfg = PLANET_CONFIG[planetType];
-    const now = Date.now();
+    const now = serverNow();
     const newPlanet: Planet = {
-      id: `bought-${now}-${Math.random().toString(36).substring(2)}`,
+      id: `bought-${Date.now()}-${Math.random().toString(36).substring(2)}`,
       name: planetType,
       rate: planetRate,
       color: cfg.color,
@@ -1955,7 +1983,7 @@ export function useGameState() {
   }, []);
 
   const claimDaily = useCallback(() => {
-    const now = Date.now();
+    const now = serverNow();
     setState((prev) => {
       if (now - prev.lastDailyClaimAt < DAILY_COLLECT_MS) return prev;
       return { ...prev, balance: prev.balance + 50, lastDailyClaimAt: now };
@@ -1989,7 +2017,7 @@ export function useGameState() {
         outcome = { ok: false, reason: "Slot occupied" };
         return prev;
       }
-      const now = Date.now();
+      const now = serverNow();
       if (prev.telegramId) notifyFarmStart(prev.telegramId, id, target.name, true);
       return {
         ...prev,
@@ -2018,7 +2046,7 @@ export function useGameState() {
         outcome = { ok: false, reason: `Need ${fee.toFixed(4)} TON to reactivate` };
         return prev;
       }
-      const now = Date.now();
+      const now = serverNow();
       if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
       return {
         ...prev,
@@ -2040,7 +2068,7 @@ export function useGameState() {
     setState((prev) => {
       const planet = prev.whitePlanets.find((p) => p.id === id);
       if (!planet || planet.slotIndex == null || !planet.isFarmingActive) return prev;
-      const now = Date.now();
+      const now = serverNow();
       const cfg = PLANET_CONFIG[planet.name];
       const start = Math.max(planet.farmStartedAt, planet.lastCollectedAt);
       const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
