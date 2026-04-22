@@ -476,6 +476,23 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
                       <span>LISTED</span>
                       <span style={{ fontSize: 8, opacity: 0.7 }}>Delist</span>
                     </button>
+                  ) : planet.name === "V1" ? (
+                    /* V1 (apex / "moon") is a non-tradable collectible — no
+                       SELL button is rendered. The hook also blocks listing
+                       defensively in case the UI ever gets bypassed. */
+                    <div
+                      className="btn-widget"
+                      style={{
+                        opacity: 0.45,
+                        cursor: "not-allowed",
+                        background: "rgba(245,251,255,0.06)",
+                        border: "1px solid rgba(245,251,255,0.18)",
+                      }}
+                      title="V1 cannot be sold"
+                    >
+                      <span>★ APEX</span>
+                      <span style={{ fontSize: 8, opacity: 0.8 }}>Not for sale</span>
+                    </div>
                   ) : (
                     <button
                       className="btn-widget btn-glass-sell"

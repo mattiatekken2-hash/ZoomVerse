@@ -6,7 +6,9 @@ import { buyFromMarket, openMarketActivityStream } from "../utils/api";
 import { useGlobalStore, pushMarketSale, refreshMarketListings } from "../store/globalStore";
 
 
-const RARITY_FILTERS: (PlanetType | "ALL")[] = ["ALL", "BASIC", "RARE", "EPIC", "GOLD", "V1"];
+// V1 (apex / "moon") is a non-tradable collectible — intentionally omitted
+// from the marketplace filters since no V1 listing can ever exist.
+const RARITY_FILTERS: (PlanetType | "ALL")[] = ["ALL", "BASIC", "RARE", "EPIC", "GOLD"];
 
 const RARITY_COLORS: Record<string, string> = {
   BASIC: "#8892b0",

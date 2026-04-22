@@ -287,7 +287,7 @@ function WhiteCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
               fontSize: 12, color: "rgba(255,255,255,0.65)", textAlign: "center",
               lineHeight: 1.5, marginBottom: 18, padding: "0 6px",
             }}>
-              Unlock 4 exclusive farm slots. Speed: <b style={{ color: NEON_CYAN }}>0.00462 TON/h</b>. Requires SUN module.
+              Unlock 4 exclusive white farm slots. Each planet farms <b style={{ color: NEON_CYAN }}>0.02772 TON / 24h</b> (≈0.001155 TON/h). Combined: <b style={{ color: NEON_CYAN }}>~0.111 TON / day</b> across all 4. Reactivation: 0.005 TON per planet per cycle. Requires SUN module.
             </div>
 
             <div style={{
