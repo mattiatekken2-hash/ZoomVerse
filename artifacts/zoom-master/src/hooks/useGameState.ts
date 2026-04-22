@@ -1815,6 +1815,9 @@ export function useGameState() {
     setState((prev) => {
       const planet = prev.planets.find((p) => p.id === id);
       if (!planet) return prev;
+      // V1 is soulbound — guard here too in case any caller bypasses the
+      // disabled UI button (e.g. an old client cached in Telegram WebView).
+      if (planet.name === "V1") return prev;
       const { telegramId, firstName, username } = getTelegramContext();
       if (telegramId) {
         listOnMarket({

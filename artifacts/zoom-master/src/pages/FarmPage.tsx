@@ -476,6 +476,19 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
                       <span>LISTED</span>
                       <span style={{ fontSize: 8, opacity: 0.7 }}>Delist</span>
                     </button>
+                  ) : planet.name === "V1" ? (
+                    // V1 is bound to its owner — cannot be listed on the
+                    // market. Render a disabled badge instead of the SELL
+                    // button so the slot still shows an action affordance.
+                    <button
+                      className="btn-widget btn-glass-sell"
+                      disabled
+                      style={{ opacity: 0.5, cursor: "not-allowed" }}
+                      data-testid={`btn-sell-${planet.id}`}
+                    >
+                      <span>SOULBOUND</span>
+                      <span style={{ fontSize: 8, opacity: 0.7 }}>Cannot sell</span>
+                    </button>
                   ) : (
                     <button
                       className="btn-widget btn-glass-sell"
