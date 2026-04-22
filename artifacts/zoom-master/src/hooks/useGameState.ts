@@ -1438,6 +1438,20 @@ export function useGameState() {
     return () => clearInterval(interval);
   }, []);
 
+  // Re-calibrate the server clock periodically and on resume so a phone that
+  // sleeps for hours (or a tampered system clock that drifts mid-session)
+  // can't accumulate fake earnings against the local Date.now().
+  useEffect(() => {
+    void refreshServerOffset();
+    const interval = setInterval(() => { void refreshServerOffset(); }, 5 * 60 * 1000);
+    const onVisible = () => { if (!document.hidden) void refreshServerOffset(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+
   const craft = useCallback((): { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType } => {
     const current = stateRef.current;
     if (current.pendingPlanet) return { completed: false };
