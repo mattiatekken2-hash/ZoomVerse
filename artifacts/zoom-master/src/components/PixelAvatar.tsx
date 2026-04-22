@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, memo } from "react";
-import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { PlanetOrb } from "./PlanetOrb";
 import {
   PLANET_CONFIG,
@@ -15,16 +14,11 @@ import {
 import {
   requestTonWithdrawal,
   fetchMyWithdrawals,
-  confirmTonPurchase,
-  pollTxnUntilFinal,
   WITHDRAWAL_MIN_TON,
   WITHDRAWAL_FEE_TON,
   WITHDRAWAL_COOLDOWN_HOURS,
   type TonWithdrawal,
 } from "../utils/api";
-
-// Project TON receiver wallet — same constant used by ShopPage for SUN/etc.
-const TON_RECEIVER_WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 
 const D = "#0a0a14";
 const H = "#e8ecff";
@@ -62,7 +56,6 @@ interface PixelAvatarProps {
   onPlaceWhitePlanet?: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
   onCollectWhitePlanet?: (planetId: string) => void;
   onReactivateWhitePlanet?: (planetId: string) => { ok: boolean; reason?: string };
-  onMarkWhitePlanetReactivated?: (planetId: string) => { ok: boolean; reason?: string };
 }
 
 function PixelAvatarBase({
@@ -75,14 +68,7 @@ function PixelAvatarBase({
   onPlaceWhitePlanet,
   onCollectWhitePlanet,
   onReactivateWhitePlanet,
-  onMarkWhitePlanetReactivated,
 }: PixelAvatarProps) {
-  // TonConnect — same wiring used by the Shop page (SUN, packs, etc.). The
-  // REACT button on a white-planet slot opens the wallet, sends 0.005 TON to
-  // the project receiver, then asks the server to verify and credit the txn.
-  const [tonConnectUI] = useTonConnectUI();
-  const connectedAddress = useTonAddress();
-  const [reactingId, setReactingId] = useState<string | null>(null);
   // Each bundle unlocks 4 slots. Backwards-compat: if the legacy unlocked flag
   // is true but bundles is 0 (pre-migration cache), assume 1 bundle = 4 slots.
   const effectiveBundles = whiteCollectionBundles > 0
@@ -738,55 +724,10 @@ function PixelAvatarBase({
                         <SlotContent
                           planet={occupant}
                           tonBalance={tonBalance}
-                          busy={reactingId === occupant.id}
                           onCollect={onCollectWhitePlanet}
-                          onReactivate={async (id, planet) => {
-                            // Pay the reactivation fee on-chain via TonConnect,
-                            // then ask the server to verify the BOC. On success,
-                            // flip the planet to active client-side. Same flow
-                            // we use for SUN / shop TON purchases.
-                            if (!telegramId) { flashWhiteMsg("Session not ready"); return; }
-                            if (!connectedAddress) { tonConnectUI.openModal(); flashWhiteMsg("Connect your wallet"); return; }
-                            if (reactingId) return;
-                            setReactingId(id);
-                            try {
-                              const fee = getReactivationFee(planet);
-                              const nanotons = BigInt(Math.round(fee * 1e9)).toString();
-                              const txResult = await tonConnectUI.sendTransaction({
-                                validUntil: Math.floor(Date.now() / 1000) + 300,
-                                messages: [{ address: TON_RECEIVER_WALLET, amount: nanotons }],
-                              });
-                              const boc = txResult.boc || "";
-                              const confirm = await confirmTonPurchase(telegramId, "white_react", connectedAddress, fee, boc);
-                              let creditedOk = confirm.ok && !confirm.pending;
-                              if (confirm.pending && confirm.txnId) {
-                                flashWhiteMsg("Verifying payment on-chain…");
-                                const final = await pollTxnUntilFinal(confirm.txnId);
-                                creditedOk = final?.status === "completed";
-                                if (final?.status === "failed") {
-                                  flashWhiteMsg("Payment not detected on-chain");
-                                  setReactingId(null);
-                                  return;
-                                }
-                              } else if (!confirm.ok) {
-                                flashWhiteMsg(confirm.error || "Payment failed");
-                                setReactingId(null);
-                                return;
-                              }
-                              if (creditedOk) {
-                                const res = onMarkWhitePlanetReactivated?.(id);
-                                if (res && !res.ok) flashWhiteMsg(res.reason || "Reactivation failed");
-                                else flashWhiteMsg("Reactivated!");
-                              } else {
-                                flashWhiteMsg("Awaiting confirmation…");
-                              }
-                            } catch (err: unknown) {
-                              const m = err instanceof Error ? err.message : String(err);
-                              if (m.includes("cancel") || m.includes("reject") || m.includes("Interrupted")) flashWhiteMsg("Payment cancelled");
-                              else { flashWhiteMsg("TON payment failed"); console.error("[react] ton tx error:", err); }
-                            } finally {
-                              setReactingId(null);
-                            }
+                          onReactivate={(id) => {
+                            const res = onReactivateWhitePlanet?.(id);
+                            if (res && !res.ok) flashWhiteMsg(res.reason || "Reactivation failed");
                           }}
                         />
                       ) : (
@@ -908,21 +849,18 @@ function PixelAvatarBase({
 interface SlotContentProps {
   planet: Planet;
   tonBalance: number;
-  busy?: boolean;
   onCollect?: (id: string) => void;
-  onReactivate?: (id: string, planet: Planet) => void;
+  onReactivate?: (id: string) => void;
 }
 
-function SlotContent({ planet, busy = false, onCollect, onReactivate }: SlotContentProps) {
+function SlotContent({ planet, tonBalance, onCollect, onReactivate }: SlotContentProps) {
   const active = isFarmActive(planet);
   const expired = isFarmExpired(planet);
   const remaining = getFarmTimeRemaining(planet);
   const fee = getReactivationFee(planet);
   const showCollect = needsCollect(planet);
   const cfg = PLANET_CONFIG[planet.name];
-  // Reactivation is paid on-chain via TonConnect now (same as the SUN/shop
-  // flow). The button stays enabled as long as no payment is in-flight.
-  const canPay = !busy;
+  const canPay = tonBalance >= fee;
 
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
@@ -947,10 +885,10 @@ function SlotContent({ planet, busy = false, onCollect, onReactivate }: SlotCont
           className="white-slot-action reactivate"
           disabled={!canPay}
           style={!canPay ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
-          onClick={(e) => { e.stopPropagation(); onReactivate(planet.id, planet); }}
+          onClick={(e) => { e.stopPropagation(); onReactivate(planet.id); }}
           title={`${fee.toFixed(4)} TON`}
         >
-          {busy ? "…" : `REACT · ${fee.toFixed(3)}`}
+          REACT · {fee.toFixed(3)}
         </button>
       )}
     </div>

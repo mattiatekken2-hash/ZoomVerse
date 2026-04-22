@@ -72,7 +72,7 @@ function AppShellWithState() {
     startFarming, stopFarming,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     claimDaily, startSunFarming, stopSunFarming, burnSun,
-    placeWhitePlanet, reactivateWhitePlanet, markWhitePlanetReactivated, collectWhitePlanet,
+    placeWhitePlanet, reactivateWhitePlanet, collectWhitePlanet,
   } = useGameState();
 
   // Centralized global data fetch — Season epoch, leaderboard, profile, daily, market.
@@ -341,7 +341,6 @@ function AppShellWithState() {
                   onPlaceWhitePlanet={placeWhitePlanet}
                   onCollectWhitePlanet={collectWhitePlanet}
                   onReactivateWhitePlanet={reactivateWhitePlanet}
-                  onMarkWhitePlanetReactivated={markWhitePlanetReactivated}
                   visible={tab === "lab"}
                 />
               )}

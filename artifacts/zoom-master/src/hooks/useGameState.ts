@@ -2045,32 +2045,8 @@ export function useGameState() {
     return outcome;
   }, []);
 
-  // Flip a white planet back to active without touching tonBalance. Used after
-  // the user pays the reactivation fee on-chain via TonConnect (same flow as
-  // SUN/shop purchases). The fee is collected by the project wallet directly,
-  // not deducted from the in-game tonBalance — so this method must NOT debit.
-  const markWhitePlanetReactivated = useCallback((id: string): { ok: boolean; reason?: string } => {
-    let outcome: { ok: boolean; reason?: string } = { ok: true };
-    setState((prev) => {
-      const planet = prev.whitePlanets.find((p) => p.id === id);
-      if (!planet || planet.slotIndex == null) {
-        outcome = { ok: false, reason: "Planet not placed" };
-        return prev;
-      }
-      const now = serverNow();
-      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
-      return {
-        ...prev,
-        whitePlanets: prev.whitePlanets.map((p) =>
-          p.id === id
-            ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
-            : p
-        ),
-      };
-    });
-    return outcome;
-  }, []);
-
+  // Reactivate a placed white planet whose 24h cycle has expired. Costs the
+  // planet's reactivationFee in TON (deducted from accumulated tonBalance).
   const reactivateWhitePlanet = useCallback((id: string): { ok: boolean; reason?: string } => {
     let outcome: { ok: boolean; reason?: string } = { ok: true };
     setState((prev) => {
@@ -2131,6 +2107,6 @@ export function useGameState() {
     unlockSlot, claimDaily,
     activateSun, acquireSun, collectSun,
     startSunFarming, stopSunFarming, burnSun,
-    placeWhitePlanet, reactivateWhitePlanet, markWhitePlanetReactivated, collectWhitePlanet,
+    placeWhitePlanet, reactivateWhitePlanet, collectWhitePlanet,
   };
 }
