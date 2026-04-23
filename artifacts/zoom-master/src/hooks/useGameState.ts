@@ -2077,9 +2077,18 @@ export function useGameState() {
         return prev;
       }
       const now = serverNow();
+      // Auto-collect any pending TON earnings from the just-finished cycle
+      // before resetting the timers. This removes the need for a separate
+      // COLLECT button — earnings always land in tonBalance the moment the
+      // user pays the reactivation fee.
+      const cfg = PLANET_CONFIG[planet.name];
+      const start = Math.max(planet.farmStartedAt, planet.lastCollectedAt);
+      const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+      const earnedTon = end > start ? (cfg.rate / 3_600_000) * (end - start) : 0;
       if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
       return {
         ...prev,
+        tonBalance: (prev.tonBalance || 0) + earnedTon,
         whitePlanets: prev.whitePlanets.map((p) =>
           p.id === id
             ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }

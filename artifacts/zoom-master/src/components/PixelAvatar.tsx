@@ -913,18 +913,14 @@ interface SlotContentProps {
   onReactivate?: (id: string, planet: Planet) => void;
 }
 
-function SlotContent({ planet, busy = false, onCollect, onReactivate }: SlotContentProps) {
+function SlotContent({ planet, busy = false, onReactivate }: SlotContentProps) {
   const active = isFarmActive(planet);
   const expired = isFarmExpired(planet);
   const remaining = getFarmTimeRemaining(planet);
   const fee = getReactivationFee(planet);
-  // White-planet rule: COLLECT must NEVER appear during the 24h cycle.
-  // It shows ONLY at the end of the cycle (expired) and only if the user
-  // hasn't already collected the accrued TON for that cycle. Once collected,
-  // the REACT button takes over so the user can pay the fee and start a
-  // new cycle. This prevents the early-collect surprise the user reported.
-  const hasUncollectedEarnings = planet.lastCollectedAt < planet.farmStartedAt + 1000;
-  const showCollect = expired && hasUncollectedEarnings;
+  // White-planet rule: NO collect step at all. TON earnings are auto-credited
+  // to tonBalance the moment the user pays the on-chain reactivation fee.
+  // The only action surface for white planets is REACT after expiry.
   const cfg = PLANET_CONFIG[planet.name];
   // Reactivation is paid on-chain via TonConnect now (same as the SUN/shop
   // flow). The button stays enabled as long as no payment is in-flight.
@@ -943,12 +939,7 @@ function SlotContent({ planet, busy = false, onCollect, onReactivate }: SlotCont
           ? "expired"
           : "stopped"}
       </div>
-      {showCollect && onCollect && (
-        <button className="white-slot-action collect" onClick={(e) => { e.stopPropagation(); onCollect(planet.id); }}>
-          COLLECT
-        </button>
-      )}
-      {expired && !showCollect && onReactivate && (
+      {expired && onReactivate && (
         <button
           className="white-slot-action reactivate"
           disabled={!canPay}
