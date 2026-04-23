@@ -89,7 +89,11 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
       showToast("Insufficient $ZOOM balance", false);
       return;
     }
-    if (myListings.filter((p) => !p.isListedInMarket).length >= maxSlots) {
+    // Listed planets still occupy a slot (they remain in the farm grid as
+     // LISTED), so we must count ALL owned planets — not just the non-listed
+     // ones — otherwise a 3/3 farm with 1 listing would erroneously allow
+     // another buy and overflow to 4/3.
+    if (myListings.length >= maxSlots) {
       showToast("No free slots available", false);
       return;
     }
