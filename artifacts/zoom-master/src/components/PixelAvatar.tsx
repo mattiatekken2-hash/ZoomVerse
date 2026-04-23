@@ -918,7 +918,13 @@ function SlotContent({ planet, busy = false, onCollect, onReactivate }: SlotCont
   const expired = isFarmExpired(planet);
   const remaining = getFarmTimeRemaining(planet);
   const fee = getReactivationFee(planet);
-  const showCollect = needsCollect(planet);
+  // White-planet rule: COLLECT must NEVER appear during the 24h cycle.
+  // It shows ONLY at the end of the cycle (expired) and only if the user
+  // hasn't already collected the accrued TON for that cycle. Once collected,
+  // the REACT button takes over so the user can pay the fee and start a
+  // new cycle. This prevents the early-collect surprise the user reported.
+  const hasUncollectedEarnings = planet.lastCollectedAt < planet.farmStartedAt + 1000;
+  const showCollect = expired && hasUncollectedEarnings;
   const cfg = PLANET_CONFIG[planet.name];
   // Reactivation is paid on-chain via TonConnect now (same as the SUN/shop
   // flow). The button stays enabled as long as no payment is in-flight.
