@@ -42,6 +42,22 @@ export function notifyFarmStop(telegramId: string, planetId: string): void {
   }).catch(() => { /* ignore */ });
 }
 
+/**
+ * Permanently consume one bonus-planet entitlement on the server when the
+ * user burns a planet that was originally granted by the server (id starts
+ * with `bonus-`). Without this, the next /grants sync would re-grant the
+ * same planet because the entitlement counter is still > claimed.
+ */
+export function notifyPlanetBurn(telegramId: string, planetType: "BASIC" | "RARE" | "EPIC" | "GOLD"): void {
+  if (!telegramId) return;
+  fetch(`${API_BASE}/planets/burn`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ telegramId, planetType }),
+    keepalive: true,
+  }).catch(() => { /* ignore */ });
+}
+
 export async function fetchServerTime(): Promise<number> {
   try {
     const res = await fetch(`${API_BASE}/time?t=${Date.now()}`, { cache: "no-store" });

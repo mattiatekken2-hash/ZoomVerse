@@ -13,6 +13,7 @@ import withdrawalsRouter from "./withdrawals";
 import maintenanceRouter from "./maintenance";
 import farmRouter from "./farm";
 import userRouter from "./user";
+import planetsRouter from "./planets";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(withdrawalsRouter);
 router.use(maintenanceRouter);
 router.use(farmRouter);
 router.use(userRouter);
+router.use(planetsRouter);
 
 export default router;
