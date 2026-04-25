@@ -316,7 +316,7 @@ function WhiteCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
             }}>
               <div style={{ display: "flex", flexDirection: "column" }}>
                 <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Price</span>
-                <span style={{ fontSize: 26, fontWeight: 900, color: "#fff" }}>20 TON</span>
+                <span style={{ fontSize: 26, fontWeight: 900, color: "#fff" }}>30 TON</span>
               </div>
               <button
                 className="wc-buy-btn"
