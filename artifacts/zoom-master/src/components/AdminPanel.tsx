@@ -5,6 +5,7 @@ import {
   adminAddPlanets,
   adminUnlockSlots,
   adminUnlockWhiteCollection,
+  adminUnlockEarthCollection,
   adminGrantAutoTap,
   adminTestWithdrawalChannel,
   adminFetchWithdrawals,
@@ -56,7 +57,7 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "white" | "autotap" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "white" | "earth" | "autotap" | "test-wd-chan" | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [delistId, setDelistId] = useState("");
   const [pendingWithdrawals, setPendingWithdrawals] = useState<TonWithdrawal[]>([]);
@@ -505,6 +506,37 @@ export function AdminPanel({ telegramId }: Props) {
                   }}
                 >
                   {loading === "white" ? "..." : "🤍 GRANT WHITE COLLECTION (4 planets)"}
+                </motion.button>
+
+                {/* Earth Collection unlock */}
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={async () => {
+                    haptic();
+                    const id = targetId.trim() || ADMIN_ID;
+                    setLoading("earth");
+                    const ok = await adminUnlockEarthCollection(telegramId, id);
+                    setLoading(null);
+                    if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+                    showFeedback(ok ? `✓ Earth Collection unlocked for ID ${id}` : `✗ Error for ID ${id}`, ok);
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(61,220,151,0.5)",
+                    background: "rgba(61,220,151,0.10)",
+                    color: "#3ddc97",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "opacity 0.15s",
+                    boxShadow: "0 0 14px rgba(61,220,151,0.18)",
+                  }}
+                >
+                  {loading === "earth" ? "..." : "🌍 GRANT EARTH COLLECTION (4 planets)"}
                 </motion.button>
 
                 {/* Auto-Tap grant */}

@@ -199,10 +199,12 @@ export interface Grants {
   hasAutoTap: boolean;
   whiteCollectionUnlocked: boolean;
   whiteCollectionBundles: number;
+  earthCollectionUnlocked: boolean;
+  earthCollectionBundles: number;
   tonBalance: number;
 }
 
-const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, tonBalance: 0 };
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0 };
 
 export interface SunStock {
   sold: number;
@@ -398,6 +400,17 @@ export async function adminRejectWithdrawal(adminId: string, withdrawalId: numbe
 export async function adminUnlockWhiteCollection(adminId: string, telegramId: string): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/unlock-white-collection`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function adminUnlockEarthCollection(adminId: string, telegramId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/unlock-earth-collection`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ adminId, telegramId }),

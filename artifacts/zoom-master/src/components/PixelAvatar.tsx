@@ -57,12 +57,20 @@ interface PixelAvatarProps {
   whitePlanets?: Planet[];
   whiteCollectionUnlocked?: boolean;
   whiteCollectionBundles?: number;
+  earthPlanets?: Planet[];
+  earthCollectionUnlocked?: boolean;
+  earthCollectionBundles?: number;
+  sunCount?: number;
   tonBalance?: number;
   telegramId?: string | null;
   onPlaceWhitePlanet?: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
   onCollectWhitePlanet?: (planetId: string) => void;
   onReactivateWhitePlanet?: (planetId: string) => { ok: boolean; reason?: string };
   onMarkWhitePlanetReactivated?: (planetId: string) => { ok: boolean; reason?: string };
+  onPlaceEarthPlanet?: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
+  onCollectEarthPlanet?: (planetId: string) => void;
+  onReactivateEarthPlanet?: (planetId: string) => { ok: boolean; reason?: string };
+  onMarkEarthPlanetReactivated?: (planetId: string) => { ok: boolean; reason?: string };
 }
 
 function PixelAvatarBase({
@@ -70,12 +78,20 @@ function PixelAvatarBase({
   whitePlanets = [],
   whiteCollectionUnlocked = false,
   whiteCollectionBundles = 0,
+  earthPlanets = [],
+  earthCollectionUnlocked = false,
+  earthCollectionBundles = 0,
+  sunCount = 0,
   tonBalance = 0,
   telegramId = null,
   onPlaceWhitePlanet,
   onCollectWhitePlanet,
-  onReactivateWhitePlanet,
+  onReactivateWhitePlanet: _onReactivateWhitePlanet,
   onMarkWhitePlanetReactivated,
+  onPlaceEarthPlanet,
+  onCollectEarthPlanet,
+  onReactivateEarthPlanet: _onReactivateEarthPlanet,
+  onMarkEarthPlanetReactivated,
 }: PixelAvatarProps) {
   // TonConnect — same wiring used by the Shop page (SUN, packs, etc.). The
   // REACT button on a white-planet slot opens the wallet, sends 0.005 TON to
@@ -89,6 +105,13 @@ function PixelAvatarBase({
     ? whiteCollectionBundles
     : (whiteCollectionUnlocked ? 1 : 0);
   const maxWhiteSlots = effectiveBundles * 4;
+  const effectiveEarthBundles = earthCollectionBundles > 0
+    ? earthCollectionBundles
+    : (earthCollectionUnlocked ? 1 : 0);
+  const maxEarthSlots = effectiveEarthBundles * 4;
+  // Withdrawals are gated by either: a White Collection bundle (always
+  // unlocks), OR an Earth Collection bundle PLUS at least one SUN module.
+  const canWithdraw = whiteCollectionUnlocked || (earthCollectionUnlocked && sunCount > 0);
   const [tapped, setTapped] = useState(false);
   const [open, setOpen] = useState(false);
   const [depositMsg, setDepositMsg] = useState<string | null>(null);
@@ -124,11 +147,13 @@ function PixelAvatarBase({
   }, [open]);
 
   // Real-time TON balance shown in the modal: persisted balance + uncollected
-  // pending earnings from each placed white planet (capped at 24h per planet).
+  // pending earnings from each placed white AND earth planet (capped at 24h
+  // per planet). The same pending-TON helper works for any TON-farming planet.
   const liveTonBalance = (() => {
     const now = Date.now();
     let pending = 0;
     for (const p of whitePlanets) pending += getWhitePlanetPendingTon(p, now);
+    for (const p of earthPlanets) pending += getWhitePlanetPendingTon(p, now);
     return tonBalance + pending;
   })();
 
@@ -147,8 +172,14 @@ function PixelAvatarBase({
   const handleWithdraw = async () => {
     setWithdrawErr(null);
     setWithdrawMsg(null);
-    if (!whiteCollectionUnlocked) {
-      setWithdrawErr("White Collection holders only");
+    if (!canWithdraw) {
+      // Earth holders need at least one SUN; surface the precise reason so
+      // the user knows exactly what's missing.
+      if (earthCollectionUnlocked && sunCount <= 0) {
+        setWithdrawErr("Earth Collection requires a SUN module to withdraw");
+      } else {
+        setWithdrawErr("White or Earth Collection holders only");
+      }
       return;
     }
     if (!telegramId) {
@@ -194,6 +225,13 @@ function PixelAvatarBase({
     whitePlanets.find((p) => p.slotIndex === i) || null
   );
 
+  // Earth Collection — separate inventory + slot grid mirroring the white one.
+  const earthInventory = earthPlanets.filter((p) => p.slotIndex == null);
+  const earthSlotOccupants: (Planet | null)[] = Array.from({ length: maxEarthSlots }, (_, i) =>
+    earthPlanets.find((p) => p.slotIndex === i) || null
+  );
+  const [selectedEarthInvId, setSelectedEarthInvId] = useState<string | null>(null);
+
   const flashWhiteMsg = (msg: string) => {
     setWhiteMsg(msg);
     window.setTimeout(() => setWhiteMsg(null), 2200);
@@ -217,6 +255,26 @@ function PixelAvatarBase({
 
   const handleInvClick = (id: string) => {
     setSelectedInvId((cur) => (cur === id ? null : id));
+  };
+
+  const handleEarthSlotClick = (slotIndex: number) => {
+    if (slotIndex < 0 || slotIndex >= maxEarthSlots) return;
+    const occupant = earthSlotOccupants[slotIndex];
+    if (occupant) return;
+    if (!selectedEarthInvId || !onPlaceEarthPlanet) {
+      flashWhiteMsg("Select an earth planet from the inventory first");
+      return;
+    }
+    const res = onPlaceEarthPlanet(selectedEarthInvId, slotIndex);
+    if (!res.ok) {
+      flashWhiteMsg(res.reason || "Cannot place planet");
+      return;
+    }
+    setSelectedEarthInvId(null);
+  };
+
+  const handleEarthInvClick = (id: string) => {
+    setSelectedEarthInvId((cur) => (cur === id ? null : id));
   };
 
   return (
@@ -566,7 +624,7 @@ function PixelAvatarBase({
                 </div>
               )}
 
-              {whiteCollectionUnlocked ? (
+              {canWithdraw ? (
                 <>
                   <div style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", marginTop: 4, marginBottom: 6 }}>
                     Min {WITHDRAWAL_MIN_TON} TON · Fee {WITHDRAWAL_FEE_TON} TON
@@ -665,7 +723,9 @@ function PixelAvatarBase({
                 </>
               ) : (
                 <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", padding: "12px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 10, border: "1px dashed rgba(255,255,255,0.12)", marginTop: 4 }}>
-                  TON withdrawals are available to White Collection holders only.
+                  {earthCollectionUnlocked && sunCount <= 0
+                    ? "TON withdrawals require a SUN module (Earth Collection)."
+                    : "TON withdrawals are available to White or Earth Collection holders."}
                 </div>
               )}
             </div>
@@ -692,7 +752,7 @@ function PixelAvatarBase({
                 >
                   White Collection Farm
                 </div>
-                {whiteCollectionUnlocked && (
+                {(whiteCollectionUnlocked || earthCollectionUnlocked) && (
                   <div
                     style={{
                       fontSize: 11,
@@ -898,6 +958,213 @@ function PixelAvatarBase({
                 </div>
               )}
             </div>
+
+            {/* Earth Collection Farm — mirrors the white panel above. */}
+            <div style={{ marginTop: 18 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 10,
+                  gap: 8,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: "0.18em",
+                    color: "#fff",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  🌍 Earth Collection Farm
+                </div>
+                {earthCollectionUnlocked && (
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 800,
+                      color: sunCount > 0 ? "#3ddc97" : "#ff9966",
+                      padding: "4px 9px",
+                      borderRadius: 8,
+                      background: sunCount > 0 ? "rgba(61,220,151,0.10)" : "rgba(255,153,102,0.10)",
+                      border: `1px solid ${sunCount > 0 ? "#3ddc97" : "#ff9966"}55`,
+                      whiteSpace: "nowrap",
+                    }}
+                    title={sunCount > 0 ? "SUN module active — withdrawals enabled" : "Need a SUN to withdraw"}
+                  >
+                    {sunCount > 0 ? "SUN ✓" : "SUN required"}
+                  </div>
+                )}
+              </div>
+
+              {earthCollectionUnlocked && maxEarthSlots > 0 && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4, 1fr)",
+                    gap: 10,
+                    marginBottom: 10,
+                    maxHeight: maxEarthSlots > 12 ? 360 : undefined,
+                    overflowY: maxEarthSlots > 12 ? "auto" : "visible",
+                    paddingRight: maxEarthSlots > 12 ? 4 : 0,
+                  }}
+                >
+                  {earthSlotOccupants.map((_unused, i) => {
+                    const occupant = earthSlotOccupants[i];
+                    const targetable = !occupant && !!selectedEarthInvId;
+                    return (
+                      <div
+                        key={`earth-slot-${i}`}
+                        className={`pixel-farm-slot ${occupant ? "filled locked-tag" : ""} ${targetable ? "targetable" : ""}`}
+                        style={{ position: "relative", padding: occupant ? 6 : 0, flexDirection: "column" }}
+                        onClick={() => handleEarthSlotClick(i)}
+                      >
+                        {occupant ? (
+                          <SlotContent
+                            planet={occupant}
+                            tonBalance={tonBalance}
+                            busy={reactingId === occupant.id}
+                            onCollect={onCollectEarthPlanet}
+                            onReactivate={async (id, planet) => {
+                              if (!telegramId) { flashWhiteMsg("Session not ready"); return; }
+                              if (!connectedAddress) { tonConnectUI.openModal(); flashWhiteMsg("Connect your wallet"); return; }
+                              if (reactingId) return;
+                              setReactingId(id);
+                              try {
+                                const fee = getReactivationFee(planet);
+                                const nanotons = BigInt(Math.round(fee * 1e9)).toString();
+                                const txResult = await tonConnectUI.sendTransaction({
+                                  validUntil: Math.floor(Date.now() / 1000) + 300,
+                                  messages: [{ address: TON_RECEIVER_WALLET, amount: nanotons }],
+                                });
+                                const boc = txResult.boc || "";
+                                const confirm = await confirmTonPurchase(telegramId, "earth_react", connectedAddress, fee, boc);
+                                let creditedOk = confirm.ok && !confirm.pending;
+                                if (confirm.pending && confirm.txnId) {
+                                  flashWhiteMsg("Verifying payment on-chain…");
+                                  const final = await pollTxnUntilFinal(confirm.txnId);
+                                  creditedOk = final?.status === "completed";
+                                  if (final?.status === "failed") {
+                                    flashWhiteMsg("Payment not detected on-chain");
+                                    setReactingId(null);
+                                    return;
+                                  }
+                                } else if (!confirm.ok) {
+                                  flashWhiteMsg(confirm.error || "Payment failed");
+                                  setReactingId(null);
+                                  return;
+                                }
+                                if (creditedOk) {
+                                  const res = onMarkEarthPlanetReactivated?.(id);
+                                  if (res && !res.ok) flashWhiteMsg(res.reason || "Reactivation failed");
+                                  else flashWhiteMsg("Reactivated!");
+                                } else {
+                                  flashWhiteMsg("Awaiting confirmation…");
+                                }
+                              } catch (err: unknown) {
+                                const m = err instanceof Error ? err.message : String(err);
+                                if (m.includes("cancel") || m.includes("reject") || m.includes("Interrupted")) flashWhiteMsg("Payment cancelled");
+                                else { flashWhiteMsg("TON payment failed"); console.error("[earth-react] ton tx error:", err); }
+                              } finally {
+                                setReactingId(null);
+                              }
+                            }}
+                          />
+                        ) : (
+                          <div style={{ fontSize: 18, opacity: 0.3 }}>◌</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {earthCollectionUnlocked && earthInventory.length > 0 && (
+                <>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: "0.14em",
+                      color: "rgba(255,255,255,0.6)",
+                      textTransform: "uppercase",
+                      marginBottom: 8,
+                    }}
+                  >
+                    Earth Inventory · Tap to select, then tap a slot
+                  </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: `repeat(${Math.min(4, earthInventory.length)}, 1fr)`,
+                      gap: 8,
+                      marginBottom: 10,
+                    }}
+                  >
+                    {earthInventory.map((p) => {
+                      const cfg = PLANET_CONFIG[p.name];
+                      return (
+                        <div
+                          key={p.id}
+                          className={`pixel-inv-item ${selectedEarthInvId === p.id ? "selected" : ""}`}
+                          onClick={() => handleEarthInvClick(p.id)}
+                        >
+                          <PlanetOrb planet={p} size={42} animate={false} />
+                          <div style={{ fontSize: 9, fontWeight: 800, opacity: 0.85, textAlign: "center", lineHeight: 1.1 }}>
+                            {cfg.label}
+                          </div>
+                          <div style={{ fontSize: 8, opacity: 0.6 }}>+{cfg.rate}/h</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {!earthCollectionUnlocked && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "rgba(255,255,255,0.5)",
+                    textAlign: "center",
+                    fontStyle: "italic",
+                  }}
+                >
+                  Unlock the Earth Collection (7 TON) to receive 4 earth planets · requires SUN to withdraw
+                </div>
+              )}
+
+              {earthCollectionUnlocked && effectiveEarthBundles > 1 && (
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "rgba(255,255,255,0.55)",
+                    textAlign: "center",
+                    marginTop: 4,
+                    letterSpacing: "0.08em",
+                  }}
+                >
+                  {effectiveEarthBundles}× bundles · {maxEarthSlots} slots
+                </div>
+              )}
+
+              {earthCollectionUnlocked && maxEarthSlots > 0 && earthInventory.length === 0 && earthSlotOccupants.every((o) => o) && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "#3ddc97",
+                    textAlign: "center",
+                    fontStyle: "italic",
+                    opacity: 0.8,
+                  }}
+                >
+                  All {maxEarthSlots} earth planets have been placed 🌍
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -930,7 +1197,7 @@ function SlotContent({ planet, busy = false, onReactivate }: SlotContentProps) {
     <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
       <PlanetOrb planet={planet} size={36} animate={active} />
       <div style={{ fontSize: 8, fontWeight: 800, opacity: 0.95, lineHeight: 1.1, textAlign: "center" }}>
-        {cfg.label.replace("White Planet ", "W")}
+        {cfg.label.replace("White Planet ", "W").replace("Earth Planet ", "E")}
       </div>
       <div style={{ fontSize: 7, opacity: 0.7, lineHeight: 1.05, textAlign: "center" }}>
         {active

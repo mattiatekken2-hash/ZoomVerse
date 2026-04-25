@@ -45,6 +45,25 @@ const PLANET_GRADIENTS: Record<string, { stops: string[]; glowAlpha: number }> =
     stops: ["#ffffff", "#eaf0ff", "#d2dbf2", "#a5afcc", "#6c7596"],
     glowAlpha: 0.65,
   },
+  // EARTH planets — blue oceans + green continents palette. Continent overlay
+  // is rendered separately below (planet.name === "EARTH*") to give them the
+  // characteristic earth look without a flat texture.
+  EARTH1: {
+    stops: ["#bfdbfe", "#60a5fa", "#3b82f6", "#1d4ed8", "#0c2d72"],
+    glowAlpha: 0.65,
+  },
+  EARTH2: {
+    stops: ["#bbf7d0", "#4ade80", "#22c55e", "#15803d", "#0a4823"],
+    glowAlpha: 0.65,
+  },
+  EARTH3: {
+    stops: ["#bae6fd", "#38bdf8", "#0ea5e9", "#0369a1", "#0a3a66"],
+    glowAlpha: 0.65,
+  },
+  EARTH4: {
+    stops: ["#86efac", "#22c55e", "#16a34a", "#166534", "#0a3a1e"],
+    glowAlpha: 0.65,
+  },
 };
 
 const DEFAULT_GRADIENT = PLANET_GRADIENTS.BASIC;

@@ -73,6 +73,7 @@ function AppShellWithState() {
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     claimDaily, startSunFarming, stopSunFarming, burnSun,
     placeWhitePlanet, reactivateWhitePlanet, markWhitePlanetReactivated, collectWhitePlanet,
+    placeEarthPlanet, reactivateEarthPlanet, markEarthPlanetReactivated, collectEarthPlanet,
   } = useGameState();
 
   // Centralized global data fetch — Season epoch, leaderboard, profile, daily, market.
@@ -334,6 +335,10 @@ function AppShellWithState() {
                   whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
                   whiteCollectionBundles={Number(state.whiteCollectionBundles) || 0}
                   whitePlanets={state.whitePlanets || []}
+                  earthCollectionUnlocked={!!state.earthCollectionUnlocked}
+                  earthCollectionBundles={Number(state.earthCollectionBundles) || 0}
+                  earthPlanets={state.earthPlanets || []}
+                  sunCount={state.sunCount || 0}
                   tonBalance={state.tonBalance || 0}
                   telegramId={state.telegramId}
                   onCraft={craft}
@@ -342,6 +347,10 @@ function AppShellWithState() {
                   onCollectWhitePlanet={collectWhitePlanet}
                   onReactivateWhitePlanet={reactivateWhitePlanet}
                   onMarkWhitePlanetReactivated={markWhitePlanetReactivated}
+                  onPlaceEarthPlanet={placeEarthPlanet}
+                  onCollectEarthPlanet={collectEarthPlanet}
+                  onReactivateEarthPlanet={reactivateEarthPlanet}
+                  onMarkEarthPlanetReactivated={markEarthPlanetReactivated}
                   visible={tab === "lab"}
                 />
               )}

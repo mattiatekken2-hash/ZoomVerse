@@ -90,6 +90,11 @@ const UnlockWhiteCollectionBody = z.object({
   telegramId: z.string().min(1),
 });
 
+const UnlockEarthCollectionBody = z.object({
+  adminId: z.string(),
+  telegramId: z.string().min(1),
+});
+
 const GrantAutoTapBody = z.object({
   adminId: z.string(),
   telegramId: z.string().min(1),
@@ -288,6 +293,31 @@ router.post("/admin/unlock-white-collection", async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error("[admin/unlock-white-collection] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/unlock-earth-collection", async (req, res) => {
+  const parsed = UnlockEarthCollectionBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+
+  try {
+    await db
+      .update(usersTable)
+      .set({
+        earthCollectionUnlocked: true,
+        earthCollectionBundles: sql`${usersTable.earthCollectionBundles} + 1`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
+      .where(eq(usersTable.telegramId, telegramId));
+    await writeAdminAssetSnapshot();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/unlock-earth-collection] error:", err);
     res.status(500).json({ error: "Database error" });
   }
 });

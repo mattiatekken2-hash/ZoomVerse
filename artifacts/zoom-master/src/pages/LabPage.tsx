@@ -4,6 +4,7 @@ import { AutoTapWidget } from "../components/AutoTapWidget";
 import { MysteryBoxWidget } from "../components/MysteryBoxWidget";
 import { PixelAvatar } from "../components/PixelAvatar";
 import { WhiteCollectionWidget } from "../components/WhiteCollectionWidget";
+import { EarthCollectionWidget } from "../components/EarthCollectionWidget";
 import type { Planet, PlanetType } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
@@ -22,6 +23,10 @@ interface LabPageProps {
   whiteCollectionUnlocked: boolean;
   whiteCollectionBundles: number;
   whitePlanets: Planet[];
+  earthCollectionUnlocked: boolean;
+  earthCollectionBundles: number;
+  earthPlanets: Planet[];
+  sunCount: number;
   tonBalance: number;
   telegramId: string | null;
   onCraft: () => { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType };
@@ -30,6 +35,10 @@ interface LabPageProps {
   onCollectWhitePlanet: (planetId: string) => void;
   onReactivateWhitePlanet: (planetId: string) => { ok: boolean; reason?: string };
   onMarkWhitePlanetReactivated: (planetId: string) => { ok: boolean; reason?: string };
+  onPlaceEarthPlanet: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
+  onCollectEarthPlanet: (planetId: string) => void;
+  onReactivateEarthPlanet: (planetId: string) => { ok: boolean; reason?: string };
+  onMarkEarthPlanetReactivated: (planetId: string) => { ok: boolean; reason?: string };
   visible?: boolean;
 }
 
@@ -38,7 +47,7 @@ interface FloatMsg { id: number; text: string; color: string }
 const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, tonBalance, telegramId, onCraft, onClaim, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, sunCount, tonBalance, telegramId, onCraft, onClaim, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, visible = true }: LabPageProps) {
   const { t } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
@@ -187,6 +196,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           />
           <MysteryBoxWidget telegramId={telegramId} />
           <WhiteCollectionWidget telegramId={telegramId} unlocked={whiteCollectionUnlocked} ownedBundles={whiteCollectionBundles} />
+          <EarthCollectionWidget telegramId={telegramId} unlocked={earthCollectionUnlocked} ownedBundles={earthCollectionBundles} />
         </>
       )}
       <div
@@ -334,12 +344,20 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
               whitePlanets={whitePlanets}
               whiteCollectionUnlocked={whiteCollectionUnlocked}
               whiteCollectionBundles={whiteCollectionBundles}
+              earthPlanets={earthPlanets}
+              earthCollectionUnlocked={earthCollectionUnlocked}
+              earthCollectionBundles={earthCollectionBundles}
+              sunCount={sunCount}
               tonBalance={tonBalance}
               telegramId={telegramId}
               onPlaceWhitePlanet={onPlaceWhitePlanet}
               onCollectWhitePlanet={onCollectWhitePlanet}
               onReactivateWhitePlanet={onReactivateWhitePlanet}
               onMarkWhitePlanetReactivated={onMarkWhitePlanetReactivated}
+              onPlaceEarthPlanet={onPlaceEarthPlanet}
+              onCollectEarthPlanet={onCollectEarthPlanet}
+              onReactivateEarthPlanet={onReactivateEarthPlanet}
+              onMarkEarthPlanetReactivated={onMarkEarthPlanetReactivated}
             />
           </div>
         )}
