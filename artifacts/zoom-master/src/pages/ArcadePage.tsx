@@ -612,12 +612,13 @@ function ZoomJumpGame({ onEnd, maxZ }: ZoomJumpGameProps) {
 
         // Collision with platforms — only when falling, and only when the
         // astronaut's FEET cross the TOP edge of the platform from above.
-        // Foot footprint is ~12px wide centered on player.x (boots), so we
-        // require the feet to actually overlap the platform — no body-grazing.
+        // FOOT_HALF defines the foot footprint width: wide enough that the
+        // game stays playable, narrow enough that only a real base contact
+        // (not a body graze on the side) triggers a bounce.
         if (player.vy > 0) {
           const feetY = player.y;                  // y is bottom anchor (feet)
           const prevFeetY = feetY - player.vy * step;
-          const FOOT_HALF = 6;                     // half foot footprint width
+          const FOOT_HALF = 10;                    // half foot footprint width
           for (const p of platforms) {
             const platTop = p.y;
             const within = (player.x + FOOT_HALF) > p.x && (player.x - FOOT_HALF) < (p.x + p.w);
