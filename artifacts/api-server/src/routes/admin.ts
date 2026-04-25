@@ -524,6 +524,54 @@ router.post("/admin/force-delist", async (req, res) => {
   }
 });
 
+// ----- ARCADE EXTRA LIVES -----
+const ArcadeLivesBody = z.object({
+  adminId: z.string(),
+  telegramId: z.string().min(1),
+  count: z.number().int().positive(),
+});
+
+router.post("/admin/grant-arcade-lives", async (req, res) => {
+  const parsed = ArcadeLivesBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  const { count } = parsed.data;
+  try {
+    await db.insert(usersTable)
+      .values({ telegramId, zoomBalance: 0, referralCount: 0, arcadeExtraLives: count })
+      .onConflictDoUpdate({
+        target: usersTable.telegramId,
+        set: { arcadeExtraLives: sql`${usersTable.arcadeExtraLives} + ${count}` },
+      });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/grant-arcade-lives]", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/remove-arcade-lives", async (req, res) => {
+  const parsed = ArcadeLivesBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  const { count } = parsed.data;
+  try {
+    await db.execute(sql`
+      UPDATE users
+      SET arcade_extra_lives = GREATEST(arcade_extra_lives - ${count}, 0)
+      WHERE telegram_id = ${telegramId}
+    `);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/remove-arcade-lives]", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 router.post("/admin/remove-spins", async (req, res) => {
   const parsed = SpinsBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });

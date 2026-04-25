@@ -600,6 +600,28 @@ export async function adminRemoveSpins(adminId: string, telegramId: string, coun
   } catch { return false; }
 }
 
+export async function adminGrantArcadeLives(adminId: string, telegramId: string, count: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/grant-arcade-lives`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId, count }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function adminRemoveArcadeLives(adminId: string, telegramId: string, count: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/remove-arcade-lives`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId, count }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminForceDelist(adminId: string, listingId: number): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/force-delist`, {
