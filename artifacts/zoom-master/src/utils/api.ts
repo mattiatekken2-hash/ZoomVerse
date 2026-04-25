@@ -260,6 +260,99 @@ export async function fetchGrants(telegramId: string): Promise<Grants> {
   }
 }
 
+/* ─────────── Arcade (Zoom Jump) ─────────── */
+
+export interface ArcadeState {
+  zCoins: number;
+  zCoinsBest: number;
+  freeLifeAvailable: boolean;
+  nextFreeLifeMs: number;
+  extraLives: number;
+  tonBalance: number;
+  extraLifeCostTon: number;
+}
+
+export interface ArcadeLeaderboardEntry {
+  rank: number;
+  telegramId: string;
+  firstName: string;
+  zCoins: number;
+  zCoinsBest: number;
+}
+
+export async function fetchArcadeState(telegramId: string): Promise<ArcadeState> {
+  try {
+    const res = await fetch(`${API_BASE}/arcade/state/${encodeURIComponent(telegramId)}`);
+    if (!res.ok) throw new Error("bad status");
+    return await res.json();
+  } catch {
+    return {
+      zCoins: 0, zCoinsBest: 0, freeLifeAvailable: true, nextFreeLifeMs: 0,
+      extraLives: 0, tonBalance: 0, extraLifeCostTon: 0.10,
+    };
+  }
+}
+
+export async function fetchArcadeLeaderboard(): Promise<ArcadeLeaderboardEntry[]> {
+  try {
+    const res = await fetch(`${API_BASE}/arcade/leaderboard`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data?.leaderboard) ? data.leaderboard : [];
+  } catch { return []; }
+}
+
+export async function startArcadeLife(telegramId: string): Promise<
+  { ok: true; lifeKind: "free" | "extra"; sessionToken: string; maxZ: number }
+  | { ok: false; message: string }
+> {
+  try {
+    const res = await fetch(`${API_BASE}/arcade/start-life`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId }),
+    });
+    const data = await res.json();
+    if (res.ok && data?.ok) {
+      return { ok: true, lifeKind: data.lifeKind, sessionToken: data.sessionToken, maxZ: data.maxZ };
+    }
+    return { ok: false, message: data?.message || data?.error || "Errore avvio partita" };
+  } catch {
+    return { ok: false, message: "Errore di rete" };
+  }
+}
+
+export async function finishArcadeRun(
+  telegramId: string, sessionToken: string, zEarned: number, durationMs: number,
+): Promise<{ ok: true; credited: number; capped: boolean; zCoins: number; zCoinsBest: number } | { ok: false }> {
+  try {
+    const res = await fetch(`${API_BASE}/arcade/finish`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId, sessionToken, zEarned, durationMs }),
+    });
+    const data = await res.json();
+    if (res.ok && data?.ok) return { ok: true, ...data };
+    return { ok: false };
+  } catch { return { ok: false }; }
+}
+
+export async function buyArcadeLifeWithTon(telegramId: string): Promise<
+  { ok: true; tonBalance: number; extraLives: number; balanceEpoch: number; costTon: number }
+  | { ok: false; message: string }
+> {
+  try {
+    const res = await fetch(`${API_BASE}/arcade/buy-life`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId }),
+    });
+    const data = await res.json();
+    if (res.ok && data?.ok) return { ok: true, ...data };
+    return { ok: false, message: data?.message || data?.error || "Errore acquisto vita" };
+  } catch { return { ok: false, message: "Errore di rete" }; }
+}
+
 export async function adminCreditZoom(adminId: string, telegramId: string, amount: number): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/credit-zoom`, {

@@ -10,6 +10,7 @@ import { EarnPage } from "./pages/EarnPage";
 import { RankPage } from "./pages/RankPage";
 import { ShopPage } from "./pages/ShopPage";
 import { WheelPage } from "./pages/WheelPage";
+import { ArcadePage } from "./pages/ArcadePage";
 import { AdminPanel } from "./components/AdminPanel";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { LanguageProvider, useT } from "./i18n/LanguageContext";
@@ -19,18 +20,19 @@ const MAINTENANCE_ADMIN_ID = "8144744644";
 
 const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
-type Tab = "lab" | "farm" | "market" | "earn" | "wheel" | "rank" | "shop";
+type Tab = "lab" | "farm" | "market" | "earn" | "wheel" | "rank" | "shop" | "arcade";
 
 const NAV: { id: Tab; labelKey: string; icon: string }[] = [
   { id: "lab", labelKey: "nav.lab", icon: "⬡" },
   { id: "farm", labelKey: "nav.farm", icon: "🪐" },
+  { id: "arcade", labelKey: "nav.arcade", icon: "🕹️" },
   { id: "market", labelKey: "nav.market", icon: "💫" },
   { id: "wheel", labelKey: "nav.wheel", icon: "🎡" },
   { id: "earn", labelKey: "nav.earn", icon: "🎁" },
   { id: "rank", labelKey: "nav.rank", icon: "🏆" },
 ];
 
-const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "wheel", "rank", "shop"];
+const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "wheel", "rank", "shop", "arcade"];
 
 export default function App() {
   return (
@@ -413,6 +415,9 @@ function AppShellWithState() {
               )}
               {t === "wheel" && (
                 <WheelPage telegramId={state.telegramId} />
+              )}
+              {t === "arcade" && (
+                <ArcadePage telegramId={state.telegramId} visible={tab === "arcade"} />
               )}
             </div>
           );
