@@ -12,12 +12,6 @@ interface PlanetCanvasProps {
   pendingPlanet?: Planet | null;
   currentCraftRarity?: PlanetType | null;
   forgePhase: ForgePhase;
-  /**
-   * When false, the rAF orbit/glow loop is paused entirely. This prevents
-   * unnecessary CPU/GPU work and battery drain when the LAB tab is not
-   * the active page in the bottom navigation.
-   */
-  visible?: boolean;
 }
 
 const DEFAULT_COLOR = "#4facfe";
@@ -79,7 +73,6 @@ export function PlanetCanvas({
   pendingPlanet,
   currentCraftRarity,
   forgePhase,
-  visible = true,
 }: PlanetCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const fragmentLayerRef = useRef<HTMLDivElement>(null);
@@ -145,7 +138,6 @@ export function PlanetCanvas({
   // so a fully-charged ring near 100% spins faster than one near 5%.
   useEffect(() => {
     if (forgePhase !== "idle") return;
-    if (!visible) return;
     let rafId = 0;
     let angleA = 0;
     let angleB = 0;
@@ -153,15 +145,6 @@ export function PlanetCanvas({
     let lastAppliedPct = -1;
     let lastAppliedColor = "";
     const tick = (now: number) => {
-      // Skip the work when the document is hidden (browser-tab in background
-      // or app minimized). Browsers already throttle rAF in those cases, but
-      // explicitly skipping spares any compositor work the throttle still
-      // allows and keeps charge from decaying while the user is away.
-      if (document.hidden) {
-        last = now;
-        rafId = requestAnimationFrame(tick);
-        return;
-      }
       const dt = (now - last) / 1000;
       last = now;
       // Decay charge: ~0.8s from full to zero of inactivity.
@@ -204,7 +187,7 @@ export function PlanetCanvas({
     };
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [forgePhase, visible]);
+  }, [forgePhase]);
 
   // Imperative tap fragments — DOM-only, never touch React state, so rapid
   // tapping never re-renders the heavy planet/orbital tree.

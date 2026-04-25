@@ -142,19 +142,8 @@ function PixelAvatarBase({
   useEffect(() => {
     if (!open) return;
     // Tick once a second so the live TON balance and slot timers refresh smoothly.
-    // Skip ticks while the document is hidden (tab switch / app minimized) so we
-    // don't keep re-rendering the modal tree off-screen — the next visible tick
-    // catches up immediately because all values are derived from `Date.now()`.
-    const t = window.setInterval(() => {
-      if (document.hidden) return;
-      setTick((n) => n + 1);
-    }, 1000);
-    const onVisible = () => { if (!document.hidden) setTick((n) => n + 1); };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      window.clearInterval(t);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
+    const t = window.setInterval(() => setTick((n) => n + 1), 1000);
+    return () => window.clearInterval(t);
   }, [open]);
 
   // Real-time TON balance shown in the modal: persisted balance + uncollected

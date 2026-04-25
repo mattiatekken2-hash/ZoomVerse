@@ -47,16 +47,6 @@ interface FloatMsg { id: number; text: string; color: string }
 const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
-// Module-level constant — avoids re-allocating this object on every render of
-// LabPage (the lab is the most-frequently-re-rendered page in the app).
-const RARITY_CLASS: Record<string, string> = {
-  BASIC: "basic-text",
-  RARE: "rare-text",
-  EPIC: "epic-text",
-  GOLD: "gold-text",
-  V1: "gold-text",
-};
-
 export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, sunCount, tonBalance, telegramId, onCraft, onClaim, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, visible = true }: LabPageProps) {
   const { t } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
@@ -186,6 +176,14 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     onClaim();
   }, [onClaim]);
 
+  const rarityClass: Record<string, string> = {
+    BASIC: "basic-text",
+    RARE: "rare-text",
+    EPIC: "epic-text",
+    GOLD: "gold-text",
+    V1: "gold-text",
+  };
+
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
       {visible && (
@@ -214,7 +212,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           pendingPlanet={pendingPlanet}
           currentCraftRarity={progress >= REVEAL_THRESHOLD ? currentCraftRarity : null}
           forgePhase={forgePhase}
-          visible={visible}
         />
 
         {floats.map(f => (
@@ -305,7 +302,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
                 className="w-2 h-2 rounded-full"
                 style={{ background: pendingPlanet.color, boxShadow: `0 0 6px ${pendingPlanet.color}` }}
               />
-              <span className={`font-black text-xs tracking-wider ${RARITY_CLASS[pendingPlanet.name]}`}>
+              <span className={`font-black text-xs tracking-wider ${rarityClass[pendingPlanet.name]}`}>
                 {PLANET_CONFIG[pendingPlanet.name].label.toUpperCase()}
               </span>
               <span className="text-[10px] font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>

@@ -942,15 +942,12 @@ export function useGameState() {
   stateRef.current = state;
 
   // Throttle save+sync: writes & network traffic are expensive on every state change.
-  // Debounce 800ms so rapid taps in the LAB coalesce into a single save+sync,
-  // keeping the main thread free for the planet rAF loop and tap handlers.
-  // Always flush on hide/unload (handler below) so we never lose state when the
-  // user backgrounds the app inside the debounce window.
+  // Debounce 400ms so rapid taps coalesce into one save+sync. Always flush on hide/unload.
   useEffect(() => {
     const t = setTimeout(() => {
       saveState(stateRef.current);
       immediateSyncToServer(stateRef.current);
-    }, 800);
+    }, 400);
     return () => clearTimeout(t);
   }, [state]);
 
