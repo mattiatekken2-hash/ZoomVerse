@@ -302,6 +302,16 @@ export function WheelPage({ telegramId }: WheelPageProps) {
   // `rotation - (rotation % 360)` which would collapse 7+ turns into <360°).
   const spinFromRef = useRef(0);
   const spinToRef = useRef(0);
+  // Synchronous guard against double-tap spin races. The `spinning` React
+  // state is set asynchronously, so a quick second tap (especially while the
+  // wheel's heavy SVG is still settling its first render) can sneak past the
+  // `if (spinning) return;` closure check and fire `spinWheel(telegramId)`
+  // a second time — which the server happily accepts as another spin,
+  // decrementing spins and granting a SECOND prize. The user sees only the
+  // first prize popup but their balance jumps by 2× the won amount
+  // ("Double Zoom"). A useRef flag flips synchronously, so any reentry
+  // within the same tick is rejected.
+  const spinInFlightRef = useRef(false);
 
   const refreshStatus = useCallback(async () => {
     if (!telegramId) return;
@@ -312,11 +322,26 @@ export function WheelPage({ telegramId }: WheelPageProps) {
   }, [telegramId]);
 
   // Background sync: only replace seed if server actually returned a non-empty
-  // catalog (otherwise an early/failed fetch would blank the wheel).
+  // catalog (otherwise an early/failed fetch would blank the wheel). We also
+  // skip the replacement if the wheel is currently spinning — swapping
+  // `prizes` mid-rotation would invalidate the WheelDisc memo and force a
+  // full re-render of the heavy SVG (12 segments + 24 studs + gradients)
+  // right while the GPU is composing the rotation, causing a visible stutter.
   useEffect(() => {
     fetchWheelConfig().then((cfg) => {
-      if (Array.isArray(cfg) && cfg.length > 0) setPrizes(cfg);
+      if (!Array.isArray(cfg) || cfg.length === 0) return;
+      if (spinInFlightRef.current) return;
+      // Cheap structural diff: same length AND same id sequence ⇒ no need
+      // to replace the array reference at all (would still bust memo).
+      const sameShape =
+        cfg.length === prizes.length &&
+        cfg.every((p, i) => p.index === prizes[i]?.index && p.label === prizes[i]?.label);
+      if (sameShape) return;
+      setPrizes(cfg);
     });
+  // We intentionally read `prizes` from closure for the diff but do NOT want
+  // this effect to re-run on every state change — it should fire once on mount.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { refreshStatus(); }, [refreshStatus]);
 
@@ -427,13 +452,20 @@ export function WheelPage({ telegramId }: WheelPageProps) {
   };
 
   const handleSpin = async () => {
+    // Synchronous re-entry guard. The React `spinning` state is set
+    // asynchronously, so a fast double-tap can sneak past `if (spinning)`
+    // and cause two `spinWheel` calls — the server credits two prizes,
+    // the user sees one popup but the balance jumps by 2× ("Double Zoom").
+    if (spinInFlightRef.current) return;
     if (!telegramId || spinning || spins <= 0 || segments === 0) return;
+    spinInFlightRef.current = true;
     setResult(null);
     setHighlightIdx(null);
     setSpinning(true);
 
     const res = await spinWheel(telegramId);
     if (!res.ok || !res.result) {
+      spinInFlightRef.current = false;
       setSpinning(false);
       setMessage(res.error || "Spin failed");
       return;
@@ -460,13 +492,18 @@ export function WheelPage({ telegramId }: WheelPageProps) {
       setWinFlash(true);
       spawnParticles(r.prize.color);
       setTimeout(() => setWinFlash(false), 2500);
-      // Credit ZOOM prize directly to local state (server already added it)
-      if (r.prize.type === "zoom" && r.prize.zoomAmount) {
-        window.dispatchEvent(new CustomEvent("zoom-credit-local", { detail: { amount: r.prize.zoomAmount } }));
-      }
-      // Pull updated balance + grants (planet bonuses) from server
-      window.dispatchEvent(new Event("zoom-data-refresh"));
+      // Server is the source of truth for the balance: /wheel/spin already
+      // credited the prize and bumped balance_epoch. Pull the new value via
+      // the admin-refresh path which fetches the authoritative balance and
+      // snaps local state to it. We deliberately DO NOT also dispatch a
+      // local credit here — combining a local +amount and a server snap in
+      // the same tick raced with stateRef updates and could double-count
+      // visually. Grants (planet prizes) come along via admin-refresh too.
       window.dispatchEvent(new Event("zoom-admin-refresh"));
+      // Release the re-entry guard only AFTER the server settled and the
+      // win popup is already on-screen, so accidental extra taps during
+      // the celebration window can't queue another spin either.
+      spinInFlightRef.current = false;
     }, 5200);
   };
 
@@ -615,7 +652,29 @@ export function WheelPage({ telegramId }: WheelPageProps) {
             }
           `}</style>
 
-          {/* 3D wheel */}
+          {/* Static drop shadow under the wheel. Lives on its OWN non-rotating
+              layer so the browser doesn't have to re-rasterize the soft
+              shadow every animation frame while the wheel rotates — that
+              previously caused stutter on mid-tier mobile GPUs. */}
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              top: 35,
+              left: 30,
+              width: SIZE,
+              height: SIZE,
+              borderRadius: "50%",
+              boxShadow: "0 12px 28px rgba(0,0,0,0.8)",
+            }}
+          />
+
+          {/* 3D wheel.
+              While idle we keep the cosmetic `preserve-3d` + `rotateX(20deg)`
+              tilt for depth. During spin we collapse to a flat 2D context
+              (`transformStyle: flat`, no `rotateX`) so the rotating layer
+              composites on a single, cheap GPU plane instead of the more
+              expensive nested-3D context — the slight loss of perspective
+              is invisible while the disc is spinning. */}
           <div
             className="absolute"
             style={{
@@ -623,12 +682,14 @@ export function WheelPage({ telegramId }: WheelPageProps) {
               left: 30,
               width: SIZE,
               height: SIZE,
-              transformStyle: "preserve-3d",
-              transform: "rotateX(20deg)",
+              transformStyle: spinning ? "flat" : "preserve-3d",
+              transform: spinning ? "none" : "rotateX(20deg)",
             }}
           >
-            {/* Base disc layers (thickness illusion) */}
-            {[10, 8, 6, 4, 2].map((d) => (
+            {/* Base disc layers (thickness illusion). Hidden during spin to
+                eliminate their per-frame compositing cost — the rotating
+                disc fully covers them anyway. */}
+            {!spinning && [10, 8, 6, 4, 2].map((d) => (
               <div
                 key={d}
                 className="absolute rounded-full"
@@ -665,11 +726,10 @@ export function WheelPage({ telegramId }: WheelPageProps) {
                   compositor layer so the browser doesn't repaint the SVG on
                   every frame, only re-composites the rotated layer.
                 - `contain: paint` isolates the layout/paint scope.
-                - The previous `filter: drop-shadow(...)` on the SVG was a
-                  per-frame pixel filter (very expensive while rotating); it has
-                  been moved to the static parent container as a `box-shadow`
-                  on a circular wrapper, so the soft shadow renders once and
-                  doesn't follow the rotation. */}
+                - NO box-shadow / filter on this element — those are pixel
+                  effects that recompute every frame during rotation. The
+                  soft drop shadow lives on a separate static sibling
+                  (above) so it renders once. */}
             <div
               className="absolute inset-0"
               style={{
@@ -678,28 +738,31 @@ export function WheelPage({ telegramId }: WheelPageProps) {
                 transformOrigin: "50% 50%",
                 willChange: "transform",
                 backfaceVisibility: "hidden",
-                contain: "paint",
+                contain: "layout paint size",
                 borderRadius: "50%",
-                boxShadow: "0 12px 28px rgba(0,0,0,0.8)",
               }}
             >
               <WheelDisc prizes={prizes} highlightIdx={highlightIdx} size={SIZE} />
 
-              {/* Pulsing center overlay (HTML for animation) */}
-              <div
-                className="absolute pointer-events-none"
-                style={{
-                  left: "50%",
-                  top: "50%",
-                  width: 36,
-                  height: 36,
-                  marginLeft: -18,
-                  marginTop: -18,
-                  borderRadius: "50%",
-                  background: "radial-gradient(circle, rgba(0,242,254,0.5) 0%, rgba(0,242,254,0) 70%)",
-                  animation: spinning ? "none" : "hubPulse 2.4s ease-in-out infinite",
-                }}
-              />
+              {/* Pulsing center overlay (HTML for animation) — removed during
+                  spin so its own animation doesn't compete with the wheel
+                  rotation on the compositor. */}
+              {!spinning && (
+                <div
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: "50%",
+                    top: "50%",
+                    width: 36,
+                    height: 36,
+                    marginLeft: -18,
+                    marginTop: -18,
+                    borderRadius: "50%",
+                    background: "radial-gradient(circle, rgba(0,242,254,0.5) 0%, rgba(0,242,254,0) 70%)",
+                    animation: "hubPulse 2.4s ease-in-out infinite",
+                  }}
+                />
+              )}
             </div>
 
             {/* Pointer (top, fixed). The brightness pulse during spin is
