@@ -291,22 +291,6 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
                     <span style={{ fontSize: 8, opacity: 0.6 }}>Start</span>
                   </button>
                 )}
-
-                <button
-                  className={`btn-widget flex-1 ${confirmBurn === "sun" ? "btn-glass-burn-confirm" : "btn-glass-burn"}`}
-                  onClick={() => {
-                    if (confirmBurn === "sun") {
-                      onBurnSun();
-                      setConfirmBurn(null);
-                    } else {
-                      setConfirmBurn("sun");
-                      setTimeout(() => setConfirmBurn(null), 2500);
-                    }
-                  }}
-                >
-                  <span>{confirmBurn === "sun" ? "SURE?" : "BURN"}</span>
-                  <span style={{ fontSize: 8, opacity: 0.6 }}>Sun</span>
-                </button>
               </div>
             </div>
           )}
