@@ -292,7 +292,7 @@ function WhiteCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
               fontSize: 12, color: "rgba(255,255,255,0.65)", textAlign: "center",
               lineHeight: 1.5, marginBottom: 18, padding: "0 6px",
             }}>
-              Unlock 4 exclusive farm slots. Speed: <b style={{ color: NEON_CYAN }}>0.00462 TON/h</b>. Requires SUN module.
+              Unlock 4 exclusive farm slots. Yield: <b style={{ color: NEON_CYAN }}>0.11 TON / Day</b>. Requires SUN module.
             </div>
 
             <div style={{
