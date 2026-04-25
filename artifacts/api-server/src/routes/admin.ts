@@ -95,6 +95,11 @@ const UnlockEarthCollectionBody = z.object({
   telegramId: z.string().min(1),
 });
 
+const RevokeCollectionBody = z.object({
+  adminId: z.string(),
+  telegramId: z.string().min(1),
+});
+
 const GrantAutoTapBody = z.object({
   adminId: z.string(),
   telegramId: z.string().min(1),
@@ -318,6 +323,56 @@ router.post("/admin/unlock-earth-collection", async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error("[admin/unlock-earth-collection] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/revoke-white-collection", async (req, res) => {
+  const parsed = RevokeCollectionBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+
+  try {
+    await db
+      .update(usersTable)
+      .set({
+        whiteCollectionUnlocked: false,
+        whiteCollectionBundles: 0,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
+      .where(eq(usersTable.telegramId, telegramId));
+    await writeAdminAssetSnapshot();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/revoke-white-collection] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/revoke-earth-collection", async (req, res) => {
+  const parsed = RevokeCollectionBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+
+  try {
+    await db
+      .update(usersTable)
+      .set({
+        earthCollectionUnlocked: false,
+        earthCollectionBundles: 0,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
+      .where(eq(usersTable.telegramId, telegramId));
+    await writeAdminAssetSnapshot();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/revoke-earth-collection] error:", err);
     res.status(500).json({ error: "Database error" });
   }
 });

@@ -419,6 +419,28 @@ export async function adminUnlockEarthCollection(adminId: string, telegramId: st
   } catch { return false; }
 }
 
+export async function adminRevokeWhiteCollection(adminId: string, telegramId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/revoke-white-collection`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function adminRevokeEarthCollection(adminId: string, telegramId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/revoke-earth-collection`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminRemoveZoom(adminId: string, telegramId: string, amount: number): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/remove-zoom`, {

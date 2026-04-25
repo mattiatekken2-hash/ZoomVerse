@@ -6,6 +6,8 @@ import {
   adminUnlockSlots,
   adminUnlockWhiteCollection,
   adminUnlockEarthCollection,
+  adminRevokeWhiteCollection,
+  adminRevokeEarthCollection,
   adminGrantAutoTap,
   adminTestWithdrawalChannel,
   adminFetchWithdrawals,
@@ -57,7 +59,7 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "white" | "earth" | "autotap" | "test-wd-chan" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "white" | "earth" | "revoke-white" | "revoke-earth" | "autotap" | "test-wd-chan" | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [delistId, setDelistId] = useState("");
   const [pendingWithdrawals, setPendingWithdrawals] = useState<TonWithdrawal[]>([]);
@@ -538,6 +540,68 @@ export function AdminPanel({ telegramId }: Props) {
                 >
                   {loading === "earth" ? "..." : "🌍 GRANT EARTH COLLECTION (4 planets)"}
                 </motion.button>
+
+                {/* Revoke collections */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <motion.button
+                    whileTap={{ scale: 0.93 }}
+                    onClick={async () => {
+                      haptic();
+                      const id = targetId.trim() || ADMIN_ID;
+                      if (!confirm(`Rimuovere la WHITE COLLECTION a ID ${id}?`)) return;
+                      setLoading("revoke-white");
+                      const ok = await adminRevokeWhiteCollection(telegramId, id);
+                      setLoading(null);
+                      if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+                      showFeedback(ok ? `✓ White Collection rimossa a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                    }}
+                    disabled={loading !== null}
+                    style={{
+                      padding: "10px 4px",
+                      borderRadius: 10,
+                      border: "1px solid rgba(255,85,85,0.45)",
+                      background: "rgba(255,85,85,0.10)",
+                      color: "#ff7a7a",
+                      fontSize: 11,
+                      fontWeight: 800,
+                      letterSpacing: "0.05em",
+                      cursor: "pointer",
+                      opacity: loading !== null ? 0.5 : 1,
+                      transition: "opacity 0.15s",
+                    }}
+                  >
+                    {loading === "revoke-white" ? "..." : "✗ REVOKE WHITE"}
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.93 }}
+                    onClick={async () => {
+                      haptic();
+                      const id = targetId.trim() || ADMIN_ID;
+                      if (!confirm(`Rimuovere la EARTH COLLECTION a ID ${id}?`)) return;
+                      setLoading("revoke-earth");
+                      const ok = await adminRevokeEarthCollection(telegramId, id);
+                      setLoading(null);
+                      if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+                      showFeedback(ok ? `✓ Earth Collection rimossa a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                    }}
+                    disabled={loading !== null}
+                    style={{
+                      padding: "10px 4px",
+                      borderRadius: 10,
+                      border: "1px solid rgba(255,85,85,0.45)",
+                      background: "rgba(255,85,85,0.10)",
+                      color: "#ff7a7a",
+                      fontSize: 11,
+                      fontWeight: 800,
+                      letterSpacing: "0.05em",
+                      cursor: "pointer",
+                      opacity: loading !== null ? 0.5 : 1,
+                      transition: "opacity 0.15s",
+                    }}
+                  >
+                    {loading === "revoke-earth" ? "..." : "✗ REVOKE EARTH"}
+                  </motion.button>
+                </div>
 
                 {/* Auto-Tap grant */}
                 <motion.button
