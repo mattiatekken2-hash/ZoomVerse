@@ -50,7 +50,7 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
   const handleBuy = async () => {
     if (!telegramId) { setMessage("Telegram ID missing"); return; }
     if (sunCount <= 0) {
-      setMessage("Requisito richiesto: Devi possedere il SOLE per sbloccare questa collezione");
+      setMessage("Requirement: You must own a SUN to unlock this collection");
       return;
     }
     if (!connectedAddress) {
@@ -323,7 +323,7 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
                 className="ec-buy-btn"
                 onClick={handleBuy}
                 disabled={buying || soldOut || sunCount <= 0}
-                title={sunCount <= 0 ? "Devi possedere il SOLE per sbloccare questa collezione" : undefined}
+                title={sunCount <= 0 ? "You must own a SUN to unlock this collection" : undefined}
                 data-testid="button-buy-earth-collection"
               >
                 {soldOut
@@ -331,7 +331,7 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
                   : buying
                   ? "PROCESSING…"
                   : sunCount <= 0
-                  ? "🔒 SOLE RICHIESTO"
+                  ? "🔒 SUN REQUIRED"
                   : ownedBundles > 0
                   ? `BUY ANOTHER (OWN ${ownedBundles})`
                   : "BUY"}
