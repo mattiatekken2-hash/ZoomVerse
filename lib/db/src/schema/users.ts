@@ -31,6 +31,8 @@ export const usersTable = pgTable("users", {
   hasAutoTap: boolean("has_auto_tap").notNull().default(false),
   whiteCollectionUnlocked: boolean("white_collection_unlocked").notNull().default(false),
   whiteCollectionBundles: integer("white_collection_bundles").notNull().default(0),
+  earthCollectionUnlocked: boolean("earth_collection_unlocked").notNull().default(false),
+  earthCollectionBundles: integer("earth_collection_bundles").notNull().default(0),
   tonBalance: real("ton_balance").notNull().default(0),
   language: text("language").notNull().default("en"),
 }, (table) => [

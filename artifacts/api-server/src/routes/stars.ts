@@ -143,6 +143,7 @@ interface StarsItem {
 const SUN_MAX_PER_USER = 5;
 const SUN_MAX_GLOBAL = 100;
 const WHITE_COLLECTION_MAX_GLOBAL = 10;
+const EARTH_COLLECTION_MAX_GLOBAL = 50;
 
 const STARS_CATALOG: StarsItem[] = [
   { id: "starter_pack", title: "Starter Pack", description: "2,000 $ZOOM + 1 Basic Planet", starsPrice: 50, tonPrice: 0.5, zoomAmount: 2000, itemType: "bundle" },
@@ -160,6 +161,14 @@ const STARS_CATALOG: StarsItem[] = [
   // fee for W1..W4 (0.005 TON). Server records the payment but applies no
   // grant — the client toggles the specific planet's farming state on success.
   { id: "white_react", title: "White Planet Reactivation", description: "Restart an expired white-planet farming cycle", starsPrice: 50, tonPrice: 0.005, itemType: "white_react" },
+  // EARTH Collection — 4 exclusive earth-themed planets per bundle, combined
+  // 0.017 TON/day output. Capped at 50 bundles globally. Requires SUN to
+  // unlock TON withdrawals.
+  { id: "earth_collection", title: "Earth Collection Limited", description: "Unlock 4 exclusive earth planets. Speed: 0.017 TON/day. Requires SUN module.", starsPrice: 700, tonPrice: 7, itemType: "earth_collection" },
+  // Reactivation fee for an expired earth-planet farming cycle. Same per-tier
+  // fee for E1..E4 (0.001 TON). Server records the payment but applies no
+  // grant — the client toggles the specific planet's farming state on success.
+  { id: "earth_react", title: "Earth Planet Reactivation", description: "Restart an expired earth-planet farming cycle", starsPrice: 10, tonPrice: 0.001, itemType: "earth_react" },
 ];
 
 const MYSTERY_BOX_SUN_GLOBAL_CAP = 50;
@@ -326,6 +335,9 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string)
     // Reactivation is a paid action with no server-side grant. The transaction
     // row records the payment for audit; the client flips the planet's
     // farming-state on success. Intentional no-op here.
+  } else if (item.itemType === "earth_react") {
+    // Same as white_react — payment-only, no server-side grant. Client toggles
+    // the specific earth planet's farming state on confirmation.
   } else if (item.itemType === "white_collection") {
     // Serialize all White Collection credits via a transaction-scoped advisory
     // lock so the global cap is enforced strictly even under concurrent buys.
@@ -345,6 +357,22 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string)
       console.error(`[creditUserTx] WHITE_COLLECTION sold out at credit time for ${telegramId}`);
       throw new Error("WHITE_COLLECTION_SOLD_OUT");
     }
+  } else if (item.itemType === "earth_collection") {
+    // Mirrors white_collection but with its own dedicated advisory lock id and
+    // global cap. No per-user cap — a single user could buy all 50.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(7913042042)`);
+    const result = await tx.execute(sql`
+      UPDATE users
+      SET earth_collection_bundles = earth_collection_bundles + 1,
+          earth_collection_unlocked = true
+      WHERE telegram_id = ${telegramId}
+        AND (SELECT COALESCE(SUM(earth_collection_bundles), 0) FROM users) < ${EARTH_COLLECTION_MAX_GLOBAL}
+      RETURNING earth_collection_bundles
+    `);
+    if (!result.rows || result.rows.length === 0) {
+      console.error(`[creditUserTx] EARTH_COLLECTION sold out at credit time for ${telegramId}`);
+      throw new Error("EARTH_COLLECTION_SOLD_OUT");
+    }
   }
   return {};
 }
@@ -354,6 +382,13 @@ async function getWhiteCollectionStock(): Promise<{ sold: number; remaining: num
     .from(usersTable);
   const sold = Number(row?.sold ?? 0);
   return { sold, remaining: Math.max(0, WHITE_COLLECTION_MAX_GLOBAL - sold), max: WHITE_COLLECTION_MAX_GLOBAL };
+}
+
+async function getEarthCollectionStock(): Promise<{ sold: number; remaining: number; max: number }> {
+  const [row] = await db.select({ sold: sql<number>`COALESCE(SUM(${usersTable.earthCollectionBundles}), 0)::int` })
+    .from(usersTable);
+  const sold = Number(row?.sold ?? 0);
+  return { sold, remaining: Math.max(0, EARTH_COLLECTION_MAX_GLOBAL - sold), max: EARTH_COLLECTION_MAX_GLOBAL };
 }
 
 async function getSunStock(): Promise<{ sold: number; remaining: number }> {
@@ -415,6 +450,16 @@ router.get("/white-collection/stock", async (_req, res) => {
     res.json(stock);
   } catch (err) {
     console.error("[white-collection/stock] error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+router.get("/earth-collection/stock", async (_req, res) => {
+  try {
+    const stock = await getEarthCollectionStock();
+    res.json(stock);
+  } catch (err) {
+    console.error("[earth-collection/stock] error:", err);
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -669,6 +714,11 @@ router.post("/ton/confirm", async (req, res) => {
   if (item.itemType === "white_collection") {
     const stock = await getWhiteCollectionStock();
     if (stock.remaining <= 0) { res.status(409).json({ error: "White Collection sold out" }); return; }
+  }
+
+  if (item.itemType === "earth_collection") {
+    const stock = await getEarthCollectionStock();
+    if (stock.remaining <= 0) { res.status(409).json({ error: "Earth Collection sold out" }); return; }
   }
 
   // Normalize the connected wallet to raw form; payment must originate from this address.

@@ -20,6 +20,8 @@ router.get("/grants/:telegramId", async (req, res) => {
         hasAutoTap: usersTable.hasAutoTap,
         whiteCollectionUnlocked: usersTable.whiteCollectionUnlocked,
         whiteCollectionBundles: usersTable.whiteCollectionBundles,
+        earthCollectionUnlocked: usersTable.earthCollectionUnlocked,
+        earthCollectionBundles: usersTable.earthCollectionBundles,
         tonBalance: usersTable.tonBalance,
       })
       .from(usersTable)
@@ -27,7 +29,7 @@ router.get("/grants/:telegramId", async (req, res) => {
       .limit(1);
 
     if (!user) {
-      return res.json({ bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, tonBalance: 0 });
+      return res.json({ bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0 });
     }
 
     res.json({
@@ -41,6 +43,8 @@ router.get("/grants/:telegramId", async (req, res) => {
       hasAutoTap: user.hasAutoTap,
       whiteCollectionUnlocked: user.whiteCollectionUnlocked,
       whiteCollectionBundles: user.whiteCollectionBundles ?? 0,
+      earthCollectionUnlocked: user.earthCollectionUnlocked,
+      earthCollectionBundles: user.earthCollectionBundles ?? 0,
       tonBalance: user.tonBalance ?? 0,
     });
   } catch (err) {

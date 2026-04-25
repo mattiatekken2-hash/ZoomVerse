@@ -13,11 +13,13 @@ const STARS_CATALOG_MAP: Record<string, { itemType: string; zoomAmount?: number;
   auto_tap:      { itemType: "auto_tap",                            id: "auto_tap" },
   mystery_box:   { itemType: "mystery_box",                         id: "mystery_box" },
   white_collection: { itemType: "white_collection",                  id: "white_collection" },
+  earth_collection: { itemType: "earth_collection",                  id: "earth_collection" },
 };
 
 const SUN_MAX_PER_USER = 5;
 const SUN_MAX_GLOBAL = 100;
 const WHITE_COLLECTION_MAX_GLOBAL = 10;
+const EARTH_COLLECTION_MAX_GLOBAL = 50;
 
 type ReconcileResult =
   | { status: "credited" }
@@ -126,6 +128,20 @@ export async function reconcilePendingStarPayment(
         `);
         if (!result.rows || result.rows.length === 0) {
           throw new Error("WHITE_COLLECTION_SOLD_OUT");
+        }
+      } else if (item.itemType === "earth_collection") {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(7913042042)`);
+        const result = await tx.execute(sql`
+          UPDATE users
+          SET earth_collection_bundles = earth_collection_bundles + 1,
+              earth_collection_unlocked = true,
+              balance_epoch = balance_epoch + 1
+          WHERE telegram_id = ${telegramId}
+            AND (SELECT COALESCE(SUM(earth_collection_bundles), 0) FROM users) < ${EARTH_COLLECTION_MAX_GLOBAL}
+          RETURNING earth_collection_bundles
+        `);
+        if (!result.rows || result.rows.length === 0) {
+          throw new Error("EARTH_COLLECTION_SOLD_OUT");
         }
       } else if (item.itemType === "mystery_box") {
         // Mystery box reconcile is intentionally NOT supported here: the award
