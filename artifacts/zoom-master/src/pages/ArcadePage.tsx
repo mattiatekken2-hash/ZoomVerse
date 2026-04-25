@@ -363,9 +363,14 @@ function ZoomJumpGame({ onEnd, maxZ }: ZoomJumpGameProps) {
     const MAX_VX = 6;
     const FRICTION = 0.86;
 
+    // Camera anchor: the astronaut is locked to this screen-y position.
+    // The world scrolls UP in lock-step with him whenever he reaches a new
+    // peak, so he never visually rises higher than this line.
+    const SCREEN_ANCHOR_Y = H * 0.6;
+
     const platforms: Platform[] = [];
-    let cameraY = 0;          // how much the world has scrolled (≥ 0)
-    let highestY = player.y;  // smallest y reached (negative as we go up)
+    let highestY = player.y;                          // smallest y reached
+    let cameraY = highestY - SCREEN_ANCHOR_Y;         // anchor player on first frame
     let zCoins = 0;
     let dead = false;
     let endedFlag = false;
@@ -612,25 +617,23 @@ function ZoomJumpGame({ onEnd, maxZ }: ZoomJumpGameProps) {
 
         // Collision with platforms — only when falling, and only when the
         // astronaut's BASE crosses the TOP edge of the platform from above.
-        // We use the previous-frame foot position to detect the crossing,
-        // with a small tolerance so high-velocity falls cannot tunnel
-        // through a platform without registering the bounce.
+        // FOOT_HALF spans his full visible width so any visible contact
+        // with the top edge registers a bounce. The crossing is strict:
+        // previous frame feet must have been above the top, this frame at
+        // or below it — so the bounce only ever fires from above the step.
         if (player.vy > 0) {
           const feetY = player.y;                          // y is bottom anchor (feet)
           const prevFeetY = feetY - player.vy * step;
-          const FOOT_HALF = 12;                            // half foot footprint width
-          const TOL = 4;                                   // anti-tunneling tolerance
+          const FOOT_HALF = 14;                            // full sprite half-width
           for (const p of platforms) {
             const platTop = p.y;
             const within =
               (player.x + FOOT_HALF) > p.x &&
               (player.x - FOOT_HALF) < (p.x + p.w);
-            // Previous-frame feet were above (or just at) the platform top,
-            // this-frame feet have reached or passed it → real top contact.
-            const crossed = prevFeetY <= platTop + TOL && feetY >= platTop - 1;
+            const crossed = prevFeetY <= platTop && feetY >= platTop;
             if (within && crossed) {
               player.y = platTop;
-              player.vy = JUMP_VY;
+              player.vy = JUMP_VY;                         // always identical jump
               if (p.coin) {
                 p.coin = false;
                 const before = zCoins;
@@ -648,28 +651,28 @@ function ZoomJumpGame({ onEnd, maxZ }: ZoomJumpGameProps) {
           }
         }
 
-        // ── Camera locked to astronaut at screen middle ─────────
-        // As soon as the astronaut crosses the screen middle line, the
-        // camera snaps to keep them anchored exactly at H * 0.5 — they
-        // never rise above it. The world scrolls down behind them in
-        // perfect lock-step with their vertical motion.
-        const ANCHOR_Y = H * 0.5;
-        const targetCameraY = player.y - ANCHOR_Y;
+        // ── Camera attached to astronaut (one-way, climbs only) ─────
+        // The camera tracks the astronaut's highest point in the world
+        // every single frame: as soon as he rises by 1 px, the world
+        // scrolls down by 1 px so his on-screen position never goes above
+        // SCREEN_ANCHOR_Y. He cannot reach the top of the phone — the
+        // background always scrolls first.
+        highestY = Math.min(highestY, player.y);
+        const targetCameraY = highestY - SCREEN_ANCHOR_Y;
         if (targetCameraY < cameraY) {
           cameraY = targetCameraY;
+        }
 
-          // Track altitude climbed and award Z (1 Z per 12 px climbed)
-          highestY = Math.min(highestY, player.y);
-          const altitudeZ = Math.floor(Math.max(0, -highestY) / 12);
-          if (altitudeZ > zCoins) {
-            const before = zCoins;
-            zCoins = Math.min(maxZ, altitudeZ);
-            if (before < maxZ && zCoins >= maxZ) {
-              setExploding(true);
-              spawnExplosion(player.x, player.y - 16);
-              dead = true;
-              explodeTimer = 60;
-            }
+        // Award Z based on altitude climbed (1 Z per 12 px climbed)
+        const altitudeZ = Math.floor(Math.max(0, -highestY) / 12);
+        if (altitudeZ > zCoins) {
+          const before = zCoins;
+          zCoins = Math.min(maxZ, altitudeZ);
+          if (before < maxZ && zCoins >= maxZ) {
+            setExploding(true);
+            spawnExplosion(player.x, player.y - 16);
+            dead = true;
+            explodeTimer = 60;
           }
         }
 
