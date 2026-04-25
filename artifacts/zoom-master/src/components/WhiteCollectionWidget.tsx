@@ -11,10 +11,11 @@ interface Props {
   telegramId: string | null;
   unlocked?: boolean;
   ownedBundles?: number;
+  sunCount?: number;
   onUnlocked?: () => void;
 }
 
-function WhiteCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles = 0, onUnlocked }: Props) {
+function WhiteCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles = 0, sunCount = 0, onUnlocked }: Props) {
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
   const [open, setOpen] = useState(false);
@@ -48,6 +49,10 @@ function WhiteCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
 
   const handleBuy = async () => {
     if (!telegramId) { setMessage("Telegram ID missing"); return; }
+    if (sunCount <= 0) {
+      setMessage("Requisito richiesto: Devi possedere il SOLE per sbloccare questa collezione");
+      return;
+    }
     if (!connectedAddress) {
       tonConnectUI.openModal();
       setMessage("Connect your wallet first");
@@ -316,10 +321,19 @@ function WhiteCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
               <button
                 className="wc-buy-btn"
                 onClick={handleBuy}
-                disabled={buying || soldOut}
+                disabled={buying || soldOut || sunCount <= 0}
                 data-testid="button-buy-white-collection"
+                title={sunCount <= 0 ? "Devi possedere il SOLE per sbloccare questa collezione" : undefined}
               >
-                {soldOut ? "SOLD OUT" : buying ? "PROCESSING…" : ownedBundles > 0 ? `BUY ANOTHER (OWN ${ownedBundles})` : "BUY"}
+                {soldOut
+                  ? "SOLD OUT"
+                  : buying
+                  ? "PROCESSING…"
+                  : sunCount <= 0
+                  ? "🔒 SOLE RICHIESTO"
+                  : ownedBundles > 0
+                  ? `BUY ANOTHER (OWN ${ownedBundles})`
+                  : "BUY"}
               </button>
             </div>
 

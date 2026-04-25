@@ -195,8 +195,8 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             onTap={handleCraft}
           />
           <MysteryBoxWidget telegramId={telegramId} />
-          <WhiteCollectionWidget telegramId={telegramId} unlocked={whiteCollectionUnlocked} ownedBundles={whiteCollectionBundles} />
-          <EarthCollectionWidget telegramId={telegramId} unlocked={earthCollectionUnlocked} ownedBundles={earthCollectionBundles} />
+          <WhiteCollectionWidget telegramId={telegramId} unlocked={whiteCollectionUnlocked} ownedBundles={whiteCollectionBundles} sunCount={sunCount} />
+          <EarthCollectionWidget telegramId={telegramId} unlocked={earthCollectionUnlocked} ownedBundles={earthCollectionBundles} sunCount={sunCount} />
         </>
       )}
       <div
