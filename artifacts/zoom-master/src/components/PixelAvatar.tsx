@@ -1199,7 +1199,7 @@ function SlotContent({ planet, busy = false, onReactivate }: SlotContentProps) {
     <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
       {isEarth ? <RealisticEarth size={36} /> : <PlanetOrb planet={planet} size={36} animate={active} />}
       <div style={{ fontSize: 8, fontWeight: 800, opacity: 0.95, lineHeight: 1.1, textAlign: "center" }}>
-        {cfg.label.replace("White Planet ", "W").replace("Earth Planet ", "E")}
+        {cfg.label.replace("White Planet ", "W")}
       </div>
       <div style={{ fontSize: 7, opacity: 0.7, lineHeight: 1.05, textAlign: "center" }}>
         {active
