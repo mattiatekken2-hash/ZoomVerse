@@ -610,14 +610,22 @@ function ZoomJumpGame({ onEnd, maxZ }: ZoomJumpGameProps) {
           }
         }
 
-        // Collision with platforms — only when falling
+        // Collision with platforms — only when falling, and only when the
+        // astronaut's FEET cross the TOP edge of the platform from above.
+        // Foot footprint is ~12px wide centered on player.x (boots), so we
+        // require the feet to actually overlap the platform — no body-grazing.
         if (player.vy > 0) {
-          const feetY = player.y; // y is bottom anchor
+          const feetY = player.y;                  // y is bottom anchor (feet)
+          const prevFeetY = feetY - player.vy * step;
+          const FOOT_HALF = 6;                     // half foot footprint width
           for (const p of platforms) {
-            const within = player.x + 10 > p.x && player.x - 10 < p.x + p.w;
-            const crossed = feetY >= p.y && feetY - player.vy * step <= p.y + 2;
+            const platTop = p.y;
+            const within = (player.x + FOOT_HALF) > p.x && (player.x - FOOT_HALF) < (p.x + p.w);
+            // Strict: previous frame feet were above platform top, this frame
+            // feet are at or below it → the base just touched the top edge.
+            const crossed = prevFeetY <= platTop && feetY >= platTop;
             if (within && crossed) {
-              player.y = p.y;
+              player.y = platTop;
               player.vy = JUMP_VY;
               if (p.coin) {
                 p.coin = false;
@@ -636,14 +644,22 @@ function ZoomJumpGame({ onEnd, maxZ }: ZoomJumpGameProps) {
           }
         }
 
-        // Camera follows when player above middle line
-        if (player.y - cameraY < H * 0.4) {
-          const delta = H * 0.4 - (player.y - cameraY);
-          cameraY -= delta;
+        // ── Smooth camera follow ───────────────────────────────
+        // Camera anchors the astronaut around screen middle (H * 0.5):
+        // as soon as the player rises above that line, the world scrolls
+        // up via a frame-rate-independent lerp so upcoming platforms
+        // become visible in advance and motion stays buttery.
+        const ANCHOR_Y = H * 0.5;
+        const targetCameraY = player.y - ANCHOR_Y;
+        if (targetCameraY < cameraY) {
+          // ~22% catch-up per 60fps frame, scaled correctly for any dt.
+          const lerp = 1 - Math.pow(0.78, step);
+          cameraY += (targetCameraY - cameraY) * lerp;
+
+          // Track altitude climbed and award Z (1 Z per 12 px climbed)
           highestY = Math.min(highestY, player.y);
-          // Award Z based on altitude climbed (1 Z per 12 px climbed)
           const altitudeZ = Math.floor(Math.max(0, -highestY) / 12);
-          if (altitudeZ + 0 > zCoins) {
+          if (altitudeZ > zCoins) {
             const before = zCoins;
             zCoins = Math.min(maxZ, altitudeZ);
             if (before < maxZ && zCoins >= maxZ) {
