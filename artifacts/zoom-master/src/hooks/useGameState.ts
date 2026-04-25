@@ -1881,15 +1881,25 @@ export function useGameState() {
         notifyPlanetBurn(prev.telegramId, planet.name);
       }
       const refund = Math.floor(planet.craftCost * 0.15);
-      const bonusPlanetCount = prev.planets.filter((p) => p.name === planet.name && p.id.startsWith(`bonus-${planet.name}-`)).length;
+      // When burning a bonus planet, we MUST decrement the local "claimed"
+      // counter by exactly 1 so it stays in lockstep with the server-side
+      // entitlement counter (which notifyPlanetBurn just decremented). If we
+      // don't, the next /grants poll computes
+      //   toAdd = serverCount − max(claimedCount, existingBonusCount)
+      // which becomes negative (because claimedCount is still the pre-burn
+      // value but serverCount and existingBonusCount have both gone down by 1)
+      // and the reconciliation branch removes an EXTRA bonus planet to "fix"
+      // the perceived drift — silently deleting a sibling planet the user
+      // never asked to burn. Crafted (non-bonus) planets don't touch any
+      // counter and only the single matching id is filtered out.
       const updated = {
         ...prev,
         balance: prev.balance + refund,
         planets: prev.planets.filter((p) => p.id !== id),
-        claimedBonusBasic: planet.name === "BASIC" ? Math.max(prev.claimedBonusBasic, bonusPlanetCount) : prev.claimedBonusBasic,
-        claimedBonusRare: planet.name === "RARE" ? Math.max(prev.claimedBonusRare, bonusPlanetCount) : prev.claimedBonusRare,
-        claimedBonusEpic: planet.name === "EPIC" ? Math.max(prev.claimedBonusEpic, bonusPlanetCount) : prev.claimedBonusEpic,
-        claimedBonusGold: planet.name === "GOLD" ? Math.max(prev.claimedBonusGold, bonusPlanetCount) : prev.claimedBonusGold,
+        claimedBonusBasic: isBonusPlanet && planet.name === "BASIC" ? Math.max(0, prev.claimedBonusBasic - 1) : prev.claimedBonusBasic,
+        claimedBonusRare:  isBonusPlanet && planet.name === "RARE"  ? Math.max(0, prev.claimedBonusRare  - 1) : prev.claimedBonusRare,
+        claimedBonusEpic:  isBonusPlanet && planet.name === "EPIC"  ? Math.max(0, prev.claimedBonusEpic  - 1) : prev.claimedBonusEpic,
+        claimedBonusGold:  isBonusPlanet && planet.name === "GOLD"  ? Math.max(0, prev.claimedBonusGold  - 1) : prev.claimedBonusGold,
       };
       // Sync stateRef synchronously: if the user closes the app within a few
       // ms of pressing burn (before React commits), the visibility/unload
