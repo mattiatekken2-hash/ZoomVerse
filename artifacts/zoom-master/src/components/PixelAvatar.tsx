@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, memo } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { PlanetOrb } from "./PlanetOrb";
+import { RealisticEarth } from "./RealisticEarth";
 import {
   PLANET_CONFIG,
   isFarmActive,
@@ -1112,7 +1113,7 @@ function PixelAvatarBase({
                           className={`pixel-inv-item ${selectedEarthInvId === p.id ? "selected" : ""}`}
                           onClick={() => handleEarthInvClick(p.id)}
                         >
-                          <PlanetOrb planet={p} size={42} animate={false} />
+                          <RealisticEarth size={42} />
                           <div style={{ fontSize: 9, fontWeight: 800, opacity: 0.85, textAlign: "center", lineHeight: 1.1 }}>
                             {cfg.label}
                           </div>
@@ -1193,9 +1194,10 @@ function SlotContent({ planet, busy = false, onReactivate }: SlotContentProps) {
   // flow). The button stays enabled as long as no payment is in-flight.
   const canPay = !busy;
 
+  const isEarth = planet.name === "EARTH1" || planet.name === "EARTH2" || planet.name === "EARTH3" || planet.name === "EARTH4";
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-      <PlanetOrb planet={planet} size={36} animate={active} />
+      {isEarth ? <RealisticEarth size={36} /> : <PlanetOrb planet={planet} size={36} animate={active} />}
       <div style={{ fontSize: 8, fontWeight: 800, opacity: 0.95, lineHeight: 1.1, textAlign: "center" }}>
         {cfg.label.replace("White Planet ", "W").replace("Earth Planet ", "E")}
       </div>
