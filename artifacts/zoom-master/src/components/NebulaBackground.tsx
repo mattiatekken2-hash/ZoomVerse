@@ -46,6 +46,10 @@ export function NebulaBackground() {
           30-60 seconds, never feeling spammy. */}
       <div className="comet comet-1" />
       <div className="comet comet-2" />
+      {/* Easter-egg UFOs — very long cycles with brief visibility windows so
+          they feel like rare random sightings, never disturbing gameplay. */}
+      <div className="ufo ufo-1" aria-hidden="true" />
+      <div className="ufo ufo-2" aria-hidden="true" />
     </div>
   );
 }

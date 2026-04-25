@@ -355,6 +355,66 @@
   100% { transform: translate3d(120vw, 22vh, 0) rotate(-16deg); opacity: 0; }
 }
 
+/* ======== UFO EASTER EGG ========
+   Subtle saucer that drifts across the starry background on long, irregular
+   cycles. Pure CSS — the saucer body is an inline SVG data URI used as a
+   background-image so we don't add DOM nodes or HTTP requests. The animation
+   keeps the UFO invisible for ~85% of the cycle and only briefly visible
+   while it crosses, so it feels like a rare random sighting. */
+.ufo {
+  position: absolute;
+  pointer-events: none;
+  width: 56px;
+  height: 26px;
+  top: 22%;
+  left: -80px;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 30'><defs><radialGradient id='dome' cx='50%25' cy='60%25' r='55%25'><stop offset='0%25' stop-color='%23bff7ff' stop-opacity='0.95'/><stop offset='70%25' stop-color='%2350cfee' stop-opacity='0.6'/><stop offset='100%25' stop-color='%23204a66' stop-opacity='0.3'/></radialGradient><linearGradient id='body' x1='0' x2='0' y1='0' y2='1'><stop offset='0%25' stop-color='%23d8e6f0'/><stop offset='55%25' stop-color='%237b95ad'/><stop offset='100%25' stop-color='%232d3b4d'/></linearGradient></defs><ellipse cx='32' cy='12' rx='14' ry='6' fill='url(%23dome)' stroke='%23a8e7ff' stroke-width='0.5' opacity='0.95'/><ellipse cx='32' cy='17' rx='28' ry='6' fill='url(%23body)' stroke='%231a2a3a' stroke-width='0.5'/><circle cx='14' cy='20' r='1.6' fill='%23ff5252'><animate attributeName='opacity' values='0.3;1;0.3' dur='1.2s' repeatCount='indefinite'/></circle><circle cx='25' cy='21' r='1.4' fill='%2300e676'><animate attributeName='opacity' values='1;0.3;1' dur='1.4s' repeatCount='indefinite'/></circle><circle cx='38' cy='21' r='1.4' fill='%23ffd700'><animate attributeName='opacity' values='0.4;1;0.4' dur='1.0s' repeatCount='indefinite'/></circle><circle cx='49' cy='20' r='1.6' fill='%2300f2fe'><animate attributeName='opacity' values='1;0.3;1' dur='1.3s' repeatCount='indefinite'/></circle></svg>");
+  filter: drop-shadow(0 0 6px rgba(120, 220, 255, 0.45)) drop-shadow(0 0 14px rgba(80, 150, 220, 0.25));
+  opacity: 0;
+  will-change: transform, opacity;
+  z-index: 0;
+}
+.ufo-1 {
+  top: 14%;
+  width: 56px;
+  height: 26px;
+  animation: ufo-cross-a 95s linear 18s infinite;
+}
+.ufo-2 {
+  top: 64%;
+  width: 44px;
+  height: 22px;
+  animation: ufo-cross-b 145s linear 62s infinite;
+}
+@keyframes ufo-cross-a {
+  /* ~13s of visibility per 95s cycle; subtle vertical wobble. */
+  0%   { transform: translate3d(0, 0, 0); opacity: 0; }
+  1%   { opacity: 0; }
+  3%   { opacity: 0.9; }
+  5%   { transform: translate3d(15vw, -8px, 0); }
+  9%   { transform: translate3d(45vw, 6px, 0); opacity: 0.9; }
+  13%  { transform: translate3d(75vw, -4px, 0); opacity: 0.9; }
+  16%  { transform: translate3d(110vw, 0, 0); opacity: 0; }
+  100% { transform: translate3d(110vw, 0, 0); opacity: 0; }
+}
+@keyframes ufo-cross-b {
+  /* Reverse direction (right-to-left) with a different wobble pattern. */
+  0%   { transform: translate3d(110vw, 0, 0); opacity: 0; }
+  2%   { opacity: 0; }
+  4%   { opacity: 0.85; }
+  7%   { transform: translate3d(80vw, 7px, 0); }
+  11%  { transform: translate3d(50vw, -6px, 0); opacity: 0.85; }
+  15%  { transform: translate3d(20vw, 5px, 0); opacity: 0.85; }
+  18%  { transform: translate3d(-10vw, 0, 0); opacity: 0; }
+  100% { transform: translate3d(-10vw, 0, 0); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ufo { animation: none !important; opacity: 0 !important; }
+}
+
 /* ======== GLASSMORPHISM ======== */
 .glass {
   background: rgba(255,255,255,0.04);
