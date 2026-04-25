@@ -488,16 +488,16 @@ async function postActivationChannelMessage(item: StarsItem, telegramId: string)
   let title: string | null = null;
   switch (item.itemType) {
     case "earth_collection":
-      title = "🌍 Nuova Attivazione Earth Collection!";
+      title = "🌍 <b>New Earth Collection Activation!</b>";
       break;
     case "white_collection":
-      title = "⚪ Nuova Attivazione White Collection!";
+      title = "⚪ <b>New White Collection Activation!</b>";
       break;
     case "earth_react":
-      title = "🌍 Riattivazione Pianeta Earth!";
+      title = "🌍 <b>Earth Planet Reactivated!</b>";
       break;
     case "white_react":
-      title = "⚪ Riattivazione Pianeta White!";
+      title = "⚪ <b>White Planet Reactivated!</b>";
       break;
     default:
       return; // not an activation event
@@ -509,9 +509,9 @@ async function postActivationChannelMessage(item: StarsItem, telegramId: string)
 
   const msg =
     `${title}\n` +
-    `💎 <b>Fee pagata:</b> ${fee}\n` +
+    `💎 <b>Fee paid:</b> ${fee}\n` +
     `👤 User ID: <code>${telegramId}</code>\n` +
-    `🚀 <i>Stato: Sistema Solare in espansione!</i>`;
+    `🚀 <i>Status: Solar System expanding!</i>`;
 
   await sendWithdrawalChannelMessage(msg);
 }
