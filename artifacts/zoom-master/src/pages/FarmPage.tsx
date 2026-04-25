@@ -270,17 +270,26 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
                     <span>REACTIVATE</span>
                     <span style={{ fontSize: 8, opacity: 0.85 }}>{sunReactivationFee.toLocaleString()} $ZOOM</span>
                   </button>
+                ) : sunActive ? (
+                  // Active SUN cycle: show a non-interactive FARMING indicator.
+                  // The cycle runs uninterrupted — there is no manual pause/stop.
+                  <div
+                    className="btn-widget flex-1 btn-glass-farm-active"
+                    style={{ cursor: "default", pointerEvents: "none" }}
+                    aria-disabled="true"
+                    data-testid="status-sun-farming"
+                  >
+                    <span>FARMING</span>
+                    <span style={{ fontSize: 8, opacity: 0.6 }}>{formatDuration(sunRemaining)}</span>
+                  </div>
                 ) : (
-                <button
-                  className={`btn-widget flex-1 ${sunActive ? "btn-glass-farm-active" : "btn-glass-farm"}`}
-                  onClick={() => {
-                    if (sunActive) onStopSunFarming();
-                    else handleSunStartOrReactivate();
-                  }}
-                >
-                  <span>{sunActive ? "PAUSE" : "FARM"}</span>
-                  <span style={{ fontSize: 8, opacity: 0.6 }}>{sunActive ? formatDuration(sunRemaining) : "Start"}</span>
-                </button>
+                  <button
+                    className="btn-widget flex-1 btn-glass-farm"
+                    onClick={handleSunStartOrReactivate}
+                  >
+                    <span>FARM</span>
+                    <span style={{ fontSize: 8, opacity: 0.6 }}>Start</span>
+                  </button>
                 )}
 
                 <button
@@ -419,14 +428,17 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
                       <span style={{ fontSize: 8, opacity: 0.7 }}>Daily</span>
                     </button>
                   ) : active ? (
-                    <button
+                    // Active farm cycle: non-interactive indicator. The cycle
+                    // runs uninterrupted to completion — no manual pause/stop.
+                    <div
                       className="btn-widget btn-glass-farm-active"
-                      onClick={() => onStopFarming(planet.id)}
-                      data-testid={`btn-stop-${planet.id}`}
+                      style={{ cursor: "default", pointerEvents: "none" }}
+                      aria-disabled="true"
+                      data-testid={`status-farming-${planet.id}`}
                     >
                       <span>{t("farm.farming")}</span>
                       <span style={{ fontSize: 8, opacity: 0.7 }}>{formatDuration(remaining)}</span>
-                    </button>
+                    </div>
                   ) : expired ? (
                     <button
                       className="btn-widget"
