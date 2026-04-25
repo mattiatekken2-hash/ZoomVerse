@@ -611,20 +611,23 @@ function ZoomJumpGame({ onEnd, maxZ }: ZoomJumpGameProps) {
         }
 
         // Collision with platforms — only when falling, and only when the
-        // astronaut's FEET cross the TOP edge of the platform from above.
-        // FOOT_HALF defines the foot footprint width: wide enough that the
-        // game stays playable, narrow enough that only a real base contact
-        // (not a body graze on the side) triggers a bounce.
+        // astronaut's BASE crosses the TOP edge of the platform from above.
+        // We use the previous-frame foot position to detect the crossing,
+        // with a small tolerance so high-velocity falls cannot tunnel
+        // through a platform without registering the bounce.
         if (player.vy > 0) {
-          const feetY = player.y;                  // y is bottom anchor (feet)
+          const feetY = player.y;                          // y is bottom anchor (feet)
           const prevFeetY = feetY - player.vy * step;
-          const FOOT_HALF = 10;                    // half foot footprint width
+          const FOOT_HALF = 12;                            // half foot footprint width
+          const TOL = 4;                                   // anti-tunneling tolerance
           for (const p of platforms) {
             const platTop = p.y;
-            const within = (player.x + FOOT_HALF) > p.x && (player.x - FOOT_HALF) < (p.x + p.w);
-            // Strict: previous frame feet were above platform top, this frame
-            // feet are at or below it → the base just touched the top edge.
-            const crossed = prevFeetY <= platTop && feetY >= platTop;
+            const within =
+              (player.x + FOOT_HALF) > p.x &&
+              (player.x - FOOT_HALF) < (p.x + p.w);
+            // Previous-frame feet were above (or just at) the platform top,
+            // this-frame feet have reached or passed it → real top contact.
+            const crossed = prevFeetY <= platTop + TOL && feetY >= platTop - 1;
             if (within && crossed) {
               player.y = platTop;
               player.vy = JUMP_VY;
@@ -645,17 +648,15 @@ function ZoomJumpGame({ onEnd, maxZ }: ZoomJumpGameProps) {
           }
         }
 
-        // ── Smooth camera follow ───────────────────────────────
-        // Camera anchors the astronaut around screen middle (H * 0.5):
-        // as soon as the player rises above that line, the world scrolls
-        // up via a frame-rate-independent lerp so upcoming platforms
-        // become visible in advance and motion stays buttery.
+        // ── Camera locked to astronaut at screen middle ─────────
+        // As soon as the astronaut crosses the screen middle line, the
+        // camera snaps to keep them anchored exactly at H * 0.5 — they
+        // never rise above it. The world scrolls down behind them in
+        // perfect lock-step with their vertical motion.
         const ANCHOR_Y = H * 0.5;
         const targetCameraY = player.y - ANCHOR_Y;
         if (targetCameraY < cameraY) {
-          // ~22% catch-up per 60fps frame, scaled correctly for any dt.
-          const lerp = 1 - Math.pow(0.78, step);
-          cameraY += (targetCameraY - cameraY) * lerp;
+          cameraY = targetCameraY;
 
           // Track altitude climbed and award Z (1 Z per 12 px climbed)
           highestY = Math.min(highestY, player.y);
