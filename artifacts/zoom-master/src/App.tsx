@@ -83,12 +83,32 @@ function AppShellWithState() {
   useGlobalInit(state.telegramId);
 
   // Maintenance mode: poll status, show fullscreen overlay for non-admins.
-  const [maintenance, setMaintenance] = useState<{ enabled: boolean; message: string }>({ enabled: false, message: "" });
+  // We hydrate from localStorage cache so a returning user during maintenance
+  // sees the lock screen instantly (no Lab → Maintenance flash). On a first
+  // cold load with no cache we briefly gate the UI behind a tiny splash until
+  // the first /maintenance/status response arrives, also avoiding the flash.
+  const MAINT_CACHE_KEY = "zoom-maint-cache-v1";
+  const initialMaint = (() => {
+    try {
+      const raw = localStorage.getItem(MAINT_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { enabled: boolean; message: string };
+      return { enabled: !!parsed.enabled, message: parsed.message || "" };
+    } catch { return null; }
+  })();
+  const [maintenance, setMaintenance] = useState<{ enabled: boolean; message: string }>(
+    initialMaint ?? { enabled: false, message: "" }
+  );
+  const [maintChecked, setMaintChecked] = useState<boolean>(initialMaint !== null);
   useEffect(() => {
     let alive = true;
     const load = async () => {
       const s = await fetchMaintenanceStatus();
-      if (alive) setMaintenance({ enabled: !!s.enabled, message: s.message || "" });
+      if (!alive) return;
+      const next = { enabled: !!s.enabled, message: s.message || "" };
+      setMaintenance(next);
+      setMaintChecked(true);
+      try { localStorage.setItem(MAINT_CACHE_KEY, JSON.stringify(next)); } catch { /**/ }
     };
     load();
     const id = setInterval(() => { if (!document.hidden) load(); }, 20000);
@@ -100,6 +120,7 @@ function AppShellWithState() {
   }, []);
   const isAdmin = state.telegramId === MAINTENANCE_ADMIN_ID;
   const showMaintenance = maintenance.enabled && !isAdmin;
+  const showMaintGate = !maintChecked && !isAdmin;
 
   const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
   const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate * Math.max(1, state.sunCount || 1) : 0;
@@ -257,6 +278,30 @@ function AppShellWithState() {
       <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
         <MaintenanceScreen message={maintenance.message} />
       </TonConnectUIProvider>
+    );
+  }
+
+  // First cold load with no cached maintenance state → brief splash so the
+  // user never briefly sees the Lab when maintenance is actually ON.
+  if (showMaintGate) {
+    return (
+      <div
+        style={{
+          position: "fixed", inset: 0, background: "#060810",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 99999,
+        }}
+      >
+        <div
+          style={{
+            width: 38, height: 38, borderRadius: "50%",
+            border: "3px solid rgba(0,242,254,0.18)",
+            borderTopColor: "#00f2fe",
+            animation: "zoomMaintSpin 0.9s linear infinite",
+          }}
+        />
+        <style>{`@keyframes zoomMaintSpin { to { transform: rotate(360deg); } }`}</style>
+      </div>
     );
   }
 
