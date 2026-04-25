@@ -9,6 +9,8 @@ import {
   type MysteryBoxActivityItem,
   type MysteryBoxStock,
 } from "../utils/api";
+import { PlanetOrb } from "./PlanetOrb";
+import type { Planet } from "../hooks/useGameState";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 const PRICE_TON = 1.5;
@@ -28,6 +30,23 @@ const RARITY_GLOW: Record<string, string> = {
   gold: "rgba(255,204,51,0.9)",
   sun: "rgba(255,174,0,1)",
 };
+
+// Maps a mystery-box award rarity onto the in-game planet name + color used by
+// PlanetOrb so the same on-board planet UI is shown inside the box.
+const RARITY_TO_PLANET: Record<string, { name: string; color: string } | null> = {
+  basic: { name: "BASIC", color: "#8892b0" },
+  rare:  { name: "RARE",  color: "#4facfe" },
+  epic:  { name: "EPIC",  color: "#c471ed" },
+  gold:  { name: "GOLD",  color: "#ffd700" },
+  sun:   null, // SUN keeps its own dedicated visual
+};
+
+/** Build a minimal Planet-shaped object good enough for PlanetOrb (which only
+ *  reads `name` and `color`). Saves us from constructing the full Planet
+ *  type. */
+function planetForOrb(name: string, color: string): Planet {
+  return { name, color } as unknown as Planet;
+}
 
 interface MysteryBoxWidgetProps {
   telegramId: string | null;
@@ -318,14 +337,34 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
 
               {phase === "revealed" && award ? (
                 <div style={{
-                  display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 10,
                   animation: "mb-pop 0.6s cubic-bezier(0.34,1.56,0.64,1) both",
                 }}>
-                  <div style={{ fontSize: 64, filter: `drop-shadow(0 0 18px ${RARITY_GLOW[award] || "#fff"})` }}>
-                    {award === "sun" ? "☀️" : "🪐"}
-                  </div>
+                  {(() => {
+                    const tierPlanet = RARITY_TO_PLANET[award];
+                    if (tierPlanet) {
+                      // Tier planet (BASIC/RARE/EPIC/GOLD) — render the same
+                      // PlanetOrb sphere that the rest of the game uses, so
+                      // the box reveal matches the on-board planet visual.
+                      return (
+                        <div style={{ filter: `drop-shadow(0 0 18px ${RARITY_GLOW[award] || "#fff"})` }}>
+                          <PlanetOrb
+                            planet={planetForOrb(tierPlanet.name, tierPlanet.color)}
+                            size={96}
+                            animate
+                          />
+                        </div>
+                      );
+                    }
+                    // SUN keeps its dedicated emoji
+                    return (
+                      <div style={{ fontSize: 72, filter: `drop-shadow(0 0 22px ${RARITY_GLOW.sun})` }}>
+                        ☀️
+                      </div>
+                    );
+                  })()}
                   <div style={{ color: RARITY_COLORS[award] || "#fff", fontWeight: 900, fontSize: 16, letterSpacing: 1, textTransform: "uppercase" }}>
-                    {award === "sun" ? "THE SUN!!" : award}
+                    {award === "sun" ? "THE SUN!!" : `${award} PLANET`}
                   </div>
                 </div>
               ) : (

@@ -1,6 +1,7 @@
 import { useEffect, useState, memo } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { confirmTonPurchase, pollTxnUntilFinal } from "../utils/api";
+import { RealisticEarth } from "./RealisticEarth";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 const PRICE_TON = 7;
@@ -122,53 +123,6 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
         .ec-tile-img {
           animation: earthCollFloat 3.2s ease-in-out infinite;
         }
-        .ec-planet {
-          width: 100%;
-          height: 100%;
-          border-radius: 50%;
-          background:
-            /* continents — irregular green blobs */
-            radial-gradient(ellipse 22% 16% at 28% 36%, rgba(34,160,80,0.95) 0%, rgba(22,120,60,0.7) 55%, transparent 72%),
-            radial-gradient(ellipse 14% 11% at 60% 28%, rgba(20,140,70,0.9) 0%, transparent 65%),
-            radial-gradient(ellipse 18% 13% at 70% 60%, rgba(28,150,75,0.95) 0%, transparent 65%),
-            radial-gradient(ellipse 11% 9% at 36% 70%, rgba(34,170,80,0.95) 0%, transparent 65%),
-            radial-gradient(ellipse 9% 7% at 50% 84%, rgba(40,160,75,0.85) 0%, transparent 65%),
-            radial-gradient(ellipse 8% 6% at 18% 72%, rgba(34,150,80,0.85) 0%, transparent 65%),
-            radial-gradient(ellipse 12% 9% at 82% 22%, rgba(28,140,70,0.85) 0%, transparent 65%),
-            /* white clouds */
-            radial-gradient(ellipse 28% 6% at 25% 22%, rgba(255,255,255,0.45) 0%, transparent 70%),
-            radial-gradient(ellipse 20% 5% at 70% 78%, rgba(255,255,255,0.4) 0%, transparent 70%),
-            /* base ocean sphere with highlight */
-            radial-gradient(circle at 30% 28%, #93c5fd 0%, #3b82f6 35%, #1d4ed8 75%, #0c2d72 100%);
-          background-size: 100% 100%;
-          animation: ecPlanetSpin 16s linear infinite;
-          box-shadow:
-            inset -8px -10px 18px rgba(8,18,50,0.65),
-            inset 6px 8px 14px rgba(180,210,255,0.55),
-            0 0 10px rgba(120,170,255,0.55);
-          position: relative;
-          overflow: hidden;
-        }
-        @keyframes ecPlanetSpin {
-          from { background-position:
-            0% 50%, 0% 50%, 0% 50%, 0% 50%, 0% 50%, 0% 50%, 0% 50%, 0% 50%, 0% 50%, 0% 50%; }
-          to   { background-position:
-            300% 50%, 300% 50%, 300% 50%, 300% 50%, 300% 50%, 300% 50%, 300% 50%, 300% 50%, 300% 50%, 0% 50%; }
-        }
-        .ec-planet::after {
-          content: "";
-          position: absolute;
-          inset: 0;
-          border-radius: 50%;
-          background: radial-gradient(circle at 70% 75%, transparent 55%, rgba(0,0,0,0.55) 100%);
-          pointer-events: none;
-        }
-        .ec-planet-lg {
-          box-shadow:
-            inset -16px -20px 32px rgba(8,18,50,0.65),
-            inset 12px 14px 26px rgba(180,210,255,0.65),
-            0 0 22px rgba(120,170,255,0.6);
-        }
         .ec-tile-frame {
           animation: earthCollGlow 2.6s ease-in-out infinite;
         }
@@ -213,7 +167,7 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
         data-testid="button-earth-collection"
       >
         <div className="ec-tile-img" style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", filter: `drop-shadow(0 0 6px ${NEON_BLUE}aa)` }}>
-          <div className="ec-planet" aria-label="Earth Collection planet" />
+          <RealisticEarth size={48} />
         </div>
       </button>
 
@@ -275,7 +229,7 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
                 }}
               >
                 <div className="ec-tile-img" style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", filter: `drop-shadow(0 0 12px ${NEON_BLUE}cc)` }}>
-                  <div className="ec-planet ec-planet-lg" aria-label="Earth Collection planet" />
+                  <RealisticEarth size={150} />
                 </div>
               </div>
             </div>
