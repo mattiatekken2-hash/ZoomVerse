@@ -4,6 +4,7 @@ import { appSettingsTable } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { Cell, Address } from "@ton/core";
 import { broadcastBoxOpen } from "../lib/activityBus";
+import { sendWithdrawalChannelMessage } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -476,6 +477,45 @@ router.get("/sun/stock", async (req, res) => {
   }
 });
 
+/**
+ * Posts a public announcement to the withdrawals/announcements channel when an
+ * activation or reactivation fee is paid. Covers the 4 paid actions tied to
+ * planet farming: White Collection bundle, Earth Collection bundle, white
+ * planet reactivation, and earth planet reactivation. Other purchase types
+ * (SUN, ZOOM bundles, slots, spins, mystery box, auto-tap) are ignored here.
+ */
+async function postActivationChannelMessage(item: StarsItem, telegramId: string): Promise<void> {
+  let title: string | null = null;
+  switch (item.itemType) {
+    case "earth_collection":
+      title = "🌍 Nuova Attivazione Earth Collection!";
+      break;
+    case "white_collection":
+      title = "⚪ Nuova Attivazione White Collection!";
+      break;
+    case "earth_react":
+      title = "🌍 Riattivazione Pianeta Earth!";
+      break;
+    case "white_react":
+      title = "⚪ Riattivazione Pianeta White!";
+      break;
+    default:
+      return; // not an activation event
+  }
+
+  const fee = item.tonPrice
+    ? `${Number(item.tonPrice).toString()} TON`
+    : `${item.starsPrice} ⭐ Stars`;
+
+  const msg =
+    `${title}\n` +
+    `💎 <b>Fee pagata:</b> ${fee}\n` +
+    `👤 User ID: <code>${telegramId}</code>\n` +
+    `🚀 <i>Stato: Sistema Solare in espansione!</i>`;
+
+  await sendWithdrawalChannelMessage(msg);
+}
+
 async function atomicCreditIfPending(txnId: number, paymentId: string, item: StarsItem, telegramId: string): Promise<boolean> {
   // For mystery boxes we MUST persist `award` together with `status=completed`
   // so a crash between credit and award-write cannot leave the row in an
@@ -519,6 +559,13 @@ async function atomicCreditIfPending(txnId: number, paymentId: string, item: Sta
   }
 
   if (!didFlip) return false;
+
+  // Fire-and-forget Telegram channel announcement for activation/reactivation
+  // payments AFTER the tx committed (so a rollback never produces a spurious
+  // post). Re-uses the withdrawal channel target. Failure is non-fatal.
+  void postActivationChannelMessage(item, telegramId).catch((e) => {
+    console.warn("[activation-notify] channel post failed:", e);
+  });
 
   // Broadcast the mystery-box opening AFTER the tx committed, so external
   // subscribers never see an event that was rolled back.
