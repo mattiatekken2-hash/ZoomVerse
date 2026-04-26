@@ -851,6 +851,11 @@ export function getWhitePlanetPendingTon(planet: Planet, now: number = serverNow
   if (planet.slotIndex == null || !planet.isFarmingActive) return 0;
   const cfg = PLANET_CONFIG[planet.name];
   if (!cfg.isTonFarming) return 0;
+  // Defensive: if a TON-farming planet somehow lingers in state after the
+  // admin revoked the underlying collection, we still don't credit anything.
+  // Callers should also strip the planets from state, but this guard ensures
+  // the live balance display can never re-credit a revoked collection.
+  if (cfg.isTonFarming && !planet.farmStartedAt) return 0;
   const start = Math.max(planet.farmStartedAt, planet.lastCollectedAt);
   const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
   if (end <= start) return 0;
@@ -1135,8 +1140,9 @@ export function useGameState() {
         // White Collection: each owned bundle materializes 4 fresh white
         // planets exactly once. We track how many bundles have already been
         // materialized via claimedWhiteCollectionBundles so re-grants never
-        // duplicate. White planets are permanent — we do not auto-revoke
-        // even if the server count goes down.
+        // duplicate. When the server count drops (admin revoke), we strip
+        // any bundles beyond the new server count so generation stops at
+        // once and the live TON balance no longer credits revoked planets.
         const claimedBundles = Math.max(0, updated.claimedWhiteCollectionBundles ?? 0);
         if (serverBundles > claimedBundles) {
           const toMaterialize = serverBundles - claimedBundles;
@@ -1149,9 +1155,24 @@ export function useGameState() {
             claimedWhiteCollectionBundles: serverBundles,
             whitePlanets: [...(updated.whitePlanets || []), ...newWhitePlanets],
           };
+        } else if (serverBundles < claimedBundles) {
+          // Keep only planets whose bundle index (encoded as `…-b<N>-…` in
+          // the planet id by makeWhiteCollectionPlanets) is below the new
+          // server count. Anything else is removed instantly.
+          const keep = (p: Planet) => {
+            const m = /-b(\d+)-/.exec(p.id);
+            const idx = m ? parseInt(m[1]!, 10) : 0;
+            return idx < serverBundles;
+          };
+          updated = {
+            ...updated,
+            claimedWhiteCollectionBundles: serverBundles,
+            whitePlanets: (updated.whitePlanets || []).filter(keep),
+          };
         }
 
-        // Earth Collection: same materialization model as white.
+        // Earth Collection: same materialization model as white, with the
+        // same admin-revoke handling.
         const claimedEarthBundles = Math.max(0, updated.claimedEarthCollectionBundles ?? 0);
         if (serverEarthBundles > claimedEarthBundles) {
           const toMaterializeEarth = serverEarthBundles - claimedEarthBundles;
@@ -1163,6 +1184,17 @@ export function useGameState() {
             ...updated,
             claimedEarthCollectionBundles: serverEarthBundles,
             earthPlanets: [...(updated.earthPlanets || []), ...newEarthPlanets],
+          };
+        } else if (serverEarthBundles < claimedEarthBundles) {
+          const keepEarth = (p: Planet) => {
+            const m = /-b(\d+)-/.exec(p.id);
+            const idx = m ? parseInt(m[1]!, 10) : 0;
+            return idx < serverEarthBundles;
+          };
+          updated = {
+            ...updated,
+            claimedEarthCollectionBundles: serverEarthBundles,
+            earthPlanets: (updated.earthPlanets || []).filter(keepEarth),
           };
         }
 
@@ -1301,6 +1333,17 @@ export function useGameState() {
             claimedWhiteCollectionBundles: serverBundles2,
             whitePlanets: [...(updated.whitePlanets || []), ...newWhitePlanets2],
           };
+        } else if (serverBundles2 < claimedBundles2) {
+          const keep = (p: Planet) => {
+            const m = /-b(\d+)-/.exec(p.id);
+            const idx = m ? parseInt(m[1]!, 10) : 0;
+            return idx < serverBundles2;
+          };
+          updated = {
+            ...updated,
+            claimedWhiteCollectionBundles: serverBundles2,
+            whitePlanets: (updated.whitePlanets || []).filter(keep),
+          };
         }
 
         const claimedEarthBundles2 = Math.max(0, updated.claimedEarthCollectionBundles ?? 0);
@@ -1314,6 +1357,17 @@ export function useGameState() {
             ...updated,
             claimedEarthCollectionBundles: serverEarthBundles2,
             earthPlanets: [...(updated.earthPlanets || []), ...newEarthPlanets2],
+          };
+        } else if (serverEarthBundles2 < claimedEarthBundles2) {
+          const keepEarth = (p: Planet) => {
+            const m = /-b(\d+)-/.exec(p.id);
+            const idx = m ? parseInt(m[1]!, 10) : 0;
+            return idx < serverEarthBundles2;
+          };
+          updated = {
+            ...updated,
+            claimedEarthCollectionBundles: serverEarthBundles2,
+            earthPlanets: (updated.earthPlanets || []).filter(keepEarth),
           };
         }
 
