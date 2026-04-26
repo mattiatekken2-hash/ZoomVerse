@@ -297,7 +297,11 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
           {planets.map((planet) => {
             const active = isFarmActive(planet);
             const remaining = getFarmTimeRemaining(planet);
-            const needsDaily = needsCollect(planet);
+            // V1 has no manual daily COLLECT step — it just farms its 24h
+            // cycle and then needs the standard $ZOOM reactivation fee, like
+            // every other rarity. Hiding the button here makes V1 fall through
+            // to the FARMING / EXPIRED branches naturally.
+            const needsDaily = needsCollect(planet) && planet.name !== "V1";
             const refund = Math.floor(planet.craftCost * 0.15);
             const cfg = PLANET_CONFIG[planet.name];
             const isListed = planet.isListedInMarket;
