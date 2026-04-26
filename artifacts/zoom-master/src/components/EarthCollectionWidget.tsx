@@ -156,7 +156,7 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
           height: 60,
           borderRadius: 14,
           background: "rgba(8,12,28,0.78)",
-          border: `1.5px solid ${NEON_BLUE}66`,
+          border: `1.5px solid ${unlocked ? NEON_GREEN_E : NEON_BLUE}66`,
           padding: 4,
           cursor: "pointer",
           zIndex: 40,
@@ -169,6 +169,23 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
         <div className="ec-tile-img" style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", filter: `drop-shadow(0 0 6px ${NEON_BLUE}aa)` }}>
           <RealisticEarth size={48} />
         </div>
+        {unlocked && (
+          <span
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              top: -4,
+              right: -4,
+              width: 14,
+              height: 14,
+              borderRadius: "50%",
+              background: NEON_GREEN_E,
+              border: "2px solid rgba(8,12,28,0.95)",
+              boxShadow: `0 0 8px ${NEON_GREEN_E}`,
+              animation: "earthCollPulse 1.6s ease-in-out infinite",
+            }}
+          />
+        )}
       </button>
 
       {open && (
@@ -250,18 +267,40 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
               Unlock 4 exclusive earth slots. Speed: <b style={{ color: NEON_BLUE }}>0.017 TON/day</b>. Requires SUN module.
             </div>
 
-            <div style={{
-              display: "flex", alignItems: "center", justifyContent: "center",
-              gap: 6, marginBottom: 14,
-              fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase",
-              color: soldOut ? "#ff5577" : NEON_GREEN_E, fontWeight: 800,
-            }}>
-              {stock
-                ? soldOut
-                  ? "SOLD OUT"
-                  : <>Limited: <b style={{ color: "#fff" }}>{stock.remaining}</b> / {stock.max} left</>
-                : "Loading…"}
-            </div>
+            {unlocked ? (
+              <div style={{
+                marginBottom: 14,
+                padding: "12px 14px",
+                borderRadius: 12,
+                background: `linear-gradient(135deg, rgba(34,197,94,0.12), rgba(59,130,246,0.06))`,
+                border: `1px solid ${NEON_GREEN_E}66`,
+                textAlign: "center",
+              }}>
+                <div style={{
+                  fontSize: 11, fontWeight: 900, letterSpacing: "0.18em",
+                  textTransform: "uppercase", color: NEON_GREEN_E, marginBottom: 6,
+                }}>
+                  ● Active — Producing TON
+                </div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", lineHeight: 1.5 }}>
+                  You own <b style={{ color: "#fff" }}>{ownedBundles}</b> bundle{ownedBundles === 1 ? "" : "s"} ({ownedBundles * 4} planets).
+                  <br/>Tap your <b style={{ color: NEON_BLUE }}>avatar</b> to place planets in slots and collect TON.
+                </div>
+              </div>
+            ) : (
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "center",
+                gap: 6, marginBottom: 14,
+                fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase",
+                color: soldOut ? "#ff5577" : NEON_GREEN_E, fontWeight: 800,
+              }}>
+                {stock
+                  ? soldOut
+                    ? "SOLD OUT"
+                    : <>Limited: <b style={{ color: "#fff" }}>{stock.remaining}</b> / {stock.max} left</>
+                  : "Loading…"}
+              </div>
+            )}
 
             <div style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
