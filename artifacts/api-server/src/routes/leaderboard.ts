@@ -54,14 +54,17 @@ router.post("/balance/sync", async (req, res) => {
         target: usersTable.telegramId,
         set: {
           zoomBalance: sql`CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.zoomBalance} ELSE GREATEST(0, ${zoomBalance}) END`,
-          // TON balance follows the same epoch-fencing rule as ZOOM: the client
-          // is authoritative when its epoch matches, otherwise the stored
-          // server value wins (so server-side credits like admin grants are
-          // preserved). Only persist a TON value when the client actually sent
-          // one in this sync request.
+          // TON balance uses a non-destructive merge: take the MAX of server
+          // and client. Unlike ZOOM, internal TON has no client-side spends
+          // (reactivation fees are paid on-chain via TonConnect and the only
+          // server-side decrement, withdrawals, immediately snaps the client
+          // via the zoom-server-ton-snap event before the next sync). Picking
+          // MAX preserves both client-side credits (white/earth COLLECT) and
+          // server-side credits (admin TON grants) without one wiping the
+          // other when balance_epoch advances.
           ...(typeof tonBalance === "number"
             ? {
-                tonBalance: sql`CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.tonBalance} ELSE GREATEST(0, ${tb}) END`,
+                tonBalance: sql`GREATEST(${usersTable.tonBalance}, ${tb})`,
               }
             : {}),
           ...(firstName ? { firstName } : {}),
