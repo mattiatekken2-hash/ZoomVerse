@@ -81,12 +81,32 @@ function AppShellWithState() {
   useGlobalInit(state.telegramId);
 
   // Maintenance mode: poll status, show fullscreen overlay for non-admins.
-  const [maintenance, setMaintenance] = useState<{ enabled: boolean; message: string }>({ enabled: false, message: "" });
+  // We cache the last known status in localStorage so a repeat visit during
+  // maintenance shows the lock screen immediately (zero Lab flash). On a
+  // first-ever visit (no cache) we render a neutral splash until the first
+  // status fetch resolves, again to prevent the Lab from flashing.
+  const [maintenance, setMaintenance] = useState<{ enabled: boolean; message: string }>(() => {
+    try {
+      const raw = localStorage.getItem("zoom-maint-cached");
+      if (raw) {
+        const c = JSON.parse(raw) as { enabled?: boolean; message?: string };
+        return { enabled: !!c.enabled, message: c.message || "" };
+      }
+    } catch { /**/ }
+    return { enabled: false, message: "" };
+  });
+  const [maintLoaded, setMaintLoaded] = useState<boolean>(() => {
+    try { return localStorage.getItem("zoom-maint-cached") !== null; } catch { return false; }
+  });
   useEffect(() => {
     let alive = true;
     const load = async () => {
       const s = await fetchMaintenanceStatus();
-      if (alive) setMaintenance({ enabled: !!s.enabled, message: s.message || "" });
+      if (!alive) return;
+      const next = { enabled: !!s.enabled, message: s.message || "" };
+      setMaintenance(next);
+      setMaintLoaded(true);
+      try { localStorage.setItem("zoom-maint-cached", JSON.stringify(next)); } catch { /**/ }
     };
     load();
     const id = setInterval(() => { if (!document.hidden) load(); }, 20000);
@@ -98,6 +118,7 @@ function AppShellWithState() {
   }, []);
   const isAdmin = state.telegramId === MAINTENANCE_ADMIN_ID;
   const showMaintenance = maintenance.enabled && !isAdmin;
+  const showSplash = !maintLoaded && !isAdmin;
 
   const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
   const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate * Math.max(1, state.sunCount || 1) : 0;
@@ -255,6 +276,21 @@ function AppShellWithState() {
       <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
         <MaintenanceScreen message={maintenance.message} />
       </TonConnectUIProvider>
+    );
+  }
+
+  // First-ever visit (no cached status yet): hide the Lab behind a neutral
+  // splash until the maintenance check resolves, so users never see a flash
+  // of game UI before the lock screen appears.
+  if (showSplash) {
+    return (
+      <div style={{
+        position: "fixed", inset: 0, background: "#060810",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        color: "rgba(255,255,255,0.35)", fontWeight: 800, letterSpacing: "0.2em", fontSize: 12,
+      }}>
+        ZOOM
+      </div>
     );
   }
 
