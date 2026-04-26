@@ -8,6 +8,7 @@ import {
   adminUnlockEarthCollection,
   adminRevokeWhiteCollection,
   adminRevokeEarthCollection,
+  adminGrantV1,
   adminGrantAutoTap,
   adminTestWithdrawalChannel,
   adminFetchWithdrawals,
@@ -602,6 +603,37 @@ export function AdminPanel({ telegramId }: Props) {
                     {loading === "revoke-earth" ? "..." : "✗ REVOKE EARTH"}
                   </motion.button>
                 </div>
+
+                {/* Grant V1 (rank counter only) */}
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={async () => {
+                    haptic();
+                    const id = targetId.trim() || ADMIN_ID;
+                    setLoading("v1");
+                    const ok = await adminGrantV1(telegramId, id);
+                    setLoading(null);
+                    if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+                    showFeedback(ok ? `✓ V1 +1 accreditato a ID ${id} (rank)` : `✗ Errore per ID ${id}`, ok);
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(245,251,255,0.55)",
+                    background: "rgba(245,251,255,0.08)",
+                    color: "#f5fbff",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "opacity 0.15s",
+                    boxShadow: "0 0 14px rgba(245,251,255,0.2)",
+                  }}
+                >
+                  {loading === "v1" ? "..." : "✦ GRANT V1 (+1 su Rank)"}
+                </motion.button>
 
                 {/* Auto-Tap grant */}
                 <motion.button

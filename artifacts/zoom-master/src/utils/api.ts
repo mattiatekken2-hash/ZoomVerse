@@ -441,6 +441,17 @@ export async function adminRevokeEarthCollection(adminId: string, telegramId: st
   } catch { return false; }
 }
 
+export async function adminGrantV1(adminId: string, telegramId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/grant-v1`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminRemoveZoom(adminId: string, telegramId: string, amount: number): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/remove-zoom`, {

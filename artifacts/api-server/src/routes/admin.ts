@@ -377,6 +377,28 @@ router.post("/admin/revoke-earth-collection", async (req, res) => {
   }
 });
 
+router.post("/admin/grant-v1", async (req, res) => {
+  const parsed = RevokeCollectionBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+
+  try {
+    await db
+      .update(usersTable)
+      .set({
+        totalCraftedV1: sql`${usersTable.totalCraftedV1} + 1`,
+      })
+      .where(eq(usersTable.telegramId, telegramId));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/grant-v1] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 router.post("/admin/global-bonus", async (req, res) => {
   const parsed = GlobalBonusBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
