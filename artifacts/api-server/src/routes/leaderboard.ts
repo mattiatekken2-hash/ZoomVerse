@@ -156,6 +156,7 @@ router.get("/profile/:telegramId", async (req, res) => {
         totalCraftedRare: usersTable.totalCraftedRare,
         totalCraftedEpic: usersTable.totalCraftedEpic,
         totalCraftedGold: usersTable.totalCraftedGold,
+        totalCraftedV1: usersTable.totalCraftedV1,
       })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
@@ -174,6 +175,7 @@ router.get("/profile/:telegramId", async (req, res) => {
         RARE: rows[0]!.totalCraftedRare,
         EPIC: rows[0]!.totalCraftedEpic,
         GOLD: rows[0]!.totalCraftedGold,
+        V1: rows[0]!.totalCraftedV1,
       },
     });
   } catch (err) {
@@ -183,7 +185,7 @@ router.get("/profile/:telegramId", async (req, res) => {
 
 const CraftBody = z.object({
   telegramId: z.string().min(1),
-  planetType: z.enum(["BASIC", "RARE", "EPIC", "GOLD"]),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "GOLD", "V1"]),
 });
 
 router.post("/craft/record", async (req, res) => {
@@ -196,6 +198,7 @@ router.post("/craft/record", async (req, res) => {
     RARE: "totalCraftedRare" as const,
     EPIC: "totalCraftedEpic" as const,
     GOLD: "totalCraftedGold" as const,
+    V1: "totalCraftedV1" as const,
   };
   const field = fieldMap[planetType];
 
