@@ -315,12 +315,12 @@ function PixelAvatarBase({
           transform: scale(1.12) rotate(-4deg);
           filter: brightness(1.45) hue-rotate(20deg);
         }
-        .pixel-modal-backdrop {
-          animation: pixelBackdropIn 0.22s ease-out;
-        }
-        .pixel-modal-card {
-          animation: pixelModalIn 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2);
-        }
+        /* Modal in/backdrop animations intentionally disabled: they replay
+           every time the LAB tab becomes visible again (display:none → flex
+           restarts CSS animations), which caused a perceived "flash" in the
+           inventory whenever the user switched tabs with the modal open. */
+        .pixel-modal-backdrop { /* opens instantly */ }
+        .pixel-modal-card { /* opens instantly */ }
         .pixel-farm-slot {
           background: rgba(255,255,255,0.03);
           border: 2px dashed rgba(255,255,255,0.18);

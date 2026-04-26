@@ -186,19 +186,19 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
-      {visible && (
-        <>
-          <AutoTapWidget
-            hasAutoTap={hasAutoTap}
-            canCraft={canCraft}
-            telegramId={telegramId}
-            onTap={handleCraft}
-          />
-          <MysteryBoxWidget telegramId={telegramId} />
-          <WhiteCollectionWidget telegramId={telegramId} unlocked={whiteCollectionUnlocked} ownedBundles={whiteCollectionBundles} sunCount={sunCount} />
-          <EarthCollectionWidget telegramId={telegramId} unlocked={earthCollectionUnlocked} ownedBundles={earthCollectionBundles} sunCount={sunCount} />
-        </>
-      )}
+      {/* Widgets stay mounted across tab switches — the parent tab container
+          uses display:none when the LAB tab is inactive, which already hides
+          these fixed-position widgets. Unmounting them on every tab switch
+          caused visible flashes (re-fetch + animation restarts on remount). */}
+      <AutoTapWidget
+        hasAutoTap={hasAutoTap}
+        canCraft={canCraft}
+        telegramId={telegramId}
+        onTap={handleCraft}
+      />
+      <MysteryBoxWidget telegramId={telegramId} />
+      <WhiteCollectionWidget telegramId={telegramId} unlocked={whiteCollectionUnlocked} ownedBundles={whiteCollectionBundles} sunCount={sunCount} />
+      <EarthCollectionWidget telegramId={telegramId} unlocked={earthCollectionUnlocked} ownedBundles={earthCollectionBundles} sunCount={sunCount} />
       <div
         className="relative flex-1"
         style={{ minHeight: 0 }}
@@ -328,8 +328,14 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       </div>
 
       <div className="flex-shrink-0 px-5 pb-6 pt-2 flex flex-col gap-3">
-        {!pendingPlanet && (
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {/* Bottom row stays mounted across pendingPlanet toggles so the
+            avatar's bob/glow animations don't restart on every craft cycle.
+            The CRAFT button is hidden during the planet-reveal cinematic but
+            the avatar (and its modal state) are preserved. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {pendingPlanet ? (
+            <div style={{ flex: 1 }} aria-hidden="true" />
+          ) : (
             <button
               className="btn-craft"
               onClick={handleCraft}
@@ -339,28 +345,28 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             >
               {isFull ? t("lab.farmFull") : balance < 1 ? t("lab.noZoom") : t("lab.forgePlanet")}
             </button>
-            <PixelAvatar
-              size={60}
-              whitePlanets={whitePlanets}
-              whiteCollectionUnlocked={whiteCollectionUnlocked}
-              whiteCollectionBundles={whiteCollectionBundles}
-              earthPlanets={earthPlanets}
-              earthCollectionUnlocked={earthCollectionUnlocked}
-              earthCollectionBundles={earthCollectionBundles}
-              sunCount={sunCount}
-              tonBalance={tonBalance}
-              telegramId={telegramId}
-              onPlaceWhitePlanet={onPlaceWhitePlanet}
-              onCollectWhitePlanet={onCollectWhitePlanet}
-              onReactivateWhitePlanet={onReactivateWhitePlanet}
-              onMarkWhitePlanetReactivated={onMarkWhitePlanetReactivated}
-              onPlaceEarthPlanet={onPlaceEarthPlanet}
-              onCollectEarthPlanet={onCollectEarthPlanet}
-              onReactivateEarthPlanet={onReactivateEarthPlanet}
-              onMarkEarthPlanetReactivated={onMarkEarthPlanetReactivated}
-            />
-          </div>
-        )}
+          )}
+          <PixelAvatar
+            size={60}
+            whitePlanets={whitePlanets}
+            whiteCollectionUnlocked={whiteCollectionUnlocked}
+            whiteCollectionBundles={whiteCollectionBundles}
+            earthPlanets={earthPlanets}
+            earthCollectionUnlocked={earthCollectionUnlocked}
+            earthCollectionBundles={earthCollectionBundles}
+            sunCount={sunCount}
+            tonBalance={tonBalance}
+            telegramId={telegramId}
+            onPlaceWhitePlanet={onPlaceWhitePlanet}
+            onCollectWhitePlanet={onCollectWhitePlanet}
+            onReactivateWhitePlanet={onReactivateWhitePlanet}
+            onMarkWhitePlanetReactivated={onMarkWhitePlanetReactivated}
+            onPlaceEarthPlanet={onPlaceEarthPlanet}
+            onCollectEarthPlanet={onCollectEarthPlanet}
+            onReactivateEarthPlanet={onReactivateEarthPlanet}
+            onMarkEarthPlanetReactivated={onMarkEarthPlanetReactivated}
+          />
+        </div>
 
         {!pendingPlanet && (
           <div className="flex justify-between text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
