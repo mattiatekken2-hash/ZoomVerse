@@ -163,8 +163,6 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
                 background: "linear-gradient(135deg, rgba(255,179,71,0.09) 0%, rgba(255,140,0,0.04) 100%)",
                 boxShadow: sunActive ? "0 0 32px rgba(255,179,71,0.18)" : "none",
                 contain: "layout style paint",
-                contentVisibility: "auto",
-                containIntrinsicSize: "200px",
               } as React.CSSProperties}
             >
               <div
@@ -324,13 +322,11 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
                   borderColor: isListed ? "rgba(255,215,0,0.3)" : expired ? "rgba(255,255,255,0.08)" : planet.color + "40",
                   background: `linear-gradient(135deg, ${planet.color}0d 0%, rgba(6,8,16,0.6) 100%)`,
                   boxShadow: active ? `0 0 32px ${planet.color}22, 0 0 60px ${planet.color}08` : `0 0 16px ${planet.color}08`,
-                  // Per-card paint isolation. Off-screen cards skip layout & paint entirely
-                  // (`content-visibility: auto`), which is the single biggest win for scroll smoothness
-                  // when the list grows. `contain-intrinsic-size` reserves space so the scrollbar
-                  // length stays accurate even before off-screen cards have been painted.
+                  // Per-card paint isolation only — we intentionally do NOT use
+                  // `content-visibility: auto` here. On Telegram's iOS WebView
+                  // it caused a visible flicker as cards entered the viewport
+                  // (placeholder height ≠ real height = layout jump + repaint).
                   contain: "layout style paint",
-                  contentVisibility: "auto",
-                  containIntrinsicSize: "200px",
                 } as React.CSSProperties}
                 data-testid={`planet-card-${planet.id}`}
               >
@@ -508,8 +504,6 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
                 borderColor: "rgba(255,255,255,0.07)",
                 minHeight: 140,
                 contain: "layout style paint",
-                contentVisibility: "auto",
-                containIntrinsicSize: "140px",
               } as React.CSSProperties}
               data-testid={`slot-empty-${i}`}
             >
