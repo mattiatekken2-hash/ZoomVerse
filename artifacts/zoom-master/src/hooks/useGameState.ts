@@ -638,13 +638,16 @@ function reconcileFromSyncResponse(
     _lastSyncedBalance = res.zoomBalance;
     _pendingSyncBalance = -1;
   }
-  // Same epoch-fence check for TON: if the server advanced and its TON value
-  // diverges from what we sent, snap local tonBalance to the server's value.
+  // For TON we use a non-destructive merge on the server (GREATEST), so the
+  // server can return a value HIGHER than what we sent even when the epoch
+  // didn't advance (e.g. an earlier session credited TON, or an admin grant
+  // bumped the stored balance). Whenever the server reports a strictly
+  // higher TON than the client sent, snap local up so the user actually
+  // sees the credited amount.
   if (
-    serverAdvanced &&
     typeof res.tonBalance === "number" &&
     typeof sentTonBalance === "number" &&
-    Math.abs((res.tonBalance ?? 0) - (sentTonBalance ?? 0)) > 1e-9
+    (res.tonBalance ?? 0) - (sentTonBalance ?? 0) > 1e-9
   ) {
     try {
       window.dispatchEvent(new CustomEvent("zoom-server-ton-snap", {
