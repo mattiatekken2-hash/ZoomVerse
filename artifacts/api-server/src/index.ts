@@ -50,19 +50,49 @@ function startFarmNotificationCron() {
   // so we don't re-send. Re-activation by the user resets notified_at via
   // /farm/start, which makes the next cycle eligible again.
   const intervalMs = 60 * 1000;
+  // Single-flight guard: if a previous tick is still running (slow Telegram
+  // or DB), skip this one so we never fetch the same rows twice and double-
+  // send notifications.
+  let inFlight = false;
   const tick = async () => {
+    if (inFlight) return;
+    inFlight = true;
     try {
-      const rows = await fetchPendingFarmNotifications(100);
+      const rows = await fetchPendingFarmNotifications(500);
       if (rows.length === 0) return;
+      // Group all pending cycles by user so we send ONE consolidated message
+      // per user per tick, no matter how many planets are full. This prevents
+      // the "8 messages in 4 minutes" spam when several bundles ripen together.
+      const byUser = new Map<string, typeof rows>();
       for (const row of rows) {
-        const ok = await sendBotMessage(row.telegramId, FARM_FULL_MESSAGE);
+        const list = byUser.get(row.telegramId) ?? [];
+        list.push(row);
+        byUser.set(row.telegramId, list);
+      }
+      for (const [telegramId, userRows] of byUser) {
+        const count = userRows.length;
+        const message =
+          count === 1
+            ? FARM_FULL_MESSAGE
+            : `⚡ ${count} of your planets are ready! Collect your TON and restart the engines to keep earning.`;
+        const ok = await sendBotMessage(telegramId, message);
         // Always mark notified — even on failure (403/blocked) — so we don't
         // hammer Telegram on every cron tick for users who blocked the bot.
-        await markFarmNotified(row.id).catch((e) => logger.warn({ err: e, id: row.id }, "[farm-cron] markNotified failed"));
-        if (ok) logger.info({ telegramId: row.telegramId, planetId: row.planetId }, "[farm-cron] sent farm-full notification");
+        // Pass each row's expiresAt so we don't accidentally stamp a freshly
+        // reactivated cycle (same id, new expiresAt) as already notified.
+        await Promise.all(
+          userRows.map((row) =>
+            markFarmNotified(row.id, row.expiresAt).catch((e) =>
+              logger.warn({ err: e, id: row.id }, "[farm-cron] markNotified failed"),
+            ),
+          ),
+        );
+        if (ok) logger.info({ telegramId, count }, "[farm-cron] sent consolidated farm-full notification");
       }
     } catch (err) {
       logger.warn({ err }, "[farm-cron] tick failed");
+    } finally {
+      inFlight = false;
     }
   };
   // Fire once 5s after boot so devs can see logs quickly.

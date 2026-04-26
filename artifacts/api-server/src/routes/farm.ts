@@ -132,12 +132,23 @@ export async function fetchPendingFarmNotifications(limit = 100) {
     .where(sql`${farmCyclesTable.expiresAt} <= NOW()
         AND ${farmCyclesTable.notifiedAt} IS NULL
         AND ${farmCyclesTable.collectedAt} IS NULL`)
+    .orderBy(farmCyclesTable.expiresAt, farmCyclesTable.id)
     .limit(limit);
 }
 
-export async function markFarmNotified(id: number) {
+/**
+ * Mark a cycle as notified, but only if it is STILL pending. We match the
+ * exact `expiresAt` snapshot the cron read so that if the user reactivated
+ * the planet between fetch and mark (which resets `notifiedAt`/`collectedAt`
+ * AND advances `expiresAt`), we do not stamp the brand-new cycle as already
+ * notified — that brand-new cycle deserves its own future notification.
+ */
+export async function markFarmNotified(id: number, expectedExpiresAt: Date) {
   await db
     .update(farmCyclesTable)
     .set({ notifiedAt: new Date() })
-    .where(eq(farmCyclesTable.id, id));
+    .where(sql`${farmCyclesTable.id} = ${id}
+        AND ${farmCyclesTable.notifiedAt} IS NULL
+        AND ${farmCyclesTable.collectedAt} IS NULL
+        AND ${farmCyclesTable.expiresAt} = ${expectedExpiresAt}`);
 }
