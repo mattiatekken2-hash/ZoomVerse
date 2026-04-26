@@ -389,7 +389,9 @@ router.post("/admin/grant-v1", async (req, res) => {
     await db
       .update(usersTable)
       .set({
+        bonusV1: sql`${usersTable.bonusV1} + 1`,
         totalCraftedV1: sql`${usersTable.totalCraftedV1} + 1`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
       .where(eq(usersTable.telegramId, telegramId));
     res.json({ ok: true });
