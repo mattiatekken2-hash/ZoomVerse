@@ -16,7 +16,6 @@ const en: Dict = {
   "nav.wheel": "WHEEL",
   "nav.earn": "EARN",
   "nav.rank": "RANK",
-  "nav.arcade": "ARCADE",
 
   // header
   "header.perHour": "/hr",
@@ -68,7 +67,6 @@ const ru: Dict = {
   "nav.wheel": "КОЛЕСО",
   "nav.earn": "БОНУС",
   "nav.rank": "РЕЙТИНГ",
-  "nav.arcade": "АРКАДА",
 
   "header.perHour": "/час",
 
@@ -114,7 +112,6 @@ const uk: Dict = {
   "nav.wheel": "КОЛЕСО",
   "nav.earn": "БОНУС",
   "nav.rank": "РЕЙТИНГ",
-  "nav.arcade": "АРКАДА",
 
   "header.perHour": "/год",
 

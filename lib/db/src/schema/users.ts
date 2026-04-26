@@ -35,14 +35,9 @@ export const usersTable = pgTable("users", {
   earthCollectionBundles: integer("earth_collection_bundles").notNull().default(0),
   tonBalance: real("ton_balance").notNull().default(0),
   language: text("language").notNull().default("en"),
-  zCoins: integer("z_coins").notNull().default(0),
-  zCoinsBest: integer("z_coins_best").notNull().default(0),
-  arcadeFreeLastUsedAt: timestamp("arcade_free_last_used_at"),
-  arcadeExtraLives: integer("arcade_extra_lives").notNull().default(0),
 }, (table) => [
   index("idx_users_zoom_balance").on(table.zoomBalance),
   index("idx_users_referred_by").on(table.referredBy),
-  index("idx_users_z_coins").on(table.zCoins),
 ]);
 
 export const transactionsTable = pgTable("transactions", {

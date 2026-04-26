@@ -156,7 +156,6 @@ const STARS_CATALOG: StarsItem[] = [
   { id: "wheel_spin_5",  title: "5 Wheel Spins",  description: "5 spins on the Fortune Wheel — 20% off",  starsPrice: 200, tonPrice: 2.0, zoomAmount: 5,  itemType: "wheel_spin" },
   { id: "wheel_spin_10", title: "10 Wheel Spins", description: "10 spins on the Fortune Wheel — 30% off", starsPrice: 350, tonPrice: 3.5, zoomAmount: 10, itemType: "wheel_spin" },
   { id: "auto_tap", title: "Auto-Tap", description: "Hold-to-tap auto-clicker on the FORGE PLANET", starsPrice: 300, tonPrice: 3, itemType: "auto_tap" },
-  { id: "arcade_extra_life", title: "Zoom Jump Extra Life", description: "+1 extra life for the Zoom Jump arcade game", starsPrice: 25, tonPrice: 0.10, itemType: "arcade_life" },
   { id: "mystery_box", title: "Mystery Box", description: "Open a space crate — chance for Rare/Epic/Gold and a tiny shot at THE SUN", starsPrice: 150, tonPrice: 1.5, itemType: "mystery_box" },
   { id: "white_collection", title: "White Collection Limited", description: "Unlock 4 exclusive farm slots. Yield: 0.11 TON / Day. Requires SUN module.", starsPrice: 2000, tonPrice: 30, itemType: "white_collection" },
   // Reactivation fee for an expired white-planet farming cycle. Same per-tier
@@ -332,10 +331,6 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string)
   } else if (item.itemType === "auto_tap") {
     await tx.update(usersTable)
       .set({ hasAutoTap: true })
-      .where(eq(usersTable.telegramId, telegramId));
-  } else if (item.itemType === "arcade_life") {
-    await tx.update(usersTable)
-      .set({ arcadeExtraLives: sql`${usersTable.arcadeExtraLives} + 1` })
       .where(eq(usersTable.telegramId, telegramId));
   } else if (item.itemType === "white_react") {
     // Reactivation is a paid action with no server-side grant. The transaction

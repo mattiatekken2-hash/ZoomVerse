@@ -10,7 +10,6 @@ import { EarnPage } from "./pages/EarnPage";
 import { RankPage } from "./pages/RankPage";
 import { ShopPage } from "./pages/ShopPage";
 import { WheelPage } from "./pages/WheelPage";
-import { ArcadePage } from "./pages/ArcadePage";
 import { AdminPanel } from "./components/AdminPanel";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { LanguageProvider, useT } from "./i18n/LanguageContext";
@@ -20,19 +19,18 @@ const MAINTENANCE_ADMIN_ID = "8144744644";
 
 const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
-type Tab = "lab" | "farm" | "market" | "earn" | "wheel" | "rank" | "shop" | "arcade";
+type Tab = "lab" | "farm" | "market" | "earn" | "wheel" | "rank" | "shop";
 
 const NAV: { id: Tab; labelKey: string; icon: string }[] = [
   { id: "lab", labelKey: "nav.lab", icon: "⬡" },
   { id: "farm", labelKey: "nav.farm", icon: "🪐" },
-  { id: "arcade", labelKey: "nav.arcade", icon: "🕹️" },
   { id: "market", labelKey: "nav.market", icon: "💫" },
   { id: "wheel", labelKey: "nav.wheel", icon: "🎡" },
   { id: "earn", labelKey: "nav.earn", icon: "🎁" },
   { id: "rank", labelKey: "nav.rank", icon: "🏆" },
 ];
 
-const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "wheel", "rank", "shop", "arcade"];
+const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "wheel", "rank", "shop"];
 
 export default function App() {
   return (
@@ -83,32 +81,12 @@ function AppShellWithState() {
   useGlobalInit(state.telegramId);
 
   // Maintenance mode: poll status, show fullscreen overlay for non-admins.
-  // We hydrate from localStorage cache so a returning user during maintenance
-  // sees the lock screen instantly (no Lab → Maintenance flash). On a first
-  // cold load with no cache we briefly gate the UI behind a tiny splash until
-  // the first /maintenance/status response arrives, also avoiding the flash.
-  const MAINT_CACHE_KEY = "zoom-maint-cache-v1";
-  const initialMaint = (() => {
-    try {
-      const raw = localStorage.getItem(MAINT_CACHE_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as { enabled: boolean; message: string };
-      return { enabled: !!parsed.enabled, message: parsed.message || "" };
-    } catch { return null; }
-  })();
-  const [maintenance, setMaintenance] = useState<{ enabled: boolean; message: string }>(
-    initialMaint ?? { enabled: false, message: "" }
-  );
-  const [maintChecked, setMaintChecked] = useState<boolean>(initialMaint !== null);
+  const [maintenance, setMaintenance] = useState<{ enabled: boolean; message: string }>({ enabled: false, message: "" });
   useEffect(() => {
     let alive = true;
     const load = async () => {
       const s = await fetchMaintenanceStatus();
-      if (!alive) return;
-      const next = { enabled: !!s.enabled, message: s.message || "" };
-      setMaintenance(next);
-      setMaintChecked(true);
-      try { localStorage.setItem(MAINT_CACHE_KEY, JSON.stringify(next)); } catch { /**/ }
+      if (alive) setMaintenance({ enabled: !!s.enabled, message: s.message || "" });
     };
     load();
     const id = setInterval(() => { if (!document.hidden) load(); }, 20000);
@@ -120,7 +98,6 @@ function AppShellWithState() {
   }, []);
   const isAdmin = state.telegramId === MAINTENANCE_ADMIN_ID;
   const showMaintenance = maintenance.enabled && !isAdmin;
-  const showMaintGate = !maintChecked && !isAdmin;
 
   const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
   const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate * Math.max(1, state.sunCount || 1) : 0;
@@ -281,30 +258,6 @@ function AppShellWithState() {
     );
   }
 
-  // First cold load with no cached maintenance state → brief splash so the
-  // user never briefly sees the Lab when maintenance is actually ON.
-  if (showMaintGate) {
-    return (
-      <div
-        style={{
-          position: "fixed", inset: 0, background: "#060810",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 99999,
-        }}
-      >
-        <div
-          style={{
-            width: 38, height: 38, borderRadius: "50%",
-            border: "3px solid rgba(0,242,254,0.18)",
-            borderTopColor: "#00f2fe",
-            animation: "zoomMaintSpin 0.9s linear infinite",
-          }}
-        />
-        <style>{`@keyframes zoomMaintSpin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
-
   return (
     <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
     <div className="flex flex-col overflow-hidden relative" style={{ height: "100dvh", background: "#060810", paddingTop: "calc(env(safe-area-inset-top, 0px) + 56px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
@@ -460,9 +413,6 @@ function AppShellWithState() {
               )}
               {t === "wheel" && (
                 <WheelPage telegramId={state.telegramId} />
-              )}
-              {t === "arcade" && (
-                <ArcadePage telegramId={state.telegramId} visible={tab === "arcade"} />
               )}
             </div>
           );

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { FeedEvent } from "../hooks/useGameState";
 import { useGlobalStore } from "../store/globalStore";
-import { fetchArcadeState } from "../utils/api";
 
 interface RankPageProps {
   balance: number;
@@ -52,19 +51,6 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
   const totalPool = useGlobalStore((s) => s.totalPool);
   const seasonStart = seasonEpoch && seasonEpoch > 0 ? seasonEpoch : DEFAULT_SEASON_START;
   const loadingLb = !initialized && leaderboard.length === 0;
-
-  const [zCoins, setZCoins] = useState(0);
-  useEffect(() => {
-    if (!telegramId) return;
-    let alive = true;
-    const load = async () => {
-      const s = await fetchArcadeState(telegramId);
-      if (alive) setZCoins(s.zCoins);
-    };
-    load();
-    const id = setInterval(() => { if (visible && !document.hidden) load(); }, 20000);
-    return () => { alive = false; clearInterval(id); };
-  }, [telegramId, visible]);
 
   const seasonProgress = getSeasonProgress(currentTime, seasonStart);
   const currentSeason = 1;
@@ -234,13 +220,6 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                       Joined: {new Date(profile.createdAt).toLocaleDateString("it-IT")}
                     </span>
                   )}
-                </div>
-                <div className="rounded-lg p-2 mb-2 flex items-center justify-between border" style={{ borderColor: "rgba(255,215,0,0.18)", background: "rgba(255,215,0,0.05)" }}>
-                  <div className="flex items-center gap-2">
-                    <span style={{ fontSize: 14 }}>🕹️</span>
-                    <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "rgba(255,215,0,0.7)" }}>Z Coins · Arcade</span>
-                  </div>
-                  <span className="font-black text-sm gold-text tabular-nums">{zCoins.toLocaleString()} Z</span>
                 </div>
                 {profile.crafted && (
                   <div className="grid grid-cols-4 gap-2">
