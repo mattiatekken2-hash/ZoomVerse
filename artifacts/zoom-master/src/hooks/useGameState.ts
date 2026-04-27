@@ -632,39 +632,60 @@ function reconcileFromSyncResponse(
   res: { zoomBalance: number; balanceEpoch: number; tonBalance?: number },
   sentTonBalance?: number,
 ): void {
-  setCurrentBalanceEpoch(res.balanceEpoch);
+  // ORDER MATTERS — race fix.
+  //
+  // The naive ordering (bump _currentBalanceEpoch first, then dispatch the
+  // setState-driven balance snap) leaves a window where:
+  //   • _currentBalanceEpoch     == new (e.g. 6, just credited by the server)
+  //   • stateRef.current.balance == old (still 1000 — React hasn't committed
+  //                                       the snap setState yet)
+  // Any sync that fires inside that window (periodic doSync, tab-switch
+  // throttled doSync, or an immediate sync triggered by a stray tap) reads
+  // stateRef.current.balance == 1000 and ce == 6, then sends them to the
+  // server. The server's CASE WHEN balance_epoch > clientEpoch THEN keep
+  // ELSE GREATEST(0, client) END takes the ELSE branch (epoch == ce, not >),
+  // and overwrites the freshly credited 1100 back to 1000 — silently
+  // losing the wheel/admin/marketplace prize. Symptom: the YOU WON popup
+  // appears but the visible balance never rises.
+  //
+  // Fix: snap stateRef + _lastSyncedBalance SYNCHRONOUSLY, then bump the
+  // epoch. Now any concurrent sync sees the already-snapped (balance, epoch)
+  // pair and the server preserves the credit.
   const serverAdvanced = res.balanceEpoch > sentEpoch;
   const valueDiverged = res.zoomBalance !== sentBalance;
   if (serverAdvanced && valueDiverged) {
+    stateRef.current = { ...stateRef.current, balance: res.zoomBalance };
+    _lastSyncedBalance = res.zoomBalance;
+    _pendingSyncBalance = -1;
     try {
       window.dispatchEvent(new CustomEvent("zoom-server-balance-snap", {
         detail: { balance: res.zoomBalance, epoch: res.balanceEpoch },
       }));
     } catch { /**/ }
-    _lastSyncedBalance = res.zoomBalance;
-    _pendingSyncBalance = -1;
   }
   // For TON we use a non-destructive merge on the server (GREATEST), so the
   // server can return a value HIGHER than what we sent even when the epoch
   // didn't advance (e.g. an earlier session credited TON, or an admin grant
   // bumped the stored balance). Whenever the server reports a strictly
   // higher TON than the client sent, snap local up so the user actually
-  // sees the credited amount.
+  // sees the credited amount. Same synchronous-stateRef-first ordering as
+  // the ZOOM snap above, for the same race-window reason.
   if (
     typeof res.tonBalance === "number" &&
     typeof sentTonBalance === "number" &&
     (res.tonBalance ?? 0) - (sentTonBalance ?? 0) > 1e-9
   ) {
+    stateRef.current = { ...stateRef.current, tonBalance: res.tonBalance };
+    _lastSyncedTonBalance = res.tonBalance;
     try {
       window.dispatchEvent(new CustomEvent("zoom-server-ton-snap", {
         detail: { tonBalance: res.tonBalance, epoch: res.balanceEpoch },
       }));
     } catch { /**/ }
-    // Mirror the ZOOM snap behaviour: record the snapped value as the most
-    // recently synced one so the next outgoing sync (triggered by the snap's
-    // setState) doesn't re-send the now-stale local value.
-    _lastSyncedTonBalance = res.tonBalance;
   }
+  // Bump the epoch LAST so any sync that fires after this point already sees
+  // the snapped balance/TON in stateRef + _lastSyncedBalance.
+  setCurrentBalanceEpoch(res.balanceEpoch);
 }
 
 function immediateSyncToServer(state: GameState) {
@@ -1822,14 +1843,27 @@ export function useGameState() {
       if (balanceRecord?.exists) {
         const serverBal = Math.floor(balanceRecord.zoomBalance);
         const localBal = Math.floor(stateRef.current.balance);
-        // Adopt the server's epoch so subsequent syncs are not rejected.
-        setCurrentBalanceEpoch(balanceRecord.balanceEpoch);
         if (serverBal !== localBal) {
-          // Snap local to server in BOTH directions: credits AND removals.
+          // ORDER MATTERS — see the long comment in reconcileFromSyncResponse.
+          // Briefly: we snap stateRef + _lastSyncedBalance SYNCHRONOUSLY
+          // BEFORE adopting the server's new epoch, so any concurrent sync
+          // (periodic doSync, throttled tab-switch refresh, immediate sync
+          // from a tap) sees the new (balance, epoch) pair atomically and
+          // can't echo the stale local balance back to the server with the
+          // new epoch — which would cause the server's CASE WHEN epoch>ce
+          // ELSE GREATEST(0, client) merge to clobber a freshly credited
+          // wheel/admin/marketplace prize. Symptom of getting this wrong:
+          // YOU WON popup appears but the visible balance never rises.
+          stateRef.current = { ...stateRef.current, balance: serverBal, lastBalanceEpoch: balanceRecord.balanceEpoch };
           _lastSyncedBalance = serverBal;
           _pendingSyncBalance = -1;
+          setCurrentBalanceEpoch(balanceRecord.balanceEpoch);
           setState((prev) => ({ ...prev, balance: serverBal, lastBalanceEpoch: balanceRecord.balanceEpoch }));
         } else {
+          // Even when balances already agree, keep the stateRef + epoch
+          // ordering consistent so any concurrent sync sees a coherent pair.
+          stateRef.current = { ...stateRef.current, lastBalanceEpoch: balanceRecord.balanceEpoch };
+          setCurrentBalanceEpoch(balanceRecord.balanceEpoch);
           setState((prev) => ({ ...prev, lastBalanceEpoch: balanceRecord.balanceEpoch }));
         }
       }
