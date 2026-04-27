@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { usersTable, appSettingsTable } from "@workspace/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 import { z } from "zod";
 
 const router: IRouter = Router();
@@ -192,6 +192,35 @@ router.post("/stardust/collect", async (req, res) => {
   } catch (err) {
     console.error("[stardust/collect] error:", err);
     res.status(500).json({ ok: false, reason: "SERVER_ERROR" });
+  }
+});
+
+// Top 10 stardust holders. Returns a small public list (no telegram_id) so
+// it's safe to render in the client. We prefer username, fall back to
+// firstName, then to a generic "Player". Players with 0 balance are filtered
+// out so the list doesn't pad with empty entries on a fresh database.
+router.get("/stardust/leaderboard", async (_req, res) => {
+  try {
+    const rows = await db
+      .select({
+        username: usersTable.username,
+        firstName: usersTable.firstName,
+        balance: usersTable.stardustBalance,
+      })
+      .from(usersTable)
+      .where(sql`${usersTable.stardustBalance} > 0`)
+      .orderBy(desc(usersTable.stardustBalance))
+      .limit(10);
+
+    res.json({
+      entries: rows.map((r) => ({
+        name: r.username || r.firstName || "Player",
+        balance: Number(r.balance ?? 0),
+      })),
+    });
+  } catch (err) {
+    console.error("[stardust/leaderboard] error:", err);
+    res.status(500).json({ error: "Internal error" });
   }
 });
 

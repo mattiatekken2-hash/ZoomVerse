@@ -13,7 +13,7 @@ import { WheelPage } from "./pages/WheelPage";
 import { AdminPanel } from "./components/AdminPanel";
 import { SettingsMenu } from "./components/SettingsMenu";
 import { LanguageProvider, useT } from "./i18n/LanguageContext";
-import { fetchMaintenanceStatus } from "./utils/api";
+import { fetchMaintenanceStatus, fetchStardustLeaderboard, type StardustLeaderboardEntry } from "./utils/api";
 import { useStardust } from "./hooks/useStardust";
 import { useMerchant } from "./hooks/useMerchant";
 import { MerchantPopup } from "./components/MerchantPopup";
@@ -844,6 +844,17 @@ function StardustInfoPopup({ balance, today, dailyCap, globalTotal, onClose }: {
   globalTotal: number;
   onClose: () => void;
 }) {
+  // Top 10 stardust holders. Loaded once when the popup opens. We keep the
+  // initial state as `null` (vs `[]`) so we can distinguish "still loading"
+  // from "loaded but empty" and show the right placeholder text.
+  const [leaderboard, setLeaderboard] = useState<StardustLeaderboardEntry[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetchStardustLeaderboard().then((entries) => {
+      if (!cancelled) setLeaderboard(entries);
+    });
+    return () => { cancelled = true; };
+  }, []);
   return (
     <div
       role="dialog"
@@ -910,6 +921,76 @@ function StardustInfoPopup({ balance, today, dailyCap, globalTotal, onClose }: {
         >
           <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,255,255,0.55)" }}>GLOBAL COLLECTED</span>
           <span style={{ fontSize: 15, fontWeight: 900, color: "#ffd740", textShadow: "0 0 8px rgba(255,215,64,0.5)" }}>★ {globalTotal.toLocaleString()}</span>
+        </div>
+        {/* Top 10 stardust leaderboard. Lives inside the popup so the user can
+            see who's collecting the most stardust without leaving the screen. */}
+        <div
+          style={{
+            marginTop: 14,
+            background: "rgba(255,215,64,0.05)",
+            border: "1px solid rgba(255,215,64,0.18)",
+            borderRadius: 12,
+            padding: "10px 10px 6px",
+            textAlign: "left",
+          }}
+        >
+          <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,215,64,0.75)", textAlign: "center", marginBottom: 8 }}>
+            TOP 10 STARDUST
+          </div>
+          {leaderboard === null && (
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", textAlign: "center", padding: "8px 0" }}>
+              Loading...
+            </div>
+          )}
+          {leaderboard !== null && leaderboard.length === 0 && (
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", textAlign: "center", padding: "8px 0" }}>
+              No collectors yet. Be the first!
+            </div>
+          )}
+          {leaderboard !== null && leaderboard.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 220, overflowY: "auto" }}>
+              {leaderboard.map((entry, i) => (
+                <div
+                  key={`${entry.name}-${i}`}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "4px 6px",
+                    borderRadius: 8,
+                    background: i < 3 ? "rgba(255,215,64,0.08)" : "transparent",
+                  }}
+                >
+                  <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 900,
+                        color: i === 0 ? "#ffd740" : i === 1 ? "#cfd6e6" : i === 2 ? "#d49a5a" : "rgba(255,255,255,0.55)",
+                        minWidth: 18,
+                      }}
+                    >
+                      #{i + 1}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: "rgba(255,255,255,0.85)",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {entry.name}
+                    </span>
+                  </span>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#ffd740", marginLeft: 8 }}>
+                    ★ {entry.balance.toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <button
           onClick={onClose}

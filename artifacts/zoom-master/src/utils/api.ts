@@ -1078,6 +1078,26 @@ export async function fetchStardustState(telegramId: string): Promise<StardustSt
   }
 }
 
+export interface StardustLeaderboardEntry {
+  name: string;
+  balance: number;
+}
+
+export async function fetchStardustLeaderboard(): Promise<StardustLeaderboardEntry[]> {
+  try {
+    const res = await fetch(`${API_BASE}/stardust/leaderboard?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return [];
+    const j = await res.json();
+    if (!Array.isArray(j?.entries)) return [];
+    return j.entries.map((e: any) => ({
+      name: String(e?.name ?? "Player"),
+      balance: Number(e?.balance ?? 0),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export interface StardustCollectResult {
   ok: boolean;
   reason?: "NO_SUN" | "DAILY_CAP" | "USER_NOT_FOUND" | "BAD_REQUEST" | "SERVER_ERROR" | "NETWORK";
