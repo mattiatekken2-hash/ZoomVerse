@@ -69,6 +69,13 @@ router.post("/collection-planets/upsert", async (req, res) => {
   const { telegramId, planet } = parsed.data;
   const slotIndex =
     planet.slotIndex == null || planet.slotIndex < 0 ? null : planet.slotIndex;
+  // The client computes timestamps from `serverNow()` which adds a half-RTT
+  // calibration offset and can therefore be a float (e.g. `1777195777655.5`).
+  // The DB columns are `bigint`, so Postgres rejects fractional values and
+  // the whole upsert fails — silently from the client's POV. Round here so
+  // any float value from any client always lands cleanly in the bigint column.
+  const farmStartedAtMs = Math.round(planet.farmStartedAtMs);
+  const lastCollectedAtMs = Math.round(planet.lastCollectedAtMs);
   try {
     await db
       .insert(collectionPlanetsTable)
@@ -79,8 +86,8 @@ router.post("/collection-planets/upsert", async (req, res) => {
         subIndex: planet.subIndex,
         slotIndex,
         isFarmingActive: planet.isFarmingActive,
-        farmStartedAtMs: planet.farmStartedAtMs,
-        lastCollectedAtMs: planet.lastCollectedAtMs,
+        farmStartedAtMs,
+        lastCollectedAtMs,
       })
       .onConflictDoUpdate({
         target: [
@@ -94,8 +101,8 @@ router.post("/collection-planets/upsert", async (req, res) => {
           isFarmingActive: planet.isFarmingActive,
           // Use GREATEST for monotonic timestamps so a stale request from
           // a slow client never rewinds farming timers backwards.
-          farmStartedAtMs: sql`GREATEST(${collectionPlanetsTable.farmStartedAtMs}, ${planet.farmStartedAtMs})`,
-          lastCollectedAtMs: sql`GREATEST(${collectionPlanetsTable.lastCollectedAtMs}, ${planet.lastCollectedAtMs})`,
+          farmStartedAtMs: sql`GREATEST(${collectionPlanetsTable.farmStartedAtMs}, ${farmStartedAtMs})`,
+          lastCollectedAtMs: sql`GREATEST(${collectionPlanetsTable.lastCollectedAtMs}, ${lastCollectedAtMs})`,
           updatedAt: new Date(),
         },
       });
@@ -135,8 +142,12 @@ router.post("/collection-planets/bulk-seed", async (req, res) => {
       subIndex: p.subIndex,
       slotIndex: p.slotIndex == null || p.slotIndex < 0 ? null : p.slotIndex,
       isFarmingActive: p.isFarmingActive,
-      farmStartedAtMs: p.farmStartedAtMs,
-      lastCollectedAtMs: p.lastCollectedAtMs,
+      // See upsert handler above: client `serverNow()` can be a float because
+      // of half-RTT calibration; bigint columns reject fractional values, so
+      // we round here. Without this, the entire bulk-seed migration fails
+      // and placed planets silently revert to inventory after a reload.
+      farmStartedAtMs: Math.round(p.farmStartedAtMs),
+      lastCollectedAtMs: Math.round(p.lastCollectedAtMs),
     }));
     await db
       .insert(collectionPlanetsTable)
