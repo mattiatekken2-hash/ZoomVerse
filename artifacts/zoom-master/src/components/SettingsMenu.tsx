@@ -123,7 +123,13 @@ export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted }: Sett
               >
                 {t("common.language").toUpperCase()}
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 8,
+                }}
+              >
                 {LANGS.map((l) => {
                   const active = l.code === lang;
                   return (
@@ -133,12 +139,12 @@ export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted }: Sett
                       onClick={() => setLang(l.code)}
                       data-testid={`settings-lang-${l.code}`}
                       style={{
-                        flex: 1,
+                        minWidth: 0,
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "center",
+                        justifyContent: "flex-start",
                         gap: 8,
-                        padding: "10px 8px",
+                        padding: "10px 12px",
                         borderRadius: 12,
                         border: active ? "1.5px solid #00f2fe" : "1px solid rgba(255,255,255,0.08)",
                         background: active ? "rgba(0,242,254,0.10)" : "rgba(255,255,255,0.03)",
@@ -151,8 +157,17 @@ export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted }: Sett
                         transition: "background 120ms",
                       }}
                     >
-                      <span style={{ fontSize: 20 }}>{l.flag}</span>
-                      <span>{l.label}</span>
+                      <span style={{ fontSize: 20, flex: "0 0 auto" }}>{l.flag}</span>
+                      <span
+                        style={{
+                          minWidth: 0,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {l.label}
+                      </span>
                     </button>
                   );
                 })}
