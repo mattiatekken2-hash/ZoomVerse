@@ -75,7 +75,21 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
     }
   };
 
-  const referralLink = `https://t.me/ZoomVerse_bot?start=${referralCode}`;
+  // IMPORTANT: this MUST be `?startapp=` (not `?start=`).
+  //
+  // `?start=<param>` only opens the bot's chat and sends `/start <param>`
+  // as a message — Telegram does NOT pass that param into the Mini App's
+  // initData, so the WebApp loads with WebApp.initDataUnsafe.start_param
+  // = undefined and the referral code is lost. Production logs prior to
+  // this fix showed every single user opening the app with
+  // `startParam=null`, which is exactly why the inviter was never being
+  // credited.
+  //
+  // `?startapp=<param>` is the Mini-App-specific deep link: it launches
+  // the bot's main Mini App directly and exposes <param> through
+  // WebApp.initDataUnsafe.start_param, where /referral/register picks it
+  // up and credits the inviter (+20 ZOOM, +1 referralCount, milestones).
+  const referralLink = `https://t.me/ZoomVerse_bot?startapp=${referralCode}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(referralLink).catch(() => {});
