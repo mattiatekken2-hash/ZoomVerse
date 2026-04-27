@@ -717,6 +717,28 @@
   from { transform: scale(0) rotate(-180deg); opacity: 0; }
   to { transform: scale(1) rotate(0deg); opacity: 1; }
 }
+
+/* ──── Stardust spawn + collect effects ──────────────────────── */
+.stardust-spawn-pop { animation: stardust-pop-in 0.45s cubic-bezier(0.34,1.56,0.64,1) forwards, stardustFloat 2.4s ease-in-out 0.45s infinite; }
+@keyframes stardust-pop-in {
+  0%   { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+  60%  { transform: translate(-50%, -50%) scale(1.25); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+@keyframes stardustFloat {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0) rotate(0deg); }
+  50%      { transform: translate(-50%, -50%) translateY(-6px) rotate(8deg); }
+}
+@keyframes stardustBurst-0 { to { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))); opacity: 0; } }
+@keyframes stardustBurst-1 { to { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))); opacity: 0; } }
+@keyframes stardustBurst-2 { to { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))); opacity: 0; } }
+@keyframes stardustBurst-3 { to { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))); opacity: 0; } }
+@keyframes stardustBurst-4 { to { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))); opacity: 0; } }
+@keyframes stardustBurst-5 { to { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))); opacity: 0; } }
+@keyframes stardustBurst-6 { to { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))); opacity: 0; } }
+@keyframes stardustBurst-7 { to { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))); opacity: 0; } }
+@keyframes stardustBurst-8 { to { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))); opacity: 0; } }
+@keyframes stardustBurst-9 { to { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))); opacity: 0; } }
 .scan-line {
   position: absolute;
   width: 100%;

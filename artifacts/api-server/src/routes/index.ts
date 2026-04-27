@@ -14,6 +14,7 @@ import maintenanceRouter from "./maintenance";
 import farmRouter from "./farm";
 import userRouter from "./user";
 import planetsRouter from "./planets";
+import stardustRouter from "./stardust";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(maintenanceRouter);
 router.use(farmRouter);
 router.use(userRouter);
 router.use(planetsRouter);
+router.use(stardustRouter);
 
 export default router;

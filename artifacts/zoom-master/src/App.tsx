@@ -14,6 +14,7 @@ import { AdminPanel } from "./components/AdminPanel";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { LanguageProvider, useT } from "./i18n/LanguageContext";
 import { fetchMaintenanceStatus } from "./utils/api";
+import { useStardust } from "./hooks/useStardust";
 
 const MAINTENANCE_ADMIN_ID = "8144744644";
 
@@ -79,6 +80,11 @@ function AppShellWithState() {
   // Centralized global data fetch — Season epoch, leaderboard, profile, daily, market.
   // Pages read from the global store so tab switches show pre-loaded data with no pop-in.
   useGlobalInit(state.telegramId);
+
+  // Stardust — second currency. Server-authoritative; the SUN gate and the
+  // 25/day cap are enforced inside the API.
+  const stardust = useStardust(state.telegramId);
+  const [stardustPopupOpen, setStardustPopupOpen] = useState(false);
 
   // Maintenance mode: poll status, show fullscreen overlay for non-admins.
   // We cache the last known status in localStorage so a repeat visit during
@@ -331,6 +337,22 @@ function AppShellWithState() {
             <span style={{ fontSize: 13 }}>🪐</span>
             <span className="neon-text">{Math.floor(state.balance).toLocaleString()}</span>
           </div>
+          <div
+            className="flex items-center gap-1 px-2.5 py-2 rounded-full font-black text-sm cursor-pointer"
+            onClick={() => setStardustPopupOpen(true)}
+            data-testid="stardust-display"
+            style={{
+              background: "rgba(255, 215, 64, 0.10)",
+              border: "1px solid rgba(255, 215, 64, 0.35)",
+              boxShadow: "0 0 12px rgba(255, 215, 64, 0.18) inset",
+              color: "#ffd740",
+              textShadow: "0 0 8px rgba(255, 215, 64, 0.55)",
+            }}
+            aria-label="Stardust balance"
+          >
+            <span style={{ fontSize: 13, lineHeight: 1 }}>★</span>
+            <span>{stardust.balance.toLocaleString()}</span>
+          </div>
           <button
             type="button"
             aria-label={muted ? "Unmute music" : "Mute music"}
@@ -388,6 +410,10 @@ function AppShellWithState() {
                   onReactivateEarthPlanet={reactivateEarthPlanet}
                   onMarkEarthPlanetReactivated={markEarthPlanetReactivated}
                   visible={tab === "lab"}
+                  stardustHasSun={(state.sunCount || 0) > 0}
+                  stardustToday={stardust.today}
+                  stardustDailyCap={stardust.dailyCap}
+                  onCollectStardust={stardust.collect}
                 />
               )}
               {t === "farm" && (
@@ -517,8 +543,115 @@ function AppShellWithState() {
           {globalToast.text}
         </div>
       )}
+      {stardustPopupOpen && (
+        <StardustInfoPopup
+          balance={stardust.balance}
+          today={stardust.today}
+          dailyCap={stardust.dailyCap}
+          globalTotal={stardust.globalTotal}
+          onClose={() => setStardustPopupOpen(false)}
+        />
+      )}
     </div>
     </TonConnectUIProvider>
+  );
+}
+
+function StardustInfoPopup({ balance, today, dailyCap, globalTotal, onClose }: {
+  balance: number;
+  today: number;
+  dailyCap: number;
+  globalTotal: number;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 10000,
+        background: "rgba(6,8,16,0.72)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 24,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: 360, width: "100%",
+          background: "linear-gradient(160deg, rgba(36,28,8,0.96) 0%, rgba(14,12,18,0.96) 100%)",
+          border: "1px solid rgba(255, 215, 64, 0.40)",
+          boxShadow: "0 0 40px rgba(255, 215, 64, 0.25), 0 12px 40px rgba(0,0,0,0.55)",
+          borderRadius: 20,
+          padding: "26px 22px 20px",
+          textAlign: "center",
+          color: "#fff",
+          position: "relative",
+        }}
+      >
+        <div style={{ fontSize: 44, lineHeight: 1, marginBottom: 6, color: "#ffd740", textShadow: "0 0 22px rgba(255,215,64,0.85)" }}>★</div>
+        <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: "0.22em", color: "#ffd740" }}>STARDUST</div>
+        <div style={{ marginTop: 14, fontSize: 13, lineHeight: 1.55, color: "rgba(255,255,255,0.78)", fontStyle: "italic" }}>
+          "Residual stellar energy. Its purpose will be revealed when the sky darkens...!"
+        </div>
+        <div
+          style={{
+            marginTop: 18,
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 10,
+          }}
+        >
+          <div style={{ background: "rgba(255,215,64,0.07)", border: "1px solid rgba(255,215,64,0.20)", borderRadius: 12, padding: "10px 6px" }}>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,215,64,0.7)" }}>YOUR BALANCE</div>
+            <div style={{ marginTop: 4, fontSize: 20, fontWeight: 900, color: "#ffd740" }}>{balance.toLocaleString()}</div>
+          </div>
+          <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 12, padding: "10px 6px" }}>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,255,255,0.55)" }}>TODAY</div>
+            <div style={{ marginTop: 4, fontSize: 20, fontWeight: 900, color: "#fff" }}>
+              {today}<span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", fontWeight: 700 }}>/{dailyCap}</span>
+            </div>
+          </div>
+        </div>
+        <div
+          style={{
+            marginTop: 12,
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.10)",
+            borderRadius: 12,
+            padding: "10px 12px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,255,255,0.55)" }}>GLOBAL COLLECTED</span>
+          <span style={{ fontSize: 15, fontWeight: 900, color: "#ffd740", textShadow: "0 0 8px rgba(255,215,64,0.5)" }}>★ {globalTotal.toLocaleString()}</span>
+        </div>
+        <button
+          onClick={onClose}
+          style={{
+            marginTop: 18,
+            width: "100%",
+            background: "linear-gradient(135deg, rgba(255,215,64,0.85), rgba(255,179,71,0.85))",
+            color: "#1a1208",
+            border: "none",
+            borderRadius: 12,
+            padding: "10px 0",
+            fontSize: 12,
+            fontWeight: 900,
+            letterSpacing: "0.18em",
+            cursor: "pointer",
+            boxShadow: "0 0 18px rgba(255,215,64,0.45)",
+          }}
+        >
+          CLOSE
+        </button>
+      </div>
+    </div>
   );
 }
 

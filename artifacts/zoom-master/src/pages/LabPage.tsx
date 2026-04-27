@@ -9,6 +9,7 @@ import type { Planet, PlanetType } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
 import { useT } from "../i18n/LanguageContext";
+import type { StardustCollectResult } from "../utils/api";
 
 
 interface LabPageProps {
@@ -40,6 +41,12 @@ interface LabPageProps {
   onReactivateEarthPlanet: (planetId: string) => { ok: boolean; reason?: string };
   onMarkEarthPlanetReactivated: (planetId: string) => { ok: boolean; reason?: string };
   visible?: boolean;
+  // Stardust spawn props — the spawn timer + SUN gate live in this page so
+  // the floating star is only visible while the user is actually in the Lab.
+  stardustHasSun: boolean;
+  stardustToday: number;
+  stardustDailyCap: number;
+  onCollectStardust: () => Promise<StardustCollectResult>;
 }
 
 interface FloatMsg { id: number; text: string; color: string }
@@ -47,7 +54,7 @@ interface FloatMsg { id: number; text: string; color: string }
 const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, sunCount, tonBalance, telegramId, onCraft, onClaim, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, sunCount, tonBalance, telegramId, onCraft, onClaim, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, visible = true, stardustHasSun, stardustToday, stardustDailyCap, onCollectStardust }: LabPageProps) {
   const { t } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
@@ -176,6 +183,114 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     onClaim();
   }, [onClaim]);
 
+  // ─────── STARDUST spawn mechanic ────────────────────────────────
+  // While the user is in the Lab, every 10–20 minutes a yellow star may
+  // appear (50% probability). It despawns after 7s if not clicked. Click
+  // requires SUN ownership (server-enforced too); on success we show a
+  // golden burst + +1 float. Cap is enforced server-side; if the daily
+  // cap is hit we surface a small "Daily limit reached" toast.
+  const [spawnedStar, setSpawnedStar] = useState<{ id: number; x: number; y: number } | null>(null);
+  const [stardustBurst, setStardustBurst] = useState<{ id: number; x: number; y: number } | null>(null);
+  const [noSunPopup, setNoSunPopup] = useState(false);
+  const [stardustToast, setStardustToast] = useState<string | null>(null);
+  const spawnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const despawnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const burstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stardustIdRef = useRef(0);
+  const stardustInFlightRef = useRef(false);
+
+  const stardustCapReached = stardustToday >= stardustDailyCap;
+
+  useEffect(() => {
+    if (!visible) {
+      // Pause spawn loop while the user is on a different tab. Existing
+      // spawned stars are cleared so they don't sit there waiting.
+      if (spawnTimerRef.current) { clearTimeout(spawnTimerRef.current); spawnTimerRef.current = null; }
+      if (despawnTimerRef.current) { clearTimeout(despawnTimerRef.current); despawnTimerRef.current = null; }
+      setSpawnedStar(null);
+      return;
+    }
+    let cancelled = false;
+    const scheduleNext = () => {
+      if (cancelled) return;
+      // 10–20 minutes (in dev/preview the admin can adjust if needed).
+      const delayMs = (10 + Math.random() * 10) * 60 * 1000;
+      spawnTimerRef.current = setTimeout(() => {
+        if (cancelled) return;
+        // 50% spawn probability — keeps the appearance pleasingly rare.
+        // Suppress spawn if today's cap is already reached (purely UX —
+        // server still authoritative).
+        if (Math.random() < 0.5 && !stardustCapReached) {
+          const id = ++stardustIdRef.current;
+          const x = 12 + Math.random() * 76;
+          const y = 18 + Math.random() * 50;
+          setSpawnedStar({ id, x, y });
+          if (despawnTimerRef.current) clearTimeout(despawnTimerRef.current);
+          despawnTimerRef.current = setTimeout(() => {
+            setSpawnedStar((curr) => (curr && curr.id === id ? null : curr));
+            despawnTimerRef.current = null;
+          }, 7000);
+        }
+        scheduleNext();
+      }, delayMs);
+    };
+    scheduleNext();
+    return () => {
+      cancelled = true;
+      if (spawnTimerRef.current) { clearTimeout(spawnTimerRef.current); spawnTimerRef.current = null; }
+      if (despawnTimerRef.current) { clearTimeout(despawnTimerRef.current); despawnTimerRef.current = null; }
+    };
+  }, [visible, stardustCapReached]);
+
+  useEffect(() => () => {
+    if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+  }, []);
+
+  const handleStardustClick = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const star = spawnedStar;
+    if (!star) return;
+    if (stardustInFlightRef.current) return;
+    // Remove the star immediately so spamming clicks doesn't double-fire.
+    setSpawnedStar(null);
+    if (despawnTimerRef.current) { clearTimeout(despawnTimerRef.current); despawnTimerRef.current = null; }
+
+    if (!stardustHasSun) {
+      setNoSunPopup(true);
+      return;
+    }
+    stardustInFlightRef.current = true;
+    hapticLight();
+    // Optimistic golden burst at the star's position. The server is
+    // authoritative — if it rejects (cap), we still show the burst (the
+    // visual already played) and surface a toast.
+    const burstId = ++stardustIdRef.current;
+    setStardustBurst({ id: burstId, x: star.x, y: star.y });
+    if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
+    burstTimerRef.current = setTimeout(() => {
+      setStardustBurst((curr) => (curr && curr.id === burstId ? null : curr));
+      burstTimerRef.current = null;
+    }, 1200);
+
+    try {
+      const res = await onCollectStardust();
+      if (res.ok) {
+        addFloat("✦ +1 STARDUST", "#ffd740");
+      } else if (res.reason === "DAILY_CAP") {
+        setStardustToast("Daily Stardust limit reached.");
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = setTimeout(() => setStardustToast(null), 2200);
+      } else if (res.reason === "NO_SUN") {
+        setNoSunPopup(true);
+      }
+    } finally {
+      stardustInFlightRef.current = false;
+    }
+  }, [spawnedStar, stardustHasSun, onCollectStardust, addFloat]);
+  // ────────────────────────────────────────────────────────────────
+
   const rarityClass: Record<string, string> = {
     BASIC: "basic-text",
     RARE: "rare-text",
@@ -229,6 +344,84 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             {f.text}
           </div>
         ))}
+
+        {/* Floating Stardust star — clickable. Position is randomized in
+            % so it's responsive across screen sizes. */}
+        {spawnedStar && (
+          <button
+            type="button"
+            onClick={handleStardustClick}
+            data-testid="stardust-spawn"
+            aria-label="Collect stardust"
+            className="stardust-spawn-pop"
+            style={{
+              position: "absolute",
+              left: `${spawnedStar.x}%`,
+              top: `${spawnedStar.y}%`,
+              transform: "translate(-50%, -50%)",
+              zIndex: 70,
+              width: 56,
+              height: 56,
+              border: "none",
+              background: "transparent",
+              padding: 0,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 38,
+              lineHeight: 1,
+              color: "#ffd740",
+              textShadow: "0 0 18px rgba(255,215,64,0.9), 0 0 36px rgba(255,179,71,0.6)",
+              animation: "stardustFloat 2.4s ease-in-out infinite",
+            }}
+          >
+            ★
+          </button>
+        )}
+
+        {/* Golden particle burst — fires on a successful collect. */}
+        {stardustBurst && (
+          <div
+            key={stardustBurst.id}
+            className="pointer-events-none"
+            style={{
+              position: "absolute",
+              left: `${stardustBurst.x}%`,
+              top: `${stardustBurst.y}%`,
+              transform: "translate(-50%, -50%)",
+              zIndex: 75,
+              width: 0,
+              height: 0,
+            }}
+          >
+            {Array.from({ length: 10 }).map((_, i) => {
+              const angle = (Math.PI * 2 * i) / 10;
+              const dx = Math.cos(angle) * 60;
+              const dy = Math.sin(angle) * 60;
+              return (
+                <span
+                  key={i}
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: "radial-gradient(circle, #fff7c2 0%, #ffd740 50%, rgba(255,179,71,0) 80%)",
+                    boxShadow: "0 0 10px rgba(255,215,64,0.95)",
+                    transform: `translate(-50%, -50%)`,
+                    animation: `stardustBurst-${i} 1.1s ease-out forwards`,
+                    // @ts-ignore — CSS custom props for keyframes
+                    "--dx": `${dx}px`,
+                    "--dy": `${dy}px`,
+                  } as React.CSSProperties}
+                />
+              );
+            })}
+          </div>
+        )}
 
         {brokenFlash && (
           <div
@@ -379,6 +572,78 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           </div>
         )}
       </div>
+
+      {/* Daily-cap toast — non-blocking, auto-dismisses. */}
+      {stardustToast && (
+        <div
+          className="pointer-events-none"
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: 84,
+            transform: "translateX(-50%)",
+            zIndex: 90,
+            background: "rgba(20, 18, 6, 0.92)",
+            border: "1px solid rgba(255, 215, 64, 0.45)",
+            color: "#ffd740",
+            padding: "8px 14px",
+            borderRadius: 12,
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: "0.04em",
+            boxShadow: "0 0 18px rgba(255,215,64,0.25)",
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)",
+          }}
+        >
+          {stardustToast}
+        </div>
+      )}
+
+      {/* No-SUN modal — blocks until dismissed. */}
+      {noSunPopup && (
+        <div
+          className="absolute inset-0 flex items-center justify-center"
+          style={{ background: "rgba(6,8,16,0.65)", backdropFilter: "blur(6px)", zIndex: 100 }}
+          onClick={() => setNoSunPopup(false)}
+        >
+          <div
+            className="glass rounded-2xl px-6 py-5 text-center"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: "min(86vw, 320px)",
+              border: "1.5px solid rgba(255, 179, 71, 0.55)",
+              boxShadow: "0 0 28px rgba(255, 179, 71, 0.35)",
+            }}
+          >
+            <div style={{ fontSize: 36, lineHeight: 1, marginBottom: 8 }}>☀</div>
+            <div className="font-black tracking-wide" style={{ fontSize: 14, color: "#ffb347", letterSpacing: "0.06em" }}>
+              SUN PROTECTION REQUIRED
+            </div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.78)", marginTop: 8, fontWeight: 500, lineHeight: 1.45 }}>
+              The star's heat is too strong! You need the SUN's protection to harvest it.
+            </div>
+            <button
+              type="button"
+              onClick={() => setNoSunPopup(false)}
+              style={{
+                marginTop: 14,
+                padding: "8px 18px",
+                borderRadius: 10,
+                background: "rgba(255, 179, 71, 0.18)",
+                border: "1px solid rgba(255, 179, 71, 0.5)",
+                color: "#ffd089",
+                fontWeight: 700,
+                fontSize: 12,
+                letterSpacing: "0.06em",
+                cursor: "pointer",
+              }}
+            >
+              GOT IT
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

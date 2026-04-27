@@ -37,6 +37,15 @@ export const usersTable = pgTable("users", {
   earthCollectionBundles: integer("earth_collection_bundles").notNull().default(0),
   tonBalance: real("ton_balance").notNull().default(0),
   language: text("language").notNull().default("en"),
+  // Stardust — second currency. Accumulable but NOT spendable yet (its
+  // utility is intentionally hidden until a future event/release). Players
+  // collect floating yellow stars in the Lab, gated by SUN ownership and a
+  // per-UTC-day cap to defeat farming bots.
+  stardustBalance: integer("stardust_balance").notNull().default(0),
+  stardustToday: integer("stardust_today").notNull().default(0),
+  // UTC day key (YYYY-MM-DD) the today-counter belongs to. When the stored
+  // key differs from today, today is reset to 0 before incrementing.
+  stardustDayKey: text("stardust_day_key"),
 }, (table) => [
   index("idx_users_zoom_balance").on(table.zoomBalance),
   index("idx_users_referred_by").on(table.referredBy),

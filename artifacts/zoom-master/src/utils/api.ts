@@ -1037,3 +1037,73 @@ export async function setUserLanguage(telegramId: string, language: string): Pro
     return res.ok;
   } catch { return false; }
 }
+
+// ─────────────────────────────────────────────────────────────────
+// STARDUST — second currency. Backend is source of truth: balance,
+// today-counter, daily cap, and global total all live server-side.
+// ─────────────────────────────────────────────────────────────────
+export interface StardustState {
+  balance: number;
+  today: number;
+  dayKey: string;
+  dailyCap: number;
+  globalTotal: number;
+  hasSun: boolean;
+}
+
+const EMPTY_STARDUST: StardustState = {
+  balance: 0,
+  today: 0,
+  dayKey: "",
+  dailyCap: 25,
+  globalTotal: 0,
+  hasSun: false,
+};
+
+export async function fetchStardustState(telegramId: string): Promise<StardustState> {
+  try {
+    const res = await fetch(`${API_BASE}/stardust/state?telegramId=${encodeURIComponent(telegramId)}&t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return EMPTY_STARDUST;
+    const j = await res.json();
+    return {
+      balance: Number(j?.balance ?? 0),
+      today: Number(j?.today ?? 0),
+      dayKey: String(j?.dayKey ?? ""),
+      dailyCap: Number(j?.dailyCap ?? 25),
+      globalTotal: Number(j?.globalTotal ?? 0),
+      hasSun: !!j?.hasSun,
+    };
+  } catch {
+    return EMPTY_STARDUST;
+  }
+}
+
+export interface StardustCollectResult {
+  ok: boolean;
+  reason?: "NO_SUN" | "DAILY_CAP" | "USER_NOT_FOUND" | "BAD_REQUEST" | "SERVER_ERROR" | "NETWORK";
+  balance: number;
+  today: number;
+  dailyCap: number;
+  globalTotal: number;
+}
+
+export async function collectStardustOnServer(telegramId: string): Promise<StardustCollectResult> {
+  try {
+    const res = await fetch(`${API_BASE}/stardust/collect`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId }),
+    });
+    const j = await res.json().catch(() => ({}));
+    return {
+      ok: !!j?.ok,
+      reason: j?.reason,
+      balance: Number(j?.balance ?? 0),
+      today: Number(j?.today ?? 0),
+      dailyCap: Number(j?.dailyCap ?? 25),
+      globalTotal: Number(j?.globalTotal ?? 0),
+    };
+  } catch {
+    return { ok: false, reason: "NETWORK", balance: 0, today: 0, dailyCap: 25, globalTotal: 0 };
+  }
+}
