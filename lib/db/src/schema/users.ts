@@ -55,6 +55,18 @@ export const usersTable = pgTable("users", {
   merchantNextAt: timestamp("merchant_next_at"),
   merchantExpiresAt: timestamp("merchant_expires_at"),
   merchantFusionsUsed: integer("merchant_fusions_used").notNull().default(0),
+  // SUN cycle (24h farming) — server-side mirror of the client's sun.* fields.
+  // Without this, losing localStorage (browser cache wipe, switching device,
+  // certain Telegram WebView clears on iOS) would silently reset the SUN to
+  // a fresh "FARM" state and the user would lose any time already farmed.
+  // Stored as bigint epoch ms (matching collection_planets) to avoid float
+  // quantisation. Default 0 means "never started" — the client treats >0 as
+  // "cycle in progress" and gates the FARM/REACTIVATE button on whether
+  // (now - sunFarmStartedAtMs) < 24h, exactly like the local-only path did
+  // before. Cycle count is purely a stat (incremented per activation).
+  sunFarmStartedAtMs: bigint("sun_farm_started_at_ms", { mode: "number" }).notNull().default(0),
+  sunLastCollectedAtMs: bigint("sun_last_collected_at_ms", { mode: "number" }).notNull().default(0),
+  sunCycleCount: integer("sun_cycle_count").notNull().default(0),
   // Server-side mirror of the client's regular planets array (everything
   // shown on the FarmPage main grid, including bonus, crafted, and bought
   // planets). Stored as JSONB so we can replace it atomically on every

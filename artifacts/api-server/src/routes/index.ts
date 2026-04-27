@@ -16,6 +16,7 @@ import userRouter from "./user";
 import planetsRouter from "./planets";
 import stardustRouter from "./stardust";
 import merchantRouter from "./merchant";
+import sunRouter from "./sun";
 import collectionPlanetsRouter from "./collection-planets";
 import regularPlanetsRouter from "./regular-planets";
 
@@ -38,6 +39,7 @@ router.use(userRouter);
 router.use(planetsRouter);
 router.use(stardustRouter);
 router.use(merchantRouter);
+router.use(sunRouter);
 router.use(collectionPlanetsRouter);
 router.use(regularPlanetsRouter);
 

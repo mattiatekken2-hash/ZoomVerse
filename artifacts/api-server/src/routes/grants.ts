@@ -24,13 +24,16 @@ router.get("/grants/:telegramId", async (req, res) => {
         earthCollectionUnlocked: usersTable.earthCollectionUnlocked,
         earthCollectionBundles: usersTable.earthCollectionBundles,
         tonBalance: usersTable.tonBalance,
+        sunFarmStartedAtMs: usersTable.sunFarmStartedAtMs,
+        sunLastCollectedAtMs: usersTable.sunLastCollectedAtMs,
+        sunCycleCount: usersTable.sunCycleCount,
       })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
       .limit(1);
 
     if (!user) {
-      return res.json({ bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusV1: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0 });
+      return res.json({ bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusV1: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 });
     }
 
     res.json({
@@ -48,6 +51,9 @@ router.get("/grants/:telegramId", async (req, res) => {
       earthCollectionUnlocked: user.earthCollectionUnlocked,
       earthCollectionBundles: user.earthCollectionBundles ?? 0,
       tonBalance: user.tonBalance ?? 0,
+      sunFarmStartedAtMs: user.sunFarmStartedAtMs ?? 0,
+      sunLastCollectedAtMs: user.sunLastCollectedAtMs ?? 0,
+      sunCycleCount: user.sunCycleCount ?? 0,
     });
   } catch (err) {
     res.status(500).json({ error: "Internal server error" });

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, type Grants, type CollectionPlanetState } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, type Grants, type CollectionPlanetState } from "../utils/api";
 import { toast } from "./use-toast";
 
 // Server-authoritative clock: every farming/idle-income time check is computed
@@ -1222,6 +1222,39 @@ export function useGameState() {
           updated = { ...updated, sun: null, claimedBonusSun: false, sunCount: 0 };
         }
 
+        // ─── SUN CYCLE — server is source of truth when ahead ───
+        // The 24h cycle (started/collected timestamps + cycleCount) used to
+        // live only in localStorage. Losing localStorage (cache wipe, new
+        // device, certain Telegram WebView clears) silently reset the cycle
+        // and forced the user to press FARM again. Now the server mirrors
+        // these fields and we merge with max() — newer-on-server values win
+        // (e.g. cycle started on another device); newer-on-local values are
+        // preserved and will be pushed up on the next /sun/cycle write.
+        if (updated.sun?.isOwned) {
+          const srvStarted = Math.max(0, Number(grants.sunFarmStartedAtMs ?? 0));
+          const srvCollected = Math.max(0, Number(grants.sunLastCollectedAtMs ?? 0));
+          const srvCycleCount = Math.max(0, Number(grants.sunCycleCount ?? 0));
+          const localStarted = updated.sun.farmStartedAt ?? 0;
+          const localCollected = updated.sun.lastCollectedAt ?? 0;
+          const localCycleCount = updated.sun.cycleCount ?? 0;
+          const mergedStarted = Math.max(localStarted, srvStarted);
+          const mergedCollected = Math.max(localCollected, srvCollected);
+          updated = {
+            ...updated,
+            sun: {
+              ...updated.sun,
+              farmStartedAt: mergedStarted,
+              lastCollectedAt: mergedCollected,
+              cycleCount: Math.max(localCycleCount, srvCycleCount),
+              // Treat the cycle as active whenever a non-zero start exists.
+              // The is-active gate is enforced separately by isSunActive()
+              // (which also checks the 24h window), so this is just the
+              // "user has activated at some point" flag.
+              isActive: mergedStarted > 0 ? true : updated.sun.isActive,
+            },
+          };
+        }
+
         // ─── REGULAR PLANETS — server is source of truth ───
         // Only act on a SUCCESSFUL fetch (serverRegular.ok). On a network
         // failure we leave local state alone AND keep the save gate closed
@@ -1517,6 +1550,30 @@ export function useGameState() {
           };
         } else if (updated.claimedBonusSun) {
           updated = { ...updated, sun: null, claimedBonusSun: false, sunCount: 0 };
+        }
+
+        // Same SUN-cycle merge as the initial hydration above. See the long
+        // comment there for why this exists; this branch covers periodic
+        // /grants polls that may pick up cycle changes from another device.
+        if (updated.sun?.isOwned) {
+          const srvStarted = Math.max(0, Number(grants.sunFarmStartedAtMs ?? 0));
+          const srvCollected = Math.max(0, Number(grants.sunLastCollectedAtMs ?? 0));
+          const srvCycleCount = Math.max(0, Number(grants.sunCycleCount ?? 0));
+          const localStarted = updated.sun.farmStartedAt ?? 0;
+          const localCollected = updated.sun.lastCollectedAt ?? 0;
+          const localCycleCount = updated.sun.cycleCount ?? 0;
+          const mergedStarted = Math.max(localStarted, srvStarted);
+          const mergedCollected = Math.max(localCollected, srvCollected);
+          updated = {
+            ...updated,
+            sun: {
+              ...updated.sun,
+              farmStartedAt: mergedStarted,
+              lastCollectedAt: mergedCollected,
+              cycleCount: Math.max(localCycleCount, srvCycleCount),
+              isActive: mergedStarted > 0 ? true : updated.sun.isActive,
+            },
+          };
         }
 
         const serverBundles2 = Math.max(0, Number(grants.whiteCollectionBundles ?? 0));
@@ -2005,26 +2062,44 @@ export function useGameState() {
 
   const activateSun = useCallback(() => {
     const now = serverNow();
+    let newCycleCount = 0;
+    let telegramId: string | null = null;
     setState((prev) => {
       if (!prev.sun?.isOwned) return prev;
       // No activation cost — SUN was paid for once at purchase (10 TON).
       // Each new cycle simply resets the timer for free.
+      newCycleCount = (prev.sun.cycleCount || 0) + 1;
+      telegramId = prev.telegramId;
       return {
         ...prev,
         sun: {
           ...prev.sun,
           isActive: true,
-          cycleCount: (prev.sun.cycleCount || 0) + 1,
+          cycleCount: newCycleCount,
           activationCost: 0,
           farmStartedAt: now,
           lastCollectedAt: now,
         },
       };
     });
+    // Persist the new cycle to the server so it survives a localStorage
+    // wipe / device switch. Fire-and-forget — local state is already correct;
+    // server merges with GREATEST so a slow/failed write can't roll us back.
+    if (telegramId) {
+      void syncSunCycle({
+        telegramId,
+        sunFarmStartedAtMs: Math.round(now),
+        sunLastCollectedAtMs: Math.round(now),
+        sunCycleCount: newCycleCount,
+      });
+    }
   }, []);
 
   const startSunFarming = useCallback((): { ok: boolean; reason?: string } => {
     let outcome: { ok: boolean; reason?: string } = { ok: true };
+    let pushTelegramId: string | null = null;
+    let pushNow = 0;
+    let pushCycleCount = 0;
     setState((prev) => {
       if (!prev.sun?.isOwned) {
         outcome = { ok: false, reason: "SUN not owned" };
@@ -2053,8 +2128,22 @@ export function useGameState() {
         },
       };
       saveState(updated);
+      pushTelegramId = prev.telegramId;
+      pushNow = now;
+      // updated.sun is non-null here: we just constructed it above with
+      // `sun: { ...prev.sun, ... }` after the prev.sun?.isOwned guard.
+      pushCycleCount = updated.sun?.cycleCount ?? 0;
       return updated;
     });
+    // Mirror the cycle to the server (see activateSun for rationale).
+    if (pushTelegramId) {
+      void syncSunCycle({
+        telegramId: pushTelegramId,
+        sunFarmStartedAtMs: Math.round(pushNow),
+        sunLastCollectedAtMs: Math.round(pushNow),
+        sunCycleCount: pushCycleCount,
+      });
+    }
     return outcome;
   }, []);
 
@@ -2099,13 +2188,30 @@ export function useGameState() {
   }, []);
 
   const collectSun = useCallback(() => {
+    let pushTelegramId: string | null = null;
+    let pushNow = 0;
+    let pushStarted = 0;
+    let pushCycleCount = 0;
     setState((prev) => {
       if (!prev.sun) return prev;
+      const now = serverNow();
+      pushTelegramId = prev.telegramId;
+      pushNow = now;
+      pushStarted = prev.sun.farmStartedAt ?? 0;
+      pushCycleCount = prev.sun.cycleCount ?? 0;
       return {
         ...prev,
-        sun: { ...prev.sun, lastCollectedAt: serverNow() },
+        sun: { ...prev.sun, lastCollectedAt: now },
       };
     });
+    if (pushTelegramId) {
+      void syncSunCycle({
+        telegramId: pushTelegramId,
+        sunFarmStartedAtMs: Math.round(pushStarted),
+        sunLastCollectedAtMs: Math.round(pushNow),
+        sunCycleCount: pushCycleCount,
+      });
+    }
   }, []);
 
   const collectPlanet = useCallback((id: string): { defect: boolean } => {

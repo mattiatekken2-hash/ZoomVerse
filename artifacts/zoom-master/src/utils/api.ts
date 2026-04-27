@@ -203,9 +203,39 @@ export interface Grants {
   earthCollectionUnlocked: boolean;
   earthCollectionBundles: number;
   tonBalance: number;
+  // SUN cycle (24h) — server-side mirror so the cycle survives localStorage
+  // loss. 0 means "never started" / fresh state.
+  sunFarmStartedAtMs: number;
+  sunLastCollectedAtMs: number;
+  sunCycleCount: number;
 }
 
-const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusV1: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0 };
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusV1: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+
+/**
+ * Push the current SUN cycle to the server so it persists across
+ * localStorage loss. Server merges with GREATEST per field — replaying
+ * an older snapshot can never roll back a newer one.
+ *
+ * Fire-and-forget at the call site: the local state is already updated
+ * optimistically. A network failure here just means the user's other
+ * devices will see the cycle on the next /grants poll instead of right
+ * away — no data loss.
+ */
+export async function syncSunCycle(params: {
+  telegramId: string;
+  sunFarmStartedAtMs: number;
+  sunLastCollectedAtMs: number;
+  sunCycleCount: number;
+}): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/sun/cycle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+  } catch { /* fire-and-forget */ }
+}
 
 export interface SunStock {
   sold: number;
