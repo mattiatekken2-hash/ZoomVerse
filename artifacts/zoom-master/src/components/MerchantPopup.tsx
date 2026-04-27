@@ -198,142 +198,131 @@ export function MerchantPopup({
         </div>
       )}
 
+      {/* Docked square widget — sits directly under the EarthCollectionWidget
+          (which lives at left:12, top:200, 60x60). NO full-screen overlay,
+          because in the Telegram WebApp a fullscreen modal triggers the
+          system "Chiudi" swipe-to-close prompt, which the player found
+          confusing. Now the merchant is a small floating square the user
+          can interact with while the rest of the page stays visible. */}
       <div
         role="dialog"
         aria-label="Space Merchant"
         style={{
           position: "fixed",
-          inset: 0,
-          zIndex: 80,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "rgba(2,4,12,0.78)",
-          backdropFilter: "blur(6px)",
-          WebkitBackdropFilter: "blur(6px)",
-          padding: 16,
+          left: 12,
+          top: 270,
+          width: 220,
+          zIndex: 60,
+          borderRadius: 16,
+          background: "linear-gradient(180deg,#0d0a1f 0%,#170a26 100%)",
+          border: "1px solid rgba(180, 70, 255, 0.55)",
+          boxShadow: "0 0 28px rgba(180,70,255,0.35), inset 0 0 18px rgba(80,0,120,0.4)",
+          padding: 12,
+          color: "#e9e2ff",
         }}
-        onClick={tryClose}
       >
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            width: "min(92vw, 380px)",
-            borderRadius: 16,
-            background: "linear-gradient(180deg,#0d0a1f 0%,#170a26 100%)",
-            border: "1px solid rgba(180, 70, 255, 0.45)",
-            boxShadow: "0 0 60px rgba(180,70,255,0.35), inset 0 0 30px rgba(80,0,120,0.4)",
-            padding: 20,
-            color: "#e9e2ff",
-            position: "relative",
-          }}
-        >
-          {/* Alien character */}
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
+        {/* Alien character */}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
+          <div
+            aria-hidden
+            style={{
+              fontSize: 38,
+              lineHeight: 1,
+              filter: view === "fusing" ? "hue-rotate(120deg) drop-shadow(0 0 10px #b46aff)" : "drop-shadow(0 0 8px rgba(180,70,255,0.6))",
+              animation: view === "fusing" ? "merchant-shake 0.18s linear infinite" : "merchant-bob 2.4s ease-in-out infinite",
+            }}
+          >
+            👽
+          </div>
+        </div>
+
+        <div style={{ textAlign: "center", fontWeight: 900, letterSpacing: "0.08em", fontSize: 11, color: "#caa6ff" }}>
+          SPACE MERCHANT
+        </div>
+
+        {/* Counters row */}
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 9, color: "rgba(255,255,255,0.7)" }}>
+          <span>{fusionsUsed}/{maxFusions} fusions</span>
+          <span>{remainingSec}s</span>
+        </div>
+
+        {/* Body switches by view */}
+        {view === "idle" && (
+          <div style={{ marginTop: 8 }}>
+            {error && (
+              <div style={{ marginBottom: 6, fontSize: 9, color: "#ff8080", textAlign: "center" }}>{error}</div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <button
+                type="button"
+                disabled={lvl1Disabled}
+                onClick={() => setView("confirm1")}
+                style={fusionBtnStyle(lvl1Disabled, "#8892b0")}
+              >
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em" }}>LV 1</div>
+                <div style={{ fontSize: 9, marginTop: 1 }}>2 Basic</div>
+                <div style={{ fontSize: 8, marginTop: 2, opacity: 0.7 }}>have: {basicCount}</div>
+              </button>
+              <button
+                type="button"
+                disabled={lvl2Disabled}
+                onClick={() => setView("confirm2")}
+                style={fusionBtnStyle(lvl2Disabled, "#4facfe")}
+              >
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em" }}>LV 2</div>
+                <div style={{ fontSize: 9, marginTop: 1 }}>2 Rare</div>
+                <div style={{ fontSize: 8, marginTop: 2, opacity: 0.7 }}>have: {rareCount}</div>
+              </button>
+            </div>
+            <button type="button" onClick={tryClose} style={ghostBtnStyle}>LEAVE</button>
+          </div>
+        )}
+
+        {(view === "confirm1" || view === "confirm2") && (
+          <ConfirmView
+            level={view === "confirm1" ? 1 : 2}
+            onCancel={() => setView("idle")}
+            onConfirm={() => startFuse(view === "confirm1" ? 1 : 2)}
+          />
+        )}
+
+        {view === "fusing" && (
+          <div style={{ marginTop: 10, textAlign: "center" }}>
+            <div style={{ fontSize: 10, color: "#caa6ff", letterSpacing: "0.1em", fontWeight: 800 }}>FUSING…</div>
+            <div style={{ fontSize: 9, marginTop: 4, color: "rgba(255,255,255,0.55)" }}>The void hums.</div>
+          </div>
+        )}
+
+        {view === "result" && result && (
+          <div style={{ marginTop: 8, textAlign: "center" }}>
             <div
-              aria-hidden
               style={{
-                fontSize: 64,
-                lineHeight: 1,
-                filter: view === "fusing" ? "hue-rotate(120deg) drop-shadow(0 0 14px #b46aff)" : "drop-shadow(0 0 10px rgba(180,70,255,0.6))",
-                animation: view === "fusing" ? "merchant-shake 0.18s linear infinite" : "merchant-bob 2.4s ease-in-out infinite",
+                fontSize: 11,
+                fontWeight: 900,
+                letterSpacing: "0.04em",
+                color: result === "EXPLOSION" ? "#ff6b6b" : result === "DOWNGRADE" ? "#ffb347" : "#8aff8a",
               }}
             >
-              👽
+              {RESULT_LABEL[result]}
             </div>
+            <div style={{ fontSize: 9, marginTop: 4, color: "rgba(230,222,255,0.85)", lineHeight: 1.35 }}>
+              {RESULT_BODY[result]}
+            </div>
+            <button type="button" onClick={dismissResult} style={primaryBtnStyle}>OK</button>
           </div>
+        )}
 
-          <div style={{ textAlign: "center", fontWeight: 900, letterSpacing: "0.1em", fontSize: 13, color: "#caa6ff" }}>
-            SPACE MERCHANT
+        {view === "expired" && (
+          <div style={{ marginTop: 8, textAlign: "center" }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "#caa6ff", letterSpacing: "0.04em" }}>
+              Too slow, earthling.
+            </div>
+            <div style={{ fontSize: 9, marginTop: 4, color: "rgba(230,222,255,0.8)", lineHeight: 1.35 }}>
+              I'll return when you have more courage.
+            </div>
+            <button type="button" onClick={onClose} style={primaryBtnStyle}>CLOSE</button>
           </div>
-
-          {/* Counters row */}
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontSize: 11, color: "rgba(255,255,255,0.7)" }}>
-            <span>Fusions: {fusionsUsed}/{maxFusions}</span>
-            <span>{remainingSec}s left</span>
-          </div>
-
-          {/* Body switches by view */}
-          {view === "idle" && (
-            <div style={{ marginTop: 14 }}>
-              <p style={{ fontSize: 12, lineHeight: 1.45, color: "rgba(230,222,255,0.85)", textAlign: "center", margin: 0 }}>
-                Burn two planets to attempt void fusion. Outcome is random — and not always kind.
-              </p>
-              {error && (
-                <div style={{ marginTop: 10, fontSize: 11, color: "#ff8080", textAlign: "center" }}>{error}</div>
-              )}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }}>
-                <button
-                  type="button"
-                  disabled={lvl1Disabled}
-                  onClick={() => setView("confirm1")}
-                  style={fusionBtnStyle(lvl1Disabled, "#8892b0")}
-                >
-                  <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em" }}>LEVEL 1</div>
-                  <div style={{ fontSize: 10, marginTop: 2 }}>Burn 2 Basic</div>
-                  <div style={{ fontSize: 9, marginTop: 4, opacity: 0.7 }}>You have: {basicCount}</div>
-                </button>
-                <button
-                  type="button"
-                  disabled={lvl2Disabled}
-                  onClick={() => setView("confirm2")}
-                  style={fusionBtnStyle(lvl2Disabled, "#4facfe")}
-                >
-                  <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em" }}>LEVEL 2</div>
-                  <div style={{ fontSize: 10, marginTop: 2 }}>Burn 2 Rare</div>
-                  <div style={{ fontSize: 9, marginTop: 4, opacity: 0.7 }}>You have: {rareCount}</div>
-                </button>
-              </div>
-              <button type="button" onClick={tryClose} style={ghostBtnStyle}>LEAVE</button>
-            </div>
-          )}
-
-          {(view === "confirm1" || view === "confirm2") && (
-            <ConfirmView
-              level={view === "confirm1" ? 1 : 2}
-              onCancel={() => setView("idle")}
-              onConfirm={() => startFuse(view === "confirm1" ? 1 : 2)}
-            />
-          )}
-
-          {view === "fusing" && (
-            <div style={{ marginTop: 18, textAlign: "center" }}>
-              <div style={{ fontSize: 12, color: "#caa6ff", letterSpacing: "0.1em", fontWeight: 800 }}>FUSING…</div>
-              <div style={{ fontSize: 10, marginTop: 6, color: "rgba(255,255,255,0.55)" }}>The void hums.</div>
-            </div>
-          )}
-
-          {view === "result" && result && (
-            <div style={{ marginTop: 16, textAlign: "center" }}>
-              <div
-                style={{
-                  fontSize: 14,
-                  fontWeight: 900,
-                  letterSpacing: "0.06em",
-                  color: result === "EXPLOSION" ? "#ff6b6b" : result === "DOWNGRADE" ? "#ffb347" : "#8aff8a",
-                }}
-              >
-                {RESULT_LABEL[result]}
-              </div>
-              <div style={{ fontSize: 12, marginTop: 8, color: "rgba(230,222,255,0.85)", lineHeight: 1.4 }}>
-                {RESULT_BODY[result]}
-              </div>
-              <button type="button" onClick={dismissResult} style={primaryBtnStyle}>OK</button>
-            </div>
-          )}
-
-          {view === "expired" && (
-            <div style={{ marginTop: 16, textAlign: "center" }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: "#caa6ff", letterSpacing: "0.06em" }}>
-                Too slow, earthling.
-              </div>
-              <div style={{ fontSize: 12, marginTop: 8, color: "rgba(230,222,255,0.8)", lineHeight: 1.4 }}>
-                I'll return when you have more courage.
-              </div>
-              <button type="button" onClick={onClose} style={primaryBtnStyle}>CLOSE</button>
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
       <style>{`
