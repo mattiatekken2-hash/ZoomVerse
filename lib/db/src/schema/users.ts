@@ -1,4 +1,5 @@
-import { pgTable, text, integer, timestamp, real, boolean, index, serial, uniqueIndex, bigint } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, real, boolean, index, serial, uniqueIndex, bigint, jsonb } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -54,6 +55,32 @@ export const usersTable = pgTable("users", {
   merchantNextAt: timestamp("merchant_next_at"),
   merchantExpiresAt: timestamp("merchant_expires_at"),
   merchantFusionsUsed: integer("merchant_fusions_used").notNull().default(0),
+  // Server-side mirror of the client's regular planets array (everything
+  // shown on the FarmPage main grid, including bonus, crafted, and bought
+  // planets). Stored as JSONB so we can replace it atomically on every
+  // change. The array order encodes slot positions on the FarmPage. This
+  // is what makes the inventory survive cache wipes and follow the user
+  // across devices. White / Earth Collection planets live in a separate
+  // table because they have a deterministic identity tuple.
+  planetsJson: jsonb("planets_json").notNull().default(sql`'[]'::jsonb`),
+  // Server-side counter of how many bonus planets the client has already
+  // materialized into planetsJson. Mirrors the local
+  // `claimedBonusBasic/Rare/Epic/Gold/V1` so applyGrants on a fresh device
+  // doesn't re-mint bonus planets the user already burned. Without this,
+  // burning bonuses on the phone and then opening the PC would resurrect
+  // them (server.bonusBasic stays high after burn-decrement only if the
+  // notify call succeeded; this counter is the second line of defence).
+  claimedBonusBasic: integer("claimed_bonus_basic").notNull().default(0),
+  claimedBonusRare: integer("claimed_bonus_rare").notNull().default(0),
+  claimedBonusEpic: integer("claimed_bonus_epic").notNull().default(0),
+  claimedBonusGold: integer("claimed_bonus_gold").notNull().default(0),
+  claimedBonusV1: integer("claimed_bonus_v1").notNull().default(0),
+  // Monotonic write-time used to fence out stale saves of `planets_json`.
+  // The save endpoint rejects any incoming write whose `client_write_at_ms`
+  // is <= the stored value. Using the client's clock is fine because a
+  // single user is the only writer (server-clock skew across devices is
+  // small) and we only care about ORDER, not absolute time.
+  planetsUpdatedAtMs: bigint("planets_updated_at_ms", { mode: "number" }).notNull().default(0),
 }, (table) => [
   index("idx_users_zoom_balance").on(table.zoomBalance),
   index("idx_users_referred_by").on(table.referredBy),

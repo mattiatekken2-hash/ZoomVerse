@@ -1235,6 +1235,103 @@ export async function bulkSeedCollectionPlanets(
   }
 }
 
+// ─── Regular planets (FarmPage main grid) — server-side persistence ───
+// Lets the user's planet inventory follow them across devices and survive
+// any localStorage wipe. The server stores the array as opaque JSONB and
+// also mirrors the per-rarity claimed-bonus counters so applyGrants on a
+// fresh device doesn't re-mint bonus planets that were already burned.
+export interface RegularPlanetsState {
+  // `ok` distinguishes a SUCCESSFUL fetch (with possibly empty/missing data)
+  // from a transient FAILURE (network error, 5xx). Callers must NOT enable
+  // their server-write gate when ok is false — otherwise a flaky network
+  // could silently clobber the server inventory with a stale local snapshot.
+  ok: boolean;
+  // True if the user row exists on the server. False both for new users and
+  // for failed fetches (check `ok` first to disambiguate).
+  exists: boolean;
+  // Uses `unknown` here so we don't pull the full Planet type into the
+  // utils layer; the caller (useGameState) re-shapes these into Planet[].
+  planets: Array<Record<string, unknown>>;
+  claimedBonusBasic: number;
+  claimedBonusRare: number;
+  claimedBonusEpic: number;
+  claimedBonusGold: number;
+  claimedBonusV1: number;
+}
+
+export async function fetchRegularPlanets(
+  telegramId: string,
+): Promise<RegularPlanetsState> {
+  const failure: RegularPlanetsState = {
+    ok: false,
+    exists: false,
+    planets: [],
+    claimedBonusBasic: 0,
+    claimedBonusRare: 0,
+    claimedBonusEpic: 0,
+    claimedBonusGold: 0,
+    claimedBonusV1: 0,
+  };
+  try {
+    const res = await fetch(
+      `${API_BASE}/regular-planets/${encodeURIComponent(telegramId)}?t=${Date.now()}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return failure;
+    const j = await res.json();
+    if (!j?.ok) return failure;
+    return {
+      ok: true,
+      exists: !!j.exists,
+      planets: Array.isArray(j.planets) ? j.planets : [],
+      claimedBonusBasic: Number(j.claimedBonusBasic ?? 0),
+      claimedBonusRare: Number(j.claimedBonusRare ?? 0),
+      claimedBonusEpic: Number(j.claimedBonusEpic ?? 0),
+      claimedBonusGold: Number(j.claimedBonusGold ?? 0),
+      claimedBonusV1: Number(j.claimedBonusV1 ?? 0),
+    };
+  } catch {
+    return failure;
+  }
+}
+
+export async function saveRegularPlanets(
+  telegramId: string,
+  planets: Array<Record<string, unknown>>,
+  claimed: {
+    basic: number;
+    rare: number;
+    epic: number;
+    gold: number;
+    v1: number;
+  },
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/regular-planets/save`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        telegramId,
+        planets,
+        // Monotonic write-time the server uses to fence stale saves. Date.now()
+        // within a single client session is strictly increasing; across
+        // devices the millisecond resolution is enough to order writes
+        // correctly in practice.
+        clientWriteAtMs: Date.now(),
+        claimedBonusBasic: claimed.basic,
+        claimedBonusRare: claimed.rare,
+        claimedBonusEpic: claimed.epic,
+        claimedBonusGold: claimed.gold,
+        claimedBonusV1: claimed.v1,
+      }),
+      keepalive: true,
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function merchantFuse(telegramId: string, level: 1 | 2): Promise<MerchantFuseResult> {
   try {
     const res = await fetch(`${API_BASE}/merchant/fuse`, {

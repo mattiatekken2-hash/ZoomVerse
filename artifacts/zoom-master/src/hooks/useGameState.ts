@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, type Grants, type CollectionPlanetState } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, type Grants, type CollectionPlanetState } from "../utils/api";
 import { toast } from "./use-toast";
 
 // Server-authoritative clock: every farming/idle-income time check is computed
@@ -1030,6 +1030,12 @@ export function useGameState() {
   const [state, setState] = useState<GameState>(loadState);
   const stateRef = useRef(state);
   const serverOffsetRef = useRef(0);
+  // Becomes true once the initial flow has hydrated state from the server
+  // (or confirmed there's nothing to hydrate). Until then we suppress the
+  // regular-planets server save effect so we never overwrite the server
+  // copy with a stale local snapshot during the brief window between the
+  // first React render and the async fetch completing.
+  const regularPlanetsHydratedRef = useRef(false);
   stateRef.current = state;
 
   // Throttle save+sync: writes & network traffic are expensive on every state change.
@@ -1136,11 +1142,12 @@ export function useGameState() {
         try { localStorage.removeItem("zoom-start-param"); } catch { /**/ }
       }
 
-      const [refData, grants, balanceRecord, serverCollectionPlanets] = await Promise.all([
+      const [refData, grants, balanceRecord, serverCollectionPlanets, serverRegular] = await Promise.all([
         fetchReferralData(telegramId),
         fetchGrants(telegramId),
         fetchBalanceRecord(telegramId),
         fetchCollectionPlanets(telegramId),
+        fetchRegularPlanets(telegramId),
       ]);
       const serverCollectionByKey = indexServerCollectionPlanets(serverCollectionPlanets);
 
@@ -1206,6 +1213,33 @@ export function useGameState() {
           };
         } else if (updated.claimedBonusSun) {
           updated = { ...updated, sun: null, claimedBonusSun: false, sunCount: 0 };
+        }
+
+        // ─── REGULAR PLANETS — server is source of truth ───
+        // Only act on a SUCCESSFUL fetch (serverRegular.ok). On a network
+        // failure we leave local state alone AND keep the save gate closed
+        // (handled below) — otherwise a flaky network would let us push
+        // an empty/stale local snapshot over the real server inventory.
+        // When the fetch succeeds and the server has a non-empty stored
+        // array, we override local planets[] with it. The per-rarity
+        // claimed-bonus counters use Math.max(local, server) so a stale
+        // server value can never double-count by being smaller than what
+        // the local app already materialized.
+        if (serverRegular.ok) {
+          if (serverRegular.exists && (serverRegular.planets.length > 0 || stateRef.current.planets.length === 0)) {
+            updated = {
+              ...updated,
+              planets: serverRegular.planets as unknown as Planet[],
+            };
+          }
+          updated = {
+            ...updated,
+            claimedBonusBasic: Math.max(updated.claimedBonusBasic ?? 0, serverRegular.claimedBonusBasic),
+            claimedBonusRare:  Math.max(updated.claimedBonusRare  ?? 0, serverRegular.claimedBonusRare),
+            claimedBonusEpic:  Math.max(updated.claimedBonusEpic  ?? 0, serverRegular.claimedBonusEpic),
+            claimedBonusGold:  Math.max(updated.claimedBonusGold  ?? 0, serverRegular.claimedBonusGold),
+            claimedBonusV1:    Math.max(updated.claimedBonusV1    ?? 0, serverRegular.claimedBonusV1),
+          };
         }
 
         const serverBundles = Math.max(0, Number(grants.whiteCollectionBundles ?? 0));
@@ -1410,8 +1444,50 @@ export function useGameState() {
         }
         return updated;
       });
+      // Server hydration is done ONLY if the fetch actually succeeded.
+      // On a transient failure we keep the gate closed so the debounced
+      // save effect doesn't push our possibly-stale local snapshot over
+      // the (still good) server inventory. The next page load will retry.
+      if (serverRegular.ok) {
+        regularPlanetsHydratedRef.current = true;
+      }
     })();
   }, []);
+
+  // ─── Debounced server save for regular planets ───
+  // Watches state.planets and the per-rarity claimed-bonus counters; when
+  // any of them change, schedules a single PUT to the server 1.2s later.
+  // Coalescing is on purpose: rapid taps (collect/start farm) update
+  // farmStartedAt/lastCollectedAt many times per second and we don't want
+  // to hammer the API. Save is suppressed until the initial flow has
+  // hydrated state from the server (see regularPlanetsHydratedRef).
+  useEffect(() => {
+    if (!regularPlanetsHydratedRef.current) return;
+    const tid = state.telegramId;
+    if (!tid) return;
+    const t = setTimeout(() => {
+      void saveRegularPlanets(
+        tid,
+        state.planets as unknown as Array<Record<string, unknown>>,
+        {
+          basic: state.claimedBonusBasic ?? 0,
+          rare:  state.claimedBonusRare  ?? 0,
+          epic:  state.claimedBonusEpic  ?? 0,
+          gold:  state.claimedBonusGold  ?? 0,
+          v1:    state.claimedBonusV1    ?? 0,
+        },
+      );
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [
+    state.telegramId,
+    state.planets,
+    state.claimedBonusBasic,
+    state.claimedBonusRare,
+    state.claimedBonusEpic,
+    state.claimedBonusGold,
+    state.claimedBonusV1,
+  ]);
 
   useEffect(() => {
     const applyGrants = (grants: Grants) => {
