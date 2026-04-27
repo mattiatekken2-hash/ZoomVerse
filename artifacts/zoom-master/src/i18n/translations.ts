@@ -1,11 +1,11 @@
 export type Lang = "en" | "it" | "ru" | "uk";
 
-// Languages exposed in the in-app picker. The other locales remain in
-// `DICTS` for backward compatibility (older clients with a saved value),
-// but only English and Italian are offered going forward.
+// Languages exposed in the in-app picker.
 export const LANGS: { code: Lang; flag: string; label: string }[] = [
   { code: "en", flag: "🇬🇧", label: "English" },
   { code: "it", flag: "🇮🇹", label: "Italiano" },
+  { code: "ru", flag: "🇷🇺", label: "Русский" },
+  { code: "uk", flag: "🇺🇦", label: "Українська" },
 ];
 
 type Dict = Record<string, string>;
