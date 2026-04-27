@@ -56,6 +56,12 @@ export function MerchantPopup({
   const [result, setResult] = useState<MerchantOutcome | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  // The merchant now behaves like the Earth / White Collection widgets:
+  // a small vibrating icon docked under the Earth button. The full panel
+  // is hidden by default and only opens when the player taps the icon, so
+  // it can never ambush the screen mid-game. When a fusion completes, we
+  // force `isOpen` true so the player actually sees the result.
+  const [isOpen, setIsOpen] = useState(false);
 
   const expiresMs = useMemo(() => (expiresAt ? new Date(expiresAt).getTime() : 0), [expiresAt]);
   const remaining = Math.max(0, expiresMs - now);
@@ -84,10 +90,20 @@ export function MerchantPopup({
     return () => clearTimeout(id);
   }, [view, onClose]);
 
+  // LEAVE button now just collapses the panel — the icon stays vibrating
+  // so the player can re-open it later without losing the active merchant
+  // window. The merchant only fully goes away when its server expiry hits.
   const tryClose = () => {
     if (inFlightRef.current) return; // protect in-flight fusions
-    onClose();
+    setIsOpen(false);
   };
+
+  // Force the panel open whenever a fusion finishes (success, downgrade or
+  // explosion) — the player must see the outcome even if they had collapsed
+  // the icon while it was running.
+  useEffect(() => {
+    if (view === "result" || view === "fusing") setIsOpen(true);
+  }, [view]);
 
   const startFuse = async (level: 1 | 2) => {
     if (inFlightRef.current) return;
@@ -173,43 +189,82 @@ export function MerchantPopup({
 
   return (
     <>
-      {/* Bottom-left countdown — sits next to the EarthCollectionWidget. */}
-      {remaining > 0 && view !== "result" && view !== "expired" && (
-        <div
-          aria-live="polite"
-          style={{
-            position: "fixed",
-            left: 12,
-            bottom: 90,
-            zIndex: 60,
-            padding: "6px 10px",
-            borderRadius: 10,
-            background: "rgba(140, 0, 0, 0.85)",
-            border: "1px solid rgba(255, 60, 60, 0.65)",
-            color: "#ffd0d0",
-            fontSize: 11,
-            fontWeight: 800,
-            letterSpacing: "0.08em",
-            textShadow: "0 0 6px rgba(255,80,80,0.6)",
-            pointerEvents: "none",
-          }}
-        >
-          MERCHANT {remainingSec}s
-        </div>
-      )}
+      {/* Vibrating alien tile — sits directly under the Earth Collection
+          button (left:12, top:200, 60x60). It mirrors the look & feel of
+          the collection widgets: a small 60x60 chip you can tap to open
+          the panel. The vibration draws attention without ambushing the
+          screen. The full merchant panel only renders when `isOpen` is
+          true, which only happens on tap (or automatically on a fusion
+          result so the outcome is never missed). */}
+      <button
+        type="button"
+        onClick={() => setIsOpen((v) => !v)}
+        aria-label={isOpen ? "Close Space Merchant" : "Open Space Merchant"}
+        style={{
+          position: "fixed",
+          left: 12,
+          top: 270,
+          width: 60,
+          height: 60,
+          borderRadius: 14,
+          background: "rgba(20,8,32,0.82)",
+          border: "1.5px solid rgba(180,70,255,0.65)",
+          padding: 0,
+          cursor: "pointer",
+          zIndex: 40,
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+          WebkitTapHighlightColor: "transparent",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 36,
+          lineHeight: 1,
+          boxShadow: "0 0 14px rgba(180,70,255,0.45)",
+          // Vibrate while merchant is active. Hold still during the
+          // fusion animation (the panel takes over the visual focus).
+          animation: view === "fusing" ? "none" : "merchant-vibrate 1.2s ease-in-out infinite",
+        }}
+        data-testid="button-space-merchant"
+      >
+        <span aria-hidden style={{ filter: "drop-shadow(0 0 6px rgba(180,70,255,0.7))" }}>👽</span>
+        {/* Tiny countdown badge so the player still knows time is ticking. */}
+        {remaining > 0 && (
+          <span
+            aria-hidden
+            style={{
+              position: "absolute",
+              bottom: -4,
+              right: -4,
+              minWidth: 22,
+              padding: "1px 5px",
+              borderRadius: 8,
+              background: "rgba(140,0,0,0.92)",
+              border: "1px solid rgba(255,60,60,0.7)",
+              color: "#ffd0d0",
+              fontSize: 9,
+              fontWeight: 800,
+              letterSpacing: "0.04em",
+              textAlign: "center",
+              boxShadow: "0 0 6px rgba(255,80,80,0.5)",
+            }}
+          >
+            {remainingSec}s
+          </span>
+        )}
+      </button>
 
-      {/* Docked square widget — sits directly under the EarthCollectionWidget
-          (which lives at left:12, top:200, 60x60). NO full-screen overlay,
-          because in the Telegram WebApp a fullscreen modal triggers the
-          system "Chiudi" swipe-to-close prompt, which the player found
-          confusing. Now the merchant is a small floating square the user
-          can interact with while the rest of the page stays visible. */}
+      {/* Docked square panel — only visible when the player taps the icon
+          OR a fusion result needs to be shown. NO full-screen overlay,
+          because in the Telegram WebApp a fullscreen modal would trigger
+          the system "Chiudi" swipe-to-close prompt. */}
+      {isOpen && (
       <div
         role="dialog"
         aria-label="Space Merchant"
         style={{
           position: "fixed",
-          left: 12,
+          left: 80, // sits to the right of the icon so they don't overlap
           top: 270,
           width: 220,
           zIndex: 60,
@@ -328,6 +383,16 @@ export function MerchantPopup({
       <style>{`
         @keyframes merchant-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
         @keyframes merchant-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+        @keyframes merchant-vibrate {
+          0%, 100% { transform: translate(0, 0) rotate(0deg); }
+          10% { transform: translate(-1.5px, 1px) rotate(-1.5deg); }
+          20% { transform: translate(1.5px, -1px) rotate(1.5deg); }
+          30% { transform: translate(-1.5px, -1px) rotate(-1deg); }
+          40% { transform: translate(1.5px, 1px) rotate(1deg); }
+          50% { transform: translate(-1px, 1.5px) rotate(-1.5deg); }
+          60% { transform: translate(1px, -1.5px) rotate(1.5deg); }
+          70% { transform: translate(0, 0) rotate(0deg); }
+        }
       `}</style>
     </>
   );
