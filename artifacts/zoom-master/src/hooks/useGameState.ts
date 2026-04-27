@@ -16,21 +16,27 @@ export function isServerClockReady(): boolean {
   return _serverOffsetReady;
 }
 
-async function calibrateServerOffset(): Promise<number> {
+// Returns the calibrated offset, or null if the server time couldn't be
+// obtained. Callers must NOT silently treat null as "0 offset" — that would
+// flag the clock as ready while it's actually still on the device's local
+// clock, defeating any anti-tamper logic that relies on _serverOffsetReady.
+async function calibrateServerOffset(): Promise<number | null> {
   try {
     const t0 = Date.now();
     const serverTime = await fetchServerTime();
+    if (serverTime == null) return null;
     const t1 = Date.now();
     const rtt = t1 - t0;
     return serverTime - (t0 + rtt / 2);
   } catch {
-    return 0;
+    return null;
   }
 }
 
 async function refreshServerOffset(): Promise<void> {
   try {
     const offset = await calibrateServerOffset();
+    if (offset == null) return; // /time unreachable — keep last known state.
     // Sanity check: if RTT-noise produced something insane, ignore it.
     if (Number.isFinite(offset) && Math.abs(offset) < 365 * 24 * 3_600_000) {
       _serverOffsetMs = offset;

@@ -58,14 +58,21 @@ export function notifyPlanetBurn(telegramId: string, planetType: "BASIC" | "RARE
   }).catch(() => { /* ignore */ });
 }
 
-export async function fetchServerTime(): Promise<number> {
+// Returns the server's current epoch ms, or null if it can't be obtained.
+// We never silently fall back to Date.now() because callers use this value
+// to *detect* clock-tampering — substituting the local clock on failure
+// would defeat the very check (e.g. the stardust spawn anti-tamper schedule
+// would treat the local clock as authoritative whenever /time is briefly
+// unreachable, re-opening the exploit). Callers must handle null explicitly
+// (typically: skip persistence, or skip honouring a saved timestamp).
+export async function fetchServerTime(): Promise<number | null> {
   try {
     const res = await fetch(`${API_BASE}/time?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return Date.now();
+    if (!res.ok) return null;
     const data = await res.json();
-    return typeof data.serverTime === "number" ? data.serverTime : Date.now();
+    return typeof data.serverTime === "number" ? data.serverTime : null;
   } catch {
-    return Date.now();
+    return null;
   }
 }
 

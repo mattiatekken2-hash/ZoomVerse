@@ -13,7 +13,7 @@ import { WheelPage } from "./pages/WheelPage";
 import { AdminPanel } from "./components/AdminPanel";
 import { SettingsMenu } from "./components/SettingsMenu";
 import { LanguageProvider, useT } from "./i18n/LanguageContext";
-import { fetchMaintenanceStatus, fetchStardustLeaderboard, type StardustLeaderboardEntry } from "./utils/api";
+import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, type StardustLeaderboardEntry } from "./utils/api";
 import { useStardust } from "./hooks/useStardust";
 import { useMerchant } from "./hooks/useMerchant";
 import { MerchantPopup } from "./components/MerchantPopup";
@@ -327,9 +327,28 @@ function AppShellWithState() {
     // Per-user key so two accounts on the same device don't share timers.
     const tid = state.telegramId;
     const storageKey = tid ? `stardust_next_attempt_${tid}` : null;
+
+    // Server-time clock that's IMMUNE to the user changing their phone clock.
+    // We pin the server epoch once at boot and then advance it locally with
+    // performance.now(), which is monotonic — it doesn't jump when the device
+    // clock is moved forward, so persisting `nextAttempt` in server-time units
+    // means an attacker can no longer fast-forward the spawn just by editing
+    // the system date. Until the first /time response lands we fall back to
+    // Date.now() and the persistence window stays disabled (see below) so we
+    // don't trust the local clock to interpret a saved timestamp.
+    let serverEpochAtBoot: number | null = null;
+    let monoAtBoot: number | null = null;
+    const serverNow = (): number => {
+      if (serverEpochAtBoot == null || monoAtBoot == null) return Date.now();
+      return serverEpochAtBoot + (performance.now() - monoAtBoot);
+    };
+    const haveServerClock = () => serverEpochAtBoot != null && monoAtBoot != null;
+
     const persistNextAt = (delayMs: number) => {
-      if (!storageKey) return;
-      try { localStorage.setItem(storageKey, String(Date.now() + delayMs)); } catch {}
+      // Only persist once we have a trusted server clock; otherwise the saved
+      // value would be in local-clock units and could be exploited.
+      if (!storageKey || !haveServerClock()) return;
+      try { localStorage.setItem(storageKey, String(serverNow() + delayMs)); } catch {}
     };
     const loadNextAt = (): number | null => {
       if (!storageKey) return null;
@@ -366,20 +385,44 @@ function AppShellWithState() {
       stardustSpawnTimerRef.current = setTimeout(performAttempt, delay);
     };
 
-    // Resume from where we left off if a persisted timestamp exists.
-    const persistedNextAt = loadNextAt();
-    if (persistedNextAt == null) {
-      scheduleNext();
-    } else {
-      const remaining = persistedNextAt - Date.now();
-      if (remaining <= 0) {
-        // The window passed while the user was away — fire shortly after
-        // load so the spawn doesn't appear instantly on top of the splash.
+    // Boot the schedule. We always fetch the server clock first so any
+    // persisted "next attempt" timestamp is interpreted with a clock the user
+    // can't manipulate. If /time is unreachable we degrade to a fresh
+    // schedule (no persistence honored) rather than trusting the local clock.
+    const boot = async () => {
+      const t0 = performance.now();
+      let serverTs: number | null = null;
+      try { serverTs = await fetchServerTime(); } catch { serverTs = null; }
+      if (cancelled) return;
+      if (serverTs != null) {
+        // Rough RTT correction: assume the server's "now" sits at request
+        // midpoint; over WAN this still keeps us within sub-second accuracy.
+        const t1 = performance.now();
+        serverEpochAtBoot = serverTs + (t1 - t0) / 2;
+        monoAtBoot = t1;
+      }
+
+      const persistedNextAt = loadNextAt();
+      if (persistedNextAt == null || !haveServerClock()) {
+        // No saved schedule, or no trusted clock to interpret it with —
+        // start a fresh window so we never honour a tampered timestamp.
+        scheduleNext();
+        return;
+      }
+      const remaining = persistedNextAt - serverNow();
+      // Clamp: anything obviously corrupt (huge negative or larger than the
+      // legal max delay + a safety margin) is treated as "fire soon" so the
+      // user isn't locked out, but never instant.
+      const MAX_LEGAL_REMAINING = SPAWN_MIN_MS + SPAWN_RANGE_MS + 60_000;
+      if (remaining <= 0 || remaining > MAX_LEGAL_REMAINING) {
+        // The window passed (or the saved value is corrupt) — fire shortly
+        // after load so the spawn doesn't appear on top of the splash.
         stardustSpawnTimerRef.current = setTimeout(performAttempt, 1500);
       } else {
         stardustSpawnTimerRef.current = setTimeout(performAttempt, remaining);
       }
-    }
+    };
+    void boot();
 
     return () => {
       cancelled = true;
