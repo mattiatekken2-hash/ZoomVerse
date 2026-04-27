@@ -1107,3 +1107,26 @@ export async function collectStardustOnServer(telegramId: string): Promise<Stard
     return { ok: false, reason: "NETWORK", balance: 0, today: 0, dailyCap: 25, globalTotal: 0 };
   }
 }
+
+export interface StardustLeaderboardEntry {
+  rank: number;
+  telegramId: string;
+  firstName: string;
+  stardust: number;
+}
+
+export async function fetchStardustLeaderboard(): Promise<StardustLeaderboardEntry[]> {
+  try {
+    const res = await fetch(`${API_BASE}/stardust/leaderboard`);
+    const j = await res.json().catch(() => ({}));
+    if (!Array.isArray(j?.leaderboard)) return [];
+    return j.leaderboard.map((e: any) => ({
+      rank: Number(e?.rank ?? 0),
+      telegramId: String(e?.telegramId ?? ""),
+      firstName: String(e?.firstName ?? "Player"),
+      stardust: Number(e?.stardust ?? 0),
+    }));
+  } catch {
+    return [];
+  }
+}

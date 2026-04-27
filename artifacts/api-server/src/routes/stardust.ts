@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { usersTable, appSettingsTable } from "@workspace/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 import { z } from "zod";
 
 const router: IRouter = Router();
@@ -61,6 +61,32 @@ router.get("/stardust/state", async (req, res) => {
 
 const CollectBody = z.object({
   telegramId: z.string().min(1),
+});
+
+router.get("/stardust/leaderboard", async (_req, res) => {
+  try {
+    const rows = await db
+      .select({
+        telegramId: usersTable.telegramId,
+        firstName: usersTable.firstName,
+        stardust: usersTable.stardustBalance,
+      })
+      .from(usersTable)
+      .where(sql`COALESCE(${usersTable.stardustBalance}, 0) > 0`)
+      .orderBy(desc(usersTable.stardustBalance))
+      .limit(10);
+
+    const leaderboard = rows.map((r, i) => ({
+      rank: i + 1,
+      telegramId: r.telegramId,
+      firstName: r.firstName || "Player",
+      stardust: r.stardust ?? 0,
+    }));
+    res.json({ leaderboard });
+  } catch (err) {
+    console.error("[stardust/leaderboard] error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
 });
 
 router.post("/stardust/collect", async (req, res) => {

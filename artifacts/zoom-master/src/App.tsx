@@ -550,6 +550,7 @@ function AppShellWithState() {
           dailyCap={stardust.dailyCap}
           globalTotal={stardust.globalTotal}
           onClose={() => setStardustPopupOpen(false)}
+          currentTelegramId={state.telegramId}
         />
       )}
     </div>
@@ -557,13 +558,26 @@ function AppShellWithState() {
   );
 }
 
-function StardustInfoPopup({ balance, today, dailyCap, globalTotal, onClose }: {
+function StardustInfoPopup({ balance, today, dailyCap, globalTotal, onClose, currentTelegramId }: {
   balance: number;
   today: number;
   dailyCap: number;
   globalTotal: number;
   onClose: () => void;
+  currentTelegramId: string;
 }) {
+  const [leaderboard, setLeaderboard] = useState<import("./utils/api").StardustLeaderboardEntry[]>([]);
+  const [lbLoading, setLbLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    setLbLoading(true);
+    import("./utils/api").then(({ fetchStardustLeaderboard }) => fetchStardustLeaderboard()).then((rows) => {
+      if (cancelled) return;
+      setLeaderboard(rows);
+      setLbLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
   return (
     <div
       role="dialog"
