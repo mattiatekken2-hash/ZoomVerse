@@ -40,6 +40,9 @@ interface LabPageProps {
   onReactivateEarthPlanet: (planetId: string) => { ok: boolean; reason?: string };
   onMarkEarthPlanetReactivated: (planetId: string) => { ok: boolean; reason?: string };
   visible?: boolean;
+  /** When true, the radar LED next to the Earth widget pulses red so the
+   *  player notices the merchant even if the popup hasn't yet rendered. */
+  merchantActive?: boolean;
 }
 
 interface FloatMsg { id: number; text: string; color: string }
@@ -47,7 +50,7 @@ interface FloatMsg { id: number; text: string; color: string }
 const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, sunCount, tonBalance, telegramId, onCraft, onClaim, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, sunCount, tonBalance, telegramId, onCraft, onClaim, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, visible = true, merchantActive = false }: LabPageProps) {
   const { t } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
@@ -199,6 +202,29 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       <MysteryBoxWidget telegramId={telegramId} />
       <WhiteCollectionWidget telegramId={telegramId} unlocked={whiteCollectionUnlocked} ownedBundles={whiteCollectionBundles} sunCount={sunCount} />
       <EarthCollectionWidget telegramId={telegramId} unlocked={earthCollectionUnlocked} ownedBundles={earthCollectionBundles} sunCount={sunCount} />
+      {/* Space-merchant radar LED — small red blink near the Earth widget so
+          the user spots the encounter even with the popup minimised by a tab
+          switch. Hidden when no merchant is currently in the system. */}
+      {merchantActive && (
+        <div
+          aria-label="Space merchant nearby"
+          title="Space merchant nearby"
+          style={{
+            position: "fixed",
+            left: 12,
+            top: 178,
+            zIndex: 55,
+            width: 12,
+            height: 12,
+            borderRadius: "50%",
+            background: "#ff2d2d",
+            boxShadow: "0 0 10px #ff2d2d, 0 0 18px rgba(255,45,45,0.6)",
+            animation: "merchant-radar-blink 0.9s ease-in-out infinite",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+      <style>{`@keyframes merchant-radar-blink { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.25; transform: scale(0.7); } }`}</style>
       <div
         className="relative flex-1"
         style={{ minHeight: 0 }}

@@ -46,6 +46,14 @@ export const usersTable = pgTable("users", {
   // UTC day key (YYYY-MM-DD) the today-counter belongs to. When the stored
   // key differs from today, today is reset to 0 before incrementing.
   stardustDayKey: text("stardust_day_key"),
+  // Space Merchant — random alien encounter on LAB. Server-driven so the
+  // 20–50 min cadence and the 3-fusion cap can't be bypassed client-side.
+  // `merchantNextAt` = earliest moment the next merchant may spawn.
+  // `merchantExpiresAt` = when the currently-visible merchant disappears.
+  // `merchantFusionsUsed` = how many fusions consumed in the active visit.
+  merchantNextAt: timestamp("merchant_next_at"),
+  merchantExpiresAt: timestamp("merchant_expires_at"),
+  merchantFusionsUsed: integer("merchant_fusions_used").notNull().default(0),
 }, (table) => [
   index("idx_users_zoom_balance").on(table.zoomBalance),
   index("idx_users_referred_by").on(table.referredBy),

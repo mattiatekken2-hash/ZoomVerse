@@ -2467,6 +2467,83 @@ export function useGameState() {
     });
   }, []);
 
+  // ─────────────────────────────────────────────────────────────────
+  // SPACE MERCHANT helpers — burn N planets of a given type, mint a
+  // freshly-crafted (non-bonus) planet on success. Bonus planets that
+  // get burned must call notifyPlanetBurn to keep the server-side
+  // entitlement counter in lockstep, exactly like burnPlanet does.
+  // ─────────────────────────────────────────────────────────────────
+  const burnTwoOfType = useCallback((type: PlanetType): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: true };
+    setState((prev) => {
+      // Pick 2 idle, non-listed planets of the requested rarity. Prefer
+      // non-bonus first so we don't drain server-granted entitlements
+      // when the player has crafted alternatives available.
+      const candidates = prev.planets.filter(
+        (p) => p.name === type && !p.isFarmingActive && !p.isListedInMarket,
+      );
+      if (candidates.length < 2) {
+        outcome = { ok: false, reason: `Need 2 idle ${PLANET_CONFIG[type].label} planets` };
+        return prev;
+      }
+      const sorted = [...candidates].sort((a, b) => {
+        const aBonus = a.id.startsWith(`bonus-${a.name}-`) ? 1 : 0;
+        const bBonus = b.id.startsWith(`bonus-${b.name}-`) ? 1 : 0;
+        return aBonus - bBonus; // non-bonus (0) first
+      });
+      const toBurn = sorted.slice(0, 2);
+      const burnIds = new Set(toBurn.map((p) => p.id));
+
+      let cBasic = prev.claimedBonusBasic;
+      let cRare = prev.claimedBonusRare;
+      let cEpic = prev.claimedBonusEpic;
+      let cGold = prev.claimedBonusGold;
+      for (const p of toBurn) {
+        const isBonus = p.id.startsWith(`bonus-${p.name}-`);
+        if (isBonus && prev.telegramId && (p.name === "BASIC" || p.name === "RARE" || p.name === "EPIC" || p.name === "GOLD")) {
+          notifyPlanetBurn(prev.telegramId, p.name);
+          if (p.name === "BASIC") cBasic = Math.max(0, cBasic - 1);
+          else if (p.name === "RARE") cRare = Math.max(0, cRare - 1);
+          else if (p.name === "EPIC") cEpic = Math.max(0, cEpic - 1);
+          else if (p.name === "GOLD") cGold = Math.max(0, cGold - 1);
+        }
+      }
+
+      const updated: GameState = {
+        ...prev,
+        planets: prev.planets.filter((p) => !burnIds.has(p.id)),
+        claimedBonusBasic: cBasic,
+        claimedBonusRare: cRare,
+        claimedBonusEpic: cEpic,
+        claimedBonusGold: cGold,
+      };
+      stateRef.current = updated;
+      saveState(updated);
+      return updated;
+    });
+    return outcome;
+  }, []);
+
+  const addCraftedPlanet = useCallback((type: PlanetType): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: true };
+    setState((prev) => {
+      if (prev.planets.length >= prev.maxSlots) {
+        outcome = { ok: false, reason: "Slots full" };
+        return prev;
+      }
+      const planet = makePlanet(type);
+      const updated: GameState = {
+        ...prev,
+        planets: [...prev.planets, planet],
+        craftsCompleted: prev.craftsCompleted + 1,
+      };
+      stateRef.current = updated;
+      saveState(updated);
+      return updated;
+    });
+    return outcome;
+  }, []);
+
   return {
     state, craft, claimCraft, redeemCode,
     collectPlanet, burnPlanet,
@@ -2477,5 +2554,6 @@ export function useGameState() {
     startSunFarming, stopSunFarming, burnSun,
     placeWhitePlanet, reactivateWhitePlanet, markWhitePlanetReactivated, collectWhitePlanet,
     placeEarthPlanet, reactivateEarthPlanet, markEarthPlanetReactivated, collectEarthPlanet,
+    burnTwoOfType, addCraftedPlanet,
   };
 }

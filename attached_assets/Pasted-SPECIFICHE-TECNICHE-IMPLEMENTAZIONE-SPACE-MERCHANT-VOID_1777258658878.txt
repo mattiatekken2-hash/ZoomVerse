@@ -1,0 +1,47 @@
+SPECIFICHE TECNICHE: IMPLEMENTAZIONE "SPACE MERCHANT & VOID FUSION"
+
+1. TRIGGER EVENTO "MERCANTE"
+
+Il mercante deve essere caratterizzato da un personaggio alieno (Contrabbandiere).
+
+Il Radar nel Lab: Un piccolo led rosso che lampeggia quando l'Alieno è "nel sistema". L'utente non sa quando arriva, ma vede che si sta avvicinando.
+
+• Frequenza: Casuale tra i 20 e i 50 minuti per ogni utente con sessione attiva (Web App aperta).
+• Durata: Il Mercante resta attivo per 90 secondi. Un timer (expires_at) deve essere salvato nel database.
+Se l'utente non interagisce entro i 90 secondi, l'alieno scompare con un messaggio: 'Troppo lento, terrestre. Tornerò quando avrai più coraggio'."
+• Interfaccia: Un popup o un elemento grafico in evidenza nella sezione "LAB" con countdown visibile a sinistra in basso la collezione earth.
+Quando l’alieno appare deve vibrare il telefono.
+
+2. LOGICA DI FUSIONE (THE VOID FUSION)
+L’alieno offre due tipi di operazioni di "burn & craft". Se l'utente non ha i requisiti, l'opzione è visibile ma disabilitata.
+
+A. LIVELLO 1: FONDERE 2 BASIC PLANETS
+• Requisito: Burn di 2  'Basic'.
+• Probabilità di Output:
+• 30% ESPLOSIONE: i pianeti vengono cancellati, l'utente non riceve nulla.
+• 60% RARE: Genera 1  'Rare'.
+• 9% EPIC: Genera 1 'Epic'.
+• 1% V1 MOON: Genera V1 Moon'.
+B. LIVELLO 2: FONDERE 2 RARE PLANETS
+• Requisito: Burn di 2  'Rare'.
+• Probabilità di Output:
+• 15% ESPLOSIONE: i pianeti vengono cancellati, l'utente non riceve nulla.
+• 35% DOWNGRADE: I 2 Rare vengono cancellati, l'utente riceve 1 'Basic'.
+• 40% EPIC: Genera 1 'Epic'.
+• 9% GOLD: Genera 1 'Gold'.
+• 1% V1 MOON: Genera 'V1 Moon'.
+
+3. REGOLE DI SISTEMA
+
+• Atomicità: L'operazione deve essere atomica. Prima vengono eliminati gli NFT in input, poi viene calcolato e consegnato l'output.
+
+4. MESSAGGISTICA FEEDBACK
+• Successo: "Fusione completata! Hai ottenuto un pianeta [Grado]."
+• Esplosione: "Il nucleo è collassato! La fusione è fallita e i materiali sono andati perduti."
+• Downgrade: "Energia insufficiente! I tuoi Rare si sono fusi in un misero pianeta Basic."
+
+Ultima info 
+
+Se l'utente avvia la fusione prima della scadenza dei 90 secondi, il processo deve essere portato a termine anche se il timer scade durante l'animazione o l'elaborazione. L'alieno potrà scomparire solo dopo che il risultato è stato mostrato e l'inventario aggiornato. 
+
+L'alieno è potente, ma la sua tecnologia è instabile. Puoi impostare che può gestire massimo 3 fusioni per apparizione

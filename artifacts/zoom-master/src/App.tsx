@@ -15,6 +15,8 @@ import { SettingsMenu } from "./components/SettingsMenu";
 import { LanguageProvider, useT } from "./i18n/LanguageContext";
 import { fetchMaintenanceStatus } from "./utils/api";
 import { useStardust } from "./hooks/useStardust";
+import { useMerchant } from "./hooks/useMerchant";
+import { MerchantPopup } from "./components/MerchantPopup";
 
 const MAINTENANCE_ADMIN_ID = "8144744644";
 
@@ -75,7 +77,14 @@ function AppShellWithState() {
     claimDaily, startSunFarming, stopSunFarming, burnSun,
     placeWhitePlanet, reactivateWhitePlanet, markWhitePlanetReactivated, collectWhitePlanet,
     placeEarthPlanet, reactivateEarthPlanet, markEarthPlanetReactivated, collectEarthPlanet,
+    burnTwoOfType, addCraftedPlanet,
   } = useGameState();
+
+  // Space Merchant — wire once at App level so the radar LED in LAB and the
+  // overlay popup share the same authoritative timer state.
+  const merchant = useMerchant(state.telegramId);
+  const basicCount = state.planets.filter((p) => p.name === "BASIC" && !p.isFarmingActive && !p.isListedInMarket).length;
+  const rareCount = state.planets.filter((p) => p.name === "RARE" && !p.isFarmingActive && !p.isListedInMarket).length;
 
   // Centralized global data fetch — Season epoch, leaderboard, profile, daily, market.
   // Pages read from the global store so tab switches show pre-loaded data with no pop-in.
@@ -511,6 +520,7 @@ function AppShellWithState() {
                   onReactivateEarthPlanet={reactivateEarthPlanet}
                   onMarkEarthPlanetReactivated={markEarthPlanetReactivated}
                   visible={tab === "lab"}
+                  merchantActive={merchant.active}
                 />
               )}
               {t === "farm" && (
@@ -730,6 +740,25 @@ function AppShellWithState() {
       )}
 
       {state.telegramId && <AdminPanel telegramId={state.telegramId} />}
+
+      {/* Space Merchant overlay — gated to LAB so the popup can't ambush
+          users who are mid-trade in MARKET or mid-tap in another tab. The
+          radar LED on LAB tells them the merchant is waiting if they're
+          elsewhere; the popup itself only appears when they actually open
+          the lab. */}
+      {merchant.active && tab === "lab" && (
+        <MerchantPopup
+          expiresAt={merchant.expiresAt}
+          fusionsUsed={merchant.fusionsUsed}
+          maxFusions={merchant.maxFusions}
+          basicCount={basicCount}
+          rareCount={rareCount}
+          onFuse={merchant.fuse}
+          burnTwoOfType={burnTwoOfType}
+          addCraftedPlanet={addCraftedPlanet}
+          onClose={merchant.dismissLocally}
+        />
+      )}
 
       <nav
         className="flex-shrink-0 relative z-20"

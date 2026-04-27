@@ -1107,3 +1107,71 @@ export async function collectStardustOnServer(telegramId: string): Promise<Stard
     return { ok: false, reason: "NETWORK", balance: 0, today: 0, dailyCap: 25, globalTotal: 0 };
   }
 }
+
+// ─────────────────────────────────────────────────────────────────
+// SPACE MERCHANT — random alien encounter; backend authoritative for
+// spawn cadence (20–50 min) and the 3-fusion-per-visit cap.
+// ─────────────────────────────────────────────────────────────────
+export interface MerchantState {
+  active: boolean;
+  expiresAt: string | null;
+  fusionsUsed: number;
+  maxFusions: number;
+  justSpawned?: boolean;
+}
+
+const EMPTY_MERCHANT: MerchantState = {
+  active: false,
+  expiresAt: null,
+  fusionsUsed: 0,
+  maxFusions: 3,
+};
+
+export async function fetchMerchantState(telegramId: string): Promise<MerchantState> {
+  try {
+    const res = await fetch(`${API_BASE}/merchant/state/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return EMPTY_MERCHANT;
+    const j = await res.json();
+    return {
+      active: !!j?.active,
+      expiresAt: typeof j?.expiresAt === "string" ? j.expiresAt : null,
+      fusionsUsed: Number(j?.fusionsUsed ?? 0),
+      maxFusions: Number(j?.maxFusions ?? 3),
+      justSpawned: !!j?.justSpawned,
+    };
+  } catch {
+    return EMPTY_MERCHANT;
+  }
+}
+
+export type MerchantOutcome = "EXPLOSION" | "BASIC" | "RARE" | "EPIC" | "GOLD" | "V1" | "DOWNGRADE";
+
+export interface MerchantFuseResult {
+  ok: boolean;
+  outcome?: MerchantOutcome;
+  reason?: "EXPIRED_OR_MAX" | "INTERNAL" | "BAD_REQUEST" | "NETWORK";
+  fusionsUsed: number;
+  fusionsRemaining: number;
+  maxFusions: number;
+}
+
+export async function merchantFuse(telegramId: string, level: 1 | 2): Promise<MerchantFuseResult> {
+  try {
+    const res = await fetch(`${API_BASE}/merchant/fuse`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId, level }),
+    });
+    const j = await res.json().catch(() => ({}));
+    return {
+      ok: !!j?.ok,
+      outcome: j?.outcome,
+      reason: j?.reason,
+      fusionsUsed: Number(j?.fusionsUsed ?? 0),
+      fusionsRemaining: Number(j?.fusionsRemaining ?? 0),
+      maxFusions: Number(j?.maxFusions ?? 3),
+    };
+  } catch {
+    return { ok: false, reason: "NETWORK", fusionsUsed: 0, fusionsRemaining: 0, maxFusions: 3 };
+  }
+}

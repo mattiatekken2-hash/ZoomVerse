@@ -15,6 +15,7 @@ import farmRouter from "./farm";
 import userRouter from "./user";
 import planetsRouter from "./planets";
 import stardustRouter from "./stardust";
+import merchantRouter from "./merchant";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(farmRouter);
 router.use(userRouter);
 router.use(planetsRouter);
 router.use(stardustRouter);
+router.use(merchantRouter);
 
 export default router;
