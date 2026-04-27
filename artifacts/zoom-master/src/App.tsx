@@ -81,11 +81,11 @@ function AppShellWithState() {
   } = useGameState();
 
   // Space Merchant — wire once at App level so the radar LED in LAB and the
-  // overlay popup share the same authoritative timer state. Polling is gated
-  // to the LAB tab so the alien can only "arrive" (and only be clickable)
-  // while the player is actually in the lab — passing a null telegramId stops
-  // the hook's interval cleanly without leaking timers.
-  const merchant = useMerchant(tab === "lab" ? state.telegramId : null);
+  // overlay popup share the same authoritative timer state. Polling stays
+  // active on every tab so the spawn timer keeps ticking in the background;
+  // the popup itself is gated to the LAB tab below, so the alien can only be
+  // *interacted with* in the lab even though it can *appear* anywhere.
+  const merchant = useMerchant(state.telegramId);
   const basicCount = state.planets.filter((p) => p.name === "BASIC" && !p.isFarmingActive && !p.isListedInMarket).length;
   const rareCount = state.planets.filter((p) => p.name === "RARE" && !p.isFarmingActive && !p.isListedInMarket).length;
 
