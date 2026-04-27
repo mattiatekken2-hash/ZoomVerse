@@ -11,7 +11,7 @@ import { RankPage } from "./pages/RankPage";
 import { ShopPage } from "./pages/ShopPage";
 import { WheelPage } from "./pages/WheelPage";
 import { AdminPanel } from "./components/AdminPanel";
-import { LanguageSwitcher } from "./components/LanguageSwitcher";
+import { SettingsMenu } from "./components/SettingsMenu";
 import { LanguageProvider, useT } from "./i18n/LanguageContext";
 import { fetchMaintenanceStatus } from "./utils/api";
 import { useStardust } from "./hooks/useStardust";
@@ -353,16 +353,7 @@ function AppShellWithState() {
             <span style={{ fontSize: 13, lineHeight: 1 }}>★</span>
             <span>{stardust.balance.toLocaleString()}</span>
           </div>
-          <button
-            type="button"
-            aria-label={muted ? "Unmute music" : "Mute music"}
-            onClick={() => setMuted((m) => !m)}
-            className="glass-neon rounded-full flex items-center justify-center"
-            style={{ width: 32, height: 32, fontSize: 14, border: "none", color: "rgba(255,255,255,0.85)", cursor: "pointer" }}
-          >
-            {muted ? "🔇" : "🔊"}
-          </button>
-          <LanguageSwitcher />
+          <SettingsMenu muted={muted} setMuted={setMuted} />
         </div>
       </header>
 

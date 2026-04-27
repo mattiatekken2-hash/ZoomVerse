@@ -1,9 +1,11 @@
-export type Lang = "en" | "ru" | "uk";
+export type Lang = "en" | "it" | "ru" | "uk";
 
+// Languages exposed in the in-app picker. The other locales remain in
+// `DICTS` for backward compatibility (older clients with a saved value),
+// but only English and Italian are offered going forward.
 export const LANGS: { code: Lang; flag: string; label: string }[] = [
   { code: "en", flag: "🇬🇧", label: "English" },
-  { code: "ru", flag: "🇷🇺", label: "Русский" },
-  { code: "uk", flag: "🇺🇦", label: "Українська" },
+  { code: "it", flag: "🇮🇹", label: "Italiano" },
 ];
 
 type Dict = Record<string, string>;
@@ -58,6 +60,59 @@ const en: Dict = {
   "common.loading": "Loading…",
   "common.language": "Language",
   "common.slotsFull": "Slots full",
+  "common.settings": "Settings",
+  "common.audio": "Audio",
+  "common.muted": "Muted",
+  "common.unmuted": "On",
+};
+
+const it: Dict = {
+  "nav.lab": "LAB",
+  "nav.farm": "FARM",
+  "nav.market": "MERCATO",
+  "nav.wheel": "RUOTA",
+  "nav.earn": "GUADAGNA",
+  "nav.rank": "CLASSIFICA",
+
+  "header.perHour": "/h",
+
+  "maint.title": "MANUTENZIONE IN CORSO",
+  "maint.default": "Stiamo aggiornando il gioco. Torniamo presto online.",
+  "maint.paused": "GIOCO IN PAUSA",
+  "maint.banner": "MODALITÀ MANUTENZIONE ATTIVA — solo tu vedi l'app",
+
+  "lab.farmFull": "FARM PIENA",
+  "lab.farmFullHint": "Brucia o vendi un pianeta per continuare",
+  "lab.noZoom": "NESSUN $ZOOM",
+  "lab.forgePlanet": "FORGIA PIANETA",
+  "lab.perTap": "1 $ZOOM per tap",
+  "lab.slotsFree": "{n} slot liberi",
+
+  "farm.collect": "RACCOGLI",
+  "farm.burn": "BRUCIA",
+  "farm.startFarming": "AVVIA FARMING",
+  "farm.stopFarming": "FERMA FARMING",
+  "farm.readyToCollect": "PRONTO DA RACCOGLIERE",
+  "farm.activatePlanet": "ATTIVA",
+  "farm.farming": "IN FARMING",
+  "farm.empty": "Nessun pianeta — vai al LAB per forgiarne uno",
+
+  "market.buy": "COMPRA",
+  "market.list": "METTI IN VENDITA",
+  "market.unlist": "RITIRA",
+  "market.empty": "Nessuna inserzione disponibile",
+  "market.processing": "In elaborazione…",
+
+  "common.close": "Chiudi",
+  "common.confirm": "Conferma",
+  "common.cancel": "Annulla",
+  "common.loading": "Caricamento…",
+  "common.language": "Lingua",
+  "common.slotsFull": "Slot pieni",
+  "common.settings": "Impostazioni",
+  "common.audio": "Audio",
+  "common.muted": "Spento",
+  "common.unmuted": "Attivo",
 };
 
 const ru: Dict = {
@@ -150,7 +205,7 @@ const uk: Dict = {
   "common.slotsFull": "Слоти заповнені",
 };
 
-export const DICTS: Record<Lang, Dict> = { en, ru, uk };
+export const DICTS: Record<Lang, Dict> = { en, it, ru, uk };
 
 export function translate(lang: Lang, key: string, vars?: Record<string, string | number>): string {
   const dict = DICTS[lang] || DICTS.en;
