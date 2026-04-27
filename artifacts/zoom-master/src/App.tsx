@@ -86,6 +86,27 @@ function AppShellWithState() {
   const stardust = useStardust(state.telegramId);
   const [stardustPopupOpen, setStardustPopupOpen] = useState(false);
 
+  // ─────── STARDUST spawn mechanic (lifted to App level) ──────────
+  // The star spawns on ANY screen so the user doesn't need to camp the LAB,
+  // but it's only *collectable* while the LAB tab is active. Clicking the
+  // star outside the LAB shows a small hint without despawning it (so the
+  // user has time to switch tab and harvest it).
+  const [spawnedStar, setSpawnedStar] = useState<{ id: number; x: number; y: number } | null>(null);
+  const [stardustBurst, setStardustBurst] = useState<{ id: number; x: number; y: number } | null>(null);
+  const [noSunPopup, setNoSunPopup] = useState(false);
+  const [stardustToast, setStardustToast] = useState<string | null>(null);
+  const stardustSpawnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stardustDespawnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stardustBurstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stardustToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stardustIdRef = useRef(0);
+  const stardustInFlightRef = useRef(false);
+  const stardustCapReached = stardust.today >= stardust.dailyCap;
+  // Stable ref so the spawn loop can read the latest cap state without
+  // re-running its cleanup (which would also kill an active despawn timer).
+  const stardustCapReachedRef = useRef(stardustCapReached);
+  useEffect(() => { stardustCapReachedRef.current = stardustCapReached; }, [stardustCapReached]);
+
   // Maintenance mode: poll status, show fullscreen overlay for non-admins.
   // We cache the last known status in localStorage so a repeat visit during
   // maintenance shows the lock screen immediately (zero Lab flash). On a
@@ -277,6 +298,95 @@ function AppShellWithState() {
     }
   }, [muted]);
 
+  // ─────── STARDUST spawn loop (runs on every screen) ─────────────
+  // Mounts once; cap state is read via a ref so flipping the cap doesn't
+  // tear down an active despawn timer mid-flight.
+  useEffect(() => {
+    let cancelled = false;
+    const scheduleNext = () => {
+      if (cancelled) return;
+      // 10–20 minutes between attempts.
+      const delayMs = (10 + Math.random() * 10) * 60 * 1000;
+      stardustSpawnTimerRef.current = setTimeout(() => {
+        if (cancelled) return;
+        if (Math.random() < 0.5 && !stardustCapReachedRef.current) {
+          const id = ++stardustIdRef.current;
+          // Position in viewport %, kept inside safe margins so the star
+          // never lands under the header / nav bar.
+          const x = 12 + Math.random() * 76;
+          const y = 22 + Math.random() * 50;
+          setSpawnedStar({ id, x, y });
+          if (stardustDespawnTimerRef.current) clearTimeout(stardustDespawnTimerRef.current);
+          stardustDespawnTimerRef.current = setTimeout(() => {
+            setSpawnedStar((curr) => (curr && curr.id === id ? null : curr));
+            stardustDespawnTimerRef.current = null;
+          }, 7000);
+        }
+        scheduleNext();
+      }, delayMs);
+    };
+    scheduleNext();
+    // Cleanup runs only on unmount (no deps), so an active 7s despawn
+    // timer is preserved across cap-state changes.
+    return () => {
+      cancelled = true;
+      if (stardustSpawnTimerRef.current) { clearTimeout(stardustSpawnTimerRef.current); stardustSpawnTimerRef.current = null; }
+      if (stardustDespawnTimerRef.current) { clearTimeout(stardustDespawnTimerRef.current); stardustDespawnTimerRef.current = null; }
+      if (stardustBurstTimerRef.current) { clearTimeout(stardustBurstTimerRef.current); stardustBurstTimerRef.current = null; }
+      if (stardustToastTimerRef.current) { clearTimeout(stardustToastTimerRef.current); stardustToastTimerRef.current = null; }
+    };
+  }, []);
+
+  const showStardustToast = (text: string, ms = 2200) => {
+    setStardustToast(text);
+    if (stardustToastTimerRef.current) clearTimeout(stardustToastTimerRef.current);
+    stardustToastTimerRef.current = setTimeout(() => setStardustToast(null), ms);
+  };
+
+  const handleStardustStarClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const star = spawnedStar;
+    if (!star) return;
+
+    // Outside the LAB: don't despawn — just hint and let the user navigate.
+    if (tab !== "lab") {
+      showStardustToast("Go to the LAB to harvest!");
+      return;
+    }
+
+    if (stardustInFlightRef.current) return;
+    setSpawnedStar(null);
+    if (stardustDespawnTimerRef.current) { clearTimeout(stardustDespawnTimerRef.current); stardustDespawnTimerRef.current = null; }
+
+    if ((state.sunCount || 0) <= 0) {
+      setNoSunPopup(true);
+      return;
+    }
+    stardustInFlightRef.current = true;
+
+    // Optimistic golden burst at the star's position.
+    const burstId = ++stardustIdRef.current;
+    setStardustBurst({ id: burstId, x: star.x, y: star.y });
+    if (stardustBurstTimerRef.current) clearTimeout(stardustBurstTimerRef.current);
+    stardustBurstTimerRef.current = setTimeout(() => {
+      setStardustBurst((curr) => (curr && curr.id === burstId ? null : curr));
+      stardustBurstTimerRef.current = null;
+    }, 1200);
+
+    try {
+      const res = await stardust.collect();
+      if (res.ok) {
+        showStardustToast("✦ +1 STARDUST", 1600);
+      } else if (res.reason === "DAILY_CAP") {
+        showStardustToast("Daily Stardust limit reached.");
+      } else if (res.reason === "NO_SUN") {
+        setNoSunPopup(true);
+      }
+    } finally {
+      stardustInFlightRef.current = false;
+    }
+  };
+
   if (showMaintenance) {
     return (
       <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
@@ -401,10 +511,6 @@ function AppShellWithState() {
                   onReactivateEarthPlanet={reactivateEarthPlanet}
                   onMarkEarthPlanetReactivated={markEarthPlanetReactivated}
                   visible={tab === "lab"}
-                  stardustHasSun={(state.sunCount || 0) > 0}
-                  stardustToday={stardust.today}
-                  stardustDailyCap={stardust.dailyCap}
-                  onCollectStardust={stardust.collect}
                 />
               )}
               {t === "farm" && (
@@ -471,6 +577,157 @@ function AppShellWithState() {
           );
         })}
       </main>
+
+      {/* ─── Stardust floating star — visible across every screen.
+          Click only collects when on the LAB tab; elsewhere it shows
+          a hint pointing the user to the LAB. ─── */}
+      {spawnedStar && (
+        <button
+          type="button"
+          onClick={handleStardustStarClick}
+          data-testid="stardust-spawn"
+          aria-label={tab === "lab" ? "Collect stardust" : "Go to LAB to harvest stardust"}
+          title={tab === "lab" ? "Collect stardust" : "Go to LAB to harvest stardust"}
+          className="stardust-spawn-pop"
+          style={{
+            position: "fixed",
+            left: `${spawnedStar.x}vw`,
+            top: `${spawnedStar.y}vh`,
+            transform: "translate(-50%, -50%)",
+            zIndex: 200,
+            width: 56,
+            height: 56,
+            border: "none",
+            background: "transparent",
+            padding: 0,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 38,
+            lineHeight: 1,
+            color: "#ffd740",
+            textShadow: "0 0 18px rgba(255,215,64,0.9), 0 0 36px rgba(255,179,71,0.6)",
+          }}
+        >
+          ★
+        </button>
+      )}
+
+      {/* Golden particle burst on successful collect (LAB-only). */}
+      {stardustBurst && (
+        <div
+          key={stardustBurst.id}
+          className="pointer-events-none"
+          style={{
+            position: "fixed",
+            left: `${stardustBurst.x}vw`,
+            top: `${stardustBurst.y}vh`,
+            transform: "translate(-50%, -50%)",
+            zIndex: 205,
+            width: 0,
+            height: 0,
+          }}
+        >
+          {Array.from({ length: 10 }).map((_, i) => {
+            const angle = (Math.PI * 2 * i) / 10;
+            const dx = Math.cos(angle) * 60;
+            const dy = Math.sin(angle) * 60;
+            return (
+              <span
+                key={i}
+                style={{
+                  position: "absolute",
+                  left: 0,
+                  top: 0,
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: "radial-gradient(circle, #fff7c2 0%, #ffd740 50%, rgba(255,179,71,0) 80%)",
+                  boxShadow: "0 0 10px rgba(255,215,64,0.95)",
+                  transform: "translate(-50%, -50%)",
+                  animation: `stardustBurst-${i} 1.1s ease-out forwards`,
+                  // @ts-ignore — CSS custom props
+                  "--dx": `${dx}px`,
+                  "--dy": `${dy}px`,
+                } as React.CSSProperties}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* Toast — also used for "Go to LAB" hint when clicking off-LAB. */}
+      {stardustToast && (
+        <div
+          className="pointer-events-none"
+          style={{
+            position: "fixed",
+            left: "50%",
+            top: 100,
+            transform: "translateX(-50%)",
+            zIndex: 210,
+            background: "rgba(20, 18, 6, 0.92)",
+            border: "1px solid rgba(255, 215, 64, 0.45)",
+            color: "#ffd740",
+            padding: "8px 14px",
+            borderRadius: 12,
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: "0.04em",
+            boxShadow: "0 0 18px rgba(255,215,64,0.25)",
+            backdropFilter: "blur(10px)",
+            WebkitBackdropFilter: "blur(10px)",
+            textShadow: "0 0 6px rgba(255,215,64,0.4)",
+          }}
+        >
+          {stardustToast}
+        </div>
+      )}
+
+      {/* No-SUN modal — only reachable when clicking inside the LAB. */}
+      {noSunPopup && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 220, background: "rgba(6,8,16,0.65)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          onClick={() => setNoSunPopup(false)}
+        >
+          <div
+            className="glass rounded-2xl px-6 py-5 text-center"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: "min(86vw, 320px)",
+              border: "1.5px solid rgba(255, 179, 71, 0.55)",
+              boxShadow: "0 0 28px rgba(255, 179, 71, 0.35)",
+            }}
+          >
+            <div style={{ fontSize: 36, lineHeight: 1, marginBottom: 8 }}>☀</div>
+            <div className="font-black tracking-wide" style={{ fontSize: 14, color: "#ffb347", letterSpacing: "0.06em" }}>
+              SUN PROTECTION REQUIRED
+            </div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.78)", marginTop: 8, fontWeight: 500, lineHeight: 1.45 }}>
+              The star's heat is too strong! You need the SUN's protection to harvest it.
+            </div>
+            <button
+              type="button"
+              onClick={() => setNoSunPopup(false)}
+              style={{
+                marginTop: 14,
+                padding: "8px 18px",
+                borderRadius: 10,
+                background: "rgba(255, 179, 71, 0.18)",
+                border: "1px solid rgba(255, 179, 71, 0.5)",
+                color: "#ffd089",
+                fontWeight: 700,
+                fontSize: 12,
+                letterSpacing: "0.06em",
+                cursor: "pointer",
+              }}
+            >
+              GOT IT
+            </button>
+          </div>
+        </div>
+      )}
 
       {state.telegramId && <AdminPanel telegramId={state.telegramId} />}
 
