@@ -407,8 +407,8 @@ export function MerchantPopup({
 
 function ConfirmView({ level, onCancel, onConfirm }: { level: 1 | 2; onCancel: () => void; onConfirm: () => void }) {
   const text = level === 1
-    ? "Burn 2 Basic planets. 30% chance the core explodes; 60% Rare; 9% Epic; 1% V1."
-    : "Burn 2 Rare planets. 15% explosion; 35% downgrade to Basic; 40% Epic; 9% Gold; 1% V1.";
+    ? "Burn 2 Basic planets."
+    : "Burn 2 Rare planets.";
   return (
     <div style={{ marginTop: 14 }}>
       <p style={{ fontSize: 12, lineHeight: 1.45, color: "rgba(230,222,255,0.9)", textAlign: "center", margin: 0 }}>
