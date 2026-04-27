@@ -228,31 +228,37 @@ export function MerchantPopup({
         data-testid="button-space-merchant"
       >
         <span aria-hidden style={{ filter: "drop-shadow(0 0 6px rgba(180,70,255,0.7))" }}>👽</span>
-        {/* Tiny countdown badge so the player still knows time is ticking. */}
-        {remaining > 0 && (
-          <span
-            aria-hidden
-            style={{
-              position: "absolute",
-              bottom: -4,
-              right: -4,
-              minWidth: 22,
-              padding: "1px 5px",
-              borderRadius: 8,
-              background: "rgba(140,0,0,0.92)",
-              border: "1px solid rgba(255,60,60,0.7)",
-              color: "#ffd0d0",
-              fontSize: 9,
-              fontWeight: 800,
-              letterSpacing: "0.04em",
-              textAlign: "center",
-              boxShadow: "0 0 6px rgba(255,80,80,0.5)",
-            }}
-          >
-            {remainingSec}s
-          </span>
-        )}
       </button>
+
+      {/* Tiny countdown badge — sits to the RIGHT of the alien icon
+          (the icon is 60x60 at left:12, top:270 → place this just past it
+          at left:78, vertically centered). Kept as a separate fixed element
+          so it doesn't move with the icon's vibrate animation. */}
+      {remaining > 0 && (
+        <div
+          aria-hidden
+          style={{
+            position: "fixed",
+            left: 78,
+            top: 290, // (270 + 60/2) - badgeHeight/2 ≈ vertical center
+            zIndex: 41,
+            minWidth: 22,
+            padding: "2px 6px",
+            borderRadius: 8,
+            background: "rgba(140,0,0,0.92)",
+            border: "1px solid rgba(255,60,60,0.7)",
+            color: "#ffd0d0",
+            fontSize: 10,
+            fontWeight: 800,
+            letterSpacing: "0.04em",
+            textAlign: "center",
+            boxShadow: "0 0 6px rgba(255,80,80,0.5)",
+            pointerEvents: "none",
+          }}
+        >
+          {remainingSec}s
+        </div>
+      )}
 
       {/* Docked square panel — only visible when the player taps the icon
           OR a fusion result needs to be shown. NO full-screen overlay,
