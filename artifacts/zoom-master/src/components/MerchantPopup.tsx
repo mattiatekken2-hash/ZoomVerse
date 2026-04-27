@@ -379,6 +379,7 @@ export function MerchantPopup({
           </div>
         )}
       </div>
+      )}
 
       <style>{`
         @keyframes merchant-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
