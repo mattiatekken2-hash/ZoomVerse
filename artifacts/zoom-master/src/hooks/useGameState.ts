@@ -953,8 +953,15 @@ export function isSunExpired(sun: SunState | null): boolean {
   return serverNow() - sun.farmStartedAt > FARM_DURATION_MS;
 }
 
-export function getSunReactivationFee(): number {
-  return SUN_CONFIG.reactivationFee;
+// Reactivation fee scales with how many SUNs the user owns: each SUN multiplies
+// the per-cycle yield (1000/hr * sunCount), so each SUN must also pay its share
+// of the fee — otherwise multi-SUN owners would reactivate for a fraction of
+// what they earn. With sunCount=1 this is the historical 12,000 ZOOM.
+// If the user owns no SUN, the fee is 0 (nothing to reactivate).
+export function getSunReactivationFee(sunCount: number = 1): number {
+  const n = Math.max(0, sunCount || 0);
+  if (n <= 0) return 0;
+  return SUN_CONFIG.reactivationFee * n;
 }
 
 export function getSunTimeRemaining(sun: SunState): number {
@@ -2028,7 +2035,9 @@ export function useGameState() {
       // after the 24h cycle elapsed cost a $ZOOM fee.
       const wasStarted = prev.sun.farmStartedAt > 0;
       const expired = wasStarted && now - prev.sun.farmStartedAt > FARM_DURATION_MS;
-      const fee = expired ? SUN_CONFIG.reactivationFee : 0;
+      // Fee scales with how many SUNs are owned (each SUN multiplies the
+      // per-cycle yield, so each SUN must also pay its share).
+      const fee = expired ? getSunReactivationFee(prev.sunCount) : 0;
       if (fee > 0 && prev.balance < fee) {
         outcome = { ok: false, reason: `Need ${fee.toLocaleString()} $ZOOM to reactivate SUN` };
         return prev;

@@ -95,7 +95,7 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
 
   const sunActive = sun ? isSunActive(sun) : false;
   const sunExpired = isSunExpired(sun);
-  const sunReactivationFee = getSunReactivationFee();
+  const sunReactivationFee = getSunReactivationFee(sunCount);
   const sunRemaining = sun && sun.isActive ? getSunTimeRemaining(sun) : 0;
 
   const handleSunStartOrReactivate = () => {
