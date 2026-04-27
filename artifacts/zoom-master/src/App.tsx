@@ -311,43 +311,87 @@ function AppShellWithState() {
   }, [muted]);
 
   // ─────── STARDUST spawn loop (runs on every screen) ─────────────
-  // Mounts once; cap state is read via a ref so flipping the cap doesn't
-  // tear down an active despawn timer mid-flight.
+  // The next-attempt time is persisted to localStorage so the cooldown
+  // continues counting down even while the user has the app closed. When
+  // the user re-enters and the persisted time has already passed, the next
+  // spawn fires shortly after mount instead of restarting a fresh 5–10 min
+  // cycle from zero. Cap state is read via a ref so flipping the cap
+  // doesn't tear down an active despawn timer mid-flight.
   useEffect(() => {
     let cancelled = false;
+    // 5–10 minutes between attempts.
+    const SPAWN_MIN_MS = 5 * 60 * 1000;
+    const SPAWN_RANGE_MS = 5 * 60 * 1000;
+    const computeNextDelay = () => SPAWN_MIN_MS + Math.random() * SPAWN_RANGE_MS;
+
+    // Per-user key so two accounts on the same device don't share timers.
+    const tid = state.telegramId;
+    const storageKey = tid ? `stardust_next_attempt_${tid}` : null;
+    const persistNextAt = (delayMs: number) => {
+      if (!storageKey) return;
+      try { localStorage.setItem(storageKey, String(Date.now() + delayMs)); } catch {}
+    };
+    const loadNextAt = (): number | null => {
+      if (!storageKey) return null;
+      try {
+        const v = localStorage.getItem(storageKey);
+        if (!v) return null;
+        const n = parseInt(v, 10);
+        return Number.isFinite(n) ? n : null;
+      } catch { return null; }
+    };
+
+    const performAttempt = () => {
+      if (cancelled) return;
+      if (Math.random() < 0.5 && !stardustCapReachedRef.current) {
+        const id = ++stardustIdRef.current;
+        // Position in viewport %, kept inside safe margins so the star
+        // never lands under the header / nav bar.
+        const x = 12 + Math.random() * 76;
+        const y = 22 + Math.random() * 50;
+        setSpawnedStar({ id, x, y });
+        if (stardustDespawnTimerRef.current) clearTimeout(stardustDespawnTimerRef.current);
+        stardustDespawnTimerRef.current = setTimeout(() => {
+          setSpawnedStar((curr) => (curr && curr.id === id ? null : curr));
+          stardustDespawnTimerRef.current = null;
+        }, 7000);
+      }
+      scheduleNext();
+    };
+
     const scheduleNext = () => {
       if (cancelled) return;
-      // 10–20 minutes between attempts.
-      const delayMs = (10 + Math.random() * 10) * 60 * 1000;
-      stardustSpawnTimerRef.current = setTimeout(() => {
-        if (cancelled) return;
-        if (Math.random() < 0.5 && !stardustCapReachedRef.current) {
-          const id = ++stardustIdRef.current;
-          // Position in viewport %, kept inside safe margins so the star
-          // never lands under the header / nav bar.
-          const x = 12 + Math.random() * 76;
-          const y = 22 + Math.random() * 50;
-          setSpawnedStar({ id, x, y });
-          if (stardustDespawnTimerRef.current) clearTimeout(stardustDespawnTimerRef.current);
-          stardustDespawnTimerRef.current = setTimeout(() => {
-            setSpawnedStar((curr) => (curr && curr.id === id ? null : curr));
-            stardustDespawnTimerRef.current = null;
-          }, 7000);
-        }
-        scheduleNext();
-      }, delayMs);
+      const delay = computeNextDelay();
+      persistNextAt(delay);
+      stardustSpawnTimerRef.current = setTimeout(performAttempt, delay);
     };
-    scheduleNext();
-    // Cleanup runs only on unmount (no deps), so an active 7s despawn
-    // timer is preserved across cap-state changes.
+
+    // Resume from where we left off if a persisted timestamp exists.
+    const persistedNextAt = loadNextAt();
+    if (persistedNextAt == null) {
+      scheduleNext();
+    } else {
+      const remaining = persistedNextAt - Date.now();
+      if (remaining <= 0) {
+        // The window passed while the user was away — fire shortly after
+        // load so the spawn doesn't appear instantly on top of the splash.
+        stardustSpawnTimerRef.current = setTimeout(performAttempt, 1500);
+      } else {
+        stardustSpawnTimerRef.current = setTimeout(performAttempt, remaining);
+      }
+    }
+
     return () => {
       cancelled = true;
       if (stardustSpawnTimerRef.current) { clearTimeout(stardustSpawnTimerRef.current); stardustSpawnTimerRef.current = null; }
       if (stardustDespawnTimerRef.current) { clearTimeout(stardustDespawnTimerRef.current); stardustDespawnTimerRef.current = null; }
       if (stardustBurstTimerRef.current) { clearTimeout(stardustBurstTimerRef.current); stardustBurstTimerRef.current = null; }
       if (stardustToastTimerRef.current) { clearTimeout(stardustToastTimerRef.current); stardustToastTimerRef.current = null; }
+      // Clear any visible star so account-switch / re-mount doesn't leave
+      // a "ghost" that can never be despawned by the new effect instance.
+      setSpawnedStar(null);
     };
-  }, []);
+  }, [state.telegramId]);
 
   const showStardustToast = (text: string, ms = 2200) => {
     setStardustToast(text);
