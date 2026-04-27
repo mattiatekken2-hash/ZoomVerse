@@ -25,9 +25,19 @@ interface GlobalState {
   nextAtMs: number | null;
   // When the currently-visible visit disappears. null when no visit is live.
   expiresAtMs: number | null;
-  // Drizzle row's updatedAt — used as the CAS token for atomic transitions.
-  // null only when the row doesn't exist yet (first-ever request).
-  rowUpdatedAt: Date | null;
+  // Raw JSON we read from value_text. Used as the CAS token for atomic
+  // transitions: every transition flips the JSON content, so comparing on
+  // value_text equality gives us strict "compare-and-swap" semantics with
+  // no timestamp-precision pitfalls (Postgres stores updated_at at microsecond
+  // precision but JS Date only carries milliseconds, so a CAS on updated_at
+  // would silently fail forever after the row's first NOW()-default insert).
+  // null when the row doesn't exist OR when its value_text column is NULL.
+  rawValueText: string | null;
+  // Distinguishes "row missing entirely" (need INSERT) from "row exists with
+  // NULL value_text" (need UPDATE-CAS with IS NOT DISTINCT FROM NULL); without
+  // this flag a NULL-valued legacy row would freeze on the INSERT-on-conflict
+  // path forever.
+  rowExists: boolean;
 }
 
 function rollNextDelay(): number {
@@ -59,7 +69,7 @@ async function readGlobal(): Promise<GlobalState> {
     .from(appSettingsTable)
     .where(eq(appSettingsTable.key, GLOBAL_KEY))
     .limit(1);
-  if (!row) return { nextAtMs: null, expiresAtMs: null, rowUpdatedAt: null };
+  if (!row) return { nextAtMs: null, expiresAtMs: null, rawValueText: null, rowExists: false };
   let nextAtMs: number | null = null;
   let expiresAtMs: number | null = null;
   if (row.valueText) {
@@ -69,34 +79,50 @@ async function readGlobal(): Promise<GlobalState> {
       expiresAtMs = typeof parsed.expiresAtMs === "number" ? parsed.expiresAtMs : null;
     } catch { /* fallthrough — treat as uninitialised */ }
   }
-  return { nextAtMs, expiresAtMs, rowUpdatedAt: row.updatedAt };
+  return { nextAtMs, expiresAtMs, rawValueText: row.valueText ?? null, rowExists: true };
 }
 
 // CAS write of the global row. Returns true if the write landed, false if
 // another request already mutated the row (caller should re-read and retry
 // from the new state, or just bail and let the next /state poll handle it).
+//
+// We CAS on the row's value_text content (not on updated_at). Every legitimate
+// transition flips the JSON, so equality on the previous JSON is a sufficient
+// optimistic-lock token, and unlike updated_at it isn't subject to the
+// JS-millisecond / Postgres-microsecond precision mismatch that would silently
+// freeze the schedule forever after the first defaultNow() insert.
+//
+// Two distinct cases for the "we have no JSON to compare against" branch:
+//   - rowExists=false → INSERT-on-conflict (real first-ever bootstrap).
+//   - rowExists=true with NULL value_text → UPDATE-CAS using IS NOT DISTINCT
+//     FROM NULL so a legacy/manually-edited row with a NULL JSON can still
+//     transition forward instead of being permanently wedged on the INSERT
+//     path (which would always no-op against the existing row).
 async function writeGlobalIf(
   expected: GlobalState,
   next: { nextAtMs: number | null; expiresAtMs: number | null },
 ): Promise<boolean> {
   const valueText = JSON.stringify({ nextAtMs: next.nextAtMs, expiresAtMs: next.expiresAtMs });
-  if (expected.rowUpdatedAt === null) {
+  if (!expected.rowExists) {
     // Row doesn't exist → INSERT … ON CONFLICT DO NOTHING. If the row was
     // just inserted by another request, our INSERT no-ops and we return false.
     const inserted = await db
       .insert(appSettingsTable)
-      .values({ key: GLOBAL_KEY, valueText })
+      .values({ key: GLOBAL_KEY, valueText, updatedAt: new Date() })
       .onConflictDoNothing({ target: appSettingsTable.key })
       .returning({ key: appSettingsTable.key });
     return inserted.length > 0;
   }
+  // Row exists. CAS on value_text content. `IS NOT DISTINCT FROM` treats
+  // NULL = NULL as TRUE so the comparison works whether expected.rawValueText
+  // is a JSON string or NULL.
   const updated = await db
     .update(appSettingsTable)
     .set({ valueText, updatedAt: new Date() })
     .where(
       and(
         eq(appSettingsTable.key, GLOBAL_KEY),
-        eq(appSettingsTable.updatedAt, expected.rowUpdatedAt),
+        sql`${appSettingsTable.valueText} IS NOT DISTINCT FROM ${expected.rawValueText}`,
       ),
     )
     .returning({ key: appSettingsTable.key });
@@ -115,7 +141,7 @@ async function advanceGlobal(now: number): Promise<GlobalState> {
     const nextAtMs = now + rollNextDelay();
     const ok = await writeGlobalIf(g, { nextAtMs, expiresAtMs: null });
     return ok
-      ? { nextAtMs, expiresAtMs: null, rowUpdatedAt: new Date() }
+      ? { nextAtMs, expiresAtMs: null, rawValueText: JSON.stringify({ nextAtMs, expiresAtMs: null }), rowExists: true }
       : await readGlobal();
   }
 
@@ -124,7 +150,7 @@ async function advanceGlobal(now: number): Promise<GlobalState> {
     const nextAtMs = now + rollNextDelay();
     const ok = await writeGlobalIf(g, { nextAtMs, expiresAtMs: null });
     return ok
-      ? { nextAtMs, expiresAtMs: null, rowUpdatedAt: new Date() }
+      ? { nextAtMs, expiresAtMs: null, rawValueText: JSON.stringify({ nextAtMs, expiresAtMs: null }), rowExists: true }
       : await readGlobal();
   }
 
@@ -133,7 +159,7 @@ async function advanceGlobal(now: number): Promise<GlobalState> {
     const expiresAtMs = now + VISIT_DURATION_MS;
     const ok = await writeGlobalIf(g, { nextAtMs: null, expiresAtMs });
     return ok
-      ? { nextAtMs: null, expiresAtMs, rowUpdatedAt: new Date() }
+      ? { nextAtMs: null, expiresAtMs, rawValueText: JSON.stringify({ nextAtMs: null, expiresAtMs }), rowExists: true }
       : await readGlobal();
   }
 
