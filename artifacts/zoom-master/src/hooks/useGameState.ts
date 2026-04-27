@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, type Grants } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, type Grants, type CollectionPlanetState } from "../utils/api";
 import { toast } from "./use-toast";
 
 // Server-authoritative clock: every farming/idle-income time check is computed
@@ -787,6 +787,87 @@ function makeEarthCollectionPlanets(bundleIndex = 0): Planet[] {
   });
 }
 
+// Parse the (kind, bundleIndex, subIndex) tuple out of a White or Earth
+// collection planet id. Returns null for any other planet id (regular,
+// bonus, marketplace, etc.). Format produced by makeWhiteCollectionPlanets
+// / makeEarthCollectionPlanets:
+//   `${kind}-${type}-b${bundleIndex}-${now}-${i}-${random}`
+//
+// `now` is `serverNow()` which can be a float (server-time offset includes
+// half-RTT calibration), so the timestamp segment must allow `.<digits>`.
+export function parseCollectionPlanetKey(
+  id: string,
+): { kind: "white" | "earth"; bundleIndex: number; subIndex: number } | null {
+  const m = /^(white|earth)-[A-Z0-9]+-b(\d+)-\d+(?:\.\d+)?-(\d+)-/.exec(id);
+  if (!m) return null;
+  return {
+    kind: m[1] as "white" | "earth",
+    bundleIndex: parseInt(m[2]!, 10),
+    subIndex: parseInt(m[3]!, 10),
+  };
+}
+
+// Snapshot the server-persisted state for a collection planet (used by the
+// upsert calls below). Returns null when the planet id can't be parsed,
+// which means the upsert should be skipped.
+function snapshotCollectionPlanet(p: Planet): CollectionPlanetState | null {
+  const key = parseCollectionPlanetKey(p.id);
+  if (!key) return null;
+  return {
+    kind: key.kind,
+    bundleIndex: key.bundleIndex,
+    subIndex: key.subIndex,
+    slotIndex: p.slotIndex ?? null,
+    isFarmingActive: !!p.isFarmingActive,
+    farmStartedAtMs: p.farmStartedAt ?? 0,
+    lastCollectedAtMs: p.lastCollectedAt ?? 0,
+  };
+}
+
+// Merge server-persisted slot/farming state into a freshly materialized (or
+// already-loaded) array of collection planets. Planets that have a matching
+// server record adopt the server values for slotIndex / isFarmingActive /
+// farmStartedAt / lastCollectedAt — every other field stays as-is.
+function applyServerOverrides(
+  planets: Planet[],
+  serverByKey: Map<string, CollectionPlanetState>,
+): Planet[] {
+  if (planets.length === 0 || serverByKey.size === 0) return planets;
+  return planets.map((p) => {
+    const key = parseCollectionPlanetKey(p.id);
+    if (!key) return p;
+    const sp = serverByKey.get(`${key.kind}-${key.bundleIndex}-${key.subIndex}`);
+    if (!sp) return p;
+    return {
+      ...p,
+      slotIndex: sp.slotIndex ?? null,
+      isFarmingActive: sp.isFarmingActive,
+      farmStartedAt: sp.farmStartedAtMs,
+      lastCollectedAt: sp.lastCollectedAtMs,
+    };
+  });
+}
+
+function indexServerCollectionPlanets(
+  serverPlanets: CollectionPlanetState[],
+): Map<string, CollectionPlanetState> {
+  const map = new Map<string, CollectionPlanetState>();
+  for (const sp of serverPlanets) {
+    map.set(`${sp.kind}-${sp.bundleIndex}-${sp.subIndex}`, sp);
+  }
+  return map;
+}
+
+// Fire-and-forget upsert of a single collection planet's server state. All
+// collection-planet mutations (place, collect, reactivate, mark-reactivated)
+// call this so the server stays in lockstep with the client.
+function persistCollectionPlanet(telegramId: string | null | undefined, planet: Planet): void {
+  if (!telegramId) return;
+  const snap = snapshotCollectionPlanet(planet);
+  if (!snap) return;
+  void upsertCollectionPlanet(telegramId, snap);
+}
+
 function makePlanet(rarity: PlanetType): Planet {
   const cfg = PLANET_CONFIG[rarity];
   const now = serverNow();
@@ -1055,11 +1136,13 @@ export function useGameState() {
         try { localStorage.removeItem("zoom-start-param"); } catch { /**/ }
       }
 
-      const [refData, grants, balanceRecord] = await Promise.all([
+      const [refData, grants, balanceRecord, serverCollectionPlanets] = await Promise.all([
         fetchReferralData(telegramId),
         fetchGrants(telegramId),
         fetchBalanceRecord(telegramId),
+        fetchCollectionPlanets(telegramId),
       ]);
+      const serverCollectionByKey = indexServerCollectionPlanets(serverCollectionPlanets);
 
       const serverBalance = balanceRecord?.exists ? balanceRecord.zoomBalance : 0;
       const serverEpoch = balanceRecord?.balanceEpoch ?? 0;
@@ -1196,6 +1279,50 @@ export function useGameState() {
             claimedEarthCollectionBundles: serverEarthBundles,
             earthPlanets: (updated.earthPlanets || []).filter(keepEarth),
           };
+        }
+
+        // ─── SERVER COLLECTION-PLANET STATE — single source of truth ───
+        // After (re)materializing white/earth planets, override slot index
+        // and farming timers with whatever the server has on file. This is
+        // what survives a localStorage wipe: even if every white planet was
+        // just freshly minted with `slotIndex=null`, the server still knows
+        // which one was in slot #2 and when its farming timer started.
+        if (serverCollectionByKey.size > 0) {
+          updated = {
+            ...updated,
+            whitePlanets: applyServerOverrides(updated.whitePlanets || [], serverCollectionByKey),
+            earthPlanets: applyServerOverrides(updated.earthPlanets || [], serverCollectionByKey),
+          };
+        }
+
+        // One-shot migration: if the local state has placed/farming planets
+        // but the server doesn't know about them yet (existing users from
+        // before this feature shipped), push them up. This runs at most
+        // once per session and is a no-op for new users / fresh installs.
+        const toSeed: CollectionPlanetState[] = [];
+        for (const p of updated.whitePlanets || []) {
+          const snap = snapshotCollectionPlanet(p);
+          if (!snap) continue;
+          const k = `${snap.kind}-${snap.bundleIndex}-${snap.subIndex}`;
+          if (serverCollectionByKey.has(k)) continue;
+          // Only seed planets that actually carry state worth preserving
+          // — leaving inventory/inactive planets to be created on first
+          // mutation keeps the seed payload tiny.
+          if (snap.slotIndex != null || snap.isFarmingActive || snap.lastCollectedAtMs > 0) {
+            toSeed.push(snap);
+          }
+        }
+        for (const p of updated.earthPlanets || []) {
+          const snap = snapshotCollectionPlanet(p);
+          if (!snap) continue;
+          const k = `${snap.kind}-${snap.bundleIndex}-${snap.subIndex}`;
+          if (serverCollectionByKey.has(k)) continue;
+          if (snap.slotIndex != null || snap.isFarmingActive || snap.lastCollectedAtMs > 0) {
+            toSeed.push(snap);
+          }
+        }
+        if (toSeed.length > 0) {
+          void bulkSeedCollectionPlanets(telegramId, toSeed);
         }
 
         // Apply pending bonus planets per type (only new ones not yet claimed)
@@ -2260,13 +2387,11 @@ export function useGameState() {
       }
       const now = serverNow();
       if (prev.telegramId) notifyFarmStart(prev.telegramId, id, target.name, true);
+      const updatedPlanet: Planet = { ...target, slotIndex, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+      persistCollectionPlanet(prev.telegramId, updatedPlanet);
       return {
         ...prev,
-        whitePlanets: prev.whitePlanets.map((p) =>
-          p.id === id
-            ? { ...p, slotIndex, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
-            : p
-        ),
+        whitePlanets: prev.whitePlanets.map((p) => (p.id === id ? updatedPlanet : p)),
       };
     });
     return outcome;
@@ -2294,14 +2419,12 @@ export function useGameState() {
       const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
       const earnedTon = end > start ? (cfg.rate / 3_600_000) * (end - start) : 0;
       if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
+      const updatedPlanet: Planet = { ...planet, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+      persistCollectionPlanet(prev.telegramId, updatedPlanet);
       return {
         ...prev,
         tonBalance: (prev.tonBalance || 0) + earnedTon,
-        whitePlanets: prev.whitePlanets.map((p) =>
-          p.id === id
-            ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
-            : p
-        ),
+        whitePlanets: prev.whitePlanets.map((p) => (p.id === id ? updatedPlanet : p)),
       };
     });
     return outcome;
@@ -2322,13 +2445,11 @@ export function useGameState() {
       }
       const now = serverNow();
       if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
+      const updatedPlanet: Planet = { ...planet, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+      persistCollectionPlanet(prev.telegramId, updatedPlanet);
       return {
         ...prev,
-        whitePlanets: prev.whitePlanets.map((p) =>
-          p.id === id
-            ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
-            : p
-        ),
+        whitePlanets: prev.whitePlanets.map((p) => (p.id === id ? updatedPlanet : p)),
       };
     });
     return outcome;
@@ -2348,12 +2469,12 @@ export function useGameState() {
       const earnedTon = end > start ? (cfg.rate / 3_600_000) * (end - start) : 0;
       if (earnedTon <= 0) return prev;
       if (prev.telegramId) notifyFarmCollect(prev.telegramId, id);
+      const updatedPlanet: Planet = { ...planet, lastCollectedAt: now };
+      persistCollectionPlanet(prev.telegramId, updatedPlanet);
       return {
         ...prev,
         tonBalance: (prev.tonBalance || 0) + earnedTon,
-        whitePlanets: prev.whitePlanets.map((p) =>
-          p.id === id ? { ...p, lastCollectedAt: now } : p
-        ),
+        whitePlanets: prev.whitePlanets.map((p) => (p.id === id ? updatedPlanet : p)),
       };
     });
   }, []);
@@ -2385,13 +2506,11 @@ export function useGameState() {
       }
       const now = serverNow();
       if (prev.telegramId) notifyFarmStart(prev.telegramId, id, target.name, true);
+      const updatedPlanet: Planet = { ...target, slotIndex, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+      persistCollectionPlanet(prev.telegramId, updatedPlanet);
       return {
         ...prev,
-        earthPlanets: prev.earthPlanets.map((p) =>
-          p.id === id
-            ? { ...p, slotIndex, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
-            : p
-        ),
+        earthPlanets: prev.earthPlanets.map((p) => (p.id === id ? updatedPlanet : p)),
       };
     });
     return outcome;
@@ -2411,14 +2530,12 @@ export function useGameState() {
       const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
       const earnedTon = end > start ? (cfg.rate / 3_600_000) * (end - start) : 0;
       if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
+      const updatedPlanet: Planet = { ...planet, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+      persistCollectionPlanet(prev.telegramId, updatedPlanet);
       return {
         ...prev,
         tonBalance: (prev.tonBalance || 0) + earnedTon,
-        earthPlanets: prev.earthPlanets.map((p) =>
-          p.id === id
-            ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
-            : p
-        ),
+        earthPlanets: prev.earthPlanets.map((p) => (p.id === id ? updatedPlanet : p)),
       };
     });
     return outcome;
@@ -2434,13 +2551,11 @@ export function useGameState() {
       }
       const now = serverNow();
       if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
+      const updatedPlanet: Planet = { ...planet, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+      persistCollectionPlanet(prev.telegramId, updatedPlanet);
       return {
         ...prev,
-        earthPlanets: prev.earthPlanets.map((p) =>
-          p.id === id
-            ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
-            : p
-        ),
+        earthPlanets: prev.earthPlanets.map((p) => (p.id === id ? updatedPlanet : p)),
       };
     });
     return outcome;
@@ -2457,12 +2572,12 @@ export function useGameState() {
       const earnedTon = end > start ? (cfg.rate / 3_600_000) * (end - start) : 0;
       if (earnedTon <= 0) return prev;
       if (prev.telegramId) notifyFarmCollect(prev.telegramId, id);
+      const updatedPlanet: Planet = { ...planet, lastCollectedAt: now };
+      persistCollectionPlanet(prev.telegramId, updatedPlanet);
       return {
         ...prev,
         tonBalance: (prev.tonBalance || 0) + earnedTon,
-        earthPlanets: prev.earthPlanets.map((p) =>
-          p.id === id ? { ...p, lastCollectedAt: now } : p
-        ),
+        earthPlanets: prev.earthPlanets.map((p) => (p.id === id ? updatedPlanet : p)),
       };
     });
   }, []);

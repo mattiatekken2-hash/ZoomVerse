@@ -1,4 +1,4 @@
-import { pgTable, text, integer, timestamp, real, boolean, index, serial, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, timestamp, real, boolean, index, serial, uniqueIndex, bigint } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -146,3 +146,40 @@ export const farmCyclesTable = pgTable("farm_cycles", {
 ]);
 
 export type FarmCycle = typeof farmCyclesTable.$inferSelect;
+
+// Server-side persistence for White/Earth Collection planets. The CLIENT used
+// to be the sole owner of slot placements and per-planet farming timers
+// (stored in localStorage). When the client lost localStorage — PWA reinstall,
+// browser cache wipe, switching device — the planets came back from
+// /grants as fresh inventory items, dropping every placement and erasing any
+// in-flight (uncollected) TON earnings. This table makes the SERVER the
+// source of truth for that mutable state so it survives client resets.
+//
+// Identity is the deterministic tuple (telegramId, kind, bundleIndex,
+// subIndex). The planet rarity (W1/W2/W3/W4 or E1/E2/E3/E4) and bundle
+// origin are derivable from these indices, so we only store the bits that
+// actually change at runtime.
+export const collectionPlanetsTable = pgTable("collection_planets", {
+  telegramId: text("telegram_id").notNull(),
+  kind: text("kind").notNull(), // 'white' | 'earth'
+  bundleIndex: integer("bundle_index").notNull(),
+  subIndex: integer("sub_index").notNull(), // 0..3 within the bundle
+  slotIndex: integer("slot_index"), // null = inventory; 0..N-1 = placed
+  isFarmingActive: boolean("is_farming_active").notNull().default(false),
+  // bigint (Postgres int8) so we keep millisecond precision at epoch
+  // magnitudes (~1.7e12). `real` is a 32-bit float and would quantize
+  // these timestamps to the minute level, breaking farming windows.
+  farmStartedAtMs: bigint("farm_started_at_ms", { mode: "number" }).notNull().default(0),
+  lastCollectedAtMs: bigint("last_collected_at_ms", { mode: "number" }).notNull().default(0),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("uq_coll_planets_user_kind_b_s").on(
+    table.telegramId,
+    table.kind,
+    table.bundleIndex,
+    table.subIndex,
+  ),
+  index("idx_coll_planets_user_kind").on(table.telegramId, table.kind),
+]);
+
+export type CollectionPlanet = typeof collectionPlanetsTable.$inferSelect;

@@ -1155,6 +1155,86 @@ export interface MerchantFuseResult {
   maxFusions: number;
 }
 
+// ─────────────────────────────────────────────────────────────────
+// COLLECTION PLANETS — server-side persistence of slot placements and
+// per-planet farming timers for White & Earth collection planets. Without
+// this, a localStorage wipe (PWA reinstall, cache clear, device switch)
+// would dump every placed planet back into inventory and erase any
+// uncollected farm earnings, which is exactly the bug we're closing.
+// ─────────────────────────────────────────────────────────────────
+export type CollectionKind = "white" | "earth";
+
+export interface CollectionPlanetState {
+  kind: CollectionKind;
+  bundleIndex: number;
+  subIndex: number;
+  slotIndex: number | null;
+  isFarmingActive: boolean;
+  farmStartedAtMs: number;
+  lastCollectedAtMs: number;
+}
+
+export async function fetchCollectionPlanets(
+  telegramId: string,
+): Promise<CollectionPlanetState[]> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/collection-planets/${encodeURIComponent(telegramId)}?t=${Date.now()}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return [];
+    const j = await res.json();
+    if (!j?.ok || !Array.isArray(j.planets)) return [];
+    return j.planets.map((p: Record<string, unknown>) => ({
+      kind: p.kind === "earth" ? "earth" : "white",
+      bundleIndex: Number(p.bundleIndex ?? 0),
+      subIndex: Number(p.subIndex ?? 0),
+      slotIndex:
+        p.slotIndex == null ? null : Number(p.slotIndex),
+      isFarmingActive: !!p.isFarmingActive,
+      farmStartedAtMs: Number(p.farmStartedAtMs ?? 0),
+      lastCollectedAtMs: Number(p.lastCollectedAtMs ?? 0),
+    })) as CollectionPlanetState[];
+  } catch {
+    return [];
+  }
+}
+
+export async function upsertCollectionPlanet(
+  telegramId: string,
+  planet: CollectionPlanetState,
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/collection-planets/upsert`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId, planet }),
+      keepalive: true,
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function bulkSeedCollectionPlanets(
+  telegramId: string,
+  planets: CollectionPlanetState[],
+): Promise<boolean> {
+  if (planets.length === 0) return true;
+  try {
+    const res = await fetch(`${API_BASE}/collection-planets/bulk-seed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId, planets }),
+      keepalive: true,
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function merchantFuse(telegramId: string, level: 1 | 2): Promise<MerchantFuseResult> {
   try {
     const res = await fetch(`${API_BASE}/merchant/fuse`, {
