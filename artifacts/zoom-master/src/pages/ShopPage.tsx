@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase, fetchSunStock, pollTxnUntilFinal, type SunStock } from "../utils/api";
 
@@ -61,6 +61,34 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
   const sunUserMaxed = !!sunStock && sunStock.userCount >= sunStock.maxPerUser;
   const sunDisabled = sunSoldOut || sunUserMaxed;
 
+  // Track pending refresh timers so we can cancel them on unmount and
+  // avoid background network traffic if the user navigates away.
+  const refreshTimersRef = useRef<number[]>([]);
+  useEffect(() => {
+    return () => {
+      refreshTimersRef.current.forEach((id) => clearTimeout(id));
+      refreshTimersRef.current = [];
+    };
+  }, []);
+
+  // Fire a refresh now and again later so any late server-side credit
+  // (slow Stars webhook, slow TON on-chain verification, brief network
+  // hiccup on /grants right after the credit) is still picked up by the
+  // UI without the user having to reopen the app. Cheap, safe, idempotent.
+  const scheduleRefresh = (delayMs: number) => {
+    const id = window.setTimeout(() => {
+      window.dispatchEvent(new Event("zoom-data-refresh"));
+      refreshTimersRef.current = refreshTimersRef.current.filter((x) => x !== id);
+    }, delayMs);
+    refreshTimersRef.current.push(id);
+  };
+  const triggerDataRefresh = () => {
+    window.dispatchEvent(new Event("zoom-data-refresh"));
+    scheduleRefresh(4_000);
+    scheduleRefresh(15_000);
+    scheduleRefresh(45_000);
+  };
+
   const handleStarsBuy = async (item: ShopItem) => {
     if (!telegramId) { setMessage("Telegram ID missing"); return; }
     setBuying(item.id);
@@ -81,14 +109,21 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
               const final = await pollTxnUntilFinal(result.txnId, { maxMs: 60_000, intervalMs: 2_000 });
               if (final?.status === "completed") {
                 setMessage(`${item.title} purchased!`);
-                window.dispatchEvent(new Event("zoom-data-refresh"));
+                triggerDataRefresh();
               } else if (final?.status === "failed") {
                 setMessage("Payment failed");
               } else {
                 // Final fallback — call confirm to get latest known status.
                 const c = await confirmStarsPurchase(result.txnId, telegramId);
-                setMessage(c.ok ? `${item.title} purchased!` : "Awaiting confirmation…");
-                if (c.ok) window.dispatchEvent(new Event("zoom-data-refresh"));
+                if (c.ok) {
+                  setMessage(`${item.title} purchased!`);
+                  triggerDataRefresh();
+                } else {
+                  // Webhook may still arrive — keep refreshing so the UI
+                  // updates as soon as the credit lands server-side.
+                  setMessage("Awaiting confirmation… item will appear automatically.");
+                  triggerDataRefresh();
+                }
               }
             } else if (status === "cancelled") {
               setMessage("Payment cancelled");
@@ -135,21 +170,28 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
       const confirmResult = await confirmTonPurchase(telegramId, item.id, connectedAddress, item.tonPrice, boc);
       if (confirmResult.alreadyCredited) {
         setMessage(`${item.title} purchased!`);
-        window.dispatchEvent(new Event("zoom-data-refresh"));
+        triggerDataRefresh();
       } else if (confirmResult.pending && confirmResult.txnId) {
         setMessage("Verifying payment on-chain…");
         const final = await pollTxnUntilFinal(confirmResult.txnId);
         if (final?.status === "completed") {
           setMessage(`${item.title} purchased!`);
-          window.dispatchEvent(new Event("zoom-data-refresh"));
+          triggerDataRefresh();
         } else if (final?.status === "failed") {
           setMessage("Payment not detected on-chain. Contact support if TON was sent.");
         } else {
-          setMessage("Still awaiting confirmation. Item will be credited automatically.");
+          // Polling timed out before the background TON verifier finished.
+          // The credit may still land — keep refreshing for a couple of
+          // minutes so the slot/item appears in the UI without the user
+          // having to reopen the app.
+          setMessage("Still awaiting confirmation. Item will appear automatically once verified.");
+          triggerDataRefresh();
+          setTimeout(() => window.dispatchEvent(new Event("zoom-data-refresh")), 90_000);
+          setTimeout(() => window.dispatchEvent(new Event("zoom-data-refresh")), 150_000);
         }
       } else if (confirmResult.ok) {
         setMessage(`${item.title} purchased!`);
-        window.dispatchEvent(new Event("zoom-data-refresh"));
+        triggerDataRefresh();
       } else {
         setMessage(confirmResult.error || "Credit failed");
       }
