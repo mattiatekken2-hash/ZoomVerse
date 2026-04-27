@@ -878,13 +878,85 @@ function makePlanet(rarity: PlanetType): Planet {
     color: cfg.color,
     glowColor: cfg.glowColor,
     createdAt: now,
-    farmStartedAt: now,
-    lastCollectedAt: now,
+    // farmStartedAt and lastCollectedAt remain 0 until the user actually
+    // presses START for the first time. This is what lets startFarming
+    // distinguish "never been started" from "mid-cycle, just paused" —
+    // which in turn closes the marketplace cooldown-reset exploit
+    // (list → delist → START would otherwise grant a free fresh cycle).
+    farmStartedAt: 0,
+    lastCollectedAt: 0,
     isListedInMarket: false,
     isFarmingActive: false,
     marketPrice: null,
     craftCost: cfg.craftCost,
   };
+}
+
+/**
+ * Hard cutoff for the legacy never-started migration. Planets created on or
+ * after this instant always use the new init scheme (farmStartedAt = 0), so
+ * the migration is irrelevant to them and we refuse to touch them. Anything
+ * created before this instant predates the fix and is eligible for the
+ * migration check below.
+ *
+ * Set to the deploy moment of this fix (April 27, 2026 UTC). This bound is
+ * what eliminates any theoretical risk of misclassifying a planet that was
+ * (somehow) started in the same millisecond as its creation under the old
+ * code — such a planet, by definition, was created before the cutoff, but
+ * also we further require strict timestamp equality below, and the cutoff
+ * guarantees the migration cannot run forever / on future planets.
+ */
+const LEGACY_PLANET_MIGRATION_CUTOFF_MS = Date.UTC(2026, 3, 27, 0, 0, 0);
+
+/**
+ * One-time migration for legacy planets stored with farmStartedAt = createdAt.
+ *
+ * Before the cooldown-reset fix, every newly created planet (craft, bonus
+ * grant, buyer copy) was initialized with farmStartedAt = lastCollectedAt =
+ * createdAt = now, AND startFarming reset both timestamps to "now" on every
+ * call. After the fix, never-started planets must start at 0 so that the
+ * very first START opens a fresh 24h cycle. Legacy planets already in the
+ * user's local/server snapshot would otherwise be misclassified as
+ * "mid-cycle, just paused" and either resume from craft time or, if more
+ * than 24h have passed since craft, demand a reactivation fee for a cycle
+ * the user never actually got to use.
+ *
+ * The detection is conservative on multiple axes:
+ *   - Active or listed planets are skipped (they are clearly in use).
+ *   - farmStartedAt must be > 0 (new planets already use 0).
+ *   - farmStartedAt and lastCollectedAt must both exactly equal createdAt
+ *     (the unique fingerprint of the legacy "just-crafted-never-started"
+ *     state under the old init code).
+ *   - createdAt must be strictly before the deploy cutoff. Combined with
+ *     the inits-as-zero rule, this guarantees no future planet can ever
+ *     match the migration fingerprint, so the migration ages out naturally.
+ *
+ * After the very first START under the new code, farmStartedAt no longer
+ * equals createdAt (start time > craft time), so the migration self-
+ * disables for that planet too.
+ *
+ * Documented residual ambiguity (accepted tradeoff):
+ *   The migration cannot mathematically distinguish a true never-started
+ *   pre-cutoff planet from one that was started in the same millisecond as
+ *   its creation under the old code. A "false positive" here would gift a
+ *   single fresh 24h cycle to a single legacy planet. We accept this for
+ *   two reasons: (a) sub-millisecond human reaction time is physically
+ *   impossible (>16ms render frames, ~100ms minimum human reaction), and
+ *   the craft → render → tap pipeline forces multiple ticks between craft
+ *   time and any START click, so in practice no real planet ever has
+ *   farmStartedAt === createdAt unless it was truly never started; (b) the
+ *   alternative (no migration) charges real users a reactivation fee in
+ *   TON for cycles they never actually used, which is a far worse
+ *   real-money outcome than the theoretical false positive.
+ */
+function migrateLegacyNeverStartedPlanet<T extends Planet>(p: T): T {
+  if (p.isFarmingActive) return p;
+  if (p.isListedInMarket) return p;
+  if (p.farmStartedAt <= 0) return p;
+  if (p.farmStartedAt !== p.createdAt) return p;
+  if (p.lastCollectedAt !== p.createdAt) return p;
+  if (p.createdAt >= LEGACY_PLANET_MIGRATION_CUTOFF_MS) return p;
+  return { ...p, farmStartedAt: 0, lastCollectedAt: 0 };
 }
 
 export function isFarmActive(planet: Planet): boolean {
@@ -1269,7 +1341,11 @@ export function useGameState() {
           if (serverRegular.exists && (serverRegular.planets.length > 0 || stateRef.current.planets.length === 0)) {
             updated = {
               ...updated,
-              planets: serverRegular.planets as unknown as Planet[],
+              // Apply the legacy never-started migration as we hydrate so any
+              // pre-fix planet stored on the server gets normalized to
+              // farmStartedAt = lastCollectedAt = 0 before the rest of the
+              // app touches it. See migrateLegacyNeverStartedPlanet.
+              planets: (serverRegular.planets as unknown as Planet[]).map(migrateLegacyNeverStartedPlanet),
             };
           }
           updated = {
@@ -1431,8 +1507,9 @@ export function useGameState() {
                 color: cfg.color,
                 glowColor: cfg.glowColor,
                 createdAt: now,
-                farmStartedAt: now,
-                lastCollectedAt: now,
+                // Never-started until first user-triggered START — see makePlanet.
+                farmStartedAt: 0,
+                lastCollectedAt: 0,
                 isListedInMarket: false,
                 isFarmingActive: false,
                 marketPrice: null,
@@ -1669,8 +1746,9 @@ export function useGameState() {
                 color: cfg.color,
                 glowColor: cfg.glowColor,
                 createdAt: now,
-                farmStartedAt: now,
-                lastCollectedAt: now,
+                // Never-started until first user-triggered START — see makePlanet.
+                farmStartedAt: 0,
+                lastCollectedAt: 0,
                 isListedInMarket: false,
                 isFarmingActive: false,
                 marketPrice: null,
@@ -2309,12 +2387,28 @@ export function useGameState() {
         outcome = { ok: false, reason: `Need ${fee.toLocaleString()} $ZOOM to reactivate` };
         return prev;
       }
+      // Cooldown-reset exploit guard:
+      // We must ONLY reset farmStartedAt / lastCollectedAt when the user is
+      // truly starting a fresh 24h cycle. That is:
+      //   (a) the planet has never been started (first start after craft), OR
+      //   (b) the previous cycle has already expired AND the user paid the
+      //       reactivation fee above.
+      // In every other case (the planet is mid-cycle but currently paused —
+      // e.g. just delisted from the marketplace, or stopped some other way)
+      // we MUST keep the original farmStartedAt and lastCollectedAt. Without
+      // this guard, listing → delisting → pressing START would silently
+      // grant a free fresh 24h cycle, bypassing the reactivation fee and
+      // the daily-collect window. Earnings calculations elsewhere in the
+      // code rely on these timestamps as the authoritative cycle anchor.
+      const startsFreshCycle = !wasStarted || expired;
       const updated: GameState = {
         ...prev,
         balance: prev.balance - fee,
         planets: prev.planets.map((p) =>
           p.id === id
-            ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
+            ? startsFreshCycle
+              ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
+              : { ...p, isFarmingActive: true }
             : p
         ),
       };
@@ -2421,8 +2515,11 @@ export function useGameState() {
       color: cfg.color,
       glowColor: cfg.glowColor,
       createdAt: now,
-      farmStartedAt: now,
-      lastCollectedAt: now,
+      // The buyer just paid — they get a fresh 24h cycle when they press
+      // START for the first time. Until then, the planet is in the
+      // never-started state (see makePlanet for the rationale).
+      farmStartedAt: 0,
+      lastCollectedAt: 0,
       isListedInMarket: false,
       isFarmingActive: false,
       marketPrice: null,
@@ -2451,8 +2548,9 @@ export function useGameState() {
       color: cfg.color,
       glowColor: cfg.glowColor,
       createdAt: now,
-      farmStartedAt: now,
-      lastCollectedAt: now,
+      // Same as buyPlanet — never-started until first user-triggered START.
+      farmStartedAt: 0,
+      lastCollectedAt: 0,
       isListedInMarket: false,
       isFarmingActive: false,
       marketPrice: null,
