@@ -1,4 +1,4 @@
-import { useEffect, useState, memo } from "react";
+import { useEffect, useState, useCallback, memo } from "react";
 import { fetchHallOfFame, type HallOfFameEntry } from "../utils/api";
 
 interface HallOfFameWidgetProps {
@@ -12,23 +12,31 @@ function HallOfFameWidgetBase({ telegramId }: HallOfFameWidgetProps) {
   const [open, setOpen] = useState(false);
   const [entries, setEntries] = useState<HallOfFameEntry[]>([]);
   const [prizes, setPrizes] = useState<number[]>([100, 75, 50, 25, 25]);
-  const [loading, setLoading] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
-  // Refresh the leaderboard whenever the modal opens. We intentionally
-  // don't poll in the background — the data is referral-driven so a fresh
-  // pull each open is enough and saves a constant DB hit on every device.
+  // Pre-fetch the leaderboard on mount and quietly refresh it every minute.
+  // This way the modal opens instantly with data already in hand — no
+  // loading spinner, no flash. We also re-fetch silently when the modal
+  // opens so the displayed list is at most a few seconds stale, but the
+  // user never sees a "Loading…" placeholder.
+  const refresh = useCallback(async () => {
+    const data = await fetchHallOfFame();
+    setEntries(data.entries);
+    if (data.prizes && data.prizes.length > 0) setPrizes(data.prizes);
+    setHasLoadedOnce(true);
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => { if (alive) await refresh(); })();
+    const id = setInterval(() => { if (alive) void refresh(); }, 60_000);
+    return () => { alive = false; clearInterval(id); };
+  }, [refresh]);
+
   useEffect(() => {
     if (!open) return;
-    let alive = true;
-    setLoading(true);
-    void fetchHallOfFame().then((data) => {
-      if (!alive) return;
-      setEntries(data.entries);
-      if (data.prizes && data.prizes.length > 0) setPrizes(data.prizes);
-      setLoading(false);
-    });
-    return () => { alive = false; };
-  }, [open]);
+    void refresh();
+  }, [open, refresh]);
 
   const handleOpenClick = () => {
     try {
@@ -120,17 +128,12 @@ function HallOfFameWidgetBase({ telegramId }: HallOfFameWidgetProps) {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14, textAlign: "left" }}>
-              {loading && (
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", textAlign: "center", padding: "20px 0" }}>
-                  Loading…
-                </div>
-              )}
-              {!loading && entries.length === 0 && (
+              {hasLoadedOnce && entries.length === 0 && (
                 <div style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", textAlign: "center", padding: "20px 0" }}>
                   No referrals yet today — be the first to climb the ranking!
                 </div>
               )}
-              {!loading && entries.map((e) => {
+              {entries.map((e) => {
                 const isPrize = e.prize > 0;
                 const color = isPrize ? (PRIZE_COLORS[e.rank - 1] ?? "#ffd23f") : "rgba(255,255,255,0.6)";
                 return (
