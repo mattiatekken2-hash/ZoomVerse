@@ -441,7 +441,27 @@
 .gold-text { color: #ffd700; text-shadow: 0 0 12px rgba(255,215,0,0.8), 0 0 24px rgba(255,215,0,0.4); }
 .rare-text { color: #4facfe; text-shadow: 0 0 12px rgba(79,172,254,0.8); }
 .epic-text { color: #c471ed; text-shadow: 0 0 12px rgba(196,113,237,0.8); }
-.comet-text { color: #ffea00; text-shadow: 0 0 12px rgba(255,234,0,0.95), 0 0 24px rgba(255,234,0,0.5); }
+.comet-text { color: #fff176; text-shadow: 0 0 12px rgba(255,241,118,0.95), 0 0 24px rgba(255,241,118,0.5); }
+
+/* COMET — energy fissures pulse. The cracks slowly brighten and dim, as if
+   the planet were "breathing" stardust energy. The animation is duration-
+   long (~3s) with ease-in-out so it stays calm and ambient rather than
+   distracting. We animate opacity AND a multi-stop drop-shadow filter so
+   the glow expands during the bright phase. */
+@keyframes comet-cracks-pulse {
+  0%, 100% {
+    opacity: 0.55;
+    filter: drop-shadow(0 0 0.5px rgba(255,255,255,0.85))
+            drop-shadow(0 0 3px rgba(255,241,118,0.5));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 1.5px rgba(255,255,255,1))
+            drop-shadow(0 0 6px rgba(255,241,118,0.95))
+            drop-shadow(0 0 14px rgba(255,241,118,0.55));
+  }
+}
+.comet-cracks { animation: comet-cracks-pulse 3.2s ease-in-out infinite; }
 .basic-text { color: #8892b0; }
 
 .neon-glow { box-shadow: 0 0 12px rgba(0,242,254,0.5), 0 0 32px rgba(0,242,254,0.25); }

@@ -218,8 +218,8 @@ export const PLANET_CONFIG: Record<PlanetType, {
   // Reactivation fee is 0 — comets are passive and don't need re-arming.
   COMET: {
     rate: 0,
-    color: "#ffea00",
-    glowColor: "rgba(255,234,0,0.85)",
+    color: "#fff176",
+    glowColor: "rgba(255,241,118,0.85)",
     chance: 0.002,
     label: "Comet",
     craftCost: 100,

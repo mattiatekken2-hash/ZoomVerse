@@ -28,8 +28,8 @@ const PLANET_GRADIENTS: Record<string, { stops: string[]; glowAlpha: number }> =
   // reads as a distinct rarity at a glance. The stardust/24h yield (not ZOOM)
   // is what visually justifies the punchier glow.
   COMET: {
-    stops: ["#ffffff", "#fff8a8", "#ffea00", "#ffc107", "#a08000"],
-    glowAlpha: 0.95,
+    stops: ["#ffffff", "#fffae8", "#fff176", "#ffd54f", "#bf9000"],
+    glowAlpha: 0.9,
   },
   // V1 — bright moon-white. Crater overlay is rendered separately below.
   V1: {
@@ -134,6 +134,39 @@ function PlanetOrbImpl({ planet, size = 60, animate = true }: PlanetOrbProps) {
             pointerEvents: "none",
           }}
         />
+        {/* COMET — energy fissures overlay. Thin jagged paths drawn inside the
+            rotating orb so the cracks track the planet surface. The pulse
+            animation is purely opacity + drop-shadow so the orb's own rotation
+            is unaffected. The cracks read as channels of stardust energy
+            "breathing" across the comet body. */}
+        {planet.name === "COMET" && (
+          <svg
+            viewBox="0 0 100 100"
+            className="comet-cracks"
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+            }}
+          >
+            <g
+              stroke="#ffffff"
+              strokeWidth="1.1"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+            >
+              <path d="M 28 22 L 38 34 L 32 48 L 44 60 L 38 74" />
+              <path d="M 70 24 L 60 38 L 70 52 L 62 66" />
+              <path d="M 38 34 L 52 40 L 64 36" />
+              <path d="M 44 60 L 58 58 L 70 52" />
+              <path d="M 32 48 L 22 54 L 26 68" />
+              <path d="M 60 38 L 78 44" />
+            </g>
+          </svg>
+        )}
         {/* V1 — moon-like crater spots overlay. Only rendered for V1 so the
             other planets keep their clean orb look. The craters are subtle
             grey radial blobs at fixed positions, scaled with the orb size
