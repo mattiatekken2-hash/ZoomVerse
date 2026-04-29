@@ -1173,6 +1173,21 @@ export function useGameState() {
   // copy with a stale local snapshot during the brief window between the
   // first React render and the async fetch completing.
   const regularPlanetsHydratedRef = useRef(false);
+  // Tracks whether the debounced regular-planets save has a pending payload.
+  // Set true when the 1.2s debounce timer is armed; cleared after fire OR
+  // after an early flush. Used by the visibilitychange/pagehide/beforeunload
+  // handler to push the latest planets snapshot before the WebView is
+  // suspended — without this, REACTIVATE / collect / placement actions
+  // performed less than 1.2s before the user closes the app are persisted
+  // ONLY to localStorage, the server never receives them, and the next open
+  // hydrates from the (now stale) server state. Visible symptom for the user:
+  // "I paid the reactivation fee but my V1 is still expired after reopening".
+  const regularPlanetsSaveDirtyRef = useRef(false);
+  // Holds a function that fires the latest regular-planets save synchronously
+  // (uses keepalive so it survives WebView shutdown). Replaced on every
+  // debounce schedule so it always has the freshest snapshot. The unload
+  // handler calls this when dirty.
+  const flushRegularPlanetsRef = useRef<(() => void) | null>(null);
   stateRef.current = state;
 
   // Throttle save+sync: writes & network traffic are expensive on every state change.
@@ -1197,6 +1212,16 @@ export function useGameState() {
         saveState(stateRef.current);
       }
       immediateSyncToServer(stateRef.current);
+      // Force-flush the regular-planets server save if a debounced write is
+      // pending. Without this, REACTIVATE / collect / placement actions done
+      // less than 1.2s before the user closes the WebView never reach the
+      // server: localStorage gets the new state, but the next open hydrates
+      // from the (now stale) server, undoing the action while keeping the
+      // ZOOM that was already deducted via the immediateSyncToServer call
+      // above. The server save itself uses fetch keepalive=true so it
+      // survives the WebView shutdown after we kick it off here.
+      const flushPlanets = flushRegularPlanetsRef.current;
+      if (flushPlanets) flushPlanets();
     };
     const onVisibility = () => { if (document.hidden) flush(); };
     document.addEventListener("visibilitychange", onVisibility);
@@ -1667,32 +1692,53 @@ export function useGameState() {
     if (!regularPlanetsHydratedRef.current) return;
     const tid = state.telegramId;
     if (!tid) return;
-    const t = setTimeout(() => {
-      void saveRegularPlanets(
-        tid,
-        state.planets as unknown as Array<Record<string, unknown>>,
-        {
-          basic: state.claimedBonusBasic ?? 0,
-          rare:  state.claimedBonusRare  ?? 0,
-          epic:  state.claimedBonusEpic  ?? 0,
-          gold:  state.claimedBonusGold  ?? 0,
-          v1:    state.claimedBonusV1    ?? 0,
-          comet: state.claimedBonusComet ?? 0,
-        },
-        // Push the offline-farming watermark together with planets and
-        // counters: settle() always advances both lastFarmingSettledAt
-        // AND planet timestamps in the same step, so coalescing them
-        // into the same write keeps the server view internally
-        // consistent. Server GREATEST-merges so a stale save can never
-        // roll the watermark backwards. Skip writing when it's still
-        // the 0 sentinel (brand-new account with no settle yet) so we
-        // don't accidentally pin the server to 0.
-        (state.lastFarmingSettledAt ?? 0) > 0
-          ? state.lastFarmingSettledAt
-          : undefined,
-      );
-    }, 1200);
-    return () => clearTimeout(t);
+
+    // Snapshot the payload at schedule-time so the early-flush handler
+    // (visibilitychange / pagehide / beforeunload) can fire the EXACT
+    // same write without re-reading state. Using stateRef would be wrong
+    // here because new state changes that haven't yet arrived in this
+    // effect's deps are by definition not part of "this scheduled save".
+    const planetsSnap = state.planets as unknown as Array<Record<string, unknown>>;
+    const claimedSnap = {
+      basic: state.claimedBonusBasic ?? 0,
+      rare:  state.claimedBonusRare  ?? 0,
+      epic:  state.claimedBonusEpic  ?? 0,
+      gold:  state.claimedBonusGold  ?? 0,
+      v1:    state.claimedBonusV1    ?? 0,
+      comet: state.claimedBonusComet ?? 0,
+    };
+    // Push the offline-farming watermark together with planets and
+    // counters: settle() always advances both lastFarmingSettledAt
+    // AND planet timestamps in the same step, so coalescing them
+    // into the same write keeps the server view internally
+    // consistent. Server GREATEST-merges so a stale save can never
+    // roll the watermark backwards. Skip writing when it's still
+    // the 0 sentinel (brand-new account with no settle yet) so we
+    // don't accidentally pin the server to 0.
+    const watermarkSnap = (state.lastFarmingSettledAt ?? 0) > 0
+      ? state.lastFarmingSettledAt
+      : undefined;
+
+    regularPlanetsSaveDirtyRef.current = true;
+    const fire = () => {
+      // Idempotent: callable from both the debounce timer and the early
+      // flush handler. The dirty flag guarantees we only send once per
+      // pending payload.
+      if (!regularPlanetsSaveDirtyRef.current) return;
+      regularPlanetsSaveDirtyRef.current = false;
+      void saveRegularPlanets(tid, planetsSnap, claimedSnap, watermarkSnap);
+    };
+    flushRegularPlanetsRef.current = fire;
+    const t = setTimeout(fire, 1200);
+    return () => {
+      clearTimeout(t);
+      // Clear the flush hook only if it still points at THIS effect's
+      // closure — avoids racing with a newer effect that has already
+      // installed its own (fresher) flush function.
+      if (flushRegularPlanetsRef.current === fire) {
+        flushRegularPlanetsRef.current = null;
+      }
+    };
   }, [
     state.telegramId,
     state.planets,
