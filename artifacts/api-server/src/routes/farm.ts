@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, farmCyclesTable } from "@workspace/db";
+import { db, farmCyclesTable, usersTable } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -31,6 +31,29 @@ router.post("/farm/start", async (req, res) => {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + FARM_DURATION_MS);
   try {
+    // SUN ownership gate for COMET. The COMET planet generates stardust on
+    // its own 24h cycle but is only allowed to be activated when the user
+    // owns at least one SUN. We must NOT trust the client-supplied
+    // `planetType` here — a malicious client could send `planetType:"BASIC"`
+    // for a comet's `planetId` and bypass the gate. Instead, we look up the
+    // user's authoritative `planets_json` and check the TRUE rarity stored
+    // for that `planetId`. We also check the authoritative `sun_count`
+    // column (same source used by /stardust/state and /stardust/collect).
+    const [user] = await db
+      .select({
+        sunCount: usersTable.sunCount,
+        planetsJson: usersTable.planetsJson,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, telegramId))
+      .limit(1);
+    const ownedPlanets = Array.isArray(user?.planetsJson) ? user!.planetsJson as Array<{ id?: string; name?: string }> : [];
+    const owned = ownedPlanets.find((p) => p && typeof p.id === "string" && p.id === planetId);
+    const trueType = owned?.name ?? planetType;
+    if (trueType === "COMET" && (user?.sunCount ?? 0) <= 0) {
+      res.status(403).json({ error: "Requires SUN planet" });
+      return;
+    }
     // Atomic upsert keyed on the unique (telegram_id, planet_id) index. On
     // re-activation we wipe collected_at + notified_at so the fresh 24h cycle
     // is once again eligible for the "Farm full" reminder.

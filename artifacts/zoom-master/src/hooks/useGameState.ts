@@ -221,7 +221,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     color: "#ffea00",
     glowColor: "rgba(255,234,0,0.85)",
     chance: 0.002,
-    label: "Stardust",
+    label: "Comet",
     craftCost: 100,
     activationTon: 0.75,
     tapsNeeded: 350,
@@ -2491,6 +2491,14 @@ export function useGameState() {
       const planet = prev.planets.find((p) => p.id === id);
       if (!planet || planet.isListedInMarket) {
         outcome = { ok: false, reason: "Planet unavailable" };
+        return prev;
+      }
+      // COMET requires the user to own at least one SUN planet to start its
+      // 24h farming cycle. The SUN is the authoritative gate for stardust
+      // generation across the app, and we surface this requirement here so
+      // the user gets immediate feedback instead of a silent server reject.
+      if (planet.name === "COMET" && (prev.sunCount ?? 0) <= 0) {
+        outcome = { ok: false, reason: "Requires SUN planet" };
         return prev;
       }
       const now = serverNow();
