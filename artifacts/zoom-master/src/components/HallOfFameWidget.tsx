@@ -186,7 +186,7 @@ function HallOfFameWidgetBase({ telegramId }: HallOfFameWidgetProps) {
 
             {/* Prize legend — visible whenever the list is empty so a fresh
                 day still tells the user what's at stake. */}
-            {entries.length === 0 && !loading && (
+            {entries.length === 0 && hasLoadedOnce && (
               <div style={{
                 display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4,
                 marginBottom: 14, fontSize: 9, color: "rgba(255,255,255,0.55)",
