@@ -9,6 +9,12 @@ const router: IRouter = Router();
 const DAILY_CAP = 25;
 const GLOBAL_KEY = "stardust_global_total";
 
+// COMET passive yield: each comet planet generates exactly 25 stardust per
+// full 24-hour window. Accrual is server-authoritative (anti-cheat) and
+// banked in whole 24h chunks so the integer stardust column never drifts.
+const COMET_STARDUST_PER_CYCLE = 25;
+const COMET_CYCLE_MS = 24 * 60 * 60 * 1000;
+
 function utcDayKey(now: Date = new Date()): string {
   const y = now.getUTCFullYear();
   const m = String(now.getUTCMonth() + 1).padStart(2, "0");
@@ -25,12 +31,125 @@ async function readGlobalTotal(): Promise<number> {
   return Number(row?.valueNum ?? 0);
 }
 
+/**
+ * Settle pending COMET stardust for a user.
+ *
+ * Each COMET planet that the user OWNS (counted from `planets_json`) produces
+ * exactly `COMET_STARDUST_PER_CYCLE` stardust every `COMET_CYCLE_MS` ms.
+ * We bank by full 24-hour windows so we never have to deal with fractional
+ * stardust (the column is INT). The watermark `cometStardustSettledAtMs`
+ * advances by exactly `cycles * COMET_CYCLE_MS` each settlement, which means
+ * any leftover sub-24h time naturally rolls into the next call — no time
+ * is lost and no time is double-credited.
+ *
+ * Anti-cheat properties:
+ *  - The COMET count is taken from the server-side `planets_json` mirror,
+ *    not from any client-supplied value. The user can't lie about how many
+ *    comets they own.
+ *  - Both the credit and the watermark advance happen in a single UPDATE,
+ *    so two parallel `/stardust/state` reads can't double-credit (the
+ *    second one will see the already-advanced watermark and compute 0
+ *    pending cycles).
+ *  - First-ever call (watermark = 0) initialises to "now" and credits
+ *    nothing. This is intentional — a brand-new comet shouldn't pay out
+ *    before its first 24h has elapsed.
+ *
+ * Idempotent and safe to call on every read.
+ */
+async function settleCometStardust(telegramId: string): Promise<void> {
+  // Single round-trip read: pull the watermark + count comets directly from
+  // the JSONB array. Filtering on `name = 'COMET'` matches how the client
+  // stores the planet shape (see PlanetRow.name in regular-planets.ts).
+  const [row] = await db
+    .select({
+      settledAt: usersTable.cometStardustSettledAtMs,
+      cometCount: sql<number>`(
+        SELECT COUNT(*)::int
+        FROM jsonb_array_elements(${usersTable.planetsJson}) e
+        WHERE e->>'name' = 'COMET'
+      )`,
+    })
+    .from(usersTable)
+    .where(eq(usersTable.telegramId, telegramId))
+    .limit(1);
+
+  if (!row) return;
+  const now = Date.now();
+  const watermark = Number(row.settledAt ?? 0);
+  const cometCount = Number(row.cometCount ?? 0);
+
+  // First-ever settle: just set the watermark, don't pay out yet.
+  // CAS guard: the WHERE clause requires the watermark to still be 0
+  // (or NULL). If a parallel call already initialised it, this UPDATE
+  // affects 0 rows and we silently no-op — exactly what we want.
+  if (watermark <= 0) {
+    await db
+      .update(usersTable)
+      .set({ cometStardustSettledAtMs: now })
+      .where(
+        sql`${usersTable.telegramId} = ${telegramId} AND COALESCE(${usersTable.cometStardustSettledAtMs}, 0) <= 0`,
+      );
+    return;
+  }
+
+  // No comets owned — fast-forward the watermark to "now" so a future
+  // comet starts its 24h from the moment it appears in the inventory, not
+  // from some ancient timestamp that would instantly pay out a backlog.
+  // CAS guard: only advance if the watermark we read is still the current
+  // one. A racing call could legitimately have advanced it in between.
+  if (cometCount <= 0) {
+    if (now > watermark) {
+      await db
+        .update(usersTable)
+        .set({ cometStardustSettledAtMs: now })
+        .where(
+          sql`${usersTable.telegramId} = ${telegramId} AND ${usersTable.cometStardustSettledAtMs} = ${watermark}`,
+        );
+    }
+    return;
+  }
+
+  const elapsed = now - watermark;
+  if (elapsed < COMET_CYCLE_MS) return; // less than one full window — nothing to bank yet
+
+  const cycles = Math.floor(elapsed / COMET_CYCLE_MS);
+  const stardustToCredit = cycles * COMET_STARDUST_PER_CYCLE * cometCount;
+  const advanceMs = cycles * COMET_CYCLE_MS;
+
+  // CAS update: only credit IF the watermark hasn't moved since we read
+  // it. This makes parallel calls safe: the loser of the race sees the
+  // already-advanced watermark, its WHERE clause matches 0 rows, and it
+  // does NOT double-credit. The credit and the watermark advance happen
+  // in the same UPDATE, so an observer can never see one without the
+  // other (Postgres row-level isolation).
+  await db
+    .update(usersTable)
+    .set({
+      stardustBalance: sql`${usersTable.stardustBalance} + ${stardustToCredit}`,
+      cometStardustSettledAtMs: sql`${usersTable.cometStardustSettledAtMs} + ${advanceMs}`,
+    })
+    .where(
+      sql`${usersTable.telegramId} = ${telegramId} AND ${usersTable.cometStardustSettledAtMs} = ${watermark}`,
+    );
+}
+
+// Re-export so other route handlers can settle BEFORE they change a user's
+// COMET ownership. Settling first locks in the payout for the OLD count, so
+// the window the user actually owned that count gets credited correctly,
+// then the new count takes effect for the NEXT window.
+export { settleCometStardust };
+
 router.get("/stardust/state", async (req, res) => {
   const telegramId = String(req.query.telegramId ?? "").trim();
   if (!telegramId) {
     return res.status(400).json({ error: "telegramId required" });
   }
   try {
+    // Settle pending COMET stardust BEFORE reading the balance so the
+    // returned `balance` already includes the comet payout. This makes the
+    // HUD show the up-to-date number on every refresh without any extra
+    // client round-trip.
+    await settleCometStardust(telegramId);
     const today = utcDayKey();
     const [u] = await db
       .select({
@@ -72,6 +191,10 @@ router.post("/stardust/collect", async (req, res) => {
   const today = utcDayKey();
 
   try {
+    // Settle COMET stardust before the SUN-tap collect path runs so the
+    // returned `balance` is always current — even when the user has no SUN
+    // (i.e. only the comet stream is active).
+    await settleCometStardust(telegramId);
     // 1) SUN ownership gate. The sun_count column is the authoritative count
     //    of SUN tokens this user holds (0 = none).
     const [u] = await db

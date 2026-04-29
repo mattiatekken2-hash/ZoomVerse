@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
+import { settleCometStardust } from "./stardust.js";
 
 const router: IRouter = Router();
 
@@ -40,6 +41,7 @@ const SaveBody = z.object({
   claimedBonusEpic: z.number().int().min(0).optional(),
   claimedBonusGold: z.number().int().min(0).optional(),
   claimedBonusV1: z.number().int().min(0).optional(),
+  claimedBonusComet: z.number().int().min(0).optional(),
   // Last time the client credited offline farming. We GREATEST-merge it so
   // the server keeps the most recent settle moment across devices/sessions
   // and offline farming credits the exact gap on the next open. See the
@@ -66,6 +68,7 @@ router.get("/regular-planets/:telegramId", async (req, res) => {
         claimedBonusEpic: usersTable.claimedBonusEpic,
         claimedBonusGold: usersTable.claimedBonusGold,
         claimedBonusV1: usersTable.claimedBonusV1,
+        claimedBonusComet: usersTable.claimedBonusComet,
         lastFarmingSettledAtMs: usersTable.lastFarmingSettledAtMs,
       })
       .from(usersTable)
@@ -82,6 +85,7 @@ router.get("/regular-planets/:telegramId", async (req, res) => {
         claimedBonusEpic: 0,
         claimedBonusGold: 0,
         claimedBonusV1: 0,
+        claimedBonusComet: 0,
         lastFarmingSettledAtMs: 0,
       });
       return;
@@ -95,6 +99,7 @@ router.get("/regular-planets/:telegramId", async (req, res) => {
       claimedBonusEpic: row.claimedBonusEpic ?? 0,
       claimedBonusGold: row.claimedBonusGold ?? 0,
       claimedBonusV1: row.claimedBonusV1 ?? 0,
+      claimedBonusComet: row.claimedBonusComet ?? 0,
       lastFarmingSettledAtMs: Number(row.lastFarmingSettledAtMs ?? 0),
     });
   } catch (err) {
@@ -123,9 +128,19 @@ router.post("/regular-planets/save", async (req, res) => {
     claimedBonusEpic,
     claimedBonusGold,
     claimedBonusV1,
+    claimedBonusComet,
     lastFarmingSettledAtMs,
   } = parsed.data;
   try {
+    // Settle pending COMET stardust BEFORE we overwrite planets_json. The
+    // settle helper counts comets from the CURRENT planets_json; once we
+    // replace it, a different count would silently take effect for the
+    // window the user actually owned the previous count. Settling first
+    // banks every full 24h window the OLD count earned, then the new
+    // ownership applies to the next window — which is exactly what
+    // "+25 stardust per comet per 24h owned" means. Cheap (one read +
+    // one conditional write) and idempotent (CAS-guarded).
+    await settleCometStardust(telegramId);
     // Atomic write with two safety properties:
     //   1. Stale-write fence: only overwrite `planets_json` (and bump
     //      `planets_updated_at_ms`) if the incoming clientWriteAtMs is
@@ -148,6 +163,7 @@ router.post("/regular-planets/save", async (req, res) => {
         ...(claimedBonusEpic  != null ? { claimedBonusEpic:  sql`GREATEST(${usersTable.claimedBonusEpic},  ${claimedBonusEpic})`  } : {}),
         ...(claimedBonusGold  != null ? { claimedBonusGold:  sql`GREATEST(${usersTable.claimedBonusGold},  ${claimedBonusGold})`  } : {}),
         ...(claimedBonusV1    != null ? { claimedBonusV1:    sql`GREATEST(${usersTable.claimedBonusV1},    ${claimedBonusV1})`    } : {}),
+        ...(claimedBonusComet != null ? { claimedBonusComet: sql`GREATEST(${usersTable.claimedBonusComet}, ${claimedBonusComet})` } : {}),
         ...(lastFarmingSettledAtMs != null ? { lastFarmingSettledAtMs: sql`GREATEST(${usersTable.lastFarmingSettledAtMs}, ${lastFarmingSettledAtMs})` } : {}),
       })
       .where(eq(usersTable.telegramId, telegramId))

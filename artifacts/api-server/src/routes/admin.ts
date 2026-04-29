@@ -76,7 +76,7 @@ const AddPlanetsBody = z.object({
   adminId: z.string(),
   telegramId: z.string().min(1),
   count: z.number().int().positive(),
-  planetType: z.enum(["BASIC", "RARE", "EPIC", "GOLD", "SUN"]),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "GOLD", "COMET", "SUN"]),
 });
 
 const UnlockSlotsBody = z.object({
@@ -120,7 +120,7 @@ const RemovePlanetsBody = z.object({
   adminId: z.string(),
   telegramId: z.string().min(1),
   count: z.number().int().positive(),
-  planetType: z.enum(["BASIC", "RARE", "EPIC", "GOLD", "SUN"]),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "GOLD", "COMET", "SUN"]),
 });
 
 const RemoveSlotsBody = z.object({
@@ -218,6 +218,14 @@ router.post("/admin/add-planets", async (req, res) => {
     } else if (planetType === "GOLD") {
       await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusGold: count })
         .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusGold: sql`${usersTable.bonusGold} + ${count}` } });
+    } else if (planetType === "COMET") {
+      // COMET grant — same bonus-counter pattern as the other rarities.
+      // The user materialises it into a real planet via applyGrants on the
+      // next sync (so it occupies a slot like any other planet). Stardust
+      // accrual then kicks in automatically: settleCometStardust() in
+      // /stardust/state counts COMETs in planets_json on every read.
+      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusComet: count })
+        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusComet: sql`${usersTable.bonusComet} + ${count}` } });
     }
     await writeAdminAssetSnapshot();
     res.json({ ok: true });
@@ -463,6 +471,8 @@ router.post("/admin/remove-planets", async (req, res) => {
       await db.update(usersTable).set({ bonusEpic: sql`GREATEST(0, ${usersTable.bonusEpic} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
     } else if (planetType === "GOLD") {
       await db.update(usersTable).set({ bonusGold: sql`GREATEST(0, ${usersTable.bonusGold} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
+    } else if (planetType === "COMET") {
+      await db.update(usersTable).set({ bonusComet: sql`GREATEST(0, ${usersTable.bonusComet} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
     }
     await writeAdminAssetSnapshot();
     res.json({ ok: true });

@@ -48,7 +48,7 @@ export function notifyFarmStop(telegramId: string, planetId: string): void {
  * with `bonus-`). Without this, the next /grants sync would re-grant the
  * same planet because the entitlement counter is still > claimed.
  */
-export function notifyPlanetBurn(telegramId: string, planetType: "BASIC" | "RARE" | "EPIC" | "GOLD"): void {
+export function notifyPlanetBurn(telegramId: string, planetType: "BASIC" | "RARE" | "EPIC" | "COMET" | "GOLD"): void {
   if (!telegramId) return;
   fetch(`${API_BASE}/planets/burn`, {
     method: "POST",
@@ -204,6 +204,9 @@ export interface Grants {
   bonusEpic: number;
   bonusGold: number;
   bonusV1: number;
+  // COMET — pending bonus comets the server has granted that the client has
+  // not yet materialised into planets_json (mirrors bonusBasic/Rare/etc).
+  bonusComet: number;
   hasAutoTap: boolean;
   whiteCollectionUnlocked: boolean;
   whiteCollectionBundles: number;
@@ -217,7 +220,7 @@ export interface Grants {
   sunCycleCount: number;
 }
 
-const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusV1: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusV1: 0, bonusComet: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
 
 /**
  * Push the current SUN cycle to the server so it persists across
@@ -309,7 +312,7 @@ export async function adminCreditZoom(adminId: string, telegramId: string, amoun
   } catch { return false; }
 }
 
-export async function adminAddPlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "GOLD" | "SUN"): Promise<boolean> {
+export async function adminAddPlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "GOLD" | "COMET" | "SUN"): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/add-planets`, {
       method: "POST",
@@ -501,7 +504,7 @@ export async function adminRemoveZoom(adminId: string, telegramId: string, amoun
   } catch { return false; }
 }
 
-export async function adminRemovePlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "GOLD" | "SUN"): Promise<boolean> {
+export async function adminRemovePlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "GOLD" | "COMET" | "SUN"): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/remove-planets`, {
       method: "POST",
@@ -1365,6 +1368,9 @@ export interface RegularPlanetsState {
   claimedBonusEpic: number;
   claimedBonusGold: number;
   claimedBonusV1: number;
+  // COMET — server-mirrored count of comet bonus planets the client has
+  // already materialised (mirrors the other claimedBonus* fields).
+  claimedBonusComet: number;
   // Server-side mirror of the client's last offline-farming settle moment
   // (epoch ms). 0 means "never settled on the server yet" (existing users
   // before this field was rolled out, or brand-new accounts). The client
@@ -1386,6 +1392,7 @@ export async function fetchRegularPlanets(
     claimedBonusEpic: 0,
     claimedBonusGold: 0,
     claimedBonusV1: 0,
+    claimedBonusComet: 0,
     lastFarmingSettledAtMs: 0,
   };
   try {
@@ -1405,6 +1412,7 @@ export async function fetchRegularPlanets(
       claimedBonusEpic: Number(j.claimedBonusEpic ?? 0),
       claimedBonusGold: Number(j.claimedBonusGold ?? 0),
       claimedBonusV1: Number(j.claimedBonusV1 ?? 0),
+      claimedBonusComet: Number(j.claimedBonusComet ?? 0),
       lastFarmingSettledAtMs: Number(j.lastFarmingSettledAtMs ?? 0),
     };
   } catch {
@@ -1421,6 +1429,7 @@ export async function saveRegularPlanets(
     epic: number;
     gold: number;
     v1: number;
+    comet: number;
   },
   // Optional. When provided, the server GREATEST-merges it into the user
   // row so other devices/sessions never re-credit an already-settled
@@ -1446,6 +1455,7 @@ export async function saveRegularPlanets(
         claimedBonusEpic: claimed.epic,
         claimedBonusGold: claimed.gold,
         claimedBonusV1: claimed.v1,
+        claimedBonusComet: claimed.comet,
         ...(lastFarmingSettledAtMs != null
           ? { lastFarmingSettledAtMs }
           : {}),

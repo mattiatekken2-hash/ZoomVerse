@@ -24,6 +24,13 @@ const PLANET_GRADIENTS: Record<string, { stops: string[]; glowAlpha: number }> =
     stops: ["#fff8e1", "#ffe082", "#ffd700", "#e6b800", "#b8860b"],
     glowAlpha: 0.7,
   },
+  // COMET — vivid yellow comet body, slightly more saturated than GOLD so it
+  // reads as a distinct rarity at a glance. The stardust/24h yield (not ZOOM)
+  // is what visually justifies the punchier glow.
+  COMET: {
+    stops: ["#fff7c2", "#ffe066", "#ffd23f", "#e0a800", "#9c6f00"],
+    glowAlpha: 0.75,
+  },
   // V1 — bright moon-white. Crater overlay is rendered separately below.
   V1: {
     stops: ["#ffffff", "#fbfdff", "#eef3fa", "#c8d0dc", "#9098a8"],

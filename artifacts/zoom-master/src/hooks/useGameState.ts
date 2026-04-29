@@ -45,7 +45,7 @@ async function refreshServerOffset(): Promise<void> {
   } catch { /* keep last known offset */ }
 }
 
-export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD" | "V1" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4";
+export type PlanetType = "BASIC" | "RARE" | "EPIC" | "COMET" | "GOLD" | "V1" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4";
 
 export const WHITE_PLANET_TYPES: PlanetType[] = ["WHITE1", "WHITE2", "WHITE3", "WHITE4"];
 
@@ -127,6 +127,9 @@ export interface GameState {
   claimedBonusEpic: number;
   claimedBonusGold: number;
   claimedBonusV1: number;
+  // COMET — count of comet planets the user has already received from the
+  // server-side bonus pool (mirrors Basic/Rare/Epic/Gold/V1).
+  claimedBonusComet: number;
   claimedBonusSun: boolean;
   sunCount: number;
   hasAutoTap: boolean;
@@ -177,9 +180,9 @@ export const PLANET_CONFIG: Record<PlanetType, {
     rate: 2,
     color: "#8892b0",
     glowColor: "rgba(136,146,176,0.5)",
-    // Reduced by 0.00005 to make room for V1 (0.005% drop) so the cumulative
+    // Reduced by 0.00005 (V1) and a further 0.002 (COMET) so the cumulative
     // probability sum across all rollable rarities still equals exactly 1.
-    chance: 0.79445,
+    chance: 0.79245,
     label: "Basic",
     craftCost: 20,
     activationTon: 0.05,
@@ -207,6 +210,22 @@ export const PLANET_CONFIG: Record<PlanetType, {
     activationTon: 0.5,
     tapsNeeded: 250,
     reactivationFee: 1000,
+  },
+  // COMET — vivid yellow comet-like body. Rarer than EPIC (0.2% vs 0.5%).
+  // Does NOT farm $ZOOM (rate=0). Instead, the server credits a flat
+  // 25 stardust per COMET planet every full 24h window via
+  // /api/stardust/state (see settleCometStardust in stardust.ts).
+  // Reactivation fee is 0 — comets are passive and don't need re-arming.
+  COMET: {
+    rate: 0,
+    color: "#ffd23f",
+    glowColor: "rgba(255,210,63,0.65)",
+    chance: 0.002,
+    label: "Comet",
+    craftCost: 100,
+    activationTon: 0.75,
+    tapsNeeded: 350,
+    reactivationFee: 0,
   },
   GOLD: {
     rate: 150,
@@ -430,6 +449,7 @@ const INITIAL_STATE: GameState = {
   claimedBonusEpic: 0,
   claimedBonusGold: 0,
   claimedBonusV1: 0,
+  claimedBonusComet: 0,
   claimedBonusSun: false,
   sunCount: 0,
   hasAutoTap: false,
@@ -1400,6 +1420,7 @@ export function useGameState() {
             claimedBonusEpic:  Math.max(updated.claimedBonusEpic  ?? 0, serverRegular.claimedBonusEpic),
             claimedBonusGold:  Math.max(updated.claimedBonusGold  ?? 0, serverRegular.claimedBonusGold),
             claimedBonusV1:    Math.max(updated.claimedBonusV1    ?? 0, serverRegular.claimedBonusV1),
+            claimedBonusComet: Math.max(updated.claimedBonusComet ?? 0, serverRegular.claimedBonusComet ?? 0),
           };
         }
 
@@ -1521,12 +1542,13 @@ export function useGameState() {
         }
 
         // Apply pending bonus planets per type (only new ones not yet claimed)
-        const bonusTypes: Array<{ key: "bonusBasic" | "bonusRare" | "bonusEpic" | "bonusGold" | "bonusV1"; claimedKey: "claimedBonusBasic" | "claimedBonusRare" | "claimedBonusEpic" | "claimedBonusGold" | "claimedBonusV1"; type: PlanetType }> = [
+        const bonusTypes: Array<{ key: "bonusBasic" | "bonusRare" | "bonusEpic" | "bonusGold" | "bonusV1" | "bonusComet"; claimedKey: "claimedBonusBasic" | "claimedBonusRare" | "claimedBonusEpic" | "claimedBonusGold" | "claimedBonusV1" | "claimedBonusComet"; type: PlanetType }> = [
           { key: "bonusBasic", claimedKey: "claimedBonusBasic", type: "BASIC" },
           { key: "bonusRare", claimedKey: "claimedBonusRare", type: "RARE" },
           { key: "bonusEpic", claimedKey: "claimedBonusEpic", type: "EPIC" },
           { key: "bonusGold", claimedKey: "claimedBonusGold", type: "GOLD" },
           { key: "bonusV1",   claimedKey: "claimedBonusV1",   type: "V1" },
+          { key: "bonusComet", claimedKey: "claimedBonusComet", type: "COMET" },
         ];
         const now = serverNow();
         const newPlanets: Planet[] = [];
@@ -1655,6 +1677,7 @@ export function useGameState() {
           epic:  state.claimedBonusEpic  ?? 0,
           gold:  state.claimedBonusGold  ?? 0,
           v1:    state.claimedBonusV1    ?? 0,
+          comet: state.claimedBonusComet ?? 0,
         },
         // Push the offline-farming watermark together with planets and
         // counters: settle() always advances both lastFarmingSettledAt
@@ -1678,6 +1701,7 @@ export function useGameState() {
     state.claimedBonusEpic,
     state.claimedBonusGold,
     state.claimedBonusV1,
+    state.claimedBonusComet,
     // Re-run when the watermark moves so it's pushed to the server
     // promptly (otherwise a long quiet period after offline credit
     // would leave another device able to re-credit the same window).
@@ -1797,6 +1821,7 @@ export function useGameState() {
           { key: "bonusBasic", claimedKey: "claimedBonusBasic", type: "BASIC" },
           { key: "bonusRare",  claimedKey: "claimedBonusRare",  type: "RARE" },
           { key: "bonusEpic",  claimedKey: "claimedBonusEpic",  type: "EPIC" },
+          { key: "bonusComet", claimedKey: "claimedBonusComet", type: "COMET" },
           { key: "bonusGold",  claimedKey: "claimedBonusGold",  type: "GOLD" },
           { key: "bonusV1",    claimedKey: "claimedBonusV1",    type: "V1" },
         ];
@@ -2425,7 +2450,7 @@ export function useGameState() {
       // one entitlement on the server. Otherwise the next /grants poll will
       // see entitlement > claimed and silently re-add the burned planet.
       const isBonusPlanet = planet.id.startsWith(`bonus-${planet.name}-`);
-      if (isBonusPlanet && prev.telegramId && (planet.name === "BASIC" || planet.name === "RARE" || planet.name === "EPIC" || planet.name === "GOLD")) {
+      if (isBonusPlanet && prev.telegramId && (planet.name === "BASIC" || planet.name === "RARE" || planet.name === "EPIC" || planet.name === "COMET" || planet.name === "GOLD")) {
         notifyPlanetBurn(prev.telegramId, planet.name);
       }
       const refund = Math.floor(planet.craftCost * 0.15);
@@ -2448,6 +2473,7 @@ export function useGameState() {
         claimedBonusRare:  isBonusPlanet && planet.name === "RARE"  ? Math.max(0, prev.claimedBonusRare  - 1) : prev.claimedBonusRare,
         claimedBonusEpic:  isBonusPlanet && planet.name === "EPIC"  ? Math.max(0, prev.claimedBonusEpic  - 1) : prev.claimedBonusEpic,
         claimedBonusGold:  isBonusPlanet && planet.name === "GOLD"  ? Math.max(0, prev.claimedBonusGold  - 1) : prev.claimedBonusGold,
+        claimedBonusComet: isBonusPlanet && planet.name === "COMET" ? Math.max(0, prev.claimedBonusComet - 1) : prev.claimedBonusComet,
       };
       // Sync stateRef synchronously: if the user closes the app within a few
       // ms of pressing burn (before React commits), the visibility/unload
@@ -2993,13 +3019,15 @@ export function useGameState() {
       let cRare = prev.claimedBonusRare;
       let cEpic = prev.claimedBonusEpic;
       let cGold = prev.claimedBonusGold;
+      let cComet = prev.claimedBonusComet;
       for (const p of toBurn) {
         const isBonus = p.id.startsWith(`bonus-${p.name}-`);
-        if (isBonus && prev.telegramId && (p.name === "BASIC" || p.name === "RARE" || p.name === "EPIC" || p.name === "GOLD")) {
+        if (isBonus && prev.telegramId && (p.name === "BASIC" || p.name === "RARE" || p.name === "EPIC" || p.name === "COMET" || p.name === "GOLD")) {
           notifyPlanetBurn(prev.telegramId, p.name);
           if (p.name === "BASIC") cBasic = Math.max(0, cBasic - 1);
           else if (p.name === "RARE") cRare = Math.max(0, cRare - 1);
           else if (p.name === "EPIC") cEpic = Math.max(0, cEpic - 1);
+          else if (p.name === "COMET") cComet = Math.max(0, cComet - 1);
           else if (p.name === "GOLD") cGold = Math.max(0, cGold - 1);
         }
       }
@@ -3010,6 +3038,7 @@ export function useGameState() {
         claimedBonusBasic: cBasic,
         claimedBonusRare: cRare,
         claimedBonusEpic: cEpic,
+        claimedBonusComet: cComet,
         claimedBonusGold: cGold,
       };
       stateRef.current = updated;
