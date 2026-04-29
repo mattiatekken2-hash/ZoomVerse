@@ -377,7 +377,7 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
                         className={`text-xs font-bold px-2 py-0.5 rounded-full border ${RARITY_CLASS[planet.name]}`}
                         style={{ fontSize: 9, opacity: expired ? 0.55 : 1 }}
                       >
-                        {planet.name}
+                        {planet.name === "COMET" ? "STARDUST" : planet.name}
                       </span>
                       {expired && (
                         <span
@@ -390,7 +390,9 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
                     </div>
                     <div className="text-xs font-bold" style={{ color: expired ? "rgba(255,82,82,0.75)" : "rgba(255,255,255,0.5)" }}>
                       {active
-                        ? `+${planet.rate.toLocaleString()} $ZOOM/hr · ${formatDuration(remaining)} left`
+                        ? planet.name === "COMET"
+                          ? `+25 Stardust/24h · ${formatDuration(remaining)} left`
+                          : `+${planet.rate.toLocaleString()} $ZOOM/hr · ${formatDuration(remaining)} left`
                         : expired
                         ? `Cycle ended · Reactivate for ${reactivationFee.toLocaleString()} $ZOOM`
                         : isListed

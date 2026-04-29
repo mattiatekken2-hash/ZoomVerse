@@ -28,8 +28,8 @@ const PLANET_GRADIENTS: Record<string, { stops: string[]; glowAlpha: number }> =
   // reads as a distinct rarity at a glance. The stardust/24h yield (not ZOOM)
   // is what visually justifies the punchier glow.
   COMET: {
-    stops: ["#fff7c2", "#ffe066", "#ffd23f", "#e0a800", "#9c6f00"],
-    glowAlpha: 0.75,
+    stops: ["#ffffff", "#fff8a8", "#ffea00", "#ffc107", "#a08000"],
+    glowAlpha: 0.95,
   },
   // V1 — bright moon-white. Crater overlay is rendered separately below.
   V1: {
