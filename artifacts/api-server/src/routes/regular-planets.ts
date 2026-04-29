@@ -153,17 +153,33 @@ router.post("/regular-planets/save", async (req, res) => {
     //      lowering last_farming_settled_at_ms would let a device replay
     //      an already-credited offline window and double-credit ZOOM.
     //   The whole thing runs in a single UPDATE so we don't need a tx.
+    // Gate the claimed_bonus_* counters with the SAME stale-write fence as
+    // planets_json. They are tightly coupled — applyGrants() on the client
+    // adds a bonus planet to planets[] AND bumps the matching claimed
+    // counter in lockstep. If we let claimed_bonus_* advance via plain
+    // GREATEST while planets_json gets rejected by the time fence, the
+    // server ends up with claimed > actual planet count: applyGrants on
+    // the next open then sees `toAdd = serverCount - max(claimed, ...) =
+    // 0` and the bonus planet vanishes silently. By gating both with the
+    // same `planetsUpdatedAtMs < clientWriteAtMs` predicate, the pair
+    // stays coherent: either we accept BOTH the new planets array and the
+    // new counter, or we keep BOTH the existing values.
+    //
+    // lastFarmingSettledAtMs uses plain GREATEST on purpose — it's a
+    // monotonic watermark independent of planets_json (a device can
+    // legitimately have credited offline farming without reshaping the
+    // inventory) and a stale value can never roll the watermark backward.
     const updated = await db
       .update(usersTable)
       .set({
         planetsJson: sql`CASE WHEN ${usersTable.planetsUpdatedAtMs} < ${clientWriteAtMs} THEN ${JSON.stringify(planets)}::jsonb ELSE ${usersTable.planetsJson} END`,
         planetsUpdatedAtMs: sql`GREATEST(${usersTable.planetsUpdatedAtMs}, ${clientWriteAtMs})`,
-        ...(claimedBonusBasic != null ? { claimedBonusBasic: sql`GREATEST(${usersTable.claimedBonusBasic}, ${claimedBonusBasic})` } : {}),
-        ...(claimedBonusRare  != null ? { claimedBonusRare:  sql`GREATEST(${usersTable.claimedBonusRare},  ${claimedBonusRare})`  } : {}),
-        ...(claimedBonusEpic  != null ? { claimedBonusEpic:  sql`GREATEST(${usersTable.claimedBonusEpic},  ${claimedBonusEpic})`  } : {}),
-        ...(claimedBonusGold  != null ? { claimedBonusGold:  sql`GREATEST(${usersTable.claimedBonusGold},  ${claimedBonusGold})`  } : {}),
-        ...(claimedBonusV1    != null ? { claimedBonusV1:    sql`GREATEST(${usersTable.claimedBonusV1},    ${claimedBonusV1})`    } : {}),
-        ...(claimedBonusComet != null ? { claimedBonusComet: sql`GREATEST(${usersTable.claimedBonusComet}, ${claimedBonusComet})` } : {}),
+        ...(claimedBonusBasic != null ? { claimedBonusBasic: sql`CASE WHEN ${usersTable.planetsUpdatedAtMs} < ${clientWriteAtMs} THEN GREATEST(${usersTable.claimedBonusBasic}, ${claimedBonusBasic}) ELSE ${usersTable.claimedBonusBasic} END` } : {}),
+        ...(claimedBonusRare  != null ? { claimedBonusRare:  sql`CASE WHEN ${usersTable.planetsUpdatedAtMs} < ${clientWriteAtMs} THEN GREATEST(${usersTable.claimedBonusRare},  ${claimedBonusRare})  ELSE ${usersTable.claimedBonusRare}  END` } : {}),
+        ...(claimedBonusEpic  != null ? { claimedBonusEpic:  sql`CASE WHEN ${usersTable.planetsUpdatedAtMs} < ${clientWriteAtMs} THEN GREATEST(${usersTable.claimedBonusEpic},  ${claimedBonusEpic})  ELSE ${usersTable.claimedBonusEpic}  END` } : {}),
+        ...(claimedBonusGold  != null ? { claimedBonusGold:  sql`CASE WHEN ${usersTable.planetsUpdatedAtMs} < ${clientWriteAtMs} THEN GREATEST(${usersTable.claimedBonusGold},  ${claimedBonusGold})  ELSE ${usersTable.claimedBonusGold}  END` } : {}),
+        ...(claimedBonusV1    != null ? { claimedBonusV1:    sql`CASE WHEN ${usersTable.planetsUpdatedAtMs} < ${clientWriteAtMs} THEN GREATEST(${usersTable.claimedBonusV1},    ${claimedBonusV1})    ELSE ${usersTable.claimedBonusV1}    END` } : {}),
+        ...(claimedBonusComet != null ? { claimedBonusComet: sql`CASE WHEN ${usersTable.planetsUpdatedAtMs} < ${clientWriteAtMs} THEN GREATEST(${usersTable.claimedBonusComet}, ${claimedBonusComet}) ELSE ${usersTable.claimedBonusComet} END` } : {}),
         ...(lastFarmingSettledAtMs != null ? { lastFarmingSettledAtMs: sql`GREATEST(${usersTable.lastFarmingSettledAtMs}, ${lastFarmingSettledAtMs})` } : {}),
       })
       .where(eq(usersTable.telegramId, telegramId))
