@@ -164,14 +164,13 @@ function HallOfFameWidgetBase({ telegramId }: HallOfFameWidgetProps) {
                     </div>
                     {isPrize && (
                       <div style={{
-                        display: "flex", alignItems: "center", gap: 4,
+                        display: "flex", alignItems: "center",
                         padding: "3px 8px",
                         borderRadius: 8,
                         background: "rgba(255,210,63,0.12)",
                         border: "1px solid rgba(255,210,63,0.35)",
                         flexShrink: 0,
                       }}>
-                        <span style={{ fontSize: 11, color: "#ffd23f", letterSpacing: 0.4 }}>✦</span>
                         <span style={{ fontSize: 11, fontWeight: 900, color: "#ffd23f" }}>
                           {e.prize}
                         </span>
@@ -200,7 +199,7 @@ function HallOfFameWidgetBase({ telegramId }: HallOfFameWidgetProps) {
                     }}
                   >
                     <div style={{ color: PRIZE_COLORS[i] ?? "#ffd23f", fontWeight: 900, fontSize: 11 }}>#{i + 1}</div>
-                    <div style={{ color: "#ffd23f", fontWeight: 800, marginTop: 2 }}>✦{p}</div>
+                    <div style={{ color: "#ffd23f", fontWeight: 800, marginTop: 2 }}>{p}</div>
                   </div>
                 ))}
               </div>
