@@ -6,6 +6,11 @@ import { z } from "zod/v4";
 export const usersTable = pgTable("users", {
   telegramId: text("telegram_id").primaryKey(),
   referralCount: integer("referral_count").notNull().default(0),
+  // Hall of Fame — daily referral counter. Reset to 0 every day at 00:00 UTC
+  // by a server cron that also distributes stardust prizes to the top 5
+  // (100/75/50/25/25). Bumped together with referralCount whenever the
+  // referrer is credited in /referral/register.
+  dailyReferralCount: integer("daily_referral_count").notNull().default(0),
   referredBy: text("referred_by"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   zoomBalance: real("zoom_balance").notNull().default(0),

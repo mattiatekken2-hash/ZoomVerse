@@ -23,6 +23,8 @@ import {
   adminRemoveSlots,
   adminCreditSpins,
   adminRemoveSpins,
+  adminCreditStardust,
+  adminRemoveStardust,
   adminResetSeason,
   adminForceDelist,
   adminReconcileReferrals,
@@ -31,7 +33,7 @@ import {
 const ADMIN_ID = "8144744644";
 
 type PlanetChoice = "BASIC" | "RARE" | "EPIC" | "GOLD" | "SUN";
-type ActionType = "zoom" | "planets" | "slots" | "spins";
+type ActionType = "zoom" | "planets" | "slots" | "spins" | "stardust";
 
 function haptic() {
   try {
@@ -122,11 +124,13 @@ export function AdminPanel({ telegramId }: Props) {
       else if (type === "planets") ok = await adminAddPlanets(telegramId, id, Math.floor(val), planetType);
       else if (type === "slots") ok = await adminUnlockSlots(telegramId, id, Math.floor(val));
       else if (type === "spins") ok = await adminCreditSpins(telegramId, id, Math.floor(val));
+      else if (type === "stardust") ok = await adminCreditStardust(telegramId, id, Math.floor(val));
     } else {
       if (type === "zoom") ok = await adminRemoveZoom(telegramId, id, val);
       else if (type === "planets") ok = await adminRemovePlanets(telegramId, id, Math.floor(val), planetType);
       else if (type === "slots") ok = await adminRemoveSlots(telegramId, id, Math.floor(val));
       else if (type === "spins") ok = await adminRemoveSpins(telegramId, id, Math.floor(val));
+      else if (type === "stardust") ok = await adminRemoveStardust(telegramId, id, Math.floor(val));
     }
     setLoading(null);
     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
@@ -134,6 +138,7 @@ export function AdminPanel({ telegramId }: Props) {
     const item = type === "zoom" ? `${val} $ZOOM`
       : type === "slots" ? `${Math.floor(val)} slot`
       : type === "spins" ? `${Math.floor(val)} spin`
+      : type === "stardust" ? `${Math.floor(val)} stardust`
       : `${Math.floor(val)} ${planetType === "SUN" ? "Sole" : `pianeti ${planetType}`}`;
     showFeedback(ok ? `✓ ${item} ${direction} a ID ${id}` : `✗ Errore per ID ${id}`, ok);
   }, [targetId, amount, planetType, mode, telegramId]);
@@ -413,10 +418,11 @@ export function AdminPanel({ telegramId }: Props) {
                 {/* Action buttons */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   {([
-                    { type: "zoom" as ActionType,    label: "🪐 ZOOM",    color: "#00f2fe" },
-                    { type: "planets" as ActionType, label: "🌍 Pianeti", color: "#c471ed" },
-                    { type: "slots" as ActionType,   label: "📦 Slot",    color: "#4facfe" },
-                    { type: "spins" as ActionType,   label: "🎡 Spin",    color: "#ffd700" },
+                    { type: "zoom" as ActionType,     label: "🪐 ZOOM",     color: "#00f2fe" },
+                    { type: "planets" as ActionType,  label: "🌍 Pianeti",  color: "#c471ed" },
+                    { type: "slots" as ActionType,    label: "📦 Slot",     color: "#4facfe" },
+                    { type: "spins" as ActionType,    label: "🎡 Spin",     color: "#ffd700" },
+                    { type: "stardust" as ActionType, label: "✦ Stardust", color: "#ffd23f" },
                   ]).map(({ type, label, color }) => {
                     const btnColor = mode === "remove" ? "#ff5555" : color;
                     return (

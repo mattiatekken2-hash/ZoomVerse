@@ -117,11 +117,16 @@ router.post("/referral/register", async (req, res) => {
     if (shouldCreditReferrer && referredBy) {
       await db
         .insert(usersTable)
-        .values({ telegramId: referredBy, referralCount: 1, zoomBalance: REFERRAL_BONUS, balanceEpoch: 1 })
+        .values({ telegramId: referredBy, referralCount: 1, dailyReferralCount: 1, zoomBalance: REFERRAL_BONUS, balanceEpoch: 1 })
         .onConflictDoUpdate({
           target: usersTable.telegramId,
           set: {
             referralCount: sql`${usersTable.referralCount} + 1`,
+            // Hall of Fame — daily counter, reset every day at 00:00 UTC by
+            // the cron in index.ts (which also distributes stardust prizes
+            // to the top 5 before zeroing). Bumping this here is the ONLY
+            // place new referrals enter the daily ranking.
+            dailyReferralCount: sql`${usersTable.dailyReferralCount} + 1`,
             zoomBalance: sql`${usersTable.zoomBalance} + ${REFERRAL_BONUS}`,
             balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
           },

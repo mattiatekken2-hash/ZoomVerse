@@ -545,6 +545,57 @@ export async function adminCreditSpins(adminId: string, telegramId: string, coun
   } catch { return false; }
 }
 
+export async function adminCreditStardust(adminId: string, telegramId: string, count: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/credit-stardust`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId, count }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function adminRemoveStardust(adminId: string, telegramId: string, count: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/remove-stardust`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId, count }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+// === Hall of Fame — daily referrals leaderboard ===
+export interface HallOfFameEntry {
+  rank: number;
+  name: string;
+  dailyCount: number;
+  prize: number;
+}
+
+export interface HallOfFameResponse {
+  entries: HallOfFameEntry[];
+  prizes: number[];
+  resetDayKey: string;
+}
+
+export async function fetchHallOfFame(): Promise<HallOfFameResponse> {
+  try {
+    const res = await fetch(`${API_BASE}/referral/daily-leaderboard?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return { entries: [], prizes: [100, 75, 50, 25, 25], resetDayKey: "" };
+    const data = await res.json();
+    return {
+      entries: Array.isArray(data?.entries) ? data.entries : [],
+      prizes: Array.isArray(data?.prizes) ? data.prizes : [100, 75, 50, 25, 25],
+      resetDayKey: typeof data?.resetDayKey === "string" ? data.resetDayKey : "",
+    };
+  } catch {
+    return { entries: [], prizes: [100, 75, 50, 25, 25], resetDayKey: "" };
+  }
+}
+
 export async function adminRemoveSpins(adminId: string, telegramId: string, count: number): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/remove-spins`, {
