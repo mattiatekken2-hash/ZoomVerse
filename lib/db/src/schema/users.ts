@@ -93,6 +93,15 @@ export const usersTable = pgTable("users", {
   // single user is the only writer (server-clock skew across devices is
   // small) and we only care about ORDER, not absolute time.
   planetsUpdatedAtMs: bigint("planets_updated_at_ms", { mode: "number" }).notNull().default(0),
+  // Last time the client credited regular-planet farming earnings, in epoch
+  // ms. Server-side mirror of GameState.lastFarmingSettledAt — without it,
+  // closing the app and reopening on a different device (or after a
+  // Telegram WebView cache wipe) would lose every minute of offline
+  // farming because the client defaults this to "now" on a fresh load.
+  // Stored on the server and merged with GREATEST so any client opening
+  // this account picks up where the last one left off and credits the
+  // exact gap. Bigint to keep ms precision at epoch magnitudes (~1.7e12).
+  lastFarmingSettledAtMs: bigint("last_farming_settled_at_ms", { mode: "number" }).notNull().default(0),
 }, (table) => [
   index("idx_users_zoom_balance").on(table.zoomBalance),
   index("idx_users_referred_by").on(table.referredBy),
