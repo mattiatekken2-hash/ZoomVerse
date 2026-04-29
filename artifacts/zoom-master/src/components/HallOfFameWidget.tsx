@@ -101,7 +101,7 @@ function HallOfFameWidgetBase({ telegramId }: HallOfFameWidgetProps) {
             backdropFilter: "blur(8px)",
             zIndex: 110, display: "flex",
             alignItems: "flex-start", justifyContent: "center",
-            padding: "100px 20px 20px",
+            padding: "150px 20px 20px",
             overflowY: "auto",
           }}
         >
