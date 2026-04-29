@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-04-29T23:00:54.263Z",
+  "updatedAt": "2026-04-29T23:08:14.379Z",
   "users": [
     {
       "telegramId": "7931866049",
@@ -83,8 +83,8 @@
     },
     {
       "telegramId": "8144744644",
-      "zoomBalance": 20332,
-      "bonusSlots": 0,
+      "zoomBalance": 51938,
+      "bonusSlots": 1,
       "bonusSun": true,
       "bonusBasic": 0,
       "bonusRare": 0,
