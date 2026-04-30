@@ -15,7 +15,6 @@ import farmRouter from "./farm";
 import userRouter from "./user";
 import planetsRouter from "./planets";
 import stardustRouter from "./stardust";
-import hallOfFameRouter from "./hallOfFame";
 import merchantRouter from "./merchant";
 import sunRouter from "./sun";
 import collectionPlanetsRouter from "./collection-planets";
@@ -24,10 +23,6 @@ import regularPlanetsRouter from "./regular-planets";
 const router: IRouter = Router();
 
 router.use(healthRouter);
-// hallOfFameRouter must be mounted BEFORE referralRouter: it owns
-// /referral/daily-leaderboard, which would otherwise be swallowed by
-// referralRouter's /referral/:telegramId catch-all.
-router.use(hallOfFameRouter);
 router.use(referralRouter);
 router.use(leaderboardRouter);
 router.use(grantsRouter);
@@ -43,7 +38,6 @@ router.use(farmRouter);
 router.use(userRouter);
 router.use(planetsRouter);
 router.use(stardustRouter);
-router.use(hallOfFameRouter);
 router.use(merchantRouter);
 router.use(sunRouter);
 router.use(collectionPlanetsRouter);

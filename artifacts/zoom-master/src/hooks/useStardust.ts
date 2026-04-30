@@ -15,42 +15,6 @@ const EMPTY: StardustState = {
   hasSun: false,
 };
 
-const CACHE_PREFIX = "zoom_stardust_cache_v1_";
-
-/**
- * Read the last-known stardust balance for a given Telegram user from
- * localStorage. We cache so the HUD can show the user's *previous* balance
- * the instant the app opens — no "0 → real number" flash while the first
- * network round-trip resolves. The server is still the authority and the
- * cache is overwritten as soon as the fetch lands.
- */
-function readCache(telegramId: string | null): StardustState | null {
-  if (!telegramId) return null;
-  try {
-    const raw = localStorage.getItem(CACHE_PREFIX + telegramId);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object" && typeof parsed.balance === "number") {
-      return {
-        balance: Number(parsed.balance) || 0,
-        today: Number(parsed.today) || 0,
-        dayKey: typeof parsed.dayKey === "string" ? parsed.dayKey : "",
-        dailyCap: Number(parsed.dailyCap) || 25,
-        globalTotal: Number(parsed.globalTotal) || 0,
-        hasSun: Boolean(parsed.hasSun),
-      };
-    }
-  } catch { /* corrupted cache → ignore */ }
-  return null;
-}
-
-function writeCache(telegramId: string | null, state: StardustState): void {
-  if (!telegramId) return;
-  try {
-    localStorage.setItem(CACHE_PREFIX + telegramId, JSON.stringify(state));
-  } catch { /* quota / privacy mode → silently skip */ }
-}
-
 export interface UseStardust {
   balance: number;
   today: number;
@@ -78,20 +42,11 @@ export function useStardust(telegramId: string | null): UseStardust {
     if (!telegramId) return;
     const next = await fetchStardustState(telegramId);
     setState(next);
-    writeCache(telegramId, next);
     setReady(true);
   }, [telegramId]);
 
   useEffect(() => {
     if (!telegramId) return;
-    // Hydrate the HUD synchronously from the last-known balance so the
-    // user sees their real number the instant the app paints — instead
-    // of "0" while the first /stardust/state round-trip resolves.
-    const cached = readCache(telegramId);
-    if (cached) {
-      setState(cached);
-      setReady(true);
-    }
     refresh();
     const id = setInterval(refresh, 5 * 60 * 1000);
     return () => clearInterval(id);

@@ -442,14 +442,7 @@ const INITIAL_STATE: GameState = {
   claimedEarthCollectionBundles: 0,
   earthPlanets: [],
   tonBalance: 0,
-  // 0 = "never settled / unknown". We deliberately do NOT default to
-  // serverNow() here because that would silently swallow the offline
-  // window on a first-ever load, a Telegram WebView cache wipe, or a
-  // cross-device open: the post-hydration max(local, server) compare
-  // would always pick the bogus "now" default and credit zero. With 0
-  // as the sentinel, max(0, serverWatermark) correctly falls back to
-  // the server's last-known settle moment so the gap gets credited.
-  lastFarmingSettledAt: 0,
+  lastFarmingSettledAt: serverNow(),
   claimedMilestones: [],
   defectPlanets: [],
   lastBalanceEpoch: 0,
@@ -509,11 +502,7 @@ function loadState(): GameState {
           referredBy: parsed.referredBy ?? null,
           telegramId: parsed.telegramId ?? null,
           claimedBonusSun: parsed.claimedBonusSun ?? false,
-          // Same 0-sentinel as INITIAL_STATE — see the comment there for
-          // why we never default this to "now". A pre-fix localStorage
-          // entry that legitimately persisted a real ms timestamp keeps
-          // its value; only a missing field falls back to 0.
-          lastFarmingSettledAt: parsed.lastFarmingSettledAt ?? 0,
+          lastFarmingSettledAt: parsed.lastFarmingSettledAt ?? serverNow(),
           claimedMilestones: parsed.claimedMilestones ?? [],
           lastBalanceEpoch: parsed.lastBalanceEpoch ?? 0,
           whiteCollectionBundles: (parsed as unknown as Record<string, unknown>).whiteCollectionBundles as number ?? (parsed.whiteCollectionUnlocked ? 1 : 0),
@@ -1243,14 +1232,7 @@ export function useGameState() {
       const offset = _serverOffsetMs;
       serverOffsetRef.current = offset;
 
-      // We deliberately do NOT settle offline farming here anymore.
-      // Doing it before server hydration would either credit using
-      // stale local planets (wrong content) or, on a fresh-LS load,
-      // advance lastFarmingSettledAt to "now" with zero earnings —
-      // permanently swallowing the offline window because the
-      // post-hydration settle would then see no gap. The single
-      // settle now happens INSIDE the hydration setState below,
-      // after server planets/sun/watermark are merged in.
+      setState((prev) => settleFarmingState(prev, serverNow()));
 
       let referrer = startParam;
       if (!referrer) {
@@ -1598,24 +1580,6 @@ export function useGameState() {
           }, 0);
         }
 
-        // ─── OFFLINE FARMING CREDIT — after server hydration ───
-        // This is the SINGLE settle point during boot. We do it here, at
-        // the end of hydration, so it operates on the merged server view
-        // (planets[], sun cycle, and the lastFarmingSettledAtMs
-        // watermark) and survives a Telegram WebView cache wipe or a
-        // cross-device first-open. The watermark is GREATEST-merged with
-        // local: server wins when local is the 0 sentinel (fresh load),
-        // local wins when it raced ahead of the last server save (in
-        // that case server has yet to receive the latest settle).
-        if (serverRegular.ok) {
-          const serverWatermark = Math.max(0, Number(serverRegular.lastFarmingSettledAtMs ?? 0));
-          if (serverWatermark > 0 || (updated.lastFarmingSettledAt ?? 0) > 0) {
-            const merged = Math.max(updated.lastFarmingSettledAt ?? 0, serverWatermark);
-            updated = { ...updated, lastFarmingSettledAt: merged };
-          }
-        }
-        updated = settleFarmingState(updated, serverNow());
-
         {
           const sent = Math.floor(updated.balance);
           const sentTon = Math.max(0, updated.tonBalance || 0);
@@ -1656,17 +1620,6 @@ export function useGameState() {
           gold:  state.claimedBonusGold  ?? 0,
           v1:    state.claimedBonusV1    ?? 0,
         },
-        // Push the offline-farming watermark together with planets and
-        // counters: settle() always advances both lastFarmingSettledAt
-        // AND planet timestamps in the same step, so coalescing them
-        // into the same write keeps the server view internally
-        // consistent. Server GREATEST-merges so a stale save can never
-        // roll the watermark backwards. Skip writing when it's still
-        // the 0 sentinel (brand-new account with no settle yet) so we
-        // don't accidentally pin the server to 0.
-        (state.lastFarmingSettledAt ?? 0) > 0
-          ? state.lastFarmingSettledAt
-          : undefined,
       );
     }, 1200);
     return () => clearTimeout(t);
@@ -1678,10 +1631,6 @@ export function useGameState() {
     state.claimedBonusEpic,
     state.claimedBonusGold,
     state.claimedBonusV1,
-    // Re-run when the watermark moves so it's pushed to the server
-    // promptly (otherwise a long quiet period after offline credit
-    // would leave another device able to re-credit the same window).
-    state.lastFarmingSettledAt,
   ]);
 
   useEffect(() => {

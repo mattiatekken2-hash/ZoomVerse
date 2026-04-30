@@ -519,57 +519,6 @@ router.post("/admin/credit-spins", async (req, res) => {
   }
 });
 
-// ----- STARDUST -----
-const StardustBody = z.object({
-  adminId: z.string(),
-  telegramId: z.string().min(1),
-  count: z.number().int().positive(),
-});
-
-router.post("/admin/credit-stardust", async (req, res) => {
-  const parsed = StardustBody.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
-  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
-  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
-  if (!telegramId) return res.status(404).json({ error: "User not found" });
-  const { count } = parsed.data;
-  try {
-    // Stardust is its own currency that does NOT participate in the
-    // balance_epoch fence (zoom_balance only). Insert-or-bump the column
-    // directly. We don't seed an empty user here — the row should already
-    // exist (every player who registered has one) — but ON CONFLICT lets
-    // the admin grant land safely either way.
-    await db.insert(usersTable)
-      .values({ telegramId, zoomBalance: 0, referralCount: 0, stardustBalance: count })
-      .onConflictDoUpdate({
-        target: usersTable.telegramId,
-        set: { stardustBalance: sql`${usersTable.stardustBalance} + ${count}` },
-      });
-    res.json({ ok: true });
-  } catch (err) {
-    console.error("[admin/credit-stardust]", err);
-    res.status(500).json({ error: "Database error" });
-  }
-});
-
-router.post("/admin/remove-stardust", async (req, res) => {
-  const parsed = StardustBody.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
-  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
-  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
-  if (!telegramId) return res.status(404).json({ error: "User not found" });
-  const { count } = parsed.data;
-  try {
-    await db.update(usersTable)
-      .set({ stardustBalance: sql`GREATEST(0, ${usersTable.stardustBalance} - ${count})` })
-      .where(eq(usersTable.telegramId, telegramId));
-    res.json({ ok: true });
-  } catch (err) {
-    console.error("[admin/remove-stardust]", err);
-    res.status(500).json({ error: "Database error" });
-  }
-});
-
 // ----- MARKETPLACE FORCE-DELIST -----
 const ForceDelistBody = z.object({
   adminId: z.string(),

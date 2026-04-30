@@ -545,57 +545,6 @@ export async function adminCreditSpins(adminId: string, telegramId: string, coun
   } catch { return false; }
 }
 
-export async function adminCreditStardust(adminId: string, telegramId: string, count: number): Promise<boolean> {
-  try {
-    const res = await fetch(`${API_BASE}/admin/credit-stardust`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ adminId, telegramId, count }),
-    });
-    return res.ok;
-  } catch { return false; }
-}
-
-export async function adminRemoveStardust(adminId: string, telegramId: string, count: number): Promise<boolean> {
-  try {
-    const res = await fetch(`${API_BASE}/admin/remove-stardust`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ adminId, telegramId, count }),
-    });
-    return res.ok;
-  } catch { return false; }
-}
-
-// === Hall of Fame — daily referrals leaderboard ===
-export interface HallOfFameEntry {
-  rank: number;
-  name: string;
-  dailyCount: number;
-  prize: number;
-}
-
-export interface HallOfFameResponse {
-  entries: HallOfFameEntry[];
-  prizes: number[];
-  resetDayKey: string;
-}
-
-export async function fetchHallOfFame(): Promise<HallOfFameResponse> {
-  try {
-    const res = await fetch(`${API_BASE}/referral/daily-leaderboard?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return { entries: [], prizes: [100, 75, 50, 25, 25], resetDayKey: "" };
-    const data = await res.json();
-    return {
-      entries: Array.isArray(data?.entries) ? data.entries : [],
-      prizes: Array.isArray(data?.prizes) ? data.prizes : [100, 75, 50, 25, 25],
-      resetDayKey: typeof data?.resetDayKey === "string" ? data.resetDayKey : "",
-    };
-  } catch {
-    return { entries: [], prizes: [100, 75, 50, 25, 25], resetDayKey: "" };
-  }
-}
-
 export async function adminRemoveSpins(adminId: string, telegramId: string, count: number): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/remove-spins`, {
@@ -1365,13 +1314,6 @@ export interface RegularPlanetsState {
   claimedBonusEpic: number;
   claimedBonusGold: number;
   claimedBonusV1: number;
-  // Server-side mirror of the client's last offline-farming settle moment
-  // (epoch ms). 0 means "never settled on the server yet" (existing users
-  // before this field was rolled out, or brand-new accounts). The client
-  // takes max(local, server) as the authoritative starting point so the
-  // offline gap is credited even when localStorage was wiped or we're on
-  // a fresh device.
-  lastFarmingSettledAtMs: number;
 }
 
 export async function fetchRegularPlanets(
@@ -1386,7 +1328,6 @@ export async function fetchRegularPlanets(
     claimedBonusEpic: 0,
     claimedBonusGold: 0,
     claimedBonusV1: 0,
-    lastFarmingSettledAtMs: 0,
   };
   try {
     const res = await fetch(
@@ -1405,7 +1346,6 @@ export async function fetchRegularPlanets(
       claimedBonusEpic: Number(j.claimedBonusEpic ?? 0),
       claimedBonusGold: Number(j.claimedBonusGold ?? 0),
       claimedBonusV1: Number(j.claimedBonusV1 ?? 0),
-      lastFarmingSettledAtMs: Number(j.lastFarmingSettledAtMs ?? 0),
     };
   } catch {
     return failure;
@@ -1422,12 +1362,6 @@ export async function saveRegularPlanets(
     gold: number;
     v1: number;
   },
-  // Optional. When provided, the server GREATEST-merges it into the user
-  // row so other devices/sessions never re-credit an already-settled
-  // offline window. Sent as part of the regular-planets save because
-  // those two pieces of state always change together (settle credits
-  // earnings AND advances planet timestamps).
-  lastFarmingSettledAtMs?: number,
 ): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/regular-planets/save`, {
@@ -1446,9 +1380,6 @@ export async function saveRegularPlanets(
         claimedBonusEpic: claimed.epic,
         claimedBonusGold: claimed.gold,
         claimedBonusV1: claimed.v1,
-        ...(lastFarmingSettledAtMs != null
-          ? { lastFarmingSettledAtMs }
-          : {}),
       }),
       keepalive: true,
     });

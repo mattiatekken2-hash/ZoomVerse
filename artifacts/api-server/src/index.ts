@@ -3,7 +3,6 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { sendBotMessage } from "./lib/notify";
 import { fetchPendingFarmNotifications, markFarmNotified } from "./routes/farm";
-import { runDailyReferralReset } from "./routes/hallOfFame";
 
 const FARM_FULL_MESSAGE = "⚡ Your Farm is full! Collect your TON and restart the engines to keep earning.";
 
@@ -43,7 +42,6 @@ server.listen(port, () => {
   startKeepAlive();
   registerTelegramWebhook();
   startFarmNotificationCron();
-  startHallOfFameDailyCron();
 });
 
 function startFarmNotificationCron() {
@@ -99,43 +97,6 @@ function startFarmNotificationCron() {
   };
   // Fire once 5s after boot so devs can see logs quickly.
   setTimeout(tick, 5_000).unref();
-  setInterval(tick, intervalMs).unref();
-}
-
-function startHallOfFameDailyCron() {
-  // Daily Hall of Fame reset — distributes stardust prizes to the top 5
-  // referrers of the day, then zeroes everyone's daily counter. The reset
-  // is keyed to the UTC day; runDailyReferralReset() is idempotent within
-  // the day, so ticking every minute is safe and only does real work the
-  // first minute past 00:00 UTC.
-  //
-  // We tick every minute (rather than computing the exact next-midnight
-  // delay) so a daylight-savings or process-freeze event can't make us
-  // miss the window: the first tick after midnight will run the reset,
-  // and every subsequent tick that day is a cheap fast-path no-op.
-  const intervalMs = 60 * 1000;
-  let inFlight = false;
-  const tick = async () => {
-    if (inFlight) return;
-    inFlight = true;
-    try {
-      const result = await runDailyReferralReset();
-      if (result.ran) {
-        logger.info(
-          { today: result.today, awarded: result.awarded?.length ?? 0 },
-          "[hall-of-fame] daily reset executed",
-        );
-      }
-    } catch (err) {
-      logger.warn({ err }, "[hall-of-fame] cron tick failed");
-    } finally {
-      inFlight = false;
-    }
-  };
-  // Fire once 8s after boot so a same-day-restart still catches up if the
-  // previous instance crashed between 00:00 UTC and the first scheduled
-  // tick. Slightly after the farm cron's 5s to spread DB load.
-  setTimeout(tick, 8_000).unref();
   setInterval(tick, intervalMs).unref();
 }
 

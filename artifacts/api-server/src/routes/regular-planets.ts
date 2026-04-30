@@ -40,11 +40,6 @@ const SaveBody = z.object({
   claimedBonusEpic: z.number().int().min(0).optional(),
   claimedBonusGold: z.number().int().min(0).optional(),
   claimedBonusV1: z.number().int().min(0).optional(),
-  // Last time the client credited offline farming. We GREATEST-merge it so
-  // the server keeps the most recent settle moment across devices/sessions
-  // and offline farming credits the exact gap on the next open. See the
-  // long comment on usersTable.lastFarmingSettledAtMs.
-  lastFarmingSettledAtMs: z.number().int().min(0).optional(),
 });
 
 // GET /api/regular-planets/:telegramId
@@ -66,7 +61,6 @@ router.get("/regular-planets/:telegramId", async (req, res) => {
         claimedBonusEpic: usersTable.claimedBonusEpic,
         claimedBonusGold: usersTable.claimedBonusGold,
         claimedBonusV1: usersTable.claimedBonusV1,
-        lastFarmingSettledAtMs: usersTable.lastFarmingSettledAtMs,
       })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
@@ -82,7 +76,6 @@ router.get("/regular-planets/:telegramId", async (req, res) => {
         claimedBonusEpic: 0,
         claimedBonusGold: 0,
         claimedBonusV1: 0,
-        lastFarmingSettledAtMs: 0,
       });
       return;
     }
@@ -95,7 +88,6 @@ router.get("/regular-planets/:telegramId", async (req, res) => {
       claimedBonusEpic: row.claimedBonusEpic ?? 0,
       claimedBonusGold: row.claimedBonusGold ?? 0,
       claimedBonusV1: row.claimedBonusV1 ?? 0,
-      lastFarmingSettledAtMs: Number(row.lastFarmingSettledAtMs ?? 0),
     });
   } catch (err) {
     console.error("[regular-planets/get] error:", err);
@@ -123,7 +115,6 @@ router.post("/regular-planets/save", async (req, res) => {
     claimedBonusEpic,
     claimedBonusGold,
     claimedBonusV1,
-    lastFarmingSettledAtMs,
   } = parsed.data;
   try {
     // Atomic write with two safety properties:
@@ -131,12 +122,9 @@ router.post("/regular-planets/save", async (req, res) => {
     //      `planets_updated_at_ms`) if the incoming clientWriteAtMs is
     //      strictly greater than the stored one. This handles concurrent
     //      saves from two devices and same-device out-of-order requests.
-    //   2. Monotonic counters: `claimed_bonus_*` and
-    //      `last_farming_settled_at_ms` are GREATEST-merged so a stale
-    //      save can never lower them. Lowering claimed_bonus_* would let
-    //      applyGrants re-mint bonus planets that were already burned;
-    //      lowering last_farming_settled_at_ms would let a device replay
-    //      an already-credited offline window and double-credit ZOOM.
+    //   2. Monotonic counters: `claimed_bonus_*` are GREATEST-merged so a
+    //      stale save can never lower them, which would otherwise let
+    //      applyGrants re-mint bonus planets that were already burned.
     //   The whole thing runs in a single UPDATE so we don't need a tx.
     const updated = await db
       .update(usersTable)
@@ -148,7 +136,6 @@ router.post("/regular-planets/save", async (req, res) => {
         ...(claimedBonusEpic  != null ? { claimedBonusEpic:  sql`GREATEST(${usersTable.claimedBonusEpic},  ${claimedBonusEpic})`  } : {}),
         ...(claimedBonusGold  != null ? { claimedBonusGold:  sql`GREATEST(${usersTable.claimedBonusGold},  ${claimedBonusGold})`  } : {}),
         ...(claimedBonusV1    != null ? { claimedBonusV1:    sql`GREATEST(${usersTable.claimedBonusV1},    ${claimedBonusV1})`    } : {}),
-        ...(lastFarmingSettledAtMs != null ? { lastFarmingSettledAtMs: sql`GREATEST(${usersTable.lastFarmingSettledAtMs}, ${lastFarmingSettledAtMs})` } : {}),
       })
       .where(eq(usersTable.telegramId, telegramId))
       .returning({
