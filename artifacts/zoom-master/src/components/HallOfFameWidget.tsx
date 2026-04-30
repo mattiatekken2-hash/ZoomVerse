@@ -15,27 +15,31 @@ import { fetchHallOfFameDaily, type HallOfFameResponse } from "../utils/api";
 // when opened so the user always sees the current standings.
 
 interface Props {
-  // No props needed for read-only leaderboard, but keep a placeholder so
-  // mounting from LabPage stays consistent with other widgets if we ever
-  // need to scope by user.
   telegramId?: string | null;
+  // SUN-gated entry: when false, opening the widget shows a paywall
+  // message ("☀️ SUN Required!") instead of the leaderboard. The
+  // backend mirrors this gate (referral.ts upsert + leaderboard query
+  // + cron settlement all check sun_count > 0), so even if a non-SUN
+  // user bypasses the UI they cannot accumulate or be credited points.
+  hasSun?: boolean;
 }
 
-function HallOfFameWidgetBase(_props: Props) {
+function HallOfFameWidgetBase({ hasSun = false }: Props) {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<HallOfFameResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Refresh every time the modal opens (cheap GET, no caching).
+  // Skip the fetch entirely for non-SUN users — they only see the gate.
   useEffect(() => {
-    if (!open) return;
+    if (!open || !hasSun) return;
     let alive = true;
     setLoading(true);
     void fetchHallOfFameDaily()
       .then((res) => { if (alive) setData(res); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [open]);
+  }, [open, hasSun]);
 
   return (
     <>
@@ -122,19 +126,41 @@ function HallOfFameWidgetBase(_props: Props) {
               Resets every day at 00:00 UTC
             </div>
 
-            {loading && !data && (
+            {!hasSun && (
+              <div
+                data-testid="hof-sun-gate"
+                style={{
+                  padding: "26px 18px",
+                  borderRadius: 14,
+                  background: "linear-gradient(135deg, rgba(255,179,71,0.10), rgba(255,210,63,0.06))",
+                  border: "1.5px solid rgba(255,210,63,0.45)",
+                  textAlign: "center",
+                  margin: "8px 0 4px",
+                }}
+              >
+                <div style={{ fontSize: 38, lineHeight: 1, marginBottom: 10 }}>☀️</div>
+                <div style={{ color: "#ffd23f", fontWeight: 900, fontSize: 16, marginBottom: 10, letterSpacing: 0.5 }}>
+                  SUN Required!
+                </div>
+                <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, lineHeight: 1.55 }}>
+                  Only Sun holders can enter the Hall of Fame and win Daily Stardust. Visit the Shop to join the elite.
+                </div>
+              </div>
+            )}
+
+            {hasSun && loading && !data && (
               <div className="text-xs" style={{ color: "rgba(255,255,255,0.5)", padding: "20px 0" }}>
                 Loading…
               </div>
             )}
 
-            {data && data.entries.length === 0 && (
+            {hasSun && data && data.entries.length === 0 && (
               <div className="text-xs" style={{ color: "rgba(255,255,255,0.5)", padding: "20px 0" }}>
                 No referrals yet today — be the first!
               </div>
             )}
 
-            {data && data.entries.length > 0 && (
+            {hasSun && data && data.entries.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6, textAlign: "left" }}>
                 {data.entries.map((e) => {
                   const isPodium = e.prize !== null;
@@ -197,26 +223,30 @@ function HallOfFameWidgetBase(_props: Props) {
               </div>
             )}
 
-            {/* Prize legend — always visible so users know the tiers
-                even when the leaderboard is short. */}
-            <div style={{
-              marginTop: 14, paddingTop: 12,
-              borderTop: "1px solid rgba(255,255,255,0.08)",
-              fontSize: 10, color: "rgba(255,255,255,0.55)",
-              display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4,
-            }}>
-              {[100, 75, 50, 25, 25].map((p, i) => (
-                <div key={i} style={{
-                  padding: "4px 2px", borderRadius: 6,
-                  background: "rgba(255,210,63,0.05)",
-                  border: "1px solid rgba(255,210,63,0.2)",
-                  textAlign: "center",
-                }}>
-                  <div style={{ color: "#ffd23f", fontWeight: 800 }}>#{i + 1}</div>
-                  <div style={{ color: "rgba(255,255,255,0.7)" }}>+{p}⭐</div>
-                </div>
-              ))}
-            </div>
+            {/* Prize legend — visible to SUN holders so they know the
+                tiers even when the leaderboard is short. Hidden for
+                non-SUN users because the gate message above is already
+                the call-to-action. */}
+            {hasSun && (
+              <div style={{
+                marginTop: 14, paddingTop: 12,
+                borderTop: "1px solid rgba(255,255,255,0.08)",
+                fontSize: 10, color: "rgba(255,255,255,0.55)",
+                display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4,
+              }}>
+                {[100, 75, 50, 25, 25].map((p, i) => (
+                  <div key={i} style={{
+                    padding: "4px 2px", borderRadius: 6,
+                    background: "rgba(255,210,63,0.05)",
+                    border: "1px solid rgba(255,210,63,0.2)",
+                    textAlign: "center",
+                  }}>
+                    <div style={{ color: "#ffd23f", fontWeight: 800 }}>#{i + 1}</div>
+                    <div style={{ color: "rgba(255,255,255,0.7)" }}>+{p}⭐</div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <button
               onClick={() => setOpen(false)}

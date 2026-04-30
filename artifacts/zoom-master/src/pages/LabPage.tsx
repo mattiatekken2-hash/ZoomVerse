@@ -201,7 +201,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         onTap={handleCraft}
       />
       <MysteryBoxWidget telegramId={telegramId} />
-      <HallOfFameWidget telegramId={telegramId} />
+      <HallOfFameWidget telegramId={telegramId} hasSun={(sunCount ?? 0) > 0} />
       <WhiteCollectionWidget telegramId={telegramId} unlocked={whiteCollectionUnlocked} ownedBundles={whiteCollectionBundles} sunCount={sunCount} />
       <EarthCollectionWidget telegramId={telegramId} unlocked={earthCollectionUnlocked} ownedBundles={earthCollectionBundles} sunCount={sunCount} />
       {/* Space-merchant radar LED — small red blink near the Earth widget so

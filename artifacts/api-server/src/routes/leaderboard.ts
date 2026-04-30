@@ -213,7 +213,12 @@ router.get("/leaderboard/daily-referrals", async (_req, res) => {
         count: usersTable.dailyReferralCount,
       })
       .from(usersTable)
-      .where(sql`${usersTable.dailyReferralDayKey} = ${today} AND ${usersTable.dailyReferralCount} > 0`)
+      // SUN-gated leaderboard: only users that own at least one SUN
+      // can appear here. The referral.ts upsert already refuses to bump
+      // the daily counter for non-SUN users, but we keep the SUN filter
+      // here too as defense-in-depth in case a user loses SUN
+      // (admin-remove or future feature) AFTER having accumulated points.
+      .where(sql`${usersTable.dailyReferralDayKey} = ${today} AND ${usersTable.dailyReferralCount} > 0 AND ${usersTable.sunCount} > 0`)
       .orderBy(desc(usersTable.dailyReferralCount))
       .limit(10);
 
