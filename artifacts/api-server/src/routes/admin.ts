@@ -531,6 +531,39 @@ router.post("/admin/credit-stardust", async (req, res) => {
   }
 });
 
+// Mirror of credit-stardust but subtracts. Uses GREATEST(balance - amount, 0)
+// so the balance is clamped at zero — admins can't push it negative even by
+// mistake. Like the credit endpoint, leaves stardust_today / stardust_day_key
+// alone (admin actions bypass the per-day cap accounting) and bumps
+// balance_epoch so the user's next sync picks up the new value immediately.
+router.post("/admin/remove-stardust", async (req, res) => {
+  const parsed = CreditStardustBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  const { amount } = parsed.data;
+  try {
+    // .returning() lets us detect whether the user row actually exists.
+    // Without this, an UPDATE on a non-existent telegramId would silently
+    // affect 0 rows and we'd return {ok:true}, hiding admin typos.
+    const updated = await db
+      .update(usersTable)
+      .set({
+        stardustBalance: sql`GREATEST(${usersTable.stardustBalance} - ${amount}, 0)`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
+      .where(eq(usersTable.telegramId, telegramId))
+      .returning({ id: usersTable.telegramId });
+    if (updated.length === 0) return res.status(404).json({ error: "User not found" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/remove-stardust]", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 // ----- SPINS -----
 const SpinsBody = z.object({
   adminId: z.string(),
