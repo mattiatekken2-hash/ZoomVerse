@@ -1,10 +1,16 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 
 const router: IRouter = Router();
 
 const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+// Maximum age of a pending wheel claim before /wheel/status auto-credits it.
+// 30s comfortably covers the 5.2s on-screen animation plus any retry/network
+// hiccup. Beyond that we assume the user closed the app between spin and
+// claim and credit the prize defensively so they never "lose" a spin.
+const PENDING_CLAIM_TTL_MS = 30 * 1000;
 
 export interface WheelPrize {
   index: number;
@@ -18,6 +24,21 @@ export interface WheelPrize {
   icon: string;
   color: string;
   weight: number;
+}
+
+// Shape of the JSONB stored in users.pending_wheel_claim.
+interface PendingWheelClaim {
+  spinId: string;
+  prizeIndex: number;
+  type: "zoom" | "planet" | "stars" | "ton";
+  zoomAmount?: number;
+  planetType?: "BASIC" | "RARE" | "EPIC";
+  starsAmount?: number;
+  tonAmount?: number;
+  label: string;
+  color: string;
+  icon: string;
+  createdAt: number;
 }
 
 // 12 segments. Decoys (stars/ton) have weight 0 — visible but never selected.
@@ -47,6 +68,81 @@ function pickPrize(): WheelPrize {
   return WHEEL_PRIZES[0];
 }
 
+// Atomically credit a pending wheel claim and clear it from the user row.
+// Idempotent: if pending is already NULL or has a different spinId, this
+// updates 0 rows and returns null. Used by /wheel/claim, by /wheel/status
+// (sweep for stale pending), and by /wheel/spin (auto-claim a prior pending
+// before starting a new spin so the user is never stuck).
+async function creditPendingClaim(
+  telegramId: string,
+  spinId: string,
+): Promise<PendingWheelClaim | null> {
+  // Read pending first so we know what to credit. We can't reliably do
+  // "compute credit from JSONB inside a single SQL statement" because the
+  // amount and the column to bump depend on the prize type. Two-step
+  // (SELECT ... then UPDATE ... WHERE pending->>'spinId' = $spinId)
+  // is safe because the UPDATE fences out double-credit by spinId.
+  const [row] = await db
+    .select({ pending: usersTable.pendingWheelClaim })
+    .from(usersTable)
+    .where(eq(usersTable.telegramId, telegramId))
+    .limit(1);
+  const pending = (row?.pending as PendingWheelClaim | null) ?? null;
+  if (!pending || pending.spinId !== spinId) return null;
+
+  if (pending.type === "zoom" && pending.zoomAmount) {
+    const dec = await db.execute(sql`
+      UPDATE users
+      SET zoom_balance = zoom_balance + ${pending.zoomAmount},
+          balance_epoch = balance_epoch + 1,
+          pending_wheel_claim = NULL
+      WHERE telegram_id = ${telegramId}
+        AND pending_wheel_claim->>'spinId' = ${spinId}
+      RETURNING balance_epoch
+    `);
+    if (!dec.rows || dec.rows.length === 0) return null;
+    return pending;
+  }
+
+  if (pending.type === "planet" && pending.planetType) {
+    const col = pending.planetType === "BASIC" ? "bonus_basic"
+      : pending.planetType === "RARE" ? "bonus_rare"
+      : "bonus_epic";
+    const dec = await db.execute(sql`
+      UPDATE users
+      SET ${sql.raw(col)} = ${sql.raw(col)} + 1,
+          pending_wheel_claim = NULL
+      WHERE telegram_id = ${telegramId}
+        AND pending_wheel_claim->>'spinId' = ${spinId}
+      RETURNING ${sql.raw(col)} AS bonus
+    `);
+    if (!dec.rows || dec.rows.length === 0) return null;
+    return pending;
+  }
+
+  // stars/ton are decoys (weight 0). Still clear pending if somehow set.
+  await db.execute(sql`
+    UPDATE users SET pending_wheel_claim = NULL
+    WHERE telegram_id = ${telegramId}
+      AND pending_wheel_claim->>'spinId' = ${spinId}
+  `);
+  return pending;
+}
+
+// Defensive sweep: if a pending claim exists and is older than the TTL,
+// auto-credit it. Returns the credited prize, or null if no sweep needed.
+async function sweepStalePending(telegramId: string): Promise<PendingWheelClaim | null> {
+  const [row] = await db
+    .select({ pending: usersTable.pendingWheelClaim })
+    .from(usersTable)
+    .where(eq(usersTable.telegramId, telegramId))
+    .limit(1);
+  const pending = (row?.pending as PendingWheelClaim | null) ?? null;
+  if (!pending) return null;
+  if (Date.now() - (pending.createdAt || 0) < PENDING_CLAIM_TTL_MS) return null;
+  return creditPendingClaim(telegramId, pending.spinId);
+}
+
 router.get("/wheel/config", (_req, res) => {
   res.json({
     prizes: WHEEL_PRIZES.map(({ index, type, zoomAmount, planetType, starsAmount, tonAmount, label, shortLabel, icon, color }) => ({
@@ -70,10 +166,15 @@ async function getStatus(telegramId: string) {
 
 router.get("/wheel/status/:telegramId", async (req, res) => {
   try {
+    // Best-effort sweep: if the user has a pending claim older than the TTL
+    // (likely because they closed the app between spin and claim), credit
+    // it now so they don't perceive their spin as "lost". Errors here are
+    // non-fatal; status still returns.
+    try { await sweepStalePending(req.params.telegramId); } catch (e) { req.log?.warn({ err: e }, "[wheel/status] sweep failed"); }
     const status = await getStatus(req.params.telegramId);
     res.json(status);
   } catch (err) {
-    console.error("[wheel/status] error:", err);
+    req.log?.error({ err }, "[wheel/status] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -81,10 +182,14 @@ router.get("/wheel/status/:telegramId", async (req, res) => {
 // Backwards-compatible
 router.get("/wheel/spins/:telegramId", async (req, res) => {
   try {
+    // Same defensive sweep as /wheel/status — older clients that only poll
+    // this endpoint must also benefit from auto-claiming pending prizes
+    // older than the TTL, otherwise they'd leave the user's spin in limbo.
+    try { await sweepStalePending(req.params.telegramId); } catch (e) { req.log?.warn({ err: e }, "[wheel/spins] sweep failed"); }
     const status = await getStatus(req.params.telegramId);
     res.json({ spins: status.spins, canClaimDaily: status.canClaimDaily, nextClaimAt: status.nextClaimAt });
   } catch (err) {
-    console.error("[wheel/spins] error:", err);
+    req.log?.error({ err }, "[wheel/spins] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -123,7 +228,7 @@ router.post("/wheel/claim-daily", async (req, res) => {
     const status = await getStatus(telegramId);
     res.json({ ok: true, ...status });
   } catch (err) {
-    console.error("[wheel/claim-daily] error:", err);
+    req.log?.error({ err }, "[wheel/claim-daily] error");
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -161,40 +266,67 @@ router.post("/wheel/spin", async (req, res) => {
   }
 
   try {
+    // If the user already has a pending claim from a prior spin (e.g. they
+    // closed the app before the claim fired), credit it FIRST so we never
+    // leave them stuck and so the new spin's atomic UPDATE (which requires
+    // pending IS NULL) can succeed.
+    const [pre] = await db
+      .select({ pending: usersTable.pendingWheelClaim })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, telegramId))
+      .limit(1);
+    const priorPending = (pre?.pending as PendingWheelClaim | null) ?? null;
+    if (priorPending) {
+      try { await creditPendingClaim(telegramId, priorPending.spinId); }
+      catch (e) { req.log?.warn({ err: e }, "[wheel/spin] failed to auto-claim prior pending"); }
+    }
+
+    const prize = pickPrize();
+    const spinId = randomUUID();
+    const pendingPayload: PendingWheelClaim = {
+      spinId,
+      prizeIndex: prize.index,
+      type: prize.type,
+      zoomAmount: prize.zoomAmount,
+      planetType: prize.planetType,
+      starsAmount: prize.starsAmount,
+      tonAmount: prize.tonAmount,
+      label: prize.label,
+      color: prize.color,
+      icon: prize.icon,
+      createdAt: Date.now(),
+    };
+
+    // Atomic: decrement spins AND park the prize as pending. The
+    // pending_wheel_claim IS NULL guard prevents racing two spins from
+    // creating two pending claims (the auto-claim above already cleared
+    // any prior pending; this guard catches the unlikely concurrent-spin
+    // race). NO balance change, NO epoch bump here — those happen in
+    // /wheel/claim once the on-screen wheel finishes spinning.
     const dec = await db.execute(sql`
       UPDATE users
-      SET wheel_spins = wheel_spins - 1
+      SET wheel_spins = wheel_spins - 1,
+          pending_wheel_claim = ${JSON.stringify(pendingPayload)}::jsonb
       WHERE telegram_id = ${telegramId}
         AND wheel_spins > 0
+        AND pending_wheel_claim IS NULL
       RETURNING wheel_spins
     `);
 
     if (!dec.rows || dec.rows.length === 0) {
+      // Either no spins, or another concurrent spin won the race and a
+      // pending claim is already in flight — return a clean 409 so the
+      // client UI can re-fetch status.
       res.status(409).json({ error: "No spins available" });
       return;
     }
 
-    const prize = pickPrize();
-
-    if (prize.type === "zoom" && prize.zoomAmount) {
-      await db.update(usersTable)
-        .set({
-          zoomBalance: sql`${usersTable.zoomBalance} + ${prize.zoomAmount}`,
-          balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
-        })
-        .where(eq(usersTable.telegramId, telegramId));
-    } else if (prize.type === "planet" && prize.planetType) {
-      const col = prize.planetType === "BASIC" ? "bonusBasic"
-        : prize.planetType === "RARE" ? "bonusRare"
-        : "bonusEpic";
-      await db.update(usersTable)
-        .set({ [col]: sql`${usersTable[col as keyof typeof usersTable.$inferSelect] as never} + 1` })
-        .where(eq(usersTable.telegramId, telegramId));
-    }
-
     const remaining = Number((dec.rows[0] as { wheel_spins: number }).wheel_spins);
 
-    // Push to public feed (best-effort, non-blocking on errors)
+    // Push to public feed (best-effort, non-blocking on errors). We push
+    // here (at spin time, not claim time) because the prize is already
+    // determined and the feed is a marketing/social signal — claim time
+    // would just delay the public broadcast by 5 seconds.
     try {
       const [u] = await db
         .select({ first: usersTable.firstName, username: usersTable.username })
@@ -212,6 +344,7 @@ router.post("/wheel/spin", async (req, res) => {
     } catch { /* ignore */ }
 
     res.json({
+      spinId,
       prizeIndex: prize.index,
       prize: {
         type: prize.type,
@@ -226,7 +359,40 @@ router.post("/wheel/spin", async (req, res) => {
       spinsRemaining: remaining,
     });
   } catch (err) {
-    console.error("[wheel/spin] error:", err);
+    req.log?.error({ err }, "[wheel/spin] error");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+router.post("/wheel/claim", async (req, res) => {
+  const { telegramId, spinId } = req.body as { telegramId?: string; spinId?: string };
+  if (!telegramId || !spinId) {
+    res.status(400).json({ error: "Missing telegramId or spinId" });
+    return;
+  }
+  try {
+    const credited = await creditPendingClaim(telegramId, spinId);
+    if (credited) {
+      // Successfully credited the pending claim atomically.
+      res.json({ ok: true, credited: true, prize: {
+        type: credited.type,
+        zoomAmount: credited.zoomAmount,
+        planetType: credited.planetType,
+        starsAmount: credited.starsAmount,
+        tonAmount: credited.tonAmount,
+        label: credited.label,
+        color: credited.color,
+        icon: credited.icon,
+      } });
+      return;
+    }
+    // No row updated. Either the spinId doesn't match the current pending
+    // (already claimed by a previous request, or a different spin is now
+    // pending), or the user simply has no pending. In all of these cases
+    // the right answer is "ok, nothing to do" — never error, never re-credit.
+    res.json({ ok: true, credited: false, alreadyCredited: true });
+  } catch (err) {
+    req.log?.error({ err }, "[wheel/claim] error");
     res.status(500).json({ error: "Internal error" });
   }
 });

@@ -870,6 +870,10 @@ export async function claimWheelDaily(telegramId: string): Promise<{ ok: boolean
 }
 
 export interface WheelSpinResult {
+  // Identifier of THIS spin's pending claim. Must be passed back to
+  // /wheel/claim once the on-screen wheel finishes spinning so the
+  // server credits the prize. Idempotent on the server side.
+  spinId: string;
   prizeIndex: number;
   prize: {
     type: "zoom" | "planet" | "stars" | "ton";
@@ -941,6 +945,33 @@ export async function spinWheel(telegramId: string): Promise<{ ok: boolean; resu
       return { ok: false, error: data.error || "Spin failed" };
     }
     return { ok: true, result: await res.json() };
+  } catch { return { ok: false, error: "Network error" }; }
+}
+
+// Credit a previously-spun wheel prize. Called by the WheelPage AFTER the
+// 5.2s on-screen spin animation completes, so the visible balance only
+// jumps when the popup appears (the surprise of the win is preserved).
+// Idempotent on the server side: calling twice with the same spinId
+// credits at most once. The server also auto-claims any pending older
+// than 30s on /wheel/status as a safety net for users who close the app
+// between spin and claim.
+export async function claimWheelSpin(
+  telegramId: string,
+  spinId: string,
+): Promise<{ ok: boolean; credited?: boolean; alreadyCredited?: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/wheel/claim`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ telegramId, spinId }),
+      keepalive: true,
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { ok: false, error: data.error || "Claim failed" };
+    }
+    const data = await res.json().catch(() => ({}));
+    return { ok: true, credited: !!data.credited, alreadyCredited: !!data.alreadyCredited };
   } catch { return { ok: false, error: "Network error" }; }
 }
 

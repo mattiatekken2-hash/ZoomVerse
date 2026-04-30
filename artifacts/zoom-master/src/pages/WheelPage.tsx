@@ -4,6 +4,7 @@ import {
   fetchWheelStatus,
   fetchWheelFeed,
   spinWheel,
+  claimWheelSpin,
   claimWheelDaily,
   createStarsInvoice,
   confirmStarsPurchase,
@@ -484,7 +485,19 @@ export function WheelPage({ telegramId }: WheelPageProps) {
     spinToRef.current = newRotation;
     setRotation(newRotation);
 
-    window.setTimeout(() => {
+    window.setTimeout(async () => {
+      // Now that the on-screen wheel has finished spinning, ASK THE SERVER
+      // TO CREDIT THE PRIZE. /wheel/spin only parked it as pending; the
+      // visible balance hasn't moved yet, so the popup is the moment of
+      // surprise. Once /wheel/claim returns, the prize is in zoom_balance
+      // and balance_epoch was bumped — admin-refresh then snaps the local
+      // state to the new authoritative balance. Idempotent on the server
+      // side; we never double-credit even on retry. If claim fails over
+      // the network, the server's auto-claim sweep on /wheel/status (TTL
+      // 30s) will credit the prize on the next status fetch.
+      try {
+        await claimWheelSpin(telegramId, r.spinId);
+      } catch { /* swallowed; auto-claim sweep is the safety net */ }
       setSpinning(false);
       setResult(r);
       setHighlightIdx(r.prizeIndex);
@@ -492,13 +505,12 @@ export function WheelPage({ telegramId }: WheelPageProps) {
       setWinFlash(true);
       spawnParticles(r.prize.color);
       setTimeout(() => setWinFlash(false), 2500);
-      // Server is the source of truth for the balance: /wheel/spin already
-      // credited the prize and bumped balance_epoch. Pull the new value via
-      // the admin-refresh path which fetches the authoritative balance and
-      // snaps local state to it. We deliberately DO NOT also dispatch a
-      // local credit here — combining a local +amount and a server snap in
-      // the same tick raced with stateRef updates and could double-count
-      // visually. Grants (planet prizes) come along via admin-refresh too.
+      // Pull the now-credited balance via the admin-refresh path which
+      // fetches the authoritative balance and snaps local state to it.
+      // We deliberately DO NOT also dispatch a local credit here —
+      // combining a local +amount and a server snap in the same tick
+      // races with stateRef updates and could double-count visually.
+      // Planet prizes come along via admin-refresh too.
       window.dispatchEvent(new Event("zoom-admin-refresh"));
       // Release the re-entry guard only AFTER the server settled and the
       // win popup is already on-screen, so accidental extra taps during

@@ -40,6 +40,20 @@ export const usersTable = pgTable("users", {
   totalCraftedComet: integer("total_crafted_comet").notNull().default(0),
   wheelSpins: integer("wheel_spins").notNull().default(0),
   lastWheelDailyAt: timestamp("last_wheel_daily_at"),
+  // Pending wheel-of-fortune prize. When the user spins, the server picks the
+  // prize and decrements wheel_spins atomically, but DOES NOT credit the
+  // balance/planet bonus yet — the prize is parked here until the client
+  // calls /wheel/claim once the on-screen wheel animation (5.2s) finishes.
+  // This way the user's visible balance never jumps mid-spin (no /balance/sync
+  // path can leak the credit before the popup), so the surprise of the win
+  // is preserved. Stored as JSONB carrying { spinId, type, zoomAmount?,
+  // planetType?, label, color, icon, prizeIndex, createdAt }. NULL means no
+  // pending claim. Idempotency is enforced by matching spinId in /wheel/claim.
+  // /wheel/status auto-claims any pending older than 30s (defensive sweep
+  // for users who closed the app between spin and claim), and /wheel/spin
+  // also auto-claims any prior pending before starting a new spin so users
+  // are never stuck with a "lost" prize.
+  pendingWheelClaim: jsonb("pending_wheel_claim"),
   dailyStreakDay: integer("daily_streak_day").notNull().default(0),
   dailyStreakCycle: integer("daily_streak_cycle").notNull().default(0),
   lastDailyClaimAt: timestamp("last_daily_claim_at"),
