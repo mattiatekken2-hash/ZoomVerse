@@ -116,7 +116,33 @@ router.get("/regular-planets/:telegramId", async (req, res) => {
 router.post("/regular-planets/save", async (req, res) => {
   const parsed = SaveBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid body" });
+    const issues = parsed.error.issues.slice(0, 6).map((i) => ({
+      path: i.path.join("."),
+      code: i.code,
+      message: i.message,
+    }));
+    let sample: unknown = undefined;
+    try {
+      const planetsArr = Array.isArray((req.body as { planets?: unknown })?.planets)
+        ? ((req.body as { planets: unknown[] }).planets)
+        : [];
+      sample = planetsArr.length > 0 ? planetsArr[0] : null;
+    } catch { /* ignore */ }
+    req.log?.warn(
+      {
+        issues,
+        bodyKeys: Object.keys((req.body ?? {}) as Record<string, unknown>),
+        planetCount: Array.isArray((req.body as { planets?: unknown })?.planets)
+          ? ((req.body as { planets: unknown[] }).planets).length
+          : -1,
+        firstPlanetSample: sample,
+        telegramId: typeof (req.body as { telegramId?: unknown })?.telegramId === "string"
+          ? (req.body as { telegramId: string }).telegramId
+          : "(missing)",
+      },
+      "[regular-planets/save] body validation failed",
+    );
+    res.status(400).json({ error: "Invalid body", issues });
     return;
   }
   const {
