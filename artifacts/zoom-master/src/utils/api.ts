@@ -48,7 +48,7 @@ export function notifyFarmStop(telegramId: string, planetId: string): void {
  * with `bonus-`). Without this, the next /grants sync would re-grant the
  * same planet because the entitlement counter is still > claimed.
  */
-export function notifyPlanetBurn(telegramId: string, planetType: "BASIC" | "RARE" | "EPIC" | "COMET" | "GOLD"): void {
+export function notifyPlanetBurn(telegramId: string, planetType: "BASIC" | "RARE" | "EPIC" | "GOLD"): void {
   if (!telegramId) return;
   fetch(`${API_BASE}/planets/burn`, {
     method: "POST",
@@ -178,15 +178,10 @@ export async function syncBalance(params: {
 }): Promise<{ zoomBalance: number; tonBalance: number; balanceEpoch: number }> {
   const fallbackTon = typeof params.tonBalance === "number" ? params.tonBalance : 0;
   try {
-    // keepalive lets this POST survive a page-hide / Telegram-WebView swipe
-    // close. Without it, the browser cancels the in-flight fetch when the
-    // document unloads and the spent ZOOM never reaches the server, so the
-    // next open snaps the local balance back to the pre-spend value.
     const res = await fetch(`${API_BASE}/balance/sync`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
-      keepalive: true,
     });
     if (!res.ok) return { zoomBalance: params.zoomBalance, tonBalance: fallbackTon, balanceEpoch: params.clientEpoch ?? 0 };
     const data = await res.json();
@@ -209,9 +204,6 @@ export interface Grants {
   bonusEpic: number;
   bonusGold: number;
   bonusV1: number;
-  // COMET — pending bonus comets the server has granted that the client has
-  // not yet materialised into planets_json (mirrors bonusBasic/Rare/etc).
-  bonusComet: number;
   hasAutoTap: boolean;
   whiteCollectionUnlocked: boolean;
   whiteCollectionBundles: number;
@@ -225,7 +217,7 @@ export interface Grants {
   sunCycleCount: number;
 }
 
-const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusV1: 0, bonusComet: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusV1: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
 
 /**
  * Push the current SUN cycle to the server so it persists across
@@ -317,7 +309,7 @@ export async function adminCreditZoom(adminId: string, telegramId: string, amoun
   } catch { return false; }
 }
 
-export async function adminAddPlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "GOLD" | "COMET" | "SUN"): Promise<boolean> {
+export async function adminAddPlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "GOLD" | "SUN"): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/add-planets`, {
       method: "POST",
@@ -509,7 +501,7 @@ export async function adminRemoveZoom(adminId: string, telegramId: string, amoun
   } catch { return false; }
 }
 
-export async function adminRemovePlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "GOLD" | "COMET" | "SUN"): Promise<boolean> {
+export async function adminRemovePlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "GOLD" | "SUN"): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/remove-planets`, {
       method: "POST",
@@ -799,7 +791,7 @@ export async function pollTxnUntilFinal(txnId: number, opts: { maxMs?: number; i
 export interface UserProfile {
   exists: boolean;
   createdAt?: string;
-  crafted?: { BASIC: number; RARE: number; EPIC: number; GOLD: number; V1?: number; COMET?: number };
+  crafted?: { BASIC: number; RARE: number; EPIC: number; GOLD: number; V1?: number };
 }
 
 export async function fetchProfile(telegramId: string): Promise<UserProfile> {
@@ -870,10 +862,6 @@ export async function claimWheelDaily(telegramId: string): Promise<{ ok: boolean
 }
 
 export interface WheelSpinResult {
-  // Identifier of THIS spin's pending claim. Must be passed back to
-  // /wheel/claim once the on-screen wheel finishes spinning so the
-  // server credits the prize. Idempotent on the server side.
-  spinId: string;
   prizeIndex: number;
   prize: {
     type: "zoom" | "planet" | "stars" | "ton";
@@ -945,33 +933,6 @@ export async function spinWheel(telegramId: string): Promise<{ ok: boolean; resu
       return { ok: false, error: data.error || "Spin failed" };
     }
     return { ok: true, result: await res.json() };
-  } catch { return { ok: false, error: "Network error" }; }
-}
-
-// Credit a previously-spun wheel prize. Called by the WheelPage AFTER the
-// 5.2s on-screen spin animation completes, so the visible balance only
-// jumps when the popup appears (the surprise of the win is preserved).
-// Idempotent on the server side: calling twice with the same spinId
-// credits at most once. The server also auto-claims any pending older
-// than 30s on /wheel/status as a safety net for users who close the app
-// between spin and claim.
-export async function claimWheelSpin(
-  telegramId: string,
-  spinId: string,
-): Promise<{ ok: boolean; credited?: boolean; alreadyCredited?: boolean; error?: string }> {
-  try {
-    const res = await fetch(`${API_BASE}/wheel/claim`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ telegramId, spinId }),
-      keepalive: true,
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      return { ok: false, error: data.error || "Claim failed" };
-    }
-    const data = await res.json().catch(() => ({}));
-    return { ok: true, credited: !!data.credited, alreadyCredited: !!data.alreadyCredited };
   } catch { return { ok: false, error: "Network error" }; }
 }
 
@@ -1404,9 +1365,6 @@ export interface RegularPlanetsState {
   claimedBonusEpic: number;
   claimedBonusGold: number;
   claimedBonusV1: number;
-  // COMET — server-mirrored count of comet bonus planets the client has
-  // already materialised (mirrors the other claimedBonus* fields).
-  claimedBonusComet: number;
   // Server-side mirror of the client's last offline-farming settle moment
   // (epoch ms). 0 means "never settled on the server yet" (existing users
   // before this field was rolled out, or brand-new accounts). The client
@@ -1428,7 +1386,6 @@ export async function fetchRegularPlanets(
     claimedBonusEpic: 0,
     claimedBonusGold: 0,
     claimedBonusV1: 0,
-    claimedBonusComet: 0,
     lastFarmingSettledAtMs: 0,
   };
   try {
@@ -1448,7 +1405,6 @@ export async function fetchRegularPlanets(
       claimedBonusEpic: Number(j.claimedBonusEpic ?? 0),
       claimedBonusGold: Number(j.claimedBonusGold ?? 0),
       claimedBonusV1: Number(j.claimedBonusV1 ?? 0),
-      claimedBonusComet: Number(j.claimedBonusComet ?? 0),
       lastFarmingSettledAtMs: Number(j.lastFarmingSettledAtMs ?? 0),
     };
   } catch {
@@ -1465,7 +1421,6 @@ export async function saveRegularPlanets(
     epic: number;
     gold: number;
     v1: number;
-    comet: number;
   },
   // Optional. When provided, the server GREATEST-merges it into the user
   // row so other devices/sessions never re-credit an already-settled
@@ -1491,7 +1446,6 @@ export async function saveRegularPlanets(
         claimedBonusEpic: claimed.epic,
         claimedBonusGold: claimed.gold,
         claimedBonusV1: claimed.v1,
-        claimedBonusComet: claimed.comet,
         ...(lastFarmingSettledAtMs != null
           ? { lastFarmingSettledAtMs }
           : {}),
@@ -1501,63 +1455,6 @@ export async function saveRegularPlanets(
     return res.ok;
   } catch {
     return false;
-  }
-}
-
-// Best-effort, fire-and-forget save used from page-hide / before-unload
-// handlers. Uses navigator.sendBeacon (which is queued by the browser and
-// guaranteed to be delivered even after the document unloads), with a
-// keepalive fetch fallback for environments where sendBeacon is unavailable
-// (older Telegram WebViews on some Android versions). The server fence on
-// /regular-planets/save (planetsUpdatedAtMs < clientWriteAtMs) guarantees
-// that a redundant beacon over an already-saved state is a no-op.
-//
-// THIS IS THE FIX for "I activated a planet / spent ZOOM and it disappeared
-// after restart" — the regular debounced save needs ~1.2s to fire and is
-// cancelled when the WebView is swiped closed before that. The beacon path
-// always lands.
-export function saveRegularPlanetsBeacon(
-  telegramId: string,
-  planets: Array<Record<string, unknown>>,
-  claimed: {
-    basic: number;
-    rare: number;
-    epic: number;
-    gold: number;
-    v1: number;
-    comet: number;
-  },
-  lastFarmingSettledAtMs?: number,
-): void {
-  try {
-    const payload = JSON.stringify({
-      telegramId,
-      planets,
-      clientWriteAtMs: Date.now(),
-      claimedBonusBasic: claimed.basic,
-      claimedBonusRare: claimed.rare,
-      claimedBonusEpic: claimed.epic,
-      claimedBonusGold: claimed.gold,
-      claimedBonusV1: claimed.v1,
-      claimedBonusComet: claimed.comet,
-      ...(lastFarmingSettledAtMs != null ? { lastFarmingSettledAtMs } : {}),
-    });
-    const url = `${API_BASE}/regular-planets/save`;
-    const blob = new Blob([payload], { type: "application/json" });
-    const sent = navigator.sendBeacon?.(url, blob);
-    if (!sent) {
-      // sendBeacon refused (queue full or feature disabled). Fall back to
-      // fetch with keepalive — the browser will still try to deliver after
-      // unload, just less reliably than sendBeacon.
-      void fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: payload,
-        keepalive: true,
-      }).catch(() => {});
-    }
-  } catch {
-    // Beacon path is a safety net; never let a failure block app teardown.
   }
 }
 

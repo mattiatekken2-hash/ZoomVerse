@@ -390,9 +390,7 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
                     </div>
                     <div className="text-xs font-bold" style={{ color: expired ? "rgba(255,82,82,0.75)" : "rgba(255,255,255,0.5)" }}>
                       {active
-                        ? planet.name === "COMET"
-                          ? `+25 Stardust/24h · ${formatDuration(remaining)} left`
-                          : `+${planet.rate.toLocaleString()} $ZOOM/hr · ${formatDuration(remaining)} left`
+                        ? `+${planet.rate.toLocaleString()} $ZOOM/hr · ${formatDuration(remaining)} left`
                         : expired
                         ? `Cycle ended · Reactivate for ${reactivationFee.toLocaleString()} $ZOOM`
                         : isListed
@@ -486,20 +484,6 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
                     >
                       <span>SOULBOUND</span>
                       <span style={{ fontSize: 8, opacity: 0.7 }}>Cannot sell</span>
-                    </button>
-                  ) : planet.name === "COMET" ? (
-                    // COMET is a passive stardust generator — it pays in
-                    // stardust per 24h, not in $ZOOM, and is not listed on
-                    // the market. Show a disabled badge so the slot still
-                    // has an action affordance, mirroring the V1 pattern.
-                    <button
-                      className="btn-widget btn-glass-sell"
-                      disabled
-                      style={{ opacity: 0.5, cursor: "not-allowed" }}
-                      data-testid={`btn-sell-${planet.id}`}
-                    >
-                      <span>PASSIVE</span>
-                      <span style={{ fontSize: 8, opacity: 0.7 }}>Stardust only</span>
                     </button>
                   ) : (
                     <button

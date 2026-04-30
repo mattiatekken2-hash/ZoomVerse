@@ -32,7 +32,7 @@ import {
 
 const ADMIN_ID = "8144744644";
 
-type PlanetChoice = "BASIC" | "RARE" | "EPIC" | "COMET" | "GOLD" | "SUN";
+type PlanetChoice = "BASIC" | "RARE" | "EPIC" | "GOLD" | "SUN";
 type ActionType = "zoom" | "planets" | "slots" | "spins" | "stardust";
 
 function haptic() {
@@ -46,7 +46,6 @@ const PLANET_OPTIONS: { type: PlanetChoice; label: string; color: string }[] = [
   { type: "BASIC",  label: "Basic",  color: "#8892b0" },
   { type: "RARE",   label: "Rare",   color: "#4facfe" },
   { type: "EPIC",   label: "Epic",   color: "#c471ed" },
-  { type: "COMET",  label: "Comet",  color: "#fff176" },
   { type: "GOLD",   label: "Gold",   color: "#ffd700" },
   { type: "SUN",    label: "Sole ☀️", color: "#ffb347" },
 ];

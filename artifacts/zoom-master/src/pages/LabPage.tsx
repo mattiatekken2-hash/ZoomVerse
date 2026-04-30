@@ -184,7 +184,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     BASIC: "basic-text",
     RARE: "rare-text",
     EPIC: "epic-text",
-    COMET: "comet-text",
     GOLD: "gold-text",
     V1: "gold-text",
   };
@@ -335,9 +334,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
                 {PLANET_CONFIG[pendingPlanet.name].label.toUpperCase()}
               </span>
               <span className="text-[10px] font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>
-                {pendingPlanet.name === "COMET"
-                  ? "+25 stardust/24h"
-                  : `+${pendingPlanet.rate.toLocaleString()}/hr`}
+                +{pendingPlanet.rate.toLocaleString()}/hr
               </span>
             </div>
             <button

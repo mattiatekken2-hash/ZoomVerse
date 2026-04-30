@@ -25,35 +25,14 @@ export const usersTable = pgTable("users", {
   bonusEpic: integer("bonus_epic").notNull().default(0),
   bonusGold: integer("bonus_gold").notNull().default(0),
   bonusV1: integer("bonus_v1").notNull().default(0),
-  // COMET — rarity sitting between EPIC and GOLD. Unlike all other planets
-  // (which farm ZOOM), each COMET passively generates 25 STARDUST every 24h
-  // and credits them straight to stardustBalance. Server is the single source
-  // of truth; the client only reads. See `cometStardustSettledAtMs` and
-  // `settleCometStardust()` in api-server/src/routes/stardust.ts.
-  bonusComet: integer("bonus_comet").notNull().default(0),
   claimedMilestones: text("claimed_milestones").notNull().default(""),
   totalCraftedBasic: integer("total_crafted_basic").notNull().default(0),
   totalCraftedRare: integer("total_crafted_rare").notNull().default(0),
   totalCraftedEpic: integer("total_crafted_epic").notNull().default(0),
   totalCraftedGold: integer("total_crafted_gold").notNull().default(0),
   totalCraftedV1: integer("total_crafted_v1").notNull().default(0),
-  totalCraftedComet: integer("total_crafted_comet").notNull().default(0),
   wheelSpins: integer("wheel_spins").notNull().default(0),
   lastWheelDailyAt: timestamp("last_wheel_daily_at"),
-  // Pending wheel-of-fortune prize. When the user spins, the server picks the
-  // prize and decrements wheel_spins atomically, but DOES NOT credit the
-  // balance/planet bonus yet — the prize is parked here until the client
-  // calls /wheel/claim once the on-screen wheel animation (5.2s) finishes.
-  // This way the user's visible balance never jumps mid-spin (no /balance/sync
-  // path can leak the credit before the popup), so the surprise of the win
-  // is preserved. Stored as JSONB carrying { spinId, type, zoomAmount?,
-  // planetType?, label, color, icon, prizeIndex, createdAt }. NULL means no
-  // pending claim. Idempotency is enforced by matching spinId in /wheel/claim.
-  // /wheel/status auto-claims any pending older than 30s (defensive sweep
-  // for users who closed the app between spin and claim), and /wheel/spin
-  // also auto-claims any prior pending before starting a new spin so users
-  // are never stuck with a "lost" prize.
-  pendingWheelClaim: jsonb("pending_wheel_claim"),
   dailyStreakDay: integer("daily_streak_day").notNull().default(0),
   dailyStreakCycle: integer("daily_streak_cycle").notNull().default(0),
   lastDailyClaimAt: timestamp("last_daily_claim_at"),
@@ -113,16 +92,6 @@ export const usersTable = pgTable("users", {
   claimedBonusEpic: integer("claimed_bonus_epic").notNull().default(0),
   claimedBonusGold: integer("claimed_bonus_gold").notNull().default(0),
   claimedBonusV1: integer("claimed_bonus_v1").notNull().default(0),
-  claimedBonusComet: integer("claimed_bonus_comet").notNull().default(0),
-  // Server-side high-water-mark for COMET stardust accrual. Each comet
-  // produces 25 stardust every full 24h. On every read of /stardust/state
-  // (and /stardust/collect), the server counts how many full 24h windows
-  // elapsed since this watermark, credits `windows * 25 * cometCount` to
-  // stardustBalance, and advances the watermark by exactly that many
-  // windows. Stored as bigint epoch ms (matching the rest of the user
-  // farming watermarks). 0 means "never settled" — the first read just
-  // initialises the watermark to now() and credits nothing.
-  cometStardustSettledAtMs: bigint("comet_stardust_settled_at_ms", { mode: "number" }).notNull().default(0),
   // Monotonic write-time used to fence out stale saves of `planets_json`.
   // The save endpoint rejects any incoming write whose `client_write_at_ms`
   // is <= the stored value. Using the client's clock is fine because a

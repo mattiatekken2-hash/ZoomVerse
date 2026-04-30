@@ -20,16 +20,12 @@ const RARITY_FROM_COLOR: Record<string, PlanetType> = {
   "#8892b0": "BASIC",
   "#4facfe": "RARE",
   "#c471ed": "EPIC",
-  "#fff176": "COMET",
-  "#ffea00": "COMET",
-  "#ffd23f": "COMET",
   "#ffd700": "GOLD",
   "#f5fbff": "V1",
 };
 
 const RATE_BY_TYPE: Record<PlanetType, number> = {
-  // COMET pays in stardust/24h, not ZOOM/h, so its lab "rate" is 0.
-  BASIC: 2, RARE: 15, EPIC: 80, COMET: 0, GOLD: 150, V1: 400,
+  BASIC: 2, RARE: 15, EPIC: 80, GOLD: 150, V1: 400,
   WHITE1: 0, WHITE2: 0, WHITE3: 0, WHITE4: 0,
   EARTH1: 0, EARTH2: 0, EARTH3: 0, EARTH4: 0,
 };
@@ -37,7 +33,6 @@ const GLOW_BY_TYPE: Record<PlanetType, string> = {
   BASIC: "rgba(136,146,176,0.5)",
   RARE: "rgba(79,172,254,0.5)",
   EPIC: "rgba(196,113,237,0.5)",
-  COMET: "rgba(255,241,118,0.8)",
   GOLD: "rgba(255,215,0,0.5)",
   V1: "rgba(245,251,255,0.7)",
   WHITE1: "rgba(255,255,255,0.5)",

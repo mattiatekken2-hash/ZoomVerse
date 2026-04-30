@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, saveRegularPlanetsBeacon, syncSunCycle, type Grants, type CollectionPlanetState } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, type Grants, type CollectionPlanetState } from "../utils/api";
 import { toast } from "./use-toast";
 
 // Server-authoritative clock: every farming/idle-income time check is computed
@@ -45,7 +45,7 @@ async function refreshServerOffset(): Promise<void> {
   } catch { /* keep last known offset */ }
 }
 
-export type PlanetType = "BASIC" | "RARE" | "EPIC" | "COMET" | "GOLD" | "V1" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4";
+export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD" | "V1" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4";
 
 export const WHITE_PLANET_TYPES: PlanetType[] = ["WHITE1", "WHITE2", "WHITE3", "WHITE4"];
 
@@ -127,9 +127,6 @@ export interface GameState {
   claimedBonusEpic: number;
   claimedBonusGold: number;
   claimedBonusV1: number;
-  // COMET — count of comet planets the user has already received from the
-  // server-side bonus pool (mirrors Basic/Rare/Epic/Gold/V1).
-  claimedBonusComet: number;
   claimedBonusSun: boolean;
   sunCount: number;
   hasAutoTap: boolean;
@@ -180,9 +177,9 @@ export const PLANET_CONFIG: Record<PlanetType, {
     rate: 2,
     color: "#8892b0",
     glowColor: "rgba(136,146,176,0.5)",
-    // Reduced by 0.00005 (V1) and a further 0.002 (COMET) so the cumulative
+    // Reduced by 0.00005 to make room for V1 (0.005% drop) so the cumulative
     // probability sum across all rollable rarities still equals exactly 1.
-    chance: 0.79245,
+    chance: 0.79445,
     label: "Basic",
     craftCost: 20,
     activationTon: 0.05,
@@ -210,22 +207,6 @@ export const PLANET_CONFIG: Record<PlanetType, {
     activationTon: 0.5,
     tapsNeeded: 250,
     reactivationFee: 1000,
-  },
-  // COMET — vivid yellow comet-like body. Rarer than EPIC (0.2% vs 0.5%).
-  // Does NOT farm $ZOOM (rate=0). Instead, the server credits a flat
-  // 25 stardust per COMET planet every full 24h window via
-  // /api/stardust/state (see settleCometStardust in stardust.ts).
-  // Reactivation fee is 0 — comets are passive and don't need re-arming.
-  COMET: {
-    rate: 0,
-    color: "#fff176",
-    glowColor: "rgba(255,241,118,0.85)",
-    chance: 0.002,
-    label: "Comet",
-    craftCost: 100,
-    activationTon: 0.75,
-    tapsNeeded: 350,
-    reactivationFee: 0,
   },
   GOLD: {
     rate: 150,
@@ -449,7 +430,6 @@ const INITIAL_STATE: GameState = {
   claimedBonusEpic: 0,
   claimedBonusGold: 0,
   claimedBonusV1: 0,
-  claimedBonusComet: 0,
   claimedBonusSun: false,
   sunCount: 0,
   hasAutoTap: false,
@@ -582,24 +562,6 @@ function loadState(): GameState {
 // in scheduled/idle persist callbacks so they don't overwrite newer data.
 let _writeSeq = 0;
 let _lastSavedAt = 0;
-// Most recent snapshot passed to saveState(). Mutator paths (startFarming,
-// reactivation, buyPlanet, burn, list/unlist, …) pass `updated` to
-// saveState BEFORE React commits the matching setState, so React's
-// stateRef can lag the truth by a frame. The unload/visibility flush
-// handlers prefer this snapshot when it's fresher than stateRef.current
-// to avoid beaconing the pre-action snapshot with a fresh clientWriteAtMs
-// (which would pin the server to the stale state and cause the very
-// "actions revert after restart" bug we're fixing).
-let _latestAuthoritativeState: GameState | null = null;
-
-// Module-level holder for the hook's stateRef. Set inside useGameState() on
-// mount. reconcileFromSyncResponse and other module-scope functions need
-// to mutate the React stateRef synchronously to close the snap race
-// (see the long comment on reconcileFromSyncResponse), but they cannot
-// reference stateRef directly because it lives inside the hook closure.
-// Using a holder lets those functions read/write the live ref without
-// changing every call site signature.
-let _stateRefHolder: { current: GameState } | null = null;
 function saveState(state: GameState) {
   // Discard any queued idle write — this snapshot is newer and authoritative.
   // Without this, a stale schedulePersist payload (e.g. from a tap a few ms
@@ -609,7 +571,6 @@ function saveState(state: GameState) {
   _persistScheduled = false;
   _writeSeq++;
   _lastSavedAt = Date.now();
-  _latestAuthoritativeState = state;
   try {
     localStorage.setItem(getStorageKey(state.telegramId), JSON.stringify(state));
   } catch { /**/ }
@@ -704,9 +665,7 @@ function reconcileFromSyncResponse(
   const serverAdvanced = res.balanceEpoch > sentEpoch;
   const valueDiverged = res.zoomBalance !== sentBalance;
   if (serverAdvanced && valueDiverged) {
-    if (_stateRefHolder) {
-      _stateRefHolder.current = { ..._stateRefHolder.current, balance: res.zoomBalance };
-    }
+    stateRef.current = { ...stateRef.current, balance: res.zoomBalance };
     _lastSyncedBalance = res.zoomBalance;
     _pendingSyncBalance = -1;
     try {
@@ -727,9 +686,7 @@ function reconcileFromSyncResponse(
     typeof sentTonBalance === "number" &&
     (res.tonBalance ?? 0) - (sentTonBalance ?? 0) > 1e-9
   ) {
-    if (_stateRefHolder) {
-      _stateRefHolder.current = { ..._stateRefHolder.current, tonBalance: res.tonBalance };
-    }
+    stateRef.current = { ...stateRef.current, tonBalance: res.tonBalance };
     _lastSyncedTonBalance = res.tonBalance;
     try {
       window.dispatchEvent(new CustomEvent("zoom-server-ton-snap", {
@@ -1197,22 +1154,6 @@ export function useGameState() {
   // first React render and the async fetch completing.
   const regularPlanetsHydratedRef = useRef(false);
   stateRef.current = state;
-  // Expose stateRef to module-scope helpers (reconcileFromSyncResponse and
-  // friends) that need to mutate it synchronously to close server-snap
-  // race windows. Set on every render so the holder always points at the
-  // live ref. Cleared on unmount by the effect below.
-  _stateRefHolder = stateRef;
-  // On unmount, drop the module-level ref so post-unmount sync callbacks
-  // take the null-guarded skip branch instead of mutating a stale ref.
-  // Only clear if we still own it (defensive against future hot-reload
-  // / multi-instance scenarios where another hook took ownership).
-  useEffect(() => {
-    return () => {
-      if (_stateRefHolder === stateRef) {
-        _stateRefHolder = null;
-      }
-    };
-  }, []);
 
   // Throttle save+sync: writes & network traffic are expensive on every state change.
   // Debounce 400ms so rapid taps coalesce into one save+sync. Always flush on hide/unload.
@@ -1235,42 +1176,7 @@ export function useGameState() {
       if (Date.now() - _lastSavedAt > 250) {
         saveState(stateRef.current);
       }
-      // For the server flush we always prefer the latest snapshot we
-      // explicitly wrote to localStorage — that one was constructed by
-      // the mutator (startFarming, reactivation, buy, burn, …) BEFORE
-      // React committed the matching setState, so it is fresher than
-      // stateRef.current within React's ~16ms commit window. Outside
-      // the window the two are equal. This eliminates the same-frame
-      // race where a tap-then-swipe-close beaconed the pre-action
-      // snapshot with a fresh clientWriteAtMs and pinned the server
-      // to the stale state.
-      const fresh = _latestAuthoritativeState ?? stateRef.current;
-      immediateSyncToServer(fresh);
-      // CRITICAL — also flush the regular-planets server save via beacon.
-      // The debounced /regular-planets/save (1.2s) is cancelled when the
-      // Telegram WebView is swiped closed before the timer fires, so any
-      // recent activation/burn/reactivation that only lived in localStorage
-      // would be overwritten by the stale server snapshot on the next open.
-      // sendBeacon is queued by the browser and survives unload; the server
-      // fence (planetsUpdatedAtMs < clientWriteAtMs) makes redundant beacons
-      // safe (no-op when the row is already up to date). Skip when we
-      // haven't hydrated yet — pushing the local default snapshot would
-      // wipe the real server inventory on first open.
-      if (regularPlanetsHydratedRef.current && fresh.telegramId) {
-        saveRegularPlanetsBeacon(
-          fresh.telegramId,
-          fresh.planets as unknown as Array<Record<string, unknown>>,
-          {
-            basic: fresh.claimedBonusBasic ?? 0,
-            rare:  fresh.claimedBonusRare  ?? 0,
-            epic:  fresh.claimedBonusEpic  ?? 0,
-            gold:  fresh.claimedBonusGold  ?? 0,
-            v1:    fresh.claimedBonusV1    ?? 0,
-            comet: fresh.claimedBonusComet ?? 0,
-          },
-          (fresh.lastFarmingSettledAt ?? 0) > 0 ? fresh.lastFarmingSettledAt : undefined,
-        );
-      }
+      immediateSyncToServer(stateRef.current);
     };
     const onVisibility = () => { if (document.hidden) flush(); };
     document.addEventListener("visibilitychange", onVisibility);
@@ -1494,7 +1400,6 @@ export function useGameState() {
             claimedBonusEpic:  Math.max(updated.claimedBonusEpic  ?? 0, serverRegular.claimedBonusEpic),
             claimedBonusGold:  Math.max(updated.claimedBonusGold  ?? 0, serverRegular.claimedBonusGold),
             claimedBonusV1:    Math.max(updated.claimedBonusV1    ?? 0, serverRegular.claimedBonusV1),
-            claimedBonusComet: Math.max(updated.claimedBonusComet ?? 0, serverRegular.claimedBonusComet ?? 0),
           };
         }
 
@@ -1616,13 +1521,12 @@ export function useGameState() {
         }
 
         // Apply pending bonus planets per type (only new ones not yet claimed)
-        const bonusTypes: Array<{ key: "bonusBasic" | "bonusRare" | "bonusEpic" | "bonusGold" | "bonusV1" | "bonusComet"; claimedKey: "claimedBonusBasic" | "claimedBonusRare" | "claimedBonusEpic" | "claimedBonusGold" | "claimedBonusV1" | "claimedBonusComet"; type: PlanetType }> = [
+        const bonusTypes: Array<{ key: "bonusBasic" | "bonusRare" | "bonusEpic" | "bonusGold" | "bonusV1"; claimedKey: "claimedBonusBasic" | "claimedBonusRare" | "claimedBonusEpic" | "claimedBonusGold" | "claimedBonusV1"; type: PlanetType }> = [
           { key: "bonusBasic", claimedKey: "claimedBonusBasic", type: "BASIC" },
           { key: "bonusRare", claimedKey: "claimedBonusRare", type: "RARE" },
           { key: "bonusEpic", claimedKey: "claimedBonusEpic", type: "EPIC" },
           { key: "bonusGold", claimedKey: "claimedBonusGold", type: "GOLD" },
           { key: "bonusV1",   claimedKey: "claimedBonusV1",   type: "V1" },
-          { key: "bonusComet", claimedKey: "claimedBonusComet", type: "COMET" },
         ];
         const now = serverNow();
         const newPlanets: Planet[] = [];
@@ -1751,7 +1655,6 @@ export function useGameState() {
           epic:  state.claimedBonusEpic  ?? 0,
           gold:  state.claimedBonusGold  ?? 0,
           v1:    state.claimedBonusV1    ?? 0,
-          comet: state.claimedBonusComet ?? 0,
         },
         // Push the offline-farming watermark together with planets and
         // counters: settle() always advances both lastFarmingSettledAt
@@ -1775,7 +1678,6 @@ export function useGameState() {
     state.claimedBonusEpic,
     state.claimedBonusGold,
     state.claimedBonusV1,
-    state.claimedBonusComet,
     // Re-run when the watermark moves so it's pushed to the server
     // promptly (otherwise a long quiet period after offline credit
     // would leave another device able to re-credit the same window).
@@ -1895,7 +1797,6 @@ export function useGameState() {
           { key: "bonusBasic", claimedKey: "claimedBonusBasic", type: "BASIC" },
           { key: "bonusRare",  claimedKey: "claimedBonusRare",  type: "RARE" },
           { key: "bonusEpic",  claimedKey: "claimedBonusEpic",  type: "EPIC" },
-          { key: "bonusComet", claimedKey: "claimedBonusComet", type: "COMET" },
           { key: "bonusGold",  claimedKey: "claimedBonusGold",  type: "GOLD" },
           { key: "bonusV1",    claimedKey: "claimedBonusV1",    type: "V1" },
         ];
@@ -2112,12 +2013,7 @@ export function useGameState() {
     };
 
     const handleBeforeUnload = () => {
-      // See the comment on `_latestAuthoritativeState` and on the flush()
-      // handler above: prefer the most recent snapshot any mutator wrote
-      // to localStorage, since stateRef.current can lag the truth by a
-      // frame within React's commit window.
-      const baseState = _latestAuthoritativeState ?? stateRef.current;
-      const settled = settleFarmingState(baseState, serverNow());
+      const settled = settleFarmingState(stateRef.current, serverNow());
       // If a destructive op (burn/sell/list) just persisted authoritatively
       // (within the last 250ms) and React hasn't yet committed the new state
       // to stateRef, writing stateRef here would clobber the authoritative
@@ -2135,26 +2031,6 @@ export function useGameState() {
         const sent = navigator.sendBeacon?.(url, new Blob([payload], { type: "application/json" }));
         if (!sent) {
           fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, keepalive: true }).catch(() => {});
-        }
-        // Also beacon-save the regular planets so a recent activation /
-        // burn / reactivation paid in ZOOM persists past the unload. Same
-        // rationale as the flush() handler above; both handlers are wired
-        // because beforeunload fires only on real navigations while
-        // pagehide / visibilitychange cover Telegram WebView swipe-close.
-        if (regularPlanetsHydratedRef.current) {
-          saveRegularPlanetsBeacon(
-            telegramId,
-            settled.planets as unknown as Array<Record<string, unknown>>,
-            {
-              basic: settled.claimedBonusBasic ?? 0,
-              rare:  settled.claimedBonusRare  ?? 0,
-              epic:  settled.claimedBonusEpic  ?? 0,
-              gold:  settled.claimedBonusGold  ?? 0,
-              v1:    settled.claimedBonusV1    ?? 0,
-              comet: settled.claimedBonusComet ?? 0,
-            },
-            (settled.lastFarmingSettledAt ?? 0) > 0 ? settled.lastFarmingSettledAt : undefined,
-          );
         }
       }
     };
@@ -2310,19 +2186,11 @@ export function useGameState() {
         try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: "Slots full", ok: false } })); } catch { /**/ }
         return prev;
       }
-      const next: GameState = {
+      return {
         ...prev,
         planets: [...prev.planets, prev.pendingPlanet],
         pendingPlanet: null,
       };
-      // CRITICAL: persist the move from pendingPlanet → planets. Without this
-      // the freshly-claimed planet only lives in local React state and is
-      // wiped out on the next reconcileFromSyncResponse / reload, making the
-      // crafted planet appear to "disappear" to the user. The craft step
-      // already persisted pendingPlanet, but the claim must persist the
-      // promotion to the inventory too.
-      schedulePersist(next);
-      return next;
     });
     return outcome;
   }, []);
@@ -2557,7 +2425,7 @@ export function useGameState() {
       // one entitlement on the server. Otherwise the next /grants poll will
       // see entitlement > claimed and silently re-add the burned planet.
       const isBonusPlanet = planet.id.startsWith(`bonus-${planet.name}-`);
-      if (isBonusPlanet && prev.telegramId && (planet.name === "BASIC" || planet.name === "RARE" || planet.name === "EPIC" || planet.name === "COMET" || planet.name === "GOLD")) {
+      if (isBonusPlanet && prev.telegramId && (planet.name === "BASIC" || planet.name === "RARE" || planet.name === "EPIC" || planet.name === "GOLD")) {
         notifyPlanetBurn(prev.telegramId, planet.name);
       }
       const refund = Math.floor(planet.craftCost * 0.15);
@@ -2580,7 +2448,6 @@ export function useGameState() {
         claimedBonusRare:  isBonusPlanet && planet.name === "RARE"  ? Math.max(0, prev.claimedBonusRare  - 1) : prev.claimedBonusRare,
         claimedBonusEpic:  isBonusPlanet && planet.name === "EPIC"  ? Math.max(0, prev.claimedBonusEpic  - 1) : prev.claimedBonusEpic,
         claimedBonusGold:  isBonusPlanet && planet.name === "GOLD"  ? Math.max(0, prev.claimedBonusGold  - 1) : prev.claimedBonusGold,
-        claimedBonusComet: isBonusPlanet && planet.name === "COMET" ? Math.max(0, prev.claimedBonusComet - 1) : prev.claimedBonusComet,
       };
       // Sync stateRef synchronously: if the user closes the app within a few
       // ms of pressing burn (before React commits), the visibility/unload
@@ -2598,14 +2465,6 @@ export function useGameState() {
       const planet = prev.planets.find((p) => p.id === id);
       if (!planet || planet.isListedInMarket) {
         outcome = { ok: false, reason: "Planet unavailable" };
-        return prev;
-      }
-      // COMET requires the user to own at least one SUN planet to start its
-      // 24h farming cycle. The SUN is the authoritative gate for stardust
-      // generation across the app, and we surface this requirement here so
-      // the user gets immediate feedback instead of a silent server reject.
-      if (planet.name === "COMET" && (prev.sunCount ?? 0) <= 0) {
-        outcome = { ok: false, reason: "Requires SUN planet" };
         return prev;
       }
       const now = serverNow();
@@ -3134,15 +2993,13 @@ export function useGameState() {
       let cRare = prev.claimedBonusRare;
       let cEpic = prev.claimedBonusEpic;
       let cGold = prev.claimedBonusGold;
-      let cComet = prev.claimedBonusComet;
       for (const p of toBurn) {
         const isBonus = p.id.startsWith(`bonus-${p.name}-`);
-        if (isBonus && prev.telegramId && (p.name === "BASIC" || p.name === "RARE" || p.name === "EPIC" || p.name === "COMET" || p.name === "GOLD")) {
+        if (isBonus && prev.telegramId && (p.name === "BASIC" || p.name === "RARE" || p.name === "EPIC" || p.name === "GOLD")) {
           notifyPlanetBurn(prev.telegramId, p.name);
           if (p.name === "BASIC") cBasic = Math.max(0, cBasic - 1);
           else if (p.name === "RARE") cRare = Math.max(0, cRare - 1);
           else if (p.name === "EPIC") cEpic = Math.max(0, cEpic - 1);
-          else if (p.name === "COMET") cComet = Math.max(0, cComet - 1);
           else if (p.name === "GOLD") cGold = Math.max(0, cGold - 1);
         }
       }
@@ -3153,7 +3010,6 @@ export function useGameState() {
         claimedBonusBasic: cBasic,
         claimedBonusRare: cRare,
         claimedBonusEpic: cEpic,
-        claimedBonusComet: cComet,
         claimedBonusGold: cGold,
       };
       stateRef.current = updated;
