@@ -93,7 +93,7 @@ function HallOfFameWidgetBase(_props: Props) {
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",
-            padding: "100px 20px 20px",
+            padding: "180px 20px 20px",
             overflowY: "auto",
           }}
         >
