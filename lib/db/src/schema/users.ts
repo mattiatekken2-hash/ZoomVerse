@@ -108,6 +108,25 @@ export const usersTable = pgTable("users", {
   // single user is the only writer (server-clock skew across devices is
   // small) and we only care about ORDER, not absolute time.
   planetsUpdatedAtMs: bigint("planets_updated_at_ms", { mode: "number" }).notNull().default(0),
+
+  // ─────────────────────────────────────────────────────────────────────
+  // LEGACY / DEPRECATED COLUMNS — DO NOT REMOVE.
+  //
+  // These columns were created in production by past iterations of the
+  // schema and are no longer read or written by any code path. They are
+  // declared here ONLY so the Replit Publishing migration validator does
+  // NOT propose dropping them — DROP COLUMN is a destructive change and
+  // would fail the publish check (it's also irreversible without a DB
+  // restore). Leaving them alone is harmless; Postgres just stores zeros
+  // / NULLs for them. If you're certain they can go, write an explicit
+  // migration to drop them in a separate, reviewed deploy.
+  // ─────────────────────────────────────────────────────────────────────
+  bonusComet: integer("bonus_comet").notNull().default(0),
+  totalCraftedComet: integer("total_crafted_comet").notNull().default(0),
+  claimedBonusComet: integer("claimed_bonus_comet").notNull().default(0),
+  cometStardustSettledAtMs: bigint("comet_stardust_settled_at_ms", { mode: "number" }).notNull().default(0),
+  pendingWheelClaim: jsonb("pending_wheel_claim"),
+  lastFarmingSettledAtMs: bigint("last_farming_settled_at_ms", { mode: "number" }).notNull().default(0),
 }, (table) => [
   index("idx_users_zoom_balance").on(table.zoomBalance),
   index("idx_users_referred_by").on(table.referredBy),
