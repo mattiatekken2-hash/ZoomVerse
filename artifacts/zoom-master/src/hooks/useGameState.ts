@@ -591,6 +591,15 @@ let _lastSavedAt = 0;
 // (which would pin the server to the stale state and cause the very
 // "actions revert after restart" bug we're fixing).
 let _latestAuthoritativeState: GameState | null = null;
+
+// Module-level holder for the hook's stateRef. Set inside useGameState() on
+// mount. reconcileFromSyncResponse and other module-scope functions need
+// to mutate the React stateRef synchronously to close the snap race
+// (see the long comment on reconcileFromSyncResponse), but they cannot
+// reference stateRef directly because it lives inside the hook closure.
+// Using a holder lets those functions read/write the live ref without
+// changing every call site signature.
+let _stateRefHolder: { current: GameState } | null = null;
 function saveState(state: GameState) {
   // Discard any queued idle write — this snapshot is newer and authoritative.
   // Without this, a stale schedulePersist payload (e.g. from a tap a few ms
@@ -695,7 +704,9 @@ function reconcileFromSyncResponse(
   const serverAdvanced = res.balanceEpoch > sentEpoch;
   const valueDiverged = res.zoomBalance !== sentBalance;
   if (serverAdvanced && valueDiverged) {
-    stateRef.current = { ...stateRef.current, balance: res.zoomBalance };
+    if (_stateRefHolder) {
+      _stateRefHolder.current = { ..._stateRefHolder.current, balance: res.zoomBalance };
+    }
     _lastSyncedBalance = res.zoomBalance;
     _pendingSyncBalance = -1;
     try {
@@ -716,7 +727,9 @@ function reconcileFromSyncResponse(
     typeof sentTonBalance === "number" &&
     (res.tonBalance ?? 0) - (sentTonBalance ?? 0) > 1e-9
   ) {
-    stateRef.current = { ...stateRef.current, tonBalance: res.tonBalance };
+    if (_stateRefHolder) {
+      _stateRefHolder.current = { ..._stateRefHolder.current, tonBalance: res.tonBalance };
+    }
     _lastSyncedTonBalance = res.tonBalance;
     try {
       window.dispatchEvent(new CustomEvent("zoom-server-ton-snap", {
@@ -1184,6 +1197,22 @@ export function useGameState() {
   // first React render and the async fetch completing.
   const regularPlanetsHydratedRef = useRef(false);
   stateRef.current = state;
+  // Expose stateRef to module-scope helpers (reconcileFromSyncResponse and
+  // friends) that need to mutate it synchronously to close server-snap
+  // race windows. Set on every render so the holder always points at the
+  // live ref. Cleared on unmount by the effect below.
+  _stateRefHolder = stateRef;
+  // On unmount, drop the module-level ref so post-unmount sync callbacks
+  // take the null-guarded skip branch instead of mutating a stale ref.
+  // Only clear if we still own it (defensive against future hot-reload
+  // / multi-instance scenarios where another hook took ownership).
+  useEffect(() => {
+    return () => {
+      if (_stateRefHolder === stateRef) {
+        _stateRefHolder = null;
+      }
+    };
+  }, []);
 
   // Throttle save+sync: writes & network traffic are expensive on every state change.
   // Debounce 400ms so rapid taps coalesce into one save+sync. Always flush on hide/unload.
