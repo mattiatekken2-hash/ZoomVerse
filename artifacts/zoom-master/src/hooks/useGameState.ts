@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, type Grants, type CollectionPlanetState } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, saveRegularPlanetsBeacon, syncSunCycle, type Grants, type CollectionPlanetState } from "../utils/api";
 import { toast } from "./use-toast";
 
 // Server-authoritative clock: every farming/idle-income time check is computed
@@ -582,6 +582,15 @@ function loadState(): GameState {
 // in scheduled/idle persist callbacks so they don't overwrite newer data.
 let _writeSeq = 0;
 let _lastSavedAt = 0;
+// Most recent snapshot passed to saveState(). Mutator paths (startFarming,
+// reactivation, buyPlanet, burn, list/unlist, …) pass `updated` to
+// saveState BEFORE React commits the matching setState, so React's
+// stateRef can lag the truth by a frame. The unload/visibility flush
+// handlers prefer this snapshot when it's fresher than stateRef.current
+// to avoid beaconing the pre-action snapshot with a fresh clientWriteAtMs
+// (which would pin the server to the stale state and cause the very
+// "actions revert after restart" bug we're fixing).
+let _latestAuthoritativeState: GameState | null = null;
 function saveState(state: GameState) {
   // Discard any queued idle write — this snapshot is newer and authoritative.
   // Without this, a stale schedulePersist payload (e.g. from a tap a few ms
@@ -591,6 +600,7 @@ function saveState(state: GameState) {
   _persistScheduled = false;
   _writeSeq++;
   _lastSavedAt = Date.now();
+  _latestAuthoritativeState = state;
   try {
     localStorage.setItem(getStorageKey(state.telegramId), JSON.stringify(state));
   } catch { /**/ }
@@ -1196,7 +1206,42 @@ export function useGameState() {
       if (Date.now() - _lastSavedAt > 250) {
         saveState(stateRef.current);
       }
-      immediateSyncToServer(stateRef.current);
+      // For the server flush we always prefer the latest snapshot we
+      // explicitly wrote to localStorage — that one was constructed by
+      // the mutator (startFarming, reactivation, buy, burn, …) BEFORE
+      // React committed the matching setState, so it is fresher than
+      // stateRef.current within React's ~16ms commit window. Outside
+      // the window the two are equal. This eliminates the same-frame
+      // race where a tap-then-swipe-close beaconed the pre-action
+      // snapshot with a fresh clientWriteAtMs and pinned the server
+      // to the stale state.
+      const fresh = _latestAuthoritativeState ?? stateRef.current;
+      immediateSyncToServer(fresh);
+      // CRITICAL — also flush the regular-planets server save via beacon.
+      // The debounced /regular-planets/save (1.2s) is cancelled when the
+      // Telegram WebView is swiped closed before the timer fires, so any
+      // recent activation/burn/reactivation that only lived in localStorage
+      // would be overwritten by the stale server snapshot on the next open.
+      // sendBeacon is queued by the browser and survives unload; the server
+      // fence (planetsUpdatedAtMs < clientWriteAtMs) makes redundant beacons
+      // safe (no-op when the row is already up to date). Skip when we
+      // haven't hydrated yet — pushing the local default snapshot would
+      // wipe the real server inventory on first open.
+      if (regularPlanetsHydratedRef.current && fresh.telegramId) {
+        saveRegularPlanetsBeacon(
+          fresh.telegramId,
+          fresh.planets as unknown as Array<Record<string, unknown>>,
+          {
+            basic: fresh.claimedBonusBasic ?? 0,
+            rare:  fresh.claimedBonusRare  ?? 0,
+            epic:  fresh.claimedBonusEpic  ?? 0,
+            gold:  fresh.claimedBonusGold  ?? 0,
+            v1:    fresh.claimedBonusV1    ?? 0,
+            comet: fresh.claimedBonusComet ?? 0,
+          },
+          (fresh.lastFarmingSettledAt ?? 0) > 0 ? fresh.lastFarmingSettledAt : undefined,
+        );
+      }
     };
     const onVisibility = () => { if (document.hidden) flush(); };
     document.addEventListener("visibilitychange", onVisibility);
@@ -2038,7 +2083,12 @@ export function useGameState() {
     };
 
     const handleBeforeUnload = () => {
-      const settled = settleFarmingState(stateRef.current, serverNow());
+      // See the comment on `_latestAuthoritativeState` and on the flush()
+      // handler above: prefer the most recent snapshot any mutator wrote
+      // to localStorage, since stateRef.current can lag the truth by a
+      // frame within React's commit window.
+      const baseState = _latestAuthoritativeState ?? stateRef.current;
+      const settled = settleFarmingState(baseState, serverNow());
       // If a destructive op (burn/sell/list) just persisted authoritatively
       // (within the last 250ms) and React hasn't yet committed the new state
       // to stateRef, writing stateRef here would clobber the authoritative
@@ -2056,6 +2106,26 @@ export function useGameState() {
         const sent = navigator.sendBeacon?.(url, new Blob([payload], { type: "application/json" }));
         if (!sent) {
           fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, keepalive: true }).catch(() => {});
+        }
+        // Also beacon-save the regular planets so a recent activation /
+        // burn / reactivation paid in ZOOM persists past the unload. Same
+        // rationale as the flush() handler above; both handlers are wired
+        // because beforeunload fires only on real navigations while
+        // pagehide / visibilitychange cover Telegram WebView swipe-close.
+        if (regularPlanetsHydratedRef.current) {
+          saveRegularPlanetsBeacon(
+            telegramId,
+            settled.planets as unknown as Array<Record<string, unknown>>,
+            {
+              basic: settled.claimedBonusBasic ?? 0,
+              rare:  settled.claimedBonusRare  ?? 0,
+              epic:  settled.claimedBonusEpic  ?? 0,
+              gold:  settled.claimedBonusGold  ?? 0,
+              v1:    settled.claimedBonusV1    ?? 0,
+              comet: settled.claimedBonusComet ?? 0,
+            },
+            (settled.lastFarmingSettledAt ?? 0) > 0 ? settled.lastFarmingSettledAt : undefined,
+          );
         }
       }
     };

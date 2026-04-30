@@ -178,10 +178,15 @@ export async function syncBalance(params: {
 }): Promise<{ zoomBalance: number; tonBalance: number; balanceEpoch: number }> {
   const fallbackTon = typeof params.tonBalance === "number" ? params.tonBalance : 0;
   try {
+    // keepalive lets this POST survive a page-hide / Telegram-WebView swipe
+    // close. Without it, the browser cancels the in-flight fetch when the
+    // document unloads and the spent ZOOM never reaches the server, so the
+    // next open snaps the local balance back to the pre-spend value.
     const res = await fetch(`${API_BASE}/balance/sync`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
+      keepalive: true,
     });
     if (!res.ok) return { zoomBalance: params.zoomBalance, tonBalance: fallbackTon, balanceEpoch: params.clientEpoch ?? 0 };
     const data = await res.json();
@@ -1465,6 +1470,63 @@ export async function saveRegularPlanets(
     return res.ok;
   } catch {
     return false;
+  }
+}
+
+// Best-effort, fire-and-forget save used from page-hide / before-unload
+// handlers. Uses navigator.sendBeacon (which is queued by the browser and
+// guaranteed to be delivered even after the document unloads), with a
+// keepalive fetch fallback for environments where sendBeacon is unavailable
+// (older Telegram WebViews on some Android versions). The server fence on
+// /regular-planets/save (planetsUpdatedAtMs < clientWriteAtMs) guarantees
+// that a redundant beacon over an already-saved state is a no-op.
+//
+// THIS IS THE FIX for "I activated a planet / spent ZOOM and it disappeared
+// after restart" — the regular debounced save needs ~1.2s to fire and is
+// cancelled when the WebView is swiped closed before that. The beacon path
+// always lands.
+export function saveRegularPlanetsBeacon(
+  telegramId: string,
+  planets: Array<Record<string, unknown>>,
+  claimed: {
+    basic: number;
+    rare: number;
+    epic: number;
+    gold: number;
+    v1: number;
+    comet: number;
+  },
+  lastFarmingSettledAtMs?: number,
+): void {
+  try {
+    const payload = JSON.stringify({
+      telegramId,
+      planets,
+      clientWriteAtMs: Date.now(),
+      claimedBonusBasic: claimed.basic,
+      claimedBonusRare: claimed.rare,
+      claimedBonusEpic: claimed.epic,
+      claimedBonusGold: claimed.gold,
+      claimedBonusV1: claimed.v1,
+      claimedBonusComet: claimed.comet,
+      ...(lastFarmingSettledAtMs != null ? { lastFarmingSettledAtMs } : {}),
+    });
+    const url = `${API_BASE}/regular-planets/save`;
+    const blob = new Blob([payload], { type: "application/json" });
+    const sent = navigator.sendBeacon?.(url, blob);
+    if (!sent) {
+      // sendBeacon refused (queue full or feature disabled). Fall back to
+      // fetch with keepalive — the browser will still try to deliver after
+      // unload, just less reliably than sendBeacon.
+      void fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+        keepalive: true,
+      }).catch(() => {});
+    }
+  } catch {
+    // Beacon path is a safety net; never let a failure block app teardown.
   }
 }
 
