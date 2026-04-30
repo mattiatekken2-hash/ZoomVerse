@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   adminCreditZoom,
+  adminCreditStardust,
   adminAddPlanets,
   adminUnlockSlots,
   adminUnlockWhiteCollection,
@@ -31,7 +32,10 @@ import {
 const ADMIN_ID = "8144744644";
 
 type PlanetChoice = "BASIC" | "RARE" | "EPIC" | "GOLD" | "SUN";
-type ActionType = "zoom" | "planets" | "slots" | "spins";
+// Stardust is "add only" (no remove) so it does not appear in the
+// remove-mode branch below; the UI hides the stardust button when
+// mode === "remove".
+type ActionType = "zoom" | "planets" | "slots" | "spins" | "stardust";
 
 function haptic() {
   try {
@@ -60,7 +64,7 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "white" | "earth" | "revoke-white" | "revoke-earth" | "autotap" | "test-wd-chan" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "white" | "earth" | "revoke-white" | "revoke-earth" | "autotap" | "test-wd-chan" | "v1" | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [delistId, setDelistId] = useState("");
   const [pendingWithdrawals, setPendingWithdrawals] = useState<TonWithdrawal[]>([]);
@@ -122,11 +126,14 @@ export function AdminPanel({ telegramId }: Props) {
       else if (type === "planets") ok = await adminAddPlanets(telegramId, id, Math.floor(val), planetType);
       else if (type === "slots") ok = await adminUnlockSlots(telegramId, id, Math.floor(val));
       else if (type === "spins") ok = await adminCreditSpins(telegramId, id, Math.floor(val));
+      else if (type === "stardust") ok = await adminCreditStardust(telegramId, id, Math.floor(val));
     } else {
       if (type === "zoom") ok = await adminRemoveZoom(telegramId, id, val);
       else if (type === "planets") ok = await adminRemovePlanets(telegramId, id, Math.floor(val), planetType);
       else if (type === "slots") ok = await adminRemoveSlots(telegramId, id, Math.floor(val));
       else if (type === "spins") ok = await adminRemoveSpins(telegramId, id, Math.floor(val));
+      // No "stardust remove" — UI hides the button in remove mode so this
+      // branch is unreachable for type === "stardust".
     }
     setLoading(null);
     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
@@ -134,6 +141,7 @@ export function AdminPanel({ telegramId }: Props) {
     const item = type === "zoom" ? `${val} $ZOOM`
       : type === "slots" ? `${Math.floor(val)} slot`
       : type === "spins" ? `${Math.floor(val)} spin`
+      : type === "stardust" ? `${Math.floor(val)} stardust ⭐`
       : `${Math.floor(val)} ${planetType === "SUN" ? "Sole" : `pianeti ${planetType}`}`;
     showFeedback(ok ? `✓ ${item} ${direction} a ID ${id}` : `✗ Errore per ID ${id}`, ok);
   }, [targetId, amount, planetType, mode, telegramId]);
@@ -417,7 +425,12 @@ export function AdminPanel({ telegramId }: Props) {
                     { type: "planets" as ActionType, label: "🌍 Pianeti", color: "#c471ed" },
                     { type: "slots" as ActionType,   label: "📦 Slot",    color: "#4facfe" },
                     { type: "spins" as ActionType,   label: "🎡 Spin",    color: "#ffd700" },
-                  ]).map(({ type, label, color }) => {
+                    // Stardust grant only — no remove. Filtered out below
+                    // when the admin is in remove mode.
+                    { type: "stardust" as ActionType, label: "⭐ Stardust", color: "#ffd23f" },
+                  ])
+                    .filter(({ type }) => !(mode === "remove" && type === "stardust"))
+                    .map(({ type, label, color }) => {
                     const btnColor = mode === "remove" ? "#ff5555" : color;
                     return (
                       <motion.button

@@ -309,6 +309,42 @@ export async function adminCreditZoom(adminId: string, telegramId: string, amoun
   } catch { return false; }
 }
 
+export async function adminCreditStardust(adminId: string, telegramId: string, amount: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/credit-stardust`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ adminId, telegramId, amount }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+// HALL OF FAME — daily-referrals leaderboard.
+// Returns top 10 with the prize tier baked in (null for ranks 6-10).
+export type HallOfFameEntry = {
+  rank: number;
+  name: string;
+  count: number;
+  prize: number | null;
+};
+export type HallOfFameResponse = {
+  dayKey: string;
+  prizes: number[];
+  entries: HallOfFameEntry[];
+};
+const EMPTY_HOF: HallOfFameResponse = { dayKey: "", prizes: [100, 75, 50, 25, 25], entries: [] };
+
+export async function fetchHallOfFameDaily(): Promise<HallOfFameResponse> {
+  try {
+    const res = await fetch(`${API_BASE}/leaderboard/daily-referrals?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return EMPTY_HOF;
+    return await res.json();
+  } catch {
+    return EMPTY_HOF;
+  }
+}
+
 export async function adminAddPlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "GOLD" | "SUN"): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/add-planets`, {

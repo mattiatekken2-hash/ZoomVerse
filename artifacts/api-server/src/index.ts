@@ -3,6 +3,8 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { sendBotMessage } from "./lib/notify";
 import { fetchPendingFarmNotifications, markFarmNotified } from "./routes/farm";
+import { db, usersTable } from "@workspace/db";
+import { desc, eq, sql } from "drizzle-orm";
 
 const FARM_FULL_MESSAGE = "⚡ Your Farm is full! Collect your TON and restart the engines to keep earning.";
 
@@ -42,6 +44,7 @@ server.listen(port, () => {
   startKeepAlive();
   registerTelegramWebhook();
   startFarmNotificationCron();
+  startHallOfFameResetCron();
 });
 
 function startFarmNotificationCron() {
@@ -98,6 +101,137 @@ function startFarmNotificationCron() {
   // Fire once 5s after boot so devs can see logs quickly.
   setTimeout(tick, 5_000).unref();
   setInterval(tick, intervalMs).unref();
+}
+
+function startHallOfFameResetCron() {
+  // HALL OF FAME — Daily Referrals nightly settlement.
+  //
+  // Runs every 60s. The settlement logic is STATELESS and self-healing:
+  // we don't store a "last reset day" anywhere. Instead, on every tick we
+  // ask the DB "is there any user whose stored day_key is older than today
+  // and still has a positive count?". If yes, those users are yesterday's
+  // (or older) leaderboard waiting to be settled — we credit prizes to the
+  // top 5 and zero everyone with a stale key in one shot. If no, the tick
+  // is a cheap no-op (single indexed COUNT-style query).
+  //
+  // Why stateless instead of "track last reset day in app_settings":
+  //   • No drift if the server restarts at midnight.
+  //   • No "missed reset" bug if the cron is paused or the box is asleep
+  //     for >24h: the next tick after wake-up settles the most recent
+  //     stale leaderboard correctly.
+  //   • Idempotent — a second tick within the same minute finds nothing
+  //     stale and does nothing.
+  //
+  // Acknowledged race window: between 00:00:00 UTC and the first cron
+  // tick of the new day (≤60s), the public leaderboard endpoint will
+  // briefly return an empty list (because it filters by `day_key = today`
+  // and yesterday's winners haven't been settled+zeroed yet). This is
+  // acceptable — the prize math is unaffected and the UI just shows
+  // "no entries yet" for under a minute.
+  const PRIZES = [100, 75, 50, 25, 25] as const;
+  const intervalMs = 60 * 1000;
+  let inFlight = false;
+
+  const tick = async () => {
+    if (inFlight) return;
+    inFlight = true;
+    try {
+      const today = utcDayKeyForCron();
+
+      // ALL-OR-NOTHING SETTLEMENT
+      //
+      // Wrap winner-credit + stale-reset in a single DB transaction so a
+      // crash / DB error mid-loop rolls everything back. Without this, if
+      // the process died after crediting some (but not all) winners and
+      // before the final stale-reset UPDATE, the next tick would re-select
+      // the same stale leaders (their day_key is still yesterday, count
+      // still > 0) and credit them a SECOND time. Since stardust is real
+      // in-game value (and thereafter convertible to TON via wheel/etc),
+      // a double-credit equals real money inflation — non-negotiable.
+      //
+      // Idempotency property: after a successful COMMIT, every settled row
+      // has day_key=NULL (so the WHERE clause no longer matches them).
+      // After a failed/rolled-back transaction, no row was changed, so the
+      // next tick replays the same settlement cleanly.
+      //
+      // A deterministic tie-breaker (telegramId ASC) keeps prize ordering
+      // stable when two users have the same count.
+      const winnersInfo = await db.transaction(async (tx) => {
+        const winners = await tx
+          .select({
+            telegramId: usersTable.telegramId,
+            count: usersTable.dailyReferralCount,
+            dayKey: usersTable.dailyReferralDayKey,
+          })
+          .from(usersTable)
+          .where(
+            sql`${usersTable.dailyReferralDayKey} IS NOT NULL
+                AND ${usersTable.dailyReferralDayKey} < ${today}
+                AND ${usersTable.dailyReferralCount} > 0`,
+          )
+          .orderBy(desc(usersTable.dailyReferralCount), usersTable.telegramId)
+          .limit(5);
+
+        if (winners.length === 0) return { winners: [] as typeof winners, settled: 0 };
+
+        for (let i = 0; i < winners.length; i++) {
+          const winner = winners[i]!;
+          const prize = PRIZES[i]!;
+          await tx
+            .update(usersTable)
+            .set({
+              stardustBalance: sql`${usersTable.stardustBalance} + ${prize}`,
+              balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+            })
+            .where(eq(usersTable.telegramId, winner.telegramId));
+        }
+
+        // Zero EVERY user whose key is stale (not just the top 5). Setting
+        // day_key back to NULL takes them out of competition until they
+        // earn a fresh referral, which is exactly the daily-reset intent.
+        const settled = await tx
+          .update(usersTable)
+          .set({ dailyReferralCount: 0, dailyReferralDayKey: null })
+          .where(
+            sql`${usersTable.dailyReferralDayKey} IS NOT NULL
+                AND ${usersTable.dailyReferralDayKey} < ${today}`,
+          );
+
+        return {
+          winners,
+          settled: (settled as { rowCount?: number }).rowCount ?? winners.length,
+        };
+      });
+
+      if (winnersInfo.winners.length === 0) return;
+
+      for (let i = 0; i < winnersInfo.winners.length; i++) {
+        const w = winnersInfo.winners[i]!;
+        logger.info(
+          { telegramId: w.telegramId, rank: i + 1, prize: PRIZES[i], count: w.count, dayKey: w.dayKey },
+          "[hof-cron] credited daily-referrals prize",
+        );
+      }
+      logger.info(
+        { winners: winnersInfo.winners.length, settled: winnersInfo.settled },
+        "[hof-cron] daily reset complete",
+      );
+    } catch (err) {
+      logger.warn({ err }, "[hof-cron] tick failed");
+    } finally {
+      inFlight = false;
+    }
+  };
+
+  setTimeout(tick, 7_000).unref();
+  setInterval(tick, intervalMs).unref();
+}
+
+function utcDayKeyForCron(now: Date = new Date()): string {
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(now.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 function startKeepAlive() {

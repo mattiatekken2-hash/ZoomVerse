@@ -186,6 +186,58 @@ router.get("/profile/:telegramId", async (req, res) => {
   }
 });
 
+// HALL OF FAME — Daily Referrals leaderboard.
+// Public top-10 by today's referral count. Stardust prizes for ranks 1..5
+// are CLIENT-SIDE constants (also baked into the response for clarity), so
+// the client can render the badges directly without a config round-trip.
+// Filters out users with 0 today-count and users whose stored day_key is
+// stale (i.e. last referral happened on a previous UTC day and they've had
+// no activity since the cron rolled the date), so a fresh DB or post-reset
+// state shows an empty list rather than yesterday's stragglers.
+const HOF_PRIZES = [100, 75, 50, 25, 25] as const;
+
+function hofUtcDayKey(now: Date = new Date()): string {
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(now.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+router.get("/leaderboard/daily-referrals", async (_req, res) => {
+  try {
+    const today = hofUtcDayKey();
+    const rows = await db
+      .select({
+        username: usersTable.username,
+        firstName: usersTable.firstName,
+        count: usersTable.dailyReferralCount,
+      })
+      .from(usersTable)
+      .where(sql`${usersTable.dailyReferralDayKey} = ${today} AND ${usersTable.dailyReferralCount} > 0`)
+      .orderBy(desc(usersTable.dailyReferralCount))
+      .limit(10);
+
+    const entries = rows.map((r, i) => ({
+      rank: i + 1,
+      // Same name fallback as /stardust/leaderboard so users see a stable
+      // identity in both lists.
+      name: r.username || r.firstName || "Player",
+      count: Number(r.count ?? 0),
+      // Prize is null past rank 5; the UI hides the badge entirely there.
+      prize: i < HOF_PRIZES.length ? HOF_PRIZES[i] : null,
+    }));
+
+    res.json({
+      dayKey: today,
+      prizes: HOF_PRIZES,
+      entries,
+    });
+  } catch (err) {
+    console.error("[leaderboard/daily-referrals] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 const CraftBody = z.object({
   telegramId: z.string().min(1),
   planetType: z.enum(["BASIC", "RARE", "EPIC", "GOLD", "V1"]),

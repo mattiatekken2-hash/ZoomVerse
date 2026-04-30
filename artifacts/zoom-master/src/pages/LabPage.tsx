@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { PlanetCanvas, type ForgePhase } from "../components/PlanetCanvas";
 import { AutoTapWidget } from "../components/AutoTapWidget";
 import { MysteryBoxWidget } from "../components/MysteryBoxWidget";
+import { HallOfFameWidget } from "../components/HallOfFameWidget";
 import { PixelAvatar } from "../components/PixelAvatar";
 import { WhiteCollectionWidget } from "../components/WhiteCollectionWidget";
 import { EarthCollectionWidget } from "../components/EarthCollectionWidget";
@@ -200,6 +201,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         onTap={handleCraft}
       />
       <MysteryBoxWidget telegramId={telegramId} />
+      <HallOfFameWidget telegramId={telegramId} />
       <WhiteCollectionWidget telegramId={telegramId} unlocked={whiteCollectionUnlocked} ownedBundles={whiteCollectionBundles} sunCount={sunCount} />
       <EarthCollectionWidget telegramId={telegramId} unlocked={earthCollectionUnlocked} ownedBundles={earthCollectionBundles} sunCount={sunCount} />
       {/* Space-merchant radar LED — small red blink near the Earth widget so

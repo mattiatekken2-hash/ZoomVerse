@@ -47,6 +47,21 @@ export const usersTable = pgTable("users", {
   // UTC day key (YYYY-MM-DD) the today-counter belongs to. When the stored
   // key differs from today, today is reset to 0 before incrementing.
   stardustDayKey: text("stardust_day_key"),
+  // HALL OF FAME — Daily Referrals.
+  // `dailyReferralCount` is the number of *new* successful referrals this
+  // user has earned during the current UTC day. `dailyReferralDayKey` is
+  // the YYYY-MM-DD UTC key the counter belongs to: when a new referral comes
+  // in and the stored key differs from today, the counter resets to 1 in
+  // the same atomic UPDATE (mirror of the stardust day-key reset pattern).
+  // A nightly cron reads the top 5 by this counter at 00:00 UTC, credits
+  // stardust prizes (100/75/50/25/25), then zeros the counter for everyone.
+  // Naming note: the singular `daily_referral_count` already existed as an
+  // empty orphan column in production; we reuse it instead of creating a
+  // new `daily_referrals_count`, both to avoid leaving two ghost columns
+  // and to keep the migration purely additive (only the new day_key column
+  // is created by ALTER TABLE).
+  dailyReferralCount: integer("daily_referral_count").notNull().default(0),
+  dailyReferralDayKey: text("daily_referral_day_key"),
   // Space Merchant — random alien encounter on LAB. Server-driven so the
   // 20–50 min cadence and the 3-fusion cap can't be bypassed client-side.
   // `merchantNextAt` = earliest moment the next merchant may spawn.

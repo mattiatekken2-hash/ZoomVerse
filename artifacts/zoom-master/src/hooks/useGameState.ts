@@ -618,6 +618,18 @@ export function setCurrentBalanceEpoch(epoch: number): void {
   if (typeof epoch === "number" && epoch > _currentBalanceEpoch) _currentBalanceEpoch = epoch;
 }
 
+// Module-level holder for the hook's stateRef so module-scope helpers like
+// `reconcileFromSyncResponse` can mutate the same source-of-truth that the
+// in-component periodic doSync reads from. Set once when the hook mounts.
+// Without this, the wheel/admin race-condition fix that snaps stateRef
+// SYNCHRONOUSLY before bumping the epoch wouldn't compile (and at runtime
+// would leave the optimistic update unapplied, losing prizes).
+type StateRefHolder = { current: GameState };
+let _stateRefHolder: StateRefHolder | null = null;
+export function _registerStateRef(ref: StateRefHolder): void {
+  _stateRefHolder = ref;
+}
+
 // Called after every /balance/sync response. The server is authoritative
 // whenever its epoch is higher than the one we sent — that means an
 // authoritative balance change happened on the server (admin mutation,
@@ -654,7 +666,9 @@ function reconcileFromSyncResponse(
   const serverAdvanced = res.balanceEpoch > sentEpoch;
   const valueDiverged = res.zoomBalance !== sentBalance;
   if (serverAdvanced && valueDiverged) {
-    stateRef.current = { ...stateRef.current, balance: res.zoomBalance };
+    if (_stateRefHolder) {
+      _stateRefHolder.current = { ..._stateRefHolder.current, balance: res.zoomBalance };
+    }
     _lastSyncedBalance = res.zoomBalance;
     _pendingSyncBalance = -1;
     try {
@@ -675,7 +689,9 @@ function reconcileFromSyncResponse(
     typeof sentTonBalance === "number" &&
     (res.tonBalance ?? 0) - (sentTonBalance ?? 0) > 1e-9
   ) {
-    stateRef.current = { ...stateRef.current, tonBalance: res.tonBalance };
+    if (_stateRefHolder) {
+      _stateRefHolder.current = { ..._stateRefHolder.current, tonBalance: res.tonBalance };
+    }
     _lastSyncedTonBalance = res.tonBalance;
     try {
       window.dispatchEvent(new CustomEvent("zoom-server-ton-snap", {
@@ -1135,6 +1151,16 @@ function settleFarmingState(state: GameState, now: number): GameState {
 export function useGameState() {
   const [state, setState] = useState<GameState>(loadState);
   const stateRef = useRef(state);
+  // Expose stateRef to module-scope helpers (`reconcileFromSyncResponse`)
+  // so they can perform the synchronous wheel/admin race-fix snap into
+  // the same source-of-truth that the periodic doSync reads from. The
+  // hook's `stateRef.current = state` line below keeps it fresh on every
+  // React commit; this single registration only re-points the holder once
+  // (on mount) — re-registering on every render would be harmless but is
+  // unnecessary, the ref's `.current` updates flow through automatically.
+  if (_stateRefHolder !== stateRef) {
+    _registerStateRef(stateRef);
+  }
   const serverOffsetRef = useRef(0);
   // Becomes true once the initial flow has hydrated state from the server
   // (or confirmed there's nothing to hydrate). Until then we suppress the

@@ -491,6 +491,46 @@ router.post("/admin/remove-slots", async (req, res) => {
   }
 });
 
+// ----- STARDUST -----
+const CreditStardustBody = z.object({
+  adminId: z.string(),
+  telegramId: z.string().min(1),
+  amount: z.number().int().positive(),
+});
+
+router.post("/admin/credit-stardust", async (req, res) => {
+  const parsed = CreditStardustBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  const { amount } = parsed.data;
+  try {
+    // We touch ONLY stardust_balance — never stardust_today / stardust_day_key.
+    // The today counter is for the per-day collection cap on /stardust/collect
+    // and admin grants intentionally bypass that cap (the same way wheel
+    // prizes and HOF rewards do); leaving today unchanged means the player's
+    // legitimate cap budget for the day is preserved. Bumping balance_epoch
+    // forces the next client sync to refresh the visible stardust counter
+    // immediately so the user sees the credit without reopening the app.
+    await db
+      .insert(usersTable)
+      .values({ telegramId, zoomBalance: 0, referralCount: 0, stardustBalance: amount, balanceEpoch: 1 })
+      .onConflictDoUpdate({
+        target: usersTable.telegramId,
+        set: {
+          stardustBalance: sql`${usersTable.stardustBalance} + ${amount}`,
+          balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+        },
+      });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/credit-stardust]", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 // ----- SPINS -----
 const SpinsBody = z.object({
   adminId: z.string(),

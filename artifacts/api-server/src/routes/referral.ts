@@ -7,6 +7,16 @@ const router: IRouter = Router();
 
 const REFERRAL_BONUS = 20;
 
+// HALL OF FAME helper: same UTC day-key convention as stardust.
+// Inlined here (instead of imported) to avoid coupling the referral route
+// to the stardust route's internal helpers.
+function utcDayKey(now: Date = new Date()): string {
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(now.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 const MILESTONES = [
   { count: 5, reward: 500 },
   { count: 10, reward: 1000 },
@@ -115,15 +125,40 @@ router.post("/referral/register", async (req, res) => {
     }
 
     if (shouldCreditReferrer && referredBy) {
+      // Single UPSERT bumps:
+      //   • referral_count     — lifetime counter (+ 1)
+      //   • zoom_balance       — bonus credit (+ REFERRAL_BONUS)
+      //   • balance_epoch      — invalidate client cache so the credited
+      //                          ZOOM appears immediately on next sync
+      //   • daily_referral_count — Hall of Fame counter, reset-on-rollover
+      //   • daily_referral_day_key — UTC day this counter belongs to
+      //
+      // The HOF reset uses the same atomic CASE pattern as stardust:
+      // if the stored day_key matches today, increment; otherwise reset
+      // to 1 and stamp today's key. This is safe under concurrent
+      // referrals (the SQL is atomic per row) and makes the cron's
+      // job to "zero everyone at 00:00 UTC" purely clean-up — even if
+      // the cron is briefly delayed, a referral arriving in the new
+      // UTC day correctly starts a fresh counter.
+      const today = utcDayKey();
       await db
         .insert(usersTable)
-        .values({ telegramId: referredBy, referralCount: 1, zoomBalance: REFERRAL_BONUS, balanceEpoch: 1 })
+        .values({
+          telegramId: referredBy,
+          referralCount: 1,
+          zoomBalance: REFERRAL_BONUS,
+          balanceEpoch: 1,
+          dailyReferralCount: 1,
+          dailyReferralDayKey: today,
+        })
         .onConflictDoUpdate({
           target: usersTable.telegramId,
           set: {
             referralCount: sql`${usersTable.referralCount} + 1`,
             zoomBalance: sql`${usersTable.zoomBalance} + ${REFERRAL_BONUS}`,
             balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+            dailyReferralCount: sql`CASE WHEN ${usersTable.dailyReferralDayKey} = ${today} THEN ${usersTable.dailyReferralCount} + 1 ELSE 1 END`,
+            dailyReferralDayKey: today,
           },
         });
 
