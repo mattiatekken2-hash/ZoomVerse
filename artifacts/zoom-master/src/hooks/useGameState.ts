@@ -2310,11 +2310,19 @@ export function useGameState() {
         try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: "Slots full", ok: false } })); } catch { /**/ }
         return prev;
       }
-      return {
+      const next: GameState = {
         ...prev,
         planets: [...prev.planets, prev.pendingPlanet],
         pendingPlanet: null,
       };
+      // CRITICAL: persist the move from pendingPlanet → planets. Without this
+      // the freshly-claimed planet only lives in local React state and is
+      // wiped out on the next reconcileFromSyncResponse / reload, making the
+      // crafted planet appear to "disappear" to the user. The craft step
+      // already persisted pendingPlanet, but the claim must persist the
+      // promotion to the inventory too.
+      schedulePersist(next);
+      return next;
     });
     return outcome;
   }, []);
