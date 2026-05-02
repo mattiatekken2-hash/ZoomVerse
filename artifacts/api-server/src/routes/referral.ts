@@ -141,16 +141,6 @@ router.post("/referral/register", async (req, res) => {
       // the cron is briefly delayed, a referral arriving in the new
       // UTC day correctly starts a fresh counter.
       const today = utcDayKey();
-      // HOF gating: only users that own at least one SUN accumulate
-      // Hall-of-Fame daily-referral points. Lifetime referral_count and
-      // the +REFERRAL_BONUS ZOOM credit are NOT gated — those still go
-      // to every referrer regardless of SUN ownership. The SUN check
-      // happens inline in the SQL CASE so it's race-safe (the per-row
-      // UPDATE sees the current sun_count atomically).
-      //
-      // Insert side: a brand-new referrer row obviously can't own SUN
-      // yet (they haven't even opened the app), so we initialize the
-      // HOF counter at 0 / null instead of 1.
       await db
         .insert(usersTable)
         .values({
@@ -158,8 +148,8 @@ router.post("/referral/register", async (req, res) => {
           referralCount: 1,
           zoomBalance: REFERRAL_BONUS,
           balanceEpoch: 1,
-          dailyReferralCount: 0,
-          dailyReferralDayKey: null,
+          dailyReferralCount: 1,
+          dailyReferralDayKey: today,
         })
         .onConflictDoUpdate({
           target: usersTable.telegramId,
@@ -167,15 +157,8 @@ router.post("/referral/register", async (req, res) => {
             referralCount: sql`${usersTable.referralCount} + 1`,
             zoomBalance: sql`${usersTable.zoomBalance} + ${REFERRAL_BONUS}`,
             balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
-            dailyReferralCount: sql`CASE
-              WHEN ${usersTable.sunCount} > 0 AND ${usersTable.dailyReferralDayKey} = ${today} THEN ${usersTable.dailyReferralCount} + 1
-              WHEN ${usersTable.sunCount} > 0 THEN 1
-              ELSE ${usersTable.dailyReferralCount}
-            END`,
-            dailyReferralDayKey: sql`CASE
-              WHEN ${usersTable.sunCount} > 0 THEN ${today}
-              ELSE ${usersTable.dailyReferralDayKey}
-            END`,
+            dailyReferralCount: sql`CASE WHEN ${usersTable.dailyReferralDayKey} = ${today} THEN ${usersTable.dailyReferralCount} + 1 ELSE 1 END`,
+            dailyReferralDayKey: today,
           },
         });
 

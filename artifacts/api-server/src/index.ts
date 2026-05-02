@@ -157,13 +157,6 @@ function startHallOfFameResetCron() {
       // A deterministic tie-breaker (telegramId ASC) keeps prize ordering
       // stable when two users have the same count.
       const winnersInfo = await db.transaction(async (tx) => {
-        // SUN-gated winner selection: only users that own at least one
-        // SUN can be credited HOF stardust prizes. The referral.ts upsert
-        // already refuses to bump the daily counter for non-SUN users,
-        // so in normal operation no non-SUN row should appear here. The
-        // explicit `sun_count > 0` guard catches the edge case where a
-        // user had stardust accumulated and then lost SUN before the
-        // settlement tick (admin-remove or future feature).
         const winners = await tx
           .select({
             telegramId: usersTable.telegramId,
@@ -174,22 +167,13 @@ function startHallOfFameResetCron() {
           .where(
             sql`${usersTable.dailyReferralDayKey} IS NOT NULL
                 AND ${usersTable.dailyReferralDayKey} < ${today}
-                AND ${usersTable.dailyReferralCount} > 0
-                AND ${usersTable.sunCount} > 0`,
+                AND ${usersTable.dailyReferralCount} > 0`,
           )
           .orderBy(desc(usersTable.dailyReferralCount), usersTable.telegramId)
           .limit(5);
 
-        // CRITICAL: do NOT early-return on `winners.length === 0`.
-        // After SUN-gating winner selection, it's perfectly normal to
-        // have stale day_key rows from non-SUN users (their counter
-        // was preserved by referral.ts) but zero SUN-eligible winners.
-        // We MUST still run the stale-rows reset below so those non-SUN
-        // counters don't carry over: otherwise, if such a user later
-        // buys SUN, their old stale score would become winner-eligible
-        // on a subsequent cron tick and get paid for a disqualified day.
-        // The for-loop below safely runs 0 iterations when winners is
-        // empty, so credit logic is naturally a no-op in that case.
+        if (winners.length === 0) return { winners: [] as typeof winners, settled: 0 };
+
         for (let i = 0; i < winners.length; i++) {
           const winner = winners[i]!;
           const prize = PRIZES[i]!;
@@ -202,11 +186,9 @@ function startHallOfFameResetCron() {
             .where(eq(usersTable.telegramId, winner.telegramId));
         }
 
-        // Zero EVERY user whose key is stale (not just the top 5, and
-        // including non-SUN holders). Setting day_key back to NULL
-        // takes them out of competition until they earn a fresh
-        // referral while owning SUN, which is exactly the daily-reset
-        // intent.
+        // Zero EVERY user whose key is stale (not just the top 5). Setting
+        // day_key back to NULL takes them out of competition until they
+        // earn a fresh referral, which is exactly the daily-reset intent.
         const settled = await tx
           .update(usersTable)
           .set({ dailyReferralCount: 0, dailyReferralDayKey: null })
