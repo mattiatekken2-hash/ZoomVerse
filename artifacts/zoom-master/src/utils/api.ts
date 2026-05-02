@@ -43,6 +43,70 @@ export function notifyFarmStop(telegramId: string, planetId: string): void {
 }
 
 /**
+ * Server-authoritative offline farming settlement.
+ *
+ * Reads the user's persisted planets + SUN cycle on the server and credits
+ * any $ZOOM that accrued since the last server-side settle (capped at the
+ * standard 24h farm / 24h collect window, exactly like the client-side
+ * `settleFarmingState`). Idempotent — the server uses GREATEST() on the
+ * watermark so concurrent / repeated calls never double-credit the same
+ * elapsed period.
+ *
+ * Returns `exists:false credited:0` if the user row doesn't exist yet
+ * (lazy-created by `/balance/sync` on first sync); the caller should just
+ * proceed normally — nothing was changed server-side.
+ *
+ * `clientLastSettledAtMs` is an OPTIONAL floor for the watermark. It lets
+ * legacy devices that have been crediting offline accrual locally pass
+ * their own watermark, so the very first server-side settle for that user
+ * cannot accidentally credit a period the client has already credited.
+ * Migration-safe by construction: no existing balance is ever decreased.
+ */
+export async function settleOfflineFarming(params: {
+  telegramId: string;
+  clientLastSettledAtMs?: number;
+}): Promise<{
+  ok: boolean;
+  exists: boolean;
+  credited: number;
+  balance: number;
+  balanceEpoch: number;
+  settledAtMs: number;
+}> {
+  const fallback = {
+    ok: false,
+    exists: false,
+    credited: 0,
+    balance: 0,
+    balanceEpoch: 0,
+    settledAtMs: Date.now(),
+  };
+  if (!params.telegramId) return fallback;
+  try {
+    const r = await fetch(`${API_BASE}/farm/settle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        telegramId: params.telegramId,
+        clientLastSettledAtMs: Math.max(0, Math.floor(params.clientLastSettledAtMs ?? 0)),
+      }),
+    });
+    if (!r.ok) return fallback;
+    const j = (await r.json()) as Record<string, unknown>;
+    return {
+      ok: !!j["ok"],
+      exists: !!j["exists"],
+      credited: Math.max(0, Number(j["credited"] ?? 0)),
+      balance: Math.max(0, Number(j["balance"] ?? 0)),
+      balanceEpoch: Math.max(0, Number(j["balanceEpoch"] ?? 0)),
+      settledAtMs: Math.max(0, Number(j["settledAtMs"] ?? Date.now())),
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+/**
  * Permanently consume one bonus-planet entitlement on the server when the
  * user burns a planet that was originally granted by the server (id starts
  * with `bonus-`). Without this, the next /grants sync would re-grant the

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, type Grants, type CollectionPlanetState } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, type Grants, type CollectionPlanetState } from "../utils/api";
 import { toast } from "./use-toast";
 
 // Server-authoritative clock: every farming/idle-income time check is computed
@@ -442,7 +442,13 @@ const INITIAL_STATE: GameState = {
   claimedEarthCollectionBundles: 0,
   earthPlanets: [],
   tonBalance: 0,
-  lastFarmingSettledAt: serverNow(),
+  // Default to 0 (not serverNow()) so a brand-new device / cleared cache is
+  // recognized as "no prior local settle" — the server-side /farm/settle
+  // endpoint will then use the per-planet timestamps as the floor and credit
+  // the legitimate offline accrual (capped per planet at 24h). The local
+  // `settleFarmingState` already handles 0 safely via its `|| now` fallback,
+  // so this never causes a spurious instant credit on the client.
+  lastFarmingSettledAt: 0,
   claimedMilestones: [],
   defectPlanets: [],
   lastBalanceEpoch: 0,
@@ -502,7 +508,7 @@ function loadState(): GameState {
           referredBy: parsed.referredBy ?? null,
           telegramId: parsed.telegramId ?? null,
           claimedBonusSun: parsed.claimedBonusSun ?? false,
-          lastFarmingSettledAt: parsed.lastFarmingSettledAt ?? serverNow(),
+          lastFarmingSettledAt: parsed.lastFarmingSettledAt ?? 0,
           claimedMilestones: parsed.claimedMilestones ?? [],
           lastBalanceEpoch: parsed.lastBalanceEpoch ?? 0,
           whiteCollectionBundles: (parsed as unknown as Record<string, unknown>).whiteCollectionBundles as number ?? (parsed.whiteCollectionUnlocked ? 1 : 0),
@@ -1274,16 +1280,28 @@ export function useGameState() {
         try { localStorage.removeItem("zoom-start-param"); } catch { /**/ }
       }
 
-      const [refData, grants, balanceRecord, serverCollectionPlanets, serverRegular] = await Promise.all([
+      // Server-authoritative offline accrual. Runs in parallel with the
+      // other fetches; uses the local watermark as a floor so legacy
+      // devices that have been crediting offline accrual locally are
+      // protected from a one-off double-credit on the very first
+      // server-side settle. See settleOfflineFarming() doc for details.
+      const _initClientFloor = Math.floor(stateRef.current.lastFarmingSettledAt || 0);
+      const [refData, grants, balanceRecord, serverCollectionPlanets, serverRegular, settleRes] = await Promise.all([
         fetchReferralData(telegramId),
         fetchGrants(telegramId),
         fetchBalanceRecord(telegramId),
         fetchCollectionPlanets(telegramId),
         fetchRegularPlanets(telegramId),
+        settleOfflineFarming({ telegramId, clientLastSettledAtMs: _initClientFloor }),
       ]);
       const serverCollectionByKey = indexServerCollectionPlanets(serverCollectionPlanets);
 
-      const serverBalance = balanceRecord?.exists ? balanceRecord.zoomBalance : 0;
+      // Prefer the post-credit balance returned by /farm/settle when the
+      // user row exists; it always supersedes balanceRecord (which was
+      // fetched in parallel and may pre-date the credit by a few ms).
+      const serverBalance = settleRes.exists
+        ? settleRes.balance
+        : balanceRecord?.exists ? balanceRecord.zoomBalance : 0;
       const serverEpoch = balanceRecord?.balanceEpoch ?? 0;
       const localEpoch = stateRef.current.lastBalanceEpoch ?? 0;
       const localBalance = Math.floor(stateRef.current.balance);
@@ -1326,6 +1344,14 @@ export function useGameState() {
           // the local client becomes authoritative under epoch fencing.
           tonBalance: serverTonBalance,
           lastBalanceEpoch: syncRes.balanceEpoch,
+          // Adopt the server's settle watermark so subsequent client-side
+          // ticks (and the next /farm/settle call) compute deltas from the
+          // exact instant the server just authoritatively credited from.
+          // Monotonic max ensures we never roll the watermark backwards if
+          // the local one happened to be ahead (clock skew, race).
+          lastFarmingSettledAt: settleRes.exists
+            ? Math.max(prev.lastFarmingSettledAt || 0, settleRes.settledAtMs)
+            : (prev.lastFarmingSettledAt || 0),
         };
 
         // Apply bonus sun from server (grant sun if not already owned)
@@ -1819,8 +1845,56 @@ export function useGameState() {
     const doSync = async () => {
       const { telegramId, firstName, username } = getTelegramContext();
       if (!telegramId) return;
-      const localBalance = Math.floor(stateRef.current.balance);
 
+      // SEQUENTIAL ORDERING (race fix, May 2026): /farm/settle runs FIRST,
+      // then /balance/sync. If we ran them in parallel, /balance/sync would
+      // send the *pre-credit* localBalance and — since /balance/sync writes
+      //   CASE WHEN server_epoch > clientEpoch THEN server ELSE client
+      // — could overwrite a freshly server-side credited amount the moment
+      // the epoch race went the wrong way. /farm/settle now bumps the
+      // server's `balance_epoch` whenever it credits, so by the time we
+      // call /balance/sync below the local epoch tracker is already
+      // advanced and the value we send is the post-credit one.
+      const _doSyncClientFloor = Math.floor(stateRef.current.lastFarmingSettledAt || 0);
+      const settleRes = await settleOfflineFarming({
+        telegramId,
+        clientLastSettledAtMs: _doSyncClientFloor,
+      });
+
+      if (settleRes.exists && settleRes.credited > 0) {
+        // Apply the server credit locally + advance both watermark and
+        // epoch trackers BEFORE the syncBalance below, so the sync sends
+        // the post-credit balance with the post-credit epoch. The server
+        // CASE check then matches (epoch == sent) and falls through to the
+        // client value — no overwrite possible.
+        setState((prev) => {
+          const next = {
+            ...prev,
+            balance: prev.balance + settleRes.credited,
+            totalEarned: prev.totalEarned + settleRes.credited,
+            seasonPoolEarned: prev.seasonPoolEarned + settleRes.credited,
+            lastFarmingSettledAt: Math.max(prev.lastFarmingSettledAt || 0, settleRes.settledAtMs),
+            lastBalanceEpoch: Math.max(prev.lastBalanceEpoch || 0, settleRes.balanceEpoch),
+          };
+          stateRef.current = next;
+          return next;
+        });
+        setCurrentBalanceEpoch(settleRes.balanceEpoch);
+      } else if (settleRes.exists && settleRes.settledAtMs > _doSyncClientFloor) {
+        // Heartbeat path: no credit but server's watermark advanced. Mirror
+        // it locally so the next /farm/settle short-circuits cleanly.
+        setState((prev) => {
+          const next = {
+            ...prev,
+            lastFarmingSettledAt: Math.max(prev.lastFarmingSettledAt || 0, settleRes.settledAtMs),
+          };
+          stateRef.current = next;
+          return next;
+        });
+      }
+
+      // Now sync the (possibly-credited) balance + epoch.
+      const localBalance = Math.floor(stateRef.current.balance);
       const sentEpoch = _currentBalanceEpoch;
       const sentTon = Math.max(0, stateRef.current.tonBalance || 0);
       const [syncRes, grants] = await Promise.all([
@@ -1945,6 +2019,17 @@ export function useGameState() {
                 .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon));}
             }
             return settled;
+          });
+
+          // Bump the server-side watermark right after a visibility resume
+          // (which may have been preceded by hours of throttled / paused
+          // background timers in the Telegram WebView). Without this, the
+          // server still thinks "lastSettled = before-background" and the
+          // next /farm/settle from a different device would recredit a
+          // period the client just credited locally above.
+          void settleOfflineFarming({
+            telegramId,
+            clientLastSettledAtMs: Math.floor(stateRef.current.lastFarmingSettledAt || 0),
           });
 
           window.dispatchEvent(new Event("zoom-data-refresh"));
