@@ -165,15 +165,6 @@
   isolation: isolate;
   contain: layout paint style;
 }
-/* When the document is hidden (Telegram Mini App backgrounded, OS lock,
-   another fullscreen view on top) we pause every animation in the nebula
-   subtree to avoid burning GPU on invisible work. CSS animation-play-state
-   freezes the timeline in place, so when we drop the class on resume the
-   stars/comets/UFOs continue from exactly the same frame. */
-.nebula-bg.paused,
-.nebula-bg.paused * {
-  animation-play-state: paused !important;
-}
 
 .nebula-orb {
   position: absolute;
