@@ -114,6 +114,33 @@ export const usersTable = pgTable("users", {
   claimedBonusEpic: integer("claimed_bonus_epic").notNull().default(0),
   claimedBonusGold: integer("claimed_bonus_gold").notNull().default(0),
   claimedBonusV1: integer("claimed_bonus_v1").notNull().default(0),
+  // ─────────────────────────────────────────────────────────────────────
+  // HOME — pixel-art Comfort Zone (Phase 1: server foundations).
+  //
+  // Gated room with 3 display slots (A/B/C) where the user can place
+  // shop-bought items. Unlock cost = 1000 stardust ONE-TIME, additionally
+  // gated on owning the SUN (sun_count >= 1). Once unlocked it stays
+  // unlocked forever (no re-charge). Slot columns store an item id
+  // (e.g. "computer") or NULL for empty. Currently only "computer" is a
+  // valid item id; future items will extend the validation list.
+  //
+  // COMPUTER item (sold in Shop for 5000 stardust): owning a computer
+  // unlocks a 24h farming cycle that produces 25 stardust per claim.
+  // `computerOwnedAt` is set on purchase (and never cleared — items
+  // are non-refundable). `computerLastClaimAt` is set on purchase
+  // (so the first claim is exactly 24h after buying, not instant) and
+  // reset to now() on every successful claim. Both are NULL while the
+  // user has not bought the computer yet, which is also the cheapest
+  // "owned?" check (`computerOwnedAt IS NOT NULL`).
+  // ─────────────────────────────────────────────────────────────────────
+  homeUnlocked: boolean("home_unlocked").notNull().default(false),
+  homeUnlockedAt: timestamp("home_unlocked_at"),
+  homeSlotA: text("home_slot_a"),
+  homeSlotB: text("home_slot_b"),
+  homeSlotC: text("home_slot_c"),
+  computerOwnedAt: timestamp("computer_owned_at"),
+  computerLastClaimAt: timestamp("computer_last_claim_at"),
+
   // Monotonic write-time used to fence out stale saves of `planets_json`.
   // The save endpoint rejects any incoming write whose `client_write_at_ms`
   // is <= the stored value. Using the client's clock is fine because a
