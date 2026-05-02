@@ -290,11 +290,14 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",
-            // Padding-top piu' grande per scendere SOTTO il box HUD ZOOM
-            // (~110px di altezza nel layout Telegram Mini App). Padding-bottom
-            // generoso per garantire che l'ultima riga descrittiva non sia
-            // tagliata dal bordo inferiore.
-            padding: "120px 14px 60px",
+            // L'header del gioco (App.tsx) usa
+            // `paddingTop: calc(env(safe-area-inset-top, 0px) + 56px)`
+            // + altezza header ~70px = totale ~140-180px sui device iOS con
+            // notch. Usiamo padding-top calc che rispetta la safe-area + 130px
+            // di buffer, cosi' la card del modal NON si sovrappone mai al
+            // box ZOOM/star/settings dell'header. Padding-bottom generoso per
+            // l'ultima riga descrittiva e la barra di navigazione iOS.
+            padding: "calc(env(safe-area-inset-top, 0px) + 130px) 14px calc(env(safe-area-inset-bottom, 0px) + 80px)",
             overflowY: "auto",
           }}
         >
