@@ -63,6 +63,19 @@ function rollLevel2(): Outcome {
   return "V1";
 }
 
+// Level 3 fuses 2 EPIC. Same shape as Level 2 but the rewards are bumped one
+// tier up: the common upgrade is GOLD (instead of EPIC) and the jackpot is V1
+// (instead of GOLD). Failure rates (EXPLOSION + DOWNGRADE) are identical to L2.
+// On DOWNGRADE the client mints a RARE (one tier below EPIC), mirroring the
+// L2 RARE → BASIC fallback.
+function rollLevel3(): Outcome {
+  const r = Math.random() * 100;
+  if (r < 15) return "EXPLOSION";
+  if (r < 50) return "DOWNGRADE";
+  if (r < 90) return "GOLD";
+  return "V1";
+}
+
 async function readGlobal(): Promise<GlobalState> {
   const [row] = await db
     .select()
@@ -220,7 +233,7 @@ router.get("/merchant/state/:telegramId", async (req, res) => {
 
 const FuseBody = z.object({
   telegramId: z.string().min(1),
-  level: z.union([z.literal(1), z.literal(2)]),
+  level: z.union([z.literal(1), z.literal(2), z.literal(3)]),
 });
 
 router.post("/merchant/fuse", async (req, res) => {
@@ -271,7 +284,7 @@ router.post("/merchant/fuse", async (req, res) => {
 
     const fusionsUsed = updated[0]!.fusionsUsed;
     const fusionsRemaining = Math.max(0, MAX_FUSIONS_PER_VISIT - fusionsUsed);
-    const outcome = level === 1 ? rollLevel1() : rollLevel2();
+    const outcome = level === 1 ? rollLevel1() : level === 2 ? rollLevel2() : rollLevel3();
 
     return res.json({
       ok: true,

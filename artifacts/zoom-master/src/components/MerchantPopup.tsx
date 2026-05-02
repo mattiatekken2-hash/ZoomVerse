@@ -9,13 +9,14 @@ interface Props {
   maxFusions: number;
   basicCount: number;
   rareCount: number;
-  onFuse: (level: 1 | 2) => Promise<MerchantFuseResult>;
+  epicCount: number;
+  onFuse: (level: 1 | 2 | 3) => Promise<MerchantFuseResult>;
   burnTwoOfType: (t: PlanetType) => { ok: boolean; reason?: string };
   addCraftedPlanet: (t: PlanetType) => { ok: boolean; reason?: string };
   onClose: () => void;
 }
 
-type View = "idle" | "confirm1" | "confirm2" | "fusing" | "result" | "expired";
+type View = "idle" | "confirm1" | "confirm2" | "confirm3" | "fusing" | "result" | "expired";
 
 const FUSE_ANIMATION_MS = 2000;
 // Server already accepts in-flight fusions for 30s past expiry, but we cut UI
@@ -34,7 +35,9 @@ const RESULT_LABEL: Record<MerchantOutcome, string> = {
 
 const RESULT_BODY: Record<MerchantOutcome, string> = {
   EXPLOSION: "Fusion failed and your materials were lost in the void.",
-  DOWNGRADE: "Your Rare planets merged into a measly Basic planet.",
+  // DOWNGRADE body is rendered dynamically (it depends on the fusion level
+  // — L2 mints BASIC, L3 mints RARE) so this default is only a fallback.
+  DOWNGRADE: "Your planets merged into a lower-tier planet.",
   BASIC: "Fusion complete! You got a Basic planet.",
   RARE: "Fusion complete! You got a Rare planet.",
   EPIC: "Fusion complete! You got an Epic planet.",
@@ -42,12 +45,19 @@ const RESULT_BODY: Record<MerchantOutcome, string> = {
   V1: "Fusion complete! You got the legendary V1.",
 };
 
+function downgradeBody(level: 1 | 2 | 3 | null): string {
+  if (level === 3) return "Your Epic planets merged into a measly Rare planet.";
+  if (level === 2) return "Your Rare planets merged into a measly Basic planet.";
+  return RESULT_BODY.DOWNGRADE;
+}
+
 export function MerchantPopup({
   expiresAt,
   fusionsUsed,
   maxFusions,
   basicCount,
   rareCount,
+  epicCount,
   onFuse,
   burnTwoOfType,
   addCraftedPlanet,
@@ -55,6 +65,10 @@ export function MerchantPopup({
 }: Props) {
   const [view, setView] = useState<View>("idle");
   const [result, setResult] = useState<MerchantOutcome | null>(null);
+  // Tracks which fusion level produced the current `result`. Needed so the
+  // DOWNGRADE result body can describe the correct tier transition (L2: Rare→Basic,
+  // L3: Epic→Rare). Cleared together with `result` on dismiss.
+  const [resultLevel, setResultLevel] = useState<1 | 2 | 3 | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   // The merchant now behaves like the Earth / White Collection widgets:
@@ -106,7 +120,7 @@ export function MerchantPopup({
     if (view === "result" || view === "fusing") setIsOpen(true);
   }, [view]);
 
-  const startFuse = async (level: 1 | 2) => {
+  const startFuse = async (level: 1 | 2 | 3) => {
     if (inFlightRef.current) return;
     if (fusionsRemaining <= 0) { setView("expired"); return; }
 
@@ -117,8 +131,8 @@ export function MerchantPopup({
       return;
     }
 
-    const need: PlanetType = level === 1 ? "BASIC" : "RARE";
-    const have = level === 1 ? basicCount : rareCount;
+    const need: PlanetType = level === 1 ? "BASIC" : level === 2 ? "RARE" : "EPIC";
+    const have = level === 1 ? basicCount : level === 2 ? rareCount : epicCount;
     if (have < 2) {
       setError(`You need 2 idle ${PLANET_CONFIG[need].label} planets`);
       setView("idle");
@@ -149,6 +163,7 @@ export function MerchantPopup({
       // The server refused (race with expiry, etc). Treat as explosion in
       // spirit — the materials are gone client-side and we tell the player.
       setResult("EXPLOSION");
+      setResultLevel(level);
       setView("result");
       inFlightRef.current = false;
       return;
@@ -165,8 +180,12 @@ export function MerchantPopup({
         try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: "Slots full — planet lost", ok: false } })); } catch { /**/ }
       }
     } else if (out === "DOWNGRADE") {
-      // Level-2 specific: two Rares become a single fresh Basic.
-      const add = addCraftedPlanet("BASIC");
+      // Downgrade mints a single planet one tier below the materials burned:
+      //   L2 (2 Rare)  → 1 Basic
+      //   L3 (2 Epic)  → 1 Rare
+      // (L1 cannot DOWNGRADE; the server never returns it for level 1.)
+      const downgradeTo: PlanetType = level === 3 ? "RARE" : "BASIC";
+      const add = addCraftedPlanet(downgradeTo);
       if (!add.ok) {
         try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: "Slots full — planet lost", ok: false } })); } catch { /**/ }
       }
@@ -174,12 +193,14 @@ export function MerchantPopup({
     // EXPLOSION: nothing to mint, materials already burned.
 
     setResult(out);
+    setResultLevel(level);
     setView("result");
     inFlightRef.current = false;
   };
 
   const dismissResult = () => {
     setResult(null);
+    setResultLevel(null);
     setError(null);
     if (fusionsRemaining <= 0 || remaining <= 0) onClose();
     else setView("idle");
@@ -187,6 +208,7 @@ export function MerchantPopup({
 
   const lvl1Disabled = view === "fusing" || basicCount < 2 || fusionsRemaining <= 0;
   const lvl2Disabled = view === "fusing" || rareCount < 2 || fusionsRemaining <= 0;
+  const lvl3Disabled = view === "fusing" || epicCount < 2 || fusionsRemaining <= 0;
 
   return (
     <>
@@ -330,37 +352,50 @@ export function MerchantPopup({
             {error && (
               <div style={{ marginBottom: 6, fontSize: 9, color: "#ff8080", textAlign: "center" }}>{error}</div>
             )}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5 }}>
               <button
                 type="button"
                 disabled={lvl1Disabled}
                 onClick={() => setView("confirm1")}
                 style={fusionBtnStyle(lvl1Disabled, "#8892b0")}
+                data-testid="button-merchant-lv1"
               >
-                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em" }}>LV 1</div>
-                <div style={{ fontSize: 9, marginTop: 1 }}>2 Basic</div>
-                <div style={{ fontSize: 8, marginTop: 2, opacity: 0.7 }}>have: {basicCount}</div>
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.04em" }}>LV 1</div>
+                <div style={{ fontSize: 8, marginTop: 1 }}>2 Basic</div>
+                <div style={{ fontSize: 7, marginTop: 2, opacity: 0.7 }}>have: {basicCount}</div>
               </button>
               <button
                 type="button"
                 disabled={lvl2Disabled}
                 onClick={() => setView("confirm2")}
                 style={fusionBtnStyle(lvl2Disabled, "#4facfe")}
+                data-testid="button-merchant-lv2"
               >
-                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.06em" }}>LV 2</div>
-                <div style={{ fontSize: 9, marginTop: 1 }}>2 Rare</div>
-                <div style={{ fontSize: 8, marginTop: 2, opacity: 0.7 }}>have: {rareCount}</div>
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.04em" }}>LV 2</div>
+                <div style={{ fontSize: 8, marginTop: 1 }}>2 Rare</div>
+                <div style={{ fontSize: 7, marginTop: 2, opacity: 0.7 }}>have: {rareCount}</div>
+              </button>
+              <button
+                type="button"
+                disabled={lvl3Disabled}
+                onClick={() => setView("confirm3")}
+                style={fusionBtnStyle(lvl3Disabled, "#c47bff")}
+                data-testid="button-merchant-lv3"
+              >
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.04em" }}>LV 3</div>
+                <div style={{ fontSize: 8, marginTop: 1 }}>2 Epic</div>
+                <div style={{ fontSize: 7, marginTop: 2, opacity: 0.7 }}>have: {epicCount}</div>
               </button>
             </div>
             <button type="button" onClick={tryClose} style={ghostBtnStyle}>LEAVE</button>
           </div>
         )}
 
-        {(view === "confirm1" || view === "confirm2") && (
+        {(view === "confirm1" || view === "confirm2" || view === "confirm3") && (
           <ConfirmView
-            level={view === "confirm1" ? 1 : 2}
+            level={view === "confirm1" ? 1 : view === "confirm2" ? 2 : 3}
             onCancel={() => setView("idle")}
-            onConfirm={() => startFuse(view === "confirm1" ? 1 : 2)}
+            onConfirm={() => startFuse(view === "confirm1" ? 1 : view === "confirm2" ? 2 : 3)}
           />
         )}
 
@@ -384,7 +419,7 @@ export function MerchantPopup({
               {RESULT_LABEL[result]}
             </div>
             <div style={{ fontSize: 9, marginTop: 4, color: "rgba(230,222,255,0.85)", lineHeight: 1.35 }}>
-              {RESULT_BODY[result]}
+              {result === "DOWNGRADE" ? downgradeBody(resultLevel) : RESULT_BODY[result]}
             </div>
             <button type="button" onClick={dismissResult} style={primaryBtnStyle}>OK</button>
           </div>
@@ -422,10 +457,12 @@ export function MerchantPopup({
   );
 }
 
-function ConfirmView({ level, onCancel, onConfirm }: { level: 1 | 2; onCancel: () => void; onConfirm: () => void }) {
+function ConfirmView({ level, onCancel, onConfirm }: { level: 1 | 2 | 3; onCancel: () => void; onConfirm: () => void }) {
   const text = level === 1
     ? "Burn 2 Basic planets."
-    : "Burn 2 Rare planets.";
+    : level === 2
+      ? "Burn 2 Rare planets."
+      : "Burn 2 Epic planets.";
   return (
     <div style={{ marginTop: 14 }}>
       <p style={{ fontSize: 12, lineHeight: 1.45, color: "rgba(230,222,255,0.9)", textAlign: "center", margin: 0 }}>

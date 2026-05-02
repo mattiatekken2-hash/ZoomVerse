@@ -88,6 +88,7 @@ function AppShellWithState() {
   const merchant = useMerchant(state.telegramId);
   const basicCount = state.planets.filter((p) => p.name === "BASIC" && !p.isFarmingActive && !p.isListedInMarket).length;
   const rareCount = state.planets.filter((p) => p.name === "RARE" && !p.isFarmingActive && !p.isListedInMarket).length;
+  const epicCount = state.planets.filter((p) => p.name === "EPIC" && !p.isFarmingActive && !p.isListedInMarket).length;
 
   // Centralized global data fetch — Season epoch, leaderboard, profile, daily, market.
   // Pages read from the global store so tab switches show pre-loaded data with no pop-in.
@@ -843,6 +844,7 @@ function AppShellWithState() {
           maxFusions={merchant.maxFusions}
           basicCount={basicCount}
           rareCount={rareCount}
+          epicCount={epicCount}
           onFuse={merchant.fuse}
           burnTwoOfType={burnTwoOfType}
           addCraftedPlanet={addCraftedPlanet}

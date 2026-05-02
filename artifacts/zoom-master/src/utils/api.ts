@@ -1724,7 +1724,7 @@ export async function saveRegularPlanets(
   }
 }
 
-export async function merchantFuse(telegramId: string, level: 1 | 2): Promise<MerchantFuseResult> {
+export async function merchantFuse(telegramId: string, level: 1 | 2 | 3): Promise<MerchantFuseResult> {
   try {
     const res = await fetch(`${API_BASE}/merchant/fuse`, {
       method: "POST",

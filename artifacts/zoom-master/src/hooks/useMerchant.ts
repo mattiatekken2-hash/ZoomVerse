@@ -21,7 +21,7 @@ export interface UseMerchant {
   fusionsRemaining: number;
   ready: boolean;
   refresh: () => Promise<void>;
-  fuse: (level: 1 | 2) => Promise<MerchantFuseResult>;
+  fuse: (level: 1 | 2 | 3) => Promise<MerchantFuseResult>;
   /** Local override fired after the visit ends so the UI hides instantly. */
   dismissLocally: () => void;
 }
@@ -86,7 +86,7 @@ export function useMerchant(telegramId: string | null): UseMerchant {
     return () => clearInterval(id);
   }, [telegramId, refresh]);
 
-  const fuse = useCallback(async (level: 1 | 2): Promise<MerchantFuseResult> => {
+  const fuse = useCallback(async (level: 1 | 2 | 3): Promise<MerchantFuseResult> => {
     if (!telegramId) {
       return { ok: false, reason: "BAD_REQUEST", fusionsUsed: state.fusionsUsed, fusionsRemaining: 0, maxFusions: state.maxFusions };
     }
