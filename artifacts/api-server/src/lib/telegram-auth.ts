@@ -153,30 +153,8 @@ export function verifyInitData(initData: string | undefined | null): VerifyResul
       return false;
     }
   };
-  const okAll = matches(hashAll);
-  const okNoSig = matches(hashNoSig);
-  const signatureOk = okAll || okNoSig;
-  if (!signatureOk) {
-    // DEBUG temporaneo: dump info per capire perche' nessuna delle due
-    // varianti del data-check-string matcha. Da rimuovere dopo fix.
-    try {
-      // eslint-disable-next-line no-console
-      console.warn("[tg-auth DEBUG bad_signature]", JSON.stringify({
-        botTokenLen: BOT_TOKEN.length,
-        botIdPrefix: BOT_TOKEN.slice(0, 10),
-        receivedHash: hash,
-        hashAll,
-        hashNoSig,
-        dcsAllLen: dcsAll.length,
-        dcsNoSigLen: dcsNoSig.length,
-        keys: entriesAll.map(([k]) => k),
-        // raw initData log abilitato solo per dev (ha PII)
-        initDataRaw: process.env.NODE_ENV === "production" ? null : initData,
-      }));
-    } catch { /* ignore */ }
-    return { ok: false, reason: "bad_signature" };
-  }
-  void okAll; void okNoSig;
+  const signatureOk = matches(hashAll) || matches(hashNoSig);
+  if (!signatureOk) return { ok: false, reason: "bad_signature" };
 
   return {
     ok: true,

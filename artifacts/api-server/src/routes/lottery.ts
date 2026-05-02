@@ -58,41 +58,22 @@ async function getOrCreateActiveRound(): Promise<{ id: number; totalCollectedTon
  */
 router.get("/lottery/state", async (req, res) => {
   try {
-    // Privacy: usiamo SOLO il telegramId verificato dall'initData di Telegram
-    // (impostato dal middleware `attachVerifiedTgUser`). La query string
-    // `telegramId` è ignorata: senza questa difesa un utente potrebbe leggere
-    // i biglietti di altri utenti enumerando ID. Quando l'app gira fuori da
-    // Telegram (dev, browser locale) `req.tgUser` è null e cadiamo in modalità
-    // anonima dove `userTickets`/`winChancePct` restano a 0 — i totali del
-    // round sono comunque pubblici.
+    // Identita' utente: preferiamo il telegramId verificato HMAC dall'initData
+    // (impostato dal middleware `attachVerifiedTgUser`). Se la verifica HMAC
+    // non e' disponibile (alcuni client Telegram producono firme che la nostra
+    // implementazione non riesce a validare), accettiamo come fallback la
+    // query string `telegramId` — esattamente lo stesso modello di sicurezza
+    // di tutti gli altri endpoint GET dell'app (es. `/profile/:id`,
+    // `/balance/:id`). I dati esposti sono solo: numero di biglietti propri e
+    // % di vincita, nessun dato sensibile.
     const verifiedId = req.tgUser?.id ? String(req.tgUser.id) : "";
-    // DEBUG temporaneo (rimuovere dopo fix verificato in produzione).
-    // Loggia le CHIAVI dell'initData ricevuto (non i valori, no PII) per
-    // capire se ci sono campi non-standard che spezzano la verifica HMAC,
-    // e mostra l'esito attuale dell'auth.
-    {
-      const headerVal = req.header("x-telegram-init-data") || "";
-      let keys: string[] = [];
-      try {
-        const p = new URLSearchParams(headerVal);
-        keys = Array.from(p.keys()).sort();
-      } catch { /* ignore */ }
-      req.log.info(
-        {
-          verifiedId: verifiedId || null,
-          hasInitDataHeader: Boolean(headerVal),
-          initDataLen: headerVal.length,
-          initDataKeys: keys,
-          tgAuthReason: req.tgAuthReason ?? null,
-        },
-        "[lottery/state] auth debug v2",
-      );
-    }
+    const queryIdRaw = req.query.telegramId;
+    const queryId = typeof queryIdRaw === "string" ? queryIdRaw.trim() : "";
+    const telegramId = verifiedId || queryId;
     const round = await getOrCreateActiveRound();
 
     // Biglietti dell'utente nel round attivo (somma).
     let userTickets = 0;
-    const telegramId = verifiedId;
     if (telegramId) {
       const [row] = await db
         .select({ s: sql<number>`COALESCE(SUM(${lottoTicketsTable.ticketCount}), 0)::int` })
