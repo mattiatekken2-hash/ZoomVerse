@@ -59,12 +59,16 @@ function num(v: unknown): number {
  * `zoom_balance`. Locks the user row with `FOR UPDATE` so concurrent calls
  * (multiple tabs / retries) cannot double-credit the same elapsed period.
  *
- * Per-planet formula (matches client `settleFarmingState`):
- *   start = max(watermark, farmStartedAt, lastCollectedAt)
- *   end   = min(now, farmStartedAt + 24h, lastCollectedAt + 24h)
+ * Per-planet formula (matches client `settleFarmingState` after the
+ * daily-collect removal):
+ *   effectiveStart = max(farmStartedAt, lastCollectedAt)
+ *   start = max(watermark, effectiveStart)
+ *   end   = min(now, effectiveStart + 24h)
  *   if (end > start) earned += (rate / 3_600_000) * (end - start) * speed
  *
- * SUN follows the same shape with rate = 1000 * sunCount.
+ * SUN keeps its original two-window formula (its 24h farm + 24h collect
+ * pattern was NOT changed in the collect removal — only the regular
+ * planets were).
  *
  * MIGRATION GUARANTEE — the user explicitly asked that no existing member
  * lose anything. The first ever call for a given user has
@@ -166,14 +170,19 @@ router.post("/farm/settle", async (req, res) => {
         if (rate <= 0) continue;
         const farmStartedAt = num(p.farmStartedAt);
         const lastCollectedAt = num(p.lastCollectedAt);
-        // Never-started planet (timestamps still at 0) — skip.
-        if (farmStartedAt <= 0) continue;
-        const start = Math.max(watermark, farmStartedAt, lastCollectedAt);
-        const end = Math.min(
-          now,
-          farmStartedAt + FARM_DURATION_MS,
-          lastCollectedAt > 0 ? lastCollectedAt + DAILY_COLLECT_MS : now,
-        );
+        // Daily-collect removed: cycle is anchored to a single 24h block.
+        // For brand-new cycles `effectiveStart === farmStartedAt`. For planets
+        // that existed BEFORE the daily-collect removal AND had already been
+        // collected at least once, `lastCollectedAt > farmStartedAt`, so we
+        // anchor the fresh 24h block to the last collect — exactly the
+        // "riattiva automaticamente, come se avessi appena cliccato collect"
+        // behavior the user asked for. Mirrors `effectiveFarmStart()` in the
+        // client `useGameState.ts`.
+        const effectiveStart = Math.max(farmStartedAt, lastCollectedAt);
+        // Never-started planet (both timestamps still at 0) — skip.
+        if (effectiveStart <= 0) continue;
+        const start = Math.max(watermark, effectiveStart);
+        const end = Math.min(now, effectiveStart + FARM_DURATION_MS);
         if (end > start) {
           // Dynamic bonus average — see DYNAMIC_BONUS_AVG comment above.
           const effectiveRate = rate + DYNAMIC_BONUS_AVG;

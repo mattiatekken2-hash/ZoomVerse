@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
 import type { Planet, SunState } from "../hooks/useGameState";
-import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getSunReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, needsCollect } from "../hooks/useGameState";
+import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getSunReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration } from "../hooks/useGameState";
 import { WalletPopup } from "../components/WalletPopup";
 import { useT } from "../i18n/LanguageContext";
 
@@ -50,13 +50,10 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
   const [defectMsg, setDefectMsg] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleCollect = (id: string) => {
-    const result = onCollect(id);
-    if (result.defect) {
-      setDefectMsg("Il nucleo del pianeta e' instabile: raccolta fallita!");
-      setTimeout(() => setDefectMsg(null), 1000);
-    }
-  };
+  // Daily-collect removed — planets now farm autonomously for the full 24h
+  // cycle and then need a $ZOOM reactivation, with no manual collect step.
+  // `onCollect` prop is retained for legacy compatibility but never invoked.
+  void onCollect;
 
   const totalRate = planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0)
     + (sun && isSunActive(sun) ? sunDisplayRate : 0);
@@ -297,11 +294,9 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
           {planets.map((planet) => {
             const active = isFarmActive(planet);
             const remaining = getFarmTimeRemaining(planet);
-            // V1 has no manual daily COLLECT step — it just farms its 24h
-            // cycle and then needs the standard $ZOOM reactivation fee, like
-            // every other rarity. Hiding the button here makes V1 fall through
-            // to the FARMING / EXPIRED branches naturally.
-            const needsDaily = needsCollect(planet) && planet.name !== "V1";
+            // Daily-collect removed: every rarity (including V1) now farms its
+            // full 24h cycle autonomously, then expires and needs a $ZOOM
+            // reactivation. No intermediate COLLECT button.
             const refund = Math.floor(planet.craftCost * 0.15);
             const cfg = PLANET_CONFIG[planet.name];
             const isListed = planet.isListedInMarket;
@@ -401,17 +396,7 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
                 </div>
 
                 <div className="flex gap-2">
-                  {needsDaily ? (
-                    <button
-                      className="btn-widget btn-glass-collect"
-                      onClick={() => handleCollect(planet.id)}
-                      data-testid={`btn-collect-${planet.id}`}
-                    >
-                      <span style={{ fontSize: 14 }}>⚡</span>
-                      <span>{t("farm.collect")}</span>
-                      <span style={{ fontSize: 8, opacity: 0.7 }}>Daily</span>
-                    </button>
-                  ) : active ? (
+                  {active ? (
                     // Active farm cycle: non-interactive indicator. The cycle
                     // runs uninterrupted to completion — no manual pause/stop.
                     <div

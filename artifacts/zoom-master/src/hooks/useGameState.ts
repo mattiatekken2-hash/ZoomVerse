@@ -454,6 +454,34 @@ const INITIAL_STATE: GameState = {
   lastBalanceEpoch: 0,
 };
 
+/**
+ * Daily-collect removal one-shot migration (May 2026), self-healing & idempotent.
+ *
+ * Pre-deploy state had a "needs daily collect" punishment: planets stopped
+ * accruing if the user didn't press COLLECT within 24h of the previous
+ * collect. The user explicitly asked that EXISTING members not lose anything:
+ * any planet currently stuck in the old expired-due-to-missed-collect state
+ * should auto-reactivate as if the user had just pressed collect, free.
+ *
+ * Detection criterion: `lastCollectedAt > farmStartedAt`. This is true ONLY
+ * for planets that received at least one MANUAL collect after their last
+ * start — possible only with a pre-deploy build (post-deploy startFarming
+ * still sets both timestamps equal, and the COLLECT button no longer exists
+ * to drift them). After migration we reset `farmStartedAt = now,
+ * lastCollectedAt = 0`, which makes the check naturally false on every
+ * subsequent pass — no cross-device free-reactivation loop, no flag needed.
+ *
+ * Safe to call on every planet load (loadState + server hydration). Brand-new
+ * planets and post-migration planets are unchanged; only pre-deploy stuck
+ * cycles get the one-time free reactivation.
+ */
+function applyDailyCollectMigration<T extends Planet>(p: T, nowMs: number): T {
+  if (!p.isFarmingActive) return p;
+  if (!(p.lastCollectedAt > p.farmStartedAt)) return p;
+  if (nowMs - p.lastCollectedAt <= FARM_DURATION_MS) return p;
+  return { ...p, farmStartedAt: nowMs, lastCollectedAt: 0 };
+}
+
 function migratePlanet(p: unknown): Planet {
   const raw = p as Partial<Planet>;
   return {
@@ -497,10 +525,19 @@ function loadState(): GameState {
             referralSpeedBonus: referredBy ? 0.10 : 0,
           };
         }
+        // Daily-collect removal migration runs on every load via
+        // `applyDailyCollectMigration`; it self-skips post-migration planets
+        // (lastCollectedAt = 0 < farmStartedAt), so calling it here AND in
+        // the server-hydration path is safe and idempotent. See the
+        // function's docstring for the invariant.
+        const nowMs = serverNow();
+        const migratedPlanets = (parsed.planets || [])
+          .map(migratePlanet)
+          .map((p) => applyDailyCollectMigration(p, nowMs));
         const base: GameState = {
           ...INITIAL_STATE,
           ...parsed,
-          planets: (parsed.planets || []).map(migratePlanet),
+          planets: migratedPlanets,
           pendingPlanet: parsed.pendingPlanet ? migratePlanet(parsed.pendingPlanet) : null,
           usedRedeemCodes: parsed.usedRedeemCodes || [],
           sun: parsed.sun || null,
@@ -1008,13 +1045,29 @@ function migrateLegacyNeverStartedPlanet<T extends Planet>(p: T): T {
   return { ...p, farmStartedAt: 0, lastCollectedAt: 0 };
 }
 
+/**
+ * "Effective" farm start timestamp.
+ *
+ * As of the daily-collect removal, the 24h farming cycle is anchored to a
+ * single timestamp. For brand-new cycles this is just `farmStartedAt`. For
+ * planets that existed BEFORE the daily-collect removal and had already
+ * been collected at least once, `lastCollectedAt` may be more recent than
+ * `farmStartedAt`. Using the max of the two means those planets get a fresh
+ * 24h window starting from the last time the user pressed COLLECT — exactly
+ * the "riattiva automaticamente, come se avessi appena cliccato collect"
+ * migration the user asked for. Idempotent and zero-cost: for new planets
+ * (lastCollectedAt = 0) it collapses to `farmStartedAt`.
+ */
+export function effectiveFarmStart(planet: Planet): number {
+  return Math.max(planet.farmStartedAt || 0, planet.lastCollectedAt || 0);
+}
+
 export function isFarmActive(planet: Planet): boolean {
   if (!planet.isFarmingActive) return false;
   if (planet.isListedInMarket) return false;
-  const now = serverNow();
-  if (now - planet.farmStartedAt > FARM_DURATION_MS) return false;
-  if (now - planet.lastCollectedAt > DAILY_COLLECT_MS) return false;
-  return true;
+  const start = effectiveFarmStart(planet);
+  if (start <= 0) return false;
+  return serverNow() - start <= FARM_DURATION_MS;
 }
 
 export function isSunActive(sun: SunState): boolean {
@@ -1026,8 +1079,9 @@ export function isSunActive(sun: SunState): boolean {
 }
 
 export function getFarmTimeRemaining(planet: Planet): number {
-  const expiry = planet.farmStartedAt + FARM_DURATION_MS;
-  return Math.max(0, expiry - serverNow());
+  const start = effectiveFarmStart(planet);
+  if (start <= 0) return 0;
+  return Math.max(0, start + FARM_DURATION_MS - serverNow());
 }
 
 /**
@@ -1036,8 +1090,9 @@ export function getFarmTimeRemaining(planet: Planet): number {
  */
 export function isFarmExpired(planet: Planet): boolean {
   if (planet.isListedInMarket) return false;
-  if (planet.farmStartedAt <= 0) return false;
-  return serverNow() - planet.farmStartedAt > FARM_DURATION_MS;
+  const start = effectiveFarmStart(planet);
+  if (start <= 0) return false;
+  return serverNow() - start > FARM_DURATION_MS;
 }
 
 export function getReactivationFee(planet: Planet): number {
@@ -1091,8 +1146,15 @@ export function getSunTimeRemaining(sun: SunState): number {
   return Math.max(0, expiry - serverNow());
 }
 
-export function needsCollect(planet: Planet): boolean {
-  return serverNow() - planet.lastCollectedAt > DAILY_COLLECT_MS * 0.9 && isFarmActive(planet);
+/**
+ * DEPRECATED — daily collect was removed. Planets now farm autonomously for
+ * the full 24h cycle and then need a $ZOOM reactivation, with no manual
+ * intermediate step. Kept exported as a no-op so any cached client code or
+ * re-export site keeps compiling; always returns false so no UI ever renders
+ * the old COLLECT button. Safe to delete in a future cleanup pass.
+ */
+export function needsCollect(_planet: Planet): boolean {
+  return false;
 }
 
 export function sunNeedsCollect(sun: SunState): boolean {
@@ -1121,8 +1183,14 @@ function settleFarmingState(state: GameState, now: number): GameState {
 
   for (const planet of state.planets) {
     if (!planet.isFarmingActive || planet.isListedInMarket) continue;
-    const start = Math.max(from, planet.farmStartedAt, planet.lastCollectedAt);
-    const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+    // Daily-collect removed: cycle window is the single 24h block starting at
+    // effectiveFarmStart (= max(farmStartedAt, lastCollectedAt) so pre-deploy
+    // planets that had already been collected get fresh 24h from the last
+    // collect — see effectiveFarmStart() docstring).
+    const eff = effectiveFarmStart(planet);
+    if (eff <= 0) continue;
+    const start = Math.max(from, eff);
+    const end = Math.min(now, eff + FARM_DURATION_MS);
     if (end > start) {
       const dynamicRate = planet.rate + Math.random() * DYNAMIC_BONUS_MAX;
       earned += (dynamicRate / 3_600_000) * (end - start) * speedMultiplier;
@@ -1418,13 +1486,25 @@ export function useGameState() {
         // the local app already materialized.
         if (serverRegular.ok) {
           if (serverRegular.exists && (serverRegular.planets.length > 0 || stateRef.current.planets.length === 0)) {
+            // Apply BOTH migrations as we hydrate so server-stored pianeti
+            // arrive normalized for the rest of the app:
+            //   1) `migrateLegacyNeverStartedPlanet` — fix old never-started
+            //      planets that had spurious non-zero timestamps.
+            //   2) `applyDailyCollectMigration` — daily-collect removal:
+            //      pre-deploy planets stuck "expired due to missed collect"
+            //      get a free 24h reactivation exactly once. Self-healing
+            //      via the `lastCollectedAt > farmStartedAt` check, so it's
+            //      safe to run here even though loadState already ran it on
+            //      the local snapshot — server data is authoritative and
+            //      may still hold pre-migration timestamps. The 1.2s
+            //      debounced `saveRegularPlanets` below will then push the
+            //      migrated values back to the server.
+            const nowMs = serverNow();
             updated = {
               ...updated,
-              // Apply the legacy never-started migration as we hydrate so any
-              // pre-fix planet stored on the server gets normalized to
-              // farmStartedAt = lastCollectedAt = 0 before the rest of the
-              // app touches it. See migrateLegacyNeverStartedPlanet.
-              planets: (serverRegular.planets as unknown as Planet[]).map(migrateLegacyNeverStartedPlanet),
+              planets: (serverRegular.planets as unknown as Planet[])
+                .map(migrateLegacyNeverStartedPlanet)
+                .map((p) => applyDailyCollectMigration(p, nowMs)),
             };
           }
           updated = {
@@ -2421,36 +2501,19 @@ export function useGameState() {
     }
   }, []);
 
-  const collectPlanet = useCallback((id: string): { defect: boolean } => {
-    const isDefect = Math.random() < DEFECT_CHANCE;
-    setState((prev) => {
-      if (prev.telegramId) notifyFarmCollect(prev.telegramId, id);
-      const now = serverNow();
-      if (isDefect) {
-        const planet = prev.planets.find((p) => p.id === id);
-        if (planet && planet.isFarmingActive) {
-          const speedMultiplier = 1 + (prev.referralSpeedBonus || 0);
-          const start = Math.max(planet.lastCollectedAt, planet.farmStartedAt);
-          const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
-          const elapsed = Math.max(0, end - start);
-          const lost = (planet.rate / 3_600_000) * elapsed * speedMultiplier;
-          return {
-            ...prev,
-            balance: Math.max(0, prev.balance - lost),
-            planets: prev.planets.map((p) =>
-              p.id === id ? { ...p, lastCollectedAt: now } : p
-            ),
-          };
-        }
-      }
-      return {
-        ...prev,
-        planets: prev.planets.map((p) =>
-          p.id === id ? { ...p, lastCollectedAt: now } : p
-        ),
-      };
-    });
-    return { defect: isDefect };
+  /**
+   * DEPRECATED — daily collect was removed. The orange COLLECT button no
+   * longer exists in the UI; planets farm autonomously for 24h and then
+   * require a $ZOOM reactivation. This callback is kept exported only so
+   * existing wiring (`App.tsx` passes it as `onCollect={collectPlanet}` to
+   * `FarmPage`) continues to typecheck. It is now an inert no-op:
+   * no setState, no balance mutation, no `lastCollectedAt` refresh, no
+   * server notification. Defect-roll removed too — that punishment was tied
+   * to the manual collect step which no longer exists. Safe to remove the
+   * entire wiring chain in a future cleanup.
+   */
+  const collectPlanet = useCallback((_id: string): { defect: boolean } => {
+    return { defect: false };
   }, []);
 
   const burnPlanet = useCallback((id: string) => {
@@ -2509,8 +2572,15 @@ export function useGameState() {
       // A planet is "expired" if its 24h cycle elapsed AND it had been started before.
       // First-time start (right after craft) is free; subsequent reactivations cost
       // a rarity-based $ZOOM fee.
-      const wasStarted = planet.farmStartedAt > 0;
-      const expired = wasStarted && now - planet.farmStartedAt > FARM_DURATION_MS;
+      // Daily-collect removed: anchor expiry on `effectiveFarmStart` so the
+      // fee logic stays in lockstep with `isFarmExpired` / `isFarmActive` /
+      // server `farm/settle`. Without this, a pre-deploy planet whose
+      // `lastCollectedAt > farmStartedAt` would still be wrongfully charged
+      // a reactivation fee even though the rest of the system considers it
+      // active for another full window.
+      const eff = effectiveFarmStart(planet);
+      const wasStarted = eff > 0;
+      const expired = wasStarted && now - eff > FARM_DURATION_MS;
       const fee = expired ? PLANET_CONFIG[planet.name].reactivationFee : 0;
       if (fee > 0 && prev.balance < fee) {
         outcome = { ok: false, reason: `Need ${fee.toLocaleString()} $ZOOM to reactivate` };
