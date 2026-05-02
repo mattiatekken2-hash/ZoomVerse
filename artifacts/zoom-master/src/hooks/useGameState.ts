@@ -2509,6 +2509,10 @@ export function useGameState() {
         listOnMarket({
           sellerTelegramId: telegramId,
           sellerName: firstName ?? undefined,
+          // Pass the local planet id so the server can verify ownership
+          // against users.planets_json. Without it the server will reject
+          // the listing with 400 "Planet not found in your inventory".
+          planetId: planet.id,
           planetType: planet.name,
           planetRate: planet.rate,
           price,
@@ -2520,6 +2524,25 @@ export function useGameState() {
                 p.id === id ? { ...p, serverListingId: result.listing!.id } : p
               ),
             }));
+          } else {
+            // Server rejected the listing (e.g. 409 "already listed",
+            // 409 "previously sold", 400 "type/rate mismatch"). Revert
+            // the optimistic local mark so the planet returns to the
+            // inventory and the user can see what's wrong instead of a
+            // ghost listing the server doesn't know about.
+            setState((s) => ({
+              ...s,
+              planets: s.planets.map((p) =>
+                p.id === id
+                  ? { ...p, isListedInMarket: false, marketPrice: null, serverListingId: undefined }
+                  : p,
+              ),
+            }));
+            toast({
+              title: "Listing rejected",
+              description: result.error ?? "The server refused to list this planet.",
+              variant: "destructive",
+            });
           }
         });
       }

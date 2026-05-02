@@ -1060,19 +1060,30 @@ export async function fetchMarketListings(): Promise<ServerMarketListing[]> {
 export async function listOnMarket(params: {
   sellerTelegramId: string;
   sellerName?: string;
+  // REQUIRED — the server uses this to verify that the seller actually
+  // owns the planet they're trying to list. Sending a wrong/missing id
+  // will be rejected with 400 "Planet not found in your inventory".
+  planetId: string;
   planetType: string;
   planetRate: number;
   price: number;
-}): Promise<{ ok: boolean; listing?: ServerMarketListing }> {
+}): Promise<{ ok: boolean; listing?: ServerMarketListing; error?: string }> {
   try {
     const res = await fetch(`${API_BASE}/market/list`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(params),
     });
-    return res.json();
+    const data = await res.json().catch(() => ({}));
+    // Surface the server error so the caller can revert local state and
+    // show the user a meaningful message ("Planet already listed", "This
+    // planet was previously sold", etc) instead of a silent failure.
+    if (!res.ok) {
+      return { ok: false, error: typeof data?.error === "string" ? data.error : `HTTP ${res.status}` };
+    }
+    return data;
   } catch {
-    return { ok: false };
+    return { ok: false, error: "Network error" };
   }
 }
 

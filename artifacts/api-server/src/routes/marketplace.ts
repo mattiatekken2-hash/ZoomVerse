@@ -185,14 +185,15 @@ router.post("/market/list", async (req, res) => {
     const nowMs = Date.now();
     await client.query(
       `UPDATE users
-       SET planets_json = (
-         SELECT jsonb_agg(
-           CASE WHEN p->>'id' = $2
-             THEN p || jsonb_build_object('isListedInMarket', true, 'serverListingId', $3::int, 'marketPrice', $4::int)
-             ELSE p
-           END
-         )
-         FROM jsonb_array_elements(planets_json) p
+       SET planets_json = COALESCE(
+         (SELECT jsonb_agg(
+            CASE WHEN p->>'id' = $2
+              THEN p || jsonb_build_object('isListedInMarket', true, 'serverListingId', $3::int, 'marketPrice', $4::int)
+              ELSE p
+            END
+          )
+          FROM jsonb_array_elements(planets_json) p),
+         '[]'::jsonb
        ),
        planets_updated_at_ms = GREATEST(planets_updated_at_ms, $5::bigint)
        WHERE telegram_id = $1`,
@@ -277,13 +278,34 @@ router.post("/market/buy", async (req, res) => {
       return;
     }
 
-    const [buyer] = await txDb
-      .select({ zoomBalance: usersTable.zoomBalance })
-      .from(usersTable)
-      .where(eq(usersTable.telegramId, buyerTelegramId))
-      .limit(1);
+    // Atomic, race-safe debit (compare-and-swap in a single statement).
+    //
+    // The previous SELECT-balance-then-UPDATE pattern allowed two
+    // concurrent /market/buy calls from the same buyer to both pass the
+    // check and both deduct, driving the balance negative. Because ZOOM
+    // converts to TON in the withdrawal flow, a negative-balance buyer
+    // who later receives a referral bonus / sale payout would see it
+    // silently burned, but a buyer who just kept buying could effectively
+    // double-spend across listings — a real-money loss path.
+    //
+    // The fix: do the debit in one UPDATE with a balance-fence in the
+    // WHERE clause, then check `RETURNING` row count. Zero rows means
+    // either the user doesn't exist or their balance was below totalCost
+    // at the instant of the UPDATE — Postgres guarantees serializability
+    // on this row-level write so two concurrent buys cannot both succeed
+    // when only one is affordable.
+    const debited = await txDb.update(usersTable)
+      .set({
+        zoomBalance: sql`${usersTable.zoomBalance} - ${totalCost}`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
+      .where(and(
+        eq(usersTable.telegramId, buyerTelegramId),
+        sql`${usersTable.zoomBalance} >= ${totalCost}`,
+      ))
+      .returning({ id: usersTable.telegramId });
 
-    if (!buyer || buyer.zoomBalance < totalCost) {
+    if (debited.length === 0) {
       await client.query("ROLLBACK");
       res.status(400).json({ error: "Insufficient balance" });
       return;
@@ -291,17 +313,32 @@ router.post("/market/buy", async (req, res) => {
 
     await txDb.update(usersTable)
       .set({
-        zoomBalance: sql`${usersTable.zoomBalance} - ${totalCost}`,
-        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
-      })
-      .where(eq(usersTable.telegramId, buyerTelegramId));
-
-    await txDb.update(usersTable)
-      .set({
         zoomBalance: sql`${usersTable.zoomBalance} + ${listing.price}`,
         balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
       .where(eq(usersTable.telegramId, listing.sellerTelegramId));
+
+    // Surgically remove the sold planet from the seller's planets_json
+    // so their UI no longer shows it on the next refresh. Best-effort
+    // cleanup — the listing row (status='sold' with planet_id set) is
+    // already the authoritative record, and the unique partial index
+    // on (seller_telegram_id, planet_id) prevents the seller from ever
+    // re-listing this planet even if a stale client save resurrects it
+    // in the JSON blob. Skip for legacy listings that pre-date the
+    // planet_id column (planetId === null) since there's no anchor.
+    if (listing.planetId) {
+      const nowMs = Date.now();
+      await client.query(
+        `UPDATE users
+         SET planets_json = COALESCE(
+           (SELECT jsonb_agg(p) FROM jsonb_array_elements(planets_json) p WHERE p->>'id' != $2),
+           '[]'::jsonb
+         ),
+         planets_updated_at_ms = GREATEST(planets_updated_at_ms, $3::bigint)
+         WHERE telegram_id = $1`,
+        [listing.sellerTelegramId, listing.planetId, nowMs],
+      );
+    }
 
     await client.query("COMMIT");
 
@@ -357,8 +394,12 @@ router.post("/market/delist", async (req, res) => {
 
   const { sellerTelegramId, listingId } = parsed.data;
 
+  const client = await pool.connect();
   try {
-    const result = await db.update(marketListingsTable)
+    await client.query("BEGIN");
+    const txDb = drizzle(client);
+
+    const result = await txDb.update(marketListingsTable)
       .set({ status: "delisted" })
       .where(
         and(
@@ -370,14 +411,44 @@ router.post("/market/delist", async (req, res) => {
       .returning();
 
     if (result.length === 0) {
+      await client.query("ROLLBACK");
       res.status(404).json({ error: "Listing not found" });
       return;
     }
 
+    // Sync planets_json: clear isListedInMarket + serverListingId +
+    // marketPrice on the matching planet so the seller's UI shows it
+    // back in the inventory on next refresh. Same best-effort caveat
+    // as in /market/list. Skipped for legacy listings (planetId null).
+    const delisted = result[0]!;
+    if (delisted.planetId) {
+      const nowMs = Date.now();
+      await client.query(
+        `UPDATE users
+         SET planets_json = COALESCE(
+           (SELECT jsonb_agg(
+              CASE WHEN p->>'id' = $2
+                THEN (p - 'serverListingId' - 'marketPrice') || jsonb_build_object('isListedInMarket', false)
+                ELSE p
+              END
+            )
+            FROM jsonb_array_elements(planets_json) p),
+           '[]'::jsonb
+         ),
+         planets_updated_at_ms = GREATEST(planets_updated_at_ms, $3::bigint)
+         WHERE telegram_id = $1`,
+        [sellerTelegramId, delisted.planetId, nowMs],
+      );
+    }
+
+    await client.query("COMMIT");
     res.json({ ok: true });
   } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
     console.error("[market/delist] error:", err);
     res.status(500).json({ error: "Database error" });
+  } finally {
+    client.release();
   }
 });
 
