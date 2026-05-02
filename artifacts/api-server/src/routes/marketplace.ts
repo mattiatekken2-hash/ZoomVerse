@@ -59,11 +59,45 @@ const MARKETPLACE_FEE = 0.25;
 const ListBody = z.object({
   sellerTelegramId: z.string().min(1),
   sellerName: z.string().optional(),
+  // Required: anchors the listing to a specific planet in the seller's
+  // inventory. Without this we have no way to verify ownership.
+  planetId: z.string().min(1).max(128),
   planetType: z.enum(["BASIC", "RARE", "EPIC", "GOLD"]),
   planetRate: z.number().int().positive(),
   price: z.number().int().positive(),
 });
 
+/**
+ * Create a marketplace listing for one of the seller's regular planets.
+ *
+ * SECURITY MODEL — closes the "sell a planet you don't own" exploit
+ * (which would let a malicious client mint ZOOM out of thin air and
+ * convert it to TON via the withdrawal flow).
+ *
+ * The handler runs in a single transaction and enforces, IN ORDER:
+ *   1. The seller's user row exists.
+ *   2. The seller actually has a planet with that `planetId` in
+ *      `users.planets_json`.
+ *   3. The submitted `planetType` and `planetRate` match what is stored
+ *      on the planet (prevents the "list a BASIC at GOLD's rate" scam
+ *      that would inflate the asking price).
+ *   4. The planet is not already marked as listed in the inventory.
+ *   5. The planet is not currently farming (you can't sell a working
+ *      planet — the buyer would inherit the timer state, which is a
+ *      separate exploit surface we don't open here).
+ *   6. The unique partial index `uq_market_seller_planet_active_sold`
+ *      catches the "I already sold this planet, let me list it again"
+ *      case at the DB level, so even a race between two /market/list
+ *      requests is safe.
+ *
+ * After the listing row is inserted we surgically mark the matching
+ * planet inside `planets_json` as listed (`isListedInMarket: true`,
+ * `serverListingId`, `marketPrice`) and bump `planets_updated_at_ms`.
+ * This is best-effort — the client may overwrite it with a higher
+ * `clientWriteAtMs` on the next /regular-planets/save — but that is
+ * acceptable because the unique-index check on subsequent /market/list
+ * calls is what actually blocks money-impacting reuse.
+ */
 router.post("/market/list", async (req, res) => {
   const parsed = ListBody.safeParse(req.body);
   if (!parsed.success) {
@@ -71,25 +105,108 @@ router.post("/market/list", async (req, res) => {
     return;
   }
 
-  const { sellerTelegramId, sellerName, planetType, planetRate, price } = parsed.data;
+  const { sellerTelegramId, sellerName, planetId, planetType, planetRate, price } = parsed.data;
 
+  const client = await pool.connect();
   try {
-    const [listing] = await db
-      .insert(marketListingsTable)
-      .values({
-        sellerTelegramId,
-        sellerName: sellerName ?? null,
-        planetType,
-        planetRate,
-        price,
-        status: "active",
-      })
-      .returning();
+    await client.query("BEGIN");
+    const txDb = drizzle(client);
 
+    // Lock the seller's user row so a concurrent /market/list or
+    // /regular-planets/save can't race with the ownership check.
+    const [seller] = await txDb
+      .select({ planetsJson: usersTable.planetsJson })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, sellerTelegramId))
+      .for("update")
+      .limit(1);
+
+    if (!seller) {
+      await client.query("ROLLBACK");
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    const planets = Array.isArray(seller.planetsJson) ? (seller.planetsJson as Array<Record<string, unknown>>) : [];
+    const planet = planets.find((p) => p && typeof p === "object" && p["id"] === planetId);
+    if (!planet) {
+      await client.query("ROLLBACK");
+      res.status(400).json({ error: "Planet not found in your inventory" });
+      return;
+    }
+    if (planet["name"] !== planetType || Number(planet["rate"]) !== planetRate) {
+      await client.query("ROLLBACK");
+      res.status(400).json({ error: "Planet type or rate mismatch" });
+      return;
+    }
+    if (planet["isListedInMarket"] === true) {
+      await client.query("ROLLBACK");
+      res.status(409).json({ error: "Planet already listed" });
+      return;
+    }
+    if (planet["isFarmingActive"] === true) {
+      await client.query("ROLLBACK");
+      res.status(400).json({ error: "Cannot list a farming planet" });
+      return;
+    }
+
+    let listing;
+    try {
+      const [inserted] = await txDb
+        .insert(marketListingsTable)
+        .values({
+          sellerTelegramId,
+          sellerName: sellerName ?? null,
+          planetId,
+          planetType,
+          planetRate,
+          price,
+          status: "active",
+        })
+        .returning();
+      listing = inserted;
+    } catch (err: unknown) {
+      await client.query("ROLLBACK");
+      // Postgres unique_violation. The unique partial index fires when
+      // the seller already has an active or sold listing for this exact
+      // planetId — i.e. they're trying to double-list or re-list a sold
+      // planet. Reject with 409 so the client can show a clear message.
+      if (typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23505") {
+        res.status(409).json({ error: "This planet was previously listed and cannot be sold again" });
+        return;
+      }
+      throw err;
+    }
+
+    // Mark the planet as listed in planets_json. This is a best-effort
+    // sync so the seller's UI reflects the listing on next refresh; the
+    // listing row (with its unique constraint) is the actual source of
+    // truth for ownership.
+    const nowMs = Date.now();
+    await client.query(
+      `UPDATE users
+       SET planets_json = (
+         SELECT jsonb_agg(
+           CASE WHEN p->>'id' = $2
+             THEN p || jsonb_build_object('isListedInMarket', true, 'serverListingId', $3::int, 'marketPrice', $4::int)
+             ELSE p
+           END
+         )
+         FROM jsonb_array_elements(planets_json) p
+       ),
+       planets_updated_at_ms = GREATEST(planets_updated_at_ms, $5::bigint)
+       WHERE telegram_id = $1`,
+      [sellerTelegramId, planetId, listing!.id, price, nowMs],
+    );
+
+    await client.query("COMMIT");
     res.json({ ok: true, listing });
   } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
     console.error("[market/list] error:", err);
     res.status(500).json({ error: "Database error" });
+  } finally {
+    client.release();
   }
 });
 

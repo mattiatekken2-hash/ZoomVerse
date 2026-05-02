@@ -161,12 +161,35 @@ export const marketListingsTable = pgTable("market_listings", {
   price: integer("price").notNull(),
   status: text("status").notNull().default("active"),
   buyerTelegramId: text("buyer_telegram_id"),
+  // Anchors the listing to a specific planet inside the seller's
+  // `users.planets_json` array. Required for all NEW listings (the
+  // /market/list handler validates ownership against this id), nullable
+  // because pre-existing rows from before the ownership-check fix do
+  // not have it. The unique partial index below uses this column to
+  // close the "list the same planet twice" / "re-list a sold planet"
+  // money exploits.
+  planetId: text("planet_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   soldAt: timestamp("sold_at"),
   lastActivatedAt: timestamp("last_activated_at"),
 }, (table) => [
   index("idx_market_status").on(table.status),
   index("idx_market_seller").on(table.sellerTelegramId),
+  // CRITICAL anti-exploit constraint. A planet that has ever been
+  // listed (currently active OR already sold) by a given seller can
+  // never appear in a NEW active listing from that same seller. This
+  // is what stops:
+  //   • selling the same planet to two different buyers
+  //   • re-listing a planet after it was sold (would let the seller
+  //     receive multiple ZOOM payments for what is effectively one
+  //     planet, and ZOOM converts to TON — real money loss)
+  // Delisted listings are intentionally NOT in the partial filter so
+  // a seller can take back a planet and re-list it later. NULL
+  // planet_id rows (legacy, pre-fix) are excluded so they don't
+  // collide with anything.
+  uniqueIndex("uq_market_seller_planet_active_sold")
+    .on(table.sellerTelegramId, table.planetId)
+    .where(sql`status IN ('active', 'sold') AND planet_id IS NOT NULL`),
 ]);
 
 export const insertMarketListingSchema = createInsertSchema(marketListingsTable).omit({ id: true, createdAt: true, soldAt: true });
