@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type PlanetType, PLANET_CONFIG } from "../hooks/useGameState";
 import type { MerchantOutcome, MerchantFuseResult } from "../utils/api";
+import alienMerchantImg from "../assets/alien-merchant.png";
 
 interface Props {
   expiresAt: string | null;
@@ -218,7 +219,6 @@ export function MerchantPopup({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: 36,
           lineHeight: 1,
           boxShadow: "0 0 14px rgba(180,70,255,0.45)",
           // Vibrate while merchant is active. Hold still during the
@@ -227,7 +227,20 @@ export function MerchantPopup({
         }}
         data-testid="button-space-merchant"
       >
-        <span aria-hidden style={{ filter: "drop-shadow(0 0 6px rgba(180,70,255,0.7))" }}>👽</span>
+        <img
+          src={alienMerchantImg}
+          alt=""
+          aria-hidden
+          draggable={false}
+          style={{
+            width: 50,
+            height: 50,
+            objectFit: "contain",
+            imageRendering: "pixelated",
+            filter: "drop-shadow(0 0 6px rgba(180,70,255,0.7))",
+            pointerEvents: "none",
+          }}
+        />
       </button>
 
       {/* Tiny countdown badge — sits to the RIGHT of the alien icon
@@ -284,17 +297,21 @@ export function MerchantPopup({
       >
         {/* Alien character */}
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
-          <div
+          <img
+            src={alienMerchantImg}
+            alt=""
             aria-hidden
+            draggable={false}
             style={{
-              fontSize: 38,
-              lineHeight: 1,
+              width: 64,
+              height: 64,
+              objectFit: "contain",
+              imageRendering: "pixelated",
               filter: view === "fusing" ? "hue-rotate(120deg) drop-shadow(0 0 10px #b46aff)" : "drop-shadow(0 0 8px rgba(180,70,255,0.6))",
               animation: view === "fusing" ? "merchant-shake 0.18s linear infinite" : "merchant-bob 2.4s ease-in-out infinite",
+              pointerEvents: "none",
             }}
-          >
-            👽
-          </div>
+          />
         </div>
 
         <div style={{ textAlign: "center", fontWeight: 900, letterSpacing: "0.08em", fontSize: 11, color: "#caa6ff" }}>

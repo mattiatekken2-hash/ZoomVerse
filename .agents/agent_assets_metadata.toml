@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "12Yn6Tp9W_85ZL2LxYId0"
+uri = "file://artifacts/zoom-master/src/assets/alien-merchant.png"
+type = "image"
+title = "alien merchant pixel art"
