@@ -334,19 +334,19 @@ export async function executeLotteryDraw(executorId: string): Promise<DrawOutcom
  * dal draw manuale che dal draw automatico settimanale.
  */
 export function buildWinnerBroadcastMessage(outcome: Extract<DrawOutcome, { kind: "drawn" }>): string {
-  const winnerLabel = outcome.winnerName || `Utente ${outcome.winnerTelegramId.slice(-4)}`;
+  const winnerLabel = outcome.winnerName || `User ${outcome.winnerTelegramId.slice(-4)}`;
   const prize = outcome.prizeTon.toFixed(3).replace(/\.?0+$/, "");
   const total = outcome.totalCollectedTon.toFixed(3).replace(/\.?0+$/, "");
   return [
-    "LOTTO STELLARE — Estrazione di questa settimana",
+    "STELLAR LOTTERY — This week's draw",
     "",
-    `Vincitore: ${winnerLabel}`,
-    `Premio: ${prize} TON`,
-    `Round chiuso: #${outcome.roundId}`,
-    `Montepremi totale: ${total} TON`,
-    `Biglietti del vincitore: ${outcome.winnerTickets}`,
+    `Winner: ${winnerLabel}`,
+    `Prize: ${prize} TON`,
+    `Round closed: #${outcome.roundId}`,
+    `Total pool: ${total} TON`,
+    `Winner's tickets: ${outcome.winnerTickets}`,
     "",
-    "Il prossimo round e' gia' aperto. Compra i tuoi biglietti per la prossima settimana e tenta la fortuna!",
+    "The next round is already open. Buy your tickets for next week and try your luck!",
   ].join("\n");
 }
 

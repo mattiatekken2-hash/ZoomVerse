@@ -16,9 +16,9 @@ interface Bundle {
 }
 
 const BUNDLES: Bundle[] = [
-  { id: "lotto_ticket_1",  tickets: 1,  tonPrice: 0.1, label: "1 biglietto" },
-  { id: "lotto_ticket_15", tickets: 15, tonPrice: 1.0, label: "15 biglietti", badge: "−33%" },
-  { id: "lotto_ticket_40", tickets: 40, tonPrice: 2.5, label: "40 biglietti", badge: "−38%" },
+  { id: "lotto_ticket_1",  tickets: 1,  tonPrice: 0.1, label: "1 ticket" },
+  { id: "lotto_ticket_15", tickets: 15, tonPrice: 1.0, label: "15 tickets", badge: "−33%" },
+  { id: "lotto_ticket_40", tickets: 40, tonPrice: 2.5, label: "40 tickets", badge: "−38%" },
 ];
 
 interface Props {
@@ -115,10 +115,10 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
   useEffect(() => { if (open) refresh(); }, [open, refresh]);
 
   const handleBuy = async (bundle: Bundle) => {
-    if (!telegramId) { setMessage("ID Telegram mancante"); return; }
+    if (!telegramId) { setMessage("Telegram ID missing"); return; }
     if (!connectedAddress) {
       tonConnectUI.openModal();
-      setMessage("Collega prima il wallet TON");
+      setMessage("Connect your TON wallet first");
       return;
     }
     setBuying(bundle.id);
@@ -131,30 +131,30 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
       const boc = txResult.boc || "";
       const confirmResult = await confirmTonPurchase(telegramId, bundle.id, connectedAddress, bundle.tonPrice, boc);
       if (confirmResult.alreadyCredited || confirmResult.ok) {
-        setMessage(`+${bundle.tickets} biglietti accreditati!`);
+        setMessage(`+${bundle.tickets} tickets credited!`);
         await refresh();
         window.dispatchEvent(new Event("zoom-data-refresh"));
       } else if (confirmResult.pending && confirmResult.txnId) {
-        setMessage("Verifica pagamento in corso…");
+        setMessage("Verifying payment…");
         const final = await pollTxnUntilFinal(confirmResult.txnId);
         if (final?.status === "completed") {
-          setMessage(`+${bundle.tickets} biglietti accreditati!`);
+          setMessage(`+${bundle.tickets} tickets credited!`);
           await refresh();
           window.dispatchEvent(new Event("zoom-data-refresh"));
         } else if (final?.status === "failed") {
-          setMessage("Pagamento non confermato sulla blockchain");
+          setMessage("Payment not confirmed on blockchain");
         } else {
-          setMessage("In attesa di conferma…");
+          setMessage("Waiting for confirmation…");
         }
       } else {
-        setMessage(confirmResult.error || "Errore di accredito");
+        setMessage(confirmResult.error || "Credit error");
       }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       if (errMsg.includes("cancel") || errMsg.includes("reject") || errMsg.includes("Interrupted")) {
-        setMessage("Pagamento annullato");
+        setMessage("Payment cancelled");
       } else {
-        setMessage("Errore TON");
+        setMessage("TON error");
         console.error("[lotto] sendTransaction error:", err);
       }
     }
@@ -181,9 +181,9 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
   const countdownLabel = nextDrawAt === 0
     ? "—"
     : msLeft === 0
-      ? "in corso…"
+      ? "in progress…"
       : days > 0
-        ? `${days}g ${hours}h`
+        ? `${days}d ${hours}h`
         : hours > 0
           ? `${hours}h ${minutes}m`
           : `${minutes}m`;
@@ -224,7 +224,7 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
 
       <button
         onClick={() => setOpen(true)}
-        aria-label="Lotto Stellare"
+        aria-label="Stellar Lottery"
         style={{
           position: "fixed",
           left: 12,
@@ -310,7 +310,7 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
           >
             <button
               onClick={() => setOpen(false)}
-              aria-label="Chiudi"
+              aria-label="Close"
               style={{
                 position: "absolute", top: 12, right: 12, width: 32, height: 32,
                 borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)",
@@ -342,10 +342,10 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
               textShadow: `0 0 12px ${NEON_GOLD}88, 0 0 24px ${NEON_RED}44`,
               textTransform: "uppercase",
             }}>
-              Lotto Stellare
+              Stellar Lottery
             </div>
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", textAlign: "center", marginBottom: 8, letterSpacing: "0.08em" }}>
-              più biglietti compri, più alta la tua probabilità di vincere
+              the more tickets you buy, the higher your chance to win
             </div>
 
             <div style={{
@@ -355,7 +355,7 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
               border: `1px solid ${NEON_PURPLE}44`,
             }}>
               <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                Prossima estrazione automatica:
+                Next automatic draw:
               </span>
               <span style={{ fontSize: 13, fontWeight: 900, color: NEON_PURPLE, letterSpacing: "0.05em" }}>
                 {countdownLabel}
@@ -376,14 +376,14 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
                 <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>TON</div>
               </div>
               <div style={{ textAlign: "center", borderLeft: "1px solid rgba(255,255,255,0.08)", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
-                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>I tuoi</div>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Yours</div>
                 <div style={{ fontSize: 18, fontWeight: 900, color: "#fff", marginTop: 2 }}>{userTickets}</div>
-                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>biglietti</div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>tickets</div>
               </div>
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Vincita</div>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Win chance</div>
                 <div style={{ fontSize: 18, fontWeight: 900, color: NEON_PURPLE, marginTop: 2 }}>{winChancePct.toFixed(2)}%</div>
-                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>{totalTickets} totali</div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>{totalTickets} total</div>
               </div>
             </div>
 
@@ -414,7 +414,7 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
                     disabled={buying !== null}
                     data-testid={`button-buy-${b.id}`}
                   >
-                    {buying === b.id ? "…" : "ACQUISTA"}
+                    {buying === b.id ? "…" : "BUY"}
                   </button>
                 </div>
               ))}
@@ -436,7 +436,7 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
               border: "1px solid rgba(255,255,255,0.08)",
               fontSize: 10, color: "rgba(255,255,255,0.55)", lineHeight: 1.5, textAlign: "center",
             }}>
-              Il <b style={{ color: NEON_GOLD }}>90%</b> del raccolto va al vincitore (jackpot). Il vincitore è scelto a caso tra TUTTI i biglietti venduti — più ne possiedi, più sale la tua probabilità. Pagamento del premio gestito manualmente dall'admin.
+              <b style={{ color: NEON_GOLD }}>90%</b> of the pool goes to the winner (jackpot). The winner is picked at random among ALL sold tickets — the more you own, the higher your chance. Prize payout handled manually by the admin.
             </div>
           </div>
         </div>
