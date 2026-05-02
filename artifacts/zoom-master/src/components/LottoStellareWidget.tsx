@@ -285,12 +285,16 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
             position: "fixed",
             inset: 0,
             zIndex: 1000,
-            background: "rgba(4,6,16,0.78)",
+            background: "rgba(4,6,16,0.85)",
             backdropFilter: "blur(6px)",
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",
-            padding: "100px 18px 24px",
+            // Padding-top piu' grande per scendere SOTTO il box HUD ZOOM
+            // (~110px di altezza nel layout Telegram Mini App). Padding-bottom
+            // generoso per garantire che l'ultima riga descrittiva non sia
+            // tagliata dal bordo inferiore.
+            padding: "120px 14px 60px",
             overflowY: "auto",
           }}
         >
@@ -299,12 +303,12 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
             style={{
               position: "relative",
               width: "100%",
-              maxWidth: 440,
+              maxWidth: 420,
               background: "linear-gradient(180deg, rgba(20,12,4,0.96), rgba(8,4,12,0.98))",
               border: `1px solid ${NEON_GOLD}66`,
               boxShadow: `0 0 36px ${NEON_GOLD}33, 0 0 64px ${NEON_RED}22`,
               borderRadius: 18,
-              padding: 22,
+              padding: "18px 16px 16px",
               color: "#fff",
             }}
           >
@@ -321,43 +325,43 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
               ✕
             </button>
 
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12, marginTop: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 8, marginTop: 2 }}>
               <div className="lotto-tile-frame" style={{
-                width: 110, height: 110, borderRadius: 18,
+                width: 76, height: 76, borderRadius: 14,
                 background: "rgba(28,16,4,0.6)",
                 border: `2px solid ${NEON_GOLD}88`,
-                padding: 10,
+                padding: 6,
                 display: "flex", alignItems: "center", justifyContent: "center",
               }}>
-                <div className="lotto-tile-img" style={{ filter: `drop-shadow(0 0 12px ${NEON_GOLD}cc)` }}>
-                  <PixelTicket size={88} />
+                <div className="lotto-tile-img" style={{ filter: `drop-shadow(0 0 10px ${NEON_GOLD}cc)` }}>
+                  <PixelTicket size={60} />
                 </div>
               </div>
             </div>
 
             <div style={{
               fontFamily: "'Orbitron', 'Inter', sans-serif",
-              fontSize: 22, fontWeight: 900, letterSpacing: "0.18em",
-              textAlign: "center", marginBottom: 4, color: "#fff",
+              fontSize: 19, fontWeight: 900, letterSpacing: "0.16em",
+              textAlign: "center", marginBottom: 2, color: "#fff",
               textShadow: `0 0 12px ${NEON_GOLD}88, 0 0 24px ${NEON_RED}44`,
               textTransform: "uppercase",
             }}>
               Stellar Lottery
             </div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", textAlign: "center", marginBottom: 8, letterSpacing: "0.08em" }}>
+            <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", textAlign: "center", marginBottom: 8, letterSpacing: "0.06em" }}>
               the more tickets you buy, the higher your chance to win
             </div>
 
             <div style={{
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              marginBottom: 14, padding: "8px 12px", borderRadius: 10,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              marginBottom: 10, padding: "6px 10px", borderRadius: 8,
               background: "rgba(196,113,237,0.08)",
               border: `1px solid ${NEON_PURPLE}44`,
             }}>
-              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
-                Next automatic draw:
+              <span style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                Next draw:
               </span>
-              <span style={{ fontSize: 13, fontWeight: 900, color: NEON_PURPLE, letterSpacing: "0.05em" }}>
+              <span style={{ fontSize: 12, fontWeight: 900, color: NEON_PURPLE, letterSpacing: "0.05em" }}>
                 {countdownLabel}
               </span>
             </div>
@@ -365,8 +369,8 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
             <div style={{
               display: "grid",
               gridTemplateColumns: "1fr 1fr 1fr",
-              gap: 8, marginBottom: 18,
-              padding: 12, borderRadius: 12,
+              gap: 6, marginBottom: 12,
+              padding: 10, borderRadius: 10,
               background: `linear-gradient(135deg, rgba(255,216,77,0.1), rgba(196,113,237,0.05))`,
               border: `1px solid ${NEON_GOLD}33`,
             }}>
@@ -387,11 +391,11 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
               </div>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {BUNDLES.map((b) => (
                 <div key={b.id} style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
-                  gap: 10, padding: "12px 14px", borderRadius: 12,
+                  gap: 10, padding: "10px 12px", borderRadius: 10,
                   background: "rgba(255,255,255,0.03)",
                   border: `1px solid ${NEON_GOLD}33`,
                 }}>
@@ -431,12 +435,12 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
             )}
 
             <div style={{
-              marginTop: 14, padding: "10px 12px", borderRadius: 8,
+              marginTop: 10, padding: "8px 10px", borderRadius: 8,
               background: "rgba(255,255,255,0.03)",
               border: "1px solid rgba(255,255,255,0.08)",
-              fontSize: 10, color: "rgba(255,255,255,0.55)", lineHeight: 1.5, textAlign: "center",
+              fontSize: 9.5, color: "rgba(255,255,255,0.55)", lineHeight: 1.45, textAlign: "center",
             }}>
-              <b style={{ color: NEON_GOLD }}>90%</b> of the pool goes to the winner (jackpot). The winner is picked at random among ALL sold tickets — the more you own, the higher your chance. Prize payout handled manually by the admin.
+              <b style={{ color: NEON_GOLD }}>90%</b> of the pool goes to the winner. The winner is picked at random among ALL sold tickets — the more you own, the higher your chance. Prize payout handled manually by the admin.
             </div>
           </div>
         </div>

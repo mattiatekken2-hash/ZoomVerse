@@ -590,7 +590,16 @@ export interface LottoDrawResult {
 
 export async function fetchLottoState(telegramId: string): Promise<LottoStateResponse | null> {
   try {
-    const res = await fetch(`${API_BASE}/lottery/state?telegramId=${encodeURIComponent(telegramId)}&t=${Date.now()}`, { cache: "no-store" });
+    // IMPORTANT: il server `/lottery/state` legge SOLO `req.tgUser?.id`
+    // dall'initData verificato, ignorando la query string per privacy.
+    // Senza apiHeaders() (che inietta `X-Telegram-Init-Data`) il server
+    // non riconosce l'utente e ritorna `userTickets: 0`. Bug confermato
+    // in produzione: ticket comprato e accreditato in DB ma il widget
+    // mostrava 0 perché mancava questo header.
+    const res = await fetch(`${API_BASE}/lottery/state?telegramId=${encodeURIComponent(telegramId)}&t=${Date.now()}`, {
+      cache: "no-store",
+      headers: apiHeaders(),
+    });
     if (!res.ok) return null;
     return await res.json();
   } catch { return null; }

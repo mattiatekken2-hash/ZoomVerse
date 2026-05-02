@@ -101,6 +101,21 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
     paths: ["/market/buy"],
     bindField: "buyerTelegramId",
   },
+  // GET endpoints that need to KNOW the caller's verified Telegram id to
+  // filter the response (e.g. "show MY tickets in the active round"). They
+  // don't bind to a body field — the handler simply reads `req.tgUser?.id`.
+  // This is NOT a write/auth gate; in soft mode, missing initData yields
+  // `req.tgUser = null` and the handler must degrade gracefully (e.g.
+  // returning public totals only). Without this entry the auth middleware
+  // never runs for the GET, so `req.tgUser` stays undefined and the
+  // handler can't recognize the user even when the client sends initData.
+  {
+    methods: ["GET"],
+    paths: [
+      "/lottery/state",
+    ],
+    bindField: "",
+  },
   // Admin endpoints — bind to adminId. The existing isAdmin() check inside
   // each handler still runs (defense in depth: an authenticated non-admin
   // can't impersonate an admin AND can't pass the admin allow-list check).
