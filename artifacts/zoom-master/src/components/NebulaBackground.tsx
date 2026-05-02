@@ -42,6 +42,9 @@ export function NebulaBackground() {
       <div className="nebula-orb nebula-orb-4" />
       <div className="nebula-orb nebula-orb-5" />
       <div className="nebula-orb nebula-orb-6" />
+      {/* Tiny red planet fixed deep in the background — slow pulsing glow,
+          ~2.5s cycle. Pure CSS, no extra DOM weight. */}
+      <div className="red-planet" aria-hidden="true" />
       {/* Comets — long animation cycles so they cross the sky only every
           30-60 seconds, never feeling spammy. */}
       <div className="comet comet-1" />

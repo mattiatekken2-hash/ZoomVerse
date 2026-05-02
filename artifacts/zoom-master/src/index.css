@@ -309,6 +309,46 @@
   100% { opacity: 0.4; }
 }
 
+/* Tiny red planet fixed deep in the cosmic backdrop. Pulses with a slow
+   ~2.5s glow cycle (alpha + halo intensity). Position is fixed (top/left
+   in %), z-order sits above the star fields but below the nebula orbs so
+   it reads as a small distant body, not a UI element. Pure CSS, GPU-only
+   transforms (opacity + box-shadow) for cost-free animation. */
+.red-planet {
+  position: absolute;
+  top: 36%;
+  left: 78%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ff8a8a 0%, #ff2a2a 55%, #8a0010 100%);
+  box-shadow:
+    0 0 6px rgba(255, 60, 60, 0.85),
+    0 0 14px rgba(255, 40, 40, 0.55),
+    0 0 28px rgba(255, 20, 20, 0.30);
+  opacity: 0.9;
+  animation: red-planet-glow 2.5s ease-in-out infinite;
+  pointer-events: none;
+  will-change: opacity, box-shadow;
+}
+@keyframes red-planet-glow {
+  0%, 100% {
+    opacity: 0.55;
+    box-shadow:
+      0 0 4px rgba(255, 60, 60, 0.55),
+      0 0 9px rgba(255, 40, 40, 0.35),
+      0 0 18px rgba(255, 20, 20, 0.18);
+  }
+  50% {
+    opacity: 1;
+    box-shadow:
+      0 0 8px rgba(255, 80, 80, 0.95),
+      0 0 18px rgba(255, 50, 50, 0.70),
+      0 0 36px rgba(255, 30, 30, 0.45),
+      0 0 60px rgba(255, 20, 20, 0.20);
+  }
+}
+
 /* Individual twinkling "hero" stars — each pulses on its own timing,
    driven by inline animationDuration/Delay set in NebulaBackground.tsx,
    so the sky shimmers asynchronously instead of in lockstep. */
