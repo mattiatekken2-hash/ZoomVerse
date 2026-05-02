@@ -74,6 +74,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/merchant/fuse",
       "/wheel/claim-daily",
       "/wheel/spin",
+      "/wheel/spin/claim",
       "/daily/claim",
       "/user/language",
       "/withdrawals/request",

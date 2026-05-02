@@ -938,18 +938,30 @@ export async function fetchWheelConfig(): Promise<WheelPrizeConfig[]> {
   } catch { return []; }
 }
 
+export interface WheelPendingClaim {
+  token: string;
+  prizeIndex: number;
+  prize: WheelSpinResult["prize"];
+  createdAt: number;
+}
+
 export interface WheelStatus {
   spins: number;
   canClaimDaily: boolean;
   nextClaimAt: number;
+  // Set when the previous /wheel/spin reserved a prize but the client never
+  // got to call /wheel/spin/claim (e.g. tab closed mid-animation). The
+  // client should auto-resume the animation and finalize the claim so the
+  // user actually receives the prize they were promised.
+  pendingPrize?: WheelPendingClaim | null;
 }
 
 export async function fetchWheelStatus(telegramId: string): Promise<WheelStatus> {
   try {
     const res = await fetch(`${API_BASE}/wheel/status/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return { spins: 0, canClaimDaily: false, nextClaimAt: 0 };
+    if (!res.ok) return { spins: 0, canClaimDaily: false, nextClaimAt: 0, pendingPrize: null };
     return res.json();
-  } catch { return { spins: 0, canClaimDaily: false, nextClaimAt: 0 }; }
+  } catch { return { spins: 0, canClaimDaily: false, nextClaimAt: 0, pendingPrize: null }; }
 }
 
 export async function claimWheelDaily(telegramId: string): Promise<{ ok: boolean; spins?: number; nextClaimAt?: number; error?: string }> {
@@ -978,6 +990,11 @@ export interface WheelSpinResult {
     icon: string;
   };
   spinsRemaining: number;
+  // Required for the follow-up /wheel/spin/claim call that actually credits
+  // the prize. The server holds the prize in `pending_wheel_claim` until
+  // this token is presented back, so a tab-crash mid-animation can be
+  // recovered (see /wheel/status -> pendingPrize).
+  claimToken: string;
 }
 
 export interface WheelFeedEntry {
@@ -1025,7 +1042,7 @@ export async function fetchWheelFeed(): Promise<WheelFeedEntry[]> {
   } catch { return []; }
 }
 
-export async function spinWheel(telegramId: string): Promise<{ ok: boolean; result?: WheelSpinResult; error?: string }> {
+export async function spinWheel(telegramId: string): Promise<{ ok: boolean; result?: WheelSpinResult; error?: string; pendingPrize?: WheelPendingClaim }> {
   try {
     const res = await fetch(`${API_BASE}/wheel/spin`, {
       method: "POST",
@@ -1034,9 +1051,30 @@ export async function spinWheel(telegramId: string): Promise<{ ok: boolean; resu
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      return { ok: false, error: data.error || "Spin failed" };
+      return { ok: false, error: data.error || "Spin failed", pendingPrize: data.pendingPrize };
     }
     return { ok: true, result: await res.json() };
+  } catch { return { ok: false, error: "Network error" }; }
+}
+
+/**
+ * Finalizes a spin by presenting the `claimToken` returned by
+ * `spinWheel`. The server validates the token, credits the prize
+ * (zoom balance bump or planet-bonus increment) and pushes the public
+ * feed entry. Idempotent: a second call with the same token (or after
+ * a tab-crash recovery) returns `{ ok: true, alreadyClaimed: true }`
+ * with no double credit.
+ */
+export async function claimWheelSpin(telegramId: string, claimToken: string): Promise<{ ok: boolean; alreadyClaimed?: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/wheel/spin/claim`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, claimToken }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data.error || "Claim failed" };
+    return { ok: true, alreadyClaimed: !!data.alreadyClaimed };
   } catch { return { ok: false, error: "Network error" }; }
 }
 

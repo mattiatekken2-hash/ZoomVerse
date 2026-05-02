@@ -4,6 +4,7 @@ import {
   fetchWheelStatus,
   fetchWheelFeed,
   spinWheel,
+  claimWheelSpin,
   claimWheelDaily,
   createStarsInvoice,
   confirmStarsPurchase,
@@ -312,6 +313,84 @@ export function WheelPage({ telegramId }: WheelPageProps) {
   // ("Double Zoom"). A useRef flag flips synchronously, so any reentry
   // within the same tick is rejected.
   const spinInFlightRef = useRef(false);
+  // Token returned by /wheel/spin that the post-animation /wheel/spin/claim
+  // call must present back. Holds the contract "the prize the wheel is
+  // currently animating toward". Cleared after a successful claim.
+  const pendingClaimTokenRef = useRef<string | null>(null);
+  // Marks that a server-side pending claim has already been picked up by
+  // the auto-resume effect, so we don't re-trigger the animation every
+  // time `refreshStatus` polls (every 8s + on focus/visibility).
+  const resumedTokensRef = useRef<Set<string>>(new Set());
+
+  /**
+   * Drives the visual animation for a known prize and finalizes the claim
+   * once the wheel stops. Used by both the normal spin handler and the
+   * auto-resume path (when /wheel/status reports a pendingPrize from a
+   * previous session that never got claimed). All side effects (rotation,
+   * particles, balance refresh, claim API call) live here so the two
+   * entry points stay in sync.
+   */
+  const animateAndClaim = useCallback((prizeIndex: number, prize: WheelSpinResult["prize"], claimToken: string, spinsAfter?: number) => {
+    if (!telegramId) return;
+    pendingClaimTokenRef.current = claimToken;
+    setResult(null);
+    setHighlightIdx(null);
+    setSpinning(true);
+
+    setRotation((prevRot) => {
+      const segs = prizes.length;
+      const segA = segs > 0 ? 360 / segs : 0;
+      const prizeCenter = prizeIndex * segA + segA / 2;
+      const jitter = (Math.random() - 0.5) * (segA * 0.5);
+      const turns = 7;
+      const currentMod = ((prevRot % 360) + 360) % 360;
+      const targetMod = (360 - prizeCenter + jitter + 360) % 360;
+      const delta = ((targetMod - currentMod) + 360) % 360;
+      const next = prevRot + turns * 360 + delta;
+      spinFromRef.current = prevRot;
+      spinToRef.current = next;
+      return next;
+    });
+
+    window.setTimeout(async () => {
+      // Finalize on the server FIRST so the credit lands before we ask the
+      // app for its new balance via the admin-refresh broadcast. The user's
+      // contract: nothing is credited until the wheel stops on the prize.
+      const claimRes = await claimWheelSpin(telegramId, claimToken);
+      pendingClaimTokenRef.current = null;
+      setSpinning(false);
+      setResult({
+        prizeIndex,
+        prize,
+        spinsRemaining: typeof spinsAfter === "number" ? spinsAfter : spins,
+        claimToken,
+      });
+      setHighlightIdx(prizeIndex);
+      if (typeof spinsAfter === "number") setSpins(spinsAfter);
+      setWinFlash(true);
+      spawnParticles(prize.color);
+      setTimeout(() => setWinFlash(false), 2500);
+      // Now pull the authoritative balance & grants. Done unconditionally
+      // (even if the claim returned alreadyClaimed) so the UI matches the
+      // server in either case.
+      window.dispatchEvent(new Event("zoom-admin-refresh"));
+      if (!claimRes.ok) {
+        // Network failure on the claim. The prize is still safe in
+        // `pending_wheel_claim` server-side. We REMOVE the token from
+        // the resumed-set so the next /wheel/status poll (every 8s)
+        // sees the still-pending claim as unresumed and auto-retries
+        // the claim — without this the same-session retry never fires
+        // and the user would have to reload the page.
+        resumedTokensRef.current.delete(claimToken);
+        setMessage("Conferma premio fallita: riproveremo automaticamente.");
+      }
+      spinInFlightRef.current = false;
+    }, 5200);
+  // `prizes` and `spins` are intentionally read fresh each call; including
+  // them in deps would not change behavior since we use closure values
+  // captured at call time, and the function is small.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [telegramId]);
 
   const refreshStatus = useCallback(async () => {
     if (!telegramId) return;
@@ -319,7 +398,21 @@ export function WheelPage({ telegramId }: WheelPageProps) {
     setSpins(s.spins);
     setCanClaimDaily(s.canClaimDaily);
     setNextClaimAt(s.nextClaimAt);
-  }, [telegramId]);
+    // Auto-resume: if the server is holding a prize that the previous
+    // session reserved but never finalized (tab crash, network drop, app
+    // backgrounded right after /wheel/spin returned), play out the wheel
+    // animation now and call /wheel/spin/claim at the end so the user
+    // actually receives the prize that was reserved for them.
+    const pending = s.pendingPrize;
+    if (
+      pending && pending.token && !spinInFlightRef.current &&
+      !resumedTokensRef.current.has(pending.token)
+    ) {
+      resumedTokensRef.current.add(pending.token);
+      spinInFlightRef.current = true;
+      animateAndClaim(pending.prizeIndex, pending.prize, pending.token, s.spins);
+    }
+  }, [telegramId, animateAndClaim]);
 
   // Background sync: only replace seed if server actually returned a non-empty
   // catalog (otherwise an early/failed fetch would blank the wheel). We also
@@ -454,57 +547,32 @@ export function WheelPage({ telegramId }: WheelPageProps) {
   const handleSpin = async () => {
     // Synchronous re-entry guard. The React `spinning` state is set
     // asynchronously, so a fast double-tap can sneak past `if (spinning)`
-    // and cause two `spinWheel` calls — the server credits two prizes,
-    // the user sees one popup but the balance jumps by 2× ("Double Zoom").
+    // and cause two `spinWheel` calls — the server would reserve two
+    // prizes back-to-back. The 409 "Pending spin not yet claimed" gate on
+    // the server is a second line of defense; this ref is the first.
     if (spinInFlightRef.current) return;
     if (!telegramId || spinning || spins <= 0 || segments === 0) return;
     spinInFlightRef.current = true;
-    setResult(null);
-    setHighlightIdx(null);
-    setSpinning(true);
 
     const res = await spinWheel(telegramId);
     if (!res.ok || !res.result) {
+      // If the server replied with a stale pending prize (409), pick it up
+      // via the auto-resume path so the user still sees & receives it.
+      if (res.pendingPrize && res.pendingPrize.token && !resumedTokensRef.current.has(res.pendingPrize.token)) {
+        resumedTokensRef.current.add(res.pendingPrize.token);
+        animateAndClaim(res.pendingPrize.prizeIndex, res.pendingPrize.prize, res.pendingPrize.token);
+        return;
+      }
       spinInFlightRef.current = false;
-      setSpinning(false);
       setMessage(res.error || "Spin failed");
       return;
     }
     const r = res.result;
-
-    const prizeCenter = r.prizeIndex * segAngle + segAngle / 2;
-    const jitter = (Math.random() - 0.5) * (segAngle * 0.5);
-    const turns = 7;
-    const currentMod = ((rotation % 360) + 360) % 360;
-    const targetMod = (360 - prizeCenter + jitter + 360) % 360;
-    const delta = ((targetMod - currentMod) + 360) % 360;
-    const newRotation = rotation + turns * 360 + delta;
-    // Capture true spin endpoints for the pulse-tick RAF (see effect above).
-    spinFromRef.current = rotation;
-    spinToRef.current = newRotation;
-    setRotation(newRotation);
-
-    window.setTimeout(() => {
-      setSpinning(false);
-      setResult(r);
-      setHighlightIdx(r.prizeIndex);
-      setSpins(r.spinsRemaining);
-      setWinFlash(true);
-      spawnParticles(r.prize.color);
-      setTimeout(() => setWinFlash(false), 2500);
-      // Server is the source of truth for the balance: /wheel/spin already
-      // credited the prize and bumped balance_epoch. Pull the new value via
-      // the admin-refresh path which fetches the authoritative balance and
-      // snaps local state to it. We deliberately DO NOT also dispatch a
-      // local credit here — combining a local +amount and a server snap in
-      // the same tick raced with stateRef updates and could double-count
-      // visually. Grants (planet prizes) come along via admin-refresh too.
-      window.dispatchEvent(new Event("zoom-admin-refresh"));
-      // Release the re-entry guard only AFTER the server settled and the
-      // win popup is already on-screen, so accidental extra taps during
-      // the celebration window can't queue another spin either.
-      spinInFlightRef.current = false;
-    }, 5200);
+    // The token must be known to the auto-resume guard so the next
+    // /wheel/status refresh (which still sees the pending until the claim
+    // lands) doesn't try to start a second animation in parallel.
+    resumedTokensRef.current.add(r.claimToken);
+    animateAndClaim(r.prizeIndex, r.prize, r.claimToken, r.spinsRemaining);
   };
 
   const handleClaimDaily = async () => {
