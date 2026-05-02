@@ -439,33 +439,46 @@ function AstroStatusPill() {
       style={{
         position: "fixed",
         left: "50%",
-        top: 210,
+        top: 200,
         transform: "translateX(-50%)",
         zIndex: 50,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        justifyContent: "center",
         gap: 4,
-        padding: "6px 8px",
-        borderRadius: 12,
-        background: "rgba(6,8,16,0.55)",
-        border: "1px solid rgba(15,217,255,0.25)",
-        boxShadow: "0 0 12px rgba(15,217,255,0.18)",
-        backdropFilter: "blur(6px)",
         pointerEvents: "none",
       }}
     >
-      <PixelAstronautHead variant={variant} width={36} />
+      {/* Tile — same 60×60 / radius 14 footprint as the Earth & White
+          collection bundle squares so the three sit visually as siblings. */}
       <div
         style={{
-          fontSize: 9,
+          width: 60,
+          height: 60,
+          borderRadius: 14,
+          background: "rgba(6,8,16,0.85)",
+          border: "1px solid rgba(15,217,255,0.35)",
+          boxShadow: "0 0 14px rgba(15,217,255,0.25), inset 0 0 10px rgba(0,0,0,0.6)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          // Force nearest-neighbor scaling on every descendant so the
+          // pixel-art helmet stays crisp instead of being smoothed.
+          imageRendering: "pixelated",
+        }}
+      >
+        <PixelAstronautHead variant={variant} width={48} />
+      </div>
+      <div
+        style={{
+          fontSize: 11,
           fontWeight: 800,
           letterSpacing: "0.04em",
           color: "#7fdfff",
           textAlign: "center",
           lineHeight: 1,
-          maxWidth: 80,
+          textShadow: "0 0 6px rgba(0,0,0,0.7)",
+          maxWidth: 96,
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
