@@ -45,6 +45,40 @@ export async function sendBotMessage(telegramId: string, text: string): Promise<
 }
 
 /**
+ * Broadcast un messaggio del bot a TUTTI gli utenti che hanno mai aperto
+ * il bot (ovvero tutte le righe in `users`). Usato per annunci globali —
+ * es. notifica del vincitore del Lotto Stellare settimanale.
+ *
+ * Throttle: ~25 msg/sec (40ms di sleep tra ogni invio). Telegram impone
+ * un limit globale di 30 msg/sec per il bot verso utenti diversi: stiamo
+ * sotto il limit con margine.
+ *
+ * Fire-and-forget: la promise risolve quando tutti i messaggi sono stati
+ * inviati (non bloccare la response HTTP del chiamante!). I 403 (utente
+ * che ha bloccato il bot) sono ignorati silenziosamente. Errori di rete
+ * vengono loggati ma non interrompono il broadcast.
+ */
+export async function broadcastBotMessageToAllUsers(text: string): Promise<{ sent: number; skipped: number }> {
+  if (!BOT_TOKEN) {
+    logger.warn("[notify] BOT_TOKEN not set — skipping broadcast");
+    return { sent: 0, skipped: 0 };
+  }
+  // Lazy import per evitare cicli con i route handlers che importano notify.
+  const { db, usersTable } = await import("@workspace/db");
+  const rows = await db.select({ telegramId: usersTable.telegramId }).from(usersTable);
+  let sent = 0;
+  let skipped = 0;
+  for (const row of rows) {
+    const ok = await sendBotMessage(row.telegramId, text);
+    if (ok) sent++; else skipped++;
+    // Throttle: 40ms tra invii ≈ 25 msg/sec.
+    await new Promise((r) => setTimeout(r, 40));
+  }
+  logger.info({ total: rows.length, sent, skipped }, "[notify] broadcast complete");
+  return { sent, skipped };
+}
+
+/**
  * Post a message to the withdrawals announcement chat / forum topic.
  * Used after a withdrawal is approved so the community sees the payout.
  * The bot must be a member of the chat with permission to send messages.

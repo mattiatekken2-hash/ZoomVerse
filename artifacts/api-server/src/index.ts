@@ -3,6 +3,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { sendBotMessage } from "./lib/notify";
 import { fetchPendingFarmNotifications, markFarmNotified } from "./routes/farm";
+import { runScheduledLotteryDrawTick } from "./routes/lottery";
 import { db, usersTable } from "@workspace/db";
 import { desc, eq, sql } from "drizzle-orm";
 
@@ -45,7 +46,37 @@ server.listen(port, () => {
   registerTelegramWebhook();
   startFarmNotificationCron();
   startHallOfFameResetCron();
+  startLotteryDrawCron();
 });
+
+/**
+ * Cron del Lotto Stellare. Ogni 60 secondi controlla se il round attivo
+ * ha `next_draw_at <= NOW()`; in tal caso esegue l'estrazione automatica
+ * (drawn_by="system"), apre il prossimo round con next_draw_at = NOW()+7d
+ * e manda un broadcast Telegram a tutti gli utenti del bot col vincitore
+ * e il montepremi.
+ *
+ * Single-flight: se un tick e' ancora in corso (DB lento o broadcast
+ * lungo), lo skippiamo per non doppio-eseguire.
+ */
+function startLotteryDrawCron() {
+  const intervalMs = 60 * 1000;
+  let inFlight = false;
+  const tick = async () => {
+    if (inFlight) return;
+    inFlight = true;
+    try {
+      await runScheduledLotteryDrawTick();
+    } catch (err) {
+      logger.warn({ err }, "[lotto-cron] tick failed");
+    } finally {
+      inFlight = false;
+    }
+  };
+  // Primo tick ~10 secondi dopo il boot (evita di sovraccaricare lo startup).
+  setTimeout(tick, 10_000).unref();
+  setInterval(tick, intervalMs).unref();
+}
 
 function startFarmNotificationCron() {
   // Scan every 60s for cycles whose 24h has elapsed and that the user

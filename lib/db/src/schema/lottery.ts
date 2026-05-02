@@ -43,8 +43,17 @@ export const lottoRoundsTable = pgTable("lotto_rounds", {
   // Profitto netto admin (10% del raccolto al momento del draw).
   profitTon: real("profit_ton"),
   drawnAt: timestamp("drawn_at"),
-  // Admin che ha effettuato il draw (audit).
+  // Admin che ha effettuato il draw (audit). Per i draw automatici del cron
+  // settimanale viene salvata la stringa "system".
   drawnBy: text("drawn_by"),
+  // Quando il cron settimanale deve estrarre questo round automaticamente.
+  // Default = NOW() + 7 giorni. Per round già esistenti al momento del
+  // ALTER TABLE, PostgreSQL backfilla con il valore corrente di NOW()+7d
+  // (cioè 7 giorni dopo il push della migration), quindi il primo draw
+  // automatico parte una settimana dal deploy. Quando il cron riscontra
+  // un round senza biglietti venduti, prolunga `next_draw_at` di 7 giorni
+  // anziché estrarre, evitando draw vuoti.
+  nextDrawAt: timestamp("next_draw_at").notNull().default(sql`NOW() + INTERVAL '7 days'`),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => [
   index("idx_lotto_rounds_status").on(table.status),

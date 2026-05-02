@@ -1073,6 +1073,25 @@ function LottoAdminSection({ adminId, onFeedback }: LottoAdminSectionProps) {
         <span>{dash?.round.totalTickets ?? 0} biglietti · {dash?.round.participants ?? 0} partecipanti</span>
       </div>
 
+      <div style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        fontSize: 11, padding: "8px 10px", borderRadius: 8,
+        background: "rgba(196,113,237,0.08)",
+        border: "1px solid rgba(196,113,237,0.25)",
+      }}>
+        <span style={{ color: "rgba(255,255,255,0.65)", letterSpacing: "0.04em" }}>
+          Estrazione automatica settimanale
+        </span>
+        <span style={{ color: "#c471ed", fontWeight: 800 }}>
+          {dash?.round.nextDrawAt
+            ? new Date(dash.round.nextDrawAt).toLocaleString("it-IT", {
+                day: "2-digit", month: "2-digit", year: "numeric",
+                hour: "2-digit", minute: "2-digit",
+              })
+            : "—"}
+        </span>
+      </div>
+
       {dash && dash.topBuyers.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto", padding: 8, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
           <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", marginBottom: 2 }}>TOP COMPRATORI</div>
@@ -1116,7 +1135,7 @@ function LottoAdminSection({ adminId, onFeedback }: LottoAdminSectionProps) {
         {drawing ? "..." : confirmDraw ? "⚠ CONFERMA ESTRAZIONE (tap)" : "🎲 ESTRAI VINCITORE"}
       </motion.button>
       <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", lineHeight: 1.4 }}>
-        L'estrazione sceglie un biglietto a caso tra TUTTI i venduti. Ogni utente conta tante volte quanti biglietti ha. Dopo l'estrazione parte automaticamente un nuovo round. <b style={{ color: "#ffd84d" }}>Il pagamento del premio al vincitore lo fai manualmente dal tuo wallet.</b>
+        L'estrazione automatica avviene ogni settimana e manda una notifica Telegram a TUTTI gli utenti del bot col vincitore e il montepremi. Questo bottone qui sopra serve come <b>override manuale</b> nel caso volessi anticipare il draw. Dopo ogni estrazione parte automaticamente un nuovo round. <b style={{ color: "#ffd84d" }}>Il pagamento del premio al vincitore lo fai manualmente dal tuo wallet.</b>
       </div>
 
       {dash && dash.history.length > 0 && (

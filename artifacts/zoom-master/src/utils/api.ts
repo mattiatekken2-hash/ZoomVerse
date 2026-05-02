@@ -540,6 +540,8 @@ export interface LottoStateResponse {
   totalTickets: number;
   userTickets: number;
   winChancePct: number;
+  // ISO timestamp della prossima estrazione automatica (cron settimanale).
+  nextDrawAt: string;
   bundles: LottoBundle[];
 }
 
@@ -565,7 +567,7 @@ export interface LottoHistoryRound {
 }
 
 export interface LottoAdminDashboard {
-  round: { id: number; createdAt: string; totalTickets: number; participants: number };
+  round: { id: number; createdAt: string; nextDrawAt: string; totalTickets: number; participants: number };
   totalCollectedTon: number;
   prizeToPayTon: number;
   myNetProfitTon: number;

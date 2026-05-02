@@ -3,12 +3,16 @@ import { db } from "@workspace/db";
 import { lottoRoundsTable, lottoTicketsTable, usersTable } from "@workspace/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { broadcastBotMessageToAllUsers } from "../lib/notify";
 
 const router: IRouter = Router();
 
 const ADMIN_ID = "8144744644";
 const PRIZE_PCT = 0.9;   // 90% del raccolto va al vincitore
 const PROFIT_PCT = 0.1;  // 10% rimane all'admin
+// Frequenza estrazione automatica del Lotto Stellare. L'utente vuole
+// una settimana esatta tra un draw e il successivo.
+const DRAW_INTERVAL_DAYS = 7;
 
 function isAdmin(adminId: string | undefined): boolean {
   return !!adminId && adminId === ADMIN_ID;
@@ -87,6 +91,11 @@ router.get("/lottery/state", async (req, res) => {
       totalTickets: total,
       userTickets,
       winChancePct: winChance,
+      // Timestamp ISO della prossima estrazione automatica. Il client può
+      // mostrare un countdown e gli utenti sanno quando aspettarsi il draw.
+      nextDrawAt: round.nextDrawAt instanceof Date
+        ? round.nextDrawAt.toISOString()
+        : new Date(round.nextDrawAt as unknown as string).toISOString(),
       bundles: [
         { id: "lotto_ticket_1",  tickets: 1,  tonPrice: 0.1 },
         { id: "lotto_ticket_15", tickets: 15, tonPrice: 1.0 },
@@ -148,6 +157,9 @@ router.get("/admin/lottery/dashboard", async (req, res) => {
       round: {
         id: round.id,
         createdAt: round.createdAt,
+        nextDrawAt: round.nextDrawAt instanceof Date
+          ? round.nextDrawAt.toISOString()
+          : new Date(round.nextDrawAt as unknown as string).toISOString(),
         totalTickets: Number(round.totalTickets || 0),
         participants: Number(participantsRow?.c ?? 0),
       },
@@ -178,111 +190,226 @@ router.get("/admin/lottery/dashboard", async (req, res) => {
  * contemporaneamente, solo uno completa il sorteggio. L'altro vede già
  * `status='drawn'` e riceve l'esito esistente (idempotency).
  */
+/**
+ * Risultato dell'estrazione. `kind` discrimina cosa fare: "drawn" = abbiamo
+ * estratto un vincitore (broadcast), "no_tickets" = nessuno ha comprato
+ * questa settimana e abbiamo riprogrammato il next_draw_at +7d, "no_round"
+ * = nessun round attivo (caso anomalo, non dovrebbe accadere).
+ */
+export type DrawOutcome =
+  | {
+      kind: "drawn";
+      roundId: number;
+      winnerTelegramId: string;
+      winnerTickets: number;
+      winnerName: string | null;
+      totalCollectedTon: number;
+      prizeTon: number;
+      profitTon: number;
+      nextRoundId: number;
+    }
+  | { kind: "no_tickets"; roundId: number; rescheduledTo: Date }
+  | { kind: "no_round" };
+
+/**
+ * Esegue l'estrazione del round attivo. Riutilizzabile sia dall'endpoint
+ * admin manuale (`POST /admin/lottery/draw`) che dal cron settimanale
+ * automatico (`startLotteryDrawCron` in index.ts). `executorId` viene
+ * salvato nel campo `drawn_by` per audit ("system" per il cron).
+ *
+ * Idempotency: se due esecuzioni concorrenti partono (es. cron + click
+ * admin nello stesso istante), l'advisory lock 7913042100 le serializza;
+ * l'UPDATE ... WHERE status='active' garantisce che solo una vinca la
+ * race e l'altra trovi il round già `drawn` ritornando `no_round`.
+ */
+export async function executeLotteryDraw(executorId: string): Promise<DrawOutcome> {
+  // Caso speciale "no_tickets": il round non ha vendite. NON estraiamo
+  // (non c'è nulla da estrarre) ma riprogrammiamo next_draw_at di altri 7
+  // giorni, così la settimana successiva il cron riproverà.
+  return await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(7913042100)`);
+
+    const [round] = await tx
+      .select()
+      .from(lottoRoundsTable)
+      .where(eq(lottoRoundsTable.status, "active"))
+      .limit(1);
+    if (!round) return { kind: "no_round" as const };
+
+    const total = Number(round.totalTickets || 0);
+    if (total <= 0) {
+      // Nessun biglietto venduto: prolunga e ritorna "no_tickets".
+      const newNextDraw = new Date(Date.now() + DRAW_INTERVAL_DAYS * 24 * 3600 * 1000);
+      await tx
+        .update(lottoRoundsTable)
+        .set({ nextDrawAt: newNextDraw })
+        .where(eq(lottoRoundsTable.id, round.id));
+      return { kind: "no_tickets" as const, roundId: round.id, rescheduledTo: newNextDraw };
+    }
+
+    const cursor = Math.floor(Math.random() * total);
+    const rows = await tx
+      .select({
+        id: lottoTicketsTable.id,
+        telegramId: lottoTicketsTable.telegramId,
+        ticketCount: lottoTicketsTable.ticketCount,
+      })
+      .from(lottoTicketsTable)
+      .where(eq(lottoTicketsTable.roundId, round.id))
+      .orderBy(lottoTicketsTable.id);
+
+    let acc = 0;
+    let winnerTelegramId: string | null = null;
+    for (const r of rows) {
+      acc += Number(r.ticketCount || 0);
+      if (cursor < acc) { winnerTelegramId = r.telegramId; break; }
+    }
+    if (!winnerTelegramId && rows.length > 0) {
+      winnerTelegramId = rows[rows.length - 1].telegramId;
+    }
+    if (!winnerTelegramId) {
+      // Anomalia: total>0 ma rows vuoto. Trattiamo come no_tickets.
+      const newNextDraw = new Date(Date.now() + DRAW_INTERVAL_DAYS * 24 * 3600 * 1000);
+      await tx
+        .update(lottoRoundsTable)
+        .set({ nextDrawAt: newNextDraw })
+        .where(eq(lottoRoundsTable.id, round.id));
+      return { kind: "no_tickets" as const, roundId: round.id, rescheduledTo: newNextDraw };
+    }
+
+    const [winRow] = await tx
+      .select({ s: sql<number>`COALESCE(SUM(${lottoTicketsTable.ticketCount}), 0)::int` })
+      .from(lottoTicketsTable)
+      .where(sql`${lottoTicketsTable.roundId} = ${round.id} AND ${lottoTicketsTable.telegramId} = ${winnerTelegramId}`);
+    const winnerTickets = Number(winRow?.s ?? 0);
+
+    const totalCollected = Number(round.totalCollectedTon || 0);
+    const prizeTon = totalCollected * PRIZE_PCT;
+    const profitTon = totalCollected * PROFIT_PCT;
+
+    const [updated] = await tx
+      .update(lottoRoundsTable)
+      .set({
+        status: "drawn",
+        winnerTelegramId,
+        winnerTickets,
+        prizeTon,
+        profitTon,
+        drawnAt: new Date(),
+        drawnBy: executorId,
+      })
+      .where(sql`${lottoRoundsTable.id} = ${round.id} AND ${lottoRoundsTable.status} = 'active'`)
+      .returning();
+
+    // Crea il prossimo round attivo. Il default DB di next_draw_at è
+    // NOW() + INTERVAL '7 days', quindi il prossimo draw automatico cadrà
+    // esattamente una settimana dopo questo.
+    const [nextRound] = await tx
+      .insert(lottoRoundsTable)
+      .values({ status: "active", totalCollectedTon: 0, totalTickets: 0 })
+      .returning();
+
+    const [u] = await tx
+      .select({ firstName: usersTable.firstName, username: usersTable.username })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, winnerTelegramId))
+      .limit(1);
+
+    return {
+      kind: "drawn" as const,
+      roundId: updated.id,
+      winnerTelegramId,
+      winnerTickets,
+      winnerName: u?.firstName || (u?.username ? `@${u.username}` : null),
+      totalCollectedTon: totalCollected,
+      prizeTon,
+      profitTon,
+      nextRoundId: nextRound.id,
+    };
+  });
+}
+
+/**
+ * Costruisce il messaggio Telegram di annuncio del vincitore. Usato sia
+ * dal draw manuale che dal draw automatico settimanale.
+ */
+export function buildWinnerBroadcastMessage(outcome: Extract<DrawOutcome, { kind: "drawn" }>): string {
+  const winnerLabel = outcome.winnerName || `Utente ${outcome.winnerTelegramId.slice(-4)}`;
+  const prize = outcome.prizeTon.toFixed(3).replace(/\.?0+$/, "");
+  const total = outcome.totalCollectedTon.toFixed(3).replace(/\.?0+$/, "");
+  return [
+    "LOTTO STELLARE — Estrazione di questa settimana",
+    "",
+    `Vincitore: ${winnerLabel}`,
+    `Premio: ${prize} TON`,
+    `Round chiuso: #${outcome.roundId}`,
+    `Montepremi totale: ${total} TON`,
+    `Biglietti del vincitore: ${outcome.winnerTickets}`,
+    "",
+    "Il prossimo round e' gia' aperto. Compra i tuoi biglietti per la prossima settimana e tenta la fortuna!",
+  ].join("\n");
+}
+
+/**
+ * Tick del cron settimanale: se esiste un round attivo con next_draw_at
+ * gia' scaduto, esegue il draw e fa broadcast a tutti gli utenti del bot.
+ * Esportato per essere chiamato da index.ts ogni 60 secondi.
+ */
+export async function runScheduledLotteryDrawTick(): Promise<void> {
+  // Selezione rapida read-only: c'e' qualcosa da estrarre adesso?
+  const [due] = await db
+    .select({ id: lottoRoundsTable.id })
+    .from(lottoRoundsTable)
+    .where(sql`${lottoRoundsTable.status} = 'active' AND ${lottoRoundsTable.nextDrawAt} <= NOW()`)
+    .limit(1);
+  if (!due) return;
+
+  const outcome = await executeLotteryDraw("system");
+  if (outcome.kind === "drawn") {
+    logger.info(
+      { roundId: outcome.roundId, winnerTelegramId: outcome.winnerTelegramId, prizeTon: outcome.prizeTon },
+      "[lotto-cron] auto-draw executed",
+    );
+    // Broadcast fire-and-forget — non blocchiamo il tick del cron.
+    const text = buildWinnerBroadcastMessage(outcome);
+    broadcastBotMessageToAllUsers(text).catch((err) =>
+      logger.warn({ err }, "[lotto-cron] broadcast failed"),
+    );
+  } else if (outcome.kind === "no_tickets") {
+    logger.info(
+      { roundId: outcome.roundId, rescheduledTo: outcome.rescheduledTo },
+      "[lotto-cron] no tickets sold, rescheduled +7d",
+    );
+  }
+}
+
 router.post("/admin/lottery/draw", async (req, res) => {
   try {
     const adminId = (req.body?.adminId as string) || "";
     if (!isAdmin(adminId)) { res.status(403).json({ error: "Forbidden" }); return; }
 
-    const result = await db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(7913042100)`);
+    const outcome = await executeLotteryDraw(adminId);
+    if (outcome.kind === "no_round") { res.status(409).json({ ok: false, error: "NO_ACTIVE_ROUND" }); return; }
+    if (outcome.kind === "no_tickets") { res.status(409).json({ ok: false, error: "NO_TICKETS_SOLD" }); return; }
 
-      // Round attivo o nessun round = nulla da estrarre.
-      const [round] = await tx
-        .select()
-        .from(lottoRoundsTable)
-        .where(eq(lottoRoundsTable.status, "active"))
-        .limit(1);
-      if (!round) throw new Error("NO_ACTIVE_ROUND");
+    // Anche per il draw manuale facciamo broadcast a tutti i membri del bot.
+    const text = buildWinnerBroadcastMessage(outcome);
+    broadcastBotMessageToAllUsers(text).catch((err) =>
+      logger.warn({ err }, "[admin/lottery/draw] broadcast failed"),
+    );
 
-      const total = Number(round.totalTickets || 0);
-      if (total <= 0) throw new Error("NO_TICKETS_SOLD");
-
-      // Cursore casuale in [0, total).
-      const cursor = Math.floor(Math.random() * total);
-
-      // Tutte le righe del round ordinate per id, calcolando il cumulativo.
-      const rows = await tx
-        .select({
-          id: lottoTicketsTable.id,
-          telegramId: lottoTicketsTable.telegramId,
-          ticketCount: lottoTicketsTable.ticketCount,
-        })
-        .from(lottoTicketsTable)
-        .where(eq(lottoTicketsTable.roundId, round.id))
-        .orderBy(lottoTicketsTable.id);
-
-      let acc = 0;
-      let winnerTelegramId: string | null = null;
-      for (const r of rows) {
-        acc += Number(r.ticketCount || 0);
-        if (cursor < acc) { winnerTelegramId = r.telegramId; break; }
-      }
-      // Fallback estremo (non dovrebbe mai accadere): ultimo se per qualche
-      // motivo il cursore eccede la somma a causa di concorrenza.
-      if (!winnerTelegramId && rows.length > 0) {
-        winnerTelegramId = rows[rows.length - 1].telegramId;
-      }
-      if (!winnerTelegramId) throw new Error("NO_TICKETS_SOLD");
-
-      // Tickets totali del vincitore in questo round (peso effettivo).
-      const [winRow] = await tx
-        .select({ s: sql<number>`COALESCE(SUM(${lottoTicketsTable.ticketCount}), 0)::int` })
-        .from(lottoTicketsTable)
-        .where(sql`${lottoTicketsTable.roundId} = ${round.id} AND ${lottoTicketsTable.telegramId} = ${winnerTelegramId}`);
-      const winnerTickets = Number(winRow?.s ?? 0);
-
-      const totalCollected = Number(round.totalCollectedTon || 0);
-      const prizeTon = totalCollected * PRIZE_PCT;
-      const profitTon = totalCollected * PROFIT_PCT;
-
-      // Marca il round come drawn.
-      const [updated] = await tx
-        .update(lottoRoundsTable)
-        .set({
-          status: "drawn",
-          winnerTelegramId,
-          winnerTickets,
-          prizeTon,
-          profitTon,
-          drawnAt: new Date(),
-          drawnBy: adminId,
-        })
-        .where(sql`${lottoRoundsTable.id} = ${round.id} AND ${lottoRoundsTable.status} = 'active'`)
-        .returning();
-
-      // Crea immediatamente il prossimo round attivo per non lasciare il
-      // sistema "scoperto" tra un draw e il successivo acquisto.
-      const [nextRound] = await tx
-        .insert(lottoRoundsTable)
-        .values({ status: "active", totalCollectedTon: 0, totalTickets: 0 })
-        .returning();
-
-      // Recupera display name del vincitore (non bloccante, best effort).
-      const [u] = await tx
-        .select({ firstName: usersTable.firstName, username: usersTable.username })
-        .from(usersTable)
-        .where(eq(usersTable.telegramId, winnerTelegramId))
-        .limit(1);
-
-      return {
-        roundId: updated.id,
-        winnerTelegramId,
-        winnerTickets,
-        winnerName: u?.firstName || (u?.username ? `@${u.username}` : null),
-        totalCollectedTon: totalCollected,
-        prizeTon,
-        profitTon,
-        nextRoundId: nextRound.id,
-      };
+    res.json({
+      ok: true,
+      roundId: outcome.roundId,
+      winnerTelegramId: outcome.winnerTelegramId,
+      winnerTickets: outcome.winnerTickets,
+      winnerName: outcome.winnerName,
+      totalCollectedTon: outcome.totalCollectedTon,
+      prizeTon: outcome.prizeTon,
+      profitTon: outcome.profitTon,
+      nextRoundId: outcome.nextRoundId,
     });
-
-    res.json({ ok: true, ...result });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg === "NO_ACTIVE_ROUND" || msg === "NO_TICKETS_SOLD") {
-      res.status(409).json({ ok: false, error: msg });
-      return;
-    }
     logger.error({ err }, "[admin/lottery/draw] error");
     res.status(500).json({ ok: false, error: "Internal error" });
   }

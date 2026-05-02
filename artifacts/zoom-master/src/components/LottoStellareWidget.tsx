@@ -166,6 +166,28 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
   const winChancePct = state?.winChancePct ?? 0;
   const totalTickets = state?.totalTickets ?? 0;
 
+  // Countdown live alla prossima estrazione settimanale automatica. Ricalcolo
+  // ogni 30 secondi (precisione "tra Xg Yh Zm" è sufficiente, no secondi).
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const nextDrawAt = state?.nextDrawAt ? new Date(state.nextDrawAt).getTime() : 0;
+  const msLeft = Math.max(0, nextDrawAt - now);
+  const days = Math.floor(msLeft / (24 * 3600 * 1000));
+  const hours = Math.floor((msLeft % (24 * 3600 * 1000)) / (3600 * 1000));
+  const minutes = Math.floor((msLeft % (3600 * 1000)) / (60 * 1000));
+  const countdownLabel = nextDrawAt === 0
+    ? "—"
+    : msLeft === 0
+      ? "in corso…"
+      : days > 0
+        ? `${days}g ${hours}h`
+        : hours > 0
+          ? `${hours}h ${minutes}m`
+          : `${minutes}m`;
+
   return (
     <>
       <style>{`
@@ -322,8 +344,22 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
             }}>
               Lotto Stellare
             </div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", textAlign: "center", marginBottom: 14, letterSpacing: "0.08em" }}>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", textAlign: "center", marginBottom: 8, letterSpacing: "0.08em" }}>
               più biglietti compri, più alta la tua probabilità di vincere
+            </div>
+
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              marginBottom: 14, padding: "8px 12px", borderRadius: 10,
+              background: "rgba(196,113,237,0.08)",
+              border: `1px solid ${NEON_PURPLE}44`,
+            }}>
+              <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                Prossima estrazione automatica:
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 900, color: NEON_PURPLE, letterSpacing: "0.05em" }}>
+                {countdownLabel}
+              </span>
             </div>
 
             <div style={{
