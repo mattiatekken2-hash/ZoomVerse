@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
-import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase, fetchSunStock, pollTxnUntilFinal, type SunStock } from "../utils/api";
+import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase, fetchSunStock, pollTxnUntilFinal, fetchHomeState, buyComputer, type SunStock, type HomeState } from "../utils/api";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 
@@ -36,17 +36,43 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [payMode, setPayMode] = useState<"stars" | "ton">("stars");
   const [sunStock, setSunStock] = useState<SunStock | null>(null);
+  // Stardust shop section reads `/home/state` because that single endpoint
+  // already returns both the live stardust balance AND whether the user
+  // owns the COMPUTER (so we can hide the buy button after purchase). One
+  // less round-trip than splitting into two fetches.
+  const [home, setHome] = useState<HomeState | null>(null);
 
   const refreshSunStock = async () => {
     if (!telegramId) return;
     const stock = await fetchSunStock(telegramId);
     setSunStock(stock);
   };
+  // Sequence guard so an older in-flight `/home/state` response can't
+  // overwrite a newer one (e.g. interval tick racing the post-purchase
+  // refresh and momentarily flipping `computer.owned` back to false).
+  const homeSeqRef = useRef(0);
+  const refreshHome = async () => {
+    if (!telegramId) return;
+    const mySeq = ++homeSeqRef.current;
+    const h = await fetchHomeState(telegramId);
+    if (mySeq !== homeSeqRef.current) return;
+    setHome(h);
+  };
 
   useEffect(() => {
     refreshSunStock();
-    const id = setInterval(() => { if (!document.hidden) refreshSunStock(); }, 20000);
-    return () => clearInterval(id);
+    refreshHome();
+    const id = setInterval(() => {
+      if (document.hidden) return;
+      refreshSunStock();
+      refreshHome();
+    }, 20000);
+    const onRefresh = () => { refreshHome(); };
+    window.addEventListener("zoom-data-refresh", onRefresh);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("zoom-data-refresh", onRefresh);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [telegramId]);
 
@@ -210,6 +236,34 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
     tonConnectUI.openModal();
   };
 
+  // ─── COMPUTER (stardust-priced item that lives in the HOME) ──────────
+  // Independent of the Stars/TON pay mode toggle above — this is the only
+  // item priced in stardust right now. After a successful buy we trigger
+  // a global refresh so the HOME page picks up the new ownership state.
+  const computerOwned = !!home?.computer.owned;
+  const computerCost = home?.computer.cost ?? 5000;
+  const stardustBalance = home?.stardustBalance ?? 0;
+  const canBuyComputer = !!telegramId && !computerOwned && stardustBalance >= computerCost;
+
+  const handleBuyComputer = async () => {
+    if (!telegramId || !canBuyComputer) return;
+    setBuying("computer");
+    const r = await buyComputer(telegramId);
+    setBuying(null);
+    if (r.ok) {
+      setMessage("COMPUTER purchased!");
+      window.dispatchEvent(new Event("zoom-data-refresh"));
+      refreshHome();
+    } else if (r.error === "NOT_ENOUGH_STARDUST") {
+      setMessage(`Need ${r.need?.toLocaleString()} stardust (have ${r.have?.toLocaleString()})`);
+    } else if (r.error === "ALREADY_OWNED") {
+      setMessage("You already own the COMPUTER");
+      refreshHome();
+    } else {
+      setMessage("Purchase failed");
+    }
+  };
+
   return (
     <div className="flex flex-col h-full overflow-hidden relative">
       {message && (
@@ -321,7 +375,64 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
             </button>
           </div>
 
+          {/* Stardust-priced items — sit between the SUN block and the
+              Stars/TON packs so the player sees them right after the SUN
+              upsell (where stardust spending makes sense). */}
           <div className="font-black text-sm tracking-widest uppercase mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+            Stardust Items
+          </div>
+          <div
+            className="rounded-2xl border overflow-hidden"
+            style={{ borderColor: "rgba(255,215,64,0.25)", background: "rgba(255,215,64,0.04)" }}
+          >
+            <div className="flex items-center gap-4 p-4">
+              <div
+                className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center"
+                style={{ background: "rgba(255,215,64,0.12)", border: "1px solid rgba(255,215,64,0.3)" }}
+              >
+                <svg viewBox="0 0 16 12" width={28} height={21} style={{ imageRendering: "pixelated" }}>
+                  <rect x="1" y="1" width="14" height="9" fill="#cfd6e6" />
+                  <rect x="2" y="2" width="12" height="7" fill={computerOwned ? "#0a1a3d" : "#ffd740"} />
+                  {!computerOwned && <rect x="6" y="4" width="4" height="3" fill="#fff7c2" />}
+                  <rect x="6" y="10" width="4" height="1" fill="#cfd6e6" />
+                  <rect x="4" y="11" width="8" height="1" fill="#cfd6e6" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-black text-sm" style={{ color: "#ffd740" }}>COMPUTER</div>
+                <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
+                  Place it in your HOME · produces 25 stardust every 24h
+                </div>
+              </div>
+              <div className="flex-shrink-0 text-right">
+                <div className="font-black text-base" style={{ color: "#ffd740" }}>★ {computerCost.toLocaleString()}</div>
+                <div className="text-xs opacity-70" style={{ color: "#ffd740" }}>Stardust</div>
+              </div>
+            </div>
+            <div style={{ borderTop: "1px solid rgba(255,215,64,0.15)" }}>
+              <button
+                onClick={handleBuyComputer}
+                disabled={!canBuyComputer || buying === "computer"}
+                className="w-full py-3 font-black text-sm tracking-wider uppercase transition-all active:scale-95"
+                style={{
+                  background: "rgba(255,215,64,0.10)",
+                  color: canBuyComputer ? "#ffd740" : "rgba(255,215,64,0.35)",
+                  cursor: canBuyComputer ? "pointer" : "not-allowed",
+                  opacity: buying === "computer" ? 0.6 : 1,
+                }}
+              >
+                {computerOwned
+                  ? "OWNED — PLACE IT IN YOUR HOME"
+                  : buying === "computer"
+                  ? "Processing..."
+                  : stardustBalance < computerCost
+                  ? `Need ${(computerCost - stardustBalance).toLocaleString()} more stardust`
+                  : `BUY — ★ ${computerCost.toLocaleString()} STARDUST`}
+              </button>
+            </div>
+          </div>
+
+          <div className="font-black text-sm tracking-widest uppercase mb-1 mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
             Packs & Items
           </div>
 

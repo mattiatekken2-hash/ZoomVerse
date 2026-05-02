@@ -1826,3 +1826,87 @@ export async function merchantFuse(telegramId: string, level: 1 | 2 | 3): Promis
     return { ok: false, reason: "NETWORK", fusionsUsed: 0, fusionsRemaining: 0, maxFusions: 3 };
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// HOME — Comfort Zone (pixel-art room with display slots & computer).
+// Server is the source of truth for unlock state, slot placements and
+// the computer's 24h farming cooldown — none of this is trusted from
+// localStorage so a cache wipe / device switch never loses progress.
+// ─────────────────────────────────────────────────────────────────────
+
+export interface HomeState {
+  ok: boolean;
+  unlocked: boolean;
+  hasSun: boolean;
+  stardustBalance: number;
+  unlockCost: number;
+  slots: { A: string | null; B: string | null; C: string | null };
+  computer: {
+    owned: boolean;
+    ownedAt: string | null;
+    lastClaimAt: string | null;
+    nextReadyAt: number;
+    secondsToReady: number;
+    claimable: boolean;
+    cost: number;
+    rewardPerClaim: number;
+    cooldownMs: number;
+  };
+}
+
+export async function fetchHomeState(telegramId: string): Promise<HomeState | null> {
+  if (!telegramId) return null;
+  try {
+    const res = await fetch(`${API_BASE}/home/state/${encodeURIComponent(telegramId)}?t=${Date.now()}`, {
+      cache: "no-store",
+      headers: apiHeaders(),
+    });
+    if (!res.ok) return null;
+    const j = await res.json();
+    if (!j?.ok) return null;
+    return j as HomeState;
+  } catch {
+    return null;
+  }
+}
+
+export interface HomeActionResult {
+  ok: boolean;
+  error?: string;
+  have?: number;
+  need?: number;
+  secondsToReady?: number;
+  reward?: number;
+  stardustBalance?: number;
+  slots?: { A: string | null; B: string | null; C: string | null };
+}
+
+async function homePost(path: string, body: Record<string, unknown>): Promise<HomeActionResult> {
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(body),
+    });
+    const j = await res.json().catch(() => ({} as Record<string, unknown>));
+    return j as HomeActionResult;
+  } catch {
+    return { ok: false, error: "NETWORK" };
+  }
+}
+
+export function unlockHome(telegramId: string): Promise<HomeActionResult> {
+  return homePost("/home/unlock", { telegramId });
+}
+export function buyComputer(telegramId: string): Promise<HomeActionResult> {
+  return homePost("/home/computer/buy", { telegramId });
+}
+export function claimComputer(telegramId: string): Promise<HomeActionResult> {
+  return homePost("/home/computer/claim", { telegramId });
+}
+export function placeHomeSlot(telegramId: string, slot: "A" | "B" | "C", itemId: string): Promise<HomeActionResult> {
+  return homePost("/home/slot/place", { telegramId, slot, itemId });
+}
+export function clearHomeSlot(telegramId: string, slot: "A" | "B" | "C"): Promise<HomeActionResult> {
+  return homePost("/home/slot/clear", { telegramId, slot });
+}

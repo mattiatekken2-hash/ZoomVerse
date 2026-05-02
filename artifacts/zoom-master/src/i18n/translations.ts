@@ -13,6 +13,7 @@ type Dict = Record<string, string>;
 const en: Dict = {
   // nav
   "nav.lab": "LAB",
+  "nav.home": "HOME",
   "nav.farm": "FARM",
   "nav.market": "MARKET",
   "nav.wheel": "WHEEL",
@@ -68,6 +69,7 @@ const en: Dict = {
 
 const it: Dict = {
   "nav.lab": "LAB",
+  "nav.home": "CASA",
   "nav.farm": "FARM",
   "nav.market": "MERCATO",
   "nav.wheel": "RUOTA",
@@ -117,6 +119,7 @@ const it: Dict = {
 
 const ru: Dict = {
   "nav.lab": "ЛАБ",
+  "nav.home": "ДОМ",
   "nav.farm": "ФЕРМА",
   "nav.market": "РЫНОК",
   "nav.wheel": "КОЛЕСО",
@@ -162,6 +165,7 @@ const ru: Dict = {
 
 const uk: Dict = {
   "nav.lab": "ЛАБ",
+  "nav.home": "ДІМ",
   "nav.farm": "ФЕРМА",
   "nav.market": "РИНОК",
   "nav.wheel": "КОЛЕСО",
