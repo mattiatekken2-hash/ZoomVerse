@@ -3,7 +3,11 @@ import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { confirmTonPurchase, pollTxnUntilFinal } from "../utils/api";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
-const PRICE_TON = 20;
+// Server-authoritative price (see STARS_CATALOG.white_collection.tonPrice in
+// artifacts/api-server/src/routes/stars.ts). The wallet must send EXACTLY
+// this many TON or the on-chain verification will reject the payment.
+// If you change this, also update tonPrice in the server catalog.
+const PRICE_TON = 30;
 const NEON_GREEN = "#39ff7e";
 const NEON_CYAN = "#0fd9ff";
 
@@ -316,7 +320,7 @@ function WhiteCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
             }}>
               <div style={{ display: "flex", flexDirection: "column" }}>
                 <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Price</span>
-                <span style={{ fontSize: 26, fontWeight: 900, color: "#fff" }}>30 TON</span>
+                <span style={{ fontSize: 26, fontWeight: 900, color: "#fff" }}>{PRICE_TON} TON</span>
               </div>
               <button
                 className="wc-buy-btn"

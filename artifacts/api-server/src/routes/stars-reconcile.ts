@@ -18,7 +18,8 @@ const STARS_CATALOG_MAP: Record<string, { itemType: string; zoomAmount?: number;
 
 const SUN_MAX_PER_USER = 5;
 const SUN_MAX_GLOBAL = 100;
-const WHITE_COLLECTION_MAX_GLOBAL = 10;
+// Must stay in sync with WHITE_COLLECTION_MAX_GLOBAL in routes/stars.ts.
+const WHITE_COLLECTION_MAX_GLOBAL = 20;
 const EARTH_COLLECTION_MAX_GLOBAL = 50;
 
 type ReconcileResult =

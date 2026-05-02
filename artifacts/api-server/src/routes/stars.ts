@@ -143,7 +143,11 @@ interface StarsItem {
 
 const SUN_MAX_PER_USER = 5;
 const SUN_MAX_GLOBAL = 100;
-const WHITE_COLLECTION_MAX_GLOBAL = 10;
+// Increased from 10 → 20 in May 2026 after the first 10 bundles sold out,
+// adding 10 fresh bundles for new buyers. The cap is enforced atomically in
+// creditUserTx (and stars-reconcile.ts) via a SELECT-COALESCE-SUM guard, so
+// raising it is safe and has no effect on already-credited members.
+const WHITE_COLLECTION_MAX_GLOBAL = 20;
 const EARTH_COLLECTION_MAX_GLOBAL = 50;
 
 const STARS_CATALOG: StarsItem[] = [
