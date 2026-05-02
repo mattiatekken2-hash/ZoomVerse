@@ -1258,6 +1258,14 @@ export function useGameState() {
   // copy with a stale local snapshot during the brief window between the
   // first React render and the async fetch completing.
   const regularPlanetsHydratedRef = useRef(false);
+  // Monotonic counter bumped from inside applyGrants whenever a bonus
+  // planet is materialized. The debounced save effect compares this to
+  // `lastImmediateBonusSaveTickRef` and, if they differ, fires
+  // saveRegularPlanets IMMEDIATELY (in addition to the debounced one)
+  // so the freshly-minted planet reaches the server BEFORE the user
+  // can close the Mini App. See "ghost RARE" comment in applyGrants.
+  const bonusMintTickRef = useRef(0);
+  const lastImmediateBonusSaveTickRef = useRef(0);
   stateRef.current = state;
 
   // Throttle save+sync: writes & network traffic are expensive on every state change.
@@ -1774,17 +1782,30 @@ export function useGameState() {
     if (!regularPlanetsHydratedRef.current) return;
     const tid = state.telegramId;
     if (!tid) return;
+    const claimedSnap = {
+      basic: state.claimedBonusBasic ?? 0,
+      rare:  state.claimedBonusRare  ?? 0,
+      epic:  state.claimedBonusEpic  ?? 0,
+      gold:  state.claimedBonusGold  ?? 0,
+      v1:    state.claimedBonusV1    ?? 0,
+    };
+    // Ghost-RARE guard: if applyGrants just minted a bonus planet, fire
+    // an extra save NOW so the new planet reaches the server before the
+    // user can close the Mini App (the debounced save below could miss
+    // its 1.2s window). Both saves are idempotent server-side.
+    if (bonusMintTickRef.current !== lastImmediateBonusSaveTickRef.current) {
+      lastImmediateBonusSaveTickRef.current = bonusMintTickRef.current;
+      void saveRegularPlanets(
+        tid,
+        state.planets as unknown as Array<Record<string, unknown>>,
+        claimedSnap,
+      );
+    }
     const t = setTimeout(() => {
       void saveRegularPlanets(
         tid,
         state.planets as unknown as Array<Record<string, unknown>>,
-        {
-          basic: state.claimedBonusBasic ?? 0,
-          rare:  state.claimedBonusRare  ?? 0,
-          epic:  state.claimedBonusEpic  ?? 0,
-          gold:  state.claimedBonusGold  ?? 0,
-          v1:    state.claimedBonusV1    ?? 0,
-        },
+        claimedSnap,
       );
     }, 1200);
     return () => clearTimeout(t);
@@ -1800,6 +1821,24 @@ export function useGameState() {
 
   useEffect(() => {
     const applyGrants = (grants: Grants) => {
+      // When applyGrants materializes a bonus planet, we must force an
+      // IMMEDIATE (non-debounced) server save. Otherwise: server's
+      // claimed_bonus_* counter is bumped by the very next save, but if
+      // the user closes the Mini App within the 1.2s debounce window
+      // BEFORE the planets array reaches the server, applyGrants on next
+      // launch sees toAdd = serverCount(N) - max(claimedCount(N), 0) = 0
+      // and the planet is permanently orphaned (the "ghost RARE" bug).
+      //
+      // We bump a ref-counter inside the (pure) updater; the post-commit
+      // save effect below reads the ref and fires saveRegularPlanets
+      // immediately when the counter advanced. This pattern is safe
+      // under React 18 StrictMode double-invoke because:
+      //   - the ref bump is monotonic and idempotent
+      //   - the actual network call lives in a useEffect that only runs
+      //     after the committed render, so it sees the canonical state
+      //   - the server-side stale-write fence + GREATEST counter make
+      //     duplicate saves harmless.
+      let mintedBonusCount = 0;
       setState((prev) => {
         let updated = { ...prev };
 
@@ -1943,6 +1982,14 @@ export function useGameState() {
           updated = { ...updated, ...claimedUpdates, planets: [...updated.planets, ...newPlanets] };
         }
 
+        // Track minted bonus count locally; we bump the ref AFTER setState
+        // returns so a StrictMode double-invoke of this pure updater
+        // doesn't double-bump the ref. The post-commit save effect reads
+        // the ref and fires an immediate save (see ghost-RARE guard).
+        if (newPlanets.length > mintedBonusCount) {
+          mintedBonusCount = newPlanets.length;
+        }
+
         if (blockedByFullSlots.length > 0) {
           const parts = blockedByFullSlots.map((b) => `${b.count} ${PLANET_CONFIG[b.type].label}`).join(", ");
           setTimeout(() => {
@@ -1955,6 +2002,14 @@ export function useGameState() {
 
         return updated;
       });
+
+      // Bump the mint tick AFTER setState returns so a StrictMode
+      // double-invoke of the (pure) updater above doesn't double-count.
+      // The save effect (deps include state.planets) will fire on commit
+      // and notice tick !== lastImmediateSavedTick → immediate save.
+      if (mintedBonusCount > 0) {
+        bonusMintTickRef.current += 1;
+      }
     };
 
     const doSync = async () => {
