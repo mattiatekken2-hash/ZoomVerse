@@ -4,6 +4,8 @@ import { AutoTapWidget } from "../components/AutoTapWidget";
 import { MysteryBoxWidget } from "../components/MysteryBoxWidget";
 import { HallOfFameWidget } from "../components/HallOfFameWidget";
 import { PixelAvatar } from "../components/PixelAvatar";
+import { PixelAstronaut, SleepingAstronaut, CoffeeSteam } from "../components/PixelAstronaut";
+import { useAstronautActivity, ACTIVITY_LABEL_IT } from "../hooks/useAstronautActivity";
 import { WhiteCollectionWidget } from "../components/WhiteCollectionWidget";
 import { EarthCollectionWidget } from "../components/EarthCollectionWidget";
 import { LottoStellareWidget } from "../components/LottoStellareWidget";
@@ -376,6 +378,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
               {isFull ? t("lab.farmFull") : balance < 1 ? t("lab.noZoom") : t("lab.forgePlanet")}
             </button>
           )}
+          <AstroStatusPill />
           <PixelAvatar
             size={60}
             whitePlanets={whitePlanets}
@@ -410,6 +413,66 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         )}
       </div>
 
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// AstroStatusPill — tiny "what is the astronaut doing right now?" widget
+// shown next to the LAB avatar. Reads from the SAME shared store the
+// HOME room consumes, so the two views can never disagree. Pure visual,
+// no API calls, no game-state writes.
+// ────────────────────────────────────────────────────────────────────────
+function AstroStatusPill() {
+  const activity = useAstronautActivity();
+  const label = ACTIVITY_LABEL_IT[activity];
+  return (
+    <div
+      title={`Astronauta: ${label}`}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 2,
+        padding: "4px 6px",
+        borderRadius: 10,
+        background: "rgba(6,8,16,0.55)",
+        border: "1px solid rgba(15,217,255,0.25)",
+        boxShadow: "0 0 10px rgba(15,217,255,0.12)",
+        minWidth: 56,
+        height: 60,
+        flexShrink: 0,
+      }}
+    >
+      <div style={{ width: 24, height: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {activity === "sleep" && <SleepingAstronaut width={22} />}
+        {activity === "walk" && <PixelAstronaut pose="stand" width={20} />}
+        {activity === "coffee" && (
+          <div style={{ position: "relative" }}>
+            <PixelAstronaut pose="sit" width={20} />
+            <CoffeeSteam />
+          </div>
+        )}
+        {activity === "snack" && <PixelAstronaut pose="snack" width={20} />}
+        {activity === "window" && <PixelAstronaut pose="stand" facing="up" width={20} />}
+      </div>
+      <div
+        style={{
+          fontSize: 8,
+          fontWeight: 800,
+          letterSpacing: "0.04em",
+          color: "#7fdfff",
+          textAlign: "center",
+          lineHeight: 1,
+          maxWidth: 56,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {label}
+      </div>
     </div>
   );
 }
