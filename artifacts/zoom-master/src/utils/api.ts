@@ -333,9 +333,14 @@ const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonu
  * an older snapshot can never roll back a newer one.
  *
  * Fire-and-forget at the call site: the local state is already updated
- * optimistically. A network failure here just means the user's other
- * devices will see the cycle on the next /grants poll instead of right
- * away — no data loss.
+ * optimistically. We attempt the write up to 3 times (immediate, +3s, +8s)
+ * because losing this write silently rolls the cycle back to "Farming
+ * paused" the next time the user reopens after a localStorage wipe (e.g.
+ * Telegram WebView clears its cache, especially on iOS). The server
+ * endpoint uses GREATEST() merge so duplicate writes are fully idempotent
+ * — replaying the same payload can never roll back newer state. If a
+ * later attempt succeeds after an earlier one, we short-circuit so we
+ * don't spam the server unnecessarily.
  */
 export async function syncSunCycle(params: {
   telegramId: string;
@@ -343,13 +348,22 @@ export async function syncSunCycle(params: {
   sunLastCollectedAtMs: number;
   sunCycleCount: number;
 }): Promise<void> {
-  try {
-    await fetch(`${API_BASE}/sun/cycle`, {
-      method: "POST",
-      headers: apiHeaders(),
-      body: JSON.stringify(params),
-    });
-  } catch { /* fire-and-forget */ }
+  let succeeded = false;
+  const attempt = async (): Promise<void> => {
+    if (succeeded) return;
+    try {
+      const res = await fetch(`${API_BASE}/sun/cycle`, {
+        method: "POST",
+        headers: apiHeaders(),
+        body: JSON.stringify(params),
+      });
+      if (res.ok) succeeded = true;
+    } catch { /* network — let the next retry try */ }
+  };
+  await attempt();
+  if (succeeded) return;
+  setTimeout(() => { void attempt(); }, 3000);
+  setTimeout(() => { void attempt(); }, 8000);
 }
 
 export interface SunStock {
@@ -396,13 +410,27 @@ export async function fetchTotalPool(): Promise<TotalPool> {
   }
 }
 
-export async function fetchGrants(telegramId: string): Promise<Grants> {
+/**
+ * Fetch the user's server-side grants (bonus SUN, slot bonuses, autoTap,
+ * collection bundles, SUN cycle timestamps, etc).
+ *
+ * Returns `null` on network/HTTP failure — NOT an empty grants object.
+ * This distinction is critical: callers must NOT treat a transient failure
+ * as authoritative "user has nothing", because the destructive branches in
+ * applyGrants (SUN reset when claimedBonusSun=true but bonusSun=false,
+ * collection bundle revoke when server count drops to 0, slot bonus reset,
+ * etc) would then silently wipe state that's actually still owned.
+ *
+ * Callers should `if (grants) applyGrants(grants)` and otherwise leave
+ * local state untouched — the next successful poll will re-converge.
+ */
+export async function fetchGrants(telegramId: string): Promise<Grants | null> {
   try {
     const res = await fetch(`${API_BASE}/grants/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return EMPTY_GRANTS;
+    if (!res.ok) return null;
     return res.json();
   } catch {
-    return EMPTY_GRANTS;
+    return null;
   }
 }
 

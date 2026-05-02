@@ -1354,7 +1354,7 @@ export function useGameState() {
       // protected from a one-off double-credit on the very first
       // server-side settle. See settleOfflineFarming() doc for details.
       const _initClientFloor = Math.floor(stateRef.current.lastFarmingSettledAt || 0);
-      const [refData, grants, balanceRecord, serverCollectionPlanets, serverRegular, settleRes] = await Promise.all([
+      const [refData, grantsResult, balanceRecord, serverCollectionPlanets, serverRegular, settleRes] = await Promise.all([
         fetchReferralData(telegramId),
         fetchGrants(telegramId),
         fetchBalanceRecord(telegramId),
@@ -1362,6 +1362,14 @@ export function useGameState() {
         fetchRegularPlanets(telegramId),
         settleOfflineFarming({ telegramId, clientLastSettledAtMs: _initClientFloor }),
       ]);
+      // grantsResult is `null` when /grants failed (network/HTTP). We must
+      // NOT treat that as "user has nothing": doing so would trip the
+      // destructive branches below (SUN reset, slot bonus reset, collection
+      // bundle revoke) and silently wipe owned state. We use EMPTY_GRANTS
+      // only as a placeholder for the few non-destructive read sites and
+      // gate the entire grants-derived block on grantsOk.
+      const grantsOk = grantsResult !== null;
+      const grants = grantsResult ?? { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusV1: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
       const serverCollectionByKey = indexServerCollectionPlanets(serverCollectionPlanets);
 
       // Prefer the post-credit balance returned by /farm/settle when the
@@ -1422,6 +1430,16 @@ export function useGameState() {
             : (prev.lastFarmingSettledAt || 0),
         };
 
+        // ─── GRANTS-DERIVED HYDRATION (gated on a successful /grants fetch) ───
+        // Wrapping this entire block in `if (grantsOk)` is the second half of
+        // the SUN-paused fix (the first being syncSunCycle's retry). If
+        // /grants returned a transient error, we leave local state intact
+        // and let the 30s poll re-converge. Without this gate, an
+        // EMPTY_GRANTS payload would trip destructive branches below
+        // (SUN reset when claimedBonusSun=true but bonusSun=false,
+        // slot/autoTap reset, collection bundle revoke) and silently wipe
+        // state the user actually still owns.
+        if (grantsOk) {
         // Apply bonus sun from server (grant sun if not already owned)
         if (grants.bonusSun) {
           updated = {
@@ -1589,6 +1607,7 @@ export function useGameState() {
             earthPlanets: (updated.earthPlanets || []).filter(keepEarth),
           };
         }
+        } // end of `if (grantsOk)` — grants-derived hydration block
 
         // ─── SERVER COLLECTION-PLANET STATE — single source of truth ───
         // After (re)materializing white/earth planets, override slot index
@@ -1983,7 +2002,10 @@ export function useGameState() {
       ]);
       reconcileFromSyncResponse(localBalance, sentEpoch, syncRes, sentTon);
 
-      applyGrants(grants);
+      // Skip on transient /grants failure — applying an empty payload would
+      // trip the destructive branches inside applyGrants (SUN reset,
+      // collection revoke, slot/autoTap reset) and silently wipe owned state.
+      if (grants) applyGrants(grants);
     };
 
     const interval = setInterval(doSync, 30_000);
