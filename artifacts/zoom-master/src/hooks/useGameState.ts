@@ -2356,7 +2356,7 @@ export function useGameState() {
       setState((prev) => {
         const next: GameState = {
           ...(planet.name === "GOLD"
-            ? withFeedEvent(prev, `${PLAYER_NAME} ha appena forgiato un pianeta GOLD!`)
+            ? withFeedEvent(prev, `${PLAYER_NAME} just forged a GOLD planet!`)
             : prev),
           balance: newBalance,
           taps: 0,
@@ -2566,7 +2566,7 @@ export function useGameState() {
           farmStartedAt: 0,
           lastCollectedAt: 0,
         },
-      }, `${PLAYER_NAME} ha acquisito il SOLE!`);
+      }, `${PLAYER_NAME} just acquired the SUN!`);
     });
   }, []);
 
