@@ -386,6 +386,22 @@ export async function fetchSunStock(telegramId?: string): Promise<SunStock> {
   }
 }
 
+export interface CollectionStock {
+  sold: number;
+  remaining: number;
+  max: number;
+}
+
+export async function fetchWhiteCollectionStock(): Promise<CollectionStock | null> {
+  try {
+    const res = await fetch(`${API_BASE}/white-collection/stock?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
 export interface TotalPool {
   ton: number;
   stars: number;
