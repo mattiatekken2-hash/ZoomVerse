@@ -6,6 +6,7 @@ import { sql, eq } from "drizzle-orm";
 import { z } from "zod";
 import fs from "node:fs";
 import path from "node:path";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -53,11 +54,30 @@ async function writeAdminAssetSnapshot() {
     .from(usersTable);
 
   fs.mkdirSync(path.dirname(ADMIN_ASSET_SNAPSHOT), { recursive: true });
-  fs.writeFileSync(
+  // Async write — never blocks the Node event loop while serializing the
+  // (potentially large) JSON to disk.
+  await fs.promises.writeFile(
     ADMIN_ASSET_SNAPSHOT,
     JSON.stringify({ updatedAt: new Date().toISOString(), users: rows }, null, 2),
     "utf8",
   );
+}
+
+/**
+ * Fire-and-forget wrapper around writeAdminAssetSnapshot used by every admin
+ * mutation route. The snapshot is a debug/backup file (the DB is the source
+ * of truth), so admins should never have to wait for it: we let the request
+ * return immediately and run the SELECT * + JSON write in the background.
+ *
+ * Errors are logged but never thrown so an unhandled rejection can't crash
+ * the process. Concurrent admin actions queue safely on top of each other —
+ * each call writes its own snapshot independently and the last one wins,
+ * which matches the existing semantics.
+ */
+function scheduleAdminAssetSnapshot(): void {
+  void writeAdminAssetSnapshot().catch((err) => {
+    logger.error({ err }, "[admin] background snapshot write failed");
+  });
 }
 
 const CreditZoomBody = z.object({
@@ -148,7 +168,7 @@ router.post("/admin/credit-zoom", async (req, res) => {
           balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
         },
       });
-    await writeAdminAssetSnapshot();
+    scheduleAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
@@ -174,7 +194,7 @@ router.post("/admin/credit-ton", async (req, res) => {
           balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
         },
       });
-    await writeAdminAssetSnapshot();
+    scheduleAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
@@ -219,7 +239,7 @@ router.post("/admin/add-planets", async (req, res) => {
       await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusGold: count })
         .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusGold: sql`${usersTable.bonusGold} + ${count}` } });
     }
-    await writeAdminAssetSnapshot();
+    scheduleAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
@@ -243,7 +263,7 @@ router.post("/admin/unlock-slots", async (req, res) => {
         target: usersTable.telegramId,
         set: { bonusSlots: sql`${usersTable.bonusSlots} + ${count}` },
       });
-    await writeAdminAssetSnapshot();
+    scheduleAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
@@ -269,7 +289,7 @@ router.post("/admin/grant-auto-tap", async (req, res) => {
           balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
         },
       });
-    await writeAdminAssetSnapshot();
+    scheduleAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     console.error("[admin/grant-auto-tap] error:", err);
@@ -294,7 +314,7 @@ router.post("/admin/unlock-white-collection", async (req, res) => {
         balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
       .where(eq(usersTable.telegramId, telegramId));
-    await writeAdminAssetSnapshot();
+    scheduleAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     console.error("[admin/unlock-white-collection] error:", err);
@@ -319,7 +339,7 @@ router.post("/admin/unlock-earth-collection", async (req, res) => {
         balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
       .where(eq(usersTable.telegramId, telegramId));
-    await writeAdminAssetSnapshot();
+    scheduleAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     console.error("[admin/unlock-earth-collection] error:", err);
@@ -344,7 +364,7 @@ router.post("/admin/revoke-white-collection", async (req, res) => {
         balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
       .where(eq(usersTable.telegramId, telegramId));
-    await writeAdminAssetSnapshot();
+    scheduleAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     console.error("[admin/revoke-white-collection] error:", err);
@@ -369,7 +389,7 @@ router.post("/admin/revoke-earth-collection", async (req, res) => {
         balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
       .where(eq(usersTable.telegramId, telegramId));
-    await writeAdminAssetSnapshot();
+    scheduleAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     console.error("[admin/revoke-earth-collection] error:", err);
@@ -414,7 +434,7 @@ router.post("/admin/global-bonus", async (req, res) => {
         zoomBalance: sql`${usersTable.zoomBalance} + ${amount}`,
         balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       });
-    await writeAdminAssetSnapshot();
+    scheduleAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
@@ -437,7 +457,7 @@ router.post("/admin/remove-zoom", async (req, res) => {
         balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
       .where(sql`${usersTable.telegramId} = ${telegramId}`);
-    await writeAdminAssetSnapshot();
+    scheduleAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
@@ -464,7 +484,7 @@ router.post("/admin/remove-planets", async (req, res) => {
     } else if (planetType === "GOLD") {
       await db.update(usersTable).set({ bonusGold: sql`GREATEST(0, ${usersTable.bonusGold} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
     }
-    await writeAdminAssetSnapshot();
+    scheduleAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
@@ -484,7 +504,7 @@ router.post("/admin/remove-slots", async (req, res) => {
       .update(usersTable)
       .set({ bonusSlots: sql`GREATEST(0, ${usersTable.bonusSlots} - ${count})` })
       .where(sql`${usersTable.telegramId} = ${telegramId}`);
-    await writeAdminAssetSnapshot();
+    scheduleAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
@@ -663,7 +683,7 @@ router.post("/admin/reset-season", async (req, res) => {
         target: appSettingsTable.key,
         set: { valueNum: epoch, updatedAt: new Date() },
       });
-    await writeAdminAssetSnapshot();
+    scheduleAdminAssetSnapshot();
     res.json({ ok: true, epoch });
   } catch (err) {
     console.error("[admin/reset-season]", err);
