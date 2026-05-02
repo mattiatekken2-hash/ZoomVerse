@@ -5,6 +5,7 @@ import { eq, sql, and } from "drizzle-orm";
 import { Cell, Address } from "@ton/core";
 import { broadcastBoxOpen } from "../lib/activityBus";
 import { sendWithdrawalChannelMessage } from "../lib/notify";
+import { registerLottoTicketPurchase } from "./lottery";
 
 const router: IRouter = Router();
 
@@ -174,6 +175,14 @@ const STARS_CATALOG: StarsItem[] = [
   // fee for E1..E4 (0.001 TON). Server records the payment but applies no
   // grant — the client toggles the specific planet's farming state on success.
   { id: "earth_react", title: "Earth Planet Reactivation", description: "Restart an expired earth-planet farming cycle", starsPrice: 10, tonPrice: 0.001, itemType: "earth_react" },
+  // LOTTO STELLARE — bundle di biglietti per la lotteria a probabilità
+  // ponderate. zoomAmount qui rappresenta il numero di biglietti del bundle
+  // (riusato come "count" per non aggiungere campi al catalogo). Lo
+  // accreditamento del premio al vincitore avviene MANUALMENTE da parte
+  // dell'admin, fuori-app, dal proprio wallet personale.
+  { id: "lotto_ticket_1",  title: "Lotto Stellare — 1 biglietto",   description: "1 biglietto per l'estrazione corrente",   starsPrice: 10,  tonPrice: 0.1, zoomAmount: 1,  itemType: "lotto" },
+  { id: "lotto_ticket_15", title: "Lotto Stellare — 15 biglietti", description: "15 biglietti — risparmio 33%",            starsPrice: 100, tonPrice: 1.0, zoomAmount: 15, itemType: "lotto" },
+  { id: "lotto_ticket_40", title: "Lotto Stellare — 40 biglietti", description: "40 biglietti — risparmio 38%",            starsPrice: 250, tonPrice: 2.5, zoomAmount: 40, itemType: "lotto" },
 ];
 
 const MYSTERY_BOX_SUN_GLOBAL_CAP = 50;
@@ -280,7 +289,7 @@ function findItem(itemId: string): StarsItem | undefined {
 // `db` and the transaction client share the same callable interface here.
 type DbExecutor = typeof db;
 
-async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string): Promise<{ award?: MysteryAward }> {
+async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string, txnId?: number): Promise<{ award?: MysteryAward }> {
   if (item.itemType === "mystery_box") {
     // SUN allocation has its own internal transaction (rollMysteryBox); other
     // awards are inlined here so they share the outer credit transaction.
@@ -362,6 +371,22 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string)
       console.error(`[creditUserTx] WHITE_COLLECTION sold out at credit time for ${telegramId}`);
       throw new Error("WHITE_COLLECTION_SOLD_OUT");
     }
+  } else if (item.itemType === "lotto") {
+    // LOTTO STELLARE — registra l'acquisto biglietti nel round attivo. Il
+    // txnId è OBBLIGATORIO qui perché lotto_tickets.txn_id ha UNIQUE: senza
+    // di esso il sistema non può garantire idempotency. Se manca per
+    // qualche motivo (path inatteso) facciamo throw e la transazione esterna
+    // fa rollback senza accreditare nulla — meglio non-accredito che doppio.
+    if (!txnId) throw new Error("LOTTO_MISSING_TXN_ID");
+    const tickets = item.zoomAmount || 0;
+    if (tickets <= 0) throw new Error("LOTTO_INVALID_TICKET_COUNT");
+    await registerLottoTicketPurchase(tx, {
+      telegramId,
+      ticketCount: tickets,
+      tonPaid: item.tonPrice,
+      bundleId: item.id,
+      txnId,
+    });
   } else if (item.itemType === "earth_collection") {
     // Mirrors white_collection but with its own dedicated advisory lock id and
     // global cap. No per-user cap — a single user could buy all 50.
@@ -540,7 +565,7 @@ async function atomicCreditIfPending(txnId: number, paymentId: string, item: Sta
       if (updated.length === 0) return; // already-completed or already-failed: leave it
       didFlip = true;
 
-      const result = await creditUserTx(tx, item, telegramId);
+      const result = await creditUserTx(tx, item, telegramId, txnId);
       if (result.award) {
         await tx.update(transactionsTable)
           .set({ award: result.award })

@@ -525,6 +525,94 @@ export async function adminGrantAutoTap(adminId: string, telegramId: string): Pr
   } catch { return false; }
 }
 
+// === LOTTO STELLARE ===
+
+export interface LottoBundle {
+  id: "lotto_ticket_1" | "lotto_ticket_15" | "lotto_ticket_40";
+  tickets: number;
+  tonPrice: number;
+}
+
+export interface LottoStateResponse {
+  roundId: number;
+  jackpotTon: number;
+  totalCollectedTon: number;
+  totalTickets: number;
+  userTickets: number;
+  winChancePct: number;
+  bundles: LottoBundle[];
+}
+
+export interface LottoTopBuyer {
+  telegramId: string;
+  tickets: number;
+  ton: number;
+  username: string | null;
+  firstName: string | null;
+}
+
+export interface LottoHistoryRound {
+  id: number;
+  status: string;
+  totalCollectedTon: number;
+  totalTickets: number;
+  winnerTelegramId: string | null;
+  winnerTickets: number | null;
+  prizeTon: number | null;
+  profitTon: number | null;
+  drawnAt: string | null;
+  createdAt: string;
+}
+
+export interface LottoAdminDashboard {
+  round: { id: number; createdAt: string; totalTickets: number; participants: number };
+  totalCollectedTon: number;
+  prizeToPayTon: number;
+  myNetProfitTon: number;
+  topBuyers: LottoTopBuyer[];
+  history: LottoHistoryRound[];
+}
+
+export interface LottoDrawResult {
+  ok: boolean;
+  roundId?: number;
+  winnerTelegramId?: string;
+  winnerTickets?: number;
+  winnerName?: string | null;
+  totalCollectedTon?: number;
+  prizeTon?: number;
+  profitTon?: number;
+  nextRoundId?: number;
+  error?: string;
+}
+
+export async function fetchLottoState(telegramId: string): Promise<LottoStateResponse | null> {
+  try {
+    const res = await fetch(`${API_BASE}/lottery/state?telegramId=${encodeURIComponent(telegramId)}&t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+export async function adminFetchLottoDashboard(adminId: string): Promise<LottoAdminDashboard | null> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/lottery/dashboard?adminId=${encodeURIComponent(adminId)}&t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+export async function adminLottoDraw(adminId: string): Promise<LottoDrawResult> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/lottery/draw`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId }),
+    });
+    return await res.json();
+  } catch { return { ok: false, error: "Network error" }; }
+}
+
 export async function adminTestWithdrawalChannel(adminId: string): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/test-withdrawal-channel`, {

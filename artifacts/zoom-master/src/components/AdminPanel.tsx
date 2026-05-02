@@ -28,6 +28,9 @@ import {
   adminResetSeason,
   adminForceDelist,
   adminReconcileReferrals,
+  adminFetchLottoDashboard,
+  adminLottoDraw,
+  type LottoAdminDashboard,
 } from "../utils/api";
 
 const ADMIN_ID = "8144744644";
@@ -933,6 +936,11 @@ export function AdminPanel({ telegramId }: Props) {
                   Riallinea il conteggio referral di ogni utente al numero reale di invitati. Non tocca i $ZOOM già accreditati.
                 </div>
 
+                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+
+                {/* LOTTO STELLARE — admin dashboard */}
+                <LottoAdminSection adminId={telegramId} onFeedback={showFeedback} />
+
                 <AnimatePresence>
                   {feedback && (
                     <motion.div
@@ -959,6 +967,177 @@ export function AdminPanel({ telegramId }: Props) {
           </>
         )}
       </AnimatePresence>
+    </>
+  );
+}
+
+interface LottoAdminSectionProps {
+  adminId: string;
+  onFeedback: (msg: string, ok: boolean) => void;
+}
+
+function LottoAdminSection({ adminId, onFeedback }: LottoAdminSectionProps) {
+  const [dash, setDash] = useState<LottoAdminDashboard | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [drawing, setDrawing] = useState(false);
+  const [confirmDraw, setConfirmDraw] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    const d = await adminFetchLottoDashboard(adminId);
+    setLoading(false);
+    if (d) setDash(d);
+  }, [adminId]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const handleDraw = async () => {
+    haptic();
+    if (!confirmDraw) {
+      setConfirmDraw(true);
+      setTimeout(() => setConfirmDraw(false), 4000);
+      return;
+    }
+    setDrawing(true);
+    const res = await adminLottoDraw(adminId);
+    setDrawing(false);
+    setConfirmDraw(false);
+    if (res.ok) {
+      const name = res.winnerName || res.winnerTelegramId || "?";
+      onFeedback(`✓ Vincitore: ${name} · ${res.winnerTickets} biglietti · paga ${(res.prizeTon || 0).toFixed(4)} TON`, true);
+      refresh();
+    } else {
+      const msg = res.error === "NO_TICKETS_SOLD" ? "Nessun biglietto venduto in questo round"
+        : res.error === "NO_ACTIVE_ROUND" ? "Nessun round attivo"
+        : res.error || "Errore estrazione";
+      onFeedback(`✗ ${msg}`, false);
+    }
+  };
+
+  const collected = dash?.totalCollectedTon ?? 0;
+  const prize = dash?.prizeToPayTon ?? 0;
+  const profit = dash?.myNetProfitTon ?? 0;
+
+  return (
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 10, color: "rgba(255,216,77,0.7)", letterSpacing: "0.08em", fontWeight: 800 }}>
+          🎟 LOTTO STELLARE
+        </div>
+        <motion.button
+          whileTap={{ scale: 0.93 }}
+          onClick={() => { haptic(); refresh(); }}
+          style={{
+            padding: "4px 10px",
+            borderRadius: 8,
+            border: "1px solid rgba(255,255,255,0.15)",
+            background: "rgba(255,255,255,0.04)",
+            color: "rgba(255,255,255,0.7)",
+            fontSize: 10,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          {loading ? "..." : "↻ AGGIORNA"}
+        </motion.button>
+      </div>
+
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr 1fr",
+        gap: 6,
+        padding: 10,
+        borderRadius: 10,
+        background: "linear-gradient(135deg, rgba(255,216,77,0.06), rgba(196,113,237,0.04))",
+        border: "1px solid rgba(255,216,77,0.2)",
+      }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Total Collected</div>
+          <div style={{ fontSize: 16, fontWeight: 900, color: "#fff", marginTop: 2 }}>{collected.toFixed(4)}</div>
+          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>TON</div>
+        </div>
+        <div style={{ textAlign: "center", borderLeft: "1px solid rgba(255,255,255,0.08)", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Prize 90%</div>
+          <div style={{ fontSize: 16, fontWeight: 900, color: "#ffd84d", marginTop: 2 }}>{prize.toFixed(4)}</div>
+          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>al vincitore</div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Profit 10%</div>
+          <div style={{ fontSize: 16, fontWeight: 900, color: "#00f264", marginTop: 2 }}>{profit.toFixed(4)}</div>
+          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>tuo netto</div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(255,255,255,0.6)", padding: "0 4px" }}>
+        <span>Round #{dash?.round.id ?? "—"}</span>
+        <span>{dash?.round.totalTickets ?? 0} biglietti · {dash?.round.participants ?? 0} partecipanti</span>
+      </div>
+
+      {dash && dash.topBuyers.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto", padding: 8, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", marginBottom: 2 }}>TOP COMPRATORI</div>
+          {dash.topBuyers.map((b, i) => {
+            const total = dash.round.totalTickets || 1;
+            const pct = (b.tickets / total) * 100;
+            const name = b.firstName || (b.username ? `@${b.username}` : b.telegramId);
+            return (
+              <div key={b.telegramId} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#fff", padding: "3px 4px" }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>
+                  {i + 1}. {name}
+                </span>
+                <span style={{ color: "rgba(255,255,255,0.7)" }}>
+                  {b.tickets} <span style={{ color: "#ffd84d" }}>({pct.toFixed(1)}%)</span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <motion.button
+        whileTap={{ scale: 0.93 }}
+        onClick={handleDraw}
+        disabled={drawing || (dash?.round.totalTickets ?? 0) <= 0}
+        style={{
+          padding: "11px",
+          borderRadius: 10,
+          border: `1px solid ${confirmDraw ? "rgba(255,216,77,0.6)" : "rgba(255,216,77,0.3)"}`,
+          background: confirmDraw ? "rgba(255,216,77,0.18)" : "rgba(255,216,77,0.08)",
+          color: "#ffd84d",
+          fontSize: 12,
+          fontWeight: 800,
+          letterSpacing: "0.06em",
+          cursor: drawing || (dash?.round.totalTickets ?? 0) <= 0 ? "not-allowed" : "pointer",
+          opacity: drawing || (dash?.round.totalTickets ?? 0) <= 0 ? 0.5 : 1,
+          transition: "all 0.2s",
+          boxShadow: confirmDraw ? "0 0 14px rgba(255,216,77,0.3)" : "none",
+        }}
+      >
+        {drawing ? "..." : confirmDraw ? "⚠ CONFERMA ESTRAZIONE (tap)" : "🎲 ESTRAI VINCITORE"}
+      </motion.button>
+      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", lineHeight: 1.4 }}>
+        L'estrazione sceglie un biglietto a caso tra TUTTI i venduti. Ogni utente conta tante volte quanti biglietti ha. Dopo l'estrazione parte automaticamente un nuovo round. <b style={{ color: "#ffd84d" }}>Il pagamento del premio al vincitore lo fai manualmente dal tuo wallet.</b>
+      </div>
+
+      {dash && dash.history.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto", padding: 8, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", marginBottom: 2 }}>STORICO ESTRAZIONI</div>
+          {dash.history.map((h) => (
+            <div key={h.id} style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "rgba(255,255,255,0.7)", padding: "4px 4px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Round #{h.id}</span>
+                <span>{h.drawnAt ? new Date(h.drawnAt).toLocaleString() : ""}</span>
+              </div>
+              <div>
+                Vincitore: <b style={{ color: "#fff" }}>{h.winnerTelegramId || "—"}</b> ({h.winnerTickets ?? 0} biglietti)
+              </div>
+              <div>
+                Premio: <b style={{ color: "#ffd84d" }}>{(h.prizeTon ?? 0).toFixed(4)} TON</b> · Profitto: <b style={{ color: "#00f264" }}>{(h.profitTon ?? 0).toFixed(4)} TON</b>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </>
   );
 }

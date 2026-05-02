@@ -6,6 +6,7 @@ import { HallOfFameWidget } from "../components/HallOfFameWidget";
 import { PixelAvatar } from "../components/PixelAvatar";
 import { WhiteCollectionWidget } from "../components/WhiteCollectionWidget";
 import { EarthCollectionWidget } from "../components/EarthCollectionWidget";
+import { LottoStellareWidget } from "../components/LottoStellareWidget";
 import type { Planet, PlanetType } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
@@ -204,6 +205,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       <HallOfFameWidget telegramId={telegramId} />
       <WhiteCollectionWidget telegramId={telegramId} unlocked={whiteCollectionUnlocked} ownedBundles={whiteCollectionBundles} sunCount={sunCount} />
       <EarthCollectionWidget telegramId={telegramId} unlocked={earthCollectionUnlocked} ownedBundles={earthCollectionBundles} sunCount={sunCount} />
+      <LottoStellareWidget telegramId={telegramId} />
       {/* Space-merchant radar LED — small red blink near the Earth widget so
           the user spots the encounter even with the popup minimised by a tab
           switch. Hidden when no merchant is currently in the system. */}

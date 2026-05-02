@@ -21,6 +21,7 @@ import merchantRouter from "./merchant";
 import sunRouter from "./sun";
 import collectionPlanetsRouter from "./collection-planets";
 import regularPlanetsRouter from "./regular-planets";
+import lotteryRouter from "./lottery";
 
 const router: IRouter = Router();
 
@@ -133,6 +134,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/admin/withdrawals/approve",
       "/admin/withdrawals/reject",
       "/admin/maintenance",
+      "/admin/lottery/draw",
     ],
     bindField: "adminId",
   },
@@ -202,5 +204,6 @@ router.use(merchantRouter);
 router.use(sunRouter);
 router.use(collectionPlanetsRouter);
 router.use(regularPlanetsRouter);
+router.use(lotteryRouter);
 
 export default router;
