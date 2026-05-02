@@ -84,6 +84,46 @@ export function PixelAstronaut({ pose = "stand", facing = "side", width = 28 }: 
   );
 }
 
+/** Helmet-only sprite (no body). Used by the LAB status pill where we
+ *  only have room for the face. Variants:
+ *  - "side"  : visor highlight on the right (looking sideways)
+ *  - "up"    : visor highlight centered (looking forward / up)
+ *  - "sleep" : dim closed-eye line, no shine
+ */
+export function PixelAstronautHead({
+  variant = "side",
+  width = 28,
+}: {
+  variant?: "side" | "up" | "sleep";
+  width?: number;
+}) {
+  const helmet = "#dfe6f0";
+  const visor = "#0a1a3d";
+  const visorShine = "#7fdfff";
+  const sleepLine = "#1a3a5c";
+  const height = Math.round((width * 4) / 8);
+  return (
+    <svg
+      viewBox="0 0 8 4"
+      width={width}
+      height={height}
+      style={{ imageRendering: "pixelated", display: "block" }}
+    >
+      {/* Helmet */}
+      <rect x="1" y="0" width="6" height="4" fill={helmet} />
+      {/* Visor */}
+      <rect x="2" y="1" width="4" height="2" fill={visor} />
+      {variant === "sleep" ? (
+        <rect x="3" y="2" width="2" height="1" fill={sleepLine} />
+      ) : variant === "up" ? (
+        <rect x="3" y="1" width="2" height="1" fill={visorShine} />
+      ) : (
+        <rect x="4" y="1" width="1" height="1" fill={visorShine} />
+      )}
+    </svg>
+  );
+}
+
 /** Helmet-only resting on a pillow + 3 staggered floating Z's. Used by
  *  the SLEEP activity in HOME. The wrapper container is sized 28×28 so
  *  it slots into the same overlay positioning grid as the other poses. */
