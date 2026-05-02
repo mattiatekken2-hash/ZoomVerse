@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
+import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import {
   fetchWheelConfig,
   fetchWheelStatus,
@@ -8,10 +9,15 @@ import {
   claimWheelDaily,
   createStarsInvoice,
   confirmStarsPurchase,
+  confirmTonPurchase,
+  pollTxnUntilFinal,
   type WheelPrizeConfig,
   type WheelSpinResult,
   type WheelFeedEntry,
 } from "../utils/api";
+
+// Same wallet used in ShopPage / LottoStellare / MysteryBox.
+const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 
 interface WheelPageProps {
   telegramId?: string | null;
@@ -44,9 +50,9 @@ const DEFAULT_WHEEL_PRIZES: WheelPrizeConfig[] = [
 ];
 
 const SPIN_PACKS = [
-  { id: "wheel_spin_1",  spins: 1,  stars: 50,  badge: "" },
-  { id: "wheel_spin_5",  spins: 5,  stars: 200, badge: "-20%" },
-  { id: "wheel_spin_10", spins: 10, stars: 350, badge: "-30%" },
+  { id: "wheel_spin_1",  spins: 1,  stars: 50,  ton: 0.5, badge: "" },
+  { id: "wheel_spin_5",  spins: 5,  stars: 200, ton: 2.0, badge: "-20%" },
+  { id: "wheel_spin_10", spins: 10, stars: 350, ton: 3.5, badge: "-30%" },
 ];
 
 interface TgWebApp {
@@ -293,6 +299,9 @@ export function WheelPage({ telegramId }: WheelPageProps) {
   const [winFlash, setWinFlash] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [payMode, setPayMode] = useState<"stars" | "ton">("stars");
+  const [tonConnectUI] = useTonConnectUI();
+  const connectedAddress = useTonAddress();
   const [highlightIdx, setHighlightIdx] = useState<number | null>(null);
   const [particles, setParticles] = useState<Particle[]>([]);
   const particleId = useRef(0);
@@ -647,6 +656,62 @@ export function WheelPage({ telegramId }: WheelPageProps) {
       setMessage("Error opening invoice");
       setBuying(null);
     }
+  };
+
+  // TON purchase path. Mirrors ShopPage.handleTonBuy: open wallet, send tx,
+  // post BOC to /stars/ton/confirm which credits the same wheel_spin item
+  // catalog (idempotent on the server, polled until on-chain verification
+  // completes). Spins are added by the server's wheel_spin branch in
+  // /stars/ton/confirm so we just refreshStatus() once the credit lands.
+  const handleTonBuy = async (packId: string) => {
+    if (!telegramId) { setMessage("Telegram ID missing"); return; }
+    const pack = SPIN_PACKS.find((p) => p.id === packId);
+    if (!pack) { setMessage("Pack not found"); return; }
+    if (!connectedAddress) {
+      tonConnectUI.openModal();
+      setMessage("Connect your wallet first");
+      return;
+    }
+    setBuying(packId);
+    try {
+      const nanotons = BigInt(Math.round(pack.ton * 1e9)).toString();
+      const txResult = await tonConnectUI.sendTransaction({
+        validUntil: Math.floor(Date.now() / 1000) + 300,
+        messages: [{ address: WALLET, amount: nanotons }],
+      });
+      const boc = txResult.boc || "";
+      const confirmResult = await confirmTonPurchase(telegramId, packId, connectedAddress, pack.ton, boc);
+      if (confirmResult.alreadyCredited || confirmResult.ok) {
+        setMessage("✓ Spins added!");
+        await refreshStatus();
+      } else if (confirmResult.pending && confirmResult.txnId) {
+        setMessage("Verifying payment on-chain…");
+        const final = await pollTxnUntilFinal(confirmResult.txnId);
+        if (final?.status === "completed") {
+          setMessage("✓ Spins added!");
+          await refreshStatus();
+        } else if (final?.status === "failed") {
+          setMessage("Payment not detected on-chain. Contact support if TON was sent.");
+        } else {
+          setMessage("Still awaiting confirmation. Spins will appear automatically once verified.");
+          // Late-arrival safety net: refresh a couple more times so the spins
+          // pop in without the user having to reopen the tab.
+          setTimeout(() => { refreshStatus(); }, 30_000);
+          setTimeout(() => { refreshStatus(); }, 90_000);
+        }
+      } else {
+        setMessage(confirmResult.error || "Credit failed");
+      }
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (errMsg.includes("cancel") || errMsg.includes("reject") || errMsg.includes("Interrupted")) {
+        setMessage("Payment cancelled");
+      } else {
+        setMessage("TON payment failed");
+        console.error("[wheel/ton] sendTransaction error:", err);
+      }
+    }
+    setBuying(null);
   };
 
   // Wheel geometry — only the size is needed at the parent level; all path
@@ -1010,46 +1075,94 @@ export function WheelPage({ telegramId }: WheelPageProps) {
           </div>
         </div>
 
-        {/* Buy spins */}
-        <div className="font-black text-sm tracking-widest uppercase mb-2" style={{ color: "rgba(255,255,255,0.4)" }}>
-          Buy Spins with ⭐
-        </div>
-        <div className="flex flex-col gap-2 mb-4">
-          {SPIN_PACKS.map((p) => (
+        {/* Buy spins — payment mode toggle (Stars / TON) */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="font-black text-sm tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.4)" }}>
+            Buy Spins
+          </div>
+          <div
+            className="flex rounded-full p-0.5"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+          >
             <button
-              key={p.id}
-              onClick={() => handleBuy(p.id)}
-              disabled={buying === p.id}
-              className="w-full flex items-center justify-between rounded-xl px-4 py-3 transition-all active:scale-98"
+              onClick={() => setPayMode("stars")}
+              className="px-3 py-1 rounded-full text-[11px] font-black tracking-wider transition-all"
               style={{
-                background: "linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
-                border: "1px solid rgba(255,215,0,0.15)",
-                opacity: buying === p.id ? 0.6 : 1,
+                background: payMode === "stars" ? "linear-gradient(135deg, #ffd700, #ffb347)" : "transparent",
+                color: payMode === "stars" ? "#0a0e1a" : "rgba(255,255,255,0.55)",
               }}
             >
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-11 h-11 rounded-full flex items-center justify-center text-lg"
-                  style={{
-                    background: "radial-gradient(circle, rgba(0,242,254,0.2), rgba(0,242,254,0.05))",
-                    border: "1px solid rgba(0,242,254,0.3)",
-                  }}
-                >
-                  🎡
-                </div>
-                <div className="text-left">
-                  <div className="font-black text-sm">{p.spins} {p.spins === 1 ? "Spin" : "Spins"}</div>
-                  {p.badge && (
-                    <div className="text-xs font-bold" style={{ color: "#43e97b" }}>{p.badge} OFF</div>
-                  )}
-                </div>
-              </div>
-              <div className="font-black text-sm flex items-center gap-1" style={{ color: "#ffd700" }}>
-                <span>⭐</span>
-                <span>{p.stars}</span>
-              </div>
+              ⭐ STARS
             </button>
-          ))}
+            <button
+              onClick={() => setPayMode("ton")}
+              className="px-3 py-1 rounded-full text-[11px] font-black tracking-wider transition-all"
+              style={{
+                background: payMode === "ton" ? "linear-gradient(135deg, #0098ea, #00d4ff)" : "transparent",
+                color: payMode === "ton" ? "#0a0e1a" : "rgba(255,255,255,0.55)",
+              }}
+            >
+              TON
+            </button>
+          </div>
+        </div>
+        {payMode === "ton" && !connectedAddress && (
+          <button
+            onClick={() => tonConnectUI.openModal()}
+            className="w-full mb-2 rounded-xl px-3 py-2 text-xs font-black tracking-wider transition-all active:scale-98"
+            style={{
+              background: "linear-gradient(135deg, rgba(0,152,234,0.25), rgba(0,212,255,0.15))",
+              border: "1px solid rgba(0,212,255,0.4)",
+              color: "#00d4ff",
+            }}
+          >
+            CONNECT WALLET
+          </button>
+        )}
+        <div className="flex flex-col gap-2 mb-4">
+          {SPIN_PACKS.map((p) => {
+            const onClick = payMode === "stars" ? () => handleBuy(p.id) : () => handleTonBuy(p.id);
+            const priceLabel = payMode === "stars" ? `${p.stars}` : `${p.ton}`;
+            const priceColor = payMode === "stars" ? "#ffd700" : "#00d4ff";
+            const priceIcon = payMode === "stars" ? "⭐" : "TON";
+            const borderColor = payMode === "stars" ? "rgba(255,215,0,0.15)" : "rgba(0,212,255,0.2)";
+            return (
+              <button
+                key={p.id}
+                onClick={onClick}
+                disabled={buying === p.id}
+                className="w-full flex items-center justify-between rounded-xl px-4 py-3 transition-all active:scale-98"
+                style={{
+                  background: "linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+                  border: `1px solid ${borderColor}`,
+                  opacity: buying === p.id ? 0.6 : 1,
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-11 h-11 rounded-full flex items-center justify-center text-lg"
+                    style={{
+                      background: "radial-gradient(circle, rgba(0,242,254,0.2), rgba(0,242,254,0.05))",
+                      border: "1px solid rgba(0,242,254,0.3)",
+                    }}
+                  >
+                    🎡
+                  </div>
+                  <div className="text-left">
+                    <div className="font-black text-sm">{p.spins} {p.spins === 1 ? "Spin" : "Spins"}</div>
+                    {p.badge && (
+                      <div className="text-xs font-bold" style={{ color: "#43e97b" }}>{p.badge} OFF</div>
+                    )}
+                  </div>
+                </div>
+                <div className="font-black text-sm flex items-center gap-1" style={{ color: priceColor }}>
+                  {payMode === "stars" ? <span>{priceIcon}</span> : null}
+                  <span>{priceLabel}</span>
+                  {payMode === "ton" ? <span className="text-[10px] opacity-80">{priceIcon}</span> : null}
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {/* Prize legend */}
