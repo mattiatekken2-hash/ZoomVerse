@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 // 10 brighter "hero" stars sprinkled across the canvas, each with its own
 // twinkle phase so they shimmer independently and feel alive instead of
 // pulsing in unison with the layered star fields.
@@ -15,8 +17,24 @@ const TWINKLE_STARS: Array<{ top: string; left: string; size: number; dur: numbe
 ];
 
 export function NebulaBackground() {
+  // Pause every CSS animation in this background subtree (star fields,
+  // twinkles, nebula orbs, comets, UFOs) when the document is hidden —
+  // e.g. user backgrounds the Telegram Mini App or a fullscreen overlay
+  // covers the screen. Most browsers throttle hidden-tab animations
+  // already, but Telegram WebView (especially iOS) is not consistent
+  // about it, so we enforce it explicitly. When the document becomes
+  // visible again we drop the class and the animations resume from
+  // exactly where they left off (CSS animation-play-state semantics).
+  const [paused, setPaused] = useState<boolean>(() =>
+    typeof document !== "undefined" && document.visibilityState === "hidden",
+  );
+  useEffect(() => {
+    const onVis = () => setPaused(document.visibilityState === "hidden");
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
   return (
-    <div className="nebula-bg" aria-hidden="true">
+    <div className={paused ? "nebula-bg paused" : "nebula-bg"} aria-hidden="true">
       <div className="star-field star-field-a" />
       <div className="star-field star-field-b" />
       <div className="star-field star-field-c" />

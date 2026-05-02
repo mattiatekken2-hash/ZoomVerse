@@ -1,15 +1,19 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, lazy, Suspense, Component, type ReactNode, type ErrorInfo } from "react";
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
 import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/useGameState";
 import { useGlobalInit } from "./store/globalStore";
 import { NebulaBackground } from "./components/NebulaBackground";
-import { LabPage } from "./pages/LabPage";
-import { FarmPage } from "./pages/FarmPage";
-import { MarketPage } from "./pages/MarketPage";
-import { EarnPage } from "./pages/EarnPage";
-import { RankPage } from "./pages/RankPage";
-import { ShopPage } from "./pages/ShopPage";
-import { WheelPage } from "./pages/WheelPage";
+// Pages are lazy-loaded so the initial JS bundle the Telegram WebView has to
+// parse on cold start only contains the LAB (the boot screen). Other tabs are
+// fetched on first navigation, then kept mounted via the visitedTabs+display:
+// none pattern below — second visits are instant, no re-fetch.
+const LabPage = lazy(() => import("./pages/LabPage").then((m) => ({ default: m.LabPage })));
+const FarmPage = lazy(() => import("./pages/FarmPage").then((m) => ({ default: m.FarmPage })));
+const MarketPage = lazy(() => import("./pages/MarketPage").then((m) => ({ default: m.MarketPage })));
+const EarnPage = lazy(() => import("./pages/EarnPage").then((m) => ({ default: m.EarnPage })));
+const RankPage = lazy(() => import("./pages/RankPage").then((m) => ({ default: m.RankPage })));
+const ShopPage = lazy(() => import("./pages/ShopPage").then((m) => ({ default: m.ShopPage })));
+const WheelPage = lazy(() => import("./pages/WheelPage").then((m) => ({ default: m.WheelPage })));
 import { AdminPanel } from "./components/AdminPanel";
 import { SettingsMenu } from "./components/SettingsMenu";
 import { LanguageProvider, useT } from "./i18n/LanguageContext";
@@ -567,6 +571,19 @@ function AppShellWithState() {
       </header>
 
       <main className="flex-1 overflow-hidden relative z-10" style={{ minHeight: 0 }}>
+        {/* Suspense wraps the lazy-loaded pages. The fallback is a transparent
+            full-bleed div so the user sees the nebula background while the
+            page chunk is being fetched on first visit. After first visit the
+            page stays mounted (display:none below) so re-activations are
+            instant — no second Suspense boundary ever fires.
+            The ChunkErrorBoundary catches `ChunkLoadError` (or any other
+            failure to fetch the dynamic page chunks) which is realistic on
+            Telegram mobile networks and especially right after a deploy when
+            the cached HTML still references chunk hashes the server no
+            longer serves. Without this, a single failed fetch would crash
+            the entire React tree. */}
+        <ChunkErrorBoundary>
+        <Suspense fallback={<div style={{ height: "100%" }} />}>
         {ALL_TABS.map((t) => {
           const isActive = tab === t;
           if (!visitedTabs.has(t)) return null;
@@ -676,6 +693,8 @@ function AppShellWithState() {
             </div>
           );
         })}
+        </Suspense>
+        </ChunkErrorBoundary>
       </main>
 
       {/* ─── Stardust floating star — visible across every screen.
@@ -1101,6 +1120,82 @@ function StardustInfoPopup({ balance, today, dailyCap, globalTotal, onClose }: {
       </div>
     </div>
   );
+}
+
+/**
+ * Catches errors thrown while React is trying to render a lazy-loaded page
+ * (mostly `ChunkLoadError` from `import()` failing on flaky mobile networks
+ * or stale cached HTML pointing at chunk hashes that no longer exist after
+ * a deploy). Without this boundary a single chunk fetch failure would
+ * crash the whole React tree and leave the user staring at a blank screen
+ * with no way back. We show a tiny in-place retry card that does a hard
+ * reload — that re-fetches index.html which re-points to the current
+ * chunk hashes, fixing post-deploy mismatches in one tap.
+ */
+class ChunkErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { failed: false };
+  }
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo): void {
+    // Best-effort log; never throw from the boundary itself.
+    try { console.error("[ChunkErrorBoundary]", error?.message, info?.componentStack); } catch { /**/ }
+  }
+  private handleRetry = (): void => {
+    try { window.location.reload(); } catch { /**/ }
+  };
+  render(): ReactNode {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <div
+        style={{
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+        }}
+      >
+        <div
+          className="glass rounded-2xl px-6 py-5 text-center"
+          style={{
+            maxWidth: "min(86vw, 320px)",
+            border: "1.5px solid rgba(0, 242, 254, 0.45)",
+            boxShadow: "0 0 28px rgba(0, 242, 254, 0.25)",
+          }}
+        >
+          <div style={{ fontSize: 32, lineHeight: 1, marginBottom: 8 }}>📡</div>
+          <div className="font-black tracking-wide neon-text" style={{ fontSize: 14, letterSpacing: "0.08em" }}>
+            CONNESSIONE INTERROTTA
+          </div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.78)", marginTop: 8, fontWeight: 500, lineHeight: 1.45 }}>
+            Non sono riuscito a caricare questa sezione. Tocca per riprovare.
+          </div>
+          <button
+            type="button"
+            onClick={this.handleRetry}
+            style={{
+              marginTop: 14,
+              padding: "8px 18px",
+              borderRadius: 10,
+              background: "rgba(0, 242, 254, 0.16)",
+              border: "1px solid rgba(0, 242, 254, 0.5)",
+              color: "#9eeefe",
+              fontWeight: 800,
+              fontSize: 12,
+              letterSpacing: "0.08em",
+              cursor: "pointer",
+            }}
+          >
+            RIPROVA
+          </button>
+        </div>
+      </div>
+    );
+  }
 }
 
 function MaintenanceScreen({ message }: { message: string }) {
