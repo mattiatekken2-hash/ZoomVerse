@@ -470,7 +470,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
               <div className="font-black text-xs tracking-widest uppercase mb-3" style={{ color: "rgba(255,255,255,0.25)" }}>How it works</div>
               {[
                 { icon: "🪐", text: "Earn $ZOOM by farming, crafting, and referrals" },
-                { icon: "☀️", text: "THE SUN generates 10,000 $ZOOM/hr — maximum yield" },
+                { icon: "☀️", text: "THE SUN generates 1,000 $ZOOM/hr — maximum yield" },
                 { icon: "⏳", text: "Hold $ZOOM until Season 1 ends (3 months)" },
                 { icon: "💱", text: "Exchange $ZOOM for TON from the final pool" },
                 { icon: "🏆", text: "Top Zoom Season holders earn bonus rewards" },
