@@ -962,3 +962,46 @@
     radial-gradient(1px 1px at 92% 32%, rgba(255,255,255,0.5), transparent 60%);
   animation: star-twinkle-b 7s ease-in-out infinite;
 }
+
+/* ─── HOME — astronaut + bird life animations ─────────────────────────
+   Pixel-art friendly. We keep all transforms on integer-pixel-ish steps
+   so the sprite stays crisp on retina + scaled rooms. */
+
+@keyframes home-astro-walk {
+  0%   { transform: translateX(-78px) scaleX(1); }
+  44%  { transform: translateX( 78px) scaleX(1); }
+  50%  { transform: translateX( 78px) scaleX(-1); }
+  94%  { transform: translateX(-78px) scaleX(-1); }
+  100% { transform: translateX(-78px) scaleX(1); }
+}
+@keyframes home-astro-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2px); }
+}
+@keyframes home-z-float {
+  0%   { transform: translate(0, 0) scale(0.6); opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translate(8px, -22px) scale(1.1); opacity: 0; }
+}
+@keyframes home-steam-rise {
+  0%   { transform: translate(0, 0); opacity: 0; }
+  20%  { opacity: 0.9; }
+  100% { transform: translate(2px, -16px) scale(1.4); opacity: 0; }
+}
+@keyframes home-chew {
+  0%, 100% { transform: scaleY(1); }
+  50%      { transform: scaleY(0.6); }
+}
+@keyframes home-bird-ltr {
+  0%   { transform: translateX(-20px); }
+  100% { transform: translateX(calc(100% + 20px)); }
+}
+@keyframes home-bird-rtl {
+  0%   { transform: translateX(calc(100% + 20px)) scaleX(-1); }
+  100% { transform: translateX(-20px) scaleX(-1); }
+}
+@keyframes home-bird-flap {
+  0%, 100% { transform: scaleY(1); }
+  50%      { transform: scaleY(-0.8); }
+}

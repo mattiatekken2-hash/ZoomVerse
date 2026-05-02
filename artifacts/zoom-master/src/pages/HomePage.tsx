@@ -253,6 +253,7 @@ export function HomePage({ telegramId, visible }: HomePageProps) {
             computerOwned={state.computer.owned}
             computerClaimable={state.computer.claimable}
             secondsToReady={state.computer.secondsToReady}
+            visible={visible}
             onSlotClick={(s) => {
               if (!arrange) {
                 // Outside arrange mode: clicking the slot only does
@@ -473,7 +474,7 @@ interface PixelRoomProps {
   onSlotClick: (slot: Slot) => void;
 }
 
-function PixelRoom({ phase, slots, arrange, computerClaimable, onSlotClick }: PixelRoomProps) {
+function PixelRoom({ phase, slots, arrange, computerClaimable, onSlotClick, visible }: PixelRoomProps & { visible: boolean }) {
   const sky = PHASE_GRADIENT[phase];
   const ground = PHASE_GROUND[phase];
   const wall = "#2a2540";
@@ -518,6 +519,11 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, onSlotClick }: Pi
         <PixelTable x={36} y={36} />
         <PixelChair x={50} y={42} />
       </svg>
+
+      {/* Life overlay — astronaut going about his routine, plus the
+          occasional bird drifting across the window. Sits ABOVE the room
+          SVG and BELOW the slot buttons so it never intercepts clicks. */}
+      <RoomLifeOverlay phase={phase} visible={visible} />
 
       {/* Slot overlays — positioned absolutely on top of the SVG so we
           can attach onClick handlers and the rendered item without
@@ -590,6 +596,320 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, onSlotClick }: Pi
         );
       })}
     </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// Room life — astronaut routine + birds.
+// All purely visual / client-side. Animations pause when the HOME tab
+// isn't active (visible=false) so we don't churn timers in the background.
+// ────────────────────────────────────────────────────────────────────────
+type Activity = "sleep" | "walk" | "coffee" | "snack" | "window";
+const ACTIVITIES: Activity[] = ["sleep", "walk", "coffee", "snack", "window"];
+
+interface Bird {
+  id: number;
+  direction: "ltr" | "rtl";
+  topPct: number;
+  durationS: number;
+}
+
+function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean }) {
+  const [activity, setActivity] = useState<Activity>("walk");
+  const [birds, setBirds] = useState<Bird[]>([]);
+  // Persistent monotonic bird id so that stale cull timeouts from a
+  // previous effect run can never collide with a freshly-spawned bird's
+  // id and cause flicker.
+  const birdIdRef = useRef(0);
+
+  // Activity rotation. Picks a different activity than the current one
+  // so the astronaut doesn't appear to "stay" in place across cycles.
+  // We use a `cancelled` flag so any in-flight callback that fires after
+  // teardown is a complete no-op (no setState after unmount, no fresh
+  // timer scheduled into the void).
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    let timer: number;
+    const tick = () => {
+      if (cancelled) return;
+      setActivity((cur) => {
+        const others = ACTIVITIES.filter((a) => a !== cur);
+        return others[Math.floor(Math.random() * others.length)];
+      });
+      timer = window.setTimeout(tick, 12000 + Math.random() * 18000);
+    };
+    timer = window.setTimeout(tick, 8000 + Math.random() * 8000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [visible]);
+
+  // Birds — only spawn when the sky outside is bright enough to see them.
+  // Each bird also has its own cull timer; we track ALL of them in a Set
+  // so cleanup truly cancels every pending timeout (otherwise a leftover
+  // cull from cycle N could fire during cycle N+1 and remove a same-id
+  // bird that's still flying).
+  useEffect(() => {
+    if (!visible || phase === "night") {
+      setBirds([]);
+      return;
+    }
+    let cancelled = false;
+    let spawnTimer: number;
+    const cullTimers = new Set<number>();
+    const spawn = () => {
+      if (cancelled) return;
+      const direction: "ltr" | "rtl" = Math.random() < 0.5 ? "ltr" : "rtl";
+      const topPct = 8 + Math.random() * 35;
+      const durationS = 5 + Math.random() * 4;
+      const bird: Bird = { id: ++birdIdRef.current, direction, topPct, durationS };
+      setBirds((prev) => [...prev, bird]);
+      const cull = window.setTimeout(() => {
+        cullTimers.delete(cull);
+        if (cancelled) return;
+        setBirds((prev) => prev.filter((b) => b.id !== bird.id));
+      }, durationS * 1000 + 500);
+      cullTimers.add(cull);
+      spawnTimer = window.setTimeout(spawn, 9000 + Math.random() * 24000);
+    };
+    spawnTimer = window.setTimeout(spawn, 4000 + Math.random() * 4000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(spawnTimer);
+      cullTimers.forEach((id) => window.clearTimeout(id));
+      cullTimers.clear();
+      setBirds([]);
+    };
+  }, [visible, phase]);
+
+  // Astronaut placement per activity. Coords are % of the room container,
+  // matching the SVG's 80×64 furniture layout.
+  const astroPos: Record<Activity, { left: string; top: string; flip?: boolean }> = {
+    sleep: { left: "16%", top: "53%" },         // on the bed (head on pillow)
+    walk: { left: "50%", top: "82%" },          // walking strip across the floor
+    coffee: { left: "70%", top: "76%" },        // sitting on the chair
+    snack: { left: "55%", top: "78%" },         // standing by the table
+    window: { left: "58%", top: "62%", flip: false }, // facing the window
+  };
+  const pos = astroPos[activity];
+
+  return (
+    <div
+      aria-hidden
+      style={{
+        position: "absolute",
+        inset: 0,
+        pointerEvents: "none",
+        overflow: "hidden",
+      }}
+    >
+      {/* Window sky overlay — birds clip to this rect so they only
+          appear inside the window frame (matches the SVG window at
+          x=29..63, y=5..24 of the 80×64 viewBox). */}
+      <div
+        style={{
+          position: "absolute",
+          left: `${(29 / 80) * 100}%`,
+          top: `${(5 / 64) * 100}%`,
+          width: `${(34 / 80) * 100}%`,
+          height: `${(19 / 64) * 100}%`,
+          overflow: "hidden",
+        }}
+      >
+        {birds.map((b) => (
+          <div
+            key={b.id}
+            style={{
+              position: "absolute",
+              left: 0,
+              top: `${b.topPct}%`,
+              width: 12,
+              height: 6,
+              animation: `${b.direction === "ltr" ? "home-bird-ltr" : "home-bird-rtl"} ${b.durationS}s linear forwards`,
+            }}
+          >
+            <div style={{ animation: "home-bird-flap 0.35s ease-in-out infinite" }}>
+              <Bird />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Astronaut */}
+      <div
+        style={{
+          position: "absolute",
+          left: pos.left,
+          top: pos.top,
+          width: 28,
+          height: 28,
+          transform: "translate(-50%, -50%)",
+          transition: "left 0.6s ease, top 0.6s ease",
+        }}
+      >
+        {activity === "sleep" && <SleepingAstronaut />}
+        {activity === "walk" && (
+          <div style={{ animation: "home-astro-walk 8s ease-in-out infinite" }}>
+            <div style={{ animation: "home-astro-bob 0.5s ease-in-out infinite" }}>
+              <Astronaut pose="stand" />
+            </div>
+          </div>
+        )}
+        {activity === "coffee" && (
+          <div style={{ position: "relative" }}>
+            <Astronaut pose="sit" />
+            <Steam />
+          </div>
+        )}
+        {activity === "snack" && <Astronaut pose="snack" />}
+        {activity === "window" && <Astronaut pose="stand" facing="up" />}
+      </div>
+    </div>
+  );
+}
+
+// Tiny pixel astronaut. ~7×11 logical pixels, rendered at 28px wide so
+// each pixel is 4px on screen (sharp at 1×, still readable scaled).
+function Astronaut({ pose = "stand", facing = "side" }: { pose?: "stand" | "sit" | "snack"; facing?: "side" | "up" }) {
+  const helmet = "#dfe6f0";
+  const visor = "#0a1a3d";
+  const visorShine = "#7fdfff";
+  const suit = "#f3f4f6";
+  const suitShade = "#b9bcc4";
+  const accent = "#00f2fe";
+  const skinDark = "#3a2a1f";
+  // Sit pose tucks the legs in (shorter overall sprite).
+  const legY = pose === "sit" ? 8 : 9;
+  const legH = pose === "sit" ? 1 : 2;
+  return (
+    <svg viewBox="0 0 8 12" width={28} height={42} style={{ imageRendering: "pixelated", display: "block" }}>
+      {/* Backpack */}
+      <rect x="6" y="4" width="2" height="3" fill={suitShade} />
+      {/* Helmet */}
+      <rect x="1" y="0" width="6" height="4" fill={helmet} />
+      {/* Visor */}
+      <rect x="2" y="1" width="4" height="2" fill={visor} />
+      {facing === "up" ? (
+        <rect x="3" y="1" width="2" height="1" fill={visorShine} />
+      ) : (
+        <rect x="4" y="1" width="1" height="1" fill={visorShine} />
+      )}
+      {/* Body */}
+      <rect x="2" y="4" width="4" height="4" fill={suit} />
+      {/* Chest patch */}
+      <rect x="3" y="5" width="2" height="1" fill={accent} />
+      {/* Belt */}
+      <rect x="2" y="7" width="4" height="1" fill={suitShade} />
+      {/* Arms */}
+      {pose === "snack" ? (
+        <>
+          <rect x="1" y="4" width="1" height="2" fill={suit} />
+          <rect x="6" y="3" width="1" height="3" fill={suit} />
+          {/* Cookie */}
+          <rect x="6" y="2" width="2" height="2" fill="#c89060" />
+          <rect x="6" y="2" width="1" height="1" fill={skinDark} />
+        </>
+      ) : pose === "sit" ? (
+        <>
+          <rect x="1" y="5" width="1" height="2" fill={suit} />
+          <rect x="6" y="5" width="1" height="2" fill={suit} />
+          {/* Mug */}
+          <rect x="5" y="6" width="2" height="2" fill="#ffffff" />
+          <rect x="5" y="7" width="2" height="1" fill="#8a5a2a" />
+        </>
+      ) : (
+        <>
+          <rect x="1" y="4" width="1" height="3" fill={suit} />
+          <rect x="6" y="4" width="1" height="3" fill={suit} />
+        </>
+      )}
+      {/* Legs */}
+      <rect x="2" y={legY} width="2" height={legH} fill={suit} />
+      <rect x="4" y={legY} width="2" height={legH} fill={suit} />
+      {/* Boots */}
+      {pose !== "sit" && (
+        <>
+          <rect x="2" y="10" width="2" height="1" fill={suitShade} />
+          <rect x="4" y="10" width="2" height="1" fill={suitShade} />
+        </>
+      )}
+    </svg>
+  );
+}
+
+// Astronaut tucked under the bed sheets — only the helmet shows on the
+// pillow, with floating Z's above.
+function SleepingAstronaut() {
+  return (
+    <div style={{ position: "relative", width: 28, height: 28 }}>
+      <svg
+        viewBox="0 0 8 4"
+        width={28}
+        height={14}
+        style={{ imageRendering: "pixelated", display: "block", position: "absolute", left: 0, bottom: 6 }}
+      >
+        {/* Helmet only (head on pillow) */}
+        <rect x="1" y="0" width="6" height="4" fill="#dfe6f0" />
+        <rect x="2" y="1" width="4" height="2" fill="#0a1a3d" />
+        {/* Closed eye line via visor shine, dim */}
+        <rect x="3" y="2" width="2" height="1" fill="#1a3a5c" />
+      </svg>
+      {/* Three Z's spawned with staggered delays so it looks continuous. */}
+      {[0, 1.1, 2.2].map((delay, i) => (
+        <span
+          key={i}
+          style={{
+            position: "absolute",
+            left: 18,
+            top: 0,
+            fontSize: 10,
+            fontWeight: 900,
+            color: "#cfe2ff",
+            textShadow: "0 0 4px rgba(0,0,0,0.6)",
+            animation: `home-z-float 3.3s ease-in-out ${delay}s infinite`,
+          }}
+        >
+          z
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function Steam() {
+  return (
+    <>
+      {[0, 0.6, 1.2].map((delay, i) => (
+        <span
+          key={i}
+          style={{
+            position: "absolute",
+            left: 22,
+            top: 18,
+            width: 4,
+            height: 4,
+            borderRadius: "50%",
+            background: "rgba(255,255,255,0.7)",
+            animation: `home-steam-rise 1.8s ease-out ${delay}s infinite`,
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
+function Bird() {
+  return (
+    <svg viewBox="0 0 6 3" width={12} height={6} style={{ imageRendering: "pixelated", display: "block" }}>
+      {/* Simple "M" wing silhouette. */}
+      <rect x="0" y="1" width="1" height="1" fill="#1a1a1a" />
+      <rect x="1" y="0" width="1" height="1" fill="#1a1a1a" />
+      <rect x="2" y="1" width="1" height="1" fill="#1a1a1a" />
+      <rect x="3" y="0" width="1" height="1" fill="#1a1a1a" />
+      <rect x="4" y="1" width="1" height="1" fill="#1a1a1a" />
+    </svg>
   );
 }
 
