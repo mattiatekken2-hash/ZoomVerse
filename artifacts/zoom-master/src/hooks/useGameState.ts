@@ -1173,6 +1173,12 @@ export function formatDuration(ms: number): string {
 
 const DEFECT_CHANCE = 0.04;
 const DYNAMIC_BONUS_MAX = 10;
+// Server's deterministic bonus is the AVERAGE of the old random range
+// (artifacts/api-server/src/routes/farm-settle.ts → DYNAMIC_BONUS_AVG =
+// DYNAMIC_BONUS_MAX / 2 = 5). Mirroring the same constant here keeps the
+// client's offline-earnings preview EXACTLY equal to what the server credits,
+// so the visible balance never bounces on app open.
+const DYNAMIC_BONUS_AVG = DYNAMIC_BONUS_MAX / 2;
 
 function settleFarmingState(state: GameState, now: number): GameState {
   const from = state.lastFarmingSettledAt || now;
@@ -1192,8 +1198,18 @@ function settleFarmingState(state: GameState, now: number): GameState {
     const start = Math.max(from, eff);
     const end = Math.min(now, eff + FARM_DURATION_MS);
     if (end > start) {
-      const dynamicRate = planet.rate + Math.random() * DYNAMIC_BONUS_MAX;
-      earned += (dynamicRate / 3_600_000) * (end - start) * speedMultiplier;
+      // IMPORTANT: must stay deterministic and EXACTLY match the server formula
+      // in artifacts/api-server/src/routes/farm-settle.ts (line 188:
+      // `effectiveRate = rate + DYNAMIC_BONUS_AVG`). Previously this used
+      // `planet.rate + Math.random() * DYNAMIC_BONUS_MAX`, which made the
+      // client over-estimate offline earnings on app open: balance jumped
+      // (e.g. 59662 → 60500), then `/farm/settle` returned the deterministic
+      // server total (60362) and the epoch-advance snap pulled the UI DOWN.
+      // Using the same `+ DYNAMIC_BONUS_AVG` constant on both sides keeps the
+      // preview exactly equal to the credit, so the visible balance never
+      // moves backwards on open.
+      const effectiveRate = planet.rate + DYNAMIC_BONUS_AVG;
+      earned += (effectiveRate / 3_600_000) * (end - start) * speedMultiplier;
     }
   }
 
