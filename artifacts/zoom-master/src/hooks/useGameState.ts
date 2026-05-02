@@ -1574,18 +1574,16 @@ export function useGameState() {
             if (actuallyAdd > 0) {
               claimedUpdates[claimedKey] = Math.max(claimedCount, existingBonusCount) + actuallyAdd;
             }
-          } else if (toAdd < 0) {
-            let toRemove = Math.abs(toAdd);
-            updated = {
-              ...updated,
-              planets: updated.planets.filter((planet) => {
-                if (toRemove <= 0 || planet.name !== type || !planet.id.startsWith(`bonus-${type}-`)) return true;
-                toRemove -= 1;
-                return false;
-              }),
-            };
-            claimedUpdates[claimedKey] = serverCount;
           }
+          // NOTE: we intentionally do NOT delete planets when toAdd < 0
+          // (server bonus counter is below the local materialized count).
+          // Real money is at stake — silently destroying user planets due
+          // to a counter desync (admin reset, race with /planets/burn,
+          // GREATEST high-water-mark on claimed_bonus_*) caused the
+          // "10 RARE planets disappeared" complaint from @lektig.
+          // Grow-only reconciliation: bonus planets can only be created
+          // here, never removed. Burns/sales are the only legitimate
+          // ways for a bonus planet to leave the inventory.
         }
 
         if (newPlanets.length > 0 || Object.keys(claimedUpdates).length > 0) {
@@ -1730,18 +1728,10 @@ export function useGameState() {
             claimedWhiteCollectionBundles: serverBundles2,
             whitePlanets: [...(updated.whitePlanets || []), ...newWhitePlanets2],
           };
-        } else if (serverBundles2 < claimedBundles2) {
-          const keep = (p: Planet) => {
-            const m = /-b(\d+)-/.exec(p.id);
-            const idx = m ? parseInt(m[1]!, 10) : 0;
-            return idx < serverBundles2;
-          };
-          updated = {
-            ...updated,
-            claimedWhiteCollectionBundles: serverBundles2,
-            whitePlanets: (updated.whitePlanets || []).filter(keep),
-          };
         }
+        // Grow-only: never delete white-collection planets when the server
+        // bundle counter is below the local claimed count. Same protection
+        // as bonus-planet reconciliation — real money is at stake.
 
         const claimedEarthBundles2 = Math.max(0, updated.claimedEarthCollectionBundles ?? 0);
         if (serverEarthBundles2 > claimedEarthBundles2) {
@@ -1755,18 +1745,9 @@ export function useGameState() {
             claimedEarthCollectionBundles: serverEarthBundles2,
             earthPlanets: [...(updated.earthPlanets || []), ...newEarthPlanets2],
           };
-        } else if (serverEarthBundles2 < claimedEarthBundles2) {
-          const keepEarth = (p: Planet) => {
-            const m = /-b(\d+)-/.exec(p.id);
-            const idx = m ? parseInt(m[1]!, 10) : 0;
-            return idx < serverEarthBundles2;
-          };
-          updated = {
-            ...updated,
-            claimedEarthCollectionBundles: serverEarthBundles2,
-            earthPlanets: (updated.earthPlanets || []).filter(keepEarth),
-          };
         }
+        // Grow-only: never delete earth-collection planets when the server
+        // bundle counter is below the local claimed count.
 
         const bonusTypes: Array<{ key: keyof Grants; claimedKey: keyof GameState; type: PlanetType }> = [
           { key: "bonusBasic", claimedKey: "claimedBonusBasic", type: "BASIC" },
@@ -1811,18 +1792,10 @@ export function useGameState() {
             if (actuallyAdd > 0) {
               claimedUpdates[claimedKey] = (Math.max(claimedCount, existingBonusCount) + actuallyAdd) as never;
             }
-          } else if (toAdd < 0) {
-            let toRemove = Math.abs(toAdd);
-            updated = {
-              ...updated,
-              planets: updated.planets.filter((planet) => {
-                if (toRemove <= 0 || planet.name !== type || !planet.id.startsWith(`bonus-${type}-`)) return true;
-                toRemove -= 1;
-                return false;
-              }),
-            };
-            claimedUpdates[claimedKey] = serverCount as never;
           }
+          // See companion block above: NEVER delete planets via grant
+          // reconciliation. Grow-only — protects against counter desync
+          // wiping real-money assets.
         }
 
         if (newPlanets.length > 0 || Object.keys(claimedUpdates).length > 0) {
@@ -2691,6 +2664,15 @@ export function useGameState() {
       try {
         const active = await fetchMarketListings();
         if (cancelled) return;
+        // Safety guard: if the server returns ZERO active listings while
+        // we have ANY locally-listed planet, treat the response as
+        // suspicious (transient server issue, query bug, pagination
+        // truncation) and skip the reconcile. The probability of every
+        // single one of a user's listings being legitimately sold/delisted
+        // between two 30s polls — AND no other player having ANY active
+        // listing in the entire market — is effectively zero. Real money
+        // is at stake; we'd rather miss a sync than destroy a planet.
+        if (active.length === 0) return;
         const activeIds = new Set(active.map((l) => l.id));
         const goneIds = new Set(
           myListed
@@ -2698,6 +2680,16 @@ export function useGameState() {
             .map((p) => p.serverListingId as number),
         );
         if (goneIds.size === 0) return;
+        // Second safety guard: if more than half of our listings would be
+        // wiped in a single reconcile, bail out. A genuine "I sold 5 of my
+        // 6 listings while offline" is rare; a buggy/partial response
+        // returning a truncated list is more likely. Forces a manual
+        // refresh by the user, which is preferable to silent destruction.
+        if (myListed.length >= 2 && goneIds.size > myListed.length / 2) {
+          // eslint-disable-next-line no-console
+          console.warn("[market reconcile] suspicious: would remove", goneIds.size, "of", myListed.length, "— skipping");
+          return;
+        }
         setState((prev) => ({
           ...prev,
           planets: prev.planets.filter(
@@ -2709,7 +2701,7 @@ export function useGameState() {
               ),
           ),
         }));
-      } catch { /* ignore */ }
+      } catch { /* network/parse error — keep planets, retry next poll */ }
     };
     void reconcile();
     const onVisible = () => { if (!document.hidden) void reconcile(); };

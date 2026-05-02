@@ -1047,14 +1047,18 @@ export interface ServerMarketListing {
 }
 
 export async function fetchMarketListings(): Promise<ServerMarketListing[]> {
-  try {
-    const res = await fetch(`${API_BASE}/market/listings?t=${Date.now()}`, { cache: "no-store" });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data.listings) ? data.listings : [];
-  } catch {
-    return [];
-  }
+  // Throws on network/HTTP/parse failure so callers can distinguish a
+  // confirmed-empty market from a transient outage. Previously this
+  // swallowed all errors and returned [] — which made the periodic
+  // "orphan listing reconcile" in useGameState delete every locally-listed
+  // planet on a single network blip (root cause of vanishing-planet
+  // reports). Callers that prefer the old behavior must explicitly catch
+  // and substitute [].
+  const res = await fetch(`${API_BASE}/market/listings?t=${Date.now()}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`market/listings HTTP ${res.status}`);
+  const data = await res.json();
+  if (!Array.isArray(data?.listings)) throw new Error("market/listings malformed response");
+  return data.listings as ServerMarketListing[];
 }
 
 export async function listOnMarket(params: {

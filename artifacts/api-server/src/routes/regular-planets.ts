@@ -117,7 +117,7 @@ router.post("/regular-planets/save", async (req, res) => {
     claimedBonusV1,
   } = parsed.data;
   try {
-    // Atomic write with two safety properties:
+    // Atomic write with three safety properties:
     //   1. Stale-write fence: only overwrite `planets_json` (and bump
     //      `planets_updated_at_ms`) if the incoming clientWriteAtMs is
     //      strictly greater than the stored one. This handles concurrent
@@ -125,7 +125,59 @@ router.post("/regular-planets/save", async (req, res) => {
     //   2. Monotonic counters: `claimed_bonus_*` are GREATEST-merged so a
     //      stale save can never lower them, which would otherwise let
     //      applyGrants re-mint bonus planets that were already burned.
+    //   3. Anti-shrink fence (added after @lektig "10 RARE disappeared"
+    //      report): refuse the write if the new array is dramatically
+    //      smaller than what we already have stored. Burns/sales remove
+    //      at most ~2 planets per debounce window (1.2s), so a save that
+    //      drops 6+ items in one go is almost certainly a buggy client
+    //      reconciliation we haven't found yet. We log it for audit and
+    //      return 200 with `accepted:false` — the client will keep its
+    //      local state, the server keeps the larger snapshot, and a
+    //      legitimate operation will retry on the next debounce.
     //   The whole thing runs in a single UPDATE so we don't need a tx.
+    const SHRINK_GUARD_THRESHOLD = 6; // max items a single save may drop
+    const existingRow = await db
+      .select({
+        planetsJson: usersTable.planetsJson,
+        updatedAt: usersTable.planetsUpdatedAtMs,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, telegramId))
+      .limit(1);
+    if (existingRow.length === 0) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    const existingPlanets = Array.isArray(existingRow[0]!.planetsJson)
+      ? (existingRow[0]!.planetsJson as unknown[])
+      : [];
+    const lostCount = existingPlanets.length - planets.length;
+    if (lostCount >= SHRINK_GUARD_THRESHOLD) {
+      console.warn(
+        `[regular-planets/save] anti-shrink guard tripped for ${telegramId}: ` +
+        `stored=${existingPlanets.length}, incoming=${planets.length}, lost=${lostCount}. ` +
+        `Refusing to overwrite planets_json. clientWriteAtMs=${clientWriteAtMs}, storedUpdatedAt=${existingRow[0]!.updatedAt}.`
+      );
+      // Still allow the GREATEST-merged claimed_bonus_* counters to land —
+      // they're monotonic and harmless. Just don't touch planets_json.
+      await db
+        .update(usersTable)
+        .set({
+          ...(claimedBonusBasic != null ? { claimedBonusBasic: sql`GREATEST(${usersTable.claimedBonusBasic}, ${claimedBonusBasic})` } : {}),
+          ...(claimedBonusRare  != null ? { claimedBonusRare:  sql`GREATEST(${usersTable.claimedBonusRare},  ${claimedBonusRare})`  } : {}),
+          ...(claimedBonusEpic  != null ? { claimedBonusEpic:  sql`GREATEST(${usersTable.claimedBonusEpic},  ${claimedBonusEpic})`  } : {}),
+          ...(claimedBonusGold  != null ? { claimedBonusGold:  sql`GREATEST(${usersTable.claimedBonusGold},  ${claimedBonusGold})`  } : {}),
+          ...(claimedBonusV1    != null ? { claimedBonusV1:    sql`GREATEST(${usersTable.claimedBonusV1},    ${claimedBonusV1})`    } : {}),
+        })
+        .where(eq(usersTable.telegramId, telegramId));
+      res.json({
+        ok: true,
+        accepted: false,
+        count: existingPlanets.length,
+        rejected: "anti-shrink guard",
+      });
+      return;
+    }
     const updated = await db
       .update(usersTable)
       .set({

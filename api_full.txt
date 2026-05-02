@@ -1,0 +1,1469 @@
+     1	const API_BASE = `${window.location.origin}/api`;
+     2	
+     3	/**
+     4	 * Tell the server a planet started farming. The server uses this to
+     5	 * schedule the "Farm full" Telegram notification 24h later. Fire-and-forget
+     6	 * — failures are silently ignored so a network blip never blocks gameplay.
+     7	 */
+     8	export function notifyFarmStart(telegramId: string, planetId: string, planetType: string, isWhite = false): void {
+     9	  if (!telegramId || !planetId) return;
+    10	  fetch(`${API_BASE}/farm/start`, {
+    11	    method: "POST",
+    12	    headers: { "Content-Type": "application/json" },
+    13	    body: JSON.stringify({ telegramId, planetId, planetType, isWhite }),
+    14	    keepalive: true,
+    15	  }).catch(() => { /* ignore */ });
+    16	}
+    17	
+    18	/**
+    19	 * Stamp the planet's cycle as collected so the server's cron skips the
+    20	 * "Farm full" notification (the user is clearly still engaged).
+    21	 */
+    22	export function notifyFarmCollect(telegramId: string, planetId: string): void {
+    23	  if (!telegramId || !planetId) return;
+    24	  fetch(`${API_BASE}/farm/collect`, {
+    25	    method: "POST",
+    26	    headers: { "Content-Type": "application/json" },
+    27	    body: JSON.stringify({ telegramId, planetId }),
+    28	    keepalive: true,
+    29	  }).catch(() => { /* ignore */ });
+    30	}
+    31	
+    32	/**
+    33	 * Cancel a scheduled "Farm full" notification (planet sold/burned/stopped).
+    34	 */
+    35	export function notifyFarmStop(telegramId: string, planetId: string): void {
+    36	  if (!telegramId || !planetId) return;
+    37	  fetch(`${API_BASE}/farm/stop`, {
+    38	    method: "POST",
+    39	    headers: { "Content-Type": "application/json" },
+    40	    body: JSON.stringify({ telegramId, planetId }),
+    41	    keepalive: true,
+    42	  }).catch(() => { /* ignore */ });
+    43	}
+    44	
+    45	/**
+    46	 * Permanently consume one bonus-planet entitlement on the server when the
+    47	 * user burns a planet that was originally granted by the server (id starts
+    48	 * with `bonus-`). Without this, the next /grants sync would re-grant the
+    49	 * same planet because the entitlement counter is still > claimed.
+    50	 */
+    51	export function notifyPlanetBurn(telegramId: string, planetType: "BASIC" | "RARE" | "EPIC" | "GOLD"): void {
+    52	  if (!telegramId) return;
+    53	  fetch(`${API_BASE}/planets/burn`, {
+    54	    method: "POST",
+    55	    headers: { "Content-Type": "application/json" },
+    56	    body: JSON.stringify({ telegramId, planetType }),
+    57	    keepalive: true,
+    58	  }).catch(() => { /* ignore */ });
+    59	}
+    60	
+    61	// Returns the server's current epoch ms, or null if it can't be obtained.
+    62	// We never silently fall back to Date.now() because callers use this value
+    63	// to *detect* clock-tampering — substituting the local clock on failure
+    64	// would defeat the very check (e.g. the stardust spawn anti-tamper schedule
+    65	// would treat the local clock as authoritative whenever /time is briefly
+    66	// unreachable, re-opening the exploit). Callers must handle null explicitly
+    67	// (typically: skip persistence, or skip honouring a saved timestamp).
+    68	export async function fetchServerTime(): Promise<number | null> {
+    69	  try {
+    70	    const res = await fetch(`${API_BASE}/time?t=${Date.now()}`, { cache: "no-store" });
+    71	    if (!res.ok) return null;
+    72	    const data = await res.json();
+    73	    return typeof data.serverTime === "number" ? data.serverTime : null;
+    74	  } catch {
+    75	    return null;
+    76	  }
+    77	}
+    78	
+    79	export async function debugTelegramContext(data: {
+    80	  telegramId: string | null;
+    81	  initData: string;
+    82	  initDataUnsafe: string;
+    83	  startParam: string | null;
+    84	  localStorageParam: string | null;
+    85	  href?: string;
+    86	  hash?: string;
+    87	  search?: string;
+    88	}): Promise<void> {
+    89	  try {
+    90	    await fetch(`${API_BASE}/referral/debug`, {
+    91	      method: "POST",
+    92	      headers: { "Content-Type": "application/json" },
+    93	      body: JSON.stringify(data),
+    94	    });
+    95	  } catch { /**/ }
+    96	}
+    97	
+    98	export async function registerUser(
+    99	  telegramId: string,
+   100	  referredBy?: string | null,
+   101	  firstName?: string | null,
+   102	  username?: string | null,
+   103	): Promise<{ ok: boolean; isNew: boolean }> {
+   104	  try {
+   105	    const res = await fetch(`${API_BASE}/referral/register`, {
+   106	      method: "POST",
+   107	      headers: { "Content-Type": "application/json" },
+   108	      body: JSON.stringify({
+   109	        telegramId,
+   110	        referredBy: referredBy ?? undefined,
+   111	        firstName: firstName ?? undefined,
+   112	        username: username ?? undefined,
+   113	      }),
+   114	    });
+   115	    if (!res.ok) return { ok: false, isNew: false };
+   116	    return res.json();
+   117	  } catch {
+   118	    return { ok: false, isNew: false };
+   119	  }
+   120	}
+   121	
+   122	export interface ReferralData {
+   123	  referralCount: number;
+   124	  claimedMilestones: number[];
+   125	}
+   126	
+   127	export async function fetchPendingReferral(telegramId: string): Promise<string | null> {
+   128	  try {
+   129	    const res = await fetch(`${API_BASE}/referral/pending/${encodeURIComponent(telegramId)}`);
+   130	    if (!res.ok) return null;
+   131	    const data = await res.json();
+   132	    return data.referrer || null;
+   133	  } catch {
+   134	    return null;
+   135	  }
+   136	}
+   137	
+   138	export async function fetchReferralData(telegramId: string): Promise<ReferralData> {
+   139	  try {
+   140	    const res = await fetch(`${API_BASE}/referral/${encodeURIComponent(telegramId)}`);
+   141	    if (!res.ok) return { referralCount: 0, claimedMilestones: [] };
+   142	    const data = await res.json();
+   143	    return {
+   144	      referralCount: typeof data.referralCount === "number" ? data.referralCount : 0,
+   145	      claimedMilestones: Array.isArray(data.claimedMilestones) ? data.claimedMilestones : [],
+   146	    };
+   147	  } catch {
+   148	    return { referralCount: 0, claimedMilestones: [] };
+   149	  }
+   150	}
+   151	
+   152	export async function fetchReferralCount(telegramId: string): Promise<number> {
+   153	  const data = await fetchReferralData(telegramId);
+   154	  return data.referralCount;
+   155	}
+   156	
+   157	export async function checkMilestones(telegramId: string): Promise<{ credited: number; milestonesClaimed: number[] }> {
+   158	  try {
+   159	    const res = await fetch(`${API_BASE}/referral/check-milestones`, {
+   160	      method: "POST",
+   161	      headers: { "Content-Type": "application/json" },
+   162	      body: JSON.stringify({ telegramId }),
+   163	    });
+   164	    if (!res.ok) return { credited: 0, milestonesClaimed: [] };
+   165	    return res.json();
+   166	  } catch {
+   167	    return { credited: 0, milestonesClaimed: [] };
+   168	  }
+   169	}
+   170	
+   171	export async function syncBalance(params: {
+   172	  telegramId: string;
+   173	  firstName?: string | null;
+   174	  username?: string | null;
+   175	  zoomBalance: number;
+   176	  tonBalance?: number;
+   177	  clientEpoch?: number;
+   178	}): Promise<{ zoomBalance: number; tonBalance: number; balanceEpoch: number }> {
+   179	  const fallbackTon = typeof params.tonBalance === "number" ? params.tonBalance : 0;
+   180	  try {
+   181	    const res = await fetch(`${API_BASE}/balance/sync`, {
+   182	      method: "POST",
+   183	      headers: { "Content-Type": "application/json" },
+   184	      body: JSON.stringify(params),
+   185	    });
+   186	    if (!res.ok) return { zoomBalance: params.zoomBalance, tonBalance: fallbackTon, balanceEpoch: params.clientEpoch ?? 0 };
+   187	    const data = await res.json();
+   188	    return {
+   189	      zoomBalance: typeof data.zoomBalance === "number" ? data.zoomBalance : params.zoomBalance,
+   190	      tonBalance: typeof data.tonBalance === "number" ? data.tonBalance : fallbackTon,
+   191	      balanceEpoch: typeof data.balanceEpoch === "number" ? data.balanceEpoch : (params.clientEpoch ?? 0),
+   192	    };
+   193	  } catch {
+   194	    return { zoomBalance: params.zoomBalance, tonBalance: fallbackTon, balanceEpoch: params.clientEpoch ?? 0 };
+   195	  }
+   196	}
+   197	
+   198	export interface Grants {
+   199	  bonusSlots: number;
+   200	  bonusSun: boolean;
+   201	  sunCount: number;
+   202	  bonusBasic: number;
+   203	  bonusRare: number;
+   204	  bonusEpic: number;
+   205	  bonusGold: number;
+   206	  bonusV1: number;
+   207	  hasAutoTap: boolean;
+   208	  whiteCollectionUnlocked: boolean;
+   209	  whiteCollectionBundles: number;
+   210	  earthCollectionUnlocked: boolean;
+   211	  earthCollectionBundles: number;
+   212	  tonBalance: number;
+   213	  // SUN cycle (24h) — server-side mirror so the cycle survives localStorage
+   214	  // loss. 0 means "never started" / fresh state.
+   215	  sunFarmStartedAtMs: number;
+   216	  sunLastCollectedAtMs: number;
+   217	  sunCycleCount: number;
+   218	}
+   219	
+   220	const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusV1: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+   221	
+   222	/**
+   223	 * Push the current SUN cycle to the server so it persists across
+   224	 * localStorage loss. Server merges with GREATEST per field — replaying
+   225	 * an older snapshot can never roll back a newer one.
+   226	 *
+   227	 * Fire-and-forget at the call site: the local state is already updated
+   228	 * optimistically. A network failure here just means the user's other
+   229	 * devices will see the cycle on the next /grants poll instead of right
+   230	 * away — no data loss.
+   231	 */
+   232	export async function syncSunCycle(params: {
+   233	  telegramId: string;
+   234	  sunFarmStartedAtMs: number;
+   235	  sunLastCollectedAtMs: number;
+   236	  sunCycleCount: number;
+   237	}): Promise<void> {
+   238	  try {
+   239	    await fetch(`${API_BASE}/sun/cycle`, {
+   240	      method: "POST",
+   241	      headers: { "Content-Type": "application/json" },
+   242	      body: JSON.stringify(params),
+   243	    });
+   244	  } catch { /* fire-and-forget */ }
+   245	}
+   246	
+   247	export interface SunStock {
+   248	  sold: number;
+   249	  remaining: number;
+   250	  max: number;
+   251	  maxPerUser: number;
+   252	  userCount: number;
+   253	}
+   254	
+   255	export async function fetchSunStock(telegramId?: string): Promise<SunStock> {
+   256	  try {
+   257	    const params = new URLSearchParams({ t: String(Date.now()) });
+   258	    if (telegramId) params.set("telegramId", telegramId);
+   259	    const res = await fetch(`${API_BASE}/sun/stock?${params.toString()}`, { cache: "no-store" });
+   260	    if (!res.ok) return { sold: 0, remaining: 50, max: 50, maxPerUser: 5, userCount: 0 };
+   261	    return res.json();
+   262	  } catch {
+   263	    return { sold: 0, remaining: 50, max: 50, maxPerUser: 5, userCount: 0 };
+   264	  }
+   265	}
+   266	
+   267	export interface TotalPool {
+   268	  ton: number;
+   269	  stars: number;
+   270	  count: number;
+   271	}
+   272	
+   273	const EMPTY_TOTAL_POOL: TotalPool = { ton: 0, stars: 0, count: 0 };
+   274	
+   275	/** Aggregated revenue across all confirmed TON + Stars purchases. */
+   276	export async function fetchTotalPool(): Promise<TotalPool> {
+   277	  try {
+   278	    const res = await fetch(`${API_BASE}/total-pool?t=${Date.now()}`, { cache: "no-store" });
+   279	    if (!res.ok) return EMPTY_TOTAL_POOL;
+   280	    const j = await res.json() as Partial<TotalPool>;
+   281	    return {
+   282	      ton: Number(j?.ton ?? 0),
+   283	      stars: Number(j?.stars ?? 0),
+   284	      count: Number(j?.count ?? 0),
+   285	    };
+   286	  } catch {
+   287	    return EMPTY_TOTAL_POOL;
+   288	  }
+   289	}
+   290	
+   291	export async function fetchGrants(telegramId: string): Promise<Grants> {
+   292	  try {
+   293	    const res = await fetch(`${API_BASE}/grants/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
+   294	    if (!res.ok) return EMPTY_GRANTS;
+   295	    return res.json();
+   296	  } catch {
+   297	    return EMPTY_GRANTS;
+   298	  }
+   299	}
+   300	
+   301	export async function adminCreditZoom(adminId: string, telegramId: string, amount: number): Promise<boolean> {
+   302	  try {
+   303	    const res = await fetch(`${API_BASE}/admin/credit-zoom`, {
+   304	      method: "POST",
+   305	      headers: { "Content-Type": "application/json" },
+   306	      body: JSON.stringify({ adminId, telegramId, amount }),
+   307	    });
+   308	    return res.ok;
+   309	  } catch { return false; }
+   310	}
+   311	
+   312	export async function adminCreditStardust(adminId: string, telegramId: string, amount: number): Promise<boolean> {
+   313	  try {
+   314	    const res = await fetch(`${API_BASE}/admin/credit-stardust`, {
+   315	      method: "POST",
+   316	      headers: { "Content-Type": "application/json" },
+   317	      body: JSON.stringify({ adminId, telegramId, amount }),
+   318	    });
+   319	    return res.ok;
+   320	  } catch { return false; }
+   321	}
+   322	
+   323	export async function adminRemoveStardust(adminId: string, telegramId: string, amount: number): Promise<boolean> {
+   324	  try {
+   325	    const res = await fetch(`${API_BASE}/admin/remove-stardust`, {
+   326	      method: "POST",
+   327	      headers: { "Content-Type": "application/json" },
+   328	      body: JSON.stringify({ adminId, telegramId, amount }),
+   329	    });
+   330	    return res.ok;
+   331	  } catch { return false; }
+   332	}
+   333	
+   334	// HALL OF FAME — daily-referrals leaderboard.
+   335	// Returns top 10 with the prize tier baked in (null for ranks 6-10).
+   336	export type HallOfFameEntry = {
+   337	  rank: number;
+   338	  name: string;
+   339	  count: number;
+   340	  prize: number | null;
+   341	};
+   342	export type HallOfFameResponse = {
+   343	  dayKey: string;
+   344	  prizes: number[];
+   345	  entries: HallOfFameEntry[];
+   346	};
+   347	const EMPTY_HOF: HallOfFameResponse = { dayKey: "", prizes: [100, 75, 50, 25, 25], entries: [] };
+   348	
+   349	export async function fetchHallOfFameDaily(): Promise<HallOfFameResponse> {
+   350	  try {
+   351	    const res = await fetch(`${API_BASE}/leaderboard/daily-referrals?t=${Date.now()}`, { cache: "no-store" });
+   352	    if (!res.ok) return EMPTY_HOF;
+   353	    return await res.json();
+   354	  } catch {
+   355	    return EMPTY_HOF;
+   356	  }
+   357	}
+   358	
+   359	export async function adminAddPlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "GOLD" | "SUN"): Promise<boolean> {
+   360	  try {
+   361	    const res = await fetch(`${API_BASE}/admin/add-planets`, {
+   362	      method: "POST",
+   363	      headers: { "Content-Type": "application/json" },
+   364	      body: JSON.stringify({ adminId, telegramId, count, planetType }),
+   365	    });
+   366	    return res.ok;
+   367	  } catch { return false; }
+   368	}
+   369	
+   370	export async function adminUnlockSlots(adminId: string, telegramId: string, count: number): Promise<boolean> {
+   371	  try {
+   372	    const res = await fetch(`${API_BASE}/admin/unlock-slots`, {
+   373	      method: "POST",
+   374	      headers: { "Content-Type": "application/json" },
+   375	      body: JSON.stringify({ adminId, telegramId, count }),
+   376	    });
+   377	    return res.ok;
+   378	  } catch { return false; }
+   379	}
+   380	
+   381	export async function adminGrantAutoTap(adminId: string, telegramId: string): Promise<boolean> {
+   382	  try {
+   383	    const res = await fetch(`${API_BASE}/admin/grant-auto-tap`, {
+   384	      method: "POST",
+   385	      headers: { "Content-Type": "application/json" },
+   386	      body: JSON.stringify({ adminId, telegramId }),
+   387	    });
+   388	    return res.ok;
+   389	  } catch { return false; }
+   390	}
+   391	
+   392	export async function adminTestWithdrawalChannel(adminId: string): Promise<boolean> {
+   393	  try {
+   394	    const res = await fetch(`${API_BASE}/admin/test-withdrawal-channel`, {
+   395	      method: "POST",
+   396	      headers: { "Content-Type": "application/json" },
+   397	      body: JSON.stringify({ adminId }),
+   398	    });
+   399	    if (!res.ok) return false;
+   400	    const data = await res.json().catch(() => ({} as { sent?: boolean }));
+   401	    return Boolean(data?.sent);
+   402	  } catch { return false; }
+   403	}
+   404	
+   405	// === TON Withdrawals (manual processing by admin) ===
+   406	export const WITHDRAWAL_MIN_TON = 10;
+   407	export const WITHDRAWAL_FEE_TON = 0.02;
+   408	export const WITHDRAWAL_COOLDOWN_HOURS = 24;
+   409	
+   410	export interface TonWithdrawal {
+   411	  id: number;
+   412	  telegramId: string;
+   413	  amountTon: number;
+   414	  feeTon: number;
+   415	  walletAddress: string;
+   416	  status: "pending" | "paid" | "rejected";
+   417	  txHash: string | null;
+   418	  rejectReason: string | null;
+   419	  createdAt: string;
+   420	  processedAt: string | null;
+   421	  processedBy: string | null;
+   422	  firstName?: string | null;
+   423	  username?: string | null;
+   424	}
+   425	
+   426	export async function requestTonWithdrawal(params: { telegramId: string; amountTon: number; walletAddress: string }): Promise<{ ok: boolean; error?: string; newTonBalance?: number; balanceEpoch?: number }> {
+   427	  try {
+   428	    const res = await fetch(`${API_BASE}/withdrawals/request`, {
+   429	      method: "POST",
+   430	      headers: { "Content-Type": "application/json" },
+   431	      body: JSON.stringify(params),
+   432	    });
+   433	    const data = await res.json().catch(() => ({}));
+   434	    if (!res.ok) return { ok: false, error: data?.error || "Errore richiesta" };
+   435	    return { ok: true, newTonBalance: data.newTonBalance, balanceEpoch: data.balanceEpoch };
+   436	  } catch {
+   437	    return { ok: false, error: "Errore di rete" };
+   438	  }
+   439	}
+   440	
+   441	export async function fetchMyWithdrawals(telegramId: string): Promise<TonWithdrawal[]> {
+   442	  try {
+   443	    const res = await fetch(`${API_BASE}/withdrawals/me/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
+   444	    if (!res.ok) return [];
+   445	    const data = await res.json();
+   446	    return Array.isArray(data?.withdrawals) ? data.withdrawals : [];
+   447	  } catch { return []; }
+   448	}
+   449	
+   450	export async function adminFetchWithdrawals(adminId: string, status: "pending" | "paid" | "rejected" = "pending"): Promise<TonWithdrawal[]> {
+   451	  try {
+   452	    const res = await fetch(`${API_BASE}/admin/withdrawals?adminId=${encodeURIComponent(adminId)}&status=${status}&t=${Date.now()}`, { cache: "no-store" });
+   453	    if (!res.ok) return [];
+   454	    const data = await res.json();
+   455	    return Array.isArray(data?.withdrawals) ? data.withdrawals : [];
+   456	  } catch { return []; }
+   457	}
+   458	
+   459	export async function adminApproveWithdrawal(adminId: string, withdrawalId: number, txHash: string): Promise<{ ok: boolean; error?: string }> {
+   460	  try {
+   461	    const res = await fetch(`${API_BASE}/admin/withdrawals/approve`, {
+   462	      method: "POST",
+   463	      headers: { "Content-Type": "application/json" },
+   464	      body: JSON.stringify({ adminId, withdrawalId, txHash }),
+   465	    });
+   466	    const data = await res.json().catch(() => ({}));
+   467	    if (!res.ok) return { ok: false, error: data?.error || "Errore" };
+   468	    return { ok: true };
+   469	  } catch { return { ok: false, error: "Errore di rete" }; }
+   470	}
+   471	
+   472	export async function adminRejectWithdrawal(adminId: string, withdrawalId: number, reason?: string): Promise<{ ok: boolean; error?: string }> {
+   473	  try {
+   474	    const res = await fetch(`${API_BASE}/admin/withdrawals/reject`, {
+   475	      method: "POST",
+   476	      headers: { "Content-Type": "application/json" },
+   477	      body: JSON.stringify({ adminId, withdrawalId, reason }),
+   478	    });
+   479	    const data = await res.json().catch(() => ({}));
+   480	    if (!res.ok) return { ok: false, error: data?.error || "Errore" };
+   481	    return { ok: true };
+   482	  } catch { return { ok: false, error: "Errore di rete" }; }
+   483	}
+   484	
+   485	export async function adminUnlockWhiteCollection(adminId: string, telegramId: string): Promise<boolean> {
+   486	  try {
+   487	    const res = await fetch(`${API_BASE}/admin/unlock-white-collection`, {
+   488	      method: "POST",
+   489	      headers: { "Content-Type": "application/json" },
+   490	      body: JSON.stringify({ adminId, telegramId }),
+   491	    });
+   492	    return res.ok;
+   493	  } catch { return false; }
+   494	}
+   495	
+   496	export async function adminUnlockEarthCollection(adminId: string, telegramId: string): Promise<boolean> {
+   497	  try {
+   498	    const res = await fetch(`${API_BASE}/admin/unlock-earth-collection`, {
+   499	      method: "POST",
+   500	      headers: { "Content-Type": "application/json" },
+   501	      body: JSON.stringify({ adminId, telegramId }),
+   502	    });
+   503	    return res.ok;
+   504	  } catch { return false; }
+   505	}
+   506	
+   507	export async function adminRevokeWhiteCollection(adminId: string, telegramId: string): Promise<boolean> {
+   508	  try {
+   509	    const res = await fetch(`${API_BASE}/admin/revoke-white-collection`, {
+   510	      method: "POST",
+   511	      headers: { "Content-Type": "application/json" },
+   512	      body: JSON.stringify({ adminId, telegramId }),
+   513	    });
+   514	    return res.ok;
+   515	  } catch { return false; }
+   516	}
+   517	
+   518	export async function adminRevokeEarthCollection(adminId: string, telegramId: string): Promise<boolean> {
+   519	  try {
+   520	    const res = await fetch(`${API_BASE}/admin/revoke-earth-collection`, {
+   521	      method: "POST",
+   522	      headers: { "Content-Type": "application/json" },
+   523	      body: JSON.stringify({ adminId, telegramId }),
+   524	    });
+   525	    return res.ok;
+   526	  } catch { return false; }
+   527	}
+   528	
+   529	export async function adminGrantV1(adminId: string, telegramId: string): Promise<boolean> {
+   530	  try {
+   531	    const res = await fetch(`${API_BASE}/admin/grant-v1`, {
+   532	      method: "POST",
+   533	      headers: { "Content-Type": "application/json" },
+   534	      body: JSON.stringify({ adminId, telegramId }),
+   535	    });
+   536	    return res.ok;
+   537	  } catch { return false; }
+   538	}
+   539	
+   540	export async function adminRemoveZoom(adminId: string, telegramId: string, amount: number): Promise<boolean> {
+   541	  try {
+   542	    const res = await fetch(`${API_BASE}/admin/remove-zoom`, {
+   543	      method: "POST",
+   544	      headers: { "Content-Type": "application/json" },
+   545	      body: JSON.stringify({ adminId, telegramId, amount }),
+   546	    });
+   547	    return res.ok;
+   548	  } catch { return false; }
+   549	}
+   550	
+   551	export async function adminRemovePlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "GOLD" | "SUN"): Promise<boolean> {
+   552	  try {
+   553	    const res = await fetch(`${API_BASE}/admin/remove-planets`, {
+   554	      method: "POST",
+   555	      headers: { "Content-Type": "application/json" },
+   556	      body: JSON.stringify({ adminId, telegramId, count, planetType }),
+   557	    });
+   558	    return res.ok;
+   559	  } catch { return false; }
+   560	}
+   561	
+   562	export async function adminRemoveSlots(adminId: string, telegramId: string, count: number): Promise<boolean> {
+   563	  try {
+   564	    const res = await fetch(`${API_BASE}/admin/remove-slots`, {
+   565	      method: "POST",
+   566	      headers: { "Content-Type": "application/json" },
+   567	      body: JSON.stringify({ adminId, telegramId, count }),
+   568	    });
+   569	    return res.ok;
+   570	  } catch { return false; }
+   571	}
+   572	
+   573	export async function adminGlobalBonus(adminId: string, amount: number): Promise<boolean> {
+   574	  try {
+   575	    const res = await fetch(`${API_BASE}/admin/global-bonus`, {
+   576	      method: "POST",
+   577	      headers: { "Content-Type": "application/json" },
+   578	      body: JSON.stringify({ adminId, amount }),
+   579	    });
+   580	    return res.ok;
+   581	  } catch { return false; }
+   582	}
+   583	
+   584	export async function adminCreditSpins(adminId: string, telegramId: string, count: number): Promise<boolean> {
+   585	  try {
+   586	    const res = await fetch(`${API_BASE}/admin/credit-spins`, {
+   587	      method: "POST",
+   588	      headers: { "Content-Type": "application/json" },
+   589	      body: JSON.stringify({ adminId, telegramId, count }),
+   590	    });
+   591	    return res.ok;
+   592	  } catch { return false; }
+   593	}
+   594	
+   595	export async function adminRemoveSpins(adminId: string, telegramId: string, count: number): Promise<boolean> {
+   596	  try {
+   597	    const res = await fetch(`${API_BASE}/admin/remove-spins`, {
+   598	      method: "POST",
+   599	      headers: { "Content-Type": "application/json" },
+   600	      body: JSON.stringify({ adminId, telegramId, count }),
+   601	    });
+   602	    return res.ok;
+   603	  } catch { return false; }
+   604	}
+   605	
+   606	export async function adminForceDelist(adminId: string, listingId: number): Promise<boolean> {
+   607	  try {
+   608	    const res = await fetch(`${API_BASE}/admin/force-delist`, {
+   609	      method: "POST",
+   610	      headers: { "Content-Type": "application/json" },
+   611	      body: JSON.stringify({ adminId, listingId }),
+   612	    });
+   613	    return res.ok;
+   614	  } catch { return false; }
+   615	}
+   616	
+   617	export async function adminReconcileReferrals(adminId: string): Promise<{ ok: boolean; before?: number; after?: number; delta?: number; error?: string }> {
+   618	  try {
+   619	    const res = await fetch(`${API_BASE}/admin/reconcile-referrals`, {
+   620	      method: "POST",
+   621	      headers: { "Content-Type": "application/json" },
+   622	      body: JSON.stringify({ adminId }),
+   623	    });
+   624	    const data = await res.json().catch(() => ({}));
+   625	    if (!res.ok) return { ok: false, error: data?.error || `HTTP ${res.status}` };
+   626	    return { ok: true, before: data?.before, after: data?.after, delta: data?.delta };
+   627	  } catch (e) {
+   628	    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+   629	  }
+   630	}
+   631	
+   632	export async function adminResetSeason(adminId: string): Promise<boolean> {
+   633	  try {
+   634	    const res = await fetch(`${API_BASE}/admin/reset-season`, {
+   635	      method: "POST",
+   636	      headers: { "Content-Type": "application/json" },
+   637	      body: JSON.stringify({ adminId }),
+   638	    });
+   639	    return res.ok;
+   640	  } catch { return false; }
+   641	}
+   642	
+   643	export async function fetchSeasonEpoch(): Promise<number> {
+   644	  try {
+   645	    const res = await fetch(`${API_BASE}/season/epoch?t=${Date.now()}`, { cache: "no-store" });
+   646	    if (!res.ok) return 0;
+   647	    const data = await res.json();
+   648	    return typeof data.epoch === "number" ? data.epoch : 0;
+   649	  } catch { return 0; }
+   650	}
+   651	
+   652	export async function fetchBalance(telegramId: string): Promise<number | null> {
+   653	  const data = await fetchBalanceRecord(telegramId);
+   654	  return data ? data.zoomBalance : null;
+   655	}
+   656	
+   657	export async function fetchBalanceRecord(telegramId: string): Promise<{ zoomBalance: number; exists: boolean; balanceEpoch: number } | null> {
+   658	  try {
+   659	    const res = await fetch(`${API_BASE}/balance/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
+   660	    if (!res.ok) return null;
+   661	    const data = await res.json();
+   662	    return typeof data.zoomBalance === "number"
+   663	      ? { zoomBalance: data.zoomBalance, exists: data.exists !== false, balanceEpoch: typeof data.balanceEpoch === "number" ? data.balanceEpoch : 0 }
+   664	      : null;
+   665	  } catch {
+   666	    return null;
+   667	  }
+   668	}
+   669	
+   670	export interface LeaderboardEntry {
+   671	  rank: number;
+   672	  telegramId: string;
+   673	  firstName: string;
+   674	  zoomBalance: number;
+   675	}
+   676	
+   677	export interface StarsCatalogItem {
+   678	  id: string;
+   679	  title: string;
+   680	  description: string;
+   681	  starsPrice: number;
+   682	  zoomAmount?: number;
+   683	  itemType: string;
+   684	}
+   685	
+   686	export async function fetchStarsCatalog(): Promise<StarsCatalogItem[]> {
+   687	  try {
+   688	    const res = await fetch(`${API_BASE}/stars/catalog`);
+   689	    if (!res.ok) return [];
+   690	    const data = await res.json();
+   691	    return Array.isArray(data.items) ? data.items : [];
+   692	  } catch { return []; }
+   693	}
+   694	
+   695	export async function createStarsInvoice(telegramId: string, itemId: string): Promise<{ invoiceUrl?: string; txnId?: number; error?: string }> {
+   696	  try {
+   697	    const res = await fetch(`${API_BASE}/stars/create-invoice`, {
+   698	      method: "POST",
+   699	      headers: { "Content-Type": "application/json" },
+   700	      body: JSON.stringify({ telegramId, itemId }),
+   701	    });
+   702	    return res.json();
+   703	  } catch { return { error: "Network error" }; }
+   704	}
+   705	
+   706	export async function checkStarsTransaction(txnId: number): Promise<{ status: string; itemId?: string; itemName?: string }> {
+   707	  try {
+   708	    const res = await fetch(`${API_BASE}/stars/txn/${txnId}`);
+   709	    if (!res.ok) return { status: "unknown" };
+   710	    return res.json();
+   711	  } catch { return { status: "unknown" }; }
+   712	}
+   713	
+   714	export async function confirmStarsPurchase(txnId: number, telegramId: string): Promise<{ ok: boolean; error?: string }> {
+   715	  try {
+   716	    const res = await fetch(`${API_BASE}/stars/confirm`, {
+   717	      method: "POST",
+   718	      headers: { "Content-Type": "application/json" },
+   719	      body: JSON.stringify({ txnId, telegramId }),
+   720	    });
+   721	    return res.json();
+   722	  } catch { return { ok: false, error: "Network error" }; }
+   723	}
+   724	
+   725	export async function confirmTonPurchase(telegramId: string, itemId: string, walletAddress: string, tonAmount: number, boc?: string): Promise<{ ok: boolean; error?: string; pending?: boolean; txnId?: number; alreadyCredited?: boolean }> {
+   726	  try {
+   727	    const res = await fetch(`${API_BASE}/ton/confirm`, {
+   728	      method: "POST",
+   729	      headers: { "Content-Type": "application/json" },
+   730	      body: JSON.stringify({ telegramId, itemId, walletAddress, tonAmount, boc }),
+   731	    });
+   732	    const data = await res.json();
+   733	    return { ...data, ok: res.ok || res.status === 202 };
+   734	  } catch { return { ok: false, error: "Network error" }; }
+   735	}
+   736	
+   737	export interface MysteryBoxStock { sunsAwarded: number; sunsCap: number; sunsRemaining: number }
+   738	export interface MysteryBoxActivityItem { id: number; userName: string; award: string; awardLabel: string; openedAt: number }
+   739	
+   740	export async function fetchMysteryBoxStock(): Promise<MysteryBoxStock | null> {
+   741	  try {
+   742	    const res = await fetch(`${API_BASE}/mystery-box/stock`, { cache: "no-store" });
+   743	    if (!res.ok) return null;
+   744	    return res.json();
+   745	  } catch { return null; }
+   746	}
+   747	
+   748	export async function fetchMysteryBoxActivity(limit = 30): Promise<MysteryBoxActivityItem[]> {
+   749	  try {
+   750	    const res = await fetch(`${API_BASE}/mystery-box/activity?limit=${limit}`, { cache: "no-store" });
+   751	    if (!res.ok) return [];
+   752	    const data = await res.json();
+   753	    return Array.isArray(data?.items) ? data.items : [];
+   754	  } catch { return []; }
+   755	}
+   756	
+   757	export function openMysteryBoxStream(onEvent: (ev: MysteryBoxActivityItem) => void): () => void {
+   758	  const url = `${API_BASE}/mystery-box/activity/stream`;
+   759	  const es = new EventSource(url);
+   760	  es.addEventListener("open", (e: MessageEvent) => {
+   761	    try { onEvent(JSON.parse(e.data)); } catch { /* ignore */ }
+   762	  });
+   763	  return () => { try { es.close(); } catch { /* ignore */ } };
+   764	}
+   765	
+   766	export async function fetchTxnStatus(txnId: number, telegramId?: string): Promise<{ status: string; itemId?: string; itemName?: string; award?: string | null } | null> {
+   767	  try {
+   768	    const qs = telegramId ? `?telegramId=${encodeURIComponent(telegramId)}` : "";
+   769	    const res = await fetch(`${API_BASE}/stars/txn/${txnId}${qs}`);
+   770	    if (!res.ok) return null;
+   771	    return res.json();
+   772	  } catch { return null; }
+   773	}
+   774	
+   775	export async function pollTxnUntilFinal(txnId: number, opts: { maxMs?: number; intervalMs?: number } = {}): Promise<{ status: string; itemName?: string } | null> {
+   776	  const maxMs = opts.maxMs ?? 180_000;
+   777	  const intervalMs = opts.intervalMs ?? 4_000;
+   778	  const start = Date.now();
+   779	  while (Date.now() - start < maxMs) {
+   780	    const s = await fetchTxnStatus(txnId);
+   781	    if (s && (s.status === "completed" || s.status === "failed")) return s;
+   782	    await new Promise((r) => setTimeout(r, intervalMs));
+   783	  }
+   784	  return null;
+   785	}
+   786	
+   787	export interface UserProfile {
+   788	  exists: boolean;
+   789	  createdAt?: string;
+   790	  crafted?: { BASIC: number; RARE: number; EPIC: number; GOLD: number; V1?: number };
+   791	}
+   792	
+   793	export async function fetchProfile(telegramId: string): Promise<UserProfile> {
+   794	  try {
+   795	    const res = await fetch(`${API_BASE}/profile/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
+   796	    if (!res.ok) return { exists: false };
+   797	    return res.json();
+   798	  } catch { return { exists: false }; }
+   799	}
+   800	
+   801	export async function recordCraft(telegramId: string, planetType: string): Promise<void> {
+   802	  try {
+   803	    await fetch(`${API_BASE}/craft/record`, {
+   804	      method: "POST",
+   805	      headers: { "Content-Type": "application/json" },
+   806	      body: JSON.stringify({ telegramId, planetType }),
+   807	    });
+   808	  } catch { /**/ }
+   809	}
+   810	
+   811	export interface WheelPrizeConfig {
+   812	  index: number;
+   813	  type: "zoom" | "planet" | "stars" | "ton";
+   814	  zoomAmount?: number;
+   815	  planetType?: "BASIC" | "RARE" | "EPIC";
+   816	  starsAmount?: number;
+   817	  tonAmount?: number;
+   818	  label: string;
+   819	  shortLabel: string;
+   820	  icon: string;
+   821	  color: string;
+   822	}
+   823	
+   824	export async function fetchWheelConfig(): Promise<WheelPrizeConfig[]> {
+   825	  try {
+   826	    const res = await fetch(`${API_BASE}/wheel/config`);
+   827	    if (!res.ok) return [];
+   828	    const data = await res.json();
+   829	    return Array.isArray(data.prizes) ? data.prizes : [];
+   830	  } catch { return []; }
+   831	}
+   832	
+   833	export interface WheelStatus {
+   834	  spins: number;
+   835	  canClaimDaily: boolean;
+   836	  nextClaimAt: number;
+   837	}
+   838	
+   839	export async function fetchWheelStatus(telegramId: string): Promise<WheelStatus> {
+   840	  try {
+   841	    const res = await fetch(`${API_BASE}/wheel/status/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
+   842	    if (!res.ok) return { spins: 0, canClaimDaily: false, nextClaimAt: 0 };
+   843	    return res.json();
+   844	  } catch { return { spins: 0, canClaimDaily: false, nextClaimAt: 0 }; }
+   845	}
+   846	
+   847	export async function claimWheelDaily(telegramId: string): Promise<{ ok: boolean; spins?: number; nextClaimAt?: number; error?: string }> {
+   848	  try {
+   849	    const res = await fetch(`${API_BASE}/wheel/claim-daily`, {
+   850	      method: "POST",
+   851	      headers: { "Content-Type": "application/json" },
+   852	      body: JSON.stringify({ telegramId }),
+   853	    });
+   854	    const data = await res.json().catch(() => ({}));
+   855	    if (!res.ok) return { ok: false, error: data.error || "Claim failed", ...data };
+   856	    return { ok: true, ...data };
+   857	  } catch { return { ok: false, error: "Network error" }; }
+   858	}
+   859	
+   860	export interface WheelSpinResult {
+   861	  prizeIndex: number;
+   862	  prize: {
+   863	    type: "zoom" | "planet" | "stars" | "ton";
+   864	    zoomAmount?: number;
+   865	    planetType?: "BASIC" | "RARE" | "EPIC";
+   866	    starsAmount?: number;
+   867	    tonAmount?: number;
+   868	    label: string;
+   869	    color: string;
+   870	    icon: string;
+   871	  };
+   872	  spinsRemaining: number;
+   873	}
+   874	
+   875	export interface WheelFeedEntry {
+   876	  ts: number;
+   877	  name: string;
+   878	  prizeLabel: string;
+   879	  prizeIcon: string;
+   880	  prizeColor: string;
+   881	  prizeType: "zoom" | "planet" | "stars" | "ton";
+   882	}
+   883	
+   884	export interface MaintenanceStatus {
+   885	  enabled: boolean;
+   886	  message: string;
+   887	  updatedAt: number;
+   888	}
+   889	
+   890	export async function fetchMaintenanceStatus(): Promise<MaintenanceStatus> {
+   891	  try {
+   892	    const res = await fetch(`${API_BASE}/maintenance/status?t=${Date.now()}`, { cache: "no-store" });
+   893	    if (!res.ok) return { enabled: false, message: "", updatedAt: 0 };
+   894	    return res.json();
+   895	  } catch { return { enabled: false, message: "", updatedAt: 0 }; }
+   896	}
+   897	
+   898	export async function adminSetMaintenance(adminId: string, enabled: boolean, message?: string): Promise<{ ok: boolean; enabled?: boolean; message?: string; error?: string }> {
+   899	  try {
+   900	    const res = await fetch(`${API_BASE}/admin/maintenance`, {
+   901	      method: "POST",
+   902	      headers: { "Content-Type": "application/json" },
+   903	      body: JSON.stringify({ adminId, enabled, message }),
+   904	    });
+   905	    const data = await res.json().catch(() => ({}));
+   906	    if (!res.ok) return { ok: false, error: data.error || "Failed" };
+   907	    return { ok: true, ...data };
+   908	  } catch { return { ok: false, error: "Network error" }; }
+   909	}
+   910	
+   911	export async function fetchWheelFeed(): Promise<WheelFeedEntry[]> {
+   912	  try {
+   913	    const res = await fetch(`${API_BASE}/wheel/feed?t=${Date.now()}`, { cache: "no-store" });
+   914	    if (!res.ok) return [];
+   915	    const data = await res.json();
+   916	    return Array.isArray(data.entries) ? data.entries : [];
+   917	  } catch { return []; }
+   918	}
+   919	
+   920	export async function spinWheel(telegramId: string): Promise<{ ok: boolean; result?: WheelSpinResult; error?: string }> {
+   921	  try {
+   922	    const res = await fetch(`${API_BASE}/wheel/spin`, {
+   923	      method: "POST",
+   924	      headers: { "Content-Type": "application/json" },
+   925	      body: JSON.stringify({ telegramId }),
+   926	    });
+   927	    if (!res.ok) {
+   928	      const data = await res.json().catch(() => ({}));
+   929	      return { ok: false, error: data.error || "Spin failed" };
+   930	    }
+   931	    return { ok: true, result: await res.json() };
+   932	  } catch { return { ok: false, error: "Network error" }; }
+   933	}
+   934	
+   935	export interface DailyStatus {
+   936	  streakDay: number;
+   937	  streakCycle: number;
+   938	  lastClaimAt: number;
+   939	  nextAvailableAt: number;
+   940	  hardResetAt: number;
+   941	  canClaim: boolean;
+   942	  willHardReset: boolean;
+   943	  upcomingDay: number;
+   944	  upcomingReward: number;
+   945	  cycleMultiplier: number;
+   946	  rewardsPreview: number[];
+   947	}
+   948	
+   949	export async function fetchDailyStatus(telegramId: string): Promise<DailyStatus | null> {
+   950	  try {
+   951	    const res = await fetch(`${API_BASE}/daily/status/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
+   952	    if (!res.ok) return null;
+   953	    return res.json();
+   954	  } catch { return null; }
+   955	}
+   956	
+   957	export async function claimDailyReward(telegramId: string, firstName?: string): Promise<{ ok: boolean; reward?: number; day?: number; cycle?: number; error?: string }> {
+   958	  try {
+   959	    const res = await fetch(`${API_BASE}/daily/claim`, {
+   960	      method: "POST",
+   961	      headers: { "Content-Type": "application/json" },
+   962	      body: JSON.stringify({ telegramId, firstName }),
+   963	    });
+   964	    const data = await res.json().catch(() => ({}));
+   965	    if (!res.ok) return { ok: false, error: data.error || "Claim failed" };
+   966	    return { ok: true, ...data };
+   967	  } catch { return { ok: false, error: "Network error" }; }
+   968	}
+   969	
+   970	export interface MarketSale {
+   971	  id: number;
+   972	  planetType: "BASIC" | "RARE" | "EPIC" | "GOLD";
+   973	  planetRate: number;
+   974	  price: number;
+   975	  sellerName: string;
+   976	  buyerName: string;
+   977	  soldAt: number;
+   978	}
+   979	
+   980	export async function fetchMarketSales(): Promise<MarketSale[]> {
+   981	  try {
+   982	    const res = await fetch(`${API_BASE}/market/sales?t=${Date.now()}`, { cache: "no-store" });
+   983	    if (!res.ok) return [];
+   984	    const data = await res.json();
+   985	    return Array.isArray(data.sales) ? data.sales : [];
+   986	  } catch { return []; }
+   987	}
+   988	
+   989	export function openMarketActivityStream(onSale: (sale: MarketSale) => void): () => void {
+   990	  let es: EventSource | null = null;
+   991	  let closed = false;
+   992	  let retry: ReturnType<typeof setTimeout> | null = null;
+   993	
+   994	  const connect = () => {
+   995	    if (closed) return;
+   996	    try {
+   997	      es = new EventSource(`${API_BASE}/market/activity/stream`);
+   998	      es.addEventListener("sale", (e) => {
+   999	        try { onSale(JSON.parse((e as MessageEvent).data)); } catch { /* */ }
+  1000	      });
+  1001	      es.onerror = () => {
+  1002	        try { es?.close(); } catch { /* */ }
+  1003	        es = null;
+  1004	        if (!closed) retry = setTimeout(connect, 3000);
+  1005	      };
+  1006	    } catch { if (!closed) retry = setTimeout(connect, 3000); }
+  1007	  };
+  1008	  connect();
+  1009	  return () => {
+  1010	    closed = true;
+  1011	    if (retry) clearTimeout(retry);
+  1012	    try { es?.close(); } catch { /* */ }
+  1013	  };
+  1014	}
+  1015	
+  1016	export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
+  1017	  try {
+  1018	    const res = await fetch(`${API_BASE}/leaderboard`);
+  1019	    if (!res.ok) return [];
+  1020	    const data = await res.json();
+  1021	    return Array.isArray(data.leaderboard) ? data.leaderboard : [];
+  1022	  } catch {
+  1023	    return [];
+  1024	  }
+  1025	}
+  1026	
+  1027	export async function fetchGlobalPool(): Promise<number> {
+  1028	  try {
+  1029	    const res = await fetch(`${API_BASE}/global-pool?t=${Date.now()}`, { cache: "no-store" });
+  1030	    if (!res.ok) return 0;
+  1031	    const data = await res.json();
+  1032	    return typeof data.totalPool === "number" ? data.totalPool : 0;
+  1033	  } catch {
+  1034	    return 0;
+  1035	  }
+  1036	}
+  1037	
+  1038	export interface ServerMarketListing {
+  1039	  id: number;
+  1040	  sellerTelegramId: string;
+  1041	  sellerName: string | null;
+  1042	  planetType: string;
+  1043	  planetRate: number;
+  1044	  price: number;
+  1045	  status: string;
+  1046	  createdAt: string;
+  1047	}
+  1048	
+  1049	export async function fetchMarketListings(): Promise<ServerMarketListing[]> {
+  1050	  try {
+  1051	    const res = await fetch(`${API_BASE}/market/listings?t=${Date.now()}`, { cache: "no-store" });
+  1052	    if (!res.ok) return [];
+  1053	    const data = await res.json();
+  1054	    return Array.isArray(data.listings) ? data.listings : [];
+  1055	  } catch {
+  1056	    return [];
+  1057	  }
+  1058	}
+  1059	
+  1060	export async function listOnMarket(params: {
+  1061	  sellerTelegramId: string;
+  1062	  sellerName?: string;
+  1063	  // REQUIRED — the server uses this to verify that the seller actually
+  1064	  // owns the planet they're trying to list. Sending a wrong/missing id
+  1065	  // will be rejected with 400 "Planet not found in your inventory".
+  1066	  planetId: string;
+  1067	  planetType: string;
+  1068	  planetRate: number;
+  1069	  price: number;
+  1070	}): Promise<{ ok: boolean; listing?: ServerMarketListing; error?: string }> {
+  1071	  try {
+  1072	    const res = await fetch(`${API_BASE}/market/list`, {
+  1073	      method: "POST",
+  1074	      headers: { "Content-Type": "application/json" },
+  1075	      body: JSON.stringify(params),
+  1076	    });
+  1077	    const data = await res.json().catch(() => ({}));
+  1078	    // Surface the server error so the caller can revert local state and
+  1079	    // show the user a meaningful message ("Planet already listed", "This
+  1080	    // planet was previously sold", etc) instead of a silent failure.
+  1081	    if (!res.ok) {
+  1082	      return { ok: false, error: typeof data?.error === "string" ? data.error : `HTTP ${res.status}` };
+  1083	    }
+  1084	    return data;
+  1085	  } catch {
+  1086	    return { ok: false, error: "Network error" };
+  1087	  }
+  1088	}
+  1089	
+  1090	export async function buyFromMarket(buyerTelegramId: string, listingId: number): Promise<{ ok: boolean; planetType?: string; planetRate?: number; pricePaid?: number; error?: string }> {
+  1091	  try {
+  1092	    const res = await fetch(`${API_BASE}/market/buy`, {
+  1093	      method: "POST",
+  1094	      headers: { "Content-Type": "application/json" },
+  1095	      body: JSON.stringify({ buyerTelegramId, listingId }),
+  1096	    });
+  1097	    return res.json();
+  1098	  } catch {
+  1099	    return { ok: false, error: "Network error" };
+  1100	  }
+  1101	}
+  1102	
+  1103	export async function delistFromMarket(sellerTelegramId: string, listingId: number): Promise<{ ok: boolean }> {
+  1104	  try {
+  1105	    const res = await fetch(`${API_BASE}/market/delist`, {
+  1106	      method: "POST",
+  1107	      headers: { "Content-Type": "application/json" },
+  1108	      body: JSON.stringify({ sellerTelegramId, listingId }),
+  1109	    });
+  1110	    return res.json();
+  1111	  } catch {
+  1112	    return { ok: false };
+  1113	  }
+  1114	}
+  1115	
+  1116	export async function fetchUserLanguage(telegramId: string): Promise<string | null> {
+  1117	  try {
+  1118	    const res = await fetch(`${API_BASE}/user/${encodeURIComponent(telegramId)}/language`);
+  1119	    if (!res.ok) return null;
+  1120	    const data = await res.json().catch(() => ({}));
+  1121	    return typeof data?.language === "string" ? data.language : null;
+  1122	  } catch { return null; }
+  1123	}
+  1124	
+  1125	export async function setUserLanguage(telegramId: string, language: string): Promise<boolean> {
+  1126	  try {
+  1127	    const res = await fetch(`${API_BASE}/user/language`, {
+  1128	      method: "POST",
+  1129	      headers: { "Content-Type": "application/json" },
+  1130	      body: JSON.stringify({ telegramId, language }),
+  1131	    });
+  1132	    return res.ok;
+  1133	  } catch { return false; }
+  1134	}
+  1135	
+  1136	// ─────────────────────────────────────────────────────────────────
+  1137	// STARDUST — second currency. Backend is source of truth: balance,
+  1138	// today-counter, daily cap, and global total all live server-side.
+  1139	// ─────────────────────────────────────────────────────────────────
+  1140	export interface StardustState {
+  1141	  balance: number;
+  1142	  today: number;
+  1143	  dayKey: string;
+  1144	  dailyCap: number;
+  1145	  globalTotal: number;
+  1146	  hasSun: boolean;
+  1147	}
+  1148	
+  1149	const EMPTY_STARDUST: StardustState = {
+  1150	  balance: 0,
+  1151	  today: 0,
+  1152	  dayKey: "",
+  1153	  dailyCap: 25,
+  1154	  globalTotal: 0,
+  1155	  hasSun: false,
+  1156	};
+  1157	
+  1158	export async function fetchStardustState(telegramId: string): Promise<StardustState> {
+  1159	  try {
+  1160	    const res = await fetch(`${API_BASE}/stardust/state?telegramId=${encodeURIComponent(telegramId)}&t=${Date.now()}`, { cache: "no-store" });
+  1161	    if (!res.ok) return EMPTY_STARDUST;
+  1162	    const j = await res.json();
+  1163	    return {
+  1164	      balance: Number(j?.balance ?? 0),
+  1165	      today: Number(j?.today ?? 0),
+  1166	      dayKey: String(j?.dayKey ?? ""),
+  1167	      dailyCap: Number(j?.dailyCap ?? 25),
+  1168	      globalTotal: Number(j?.globalTotal ?? 0),
+  1169	      hasSun: !!j?.hasSun,
+  1170	    };
+  1171	  } catch {
+  1172	    return EMPTY_STARDUST;
+  1173	  }
+  1174	}
+  1175	
+  1176	export interface StardustLeaderboardEntry {
+  1177	  name: string;
+  1178	  balance: number;
+  1179	}
+  1180	
+  1181	export async function fetchStardustLeaderboard(): Promise<StardustLeaderboardEntry[]> {
+  1182	  try {
+  1183	    const res = await fetch(`${API_BASE}/stardust/leaderboard?t=${Date.now()}`, { cache: "no-store" });
+  1184	    if (!res.ok) return [];
+  1185	    const j = await res.json();
+  1186	    if (!Array.isArray(j?.entries)) return [];
+  1187	    return j.entries.map((e: any) => ({
+  1188	      name: String(e?.name ?? "Player"),
+  1189	      balance: Number(e?.balance ?? 0),
+  1190	    }));
+  1191	  } catch {
+  1192	    return [];
+  1193	  }
+  1194	}
+  1195	
+  1196	export interface StardustCollectResult {
+  1197	  ok: boolean;
+  1198	  reason?: "NO_SUN" | "DAILY_CAP" | "USER_NOT_FOUND" | "BAD_REQUEST" | "SERVER_ERROR" | "NETWORK";
+  1199	  balance: number;
+  1200	  today: number;
+  1201	  dailyCap: number;
+  1202	  globalTotal: number;
+  1203	}
+  1204	
+  1205	export async function collectStardustOnServer(telegramId: string): Promise<StardustCollectResult> {
+  1206	  try {
+  1207	    const res = await fetch(`${API_BASE}/stardust/collect`, {
+  1208	      method: "POST",
+  1209	      headers: { "Content-Type": "application/json" },
+  1210	      body: JSON.stringify({ telegramId }),
+  1211	    });
+  1212	    const j = await res.json().catch(() => ({}));
+  1213	    return {
+  1214	      ok: !!j?.ok,
+  1215	      reason: j?.reason,
+  1216	      balance: Number(j?.balance ?? 0),
+  1217	      today: Number(j?.today ?? 0),
+  1218	      dailyCap: Number(j?.dailyCap ?? 25),
+  1219	      globalTotal: Number(j?.globalTotal ?? 0),
+  1220	    };
+  1221	  } catch {
+  1222	    return { ok: false, reason: "NETWORK", balance: 0, today: 0, dailyCap: 25, globalTotal: 0 };
+  1223	  }
+  1224	}
+  1225	
+  1226	// ─────────────────────────────────────────────────────────────────
+  1227	// SPACE MERCHANT — random alien encounter; backend authoritative for
+  1228	// spawn cadence (20–50 min) and the 3-fusion-per-visit cap.
+  1229	// ─────────────────────────────────────────────────────────────────
+  1230	export interface MerchantState {
+  1231	  active: boolean;
+  1232	  expiresAt: string | null;
+  1233	  fusionsUsed: number;
+  1234	  maxFusions: number;
+  1235	  justSpawned?: boolean;
+  1236	}
+  1237	
+  1238	const EMPTY_MERCHANT: MerchantState = {
+  1239	  active: false,
+  1240	  expiresAt: null,
+  1241	  fusionsUsed: 0,
+  1242	  maxFusions: 3,
+  1243	};
+  1244	
+  1245	export async function fetchMerchantState(telegramId: string): Promise<MerchantState> {
+  1246	  try {
+  1247	    const res = await fetch(`${API_BASE}/merchant/state/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
+  1248	    if (!res.ok) return EMPTY_MERCHANT;
+  1249	    const j = await res.json();
+  1250	    return {
+  1251	      active: !!j?.active,
+  1252	      expiresAt: typeof j?.expiresAt === "string" ? j.expiresAt : null,
+  1253	      fusionsUsed: Number(j?.fusionsUsed ?? 0),
+  1254	      maxFusions: Number(j?.maxFusions ?? 3),
+  1255	      justSpawned: !!j?.justSpawned,
+  1256	    };
+  1257	  } catch {
+  1258	    return EMPTY_MERCHANT;
+  1259	  }
+  1260	}
+  1261	
+  1262	export type MerchantOutcome = "EXPLOSION" | "BASIC" | "RARE" | "EPIC" | "GOLD" | "V1" | "DOWNGRADE";
+  1263	
+  1264	export interface MerchantFuseResult {
+  1265	  ok: boolean;
+  1266	  outcome?: MerchantOutcome;
+  1267	  reason?: "EXPIRED_OR_MAX" | "INTERNAL" | "BAD_REQUEST" | "NETWORK";
+  1268	  fusionsUsed: number;
+  1269	  fusionsRemaining: number;
+  1270	  maxFusions: number;
+  1271	}
+  1272	
+  1273	// ─────────────────────────────────────────────────────────────────
+  1274	// COLLECTION PLANETS — server-side persistence of slot placements and
+  1275	// per-planet farming timers for White & Earth collection planets. Without
+  1276	// this, a localStorage wipe (PWA reinstall, cache clear, device switch)
+  1277	// would dump every placed planet back into inventory and erase any
+  1278	// uncollected farm earnings, which is exactly the bug we're closing.
+  1279	// ─────────────────────────────────────────────────────────────────
+  1280	export type CollectionKind = "white" | "earth";
+  1281	
+  1282	export interface CollectionPlanetState {
+  1283	  kind: CollectionKind;
+  1284	  bundleIndex: number;
+  1285	  subIndex: number;
+  1286	  slotIndex: number | null;
+  1287	  isFarmingActive: boolean;
+  1288	  farmStartedAtMs: number;
+  1289	  lastCollectedAtMs: number;
+  1290	}
+  1291	
+  1292	export async function fetchCollectionPlanets(
+  1293	  telegramId: string,
+  1294	): Promise<CollectionPlanetState[]> {
+  1295	  try {
+  1296	    const res = await fetch(
+  1297	      `${API_BASE}/collection-planets/${encodeURIComponent(telegramId)}?t=${Date.now()}`,
+  1298	      { cache: "no-store" },
+  1299	    );
+  1300	    if (!res.ok) return [];
+  1301	    const j = await res.json();
+  1302	    if (!j?.ok || !Array.isArray(j.planets)) return [];
+  1303	    return j.planets.map((p: Record<string, unknown>) => ({
+  1304	      kind: p.kind === "earth" ? "earth" : "white",
+  1305	      bundleIndex: Number(p.bundleIndex ?? 0),
+  1306	      subIndex: Number(p.subIndex ?? 0),
+  1307	      slotIndex:
+  1308	        p.slotIndex == null ? null : Number(p.slotIndex),
+  1309	      isFarmingActive: !!p.isFarmingActive,
+  1310	      farmStartedAtMs: Number(p.farmStartedAtMs ?? 0),
+  1311	      lastCollectedAtMs: Number(p.lastCollectedAtMs ?? 0),
+  1312	    })) as CollectionPlanetState[];
+  1313	  } catch {
+  1314	    return [];
+  1315	  }
+  1316	}
+  1317	
+  1318	export async function upsertCollectionPlanet(
+  1319	  telegramId: string,
+  1320	  planet: CollectionPlanetState,
+  1321	): Promise<boolean> {
+  1322	  try {
+  1323	    const res = await fetch(`${API_BASE}/collection-planets/upsert`, {
+  1324	      method: "POST",
+  1325	      headers: { "Content-Type": "application/json" },
+  1326	      body: JSON.stringify({ telegramId, planet }),
+  1327	      keepalive: true,
+  1328	    });
+  1329	    return res.ok;
+  1330	  } catch {
+  1331	    return false;
+  1332	  }
+  1333	}
+  1334	
+  1335	export async function bulkSeedCollectionPlanets(
+  1336	  telegramId: string,
+  1337	  planets: CollectionPlanetState[],
+  1338	): Promise<boolean> {
+  1339	  if (planets.length === 0) return true;
+  1340	  try {
+  1341	    const res = await fetch(`${API_BASE}/collection-planets/bulk-seed`, {
+  1342	      method: "POST",
+  1343	      headers: { "Content-Type": "application/json" },
+  1344	      body: JSON.stringify({ telegramId, planets }),
+  1345	      keepalive: true,
+  1346	    });
+  1347	    return res.ok;
+  1348	  } catch {
+  1349	    return false;
+  1350	  }
+  1351	}
+  1352	
+  1353	// ─── Regular planets (FarmPage main grid) — server-side persistence ───
+  1354	// Lets the user's planet inventory follow them across devices and survive
+  1355	// any localStorage wipe. The server stores the array as opaque JSONB and
+  1356	// also mirrors the per-rarity claimed-bonus counters so applyGrants on a
+  1357	// fresh device doesn't re-mint bonus planets that were already burned.
+  1358	export interface RegularPlanetsState {
+  1359	  // `ok` distinguishes a SUCCESSFUL fetch (with possibly empty/missing data)
+  1360	  // from a transient FAILURE (network error, 5xx). Callers must NOT enable
+  1361	  // their server-write gate when ok is false — otherwise a flaky network
+  1362	  // could silently clobber the server inventory with a stale local snapshot.
+  1363	  ok: boolean;
+  1364	  // True if the user row exists on the server. False both for new users and
+  1365	  // for failed fetches (check `ok` first to disambiguate).
+  1366	  exists: boolean;
+  1367	  // Uses `unknown` here so we don't pull the full Planet type into the
+  1368	  // utils layer; the caller (useGameState) re-shapes these into Planet[].
+  1369	  planets: Array<Record<string, unknown>>;
+  1370	  claimedBonusBasic: number;
+  1371	  claimedBonusRare: number;
+  1372	  claimedBonusEpic: number;
+  1373	  claimedBonusGold: number;
+  1374	  claimedBonusV1: number;
+  1375	}
+  1376	
+  1377	export async function fetchRegularPlanets(
+  1378	  telegramId: string,
+  1379	): Promise<RegularPlanetsState> {
+  1380	  const failure: RegularPlanetsState = {
+  1381	    ok: false,
+  1382	    exists: false,
+  1383	    planets: [],
+  1384	    claimedBonusBasic: 0,
+  1385	    claimedBonusRare: 0,
+  1386	    claimedBonusEpic: 0,
+  1387	    claimedBonusGold: 0,
+  1388	    claimedBonusV1: 0,
+  1389	  };
+  1390	  try {
+  1391	    const res = await fetch(
+  1392	      `${API_BASE}/regular-planets/${encodeURIComponent(telegramId)}?t=${Date.now()}`,
+  1393	      { cache: "no-store" },
+  1394	    );
+  1395	    if (!res.ok) return failure;
+  1396	    const j = await res.json();
+  1397	    if (!j?.ok) return failure;
+  1398	    return {
+  1399	      ok: true,
+  1400	      exists: !!j.exists,
+  1401	      planets: Array.isArray(j.planets) ? j.planets : [],
+  1402	      claimedBonusBasic: Number(j.claimedBonusBasic ?? 0),
+  1403	      claimedBonusRare: Number(j.claimedBonusRare ?? 0),
+  1404	      claimedBonusEpic: Number(j.claimedBonusEpic ?? 0),
+  1405	      claimedBonusGold: Number(j.claimedBonusGold ?? 0),
+  1406	      claimedBonusV1: Number(j.claimedBonusV1 ?? 0),
+  1407	    };
+  1408	  } catch {
+  1409	    return failure;
+  1410	  }
+  1411	}
+  1412	
+  1413	export async function saveRegularPlanets(
+  1414	  telegramId: string,
+  1415	  planets: Array<Record<string, unknown>>,
+  1416	  claimed: {
+  1417	    basic: number;
+  1418	    rare: number;
+  1419	    epic: number;
+  1420	    gold: number;
+  1421	    v1: number;
+  1422	  },
+  1423	): Promise<boolean> {
+  1424	  try {
+  1425	    const res = await fetch(`${API_BASE}/regular-planets/save`, {
+  1426	      method: "POST",
+  1427	      headers: { "Content-Type": "application/json" },
+  1428	      body: JSON.stringify({
+  1429	        telegramId,
+  1430	        planets,
+  1431	        // Monotonic write-time the server uses to fence stale saves. Date.now()
+  1432	        // within a single client session is strictly increasing; across
+  1433	        // devices the millisecond resolution is enough to order writes
+  1434	        // correctly in practice.
+  1435	        clientWriteAtMs: Date.now(),
+  1436	        claimedBonusBasic: claimed.basic,
+  1437	        claimedBonusRare: claimed.rare,
+  1438	        claimedBonusEpic: claimed.epic,
+  1439	        claimedBonusGold: claimed.gold,
+  1440	        claimedBonusV1: claimed.v1,
+  1441	      }),
+  1442	      keepalive: true,
+  1443	    });
+  1444	    return res.ok;
+  1445	  } catch {
+  1446	    return false;
+  1447	  }
+  1448	}
+  1449	
+  1450	export async function merchantFuse(telegramId: string, level: 1 | 2): Promise<MerchantFuseResult> {
+  1451	  try {
+  1452	    const res = await fetch(`${API_BASE}/merchant/fuse`, {
+  1453	      method: "POST",
+  1454	      headers: { "Content-Type": "application/json" },
+  1455	      body: JSON.stringify({ telegramId, level }),
+  1456	    });
+  1457	    const j = await res.json().catch(() => ({}));
+  1458	    return {
+  1459	      ok: !!j?.ok,
+  1460	      outcome: j?.outcome,
+  1461	      reason: j?.reason,
+  1462	      fusionsUsed: Number(j?.fusionsUsed ?? 0),
+  1463	      fusionsRemaining: Number(j?.fusionsRemaining ?? 0),
+  1464	      maxFusions: Number(j?.maxFusions ?? 3),
+  1465	    };
+  1466	  } catch {
+  1467	    return { ok: false, reason: "NETWORK", fusionsUsed: 0, fusionsRemaining: 0, maxFusions: 3 };
+  1468	  }
+  1469	}

@@ -1,0 +1,3052 @@
+     1	import { useState, useEffect, useRef, useCallback } from "react";
+     2	import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, type Grants, type CollectionPlanetState } from "../utils/api";
+     3	import { toast } from "./use-toast";
+     4	
+     5	// Server-authoritative clock: every farming/idle-income time check is computed
+     6	// against this value, NOT the device clock. Calibrated against /api/server-time
+     7	// so a tampered phone clock cannot accelerate ZOOM/TON accrual.
+     8	let _serverOffsetMs = 0;
+     9	let _serverOffsetReady = false;
+    10	
+    11	export function serverNow(): number {
+    12	  return Date.now() + _serverOffsetMs;
+    13	}
+    14	
+    15	export function isServerClockReady(): boolean {
+    16	  return _serverOffsetReady;
+    17	}
+    18	
+    19	// Returns the calibrated offset, or null if the server time couldn't be
+    20	// obtained. Callers must NOT silently treat null as "0 offset" — that would
+    21	// flag the clock as ready while it's actually still on the device's local
+    22	// clock, defeating any anti-tamper logic that relies on _serverOffsetReady.
+    23	async function calibrateServerOffset(): Promise<number | null> {
+    24	  try {
+    25	    const t0 = Date.now();
+    26	    const serverTime = await fetchServerTime();
+    27	    if (serverTime == null) return null;
+    28	    const t1 = Date.now();
+    29	    const rtt = t1 - t0;
+    30	    return serverTime - (t0 + rtt / 2);
+    31	  } catch {
+    32	    return null;
+    33	  }
+    34	}
+    35	
+    36	async function refreshServerOffset(): Promise<void> {
+    37	  try {
+    38	    const offset = await calibrateServerOffset();
+    39	    if (offset == null) return; // /time unreachable — keep last known state.
+    40	    // Sanity check: if RTT-noise produced something insane, ignore it.
+    41	    if (Number.isFinite(offset) && Math.abs(offset) < 365 * 24 * 3_600_000) {
+    42	      _serverOffsetMs = offset;
+    43	      _serverOffsetReady = true;
+    44	    }
+    45	  } catch { /* keep last known offset */ }
+    46	}
+    47	
+    48	export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD" | "V1" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4";
+    49	
+    50	export const WHITE_PLANET_TYPES: PlanetType[] = ["WHITE1", "WHITE2", "WHITE3", "WHITE4"];
+    51	
+    52	export function isWhitePlanet(name: PlanetType): boolean {
+    53	  return name === "WHITE1" || name === "WHITE2" || name === "WHITE3" || name === "WHITE4";
+    54	}
+    55	
+    56	export const EARTH_PLANET_TYPES: PlanetType[] = ["EARTH1", "EARTH2", "EARTH3", "EARTH4"];
+    57	
+    58	export function isEarthPlanet(name: PlanetType): boolean {
+    59	  return name === "EARTH1" || name === "EARTH2" || name === "EARTH3" || name === "EARTH4";
+    60	}
+    61	
+    62	export interface Planet {
+    63	  id: string;
+    64	  name: PlanetType;
+    65	  rate: number;
+    66	  color: string;
+    67	  glowColor: string;
+    68	  createdAt: number;
+    69	  farmStartedAt: number;
+    70	  lastCollectedAt: number;
+    71	  isListedInMarket: boolean;
+    72	  isFarmingActive: boolean;
+    73	  marketPrice: number | null;
+    74	  craftCost: number;
+    75	  serverListingId?: number;
+    76	  // Only used by White Collection planets. null = in inventory, 0..3 = placed in that slot (immutable).
+    77	  slotIndex?: number | null;
+    78	}
+    79	
+    80	export interface SunState {
+    81	  isOwned: boolean;
+    82	  isActive: boolean;
+    83	  activationCost: number;
+    84	  cycleCount: number;
+    85	  farmStartedAt: number;
+    86	  lastCollectedAt: number;
+    87	}
+    88	
+    89	export interface FeedEvent {
+    90	  id: string;
+    91	  text: string;
+    92	  timestamp: number;
+    93	}
+    94	
+    95	export interface MarketListing {
+    96	  id: string;
+    97	  name: PlanetType;
+    98	  price: number;
+    99	  seller: string;
+   100	  rate: number;
+   101	}
+   102	
+   103	export interface GameState {
+   104	  version: number;
+   105	  balance: number;
+   106	  taps: number;
+   107	  goal: number;
+   108	  planets: Planet[];
+   109	  maxSlots: number;
+   110	  totalEarned: number;
+   111	  seasonPoolEarned: number;
+   112	  craftsCompleted: number;
+   113	  totalTonSpent: number;
+   114	  referralCode: string;
+   115	  referralCount: number;
+   116	  lastDailyClaimAt: number;
+   117	  feedEvents: FeedEvent[];
+   118	  pendingPlanet: Planet | null;
+   119	  currentCraftRarity: PlanetType | null;
+   120	  usedRedeemCodes: string[];
+   121	  sun: SunState | null;
+   122	  telegramId: string | null;
+   123	  referredBy: string | null;
+   124	  referralSpeedBonus: number;
+   125	  claimedBonusBasic: number;
+   126	  claimedBonusRare: number;
+   127	  claimedBonusEpic: number;
+   128	  claimedBonusGold: number;
+   129	  claimedBonusV1: number;
+   130	  claimedBonusSun: boolean;
+   131	  sunCount: number;
+   132	  hasAutoTap: boolean;
+   133	  whiteCollectionUnlocked: boolean;
+   134	  // Number of White Collection bundles this user owns (each bundle = 4 white
+   135	  // planets + 4 slots). Global cap of 10 bundles is enforced server-side.
+   136	  whiteCollectionBundles: number;
+   137	  // Number of bundles already materialized locally (1 bundle = 4 planets
+   138	  // appended to whitePlanets). When grants reports a higher bundle count,
+   139	  // we materialize the delta. Per-user via storage.
+   140	  claimedWhiteCollectionBundles: number;
+   141	  // White planets owned by the user. Each bundle adds 4 fresh planets
+   142	  // (WHITE1..WHITE4). They live OUTSIDE the regular `planets` array so they
+   143	  // never appear on the FarmPage and can't be burned, sold, or listed.
+   144	  // `slotIndex` is null while in inventory and becomes 0..(maxSlots-1)
+   145	  // (immutable) once placed in the PixelAvatar slot grid.
+   146	  whitePlanets: Planet[];
+   147	  // Earth Collection — same model as white but with its own bundle counter,
+   148	  // claimed counter, and planet inventory (EARTH1..EARTH4).
+   149	  earthCollectionUnlocked: boolean;
+   150	  earthCollectionBundles: number;
+   151	  claimedEarthCollectionBundles: number;
+   152	  earthPlanets: Planet[];
+   153	  // Accumulated TON earnings from White Collection planets (claimed via COLLECT).
+   154	  // Reactivation fees for white planets are deducted from this balance.
+   155	  tonBalance: number;
+   156	  lastFarmingSettledAt: number;
+   157	  claimedMilestones: number[];
+   158	  lastBalanceEpoch: number;
+   159	  defectPlanets: string[];
+   160	}
+   161	
+   162	export const PLANET_CONFIG: Record<PlanetType, {
+   163	  rate: number;
+   164	  color: string;
+   165	  glowColor: string;
+   166	  chance: number;
+   167	  label: string;
+   168	  craftCost: number;
+   169	  activationTon: number;
+   170	  tapsNeeded: number;
+   171	  reactivationFee: number;
+   172	  // For White Collection planets only: the rate is in TON/hour and the
+   173	  // reactivationFee is in TON. For all other planets these fields are ZOOM.
+   174	  isTonFarming?: boolean;
+   175	}> = {
+   176	  BASIC: {
+   177	    rate: 2,
+   178	    color: "#8892b0",
+   179	    glowColor: "rgba(136,146,176,0.5)",
+   180	    // Reduced by 0.00005 to make room for V1 (0.005% drop) so the cumulative
+   181	    // probability sum across all rollable rarities still equals exactly 1.
+   182	    chance: 0.79445,
+   183	    label: "Basic",
+   184	    craftCost: 20,
+   185	    activationTon: 0.05,
+   186	    tapsNeeded: 50,
+   187	    reactivationFee: 25,
+   188	  },
+   189	  RARE: {
+   190	    rate: 15,
+   191	    color: "#4facfe",
+   192	    glowColor: "rgba(79,172,254,0.5)",
+   193	    chance: 0.20,
+   194	    label: "Rare",
+   195	    craftCost: 40,
+   196	    activationTon: 0.15,
+   197	    tapsNeeded: 100,
+   198	    reactivationFee: 200,
+   199	  },
+   200	  EPIC: {
+   201	    rate: 80,
+   202	    color: "#c471ed",
+   203	    glowColor: "rgba(196,113,237,0.5)",
+   204	    chance: 0.005,
+   205	    label: "Epic",
+   206	    craftCost: 80,
+   207	    activationTon: 0.5,
+   208	    tapsNeeded: 250,
+   209	    reactivationFee: 1000,
+   210	  },
+   211	  GOLD: {
+   212	    rate: 150,
+   213	    color: "#ffd700",
+   214	    glowColor: "rgba(255,215,0,0.5)",
+   215	    chance: 0.0005,
+   216	    label: "Gold",
+   217	    craftCost: 150,
+   218	    activationTon: 1.0,
+   219	    tapsNeeded: 500,
+   220	    reactivationFee: 2000,
+   221	  },
+   222	  // V1 — ultra-rare apex planet. ~10× rarer than Gold (1 in 20,000 forge).
+   223	  // Bright white "moon-like" appearance with crater spots (rendered in
+   224	  // PlanetOrb). Strongest output and highest costs in the game.
+   225	  V1: {
+   226	    rate: 400,
+   227	    color: "#f5fbff",
+   228	    glowColor: "rgba(245,251,255,0.7)",
+   229	    chance: 0.00005,
+   230	    label: "V1",
+   231	    craftCost: 250,
+   232	    activationTon: 2.0,
+   233	    tapsNeeded: 1000,
+   234	    reactivationFee: 4000,
+   235	  },
+   236	  // White Collection — only obtainable via the 30 TON shop bundle.
+   237	  // chance: 0 ensures rollRarity() in the Lab can never produce them.
+   238	  // Each white planet farms TON, not ZOOM. Combined rate of all 4 = 0.00462 TON/h
+   239	  // (≈ 0.111 TON/day total). Reactivation fee is paid in TON (deducted from
+   240	  // the user's accumulated tonBalance).
+   241	  WHITE1: {
+   242	    rate: 0.001155,
+   243	    color: "#ffffff",
+   244	    glowColor: "rgba(255,255,255,0.55)",
+   245	    chance: 0,
+   246	    label: "White Planet 1",
+   247	    craftCost: 0,
+   248	    activationTon: 0,
+   249	    tapsNeeded: 0,
+   250	    reactivationFee: 0.005,
+   251	    isTonFarming: true,
+   252	  },
+   253	  WHITE2: {
+   254	    rate: 0.001155,
+   255	    color: "#f8faff",
+   256	    glowColor: "rgba(248,250,255,0.55)",
+   257	    chance: 0,
+   258	    label: "White Planet 2",
+   259	    craftCost: 0,
+   260	    activationTon: 0,
+   261	    tapsNeeded: 0,
+   262	    reactivationFee: 0.005,
+   263	    isTonFarming: true,
+   264	  },
+   265	  WHITE3: {
+   266	    rate: 0.001155,
+   267	    color: "#f0f4ff",
+   268	    glowColor: "rgba(240,244,255,0.55)",
+   269	    chance: 0,
+   270	    label: "White Planet 3",
+   271	    craftCost: 0,
+   272	    activationTon: 0,
+   273	    tapsNeeded: 0,
+   274	    reactivationFee: 0.005,
+   275	    isTonFarming: true,
+   276	  },
+   277	  WHITE4: {
+   278	    rate: 0.001155,
+   279	    color: "#e8eeff",
+   280	    glowColor: "rgba(232,238,255,0.6)",
+   281	    chance: 0,
+   282	    label: "White Planet 4",
+   283	    craftCost: 0,
+   284	    activationTon: 0,
+   285	    tapsNeeded: 0,
+   286	    reactivationFee: 0.005,
+   287	    isTonFarming: true,
+   288	  },
+   289	  // EARTH Collection — 4 earth-themed planets per bundle. Per-planet rate
+   290	  // 0.000177 TON/h × 4 planets ≈ 0.017 TON/day combined per bundle.
+   291	  // Reactivation fee is 0.001 TON paid on-chain via TonConnect, mirroring
+   292	  // the white-planet flow.
+   293	  EARTH1: {
+   294	    rate: 0.000177,
+   295	    color: "#3b82f6",
+   296	    glowColor: "rgba(59,130,246,0.55)",
+   297	    chance: 0,
+   298	    label: "T1",
+   299	    craftCost: 0,
+   300	    activationTon: 0,
+   301	    tapsNeeded: 0,
+   302	    reactivationFee: 0.001,
+   303	    isTonFarming: true,
+   304	  },
+   305	  EARTH2: {
+   306	    rate: 0.000177,
+   307	    color: "#22c55e",
+   308	    glowColor: "rgba(34,197,94,0.55)",
+   309	    chance: 0,
+   310	    label: "T2",
+   311	    craftCost: 0,
+   312	    activationTon: 0,
+   313	    tapsNeeded: 0,
+   314	    reactivationFee: 0.001,
+   315	    isTonFarming: true,
+   316	  },
+   317	  EARTH3: {
+   318	    rate: 0.000177,
+   319	    color: "#0ea5e9",
+   320	    glowColor: "rgba(14,165,233,0.55)",
+   321	    chance: 0,
+   322	    label: "T3",
+   323	    craftCost: 0,
+   324	    activationTon: 0,
+   325	    tapsNeeded: 0,
+   326	    reactivationFee: 0.001,
+   327	    isTonFarming: true,
+   328	  },
+   329	  EARTH4: {
+   330	    rate: 0.000177,
+   331	    color: "#16a34a",
+   332	    glowColor: "rgba(22,163,74,0.55)",
+   333	    chance: 0,
+   334	    label: "T4",
+   335	    craftCost: 0,
+   336	    activationTon: 0,
+   337	    tapsNeeded: 0,
+   338	    reactivationFee: 0.001,
+   339	    isTonFarming: true,
+   340	  },
+   341	};
+   342	
+   343	export const SUN_CONFIG = {
+   344	  rate: 1000,
+   345	  color: "#ffb347",
+   346	  glowColor: "rgba(255,179,71,0.6)",
+   347	  // SUN is purchased once for 10 TON. Each new 24h cycle requires a
+   348	  // reactivation fee in $ZOOM (same model as planets, scaled to its 24,000/cycle output).
+   349	  activationCostBase: 0,
+   350	  reactivationFee: 12000,
+   351	};
+   352	
+   353	const REDEEM_CODES: Record<string, number> = {
+   354	  "ZOOMSTART": 500,
+   355	  "ZOOMLUCKY": 1000,
+   356	  "ZOOMBIG": 2500,
+   357	  "ZOOMLAUNCH": 750,
+   358	};
+   359	
+   360	const SUN_CODES = ["SUN-ALPHA", "SUN-OMEGA", "SUN-PRIME", "SUN-NOVA", "SUN-CORE"];
+   361	
+   362	const STATE_VERSION = 4;
+   363	const STORAGE_KEY = "zoom-master-v4";
+   364	const LIVE_EVENT_KEY = "zoom-master-live-activity-event";
+   365	const LIVE_EVENT_CHANNEL = "zoom-master-live-activity";
+   366	const MAX_FEED_EVENTS = 50;
+   367	const PLAYER_NAME = "Username";
+   368	const FARM_DURATION_MS = 24 * 60 * 60 * 1000;
+   369	const DAILY_COLLECT_MS = 24 * 60 * 60 * 1000;
+   370	
+   371	function makeReferralCode(): string {
+   372	  return "ZOOM-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+   373	}
+   374	
+   375	function getStorageKey(telegramId: string | null): string {
+   376	  return telegramId ? `${STORAGE_KEY}:${telegramId}` : STORAGE_KEY;
+   377	}
+   378	
+   379	function getTelegramContext(): { telegramId: string | null; startParam: string | null; firstName: string | null; username: string | null } {
+   380	  try {
+   381	    const webApp = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number; first_name?: string; username?: string }; start_param?: string }; initData?: string } } }).Telegram?.WebApp;
+   382	    const unsafe = webApp?.initDataUnsafe;
+   383	    const telegramId = unsafe?.user?.id ? String(unsafe.user.id) : null;
+   384	    const firstName = unsafe?.user?.first_name ?? null;
+   385	    const username = unsafe?.user?.username ?? null;
+   386	
+   387	    let startParam: string | null = unsafe?.start_param || null;
+   388	
+   389	    if (!startParam && webApp?.initData) {
+   390	      try {
+   391	        const params = new URLSearchParams(webApp.initData);
+   392	        startParam = params.get("start_param");
+   393	      } catch { /**/ }
+   394	    }
+   395	
+   396	    if (!startParam) {
+   397	      startParam = localStorage.getItem("zoom-start-param");
+   398	    }
+   399	
+   400	    return { telegramId, startParam, firstName, username };
+   401	  } catch {
+   402	    return { telegramId: null, startParam: null, firstName: null, username: null };
+   403	  }
+   404	}
+   405	
+   406	const INITIAL_STATE: GameState = {
+   407	  version: STATE_VERSION,
+   408	  balance: 300,
+   409	  taps: 0,
+   410	  goal: 50,
+   411	  planets: [],
+   412	  maxSlots: 2,
+   413	  totalEarned: 0,
+   414	  seasonPoolEarned: 0,
+   415	  craftsCompleted: 0,
+   416	  totalTonSpent: 0,
+   417	  referralCode: makeReferralCode(),
+   418	  referralCount: 0,
+   419	  lastDailyClaimAt: 0,
+   420	  feedEvents: [],
+   421	  pendingPlanet: null,
+   422	  currentCraftRarity: null,
+   423	  usedRedeemCodes: [],
+   424	  sun: null,
+   425	  telegramId: null,
+   426	  referredBy: null,
+   427	  referralSpeedBonus: 0,
+   428	  claimedBonusBasic: 0,
+   429	  claimedBonusRare: 0,
+   430	  claimedBonusEpic: 0,
+   431	  claimedBonusGold: 0,
+   432	  claimedBonusV1: 0,
+   433	  claimedBonusSun: false,
+   434	  sunCount: 0,
+   435	  hasAutoTap: false,
+   436	  whiteCollectionUnlocked: false,
+   437	  whiteCollectionBundles: 0,
+   438	  claimedWhiteCollectionBundles: 0,
+   439	  whitePlanets: [],
+   440	  earthCollectionUnlocked: false,
+   441	  earthCollectionBundles: 0,
+   442	  claimedEarthCollectionBundles: 0,
+   443	  earthPlanets: [],
+   444	  tonBalance: 0,
+   445	  lastFarmingSettledAt: serverNow(),
+   446	  claimedMilestones: [],
+   447	  defectPlanets: [],
+   448	  lastBalanceEpoch: 0,
+   449	};
+   450	
+   451	function migratePlanet(p: unknown): Planet {
+   452	  const raw = p as Partial<Planet>;
+   453	  return {
+   454	    isFarmingActive: false,
+   455	    marketPrice: null,
+   456	    slotIndex: null,
+   457	    ...raw,
+   458	  } as Planet;
+   459	}
+   460	
+   461	// True when loadState() did NOT find a matching localStorage entry for the
+   462	// current Telegram user — i.e. this device is opening this account for the
+   463	// first time (or after clearing storage). The first server sync uses this to
+   464	// snap balance/state to the server values instead of merging with the local
+   465	// defaults (which would otherwise resurrect the 300-ZOOM starting balance and
+   466	// overwrite the real server-side balance via the next /balance/sync call).
+   467	let _lastLoadWasFresh = true;
+   468	export function consumeWasFreshLoad(): boolean {
+   469	  const v = _lastLoadWasFresh;
+   470	  _lastLoadWasFresh = false;
+   471	  return v;
+   472	}
+   473	
+   474	function loadState(): GameState {
+   475	  const { telegramId, startParam, firstName: _firstName } = getTelegramContext();
+   476	
+   477	  try {
+   478	    const matchingKey = localStorage.getItem(getStorageKey(telegramId));
+   479	    const raw = matchingKey ?? localStorage.getItem(STORAGE_KEY);
+   480	    if (raw) {
+   481	      const parsed = JSON.parse(raw) as GameState;
+   482	      if (parsed.version === STATE_VERSION) {
+   483	        if (telegramId && parsed.telegramId !== telegramId) {
+   484	          _lastLoadWasFresh = true;
+   485	          const referredBy = startParam ? startParam : null;
+   486	          return {
+   487	            ...INITIAL_STATE,
+   488	            referralCode: telegramId,
+   489	            telegramId,
+   490	            referredBy,
+   491	            referralSpeedBonus: referredBy ? 0.10 : 0,
+   492	          };
+   493	        }
+   494	        const base: GameState = {
+   495	          ...INITIAL_STATE,
+   496	          ...parsed,
+   497	          planets: (parsed.planets || []).map(migratePlanet),
+   498	          pendingPlanet: parsed.pendingPlanet ? migratePlanet(parsed.pendingPlanet) : null,
+   499	          usedRedeemCodes: parsed.usedRedeemCodes || [],
+   500	          sun: parsed.sun || null,
+   501	          referralSpeedBonus: parsed.referralSpeedBonus ?? 0,
+   502	          referredBy: parsed.referredBy ?? null,
+   503	          telegramId: parsed.telegramId ?? null,
+   504	          claimedBonusSun: parsed.claimedBonusSun ?? false,
+   505	          lastFarmingSettledAt: parsed.lastFarmingSettledAt ?? serverNow(),
+   506	          claimedMilestones: parsed.claimedMilestones ?? [],
+   507	          lastBalanceEpoch: parsed.lastBalanceEpoch ?? 0,
+   508	          whiteCollectionBundles: (parsed as unknown as Record<string, unknown>).whiteCollectionBundles as number ?? (parsed.whiteCollectionUnlocked ? 1 : 0),
+   509	          claimedWhiteCollectionBundles:
+   510	            (parsed as unknown as Record<string, unknown>).claimedWhiteCollectionBundles as number
+   511	            ?? ((parsed as unknown as Record<string, unknown>).claimedWhiteCollection ? 1 : 0),
+   512	          whitePlanets: (parsed.whitePlanets || []).map(migratePlanet),
+   513	          earthCollectionUnlocked: (parsed as unknown as Record<string, unknown>).earthCollectionUnlocked as boolean ?? false,
+   514	          earthCollectionBundles: (parsed as unknown as Record<string, unknown>).earthCollectionBundles as number ?? 0,
+   515	          claimedEarthCollectionBundles: (parsed as unknown as Record<string, unknown>).claimedEarthCollectionBundles as number ?? 0,
+   516	          earthPlanets: ((parsed as unknown as Record<string, unknown>).earthPlanets as Planet[] | undefined ?? []).map(migratePlanet),
+   517	          tonBalance: parsed.tonBalance ?? 0,
+   518	        };
+   519	        const resolvedTelegramId = telegramId || base.telegramId;
+   520	        // Only treat as "fresh load" when we did NOT find an entry keyed to the
+   521	        // current Telegram user. If matchingKey is null we fell back to a
+   522	        // legacy un-keyed entry (or someone else's), so still treat as fresh
+   523	        // and let server be authoritative on first sync.
+   524	        _lastLoadWasFresh = !matchingKey;
+   525	        return {
+   526	          ...base,
+   527	          telegramId: resolvedTelegramId,
+   528	          referralCode: resolvedTelegramId || base.referralCode,
+   529	        };
+   530	      }
+   531	    }
+   532	  } catch { /**/ }
+   533	
+   534	  _lastLoadWasFresh = true;
+   535	  const isNewUser = true;
+   536	  const referredBy = (startParam && isNewUser) ? startParam : null;
+   537	  const referralSpeedBonus = referredBy ? 0.10 : 0;
+   538	  const referralCode = telegramId || makeReferralCode();
+   539	
+   540	  return {
+   541	    ...INITIAL_STATE,
+   542	    referralCode,
+   543	    telegramId,
+   544	    referredBy,
+   545	    referralSpeedBonus,
+   546	  };
+   547	}
+   548	
+   549	// Monotonic write counter — incremented every time saveState writes. Used to
+   550	// detect "I queued a stale snapshot, but a fresher write happened before me"
+   551	// in scheduled/idle persist callbacks so they don't overwrite newer data.
+   552	let _writeSeq = 0;
+   553	let _lastSavedAt = 0;
+   554	function saveState(state: GameState) {
+   555	  // Discard any queued idle write — this snapshot is newer and authoritative.
+   556	  // Without this, a stale schedulePersist payload (e.g. from a tap a few ms
+   557	  // earlier) could fire AFTER us and resurrect items that were just removed
+   558	  // (burned planets, sold items, etc.) on the next reload.
+   559	  _pendingPersistState = null;
+   560	  _persistScheduled = false;
+   561	  _writeSeq++;
+   562	  _lastSavedAt = Date.now();
+   563	  try {
+   564	    localStorage.setItem(getStorageKey(state.telegramId), JSON.stringify(state));
+   565	  } catch { /**/ }
+   566	}
+   567	
+   568	// Non-blocking persistence scheduler. Each call replaces the pending state and
+   569	// the actual JSON.stringify + localStorage write happens during the browser's
+   570	// idle time (or next animation frame as fallback). This keeps the tap thread
+   571	// at 60fps even when state grows large (many planets, feed events, etc).
+   572	let _pendingPersistState: GameState | null = null;
+   573	let _persistScheduled = false;
+   574	type IdleCallback = (cb: () => void, opts?: { timeout?: number }) => number;
+   575	const _scheduleIdle: IdleCallback =
+   576	  typeof window !== "undefined" && typeof (window as unknown as { requestIdleCallback?: IdleCallback }).requestIdleCallback === "function"
+   577	    ? (window as unknown as { requestIdleCallback: IdleCallback }).requestIdleCallback.bind(window)
+   578	    : ((cb: () => void) => window.setTimeout(cb, 0)) as IdleCallback;
+   579	
+   580	function schedulePersist(state: GameState) {
+   581	  _pendingPersistState = state;
+   582	  if (_persistScheduled) return;
+   583	  _persistScheduled = true;
+   584	  const seqAtSchedule = _writeSeq;
+   585	  _scheduleIdle(() => {
+   586	    _persistScheduled = false;
+   587	    const s = _pendingPersistState;
+   588	    _pendingPersistState = null;
+   589	    // If anyone wrote authoritatively while we were queued, the snapshot we
+   590	    // captured is potentially stale (e.g. user burned/sold/listed an item
+   591	    // between schedule and idle). Skip — the authoritative writer already
+   592	    // persisted the truth.
+   593	    if (_writeSeq !== seqAtSchedule) return;
+   594	    if (s) saveState(s);
+   595	  }, { timeout: 200 });
+   596	}
+   597	
+   598	// Force-flush pending persist (used on page hide / unload to guarantee writes).
+   599	function flushPersist() {
+   600	  if (_pendingPersistState) {
+   601	    const s = _pendingPersistState;
+   602	    _pendingPersistState = null;
+   603	    _persistScheduled = false;
+   604	    saveState(s);
+   605	  }
+   606	}
+   607	
+   608	let _lastSyncedBalance = -1;
+   609	let _lastSyncedTonBalance = -1;
+   610	let _syncInFlight = false;
+   611	let _pendingSyncBalance = -1;
+   612	// Tracks the most recent server balanceEpoch we've observed. Sent on every
+   613	// /balance/sync so the server can detect stale clients (e.g. after admin
+   614	// mutations) and overwrite their balance instead of merging.
+   615	let _currentBalanceEpoch = 0;
+   616	export function getCurrentBalanceEpoch(): number { return _currentBalanceEpoch; }
+   617	export function setCurrentBalanceEpoch(epoch: number): void {
+   618	  if (typeof epoch === "number" && epoch > _currentBalanceEpoch) _currentBalanceEpoch = epoch;
+   619	}
+   620	
+   621	// Module-level holder for the hook's stateRef so module-scope helpers like
+   622	// `reconcileFromSyncResponse` can mutate the same source-of-truth that the
+   623	// in-component periodic doSync reads from. Set once when the hook mounts.
+   624	// Without this, the wheel/admin race-condition fix that snaps stateRef
+   625	// SYNCHRONOUSLY before bumping the epoch wouldn't compile (and at runtime
+   626	// would leave the optimistic update unapplied, losing prizes).
+   627	type StateRefHolder = { current: GameState };
+   628	let _stateRefHolder: StateRefHolder | null = null;
+   629	export function _registerStateRef(ref: StateRefHolder): void {
+   630	  _stateRefHolder = ref;
+   631	}
+   632	
+   633	// Called after every /balance/sync response. The server is authoritative
+   634	// whenever its epoch is higher than the one we sent — that means an
+   635	// authoritative balance change happened on the server (admin mutation,
+   636	// Stars/TON purchase credit, marketplace buy/sell, wheel/daily/referral
+   637	// reward) since our last sync. In that case we MUST snap the local state
+   638	// to the server value (regardless of whether it is higher or lower) so the
+   639	// next outgoing sync doesn't echo back the stale value and overwrite the
+   640	// authoritative change.
+   641	function reconcileFromSyncResponse(
+   642	  sentBalance: number,
+   643	  sentEpoch: number,
+   644	  res: { zoomBalance: number; balanceEpoch: number; tonBalance?: number },
+   645	  sentTonBalance?: number,
+   646	): void {
+   647	  // ORDER MATTERS — race fix.
+   648	  //
+   649	  // The naive ordering (bump _currentBalanceEpoch first, then dispatch the
+   650	  // setState-driven balance snap) leaves a window where:
+   651	  //   • _currentBalanceEpoch     == new (e.g. 6, just credited by the server)
+   652	  //   • stateRef.current.balance == old (still 1000 — React hasn't committed
+   653	  //                                       the snap setState yet)
+   654	  // Any sync that fires inside that window (periodic doSync, tab-switch
+   655	  // throttled doSync, or an immediate sync triggered by a stray tap) reads
+   656	  // stateRef.current.balance == 1000 and ce == 6, then sends them to the
+   657	  // server. The server's CASE WHEN balance_epoch > clientEpoch THEN keep
+   658	  // ELSE GREATEST(0, client) END takes the ELSE branch (epoch == ce, not >),
+   659	  // and overwrites the freshly credited 1100 back to 1000 — silently
+   660	  // losing the wheel/admin/marketplace prize. Symptom: the YOU WON popup
+   661	  // appears but the visible balance never rises.
+   662	  //
+   663	  // Fix: snap stateRef + _lastSyncedBalance SYNCHRONOUSLY, then bump the
+   664	  // epoch. Now any concurrent sync sees the already-snapped (balance, epoch)
+   665	  // pair and the server preserves the credit.
+   666	  const serverAdvanced = res.balanceEpoch > sentEpoch;
+   667	  const valueDiverged = res.zoomBalance !== sentBalance;
+   668	  if (serverAdvanced && valueDiverged) {
+   669	    if (_stateRefHolder) {
+   670	      _stateRefHolder.current = { ..._stateRefHolder.current, balance: res.zoomBalance };
+   671	    }
+   672	    _lastSyncedBalance = res.zoomBalance;
+   673	    _pendingSyncBalance = -1;
+   674	    try {
+   675	      window.dispatchEvent(new CustomEvent("zoom-server-balance-snap", {
+   676	        detail: { balance: res.zoomBalance, epoch: res.balanceEpoch },
+   677	      }));
+   678	    } catch { /**/ }
+   679	  }
+   680	  // For TON we use a non-destructive merge on the server (GREATEST), so the
+   681	  // server can return a value HIGHER than what we sent even when the epoch
+   682	  // didn't advance (e.g. an earlier session credited TON, or an admin grant
+   683	  // bumped the stored balance). Whenever the server reports a strictly
+   684	  // higher TON than the client sent, snap local up so the user actually
+   685	  // sees the credited amount. Same synchronous-stateRef-first ordering as
+   686	  // the ZOOM snap above, for the same race-window reason.
+   687	  if (
+   688	    typeof res.tonBalance === "number" &&
+   689	    typeof sentTonBalance === "number" &&
+   690	    (res.tonBalance ?? 0) - (sentTonBalance ?? 0) > 1e-9
+   691	  ) {
+   692	    if (_stateRefHolder) {
+   693	      _stateRefHolder.current = { ..._stateRefHolder.current, tonBalance: res.tonBalance };
+   694	    }
+   695	    _lastSyncedTonBalance = res.tonBalance;
+   696	    try {
+   697	      window.dispatchEvent(new CustomEvent("zoom-server-ton-snap", {
+   698	        detail: { tonBalance: res.tonBalance, epoch: res.balanceEpoch },
+   699	      }));
+   700	    } catch { /**/ }
+   701	  }
+   702	  // Bump the epoch LAST so any sync that fires after this point already sees
+   703	  // the snapped balance/TON in stateRef + _lastSyncedBalance.
+   704	  setCurrentBalanceEpoch(res.balanceEpoch);
+   705	}
+   706	
+   707	function immediateSyncToServer(state: GameState) {
+   708	  const { telegramId } = getTelegramContext();
+   709	  if (!telegramId) return;
+   710	  const balance = Math.floor(state.balance);
+   711	  const tonNow = Math.max(0, state.tonBalance || 0);
+   712	  // Sync if EITHER currency changed since the last sync — TON-only changes
+   713	  // (collect/reactivate of white planets) must persist promptly too.
+   714	  const tonChanged = Math.abs(tonNow - _lastSyncedTonBalance) > 1e-9;
+   715	  if (balance === _lastSyncedBalance && !tonChanged) return;
+   716	
+   717	  if (_syncInFlight) {
+   718	    _pendingSyncBalance = balance;
+   719	    return;
+   720	  }
+   721	
+   722	  _lastSyncedBalance = balance;
+   723	  _lastSyncedTonBalance = tonNow;
+   724	  _syncInFlight = true;
+   725	  const ctx_ = getTelegramContext();
+   726	  const firstName = ctx_.firstName;
+   727	  const username = ctx_.username;
+   728	  const sentEpoch = _currentBalanceEpoch;
+   729	  const sentTon = Math.max(0, state.tonBalance || 0);
+   730	  syncBalance({ telegramId, firstName, username, zoomBalance: balance, tonBalance: sentTon, clientEpoch: sentEpoch })
+   731	    .then((res) => {
+   732	      reconcileFromSyncResponse(balance, sentEpoch, res, sentTon);
+   733	      _syncInFlight = false;
+   734	      if (_pendingSyncBalance >= 0 && _pendingSyncBalance !== _lastSyncedBalance) {
+   735	        const nextBalance = _pendingSyncBalance;
+   736	        _pendingSyncBalance = -1;
+   737	        const { telegramId: tid, firstName: fn, username: un } = getTelegramContext();
+   738	        if (tid) {
+   739	          _lastSyncedBalance = nextBalance;
+   740	          _syncInFlight = true;
+   741	          const sentEpoch2 = _currentBalanceEpoch;
+   742	          // Re-send the same TON value we just sent: this follow-up sync is
+   743	          // only chasing the deferred ZOOM update; tonBalance state is owned
+   744	          // by setState callbacks and we don't have access to it here.
+   745	          const sentTon2 = sentTon;
+   746	          syncBalance({ telegramId: tid, firstName: fn, username: un, zoomBalance: nextBalance, tonBalance: sentTon2, clientEpoch: sentEpoch2 })
+   747	            .then((r2) => { reconcileFromSyncResponse(nextBalance, sentEpoch2, r2, sentTon2); _syncInFlight = false; })
+   748	            .catch(() => { _syncInFlight = false; });
+   749	        }
+   750	      }
+   751	    })
+   752	    .catch(() => { _syncInFlight = false; });
+   753	}
+   754	
+   755	function publishFeedEvent(event: FeedEvent) {
+   756	  try {
+   757	    localStorage.setItem(LIVE_EVENT_KEY, JSON.stringify(event));
+   758	  } catch { /**/ }
+   759	  try {
+   760	    const channel = new BroadcastChannel(LIVE_EVENT_CHANNEL);
+   761	    channel.postMessage(event);
+   762	    channel.close();
+   763	  } catch { /**/ }
+   764	}
+   765	
+   766	function withFeedEvent(state: GameState, text: string): GameState {
+   767	  const event: FeedEvent = {
+   768	    id: `${Date.now()}-${Math.random().toString(36).substring(2)}`,
+   769	    text,
+   770	    timestamp: Date.now(),
+   771	  };
+   772	  publishFeedEvent(event);
+   773	  return {
+   774	    ...state,
+   775	    feedEvents: [event, ...state.feedEvents].slice(0, MAX_FEED_EVENTS),
+   776	  };
+   777	}
+   778	
+   779	function rollRarity(): PlanetType {
+   780	  const r = Math.random();
+   781	  let cumulative = 0;
+   782	  for (const [type, cfg] of Object.entries(PLANET_CONFIG) as [PlanetType, typeof PLANET_CONFIG[PlanetType]][]) {
+   783	    cumulative += cfg.chance;
+   784	    if (r <= cumulative) return type;
+   785	  }
+   786	  return "BASIC";
+   787	}
+   788	
+   789	function makeWhiteCollectionPlanets(bundleIndex = 0): Planet[] {
+   790	  const now = serverNow();
+   791	  return WHITE_PLANET_TYPES.map((type, i) => {
+   792	    const cfg = PLANET_CONFIG[type];
+   793	    return {
+   794	      id: `white-${type}-b${bundleIndex}-${now}-${i}-${Math.random().toString(36).slice(2)}`,
+   795	      name: type,
+   796	      rate: cfg.rate,
+   797	      color: cfg.color,
+   798	      glowColor: cfg.glowColor,
+   799	      createdAt: now,
+   800	      farmStartedAt: 0,
+   801	      lastCollectedAt: 0,
+   802	      isListedInMarket: false,
+   803	      isFarmingActive: false,
+   804	      marketPrice: null,
+   805	      craftCost: 0,
+   806	      slotIndex: null,
+   807	    };
+   808	  });
+   809	}
+   810	
+   811	function makeEarthCollectionPlanets(bundleIndex = 0): Planet[] {
+   812	  const now = serverNow();
+   813	  return EARTH_PLANET_TYPES.map((type, i) => {
+   814	    const cfg = PLANET_CONFIG[type];
+   815	    return {
+   816	      id: `earth-${type}-b${bundleIndex}-${now}-${i}-${Math.random().toString(36).slice(2)}`,
+   817	      name: type,
+   818	      rate: cfg.rate,
+   819	      color: cfg.color,
+   820	      glowColor: cfg.glowColor,
+   821	      createdAt: now,
+   822	      farmStartedAt: 0,
+   823	      lastCollectedAt: 0,
+   824	      isListedInMarket: false,
+   825	      isFarmingActive: false,
+   826	      marketPrice: null,
+   827	      craftCost: 0,
+   828	      slotIndex: null,
+   829	    };
+   830	  });
+   831	}
+   832	
+   833	// Parse the (kind, bundleIndex, subIndex) tuple out of a White or Earth
+   834	// collection planet id. Returns null for any other planet id (regular,
+   835	// bonus, marketplace, etc.). Format produced by makeWhiteCollectionPlanets
+   836	// / makeEarthCollectionPlanets:
+   837	//   `${kind}-${type}-b${bundleIndex}-${now}-${i}-${random}`
+   838	//
+   839	// `now` is `serverNow()` which can be a float (server-time offset includes
+   840	// half-RTT calibration), so the timestamp segment must allow `.<digits>`.
+   841	export function parseCollectionPlanetKey(
+   842	  id: string,
+   843	): { kind: "white" | "earth"; bundleIndex: number; subIndex: number } | null {
+   844	  const m = /^(white|earth)-[A-Z0-9]+-b(\d+)-\d+(?:\.\d+)?-(\d+)-/.exec(id);
+   845	  if (!m) return null;
+   846	  return {
+   847	    kind: m[1] as "white" | "earth",
+   848	    bundleIndex: parseInt(m[2]!, 10),
+   849	    subIndex: parseInt(m[3]!, 10),
+   850	  };
+   851	}
+   852	
+   853	// Snapshot the server-persisted state for a collection planet (used by the
+   854	// upsert calls below). Returns null when the planet id can't be parsed,
+   855	// which means the upsert should be skipped.
+   856	function snapshotCollectionPlanet(p: Planet): CollectionPlanetState | null {
+   857	  const key = parseCollectionPlanetKey(p.id);
+   858	  if (!key) return null;
+   859	  return {
+   860	    kind: key.kind,
+   861	    bundleIndex: key.bundleIndex,
+   862	    subIndex: key.subIndex,
+   863	    slotIndex: p.slotIndex ?? null,
+   864	    isFarmingActive: !!p.isFarmingActive,
+   865	    farmStartedAtMs: p.farmStartedAt ?? 0,
+   866	    lastCollectedAtMs: p.lastCollectedAt ?? 0,
+   867	  };
+   868	}
+   869	
+   870	// Merge server-persisted slot/farming state into a freshly materialized (or
+   871	// already-loaded) array of collection planets. Planets that have a matching
+   872	// server record adopt the server values for slotIndex / isFarmingActive /
+   873	// farmStartedAt / lastCollectedAt — every other field stays as-is.
+   874	function applyServerOverrides(
+   875	  planets: Planet[],
+   876	  serverByKey: Map<string, CollectionPlanetState>,
+   877	): Planet[] {
+   878	  if (planets.length === 0 || serverByKey.size === 0) return planets;
+   879	  return planets.map((p) => {
+   880	    const key = parseCollectionPlanetKey(p.id);
+   881	    if (!key) return p;
+   882	    const sp = serverByKey.get(`${key.kind}-${key.bundleIndex}-${key.subIndex}`);
+   883	    if (!sp) return p;
+   884	    return {
+   885	      ...p,
+   886	      slotIndex: sp.slotIndex ?? null,
+   887	      isFarmingActive: sp.isFarmingActive,
+   888	      farmStartedAt: sp.farmStartedAtMs,
+   889	      lastCollectedAt: sp.lastCollectedAtMs,
+   890	    };
+   891	  });
+   892	}
+   893	
+   894	function indexServerCollectionPlanets(
+   895	  serverPlanets: CollectionPlanetState[],
+   896	): Map<string, CollectionPlanetState> {
+   897	  const map = new Map<string, CollectionPlanetState>();
+   898	  for (const sp of serverPlanets) {
+   899	    map.set(`${sp.kind}-${sp.bundleIndex}-${sp.subIndex}`, sp);
+   900	  }
+   901	  return map;
+   902	}
+   903	
+   904	// Fire-and-forget upsert of a single collection planet's server state. All
+   905	// collection-planet mutations (place, collect, reactivate, mark-reactivated)
+   906	// call this so the server stays in lockstep with the client.
+   907	function persistCollectionPlanet(telegramId: string | null | undefined, planet: Planet): void {
+   908	  if (!telegramId) return;
+   909	  const snap = snapshotCollectionPlanet(planet);
+   910	  if (!snap) return;
+   911	  void upsertCollectionPlanet(telegramId, snap);
+   912	}
+   913	
+   914	function makePlanet(rarity: PlanetType): Planet {
+   915	  const cfg = PLANET_CONFIG[rarity];
+   916	  const now = serverNow();
+   917	  return {
+   918	    id: `${Date.now()}-${Math.random().toString(36).substring(2)}`,
+   919	    name: rarity,
+   920	    rate: cfg.rate,
+   921	    color: cfg.color,
+   922	    glowColor: cfg.glowColor,
+   923	    createdAt: now,
+   924	    // farmStartedAt and lastCollectedAt remain 0 until the user actually
+   925	    // presses START for the first time. This is what lets startFarming
+   926	    // distinguish "never been started" from "mid-cycle, just paused" —
+   927	    // which in turn closes the marketplace cooldown-reset exploit
+   928	    // (list → delist → START would otherwise grant a free fresh cycle).
+   929	    farmStartedAt: 0,
+   930	    lastCollectedAt: 0,
+   931	    isListedInMarket: false,
+   932	    isFarmingActive: false,
+   933	    marketPrice: null,
+   934	    craftCost: cfg.craftCost,
+   935	  };
+   936	}
+   937	
+   938	/**
+   939	 * Hard cutoff for the legacy never-started migration. Planets created on or
+   940	 * after this instant always use the new init scheme (farmStartedAt = 0), so
+   941	 * the migration is irrelevant to them and we refuse to touch them. Anything
+   942	 * created before this instant predates the fix and is eligible for the
+   943	 * migration check below.
+   944	 *
+   945	 * Set to the deploy moment of this fix (April 27, 2026 UTC). This bound is
+   946	 * what eliminates any theoretical risk of misclassifying a planet that was
+   947	 * (somehow) started in the same millisecond as its creation under the old
+   948	 * code — such a planet, by definition, was created before the cutoff, but
+   949	 * also we further require strict timestamp equality below, and the cutoff
+   950	 * guarantees the migration cannot run forever / on future planets.
+   951	 */
+   952	const LEGACY_PLANET_MIGRATION_CUTOFF_MS = Date.UTC(2026, 3, 27, 0, 0, 0);
+   953	
+   954	/**
+   955	 * One-time migration for legacy planets stored with farmStartedAt = createdAt.
+   956	 *
+   957	 * Before the cooldown-reset fix, every newly created planet (craft, bonus
+   958	 * grant, buyer copy) was initialized with farmStartedAt = lastCollectedAt =
+   959	 * createdAt = now, AND startFarming reset both timestamps to "now" on every
+   960	 * call. After the fix, never-started planets must start at 0 so that the
+   961	 * very first START opens a fresh 24h cycle. Legacy planets already in the
+   962	 * user's local/server snapshot would otherwise be misclassified as
+   963	 * "mid-cycle, just paused" and either resume from craft time or, if more
+   964	 * than 24h have passed since craft, demand a reactivation fee for a cycle
+   965	 * the user never actually got to use.
+   966	 *
+   967	 * The detection is conservative on multiple axes:
+   968	 *   - Active or listed planets are skipped (they are clearly in use).
+   969	 *   - farmStartedAt must be > 0 (new planets already use 0).
+   970	 *   - farmStartedAt and lastCollectedAt must both exactly equal createdAt
+   971	 *     (the unique fingerprint of the legacy "just-crafted-never-started"
+   972	 *     state under the old init code).
+   973	 *   - createdAt must be strictly before the deploy cutoff. Combined with
+   974	 *     the inits-as-zero rule, this guarantees no future planet can ever
+   975	 *     match the migration fingerprint, so the migration ages out naturally.
+   976	 *
+   977	 * After the very first START under the new code, farmStartedAt no longer
+   978	 * equals createdAt (start time > craft time), so the migration self-
+   979	 * disables for that planet too.
+   980	 *
+   981	 * Documented residual ambiguity (accepted tradeoff):
+   982	 *   The migration cannot mathematically distinguish a true never-started
+   983	 *   pre-cutoff planet from one that was started in the same millisecond as
+   984	 *   its creation under the old code. A "false positive" here would gift a
+   985	 *   single fresh 24h cycle to a single legacy planet. We accept this for
+   986	 *   two reasons: (a) sub-millisecond human reaction time is physically
+   987	 *   impossible (>16ms render frames, ~100ms minimum human reaction), and
+   988	 *   the craft → render → tap pipeline forces multiple ticks between craft
+   989	 *   time and any START click, so in practice no real planet ever has
+   990	 *   farmStartedAt === createdAt unless it was truly never started; (b) the
+   991	 *   alternative (no migration) charges real users a reactivation fee in
+   992	 *   TON for cycles they never actually used, which is a far worse
+   993	 *   real-money outcome than the theoretical false positive.
+   994	 */
+   995	function migrateLegacyNeverStartedPlanet<T extends Planet>(p: T): T {
+   996	  if (p.isFarmingActive) return p;
+   997	  if (p.isListedInMarket) return p;
+   998	  if (p.farmStartedAt <= 0) return p;
+   999	  if (p.farmStartedAt !== p.createdAt) return p;
+  1000	  if (p.lastCollectedAt !== p.createdAt) return p;
+  1001	  if (p.createdAt >= LEGACY_PLANET_MIGRATION_CUTOFF_MS) return p;
+  1002	  return { ...p, farmStartedAt: 0, lastCollectedAt: 0 };
+  1003	}
+  1004	
+  1005	export function isFarmActive(planet: Planet): boolean {
+  1006	  if (!planet.isFarmingActive) return false;
+  1007	  if (planet.isListedInMarket) return false;
+  1008	  const now = serverNow();
+  1009	  if (now - planet.farmStartedAt > FARM_DURATION_MS) return false;
+  1010	  if (now - planet.lastCollectedAt > DAILY_COLLECT_MS) return false;
+  1011	  return true;
+  1012	}
+  1013	
+  1014	export function isSunActive(sun: SunState): boolean {
+  1015	  if (!sun.isActive) return false;
+  1016	  const now = serverNow();
+  1017	  if (now - sun.farmStartedAt > FARM_DURATION_MS) return false;
+  1018	  if (now - sun.lastCollectedAt > DAILY_COLLECT_MS) return false;
+  1019	  return true;
+  1020	}
+  1021	
+  1022	export function getFarmTimeRemaining(planet: Planet): number {
+  1023	  const expiry = planet.farmStartedAt + FARM_DURATION_MS;
+  1024	  return Math.max(0, expiry - serverNow());
+  1025	}
+  1026	
+  1027	/**
+  1028	 * Planet's 24h farming cycle has elapsed and the user must pay a reactivation
+  1029	 * fee to start a new cycle. Excludes never-started planets and listed planets.
+  1030	 */
+  1031	export function isFarmExpired(planet: Planet): boolean {
+  1032	  if (planet.isListedInMarket) return false;
+  1033	  if (planet.farmStartedAt <= 0) return false;
+  1034	  return serverNow() - planet.farmStartedAt > FARM_DURATION_MS;
+  1035	}
+  1036	
+  1037	export function getReactivationFee(planet: Planet): number {
+  1038	  return PLANET_CONFIG[planet.name].reactivationFee;
+  1039	}
+  1040	
+  1041	/**
+  1042	 * Real-time TON pending on a single placed white planet (uncollected since
+  1043	 * lastCollectedAt, capped to the 24h DAILY_COLLECT_MS window). Used by the UI
+  1044	 * to show a live-ticking TON balance in the Pixel-Avatar modal.
+  1045	 */
+  1046	export function getWhitePlanetPendingTon(planet: Planet, now: number = serverNow()): number {
+  1047	  if (planet.slotIndex == null || !planet.isFarmingActive) return 0;
+  1048	  const cfg = PLANET_CONFIG[planet.name];
+  1049	  if (!cfg.isTonFarming) return 0;
+  1050	  // Defensive: if a TON-farming planet somehow lingers in state after the
+  1051	  // admin revoked the underlying collection, we still don't credit anything.
+  1052	  // Callers should also strip the planets from state, but this guard ensures
+  1053	  // the live balance display can never re-credit a revoked collection.
+  1054	  if (cfg.isTonFarming && !planet.farmStartedAt) return 0;
+  1055	  const start = Math.max(planet.farmStartedAt, planet.lastCollectedAt);
+  1056	  const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+  1057	  if (end <= start) return 0;
+  1058	  return (cfg.rate / 3_600_000) * (end - start);
+  1059	}
+  1060	
+  1061	/**
+  1062	 * SUN cycle (24h) has elapsed since the last activation and a $ZOOM
+  1063	 * reactivation fee is required to start a new cycle.
+  1064	 */
+  1065	export function isSunExpired(sun: SunState | null): boolean {
+  1066	  if (!sun?.isOwned) return false;
+  1067	  if (sun.farmStartedAt <= 0) return false;
+  1068	  return serverNow() - sun.farmStartedAt > FARM_DURATION_MS;
+  1069	}
+  1070	
+  1071	// Reactivation fee scales with how many SUNs the user owns: each SUN multiplies
+  1072	// the per-cycle yield (1000/hr * sunCount), so each SUN must also pay its share
+  1073	// of the fee — otherwise multi-SUN owners would reactivate for a fraction of
+  1074	// what they earn. With sunCount=1 this is the historical 12,000 ZOOM.
+  1075	// If the user owns no SUN, the fee is 0 (nothing to reactivate).
+  1076	export function getSunReactivationFee(sunCount: number = 1): number {
+  1077	  const n = Math.max(0, sunCount || 0);
+  1078	  if (n <= 0) return 0;
+  1079	  return SUN_CONFIG.reactivationFee * n;
+  1080	}
+  1081	
+  1082	export function getSunTimeRemaining(sun: SunState): number {
+  1083	  if (!sun.isActive) return 0;
+  1084	  const expiry = sun.farmStartedAt + FARM_DURATION_MS;
+  1085	  return Math.max(0, expiry - serverNow());
+  1086	}
+  1087	
+  1088	export function needsCollect(planet: Planet): boolean {
+  1089	  return serverNow() - planet.lastCollectedAt > DAILY_COLLECT_MS * 0.9 && isFarmActive(planet);
+  1090	}
+  1091	
+  1092	export function sunNeedsCollect(sun: SunState): boolean {
+  1093	  return isSunActive(sun) && serverNow() - sun.lastCollectedAt > DAILY_COLLECT_MS * 0.9;
+  1094	}
+  1095	
+  1096	export function formatDuration(ms: number): string {
+  1097	  const s = Math.floor(ms / 1000);
+  1098	  const d = Math.floor(s / 86400);
+  1099	  const h = Math.floor((s % 86400) / 3600);
+  1100	  const m = Math.floor((s % 3600) / 60);
+  1101	  if (d > 0) return `${d}d ${h}h`;
+  1102	  if (h > 0) return `${h}h ${m}m`;
+  1103	  return `${m}m`;
+  1104	}
+  1105	
+  1106	const DEFECT_CHANCE = 0.04;
+  1107	const DYNAMIC_BONUS_MAX = 10;
+  1108	
+  1109	function settleFarmingState(state: GameState, now: number): GameState {
+  1110	  const from = state.lastFarmingSettledAt || now;
+  1111	  if (now <= from) return state;
+  1112	
+  1113	  const speedMultiplier = 1 + (state.referralSpeedBonus || 0);
+  1114	  let earned = 0;
+  1115	
+  1116	  for (const planet of state.planets) {
+  1117	    if (!planet.isFarmingActive || planet.isListedInMarket) continue;
+  1118	    const start = Math.max(from, planet.farmStartedAt, planet.lastCollectedAt);
+  1119	    const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+  1120	    if (end > start) {
+  1121	      const dynamicRate = planet.rate + Math.random() * DYNAMIC_BONUS_MAX;
+  1122	      earned += (dynamicRate / 3_600_000) * (end - start) * speedMultiplier;
+  1123	    }
+  1124	  }
+  1125	
+  1126	  // White Collection planets earn TON (not ZOOM) and accumulate into tonBalance
+  1127	  // when the user presses COLLECT. Real-time pending TON for display is computed
+  1128	  // separately via getWhitePlanetPendingTon(); here we only need to update the
+  1129	  // settle timestamp — actual TON crediting happens on collectWhitePlanet().
+  1130	
+  1131	  if (state.sun?.isActive) {
+  1132	    const start = Math.max(from, state.sun.farmStartedAt, state.sun.lastCollectedAt);
+  1133	    const end = Math.min(now, state.sun.farmStartedAt + FARM_DURATION_MS, state.sun.lastCollectedAt + DAILY_COLLECT_MS);
+  1134	    if (end > start) {
+  1135	      const sunMultiplier = Math.max(1, state.sunCount || 1);
+  1136	      earned += (SUN_CONFIG.rate * sunMultiplier / 3_600_000) * (end - start) * speedMultiplier;
+  1137	    }
+  1138	  }
+  1139	
+  1140	  if (earned <= 0) return { ...state, lastFarmingSettledAt: now };
+  1141	
+  1142	  return {
+  1143	    ...state,
+  1144	    balance: state.balance + earned,
+  1145	    totalEarned: state.totalEarned + earned,
+  1146	    seasonPoolEarned: state.seasonPoolEarned + earned,
+  1147	    lastFarmingSettledAt: now,
+  1148	  };
+  1149	}
+  1150	
+  1151	export function useGameState() {
+  1152	  const [state, setState] = useState<GameState>(loadState);
+  1153	  const stateRef = useRef(state);
+  1154	  // Expose stateRef to module-scope helpers (`reconcileFromSyncResponse`)
+  1155	  // so they can perform the synchronous wheel/admin race-fix snap into
+  1156	  // the same source-of-truth that the periodic doSync reads from. The
+  1157	  // hook's `stateRef.current = state` line below keeps it fresh on every
+  1158	  // React commit; this single registration only re-points the holder once
+  1159	  // (on mount) — re-registering on every render would be harmless but is
+  1160	  // unnecessary, the ref's `.current` updates flow through automatically.
+  1161	  if (_stateRefHolder !== stateRef) {
+  1162	    _registerStateRef(stateRef);
+  1163	  }
+  1164	  const serverOffsetRef = useRef(0);
+  1165	  // Becomes true once the initial flow has hydrated state from the server
+  1166	  // (or confirmed there's nothing to hydrate). Until then we suppress the
+  1167	  // regular-planets server save effect so we never overwrite the server
+  1168	  // copy with a stale local snapshot during the brief window between the
+  1169	  // first React render and the async fetch completing.
+  1170	  const regularPlanetsHydratedRef = useRef(false);
+  1171	  stateRef.current = state;
+  1172	
+  1173	  // Throttle save+sync: writes & network traffic are expensive on every state change.
+  1174	  // Debounce 400ms so rapid taps coalesce into one save+sync. Always flush on hide/unload.
+  1175	  useEffect(() => {
+  1176	    const t = setTimeout(() => {
+  1177	      saveState(stateRef.current);
+  1178	      immediateSyncToServer(stateRef.current);
+  1179	    }, 400);
+  1180	    return () => clearTimeout(t);
+  1181	  }, [state]);
+  1182	
+  1183	  useEffect(() => {
+  1184	    const flush = () => {
+  1185	      flushPersist();
+  1186	      // If a destructive op (burn/sell/list/buy) just persisted authoritatively
+  1187	      // within the last 250ms, stateRef.current may still be the PRE-op value
+  1188	      // because React hasn't yet committed the new state. Writing it here
+  1189	      // would resurrect burned/sold items on the next reload. Skip — the
+  1190	      // destructive op already saved the truth.
+  1191	      if (Date.now() - _lastSavedAt > 250) {
+  1192	        saveState(stateRef.current);
+  1193	      }
+  1194	      immediateSyncToServer(stateRef.current);
+  1195	    };
+  1196	    const onVisibility = () => { if (document.hidden) flush(); };
+  1197	    document.addEventListener("visibilitychange", onVisibility);
+  1198	    window.addEventListener("pagehide", flush);
+  1199	    window.addEventListener("beforeunload", flush);
+  1200	    return () => {
+  1201	      document.removeEventListener("visibilitychange", onVisibility);
+  1202	      window.removeEventListener("pagehide", flush);
+  1203	      window.removeEventListener("beforeunload", flush);
+  1204	    };
+  1205	  }, []);
+  1206	
+  1207	  // Season-epoch sync: if admin reset the season, wipe client-side counters
+  1208	  useEffect(() => {
+  1209	    let cancelled = false;
+  1210	    const SEASON_EPOCH_KEY = "zoom-season-epoch";
+  1211	    const check = async () => {
+  1212	      const serverEpoch = await fetchSeasonEpoch();
+  1213	      if (cancelled || !serverEpoch) return;
+  1214	      let localEpoch = 0;
+  1215	      try { localEpoch = Number(localStorage.getItem(SEASON_EPOCH_KEY) || "0"); } catch { /**/ }
+  1216	      if (serverEpoch > localEpoch) {
+  1217	        try { localStorage.setItem(SEASON_EPOCH_KEY, String(serverEpoch)); } catch { /**/ }
+  1218	        setState((prev) => ({
+  1219	          ...prev,
+  1220	          balance: 0,
+  1221	          totalEarned: 0,
+  1222	          seasonPoolEarned: 0,
+  1223	          totalTonSpent: 0,
+  1224	          claimedMilestones: [],
+  1225	        }));
+  1226	      }
+  1227	    };
+  1228	    check();
+  1229	    const interval = setInterval(check, 30_000);
+  1230	    return () => { cancelled = true; clearInterval(interval); };
+  1231	  }, []);
+  1232	
+  1233	  useEffect(() => {
+  1234	    const { telegramId, startParam, firstName, username } = getTelegramContext();
+  1235	
+  1236	    const webApp = (window as unknown as { Telegram?: { WebApp?: { initData?: string; initDataUnsafe?: unknown } } }).Telegram?.WebApp;
+  1237	    const rawInitData = webApp?.initData ?? "";
+  1238	    const rawUnsafe = webApp?.initDataUnsafe ? JSON.stringify(webApp.initDataUnsafe) : "";
+  1239	    const lsParam = (() => { try { return localStorage.getItem("zoom-start-param"); } catch { return null; } })();
+  1240	
+  1241	    debugTelegramContext({
+  1242	      telegramId,
+  1243	      initData: rawInitData,
+  1244	      initDataUnsafe: rawUnsafe,
+  1245	      startParam,
+  1246	      localStorageParam: lsParam,
+  1247	      href: window.location.href,
+  1248	      hash: window.location.hash,
+  1249	      search: window.location.search,
+  1250	    });
+  1251	
+  1252	    if (!telegramId) return;
+  1253	
+  1254	    (async () => {
+  1255	      // Calibrate server clock BEFORE settling so the first balance
+  1256	      // computation already uses server-authoritative time.
+  1257	      await refreshServerOffset();
+  1258	      const offset = _serverOffsetMs;
+  1259	      serverOffsetRef.current = offset;
+  1260	
+  1261	      setState((prev) => settleFarmingState(prev, serverNow()));
+  1262	
+  1263	      let referrer = startParam;
+  1264	      if (!referrer) {
+  1265	        const pending = await fetchPendingReferral(telegramId);
+  1266	        if (pending) {
+  1267	          referrer = pending;
+  1268	        }
+  1269	      }
+  1270	
+  1271	      const result = await registerUser(telegramId, referrer ?? undefined, firstName, username);
+  1272	
+  1273	      if (result.isNew && referrer) {
+  1274	        try { localStorage.removeItem("zoom-start-param"); } catch { /**/ }
+  1275	      }
+  1276	
+  1277	      const [refData, grants, balanceRecord, serverCollectionPlanets, serverRegular] = await Promise.all([
+  1278	        fetchReferralData(telegramId),
+  1279	        fetchGrants(telegramId),
+  1280	        fetchBalanceRecord(telegramId),
+  1281	        fetchCollectionPlanets(telegramId),
+  1282	        fetchRegularPlanets(telegramId),
+  1283	      ]);
+  1284	      const serverCollectionByKey = indexServerCollectionPlanets(serverCollectionPlanets);
+  1285	
+  1286	      const serverBalance = balanceRecord?.exists ? balanceRecord.zoomBalance : 0;
+  1287	      const serverEpoch = balanceRecord?.balanceEpoch ?? 0;
+  1288	      const localEpoch = stateRef.current.lastBalanceEpoch ?? 0;
+  1289	      const localBalance = Math.floor(stateRef.current.balance);
+  1290	      const wasFreshLoad = consumeWasFreshLoad();
+  1291	      // CROSS-DEVICE SYNC: when this device is opening this Telegram account
+  1292	      // for the first time (no localStorage entry yet), the local balance is
+  1293	      // just the 300-ZOOM default — never trust it. Snap to the server value
+  1294	      // so PC/phone always show the same balance.
+  1295	      // If server epoch advanced, admin/system performed an authoritative
+  1296	      // change (credit/remove/reset) — server wins, even if client is higher.
+  1297	      // Otherwise, only credit upwards (protect in-flight purchases).
+  1298	      const epochAdvanced = serverEpoch > localEpoch;
+  1299	      const finalBalance = wasFreshLoad && balanceRecord?.exists
+  1300	        ? serverBalance
+  1301	        : epochAdvanced
+  1302	        ? serverBalance
+  1303	        : stateRef.current.balance + (serverBalance > localBalance ? serverBalance - localBalance : 0);
+  1304	
+  1305	      setCurrentBalanceEpoch(serverEpoch);
+  1306	      // Pull authoritative TON balance from /grants and seed local state with
+  1307	      // it before syncing back, so other devices' TON earnings/spends are
+  1308	      // reflected immediately on this device.
+  1309	      const serverTonBalance = Math.max(0, grants.tonBalance ?? 0);
+  1310	      const sentTon = serverTonBalance;
+  1311	      const syncRes = await syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(finalBalance), tonBalance: sentTon, clientEpoch: serverEpoch });
+  1312	      setCurrentBalanceEpoch(syncRes.balanceEpoch);
+  1313	
+  1314	      setState((prev) => {
+  1315	        const epochAdvancedNow = serverEpoch > (prev.lastBalanceEpoch ?? 0);
+  1316	        const newBalance = epochAdvancedNow
+  1317	          ? serverBalance
+  1318	          : prev.balance + (serverBalance > Math.floor(prev.balance) ? serverBalance - Math.floor(prev.balance) : 0);
+  1319	        let updated = {
+  1320	          ...prev,
+  1321	          referralCount: refData.referralCount,
+  1322	          claimedMilestones: refData.claimedMilestones,
+  1323	          balance: newBalance,
+  1324	          // Server is the source of truth for TON balance on app load (it
+  1325	          // captures collects/spends from other devices). After this seeding,
+  1326	          // the local client becomes authoritative under epoch fencing.
+  1327	          tonBalance: serverTonBalance,
+  1328	          lastBalanceEpoch: syncRes.balanceEpoch,
+  1329	        };
+  1330	
+  1331	        // Apply bonus sun from server (grant sun if not already owned)
+  1332	        if (grants.bonusSun) {
+  1333	          updated = {
+  1334	            ...updated,
+  1335	            claimedBonusSun: true,
+  1336	            sunCount: Math.max(1, grants.sunCount || 1),
+  1337	            sun: updated.sun?.isOwned ? updated.sun : {
+  1338	              isOwned: true,
+  1339	              isActive: false,
+  1340	              activationCost: SUN_CONFIG.activationCostBase,
+  1341	              cycleCount: 0,
+  1342	              farmStartedAt: 0,
+  1343	              lastCollectedAt: 0,
+  1344	            },
+  1345	          };
+  1346	        } else if (updated.claimedBonusSun) {
+  1347	          updated = { ...updated, sun: null, claimedBonusSun: false, sunCount: 0 };
+  1348	        }
+  1349	
+  1350	        // ─── SUN CYCLE — server is source of truth when ahead ───
+  1351	        // The 24h cycle (started/collected timestamps + cycleCount) used to
+  1352	        // live only in localStorage. Losing localStorage (cache wipe, new
+  1353	        // device, certain Telegram WebView clears) silently reset the cycle
+  1354	        // and forced the user to press FARM again. Now the server mirrors
+  1355	        // these fields and we merge with max() — newer-on-server values win
+  1356	        // (e.g. cycle started on another device); newer-on-local values are
+  1357	        // preserved and will be pushed up on the next /sun/cycle write.
+  1358	        if (updated.sun?.isOwned) {
+  1359	          const srvStarted = Math.max(0, Number(grants.sunFarmStartedAtMs ?? 0));
+  1360	          const srvCollected = Math.max(0, Number(grants.sunLastCollectedAtMs ?? 0));
+  1361	          const srvCycleCount = Math.max(0, Number(grants.sunCycleCount ?? 0));
+  1362	          const localStarted = updated.sun.farmStartedAt ?? 0;
+  1363	          const localCollected = updated.sun.lastCollectedAt ?? 0;
+  1364	          const localCycleCount = updated.sun.cycleCount ?? 0;
+  1365	          const mergedStarted = Math.max(localStarted, srvStarted);
+  1366	          const mergedCollected = Math.max(localCollected, srvCollected);
+  1367	          updated = {
+  1368	            ...updated,
+  1369	            sun: {
+  1370	              ...updated.sun,
+  1371	              farmStartedAt: mergedStarted,
+  1372	              lastCollectedAt: mergedCollected,
+  1373	              cycleCount: Math.max(localCycleCount, srvCycleCount),
+  1374	              // Treat the cycle as active whenever a non-zero start exists.
+  1375	              // The is-active gate is enforced separately by isSunActive()
+  1376	              // (which also checks the 24h window), so this is just the
+  1377	              // "user has activated at some point" flag.
+  1378	              isActive: mergedStarted > 0 ? true : updated.sun.isActive,
+  1379	            },
+  1380	          };
+  1381	        }
+  1382	
+  1383	        // ─── REGULAR PLANETS — server is source of truth ───
+  1384	        // Only act on a SUCCESSFUL fetch (serverRegular.ok). On a network
+  1385	        // failure we leave local state alone AND keep the save gate closed
+  1386	        // (handled below) — otherwise a flaky network would let us push
+  1387	        // an empty/stale local snapshot over the real server inventory.
+  1388	        // When the fetch succeeds and the server has a non-empty stored
+  1389	        // array, we override local planets[] with it. The per-rarity
+  1390	        // claimed-bonus counters use Math.max(local, server) so a stale
+  1391	        // server value can never double-count by being smaller than what
+  1392	        // the local app already materialized.
+  1393	        if (serverRegular.ok) {
+  1394	          if (serverRegular.exists && (serverRegular.planets.length > 0 || stateRef.current.planets.length === 0)) {
+  1395	            updated = {
+  1396	              ...updated,
+  1397	              // Apply the legacy never-started migration as we hydrate so any
+  1398	              // pre-fix planet stored on the server gets normalized to
+  1399	              // farmStartedAt = lastCollectedAt = 0 before the rest of the
+  1400	              // app touches it. See migrateLegacyNeverStartedPlanet.
+  1401	              planets: (serverRegular.planets as unknown as Planet[]).map(migrateLegacyNeverStartedPlanet),
+  1402	            };
+  1403	          }
+  1404	          updated = {
+  1405	            ...updated,
+  1406	            claimedBonusBasic: Math.max(updated.claimedBonusBasic ?? 0, serverRegular.claimedBonusBasic),
+  1407	            claimedBonusRare:  Math.max(updated.claimedBonusRare  ?? 0, serverRegular.claimedBonusRare),
+  1408	            claimedBonusEpic:  Math.max(updated.claimedBonusEpic  ?? 0, serverRegular.claimedBonusEpic),
+  1409	            claimedBonusGold:  Math.max(updated.claimedBonusGold  ?? 0, serverRegular.claimedBonusGold),
+  1410	            claimedBonusV1:    Math.max(updated.claimedBonusV1    ?? 0, serverRegular.claimedBonusV1),
+  1411	          };
+  1412	        }
+  1413	
+  1414	        const serverBundles = Math.max(0, Number(grants.whiteCollectionBundles ?? 0));
+  1415	        const serverEarthBundles = Math.max(0, Number(grants.earthCollectionBundles ?? 0));
+  1416	        updated = {
+  1417	          ...updated,
+  1418	          maxSlots: Math.max(INITIAL_STATE.maxSlots, INITIAL_STATE.maxSlots + grants.bonusSlots),
+  1419	          hasAutoTap: !!grants.hasAutoTap,
+  1420	          whiteCollectionUnlocked: !!grants.whiteCollectionUnlocked || serverBundles > 0,
+  1421	          whiteCollectionBundles: serverBundles,
+  1422	          earthCollectionUnlocked: !!grants.earthCollectionUnlocked || serverEarthBundles > 0,
+  1423	          earthCollectionBundles: serverEarthBundles,
+  1424	        };
+  1425	
+  1426	        // White Collection: each owned bundle materializes 4 fresh white
+  1427	        // planets exactly once. We track how many bundles have already been
+  1428	        // materialized via claimedWhiteCollectionBundles so re-grants never
+  1429	        // duplicate. When the server count drops (admin revoke), we strip
+  1430	        // any bundles beyond the new server count so generation stops at
+  1431	        // once and the live TON balance no longer credits revoked planets.
+  1432	        const claimedBundles = Math.max(0, updated.claimedWhiteCollectionBundles ?? 0);
+  1433	        if (serverBundles > claimedBundles) {
+  1434	          const toMaterialize = serverBundles - claimedBundles;
+  1435	          const newWhitePlanets: Planet[] = [];
+  1436	          for (let b = 0; b < toMaterialize; b++) {
+  1437	            newWhitePlanets.push(...makeWhiteCollectionPlanets(claimedBundles + b));
+  1438	          }
+  1439	          updated = {
+  1440	            ...updated,
+  1441	            claimedWhiteCollectionBundles: serverBundles,
+  1442	            whitePlanets: [...(updated.whitePlanets || []), ...newWhitePlanets],
+  1443	          };
+  1444	        } else if (serverBundles < claimedBundles) {
+  1445	          // Keep only planets whose bundle index (encoded as `…-b<N>-…` in
+  1446	          // the planet id by makeWhiteCollectionPlanets) is below the new
+  1447	          // server count. Anything else is removed instantly.
+  1448	          const keep = (p: Planet) => {
+  1449	            const m = /-b(\d+)-/.exec(p.id);
+  1450	            const idx = m ? parseInt(m[1]!, 10) : 0;
+  1451	            return idx < serverBundles;
+  1452	          };
+  1453	          updated = {
+  1454	            ...updated,
+  1455	            claimedWhiteCollectionBundles: serverBundles,
+  1456	            whitePlanets: (updated.whitePlanets || []).filter(keep),
+  1457	          };
+  1458	        }
+  1459	
+  1460	        // Earth Collection: same materialization model as white, with the
+  1461	        // same admin-revoke handling.
+  1462	        const claimedEarthBundles = Math.max(0, updated.claimedEarthCollectionBundles ?? 0);
+  1463	        if (serverEarthBundles > claimedEarthBundles) {
+  1464	          const toMaterializeEarth = serverEarthBundles - claimedEarthBundles;
+  1465	          const newEarthPlanets: Planet[] = [];
+  1466	          for (let b = 0; b < toMaterializeEarth; b++) {
+  1467	            newEarthPlanets.push(...makeEarthCollectionPlanets(claimedEarthBundles + b));
+  1468	          }
+  1469	          updated = {
+  1470	            ...updated,
+  1471	            claimedEarthCollectionBundles: serverEarthBundles,
+  1472	            earthPlanets: [...(updated.earthPlanets || []), ...newEarthPlanets],
+  1473	          };
+  1474	        } else if (serverEarthBundles < claimedEarthBundles) {
+  1475	          const keepEarth = (p: Planet) => {
+  1476	            const m = /-b(\d+)-/.exec(p.id);
+  1477	            const idx = m ? parseInt(m[1]!, 10) : 0;
+  1478	            return idx < serverEarthBundles;
+  1479	          };
+  1480	          updated = {
+  1481	            ...updated,
+  1482	            claimedEarthCollectionBundles: serverEarthBundles,
+  1483	            earthPlanets: (updated.earthPlanets || []).filter(keepEarth),
+  1484	          };
+  1485	        }
+  1486	
+  1487	        // ─── SERVER COLLECTION-PLANET STATE — single source of truth ───
+  1488	        // After (re)materializing white/earth planets, override slot index
+  1489	        // and farming timers with whatever the server has on file. This is
+  1490	        // what survives a localStorage wipe: even if every white planet was
+  1491	        // just freshly minted with `slotIndex=null`, the server still knows
+  1492	        // which one was in slot #2 and when its farming timer started.
+  1493	        if (serverCollectionByKey.size > 0) {
+  1494	          updated = {
+  1495	            ...updated,
+  1496	            whitePlanets: applyServerOverrides(updated.whitePlanets || [], serverCollectionByKey),
+  1497	            earthPlanets: applyServerOverrides(updated.earthPlanets || [], serverCollectionByKey),
+  1498	          };
+  1499	        }
+  1500	
+  1501	        // One-shot migration: if the local state has placed/farming planets
+  1502	        // but the server doesn't know about them yet (existing users from
+  1503	        // before this feature shipped), push them up. This runs at most
+  1504	        // once per session and is a no-op for new users / fresh installs.
+  1505	        const toSeed: CollectionPlanetState[] = [];
+  1506	        for (const p of updated.whitePlanets || []) {
+  1507	          const snap = snapshotCollectionPlanet(p);
+  1508	          if (!snap) continue;
+  1509	          const k = `${snap.kind}-${snap.bundleIndex}-${snap.subIndex}`;
+  1510	          if (serverCollectionByKey.has(k)) continue;
+  1511	          // Only seed planets that actually carry state worth preserving
+  1512	          // — leaving inventory/inactive planets to be created on first
+  1513	          // mutation keeps the seed payload tiny.
+  1514	          if (snap.slotIndex != null || snap.isFarmingActive || snap.lastCollectedAtMs > 0) {
+  1515	            toSeed.push(snap);
+  1516	          }
+  1517	        }
+  1518	        for (const p of updated.earthPlanets || []) {
+  1519	          const snap = snapshotCollectionPlanet(p);
+  1520	          if (!snap) continue;
+  1521	          const k = `${snap.kind}-${snap.bundleIndex}-${snap.subIndex}`;
+  1522	          if (serverCollectionByKey.has(k)) continue;
+  1523	          if (snap.slotIndex != null || snap.isFarmingActive || snap.lastCollectedAtMs > 0) {
+  1524	            toSeed.push(snap);
+  1525	          }
+  1526	        }
+  1527	        if (toSeed.length > 0) {
+  1528	          void bulkSeedCollectionPlanets(telegramId, toSeed);
+  1529	        }
+  1530	
+  1531	        // Apply pending bonus planets per type (only new ones not yet claimed)
+  1532	        const bonusTypes: Array<{ key: "bonusBasic" | "bonusRare" | "bonusEpic" | "bonusGold" | "bonusV1"; claimedKey: "claimedBonusBasic" | "claimedBonusRare" | "claimedBonusEpic" | "claimedBonusGold" | "claimedBonusV1"; type: PlanetType }> = [
+  1533	          { key: "bonusBasic", claimedKey: "claimedBonusBasic", type: "BASIC" },
+  1534	          { key: "bonusRare", claimedKey: "claimedBonusRare", type: "RARE" },
+  1535	          { key: "bonusEpic", claimedKey: "claimedBonusEpic", type: "EPIC" },
+  1536	          { key: "bonusGold", claimedKey: "claimedBonusGold", type: "GOLD" },
+  1537	          { key: "bonusV1",   claimedKey: "claimedBonusV1",   type: "V1" },
+  1538	        ];
+  1539	        const now = serverNow();
+  1540	        const newPlanets: Planet[] = [];
+  1541	        const claimedUpdates: Partial<GameState> = {};
+  1542	        const blockedByFullSlots: Array<{ type: PlanetType; count: number }> = [];
+  1543	
+  1544	        for (const { key, claimedKey, type } of bonusTypes) {
+  1545	          const serverCount = (grants as unknown as Record<string, number>)[key] ?? 0;
+  1546	          const claimedCount = (updated[claimedKey] as number) ?? 0;
+  1547	          const existingBonusCount = updated.planets.filter((planet) => planet.name === type && planet.id.startsWith(`bonus-${type}-`)).length;
+  1548	          const toAdd = serverCount - Math.max(claimedCount, existingBonusCount);
+  1549	          if (toAdd > 0) {
+  1550	            const availableSlots = updated.maxSlots - updated.planets.length - newPlanets.length;
+  1551	            const actuallyAdd = Math.min(toAdd, Math.max(0, availableSlots));
+  1552	            const blocked = toAdd - actuallyAdd;
+  1553	            if (blocked > 0) blockedByFullSlots.push({ type, count: blocked });
+  1554	            const cfg = PLANET_CONFIG[type];
+  1555	            for (let i = 0; i < actuallyAdd; i++) {
+  1556	              newPlanets.push({
+  1557	                id: `bonus-${type}-${now}-${i}`,
+  1558	                name: type,
+  1559	                rate: cfg.rate,
+  1560	                color: cfg.color,
+  1561	                glowColor: cfg.glowColor,
+  1562	                createdAt: now,
+  1563	                // Never-started until first user-triggered START — see makePlanet.
+  1564	                farmStartedAt: 0,
+  1565	                lastCollectedAt: 0,
+  1566	                isListedInMarket: false,
+  1567	                isFarmingActive: false,
+  1568	                marketPrice: null,
+  1569	                craftCost: cfg.craftCost,
+  1570	              });
+  1571	            }
+  1572	            // Only mark as claimed what we actually added — the rest stays
+  1573	            // pending on the server until the user frees a slot.
+  1574	            if (actuallyAdd > 0) {
+  1575	              claimedUpdates[claimedKey] = Math.max(claimedCount, existingBonusCount) + actuallyAdd;
+  1576	            }
+  1577	          } else if (toAdd < 0) {
+  1578	            let toRemove = Math.abs(toAdd);
+  1579	            updated = {
+  1580	              ...updated,
+  1581	              planets: updated.planets.filter((planet) => {
+  1582	                if (toRemove <= 0 || planet.name !== type || !planet.id.startsWith(`bonus-${type}-`)) return true;
+  1583	                toRemove -= 1;
+  1584	                return false;
+  1585	              }),
+  1586	            };
+  1587	            claimedUpdates[claimedKey] = serverCount;
+  1588	          }
+  1589	        }
+  1590	
+  1591	        if (newPlanets.length > 0 || Object.keys(claimedUpdates).length > 0) {
+  1592	          updated = {
+  1593	            ...updated,
+  1594	            ...claimedUpdates,
+  1595	            planets: [...updated.planets, ...newPlanets],
+  1596	          };
+  1597	        }
+  1598	
+  1599	        if (blockedByFullSlots.length > 0) {
+  1600	          const parts = blockedByFullSlots.map((b) => `${b.count} ${PLANET_CONFIG[b.type].label}`).join(", ");
+  1601	          setTimeout(() => {
+  1602	            toast({
+  1603	              title: "Slots full",
+  1604	              description: `Free up a slot to receive your bonus: ${parts}`,
+  1605	            });
+  1606	          }, 0);
+  1607	        }
+  1608	
+  1609	        {
+  1610	          const sent = Math.floor(updated.balance);
+  1611	          const sentTon = Math.max(0, updated.tonBalance || 0);
+  1612	          {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, tonBalance: sentTon, clientEpoch: sentEpoch })
+  1613	            .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon));}
+  1614	        }
+  1615	        return updated;
+  1616	      });
+  1617	      // Server hydration is done ONLY if the fetch actually succeeded.
+  1618	      // On a transient failure we keep the gate closed so the debounced
+  1619	      // save effect doesn't push our possibly-stale local snapshot over
+  1620	      // the (still good) server inventory. The next page load will retry.
+  1621	      if (serverRegular.ok) {
+  1622	        regularPlanetsHydratedRef.current = true;
+  1623	      }
+  1624	    })();
+  1625	  }, []);
+  1626	
+  1627	  // ─── Debounced server save for regular planets ───
+  1628	  // Watches state.planets and the per-rarity claimed-bonus counters; when
+  1629	  // any of them change, schedules a single PUT to the server 1.2s later.
+  1630	  // Coalescing is on purpose: rapid taps (collect/start farm) update
+  1631	  // farmStartedAt/lastCollectedAt many times per second and we don't want
+  1632	  // to hammer the API. Save is suppressed until the initial flow has
+  1633	  // hydrated state from the server (see regularPlanetsHydratedRef).
+  1634	  useEffect(() => {
+  1635	    if (!regularPlanetsHydratedRef.current) return;
+  1636	    const tid = state.telegramId;
+  1637	    if (!tid) return;
+  1638	    const t = setTimeout(() => {
+  1639	      void saveRegularPlanets(
+  1640	        tid,
+  1641	        state.planets as unknown as Array<Record<string, unknown>>,
+  1642	        {
+  1643	          basic: state.claimedBonusBasic ?? 0,
+  1644	          rare:  state.claimedBonusRare  ?? 0,
+  1645	          epic:  state.claimedBonusEpic  ?? 0,
+  1646	          gold:  state.claimedBonusGold  ?? 0,
+  1647	          v1:    state.claimedBonusV1    ?? 0,
+  1648	        },
+  1649	      );
+  1650	    }, 1200);
+  1651	    return () => clearTimeout(t);
+  1652	  }, [
+  1653	    state.telegramId,
+  1654	    state.planets,
+  1655	    state.claimedBonusBasic,
+  1656	    state.claimedBonusRare,
+  1657	    state.claimedBonusEpic,
+  1658	    state.claimedBonusGold,
+  1659	    state.claimedBonusV1,
+  1660	  ]);
+  1661	
+  1662	  useEffect(() => {
+  1663	    const applyGrants = (grants: Grants) => {
+  1664	      setState((prev) => {
+  1665	        let updated = { ...prev };
+  1666	
+  1667	        if (grants.bonusSun) {
+  1668	          updated = {
+  1669	            ...updated,
+  1670	            claimedBonusSun: true,
+  1671	            sunCount: Math.max(1, grants.sunCount || 1),
+  1672	            sun: updated.sun?.isOwned ? updated.sun : {
+  1673	              isOwned: true,
+  1674	              isActive: false,
+  1675	              activationCost: SUN_CONFIG.activationCostBase,
+  1676	              cycleCount: 0,
+  1677	              farmStartedAt: 0,
+  1678	              lastCollectedAt: 0,
+  1679	            },
+  1680	          };
+  1681	        } else if (updated.claimedBonusSun) {
+  1682	          updated = { ...updated, sun: null, claimedBonusSun: false, sunCount: 0 };
+  1683	        }
+  1684	
+  1685	        // Same SUN-cycle merge as the initial hydration above. See the long
+  1686	        // comment there for why this exists; this branch covers periodic
+  1687	        // /grants polls that may pick up cycle changes from another device.
+  1688	        if (updated.sun?.isOwned) {
+  1689	          const srvStarted = Math.max(0, Number(grants.sunFarmStartedAtMs ?? 0));
+  1690	          const srvCollected = Math.max(0, Number(grants.sunLastCollectedAtMs ?? 0));
+  1691	          const srvCycleCount = Math.max(0, Number(grants.sunCycleCount ?? 0));
+  1692	          const localStarted = updated.sun.farmStartedAt ?? 0;
+  1693	          const localCollected = updated.sun.lastCollectedAt ?? 0;
+  1694	          const localCycleCount = updated.sun.cycleCount ?? 0;
+  1695	          const mergedStarted = Math.max(localStarted, srvStarted);
+  1696	          const mergedCollected = Math.max(localCollected, srvCollected);
+  1697	          updated = {
+  1698	            ...updated,
+  1699	            sun: {
+  1700	              ...updated.sun,
+  1701	              farmStartedAt: mergedStarted,
+  1702	              lastCollectedAt: mergedCollected,
+  1703	              cycleCount: Math.max(localCycleCount, srvCycleCount),
+  1704	              isActive: mergedStarted > 0 ? true : updated.sun.isActive,
+  1705	            },
+  1706	          };
+  1707	        }
+  1708	
+  1709	        const serverBundles2 = Math.max(0, Number(grants.whiteCollectionBundles ?? 0));
+  1710	        const serverEarthBundles2 = Math.max(0, Number(grants.earthCollectionBundles ?? 0));
+  1711	        updated = {
+  1712	          ...updated,
+  1713	          maxSlots: Math.max(INITIAL_STATE.maxSlots, INITIAL_STATE.maxSlots + grants.bonusSlots),
+  1714	          hasAutoTap: !!grants.hasAutoTap,
+  1715	          whiteCollectionUnlocked: !!grants.whiteCollectionUnlocked || serverBundles2 > 0,
+  1716	          whiteCollectionBundles: serverBundles2,
+  1717	          earthCollectionUnlocked: !!grants.earthCollectionUnlocked || serverEarthBundles2 > 0,
+  1718	          earthCollectionBundles: serverEarthBundles2,
+  1719	        };
+  1720	
+  1721	        const claimedBundles2 = Math.max(0, updated.claimedWhiteCollectionBundles ?? 0);
+  1722	        if (serverBundles2 > claimedBundles2) {
+  1723	          const toMaterialize2 = serverBundles2 - claimedBundles2;
+  1724	          const newWhitePlanets2: Planet[] = [];
+  1725	          for (let b = 0; b < toMaterialize2; b++) {
+  1726	            newWhitePlanets2.push(...makeWhiteCollectionPlanets(claimedBundles2 + b));
+  1727	          }
+  1728	          updated = {
+  1729	            ...updated,
+  1730	            claimedWhiteCollectionBundles: serverBundles2,
+  1731	            whitePlanets: [...(updated.whitePlanets || []), ...newWhitePlanets2],
+  1732	          };
+  1733	        } else if (serverBundles2 < claimedBundles2) {
+  1734	          const keep = (p: Planet) => {
+  1735	            const m = /-b(\d+)-/.exec(p.id);
+  1736	            const idx = m ? parseInt(m[1]!, 10) : 0;
+  1737	            return idx < serverBundles2;
+  1738	          };
+  1739	          updated = {
+  1740	            ...updated,
+  1741	            claimedWhiteCollectionBundles: serverBundles2,
+  1742	            whitePlanets: (updated.whitePlanets || []).filter(keep),
+  1743	          };
+  1744	        }
+  1745	
+  1746	        const claimedEarthBundles2 = Math.max(0, updated.claimedEarthCollectionBundles ?? 0);
+  1747	        if (serverEarthBundles2 > claimedEarthBundles2) {
+  1748	          const toMaterializeEarth2 = serverEarthBundles2 - claimedEarthBundles2;
+  1749	          const newEarthPlanets2: Planet[] = [];
+  1750	          for (let b = 0; b < toMaterializeEarth2; b++) {
+  1751	            newEarthPlanets2.push(...makeEarthCollectionPlanets(claimedEarthBundles2 + b));
+  1752	          }
+  1753	          updated = {
+  1754	            ...updated,
+  1755	            claimedEarthCollectionBundles: serverEarthBundles2,
+  1756	            earthPlanets: [...(updated.earthPlanets || []), ...newEarthPlanets2],
+  1757	          };
+  1758	        } else if (serverEarthBundles2 < claimedEarthBundles2) {
+  1759	          const keepEarth = (p: Planet) => {
+  1760	            const m = /-b(\d+)-/.exec(p.id);
+  1761	            const idx = m ? parseInt(m[1]!, 10) : 0;
+  1762	            return idx < serverEarthBundles2;
+  1763	          };
+  1764	          updated = {
+  1765	            ...updated,
+  1766	            claimedEarthCollectionBundles: serverEarthBundles2,
+  1767	            earthPlanets: (updated.earthPlanets || []).filter(keepEarth),
+  1768	          };
+  1769	        }
+  1770	
+  1771	        const bonusTypes: Array<{ key: keyof Grants; claimedKey: keyof GameState; type: PlanetType }> = [
+  1772	          { key: "bonusBasic", claimedKey: "claimedBonusBasic", type: "BASIC" },
+  1773	          { key: "bonusRare",  claimedKey: "claimedBonusRare",  type: "RARE" },
+  1774	          { key: "bonusEpic",  claimedKey: "claimedBonusEpic",  type: "EPIC" },
+  1775	          { key: "bonusGold",  claimedKey: "claimedBonusGold",  type: "GOLD" },
+  1776	          { key: "bonusV1",    claimedKey: "claimedBonusV1",    type: "V1" },
+  1777	        ];
+  1778	        const now = serverNow();
+  1779	        const newPlanets: Planet[] = [];
+  1780	        const claimedUpdates: Partial<GameState> = {};
+  1781	        const blockedByFullSlots: Array<{ type: PlanetType; count: number }> = [];
+  1782	
+  1783	        for (const { key, claimedKey, type } of bonusTypes) {
+  1784	          const serverCount = (grants[key] as number) ?? 0;
+  1785	          const claimedCount = (updated[claimedKey] as number) ?? 0;
+  1786	          const existingBonusCount = updated.planets.filter((planet) => planet.name === type && planet.id.startsWith(`bonus-${type}-`)).length;
+  1787	          const toAdd = serverCount - Math.max(claimedCount, existingBonusCount);
+  1788	          if (toAdd > 0) {
+  1789	            const availableSlots = updated.maxSlots - updated.planets.length - newPlanets.length;
+  1790	            const actuallyAdd = Math.min(toAdd, Math.max(0, availableSlots));
+  1791	            const blocked = toAdd - actuallyAdd;
+  1792	            if (blocked > 0) blockedByFullSlots.push({ type, count: blocked });
+  1793	            const cfg = PLANET_CONFIG[type];
+  1794	            for (let i = 0; i < actuallyAdd; i++) {
+  1795	              newPlanets.push({
+  1796	                id: `bonus-${type}-${now}-${i}-${Math.random().toString(36).slice(2)}`,
+  1797	                name: type,
+  1798	                rate: cfg.rate,
+  1799	                color: cfg.color,
+  1800	                glowColor: cfg.glowColor,
+  1801	                createdAt: now,
+  1802	                // Never-started until first user-triggered START — see makePlanet.
+  1803	                farmStartedAt: 0,
+  1804	                lastCollectedAt: 0,
+  1805	                isListedInMarket: false,
+  1806	                isFarmingActive: false,
+  1807	                marketPrice: null,
+  1808	                craftCost: cfg.craftCost,
+  1809	              });
+  1810	            }
+  1811	            if (actuallyAdd > 0) {
+  1812	              claimedUpdates[claimedKey] = (Math.max(claimedCount, existingBonusCount) + actuallyAdd) as never;
+  1813	            }
+  1814	          } else if (toAdd < 0) {
+  1815	            let toRemove = Math.abs(toAdd);
+  1816	            updated = {
+  1817	              ...updated,
+  1818	              planets: updated.planets.filter((planet) => {
+  1819	                if (toRemove <= 0 || planet.name !== type || !planet.id.startsWith(`bonus-${type}-`)) return true;
+  1820	                toRemove -= 1;
+  1821	                return false;
+  1822	              }),
+  1823	            };
+  1824	            claimedUpdates[claimedKey] = serverCount as never;
+  1825	          }
+  1826	        }
+  1827	
+  1828	        if (newPlanets.length > 0 || Object.keys(claimedUpdates).length > 0) {
+  1829	          updated = { ...updated, ...claimedUpdates, planets: [...updated.planets, ...newPlanets] };
+  1830	        }
+  1831	
+  1832	        if (blockedByFullSlots.length > 0) {
+  1833	          const parts = blockedByFullSlots.map((b) => `${b.count} ${PLANET_CONFIG[b.type].label}`).join(", ");
+  1834	          setTimeout(() => {
+  1835	            toast({
+  1836	              title: "Slots full",
+  1837	              description: `Free up a slot to receive your bonus: ${parts}`,
+  1838	            });
+  1839	          }, 0);
+  1840	        }
+  1841	
+  1842	        return updated;
+  1843	      });
+  1844	    };
+  1845	
+  1846	    const doSync = async () => {
+  1847	      const { telegramId, firstName, username } = getTelegramContext();
+  1848	      if (!telegramId) return;
+  1849	      const localBalance = Math.floor(stateRef.current.balance);
+  1850	
+  1851	      const sentEpoch = _currentBalanceEpoch;
+  1852	      const sentTon = Math.max(0, stateRef.current.tonBalance || 0);
+  1853	      const [syncRes, grants] = await Promise.all([
+  1854	        syncBalance({ telegramId, firstName, username, zoomBalance: localBalance, tonBalance: sentTon, clientEpoch: sentEpoch }),
+  1855	        fetchGrants(telegramId),
+  1856	      ]);
+  1857	      reconcileFromSyncResponse(localBalance, sentEpoch, syncRes, sentTon);
+  1858	
+  1859	      applyGrants(grants);
+  1860	    };
+  1861	
+  1862	    const interval = setInterval(doSync, 30_000);
+  1863	
+  1864	    const handleAdminRefresh = async () => {
+  1865	      const { telegramId } = getTelegramContext();
+  1866	      if (!telegramId) return;
+  1867	
+  1868	      const balanceRecord = await fetchBalanceRecord(telegramId);
+  1869	      if (balanceRecord?.exists) {
+  1870	        const serverBal = Math.floor(balanceRecord.zoomBalance);
+  1871	        const localBal = Math.floor(stateRef.current.balance);
+  1872	        if (serverBal !== localBal) {
+  1873	          // ORDER MATTERS — see the long comment in reconcileFromSyncResponse.
+  1874	          // Briefly: we snap stateRef + _lastSyncedBalance SYNCHRONOUSLY
+  1875	          // BEFORE adopting the server's new epoch, so any concurrent sync
+  1876	          // (periodic doSync, throttled tab-switch refresh, immediate sync
+  1877	          // from a tap) sees the new (balance, epoch) pair atomically and
+  1878	          // can't echo the stale local balance back to the server with the
+  1879	          // new epoch — which would cause the server's CASE WHEN epoch>ce
+  1880	          // ELSE GREATEST(0, client) merge to clobber a freshly credited
+  1881	          // wheel/admin/marketplace prize. Symptom of getting this wrong:
+  1882	          // YOU WON popup appears but the visible balance never rises.
+  1883	          stateRef.current = { ...stateRef.current, balance: serverBal, lastBalanceEpoch: balanceRecord.balanceEpoch };
+  1884	          _lastSyncedBalance = serverBal;
+  1885	          _pendingSyncBalance = -1;
+  1886	          setCurrentBalanceEpoch(balanceRecord.balanceEpoch);
+  1887	          setState((prev) => ({ ...prev, balance: serverBal, lastBalanceEpoch: balanceRecord.balanceEpoch }));
+  1888	        } else {
+  1889	          // Even when balances already agree, keep the stateRef + epoch
+  1890	          // ordering consistent so any concurrent sync sees a coherent pair.
+  1891	          stateRef.current = { ...stateRef.current, lastBalanceEpoch: balanceRecord.balanceEpoch };
+  1892	          setCurrentBalanceEpoch(balanceRecord.balanceEpoch);
+  1893	          setState((prev) => ({ ...prev, lastBalanceEpoch: balanceRecord.balanceEpoch }));
+  1894	        }
+  1895	      }
+  1896	
+  1897	      const grants = await fetchGrants(telegramId);
+  1898	      if (grants) applyGrants(grants);
+  1899	    };
+  1900	    const handleLocalCredit = (e: Event) => {
+  1901	      const detail = (e as CustomEvent<{ amount: number }>).detail;
+  1902	      const amount = detail?.amount;
+  1903	      if (!amount || amount <= 0) return;
+  1904	      const { telegramId, firstName, username } = getTelegramContext();
+  1905	      setState((prev) => {
+  1906	        const newBal = prev.balance + amount;
+  1907	        if (telegramId) {
+  1908	          const sent = Math.floor(newBal);
+  1909	          const sentTon = Math.max(0, prev.tonBalance || 0);
+  1910	          {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, tonBalance: sentTon, clientEpoch: sentEpoch })
+  1911	            .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon));}
+  1912	        }
+  1913	        return { ...prev, balance: newBal, totalEarned: prev.totalEarned + amount };
+  1914	      });
+  1915	    };
+  1916	    const handleServerSnap = (e: Event) => {
+  1917	      const detail = (e as CustomEvent<{ balance: number; epoch: number }>).detail;
+  1918	      if (!detail || typeof detail.balance !== "number") return;
+  1919	      // Server rejected our merge (admin mutation in progress) — snap local
+  1920	      // state down to the authoritative server value so the next sync doesn't
+  1921	      // re-send the stale higher value.
+  1922	      setState((prev) => ({
+  1923	        ...prev,
+  1924	        balance: detail.balance,
+  1925	        lastBalanceEpoch: Math.max(prev.lastBalanceEpoch ?? 0, detail.epoch ?? 0),
+  1926	      }));
+  1927	    };
+  1928	    const handleServerTonSnap = (e: Event) => {
+  1929	      const detail = (e as CustomEvent<{ tonBalance: number; epoch: number }>).detail;
+  1930	      if (!detail || typeof detail.tonBalance !== "number") return;
+  1931	      setState((prev) => ({
+  1932	        ...prev,
+  1933	        tonBalance: Math.max(0, detail.tonBalance),
+  1934	        lastBalanceEpoch: Math.max(prev.lastBalanceEpoch ?? 0, detail.epoch ?? 0),
+  1935	      }));
+  1936	    };
+  1937	    window.addEventListener("zoom-admin-refresh", handleAdminRefresh);
+  1938	    window.addEventListener("zoom-data-refresh", doSync);
+  1939	    window.addEventListener("zoom-credit-local", handleLocalCredit as EventListener);
+  1940	    window.addEventListener("zoom-server-balance-snap", handleServerSnap as EventListener);
+  1941	    window.addEventListener("zoom-server-ton-snap", handleServerTonSnap as EventListener);
+  1942	
+  1943	    return () => {
+  1944	      clearInterval(interval);
+  1945	      window.removeEventListener("zoom-admin-refresh", handleAdminRefresh);
+  1946	      window.removeEventListener("zoom-data-refresh", doSync);
+  1947	      window.removeEventListener("zoom-credit-local", handleLocalCredit as EventListener);
+  1948	      window.removeEventListener("zoom-server-balance-snap", handleServerSnap as EventListener);
+  1949	      window.removeEventListener("zoom-server-ton-snap", handleServerTonSnap as EventListener);
+  1950	    };
+  1951	  }, []);
+  1952	
+  1953	  useEffect(() => {
+  1954	    const handleVisibility = () => {
+  1955	      if (document.visibilityState !== "visible") return;
+  1956	
+  1957	      const localNow = serverNow();
+  1958	      setState((prev) => settleFarmingState(prev, localNow));
+  1959	      stateRef.current = settleFarmingState(stateRef.current, localNow);
+  1960	
+  1961	      const { telegramId, firstName, username } = getTelegramContext();
+  1962	
+  1963	      if (telegramId) {
+  1964	        (async () => {
+  1965	          setState((prev) => {
+  1966	            const settled = settleFarmingState(prev, serverNow());
+  1967	            stateRef.current = settled;
+  1968	            {
+  1969	              const sent = Math.floor(settled.balance);
+  1970	              const sentTon = Math.max(0, settled.tonBalance || 0);
+  1971	              {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, tonBalance: sentTon, clientEpoch: sentEpoch })
+  1972	                .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon));}
+  1973	            }
+  1974	            return settled;
+  1975	          });
+  1976	
+  1977	          window.dispatchEvent(new Event("zoom-data-refresh"));
+  1978	        })();
+  1979	
+  1980	        fetchReferralData(telegramId).then((refData) => {
+  1981	          setState((prev) => ({
+  1982	            ...prev,
+  1983	            referralCount: refData.referralCount,
+  1984	            claimedMilestones: refData.claimedMilestones,
+  1985	          }));
+  1986	        });
+  1987	      }
+  1988	    };
+  1989	
+  1990	    const handleBeforeUnload = () => {
+  1991	      const settled = settleFarmingState(stateRef.current, serverNow());
+  1992	      // If a destructive op (burn/sell/list) just persisted authoritatively
+  1993	      // (within the last 250ms) and React hasn't yet committed the new state
+  1994	      // to stateRef, writing stateRef here would clobber the authoritative
+  1995	      // write with the pre-op snapshot. Skip the redundant write — the
+  1996	      // destructive op already saved the truth.
+  1997	      if (Date.now() - _lastSavedAt > 250) {
+  1998	        saveState(settled);
+  1999	      }
+  2000	      const { telegramId, firstName, username } = getTelegramContext();
+  2001	      if (telegramId) {
+  2002	        const balance = Math.floor(settled.balance);
+  2003	        const tonBalance = Math.max(0, settled.tonBalance || 0);
+  2004	        const payload = JSON.stringify({ telegramId, firstName, username, zoomBalance: balance, tonBalance, clientEpoch: _currentBalanceEpoch });
+  2005	        const url = `${window.location.origin}/api/balance/sync`;
+  2006	        const sent = navigator.sendBeacon?.(url, new Blob([payload], { type: "application/json" }));
+  2007	        if (!sent) {
+  2008	          fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, keepalive: true }).catch(() => {});
+  2009	        }
+  2010	      }
+  2011	    };
+  2012	
+  2013	    document.addEventListener("visibilitychange", handleVisibility);
+  2014	    window.addEventListener("beforeunload", handleBeforeUnload);
+  2015	    return () => {
+  2016	      document.removeEventListener("visibilitychange", handleVisibility);
+  2017	      window.removeEventListener("beforeunload", handleBeforeUnload);
+  2018	    };
+  2019	  }, []);
+  2020	
+  2021	  useEffect(() => {
+  2022	    const addIncomingEvent = (event: FeedEvent) => {
+  2023	      setState((prev) => {
+  2024	        if (!event?.id || prev.feedEvents.some((item) => item.id === event.id)) return prev;
+  2025	        return {
+  2026	          ...prev,
+  2027	          feedEvents: [event, ...prev.feedEvents].slice(0, MAX_FEED_EVENTS),
+  2028	        };
+  2029	      });
+  2030	    };
+  2031	
+  2032	    const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(LIVE_EVENT_CHANNEL) : null;
+  2033	    if (channel) {
+  2034	      channel.onmessage = (message) => addIncomingEvent(message.data as FeedEvent);
+  2035	    }
+  2036	
+  2037	    const handleStorage = (event: StorageEvent) => {
+  2038	      if (event.key !== LIVE_EVENT_KEY || !event.newValue) return;
+  2039	      try {
+  2040	        addIncomingEvent(JSON.parse(event.newValue) as FeedEvent);
+  2041	      } catch { /**/ }
+  2042	    };
+  2043	
+  2044	    window.addEventListener("storage", handleStorage);
+  2045	    return () => {
+  2046	      channel?.close();
+  2047	      window.removeEventListener("storage", handleStorage);
+  2048	    };
+  2049	  }, []);
+  2050	
+  2051	  useEffect(() => {
+  2052	    const interval = setInterval(() => {
+  2053	      setState((prev) => settleFarmingState(prev, serverNow()));
+  2054	    }, 1000);
+  2055	    return () => clearInterval(interval);
+  2056	  }, []);
+  2057	
+  2058	  // Re-calibrate the server clock periodically and on resume so a phone that
+  2059	  // sleeps for hours (or a tampered system clock that drifts mid-session)
+  2060	  // can't accumulate fake earnings against the local Date.now().
+  2061	  useEffect(() => {
+  2062	    void refreshServerOffset();
+  2063	    const interval = setInterval(() => { void refreshServerOffset(); }, 5 * 60 * 1000);
+  2064	    const onVisible = () => { if (!document.hidden) void refreshServerOffset(); };
+  2065	    document.addEventListener("visibilitychange", onVisible);
+  2066	    return () => {
+  2067	      clearInterval(interval);
+  2068	      document.removeEventListener("visibilitychange", onVisible);
+  2069	    };
+  2070	  }, []);
+  2071	
+  2072	  const craft = useCallback((): { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType } => {
+  2073	    const current = stateRef.current;
+  2074	    if (current.pendingPlanet) return { completed: false };
+  2075	    if (current.planets.length >= current.maxSlots) return { completed: false };
+  2076	    if (current.balance < 1) return { completed: false };
+  2077	
+  2078	    let rarity = current.currentCraftRarity;
+  2079	    let goal = current.goal;
+  2080	
+  2081	    if (rarity === null) {
+  2082	      rarity = rollRarity();
+  2083	      const baseTaps = PLANET_CONFIG[rarity].tapsNeeded;
+  2084	      goal = baseTaps + Math.floor(Math.random() * 11);
+  2085	    }
+  2086	
+  2087	    const newTaps = current.taps + 1;
+  2088	    const newBalance = current.balance - 1;
+  2089	
+  2090	    if (newTaps >= goal) {
+  2091	      // 4% chance the planet shatters during construction. The player loses
+  2092	      // the ZOOM and taps spent, but no planet is added to the inventory.
+  2093	      const BREAK_CHANCE = 0.04;
+  2094	      const isBroken = Math.random() < BREAK_CHANCE;
+  2095	
+  2096	      if (isBroken) {
+  2097	        const brokenRarity = rarity;
+  2098	        setState((prev) => {
+  2099	          const next: GameState = {
+  2100	            ...prev,
+  2101	            balance: newBalance,
+  2102	            taps: 0,
+  2103	            goal: 50,
+  2104	            currentCraftRarity: null,
+  2105	            pendingPlanet: null,
+  2106	          };
+  2107	          schedulePersist(next);
+  2108	          return next;
+  2109	        });
+  2110	        return { completed: true, broken: true, brokenRarity };
+  2111	      }
+  2112	
+  2113	      const planet = makePlanet(rarity);
+  2114	      const { telegramId: tid } = getTelegramContext();
+  2115	      // Fire-and-forget — never await on the tap critical path.
+  2116	      if (tid) { void recordCraft(tid, planet.name); }
+  2117	      setState((prev) => {
+  2118	        const next: GameState = {
+  2119	          ...(planet.name === "GOLD"
+  2120	            ? withFeedEvent(prev, `${PLAYER_NAME} ha appena forgiato un pianeta GOLD!`)
+  2121	            : prev),
+  2122	          balance: newBalance,
+  2123	          taps: 0,
+  2124	          goal: 50,
+  2125	          currentCraftRarity: null,
+  2126	          pendingPlanet: planet,
+  2127	          craftsCompleted: prev.craftsCompleted + 1,
+  2128	        };
+  2129	        // Persist in idle time so the tap stays at 60fps. Page-hide and unload
+  2130	        // listeners flush this synchronously to guarantee durability.
+  2131	        schedulePersist(next);
+  2132	        return next;
+  2133	      });
+  2134	      return { completed: true, planet };
+  2135	    } else {
+  2136	      setState((prev) => {
+  2137	        const next: GameState = {
+  2138	          ...prev,
+  2139	          balance: newBalance,
+  2140	          taps: newTaps,
+  2141	          goal,
+  2142	          currentCraftRarity: rarity,
+  2143	        };
+  2144	        schedulePersist(next);
+  2145	        return next;
+  2146	      });
+  2147	      return { completed: false, tapsLeft: goal - newTaps };
+  2148	    }
+  2149	  }, []);
+  2150	
+  2151	  const claimCraft = useCallback((): { ok: boolean; reason?: string } => {
+  2152	    let outcome: { ok: boolean; reason?: string } = { ok: true };
+  2153	    setState((prev) => {
+  2154	      if (!prev.pendingPlanet) { outcome = { ok: false, reason: "No planet to claim" }; return prev; }
+  2155	      // Hard slot guard: between the moment the planet finished forging and
+  2156	      // the moment the user taps "claim", they may have received planets from
+  2157	      // other sources (mystery box, market buy, bonus). Refuse and keep the
+  2158	      // pendingPlanet so the user can free a slot and try again.
+  2159	      if (prev.planets.length >= prev.maxSlots) {
+  2160	        outcome = { ok: false, reason: "Slots full" };
+  2161	        try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: "Slots full", ok: false } })); } catch { /**/ }
+  2162	        return prev;
+  2163	      }
+  2164	      return {
+  2165	        ...prev,
+  2166	        planets: [...prev.planets, prev.pendingPlanet],
+  2167	        pendingPlanet: null,
+  2168	      };
+  2169	    });
+  2170	    return outcome;
+  2171	  }, []);
+  2172	
+  2173	  const redeemCode = useCallback((code: string): { success: boolean; amount?: number; isSun?: boolean; error?: string } => {
+  2174	    const upperCode = code.trim().toUpperCase();
+  2175	    const current = stateRef.current;
+  2176	    if (current.usedRedeemCodes.includes(upperCode)) {
+  2177	      return { success: false, error: "Code already used" };
+  2178	    }
+  2179	    if (SUN_CODES.includes(upperCode)) {
+  2180	      if (current.sun?.isOwned) {
+  2181	        return { success: false, error: "You already own THE SUN" };
+  2182	      }
+  2183	      setState((prev) => ({
+  2184	        ...prev,
+  2185	        usedRedeemCodes: [...prev.usedRedeemCodes, upperCode],
+  2186	        sun: {
+  2187	          isOwned: true,
+  2188	          isActive: false,
+  2189	          activationCost: SUN_CONFIG.activationCostBase,
+  2190	          cycleCount: 0,
+  2191	          farmStartedAt: 0,
+  2192	          lastCollectedAt: 0,
+  2193	        },
+  2194	      }));
+  2195	      return { success: true, isSun: true };
+  2196	    }
+  2197	    const amount = REDEEM_CODES[upperCode];
+  2198	    if (!amount) return { success: false, error: "Invalid code" };
+  2199	    setState((prev) => ({
+  2200	      ...prev,
+  2201	      balance: prev.balance + amount,
+  2202	      usedRedeemCodes: [...prev.usedRedeemCodes, upperCode],
+  2203	    }));
+  2204	    return { success: true, amount };
+  2205	  }, []);
+  2206	
+  2207	  const activateSun = useCallback(() => {
+  2208	    const now = serverNow();
+  2209	    let newCycleCount = 0;
+  2210	    let telegramId: string | null = null;
+  2211	    setState((prev) => {
+  2212	      if (!prev.sun?.isOwned) return prev;
+  2213	      // No activation cost — SUN was paid for once at purchase (10 TON).
+  2214	      // Each new cycle simply resets the timer for free.
+  2215	      newCycleCount = (prev.sun.cycleCount || 0) + 1;
+  2216	      telegramId = prev.telegramId;
+  2217	      return {
+  2218	        ...prev,
+  2219	        sun: {
+  2220	          ...prev.sun,
+  2221	          isActive: true,
+  2222	          cycleCount: newCycleCount,
+  2223	          activationCost: 0,
+  2224	          farmStartedAt: now,
+  2225	          lastCollectedAt: now,
+  2226	        },
+  2227	      };
+  2228	    });
+  2229	    // Persist the new cycle to the server so it survives a localStorage
+  2230	    // wipe / device switch. Fire-and-forget — local state is already correct;
+  2231	    // server merges with GREATEST so a slow/failed write can't roll us back.
+  2232	    if (telegramId) {
+  2233	      void syncSunCycle({
+  2234	        telegramId,
+  2235	        sunFarmStartedAtMs: Math.round(now),
+  2236	        sunLastCollectedAtMs: Math.round(now),
+  2237	        sunCycleCount: newCycleCount,
+  2238	      });
+  2239	    }
+  2240	  }, []);
+  2241	
+  2242	  const startSunFarming = useCallback((): { ok: boolean; reason?: string } => {
+  2243	    let outcome: { ok: boolean; reason?: string } = { ok: true };
+  2244	    let pushTelegramId: string | null = null;
+  2245	    let pushNow = 0;
+  2246	    let pushCycleCount = 0;
+  2247	    setState((prev) => {
+  2248	      if (!prev.sun?.isOwned) {
+  2249	        outcome = { ok: false, reason: "SUN not owned" };
+  2250	        return prev;
+  2251	      }
+  2252	      const now = serverNow();
+  2253	      // First start (right after purchase) is free; subsequent reactivations
+  2254	      // after the 24h cycle elapsed cost a $ZOOM fee.
+  2255	      const wasStarted = prev.sun.farmStartedAt > 0;
+  2256	      const expired = wasStarted && now - prev.sun.farmStartedAt > FARM_DURATION_MS;
+  2257	      // Fee scales with how many SUNs are owned (each SUN multiplies the
+  2258	      // per-cycle yield, so each SUN must also pay its share).
+  2259	      const fee = expired ? getSunReactivationFee(prev.sunCount) : 0;
+  2260	      if (fee > 0 && prev.balance < fee) {
+  2261	        outcome = { ok: false, reason: `Need ${fee.toLocaleString()} $ZOOM to reactivate SUN` };
+  2262	        return prev;
+  2263	      }
+  2264	      const updated: GameState = {
+  2265	        ...prev,
+  2266	        balance: prev.balance - fee,
+  2267	        sun: {
+  2268	          ...prev.sun,
+  2269	          isActive: true,
+  2270	          farmStartedAt: now,
+  2271	          lastCollectedAt: now,
+  2272	        },
+  2273	      };
+  2274	      saveState(updated);
+  2275	      pushTelegramId = prev.telegramId;
+  2276	      pushNow = now;
+  2277	      // updated.sun is non-null here: we just constructed it above with
+  2278	      // `sun: { ...prev.sun, ... }` after the prev.sun?.isOwned guard.
+  2279	      pushCycleCount = updated.sun?.cycleCount ?? 0;
+  2280	      return updated;
+  2281	    });
+  2282	    // Mirror the cycle to the server (see activateSun for rationale).
+  2283	    if (pushTelegramId) {
+  2284	      void syncSunCycle({
+  2285	        telegramId: pushTelegramId,
+  2286	        sunFarmStartedAtMs: Math.round(pushNow),
+  2287	        sunLastCollectedAtMs: Math.round(pushNow),
+  2288	        sunCycleCount: pushCycleCount,
+  2289	      });
+  2290	    }
+  2291	    return outcome;
+  2292	  }, []);
+  2293	
+  2294	  const stopSunFarming = useCallback(() => {
+  2295	    setState((prev) => {
+  2296	      if (!prev.sun) return prev;
+  2297	      return {
+  2298	        ...prev,
+  2299	        sun: {
+  2300	          ...prev.sun,
+  2301	          isActive: false,
+  2302	        },
+  2303	      };
+  2304	    });
+  2305	  }, []);
+  2306	
+  2307	  const burnSun = useCallback(() => {
+  2308	    setState((prev) => {
+  2309	      if (!prev.sun) return prev;
+  2310	      return {
+  2311	        ...prev,
+  2312	        sun: null,
+  2313	      };
+  2314	    });
+  2315	  }, []);
+  2316	
+  2317	  const acquireSun = useCallback(() => {
+  2318	    setState((prev) => {
+  2319	      if (prev.sun?.isOwned) return prev;
+  2320	      return withFeedEvent({
+  2321	        ...prev,
+  2322	        sun: {
+  2323	          isOwned: true,
+  2324	          isActive: false,
+  2325	          activationCost: SUN_CONFIG.activationCostBase,
+  2326	          cycleCount: 0,
+  2327	          farmStartedAt: 0,
+  2328	          lastCollectedAt: 0,
+  2329	        },
+  2330	      }, `${PLAYER_NAME} ha acquisito il SOLE!`);
+  2331	    });
+  2332	  }, []);
+  2333	
+  2334	  const collectSun = useCallback(() => {
+  2335	    let pushTelegramId: string | null = null;
+  2336	    let pushNow = 0;
+  2337	    let pushStarted = 0;
+  2338	    let pushCycleCount = 0;
+  2339	    setState((prev) => {
+  2340	      if (!prev.sun) return prev;
+  2341	      const now = serverNow();
+  2342	      pushTelegramId = prev.telegramId;
+  2343	      pushNow = now;
+  2344	      pushStarted = prev.sun.farmStartedAt ?? 0;
+  2345	      pushCycleCount = prev.sun.cycleCount ?? 0;
+  2346	      return {
+  2347	        ...prev,
+  2348	        sun: { ...prev.sun, lastCollectedAt: now },
+  2349	      };
+  2350	    });
+  2351	    if (pushTelegramId) {
+  2352	      void syncSunCycle({
+  2353	        telegramId: pushTelegramId,
+  2354	        sunFarmStartedAtMs: Math.round(pushStarted),
+  2355	        sunLastCollectedAtMs: Math.round(pushNow),
+  2356	        sunCycleCount: pushCycleCount,
+  2357	      });
+  2358	    }
+  2359	  }, []);
+  2360	
+  2361	  const collectPlanet = useCallback((id: string): { defect: boolean } => {
+  2362	    const isDefect = Math.random() < DEFECT_CHANCE;
+  2363	    setState((prev) => {
+  2364	      if (prev.telegramId) notifyFarmCollect(prev.telegramId, id);
+  2365	      const now = serverNow();
+  2366	      if (isDefect) {
+  2367	        const planet = prev.planets.find((p) => p.id === id);
+  2368	        if (planet && planet.isFarmingActive) {
+  2369	          const speedMultiplier = 1 + (prev.referralSpeedBonus || 0);
+  2370	          const start = Math.max(planet.lastCollectedAt, planet.farmStartedAt);
+  2371	          const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+  2372	          const elapsed = Math.max(0, end - start);
+  2373	          const lost = (planet.rate / 3_600_000) * elapsed * speedMultiplier;
+  2374	          return {
+  2375	            ...prev,
+  2376	            balance: Math.max(0, prev.balance - lost),
+  2377	            planets: prev.planets.map((p) =>
+  2378	              p.id === id ? { ...p, lastCollectedAt: now } : p
+  2379	            ),
+  2380	          };
+  2381	        }
+  2382	      }
+  2383	      return {
+  2384	        ...prev,
+  2385	        planets: prev.planets.map((p) =>
+  2386	          p.id === id ? { ...p, lastCollectedAt: now } : p
+  2387	        ),
+  2388	      };
+  2389	    });
+  2390	    return { defect: isDefect };
+  2391	  }, []);
+  2392	
+  2393	  const burnPlanet = useCallback((id: string) => {
+  2394	    setState((prev) => {
+  2395	      const planet = prev.planets.find((p) => p.id === id);
+  2396	      if (!planet) return prev;
+  2397	      if (prev.telegramId) notifyFarmStop(prev.telegramId, id);
+  2398	      // If this planet was a server-granted bonus (referral milestone, wheel
+  2399	      // reward, mystery box, starter pack, etc) we MUST permanently consume
+  2400	      // one entitlement on the server. Otherwise the next /grants poll will
+  2401	      // see entitlement > claimed and silently re-add the burned planet.
+  2402	      const isBonusPlanet = planet.id.startsWith(`bonus-${planet.name}-`);
+  2403	      if (isBonusPlanet && prev.telegramId && (planet.name === "BASIC" || planet.name === "RARE" || planet.name === "EPIC" || planet.name === "GOLD")) {
+  2404	        notifyPlanetBurn(prev.telegramId, planet.name);
+  2405	      }
+  2406	      const refund = Math.floor(planet.craftCost * 0.15);
+  2407	      // When burning a bonus planet, we MUST decrement the local "claimed"
+  2408	      // counter by exactly 1 so it stays in lockstep with the server-side
+  2409	      // entitlement counter (which notifyPlanetBurn just decremented). If we
+  2410	      // don't, the next /grants poll computes
+  2411	      //   toAdd = serverCount − max(claimedCount, existingBonusCount)
+  2412	      // which becomes negative (because claimedCount is still the pre-burn
+  2413	      // value but serverCount and existingBonusCount have both gone down by 1)
+  2414	      // and the reconciliation branch removes an EXTRA bonus planet to "fix"
+  2415	      // the perceived drift — silently deleting a sibling planet the user
+  2416	      // never asked to burn. Crafted (non-bonus) planets don't touch any
+  2417	      // counter and only the single matching id is filtered out.
+  2418	      const updated = {
+  2419	        ...prev,
+  2420	        balance: prev.balance + refund,
+  2421	        planets: prev.planets.filter((p) => p.id !== id),
+  2422	        claimedBonusBasic: isBonusPlanet && planet.name === "BASIC" ? Math.max(0, prev.claimedBonusBasic - 1) : prev.claimedBonusBasic,
+  2423	        claimedBonusRare:  isBonusPlanet && planet.name === "RARE"  ? Math.max(0, prev.claimedBonusRare  - 1) : prev.claimedBonusRare,
+  2424	        claimedBonusEpic:  isBonusPlanet && planet.name === "EPIC"  ? Math.max(0, prev.claimedBonusEpic  - 1) : prev.claimedBonusEpic,
+  2425	        claimedBonusGold:  isBonusPlanet && planet.name === "GOLD"  ? Math.max(0, prev.claimedBonusGold  - 1) : prev.claimedBonusGold,
+  2426	      };
+  2427	      // Sync stateRef synchronously: if the user closes the app within a few
+  2428	      // ms of pressing burn (before React commits), the visibility/unload
+  2429	      // flush handler reads stateRef.current. Without this line, that handler
+  2430	      // would write the PRE-burn snapshot and resurrect the planet on reload.
+  2431	      stateRef.current = updated;
+  2432	      saveState(updated);
+  2433	      return updated;
+  2434	    });
+  2435	  }, []);
+  2436	
+  2437	  const startFarming = useCallback((id: string): { ok: boolean; reason?: string } => {
+  2438	    let outcome: { ok: boolean; reason?: string } = { ok: true };
+  2439	    setState((prev) => {
+  2440	      const planet = prev.planets.find((p) => p.id === id);
+  2441	      if (!planet || planet.isListedInMarket) {
+  2442	        outcome = { ok: false, reason: "Planet unavailable" };
+  2443	        return prev;
+  2444	      }
+  2445	      const now = serverNow();
+  2446	      // A planet is "expired" if its 24h cycle elapsed AND it had been started before.
+  2447	      // First-time start (right after craft) is free; subsequent reactivations cost
+  2448	      // a rarity-based $ZOOM fee.
+  2449	      const wasStarted = planet.farmStartedAt > 0;
+  2450	      const expired = wasStarted && now - planet.farmStartedAt > FARM_DURATION_MS;
+  2451	      const fee = expired ? PLANET_CONFIG[planet.name].reactivationFee : 0;
+  2452	      if (fee > 0 && prev.balance < fee) {
+  2453	        outcome = { ok: false, reason: `Need ${fee.toLocaleString()} $ZOOM to reactivate` };
+  2454	        return prev;
+  2455	      }
+  2456	      // Cooldown-reset exploit guard:
+  2457	      // We must ONLY reset farmStartedAt / lastCollectedAt when the user is
+  2458	      // truly starting a fresh 24h cycle. That is:
+  2459	      //   (a) the planet has never been started (first start after craft), OR
+  2460	      //   (b) the previous cycle has already expired AND the user paid the
+  2461	      //       reactivation fee above.
+  2462	      // In every other case (the planet is mid-cycle but currently paused —
+  2463	      // e.g. just delisted from the marketplace, or stopped some other way)
+  2464	      // we MUST keep the original farmStartedAt and lastCollectedAt. Without
+  2465	      // this guard, listing → delisting → pressing START would silently
+  2466	      // grant a free fresh 24h cycle, bypassing the reactivation fee and
+  2467	      // the daily-collect window. Earnings calculations elsewhere in the
+  2468	      // code rely on these timestamps as the authoritative cycle anchor.
+  2469	      const startsFreshCycle = !wasStarted || expired;
+  2470	      const updated: GameState = {
+  2471	        ...prev,
+  2472	        balance: prev.balance - fee,
+  2473	        planets: prev.planets.map((p) =>
+  2474	          p.id === id
+  2475	            ? startsFreshCycle
+  2476	              ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
+  2477	              : { ...p, isFarmingActive: true }
+  2478	            : p
+  2479	        ),
+  2480	      };
+  2481	      saveState(updated);
+  2482	      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, false);
+  2483	      return updated;
+  2484	    });
+  2485	    return outcome;
+  2486	  }, []);
+  2487	
+  2488	  const stopFarming = useCallback((id: string) => {
+  2489	    setState((prev) => {
+  2490	      if (prev.telegramId) notifyFarmStop(prev.telegramId, id);
+  2491	      return {
+  2492	        ...prev,
+  2493	        planets: prev.planets.map((p) =>
+  2494	          p.id === id ? { ...p, isFarmingActive: false } : p
+  2495	        ),
+  2496	      };
+  2497	    });
+  2498	  }, []);
+  2499	
+  2500	  const listPlanet = useCallback((id: string, price: number) => {
+  2501	    setState((prev) => {
+  2502	      const planet = prev.planets.find((p) => p.id === id);
+  2503	      if (!planet) return prev;
+  2504	      // V1 is soulbound — guard here too in case any caller bypasses the
+  2505	      // disabled UI button (e.g. an old client cached in Telegram WebView).
+  2506	      if (planet.name === "V1") return prev;
+  2507	      const { telegramId, firstName, username } = getTelegramContext();
+  2508	      if (telegramId) {
+  2509	        listOnMarket({
+  2510	          sellerTelegramId: telegramId,
+  2511	          sellerName: firstName ?? undefined,
+  2512	          // Pass the local planet id so the server can verify ownership
+  2513	          // against users.planets_json. Without it the server will reject
+  2514	          // the listing with 400 "Planet not found in your inventory".
+  2515	          planetId: planet.id,
+  2516	          planetType: planet.name,
+  2517	          planetRate: planet.rate,
+  2518	          price,
+  2519	        }).then((result) => {
+  2520	          if (result.ok && result.listing) {
+  2521	            setState((s) => ({
+  2522	              ...s,
+  2523	              planets: s.planets.map((p) =>
+  2524	                p.id === id ? { ...p, serverListingId: result.listing!.id } : p
+  2525	              ),
+  2526	            }));
+  2527	          } else {
+  2528	            // Server rejected the listing (e.g. 409 "already listed",
+  2529	            // 409 "previously sold", 400 "type/rate mismatch"). Revert
+  2530	            // the optimistic local mark so the planet returns to the
+  2531	            // inventory and the user can see what's wrong instead of a
+  2532	            // ghost listing the server doesn't know about.
+  2533	            setState((s) => ({
+  2534	              ...s,
+  2535	              planets: s.planets.map((p) =>
+  2536	                p.id === id
+  2537	                  ? { ...p, isListedInMarket: false, marketPrice: null, serverListingId: undefined }
+  2538	                  : p,
+  2539	              ),
+  2540	            }));
+  2541	            toast({
+  2542	              title: "Listing rejected",
+  2543	              description: result.error ?? "The server refused to list this planet.",
+  2544	              variant: "destructive",
+  2545	            });
+  2546	          }
+  2547	        });
+  2548	      }
+  2549	      const updated = {
+  2550	        ...prev,
+  2551	        planets: prev.planets.map((p) =>
+  2552	          p.id === id
+  2553	            ? { ...p, isListedInMarket: true, isFarmingActive: false, marketPrice: price }
+  2554	            : p
+  2555	        ),
+  2556	      };
+  2557	      stateRef.current = updated;
+  2558	      saveState(updated);
+  2559	      return updated;
+  2560	    });
+  2561	  }, []);
+  2562	
+  2563	  const unlistPlanet = useCallback((id: string) => {
+  2564	    setState((prev) => {
+  2565	      const planet = prev.planets.find((p) => p.id === id);
+  2566	      if (planet?.serverListingId) {
+  2567	        const { telegramId } = getTelegramContext();
+  2568	        if (telegramId) {
+  2569	          delistFromMarket(telegramId, planet.serverListingId);
+  2570	        }
+  2571	      }
+  2572	      const updated = {
+  2573	        ...prev,
+  2574	        planets: prev.planets.map((p) =>
+  2575	          p.id === id ? { ...p, isListedInMarket: false, marketPrice: null, serverListingId: undefined } : p
+  2576	        ),
+  2577	      };
+  2578	      stateRef.current = updated;
+  2579	      saveState(updated);
+  2580	      return updated;
+  2581	    });
+  2582	  }, []);
+  2583	
+  2584	  const buyPlanet = useCallback((listing: MarketListing): { success: boolean; reason?: string } => {
+  2585	    const current = stateRef.current;
+  2586	    if (current.planets.length >= current.maxSlots) {
+  2587	      return { success: false, reason: "No free slots available" };
+  2588	    }
+  2589	    const fee = Math.floor(listing.price * 0.25);
+  2590	    const total = listing.price + fee;
+  2591	    if (current.balance < total) {
+  2592	      return { success: false, reason: "Insufficient $ZOOM balance" };
+  2593	    }
+  2594	    const isOwnListing = current.planets.some(p => p.id === listing.id && p.isListedInMarket);
+  2595	    if (isOwnListing) {
+  2596	      return { success: false, reason: "Cannot buy your own listing" };
+  2597	    }
+  2598	    const cfg = PLANET_CONFIG[listing.name];
+  2599	    const now = serverNow();
+  2600	    const newPlanet: Planet = {
+  2601	      id: `bought-${Date.now()}-${Math.random().toString(36).substring(2)}`,
+  2602	      name: listing.name,
+  2603	      rate: cfg.rate,
+  2604	      color: cfg.color,
+  2605	      glowColor: cfg.glowColor,
+  2606	      createdAt: now,
+  2607	      // The buyer just paid — they get a fresh 24h cycle when they press
+  2608	      // START for the first time. Until then, the planet is in the
+  2609	      // never-started state (see makePlanet for the rationale).
+  2610	      farmStartedAt: 0,
+  2611	      lastCollectedAt: 0,
+  2612	      isListedInMarket: false,
+  2613	      isFarmingActive: false,
+  2614	      marketPrice: null,
+  2615	      craftCost: listing.price,
+  2616	    };
+  2617	    setState((prev) => {
+  2618	      const updated = {
+  2619	        ...prev,
+  2620	        balance: prev.balance - total,
+  2621	        planets: [...prev.planets, newPlanet],
+  2622	      };
+  2623	      stateRef.current = updated;
+  2624	      saveState(updated);
+  2625	      return updated;
+  2626	    });
+  2627	    return { success: true };
+  2628	  }, []);
+  2629	
+  2630	  const serverBuyComplete = useCallback((planetType: PlanetType, planetRate: number, pricePaid: number) => {
+  2631	    const cfg = PLANET_CONFIG[planetType];
+  2632	    const now = serverNow();
+  2633	    const newPlanet: Planet = {
+  2634	      id: `bought-${Date.now()}-${Math.random().toString(36).substring(2)}`,
+  2635	      name: planetType,
+  2636	      rate: planetRate,
+  2637	      color: cfg.color,
+  2638	      glowColor: cfg.glowColor,
+  2639	      createdAt: now,
+  2640	      // Same as buyPlanet — never-started until first user-triggered START.
+  2641	      farmStartedAt: 0,
+  2642	      lastCollectedAt: 0,
+  2643	      isListedInMarket: false,
+  2644	      isFarmingActive: false,
+  2645	      marketPrice: null,
+  2646	      craftCost: pricePaid,
+  2647	    };
+  2648	    setState((prev) => {
+  2649	      const updated = {
+  2650	        ...prev,
+  2651	        balance: prev.balance - pricePaid,
+  2652	        planets: [...prev.planets, newPlanet],
+  2653	      };
+  2654	      stateRef.current = updated;
+  2655	      saveState(updated);
+  2656	      return updated;
+  2657	    });
+  2658	  }, []);
+  2659	
+  2660	  // ---- ANTI-DUPLICATION RECONCILIATION ----
+  2661	  // When a planet I listed gets bought (or admin-delisted), the asset must
+  2662	  // leave my local inventory immediately. The server is already the source of
+  2663	  // truth (status='sold' on market_listings, balance credited atomically) — we
+  2664	  // just need to mirror that here so the same logical asset never coexists in
+  2665	  // both seller and buyer inventories.
+  2666	  useEffect(() => {
+  2667	    // 1) Live channel: SSE broadcasts every successful sale. If the listingId
+  2668	    //    matches one of my listed planets, drop it from my array.
+  2669	    const close = openMarketActivityStream((sale) => {
+  2670	      setState((prev) => {
+  2671	        const idx = prev.planets.findIndex(
+  2672	          (p) => p.isListedInMarket && p.serverListingId === sale.id,
+  2673	        );
+  2674	        if (idx === -1) return prev;
+  2675	        const next = prev.planets.slice();
+  2676	        next.splice(idx, 1);
+  2677	        return { ...prev, planets: next };
+  2678	      });
+  2679	    });
+  2680	
+  2681	    // 2) Reconcile on resume / periodic poll: if any of my listed planets are
+  2682	    //    no longer present in the active listings on the server (because they
+  2683	    //    were sold while I was offline, or force-delisted by admin), remove
+  2684	    //    them locally. This catches anything the SSE missed.
+  2685	    let cancelled = false;
+  2686	    const reconcile = async () => {
+  2687	      const myListed = stateRef.current.planets.filter(
+  2688	        (p) => p.isListedInMarket && typeof p.serverListingId === "number",
+  2689	      );
+  2690	      if (myListed.length === 0) return;
+  2691	      try {
+  2692	        const active = await fetchMarketListings();
+  2693	        if (cancelled) return;
+  2694	        const activeIds = new Set(active.map((l) => l.id));
+  2695	        const goneIds = new Set(
+  2696	          myListed
+  2697	            .filter((p) => !activeIds.has(p.serverListingId as number))
+  2698	            .map((p) => p.serverListingId as number),
+  2699	        );
+  2700	        if (goneIds.size === 0) return;
+  2701	        setState((prev) => ({
+  2702	          ...prev,
+  2703	          planets: prev.planets.filter(
+  2704	            (p) =>
+  2705	              !(
+  2706	                p.isListedInMarket &&
+  2707	                typeof p.serverListingId === "number" &&
+  2708	                goneIds.has(p.serverListingId)
+  2709	              ),
+  2710	          ),
+  2711	        }));
+  2712	      } catch { /* ignore */ }
+  2713	    };
+  2714	    void reconcile();
+  2715	    const onVisible = () => { if (!document.hidden) void reconcile(); };
+  2716	    document.addEventListener("visibilitychange", onVisible);
+  2717	    const interval = setInterval(reconcile, 30_000);
+  2718	
+  2719	    return () => {
+  2720	      cancelled = true;
+  2721	      close();
+  2722	      document.removeEventListener("visibilitychange", onVisible);
+  2723	      clearInterval(interval);
+  2724	    };
+  2725	  }, []);
+  2726	
+  2727	  const unlockSlot = useCallback(() => {
+  2728	    setState((prev) => ({ ...prev, maxSlots: prev.maxSlots + 1 }));
+  2729	  }, []);
+  2730	
+  2731	  const claimDaily = useCallback(() => {
+  2732	    const now = serverNow();
+  2733	    setState((prev) => {
+  2734	      if (now - prev.lastDailyClaimAt < DAILY_COLLECT_MS) return prev;
+  2735	      return { ...prev, balance: prev.balance + 50, lastDailyClaimAt: now };
+  2736	    });
+  2737	  }, []);
+  2738	
+  2739	  // ---- WHITE COLLECTION ACTIONS ----
+  2740	  // Place an unplaced (slotIndex == null) white planet into a specific slot.
+  2741	  // Once placed, the planet is permanently bound to that slot — there is no
+  2742	  // unplace, no burn, no sell. Placement also auto-starts its first farming
+  2743	  // cycle (free, like a freshly-crafted regular planet).
+  2744	  const placeWhitePlanet = useCallback((id: string, slotIndex: number): { ok: boolean; reason?: string } => {
+  2745	    let outcome: { ok: boolean; reason?: string } = { ok: true };
+  2746	    setState((prev) => {
+  2747	      const target = prev.whitePlanets.find((p) => p.id === id);
+  2748	      if (!target) {
+  2749	        outcome = { ok: false, reason: "Planet not found" };
+  2750	        return prev;
+  2751	      }
+  2752	      if (target.slotIndex != null) {
+  2753	        outcome = { ok: false, reason: "Already placed" };
+  2754	        return prev;
+  2755	      }
+  2756	      const maxWhiteSlots = (prev.whiteCollectionBundles || (prev.whiteCollectionUnlocked ? 1 : 0)) * 4;
+  2757	      if (slotIndex < 0 || slotIndex >= maxWhiteSlots) {
+  2758	        outcome = { ok: false, reason: "Invalid slot" };
+  2759	        return prev;
+  2760	      }
+  2761	      const occupied = prev.whitePlanets.some((p) => p.slotIndex === slotIndex);
+  2762	      if (occupied) {
+  2763	        outcome = { ok: false, reason: "Slot occupied" };
+  2764	        return prev;
+  2765	      }
+  2766	      const now = serverNow();
+  2767	      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, target.name, true);
+  2768	      const updatedPlanet: Planet = { ...target, slotIndex, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+  2769	      persistCollectionPlanet(prev.telegramId, updatedPlanet);
+  2770	      return {
+  2771	        ...prev,
+  2772	        whitePlanets: prev.whitePlanets.map((p) => (p.id === id ? updatedPlanet : p)),
+  2773	      };
+  2774	    });
+  2775	    return outcome;
+  2776	  }, []);
+  2777	
+  2778	  // Flip a white planet back to active without touching tonBalance. Used after
+  2779	  // the user pays the reactivation fee on-chain via TonConnect (same flow as
+  2780	  // SUN/shop purchases). The fee is collected by the project wallet directly,
+  2781	  // not deducted from the in-game tonBalance — so this method must NOT debit.
+  2782	  const markWhitePlanetReactivated = useCallback((id: string): { ok: boolean; reason?: string } => {
+  2783	    let outcome: { ok: boolean; reason?: string } = { ok: true };
+  2784	    setState((prev) => {
+  2785	      const planet = prev.whitePlanets.find((p) => p.id === id);
+  2786	      if (!planet || planet.slotIndex == null) {
+  2787	        outcome = { ok: false, reason: "Planet not placed" };
+  2788	        return prev;
+  2789	      }
+  2790	      const now = serverNow();
+  2791	      // Auto-collect any pending TON earnings from the just-finished cycle
+  2792	      // before resetting the timers. This removes the need for a separate
+  2793	      // COLLECT button — earnings always land in tonBalance the moment the
+  2794	      // user pays the reactivation fee.
+  2795	      const cfg = PLANET_CONFIG[planet.name];
+  2796	      const start = Math.max(planet.farmStartedAt, planet.lastCollectedAt);
+  2797	      const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+  2798	      const earnedTon = end > start ? (cfg.rate / 3_600_000) * (end - start) : 0;
+  2799	      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
+  2800	      const updatedPlanet: Planet = { ...planet, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+  2801	      persistCollectionPlanet(prev.telegramId, updatedPlanet);
+  2802	      return {
+  2803	        ...prev,
+  2804	        tonBalance: (prev.tonBalance || 0) + earnedTon,
+  2805	        whitePlanets: prev.whitePlanets.map((p) => (p.id === id ? updatedPlanet : p)),
+  2806	      };
+  2807	    });
+  2808	    return outcome;
+  2809	  }, []);
+  2810	
+  2811	  // Legacy reactivate path. The reactivation fee is paid on-chain via
+  2812	  // TonConnect to the project wallet — the in-game tonBalance is reserved
+  2813	  // for withdrawals and must NEVER be debited here. This function is kept
+  2814	  // as an alias of markWhitePlanetReactivated to avoid silent regressions
+  2815	  // if any caller still wires it up.
+  2816	  const reactivateWhitePlanet = useCallback((id: string): { ok: boolean; reason?: string } => {
+  2817	    let outcome: { ok: boolean; reason?: string } = { ok: true };
+  2818	    setState((prev) => {
+  2819	      const planet = prev.whitePlanets.find((p) => p.id === id);
+  2820	      if (!planet || planet.slotIndex == null) {
+  2821	        outcome = { ok: false, reason: "Planet not placed" };
+  2822	        return prev;
+  2823	      }
+  2824	      const now = serverNow();
+  2825	      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
+  2826	      const updatedPlanet: Planet = { ...planet, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+  2827	      persistCollectionPlanet(prev.telegramId, updatedPlanet);
+  2828	      return {
+  2829	        ...prev,
+  2830	        whitePlanets: prev.whitePlanets.map((p) => (p.id === id ? updatedPlanet : p)),
+  2831	      };
+  2832	    });
+  2833	    return outcome;
+  2834	  }, []);
+  2835	
+  2836	  // Collect TON earnings from a placed white planet. Computes the pending TON
+  2837	  // accumulated since lastCollectedAt (capped to 24h) and credits it to
+  2838	  // tonBalance, then resets the per-planet collect timestamp.
+  2839	  const collectWhitePlanet = useCallback((id: string) => {
+  2840	    setState((prev) => {
+  2841	      const planet = prev.whitePlanets.find((p) => p.id === id);
+  2842	      if (!planet || planet.slotIndex == null || !planet.isFarmingActive) return prev;
+  2843	      const now = serverNow();
+  2844	      const cfg = PLANET_CONFIG[planet.name];
+  2845	      const start = Math.max(planet.farmStartedAt, planet.lastCollectedAt);
+  2846	      const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+  2847	      const earnedTon = end > start ? (cfg.rate / 3_600_000) * (end - start) : 0;
+  2848	      if (earnedTon <= 0) return prev;
+  2849	      if (prev.telegramId) notifyFarmCollect(prev.telegramId, id);
+  2850	      const updatedPlanet: Planet = { ...planet, lastCollectedAt: now };
+  2851	      persistCollectionPlanet(prev.telegramId, updatedPlanet);
+  2852	      return {
+  2853	        ...prev,
+  2854	        tonBalance: (prev.tonBalance || 0) + earnedTon,
+  2855	        whitePlanets: prev.whitePlanets.map((p) => (p.id === id ? updatedPlanet : p)),
+  2856	      };
+  2857	    });
+  2858	  }, []);
+  2859	
+  2860	  // ───── Earth Collection — mirrors the white-planet API exactly. Earth
+  2861	  // planets occupy their own slot grid (size = bundles × 4) and accumulate TON
+  2862	  // at 0.000177 TON/h each. Reactivation fee is 0.001 TON paid on-chain.
+  2863	  const placeEarthPlanet = useCallback((id: string, slotIndex: number): { ok: boolean; reason?: string } => {
+  2864	    let outcome: { ok: boolean; reason?: string } = { ok: true };
+  2865	    setState((prev) => {
+  2866	      const target = prev.earthPlanets.find((p) => p.id === id);
+  2867	      if (!target) {
+  2868	        outcome = { ok: false, reason: "Planet not found" };
+  2869	        return prev;
+  2870	      }
+  2871	      if (target.slotIndex != null) {
+  2872	        outcome = { ok: false, reason: "Already placed" };
+  2873	        return prev;
+  2874	      }
+  2875	      const maxEarthSlots = (prev.earthCollectionBundles || (prev.earthCollectionUnlocked ? 1 : 0)) * 4;
+  2876	      if (slotIndex < 0 || slotIndex >= maxEarthSlots) {
+  2877	        outcome = { ok: false, reason: "Invalid slot" };
+  2878	        return prev;
+  2879	      }
+  2880	      const occupied = prev.earthPlanets.some((p) => p.slotIndex === slotIndex);
+  2881	      if (occupied) {
+  2882	        outcome = { ok: false, reason: "Slot occupied" };
+  2883	        return prev;
+  2884	      }
+  2885	      const now = serverNow();
+  2886	      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, target.name, true);
+  2887	      const updatedPlanet: Planet = { ...target, slotIndex, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+  2888	      persistCollectionPlanet(prev.telegramId, updatedPlanet);
+  2889	      return {
+  2890	        ...prev,
+  2891	        earthPlanets: prev.earthPlanets.map((p) => (p.id === id ? updatedPlanet : p)),
+  2892	      };
+  2893	    });
+  2894	    return outcome;
+  2895	  }, []);
+  2896	
+  2897	  const markEarthPlanetReactivated = useCallback((id: string): { ok: boolean; reason?: string } => {
+  2898	    let outcome: { ok: boolean; reason?: string } = { ok: true };
+  2899	    setState((prev) => {
+  2900	      const planet = prev.earthPlanets.find((p) => p.id === id);
+  2901	      if (!planet || planet.slotIndex == null) {
+  2902	        outcome = { ok: false, reason: "Planet not placed" };
+  2903	        return prev;
+  2904	      }
+  2905	      const now = serverNow();
+  2906	      const cfg = PLANET_CONFIG[planet.name];
+  2907	      const start = Math.max(planet.farmStartedAt, planet.lastCollectedAt);
+  2908	      const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+  2909	      const earnedTon = end > start ? (cfg.rate / 3_600_000) * (end - start) : 0;
+  2910	      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
+  2911	      const updatedPlanet: Planet = { ...planet, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+  2912	      persistCollectionPlanet(prev.telegramId, updatedPlanet);
+  2913	      return {
+  2914	        ...prev,
+  2915	        tonBalance: (prev.tonBalance || 0) + earnedTon,
+  2916	        earthPlanets: prev.earthPlanets.map((p) => (p.id === id ? updatedPlanet : p)),
+  2917	      };
+  2918	    });
+  2919	    return outcome;
+  2920	  }, []);
+  2921	
+  2922	  const reactivateEarthPlanet = useCallback((id: string): { ok: boolean; reason?: string } => {
+  2923	    let outcome: { ok: boolean; reason?: string } = { ok: true };
+  2924	    setState((prev) => {
+  2925	      const planet = prev.earthPlanets.find((p) => p.id === id);
+  2926	      if (!planet || planet.slotIndex == null) {
+  2927	        outcome = { ok: false, reason: "Planet not placed" };
+  2928	        return prev;
+  2929	      }
+  2930	      const now = serverNow();
+  2931	      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
+  2932	      const updatedPlanet: Planet = { ...planet, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+  2933	      persistCollectionPlanet(prev.telegramId, updatedPlanet);
+  2934	      return {
+  2935	        ...prev,
+  2936	        earthPlanets: prev.earthPlanets.map((p) => (p.id === id ? updatedPlanet : p)),
+  2937	      };
+  2938	    });
+  2939	    return outcome;
+  2940	  }, []);
+  2941	
+  2942	  const collectEarthPlanet = useCallback((id: string) => {
+  2943	    setState((prev) => {
+  2944	      const planet = prev.earthPlanets.find((p) => p.id === id);
+  2945	      if (!planet || planet.slotIndex == null || !planet.isFarmingActive) return prev;
+  2946	      const now = serverNow();
+  2947	      const cfg = PLANET_CONFIG[planet.name];
+  2948	      const start = Math.max(planet.farmStartedAt, planet.lastCollectedAt);
+  2949	      const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+  2950	      const earnedTon = end > start ? (cfg.rate / 3_600_000) * (end - start) : 0;
+  2951	      if (earnedTon <= 0) return prev;
+  2952	      if (prev.telegramId) notifyFarmCollect(prev.telegramId, id);
+  2953	      const updatedPlanet: Planet = { ...planet, lastCollectedAt: now };
+  2954	      persistCollectionPlanet(prev.telegramId, updatedPlanet);
+  2955	      return {
+  2956	        ...prev,
+  2957	        tonBalance: (prev.tonBalance || 0) + earnedTon,
+  2958	        earthPlanets: prev.earthPlanets.map((p) => (p.id === id ? updatedPlanet : p)),
+  2959	      };
+  2960	    });
+  2961	  }, []);
+  2962	
+  2963	  // ─────────────────────────────────────────────────────────────────
+  2964	  // SPACE MERCHANT helpers — burn N planets of a given type, mint a
+  2965	  // freshly-crafted (non-bonus) planet on success. Bonus planets that
+  2966	  // get burned must call notifyPlanetBurn to keep the server-side
+  2967	  // entitlement counter in lockstep, exactly like burnPlanet does.
+  2968	  // ─────────────────────────────────────────────────────────────────
+  2969	  const burnTwoOfType = useCallback((type: PlanetType): { ok: boolean; reason?: string } => {
+  2970	    let outcome: { ok: boolean; reason?: string } = { ok: true };
+  2971	    setState((prev) => {
+  2972	      // Pick 2 idle, non-listed planets of the requested rarity. Prefer
+  2973	      // non-bonus first so we don't drain server-granted entitlements
+  2974	      // when the player has crafted alternatives available.
+  2975	      const candidates = prev.planets.filter(
+  2976	        (p) => p.name === type && !p.isFarmingActive && !p.isListedInMarket,
+  2977	      );
+  2978	      if (candidates.length < 2) {
+  2979	        outcome = { ok: false, reason: `Need 2 idle ${PLANET_CONFIG[type].label} planets` };
+  2980	        return prev;
+  2981	      }
+  2982	      const sorted = [...candidates].sort((a, b) => {
+  2983	        const aBonus = a.id.startsWith(`bonus-${a.name}-`) ? 1 : 0;
+  2984	        const bBonus = b.id.startsWith(`bonus-${b.name}-`) ? 1 : 0;
+  2985	        return aBonus - bBonus; // non-bonus (0) first
+  2986	      });
+  2987	      const toBurn = sorted.slice(0, 2);
+  2988	      const burnIds = new Set(toBurn.map((p) => p.id));
+  2989	
+  2990	      let cBasic = prev.claimedBonusBasic;
+  2991	      let cRare = prev.claimedBonusRare;
+  2992	      let cEpic = prev.claimedBonusEpic;
+  2993	      let cGold = prev.claimedBonusGold;
+  2994	      for (const p of toBurn) {
+  2995	        const isBonus = p.id.startsWith(`bonus-${p.name}-`);
+  2996	        if (isBonus && prev.telegramId && (p.name === "BASIC" || p.name === "RARE" || p.name === "EPIC" || p.name === "GOLD")) {
+  2997	          notifyPlanetBurn(prev.telegramId, p.name);
+  2998	          if (p.name === "BASIC") cBasic = Math.max(0, cBasic - 1);
+  2999	          else if (p.name === "RARE") cRare = Math.max(0, cRare - 1);
+  3000	          else if (p.name === "EPIC") cEpic = Math.max(0, cEpic - 1);
+  3001	          else if (p.name === "GOLD") cGold = Math.max(0, cGold - 1);
+  3002	        }
+  3003	      }
+  3004	
+  3005	      const updated: GameState = {
+  3006	        ...prev,
+  3007	        planets: prev.planets.filter((p) => !burnIds.has(p.id)),
+  3008	        claimedBonusBasic: cBasic,
+  3009	        claimedBonusRare: cRare,
+  3010	        claimedBonusEpic: cEpic,
+  3011	        claimedBonusGold: cGold,
+  3012	      };
+  3013	      stateRef.current = updated;
+  3014	      saveState(updated);
+  3015	      return updated;
+  3016	    });
+  3017	    return outcome;
+  3018	  }, []);
+  3019	
+  3020	  const addCraftedPlanet = useCallback((type: PlanetType): { ok: boolean; reason?: string } => {
+  3021	    let outcome: { ok: boolean; reason?: string } = { ok: true };
+  3022	    setState((prev) => {
+  3023	      if (prev.planets.length >= prev.maxSlots) {
+  3024	        outcome = { ok: false, reason: "Slots full" };
+  3025	        return prev;
+  3026	      }
+  3027	      const planet = makePlanet(type);
+  3028	      const updated: GameState = {
+  3029	        ...prev,
+  3030	        planets: [...prev.planets, planet],
+  3031	        craftsCompleted: prev.craftsCompleted + 1,
+  3032	      };
+  3033	      stateRef.current = updated;
+  3034	      saveState(updated);
+  3035	      return updated;
+  3036	    });
+  3037	    return outcome;
+  3038	  }, []);
+  3039	
+  3040	  return {
+  3041	    state, craft, claimCraft, redeemCode,
+  3042	    collectPlanet, burnPlanet,
+  3043	    startFarming, stopFarming,
+  3044	    listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
+  3045	    unlockSlot, claimDaily,
+  3046	    activateSun, acquireSun, collectSun,
+  3047	    startSunFarming, stopSunFarming, burnSun,
+  3048	    placeWhitePlanet, reactivateWhitePlanet, markWhitePlanetReactivated, collectWhitePlanet,
+  3049	    placeEarthPlanet, reactivateEarthPlanet, markEarthPlanetReactivated, collectEarthPlanet,
+  3050	    burnTwoOfType, addCraftedPlanet,
+  3051	  };
+  3052	}
