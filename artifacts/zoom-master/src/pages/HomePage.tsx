@@ -12,6 +12,8 @@ import {
   SleepingAstronaut,
   CoffeeSteam,
   PixelBird,
+  WalkingAstronaut,
+  ExercisingAstronaut,
 } from "../components/PixelAstronaut";
 import { useAstronautActivity } from "../hooks/useAstronautActivity";
 
@@ -238,18 +240,17 @@ export function HomePage({ telegramId, visible }: HomePageProps) {
         </button>
       </div>
 
-      {/* Pixel room — centered, fixed aspect so the layout is identical
-          on every device. Uses image-rendering: pixelated for crisp edges. */}
-      <div className="flex-1 overflow-y-auto px-3 py-4">
+      {/* Pixel room — fills the entire HOME area (no max-width clamp).
+          The room SVG uses preserveAspectRatio="none" so it stretches to
+          whatever shape the device gives us; slot/window % positions are
+          relative so they follow the stretch correctly. */}
+      <div className="flex-1 flex flex-col overflow-hidden">
         <div
-          className="mx-auto rounded-2xl overflow-hidden relative"
+          className="relative flex-1 overflow-hidden"
           style={{
-            width: "100%",
-            maxWidth: 420,
-            aspectRatio: "5 / 4",
             background: "#0a0e1a",
-            border: "2px solid rgba(255,255,255,0.08)",
-            boxShadow: "0 0 24px rgba(0,242,254,0.12), inset 0 0 18px rgba(0,0,0,0.55)",
+            borderTop: "1px solid rgba(255,255,255,0.05)",
+            boxShadow: "inset 0 0 18px rgba(0,0,0,0.55)",
             imageRendering: "pixelated",
           }}
         >
@@ -275,12 +276,13 @@ export function HomePage({ telegramId, visible }: HomePageProps) {
         </div>
 
         {/* Computer status panel — always visible (when owned) so the
-            user can see the timer even with the computer not placed. */}
+            user can see the timer even with the computer not placed.
+            Now sits BELOW the full-bleed room as a flex-shrink-0 strip
+            so it doesn't steal vertical space from the scene. */}
         {state.computer.owned && (
           <div
-            className="mx-auto mt-4 rounded-xl px-4 py-3 flex items-center gap-3"
+            className="flex-shrink-0 mx-3 my-3 rounded-xl px-4 py-3 flex items-center gap-3"
             style={{
-              maxWidth: 420,
               background: state.computer.claimable ? "rgba(255,215,64,0.10)" : "rgba(255,255,255,0.03)",
               border: `1px solid ${state.computer.claimable ? "rgba(255,215,64,0.35)" : "rgba(255,255,255,0.08)"}`,
             }}
@@ -676,6 +678,7 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
     coffee: { left: "70%", top: "76%" },    // sitting on the chair
     snack: { left: "55%", top: "78%" },     // standing by the table
     window: { left: "58%", top: "62%" },    // facing the window
+    exercise: { left: "40%", top: "78%" },  // jumping jacks center floor
   };
   const pos = astroPos[activity];
 
@@ -737,7 +740,7 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
         {activity === "walk" && (
           <div style={{ animation: "home-astro-walk 8s ease-in-out infinite" }}>
             <div style={{ animation: "home-astro-bob 0.5s ease-in-out infinite" }}>
-              <PixelAstronaut pose="stand" />
+              <WalkingAstronaut />
             </div>
           </div>
         )}
@@ -749,6 +752,7 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
         )}
         {activity === "snack" && <PixelAstronaut pose="snack" />}
         {activity === "window" && <PixelAstronaut pose="stand" facing="up" />}
+        {activity === "exercise" && <ExercisingAstronaut />}
       </div>
     </div>
   );

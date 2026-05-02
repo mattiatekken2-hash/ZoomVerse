@@ -1005,3 +1005,16 @@
   0%, 100% { transform: scaleY(1); }
   50%      { transform: scaleY(-0.8); }
 }
+
+/* ─── HOME — extra animation frames for walking + jumping jacks ─────
+   Pure 2-frame sprite swaps using `steps(1)` so the toggle is crisp,
+   never crossfaded — pixel-art friendly. */
+
+@keyframes home-astro-step-a {
+  0%, 49.999% { opacity: 1; }
+  50%, 100%   { opacity: 0; }
+}
+@keyframes home-astro-step-b {
+  0%, 49.999% { opacity: 0; }
+  50%, 100%   { opacity: 1; }
+}
