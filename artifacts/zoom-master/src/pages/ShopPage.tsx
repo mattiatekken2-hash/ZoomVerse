@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
-import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase, fetchSunStock, fetchWhiteCollectionStock, pollTxnUntilFinal, type SunStock, type CollectionStock } from "../utils/api";
+import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase, fetchSunStock, pollTxnUntilFinal, type SunStock } from "../utils/api";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 
@@ -36,21 +36,16 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [payMode, setPayMode] = useState<"stars" | "ton">("stars");
   const [sunStock, setSunStock] = useState<SunStock | null>(null);
-  const [whiteStock, setWhiteStock] = useState<CollectionStock | null>(null);
 
-  const refreshStocks = async () => {
+  const refreshSunStock = async () => {
     if (!telegramId) return;
-    const [sun, white] = await Promise.all([
-      fetchSunStock(telegramId),
-      fetchWhiteCollectionStock(),
-    ]);
-    setSunStock(sun);
-    if (white) setWhiteStock(white);
+    const stock = await fetchSunStock(telegramId);
+    setSunStock(stock);
   };
 
   useEffect(() => {
-    refreshStocks();
-    const id = setInterval(() => { if (!document.hidden) refreshStocks(); }, 20000);
+    refreshSunStock();
+    const id = setInterval(() => { if (!document.hidden) refreshSunStock(); }, 20000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [telegramId]);
@@ -65,9 +60,6 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
   const sunSoldOut = !!sunStock && sunStock.remaining <= 0;
   const sunUserMaxed = !!sunStock && sunStock.userCount >= sunStock.maxPerUser;
   const sunDisabled = sunSoldOut || sunUserMaxed;
-
-  const whiteSoldOut = !!whiteStock && whiteStock.remaining <= 0;
-  const whiteDisabled = whiteSoldOut;
 
   // Track pending refresh timers so we can cancel them on unmount and
   // avoid background network traffic if the user navigates away.
@@ -313,7 +305,7 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
                 const sunItem: ShopItem = { id: "the_sun", title: "THE SUN", desc: "Exclusive", starsPrice: 1000, tonPrice: 10, color: "#ffb347", icon: "☀", type: "sun" };
                 if (payMode === "stars") await handleStarsBuy(sunItem);
                 else await handleTonBuy(sunItem);
-                refreshStocks();
+                refreshSunStock();
               }}
               disabled={sunDisabled || buying === "the_sun"}
               className="w-full py-4 rounded-xl font-black text-base tracking-wider text-center transition-all active:scale-95"
@@ -327,56 +319,6 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
               }}
             >
               {sunSoldOut ? "Sold Out" : sunUserMaxed ? `Max ${sunStock?.maxPerUser ?? 5} Reached` : buying === "the_sun" ? "Processing..." : payMode === "stars" ? "BUY — ⭐ 1,000 Stars" : "BUY — 10 TON"}
-            </button>
-          </div>
-
-          <div
-            className="rounded-2xl p-5 border relative overflow-hidden"
-            style={{
-              borderColor: "rgba(240,245,255,0.3)",
-              background: "linear-gradient(135deg, rgba(240,245,255,0.08) 0%, rgba(200,215,235,0.04) 100%)",
-              boxShadow: "0 0 32px rgba(240,245,255,0.1)",
-            }}
-          >
-            <div className="absolute top-0 right-0 w-40 h-40 rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(240,245,255,0.15) 0%, transparent 70%)", filter: "blur(20px)", transform: "translate(30%, -30%)" }} />
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <div className="font-black text-xl tracking-wide" style={{ color: "#f0f5ff" }}>WHITE COLLECTION</div>
-                <div className="text-xs mt-1" style={{ color: "rgba(240,245,255,0.6)" }}>
-                  Limited Edition · {whiteStock ? `${whiteStock.remaining}/${whiteStock.max} left` : "Exclusive"}
-                </div>
-              </div>
-              <div className="px-3 py-1.5 rounded-full text-xs font-bold" style={{ background: "rgba(240,245,255,0.15)", color: "#f0f5ff", border: "1px solid rgba(240,245,255,0.3)" }}>
-                LIMITED
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2 mb-4">
-              {["4 exclusive planets", "0.11 TON / day", "Requires SUN", "Tradable in TON"].map(tag => (
-                <span key={tag} className="text-xs px-2 py-0.5 rounded-full" style={{ background: "rgba(240,245,255,0.08)", color: "rgba(240,245,255,0.7)", border: "1px solid rgba(240,245,255,0.15)" }}>
-                  {tag}
-                </span>
-              ))}
-            </div>
-            <button
-              onClick={async () => {
-                if (whiteDisabled) return;
-                const whiteItem: ShopItem = { id: "white_collection", title: "White Collection Limited", desc: "Unlock 4 exclusive farm slots. Yield: 0.11 TON / Day. Requires SUN module.", starsPrice: 2000, tonPrice: 30, color: "#f0f5ff", icon: "❄", type: "bundle" };
-                if (payMode === "stars") await handleStarsBuy(whiteItem);
-                else await handleTonBuy(whiteItem);
-                refreshStocks();
-              }}
-              disabled={whiteDisabled || buying === "white_collection"}
-              className="w-full py-4 rounded-xl font-black text-base tracking-wider text-center transition-all active:scale-95"
-              style={{
-                background: whiteDisabled ? "rgba(255,255,255,0.04)" : "linear-gradient(135deg, rgba(240,245,255,0.2), rgba(200,215,235,0.15))",
-                color: whiteDisabled ? "rgba(255,255,255,0.2)" : "#f0f5ff",
-                boxShadow: whiteDisabled ? "none" : "0 0 20px rgba(240,245,255,0.2)",
-                border: `1px solid ${whiteDisabled ? "rgba(255,255,255,0.06)" : "rgba(240,245,255,0.3)"}`,
-                cursor: whiteDisabled ? "not-allowed" : "pointer",
-                opacity: buying === "white_collection" ? 0.6 : 1,
-              }}
-            >
-              {whiteSoldOut ? "Sold Out" : buying === "white_collection" ? "Processing..." : payMode === "stars" ? "BUY — ⭐ 2,000 Stars" : "BUY — 30 TON"}
             </button>
           </div>
 
