@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, type Grants, type CollectionPlanetState } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, apiHeaders, withInitData, type Grants, type CollectionPlanetState } from "../utils/api";
 import { toast } from "./use-toast";
 
 // Server-authoritative clock: every farming/idle-income time check is computed
@@ -2059,11 +2059,16 @@ export function useGameState() {
       if (telegramId) {
         const balance = Math.floor(settled.balance);
         const tonBalance = Math.max(0, settled.tonBalance || 0);
-        const payload = JSON.stringify({ telegramId, firstName, username, zoomBalance: balance, tonBalance, clientEpoch: _currentBalanceEpoch });
+        // Embed initData in the body — sendBeacon can't set custom headers,
+        // so the server middleware accepts `_initData` as a fallback. The
+        // fallback fetch() also includes the X-Telegram-Init-Data header
+        // via apiHeaders() for belt-and-suspenders.
+        const beaconBody = withInitData({ telegramId, firstName, username, zoomBalance: balance, tonBalance, clientEpoch: _currentBalanceEpoch });
+        const payload = JSON.stringify(beaconBody);
         const url = `${window.location.origin}/api/balance/sync`;
         const sent = navigator.sendBeacon?.(url, new Blob([payload], { type: "application/json" }));
         if (!sent) {
-          fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, keepalive: true }).catch(() => {});
+          fetch(url, { method: "POST", headers: apiHeaders(), body: payload, keepalive: true }).catch(() => {});
         }
       }
     };

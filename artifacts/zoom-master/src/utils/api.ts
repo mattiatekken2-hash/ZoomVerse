@@ -1,6 +1,50 @@
 const API_BASE = `${window.location.origin}/api`;
 
 /**
+ * Read the raw Telegram WebApp `initData` query string, which the server
+ * verifies via HMAC-SHA256 against the bot's secret token. When the page
+ * is opened outside Telegram (e.g. local browser testing) this is empty —
+ * the server's `TG_AUTH_MODE=soft` default lets those requests through
+ * with a logged warning so we don't break dev or in-flight clients during
+ * a deploy. Once we flip to `strict` server-side, those requests will be
+ * rejected with 401, but only after we verify in logs that all clients
+ * are sending this header reliably.
+ */
+function getInitData(): string {
+  try {
+    const w = window as unknown as { Telegram?: { WebApp?: { initData?: string } } };
+    return w.Telegram?.WebApp?.initData ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Build the standard headers for a JSON POST. Always includes
+ * `Content-Type: application/json`. When Telegram WebApp `initData` is
+ * available, also includes `X-Telegram-Init-Data` so the server can
+ * verify the caller's identity. Use this everywhere instead of the bare
+ * `{ "Content-Type": "application/json" }` literal.
+ */
+export function apiHeaders(): Record<string, string> {
+  const initData = getInitData();
+  return initData
+    ? { "Content-Type": "application/json", "X-Telegram-Init-Data": initData }
+    : { "Content-Type": "application/json" };
+}
+
+/**
+ * Build a request body that embeds initData as `_initData`. Used for
+ * `navigator.sendBeacon` paths that can't set custom headers — the
+ * server middleware accepts this body field as a fallback when the
+ * header is absent.
+ */
+export function withInitData<T extends Record<string, unknown>>(body: T): T & { _initData?: string } {
+  const initData = getInitData();
+  return initData ? { ...body, _initData: initData } : body;
+}
+
+/**
  * Tell the server a planet started farming. The server uses this to
  * schedule the "Farm full" Telegram notification 24h later. Fire-and-forget
  * — failures are silently ignored so a network blip never blocks gameplay.
@@ -9,7 +53,7 @@ export function notifyFarmStart(telegramId: string, planetId: string, planetType
   if (!telegramId || !planetId) return;
   fetch(`${API_BASE}/farm/start`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders(),
     body: JSON.stringify({ telegramId, planetId, planetType, isWhite }),
     keepalive: true,
   }).catch(() => { /* ignore */ });
@@ -23,7 +67,7 @@ export function notifyFarmCollect(telegramId: string, planetId: string): void {
   if (!telegramId || !planetId) return;
   fetch(`${API_BASE}/farm/collect`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders(),
     body: JSON.stringify({ telegramId, planetId }),
     keepalive: true,
   }).catch(() => { /* ignore */ });
@@ -36,7 +80,7 @@ export function notifyFarmStop(telegramId: string, planetId: string): void {
   if (!telegramId || !planetId) return;
   fetch(`${API_BASE}/farm/stop`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders(),
     body: JSON.stringify({ telegramId, planetId }),
     keepalive: true,
   }).catch(() => { /* ignore */ });
@@ -85,7 +129,7 @@ export async function settleOfflineFarming(params: {
   try {
     const r = await fetch(`${API_BASE}/farm/settle`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({
         telegramId: params.telegramId,
         clientLastSettledAtMs: Math.max(0, Math.floor(params.clientLastSettledAtMs ?? 0)),
@@ -116,7 +160,7 @@ export function notifyPlanetBurn(telegramId: string, planetType: "BASIC" | "RARE
   if (!telegramId) return;
   fetch(`${API_BASE}/planets/burn`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders(),
     body: JSON.stringify({ telegramId, planetType }),
     keepalive: true,
   }).catch(() => { /* ignore */ });
@@ -153,7 +197,7 @@ export async function debugTelegramContext(data: {
   try {
     await fetch(`${API_BASE}/referral/debug`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify(data),
     });
   } catch { /**/ }
@@ -168,7 +212,7 @@ export async function registerUser(
   try {
     const res = await fetch(`${API_BASE}/referral/register`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({
         telegramId,
         referredBy: referredBy ?? undefined,
@@ -222,7 +266,7 @@ export async function checkMilestones(telegramId: string): Promise<{ credited: n
   try {
     const res = await fetch(`${API_BASE}/referral/check-milestones`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ telegramId }),
     });
     if (!res.ok) return { credited: 0, milestonesClaimed: [] };
@@ -244,7 +288,7 @@ export async function syncBalance(params: {
   try {
     const res = await fetch(`${API_BASE}/balance/sync`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify(params),
     });
     if (!res.ok) return { zoomBalance: params.zoomBalance, tonBalance: fallbackTon, balanceEpoch: params.clientEpoch ?? 0 };
@@ -302,7 +346,7 @@ export async function syncSunCycle(params: {
   try {
     await fetch(`${API_BASE}/sun/cycle`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify(params),
     });
   } catch { /* fire-and-forget */ }
@@ -366,7 +410,7 @@ export async function adminCreditZoom(adminId: string, telegramId: string, amoun
   try {
     const res = await fetch(`${API_BASE}/admin/credit-zoom`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, telegramId, amount }),
     });
     return res.ok;
@@ -377,7 +421,7 @@ export async function adminCreditStardust(adminId: string, telegramId: string, a
   try {
     const res = await fetch(`${API_BASE}/admin/credit-stardust`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, telegramId, amount }),
     });
     return res.ok;
@@ -388,7 +432,7 @@ export async function adminRemoveStardust(adminId: string, telegramId: string, a
   try {
     const res = await fetch(`${API_BASE}/admin/remove-stardust`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, telegramId, amount }),
     });
     return res.ok;
@@ -424,7 +468,7 @@ export async function adminAddPlanets(adminId: string, telegramId: string, count
   try {
     const res = await fetch(`${API_BASE}/admin/add-planets`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, telegramId, count, planetType }),
     });
     return res.ok;
@@ -435,7 +479,7 @@ export async function adminUnlockSlots(adminId: string, telegramId: string, coun
   try {
     const res = await fetch(`${API_BASE}/admin/unlock-slots`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, telegramId, count }),
     });
     return res.ok;
@@ -446,7 +490,7 @@ export async function adminGrantAutoTap(adminId: string, telegramId: string): Pr
   try {
     const res = await fetch(`${API_BASE}/admin/grant-auto-tap`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, telegramId }),
     });
     return res.ok;
@@ -457,7 +501,7 @@ export async function adminTestWithdrawalChannel(adminId: string): Promise<boole
   try {
     const res = await fetch(`${API_BASE}/admin/test-withdrawal-channel`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId }),
     });
     if (!res.ok) return false;
@@ -491,7 +535,7 @@ export async function requestTonWithdrawal(params: { telegramId: string; amountT
   try {
     const res = await fetch(`${API_BASE}/withdrawals/request`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify(params),
     });
     const data = await res.json().catch(() => ({}));
@@ -524,7 +568,7 @@ export async function adminApproveWithdrawal(adminId: string, withdrawalId: numb
   try {
     const res = await fetch(`${API_BASE}/admin/withdrawals/approve`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, withdrawalId, txHash }),
     });
     const data = await res.json().catch(() => ({}));
@@ -537,7 +581,7 @@ export async function adminRejectWithdrawal(adminId: string, withdrawalId: numbe
   try {
     const res = await fetch(`${API_BASE}/admin/withdrawals/reject`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, withdrawalId, reason }),
     });
     const data = await res.json().catch(() => ({}));
@@ -550,7 +594,7 @@ export async function adminUnlockWhiteCollection(adminId: string, telegramId: st
   try {
     const res = await fetch(`${API_BASE}/admin/unlock-white-collection`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, telegramId }),
     });
     return res.ok;
@@ -561,7 +605,7 @@ export async function adminUnlockEarthCollection(adminId: string, telegramId: st
   try {
     const res = await fetch(`${API_BASE}/admin/unlock-earth-collection`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, telegramId }),
     });
     return res.ok;
@@ -572,7 +616,7 @@ export async function adminRevokeWhiteCollection(adminId: string, telegramId: st
   try {
     const res = await fetch(`${API_BASE}/admin/revoke-white-collection`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, telegramId }),
     });
     return res.ok;
@@ -583,7 +627,7 @@ export async function adminRevokeEarthCollection(adminId: string, telegramId: st
   try {
     const res = await fetch(`${API_BASE}/admin/revoke-earth-collection`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, telegramId }),
     });
     return res.ok;
@@ -594,7 +638,7 @@ export async function adminGrantV1(adminId: string, telegramId: string): Promise
   try {
     const res = await fetch(`${API_BASE}/admin/grant-v1`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, telegramId }),
     });
     return res.ok;
@@ -605,7 +649,7 @@ export async function adminRemoveZoom(adminId: string, telegramId: string, amoun
   try {
     const res = await fetch(`${API_BASE}/admin/remove-zoom`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, telegramId, amount }),
     });
     return res.ok;
@@ -616,7 +660,7 @@ export async function adminRemovePlanets(adminId: string, telegramId: string, co
   try {
     const res = await fetch(`${API_BASE}/admin/remove-planets`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, telegramId, count, planetType }),
     });
     return res.ok;
@@ -627,7 +671,7 @@ export async function adminRemoveSlots(adminId: string, telegramId: string, coun
   try {
     const res = await fetch(`${API_BASE}/admin/remove-slots`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, telegramId, count }),
     });
     return res.ok;
@@ -638,7 +682,7 @@ export async function adminGlobalBonus(adminId: string, amount: number): Promise
   try {
     const res = await fetch(`${API_BASE}/admin/global-bonus`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, amount }),
     });
     return res.ok;
@@ -649,7 +693,7 @@ export async function adminCreditSpins(adminId: string, telegramId: string, coun
   try {
     const res = await fetch(`${API_BASE}/admin/credit-spins`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, telegramId, count }),
     });
     return res.ok;
@@ -660,7 +704,7 @@ export async function adminRemoveSpins(adminId: string, telegramId: string, coun
   try {
     const res = await fetch(`${API_BASE}/admin/remove-spins`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, telegramId, count }),
     });
     return res.ok;
@@ -671,7 +715,7 @@ export async function adminForceDelist(adminId: string, listingId: number): Prom
   try {
     const res = await fetch(`${API_BASE}/admin/force-delist`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, listingId }),
     });
     return res.ok;
@@ -682,7 +726,7 @@ export async function adminReconcileReferrals(adminId: string): Promise<{ ok: bo
   try {
     const res = await fetch(`${API_BASE}/admin/reconcile-referrals`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId }),
     });
     const data = await res.json().catch(() => ({}));
@@ -697,7 +741,7 @@ export async function adminResetSeason(adminId: string): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/reset-season`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId }),
     });
     return res.ok;
@@ -760,7 +804,7 @@ export async function createStarsInvoice(telegramId: string, itemId: string): Pr
   try {
     const res = await fetch(`${API_BASE}/stars/create-invoice`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ telegramId, itemId }),
     });
     return res.json();
@@ -779,7 +823,7 @@ export async function confirmStarsPurchase(txnId: number, telegramId: string): P
   try {
     const res = await fetch(`${API_BASE}/stars/confirm`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ txnId, telegramId }),
     });
     return res.json();
@@ -790,7 +834,7 @@ export async function confirmTonPurchase(telegramId: string, itemId: string, wal
   try {
     const res = await fetch(`${API_BASE}/ton/confirm`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ telegramId, itemId, walletAddress, tonAmount, boc }),
     });
     const data = await res.json();
@@ -866,7 +910,7 @@ export async function recordCraft(telegramId: string, planetType: string): Promi
   try {
     await fetch(`${API_BASE}/craft/record`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ telegramId, planetType }),
     });
   } catch { /**/ }
@@ -912,7 +956,7 @@ export async function claimWheelDaily(telegramId: string): Promise<{ ok: boolean
   try {
     const res = await fetch(`${API_BASE}/wheel/claim-daily`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ telegramId }),
     });
     const data = await res.json().catch(() => ({}));
@@ -963,7 +1007,7 @@ export async function adminSetMaintenance(adminId: string, enabled: boolean, mes
   try {
     const res = await fetch(`${API_BASE}/admin/maintenance`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ adminId, enabled, message }),
     });
     const data = await res.json().catch(() => ({}));
@@ -985,7 +1029,7 @@ export async function spinWheel(telegramId: string): Promise<{ ok: boolean; resu
   try {
     const res = await fetch(`${API_BASE}/wheel/spin`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ telegramId }),
     });
     if (!res.ok) {
@@ -1022,7 +1066,7 @@ export async function claimDailyReward(telegramId: string, firstName?: string): 
   try {
     const res = await fetch(`${API_BASE}/daily/claim`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ telegramId, firstName }),
     });
     const data = await res.json().catch(() => ({}));
@@ -1139,7 +1183,7 @@ export async function listOnMarket(params: {
   try {
     const res = await fetch(`${API_BASE}/market/list`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify(params),
     });
     const data = await res.json().catch(() => ({}));
@@ -1159,7 +1203,7 @@ export async function buyFromMarket(buyerTelegramId: string, listingId: number):
   try {
     const res = await fetch(`${API_BASE}/market/buy`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ buyerTelegramId, listingId }),
     });
     return res.json();
@@ -1172,7 +1216,7 @@ export async function delistFromMarket(sellerTelegramId: string, listingId: numb
   try {
     const res = await fetch(`${API_BASE}/market/delist`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ sellerTelegramId, listingId }),
     });
     return res.json();
@@ -1194,7 +1238,7 @@ export async function setUserLanguage(telegramId: string, language: string): Pro
   try {
     const res = await fetch(`${API_BASE}/user/language`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ telegramId, language }),
     });
     return res.ok;
@@ -1274,7 +1318,7 @@ export async function collectStardustOnServer(telegramId: string): Promise<Stard
   try {
     const res = await fetch(`${API_BASE}/stardust/collect`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ telegramId }),
     });
     const j = await res.json().catch(() => ({}));
@@ -1390,7 +1434,7 @@ export async function upsertCollectionPlanet(
   try {
     const res = await fetch(`${API_BASE}/collection-planets/upsert`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ telegramId, planet }),
       keepalive: true,
     });
@@ -1408,7 +1452,7 @@ export async function bulkSeedCollectionPlanets(
   try {
     const res = await fetch(`${API_BASE}/collection-planets/bulk-seed`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ telegramId, planets }),
       keepalive: true,
     });
@@ -1492,7 +1536,7 @@ export async function saveRegularPlanets(
   try {
     const res = await fetch(`${API_BASE}/regular-planets/save`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({
         telegramId,
         planets,
@@ -1519,7 +1563,7 @@ export async function merchantFuse(telegramId: string, level: 1 | 2): Promise<Me
   try {
     const res = await fetch(`${API_BASE}/merchant/fuse`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(),
       body: JSON.stringify({ telegramId, level }),
     });
     const j = await res.json().catch(() => ({}));
