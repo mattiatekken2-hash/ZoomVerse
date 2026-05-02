@@ -66,6 +66,28 @@ router.get("/lottery/state", async (req, res) => {
     // anonima dove `userTickets`/`winChancePct` restano a 0 — i totali del
     // round sono comunque pubblici.
     const verifiedId = req.tgUser?.id ? String(req.tgUser.id) : "";
+    // DEBUG temporaneo (rimuovere dopo fix verificato in produzione).
+    // Loggia le CHIAVI dell'initData ricevuto (non i valori, no PII) per
+    // capire se ci sono campi non-standard che spezzano la verifica HMAC,
+    // e mostra l'esito attuale dell'auth.
+    {
+      const headerVal = req.header("x-telegram-init-data") || "";
+      let keys: string[] = [];
+      try {
+        const p = new URLSearchParams(headerVal);
+        keys = Array.from(p.keys()).sort();
+      } catch { /* ignore */ }
+      req.log.info(
+        {
+          verifiedId: verifiedId || null,
+          hasInitDataHeader: Boolean(headerVal),
+          initDataLen: headerVal.length,
+          initDataKeys: keys,
+          tgAuthReason: req.tgAuthReason ?? null,
+        },
+        "[lottery/state] auth debug v2",
+      );
+    }
     const round = await getOrCreateActiveRound();
 
     // Biglietti dell'utente nel round attivo (somma).
