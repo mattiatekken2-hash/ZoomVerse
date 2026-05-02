@@ -51,10 +51,9 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
   }, [telegramId]);
 
   useEffect(() => {
-    if (message) {
-      const t = setTimeout(() => setMessage(null), 3000);
-      return () => clearTimeout(t);
-    }
+    if (!message) return;
+    const t = setTimeout(() => setMessage(null), 3000);
+    return () => clearTimeout(t);
   }, [message]);
 
   const sunSoldOut = !!sunStock && sunStock.remaining <= 0;

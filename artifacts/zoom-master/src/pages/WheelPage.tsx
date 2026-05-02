@@ -502,10 +502,9 @@ export function WheelPage({ telegramId }: WheelPageProps) {
   }, [spinning]);
 
   useEffect(() => {
-    if (message) {
-      const t = setTimeout(() => setMessage(null), 3000);
-      return () => clearTimeout(t);
-    }
+    if (!message) return;
+    const t = setTimeout(() => setMessage(null), 3000);
+    return () => clearTimeout(t);
   }, [message]);
 
   const segments = prizes.length;
