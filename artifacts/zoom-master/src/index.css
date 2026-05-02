@@ -145,12 +145,25 @@
 }
 
 /* ======== NEBULA BACKGROUND ======== */
+/* `transform: translateZ(0)` + `will-change: transform` force the nebula
+   onto its OWN GPU compositor layer. Without this, every repaint of the
+   foreground (tab switches, opening menus, scrolling content) also
+   repaints the orbs/stars, causing a visible flicker that interrupts the
+   slow drift+scale "cosmic zoom" animation. With its own layer, the
+   foreground can be re-rasterised independently while the background
+   keeps animating smoothly on the GPU. `isolation: isolate` creates a
+   new stacking context so blend/filter effects inside the page never
+   leak into the background paint. */
 .nebula-bg {
   position: fixed;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
   z-index: 0;
+  transform: translateZ(0);
+  will-change: transform;
+  isolation: isolate;
+  contain: layout paint style;
 }
 
 .nebula-orb {
@@ -160,6 +173,11 @@
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
   animation-direction: alternate;
+  /* Promote each orb to its own layer too — keeps the scale() animation
+     inside the drift keyframes silky-smooth and prevents the blur(80px)
+     filter from being recomputed every frame on tab change. */
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .nebula-orb-1 {
@@ -199,21 +217,25 @@
   animation: nebula-drift-b 34s ease-in-out infinite alternate-reverse;
 }
 
+/* `translate3d(...,0)` (instead of 2D `translate(...)`) keeps the orb
+   on its GPU compositor layer for every keyframe — 2D translate would
+   silently drop back to CPU rasterisation between frames on some
+   WebViews, defeating the layer promotion. */
 @keyframes nebula-drift-a {
-  0% { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(70px, 90px) scale(1.2); }
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(70px, 90px, 0) scale(1.2); }
 }
 @keyframes nebula-drift-b {
-  0% { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(-60px, -70px) scale(1.25); }
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-60px, -70px, 0) scale(1.25); }
 }
 @keyframes nebula-drift-c {
-  0% { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(50px, -60px) scale(0.8); }
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(50px, -60px, 0) scale(0.8); }
 }
 @keyframes nebula-drift-d {
-  0% { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(-40px, 55px) scale(1.15); }
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(-40px, 55px, 0) scale(1.15); }
 }
 
 /* Stars — 3 layers at different depths */
