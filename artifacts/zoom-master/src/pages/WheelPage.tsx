@@ -321,6 +321,19 @@ export function WheelPage({ telegramId }: WheelPageProps) {
   // the auto-resume effect, so we don't re-trigger the animation every
   // time `refreshStatus` polls (every 8s + on focus/visibility).
   const resumedTokensRef = useRef<Set<string>>(new Set());
+  // Timeout ids for the post-claim safety-net refresh retries. Tracked
+  // so we can clear them on unmount and avoid stale dispatches firing
+  // on an already-unmounted page.
+  const refreshRetryTimeoutsRef = useRef<number[]>([]);
+
+  // Clear any pending safety-net refresh timeouts on unmount so they
+  // don't fire after the page is gone.
+  useEffect(() => {
+    return () => {
+      for (const id of refreshRetryTimeoutsRef.current) window.clearTimeout(id);
+      refreshRetryTimeoutsRef.current = [];
+    };
+  }, []);
 
   /**
    * Drives the visual animation for a known prize and finalizes the claim
@@ -373,7 +386,19 @@ export function WheelPage({ telegramId }: WheelPageProps) {
       // Now pull the authoritative balance & grants. Done unconditionally
       // (even if the claim returned alreadyClaimed) so the UI matches the
       // server in either case.
+      //
+      // SAFETY-NET RETRIES: the listener does fetchGrants + applyGrants
+      // which materializes any newly-granted bonus planet. If the FIRST
+      // /grants fetch fails (transient network drop, fetch race) the
+      // bonus stays incremented server-side but the planet doesn't show
+      // up locally and the next save (debounced 1.2s) never carries it.
+      // We schedule two more refreshes at +3s and +8s so a single missed
+      // fetch can't leave the user without their planet. Cheap calls,
+      // applyGrants is idempotent (Math.max-based reconciliation).
       window.dispatchEvent(new Event("zoom-admin-refresh"));
+      const t1 = window.setTimeout(() => window.dispatchEvent(new Event("zoom-admin-refresh")), 3000);
+      const t2 = window.setTimeout(() => window.dispatchEvent(new Event("zoom-admin-refresh")), 8000);
+      refreshRetryTimeoutsRef.current.push(t1, t2);
       if (!claimRes.ok) {
         // Network failure on the claim. The prize is still safe in
         // `pending_wheel_claim` server-side. We REMOVE the token from
