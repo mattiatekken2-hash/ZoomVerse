@@ -437,14 +437,6 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
               </div>
             )}
 
-            <div style={{
-              marginTop: 10, padding: "8px 10px", borderRadius: 8,
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              fontSize: 9.5, color: "rgba(255,255,255,0.55)", lineHeight: 1.45, textAlign: "center",
-            }}>
-              <b style={{ color: NEON_GOLD }}>90%</b> of the pool goes to the winner. The winner is picked at random among ALL sold tickets — the more you own, the higher your chance. Prize payout handled manually by the admin.
-            </div>
           </div>
         </div>
       )}
