@@ -118,10 +118,19 @@ export function verifyInitData(initData: string | undefined | null): VerifyResul
   const userId = String(userIdRaw);
   if (!userId) return { ok: false, reason: "no_user" };
 
-  // Build data_check_string (sorted, hash excluded).
+  // Build data_check_string (sorted; `hash` and `signature` excluded).
+  // CRITICAL: i client Telegram moderni (post-2024) includono nel initData
+  // un campo aggiuntivo `signature` (ed25519, per consentire verifica
+  // server-side senza bot token). Per la verifica HMAC standard questo
+  // campo NON deve entrare nel data_check_string — altrimenti la firma
+  // non matchera' mai. Escluderlo e' richiesto dalla documentazione
+  // ufficiale Telegram WebApp / validating-data-3rd-party (la versione
+  // vecchia diceva solo "hash"; la nuova dice esplicitamente "hash and
+  // signature"). Questo era la causa di tutti i `bad_signature` per gli
+  // utenti sui client Telegram aggiornati.
   const entries: Array<[string, string]> = [];
   for (const [k, v] of params.entries()) {
-    if (k === "hash") continue;
+    if (k === "hash" || k === "signature") continue;
     entries.push([k, v]);
   }
   entries.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));

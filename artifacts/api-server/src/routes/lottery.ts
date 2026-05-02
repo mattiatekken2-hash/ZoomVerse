@@ -66,19 +66,6 @@ router.get("/lottery/state", async (req, res) => {
     // anonima dove `userTickets`/`winChancePct` restano a 0 — i totali del
     // round sono comunque pubblici.
     const verifiedId = req.tgUser?.id ? String(req.tgUser.id) : "";
-    // DEBUG temporaneo: log compatto per capire perche' utenti reali vedono
-    // userTickets=0 anche dopo aver acquistato. Mostra: ID dalla query (per
-    // confronto), ID verificato dall'initData, presenza dell'header, motivo
-    // del fallimento auth se presente. Rimuovere dopo la verifica.
-    req.log.info(
-      {
-        qsTelegramId: typeof req.query.telegramId === "string" ? req.query.telegramId : null,
-        verifiedId: verifiedId || null,
-        hasInitDataHeader: Boolean(req.header("x-telegram-init-data")),
-        tgAuthReason: req.tgAuthReason ?? null,
-      },
-      "[lottery/state] auth debug",
-    );
     const round = await getOrCreateActiveRound();
 
     // Biglietti dell'utente nel round attivo (somma).
