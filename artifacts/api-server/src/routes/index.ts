@@ -22,6 +22,7 @@ import sunRouter from "./sun";
 import collectionPlanetsRouter from "./collection-planets";
 import regularPlanetsRouter from "./regular-planets";
 import lotteryRouter from "./lottery";
+import tasksRouter from "./tasks";
 
 const router: IRouter = Router();
 
@@ -81,6 +82,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/withdrawals/request",
       "/referral/register",
       "/referral/check-milestones",
+      "/tasks/claim",
       "/referral/reset",
       "/referral/unlink",
       "/stars/create-invoice",
@@ -220,5 +222,6 @@ router.use(sunRouter);
 router.use(collectionPlanetsRouter);
 router.use(regularPlanetsRouter);
 router.use(lotteryRouter);
+router.use(tasksRouter);
 
 export default router;

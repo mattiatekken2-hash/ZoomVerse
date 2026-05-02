@@ -40,6 +40,13 @@ const SaveBody = z.object({
   claimedBonusEpic: z.number().int().min(0).optional(),
   claimedBonusGold: z.number().int().min(0).optional(),
   claimedBonusV1: z.number().int().min(0).optional(),
+  // Monotonic client-side count of every planet ever forged / crafted /
+  // fused on this device's localStorage. Server stores GREATEST(stored,
+  // incoming) so the value can only grow — this is the source of truth
+  // for the Earn-page planet-build tasks and is retroactive: the very
+  // first save after deploy populates the counter from the client's
+  // existing localStorage value.
+  craftsCompleted: z.number().int().min(0).optional(),
 });
 
 // GET /api/regular-planets/:telegramId
@@ -115,6 +122,7 @@ router.post("/regular-planets/save", async (req, res) => {
     claimedBonusEpic,
     claimedBonusGold,
     claimedBonusV1,
+    craftsCompleted,
   } = parsed.data;
   try {
     // Atomic write with three safety properties:
@@ -168,6 +176,7 @@ router.post("/regular-planets/save", async (req, res) => {
           ...(claimedBonusEpic  != null ? { claimedBonusEpic:  sql`GREATEST(${usersTable.claimedBonusEpic},  ${claimedBonusEpic})`  } : {}),
           ...(claimedBonusGold  != null ? { claimedBonusGold:  sql`GREATEST(${usersTable.claimedBonusGold},  ${claimedBonusGold})`  } : {}),
           ...(claimedBonusV1    != null ? { claimedBonusV1:    sql`GREATEST(${usersTable.claimedBonusV1},    ${claimedBonusV1})`    } : {}),
+          ...(craftsCompleted   != null ? { totalPlanetsBuilt: sql`GREATEST(${usersTable.totalPlanetsBuilt}, ${craftsCompleted})` } : {}),
         })
         .where(eq(usersTable.telegramId, telegramId));
       res.json({
@@ -188,6 +197,7 @@ router.post("/regular-planets/save", async (req, res) => {
         ...(claimedBonusEpic  != null ? { claimedBonusEpic:  sql`GREATEST(${usersTable.claimedBonusEpic},  ${claimedBonusEpic})`  } : {}),
         ...(claimedBonusGold  != null ? { claimedBonusGold:  sql`GREATEST(${usersTable.claimedBonusGold},  ${claimedBonusGold})`  } : {}),
         ...(claimedBonusV1    != null ? { claimedBonusV1:    sql`GREATEST(${usersTable.claimedBonusV1},    ${claimedBonusV1})`    } : {}),
+        ...(craftsCompleted   != null ? { totalPlanetsBuilt: sql`GREATEST(${usersTable.totalPlanetsBuilt}, ${craftsCompleted})` } : {}),
       })
       .where(eq(usersTable.telegramId, telegramId))
       .returning({

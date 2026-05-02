@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { claimDailyReward } from "../utils/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { claimDailyReward, fetchTasksState, claimTask, type TasksState } from "../utils/api";
 import { useGlobalStore, refreshDailyStatus } from "../store/globalStore";
 
 
@@ -25,6 +25,19 @@ const MILESTONES = [
   { count: 100, reward: 12000 },
   { count: 200, reward: 30000 },
 ];
+
+// Client-side cooldown after the user opens the sponsor channel before
+// the Claim button enables. The honor-system 10s gate exists so a user
+// can't tap "Open" and "Claim" back-to-back without ever leaving the
+// app — the server has no way to verify channel membership without an
+// admin bot in the partner channel.
+const SPONSOR_GATE_MS = 10_000;
+// Per-user storage key so a shared device (e.g. family iPad with two
+// Telegram accounts) can't have one account's "I opened the channel"
+// timestamp unlock the Claim button on a second account that never
+// actually tapped Open.
+const sponsorGateKey = (telegramId: string | null) =>
+  `zoom:sponsor-gate-opened-at:${telegramId ?? "_anon"}`;
 
 export function EarnPage({ referralCode, referralCount, referralSpeedBonus, referredBy, claimedMilestones, telegramId, onRedeemCode }: EarnPageProps) {
   const firstName = (() => {
@@ -115,6 +128,90 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
 
   const nextMilestone = MILESTONES.find(m => m.count > referralCount);
   const prevMilestone = MILESTONES.filter(m => m.count <= referralCount).pop();
+
+  // ───────────────── Long-term tasks (planet milestones + sponsor) ─────────────────
+  const [tasks, setTasks] = useState<TasksState | null>(null);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [tasksError, setTasksError] = useState<string | null>(null);
+  const [taskMsg, setTaskMsg] = useState<string | null>(null);
+  const [claimingTaskId, setClaimingTaskId] = useState<string | null>(null);
+  // Read the persisted "channel opened at" timestamp once on mount so the
+  // 10s countdown survives a page reload (otherwise an over-eager user
+  // could just refresh to bypass the wait).
+  const [sponsorOpenedAt, setSponsorOpenedAt] = useState<number>(0);
+  // Re-read the per-user gate timestamp whenever telegramId changes so an
+  // account switch on the same device doesn't carry over the previous
+  // user's "Open" tap.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(sponsorGateKey(telegramId));
+      const n = raw ? Number(raw) : 0;
+      setSponsorOpenedAt(Number.isFinite(n) && n > 0 ? n : 0);
+    } catch { setSponsorOpenedAt(0); }
+  }, [telegramId]);
+  const tasksTickRef = useRef(0);
+  void tasksTickRef;
+
+  const reloadTasks = useCallback(async () => {
+    if (!telegramId) return;
+    setTasksLoading(true);
+    setTasksError(null);
+    const s = await fetchTasksState(telegramId);
+    if (s) setTasks(s); else setTasksError("Could not load tasks");
+    setTasksLoading(false);
+  }, [telegramId]);
+
+  useEffect(() => { void reloadTasks(); }, [reloadTasks]);
+
+  const handleClaimTask = async (taskId: string) => {
+    if (!telegramId || claimingTaskId) return;
+    setClaimingTaskId(taskId);
+    const res = await claimTask(telegramId, taskId);
+    setClaimingTaskId(null);
+    if (res.ok) {
+      const parts: string[] = [];
+      if (res.rewardZoom && res.rewardZoom > 0) {
+        parts.push(`+${res.rewardZoom.toLocaleString()} $ZOOM`);
+        // Mirror the daily-claim UX: optimistic balance bump via the
+        // global event the header listens to, plus a refresh ping.
+        window.dispatchEvent(new CustomEvent("zoom-credit-local", { detail: { amount: res.rewardZoom } }));
+      }
+      if (res.rewardSpins && res.rewardSpins > 0) {
+        parts.push(`+${res.rewardSpins} Wheel Spin${res.rewardSpins > 1 ? "s" : ""}`);
+      }
+      setTaskMsg(parts.join(" · ") || "Claimed");
+      window.dispatchEvent(new Event("zoom-data-refresh"));
+      await reloadTasks();
+    } else if (res.error === "ALREADY_CLAIMED") {
+      setTaskMsg("Already claimed");
+      await reloadTasks();
+    } else if (res.error === "THRESHOLD_NOT_MET") {
+      setTaskMsg(`Need ${res.threshold} planets (you have ${res.planetsBuilt ?? 0})`);
+      await reloadTasks();
+    } else {
+      setTaskMsg("Claim failed");
+    }
+    setTimeout(() => setTaskMsg(null), 3500);
+  };
+
+  const handleOpenSponsor = (url: string) => {
+    const now = Date.now();
+    setSponsorOpenedAt(now);
+    try { localStorage.setItem(sponsorGateKey(telegramId), String(now)); } catch {}
+    try {
+      const tg = (window as any).Telegram?.WebApp;
+      if (tg?.openTelegramLink) {
+        tg.openTelegramLink(url);
+        return;
+      }
+    } catch {}
+    window.open(url, "_blank");
+  };
+
+  const sponsorGateRemainingMs = sponsorOpenedAt > 0
+    ? Math.max(0, SPONSOR_GATE_MS - (Date.now() - sponsorOpenedAt))
+    : SPONSOR_GATE_MS;
+  const sponsorGateOpen = sponsorOpenedAt > 0 && sponsorGateRemainingMs === 0;
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -380,6 +477,238 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           {claimedMilestones.length > 0 && (
             <div className="mt-2 text-center text-xs" style={{ color: "rgba(0,230,118,0.7)" }}>
               {claimedMilestones.length} milestone{claimedMilestones.length > 1 ? "s" : ""} claimed ✓
+            </div>
+          )}
+        </div>
+
+        {/* ───────────── Long-term Tasks ───────────── */}
+        <div
+          className="rounded-2xl p-4 border"
+          style={{ borderColor: "rgba(124,77,255,0.18)", background: "rgba(124,77,255,0.04)" }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="font-black text-base tracking-wide" style={{ color: "#b39dff" }}>Tasks</div>
+              <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.4)" }}>
+                BUILD PLANETS · OPEN PARTNER CHANNELS
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.35)" }}>BUILT</div>
+              <div className="text-sm font-black" style={{ color: "#b39dff" }}>
+                {(tasks?.planetsBuilt ?? 0).toLocaleString()}
+              </div>
+            </div>
+          </div>
+
+          {tasksLoading && !tasks && (
+            <div className="text-center text-xs py-4" style={{ color: "rgba(255,255,255,0.35)" }}>
+              Loading tasks…
+            </div>
+          )}
+          {tasksError && (
+            <div className="text-center text-xs py-2 mb-2 rounded-lg"
+              style={{ color: "#ff5252", background: "rgba(255,82,82,0.06)", border: "1px solid rgba(255,82,82,0.18)" }}>
+              {tasksError}
+            </div>
+          )}
+
+          {tasks && (
+            <div className="flex flex-col gap-2">
+              {tasks.planetTasks.map((t) => {
+                const pct = Math.min(100, Math.round((tasks.planetsBuilt / t.threshold) * 100));
+                const isClaiming = claimingTaskId === t.id;
+                return (
+                  <div
+                    key={t.id}
+                    className="rounded-xl border p-3"
+                    style={{
+                      borderColor: t.claimed
+                        ? "rgba(0,230,118,0.22)"
+                        : t.claimable
+                          ? "rgba(255,215,0,0.28)"
+                          : "rgba(255,255,255,0.06)",
+                      background: t.claimed
+                        ? "rgba(0,230,118,0.05)"
+                        : t.claimable
+                          ? "rgba(255,215,0,0.04)"
+                          : "rgba(255,255,255,0.02)",
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex flex-col">
+                        <span
+                          className="text-xs font-black tracking-wide"
+                          style={{
+                            color: t.claimed ? "#00e676" : t.claimable ? "#ffd700" : "rgba(255,255,255,0.75)",
+                          }}
+                        >
+                          Build {t.threshold.toLocaleString()} planets
+                        </span>
+                        <span className="text-[10px] font-bold mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                          Reward: +{t.rewardZoom.toLocaleString()} $ZOOM
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => void handleClaimTask(t.id)}
+                        disabled={t.claimed || !t.claimable || isClaiming}
+                        className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase transition-all active:scale-95"
+                        style={{
+                          background: t.claimed
+                            ? "rgba(0,230,118,0.1)"
+                            : t.claimable
+                              ? "linear-gradient(135deg, #ffd700, #ffb347)"
+                              : "rgba(255,255,255,0.04)",
+                          color: t.claimed
+                            ? "#00e676"
+                            : t.claimable
+                              ? "#1a0f00"
+                              : "rgba(255,255,255,0.25)",
+                          border: t.claimed
+                            ? "1px solid rgba(0,230,118,0.25)"
+                            : t.claimable
+                              ? "1px solid transparent"
+                              : "1px solid rgba(255,255,255,0.06)",
+                          cursor: t.claimed || !t.claimable || isClaiming ? "not-allowed" : "pointer",
+                          minWidth: 88,
+                        }}
+                        data-testid={`button-task-${t.id}`}
+                      >
+                        {t.claimed ? "Claimed" : isClaiming ? "…" : t.claimable ? "Claim" : "Locked"}
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${pct}%`,
+                            background: t.claimed
+                              ? "linear-gradient(90deg, #00e676, #00c853)"
+                              : "linear-gradient(90deg, #b39dff, #7c4dff)",
+                          }}
+                        />
+                      </div>
+                      <span className="text-[10px] font-bold tabular-nums" style={{ color: "rgba(255,255,255,0.5)", minWidth: 70, textAlign: "right" }}>
+                        {Math.min(tasks.planetsBuilt, t.threshold).toLocaleString()} / {t.threshold.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {tasks.sponsorTasks.map((t) => {
+                const isClaiming = claimingTaskId === t.id;
+                const remainingS = Math.ceil(sponsorGateRemainingMs / 1000);
+                // Three sequential states for a sponsor task:
+                //   1) "Open"   — never tapped Open yet (sponsorOpenedAt = 0)
+                //   2) "Wait Ns"— Open tapped, gate timer still running
+                //   3) "Claim"  — gate elapsed, server still says not claimed
+                const canClaimNow = !t.claimed && sponsorGateOpen;
+                const showOpen = !t.claimed && sponsorOpenedAt === 0;
+                const showWait = !t.claimed && sponsorOpenedAt > 0 && !sponsorGateOpen;
+                return (
+                  <div
+                    key={t.id}
+                    className="rounded-xl border p-3"
+                    style={{
+                      borderColor: t.claimed ? "rgba(0,230,118,0.22)" : "rgba(0,242,254,0.2)",
+                      background: t.claimed ? "rgba(0,230,118,0.05)" : "rgba(0,242,254,0.04)",
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex flex-col">
+                        <span
+                          className="text-xs font-black tracking-wide"
+                          style={{ color: t.claimed ? "#00e676" : "#00f2fe" }}
+                        >
+                          Join @coinflip_vip
+                        </span>
+                        <span className="text-[10px] font-bold mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
+                          Reward: +{t.rewardSpins} Wheel Spin{t.rewardSpins > 1 ? "s" : ""}
+                        </span>
+                      </div>
+                      {t.claimed ? (
+                        <button
+                          disabled
+                          className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase"
+                          style={{
+                            background: "rgba(0,230,118,0.1)",
+                            color: "#00e676",
+                            border: "1px solid rgba(0,230,118,0.25)",
+                            minWidth: 88,
+                          }}
+                          data-testid={`button-task-${t.id}`}
+                        >
+                          Claimed
+                        </button>
+                      ) : showOpen ? (
+                        <button
+                          onClick={() => handleOpenSponsor(t.url)}
+                          className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase transition-all active:scale-95"
+                          style={{
+                            background: "linear-gradient(135deg, #00f2fe, #4facfe)",
+                            color: "#060810",
+                            border: "1px solid transparent",
+                            minWidth: 88,
+                          }}
+                          data-testid={`button-task-${t.id}-open`}
+                        >
+                          Open
+                        </button>
+                      ) : showWait ? (
+                        <button
+                          disabled
+                          className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase tabular-nums"
+                          style={{
+                            background: "rgba(255,255,255,0.04)",
+                            color: "rgba(255,255,255,0.4)",
+                            border: "1px solid rgba(255,255,255,0.06)",
+                            minWidth: 88,
+                          }}
+                          data-testid={`button-task-${t.id}-wait`}
+                        >
+                          Wait {remainingS}s
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => void handleClaimTask(t.id)}
+                          disabled={isClaiming || !canClaimNow}
+                          className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase transition-all active:scale-95"
+                          style={{
+                            background: "linear-gradient(135deg, #ffd700, #ffb347)",
+                            color: "#1a0f00",
+                            border: "1px solid transparent",
+                            minWidth: 88,
+                            cursor: isClaiming ? "not-allowed" : "pointer",
+                          }}
+                          data-testid={`button-task-${t.id}-claim`}
+                        >
+                          {isClaiming ? "…" : "Claim"}
+                        </button>
+                      )}
+                    </div>
+                    {!t.claimed && (
+                      <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.35)" }}>
+                        Tap Open, join the channel, then return here to claim.
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {taskMsg && (
+            <div
+              className="mt-3 text-center text-xs font-bold py-2 rounded-lg"
+              style={{
+                color: "#00e676",
+                background: "rgba(0,230,118,0.08)",
+                border: "1px solid rgba(0,230,118,0.2)",
+              }}
+            >
+              {taskMsg}
             </div>
           )}
         </div>

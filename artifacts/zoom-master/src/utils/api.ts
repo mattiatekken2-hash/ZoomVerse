@@ -1687,6 +1687,86 @@ export async function fetchRegularPlanets(
   }
 }
 
+// ───────────────── Earn-page long-term tasks ─────────────────
+// GET /tasks/state/:telegramId — returns the user's planet-build counter,
+// claimed-task ids, and the catalog of available tasks (planet milestones
+// + sponsor tasks). The catalog lives on the server so client and server
+// can never disagree on thresholds / rewards / sponsor URLs.
+export interface PlanetTaskInfo {
+  id: string;
+  threshold: number;
+  rewardZoom: number;
+  claimed: boolean;
+  claimable: boolean;
+}
+export interface SponsorTaskInfo {
+  id: string;
+  url: string;
+  rewardSpins: number;
+  claimed: boolean;
+}
+export interface TasksState {
+  planetsBuilt: number;
+  claimedTasks: string[];
+  planetTasks: PlanetTaskInfo[];
+  sponsorTasks: SponsorTaskInfo[];
+}
+
+export async function fetchTasksState(telegramId: string): Promise<TasksState | null> {
+  try {
+    const res = await fetch(`${API_BASE}/tasks/state/${encodeURIComponent(telegramId)}`, {
+      headers: apiHeaders(),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json?.ok) return null;
+    return {
+      planetsBuilt: Number(json.planetsBuilt ?? 0),
+      claimedTasks: Array.isArray(json.claimedTasks) ? json.claimedTasks : [],
+      planetTasks: Array.isArray(json.planetTasks) ? json.planetTasks : [],
+      sponsorTasks: Array.isArray(json.sponsorTasks) ? json.sponsorTasks : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+export interface ClaimTaskResult {
+  ok: boolean;
+  error?: string;
+  rewardZoom?: number;
+  rewardSpins?: number;
+  planetsBuilt?: number;
+  threshold?: number;
+}
+
+export async function claimTask(telegramId: string, taskId: string): Promise<ClaimTaskResult> {
+  try {
+    const res = await fetch(`${API_BASE}/tasks/claim`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(withInitData({ telegramId, taskId })),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json?.ok) {
+      return {
+        ok: false,
+        error: json?.error || "CLAIM_FAILED",
+        planetsBuilt: typeof json?.planetsBuilt === "number" ? json.planetsBuilt : undefined,
+        threshold: typeof json?.threshold === "number" ? json.threshold : undefined,
+      };
+    }
+    return {
+      ok: true,
+      rewardZoom: Number(json.rewardZoom ?? 0),
+      rewardSpins: Number(json.rewardSpins ?? 0),
+      planetsBuilt: Number(json.totalPlanetsBuilt ?? 0),
+    };
+  } catch {
+    return { ok: false, error: "NETWORK" };
+  }
+}
+
 export async function saveRegularPlanets(
   telegramId: string,
   planets: Array<Record<string, unknown>>,
@@ -1697,6 +1777,7 @@ export async function saveRegularPlanets(
     gold: number;
     v1: number;
   },
+  craftsCompleted?: number,
 ): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/regular-planets/save`, {
@@ -1715,6 +1796,7 @@ export async function saveRegularPlanets(
         claimedBonusEpic: claimed.epic,
         claimedBonusGold: claimed.gold,
         claimedBonusV1: claimed.v1,
+        ...(craftsCompleted != null ? { craftsCompleted } : {}),
       }),
       keepalive: true,
     });

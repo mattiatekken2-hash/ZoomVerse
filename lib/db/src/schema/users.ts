@@ -21,6 +21,18 @@ export const usersTable = pgTable("users", {
   bonusGold: integer("bonus_gold").notNull().default(0),
   bonusV1: integer("bonus_v1").notNull().default(0),
   claimedMilestones: text("claimed_milestones").notNull().default(""),
+  // Long-term Earn tasks (planet-build milestones + sponsor tasks).
+  // CSV of claimed task ids ("planets_200", "planets_500", "planets_1000",
+  // "planets_2000", "sponsor_coinflip"). Mirrors the claimed_milestones
+  // pattern so we don't introduce a new table for a tiny set of flags.
+  claimedTasks: text("claimed_tasks").notNull().default(""),
+  // Monotonic count of planets the user has ever forged/crafted/fused.
+  // Persisted to make the Earn-page planet-build tasks survive cache wipes
+  // and device switches. Updated via GREATEST(stored, incoming) on every
+  // /regular-planets/save (so a stale save can never lower it). On the
+  // very first save after deploy, the client sends its localStorage
+  // craftsCompleted, which gives us full retroactivity for existing users.
+  totalPlanetsBuilt: integer("total_planets_built").notNull().default(0),
   totalCraftedBasic: integer("total_crafted_basic").notNull().default(0),
   totalCraftedRare: integer("total_crafted_rare").notNull().default(0),
   totalCraftedEpic: integer("total_crafted_epic").notNull().default(0),

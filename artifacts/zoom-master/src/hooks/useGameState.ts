@@ -1799,6 +1799,7 @@ export function useGameState() {
         tid,
         state.planets as unknown as Array<Record<string, unknown>>,
         claimedSnap,
+        state.craftsCompleted,
       );
     }
     const t = setTimeout(() => {
@@ -1806,6 +1807,7 @@ export function useGameState() {
         tid,
         state.planets as unknown as Array<Record<string, unknown>>,
         claimedSnap,
+        state.craftsCompleted,
       );
     }, 1200);
     return () => clearTimeout(t);
@@ -1817,6 +1819,7 @@ export function useGameState() {
     state.claimedBonusEpic,
     state.claimedBonusGold,
     state.claimedBonusV1,
+    state.craftsCompleted,
   ]);
 
   useEffect(() => {
