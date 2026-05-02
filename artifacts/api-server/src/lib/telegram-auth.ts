@@ -118,36 +118,65 @@ export function verifyInitData(initData: string | undefined | null): VerifyResul
   const userId = String(userIdRaw);
   if (!userId) return { ok: false, reason: "no_user" };
 
-  // Build data_check_string (sorted; `hash` and `signature` excluded).
-  // CRITICAL: i client Telegram moderni (post-2024) includono nel initData
-  // un campo aggiuntivo `signature` (ed25519, per consentire verifica
-  // server-side senza bot token). Per la verifica HMAC standard questo
-  // campo NON deve entrare nel data_check_string — altrimenti la firma
-  // non matchera' mai. Escluderlo e' richiesto dalla documentazione
-  // ufficiale Telegram WebApp / validating-data-3rd-party (la versione
-  // vecchia diceva solo "hash"; la nuova dice esplicitamente "hash and
-  // signature"). Questo era la causa di tutti i `bad_signature` per gli
-  // utenti sui client Telegram aggiornati.
-  const entries: Array<[string, string]> = [];
+  // Build data_check_string. Compatibility note:
+  //  - Telegram docs say to exclude only `hash`.
+  //  - Some clients (post-2024) ALSO include a `signature` field (ed25519
+  //    for 3rd-party verification). Different docs/SDKs disagree on whether
+  //    it should enter the HMAC data-check-string.
+  // To be robust, try BOTH variants (with and without `signature`) and
+  // accept if either matches. This is safe: an attacker still has to
+  // produce a valid HMAC for one of the two well-defined data strings.
+  const entriesAll: Array<[string, string]> = [];
+  const entriesNoSig: Array<[string, string]> = [];
   for (const [k, v] of params.entries()) {
-    if (k === "hash" || k === "signature") continue;
-    entries.push([k, v]);
+    if (k === "hash") continue;
+    entriesAll.push([k, v]);
+    if (k !== "signature") entriesNoSig.push([k, v]);
   }
-  entries.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-  const dataCheckString = entries.map(([k, v]) => `${k}=${v}`).join("\n");
+  const sortFn = (a: [string, string], b: [string, string]) =>
+    a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0;
+  entriesAll.sort(sortFn);
+  entriesNoSig.sort(sortFn);
+  const dcsAll = entriesAll.map(([k, v]) => `${k}=${v}`).join("\n");
+  const dcsNoSig = entriesNoSig.map(([k, v]) => `${k}=${v}`).join("\n");
 
   const secretKey = crypto.createHmac("sha256", "WebAppData").update(BOT_TOKEN).digest();
-  const expectedHash = crypto.createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
+  const hashAll = crypto.createHmac("sha256", secretKey).update(dcsAll).digest("hex");
+  const hashNoSig = crypto.createHmac("sha256", secretKey).update(dcsNoSig).digest("hex");
 
-  let signatureOk = false;
-  try {
-    const a = Buffer.from(expectedHash, "hex");
-    const b = Buffer.from(hash, "hex");
-    signatureOk = a.length === b.length && crypto.timingSafeEqual(a, b);
-  } catch {
-    signatureOk = false;
+  const matches = (computed: string): boolean => {
+    try {
+      const a = Buffer.from(computed, "hex");
+      const b = Buffer.from(hash, "hex");
+      return a.length === b.length && crypto.timingSafeEqual(a, b);
+    } catch {
+      return false;
+    }
+  };
+  const okAll = matches(hashAll);
+  const okNoSig = matches(hashNoSig);
+  const signatureOk = okAll || okNoSig;
+  if (!signatureOk) {
+    // DEBUG temporaneo: dump info per capire perche' nessuna delle due
+    // varianti del data-check-string matcha. Da rimuovere dopo fix.
+    try {
+      // eslint-disable-next-line no-console
+      console.warn("[tg-auth DEBUG bad_signature]", JSON.stringify({
+        botTokenLen: BOT_TOKEN.length,
+        botIdPrefix: BOT_TOKEN.slice(0, 10),
+        receivedHash: hash,
+        hashAll,
+        hashNoSig,
+        dcsAllLen: dcsAll.length,
+        dcsNoSigLen: dcsNoSig.length,
+        keys: entriesAll.map(([k]) => k),
+        // raw initData log abilitato solo per dev (ha PII)
+        initDataRaw: process.env.NODE_ENV === "production" ? null : initData,
+      }));
+    } catch { /* ignore */ }
+    return { ok: false, reason: "bad_signature" };
   }
-  if (!signatureOk) return { ok: false, reason: "bad_signature" };
+  void okAll; void okNoSig;
 
   return {
     ok: true,
