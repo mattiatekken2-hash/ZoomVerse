@@ -1,0 +1,37 @@
+
+"Realizza nella sezione home una zona confort in Pixel Art
+
+*   Gated Home: L'accesso alla sezione HOME è vincolato a due condizioni:
+1.    Possesso del ruolo SUN.
+2.    Pagamento 'una tantum' di 1000 Stardust.
+• Se le condizioni non sono soddisfatte, cliccando su 'HOME' deve apparire un'interfaccia di blocco (lucchetto pixelato)
+che spiega i requisiti mancanti."
+
+Implementa nella HOME un sistema di 3 Slot Espositivi (Slot A, B, C) basato su coordinate fisse.
+Cosi quando comprano l’item possono inserirlo nello slot vuoto
+
+ ARREDA aggiungere un piccolo tasto "Arreda" o un'icona a forma di martello nella HOME. Quando è attivo, gli slot vuoti mostrano un contorno tratteggiato giallo (stile pixel art) per far capire all'utente: "Ehi, qui puoi metterci un pezzo della tua collezione!
+
+1. SEZIONE HOME
+*   Visual: Una stanza pixel art con letto, tavolo, sedia e una grande finestra panoramica.
+*   Atmosfera UTC: Il paesaggio esterno (prato verde e cielo) deve cambiare luce e colori in tempo reale seguendo l'orario UTC (Alba, Giorno, Tramonto, Notte). Inserisci stormi di uccelli che passano casualmente.
+
+* Routine Dinamica: L'astronauta segue la vita reale. Se è notte (UTC), l'avatar dorme nel letto (animazione Zzz). Di giorno, alterna casualmente tra camminare, sedersi al tavolo a bere caffè , mangiare uno snack e guardare fuori dalla finestra.
+*   Social: Inserisci una Chat Globale nella sezione home per far parlare tutti gli utenti online e inserire reazioni del cuore ai loro commenti.
+* E possono rispondere a chi manda un messaggio, cosi capisco a chi risponde e si vede meglio 
+* 
+2. SEZIONE LAB (The Interactive Core):
+*   Avatar Interattivo: Un quadratino pixel dell'astronauta sempre visibile. Deve avere un'animazione di 'respiro' (sospiro su e giù di 1-2px).
+*   Tocco Finale (Sincronia): Se l'astronauta nella HOME sta dormendo, anche l'avatar nel
+* LAB deve avere gli occhi chiusi. Se lo clicchi mentre dorme, risponde con 'Zzz.... Se lo clicchi di giorno, risponde con frasi casuali sul lavoro e sul morale.
+3. REQUISITI TECNICI:
+*   Logica: Tutte le animazioni e i cambi di stato devono dipendere dall'orario del server 
+"MODULO SHOP & ITEM COMPUTER:
+1.    Shop System: Crea una item nella sezione 'Shop cliccando sul balance Zoom ' dove è presente l'item COMPUTER acquistabile soltanto a 5000 star dust 
+2.    Inventory Integration: Dopo l'acquisto, l'item deve apparire nell'Inventario e il modello 3D/Pixel del PC deve essere renderizzato sopra uno slot nella sezione HOME.
+3. E ovviamente l’accredito dei stardust una volta comprato
+4. 
+5.    Farming Logic (Daily): > - Implementa un timer lato server. II Computer produce 25 Stardust ogni 24 ore.
+*   Visual State: Quando le Stardust sono pronte per essere riscosse, mostra un'icona 'Notification Star' sopra il PC.
+*   Action: Al click sull'icona, aggiungi 25
+* Stardust al bilancio dell'utente e resetta il tempo
