@@ -534,11 +534,6 @@ function AppShellWithState() {
           ZOOM
         </div>
         <div className="flex items-center gap-3">
-          {totalRate > 0 && (
-            <div className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.3)" }}>
-              +{totalRate.toLocaleString()}{t("header.perHour")}
-            </div>
-          )}
           <div
             className="glass-neon flex items-center gap-1.5 px-3.5 py-2 rounded-full font-black text-sm cursor-pointer"
             onClick={() => switchTab("shop")}
