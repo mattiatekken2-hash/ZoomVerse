@@ -442,50 +442,22 @@ function AstroStatusPill() {
         top: 200,
         transform: "translateX(-50%)",
         zIndex: 50,
+        width: 60,
+        height: 60,
+        borderRadius: 14,
+        background: "rgba(6,8,16,0.85)",
+        border: "1px solid rgba(15,217,255,0.35)",
+        boxShadow: "0 0 14px rgba(15,217,255,0.25), inset 0 0 10px rgba(0,0,0,0.6)",
         display: "flex",
-        flexDirection: "column",
         alignItems: "center",
-        gap: 4,
+        justifyContent: "center",
+        // Force nearest-neighbor scaling on every descendant so the
+        // pixel-art helmet stays crisp instead of being smoothed.
+        imageRendering: "pixelated",
         pointerEvents: "none",
       }}
     >
-      {/* Tile — same 60×60 / radius 14 footprint as the Earth & White
-          collection bundle squares so the three sit visually as siblings. */}
-      <div
-        style={{
-          width: 60,
-          height: 60,
-          borderRadius: 14,
-          background: "rgba(6,8,16,0.85)",
-          border: "1px solid rgba(15,217,255,0.35)",
-          boxShadow: "0 0 14px rgba(15,217,255,0.25), inset 0 0 10px rgba(0,0,0,0.6)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          // Force nearest-neighbor scaling on every descendant so the
-          // pixel-art helmet stays crisp instead of being smoothed.
-          imageRendering: "pixelated",
-        }}
-      >
-        <PixelAstronautHead variant={variant} width={48} />
-      </div>
-      <div
-        style={{
-          fontSize: 11,
-          fontWeight: 800,
-          letterSpacing: "0.04em",
-          color: "#7fdfff",
-          textAlign: "center",
-          lineHeight: 1,
-          textShadow: "0 0 6px rgba(0,0,0,0.7)",
-          maxWidth: 96,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {label}
-      </div>
+      <PixelAstronautHead variant={variant} width={48} />
     </div>
   );
 }
