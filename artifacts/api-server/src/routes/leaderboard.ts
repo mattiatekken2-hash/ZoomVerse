@@ -98,7 +98,7 @@ router.get("/leaderboard", async (_req, res) => {
         zoomBalance: usersTable.zoomBalance,
       })
       .from(usersTable)
-      .where(sql`${usersTable.zoomBalance} > 0`)
+      .where(sql`${usersTable.zoomBalance} > 0 AND ${usersTable.isDisabled} = false`)
       .orderBy(desc(usersTable.zoomBalance))
       .limit(100);
 
@@ -213,7 +213,7 @@ router.get("/leaderboard/daily-referrals", async (_req, res) => {
         count: usersTable.dailyReferralCount,
       })
       .from(usersTable)
-      .where(sql`${usersTable.dailyReferralDayKey} = ${today} AND ${usersTable.dailyReferralCount} > 0`)
+      .where(sql`${usersTable.dailyReferralDayKey} = ${today} AND ${usersTable.dailyReferralCount} > 0 AND ${usersTable.isDisabled} = false`)
       .orderBy(desc(usersTable.dailyReferralCount))
       .limit(10);
 
