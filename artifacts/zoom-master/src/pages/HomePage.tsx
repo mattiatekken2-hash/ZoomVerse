@@ -19,6 +19,20 @@ import {
   PixelPet,
 } from "../components/PixelAstronaut";
 import { useAstronautActivity } from "../hooks/useAstronautActivity";
+import { GlobalChat } from "../components/GlobalChat";
+
+/** Read the Telegram WebApp display name once per render, no hook needed. */
+function readTelegramDisplayName(): string {
+  try {
+    const w = window as unknown as {
+      Telegram?: { WebApp?: { initDataUnsafe?: { user?: { username?: string; first_name?: string } } } };
+    };
+    const u = w.Telegram?.WebApp?.initDataUnsafe?.user;
+    return (u?.username || u?.first_name || "").trim();
+  } catch {
+    return "";
+  }
+}
 
 interface HomePageProps {
   telegramId: string | null;
@@ -318,6 +332,11 @@ export function HomePage({ telegramId, visible }: HomePageProps) {
             </button>
           </div>
         )}
+
+        {/* Global chat panel — Phase 5b. Lives below the room/computer
+            strip so the player can chat with the rest of the universe
+            while their astronaut and pet do their thing in the scene. */}
+        <GlobalChat telegramId={telegramId} username={readTelegramDisplayName()} />
 
         {/* Slot picker — appears in arrange mode when a slot is tapped. */}
         {arrange && pickerSlot && (

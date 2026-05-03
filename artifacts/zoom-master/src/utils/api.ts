@@ -1910,3 +1910,67 @@ export function placeHomeSlot(telegramId: string, slot: "A" | "B" | "C", itemId:
 export function clearHomeSlot(telegramId: string, slot: "A" | "B" | "C"): Promise<HomeActionResult> {
   return homePost("/home/slot/clear", { telegramId, slot });
 }
+
+// ─── HOME — Global Chat (Phase 5b) ────────────────────────────────────
+export interface ChatMessage {
+  id: number;
+  telegramId: string;
+  username: string;
+  text: string;
+  createdAt: string;
+}
+
+/** Initial load: most recent N messages (oldest→newest). */
+export async function fetchChatMessages(limit = 50): Promise<ChatMessage[]> {
+  try {
+    const res = await fetch(`${API_BASE}/chat/messages?limit=${limit}&t=${Date.now()}`, {
+      cache: "no-store",
+      headers: apiHeaders(),
+    });
+    if (!res.ok) return [];
+    const j = await res.json();
+    return Array.isArray(j?.messages) ? (j.messages as ChatMessage[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Delta poll: messages newer than the highest id we already have. */
+export async function fetchChatSince(sinceId: number): Promise<ChatMessage[]> {
+  try {
+    const res = await fetch(`${API_BASE}/chat/messages?since=${sinceId}&t=${Date.now()}`, {
+      cache: "no-store",
+      headers: apiHeaders(),
+    });
+    if (!res.ok) return [];
+    const j = await res.json();
+    return Array.isArray(j?.messages) ? (j.messages as ChatMessage[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export interface SendChatResult {
+  ok: boolean;
+  error?: string;
+  retryAfterMs?: number;
+  message?: ChatMessage;
+}
+
+export async function sendChatMessage(
+  telegramId: string,
+  username: string,
+  text: string,
+): Promise<SendChatResult> {
+  try {
+    const res = await fetch(`${API_BASE}/chat/send`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, username, text }),
+    });
+    const j = await res.json().catch(() => ({} as Record<string, unknown>));
+    return j as SendChatResult;
+  } catch {
+    return { ok: false, error: "NETWORK" };
+  }
+}

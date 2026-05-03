@@ -24,6 +24,7 @@ import regularPlanetsRouter from "./regular-planets";
 import lotteryRouter from "./lottery";
 import tasksRouter from "./tasks";
 import homeRouter from "./home";
+import chatRouter from "./chat";
 
 const router: IRouter = Router();
 
@@ -89,6 +90,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/home/computer/claim",
       "/home/slot/place",
       "/home/slot/clear",
+      "/chat/send",
       "/referral/reset",
       "/referral/unlink",
       "/stars/create-invoice",
@@ -230,5 +232,6 @@ router.use(regularPlanetsRouter);
 router.use(lotteryRouter);
 router.use(tasksRouter);
 router.use(homeRouter);
+router.use(chatRouter);
 
 export default router;
