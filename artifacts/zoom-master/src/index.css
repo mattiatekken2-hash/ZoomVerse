@@ -620,11 +620,9 @@
 
 /* ======== GLASSMORPHISM FARM BUTTONS ======== */
 .btn-glass-farm {
-  background: rgba(0, 255, 136, 0.07);
+  background: rgba(8, 38, 22, 0.92);
   border-color: rgba(0, 255, 136, 0.45) !important;
   color: #00ff88 !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   box-shadow:
     0 0 12px rgba(0, 255, 136, 0.18),
     inset 0 1px 0 rgba(0, 255, 136, 0.15),
@@ -640,11 +638,9 @@
 }
 
 .btn-glass-farm-active {
-  background: rgba(0, 255, 136, 0.1);
+  background: rgba(10, 44, 26, 0.94);
   border-color: rgba(0, 255, 136, 0.55) !important;
   color: #00ff88 !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   box-shadow:
     0 0 18px rgba(0, 255, 136, 0.3),
     inset 0 1px 0 rgba(0, 255, 136, 0.25),
@@ -658,11 +654,9 @@
 }
 
 .btn-glass-burn {
-  background: rgba(255, 100, 30, 0.07);
+  background: rgba(46, 18, 8, 0.92);
   border-color: rgba(255, 100, 30, 0.45) !important;
   color: #ff6420 !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   box-shadow:
     0 0 12px rgba(255, 100, 30, 0.18),
     inset 0 1px 0 rgba(255, 140, 0, 0.15),
@@ -678,11 +672,9 @@
 }
 
 .btn-glass-burn-confirm {
-  background: rgba(255, 65, 108, 0.12);
+  background: rgba(54, 14, 26, 0.94);
   border-color: rgba(255, 65, 108, 0.6) !important;
   color: #ff416c !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   box-shadow:
     0 0 20px rgba(255, 65, 108, 0.35),
     inset 0 1px 0 rgba(255, 65, 108, 0.25),
@@ -691,11 +683,9 @@
 }
 
 .btn-glass-sell {
-  background: rgba(0, 180, 255, 0.07);
+  background: rgba(8, 30, 46, 0.92);
   border-color: rgba(0, 180, 255, 0.45) !important;
   color: #00b4ff !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   box-shadow:
     0 0 12px rgba(0, 180, 255, 0.18),
     inset 0 1px 0 rgba(79, 172, 254, 0.15),
@@ -711,11 +701,9 @@
 }
 
 .btn-glass-collect {
-  background: rgba(255, 165, 0, 0.08);
+  background: rgba(46, 30, 6, 0.93);
   border-color: rgba(255, 165, 0, 0.5) !important;
   color: #ffa500 !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   box-shadow:
     0 0 14px rgba(255, 165, 0, 0.22),
     inset 0 1px 0 rgba(255, 165, 0, 0.18),
@@ -729,11 +717,9 @@
 }
 
 .btn-glass-listed {
-  background: rgba(255, 215, 0, 0.07);
+  background: rgba(46, 38, 6, 0.92);
   border-color: rgba(255, 215, 0, 0.4) !important;
   color: #ffd700 !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   box-shadow:
     0 0 12px rgba(255, 215, 0, 0.16),
     inset 0 1px 0 rgba(255, 215, 0, 0.14),

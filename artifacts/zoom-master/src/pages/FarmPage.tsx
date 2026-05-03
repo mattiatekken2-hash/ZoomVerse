@@ -118,10 +118,9 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
         <div
           className="absolute top-2 left-4 right-4 z-50 rounded-xl px-4 py-3 text-center text-sm font-bold animate-pulse"
           style={{
-            background: "linear-gradient(135deg, rgba(255,50,50,0.25) 0%, rgba(180,30,30,0.35) 100%)",
+            background: "rgba(60,10,10,0.96)",
             border: "1px solid rgba(255,80,80,0.5)",
             color: "#ff5252",
-            backdropFilter: "blur(12px)",
           }}
         >
           ⚠ {defectMsg}
@@ -167,16 +166,16 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
               style={{
                 borderColor: sunExpired ? "rgba(255,255,255,0.08)" : "rgba(255,179,71,0.35)",
                 background: "linear-gradient(135deg, rgba(255,179,71,0.09) 0%, rgba(255,140,0,0.04) 100%)",
-                boxShadow: sunActive ? "0 0 32px rgba(255,179,71,0.18)" : "none",
+                boxShadow: sunActive ? "0 0 18px rgba(255,179,71,0.18)" : "none",
+                transform: "translateZ(0)",
                 contain: "layout style paint",
               } as React.CSSProperties}
             >
               <div
                 className="absolute top-0 right-0 w-28 h-28 rounded-full pointer-events-none"
                 style={{
-                  background: "radial-gradient(circle, rgba(255,179,71,0.18) 0%, transparent 70%)",
-                  filter: "blur(16px)",
-                  transform: "translate(30%,-30%)",
+                  background: "radial-gradient(circle, rgba(255,179,71,0.14) 0%, rgba(255,179,71,0.05) 45%, transparent 75%)",
+                  transform: "translate(30%,-30%) translateZ(0)",
                 }}
               />
               <div className="flex items-center gap-4 mb-4">
@@ -329,7 +328,17 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
                 style={{
                   borderColor: isListed ? "rgba(255,215,0,0.3)" : expired ? "rgba(255,255,255,0.08)" : planet.color + "40",
                   background: `linear-gradient(135deg, ${planet.color}0d 0%, rgba(6,8,16,0.6) 100%)`,
-                  boxShadow: active ? `0 0 32px ${planet.color}22, 0 0 60px ${planet.color}08` : `0 0 16px ${planet.color}08`,
+                  // Single, smaller shadow. The previous double 60px halo was
+                  // a major cause of dropped repaints during scroll on Android
+                  // Telegram WebView (cards going visually "empty" mid-scroll).
+                  boxShadow: active ? `0 0 18px ${planet.color}26` : `0 0 10px ${planet.color}10`,
+                  // Promote each card to its own GPU layer so its painted
+                  // content is cached as a texture and survives fast scrolls
+                  // without being re-rasterised every frame. NOTE: no
+                  // persistent `will-change` — long-lived layer hints add GPU
+                  // memory pressure on low-end Android devices and can trade
+                  // one artifact for another.
+                  transform: "translateZ(0)",
                   // Per-card paint isolation only — we intentionally do NOT use
                   // `content-visibility: auto` here. On Telegram's iOS WebView
                   // it caused a visible flicker as cards entered the viewport
@@ -552,7 +561,7 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
       {sellPopup && (
         <div
           className="absolute inset-0 flex items-end justify-center z-50"
-          style={{ background: "rgba(6,8,16,0.82)", backdropFilter: "blur(12px)" }}
+          style={{ background: "rgba(6,8,16,0.94)" }}
           onClick={(e) => e.target === e.currentTarget && cancelSell()}
         >
           <div
