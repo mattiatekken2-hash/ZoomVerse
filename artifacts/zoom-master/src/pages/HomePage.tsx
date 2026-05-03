@@ -729,7 +729,7 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
     window: { left: "57%", top: "78%" },    // standing on the floor UNDER the window, looking up
     exercise: { left: "40%", top: "78%" },  // jumping jacks center floor
     fridge: { left: "82%", top: "60%" },    // in front of the fridge
-    shower: { left: "29%", top: "48%" },    // inside the shower stall
+    shower: { left: "39%", top: "48%" },    // INSIDE the shower stall (centered on the glass area)
   };
   const pos = astroPos[activity];
 
@@ -770,7 +770,7 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
     window: { left: "48%", top: "88%" },    // sitting by the astronaut on the floor under the window
     exercise: { left: "55%", top: "88%" },  // watching the workout
     fridge: { left: "72%", top: "88%" },    // tail of the astronaut at the fridge
-    shower: { left: "42%", top: "65%" },    // waiting outside the shower
+    shower: { left: "50%", top: "88%" },    // waiting just outside the shower door, on the floor
   };
   const petState: "idle" | "sleep" | "eat" =
     activity === "sleep" ? "sleep" :
