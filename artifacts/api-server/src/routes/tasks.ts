@@ -39,6 +39,8 @@ const PLANET_TASKS: PlanetTaskDef[] = [
   { id: "planets_500",  kind: "planets", threshold: 500,  rewardZoom: 10_000 },
   { id: "planets_1000", kind: "planets", threshold: 1000, rewardZoom: 25_000 },
   { id: "planets_2000", kind: "planets", threshold: 2000, rewardZoom: 50_000 },
+  { id: "planets_5000", kind: "planets", threshold: 5000, rewardZoom: 100_000 },
+  { id: "planets_10000", kind: "planets", threshold: 10000, rewardZoom: 200_000 },
 ];
 
 const SPONSOR_TASKS: SponsorTaskDef[] = [
