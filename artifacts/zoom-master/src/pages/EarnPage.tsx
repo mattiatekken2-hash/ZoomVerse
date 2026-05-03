@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { claimDailyReward, fetchTasksState, claimTask, type TasksState } from "../utils/api";
+import { claimDailyReward, fetchTasksState, claimTask, type TasksState, redeemServerCode } from "../utils/api";
 import { useGlobalStore, refreshDailyStatus } from "../store/globalStore";
 import { useT } from "../i18n/LanguageContext";
 
@@ -112,9 +112,54 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleRedeem = () => {
-    if (!redeemInput.trim()) return;
-    const result = onRedeemCode(redeemInput);
+  const handleRedeem = async () => {
+    const raw = redeemInput.trim();
+    if (!raw) return;
+
+    // 1) Try server-issued promo codes first (24h admin codes). On
+    //    NOT_FOUND we fall through to the legacy local SUN/promo table
+    //    so old hard-coded codes (SUN-****, etc.) keep working.
+    if (telegramId) {
+      const srv = await redeemServerCode(telegramId, raw);
+      if (srv.ok) {
+        let msg: string;
+        if (srv.rewardType === "stardust") {
+          msg = t("earn.stardustCredited", { n: (srv.rewardAmount ?? 0).toLocaleString() });
+        } else if (srv.rewardType === "spins") {
+          msg = t("earn.spinsCredited", { n: (srv.rewardAmount ?? 0).toLocaleString() });
+        } else {
+          msg = t("earn.zoomCredited", { n: (srv.rewardAmount ?? 0).toLocaleString() });
+        }
+        setRedeemStatus({ type: "success", message: msg });
+        setRedeemInput("");
+        // Force the global store to re-pull balances (zoom / stardust / spins).
+        window.dispatchEvent(new Event("zoom-admin-refresh"));
+        setTimeout(() => setRedeemStatus(null), 4000);
+        return;
+      }
+      if (srv.error === "EXPIRED") {
+        setRedeemStatus({ type: "error", message: t("earn.codeExpired") });
+        setTimeout(() => setRedeemStatus(null), 4000);
+        return;
+      }
+      if (srv.error === "ALREADY_USED") {
+        setRedeemStatus({ type: "error", message: t("earn.codeAlreadyUsed") });
+        setTimeout(() => setRedeemStatus(null), 4000);
+        return;
+      }
+      // Only fall back to the legacy local table on NOT_FOUND so SUN
+      // codes & old hard-coded promos still work. NETWORK / DB_ERROR /
+      // BAD_REQUEST are transient server problems — surfacing them as
+      // "invalid code" via the legacy fallback would mislead the user
+      // into thinking a valid code is bad.
+      if (srv.error && srv.error !== "NOT_FOUND") {
+        setRedeemStatus({ type: "error", message: t("earn.codeServerError") });
+        setTimeout(() => setRedeemStatus(null), 4000);
+        return;
+      }
+    }
+
+    const result = onRedeemCode(raw);
     if (result.success) {
       if (result.isSun) {
         setRedeemStatus({ type: "sun", message: t("earn.sunAdded") });

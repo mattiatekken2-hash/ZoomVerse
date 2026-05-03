@@ -26,6 +26,7 @@ import tasksRouter from "./tasks";
 import homeRouter from "./home";
 import chatRouter from "./chat";
 import roomInvitesRouter from "./roomInvites";
+import redeemCodesRouter from "./redeemCodes";
 
 const router: IRouter = Router();
 
@@ -102,6 +103,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/ton/confirm",
       "/room-invites/send",
       "/room-invites/respond",
+      "/redeem-codes/redeem",
     ],
     bindField: "telegramId",
   },
@@ -173,6 +175,8 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/admin/enable-user",
       "/admin/bulk-disable",
       "/referral/unlink",
+      "/admin/redeem-codes/create",
+      "/admin/redeem-codes/list",
     ],
     bindField: "adminId",
   },
@@ -247,5 +251,6 @@ router.use(tasksRouter);
 router.use(homeRouter);
 router.use(chatRouter);
 router.use(roomInvitesRouter);
+router.use(redeemCodesRouter);
 
 export default router;

@@ -34,6 +34,10 @@ import {
   adminFetchLottoDashboard,
   adminLottoDraw,
   type LottoAdminDashboard,
+  adminCreateRedeemCode,
+  adminListRedeemCodes,
+  type AdminRedeemCode,
+  type RedeemKind,
 } from "../utils/api";
 
 const ADMIN_ID = "8144744644";
@@ -1063,6 +1067,13 @@ export function AdminPanel({ telegramId }: Props) {
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
 
+                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+
+                {/* REDEEM CODES — generate 24h promo codes */}
+                <RedeemCodesAdminSection adminId={telegramId} onFeedback={showFeedback} />
+
+                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+
                 {/* LOTTO STELLARE — admin dashboard */}
                 <LottoAdminSection adminId={telegramId} onFeedback={showFeedback} />
 
@@ -1437,6 +1448,175 @@ function WithdrawalRow({ w, loading, onApprove, onReject }: WithdrawalRowProps) 
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+interface RedeemCodesAdminSectionProps {
+  adminId: string;
+  onFeedback: (msg: string, ok: boolean) => void;
+}
+
+function RedeemCodesAdminSection({ adminId, onFeedback }: RedeemCodesAdminSectionProps) {
+  const [codes, setCodes] = useState<AdminRedeemCode[]>([]);
+  const [generating, setGenerating] = useState<RedeemKind | null>(null);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [, force] = useState(0);
+
+  const refresh = useCallback(async () => {
+    const list = await adminListRedeemCodes(adminId);
+    setCodes(list);
+  }, [adminId]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  // Re-render every 30s so the "expires in" countdown updates without
+  // forcing the admin to refresh the panel.
+  useEffect(() => {
+    const i = setInterval(() => force((n) => n + 1), 30_000);
+    return () => clearInterval(i);
+  }, []);
+
+  const generate = useCallback(async (kind: RedeemKind) => {
+    haptic();
+    setGenerating(kind);
+    const res = await adminCreateRedeemCode(adminId, kind);
+    setGenerating(null);
+    if (res.ok && res.code) {
+      try { await navigator.clipboard.writeText(res.code); } catch { /**/ }
+      setCopiedCode(res.code);
+      setTimeout(() => setCopiedCode(null), 2500);
+      onFeedback(`✓ Codice ${res.code} generato e copiato`, true);
+      refresh();
+    } else {
+      onFeedback(`✗ ${res.error || "Errore"}`, false);
+    }
+  }, [adminId, onFeedback, refresh]);
+
+  const copyCode = async (code: string) => {
+    haptic();
+    try { await navigator.clipboard.writeText(code); } catch { /**/ }
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 1800);
+  };
+
+  const formatRemaining = (expiresAt: string): string => {
+    const ms = new Date(expiresAt).getTime() - Date.now();
+    if (ms <= 0) return "scaduto";
+    const h = Math.floor(ms / 3_600_000);
+    const m = Math.floor((ms % 3_600_000) / 60_000);
+    return `${h}h ${m}m`;
+  };
+
+  const labelFor = (k: string, n: number): string => {
+    if (k === "zoom") return `${n.toLocaleString()} $ZOOM`;
+    if (k === "stardust") return `${n} ★ Stardust`;
+    if (k === "spins") return `${n} Spin`;
+    return `${n}`;
+  };
+
+  const colorFor = (k: string): string => {
+    if (k === "zoom") return "#00f2fe";
+    if (k === "stardust") return "#ffd23f";
+    if (k === "spins") return "#ffd700";
+    return "#ffffff";
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
+        REDEEM CODES (24h, 1× per utente)
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+        {([
+          { kind: "zoom" as RedeemKind,     label: "2.000 $ZOOM",  color: "#00f2fe" },
+          { kind: "stardust" as RedeemKind, label: "10 ★ Stardust", color: "#ffd23f" },
+          { kind: "spins" as RedeemKind,    label: "3 Spin",       color: "#ffd700" },
+        ]).map(({ kind, label, color }) => (
+          <motion.button
+            key={kind}
+            whileTap={{ scale: 0.93 }}
+            onClick={() => generate(kind)}
+            disabled={generating !== null}
+            style={{
+              padding: "11px 4px",
+              borderRadius: 10,
+              border: `1px solid ${color}55`,
+              background: `${color}14`,
+              color,
+              fontSize: 11,
+              fontWeight: 800,
+              letterSpacing: "0.04em",
+              cursor: "pointer",
+              opacity: generating !== null ? 0.5 : 1,
+              transition: "opacity 0.15s",
+            }}
+          >
+            {generating === kind ? "..." : `🎟️ ${label}`}
+          </motion.button>
+        ))}
+      </div>
+
+      {codes.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            maxHeight: 220,
+            overflowY: "auto",
+            padding: 6,
+            borderRadius: 10,
+            background: "rgba(0,0,0,0.25)",
+            border: "1px solid rgba(255,255,255,0.06)",
+          }}
+        >
+          {codes.map((c) => {
+            const expired = new Date(c.expiresAt).getTime() <= Date.now();
+            return (
+              <button
+                key={c.code}
+                onClick={() => copyCode(c.code)}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  background: copiedCode === c.code ? "rgba(0,242,100,0.10)" : "rgba(255,255,255,0.03)",
+                  color: "white",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  opacity: expired ? 0.45 : 1,
+                  transition: "background 0.15s",
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <div style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 800, letterSpacing: "0.08em", color: copiedCode === c.code ? "#00f264" : "#ffffff" }}>
+                    {c.code}
+                  </div>
+                  <div style={{ fontSize: 10, color: colorFor(c.rewardType), fontWeight: 700 }}>
+                    {labelFor(c.rewardType, c.rewardAmount)}
+                  </div>
+                </div>
+                <div style={{ fontSize: 10, color: expired ? "#ff7a7a" : "rgba(255,255,255,0.45)", fontWeight: 700, textAlign: "right" }}>
+                  {expired ? "scaduto" : formatRemaining(c.expiresAt)}
+                  <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", fontWeight: 600 }}>
+                    {copiedCode === c.code ? "copiato ✓" : "tap = copia"}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.4 }}>
+        Genera un codice random valido 24h. Ogni utente può usarlo una sola volta.
+      </div>
     </div>
   );
 }

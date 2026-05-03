@@ -2223,3 +2223,76 @@ export async function sendChatMessage(
     return { ok: false, error: "NETWORK" };
   }
 }
+
+// ───────────────── Redeem Codes (admin-generated 24h promos) ─────────────────
+export type RedeemKind = "zoom" | "stardust" | "spins";
+
+export interface AdminRedeemCode {
+  code: string;
+  rewardType: RedeemKind;
+  rewardAmount: number;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface AdminCreateRedeemCodeResult {
+  ok: boolean;
+  error?: string;
+  code?: string;
+  rewardType?: RedeemKind;
+  rewardAmount?: number;
+  expiresAt?: string;
+}
+
+export async function adminCreateRedeemCode(
+  adminId: string,
+  kind: RedeemKind,
+): Promise<AdminCreateRedeemCodeResult> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/redeem-codes/create`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, kind }),
+    });
+    const j = await res.json().catch(() => ({} as Record<string, unknown>));
+    return j as AdminCreateRedeemCodeResult;
+  } catch {
+    return { ok: false, error: "NETWORK" };
+  }
+}
+
+export async function adminListRedeemCodes(adminId: string): Promise<AdminRedeemCode[]> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/redeem-codes/list`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId }),
+    });
+    const j = await res.json().catch(() => ({} as Record<string, unknown>));
+    if (!j || !(j as { ok?: boolean }).ok) return [];
+    return ((j as { codes?: AdminRedeemCode[] }).codes ?? []);
+  } catch {
+    return [];
+  }
+}
+
+export interface RedeemServerResult {
+  ok: boolean;
+  error?: string; // "NOT_FOUND" | "EXPIRED" | "ALREADY_USED" | "BAD_REQUEST" | "DB_ERROR" | "NETWORK"
+  rewardType?: RedeemKind;
+  rewardAmount?: number;
+}
+
+export async function redeemServerCode(telegramId: string, code: string): Promise<RedeemServerResult> {
+  try {
+    const res = await fetch(`${API_BASE}/redeem-codes/redeem`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, code }),
+    });
+    const j = await res.json().catch(() => ({} as Record<string, unknown>));
+    return j as RedeemServerResult;
+  } catch {
+    return { ok: false, error: "NETWORK" };
+  }
+}
