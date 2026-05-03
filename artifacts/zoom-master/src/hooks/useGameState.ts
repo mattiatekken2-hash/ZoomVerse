@@ -46,7 +46,7 @@ async function refreshServerOffset(): Promise<void> {
   } catch { /* keep last known offset */ }
 }
 
-export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD" | "V1" | "V1_NFT" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4";
+export type PlanetType = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "GOLD" | "V1" | "V1_NFT" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4";
 
 export const WHITE_PLANET_TYPES: PlanetType[] = ["WHITE1", "WHITE2", "WHITE3", "WHITE4"];
 
@@ -210,9 +210,11 @@ export const PLANET_CONFIG: Record<PlanetType, {
     rate: 2,
     color: "#8892b0",
     glowColor: "rgba(136,146,176,0.5)",
-    // Reduced by 0.00005 to make room for V1 (0.005% drop) so the cumulative
-    // probability sum across all rollable rarities still equals exactly 1.
-    chance: 0.79445,
+    // Reduced by 0.00005 to make room for V1 (0.005% drop) and by another
+    // 0.00275 to make room for MYTHIC (≈ 0.275% drop, halfway between EPIC
+    // 0.5% and GOLD 0.05%) so the cumulative probability sum across all
+    // rollable rarities still equals exactly 1.
+    chance: 0.79170,
     label: "Basic",
     craftCost: 20,
     activationTon: 0.05,
@@ -240,6 +242,21 @@ export const PLANET_CONFIG: Record<PlanetType, {
     activationTon: 0.5,
     tapsNeeded: 250,
     reactivationFee: 1000,
+  },
+  // MYTHIC — new tier between EPIC and GOLD. Drop rate is the midpoint
+  // of EPIC (0.5%) and GOLD (0.05%) → 0.275%. Crimson/red-fire styling
+  // with a constant red aura that still respects the float grading.
+  // Available ONLY through Lab crafting (no wheel / mystery box / merchant).
+  MYTHIC: {
+    rate: 115,
+    color: "#dc143c",
+    glowColor: "rgba(255,69,0,0.7)",
+    chance: 0.00275,
+    label: "Mythic",
+    craftCost: 115,
+    activationTon: 0.75,
+    tapsNeeded: 375,
+    reactivationFee: 1500,
   },
   GOLD: {
     rate: 150,

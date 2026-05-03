@@ -42,6 +42,7 @@ const RARITY_CLASS: Record<string, string> = {
   BASIC: "rarity-basic",
   RARE: "rarity-rare",
   EPIC: "rarity-epic",
+  MYTHIC: "rarity-mythic",
   GOLD: "rarity-gold",
   V1: "rarity-gold",
   V1_NFT: "rarity-gold",

@@ -20,7 +20,7 @@
 
 // Only these planet types get a float — matches the rename feature's
 // RENAMABLE_TYPES (regulars only; white / earth / sun are excluded).
-export const FLOAT_PLANET_TYPES = new Set(["BASIC", "RARE", "EPIC", "GOLD", "V1"]);
+export const FLOAT_PLANET_TYPES = new Set(["BASIC", "RARE", "EPIC", "MYTHIC", "GOLD", "V1"]);
 
 export const FLOAT_MIN = 0;
 export const FLOAT_MAX = 1;

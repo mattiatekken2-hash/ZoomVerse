@@ -16,7 +16,7 @@ export const RENAME_CUSTOM_COST = 500;
 
 // Planet rarities that can be renamed. White / Earth Collection planets
 // and the SUN are intentionally excluded.
-export const RENAMABLE_TYPES = new Set<string>(["BASIC", "RARE", "EPIC", "GOLD", "V1"]);
+export const RENAMABLE_TYPES = new Set<string>(["BASIC", "RARE", "EPIC", "MYTHIC", "GOLD", "V1"]);
 
 // Compact blocklist. Covers high-impact English + Italian slurs and
 // crude profanity. Matched after normalization (lowercase, accents

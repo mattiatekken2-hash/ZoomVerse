@@ -10,7 +10,7 @@ import { getPlanetDisplayName, deterministicNameFromId } from "../utils/planetNa
 import { useT } from "../i18n/LanguageContext";
 
 
-const RARITY_FILTERS: (PlanetType | "ALL")[] = ["ALL", "BASIC", "RARE", "EPIC", "GOLD", "V1_NFT"];
+const RARITY_FILTERS: (PlanetType | "ALL")[] = ["ALL", "BASIC", "RARE", "EPIC", "MYTHIC", "GOLD", "V1_NFT"];
 
 const RARITY_COLORS: Record<string, string> = {
   BASIC: "#8892b0",
@@ -18,6 +18,7 @@ const RARITY_COLORS: Record<string, string> = {
   V1_NFT: "#cfe4ff",
   RARE: "#4facfe",
   EPIC: "#c471ed",
+  MYTHIC: "#ff4500",
   GOLD: "#ffd700",
 };
 

@@ -240,7 +240,10 @@ router.get("/leaderboard/daily-referrals", async (_req, res) => {
 
 const CraftBody = z.object({
   telegramId: z.string().min(1),
-  planetType: z.enum(["BASIC", "RARE", "EPIC", "GOLD", "V1"]),
+  // MYTHIC is accepted so the client stops short-circuiting to a 400 when
+  // a Lab craft rolls one, but we don't currently track its lifetime
+  // count (no totalCraftedMythic column yet) — see the field map below.
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "GOLD", "V1"]),
 });
 
 router.post("/craft/record", async (req, res) => {
@@ -248,14 +251,17 @@ router.post("/craft/record", async (req, res) => {
   if (!parsed.success) { res.status(400).json({ error: "Invalid body" }); return; }
 
   const { telegramId, planetType } = parsed.data;
-  const fieldMap = {
-    BASIC: "totalCraftedBasic" as const,
-    RARE: "totalCraftedRare" as const,
-    EPIC: "totalCraftedEpic" as const,
-    GOLD: "totalCraftedGold" as const,
-    V1: "totalCraftedV1" as const,
+  const fieldMap: Record<string, "totalCraftedBasic" | "totalCraftedRare" | "totalCraftedEpic" | "totalCraftedGold" | "totalCraftedV1" | null> = {
+    BASIC: "totalCraftedBasic",
+    RARE: "totalCraftedRare",
+    EPIC: "totalCraftedEpic",
+    GOLD: "totalCraftedGold",
+    V1: "totalCraftedV1",
+    // MYTHIC has no leaderboard column yet → silently accept and noop.
+    MYTHIC: null,
   };
   const field = fieldMap[planetType];
+  if (!field) { res.json({ ok: true }); return; }
 
   try {
     await db

@@ -186,6 +186,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     BASIC: "basic-text",
     RARE: "rare-text",
     EPIC: "epic-text",
+    MYTHIC: "mythic-text",
     GOLD: "gold-text",
     V1: "gold-text",
   };

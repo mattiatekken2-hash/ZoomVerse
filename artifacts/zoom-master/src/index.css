@@ -504,6 +504,16 @@
 .rare-text { color: #4facfe; text-shadow: 0 0 12px rgba(79,172,254,0.8); }
 .epic-text { color: #c471ed; text-shadow: 0 0 12px rgba(196,113,237,0.8); }
 .basic-text { color: #8892b0; }
+/* MYTHIC — crimson red-fire text/badge. The badge uses the linear
+   gradient #8B0000 → #FF4500 painted as the background; the text
+   itself is white so the label stays legible on the gradient pill. */
+.mythic-text {
+  color: transparent;
+  background: linear-gradient(135deg, #ff7a55 0%, #ff4500 50%, #8b0000 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-shadow: 0 0 12px rgba(255,69,0,0.55);
+}
 
 .neon-glow { box-shadow: 0 0 12px rgba(0,242,254,0.5), 0 0 32px rgba(0,242,254,0.25); }
 .gold-glow { box-shadow: 0 0 12px rgba(255,215,0,0.6), 0 0 32px rgba(255,215,0,0.3); }
@@ -731,6 +741,14 @@
 .rarity-basic { color: #8892b0; border-color: rgba(136,146,176,0.3); background: rgba(136,146,176,0.06); }
 .rarity-rare { color: #4facfe; border-color: rgba(79,172,254,0.3); background: rgba(79,172,254,0.06); }
 .rarity-epic { color: #c471ed; border-color: rgba(196,113,237,0.3); background: rgba(196,113,237,0.06); }
+/* MYTHIC pill — solid crimson gradient #8B0000 → #FF4500 with white
+   text so it reads instantly as the new top-tier (between EPIC and GOLD). */
+.rarity-mythic {
+  color: #ffffff;
+  border-color: rgba(255,69,0,0.55);
+  background: linear-gradient(135deg, #8b0000 0%, #ff4500 100%);
+  text-shadow: 0 0 6px rgba(0,0,0,0.45);
+}
 .rarity-gold { color: #ffd700; border-color: rgba(255,215,0,0.3); background: rgba(255,215,0,0.06); }
 
 /* ======== ANIMATIONS ======== */

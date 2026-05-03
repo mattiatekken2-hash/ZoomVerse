@@ -64,6 +64,13 @@ const PLANET_GRADIENTS: Record<string, { stops: string[]; glowAlpha: number }> =
     stops: ["#f0d4ff", "#d898f0", "#c471ed", "#a050cc", "#7a30a0"],
     glowAlpha: 0.6,
   },
+  // MYTHIC — crimson / red-fire palette. Body uses a dark-red core with
+  // an orange-red highlight; the box-shadow override below paints a
+  // constant red aura around the orb (still scaled by float).
+  MYTHIC: {
+    stops: ["#ffd2c2", "#ff7a55", "#ff4500", "#a01005", "#5a0000"],
+    glowAlpha: 0.85,
+  },
   GOLD: {
     stops: ["#fff8e1", "#ffe082", "#ffd700", "#e6b800", "#b8860b"],
     glowAlpha: 0.7,
@@ -217,6 +224,13 @@ function PlanetOrbImpl({ planet, size = 60, animate = true, displayFloat }: Plan
               0 0 ${size * 0.12}px rgba(220,232,255,0.55),
               inset -${size * 0.06}px -${size * 0.04}px ${size * 0.14}px rgba(0,0,0,0.30),
               inset ${size * 0.05}px ${size * 0.04}px ${size * 0.10}px rgba(255,255,255,0.55)
+            `
+            : planet.name === "MYTHIC"
+            ? `
+              0 0 ${size * 0.4}px #ff4500${alphaHex(shadowMult, 0xcc)},
+              0 0 ${size * 0.8}px #ff2000${alphaHex(shadowMult, 0x66)},
+              0 0 ${size * 1.3}px #8b0000${alphaHex(shadowMult, 0x33)},
+              inset -${size * 0.06}px -${size * 0.04}px ${size * 0.12}px rgba(0,0,0,0.25)
             `
             : `
               0 0 ${size * 0.4}px ${c}${alphaHex(shadowMult, 0x99)},

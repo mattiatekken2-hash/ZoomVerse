@@ -72,7 +72,7 @@ const ListBody = z.object({
   // planets_json: il counter `bonusV1NftPlatinum` non viene toccato (la cap
   // globale di 5 resta intatta perché il SUM non cambia col trade).
   // V1 invece resta soulbound (gate lato client in useGameState.listPlanet).
-  planetType: z.enum(["BASIC", "RARE", "EPIC", "GOLD", "V1_NFT"]),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "GOLD", "V1_NFT"]),
   planetRate: z.number().int().positive(),
   price: z.number().int().positive(),
 });
