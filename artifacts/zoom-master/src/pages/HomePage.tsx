@@ -730,6 +730,7 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
     exercise: { left: "40%", top: "78%" },  // jumping jacks center floor
     fridge: { left: "82%", top: "60%" },    // in front of the fridge
     shower: { left: "39%", top: "48%" },    // INSIDE the shower stall (centered on the glass area)
+    play: { left: "44%", top: "82%" },      // crouched on the floor, facing the pet
   };
   const pos = astroPos[activity];
 
@@ -771,6 +772,7 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
     exercise: { left: "55%", top: "88%" },  // watching the workout
     fridge: { left: "72%", top: "88%" },    // tail of the astronaut at the fridge
     shower: { left: "50%", top: "88%" },    // waiting just outside the shower door, on the floor
+    play: { left: "52%", top: "82%" },      // right next to the astronaut, hopping around
   };
   const petState: "idle" | "sleep" | "eat" =
     activity === "sleep" ? "sleep" :
@@ -890,6 +892,26 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
         {activity === "exercise" && <ExercisingAstronaut width={spriteW} />}
         {activity === "fridge" && <DrinkingAstronaut width={spriteW} />}
         {activity === "shower" && <ShoweringAstronaut width={spriteW} />}
+        {activity === "play" && (
+          // Astronaut standing next to the pet with a tiny heart drifting
+          // up between them. Gentle bob suggests bending down to play.
+          <div style={{ position: "relative", animation: "home-astro-bob 0.7s ease-in-out infinite" }}>
+            <PixelAstronaut pose="stand" width={spriteW} />
+            <span
+              style={{
+                position: "absolute",
+                left: "100%",
+                bottom: "55%",
+                fontSize: Math.round(spriteW * 0.22),
+                color: "#ff7a8a",
+                textShadow: "0 0 4px rgba(0,0,0,0.5)",
+                animation: "home-play-heart 2.2s ease-in-out infinite",
+              }}
+            >
+              ♥
+            </span>
+          </div>
+        )}
           </>
         )}
       </div>

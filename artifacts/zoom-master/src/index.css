@@ -1063,6 +1063,14 @@
    Subtle horizontal lean (±1 px) used while the astronaut is at the
    window. Replaces a previous full-body turn that the player found
    unnatural. Pure transform = GPU friendly. */
+/* Heart drifting up between astronaut and pet during the "play"
+   activity — pops in, floats up, fades out. */
+@keyframes home-play-heart {
+  0%   { transform: translate(0, 0) scale(0.6); opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translate(-6px, -22px) scale(1.1); opacity: 0; }
+}
 @keyframes home-astro-window-sway {
   0%, 100% { transform: translateX(-1px); }
   50%      { transform: translateX(1px);  }
