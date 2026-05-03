@@ -29,6 +29,28 @@ const alphaHex = (mult: number, base: number): string => {
   return v.toString(16).padStart(2, "0");
 };
 
+// Tiny deterministic PRNG seeded from a string (FNV-1a + mulberry32).
+// Used so each planet gets its OWN crack/reflection layout that stays
+// stable across re-renders, but different from every other planet.
+function seedFromString(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+  }
+  return h >>> 0;
+}
+function makeRng(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 const PLANET_GRADIENTS: Record<string, { stops: string[]; glowAlpha: number }> = {
   BASIC: {
     stops: ["#d0d4e0", "#b0b8cc", "#8892b0", "#6b7394", "#4a5270"],
@@ -219,71 +241,90 @@ function PlanetOrbImpl({ planet, size = 60, animate = true, displayFloat }: Plan
           }}
         />
         {/* Stage 1 (low-float "battle-scarred") dark cracks/spots overlay.
-            Only rendered for floatable rarities at f < 0.25; opacity is
-            modulated continuously by `crackStrength` so a 0.05 vs 0.18
-            float feels visibly different. Six fixed positions, scaled by
-            orb size so the texture stays consistent across pages. */}
-        {crackStrength > 0 && (
-          <>
-            {[
-              { top: "20%", left: "55%", w: "20%", h: "22%" },
-              { top: "50%", left: "18%", w: "26%", h: "20%" },
-              { top: "65%", left: "60%", w: "16%", h: "18%" },
-              { top: "30%", left: "30%", w: "12%", h: "12%" },
-              { top: "75%", left: "40%", w: "10%", h: "10%" },
-              { top: "15%", left: "75%", w: "9%",  h: "9%"  },
-            ].map((cr, i) => (
+            Each planet gets its OWN deterministic layout seeded from
+            `planet.id` so two BASIC battle-scarred orbs never look the
+            same — different count (4–7), positions, and sizes. The
+            opacity still rides `crackStrength` continuously. */}
+        {crackStrength > 0 && (() => {
+          const rng = makeRng(seedFromString(`crk:${planet.id}`));
+          const count = 4 + Math.floor(rng() * 4); // 4..7
+          const cracks = Array.from({ length: count }, () => {
+            // Bias positions inside the visible disc (keep margin from
+            // the edge so blurred blobs don't get clipped weirdly).
+            const top = 12 + rng() * 70;   // 12..82 %
+            const left = 12 + rng() * 70;  // 12..82 %
+            const sz = 8 + rng() * 18;     // 8..26 %
+            const aspect = 0.75 + rng() * 0.5; // 0.75..1.25 (slightly oval)
+            const op = 0.35 + rng() * 0.30;    // per-spot intensity 0.35..0.65
+            return { top, left, w: sz, h: sz * aspect, op };
+          });
+          return cracks.map((cr, i) => (
+            <div
+              key={`crack-${i}`}
+              style={{
+                position: "absolute",
+                top: `${cr.top.toFixed(2)}%`,
+                left: `${cr.left.toFixed(2)}%`,
+                width: `${cr.w.toFixed(2)}%`,
+                height: `${cr.h.toFixed(2)}%`,
+                borderRadius: "50%",
+                background: `radial-gradient(circle at 40% 40%, rgba(0,0,0,${(cr.op * crackStrength).toFixed(3)}) 0%, rgba(0,0,0,${(cr.op * 0.55 * crackStrength).toFixed(3)}) 55%, transparent 80%)`,
+                filter: `blur(${size * 0.012}px)`,
+                pointerEvents: "none",
+              }}
+            />
+          ));
+        })()}
+        {/* Stage 3 (high-float "field-tested+") glossy reflections. Two
+            small bright spots whose positions are also seeded per planet
+            so each high-float orb glistens uniquely. Skipped on V1
+            (already moon-textured). */}
+        {reflectStrength > 0 && (() => {
+          const rng = makeRng(seedFromString(`rfl:${planet.id}`));
+          const big = {
+            top: 35 + rng() * 30,   // 35..65 %
+            left: 35 + rng() * 35,  // 35..70 %
+            w: 18 + rng() * 10,     // 18..28 %
+            h: 12 + rng() * 8,      // 12..20 %
+            rot: -25 + rng() * 50,  // -25..25 deg
+          };
+          const small = {
+            top: 18 + rng() * 22,   // 18..40 %
+            left: 50 + rng() * 28,  // 50..78 %
+            w: 9 + rng() * 7,       // 9..16 %
+          };
+          return (
+            <>
               <div
-                key={`crack-${i}`}
                 style={{
                   position: "absolute",
-                  top: cr.top,
-                  left: cr.left,
-                  width: cr.w,
-                  height: cr.h,
+                  top: `${big.top.toFixed(2)}%`,
+                  left: `${big.left.toFixed(2)}%`,
+                  width: `${big.w.toFixed(2)}%`,
+                  height: `${big.h.toFixed(2)}%`,
                   borderRadius: "50%",
-                  background: `radial-gradient(circle at 40% 40%, rgba(0,0,0,${(0.55 * crackStrength).toFixed(3)}) 0%, rgba(0,0,0,${(0.30 * crackStrength).toFixed(3)}) 55%, transparent 80%)`,
-                  filter: `blur(${size * 0.012}px)`,
+                  background: `radial-gradient(ellipse at 50% 50%, rgba(255,255,255,${(0.55 * reflectStrength).toFixed(3)}) 0%, rgba(255,255,255,${(0.18 * reflectStrength).toFixed(3)}) 50%, transparent 80%)`,
+                  filter: `blur(${size * 0.02}px)`,
+                  pointerEvents: "none",
+                  transform: `rotate(${big.rot.toFixed(1)}deg)`,
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  top: `${small.top.toFixed(2)}%`,
+                  left: `${small.left.toFixed(2)}%`,
+                  width: `${small.w.toFixed(2)}%`,
+                  height: `${small.w.toFixed(2)}%`,
+                  borderRadius: "50%",
+                  background: `radial-gradient(circle at 50% 50%, rgba(255,255,255,${(0.65 * reflectStrength).toFixed(3)}) 0%, transparent 70%)`,
+                  filter: `blur(${size * 0.015}px)`,
                   pointerEvents: "none",
                 }}
               />
-            ))}
-          </>
-        )}
-        {/* Stage 3 (high-float "field-tested+") glossy reflections. Two
-            small bright spots fade in past 0.5; opacity continuous via
-            `reflectStrength`. Skipped on V1 (already moon-textured). */}
-        {reflectStrength > 0 && (
-          <>
-            <div
-              style={{
-                position: "absolute",
-                top: "55%",
-                left: "60%",
-                width: "22%",
-                height: "16%",
-                borderRadius: "50%",
-                background: `radial-gradient(ellipse at 50% 50%, rgba(255,255,255,${(0.55 * reflectStrength).toFixed(3)}) 0%, rgba(255,255,255,${(0.18 * reflectStrength).toFixed(3)}) 50%, transparent 80%)`,
-                filter: `blur(${size * 0.02}px)`,
-                pointerEvents: "none",
-                transform: "rotate(25deg)",
-              }}
-            />
-            <div
-              style={{
-                position: "absolute",
-                top: "30%",
-                left: "62%",
-                width: "12%",
-                height: "12%",
-                borderRadius: "50%",
-                background: `radial-gradient(circle at 50% 50%, rgba(255,255,255,${(0.65 * reflectStrength).toFixed(3)}) 0%, transparent 70%)`,
-                filter: `blur(${size * 0.015}px)`,
-                pointerEvents: "none",
-              }}
-            />
-          </>
-        )}
+            </>
+          );
+        })()}
         {/* V1 — moon-like crater spots overlay. Only rendered for V1 so the
             other planets keep their clean orb look. The craters are subtle
             grey radial blobs at fixed positions, scaled with the orb size
@@ -431,5 +472,6 @@ export const PlanetOrb = memo(PlanetOrbImpl, (prev, next) =>
   prev.animate === next.animate &&
   prev.planet.name === next.planet.name &&
   prev.planet.color === next.planet.color &&
+  prev.planet.id === next.planet.id &&
   prev.displayFloat === next.displayFloat
 );
