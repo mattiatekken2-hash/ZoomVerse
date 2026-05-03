@@ -474,18 +474,26 @@ function PixelComputerIcon({
       <span
         aria-hidden
         style={{
+          // Cover the FULL icon box so flex centering uses the same
+          // reference as the SVG itself — this guarantees the label
+          // sits in the visual middle of the screen rect (the screen
+          // is also centered horizontally inside the icon, x=2..14
+          // of a 16-wide viewBox, so a full-width centered span lands
+          // perfectly on top of it).
           position: "absolute",
-          left: "12.5%",
-          top: "16.7%",
-          width: "75%",
-          height: "58.3%",
+          inset: 0,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
+          // Pull up by a hair to compensate for the monitor stand at
+          // the bottom of the icon (rows 10-11 of the 12-row viewBox).
+          // Without this the centered label would visually sit slightly
+          // below the geometric center of the screen.
+          paddingBottom: `${(3 / 12) * 100}%`,
           fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
           fontWeight: 900,
-          fontSize: Math.max(8, Math.round(size * 0.18)),
-          letterSpacing: 0.5,
+          fontSize: Math.max(8, Math.round(size * 0.16)),
+          letterSpacing: 0,
           color: screenOn ? "#1a1300" : "#7fa8d6",
           textShadow: screenOn ? "0 0 2px rgba(255,247,194,0.8)" : "none",
           userSelect: "none",
