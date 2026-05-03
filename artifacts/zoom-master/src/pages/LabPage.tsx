@@ -4,8 +4,6 @@ import { AutoTapWidget } from "../components/AutoTapWidget";
 import { MysteryBoxWidget } from "../components/MysteryBoxWidget";
 import { HallOfFameWidget } from "../components/HallOfFameWidget";
 import { PixelAvatar } from "../components/PixelAvatar";
-import { PixelAstronautHead } from "../components/PixelAstronaut";
-import { useAstronautActivity, ACTIVITY_LABEL_IT } from "../hooks/useAstronautActivity";
 import { WhiteCollectionWidget } from "../components/WhiteCollectionWidget";
 import { EarthCollectionWidget } from "../components/EarthCollectionWidget";
 import { LottoStellareWidget } from "../components/LottoStellareWidget";
@@ -208,7 +206,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       <WhiteCollectionWidget telegramId={telegramId} unlocked={whiteCollectionUnlocked} ownedBundles={whiteCollectionBundles} sunCount={sunCount} />
       <EarthCollectionWidget telegramId={telegramId} unlocked={earthCollectionUnlocked} ownedBundles={earthCollectionBundles} sunCount={sunCount} />
       <LottoStellareWidget telegramId={telegramId} />
-      <AstroStatusPill />
       {/* Space-merchant radar LED — small red blink near the Earth widget so
           the user spots the encounter even with the popup minimised by a tab
           switch. Hidden when no merchant is currently in the system. */}
@@ -417,51 +414,3 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   );
 }
 
-// ────────────────────────────────────────────────────────────────────────
-// AstroStatusPill — small "what is the astronaut doing right now?" badge
-// pinned to the top-CENTER of the LAB screen, sitting horizontally
-// between the Earth widget (left, top:200) and the White collection
-// widget (right, top:200). Renders only the helmet/face (no body) per
-// the user's request — it's a head-only readout, not a full character.
-// Reads from the SAME shared store HOME consumes, so the two views can
-// never disagree.
-// ────────────────────────────────────────────────────────────────────────
-function AstroStatusPill() {
-  const activity = useAstronautActivity();
-  const label = ACTIVITY_LABEL_IT[activity];
-  // Map activity → which face variant best represents it.
-  // sleep → closed eye line; window → looking up; everything else → side.
-  const variant: "side" | "up" | "sleep" =
-    activity === "sleep" || activity === "shower"
-      ? "sleep"
-      : activity === "window" || activity === "exercise"
-      ? "up"
-      : "side";
-  return (
-    <div
-      title={`Astronauta: ${label}`}
-      style={{
-        position: "fixed",
-        left: "50%",
-        top: 200,
-        transform: "translateX(-50%)",
-        zIndex: 50,
-        width: 60,
-        height: 60,
-        borderRadius: 14,
-        background: "rgba(6,8,16,0.85)",
-        border: "1px solid rgba(15,217,255,0.35)",
-        boxShadow: "0 0 14px rgba(15,217,255,0.25), inset 0 0 10px rgba(0,0,0,0.6)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        // Force nearest-neighbor scaling on every descendant so the
-        // pixel-art helmet stays crisp instead of being smoothed.
-        imageRendering: "pixelated",
-        pointerEvents: "none",
-      }}
-    >
-      <PixelAstronautHead variant={variant} width={48} />
-    </div>
-  );
-}
