@@ -96,7 +96,6 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
   const [arrange, setArrange] = useState(false);
   const [pickerSlot, setPickerSlot] = useState<Slot | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [friends, setFriends] = useState<InvitedFriend[]>([]);
   const [visitors, setVisitors] = useState<InvitedFriend[]>([]);
   const [inbox, setInbox] = useState<RoomInviteInbox[]>([]);
@@ -108,10 +107,11 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
   // its buttons while the request is in flight).
   const [responding, setResponding] = useState<number | null>(null);
 
-  // Telegram deep-link to launch the bot with the user's referralCode as
-  // start_param. /referral/register on the friend's first launch picks
-  // this up and credits the inviter (+20 ZOOM, +1 referralCount).
-  const referralLink = `https://t.me/ZoomVerse_bot?startapp=${referralCode}`;
+  // The Telegram referral system (start_param + /referral/register) is
+  // still live on the bot side — anyone who shares their old link will
+  // still earn +20 ZOOM. We just don't surface the Share/Copy buttons
+  // in the in-app modal anymore (the user asked to drop that section).
+  void referralCode;
 
   // Fetch the list of users who have already accepted this user's
   // invite. Used to render one "friend astronaut" per invite inside the
@@ -220,18 +220,6 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
       setToast("Could not respond");
     }
   }, [telegramId]);
-
-  const openTelegramShare = useCallback(() => {
-    const text = encodeURIComponent("Join Zoom and earn $ZOOM!");
-    const url = encodeURIComponent(referralLink);
-    window.open(`https://t.me/share/url?url=${url}&text=${text}`, "_blank");
-  }, [referralLink]);
-
-  const copyLink = useCallback(() => {
-    navigator.clipboard.writeText(referralLink).catch(() => {});
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1500);
-  }, [referralLink]);
 
   // Re-render the countdown every second so it actually counts down.
   const [tick, setTick] = useState(0);
@@ -457,14 +445,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
               Invite a Friend
             </div>
             <div className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.55)" }}>
-              Bring a player already in the game into your room for 30 min, or invite a NEW friend via Telegram (+20 $ZOOM).
-            </div>
-
-            {/* SECTION 1 — Invite an EXISTING player by @username. They
-                will see a notification on their HOME and tap Accept to
-                appear in your room for 30 min. */}
-            <div className="text-[10px] uppercase font-black tracking-widest mb-2" style={{ color: "rgba(0,230,118,0.85)" }}>
-              Invite a player to your room
+              Type a player's @username — they'll get a notification on their HOME and tap Accept to visit your room for 30 min.
             </div>
             <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
               <input
@@ -514,52 +495,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
               </div>
             )}
 
-            {/* Divider between in-game invite and Telegram-link invite. */}
-            <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "10px 0 12px" }} />
-
-            {/* SECTION 2 — Bring a NEW user via Telegram referral link. */}
-            <div className="text-[10px] uppercase font-black tracking-widest mb-2" style={{ color: "rgba(0,176,255,0.85)" }}>
-              Invite a new friend (Telegram)
-            </div>
-            <button
-              type="button"
-              onClick={openTelegramShare}
-              className="w-full py-3 mb-2 rounded-xl font-black text-sm tracking-wider uppercase transition-all active:scale-95"
-              style={{
-                background: "linear-gradient(135deg, rgba(0,230,118,0.22), rgba(0,176,255,0.16))",
-                color: "#fff",
-                border: "1px solid rgba(0,230,118,0.45)",
-              }}
-            >
-              Choose a Friend on Telegram
-            </button>
-
-            <button
-              type="button"
-              onClick={copyLink}
-              className="w-full py-2.5 mb-3 rounded-xl font-bold text-xs tracking-wider uppercase transition-all active:scale-95"
-              style={{
-                background: "rgba(255,255,255,0.06)",
-                color: copied ? "#00e676" : "rgba(255,255,255,0.85)",
-                border: "1px solid rgba(255,255,255,0.15)",
-              }}
-            >
-              {copied ? "Link Copied!" : "Copy Invite Link"}
-            </button>
-
-            <div
-              className="text-xs font-mono px-2 py-2 rounded mb-3"
-              style={{
-                background: "rgba(255,255,255,0.04)",
-                color: "rgba(255,255,255,0.55)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                wordBreak: "break-all",
-              }}
-            >
-              {referralLink}
-            </div>
-
-            <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.5)" }}>
+            <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.5)", marginTop: 6 }}>
               In your room now: <span style={{ color: "#00e676", fontWeight: 700 }}>{roomOccupants.length}</span>
             </div>
 
