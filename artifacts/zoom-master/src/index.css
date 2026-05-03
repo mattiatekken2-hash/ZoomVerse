@@ -1058,6 +1058,41 @@
   85%  { opacity: 1; }
   100% { transform: translate(180px, 130px) rotate(35deg); opacity: 0; }
 }
+/* Push-ups — 3 reps then rest. The body bobs DOWN (push) and back UP
+   3 times in the first ~5.4 s of the 8 s loop, then holds the up
+   position for the final rest beat (during which the sweat drop
+   appears). translateY moves the lying body up/down a few px. */
+@keyframes home-astro-pushup {
+  0%    { transform: translateY(0px); }
+  /* Rep 1 */
+   8%   { transform: translateY(6px); }
+  16%   { transform: translateY(0px); }
+  /* Rep 2 */
+  24%   { transform: translateY(6px); }
+  32%   { transform: translateY(0px); }
+  /* Rep 3 */
+  40%   { transform: translateY(6px); }
+  48%   { transform: translateY(0px); }
+  /* Rest beat — held flat while the sweat drop appears */
+  100%  { transform: translateY(0px); }
+}
+/* Sweat drop — invisible during the 3 reps, fades in + drips down
+   during the rest beat at the END of each cycle. */
+@keyframes home-astro-sweat {
+  0%, 55%  { opacity: 0; transform: translateY(0px); }
+  62%      { opacity: 1; transform: translateY(0px); }
+  85%      { opacity: 1; transform: translateY(8px); }
+  95%, 100% { opacity: 0; transform: translateY(12px); }
+}
+/* Plant cheer — small bouncing "tifo" when the astronaut does
+   push-ups near the plant. Two quick hops then settles. */
+@keyframes home-plant-cheer {
+  0%, 100%  { transform: translateY(0)   scale(1); }
+  20%       { transform: translateY(-6px) scale(1.05); }
+  35%       { transform: translateY(0)   scale(1); }
+  50%       { transform: translateY(-4px) scale(1.04); }
+  65%       { transform: translateY(0)   scale(1); }
+}
 /* TV screen — soft cycling color bands so the active TV reads as
    playing something. Loops slowly to avoid being distracting. */
 @keyframes home-tv-flicker {

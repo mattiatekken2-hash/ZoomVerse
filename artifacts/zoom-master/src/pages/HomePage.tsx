@@ -28,6 +28,7 @@ import {
   WalkingVisitor,
   VISITOR_PALETTES,
   ExercisingAstronaut,
+  PushupAstronaut,
   DrinkingAstronaut,
   ShoweringAstronaut,
   PixelPet,
@@ -1292,6 +1293,10 @@ const OUTDOOR_SCENES: Array<OutdoorOverride | null> = [
 ];
 
 function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTick, onSlotClick, visible, friends, onComputerExtraClick }: PixelRoomProps & { visible: boolean }) {
+  // Read shared astronaut activity so the room can react to what the
+  // robot is doing — used for the plant "cheer" hop while he is doing
+  // push-ups near it.
+  const roomActivity = useAstronautActivity();
   // Outdoor scene cycle (index into OUTDOOR_SCENES). null = follow phase.
   const [outdoorIdx, setOutdoorIdx] = useState(0);
   const [sceneLabel, setSceneLabel] = useState<string | null>(null);
@@ -1316,6 +1321,12 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
   // Sofa click → force the astronaut to walk to the sofa and sit for ~30 s.
   const [forceSitUntil, setForceSitUntil] = useState(0);
   const sitting = forceSitUntil > Date.now();
+  // Plant "cheer" should only fire when the astronaut is VISIBLY doing
+  // push-ups in the room. The bed/sofa overrides re-route the displayed
+  // sprite to "sleep"/"coffee" (see RoomLifeOverlay's `activity` calc),
+  // so when sleeping or sitting we suppress the cheer even if the
+  // shared store still says "pushups".
+  const isPushupsActive = roomActivity === "pushups" && !sleeping && !sitting;
   // TV power state — toggles ON/OFF when the user taps the TV.
   const [tvOn, setTvOn] = useState(false);
   // View mode — "flat" (default elevation pixel view) vs "persp"
@@ -1533,6 +1544,30 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
 
         {/* Fridge — right wall, sits on the floor */}
         <PixelFridge x={68} y={24} />
+
+        {/* NFT poster — small framed pixel-art poster hanging on the
+            wall above the fridge. Plain visual decoration: a thin
+            dark frame with a stylised "NFT" label inside. */}
+        {/* Frame */}
+        <rect x="69" y="6" width="10" height="12" fill="#0a0e1a" />
+        <rect x="70" y="7" width="8" height="10" fill="#1a1730" />
+        {/* Inner art panel — gradient-feel using two stacked colors */}
+        <rect x="70" y="7"  width="8" height="5"  fill="#3b1a5c" />
+        <rect x="70" y="12" width="8" height="5"  fill="#5fb4ff" />
+        {/* Tiny pixel star + dot on the upper half */}
+        <rect x="73" y="9"  width="1" height="1" fill="#ffd740" />
+        <rect x="74" y="8"  width="1" height="3" fill="#ffd740" />
+        <rect x="75" y="9"  width="1" height="1" fill="#ffd740" />
+        <rect x="72" y="10" width="5" height="1" fill="#ffd740" />
+        {/* "NFT" label etched on the lower half (very small, pixel) */}
+        <rect x="71" y="14" width="1" height="2" fill="#ffffff" />
+        <rect x="72" y="14" width="1" height="1" fill="#ffffff" />
+        <rect x="73" y="15" width="1" height="1" fill="#ffffff" />
+        <rect x="74" y="14" width="1" height="2" fill="#ffffff" />
+        <rect x="75" y="14" width="3" height="1" fill="#ffffff" />
+        <rect x="76" y="15" width="1" height="1" fill="#ffffff" />
+        {/* Tiny mounting nail above the frame */}
+        <rect x="73" y="5"  width="2" height="1" fill="#9a9a9a" />
       </svg>
 
       {/* Meteor shower overlay — clipped to the window panel, sits
@@ -1701,6 +1736,11 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
       {(["A", "B", "C"] as Slot[]).map((s) => {
         const item = slots[s];
         const pos = SLOT_POS[s];
+        // Plant slot (A) hops in "tifo" while the astronaut does
+        // push-ups. The animation is applied to the inner content
+        // wrapper (NOT the button) so the click hit-box stays put
+        // and is never deformed by the bouncing transform.
+        const cheering = s === "A" && item === "plant" && isPushupsActive;
         return (
           <button
             key={s}
@@ -1804,7 +1844,16 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
               </div>
             )}
             {item === "plant" && (
-              <PlantSlotContent plant={plant} wateringTick={wateringTick} />
+              <div
+                style={{
+                  animation: cheering
+                    ? "home-plant-cheer 1.6s ease-in-out infinite"
+                    : undefined,
+                  transformOrigin: "50% 100%",
+                }}
+              >
+                <PlantSlotContent plant={plant} wateringTick={wateringTick} />
+              </div>
             )}
             {arrange && (
               <span
@@ -2149,12 +2198,25 @@ function RoomLifeOverlay({ phase, visible, friends, forceSleep, forceSit }: { ph
     sing: { left: "38%", top: "82%" },      // singing in the middle of the floor
     pizza: { left: "76%", top: "78%" },     // standing next to the fridge with a pizza slice
     paint: { left: "30%", top: "78%" },     // standing on the floor, drawing on a sheet of paper
+    pushups: { left: "20%", top: "92%" },   // lying on the floor RIGHT NEXT to the plant slot A
     drum: { left: "55%", top: "78%" },      // standing at the kitchen table, drumming
   };
   // Sofa coords (matches the SVG layout x=2..24, y=42..50). Center
   // of the seat cushion in container %.
   const SOFA_ASTRO_POS = { left: "16%", top: "70%" };
-  const pos = forceSit ? SOFA_ASTRO_POS : astroPos[activity];
+  // Each time the activity changes to "walk", pick a fresh random
+  // starting X within the room perimeter (25%..75%) so the stroll
+  // doesn't always begin from the same spot — gives the room a more
+  // organic, non-linear feel. The Y stays anchored to the floor.
+  const walkStartX = useMemo(() => {
+    const min = 25;
+    const max = 75;
+    return `${Math.round(min + Math.random() * (max - min))}%`;
+  }, [activity]);
+  const basePos = forceSit ? SOFA_ASTRO_POS : astroPos[activity];
+  const pos = activity === "walk" && !forceSit
+    ? { left: walkStartX, top: basePos.top }
+    : basePos;
 
   // ── Walking transition ─────────────────────────────────────────
   // The user wants every activity change to look like the astronaut
@@ -2199,6 +2261,7 @@ function RoomLifeOverlay({ phase, visible, friends, forceSleep, forceSit }: { ph
     sing: { left: "46%", top: "88%" },      // listening to the singing astronaut
     pizza: { left: "68%", top: "88%" },     // begging for a pizza crumb on the floor
     paint: { left: "20%", top: "88%" },     // sitting next to the painter, watching
+    pushups: { left: "32%", top: "92%" },   // sitting next to the lying astronaut, watching
     drum: { left: "65%", top: "88%" },      // bopping along to the drum beat next to the table
   };
   const petState: "idle" | "sleep" | "eat" =
@@ -2548,6 +2611,7 @@ function RoomLifeOverlay({ phase, visible, friends, forceSleep, forceSit }: { ph
           </div>
         )}
         {activity === "exercise" && <ExercisingAstronaut width={spriteW} />}
+        {activity === "pushups" && <PushupAstronaut width={spriteW} />}
         {activity === "fridge" && <DrinkingAstronaut width={spriteW} />}
         {activity === "shower" && <ShoweringAstronaut width={spriteW} />}
         {activity === "play" && (

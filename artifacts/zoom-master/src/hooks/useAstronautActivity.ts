@@ -27,6 +27,7 @@ export type AstronautActivity =
   | "sing"
   | "pizza"
   | "paint"
+  | "pushups"
   | "drum";
 
 // "drum" is intentionally NOT in the random rotation — it's only
@@ -45,6 +46,7 @@ const ACTIVITIES: AstronautActivity[] = [
   "sing",
   "pizza",
   "paint",
+  "pushups",
 ];
 
 // Initial activity is RANDOM on every page load instead of always
@@ -116,5 +118,6 @@ export const ACTIVITY_LABEL_IT: Record<AstronautActivity, string> = {
   sing: "canta",
   pizza: "mangia la pizza",
   paint: "dipinge",
+  pushups: "fa flessioni",
   drum: "suona la batteria",
 };

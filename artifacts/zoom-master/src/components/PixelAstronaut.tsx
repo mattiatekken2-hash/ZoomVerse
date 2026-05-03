@@ -241,6 +241,59 @@ function ExerciseFrameOpen({ width }: { width: number }) {
   );
 }
 
+/** PUSH-UPS — astronaut lying horizontally, bobbing up/down for
+ *  exactly 3 reps then resting briefly with a sweat drop, in a loop.
+ *  We rotate the existing standing sprite 90° clockwise so the body
+ *  is prone (head to the right, feet to the left), then animate a
+ *  vertical "push" of a few px per rep. Sprite total footprint is
+ *  ~1.6 × the standing sprite width to read as a lying body. */
+export function PushupAstronaut({ width = 28 }: { width?: number }) {
+  // Lying body footprint: width grows (rotated body), height shrinks.
+  const bodyW = Math.round(width * 1.6);
+  const bodyH = Math.round(width * 0.7);
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: bodyW,
+        height: bodyH,
+        // 8 s loop: 3 reps (~1.8 s each) + ~2.6 s rest with sweat drop.
+        animation: "home-astro-pushup 8s ease-in-out infinite",
+        transformOrigin: "50% 100%",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          transform: "translate(-50%, -50%) rotate(-90deg)",
+          transformOrigin: "50% 50%",
+        }}
+      >
+        <PixelAstronaut pose="stand" width={width} />
+      </div>
+      {/* Sweat drop — appears only at the end of each loop, drips down
+          and fades. Pure CSS keyframe sync'd with the rest beat. */}
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          left: "70%",
+          top: "10%",
+          width: Math.max(3, Math.round(width * 0.16)),
+          height: Math.max(4, Math.round(width * 0.22)),
+          background: "linear-gradient(180deg, #a8d8ff 0%, #5fb4ff 100%)",
+          borderRadius: "60% 60% 50% 50% / 70% 70% 40% 40%",
+          opacity: 0,
+          animation: "home-astro-sweat 8s ease-in-out infinite",
+          pointerEvents: "none",
+        }}
+      />
+    </div>
+  );
+}
+
 /** Helmet-only sprite (no body). Used by the LAB status pill where we
  *  only have room for the face. Variants:
  *  - "side"  : visor highlight on the right (looking sideways)
