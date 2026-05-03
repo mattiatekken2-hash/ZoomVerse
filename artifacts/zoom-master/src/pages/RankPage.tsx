@@ -367,7 +367,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                   +{activeFarmRate.toLocaleString()}/hr · your active farming
                 </div>
                 <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.2)" }}>
-                  Your pool: {formatZoom(seasonPoolEarned)} $ZOOM
+                  Your pool: {formatZoom(balance)} $ZOOM
                 </div>
               </div>
               <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
