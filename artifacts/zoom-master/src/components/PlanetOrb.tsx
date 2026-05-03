@@ -214,8 +214,7 @@ function PlanetOrbImpl({ planet, size = 60, animate = true, displayFloat }: Plan
           backgroundBlendMode: planet.name === "V1_NFT" ? "screen, normal" : undefined,
           boxShadow: planet.name === "V1_NFT"
             ? `
-              0 0 ${size * 0.25}px rgba(220,232,255,0.80),
-              0 0 ${size * 0.55}px rgba(150,190,255,0.30),
+              0 0 ${size * 0.12}px rgba(220,232,255,0.55),
               inset -${size * 0.06}px -${size * 0.04}px ${size * 0.14}px rgba(0,0,0,0.30),
               inset ${size * 0.05}px ${size * 0.04}px ${size * 0.10}px rgba(255,255,255,0.55)
             `
