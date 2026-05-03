@@ -1349,7 +1349,7 @@
    foreground info. Sits on the card root via ::after, behind children. */
 @keyframes nft-watermark-scroll {
   from { background-position: 0 0; }
-  to   { background-position: 260px 130px; }
+  to   { background-position: 360px 200px; }
 }
 .nft-card-glow::after {
   content: "";
@@ -1358,11 +1358,11 @@
   border-radius: inherit;
   pointer-events: none;
   z-index: 0;
-  /* Horizontal "NFT · NFT · NFT" text repeated cleanly. Tile is wider
-     than a single repetition so glyphs (especially the leading "N")
-     never get clipped at tile boundaries, and tile size matches the
-     keyframe translation (260×130) for a seamless loop. */
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='260' height='130'><text x='10' y='40' font-family='Inter,Arial,sans-serif' font-weight='900' font-size='22' fill='%23dce8ff' fill-opacity='0.09'>NFT · NFT · NFT</text><text x='10' y='105' font-family='Inter,Arial,sans-serif' font-weight='900' font-size='22' fill='%23dce8ff' fill-opacity='0.09'>NFT · NFT · NFT</text></svg>");
+  /* Three rows of "NFT · NFT · NFT" slightly tilted (−15°), inside a
+     padded 360×200 tile so the leading "N" of each rotated line never
+     clips at the tile boundary. Tile size matches the keyframe
+     translation for a seamless diagonal scroll. */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='360' height='200'><g font-family='Inter,Arial,sans-serif' font-weight='900' font-size='22' fill='%23dce8ff' fill-opacity='0.09'><text x='30' y='45' transform='rotate(-15 30 45)'>NFT · NFT · NFT · NFT</text><text x='30' y='115' transform='rotate(-15 30 115)'>NFT · NFT · NFT · NFT</text><text x='30' y='185' transform='rotate(-15 30 185)'>NFT · NFT · NFT · NFT</text></g></svg>");
   background-repeat: repeat;
   mask-image: linear-gradient(135deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 100%);
   -webkit-mask-image: linear-gradient(135deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 100%);
