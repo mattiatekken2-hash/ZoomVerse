@@ -67,7 +67,10 @@ export function PlanetFloatBar({ value, compact = false }: Props) {
           <span className="font-mono font-bold" style={{ color: "rgba(255,255,255,0.65)" }}>
             {formatFloat(v)}
           </span>
-          <span className="font-black tracking-wider" style={{ color: tier.color }}>
+          {/* Tier text label intentionally hidden in the Lab/Farm —
+              the colored fill bar already communicates the tier and
+              the explicit "FLOAT.PRISTINE" wording felt noisy. */}
+          <span aria-hidden style={{ display: "none", color: tier.color }}>
             {tierLabel.toUpperCase()}
           </span>
         </div>

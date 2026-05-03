@@ -248,15 +248,26 @@ function PlanetOrbImpl({ planet, size = 60, animate = true, displayFloat }: Plan
         {crackStrength > 0 && (() => {
           const rng = makeRng(seedFromString(`crk:${planet.id}`));
           const count = 4 + Math.floor(rng() * 4); // 4..7
+          // Use polar coords so spot CENTERS sit inside a safe inner
+          // disc (≤32% from orb center) — combined with the per-spot
+          // half-size this guarantees the bounding box stays well
+          // inside the round body and nothing pokes out the silhouette.
           const cracks = Array.from({ length: count }, () => {
-            // Bias positions inside the visible disc (keep margin from
-            // the edge so blurred blobs don't get clipped weirdly).
-            const top = 12 + rng() * 70;   // 12..82 %
-            const left = 12 + rng() * 70;  // 12..82 %
-            const sz = 8 + rng() * 18;     // 8..26 %
-            const aspect = 0.75 + rng() * 0.5; // 0.75..1.25 (slightly oval)
-            const op = 0.35 + rng() * 0.30;    // per-spot intensity 0.35..0.65
-            return { top, left, w: sz, h: sz * aspect, op };
+            const sz = 7 + rng() * 11;          // 7..18 % (smaller, safer)
+            const aspect = 0.8 + rng() * 0.4;   // 0.8..1.2
+            const w = sz;
+            const h = sz * aspect;
+            const half = Math.max(w, h) / 2;
+            // Keep center within radius so center+half ≤ ~46% (orb radius is 50%).
+            const maxR = Math.max(0, 46 - half);
+            const r = rng() * maxR;
+            const ang = rng() * Math.PI * 2;
+            const cx = 50 + r * Math.cos(ang);
+            const cy = 50 + r * Math.sin(ang);
+            const top = cy - h / 2;
+            const left = cx - w / 2;
+            const op = 0.35 + rng() * 0.30;     // 0.35..0.65
+            return { top, left, w, h, op };
           });
           return cracks.map((cr, i) => (
             <div
