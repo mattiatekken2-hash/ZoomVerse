@@ -70,16 +70,25 @@ router.get("/tasks/state/:telegramId", async (req, res) => {
     return;
   }
   try {
+    // The "ПОСТРОЕНО / built" counter on EARN must match the per-tier
+    // sum shown in the RANK profile (BASIC + RARE + EPIC + GOLD + V1).
+    // The legacy `total_planets_built` column is incremented by a
+    // different sync path and drifts out of sync with `/craft/record`,
+    // so we compute the value live from the per-tier counters here.
     const rows = await db
       .select({
-        totalPlanetsBuilt: usersTable.totalPlanetsBuilt,
+        builtSum: sql<number>`(
+          ${usersTable.totalCraftedBasic} + ${usersTable.totalCraftedRare} +
+          ${usersTable.totalCraftedEpic}  + ${usersTable.totalCraftedGold} +
+          ${usersTable.totalCraftedV1}
+        )`,
         claimedTasks: usersTable.claimedTasks,
       })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
       .limit(1);
     const row = rows[0];
-    const planetsBuilt = row?.totalPlanetsBuilt ?? 0;
+    const planetsBuilt = Number(row?.builtSum ?? 0);
     const claimed = getClaimedSet(row?.claimedTasks || "");
     res.json({
       ok: true,
@@ -148,6 +157,14 @@ router.post("/tasks/claim", async (req, res) => {
       ELSE ${usersTable.claimedTasks} || ',' || ${taskId}
     END`;
 
+    // Same per-tier sum used by GET /tasks/state — keeps the threshold
+    // guard consistent with the value the client actually sees.
+    const builtSumSql = sql<number>`(
+      ${usersTable.totalCraftedBasic} + ${usersTable.totalCraftedRare} +
+      ${usersTable.totalCraftedEpic}  + ${usersTable.totalCraftedGold} +
+      ${usersTable.totalCraftedV1}
+    )`;
+
     const updated = await db
       .update(usersTable)
       .set({
@@ -165,13 +182,13 @@ router.post("/tasks/claim", async (req, res) => {
         sql`
           ${usersTable.telegramId} = ${telegramId}
           AND NOT (${taskId} = ANY(string_to_array(${usersTable.claimedTasks}, ',')))
-          ${isPlanetTask ? sql`AND ${usersTable.totalPlanetsBuilt} >= ${threshold}` : sql``}
+          ${isPlanetTask ? sql`AND ${builtSumSql} >= ${threshold}` : sql``}
         `,
       )
       .returning({
         zoom: usersTable.zoomBalance,
         spins: usersTable.wheelSpins,
-        totalPlanetsBuilt: usersTable.totalPlanetsBuilt,
+        totalPlanetsBuilt: builtSumSql,
       });
 
     if (updated.length === 0) {
@@ -179,7 +196,7 @@ router.post("/tasks/claim", async (req, res) => {
       // friendly error in the client.
       const existing = await db
         .select({
-          totalPlanetsBuilt: usersTable.totalPlanetsBuilt,
+          builtSum: builtSumSql,
           claimedTasks: usersTable.claimedTasks,
         })
         .from(usersTable)
@@ -194,11 +211,12 @@ router.post("/tasks/claim", async (req, res) => {
         res.status(409).json({ ok: false, error: "ALREADY_CLAIMED" });
         return;
       }
-      if (isPlanetTask && (existing[0]!.totalPlanetsBuilt ?? 0) < threshold) {
+      const existingBuilt = Number(existing[0]!.builtSum ?? 0);
+      if (isPlanetTask && existingBuilt < threshold) {
         res.status(409).json({
           ok: false,
           error: "THRESHOLD_NOT_MET",
-          planetsBuilt: existing[0]!.totalPlanetsBuilt ?? 0,
+          planetsBuilt: existingBuilt,
           threshold,
         });
         return;
