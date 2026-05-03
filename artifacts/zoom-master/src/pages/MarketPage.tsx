@@ -264,25 +264,39 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
                   }}
                   data-testid={`sale-${s.id}`}
                 >
-                  <PlanetOrb planet={fakePlanet} size={42} animate={false} displayFloat={FLOAT_PLANET_TYPES.has(s.planetType) ? getListingDisplayFloat({ id: `sale-${s.id}`, planetFloat: null }) : undefined} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full" style={{ color: rarityColor, background: rarityColor + "14", border: `1px solid ${rarityColor}33` }}>
-                        {cfg.label}
-                      </span>
-                      {isPulsing && (
-                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ color: "#00e676", background: "rgba(0,230,118,0.15)", border: "1px solid rgba(0,230,118,0.4)" }}>
-                          NEW
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] font-bold mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.7)" }}>
-                      <span style={{ color: "#ffd700" }}>{s.buyerName}</span>
-                      <span style={{ color: "rgba(255,255,255,0.4)" }}> bought from </span>
-                      <span style={{ color: "#4facfe" }}>{s.sellerName}</span>
-                    </div>
-                    <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.3)" }}>{agoLabel}</div>
-                  </div>
+                  {(() => {
+                    const saleFloat = FLOAT_PLANET_TYPES.has(s.planetType)
+                      ? getListingDisplayFloat({ id: `sale-${s.id}`, planetFloat: s.planetFloat })
+                      : undefined;
+                    return (
+                      <>
+                        <PlanetOrb planet={fakePlanet} size={42} animate={false} displayFloat={saleFloat} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full" style={{ color: rarityColor, background: rarityColor + "14", border: `1px solid ${rarityColor}33` }}>
+                              {cfg.label}
+                            </span>
+                            {isPulsing && (
+                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ color: "#00e676", background: "rgba(0,230,118,0.15)", border: "1px solid rgba(0,230,118,0.4)" }}>
+                                NEW
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] font-bold mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.7)" }}>
+                            <span style={{ color: "#ffd700" }}>{s.buyerName}</span>
+                            <span style={{ color: "rgba(255,255,255,0.4)" }}> bought from </span>
+                            <span style={{ color: "#4facfe" }}>{s.sellerName}</span>
+                          </div>
+                          {typeof saleFloat === "number" && (
+                            <div className="mt-1">
+                              <PlanetFloatBar value={saleFloat} compact />
+                            </div>
+                          )}
+                          <div className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>{agoLabel}</div>
+                        </div>
+                      </>
+                    );
+                  })()}
                   <div className="flex flex-col items-end flex-shrink-0">
                     <div className="text-xs font-black" style={{ color: rarityColor }}>
                       {s.price.toLocaleString()}

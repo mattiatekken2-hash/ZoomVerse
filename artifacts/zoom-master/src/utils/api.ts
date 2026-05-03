@@ -1475,6 +1475,11 @@ export interface MarketSale {
   sellerName: string;
   buyerName: string;
   soldAt: number;
+  // CS:GO-style perfection score snapshotted from the listing. Null for
+  // non-floatable types (Earth/SUN/V1_NFT) or legacy sales without a
+  // stored snapshot — in that case the UI falls back to the
+  // deterministic-from-id helper.
+  planetFloat?: number | null;
 }
 
 export async function fetchMarketSales(): Promise<MarketSale[]> {

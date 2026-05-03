@@ -8,6 +8,11 @@ export interface MarketSaleEvent {
   sellerName: string;
   buyerName: string;
   soldAt: number;
+  // CS:GO-style perfection score in [0, 1] snapshotted from the listing
+  // so the live-activity feed can render the same float bar / number
+  // the buyer saw on the marketplace card. Null for non-floatable types
+  // (Earth/SUN/V1_NFT) or legacy listings without a stored snapshot.
+  planetFloat?: number | null;
 }
 
 export interface BoxOpenEvent {

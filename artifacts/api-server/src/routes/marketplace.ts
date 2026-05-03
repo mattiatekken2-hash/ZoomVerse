@@ -17,6 +17,7 @@ router.get("/market/sales", async (_req, res) => {
   try {
     const rows = await db.execute(sql`
       SELECT m.id, m.planet_type, m.planet_rate, m.price, m.sold_at,
+             m.planet_float,
              COALESCE(s.first_name, m.seller_name, 'Anon') AS seller_name,
              COALESCE(b.first_name, 'Anon') AS buyer_name
       FROM market_listings m
@@ -26,15 +27,22 @@ router.get("/market/sales", async (_req, res) => {
       ORDER BY m.sold_at DESC
       LIMIT 20
     `);
-    const sales = rows.rows.map((r: any) => ({
-      id: Number(r.id),
-      planetType: String(r.planet_type),
-      planetRate: Number(r.planet_rate),
-      price: Number(r.price),
-      sellerName: String(r.seller_name),
-      buyerName: String(r.buyer_name),
-      soldAt: r.sold_at instanceof Date ? r.sold_at.getTime() : new Date(r.sold_at).getTime(),
-    }));
+    const sales = rows.rows.map((r: any) => {
+      const rawFloat = r.planet_float;
+      const planetFloat = typeof rawFloat === "number"
+        ? rawFloat
+        : (rawFloat != null && Number.isFinite(Number(rawFloat)) ? Number(rawFloat) : null);
+      return {
+        id: Number(r.id),
+        planetType: String(r.planet_type),
+        planetRate: Number(r.planet_rate),
+        price: Number(r.price),
+        sellerName: String(r.seller_name),
+        buyerName: String(r.buyer_name),
+        soldAt: r.sold_at instanceof Date ? r.sold_at.getTime() : new Date(r.sold_at).getTime(),
+        planetFloat,
+      };
+    });
     res.json({ sales });
   } catch (err) {
     console.error("[market/sales] error:", err);
@@ -519,6 +527,9 @@ router.post("/market/buy", async (req, res) => {
         sellerName: sellerInfo?.name || listing.sellerName || "Anon",
         buyerName: buyerInfo?.name || "Anon",
         soldAt: Date.now(),
+        // Carry the listing's snapshotted Float so the live-activity
+        // feed shows the SAME perfection score the buyer paid for.
+        planetFloat: typeof listing.planetFloat === "number" ? listing.planetFloat : null,
       });
     } catch (e) { console.error("[market/buy] broadcast failed:", e); }
 
