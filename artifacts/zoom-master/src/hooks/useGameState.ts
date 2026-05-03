@@ -90,6 +90,14 @@ export interface Planet {
   // backfills missing floats on the next /save and ignores any change
   // attempt after the first persist (server-merge: first-write-wins).
   float?: number;
+  // Server-time (ms) when the planet's farming was paused via market
+  // listing. Used by startFarming to advance farmStartedAt /
+  // lastCollectedAt by the pause duration so the user gets back exactly
+  // the time that was remaining at the moment of pause — no exploit
+  // (cycle budget is preserved), no perceived "early expiry" (timer is
+  // anchored to the resume moment, not the original start). Cleared
+  // (set to 0) on every fresh / resumed start.
+  pausedAt?: number;
 }
 
 export interface SunState {
@@ -2782,14 +2790,32 @@ export function useGameState() {
       // the daily-collect window. Earnings calculations elsewhere in the
       // code rely on these timestamps as the authoritative cycle anchor.
       const startsFreshCycle = !wasStarted || expired;
+      // Pause-preserving resume: if the planet was paused via a market
+      // listing while mid-cycle (pausedAt > 0) and we're not starting a
+      // fresh cycle, advance farmStartedAt + lastCollectedAt by the
+      // pause duration. This preserves the exact remaining time the
+      // user had at the moment of pause — without granting any free
+      // extra time (the 24h budget is unchanged, just shifted forward).
+      // Mathematical invariant: new effectiveFarmStart - originalEff
+      // = (now - pausedAt), so remaining = 24h - (pausedAt - originalEff)
+      // which equals what was left at pause.
+      const pauseShift = (!startsFreshCycle && planet.pausedAt && planet.pausedAt > 0)
+        ? Math.max(0, now - planet.pausedAt)
+        : 0;
       const updated: GameState = {
         ...prev,
         balance: prev.balance - fee,
         planets: prev.planets.map((p) =>
           p.id === id
             ? startsFreshCycle
-              ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now }
-              : { ...p, isFarmingActive: true }
+              ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now, pausedAt: 0 }
+              : {
+                  ...p,
+                  isFarmingActive: true,
+                  farmStartedAt: p.farmStartedAt + pauseShift,
+                  lastCollectedAt: p.lastCollectedAt + pauseShift,
+                  pausedAt: 0,
+                }
             : p
         ),
       };
@@ -2819,6 +2845,15 @@ export function useGameState() {
       // V1 is soulbound — guard here too in case any caller bypasses the
       // disabled UI button (e.g. an old client cached in Telegram WebView).
       if (planet.name === "V1") return prev;
+      // Capture the pre-optimistic state BEFORE the .then closure runs
+      // so the rejection rollback can restore the exact prior values
+      // instead of inferring from `pausedAt`. Inferring is wrong when
+      // the planet was already paused (isFarmingActive=false,
+      // pausedAt>0 from a previous list/delist) and the user lists
+      // again: a rollback should keep the planet paused, not silently
+      // re-activate farming.
+      const prevIsFarmingActive = !!planet.isFarmingActive;
+      const prevPausedAt = planet.pausedAt ?? 0;
       const { telegramId, firstName, username } = getTelegramContext();
       if (telegramId) {
         listOnMarket({
@@ -2842,14 +2877,23 @@ export function useGameState() {
           } else {
             // Server rejected the listing (e.g. 409 "already listed",
             // 409 "previously sold", 400 "type/rate mismatch"). Revert
-            // the optimistic local mark so the planet returns to the
-            // inventory and the user can see what's wrong instead of a
-            // ghost listing the server doesn't know about.
+            // the optimistic local mark to the EXACT pre-listing
+            // values (isFarmingActive + pausedAt) so the planet
+            // returns to the same state it had before the user tapped
+            // "list" — whether that was actively farming, paused mid-
+            // cycle, never-started, or expired.
             setState((s) => ({
               ...s,
               planets: s.planets.map((p) =>
                 p.id === id
-                  ? { ...p, isListedInMarket: false, marketPrice: null, serverListingId: undefined }
+                  ? {
+                      ...p,
+                      isListedInMarket: false,
+                      marketPrice: null,
+                      serverListingId: undefined,
+                      isFarmingActive: prevIsFarmingActive,
+                      pausedAt: prevPausedAt,
+                    }
                   : p,
               ),
             }));
@@ -2861,11 +2905,17 @@ export function useGameState() {
           }
         });
       }
+      // Snapshot the pause moment ONLY if the cycle was actually
+      // running (mid-cycle pause). For never-started, expired, or
+      // already-paused planets we leave pausedAt at its prior value —
+      // startFarming uses startsFreshCycle / pausedAt together to
+      // decide the correct resume math.
+      const pauseStamp = prevIsFarmingActive ? serverNow() : prevPausedAt;
       const updated = {
         ...prev,
         planets: prev.planets.map((p) =>
           p.id === id
-            ? { ...p, isListedInMarket: true, isFarmingActive: false, marketPrice: price }
+            ? { ...p, isListedInMarket: true, isFarmingActive: false, marketPrice: price, pausedAt: pauseStamp }
             : p
         ),
       };
