@@ -4,6 +4,8 @@ import { PLANET_CONFIG } from "../hooks/useGameState";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
 import { buyFromMarket, openMarketActivityStream } from "../utils/api";
 import { useGlobalStore, pushMarketSale, refreshMarketListings } from "../store/globalStore";
+import { PlanetFloatBar } from "../components/PlanetFloatBar";
+import { getListingDisplayFloat, FLOAT_PLANET_TYPES } from "../utils/planetFloat";
 
 
 const RARITY_FILTERS: (PlanetType | "ALL")[] = ["ALL", "BASIC", "RARE", "EPIC", "GOLD", "V1"];
@@ -23,7 +25,7 @@ interface MarketPageProps {
   telegramId: string | null;
   onBuy: (listing: MarketListing) => { success: boolean; reason?: string };
   onUnlist: (id: string) => void;
-  onServerBuyComplete: (planetType: PlanetType, planetRate: number, pricePaid: number) => void;
+  onServerBuyComplete: (planetType: PlanetType, planetRate: number, pricePaid: number, planetFloat?: number | null) => void;
 }
 
 interface Toast { text: string; ok: boolean }
@@ -67,7 +69,14 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
   );
 
   const allDisplayListings = [
-    ...userListings.map((l) => ({ ...l, isLocal: true as const, serverId: undefined as number | undefined })),
+    ...userListings.map((l) => ({
+      ...l,
+      isLocal: true as const,
+      serverId: undefined as number | undefined,
+      // Local listings (your own) — no server snapshot, fall back to
+      // deterministic-from-id so the bar still shows a stable value.
+      planetFloat: null as number | null,
+    })),
     ...otherListings.map((l) => ({
       id: `server-${l.id}`,
       name: l.planetType as PlanetType,
@@ -76,12 +85,13 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
       rate: l.planetRate,
       isLocal: false as const,
       serverId: l.id,
+      planetFloat: l.planetFloat ?? null,
     })),
   ];
 
   const filtered = filter === "ALL" ? allDisplayListings : allDisplayListings.filter((l) => l.name === filter);
 
-  const handleBuyServer = async (serverId: number, planetType: PlanetType, planetRate: number, price: number) => {
+  const handleBuyServer = async (serverId: number, planetType: PlanetType, planetRate: number, price: number, planetFloat: number | null) => {
     if (!telegramId) return;
     const fee = Math.floor(price * 0.25);
     const total = price + fee;
@@ -99,7 +109,11 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
     }
     const result = await buyFromMarket(telegramId, serverId);
     if (result.ok) {
-      onServerBuyComplete(planetType, planetRate, total);
+      // Prefer the server-echoed float (authoritative — exactly what
+      // the listing carried); fall back to the listing snapshot we
+      // sent in (matches the marketplace card the buyer just clicked).
+      const finalFloat = typeof result.planetFloat === "number" ? result.planetFloat : planetFloat;
+      onServerBuyComplete(planetType, planetRate, total, finalFloat);
       void refreshMarketListings();
       showToast(`${PLANET_CONFIG[planetType].label} planet added to your farm!`, true);
     } else {
@@ -317,6 +331,17 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
                     <div className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.45)" }}>
                       +{listing.rate.toLocaleString()} $ZOOM/hr
                     </div>
+                    {FLOAT_PLANET_TYPES.has(listing.name) && (
+                      <div className="mt-1.5">
+                        <PlanetFloatBar
+                          value={getListingDisplayFloat({
+                            id: listing.serverId ?? listing.id,
+                            planetFloat: listing.planetFloat,
+                          })}
+                          compact
+                        />
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                     <div className="font-black text-sm" style={{ color: rarityColor }}>
@@ -353,7 +378,7 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
                         }}
                         onClick={() => {
                           if (listing.serverId) {
-                            handleBuyServer(listing.serverId, listing.name, listing.rate, listing.price);
+                            handleBuyServer(listing.serverId, listing.name, listing.rate, listing.price, listing.planetFloat);
                           } else {
                             handleBuyLocal(listing as MarketListing);
                           }

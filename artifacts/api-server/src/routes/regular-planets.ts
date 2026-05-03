@@ -3,6 +3,11 @@ import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
+import {
+  FLOAT_PLANET_TYPES,
+  deterministicFloatFromId,
+  sanitizeIncomingFloat,
+} from "../lib/planetFloat";
 
 const router: IRouter = Router();
 
@@ -29,6 +34,12 @@ const PlanetRow = z
     // here as a defense-in-depth check on incoming /regular-planets/save
     // payloads; the rename endpoint itself enforces stricter rules.
     displayName: z.string().max(64).optional(),
+    // CS:GO-style cosmetic perfection score in [0, 1], 3 decimals.
+    // Server uses the FIRST value it sees per planet id (server-merge
+    // below); subsequent saves can't change it. Out-of-range values are
+    // sanitized to undefined and the server falls back to the
+    // deterministic-from-id seed.
+    float: z.number().finite().min(0).max(1).optional(),
   })
   .passthrough();
 
@@ -93,7 +104,24 @@ router.get("/regular-planets/:telegramId", async (req, res) => {
     res.json({
       ok: true,
       exists: true,
-      planets: Array.isArray(row.planetsJson) ? row.planetsJson : [],
+      // Float backfill on read: any regular planet that doesn't yet
+      // have a `float` (legacy data from before the feature) gets a
+      // deterministic-from-id value materialized in the response so
+      // the UI shows the perfection bar instantly on first load. We
+      // don't persist here — the next /save will, via the server-merge
+      // logic above. The seed function is shared, so the value the
+      // user sees now equals the value persisted later.
+      planets: Array.isArray(row.planetsJson)
+        ? (row.planetsJson as Array<Record<string, unknown>>).map((p) => {
+            if (!p || typeof p !== "object") return p;
+            if (typeof p.float === "number") return p;
+            const planetType = String((p as { name?: string }).name ?? "").toUpperCase();
+            if (!FLOAT_PLANET_TYPES.has(planetType)) return p;
+            const id = typeof p.id === "string" ? p.id : "";
+            if (!id) return p;
+            return { ...p, float: deterministicFloatFromId(id) };
+          })
+        : [],
       claimedBonusBasic: row.claimedBonusBasic ?? 0,
       claimedBonusRare: row.claimedBonusRare ?? 0,
       claimedBonusEpic: row.claimedBonusEpic ?? 0,
@@ -198,20 +226,50 @@ router.post("/regular-planets/save", async (req, res) => {
     // incoming displayName and overlay the server-stored one (matched by
     // planet.id) before writing. The save can still update every other
     // field; only displayName is server-pinned.
+    // Build lookup maps for server-pinned fields. Both `displayName`
+    // and `float` are server-owned: once stored, the client can never
+    // overwrite them via /save. (`displayName` is set ONLY by the paid
+    // /planets/rename endpoint; `float` is set ONLY on the very first
+    // save for each planet id, then frozen.)
     const storedNamesById = new Map<string, string>();
+    const storedFloatsById = new Map<string, number>();
     for (const p of existingPlanets) {
       if (p && typeof p === "object") {
         const obj = p as Record<string, unknown>;
         const id = typeof obj.id === "string" ? obj.id : "";
+        if (!id) continue;
         const dn = typeof obj.displayName === "string" ? obj.displayName : "";
-        if (id && dn) storedNamesById.set(id, dn);
+        if (dn) storedNamesById.set(id, dn);
+        const f = sanitizeIncomingFloat(obj.float);
+        if (typeof f === "number") storedFloatsById.set(id, f);
       }
     }
     const sanitizedPlanets = planets.map((incoming) => {
-      const { displayName: _ignored, ...rest } = incoming as Record<string, unknown>;
-      void _ignored;
-      const stored = storedNamesById.get(String(rest.id ?? ""));
-      return stored ? { ...rest, displayName: stored } : rest;
+      const { displayName: _ignoredDn, float: _ignoredFloat, ...rest } = incoming as Record<string, unknown>;
+      void _ignoredDn; void _ignoredFloat;
+      const id = String(rest.id ?? "");
+      const planetType = String((rest as { name?: string }).name ?? "").toUpperCase();
+      const out: Record<string, unknown> = { ...rest };
+      // displayName: pin to stored if any (paid action, /save can't mutate it).
+      const storedName = storedNamesById.get(id);
+      if (storedName) out.displayName = storedName;
+      // float: pin to stored if any; otherwise (first save for this
+      // planet) accept an in-range incoming value; otherwise (legacy
+      // planet, no incoming) seed deterministically from id so the
+      // user keeps seeing the same bar value across reloads. Only
+      // applies to FLOAT_PLANET_TYPES — white/earth/sun never carry one.
+      if (FLOAT_PLANET_TYPES.has(planetType)) {
+        const stored = storedFloatsById.get(id);
+        if (typeof stored === "number") {
+          out.float = stored;
+        } else {
+          const incomingFloat = sanitizeIncomingFloat((incoming as { float?: unknown }).float);
+          out.float = typeof incomingFloat === "number"
+            ? incomingFloat
+            : deterministicFloatFromId(id);
+        }
+      }
+      return out;
     });
     const updated = await db
       .update(usersTable)

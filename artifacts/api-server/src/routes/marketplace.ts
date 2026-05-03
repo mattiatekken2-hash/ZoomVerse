@@ -5,6 +5,11 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { addClient, removeClient, broadcastSale } from "../lib/activityBus";
 import { sendBotMessage } from "../lib/notify";
+import {
+  FLOAT_PLANET_TYPES,
+  deterministicFloatFromId,
+  sanitizeIncomingFloat,
+} from "../lib/planetFloat";
 
 const router: IRouter = Router();
 
@@ -164,6 +169,19 @@ router.post("/market/list", async (req, res) => {
       return;
     }
 
+    // Snapshot the planet's cosmetic Float into the listing so the
+    // marketplace card can show the perfection bar without an extra
+    // join back to the seller's planets_json. Falls back to the
+    // deterministic-from-id seed for legacy planets that don't have a
+    // float stored yet (matches what the client UI shows them anyway).
+    let planetFloatSnapshot: number | null = null;
+    if (FLOAT_PLANET_TYPES.has(String(planetType).toUpperCase())) {
+      const stored = sanitizeIncomingFloat((planet as { float?: unknown }).float);
+      planetFloatSnapshot = typeof stored === "number"
+        ? stored
+        : deterministicFloatFromId(planetId);
+    }
+
     let listing;
     try {
       const [inserted] = await txDb
@@ -174,6 +192,7 @@ router.post("/market/list", async (req, res) => {
           planetId,
           planetType,
           planetRate,
+          planetFloat: planetFloatSnapshot,
           price,
           status: "active",
         })
@@ -472,12 +491,25 @@ router.post("/market/buy", async (req, res) => {
       "💰 Great news! One of your planets has been sold! Check your balance.",
     ).catch((e) => console.error("[market/buy] seller notify failed:", e));
 
+    // Echo the listing's snapshotted Float so the buyer's client can
+    // mint the new planet with EXACTLY the perfection score they saw on
+    // the marketplace card. Falls back to the deterministic-from-id
+    // value (matches the client display fallback in
+    // utils/planetFloat.ts → getListingDisplayFloat) so legacy listings
+    // without a stored snapshot still produce a stable, predictable
+    // float on the buyer side instead of a fresh random.
+    const buyerFloat = typeof listing.planetFloat === "number"
+      ? listing.planetFloat
+      : (FLOAT_PLANET_TYPES.has(String(listing.planetType).toUpperCase())
+          ? deterministicFloatFromId(`listing-${listing.id}`)
+          : null);
     res.json({
       ok: true,
       planetType: listing.planetType,
       planetRate: listing.planetRate,
       pricePaid: totalCost,
       sellerReceived: listing.price,
+      planetFloat: buyerFloat,
     });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});

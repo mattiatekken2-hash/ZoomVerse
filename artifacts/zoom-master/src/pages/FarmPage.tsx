@@ -6,6 +6,8 @@ import { WalletPopup } from "../components/WalletPopup";
 import { useT } from "../i18n/LanguageContext";
 import { PlanetRenameModal } from "../components/PlanetRenameModal";
 import { getPlanetDisplayName } from "../utils/planetNames";
+import { PlanetFloatBar } from "../components/PlanetFloatBar";
+import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 
 
 interface FarmPageProps {
@@ -413,6 +415,11 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
                         ? `Listed for ${planet.marketPrice?.toLocaleString()} $ZOOM`
                         : "Farming stopped"}
                     </div>
+                    {isFloatablePlanet(planet) && (
+                      <div className="mt-1.5" style={{ opacity: expired ? 0.55 : 1 }}>
+                        <PlanetFloatBar value={getDisplayFloat(planet)} />
+                      </div>
+                    )}
                   </div>
                 </div>
 

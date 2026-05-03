@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, apiHeaders, withInitData, type Grants, type CollectionPlanetState } from "../utils/api";
+import { generateRandomFloat } from "../utils/planetFloat";
 import { toast } from "./use-toast";
 
 // Server-authoritative clock: every farming/idle-income time check is computed
@@ -81,6 +82,14 @@ export interface Planet {
   // SUN planets are NOT renamable, so this only ever appears on the
   // regular planet types (BASIC / RARE / EPIC / GOLD / V1).
   displayName?: string;
+  // CS:GO-style cosmetic "Float" value in [0, 1] (3 decimals). Set
+  // ONCE at planet creation (truly random) and frozen forever. Only
+  // present on regular planet types (BASIC / RARE / EPIC / GOLD / V1).
+  // When absent on legacy planets, the UI derives a stable value from
+  // the planet id (utils/planetFloat.ts → getDisplayFloat). The server
+  // backfills missing floats on the next /save and ignores any change
+  // attempt after the first persist (server-merge: first-write-wins).
+  float?: number;
 }
 
 export interface SunState {
@@ -104,6 +113,11 @@ export interface MarketListing {
   price: number;
   seller: string;
   rate: number;
+  // CS:GO-style cosmetic perfection score in [0, 1] snapshotted from
+  // the listing. Optional because the local in-memory listings path
+  // (legacy, your-own listings) doesn't carry one — the UI then falls
+  // back to a deterministic-from-id value.
+  planetFloat?: number | null;
 }
 
 export interface GameState {
@@ -981,6 +995,9 @@ function makePlanet(rarity: PlanetType): Planet {
     isFarmingActive: false,
     marketPrice: null,
     craftCost: cfg.craftCost,
+    // Cosmetic CS:GO-style perfection score, generated once at craft
+    // and frozen forever (server preserves first-write via server-merge).
+    float: generateRandomFloat(),
   };
 }
 
@@ -1722,6 +1739,7 @@ export function useGameState() {
                 isFarmingActive: false,
                 marketPrice: null,
                 craftCost: cfg.craftCost,
+                float: generateRandomFloat(),
               });
             }
             // Only mark as claimed what we actually added — the rest stays
@@ -1976,6 +1994,7 @@ export function useGameState() {
                 isFarmingActive: false,
                 marketPrice: null,
                 craftCost: cfg.craftCost,
+                float: generateRandomFloat(),
               });
             }
             if (actuallyAdd > 0) {
@@ -2848,6 +2867,13 @@ export function useGameState() {
       isFarmingActive: false,
       marketPrice: null,
       craftCost: listing.price,
+      // Local in-memory listing path (legacy, pre-server marketplace).
+      // Use the listing's snapshotted float when available, otherwise
+      // fresh random — buyer sees a unique perfection score on the new
+      // planet either way.
+      float: typeof listing.planetFloat === "number"
+        ? listing.planetFloat
+        : generateRandomFloat(),
     };
     setState((prev) => {
       const updated = {
@@ -2862,7 +2888,7 @@ export function useGameState() {
     return { success: true };
   }, []);
 
-  const serverBuyComplete = useCallback((planetType: PlanetType, planetRate: number, pricePaid: number) => {
+  const serverBuyComplete = useCallback((planetType: PlanetType, planetRate: number, pricePaid: number, planetFloat?: number | null) => {
     const cfg = PLANET_CONFIG[planetType];
     const now = serverNow();
     const newPlanet: Planet = {
@@ -2879,6 +2905,13 @@ export function useGameState() {
       isFarmingActive: false,
       marketPrice: null,
       craftCost: pricePaid,
+      // Carry the listing's snapshotted float onto the buyer's new
+      // planet so the perfection score the buyer saw on the marketplace
+      // card persists (CS:GO-style: you bought THIS specific float).
+      // Fall back to a fresh random if the listing didn't carry one.
+      float: typeof planetFloat === "number" && Number.isFinite(planetFloat)
+        ? planetFloat
+        : generateRandomFloat(),
     };
     setState((prev) => {
       const updated = {

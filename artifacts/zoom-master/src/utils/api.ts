@@ -1512,6 +1512,11 @@ export interface ServerMarketListing {
   sellerName: string | null;
   planetType: string;
   planetRate: number;
+  // CS:GO-style cosmetic perfection score in [0, 1]. Snapshotted at
+  // listing time. Nullable on legacy listings created before the
+  // schema column shipped — UI falls back to a deterministic value
+  // derived from the listing id (utils/planetFloat.ts).
+  planetFloat?: number | null;
   price: number;
   status: string;
   createdAt: string;
@@ -1562,7 +1567,7 @@ export async function listOnMarket(params: {
   }
 }
 
-export async function buyFromMarket(buyerTelegramId: string, listingId: number): Promise<{ ok: boolean; planetType?: string; planetRate?: number; pricePaid?: number; error?: string }> {
+export async function buyFromMarket(buyerTelegramId: string, listingId: number): Promise<{ ok: boolean; planetType?: string; planetRate?: number; pricePaid?: number; planetFloat?: number | null; error?: string }> {
   try {
     const res = await fetch(`${API_BASE}/market/buy`, {
       method: "POST",

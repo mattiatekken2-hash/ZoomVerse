@@ -242,6 +242,13 @@ export const marketListingsTable = pgTable("market_listings", {
   // close the "list the same planet twice" / "re-list a sold planet"
   // money exploits.
   planetId: text("planet_id"),
+  // Snapshot of the planet's "Float" value (0.000 — 1.000) at listing
+  // time, in the spirit of CS:GO skin floats. Purely cosmetic, drives
+  // the perfection bar shown on the marketplace card. Nullable for
+  // legacy listings created before the feature shipped — the client
+  // falls back to a deterministic value derived from planet_id when
+  // missing, so old listings still render without an "empty" gap.
+  planetFloat: real("planet_float"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   soldAt: timestamp("sold_at"),
   lastActivatedAt: timestamp("last_activated_at"),
