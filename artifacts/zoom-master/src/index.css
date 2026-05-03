@@ -1395,12 +1395,12 @@
    Slow horizontal orbit (kept tilted on X so the ring reads as an
    ellipse, not a flat line). 16s loop = a calm, premium pace. */
 @keyframes nft-orbit-spin {
-  from { transform: rotateX(72deg) rotateY(0deg); }
-  to   { transform: rotateX(72deg) rotateY(360deg); }
+  from { transform: rotateX(82deg) rotateY(0deg); }
+  to   { transform: rotateX(82deg) rotateY(360deg); }
 }
 .nft-orbit-ring {
   animation: nft-orbit-spin 16s linear infinite;
-  transform: rotateX(72deg);
+  transform: rotateX(82deg);
   will-change: transform;
 }
 @media (prefers-reduced-motion: reduce) {
