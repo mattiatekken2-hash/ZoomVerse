@@ -68,6 +68,15 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
   const [sunWalletOpen, setSunWalletOpen] = useState(false);
   const [slotWalletOpen, setSlotWalletOpen] = useState(false);
   const [defectMsg, setDefectMsg] = useState<string | null>(null);
+  // Transient toast for the disabled COLLECTION teaser button. Shown
+  // for ~2.4s, then auto-cleared. Kept separate from `defectMsg` so the
+  // styling stays neutral (not a red error). When `defectMsg` is also
+  // visible we vertically offset this toast (see render) so they never
+  // visually collide.
+  const [comingSoonMsg, setComingSoonMsg] = useState<string | null>(null);
+  // Timeout id for the COLLECTION toast — kept in a ref so repeated
+  // taps reset the auto-dismiss timer instead of firing stale clears.
+  const comingSoonTimeoutRef = useRef<number | null>(null);
   const [renamePlanet, setRenamePlanet] = useState<Planet | null>(null);
   // Per-rarity sort direction for the float column. `null` keeps the
   // natural insertion order (most-recently-acquired last). Toggling the
@@ -149,18 +158,69 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
           ⚠ {defectMsg}
         </div>
       )}
-      <div className="px-5 pt-4 pb-2 flex-shrink-0 flex items-center justify-between">
-        <div>
+      {comingSoonMsg && (
+        <div
+          className="absolute left-4 right-4 z-50 rounded-xl px-4 py-3 text-center text-sm font-bold"
+          style={{
+            // If the red defect toast is currently showing we drop
+            // below it (~64px) instead of overlapping at top-2.
+            top: defectMsg ? 64 : 8,
+            background: "rgba(20,28,48,0.96)",
+            border: "1px solid rgba(120,180,255,0.45)",
+            color: "rgba(220,235,255,0.95)",
+            boxShadow: "0 0 18px rgba(80,140,255,0.18)",
+          }}
+          data-testid="collection-coming-soon-toast"
+        >
+          {comingSoonMsg}
+        </div>
+      )}
+      <div className="px-5 pt-4 pb-2 flex-shrink-0 flex items-center justify-between gap-3">
+        <div className="min-w-0">
           <h2 className="font-black text-lg tracking-tight">{t("farm.myPlanets")}</h2>
           <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
             {totalRate > 0 ? t("farm.slotsRate", { n: planets.length, max: maxSlots, rate: totalRate.toLocaleString() }) : `${planets.length}/${maxSlots} · ${t("farm.noActive")}`}
           </p>
         </div>
-        {totalRate > 0 && (
-          <div className="glass-neon px-3 py-1.5 rounded-full text-xs font-bold neon-text" data-testid="total-farm-rate">
-            +{totalRate.toLocaleString()}/hr
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {/* COLLECTION teaser button.
+              Visually disabled (greyscale + reduced opacity) to signal
+              "coming soon" without removing it from the layout. Click
+              shows a transient neutral toast — never navigates, never
+              mutates state. Brand-safe English copy. */}
+          <button
+            type="button"
+            onClick={() => {
+              setComingSoonMsg("Feature coming soon: Collect planet sets for exclusive bonuses!");
+              if (comingSoonTimeoutRef.current !== null) {
+                window.clearTimeout(comingSoonTimeoutRef.current);
+              }
+              comingSoonTimeoutRef.current = window.setTimeout(() => {
+                setComingSoonMsg(null);
+                comingSoonTimeoutRef.current = null;
+              }, 2400);
+            }}
+            aria-label="Collection — coming soon"
+            data-testid="btn-collection-coming-soon"
+            className="px-3 py-1.5 rounded-full text-xs font-black tracking-wide"
+            style={{
+              background: "linear-gradient(135deg, rgba(120,140,180,0.18) 0%, rgba(60,72,96,0.14) 100%)",
+              border: "1px solid rgba(180,200,230,0.22)",
+              color: "rgba(220,230,245,0.85)",
+              filter: "grayscale(1)",
+              opacity: 0.55,
+              cursor: "pointer",
+              letterSpacing: 0.5,
+            }}
+          >
+            COLLECTION
+          </button>
+          {totalRate > 0 && (
+            <div className="glass-neon px-3 py-1.5 rounded-full text-xs font-bold neon-text" data-testid="total-farm-rate">
+              +{totalRate.toLocaleString()}/hr
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Native-like scroll container.
