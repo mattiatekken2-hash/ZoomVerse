@@ -183,6 +183,11 @@ const STARS_CATALOG: StarsItem[] = [
   { id: "lotto_ticket_1",  title: "Lotto Stellare — 1 biglietto",   description: "1 biglietto per l'estrazione corrente",   starsPrice: 10,  tonPrice: 0.1, zoomAmount: 1,  itemType: "lotto" },
   { id: "lotto_ticket_15", title: "Lotto Stellare — 15 biglietti", description: "15 biglietti — risparmio 33%",            starsPrice: 100, tonPrice: 1.0, zoomAmount: 15, itemType: "lotto" },
   { id: "lotto_ticket_40", title: "Lotto Stellare — 40 biglietti", description: "40 biglietti — risparmio 38%",            starsPrice: 250, tonPrice: 2.5, zoomAmount: 40, itemType: "lotto" },
+  // STARDUST bundles — instant top-up of the in-game premium currency.
+  // zoomAmount is reused as the stardust amount granted (no schema change).
+  // Pricing follows the catalog-wide 100 Stars = 1 TON ratio.
+  { id: "stardust_100", title: "Stardust Pack — 100",  description: "Instant top-up · 100 stardust",  starsPrice: 100, tonPrice: 1, zoomAmount: 100, itemType: "stardust" },
+  { id: "stardust_500", title: "Stardust Pack — 500",  description: "Instant top-up · 500 stardust",  starsPrice: 500, tonPrice: 5, zoomAmount: 500, itemType: "stardust" },
 ];
 
 const MYSTERY_BOX_SUN_GLOBAL_CAP = 50;
@@ -335,6 +340,16 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string,
   } else if (item.itemType === "slot") {
     await tx.update(usersTable)
       .set({ bonusSlots: sql`${usersTable.bonusSlots} + 1` })
+      .where(eq(usersTable.telegramId, telegramId));
+  } else if (item.itemType === "stardust" && item.zoomAmount) {
+    // Stardust top-up bundle: zoomAmount field is reused as the stardust
+    // amount to grant (avoids a schema change to StarsItem). Bumps the
+    // balance epoch so the client sees the new total on next sync.
+    await tx.update(usersTable)
+      .set({
+        stardustBalance: sql`${usersTable.stardustBalance} + ${item.zoomAmount}`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
       .where(eq(usersTable.telegramId, telegramId));
   } else if (item.itemType === "wheel_spin") {
     const spins = item.zoomAmount || 1;

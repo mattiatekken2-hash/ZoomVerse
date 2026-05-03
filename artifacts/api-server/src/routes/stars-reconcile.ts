@@ -14,6 +14,8 @@ const STARS_CATALOG_MAP: Record<string, { itemType: string; zoomAmount?: number;
   mystery_box:   { itemType: "mystery_box",                         id: "mystery_box" },
   white_collection: { itemType: "white_collection",                  id: "white_collection" },
   earth_collection: { itemType: "earth_collection",                  id: "earth_collection" },
+  stardust_100:  { itemType: "stardust",        zoomAmount: 100,   id: "stardust_100" },
+  stardust_500:  { itemType: "stardust",        zoomAmount: 500,   id: "stardust_500" },
 };
 
 const SUN_MAX_PER_USER = 5;
@@ -98,6 +100,13 @@ export async function reconcilePendingStarPayment(
         await tx.update(usersTable)
           .set({
             bonusSlots: sql`${usersTable.bonusSlots} + 1`,
+            balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+          })
+          .where(eq(usersTable.telegramId, telegramId));
+      } else if (item.itemType === "stardust" && item.zoomAmount) {
+        await tx.update(usersTable)
+          .set({
+            stardustBalance: sql`${usersTable.stardustBalance} + ${item.zoomAmount}`,
             balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
           })
           .where(eq(usersTable.telegramId, telegramId));

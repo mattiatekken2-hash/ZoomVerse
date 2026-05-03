@@ -14,7 +14,7 @@ interface ShopItem {
   zoomAmount?: number;
   color: string;
   icon: string;
-  type: "bundle" | "sun" | "slot";
+  type: "bundle" | "sun" | "slot" | "stardust";
 }
 
 const SHOP_ITEMS: ShopItem[] = [
@@ -22,6 +22,14 @@ const SHOP_ITEMS: ShopItem[] = [
   { id: "explorer_pack", title: "Explorer Pack", desc: "8,000 $ZOOM + 1 Rare Planet", starsPrice: 150, tonPrice: 1.5, zoomAmount: 8000, color: "#4facfe", icon: "◈", type: "bundle" },
   { id: "legend_pack", title: "Legend Pack", desc: "25,000 $ZOOM + 1 Epic Planet", starsPrice: 400, tonPrice: 4.0, zoomAmount: 25000, color: "#c471ed", icon: "⬡", type: "bundle" },
   { id: "extra_slot", title: "Extra Slot", desc: "Unlock 1 additional planet slot", starsPrice: 25, tonPrice: 0.25, color: "#00f2fe", icon: "+", type: "slot" },
+];
+
+// Stardust top-up bundles — paid in Stars or TON via the same shop pay-mode
+// toggle. Rendered in their own card group above the existing stardust items
+// (Computer/Plant) so players who lack stardust can buy it instantly.
+const STARDUST_BUNDLES: ShopItem[] = [
+  { id: "stardust_100", title: "Stardust Pack — 100", desc: "Instant top-up · 100 stardust", starsPrice: 100, tonPrice: 1, zoomAmount: 100, color: "#ffd740", icon: "★", type: "stardust" },
+  { id: "stardust_500", title: "Stardust Pack — 500", desc: "Instant top-up · 500 stardust", starsPrice: 500, tonPrice: 5, zoomAmount: 500, color: "#ffd740", icon: "★", type: "stardust" },
 ];
 
 interface ShopPageProps {
@@ -402,10 +410,58 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
             </button>
           </div>
 
-          {/* Stardust-priced items — sit between the SUN block and the
-              Stars/TON packs so the player sees them right after the SUN
-              upsell (where stardust spending makes sense). */}
+          {/* Stardust top-up bundles — pay in Stars or TON to instantly
+              get stardust. Sits above the stardust-priced items so a player
+              who's short on stardust can fix that first, then keep shopping. */}
           <div className="font-black text-sm tracking-widest uppercase mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+            Buy Stardust
+          </div>
+          {STARDUST_BUNDLES.map(item => (
+            <div
+              key={item.id}
+              className="rounded-2xl border overflow-hidden"
+              style={{ borderColor: item.color + "40", background: item.color + "08" }}
+            >
+              <div className="flex items-center gap-4 p-4">
+                <div
+                  className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center font-black text-xl"
+                  style={{ background: item.color + "18", color: item.color, border: `1px solid ${item.color}40` }}
+                >
+                  {item.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-black text-sm" style={{ color: item.color }}>{item.title}</div>
+                  <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>{item.desc}</div>
+                </div>
+                <div className="flex-shrink-0 text-right">
+                  <div className="font-black text-base" style={{ color: payMode === "stars" ? "#ffd700" : "#0088ff" }}>
+                    {payMode === "stars" ? `⭐ ${item.starsPrice}` : `${item.tonPrice}`}
+                  </div>
+                  <div className="text-xs opacity-70" style={{ color: payMode === "stars" ? "#ffd700" : "#0088ff" }}>
+                    {payMode === "stars" ? "Stars" : "TON"}
+                  </div>
+                </div>
+              </div>
+              <div style={{ borderTop: `1px solid ${item.color}20` }}>
+                <button
+                  onClick={() => payMode === "stars" ? handleStarsBuy(item) : handleTonBuy(item)}
+                  disabled={buying === item.id}
+                  className="w-full py-3 font-black text-sm tracking-wider uppercase transition-all active:scale-95"
+                  style={{
+                    background: item.color + "12",
+                    color: item.color,
+                    opacity: buying === item.id ? 0.6 : 1,
+                  }}
+                >
+                  {buying === item.id ? "Processing..." : payMode === "stars" ? `BUY — ⭐ ${item.starsPrice}` : `BUY — ${item.tonPrice} TON`}
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Stardust-priced items (Computer / Plant): use stardust as
+              currency to buy in-game items. */}
+          <div className="font-black text-sm tracking-widest uppercase mb-1 mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
             Stardust Items
           </div>
           <div
