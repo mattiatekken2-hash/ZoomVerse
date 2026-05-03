@@ -75,6 +75,12 @@ export interface Planet {
   serverListingId?: number;
   // Only used by White Collection planets. null = in inventory, 0..3 = placed in that slot (immutable).
   slotIndex?: number | null;
+  // Optional explicit name set by the user via the /planets/rename
+  // endpoint. When absent the UI derives a stable, id-seeded name via
+  // utils/planetNames.ts → getPlanetDisplayName(). White / Earth /
+  // SUN planets are NOT renamable, so this only ever appears on the
+  // regular planet types (BASIC / RARE / EPIC / GOLD / V1).
+  displayName?: string;
 }
 
 export interface SunState {
@@ -3285,9 +3291,24 @@ export function useGameState() {
     return outcome;
   }, []);
 
+  // Patches the `displayName` field of one regular planet in local
+  // state. Called by the FarmPage rename modal AFTER the server
+  // confirmed the rename + debited stardust. The /regular-planets/save
+  // debounce will mirror the new name to the server inside the next
+  // ~1s so cross-device sync stays consistent.
+  const renamePlanetLocal = useCallback((planetId: string, displayName: string) => {
+    setState((prev) => {
+      const idx = prev.planets.findIndex((p) => p.id === planetId);
+      if (idx < 0) return prev;
+      const next = prev.planets.slice();
+      next[idx] = { ...next[idx]!, displayName };
+      return { ...prev, planets: next };
+    });
+  }, []);
+
   return {
     state, craft, claimCraft, redeemCode,
-    collectPlanet, burnPlanet,
+    collectPlanet, burnPlanet, renamePlanetLocal,
     startFarming, stopFarming,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     unlockSlot, claimDaily,

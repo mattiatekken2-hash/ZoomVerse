@@ -4,6 +4,8 @@ import type { Planet, SunState } from "../hooks/useGameState";
 import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getSunReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration } from "../hooks/useGameState";
 import { WalletPopup } from "../components/WalletPopup";
 import { useT } from "../i18n/LanguageContext";
+import { PlanetRenameModal } from "../components/PlanetRenameModal";
+import { getPlanetDisplayName } from "../utils/planetNames";
 
 
 interface FarmPageProps {
@@ -13,6 +15,7 @@ interface FarmPageProps {
   balance: number;
   maxSlots: number;
   defectPlanets: string[];
+  telegramId: string | null;
   onCollect: (id: string) => { defect: boolean };
   onBurn: (id: string) => void;
   onStartFarming: (id: string) => { ok: boolean; reason?: string };
@@ -22,6 +25,9 @@ interface FarmPageProps {
   onBurnSun: () => void;
   onSell: (id: string, price: number) => void;
   onUnlist: (id: string) => void;
+  // Called after a successful rename so App can patch local state and
+  // refresh the displayed stardust balance.
+  onRename: (planetId: string, displayName: string, newStardustBalance: number) => void;
 }
 
 interface SellPopup {
@@ -38,7 +44,7 @@ const RARITY_CLASS: Record<string, string> = {
   V1: "rarity-gold",
 };
 
-export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist }: FarmPageProps) {
+export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRename }: FarmPageProps) {
   const { t } = useT();
   const sunMultiplier = Math.max(1, sunCount || (sun?.isOwned ? 1 : 0));
   const sunDisplayRate = SUN_CONFIG.rate * sunMultiplier;
@@ -48,6 +54,7 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
   const [sunWalletOpen, setSunWalletOpen] = useState(false);
   const [slotWalletOpen, setSlotWalletOpen] = useState(false);
   const [defectMsg, setDefectMsg] = useState<string | null>(null);
+  const [renamePlanet, setRenamePlanet] = useState<Planet | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Daily-collect removed — planets now farm autonomously for the full 24h
@@ -364,15 +371,29 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`font-black text-base tracking-wide ${RARITY_CLASS[planet.name]}`} style={expired ? { opacity: 0.55 } : undefined}>
-                        {cfg.label.toUpperCase()}
-                      </span>
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => { if (telegramId && !isListed) setRenamePlanet(planet); }}
+                        disabled={!telegramId || isListed}
+                        title={isListed ? "Unlist to rename" : "Rename this planet"}
+                        data-testid={`btn-rename-${planet.id}`}
+                        className={`font-black text-base tracking-wide text-left ${RARITY_CLASS[planet.name]}`}
+                        style={{
+                          opacity: expired ? 0.55 : 1,
+                          background: "transparent",
+                          padding: 0,
+                          border: 0,
+                          cursor: telegramId && !isListed ? "pointer" : "default",
+                        }}
+                      >
+                        {getPlanetDisplayName(planet)}
+                      </button>
                       <span
                         className={`text-xs font-bold px-2 py-0.5 rounded-full border ${RARITY_CLASS[planet.name]}`}
                         style={{ fontSize: 9, opacity: expired ? 0.55 : 1 }}
                       >
-                        {planet.name}
+                        {cfg.label.toUpperCase()}
                       </span>
                       {expired && (
                         <span
@@ -604,6 +625,16 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, onCo
         copyLabel="Copy Link"
         onClose={() => setSlotWalletOpen(false)}
       />
+      {renamePlanet && telegramId && (
+        <PlanetRenameModal
+          planet={renamePlanet}
+          telegramId={telegramId}
+          onClose={() => setRenamePlanet(null)}
+          onRenamed={(planetId, displayName, newStardustBalance) => {
+            onRename(planetId, displayName, newStardustBalance);
+          }}
+        />
+      )}
     </div>
   );
 }

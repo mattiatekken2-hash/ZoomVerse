@@ -73,7 +73,7 @@ function AppShellWithState() {
   }, [t]);
   const {
     state, craft, claimCraft, redeemCode,
-    collectPlanet, burnPlanet,
+    collectPlanet, burnPlanet, renamePlanetLocal,
     startFarming, stopFarming,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     claimDaily, startSunFarming, stopSunFarming, burnSun,
@@ -619,6 +619,7 @@ function AppShellWithState() {
                   balance={state.balance}
                   maxSlots={state.maxSlots}
                   defectPlanets={state.defectPlanets || []}
+                  telegramId={state.telegramId}
                   onCollect={collectPlanet}
                   onBurn={burnPlanet}
                   onStartFarming={startFarming}
@@ -628,6 +629,18 @@ function AppShellWithState() {
                   onBurnSun={burnSun}
                   onSell={listPlanet}
                   onUnlist={unlistPlanet}
+                  onRename={(planetId, displayName, _newStardustBalance) => {
+                    // Patch the planet in local state — the debounced
+                    // /regular-planets/save will mirror it to the server.
+                    renamePlanetLocal(planetId, displayName);
+                    // Pull the fresh stardust balance from the server so
+                    // the top-bar counter immediately shows the post-debit
+                    // value (the rename endpoint also returned the new
+                    // balance, but a refresh keeps everything in lockstep
+                    // with any other stardust spend that may have raced).
+                    void _newStardustBalance;
+                    void stardust.refresh();
+                  }}
                 />
               )}
               {t === "market" && (

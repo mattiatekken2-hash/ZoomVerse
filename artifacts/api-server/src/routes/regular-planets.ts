@@ -25,6 +25,10 @@ const PlanetRow = z
     craftCost: z.number().optional(),
     serverListingId: z.number().int().optional(),
     slotIndex: z.number().int().nullable().optional(),
+    // Optional user-chosen name from /planets/rename. Length is bounded
+    // here as a defense-in-depth check on incoming /regular-planets/save
+    // payloads; the rename endpoint itself enforces stricter rules.
+    displayName: z.string().max(64).optional(),
   })
   .passthrough();
 
@@ -187,10 +191,32 @@ router.post("/regular-planets/save", async (req, res) => {
       });
       return;
     }
+    // PAID-ACTION INTEGRITY: `displayName` is set EXCLUSIVELY by the
+    // /planets/rename endpoint after debiting stardust. /save must NOT
+    // be a back door — both for letting users name planets for free AND
+    // for letting a stale snapshot revert a paid rename. We strip every
+    // incoming displayName and overlay the server-stored one (matched by
+    // planet.id) before writing. The save can still update every other
+    // field; only displayName is server-pinned.
+    const storedNamesById = new Map<string, string>();
+    for (const p of existingPlanets) {
+      if (p && typeof p === "object") {
+        const obj = p as Record<string, unknown>;
+        const id = typeof obj.id === "string" ? obj.id : "";
+        const dn = typeof obj.displayName === "string" ? obj.displayName : "";
+        if (id && dn) storedNamesById.set(id, dn);
+      }
+    }
+    const sanitizedPlanets = planets.map((incoming) => {
+      const { displayName: _ignored, ...rest } = incoming as Record<string, unknown>;
+      void _ignored;
+      const stored = storedNamesById.get(String(rest.id ?? ""));
+      return stored ? { ...rest, displayName: stored } : rest;
+    });
     const updated = await db
       .update(usersTable)
       .set({
-        planetsJson: sql`CASE WHEN ${usersTable.planetsUpdatedAtMs} < ${clientWriteAtMs} THEN ${JSON.stringify(planets)}::jsonb ELSE ${usersTable.planetsJson} END`,
+        planetsJson: sql`CASE WHEN ${usersTable.planetsUpdatedAtMs} < ${clientWriteAtMs} THEN ${JSON.stringify(sanitizedPlanets)}::jsonb ELSE ${usersTable.planetsJson} END`,
         planetsUpdatedAtMs: sql`GREATEST(${usersTable.planetsUpdatedAtMs}, ${clientWriteAtMs})`,
         ...(claimedBonusBasic != null ? { claimedBonusBasic: sql`GREATEST(${usersTable.claimedBonusBasic}, ${claimedBonusBasic})` } : {}),
         ...(claimedBonusRare  != null ? { claimedBonusRare:  sql`GREATEST(${usersTable.claimedBonusRare},  ${claimedBonusRare})`  } : {}),
@@ -209,10 +235,143 @@ router.post("/regular-planets/save", async (req, res) => {
       return;
     }
     const accepted = updated[0]!.updatedAt === clientWriteAtMs;
-    res.json({ ok: true, accepted, count: planets.length });
+    res.json({ ok: true, accepted, count: sanitizedPlanets.length });
   } catch (err) {
     console.error("[regular-planets/save] error:", err);
     res.status(500).json({ error: "Database error" });
+  }
+});
+
+// ─── POST /api/planets/rename ──────────────────────────────────────────
+//
+// Lets the user rename ONE of their regular-rarity planets (Basic / Rare
+// / Epic / Gold / V1). White Collection, Earth Collection and the SUN
+// are excluded by RENAMABLE_TYPES on the server (and never exposed in
+// the rename UI on the client). Two modes:
+//
+//   • "random" — client picks a fresh procedural name, server charges
+//     RENAME_RANDOM_COST stardust (currently 100).
+//   • "custom" — client supplies the user-typed name, server validates
+//     length / charset / profanity, charges RENAME_CUSTOM_COST stardust
+//     (currently 500).
+//
+// Atomicity: the stardust debit AND the planets_json mutation must
+// either both happen or neither. Done in a single transaction with two
+// guards: the user's row is locked FOR UPDATE, the debit is fenced on
+// `stardust_balance >= cost AND is_disabled = false`, and the JSONB
+// update only proceeds if the matching planet is still in the array
+// (defends against burn / sell racing the rename).
+import { RENAMABLE_TYPES, RENAME_RANDOM_COST, RENAME_CUSTOM_COST, validateRenameName, generateRandomPlanetName } from "../lib/planetNames";
+
+const RenameBody = z.object({
+  telegramId: z.string().min(1),
+  planetId: z.string().min(1).max(128),
+  mode: z.enum(["random", "custom"]),
+  // ONLY used in mode:"custom" — the user-typed string. In mode:"random"
+  // the server generates the name itself and ignores any client value;
+  // this prevents users from buying a custom name at the random price.
+  name: z.string().min(1).max(128).optional(),
+});
+
+router.post("/planets/rename", async (req, res) => {
+  const parsed = RenameBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ ok: false, error: "Invalid body" });
+    return;
+  }
+  const { telegramId, planetId, mode } = parsed.data;
+
+  // Decide the final name BEFORE the transaction so a slow tx doesn't
+  // hold the row lock during string work.
+  let finalName: string;
+  if (mode === "random") {
+    // Server is the only source of names in random mode. We don't even
+    // look at parsed.data.name. Generated names are guaranteed to pass
+    // the profanity filter (word banks are curated) and the charset
+    // rules, but we still run them through validateRenameName as a
+    // belt-and-suspenders sanity check.
+    const generated = generateRandomPlanetName();
+    const v = validateRenameName(generated);
+    if (!v.ok) {
+      // Should be impossible — log loudly and bail rather than silently
+      // persisting a name we don't trust.
+      console.error("[planets/rename] generated name failed validation:", generated, v);
+      res.status(500).json({ ok: false, error: "Server name generation error" });
+      return;
+    }
+    finalName = v.name;
+  } else {
+    const v = validateRenameName(parsed.data.name ?? "");
+    if (!v.ok) {
+      res.status(400).json({ ok: false, error: v.message, code: v.code });
+      return;
+    }
+    finalName = v.name;
+  }
+  const cost = mode === "custom" ? RENAME_CUSTOM_COST : RENAME_RANDOM_COST;
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      // Lock the user row so a concurrent burn / sell / save can't
+      // mutate planets_json under us between the read and the write.
+      const rows = await tx.execute(
+        sql`SELECT planets_json, stardust_balance, is_disabled
+            FROM users
+            WHERE telegram_id = ${telegramId}
+            FOR UPDATE`,
+      );
+      const row = (rows.rows ?? rows)[0] as
+        | { planets_json: unknown; stardust_balance: number; is_disabled: boolean }
+        | undefined;
+      if (!row) return { status: 404, body: { ok: false, error: "User not found" } };
+      if (row.is_disabled) return { status: 403, body: { ok: false, error: "Account disabled" } };
+
+      const balance = Number(row.stardust_balance ?? 0);
+      if (balance < cost) {
+        return {
+          status: 402,
+          body: { ok: false, error: "Not enough stardust", code: "insufficient_stardust", have: balance, need: cost },
+        };
+      }
+
+      const arr = Array.isArray(row.planets_json) ? (row.planets_json as Array<Record<string, unknown>>) : [];
+      const idx = arr.findIndex((p) => String(p?.id ?? "") === planetId);
+      if (idx < 0) {
+        return { status: 404, body: { ok: false, error: "Planet not found", code: "planet_not_found" } };
+      }
+      const planet = arr[idx]!;
+      const planetType = String(planet.name ?? "").toUpperCase();
+      if (!RENAMABLE_TYPES.has(planetType)) {
+        return {
+          status: 400,
+          body: { ok: false, error: "This planet type cannot be renamed", code: "type_not_renamable" },
+        };
+      }
+
+      const nextArr = arr.slice();
+      nextArr[idx] = { ...planet, displayName: finalName };
+
+      const updated = await tx
+        .update(usersTable)
+        .set({
+          stardustBalance: sql`${usersTable.stardustBalance} - ${cost}`,
+          planetsJson: sql`${JSON.stringify(nextArr)}::jsonb`,
+          planetsUpdatedAtMs: sql`GREATEST(${usersTable.planetsUpdatedAtMs}, ${Date.now()})`,
+        })
+        .where(eq(usersTable.telegramId, telegramId))
+        .returning({
+          stardustBalance: usersTable.stardustBalance,
+        });
+      const newBalance = updated[0]?.stardustBalance ?? balance - cost;
+      return {
+        status: 200,
+        body: { ok: true, displayName: finalName, stardustBalance: newBalance, mode, cost },
+      };
+    });
+    res.status(result.status).json(result.body);
+  } catch (err) {
+    console.error("[planets/rename] error:", err);
+    res.status(500).json({ ok: false, error: "Database error" });
   }
 });
 

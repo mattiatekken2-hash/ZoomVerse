@@ -72,6 +72,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/craft/record",
       "/planets/burn",
       "/regular-planets/save",
+      "/planets/rename",
       "/collection-planets/upsert",
       "/collection-planets/bulk-seed",
       "/sun/cycle",

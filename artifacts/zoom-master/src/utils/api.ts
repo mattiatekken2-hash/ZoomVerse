@@ -166,6 +166,58 @@ export function notifyPlanetBurn(telegramId: string, planetType: "BASIC" | "RARE
   }).catch(() => { /* ignore */ });
 }
 
+// ─── Planet rename ────────────────────────────────────────────────────
+// Asks the server to set `displayName` on one of the user's regular
+// planets and debit the corresponding stardust cost (100 for "random",
+// 500 for "custom"). The server is the source of truth: it re-validates
+// the name (length, charset, profanity) and atomically applies the
+// debit + the planets_json mutation, then returns the new stardust
+// balance the client should adopt.
+export type RenamePlanetMode = "random" | "custom";
+export type RenamePlanetResult =
+  | { ok: true; displayName: string; stardustBalance: number; cost: number; mode: RenamePlanetMode }
+  | { ok: false; error: string; code?: string; have?: number; need?: number };
+
+export async function renamePlanet(
+  telegramId: string,
+  planetId: string,
+  mode: RenamePlanetMode,
+  // `name` is REQUIRED for mode:"custom" and IGNORED for mode:"random"
+  // (the server generates the name itself in random mode so users can't
+  // buy a custom name at the random price).
+  name: string,
+): Promise<RenamePlanetResult> {
+  try {
+    const body = mode === "custom"
+      ? { telegramId, planetId, mode, name }
+      : { telegramId, planetId, mode };
+    const res = await fetch(`${API_BASE}/planets/rename`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(body),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json?.ok) {
+      return {
+        ok: false,
+        error: typeof json?.error === "string" ? json.error : `HTTP ${res.status}`,
+        code: typeof json?.code === "string" ? json.code : undefined,
+        have: typeof json?.have === "number" ? json.have : undefined,
+        need: typeof json?.need === "number" ? json.need : undefined,
+      };
+    }
+    return {
+      ok: true,
+      displayName: String(json.displayName),
+      stardustBalance: Number(json.stardustBalance ?? 0),
+      cost: Number(json.cost ?? 0),
+      mode,
+    };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Network error" };
+  }
+}
+
 // Returns the server's current epoch ms, or null if it can't be obtained.
 // We never silently fall back to Date.now() because callers use this value
 // to *detect* clock-tampering — substituting the local clock on failure
