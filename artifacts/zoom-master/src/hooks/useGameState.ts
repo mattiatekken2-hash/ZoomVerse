@@ -1429,23 +1429,35 @@ export function useGameState() {
       const serverBalance = settleRes.exists
         ? settleRes.balance
         : balanceRecord?.exists ? balanceRecord.zoomBalance : 0;
-      const serverEpoch = balanceRecord?.balanceEpoch ?? 0;
+      // Use the freshest epoch available — settleRes can be a step ahead of
+      // balanceRecord when /farm/settle just bumped it (epochBump on credit).
+      const serverEpoch = Math.max(balanceRecord?.balanceEpoch ?? 0, settleRes.balanceEpoch ?? 0);
       const localEpoch = stateRef.current.lastBalanceEpoch ?? 0;
       const localBalance = Math.floor(stateRef.current.balance);
       const wasFreshLoad = consumeWasFreshLoad();
-      // CROSS-DEVICE SYNC: when this device is opening this Telegram account
-      // for the first time (no localStorage entry yet), the local balance is
-      // just the 300-ZOOM default — never trust it. Snap to the server value
-      // so PC/phone always show the same balance.
-      // If server epoch advanced, admin/system performed an authoritative
-      // change (credit/remove/reset) — server wins, even if client is higher.
-      // Otherwise, only credit upwards (protect in-flight purchases).
+      // USER REQUIREMENT (May 2026): "Quando rientro non deve scendere, ma
+      // soltanto salire e aggiornarsi con la produzione passiva di zoom."
+      // On normal app re-entry (same device, localStorage present) the
+      // visible $ZOOM balance must NEVER decrease — it may only grow from
+      // offline-farming credit, admin grant, wheel/marketplace win, etc.
+      // Strategy:
+      //  • CROSS-DEVICE / FRESH STORAGE (`wasFreshLoad && balanceRecord
+      //    exists`): localBalance is just the 300-ZOOM default and cannot
+      //    be trusted. Snap to the server value — this also closes the
+      //    "clear-localStorage to revive 300" inflation exploit.
+      //  • NORMAL RE-ENTRY: take Math.max(local, server). Offline credits
+      //    always land (server > local), and any transient lower-server
+      //    read (race with admin write, stale `balanceRecord`, beacon flush
+      //    not yet processed) cannot rob the user of locally-banked ZOOM.
+      //    Per the user's explicit request, this intentionally lets a
+      //    locally-higher balance overwrite a freshly admin-removed lower
+      //    server balance on re-entry — admin can re-apply if needed.
       const epochAdvanced = serverEpoch > localEpoch;
-      const finalBalance = wasFreshLoad && balanceRecord?.exists
+      void epochAdvanced;
+      const serverUserExists = !!balanceRecord?.exists || !!settleRes.exists;
+      const finalBalance = wasFreshLoad && serverUserExists
         ? serverBalance
-        : epochAdvanced
-        ? serverBalance
-        : stateRef.current.balance + (serverBalance > localBalance ? serverBalance - localBalance : 0);
+        : Math.max(localBalance, serverBalance);
 
       setCurrentBalanceEpoch(serverEpoch);
       // Pull authoritative TON balance from /grants and seed local state with
@@ -1457,10 +1469,17 @@ export function useGameState() {
       setCurrentBalanceEpoch(syncRes.balanceEpoch);
 
       setState((prev) => {
-        const epochAdvancedNow = serverEpoch > (prev.lastBalanceEpoch ?? 0);
-        const newBalance = epochAdvancedNow
-          ? serverBalance
-          : prev.balance + (serverBalance > Math.floor(prev.balance) ? serverBalance - Math.floor(prev.balance) : 0);
+        // Same rule as finalBalance above (USER REQUIREMENT, May 2026):
+        // on normal re-entry the visible balance must never decrease.
+        // EXCEPTION: cross-device first load (wasFreshLoad && balanceRecord
+        // exists) MUST snap to the server value verbatim — otherwise a user
+        // could clear localStorage to revive the 300-ZOOM default and
+        // overwrite a lower authoritative server balance via the next
+        // /balance/sync (epoch-equal CASE branch takes the client value).
+        void serverEpoch;
+        const newBalance = (wasFreshLoad && serverUserExists)
+          ? finalBalance
+          : Math.max(prev.balance, finalBalance);
         let updated = {
           ...prev,
           referralCount: refData.referralCount,
