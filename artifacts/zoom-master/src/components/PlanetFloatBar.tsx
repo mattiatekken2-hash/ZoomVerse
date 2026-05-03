@@ -20,14 +20,6 @@ const TIER_KEY: Record<string, string> = {
   "Well-Worn": "float.wellWorn",
   "Battle-Scarred": "float.battleScarred",
 };
-const TIER_SHORT_KEY: Record<string, string> = {
-  "PFCT": "float.short.pfct",
-  "PRST": "float.short.prst",
-  "FT": "float.short.ft",
-  "WW": "float.short.ww",
-  "BS": "float.short.bs",
-};
-
 interface Props {
   // Float value in [0, 1].
   value: number;
@@ -45,7 +37,6 @@ export function PlanetFloatBar({ value, compact = false }: Props) {
   const tier = getFloatTier(v);
   const trackHeight = compact ? 4 : 6;
   const tierLabel = t(TIER_KEY[tier.label] ?? "");
-  const tierShort = t(TIER_SHORT_KEY[tier.short] ?? "");
 
   return (
     <div className="w-full" data-testid="planet-float-bar">
@@ -82,15 +73,9 @@ export function PlanetFloatBar({ value, compact = false }: Props) {
         </div>
       )}
       {compact && (
-        <div
-          className="flex items-center justify-between mt-0.5"
-          style={{ fontSize: 8 }}
-        >
+        <div className="mt-0.5" style={{ fontSize: 8 }}>
           <span className="font-mono font-bold" style={{ color: "rgba(255,255,255,0.55)" }}>
             {formatFloat(v)}
-          </span>
-          <span className="font-black tracking-wider" style={{ color: tier.color }}>
-            {tierShort}
           </span>
         </div>
       )}
