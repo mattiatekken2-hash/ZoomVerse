@@ -176,49 +176,51 @@ router.post("/regular-planets/save", async (req, res) => {
     //      legitimate operation will retry on the next debounce.
     //   The whole thing runs in a single UPDATE so we don't need a tx.
     const SHRINK_GUARD_THRESHOLD = 6; // max items a single save may drop
-    const existingRow = await db
-      .select({
-        planetsJson: usersTable.planetsJson,
-        updatedAt: usersTable.planetsUpdatedAtMs,
-      })
-      .from(usersTable)
-      .where(eq(usersTable.telegramId, telegramId))
-      .limit(1);
-    if (existingRow.length === 0) {
-      res.status(404).json({ error: "User not found" });
-      return;
-    }
-    const existingPlanets = Array.isArray(existingRow[0]!.planetsJson)
-      ? (existingRow[0]!.planetsJson as unknown[])
-      : [];
-    const lostCount = existingPlanets.length - planets.length;
-    if (lostCount >= SHRINK_GUARD_THRESHOLD) {
-      console.warn(
-        `[regular-planets/save] anti-shrink guard tripped for ${telegramId}: ` +
-        `stored=${existingPlanets.length}, incoming=${planets.length}, lost=${lostCount}. ` +
-        `Refusing to overwrite planets_json. clientWriteAtMs=${clientWriteAtMs}, storedUpdatedAt=${existingRow[0]!.updatedAt}.`
+    // Run the read+merge+write inside a single transaction with FOR
+    // UPDATE on the user row. Without this lock, a concurrent
+    // /planets/rename can commit a paid displayName between our SELECT
+    // and our UPDATE — we'd then strip the client's incoming
+    // displayName (correct, paid-action integrity) AND fail to pin the
+    // server-stored one (because we read it before the rename
+    // committed), silently wiping the rename. The lock serializes
+    // /save with /rename so whichever runs second always sees the
+    // first's writes.
+    const txResult = await db.transaction(async (tx) => {
+      const lockedRows = await tx.execute(
+        sql`SELECT planets_json, planets_updated_at_ms
+            FROM users
+            WHERE telegram_id = ${telegramId}
+            FOR UPDATE`,
       );
-      // Still allow the GREATEST-merged claimed_bonus_* counters to land —
-      // they're monotonic and harmless. Just don't touch planets_json.
-      await db
-        .update(usersTable)
-        .set({
-          ...(claimedBonusBasic != null ? { claimedBonusBasic: sql`GREATEST(${usersTable.claimedBonusBasic}, ${claimedBonusBasic})` } : {}),
-          ...(claimedBonusRare  != null ? { claimedBonusRare:  sql`GREATEST(${usersTable.claimedBonusRare},  ${claimedBonusRare})`  } : {}),
-          ...(claimedBonusEpic  != null ? { claimedBonusEpic:  sql`GREATEST(${usersTable.claimedBonusEpic},  ${claimedBonusEpic})`  } : {}),
-          ...(claimedBonusGold  != null ? { claimedBonusGold:  sql`GREATEST(${usersTable.claimedBonusGold},  ${claimedBonusGold})`  } : {}),
-          ...(claimedBonusV1    != null ? { claimedBonusV1:    sql`GREATEST(${usersTable.claimedBonusV1},    ${claimedBonusV1})`    } : {}),
-          ...(craftsCompleted   != null ? { totalPlanetsBuilt: sql`GREATEST(${usersTable.totalPlanetsBuilt}, ${craftsCompleted})` } : {}),
-        })
-        .where(eq(usersTable.telegramId, telegramId));
-      res.json({
-        ok: true,
-        accepted: false,
-        count: existingPlanets.length,
-        rejected: "anti-shrink guard",
-      });
-      return;
-    }
+      const lockedRow = (lockedRows.rows ?? lockedRows)[0] as
+        | { planets_json: unknown; planets_updated_at_ms: number }
+        | undefined;
+      if (!lockedRow) return { kind: "not_found" as const };
+      const existingPlanets = Array.isArray(lockedRow.planets_json)
+        ? (lockedRow.planets_json as unknown[])
+        : [];
+      const lostCount = existingPlanets.length - planets.length;
+      if (lostCount >= SHRINK_GUARD_THRESHOLD) {
+        console.warn(
+          `[regular-planets/save] anti-shrink guard tripped for ${telegramId}: ` +
+          `stored=${existingPlanets.length}, incoming=${planets.length}, lost=${lostCount}. ` +
+          `Refusing to overwrite planets_json. clientWriteAtMs=${clientWriteAtMs}, storedUpdatedAt=${lockedRow.planets_updated_at_ms}.`
+        );
+        // Still allow the GREATEST-merged claimed_bonus_* counters to land —
+        // they're monotonic and harmless. Just don't touch planets_json.
+        await tx
+          .update(usersTable)
+          .set({
+            ...(claimedBonusBasic != null ? { claimedBonusBasic: sql`GREATEST(${usersTable.claimedBonusBasic}, ${claimedBonusBasic})` } : {}),
+            ...(claimedBonusRare  != null ? { claimedBonusRare:  sql`GREATEST(${usersTable.claimedBonusRare},  ${claimedBonusRare})`  } : {}),
+            ...(claimedBonusEpic  != null ? { claimedBonusEpic:  sql`GREATEST(${usersTable.claimedBonusEpic},  ${claimedBonusEpic})`  } : {}),
+            ...(claimedBonusGold  != null ? { claimedBonusGold:  sql`GREATEST(${usersTable.claimedBonusGold},  ${claimedBonusGold})`  } : {}),
+            ...(claimedBonusV1    != null ? { claimedBonusV1:    sql`GREATEST(${usersTable.claimedBonusV1},    ${claimedBonusV1})`    } : {}),
+            ...(craftsCompleted   != null ? { totalPlanetsBuilt: sql`GREATEST(${usersTable.totalPlanetsBuilt}, ${craftsCompleted})` } : {}),
+          })
+          .where(eq(usersTable.telegramId, telegramId));
+        return { kind: "rejected" as const, count: existingPlanets.length };
+      }
     // PAID-ACTION INTEGRITY: `displayName` is set EXCLUSIVELY by the
     // /planets/rename endpoint after debiting stardust. /save must NOT
     // be a back door — both for letting users name planets for free AND
@@ -271,29 +273,40 @@ router.post("/regular-planets/save", async (req, res) => {
       }
       return out;
     });
-    const updated = await db
-      .update(usersTable)
-      .set({
-        planetsJson: sql`CASE WHEN ${usersTable.planetsUpdatedAtMs} < ${clientWriteAtMs} THEN ${JSON.stringify(sanitizedPlanets)}::jsonb ELSE ${usersTable.planetsJson} END`,
-        planetsUpdatedAtMs: sql`GREATEST(${usersTable.planetsUpdatedAtMs}, ${clientWriteAtMs})`,
-        ...(claimedBonusBasic != null ? { claimedBonusBasic: sql`GREATEST(${usersTable.claimedBonusBasic}, ${claimedBonusBasic})` } : {}),
-        ...(claimedBonusRare  != null ? { claimedBonusRare:  sql`GREATEST(${usersTable.claimedBonusRare},  ${claimedBonusRare})`  } : {}),
-        ...(claimedBonusEpic  != null ? { claimedBonusEpic:  sql`GREATEST(${usersTable.claimedBonusEpic},  ${claimedBonusEpic})`  } : {}),
-        ...(claimedBonusGold  != null ? { claimedBonusGold:  sql`GREATEST(${usersTable.claimedBonusGold},  ${claimedBonusGold})`  } : {}),
-        ...(claimedBonusV1    != null ? { claimedBonusV1:    sql`GREATEST(${usersTable.claimedBonusV1},    ${claimedBonusV1})`    } : {}),
-        ...(craftsCompleted   != null ? { totalPlanetsBuilt: sql`GREATEST(${usersTable.totalPlanetsBuilt}, ${craftsCompleted})` } : {}),
-      })
-      .where(eq(usersTable.telegramId, telegramId))
-      .returning({
-        telegramId: usersTable.telegramId,
-        updatedAt: usersTable.planetsUpdatedAtMs,
-      });
-    if (updated.length === 0) {
+      const updated = await tx
+        .update(usersTable)
+        .set({
+          planetsJson: sql`CASE WHEN ${usersTable.planetsUpdatedAtMs} < ${clientWriteAtMs} THEN ${JSON.stringify(sanitizedPlanets)}::jsonb ELSE ${usersTable.planetsJson} END`,
+          planetsUpdatedAtMs: sql`GREATEST(${usersTable.planetsUpdatedAtMs}, ${clientWriteAtMs})`,
+          ...(claimedBonusBasic != null ? { claimedBonusBasic: sql`GREATEST(${usersTable.claimedBonusBasic}, ${claimedBonusBasic})` } : {}),
+          ...(claimedBonusRare  != null ? { claimedBonusRare:  sql`GREATEST(${usersTable.claimedBonusRare},  ${claimedBonusRare})`  } : {}),
+          ...(claimedBonusEpic  != null ? { claimedBonusEpic:  sql`GREATEST(${usersTable.claimedBonusEpic},  ${claimedBonusEpic})`  } : {}),
+          ...(claimedBonusGold  != null ? { claimedBonusGold:  sql`GREATEST(${usersTable.claimedBonusGold},  ${claimedBonusGold})`  } : {}),
+          ...(claimedBonusV1    != null ? { claimedBonusV1:    sql`GREATEST(${usersTable.claimedBonusV1},    ${claimedBonusV1})`    } : {}),
+          ...(craftsCompleted   != null ? { totalPlanetsBuilt: sql`GREATEST(${usersTable.totalPlanetsBuilt}, ${craftsCompleted})` } : {}),
+        })
+        .where(eq(usersTable.telegramId, telegramId))
+        .returning({
+          telegramId: usersTable.telegramId,
+          updatedAt: usersTable.planetsUpdatedAtMs,
+        });
+      const accepted = updated[0]?.updatedAt === clientWriteAtMs;
+      return { kind: "ok" as const, accepted, count: sanitizedPlanets.length };
+    });
+    if (txResult.kind === "not_found") {
       res.status(404).json({ error: "User not found" });
       return;
     }
-    const accepted = updated[0]!.updatedAt === clientWriteAtMs;
-    res.json({ ok: true, accepted, count: sanitizedPlanets.length });
+    if (txResult.kind === "rejected") {
+      res.json({
+        ok: true,
+        accepted: false,
+        count: txResult.count,
+        rejected: "anti-shrink guard",
+      });
+      return;
+    }
+    res.json({ ok: true, accepted: txResult.accepted, count: txResult.count });
   } catch (err) {
     console.error("[regular-planets/save] error:", err);
     res.status(500).json({ error: "Database error" });
