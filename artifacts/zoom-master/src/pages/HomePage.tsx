@@ -501,7 +501,7 @@ function PixelComputerIcon({
           whiteSpace: "nowrap",
         }}
       >
-        25/H ★
+        25/D ★
       </span>
     </div>
   );
