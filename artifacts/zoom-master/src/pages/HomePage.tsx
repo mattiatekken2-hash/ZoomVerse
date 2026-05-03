@@ -1313,13 +1313,69 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
   // Bed click → force the astronaut to walk to bed and sleep for ~30 s.
   const [forceSleepUntil, setForceSleepUntil] = useState(0);
   const sleeping = forceSleepUntil > Date.now();
-  // Re-tick every second so the room rerenders when forceSleep expires.
+  // Sofa click → force the astronaut to walk to the sofa and sit for ~30 s.
+  const [forceSitUntil, setForceSitUntil] = useState(0);
+  const sitting = forceSitUntil > Date.now();
+  // TV power state — toggles ON/OFF when the user taps the TV.
+  const [tvOn, setTvOn] = useState(false);
+  // Re-tick every second so the room rerenders when forceSleep / forceSit
+  // expire (the booleans are derived from absolute deadlines).
   const [, setSleepTick] = useState(0);
   useEffect(() => {
-    if (!sleeping) return;
+    if (!sleeping && !sitting) return;
     const id = window.setInterval(() => setSleepTick((x) => x + 1), 500);
     return () => window.clearInterval(id);
-  }, [sleeping]);
+  }, [sleeping, sitting]);
+
+  // ── Meteor shower behind the window ─────────────────────────────
+  // Rare ambient event. Every 60-150 s we may spawn a "shower" of
+  // 3-5 meteors with staggered delays so they trail across the
+  // window panel one after another. Skipped while the page is
+  // hidden (no point burning timers in the background).
+  const [meteors, setMeteors] = useState<{ id: number; topPct: number; delayMs: number; durationMs: number }[]>([]);
+  const meteorIdRef = useRef(0);
+  useEffect(() => {
+    if (!visible) {
+      setMeteors([]);
+      return;
+    }
+    let cancelled = false;
+    const cullTimers = new Set<number>();
+    let scheduleTimer: number;
+    const burst = () => {
+      if (cancelled) return;
+      const count = 3 + Math.floor(Math.random() * 3); // 3..5
+      const next: typeof meteors = [];
+      let maxFinish = 0;
+      for (let i = 0; i < count; i++) {
+        const id = ++meteorIdRef.current;
+        const topPct = 5 + Math.random() * 35; // upper portion of window
+        const delayMs = i * (200 + Math.random() * 350);
+        const durationMs = 1000 + Math.random() * 700;
+        next.push({ id, topPct, delayMs, durationMs });
+        maxFinish = Math.max(maxFinish, delayMs + durationMs);
+      }
+      setMeteors((prev) => [...prev, ...next]);
+      const cull = window.setTimeout(() => {
+        cullTimers.delete(cull);
+        if (cancelled) return;
+        const ids = new Set(next.map((m) => m.id));
+        setMeteors((prev) => prev.filter((m) => !ids.has(m.id)));
+      }, maxFinish + 400);
+      cullTimers.add(cull);
+      scheduleTimer = window.setTimeout(burst, 60000 + Math.random() * 90000);
+    };
+    // First shower lands 20-50 s after entering HOME so it doesn't
+    // greet the user immediately.
+    scheduleTimer = window.setTimeout(burst, 20000 + Math.random() * 30000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(scheduleTimer);
+      cullTimers.forEach((id) => window.clearTimeout(id));
+      cullTimers.clear();
+      setMeteors([]);
+    };
+  }, [visible]);
 
   const cycleOutdoor = useCallback(() => {
     setOutdoorIdx((i) => {
@@ -1333,6 +1389,14 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
 
   const triggerBedSleep = useCallback(() => {
     setForceSleepUntil(Date.now() + 30000);
+  }, []);
+
+  const triggerSofaSit = useCallback(() => {
+    setForceSitUntil(Date.now() + 30000);
+  }, []);
+
+  const toggleTv = useCallback(() => {
+    setTvOn((v) => !v);
   }, []);
 
   const triggerPcAnim = useCallback(() => {
@@ -1377,6 +1441,14 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
             fits under the covers without spilling over the foot board. */}
         <PixelBed x={2} y={28} width={22} />
 
+        {/* TV mounted high on the LEFT wall, above the bed. Tapping it
+            toggles power. */}
+        <PixelTV x={5} y={10} on={tvOn} />
+
+        {/* Sofa on the floor, just below the bed. Tapping it sends the
+            astronaut to sit on it for ~30 s. */}
+        <PixelSofa x={2} y={42} width={22} />
+
         {/* Shower stall (left, between bed and window/table area). Shifted
             right by 4 units to make room for the wider bed. */}
         <PixelShower x={26} y={22} />
@@ -1393,10 +1465,46 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
         <PixelFridge x={68} y={24} />
       </svg>
 
+      {/* Meteor shower overlay — clipped to the window panel, sits
+          ABOVE the SVG sky but BELOW the window click overlay so it
+          never intercepts taps. Each meteor is a thin tapered streak
+          that travels diagonally across the panel. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          left: `${(28 / 80) * 100}%`,
+          top: `${(4 / 64) * 100}%`,
+          width: `${(36 / 80) * 100}%`,
+          height: `${(26 / 64) * 100}%`,
+          overflow: "hidden",
+          pointerEvents: "none",
+        }}
+      >
+        {meteors.map((m) => (
+          <div
+            key={m.id}
+            style={{
+              position: "absolute",
+              left: "-12%",
+              top: `${m.topPct}%`,
+              width: 28,
+              height: 2,
+              background: "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(170,220,255,0.9) 60%, #ffffff 100%)",
+              borderRadius: 2,
+              boxShadow: "0 0 6px rgba(180,220,255,0.8)",
+              opacity: 0,
+              animation: `home-meteor ${m.durationMs}ms linear ${m.delayMs}ms 1`,
+              animationFillMode: "forwards",
+            }}
+          />
+        ))}
+      </div>
+
       {/* Life overlay — astronaut going about his routine, plus the
           occasional bird drifting across the window. Sits ABOVE the room
           SVG and BELOW the slot buttons so it never intercepts clicks. */}
-      <RoomLifeOverlay phase={phase} visible={visible} friends={friends} forceSleep={sleeping} />
+      <RoomLifeOverlay phase={phase} visible={visible} friends={friends} forceSleep={sleeping} forceSit={sitting} />
 
       {/* Warm lamp glow — soft yellow radial bloom over the table at
           night, reinforces that the lamp is the room's light source.
@@ -1471,6 +1579,45 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
           top: `${(28 / 64) * 100}%`,
           width: `${(22 / 80) * 100}%`,
           height: `${(12 / 64) * 100}%`,
+          background: "transparent",
+          border: "none",
+          padding: 0,
+          cursor: "pointer",
+        }}
+      />
+
+      {/* TV click overlay — toggles power on/off. Mounted high on the
+          left wall above the bed. */}
+      <button
+        type="button"
+        onClick={toggleTv}
+        aria-label={tvOn ? "Turn TV off" : "Turn TV on"}
+        style={{
+          position: "absolute",
+          left: `${(5 / 80) * 100}%`,
+          top: `${(10 / 64) * 100}%`,
+          width: `${(14 / 80) * 100}%`,
+          height: `${(12 / 64) * 100}%`,
+          background: "transparent",
+          border: "none",
+          padding: 0,
+          cursor: "pointer",
+        }}
+      />
+
+      {/* Sofa click overlay — astronaut walks to the sofa and sits
+          for ~30 s. Sits BELOW the bed area so it doesn't conflict
+          with the bed click target. */}
+      <button
+        type="button"
+        onClick={triggerSofaSit}
+        aria-label="Send astronaut to sit on the sofa"
+        style={{
+          position: "absolute",
+          left: `${(2 / 80) * 100}%`,
+          top: `${(42 / 64) * 100}%`,
+          width: `${(22 / 80) * 100}%`,
+          height: `${(8 / 64) * 100}%`,
           background: "transparent",
           border: "none",
           padding: 0,
@@ -1689,7 +1836,7 @@ const ASTRO_SPEECH: string[] = [
   "The window view is amazing!",
 ];
 
-function RoomLifeOverlay({ phase, visible, friends, forceSleep }: { phase: SkyPhase; visible: boolean; friends: InvitedFriend[]; forceSleep?: boolean }) {
+function RoomLifeOverlay({ phase, visible, friends, forceSleep, forceSit }: { phase: SkyPhase; visible: boolean; friends: InvitedFriend[]; forceSleep?: boolean; forceSit?: boolean }) {
   const baseActivity = useAstronautActivity();
   // Idle detection — if the user hasn't touched the screen for 30 s
   // we override the rotation and force the "drum" activity (the
@@ -1712,10 +1859,12 @@ function RoomLifeOverlay({ phase, visible, friends, forceSleep }: { phase: SkyPh
     };
   }, []);
   // forceSleep (bed click) wins over everything: idle→drum and the
-  // normal rotation. Releases automatically when the parent flips the
-  // flag back to false (~30 s after the bed tap).
+  // normal rotation. forceSit (sofa click) is the same idea but uses
+  // the "coffee" pose (the only sitting pose we have) and overrides
+  // the position to the sofa via the pos override below. Both release
+  // automatically when the parent flips the flag back to false.
   const activity: ReturnType<typeof useAstronautActivity> =
-    forceSleep ? "sleep" : idle ? "drum" : baseActivity;
+    forceSleep ? "sleep" : forceSit ? "coffee" : idle ? "drum" : baseActivity;
   const [birds, setBirds] = useState<Bird[]>([]);
   // Measure the room so the astronaut sprite scales relative to the
   // room size — keeps the character a sensible portion of the bed,
@@ -1797,7 +1946,10 @@ function RoomLifeOverlay({ phase, visible, friends, forceSleep }: { phase: SkyPh
     paint: { left: "30%", top: "78%" },     // standing on the floor, drawing on a sheet of paper
     drum: { left: "55%", top: "78%" },      // standing at the kitchen table, drumming
   };
-  const pos = astroPos[activity];
+  // Sofa coords (matches the SVG layout x=2..24, y=42..50). Center
+  // of the seat cushion in container %.
+  const SOFA_ASTRO_POS = { left: "16%", top: "70%" };
+  const pos = forceSit ? SOFA_ASTRO_POS : astroPos[activity];
 
   // ── Walking transition ─────────────────────────────────────────
   // The user wants every activity change to look like the astronaut
@@ -1848,7 +2000,9 @@ function RoomLifeOverlay({ phase, visible, friends, forceSleep }: { phase: SkyPh
     activity === "sleep" ? "sleep" :
     activity === "snack" || activity === "fridge" || activity === "coffee" || activity === "pizza" ? "eat" :
     "idle";
-  const pet = petPos[activity];
+  // Pet snuggles next to the astronaut on the sofa when sitting.
+  const SOFA_PET_POS = { left: "30%", top: "76%" };
+  const pet = forceSit ? SOFA_PET_POS : petPos[activity];
   // Pet ~45% the size of the astronaut so it reads as a small companion.
   const petW = Math.max(22, Math.round(spriteW * 0.55));
 
@@ -2737,6 +2891,75 @@ function PixelChair({ x, y }: { x: number; y: number }) {
       {/* Legs */}
       <rect x={x} y={y + 4} width={1} height={3} fill={wood} />
       <rect x={x + 4} y={y + 4} width={1} height={3} fill={wood} />
+    </g>
+  );
+}
+
+/** Three-cushion sofa drawn in the floor area. 22×8 unit block, dark
+ *  fabric with two seat cushions and a back. Click target sits on top
+ *  via an absolute HTML overlay (the user taps the sofa to make the
+ *  astronaut walk over and sit on it for ~30 s). */
+function PixelSofa({ x, y, width = 22 }: { x: number; y: number; width?: number }) {
+  const fabric = "#5b4a8b";
+  const fabricShade = "#3f3266";
+  const fabricLight = "#7a68b0";
+  const wood = "#3a2916";
+  const armW = 3;
+  const seatW = width - armW * 2;
+  const cushionW = Math.max(2, Math.floor((seatW - 1) / 2));
+  return (
+    <g>
+      {/* Back */}
+      <rect x={x} y={y} width={width} height={4} fill={fabric} />
+      <rect x={x} y={y} width={width} height={1} fill={fabricLight} />
+      <rect x={x} y={y + 3} width={width} height={1} fill={fabricShade} />
+      {/* Left arm */}
+      <rect x={x} y={y + 2} width={armW} height={6} fill={fabric} />
+      <rect x={x} y={y + 2} width={1} height={6} fill={fabricShade} />
+      {/* Right arm */}
+      <rect x={x + width - armW} y={y + 2} width={armW} height={6} fill={fabric} />
+      <rect x={x + width - 1} y={y + 2} width={1} height={6} fill={fabricShade} />
+      {/* Seat (between arms) */}
+      <rect x={x + armW} y={y + 4} width={seatW} height={3} fill={fabric} />
+      {/* Two seat cushions */}
+      <rect x={x + armW} y={y + 4} width={cushionW} height={2} fill={fabricLight} />
+      <rect x={x + armW + cushionW + 1} y={y + 4} width={cushionW} height={2} fill={fabricLight} />
+      {/* Floor shadow line */}
+      <rect x={x} y={y + 7} width={width} height={1} fill={wood} />
+    </g>
+  );
+}
+
+/** Wall-mounted/standing pixel TV. 14×12 unit block. The screen
+ *  changes look based on `on`: dark glass when off, soft cycling
+ *  color bands (driven by the home-tv-flicker keyframe applied via
+ *  an HTML overlay above the SVG) when on. */
+function PixelTV({ x, y, on }: { x: number; y: number; on: boolean }) {
+  const frame = "#2a2a32";
+  const frameLight = "#44444f";
+  const screenOff = "#101018";
+  const screenOn = "#5fb4ff";
+  const stand = "#3a3a44";
+  const w = 14;
+  const h = 10;
+  return (
+    <g>
+      {/* Outer frame */}
+      <rect x={x} y={y} width={w} height={h} fill={frame} />
+      <rect x={x} y={y} width={w} height={1} fill={frameLight} />
+      {/* Screen */}
+      <rect x={x + 1} y={y + 1} width={w - 2} height={h - 2} fill={on ? screenOn : screenOff} />
+      {on && (
+        <>
+          {/* Subtle scanlines on top of the lit screen */}
+          <rect x={x + 1} y={y + 3} width={w - 2} height={1} fill="#a8d8ff" opacity={0.6} />
+          <rect x={x + 1} y={y + 6} width={w - 2} height={1} fill="#3a8fd8" opacity={0.6} />
+        </>
+      )}
+      {/* Tiny power LED, bottom-right of the bezel */}
+      <rect x={x + w - 2} y={y + h - 1} width={1} height={1} fill={on ? "#7dffb0" : "#5a2020"} />
+      {/* Wall-mount stand bracket */}
+      <rect x={x + w / 2 - 1} y={y + h} width={2} height={2} fill={stand} />
     </g>
   );
 }

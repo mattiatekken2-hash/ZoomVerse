@@ -1049,6 +1049,21 @@
   20%  { opacity: 1;    transform: translateY(-2px) scale(1); }
   100% { opacity: 0;    transform: translateY(10px) scale(0.8); }
 }
+/* Meteor shower behind the window — rare animated streaks that travel
+   diagonally across the sky panel. Each meteor is a thin tapered line
+   that fades in, crosses the window in ~1.2s and fades out. */
+@keyframes home-meteor {
+  0%   { transform: translate(0, 0)        rotate(35deg); opacity: 0; }
+  10%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { transform: translate(180px, 130px) rotate(35deg); opacity: 0; }
+}
+/* TV screen — soft cycling color bands so the active TV reads as
+   playing something. Loops slowly to avoid being distracting. */
+@keyframes home-tv-flicker {
+  0%   { background-position: 0 0; }
+  100% { background-position: 0 24px; }
+}
 @keyframes home-z-float {
   0%   { transform: translate(0, 0) scale(0.6); opacity: 0; }
   20%  { opacity: 1; }
