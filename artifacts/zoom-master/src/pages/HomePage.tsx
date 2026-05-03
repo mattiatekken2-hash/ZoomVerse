@@ -1462,16 +1462,26 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
         }}
       >
       {/* Back-wall plane — holds the entire existing pixel scene.
-          When perspective is on it gets pushed back by ROOM_DEPTH_PX
-          so the side walls + floor + ceiling can extend from the
-          viewport edges toward it, creating a corridor of depth. */}
+          In FLAT mode it fills the viewport (scale = 1). In 1ST
+          mode it shrinks to ~60% via a plain 2D scale() — which
+          produces the EXACT same apparent size as a translateZ of
+          -ROOM_DEPTH_PX through a perspective of PERSPECTIVE_PX
+          (scale = P / (P + D) = 620 / 1040 ≈ 0.596). Using a 2D
+          scale instead of a 3D translateZ keeps the interactive
+          layer in plain 2D space, so all buttons (slots, bed,
+          sofa, TV, window) remain reliably clickable on every
+          browser — including the WebKit webview Telegram uses,
+          which is finicky about 3D hit-testing. The corridor
+          walls below stay in true 3D and converge on the same
+          screen rectangle, so the visual still reads as depth. */}
       <div
         style={{
           position: "absolute",
           inset: 0,
-          transformStyle: "preserve-3d",
           transformOrigin: "50% 50%",
-          transform: persp ? `translateZ(-${ROOM_DEPTH_PX}px)` : "none",
+          transform: persp
+            ? `scale(${PERSPECTIVE_PX / (PERSPECTIVE_PX + ROOM_DEPTH_PX)})`
+            : "none",
           transition: "transform 700ms cubic-bezier(0.22, 1, 0.36, 1)",
           willChange: "transform",
         }}
