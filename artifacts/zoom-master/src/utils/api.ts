@@ -1512,6 +1512,11 @@ export interface ServerMarketListing {
   sellerName: string | null;
   planetType: string;
   planetRate: number;
+  // The seller's local planet id at listing time. Nullable on the very
+  // oldest listings created before the column was added. Used by the
+  // marketplace UI to compute a deterministic procedural name as a
+  // fallback when the seller never renamed (paid action).
+  planetId?: string | null;
   // CS:GO-style cosmetic perfection score in [0, 1]. Snapshotted at
   // listing time. Nullable on legacy listings created before the
   // schema column shipped — UI falls back to a deterministic value

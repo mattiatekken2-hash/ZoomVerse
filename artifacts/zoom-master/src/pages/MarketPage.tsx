@@ -6,6 +6,7 @@ import { buyFromMarket, openMarketActivityStream } from "../utils/api";
 import { useGlobalStore, pushMarketSale, refreshMarketListings } from "../store/globalStore";
 import { PlanetFloatBar } from "../components/PlanetFloatBar";
 import { getListingDisplayFloat, FLOAT_PLANET_TYPES } from "../utils/planetFloat";
+import { getPlanetDisplayName, deterministicNameFromId } from "../utils/planetNames";
 
 
 const RARITY_FILTERS: (PlanetType | "ALL")[] = ["ALL", "BASIC", "RARE", "EPIC", "GOLD", "V1"];
@@ -64,7 +65,10 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
       rate: p.rate,
       // Carry the planet's stored cosmetics through to the listing card
       // so the user sees the same name + float they had in the Lab.
-      displayName: p.displayName ?? null,
+      // Use the SAME procedural-name fallback the Lab uses, so the
+      // marketplace card matches what the seller sees in their
+      // inventory even when they never paid for a custom rename.
+      displayName: getPlanetDisplayName(p),
       planetFloat: typeof p.float === "number" ? p.float : null,
     }));
 
@@ -89,7 +93,14 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
       isLocal: false as const,
       serverId: l.id,
       planetFloat: l.planetFloat ?? null,
-      displayName: l.planetDisplayName ?? null,
+      // Same fallback rule as for the seller's own listings: if the
+      // server didn't snapshot a custom name (planet was never paid-
+      // renamed, or it's a legacy listing), derive the deterministic
+      // procedural name from the planet id so buyers see the SAME
+      // string the seller sees in their Lab. Legacy listings without
+      // a planetId fall back to the listing id as a stable seed.
+      displayName: l.planetDisplayName
+        ?? deterministicNameFromId(l.planetId || `listing-${l.id}`),
     })),
   ];
 
