@@ -22,8 +22,9 @@ const C = {
 };
 
 interface AstronautProps {
-  /** "stand" = normal, "sit" = legs tucked (chair), "snack" = holding cookie */
-  pose?: "stand" | "sit" | "snack";
+  /** "stand"  = normal, "sit" = legs tucked (chair), "snack" = holding cookie,
+   *  "coffee" = standing, mug held to chest (same full-height sprite). */
+  pose?: "stand" | "sit" | "snack" | "coffee";
   /** "side"  = visor highlight on the right (looking sideways),
    *  "up"    = visor highlight centered (looking forward / up at window),
    *  "sleep" = dim closed-eye line (used by the SleepingAstronaut wrapper) */
@@ -81,6 +82,19 @@ export function PixelAstronaut({ pose = "stand", facing = "side", legFrame, widt
           <rect x="6" y="5" width="1" height="2" fill={C.suit} />
           <rect x="5" y="6" width="2" height="2" fill="#ffffff" />
           <rect x="5" y="7" width="2" height="1" fill="#8a5a2a" />
+        </>
+      ) : pose === "coffee" ? (
+        <>
+          {/* Right arm raised to chest, holding the mug. Left arm at side. */}
+          <rect x="1" y="4" width="1" height="3" fill={C.suit} />
+          <rect x="6" y="5" width="1" height="2" fill={C.suit} />
+          {/* Mug — white cup with brown coffee top, sits at chest height
+              just in front of the visor. Same scale as `snack` so the
+              full body remains the same height as `stand`. */}
+          <rect x="3" y="4" width="2" height="2" fill="#ffffff" />
+          <rect x="3" y="4" width="2" height="1" fill="#8a5a2a" />
+          {/* Tiny mug handle on the right side */}
+          <rect x="5" y="5" width="1" height="1" fill="#ffffff" />
         </>
       ) : (
         <>

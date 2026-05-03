@@ -967,11 +967,24 @@
    Pixel-art friendly. We keep all transforms on integer-pixel-ish steps
    so the sprite stays crisp on retina + scaled rooms. */
 
+/* Credible stroll cycle (14 s): the astronaut walks one direction,
+   PAUSES for a beat as if looking around, turns, walks the other way,
+   PAUSES again, then repeats. The pauses are explicit hold frames in
+   the keyframe (% values that share the same translateX) so the
+   character is not a relentless ping-pong machine. */
 @keyframes home-astro-walk {
+  /* Walking RIGHT — 0%..28% of the cycle (~3.9s) */
   0%   { transform: translateX(-78px) scaleX(1); }
-  44%  { transform: translateX( 78px) scaleX(1); }
-  50%  { transform: translateX( 78px) scaleX(-1); }
-  94%  { transform: translateX(-78px) scaleX(-1); }
+  28%  { transform: translateX( 78px) scaleX(1); }
+  /* Pause facing right — 28%..46% (~2.5s of stillness) */
+  46%  { transform: translateX( 78px) scaleX(1); }
+  /* Turn around (snap, 1% of the cycle) */
+  47%  { transform: translateX( 78px) scaleX(-1); }
+  /* Walking LEFT — 47%..75% (~3.9s) */
+  75%  { transform: translateX(-78px) scaleX(-1); }
+  /* Pause facing left — 75%..98% (~3.2s of stillness) */
+  98%  { transform: translateX(-78px) scaleX(-1); }
+  /* Turn back to facing right for the next loop */
   100% { transform: translateX(-78px) scaleX(1); }
 }
 @keyframes home-astro-bob {

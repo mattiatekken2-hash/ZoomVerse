@@ -812,15 +812,21 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
       >
         {activity === "sleep" && <SleepingAstronaut width={spriteW * 2} />}
         {activity === "walk" && (
-          <div style={{ animation: "home-astro-walk 8s ease-in-out infinite" }}>
+          // 14 s cycle = walk → pause → walk → pause (see keyframe).
+          // ease-in-out smooths the start/stop of each leg of the walk
+          // so the pauses don't look like the animation hitched.
+          <div style={{ animation: "home-astro-walk 14s ease-in-out infinite" }}>
             <div style={{ animation: "home-astro-bob 0.5s ease-in-out infinite" }}>
               <WalkingAstronaut width={spriteW} />
             </div>
           </div>
         )}
         {activity === "coffee" && (
+          // Standing pose holding a mug — keeps the SAME full-height
+          // sprite as every other activity, so the character does not
+          // visually shrink when he takes a coffee.
           <div style={{ position: "relative" }}>
-            <PixelAstronaut pose="sit" width={spriteW} />
+            <PixelAstronaut pose="coffee" width={spriteW} />
             <CoffeeSteam />
           </div>
         )}
