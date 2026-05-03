@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, Fragment } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
 import type { Planet, SunState } from "../hooks/useGameState";
 import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getSunReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration } from "../hooks/useGameState";
@@ -44,7 +44,19 @@ const RARITY_CLASS: Record<string, string> = {
   EPIC: "rarity-epic",
   GOLD: "rarity-gold",
   V1: "rarity-gold",
+  V1_NFT: "rarity-gold",
 };
+
+// Render order for the per-rarity groups in the planet list. Matches
+// the visual progression BASIC → RARE → EPIC → GOLD → V1 → V1_NFT used
+// across the rest of the app (shop, lab, market filter dropdown).
+// V1_NFT MUST be included — bonus-grant logic in useGameState appends
+// V1_NFT planets into state.planets, and omitting it here would cause
+// them to silently disappear from FarmPage. Any other future type that
+// can land in `planets` is caught by the trailing "OTHER" group below.
+const RARITY_ORDER = ["BASIC", "RARE", "EPIC", "GOLD", "V1", "V1_NFT"] as const;
+type RarityKey = typeof RARITY_ORDER[number];
+type SortDir = "desc" | "asc" | null;
 
 export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRename }: FarmPageProps) {
   const { t } = useT();
@@ -57,6 +69,13 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
   const [slotWalletOpen, setSlotWalletOpen] = useState(false);
   const [defectMsg, setDefectMsg] = useState<string | null>(null);
   const [renamePlanet, setRenamePlanet] = useState<Planet | null>(null);
+  // Per-rarity sort direction for the float column. `null` keeps the
+  // natural insertion order (most-recently-acquired last). Toggling the
+  // same arrow twice clears it. Each rarity has its own state so the
+  // user can sort GOLD by Float-high while leaving BASIC untouched.
+  const [sortDir, setSortDir] = useState<Record<RarityKey, SortDir>>({
+    BASIC: null, RARE: null, EPIC: null, GOLD: null, V1: null, V1_NFT: null,
+  });
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Daily-collect removed — planets now farm autonomously for the full 24h
@@ -78,9 +97,13 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
   };
 
   const openSellPopup = (planet: Planet) => {
+    // Safe lookup: PLANET_CONFIG covers every known rarity but we
+    // defensively fall back to the bare planet name so a future or
+    // legacy rarity that lands in `planets` (rendered through the
+    // FarmPage fallback group) cannot crash the sell popup.
     const cfg = PLANET_CONFIG[planet.name];
     const suggested = Math.floor(planet.craftCost * 2.5);
-    setSellPopup({ planetId: planet.id, planetName: cfg.label, planetColor: planet.color });
+    setSellPopup({ planetId: planet.id, planetName: cfg?.label ?? planet.name, planetColor: planet.color });
     setSellPrice(String(suggested));
     setTimeout(() => inputRef.current?.focus(), 100);
   };
@@ -298,8 +321,102 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
             </div>
           )}
 
-          {/* REGULAR PLANETS */}
-          {planets.map((planet) => {
+          {/* REGULAR PLANETS — grouped by rarity. Each non-empty
+              rarity group is preceded by a small section header that
+              carries a Float-sort widget (▲ = low→high, ▼ = high→low).
+              The sort is per-group so the user can sort GOLD by Float
+              without disturbing BASIC. Tapping the active arrow again
+              clears the sort and restores the natural insertion order. */}
+          {RARITY_ORDER.map((rarity) => {
+            const group = planets.filter((p) => p.name === rarity);
+            if (group.length === 0) return null;
+            const dir = sortDir[rarity];
+            const sorted = dir
+              ? [...group].sort((a, b) => {
+                  const fa = getDisplayFloat(a);
+                  const fb = getDisplayFloat(b);
+                  return dir === "asc" ? fa - fb : fb - fa;
+                })
+              : group;
+            const headerColor = PLANET_CONFIG[rarity]?.color ?? "#ffffff";
+            const setDir = (next: SortDir) =>
+              setSortDir((prev) => ({ ...prev, [rarity]: prev[rarity] === next ? null : next }));
+            return (
+              <Fragment key={`group-${rarity}`}>
+                <div
+                  className="flex items-center justify-between px-1 pt-1"
+                  data-testid={`rarity-header-${rarity}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs font-black tracking-widest ${RARITY_CLASS[rarity]}`}
+                      style={{ letterSpacing: "0.12em" }}
+                    >
+                      {rarity}
+                    </span>
+                    <span
+                      className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                      style={{
+                        background: `${headerColor}1a`,
+                        color: headerColor,
+                        border: `1px solid ${headerColor}40`,
+                      }}
+                    >
+                      {sorted.length}
+                    </span>
+                  </div>
+                  <div
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded-full"
+                    style={{
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.07)",
+                    }}
+                  >
+                    <span
+                      className="text-[9px] font-bold tracking-wider"
+                      style={{ color: "rgba(255,255,255,0.4)", marginRight: 2 }}
+                    >
+                      FLOAT
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setDir("asc")}
+                      aria-label="Sort by Float low to high"
+                      aria-pressed={dir === "asc"}
+                      data-testid={`sort-${rarity}-asc`}
+                      className="flex items-center justify-center"
+                      style={{
+                        width: 22, height: 22, borderRadius: 6,
+                        background: dir === "asc" ? `${headerColor}33` : "transparent",
+                        border: dir === "asc" ? `1px solid ${headerColor}80` : "1px solid transparent",
+                        color: dir === "asc" ? headerColor : "rgba(255,255,255,0.45)",
+                        fontSize: 11, lineHeight: 1, fontWeight: 900,
+                        transition: "background 0.15s, color 0.15s, border-color 0.15s",
+                      }}
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDir("desc")}
+                      aria-label="Sort by Float high to low"
+                      aria-pressed={dir === "desc"}
+                      data-testid={`sort-${rarity}-desc`}
+                      className="flex items-center justify-center"
+                      style={{
+                        width: 22, height: 22, borderRadius: 6,
+                        background: dir === "desc" ? `${headerColor}33` : "transparent",
+                        border: dir === "desc" ? `1px solid ${headerColor}80` : "1px solid transparent",
+                        color: dir === "desc" ? headerColor : "rgba(255,255,255,0.45)",
+                        fontSize: 11, lineHeight: 1, fontWeight: 900,
+                        transition: "background 0.15s, color 0.15s, border-color 0.15s",
+                      }}
+                    >
+                      ▼
+                    </button>
+                  </div>
+                </div>
+                {sorted.map((planet) => {
             const active = isFarmActive(planet);
             const remaining = getFarmTimeRemaining(planet);
             // Daily-collect removed: every rarity (including V1) now farms its
@@ -520,7 +637,103 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
                 </div>
               </div>
             );
+                })}
+              </Fragment>
+            );
           })}
+
+          {/* Safety fallback: render any planet whose `name` is not in
+              RARITY_ORDER as an unsorted, ungrouped tail so a future
+              new rarity (or stray legacy entry) can never silently
+              disappear from FarmPage. The full card UI is reused via
+              the same handlers; only the section header is omitted. */}
+          {(() => {
+            const known = new Set<string>(RARITY_ORDER);
+            const orphans = planets.filter((p) => !known.has(p.name));
+            if (orphans.length === 0) return null;
+            return orphans.map((planet) => {
+              const active = isFarmActive(planet);
+              const remaining = getFarmTimeRemaining(planet);
+              const refund = Math.floor(planet.craftCost * 0.15);
+              const cfg = PLANET_CONFIG[planet.name];
+              const isListed = planet.isListedInMarket;
+              const expired = isFarmExpired(planet);
+              const reactivationFee = getReactivationFee(planet);
+              const handleStartOrReactivate = () => {
+                if (isListed) return;
+                const res = onStartFarming(planet.id);
+                if (!res.ok) {
+                  setDefectMsg(res.reason ?? "Cannot start farming");
+                  setTimeout(() => setDefectMsg(null), 1800);
+                }
+              };
+              return (
+                <div
+                  key={planet.id}
+                  className="slot-enter rounded-2xl p-4 border"
+                  style={{
+                    borderColor: isListed ? "rgba(255,215,0,0.3)" : expired ? "rgba(255,255,255,0.08)" : planet.color + "40",
+                    background: `linear-gradient(135deg, ${planet.color}0d 0%, rgba(6,8,16,0.6) 100%)`,
+                    boxShadow: active ? `0 0 18px ${planet.color}26` : `0 0 10px ${planet.color}10`,
+                    transform: "translateZ(0)",
+                    contain: "layout style paint",
+                  } as React.CSSProperties}
+                  data-testid={`planet-card-${planet.id}`}
+                >
+                  <div className="flex items-center gap-4 mb-4">
+                    <PlanetOrb planet={planet} size={72} animate={active} />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-black text-base tracking-wide" style={{ color: planet.color, opacity: expired ? 0.55 : 1 }}>
+                        {getPlanetDisplayName(planet)}
+                      </div>
+                      <div className="text-xs font-bold" style={{ color: expired ? "rgba(255,82,82,0.75)" : "rgba(255,255,255,0.5)" }}>
+                        {active
+                          ? `+${planet.rate.toLocaleString()} $ZOOM/hr · ${formatDuration(remaining)} left`
+                          : expired
+                          ? `Cycle ended · Reactivate for ${reactivationFee.toLocaleString()} $ZOOM`
+                          : isListed
+                          ? `Listed for ${planet.marketPrice?.toLocaleString()} $ZOOM`
+                          : "Farming stopped"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    {active ? (
+                      <div className="btn-widget btn-glass-farm-active" style={{ cursor: "default", pointerEvents: "none" }} aria-disabled="true">
+                        <span>{t("farm.farming")}</span>
+                        <span style={{ fontSize: 8, opacity: 0.7 }}>{formatDuration(remaining)}</span>
+                      </div>
+                    ) : expired ? (
+                      <button className="btn-widget" style={{ background: `linear-gradient(135deg, ${planet.color}33 0%, ${planet.color}1a 100%)`, border: `1px solid ${planet.color}66`, color: planet.color }} onClick={handleStartOrReactivate}>
+                        <span>REACTIVATE</span>
+                        <span style={{ fontSize: 8, opacity: 0.85 }}>{reactivationFee.toLocaleString()} $ZOOM</span>
+                      </button>
+                    ) : (
+                      <button className={`btn-widget ${isListed ? "" : "btn-glass-farm"}`} disabled={isListed} onClick={handleStartOrReactivate}>
+                        <span>{t("farm.startBig")}</span>
+                        <span style={{ fontSize: 8, opacity: 0.7 }}>{t("farm.farm")}</span>
+                      </button>
+                    )}
+                    <button className={`btn-widget ${isListed ? "" : confirmBurn === planet.id ? "btn-glass-burn-confirm" : "btn-glass-burn"}`} disabled={isListed} onClick={() => !isListed && handleBurnClick(planet.id)}>
+                      <span>{confirmBurn === planet.id ? t("farm.sure") : t("farm.burn")}</span>
+                      <span style={{ fontSize: 8, opacity: 0.7 }}>+{refund}</span>
+                    </button>
+                    {isListed ? (
+                      <button className="btn-widget btn-glass-listed" onClick={() => onUnlist(planet.id)}>
+                        <span style={{ fontSize: 14 }}>✕</span>
+                        <span>{t("farm.listed")}</span>
+                      </button>
+                    ) : (
+                      <button className="btn-widget btn-glass-sell" onClick={() => openSellPopup(planet)}>
+                        <span>{t("farm.sell")}</span>
+                        <span style={{ fontSize: 8, opacity: 0.7 }}>{cfg?.label ?? planet.name}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            });
+          })()}
 
           {Array.from({ length: Math.max(0, maxSlots - planets.length) }).map((_, i) => (
             <div
