@@ -545,11 +545,11 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, onSlotClick, visi
 
         {/* Bed (left wall) — wider variant so the sleeping astronaut
             fits under the covers without spilling over the foot board. */}
-        <PixelBed x={2} y={28} width={18} />
+        <PixelBed x={2} y={28} width={22} />
 
         {/* Shower stall (left, between bed and window/table area). Shifted
             right by 4 units to make room for the wider bed. */}
-        <PixelShower x={22} y={22} />
+        <PixelShower x={26} y={22} />
 
         {/* Dining table + chair (center / right) */}
         <PixelTable x={36} y={36} />
@@ -722,7 +722,7 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
   // Astronaut placement per activity. Coords are % of the room container,
   // matching the SVG's 80×64 furniture layout.
   const astroPos: Record<ReturnType<typeof useAstronautActivity>, { left: string; top: string }> = {
-    sleep: { left: "13.75%", top: "51%" },  // exact center of the bed sheet
+    sleep: { left: "16.25%", top: "51%" },  // exact center of the (wider) bed sheet
     walk: { left: "50%", top: "82%" },      // walking strip across the floor
     coffee: { left: "70%", top: "76%" },    // sitting on the chair
     snack: { left: "55%", top: "78%" },     // standing by the table
@@ -737,7 +737,7 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
   // Pet position + state derive from the astronaut's activity so
   // the two characters always read as a pair.
   const petPos: Record<ReturnType<typeof useAstronautActivity>, { left: string; top: string }> = {
-    sleep: { left: "27%", top: "62%" },     // curled up at the foot of the (wider) bed
+    sleep: { left: "31%", top: "62%" },     // curled up at the foot of the (wider) bed
     walk: { left: "35%", top: "88%" },      // trailing the astronaut
     coffee: { left: "78%", top: "88%" },    // begging by the chair
     snack: { left: "65%", top: "88%" },     // sharing the table snack
@@ -811,10 +811,15 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
         }}
       >
         {activity === "sleep" && (
-          // Width matches the bed sheet area (~1.2 × spriteW after the
-          // bed widening) so the figure fits neatly between the head-
-          // board and the foot board without poking out either side.
-          <SleepingAstronaut width={Math.round(spriteW * 1.2)} />
+          // Total figure ~1.8 × spriteW so the lying body has the same
+          // proportions as a standing astronaut tipped on its side.
+          // helmetWidth = spriteW makes the helmet render at the SAME
+          // visual size as in every other activity (stand, walk, etc.)
+          // — the user wanted the helmet not to shrink while sleeping.
+          <SleepingAstronaut
+            width={Math.round(spriteW * 1.8)}
+            helmetWidth={spriteW}
+          />
         )}
         {activity === "walk" && (
           // 14 s cycle = walk → pause → walk → pause (see keyframe).

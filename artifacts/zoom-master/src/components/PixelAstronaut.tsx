@@ -252,11 +252,19 @@ export function PixelAstronautHead({
  *  Layout (logical units, the wrapper is `width` long × `helmetH+pad`
  *  tall): helmet on the LEFT (over the pillow), sheet extending RIGHT
  *  for the rest of the bed length. */
-export function SleepingAstronaut({ width = 70 }: { width?: number }) {
-  // Helmet sprite is 8 wide × 4 tall (PixelAstronautHead ratio). Size
-  // it so it occupies ~30% of the total bed length — that matches the
-  // pillow proportions in the PixelBed SVG.
-  const helmetW = Math.round(width * 0.3);
+export function SleepingAstronaut({
+  width = 70,
+  helmetWidth,
+}: {
+  width?: number;
+  /** Bounding-box width passed to PixelAstronautHead. Defaults to
+   *  ~30% of the total figure width, but HomePage overrides this with
+   *  the standing-astronaut spriteW so the helmet keeps the SAME
+   *  visual size whether the character is standing or sleeping. */
+  helmetWidth?: number;
+}) {
+  // Helmet sprite is 8 wide × 4 tall (PixelAstronautHead ratio).
+  const helmetW = helmetWidth ?? Math.round(width * 0.3);
   const helmetH = Math.round((helmetW * 4) / 8);
   // Sheet covers the remaining ~70% of the bed length, ending just
   // shy of the foot board.
