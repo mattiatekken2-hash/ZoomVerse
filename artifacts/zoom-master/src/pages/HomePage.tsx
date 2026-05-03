@@ -522,7 +522,10 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, onSlotClick, visi
   // Slot screen positions (% of room) — kept fixed across all devices.
   const SLOT_POS: Record<Slot, { left: string; top: string }> = {
     A: { left: "18%", top: "44%" },   // left: bedside table
-    B: { left: "50%", top: "53%" },   // center: dining table
+    B: { left: "54%", top: "48%" },   // center: SITTING ON the dining table top
+                                       // (table top surface is at y≈36/64 ≈ 56% — with the
+                                       //  monitor sprite ~48px tall, centering at 48% lands
+                                       //  the stand right on the table.)
     C: { left: "82%", top: "60%" },   // right: floor pedestal
   };
 
