@@ -24,9 +24,10 @@ const C = {
 interface AstronautProps {
   /** "stand" = normal, "sit" = legs tucked (chair), "snack" = holding cookie */
   pose?: "stand" | "sit" | "snack";
-  /** "side" = visor highlight on the right (looking sideways),
-   *  "up"   = visor highlight centered (looking forward / up at window) */
-  facing?: "side" | "up";
+  /** "side"  = visor highlight on the right (looking sideways),
+   *  "up"    = visor highlight centered (looking forward / up at window),
+   *  "sleep" = dim closed-eye line (used by the SleepingAstronaut wrapper) */
+  facing?: "side" | "up" | "sleep";
   /** Walk-cycle leg frame. When set, legs alternate to suggest a step.
    *  "a" = left leg lifted, "b" = right leg lifted. */
   legFrame?: "a" | "b";
@@ -53,7 +54,9 @@ export function PixelAstronaut({ pose = "stand", facing = "side", legFrame, widt
       <rect x="1" y="0" width="6" height="4" fill={C.helmet} />
       {/* Visor */}
       <rect x="2" y="1" width="4" height="2" fill={C.visor} />
-      {facing === "up" ? (
+      {facing === "sleep" ? (
+        <rect x="2" y="2" width="4" height="1" fill={C.sleepLine} />
+      ) : facing === "up" ? (
         <rect x="3" y="1" width="2" height="1" fill={C.visorShine} />
       ) : (
         <rect x="4" y="1" width="1" height="1" fill={C.visorShine} />
@@ -226,38 +229,55 @@ export function PixelAstronautHead({
   );
 }
 
-/** Astronaut lying horizontally on the bed — helmet on the left over
- *  the pillow, body covered by a sheet. Plus 3 staggered floating Z's
- *  drifting up from the helmet. Sprite is 14×4 logical (helmet 4×4 +
- *  sheet 10×3 with a darker fold). */
+/** Astronaut sleeping on the bed. Uses the SAME PixelAstronaut sprite
+ *  as every other activity — helmet + suit always visible, no skin
+ *  swap — so the character stays consistent. The sprite is rotated
+ *  -90deg (head to the left, feet to the right) so it lies on the bed,
+ *  with a sheet stripe across the legs and 3 floating Z's. */
 export function SleepingAstronaut({ width = 56 }: { width?: number }) {
-  const height = Math.round((width * 4) / 14);
+  // The wrapper is sized to the rotated sprite footprint: original
+  // sprite is `spriteW` wide × `spriteW * 1.5` tall, so after a -90deg
+  // rotation we end up `spriteW * 1.5` wide × `spriteW` tall. We pick
+  // a sprite size that keeps the lying figure ~`width` long.
+  const spriteW = Math.round(width * 0.66);
+  const spriteH = Math.round((spriteW * 12) / 8);
+  const sheetTop = Math.round(spriteW * 0.55);
   return (
-    <div style={{ position: "relative", width, height: height + 8 }}>
-      <svg
-        viewBox="0 0 14 4"
-        width={width}
-        height={height}
-        style={{ imageRendering: "pixelated", display: "block", position: "absolute", left: 0, bottom: 0 }}
+    <div style={{ position: "relative", width: spriteH, height: spriteW + 8 }}>
+      {/* Sheet stripe covering the legs / lower body. Sits BEHIND the
+          rotated astronaut so the helmet + suit body still read clearly. */}
+      <div
+        style={{
+          position: "absolute",
+          left: Math.round(spriteH * 0.45),
+          top: sheetTop,
+          width: Math.round(spriteH * 0.55),
+          height: Math.round(spriteW * 0.45),
+          background: C.sheet,
+          borderBottom: `2px solid ${C.sheetShade}`,
+        }}
+      />
+      {/* Astronaut sprite, rotated -90deg so the head is on the left */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: Math.round((spriteW - spriteH) / 2 + spriteH / 2 - spriteW / 2),
+          width: spriteW,
+          height: spriteH,
+          transform: "rotate(-90deg)",
+          transformOrigin: "center center",
+        }}
       >
-        {/* Helmet (lying sideways on the pillow) */}
-        <rect x="0" y="0" width="4" height="4" fill={C.helmet} />
-        {/* Visor — closed-eye line, dim */}
-        <rect x="1" y="1" width="2" height="2" fill={C.visor} />
-        <rect x="1" y="2" width="2" height="1" fill={C.sleepLine} />
-        {/* Sheet covering the body */}
-        <rect x="4" y="1" width="10" height="3" fill={C.sheet} />
-        {/* Sheet fold (darker stripe along the bottom) */}
-        <rect x="4" y="3" width="10" height="1" fill={C.sheetShade} />
-        {/* Tiny lump suggesting the chest */}
-        <rect x="6" y="0" width="3" height="1" fill={C.sheet} />
-      </svg>
+        <PixelAstronaut pose="stand" facing="sleep" width={spriteW} />
+      </div>
+      {/* Floating Z's drifting up from the helmet area (left side). */}
       {[0, 1.1, 2.2].map((delay, i) => (
         <span
           key={i}
           style={{
             position: "absolute",
-            left: Math.round(width * 0.2),
+            left: Math.round(spriteH * 0.1),
             top: -6,
             fontSize: 10,
             fontWeight: 900,
@@ -319,28 +339,15 @@ export function DrinkingAstronaut({ width = 28 }: { width?: number }) {
   );
 }
 
-/** Astronaut head + bare shoulders inside the shower stall, with three
- *  staggered water drops falling from above. Visually paired with the
- *  PixelShower stall in the room SVG — the body is hidden by the glass. */
+/** Astronaut inside the shower stall, with three staggered water drops
+ *  falling on him from above. Uses the SAME PixelAstronaut sprite as
+ *  every other activity (helmet + full suit) — no bare-skin swap — so
+ *  the character stays consistent. */
 export function ShoweringAstronaut({ width = 28 }: { width?: number }) {
   const height = Math.round((width * 12) / 8);
-  const skin = "#f3d4b4";
   return (
     <div style={{ position: "relative", width, height }}>
-      {/* Head + shoulders only — body is "behind" the shower glass */}
-      <svg
-        viewBox="0 0 8 12"
-        width={width}
-        height={height}
-        style={{ imageRendering: "pixelated", display: "block" }}
-      >
-        <rect x="1" y="3" width="6" height="4" fill={C.helmet} />
-        <rect x="2" y="4" width="4" height="2" fill={C.visor} />
-        {/* Closed eye line — eyes shut to keep water out */}
-        <rect x="2" y="5" width="4" height="1" fill={C.sleepLine} />
-        {/* Bare shoulders */}
-        <rect x="2" y="7" width="4" height="2" fill={skin} />
-      </svg>
+      <PixelAstronaut pose="stand" facing="up" width={width} />
       {/* Falling water drops from the showerhead */}
       {[
         { left: "30%", delay: 0 },

@@ -824,7 +824,14 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
           </div>
         )}
         {activity === "snack" && <PixelAstronaut pose="snack" width={spriteW} />}
-        {activity === "window" && <PixelAstronaut pose="stand" facing="up" width={spriteW} />}
+        {activity === "window" && (
+          // Gentle horizontal sway — looks like he's leaning side to
+          // side at the window, NOT a full body turn (which the player
+          // explicitly disliked). 4 s cycle keeps it subtle.
+          <div style={{ animation: "home-astro-window-sway 4s ease-in-out infinite" }}>
+            <PixelAstronaut pose="stand" facing="up" width={spriteW} />
+          </div>
+        )}
         {activity === "exercise" && <ExercisingAstronaut width={spriteW} />}
         {activity === "fridge" && <DrinkingAstronaut width={spriteW} />}
         {activity === "shower" && <ShoweringAstronaut width={spriteW} />}

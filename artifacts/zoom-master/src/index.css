@@ -1045,3 +1045,12 @@
   0%, 92%, 100% { transform: scaleY(1); }
   94%, 98%      { transform: scaleY(0.1); }
 }
+
+/* ─── HOME — gentle window-watching sway ────────────────────────────
+   Subtle horizontal lean (±1 px) used while the astronaut is at the
+   window. Replaces a previous full-body turn that the player found
+   unnatural. Pure transform = GPU friendly. */
+@keyframes home-astro-window-sway {
+  0%, 100% { transform: translateX(-1px); }
+  50%      { transform: translateX(1px);  }
+}
