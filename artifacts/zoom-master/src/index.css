@@ -1390,3 +1390,19 @@
     inset 0 -1px 0 rgba(80,100,140,0.35);
   border: 1px solid rgba(255,255,255,0.6);
 }
+
+/* ─── 3D orbiting "NFT" text ring around V1_NFT planet sprite ────────
+   Slow horizontal orbit (kept tilted on X so the ring reads as an
+   ellipse, not a flat line). 16s loop = a calm, premium pace. */
+@keyframes nft-orbit-spin {
+  from { transform: rotateX(72deg) rotateY(0deg); }
+  to   { transform: rotateX(72deg) rotateY(360deg); }
+}
+.nft-orbit-ring {
+  animation: nft-orbit-spin 16s linear infinite;
+  transform: rotateX(72deg);
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nft-orbit-ring { animation: none; }
+}

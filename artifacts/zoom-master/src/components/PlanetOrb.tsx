@@ -368,6 +368,65 @@ function PlanetOrbImpl({ planet, size = 60, animate = true, displayFloat }: Plan
           </>
         )}
       </div>
+      {/* V1 NFT Platinum — 3D orbiting "NFT" text ring. Three NFT glyphs
+          equally spaced (120° apart) ride a circle whose plane is the
+          XZ plane (slightly tilted on X so the orbit reads as a flat
+          horizontal ellipse from the user's POV). The ring spins on its
+          Y axis very slowly so each glyph passes in front of and behind
+          the orb. Pure CSS 3D — no extra JS, GPU-friendly.            */}
+      {planet.name === "V1_NFT" && (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            perspective: `${size * 6}px`,
+            pointerEvents: "none",
+            zIndex: 4,
+          }}
+        >
+          <div
+            className="nft-orbit-ring"
+            style={{
+              position: "relative",
+              width: size,
+              height: size,
+              transformStyle: "preserve-3d",
+            }}
+          >
+            {[0, 120, 240].map((deg) => (
+              <span
+                key={deg}
+                className="nft-orbit-glyph"
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  left: "50%",
+                  fontSize: Math.max(9, size * 0.18),
+                  fontWeight: 900,
+                  letterSpacing: 1.5,
+                  // Each glyph is offset around the orbit, then rotated
+                  // back upright so the text always faces the viewer
+                  // (counter-rotates the parent's X tilt and its own Y).
+                  transform: `translate(-50%, -50%) rotateY(${deg}deg) translateZ(${size * 0.62}px) rotateX(-72deg)`,
+                  background: "linear-gradient(135deg,#ffffff 0%,#cfe4ff 50%,#ffffff 100%)",
+                  WebkitBackgroundClip: "text",
+                  backgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  color: "transparent",
+                  textShadow: "0 0 8px rgba(220,232,255,0.55)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                NFT
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
       {/* V1 NFT Platinum — sparkle particles. Four ★ glyphs at fixed
           relative positions around the orb fade in/out on staggered
           schedules so the planet always feels alive without ever
