@@ -432,7 +432,11 @@ function AstroStatusPill() {
   // Map activity → which face variant best represents it.
   // sleep → closed eye line; window → looking up; everything else → side.
   const variant: "side" | "up" | "sleep" =
-    activity === "sleep" ? "sleep" : activity === "window" || activity === "exercise" ? "up" : "side";
+    activity === "sleep" || activity === "shower"
+      ? "sleep"
+      : activity === "window" || activity === "exercise"
+      ? "up"
+      : "side";
   return (
     <div
       title={`Astronauta: ${label}`}

@@ -1018,3 +1018,19 @@
   0%, 49.999% { opacity: 0; }
   50%, 100%   { opacity: 1; }
 }
+
+/* ─── HOME — water drops for the SHOWER activity ─────────────────────
+   Each drop falls from the showerhead toward the floor and fades out.
+   Pixel-friendly: linear timing, no easing. */
+@keyframes home-water-drop {
+  0%   { transform: translateY(0);    opacity: 0.95; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(48px); opacity: 0; }
+}
+
+/* Fridge "open" door wiggle / drink sip cycle */
+@keyframes home-fridge-sip {
+  0%, 40%   { transform: translateY(0); }
+  50%, 90%  { transform: translateY(-2px); }
+  100%      { transform: translateY(0); }
+}

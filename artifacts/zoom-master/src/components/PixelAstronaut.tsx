@@ -273,6 +273,99 @@ export function SleepingAstronaut({ width = 56 }: { width?: number }) {
   );
 }
 
+/** Astronaut facing left, drinking from a small can/bottle. Used by the
+ *  FRIDGE activity — paired with a PixelFridge in the room SVG and an
+ *  open-door overlay so it reads as "took a drink out of the fridge". */
+export function DrinkingAstronaut({ width = 28 }: { width?: number }) {
+  const height = Math.round((width * 12) / 8);
+  const drink = "#3a78d8";
+  const drinkHi = "#7fb6ff";
+  return (
+    <div
+      style={{
+        position: "relative",
+        width,
+        height,
+        animation: "home-fridge-sip 2.4s ease-in-out infinite",
+      }}
+    >
+      <svg viewBox="0 0 8 12" width={width} height={height} style={{ imageRendering: "pixelated", display: "block" }}>
+        {/* Backpack */}
+        <rect x="0" y="4" width="2" height="3" fill={C.suitShade} />
+        {/* Helmet */}
+        <rect x="1" y="0" width="6" height="4" fill={C.helmet} />
+        {/* Visor */}
+        <rect x="2" y="1" width="4" height="2" fill={C.visor} />
+        {/* Visor shine on the LEFT — facing the fridge */}
+        <rect x="3" y="1" width="1" height="1" fill={C.visorShine} />
+        {/* Body */}
+        <rect x="2" y="4" width="4" height="4" fill={C.suit} />
+        <rect x="3" y="5" width="2" height="1" fill={C.accent} />
+        <rect x="2" y="7" width="4" height="1" fill={C.suitShade} />
+        {/* Right arm at side */}
+        <rect x="6" y="4" width="1" height="3" fill={C.suit} />
+        {/* Left arm raised holding a can */}
+        <rect x="1" y="3" width="1" height="2" fill={C.suit} />
+        {/* Can */}
+        <rect x="0" y="2" width="2" height="2" fill={drink} />
+        <rect x="0" y="2" width="2" height="1" fill={drinkHi} />
+        {/* Legs */}
+        <rect x="2" y="9" width="2" height="2" fill={C.suit} />
+        <rect x="4" y="9" width="2" height="2" fill={C.suit} />
+        <rect x="2" y="11" width="2" height="1" fill={C.suitShade} />
+        <rect x="4" y="11" width="2" height="1" fill={C.suitShade} />
+      </svg>
+    </div>
+  );
+}
+
+/** Astronaut head + bare shoulders inside the shower stall, with three
+ *  staggered water drops falling from above. Visually paired with the
+ *  PixelShower stall in the room SVG — the body is hidden by the glass. */
+export function ShoweringAstronaut({ width = 28 }: { width?: number }) {
+  const height = Math.round((width * 12) / 8);
+  const skin = "#f3d4b4";
+  return (
+    <div style={{ position: "relative", width, height }}>
+      {/* Head + shoulders only — body is "behind" the shower glass */}
+      <svg
+        viewBox="0 0 8 12"
+        width={width}
+        height={height}
+        style={{ imageRendering: "pixelated", display: "block" }}
+      >
+        <rect x="1" y="3" width="6" height="4" fill={C.helmet} />
+        <rect x="2" y="4" width="4" height="2" fill={C.visor} />
+        {/* Closed eye line — eyes shut to keep water out */}
+        <rect x="2" y="5" width="4" height="1" fill={C.sleepLine} />
+        {/* Bare shoulders */}
+        <rect x="2" y="7" width="4" height="2" fill={skin} />
+      </svg>
+      {/* Falling water drops from the showerhead */}
+      {[
+        { left: "30%", delay: 0 },
+        { left: "50%", delay: 0.35 },
+        { left: "70%", delay: 0.7 },
+      ].map(({ left, delay }, i) => (
+        <span
+          key={i}
+          style={{
+            position: "absolute",
+            left,
+            top: -8,
+            width: Math.max(2, Math.round(width * 0.06)),
+            height: Math.max(4, Math.round(width * 0.14)),
+            background: "#7fc8ff",
+            borderRadius: 1,
+            opacity: 0.9,
+            animation: `home-water-drop 0.9s linear ${delay}s infinite`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 /** Three little steam puffs rising from a coffee mug. Positioned with
  *  absolute coords relative to a positioned parent (the COFFEE pose
  *  wrapper). */

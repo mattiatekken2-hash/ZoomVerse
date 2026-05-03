@@ -14,6 +14,8 @@ import {
   PixelBird,
   WalkingAstronaut,
   ExercisingAstronaut,
+  DrinkingAstronaut,
+  ShoweringAstronaut,
 } from "../components/PixelAstronaut";
 import { useAstronautActivity } from "../hooks/useAstronautActivity";
 
@@ -521,12 +523,19 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, onSlotClick, visi
         {/* Window — large panoramic window in the back wall */}
         <PixelWindow x={28} y={4} w={36} h={26} sky={sky} ground={ground} phase={phase} />
 
-        {/* Bed (left wall) */}
-        <PixelBed x={2} y={28} />
+        {/* Bed (left wall) — narrow variant so we make room for the
+            shower stall right next to it. */}
+        <PixelBed x={2} y={28} width={14} />
+
+        {/* Shower stall (left, between bed and window/table area) */}
+        <PixelShower x={18} y={22} />
 
         {/* Dining table + chair (center / right) */}
         <PixelTable x={36} y={36} />
         <PixelChair x={50} y={42} />
+
+        {/* Fridge — right wall, sits on the floor */}
+        <PixelFridge x={68} y={24} />
       </svg>
 
       {/* Life overlay — astronaut going about his routine, plus the
@@ -627,6 +636,25 @@ interface Bird {
 function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean }) {
   const activity = useAstronautActivity();
   const [birds, setBirds] = useState<Bird[]>([]);
+  // Measure the room so the astronaut sprite scales relative to the
+  // room size — keeps the character a sensible portion of the bed,
+  // table, fridge etc. on every device.
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const [roomW, setRoomW] = useState(420);
+  useEffect(() => {
+    const node = overlayRef.current;
+    if (!node) return;
+    setRoomW(node.clientWidth);
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width;
+      if (w) setRoomW(w);
+    });
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, []);
+  // Sprite width ~12% of room width, clamped so it never gets unreadable
+  // on tiny screens or absurdly large on tablets/desktop.
+  const spriteW = Math.max(48, Math.min(110, Math.round(roomW * 0.12)));
   // Persistent monotonic bird id so that stale cull timeouts from a
   // previous effect run can never collide with a freshly-spawned bird's
   // id and cause flicker.
@@ -673,17 +701,20 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
   // Astronaut placement per activity. Coords are % of the room container,
   // matching the SVG's 80×64 furniture layout.
   const astroPos: Record<ReturnType<typeof useAstronautActivity>, { left: string; top: string }> = {
-    sleep: { left: "16%", top: "53%" },     // on the bed (head on pillow)
+    sleep: { left: "11%", top: "53%" },     // on the (narrower) bed
     walk: { left: "50%", top: "82%" },      // walking strip across the floor
     coffee: { left: "70%", top: "76%" },    // sitting on the chair
     snack: { left: "55%", top: "78%" },     // standing by the table
     window: { left: "58%", top: "62%" },    // facing the window
     exercise: { left: "40%", top: "78%" },  // jumping jacks center floor
+    fridge: { left: "82%", top: "60%" },    // in front of the fridge
+    shower: { left: "29%", top: "48%" },    // inside the shower stall
   };
   const pos = astroPos[activity];
 
   return (
     <div
+      ref={overlayRef}
       aria-hidden
       style={{
         position: "absolute",
@@ -724,35 +755,38 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
         ))}
       </div>
 
-      {/* Astronaut */}
+      {/* Astronaut — sprite size scales with the measured room width
+          so the character is always proportional to the furniture. */}
       <div
         style={{
           position: "absolute",
           left: pos.left,
           top: pos.top,
-          width: 28,
-          height: 28,
+          width: spriteW,
+          height: spriteW,
           transform: "translate(-50%, -50%)",
           transition: "left 0.6s ease, top 0.6s ease",
         }}
       >
-        {activity === "sleep" && <SleepingAstronaut />}
+        {activity === "sleep" && <SleepingAstronaut width={spriteW * 2} />}
         {activity === "walk" && (
           <div style={{ animation: "home-astro-walk 8s ease-in-out infinite" }}>
             <div style={{ animation: "home-astro-bob 0.5s ease-in-out infinite" }}>
-              <WalkingAstronaut />
+              <WalkingAstronaut width={spriteW} />
             </div>
           </div>
         )}
         {activity === "coffee" && (
           <div style={{ position: "relative" }}>
-            <PixelAstronaut pose="sit" />
+            <PixelAstronaut pose="sit" width={spriteW} />
             <CoffeeSteam />
           </div>
         )}
-        {activity === "snack" && <PixelAstronaut pose="snack" />}
-        {activity === "window" && <PixelAstronaut pose="stand" facing="up" />}
-        {activity === "exercise" && <ExercisingAstronaut />}
+        {activity === "snack" && <PixelAstronaut pose="snack" width={spriteW} />}
+        {activity === "window" && <PixelAstronaut pose="stand" facing="up" width={spriteW} />}
+        {activity === "exercise" && <ExercisingAstronaut width={spriteW} />}
+        {activity === "fridge" && <DrinkingAstronaut width={spriteW} />}
+        {activity === "shower" && <ShoweringAstronaut width={spriteW} />}
       </div>
     </div>
   );
@@ -800,23 +834,92 @@ function PixelWindow({ x, y, w, h, sky, ground, phase }: { x: number; y: number;
   );
 }
 
-function PixelBed({ x, y }: { x: number; y: number }) {
+function PixelBed({ x, y, width = 22 }: { x: number; y: number; width?: number }) {
   const frame = "#5d3b1e";
   const sheet = "#7da7d9";
   const sheetDark = "#5e8bbd";
   const pillow = "#f3f0e6";
+  // Internal proportions scale with the bed width so a narrower bed
+  // still keeps a sensible pillow + sheet layout.
+  const sheetW = width - 6;
+  const pillowW = Math.max(3, Math.round(sheetW * 0.35));
   return (
     <g>
       {/* Frame */}
-      <rect x={x} y={y + 6} width={22} height={4} fill={frame} />
-      {/* Headboard */}
+      <rect x={x} y={y + 6} width={width} height={4} fill={frame} />
+      {/* Headboard (left, tall) + foot board (right, short) */}
       <rect x={x} y={y} width={3} height={10} fill={frame} />
-      <rect x={x + 19} y={y + 3} width={3} height={7} fill={frame} />
+      <rect x={x + width - 3} y={y + 3} width={3} height={7} fill={frame} />
       {/* Sheet */}
-      <rect x={x + 3} y={y + 2} width={16} height={5} fill={sheet} />
-      <rect x={x + 3} y={y + 6} width={16} height={1} fill={sheetDark} />
-      {/* Pillow */}
-      <rect x={x + 4} y={y + 3} width={5} height={3} fill={pillow} />
+      <rect x={x + 3} y={y + 2} width={sheetW} height={5} fill={sheet} />
+      <rect x={x + 3} y={y + 6} width={sheetW} height={1} fill={sheetDark} />
+      {/* Pillow — sits at the head end (left, after the headboard) */}
+      <rect x={x + 4} y={y + 3} width={pillowW} height={3} fill={pillow} />
+    </g>
+  );
+}
+
+/** Wall-mounted shower stall on the floor: tile back wall, showerhead,
+ *  pale-blue glass front and a darker tray base. Drawn as a 10×18 unit
+ *  block in the room's 80×64 viewBox. */
+function PixelShower({ x, y }: { x: number; y: number }) {
+  const tile = "#3b4658";
+  const tileLine = "#2c3445";
+  const frame = "#9aa6b8";
+  const glass = "#bcd9ec";
+  const glassShade = "#8fb6d6";
+  const head = "#5b5b66";
+  const trayDark = "#5b6470";
+  return (
+    <g>
+      {/* Back tile wall */}
+      <rect x={x + 1} y={y + 1} width={8} height={14} fill={tile} />
+      {/* Tile grout lines */}
+      <rect x={x + 1} y={y + 6} width={8} height={1} fill={tileLine} />
+      <rect x={x + 1} y={y + 11} width={8} height={1} fill={tileLine} />
+      {/* Showerhead (top center) */}
+      <rect x={x + 4} y={y + 1} width={1} height={2} fill={head} />
+      <rect x={x + 3} y={y + 3} width={3} height={1} fill={head} />
+      {/* Pale glass front */}
+      <rect x={x + 1} y={y + 4} width={8} height={11} fill={glass} opacity={0.55} />
+      <rect x={x + 1} y={y + 14} width={8} height={1} fill={glassShade} />
+      {/* Frame (sides + top + bottom rail) */}
+      <rect x={x} y={y} width={1} height={18} fill={frame} />
+      <rect x={x + 9} y={y} width={1} height={18} fill={frame} />
+      <rect x={x} y={y} width={10} height={1} fill={frame} />
+      {/* Tray base */}
+      <rect x={x} y={y + 15} width={10} height={3} fill={trayDark} />
+    </g>
+  );
+}
+
+/** Two-door fridge with handles. Drawn as a 10×16 unit block. The OPEN
+ *  variant (door swung out + bottle inside) is rendered separately as
+ *  an HTML overlay during the FRIDGE activity. */
+function PixelFridge({ x, y }: { x: number; y: number }) {
+  const body = "#e0e0e6";
+  const bodyShade = "#a8a8b0";
+  const door = "#cdcdd4";
+  const trim = "#5b5b66";
+  const handle = "#3a3a44";
+  return (
+    <g>
+      {/* Body */}
+      <rect x={x} y={y} width={10} height={16} fill={body} />
+      {/* Side shading */}
+      <rect x={x} y={y} width={1} height={16} fill={bodyShade} />
+      <rect x={x + 9} y={y} width={1} height={16} fill={bodyShade} />
+      {/* Freezer door (top) */}
+      <rect x={x + 1} y={y + 1} width={8} height={4} fill={door} />
+      {/* Split */}
+      <rect x={x + 1} y={y + 5} width={8} height={1} fill={trim} />
+      {/* Main door */}
+      <rect x={x + 1} y={y + 6} width={8} height={9} fill={door} />
+      {/* Handles */}
+      <rect x={x + 7} y={y + 2} width={1} height={2} fill={handle} />
+      <rect x={x + 7} y={y + 8} width={1} height={5} fill={handle} />
+      {/* Floor shadow */}
+      <rect x={x} y={y + 15} width={10} height={1} fill={trim} />
     </g>
   );
 }

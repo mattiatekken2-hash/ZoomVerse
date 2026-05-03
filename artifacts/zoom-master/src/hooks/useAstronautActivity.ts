@@ -13,9 +13,26 @@ import { useSyncExternalStore } from "react";
 // (ref-counted), so background CPU stays at zero when no one is looking.
 // ────────────────────────────────────────────────────────────────────────
 
-export type AstronautActivity = "sleep" | "walk" | "coffee" | "snack" | "window" | "exercise";
+export type AstronautActivity =
+  | "sleep"
+  | "walk"
+  | "coffee"
+  | "snack"
+  | "window"
+  | "exercise"
+  | "fridge"
+  | "shower";
 
-const ACTIVITIES: AstronautActivity[] = ["sleep", "walk", "coffee", "snack", "window", "exercise"];
+const ACTIVITIES: AstronautActivity[] = [
+  "sleep",
+  "walk",
+  "coffee",
+  "snack",
+  "window",
+  "exercise",
+  "fridge",
+  "shower",
+];
 
 let current: AstronautActivity = "walk";
 const listeners = new Set<() => void>();
@@ -77,4 +94,6 @@ export const ACTIVITY_LABEL_IT: Record<AstronautActivity, string> = {
   snack: "spuntino",
   window: "guarda fuori",
   exercise: "esercizi",
+  fridge: "frigo",
+  shower: "doccia",
 };
