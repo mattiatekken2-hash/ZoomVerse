@@ -219,7 +219,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     label: "Basic",
     craftCost: 20,
     activationTon: 0.05,
-    tapsNeeded: 50,
+    tapsNeeded: 75,
     reactivationFee: 25,
   },
   RARE: {
@@ -230,7 +230,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     label: "Rare",
     craftCost: 40,
     activationTon: 0.15,
-    tapsNeeded: 100,
+    tapsNeeded: 150,
     reactivationFee: 200,
   },
   EPIC: {
@@ -241,7 +241,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     label: "Epic",
     craftCost: 80,
     activationTon: 0.5,
-    tapsNeeded: 250,
+    tapsNeeded: 350,
     reactivationFee: 1000,
   },
   // MYTHIC — new tier between EPIC and GOLD. Drop rate is the midpoint
@@ -259,7 +259,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     // same 24h cycle as all other planets, after which it must be
     // reactivated with ZOOM (reactivationFee).
     activationTon: 0,
-    tapsNeeded: 375,
+    tapsNeeded: 500,
     reactivationFee: 1500,
   },
   GOLD: {
@@ -270,7 +270,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     label: "Gold",
     craftCost: 150,
     activationTon: 1.0,
-    tapsNeeded: 500,
+    tapsNeeded: 700,
     reactivationFee: 2000,
   },
   // V1 — ultra-rare apex planet. ~10× rarer than Gold (1 in 20,000 forge).
@@ -284,7 +284,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     label: "V1",
     craftCost: 250,
     activationTon: 2.0,
-    tapsNeeded: 1000,
+    tapsNeeded: 1300,
     reactivationFee: 4000,
   },
   // V1 NFT Platinum Edition — esclusivo NFT vendibile SOLO via shop (20 TON,
@@ -299,7 +299,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     label: "V1 NFT",
     craftCost: 250,
     activationTon: 2.0,
-    tapsNeeded: 1000,
+    tapsNeeded: 1300,
     reactivationFee: 4000,
   },
   // White Collection — only obtainable via the 30 TON shop bundle.
