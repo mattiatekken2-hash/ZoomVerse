@@ -254,7 +254,10 @@ export const PLANET_CONFIG: Record<PlanetType, {
     chance: 0.00275,
     label: "Mythic",
     craftCost: 115,
-    activationTon: 0.75,
+    // No TON activation — MYTHIC starts farming for free and follows the
+    // same 24h cycle as all other planets, after which it must be
+    // reactivated with ZOOM (reactivationFee).
+    activationTon: 0,
     tapsNeeded: 375,
     reactivationFee: 1500,
   },
