@@ -250,27 +250,41 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
               const ago = Math.max(0, Math.floor((Date.now() - s.soldAt) / 1000));
               const agoLabel = ago < 60 ? `${ago}s ago` : ago < 3600 ? `${Math.floor(ago / 60)}m ago` : `${Math.floor(ago / 3600)}h ago`;
               const isPulsing = pulseId === s.id;
+              const saleFloat = FLOAT_PLANET_TYPES.has(s.planetType)
+                ? getListingDisplayFloat({ id: `sale-${s.id}`, planetFloat: s.planetFloat })
+                : undefined;
+              // Same gold-glow rule as Farm/Marketplace cards: only the
+              // absolute Perfect float (= 1.000) triggers the rotating
+              // ring + warm gold gradient. Pulse (NEW) takes priority.
+              const isPerfectFloat = typeof saleFloat === "number" && saleFloat >= 1;
               return (
                 <div
                   key={s.id}
-                  className="rounded-xl border flex items-center gap-3 px-3 py-2.5"
+                  className={`rounded-xl border flex items-center gap-3 px-3 py-2.5 ${!isPulsing && isPerfectFloat ? "perfect-card-glow" : ""}`}
                   style={{
-                    borderColor: isPulsing ? "#00e676" : rarityColor + "22",
+                    borderColor: isPulsing
+                      ? "#00e676"
+                      : isPerfectFloat
+                      ? "rgba(255,215,0,0.45)"
+                      : rarityColor + "22",
                     background: isPulsing
                       ? "rgba(0,230,118,0.08)"
+                      : isPerfectFloat
+                      ? "linear-gradient(135deg, rgba(255,215,0,0.18) 0%, rgba(255,170,40,0.10) 45%, rgba(20,12,4,0.85) 100%)"
                       : `linear-gradient(135deg, ${rarityColor}06 0%, rgba(6,8,16,0.55) 100%)`,
-                    boxShadow: isPulsing ? "0 0 24px rgba(0,230,118,0.45)" : "none",
+                    boxShadow: isPulsing
+                      ? "0 0 24px rgba(0,230,118,0.45)"
+                      : isPerfectFloat
+                      ? "0 0 22px rgba(255,215,0,0.35)"
+                      : "none",
                     transition: "all 0.4s ease",
                   }}
                   data-testid={`sale-${s.id}`}
                 >
                   {(() => {
-                    const saleFloat = FLOAT_PLANET_TYPES.has(s.planetType)
-                      ? getListingDisplayFloat({ id: `sale-${s.id}`, planetFloat: s.planetFloat })
-                      : undefined;
                     return (
                       <>
-                        <PlanetOrb planet={fakePlanet} size={42} animate={false} displayFloat={saleFloat} />
+                        <PlanetOrb planet={fakePlanet} size={42} animate={isPerfectFloat} displayFloat={saleFloat} />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full" style={{ color: rarityColor, background: rarityColor + "14", border: `1px solid ${rarityColor}33` }}>
