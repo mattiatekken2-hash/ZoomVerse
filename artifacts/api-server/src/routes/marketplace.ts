@@ -168,11 +168,17 @@ router.post("/market/list", async (req, res) => {
       res.status(409).json({ error: "Planet already listed" });
       return;
     }
-    if (planet["isFarmingActive"] === true) {
-      await client.query("ROLLBACK");
-      res.status(400).json({ error: "Cannot list a farming planet" });
-      return;
-    }
+    // NOTE: we no longer reject when `isFarmingActive === true`. Listing
+    // a planet PAUSES its 24h farming cycle (see pausedAt logic in the
+    // client + the planets_json patch below). The previous rejection
+    // caused a race: client sets isFarmingActive=true on START, the
+    // debounced /regular-planets/save flushes that to the server, then
+    // the user immediately taps "list" and the server still sees
+    // isFarmingActive=true (the optimistic pause hasn't been saved yet)
+    // and refuses with HTTP 400 "Cannot list a farming planet". The
+    // listing itself is the authoritative pause action — the planets_json
+    // patch below stamps isFarmingActive=false + pausedAt=now atomically
+    // so the server state always matches the new pause-preserving model.
 
     // Snapshot the planet's cosmetic Float into the listing so the
     // marketplace card can show the perfection bar without an extra
@@ -232,12 +238,29 @@ router.post("/market/list", async (req, res) => {
     // listing row (with its unique constraint) is the actual source of
     // truth for ownership.
     const nowMs = Date.now();
+    // Stamp the listing on planets_json AND simultaneously pause the
+    // 24h farming cycle (isFarmingActive=false, pausedAt=nowMs). The
+    // pause stamp is what startFarming uses on resume to shift the
+    // cycle anchor by the pause duration so the user gets back the
+    // exact remaining time. We only set pausedAt if the planet was
+    // actually farming (CASE on the prior isFarmingActive); otherwise
+    // we preserve any existing pausedAt (don't overwrite an earlier
+    // pause stamp from a previous list/delist round-trip).
     await client.query(
       `UPDATE users
        SET planets_json = COALESCE(
          (SELECT jsonb_agg(
             CASE WHEN p->>'id' = $2
-              THEN p || jsonb_build_object('isListedInMarket', true, 'serverListingId', $3::int, 'marketPrice', $4::int)
+              THEN p || jsonb_build_object(
+                'isListedInMarket', true,
+                'serverListingId', $3::int,
+                'marketPrice', $4::int,
+                'isFarmingActive', false,
+                'pausedAt', CASE
+                  WHEN (p->>'isFarmingActive')::boolean IS TRUE THEN $5::bigint
+                  ELSE COALESCE((p->>'pausedAt')::bigint, 0)
+                END
+              )
               ELSE p
             END
           )

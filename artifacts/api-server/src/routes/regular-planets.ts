@@ -241,6 +241,19 @@ router.post("/regular-planets/save", async (req, res) => {
     // save for each planet id, then frozen.)
     const storedNamesById = new Map<string, string>();
     const storedFloatsById = new Map<string, number>();
+    // Server-pinned marketplace + pause fields. /market/list,
+    // /market/delist and /market/buy are the ONLY authoritative writers
+    // for these. Without pinning, a stale or mid-air /save can flip
+    // `isListedInMarket` back to false (ghost-unlist), zero out
+    // `pausedAt` (breaking pause-preserving resume), or restore a
+    // stale `isFarmingActive=true` while the planet is listed (letting
+    // farm/settle credit ZOOM for a paused asset).
+    const storedListingById = new Map<string, {
+      isListedInMarket: boolean;
+      serverListingId: number | undefined;
+      marketPrice: number | null;
+      pausedAt: number;
+    }>();
     for (const p of existingPlanets) {
       if (p && typeof p === "object") {
         const obj = p as Record<string, unknown>;
@@ -250,6 +263,12 @@ router.post("/regular-planets/save", async (req, res) => {
         if (dn) storedNamesById.set(id, dn);
         const f = sanitizeIncomingFloat(obj.float);
         if (typeof f === "number") storedFloatsById.set(id, f);
+        storedListingById.set(id, {
+          isListedInMarket: obj.isListedInMarket === true,
+          serverListingId: typeof obj.serverListingId === "number" ? obj.serverListingId : undefined,
+          marketPrice: typeof obj.marketPrice === "number" ? obj.marketPrice : null,
+          pausedAt: typeof obj.pausedAt === "number" && Number.isFinite(obj.pausedAt) ? obj.pausedAt : 0,
+        });
       }
     }
     const sanitizedPlanets = planets.map((incoming) => {
@@ -275,6 +294,28 @@ router.post("/regular-planets/save", async (req, res) => {
           out.float = typeof incomingFloat === "number"
             ? incomingFloat
             : deterministicFloatFromId(id);
+        }
+      }
+      // Marketplace + pause pinning. The server-stored values for
+      // `isListedInMarket`, `serverListingId`, `marketPrice` and
+      // `pausedAt` are authoritative — only /market/* endpoints may
+      // change them. We overlay them onto the incoming row so the
+      // client save can never desync the listing state. When the
+      // server says the planet is listed, we ALSO force
+      // `isFarmingActive=false` (a listed planet must always be
+      // paused so /farm/settle never credits ZOOM for it).
+      const storedListing = storedListingById.get(id);
+      if (storedListing) {
+        out.isListedInMarket = storedListing.isListedInMarket;
+        if (storedListing.serverListingId !== undefined) {
+          out.serverListingId = storedListing.serverListingId;
+        } else {
+          delete out.serverListingId;
+        }
+        out.marketPrice = storedListing.marketPrice;
+        out.pausedAt = storedListing.pausedAt;
+        if (storedListing.isListedInMarket) {
+          out.isFarmingActive = false;
         }
       }
       return out;
