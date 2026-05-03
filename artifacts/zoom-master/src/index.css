@@ -1321,3 +1321,72 @@
   z-index: 0;
 }
 .perfect-card-glow > * { position: relative; z-index: 1; }
+
+/* ─── Platinum/chrome NAME for V1_NFT ─────────────────────────────────
+   Silver-chrome gradient text used in Farm + Marketplace for the planet
+   name when the planet is V1_NFT. Pairs with the .nft-card-glow border
+   and the chrome orb so the whole card feels cohesively "platinum". */
+.nft-platinum-text {
+  background: linear-gradient(
+    135deg,
+    #f6faff 0%,
+    #c7d4e6 25%,
+    #ffffff 50%,
+    #9fb3d1 75%,
+    #e8eef9 100%
+  );
+  -webkit-background-clip: text;
+          background-clip: text;
+  -webkit-text-fill-color: transparent;
+          color: transparent;
+  text-shadow: 0 0 14px rgba(200,220,255,0.35);
+  letter-spacing: 0.5px;
+}
+
+/* ─── "NFT NFT NFT" decorative watermark on V1_NFT cards ─────────────
+   Very subtle repeating diagonal text behind the card content so the
+   collectible status reads at a glance without competing with the
+   foreground info. Sits on the card root via ::after, behind children. */
+.nft-card-glow::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background-image: repeating-linear-gradient(
+    -25deg,
+    transparent 0,
+    transparent 56px,
+    rgba(220,232,255,0.06) 56px,
+    rgba(220,232,255,0.06) 58px
+  );
+  /* The actual word repeats are drawn via SVG so glyphs stay crisp.
+     Encoded inline so no extra HTTP request is needed.               */
+  background:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='90'><text x='0' y='40' font-family='Inter,Arial,sans-serif' font-weight='900' font-size='22' fill='%23dce8ff' fill-opacity='0.07' transform='rotate(-22 0 40)'>NFT · NFT · NFT</text><text x='0' y='80' font-family='Inter,Arial,sans-serif' font-weight='900' font-size='22' fill='%23dce8ff' fill-opacity='0.07' transform='rotate(-22 0 80)'>NFT · NFT · NFT</text></svg>");
+  background-repeat: repeat;
+  mask-image: linear-gradient(135deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 100%);
+  -webkit-mask-image: linear-gradient(135deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 100%);
+}
+
+/* Small "NFT" pill badge that floats over the planet orb on V1_NFT
+   cards. Mirrors the platinum chrome palette so the card reads as a
+   single themed unit. */
+.nft-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #0b1226;
+  background: linear-gradient(135deg, #ffffff 0%, #c7d4e6 50%, #ffffff 100%);
+  box-shadow:
+    0 0 8px rgba(220,232,255,0.55),
+    inset 0 1px 0 rgba(255,255,255,0.9),
+    inset 0 -1px 0 rgba(80,100,140,0.35);
+  border: 1px solid rgba(255,255,255,0.6);
+}

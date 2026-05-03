@@ -430,6 +430,15 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
                     }}
                   >
                     <PlanetOrb planet={planet} size={72} animate={active} displayFloat={planetFloat} />
+                    {isPlatinumNft && (
+                      <span
+                        className="nft-badge absolute"
+                        style={{ top: -6, left: -6 }}
+                        aria-label="NFT"
+                      >
+                        NFT
+                      </span>
+                    )}
                     {expired && (
                       <div
                         className="absolute inset-0 rounded-full pointer-events-none"
@@ -463,7 +472,7 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
                         disabled={!telegramId || isListed}
                         title={isListed ? "Unlist to rename" : "Rename this planet"}
                         data-testid={`btn-rename-${planet.id}`}
-                        className={`font-black text-base tracking-wide text-left ${RARITY_CLASS[planet.name]}`}
+                        className={`font-black text-base tracking-wide text-left ${isPlatinumNft ? "nft-platinum-text" : RARITY_CLASS[planet.name]}`}
                         style={{
                           opacity: expired ? 0.55 : 1,
                           background: "transparent",

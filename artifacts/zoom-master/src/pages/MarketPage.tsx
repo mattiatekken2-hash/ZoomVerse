@@ -425,12 +425,23 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
                 data-testid={`listing-${listing.id}`}
               >
                 <div className="flex items-center gap-3 px-4 py-3">
-                  <PlanetOrb planet={fakePlanet} size={56} animate={isPlatinumNft || isPerfectFloat} displayFloat={listingFloat} />
+                  <div style={{ position: "relative", flexShrink: 0 }}>
+                    <PlanetOrb planet={fakePlanet} size={56} animate={isPlatinumNft || isPerfectFloat} displayFloat={listingFloat} />
+                    {isPlatinumNft && (
+                      <span
+                        className="nft-badge absolute"
+                        style={{ top: -4, left: -4 }}
+                        aria-label="NFT"
+                      >
+                        NFT
+                      </span>
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     {listing.displayName && (
                       <div
-                        className="font-black text-base tracking-wide mb-0.5 truncate"
-                        style={{ color: rarityColor }}
+                        className={`font-black text-base tracking-wide mb-0.5 truncate ${isPlatinumNft ? "nft-platinum-text" : ""}`}
+                        style={isPlatinumNft ? undefined : { color: rarityColor }}
                         data-testid={`listing-name-${listing.id}`}
                       >
                         {listing.displayName}
