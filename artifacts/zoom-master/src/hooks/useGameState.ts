@@ -701,10 +701,15 @@ export function _registerStateRef(ref: StateRefHolder): void {
 // whenever its epoch is higher than the one we sent — that means an
 // authoritative balance change happened on the server (admin mutation,
 // Stars/TON purchase credit, marketplace buy/sell, wheel/daily/referral
-// reward) since our last sync. In that case we MUST snap the local state
-// to the server value (regardless of whether it is higher or lower) so the
-// next outgoing sync doesn't echo back the stale value and overwrite the
-// authoritative change.
+// reward) since our last sync. We snap the local balance to the server
+// value ONLY WHEN IT IS HIGHER than the live local balance (USER
+// REQUIREMENT, May 2026: visible $ZOOM must never tick downward on
+// re-entry or sync). When the server returns a lower value (admin-remove
+// race, another-device-spend), we ignore the value but still adopt the
+// epoch — the next /balance/sync travels with the right ce, falls into
+// the server's GREATEST(0, client) ELSE branch, and re-asserts the local
+// value upward. The TON merge (below) is server-authoritative-up only by
+// design (server uses GREATEST), so it remains an upward-only snap too.
 function reconcileFromSyncResponse(
   sentBalance: number,
   sentEpoch: number,
@@ -731,8 +736,19 @@ function reconcileFromSyncResponse(
   // epoch. Now any concurrent sync sees the already-snapped (balance, epoch)
   // pair and the server preserves the credit.
   const serverAdvanced = res.balanceEpoch > sentEpoch;
-  const valueDiverged = res.zoomBalance !== sentBalance;
-  if (serverAdvanced && valueDiverged) {
+  // USER REQUIREMENT (May 2026): visible $ZOOM must never tick downward.
+  // We only snap to the server value when it is HIGHER than the *live*
+  // local balance (offline credit, wheel/admin/marketplace grant). We
+  // compare against `_stateRefHolder.current.balance` (current live state)
+  // rather than `sentBalance` so a tap that happened while the request
+  // was in-flight doesn't cause a visible step down on the response.
+  // If the server returns a LOWER value (admin-remove or another-device-
+  // spend race), we keep local — the next sync re-asserts upward via the
+  // server's CASE ELSE GREATEST(0, client) branch (epoch is adopted below
+  // so the next sync travels with the right ce and is not fenced out).
+  const liveLocalBalance = Math.floor(_stateRefHolder?.current.balance ?? sentBalance);
+  const serverHigher = res.zoomBalance > liveLocalBalance;
+  if (serverAdvanced && serverHigher) {
     if (_stateRefHolder) {
       _stateRefHolder.current = { ..._stateRefHolder.current, balance: res.zoomBalance };
     }
