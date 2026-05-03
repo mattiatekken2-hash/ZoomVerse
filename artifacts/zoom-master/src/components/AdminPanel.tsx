@@ -27,6 +27,8 @@ import {
   adminRemoveSpins,
   adminResetSeason,
   adminForceDelist,
+  adminDisableUser,
+  adminEnableUser,
   adminReconcileReferrals,
   adminFetchLottoDashboard,
   adminLottoDraw,
@@ -66,9 +68,10 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "white" | "earth" | "revoke-white" | "revoke-earth" | "autotap" | "test-wd-chan" | "v1" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "white" | "earth" | "revoke-white" | "revoke-earth" | "autotap" | "test-wd-chan" | "v1" | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [delistId, setDelistId] = useState("");
+  const [disableId, setDisableId] = useState("");
   const [pendingWithdrawals, setPendingWithdrawals] = useState<TonWithdrawal[]>([]);
   const [withdrawalLoadingId, setWithdrawalLoadingId] = useState<number | null>(null);
   const [maintEnabled, setMaintEnabled] = useState(false);
@@ -788,6 +791,78 @@ export function AdminPanel({ telegramId }: Props) {
                     }}
                   >
                     {loading === "delist" ? "..." : "🗑 DELIST"}
+                  </motion.button>
+                </div>
+
+                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+
+                {/* Disable / Enable user (anti-abuse freeze) */}
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
+                  DISABILITA / RIATTIVA UTENTE (blocca market + prelievi)
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    value={disableId}
+                    onChange={(e) => setDisableId(e.target.value)}
+                    placeholder="@username o telegram_id"
+                    onFocus={() => haptic()}
+                    style={{ ...inputStyle, flex: 1, border: "1px solid rgba(255,60,60,0.18)" }}
+                  />
+                  <motion.button
+                    whileTap={{ scale: 0.93 }}
+                    onClick={async () => {
+                      haptic();
+                      const id = disableId.trim();
+                      if (!id) { showFeedback("✗ Nessun ID", false); return; }
+                      setLoading("disable");
+                      const ok = await adminDisableUser(telegramId, id);
+                      setLoading(null);
+                      if (ok) setDisableId("");
+                      showFeedback(ok ? `✓ ${id} disabilitato` : `✗ Errore per ${id}`, ok);
+                    }}
+                    disabled={loading !== null}
+                    style={{
+                      padding: "0 12px",
+                      borderRadius: 10,
+                      border: "1px solid rgba(255,60,60,0.35)",
+                      background: "rgba(255,60,60,0.12)",
+                      color: "#ff5555",
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      opacity: loading !== null ? 0.5 : 1,
+                      letterSpacing: "0.05em",
+                    }}
+                  >
+                    {loading === "disable" ? "..." : "DISABLE"}
+                  </motion.button>
+                  <motion.button
+                    whileTap={{ scale: 0.93 }}
+                    onClick={async () => {
+                      haptic();
+                      const id = disableId.trim();
+                      if (!id) { showFeedback("✗ Nessun ID", false); return; }
+                      setLoading("enable");
+                      const ok = await adminEnableUser(telegramId, id);
+                      setLoading(null);
+                      if (ok) setDisableId("");
+                      showFeedback(ok ? `✓ ${id} riattivato` : `✗ Errore per ${id}`, ok);
+                    }}
+                    disabled={loading !== null}
+                    style={{
+                      padding: "0 12px",
+                      borderRadius: 10,
+                      border: "1px solid rgba(80,200,120,0.35)",
+                      background: "rgba(80,200,120,0.12)",
+                      color: "#5cd690",
+                      fontSize: 11,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      opacity: loading !== null ? 0.5 : 1,
+                      letterSpacing: "0.05em",
+                    }}
+                  >
+                    {loading === "enable" ? "..." : "ENABLE"}
                   </motion.button>
                 </div>
 

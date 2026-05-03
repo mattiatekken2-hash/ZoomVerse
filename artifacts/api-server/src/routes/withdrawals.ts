@@ -58,6 +58,7 @@ router.post("/withdrawals/request", async (req, res) => {
         .select({
           tonBalance: usersTable.tonBalance,
           whiteCollectionUnlocked: usersTable.whiteCollectionUnlocked,
+          isDisabled: usersTable.isDisabled,
         })
         .from(usersTable)
         .where(eq(usersTable.telegramId, telegramId))
@@ -65,6 +66,9 @@ router.post("/withdrawals/request", async (req, res) => {
         .limit(1);
 
       if (!user) return { kind: "err" as const, status: 404, error: "Utente non trovato" };
+      if (user.isDisabled) {
+        return { kind: "err" as const, status: 403, error: "Account disabilitato. Contatta l'admin." };
+      }
       if (!user.whiteCollectionUnlocked) {
         return { kind: "err" as const, status: 403, error: "Solo gli holder della White Collection possono prelevare" };
       }

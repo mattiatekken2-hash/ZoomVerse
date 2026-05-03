@@ -553,6 +553,28 @@ export async function adminCreditZoom(adminId: string, telegramId: string, amoun
   } catch { return false; }
 }
 
+export async function adminDisableUser(adminId: string, telegramId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/disable-user`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, telegramId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function adminEnableUser(adminId: string, telegramId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/enable-user`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, telegramId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminCreditStardust(adminId: string, telegramId: string, amount: number): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/credit-stardust`, {

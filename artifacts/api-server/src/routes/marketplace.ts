@@ -107,6 +107,20 @@ router.post("/market/list", async (req, res) => {
 
   const { sellerTelegramId, sellerName, planetId, planetType, planetRate, price } = parsed.data;
 
+  // Block disabled accounts from creating new listings. Cheap pre-check
+  // outside the transaction; the buy-side check is the authoritative
+  // guard but stopping listings here keeps frozen accounts from even
+  // appearing in the market feed.
+  const [sellerFlag] = await db
+    .select({ isDisabled: usersTable.isDisabled })
+    .from(usersTable)
+    .where(eq(usersTable.telegramId, sellerTelegramId))
+    .limit(1);
+  if (sellerFlag?.isDisabled) {
+    res.status(403).json({ error: "Account disabled" });
+    return;
+  }
+
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -264,6 +278,87 @@ router.post("/market/buy", async (req, res) => {
       return;
     }
 
+    // ── Anti-abuse: block buy/sell between users in the same referral
+    // ancestry. The "Nebo MVP" exploit (May 2026) used 17 alts created
+    // via the host's referral link to launder ZOOM into the host account
+    // by spamming purchases from the host's listings. The check walks
+    // both ancestry chains (up to 8 hops to guard against cycles / deep
+    // trees) and rejects if either user appears in the other's chain —
+    // this also catches sibling-in-same-tree and 2+ hop laundering, not
+    // just direct parent/child.
+    //
+    // We acquire row locks on both user rows BEFORE reading the
+    // is_disabled flag so a concurrent /admin/disable-user can't commit
+    // between our read and the debit/credit below. The monetary UPDATEs
+    // further fence on `is_disabled = false` so even if a freeze races
+    // past the lock acquisition, the debit fails and the tx rolls back.
+    //
+    // Lock order: lower telegramId first, to remove any deadlock risk
+    // between two concurrent /market/buy that touch the same pair of
+    // users in opposite roles.
+    const [aId, bId] = buyerTelegramId < listing.sellerTelegramId
+      ? [buyerTelegramId, listing.sellerTelegramId]
+      : [listing.sellerTelegramId, buyerTelegramId];
+    await client.query(
+      `SELECT telegram_id FROM users WHERE telegram_id IN ($1, $2) ORDER BY telegram_id FOR UPDATE`,
+      [aId, bId],
+    );
+
+    const [buyerInfo, sellerInfo] = await Promise.all([
+      txDb.select({
+        referredBy: usersTable.referredBy,
+        isDisabled: usersTable.isDisabled,
+      }).from(usersTable).where(eq(usersTable.telegramId, buyerTelegramId)).limit(1),
+      txDb.select({
+        referredBy: usersTable.referredBy,
+        isDisabled: usersTable.isDisabled,
+      }).from(usersTable).where(eq(usersTable.telegramId, listing.sellerTelegramId)).limit(1),
+    ]);
+    const buyer = buyerInfo[0];
+    const seller = sellerInfo[0];
+    if (!buyer) {
+      await client.query("ROLLBACK");
+      res.status(404).json({ error: "Buyer not found" });
+      return;
+    }
+    if (buyer.isDisabled || seller?.isDisabled) {
+      await client.query("ROLLBACK");
+      res.status(403).json({ error: "Account disabled" });
+      return;
+    }
+
+    // Recursive ancestry walk — does the seller appear anywhere in the
+    // buyer's ancestor chain (or vice versa)? Postgres recursive CTE
+    // does the traversal in one round-trip; the depth cap prevents
+    // pathological cycles (the schema doesn't enforce DAG-ness).
+    const chainCheck = await client.query<{ blocked: boolean }>(
+      `WITH RECURSIVE up AS (
+         SELECT telegram_id, referred_by, 1 AS depth FROM users WHERE telegram_id = $1
+         UNION ALL
+         SELECT u.telegram_id, u.referred_by, up.depth + 1
+         FROM users u JOIN up ON u.telegram_id = up.referred_by
+         WHERE up.depth < 8 AND up.referred_by IS NOT NULL
+       ),
+       down AS (
+         SELECT telegram_id, referred_by, 1 AS depth FROM users WHERE telegram_id = $2
+         UNION ALL
+         SELECT u.telegram_id, u.referred_by, down.depth + 1
+         FROM users u JOIN down ON u.telegram_id = down.referred_by
+         WHERE down.depth < 8 AND down.referred_by IS NOT NULL
+       )
+       SELECT EXISTS(
+         SELECT 1 FROM up   WHERE telegram_id = $2
+         UNION ALL
+         SELECT 1 FROM down WHERE telegram_id = $1
+       ) AS blocked`,
+      [buyerTelegramId, listing.sellerTelegramId],
+    );
+    if (chainCheck.rows[0]?.blocked) {
+      await client.query("ROLLBACK");
+      res.status(403).json({ error: "Cannot trade with users in your referral chain" });
+      return;
+    }
+
     const fee = Math.floor(listing.price * MARKETPLACE_FEE);
     const totalCost = listing.price + fee;
 
@@ -294,6 +389,8 @@ router.post("/market/buy", async (req, res) => {
     // at the instant of the UPDATE — Postgres guarantees serializability
     // on this row-level write so two concurrent buys cannot both succeed
     // when only one is affordable.
+    // Debit fences on BOTH balance >= cost AND is_disabled = false so a
+    // freeze that races past the row lock above still aborts the buy.
     const debited = await txDb.update(usersTable)
       .set({
         zoomBalance: sql`${usersTable.zoomBalance} - ${totalCost}`,
@@ -302,21 +399,32 @@ router.post("/market/buy", async (req, res) => {
       .where(and(
         eq(usersTable.telegramId, buyerTelegramId),
         sql`${usersTable.zoomBalance} >= ${totalCost}`,
+        sql`${usersTable.isDisabled} = false`,
       ))
       .returning({ id: usersTable.telegramId });
 
     if (debited.length === 0) {
       await client.query("ROLLBACK");
-      res.status(400).json({ error: "Insufficient balance" });
+      res.status(400).json({ error: "Insufficient balance or account disabled" });
       return;
     }
 
-    await txDb.update(usersTable)
+    // Credit also fences on is_disabled = false on the seller side.
+    const credited = await txDb.update(usersTable)
       .set({
         zoomBalance: sql`${usersTable.zoomBalance} + ${listing.price}`,
         balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
-      .where(eq(usersTable.telegramId, listing.sellerTelegramId));
+      .where(and(
+        eq(usersTable.telegramId, listing.sellerTelegramId),
+        sql`${usersTable.isDisabled} = false`,
+      ))
+      .returning({ id: usersTable.telegramId });
+    if (credited.length === 0) {
+      await client.query("ROLLBACK");
+      res.status(403).json({ error: "Seller account disabled" });
+      return;
+    }
 
     // Surgically remove the sold planet from the seller's planets_json
     // so their UI no longer shows it on the next refresh. Best-effort

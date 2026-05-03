@@ -511,6 +511,71 @@ router.post("/admin/remove-slots", async (req, res) => {
   }
 });
 
+// ----- DISABLE / ENABLE USER (anti-abuse freeze) -----
+// Sets the `is_disabled` flag on a user. A disabled user keeps full
+// read access to the app but is locked out of every money-impacting
+// flow:
+//   • POST /market/list   → 403
+//   • POST /market/buy    → 403
+//   • POST /withdrawals/request → 403
+// Used to freeze referral-farm alts (and the host who runs them) the
+// moment we catch them, so any ZOOM they accumulated cannot be turned
+// into TON while the case is reviewed.
+const ToggleUserBody = z.object({
+  adminId: z.string(),
+  telegramId: z.string().min(1),
+});
+
+router.post("/admin/disable-user", async (req, res) => {
+  const parsed = ToggleUserBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  try {
+    const updated = await db
+      .update(usersTable)
+      .set({
+        isDisabled: true,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
+      .where(eq(usersTable.telegramId, telegramId))
+      .returning({ id: usersTable.telegramId });
+    if (updated.length === 0) return res.status(404).json({ error: "User not found" });
+    logger.warn({ adminId: parsed.data.adminId, target: telegramId }, "[admin] user disabled");
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "[admin/disable-user] db error");
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/enable-user", async (req, res) => {
+  const parsed = ToggleUserBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  try {
+    const updated = await db
+      .update(usersTable)
+      .set({
+        isDisabled: false,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
+      .where(eq(usersTable.telegramId, telegramId))
+      .returning({ id: usersTable.telegramId });
+    if (updated.length === 0) return res.status(404).json({ error: "User not found" });
+    logger.warn({ adminId: parsed.data.adminId, target: telegramId }, "[admin] user re-enabled");
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "[admin/enable-user] db error");
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 // ----- STARDUST -----
 const CreditStardustBody = z.object({
   adminId: z.string(),

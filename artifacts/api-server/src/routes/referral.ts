@@ -303,8 +303,19 @@ router.post("/referral/reset", async (req, res) => {
   }
 });
 
+// ADMIN-ONLY. The original endpoint was open to any caller — letting a
+// referee unlink themselves before buying from their former referrer
+// would have re-opened the marketplace referral-chain bypass we close
+// in /market/buy. Now requires the admin id in the body and is also
+// listed in PROTECTED_ROUTES under the admin section so the Telegram
+// auth middleware binds the call to the admin's verified initData.
+const ADMIN_ID = "8144744644";
 router.post("/referral/unlink", async (req, res) => {
-  const { telegramId } = req.body as { telegramId?: string };
+  const { adminId, telegramId } = req.body as { adminId?: string; telegramId?: string };
+  if (adminId !== ADMIN_ID) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
   if (!telegramId) {
     res.status(400).json({ error: "Missing telegramId" });
     return;
@@ -314,7 +325,7 @@ router.post("/referral/unlink", async (req, res) => {
       .update(usersTable)
       .set({ referredBy: null })
       .where(eq(usersTable.telegramId, telegramId));
-    console.log(`[referral] Unlinked referrer for ${telegramId}`);
+    console.log(`[referral] Admin ${adminId} unlinked referrer for ${telegramId}`);
     res.json({ ok: true });
   } catch {
     res.status(500).json({ error: "Database error" });

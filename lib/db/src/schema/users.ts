@@ -162,6 +162,19 @@ export const usersTable = pgTable("users", {
   plantLastWaterAt: timestamp("plant_last_water_at"),
   plantLastClaimAt: timestamp("plant_last_claim_at"),
 
+  // ─────────────────────────────────────────────────────────────────────
+  // ANTI-ABUSE — disable flag.
+  //
+  // Set TRUE by admin to lock an account out of money-impacting flows:
+  //   • cannot LIST a planet on the marketplace
+  //   • cannot BUY a planet on the marketplace
+  //   • cannot REQUEST a TON withdrawal
+  // The user can still log in and see their UI; they just can't move
+  // value in/out. Used to freeze accounts caught running referral-farm
+  // alts that buy from their own referrer to launder ZOOM into TON.
+  // ─────────────────────────────────────────────────────────────────────
+  isDisabled: boolean("is_disabled").notNull().default(false),
+
   // Monotonic write-time used to fence out stale saves of `planets_json`.
   // The save endpoint rejects any incoming write whose `client_write_at_ms`
   // is <= the stored value. Using the client's clock is fine because a
