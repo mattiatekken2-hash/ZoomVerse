@@ -497,6 +497,39 @@ function PixelComputerIcon({
   );
 }
 
+// Tiny pixel-art slice of pizza held by the astronaut during the
+// "pizza" activity. 8×8 sprite: brown crust along the right edge,
+// red sauce body, two yellow cheese dots, one green basil dot.
+function PixelPizzaSlice({ size = 16 }: { size?: number }) {
+  const crust = "#c98a4b";
+  const crustDark = "#7a4d22";
+  const sauce = "#d63a2a";
+  const cheese = "#ffe27a";
+  const basil = "#3da33d";
+  return (
+    <svg
+      viewBox="0 0 8 8"
+      width={size}
+      height={size}
+      style={{ imageRendering: "pixelated", display: "block" }}
+    >
+      {/* Sauce / triangle body */}
+      <rect x="1" y="2" width="5" height="1" fill={sauce} />
+      <rect x="1" y="3" width="5" height="1" fill={sauce} />
+      <rect x="2" y="4" width="4" height="1" fill={sauce} />
+      <rect x="2" y="5" width="3" height="1" fill={sauce} />
+      <rect x="3" y="6" width="2" height="1" fill={sauce} />
+      {/* Crust on the right edge */}
+      <rect x="6" y="2" width="1" height="5" fill={crust} />
+      <rect x="7" y="3" width="1" height="3" fill={crustDark} />
+      {/* Toppings */}
+      <rect x="2" y="3" width="1" height="1" fill={cheese} />
+      <rect x="4" y="4" width="1" height="1" fill={cheese} />
+      <rect x="3" y="5" width="1" height="1" fill={basil} />
+    </svg>
+  );
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // Pixel room SVG. Coordinates are in a 80x64 viewBox so 1 unit = 1 pixel
 // of the pixel-art grid (regardless of how big it's rendered on screen).
@@ -742,6 +775,7 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
     play: { left: "44%", top: "82%" },      // crouched on the floor, facing the pet
     music: { left: "62%", top: "82%" },     // standing on the floor, head bobbing to the beat
     sing: { left: "38%", top: "82%" },      // singing in the middle of the floor
+    pizza: { left: "76%", top: "78%" },     // standing next to the fridge with a pizza slice
   };
   const pos = astroPos[activity];
 
@@ -786,10 +820,11 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
     play: { left: "52%", top: "82%" },      // right next to the astronaut, hopping around
     music: { left: "70%", top: "88%" },     // bobbing along on the floor next to the astronaut
     sing: { left: "46%", top: "88%" },      // listening to the singing astronaut
+    pizza: { left: "68%", top: "88%" },     // begging for a pizza crumb on the floor
   };
   const petState: "idle" | "sleep" | "eat" =
     activity === "sleep" ? "sleep" :
-    activity === "snack" || activity === "fridge" || activity === "coffee" ? "eat" :
+    activity === "snack" || activity === "fridge" || activity === "coffee" || activity === "pizza" ? "eat" :
     "idle";
   const pet = petPos[activity];
   // Pet ~45% the size of the astronaut so it reads as a small companion.
@@ -946,6 +981,26 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
                 ♪
               </span>
             ))}
+          </div>
+        )}
+        {activity === "pizza" && (
+          // Standing next to the fridge holding a slice of pizza.
+          // Same full-height standing sprite (no shrinking) + a small
+          // pixel pizza slice in the right hand + chew animation.
+          <div style={{ position: "relative", animation: "home-chew 0.6s ease-in-out infinite" }}>
+            <PixelAstronaut pose="stand" width={spriteW} />
+            <div
+              aria-hidden
+              style={{
+                position: "absolute",
+                left: "60%",
+                bottom: "38%",
+                width: Math.round(spriteW * 0.35),
+                height: Math.round(spriteW * 0.35),
+              }}
+            >
+              <PixelPizzaSlice size={Math.round(spriteW * 0.35)} />
+            </div>
           </div>
         )}
         {activity === "sing" && (
