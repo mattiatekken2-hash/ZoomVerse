@@ -249,6 +249,13 @@ export const marketListingsTable = pgTable("market_listings", {
   // falls back to a deterministic value derived from planet_id when
   // missing, so old listings still render without an "empty" gap.
   planetFloat: real("planet_float"),
+  // Snapshot of the planet's user-chosen displayName at listing time
+  // (set by the paid /planets/rename endpoint). Lets the marketplace
+  // card show "Eos-Prime" instead of the bare rarity "Basic" without
+  // a join back to the seller's planets_json. Nullable for legacy
+  // listings AND for planets that were never renamed (UI then falls
+  // back to the rarity label).
+  planetDisplayName: text("planet_display_name"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   soldAt: timestamp("sold_at"),
   lastActivatedAt: timestamp("last_activated_at"),

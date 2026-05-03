@@ -62,6 +62,10 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
       price: p.marketPrice!,
       seller: "you",
       rate: p.rate,
+      // Carry the planet's stored cosmetics through to the listing card
+      // so the user sees the same name + float they had in the Lab.
+      displayName: p.displayName ?? null,
+      planetFloat: typeof p.float === "number" ? p.float : null,
     }));
 
   const otherListings = serverListings.filter(
@@ -73,9 +77,8 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
       ...l,
       isLocal: true as const,
       serverId: undefined as number | undefined,
-      // Local listings (your own) — no server snapshot, fall back to
-      // deterministic-from-id so the bar still shows a stable value.
-      planetFloat: null as number | null,
+      // userListings already carries planetFloat + displayName from the
+      // seller's local Planet (built above), so nothing to re-fill here.
     })),
     ...otherListings.map((l) => ({
       id: `server-${l.id}`,
@@ -86,6 +89,7 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
       isLocal: false as const,
       serverId: l.id,
       planetFloat: l.planetFloat ?? null,
+      displayName: l.planetDisplayName ?? null,
     })),
   ];
 
@@ -310,12 +314,21 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
                 <div className="flex items-center gap-3 px-4 py-3">
                   <PlanetOrb planet={fakePlanet} size={56} animate={false} />
                   <div className="flex-1 min-w-0">
+                    {listing.displayName && (
+                      <div
+                        className="font-black text-base tracking-wide mb-0.5 truncate"
+                        style={{ color: rarityColor }}
+                        data-testid={`listing-name-${listing.id}`}
+                      >
+                        {listing.displayName}
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                       <span
-                        className="font-black text-sm px-2.5 py-0.5 rounded-full border"
-                        style={{ color: rarityColor, borderColor: rarityColor + "44", background: rarityColor + "12" }}
+                        className="text-xs font-black px-2 py-0.5 rounded-full border"
+                        style={{ color: rarityColor, borderColor: rarityColor + "44", background: rarityColor + "12", fontSize: 9 }}
                       >
-                        {cfg.label}
+                        {cfg.label.toUpperCase()}
                       </span>
                       <span
                         className="text-xs px-2 py-0.5 rounded-full border font-bold"
@@ -323,6 +336,7 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
                           color: isOwn ? "#ffd700" : "#00f2fe",
                           borderColor: isOwn ? "rgba(255,215,0,0.25)" : "rgba(0,242,254,0.25)",
                           background: isOwn ? "rgba(255,215,0,0.06)" : "rgba(0,242,254,0.06)",
+                          fontSize: 9,
                         }}
                       >
                         {isOwn ? "👤 you" : `👤 ${listing.seller}`}

@@ -182,6 +182,16 @@ router.post("/market/list", async (req, res) => {
         : deterministicFloatFromId(planetId);
     }
 
+    // Snapshot the seller's user-chosen displayName (set via the paid
+    // /planets/rename endpoint) so the marketplace card can show
+    // "Eos-Prime" instead of the bare rarity. Truncate defensively to
+    // the same 64-char bound used elsewhere; null if never renamed.
+    const rawDisplayName = (planet as { displayName?: unknown }).displayName;
+    const planetDisplayNameSnapshot: string | null =
+      typeof rawDisplayName === "string" && rawDisplayName.trim().length > 0
+        ? rawDisplayName.trim().slice(0, 64)
+        : null;
+
     let listing;
     try {
       const [inserted] = await txDb
@@ -193,6 +203,7 @@ router.post("/market/list", async (req, res) => {
           planetType,
           planetRate,
           planetFloat: planetFloatSnapshot,
+          planetDisplayName: planetDisplayNameSnapshot,
           price,
           status: "active",
         })

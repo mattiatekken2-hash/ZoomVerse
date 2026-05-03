@@ -118,6 +118,10 @@ export interface MarketListing {
   // (legacy, your-own listings) doesn't carry one — the UI then falls
   // back to a deterministic-from-id value.
   planetFloat?: number | null;
+  // User-chosen displayName carried from the seller's planet (set via
+  // the paid /planets/rename endpoint). Optional — when absent the UI
+  // falls back to the rarity label.
+  displayName?: string | null;
 }
 
 export interface GameState {

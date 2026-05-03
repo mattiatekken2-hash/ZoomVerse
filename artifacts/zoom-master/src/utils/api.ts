@@ -1517,6 +1517,10 @@ export interface ServerMarketListing {
   // schema column shipped — UI falls back to a deterministic value
   // derived from the listing id (utils/planetFloat.ts).
   planetFloat?: number | null;
+  // Snapshotted user-chosen displayName from the seller's rename
+  // (paid action). Nullable for legacy listings and for planets that
+  // were never renamed — UI then falls back to the rarity label.
+  planetDisplayName?: string | null;
   price: number;
   status: string;
   createdAt: string;
