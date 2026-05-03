@@ -1207,3 +1207,78 @@
   0%, 100% { transform: translateX(-1px); }
   50%      { transform: translateX(1px);  }
 }
+
+/* ─── V1 NFT Platinum Edition — premium visual upgrade ─────────────
+   Three coordinated effects make the legendary Moon NFT feel alive:
+     1. `nft-chrome-shine`  — chrome/metallic shimmer that sweeps a
+                              pure-white highlight across the orb.
+     2. `nft-border-spin`   — silver light that travels around the
+                              card perimeter via a conic-gradient on
+                              a pseudo-element border.
+     3. `nft-sparkle-*`     — four small star particles fading in
+                              and out at staggered intervals.                ── */
+@keyframes nft-chrome-shine {
+  0%   { transform: translate(-30%, -30%) rotate(0deg);   opacity: 0.55; }
+  50%  { transform: translate(-50%, -50%) rotate(180deg); opacity: 0.95; }
+  100% { transform: translate(-30%, -30%) rotate(360deg); opacity: 0.55; }
+}
+@keyframes nft-border-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes nft-sparkle-1 {
+  0%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); }
+  20%      { opacity: 1; transform: scale(1)   rotate(45deg); }
+  40%      { opacity: 0; transform: scale(0.5) rotate(90deg); }
+}
+@keyframes nft-sparkle-2 {
+  0%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); }
+  60%      { opacity: 1; transform: scale(1.1) rotate(60deg); }
+  80%      { opacity: 0; transform: scale(0.5) rotate(120deg); }
+}
+@keyframes nft-sparkle-3 {
+  0%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); }
+  40%      { opacity: 1; transform: scale(0.9) rotate(30deg); }
+  65%      { opacity: 0; transform: scale(0.5) rotate(80deg); }
+}
+@keyframes nft-sparkle-4 {
+  0%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); }
+  35%      { opacity: 1; transform: scale(1)   rotate(50deg); }
+  55%      { opacity: 0; transform: scale(0.5) rotate(110deg); }
+}
+
+/* The card body itself uses `position: relative` already (inline).
+   We attach the rotating silver border via a ::before pseudo-element
+   that lives behind the card content with a thin 1.5px ring effect.
+   `mask-composite: xor` carves out the inside so only the rim glows. */
+.nft-card-glow {
+  position: relative;
+  isolation: isolate;
+}
+.nft-card-glow::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from 0deg,
+    rgba(255,255,255,0.05) 0deg,
+    rgba(220,232,255,0.95) 60deg,
+    rgba(255,255,255,1)   90deg,
+    rgba(160,200,255,0.85) 120deg,
+    rgba(255,255,255,0.05) 200deg,
+    rgba(255,255,255,0.05) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: nft-border-spin 4.5s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+.nft-card-glow > * {
+  position: relative;
+  z-index: 1;
+}

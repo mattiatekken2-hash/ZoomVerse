@@ -388,12 +388,15 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
               }
             };
 
+            const isPlatinumNft = planet.name === "V1_NFT";
             return (
               <div
                 key={planet.id}
-                className="slot-enter rounded-2xl p-4 border"
+                className={`slot-enter rounded-2xl p-4 border ${isPlatinumNft ? "nft-card-glow" : ""}`}
                 style={{
-                  borderColor: isListed ? "rgba(255,215,0,0.3)" : expired ? "rgba(255,255,255,0.08)" : planet.color + "40",
+                  borderColor: isPlatinumNft
+                    ? "rgba(220,232,255,0.10)"
+                    : isListed ? "rgba(255,215,0,0.3)" : expired ? "rgba(255,255,255,0.08)" : planet.color + "40",
                   background: `linear-gradient(135deg, ${planet.color}0d 0%, rgba(6,8,16,0.6) 100%)`,
                   // Single, smaller shadow. The previous double 60px halo was
                   // a major cause of dropped repaints during scroll on Android

@@ -111,13 +111,30 @@ function PlanetOrbImpl({ planet, size = 60, animate = true }: PlanetOrbProps) {
           borderRadius: "50%",
           position: "relative",
           overflow: "hidden",
-          background: `radial-gradient(circle at 40% 35%, ${s0} 0%, ${s1} 15%, ${s2} 35%, ${s3} 60%, ${s4} 85%, ${s4} 100%)`,
-          boxShadow: `
-            0 0 ${size * 0.4}px ${c}99,
-            0 0 ${size * 0.8}px ${c}44,
-            0 0 ${size * 1.3}px ${c}18,
-            inset -${size * 0.06}px -${size * 0.04}px ${size * 0.12}px rgba(0,0,0,0.25)
-          `,
+          // V1_NFT uses a richer multi-stop "chrome" radial gradient with
+          // a pure-white hot-spot to mimic platinum reflections; the other
+          // planets keep their existing 5-stop palette.
+          background: planet.name === "V1_NFT"
+            ? `
+              radial-gradient(circle at 30% 25%, #ffffff 0%, #ffffff 6%, ${s1} 18%, ${s2} 38%, ${s3} 62%, ${s4} 88%, #1f2c46 100%),
+              radial-gradient(circle at 70% 75%, rgba(255,255,255,0.55) 0%, transparent 35%)
+            `
+            : `radial-gradient(circle at 40% 35%, ${s0} 0%, ${s1} 15%, ${s2} 35%, ${s3} 60%, ${s4} 85%, ${s4} 100%)`,
+          backgroundBlendMode: planet.name === "V1_NFT" ? "screen, normal" : undefined,
+          boxShadow: planet.name === "V1_NFT"
+            ? `
+              0 0 ${size * 0.5}px rgba(220,232,255,0.85),
+              0 0 ${size * 1.0}px rgba(150,190,255,0.45),
+              0 0 ${size * 1.6}px rgba(80,140,220,0.20),
+              inset -${size * 0.06}px -${size * 0.04}px ${size * 0.14}px rgba(0,0,0,0.30),
+              inset ${size * 0.05}px ${size * 0.04}px ${size * 0.10}px rgba(255,255,255,0.55)
+            `
+            : `
+              0 0 ${size * 0.4}px ${c}99,
+              0 0 ${size * 0.8}px ${c}44,
+              0 0 ${size * 1.3}px ${c}18,
+              inset -${size * 0.06}px -${size * 0.04}px ${size * 0.12}px rgba(0,0,0,0.25)
+            `,
           animation: animate ? "planet-rotate 10s linear infinite" : "none",
         }}
       >
@@ -188,10 +205,50 @@ function PlanetOrbImpl({ planet, size = 60, animate = true }: PlanetOrbProps) {
             border: "1px solid rgba(255,255,255,0.7)",
             pointerEvents: "none",
             lineHeight: 1,
+            zIndex: 3,
           }}
         >
           NFT
         </div>
+      )}
+      {/* V1 NFT Platinum — sparkle particles. Four ★ glyphs at fixed
+          relative positions around the orb fade in/out on staggered
+          schedules so the planet always feels alive without ever
+          showing more than ~2 sparkles at once. Pure CSS, GPU-friendly,
+          pointer-events:none so they don't block the rename tap. */}
+      {planet.name === "V1_NFT" && animate && (
+        <>
+          {[
+            { top: "-8%",  left: "12%",  size: 0.22, anim: "nft-sparkle-1 2.8s ease-in-out infinite",          delay: "0s"   },
+            { top: "10%",  left: "85%",  size: 0.18, anim: "nft-sparkle-2 3.4s ease-in-out infinite",          delay: "0.7s" },
+            { top: "62%",  left: "-6%",  size: 0.16, anim: "nft-sparkle-3 3.1s ease-in-out infinite",          delay: "1.4s" },
+            { top: "78%",  left: "70%",  size: 0.20, anim: "nft-sparkle-4 3.6s ease-in-out infinite",          delay: "0.3s" },
+          ].map((sp, i) => (
+            <div
+              key={`nft-sp-${i}`}
+              style={{
+                position: "absolute",
+                top: sp.top,
+                left: sp.left,
+                width: size * sp.size,
+                height: size * sp.size,
+                pointerEvents: "none",
+                color: "#ffffff",
+                fontSize: size * sp.size,
+                lineHeight: 1,
+                textShadow: "0 0 6px rgba(220,232,255,0.95), 0 0 12px rgba(180,210,255,0.65)",
+                animation: sp.anim,
+                animationDelay: sp.delay,
+                zIndex: 2,
+                fontWeight: 900,
+                userSelect: "none",
+              }}
+              aria-hidden="true"
+            >
+              ★
+            </div>
+          ))}
+        </>
       )}
     </div>
   );
