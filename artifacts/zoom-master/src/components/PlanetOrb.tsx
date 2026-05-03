@@ -467,39 +467,30 @@ function PlanetOrbImpl({ planet, size = 60, animate = true, displayFloat }: Plan
           ))}
         </>
       )}
+      {/* V1 NFT Platinum — pulsing platinum light. Replaces the old four
+          ★ sparkles. A soft chrome-blue halo behind the orb pulses in
+          opacity + scale so the planet itself "breathes light", which
+          reads as more premium/alive than discrete sparkles. */}
       {planet.name === "V1_NFT" && animate && (
-        <>
-          {[
-            { top: "-8%",  left: "12%",  size: 0.22, anim: "nft-sparkle-1 2.8s ease-in-out infinite",          delay: "0s"   },
-            { top: "10%",  left: "85%",  size: 0.18, anim: "nft-sparkle-2 3.4s ease-in-out infinite",          delay: "0.7s" },
-            { top: "62%",  left: "-6%",  size: 0.16, anim: "nft-sparkle-3 3.1s ease-in-out infinite",          delay: "1.4s" },
-            { top: "78%",  left: "70%",  size: 0.20, anim: "nft-sparkle-4 3.6s ease-in-out infinite",          delay: "0.3s" },
-          ].map((sp, i) => (
-            <div
-              key={`nft-sp-${i}`}
-              style={{
-                position: "absolute",
-                top: sp.top,
-                left: sp.left,
-                width: size * sp.size,
-                height: size * sp.size,
-                pointerEvents: "none",
-                color: "#ffffff",
-                fontSize: size * sp.size,
-                lineHeight: 1,
-                textShadow: "0 0 6px rgba(220,232,255,0.95), 0 0 12px rgba(180,210,255,0.65)",
-                animation: sp.anim,
-                animationDelay: sp.delay,
-                zIndex: 2,
-                fontWeight: 900,
-                userSelect: "none",
-              }}
-              aria-hidden="true"
-            >
-              ★
-            </div>
-          ))}
-        </>
+        <div
+          aria-hidden
+          className="nft-pulse-halo"
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            width: size * 1.6,
+            height: size * 1.6,
+            marginLeft: -(size * 1.6) / 2,
+            marginTop: -(size * 1.6) / 2,
+            borderRadius: "50%",
+            background:
+              "radial-gradient(circle, rgba(220,232,255,0.55) 0%, rgba(180,210,255,0.25) 35%, transparent 70%)",
+            filter: `blur(${size * 0.18}px)`,
+            pointerEvents: "none",
+            zIndex: 0,
+          }}
+        />
       )}
     </div>
   );
