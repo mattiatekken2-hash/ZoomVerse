@@ -419,7 +419,7 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
             const listingFloat = FLOAT_PLANET_TYPES.has(listing.name)
               ? getListingDisplayFloat({ id: listing.serverId ?? listing.id, planetFloat: listing.planetFloat })
               : undefined;
-            const isPerfectFloat = typeof listingFloat === "number" && listingFloat >= 0.991;
+            const isPerfectFloat = typeof listingFloat === "number" && listingFloat >= 1;
 
             return (
               <div

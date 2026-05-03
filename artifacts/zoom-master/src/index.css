@@ -1303,7 +1303,7 @@
   z-index: 1;
 }
 
-/* ─── Perfect-float card glow (≥0.991, top 1%) ────────────────────────
+/* ─── Perfect-float card glow (float === 1.000 only) ──────────────────
    Lighter cousin of `.nft-card-glow` for normal rarities that rolled
    an essentially-1.000 Float. Same masked rotating ring trick but the
    conic gradient uses warm gold/white tones instead of platinum, and
