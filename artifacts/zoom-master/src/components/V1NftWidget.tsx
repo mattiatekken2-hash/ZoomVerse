@@ -64,7 +64,7 @@ function V1NftWidgetBase({ telegramId }: Props) {
     if (!telegramId) { setMessage("Telegram ID missing"); return; }
     if (!connectedAddress) {
       tonConnectUI.openModal();
-      setMessage("Connetti il wallet prima");
+      setMessage("Connect your wallet first");
       return;
     }
     setBuying(true);
@@ -78,27 +78,27 @@ function V1NftWidgetBase({ telegramId }: Props) {
       const boc = txResult.boc || "";
       const confirmResult = await confirmTonPurchase(telegramId, "v1_nft_platinum", connectedAddress, tonPrice, boc);
       if (confirmResult.alreadyCredited) {
-        setMessage("V1 NFT acquistato!");
+        setMessage("V1 NFT purchased!");
         window.dispatchEvent(new Event("zoom-data-refresh"));
       } else if (confirmResult.pending && confirmResult.txnId) {
-        setMessage("Verifica pagamento on-chain…");
+        setMessage("Verifying payment on-chain…");
         const final = await pollTxnUntilFinal(confirmResult.txnId);
         if (final?.status === "completed") {
-          setMessage("V1 NFT acquistato!");
+          setMessage("V1 NFT purchased!");
           window.dispatchEvent(new Event("zoom-data-refresh"));
         } else if (final?.status === "failed") {
-          setMessage("Pagamento non rilevato. Contatta il supporto se hai inviato TON.");
+          setMessage("Payment not detected. Contact support if TON was sent.");
         } else {
-          setMessage("In attesa di conferma. L'NFT apparirà appena verificato.");
+          setMessage("Awaiting confirmation. The NFT will appear once verified.");
           window.dispatchEvent(new Event("zoom-data-refresh"));
           setTimeout(() => window.dispatchEvent(new Event("zoom-data-refresh")), 90_000);
           setTimeout(() => window.dispatchEvent(new Event("zoom-data-refresh")), 150_000);
         }
       } else if (confirmResult.ok) {
-        setMessage("V1 NFT acquistato!");
+        setMessage("V1 NFT purchased!");
         window.dispatchEvent(new Event("zoom-data-refresh"));
       } else {
-        setMessage(confirmResult.error || "Credito fallito");
+        setMessage(confirmResult.error || "Credit failed");
       }
       // refresh stock after attempt
       const s = await fetchV1NftPlatinumStock();
@@ -106,9 +106,9 @@ function V1NftWidgetBase({ telegramId }: Props) {
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       if (errMsg.includes("cancel") || errMsg.includes("reject") || errMsg.includes("Interrupted")) {
-        setMessage("Pagamento annullato");
+        setMessage("Payment cancelled");
       } else {
-        setMessage("Pagamento TON fallito");
+        setMessage("TON payment failed");
         console.error("[v1nft] sendTransaction error:", err);
       }
     }
@@ -205,7 +205,7 @@ function V1NftWidgetBase({ telegramId }: Props) {
               V1 NFT Platinum Edition
             </div>
             <div className="text-xs" style={{ color: "rgba(202,225,255,0.7)", marginBottom: 14 }}>
-              Esclusivo · Solo 5 al mondo · 275 $ZOOM/h
+              Exclusive · Only 5 worldwide · 275 $ZOOM/h
             </div>
 
             <div style={{
@@ -213,10 +213,10 @@ function V1NftWidgetBase({ telegramId }: Props) {
               marginBottom: 14,
             }}>
               {[
-                { label: "Rendimento", value: "275 $ZOOM/h" },
-                { label: "Prezzo", value: "20 TON" },
-                { label: "Stock globale", value: stock ? `${stock.remaining}/${stock.max}` : "5/5" },
-                { label: "Per-user", value: "Illimitato" },
+                { label: "Yield", value: "275 $ZOOM/h" },
+                { label: "Price", value: "20 TON" },
+                { label: "Global stock", value: stock ? `${stock.remaining}/${stock.max}` : "5/5" },
+                { label: "Per-user", value: "Unlimited" },
               ].map((row) => (
                 <div key={row.label} style={{
                   padding: "8px 10px", borderRadius: 10,
@@ -232,17 +232,6 @@ function V1NftWidgetBase({ telegramId }: Props) {
                   </div>
                 </div>
               ))}
-            </div>
-
-            <div style={{
-              padding: "10px 12px", borderRadius: 10,
-              background: "rgba(202,225,255,0.06)",
-              border: "1px solid rgba(202,225,255,0.20)",
-              fontSize: 11, color: "rgba(202,225,255,0.85)",
-              marginBottom: 14, lineHeight: 1.4,
-            }}>
-              Pianeta esclusivo NFT. NON cade dal Lab. Pagamento <b>solo in TON</b>.
-              Inventory immediato dopo la conferma on-chain.
             </div>
 
             {message && (
@@ -285,7 +274,7 @@ function V1NftWidgetBase({ telegramId }: Props) {
               }}
               data-testid="button-v1-nft-close"
             >
-              CHIUDI
+              CLOSE
             </button>
           </div>
         </div>
