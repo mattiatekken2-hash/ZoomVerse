@@ -79,8 +79,8 @@ router.get("/tasks/state/:telegramId", async (req, res) => {
       .select({
         builtSum: sql<number>`(
           ${usersTable.totalCraftedBasic} + ${usersTable.totalCraftedRare} +
-          ${usersTable.totalCraftedEpic}  + ${usersTable.totalCraftedGold} +
-          ${usersTable.totalCraftedV1}
+          ${usersTable.totalCraftedEpic}  + ${usersTable.totalCraftedMythic} +
+          ${usersTable.totalCraftedGold}  + ${usersTable.totalCraftedV1}
         )`,
         claimedTasks: usersTable.claimedTasks,
       })
@@ -161,8 +161,8 @@ router.post("/tasks/claim", async (req, res) => {
     // guard consistent with the value the client actually sees.
     const builtSumSql = sql<number>`(
       ${usersTable.totalCraftedBasic} + ${usersTable.totalCraftedRare} +
-      ${usersTable.totalCraftedEpic}  + ${usersTable.totalCraftedGold} +
-      ${usersTable.totalCraftedV1}
+      ${usersTable.totalCraftedEpic}  + ${usersTable.totalCraftedMythic} +
+      ${usersTable.totalCraftedGold}  + ${usersTable.totalCraftedV1}
     )`;
 
     const updated = await db

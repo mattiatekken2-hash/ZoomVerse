@@ -54,6 +54,7 @@ const SaveBody = z.object({
   claimedBonusRare: z.number().int().min(0).optional(),
   claimedBonusEpic: z.number().int().min(0).optional(),
   claimedBonusGold: z.number().int().min(0).optional(),
+  claimedBonusMythic: z.number().int().min(0).optional(),
   claimedBonusV1: z.number().int().min(0).optional(),
   claimedBonusV1NftPlatinum: z.number().int().min(0).optional(),
   // Monotonic client-side count of every planet ever forged / crafted /
@@ -83,6 +84,7 @@ router.get("/regular-planets/:telegramId", async (req, res) => {
         claimedBonusRare: usersTable.claimedBonusRare,
         claimedBonusEpic: usersTable.claimedBonusEpic,
         claimedBonusGold: usersTable.claimedBonusGold,
+        claimedBonusMythic: usersTable.claimedBonusMythic,
         claimedBonusV1: usersTable.claimedBonusV1,
         claimedBonusV1NftPlatinum: usersTable.claimedBonusV1NftPlatinum,
       })
@@ -99,6 +101,7 @@ router.get("/regular-planets/:telegramId", async (req, res) => {
         claimedBonusRare: 0,
         claimedBonusEpic: 0,
         claimedBonusGold: 0,
+        claimedBonusMythic: 0,
         claimedBonusV1: 0,
         claimedBonusV1NftPlatinum: 0,
       });
@@ -129,6 +132,7 @@ router.get("/regular-planets/:telegramId", async (req, res) => {
       claimedBonusRare: row.claimedBonusRare ?? 0,
       claimedBonusEpic: row.claimedBonusEpic ?? 0,
       claimedBonusGold: row.claimedBonusGold ?? 0,
+      claimedBonusMythic: row.claimedBonusMythic ?? 0,
       claimedBonusV1: row.claimedBonusV1 ?? 0,
       claimedBonusV1NftPlatinum: row.claimedBonusV1NftPlatinum ?? 0,
     });
@@ -157,6 +161,7 @@ router.post("/regular-planets/save", async (req, res) => {
     claimedBonusRare,
     claimedBonusEpic,
     claimedBonusGold,
+    claimedBonusMythic,
     claimedBonusV1,
     claimedBonusV1NftPlatinum,
     craftsCompleted,
@@ -220,6 +225,7 @@ router.post("/regular-planets/save", async (req, res) => {
             ...(claimedBonusRare  != null ? { claimedBonusRare:  sql`GREATEST(${usersTable.claimedBonusRare},  ${claimedBonusRare})`  } : {}),
             ...(claimedBonusEpic  != null ? { claimedBonusEpic:  sql`GREATEST(${usersTable.claimedBonusEpic},  ${claimedBonusEpic})`  } : {}),
             ...(claimedBonusGold  != null ? { claimedBonusGold:  sql`GREATEST(${usersTable.claimedBonusGold},  ${claimedBonusGold})`  } : {}),
+            ...(claimedBonusMythic != null ? { claimedBonusMythic: sql`GREATEST(${usersTable.claimedBonusMythic}, ${claimedBonusMythic})` } : {}),
             ...(claimedBonusV1    != null ? { claimedBonusV1:    sql`GREATEST(${usersTable.claimedBonusV1},    ${claimedBonusV1})`    } : {}),
             ...(claimedBonusV1NftPlatinum != null ? { claimedBonusV1NftPlatinum: sql`GREATEST(${usersTable.claimedBonusV1NftPlatinum}, ${claimedBonusV1NftPlatinum})` } : {}),
             ...(craftsCompleted   != null ? { totalPlanetsBuilt: sql`GREATEST(${usersTable.totalPlanetsBuilt}, ${craftsCompleted})` } : {}),
@@ -329,6 +335,7 @@ router.post("/regular-planets/save", async (req, res) => {
           ...(claimedBonusRare  != null ? { claimedBonusRare:  sql`GREATEST(${usersTable.claimedBonusRare},  ${claimedBonusRare})`  } : {}),
           ...(claimedBonusEpic  != null ? { claimedBonusEpic:  sql`GREATEST(${usersTable.claimedBonusEpic},  ${claimedBonusEpic})`  } : {}),
           ...(claimedBonusGold  != null ? { claimedBonusGold:  sql`GREATEST(${usersTable.claimedBonusGold},  ${claimedBonusGold})`  } : {}),
+          ...(claimedBonusMythic != null ? { claimedBonusMythic: sql`GREATEST(${usersTable.claimedBonusMythic}, ${claimedBonusMythic})` } : {}),
           ...(claimedBonusV1    != null ? { claimedBonusV1:    sql`GREATEST(${usersTable.claimedBonusV1},    ${claimedBonusV1})`    } : {}),
           ...(claimedBonusV1NftPlatinum != null ? { claimedBonusV1NftPlatinum: sql`GREATEST(${usersTable.claimedBonusV1NftPlatinum}, ${claimedBonusV1NftPlatinum})` } : {}),
           ...(craftsCompleted   != null ? { totalPlanetsBuilt: sql`GREATEST(${usersTable.totalPlanetsBuilt}, ${craftsCompleted})` } : {}),

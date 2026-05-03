@@ -158,6 +158,7 @@ router.get("/profile/:telegramId", async (req, res) => {
         totalCraftedBasic: usersTable.totalCraftedBasic,
         totalCraftedRare: usersTable.totalCraftedRare,
         totalCraftedEpic: usersTable.totalCraftedEpic,
+        totalCraftedMythic: usersTable.totalCraftedMythic,
         totalCraftedGold: usersTable.totalCraftedGold,
         totalCraftedV1: usersTable.totalCraftedV1,
       })
@@ -177,6 +178,7 @@ router.get("/profile/:telegramId", async (req, res) => {
         BASIC: rows[0]!.totalCraftedBasic,
         RARE: rows[0]!.totalCraftedRare,
         EPIC: rows[0]!.totalCraftedEpic,
+        MYTHIC: rows[0]!.totalCraftedMythic,
         GOLD: rows[0]!.totalCraftedGold,
         V1: rows[0]!.totalCraftedV1,
       },
@@ -251,14 +253,13 @@ router.post("/craft/record", async (req, res) => {
   if (!parsed.success) { res.status(400).json({ error: "Invalid body" }); return; }
 
   const { telegramId, planetType } = parsed.data;
-  const fieldMap: Record<string, "totalCraftedBasic" | "totalCraftedRare" | "totalCraftedEpic" | "totalCraftedGold" | "totalCraftedV1" | null> = {
+  const fieldMap: Record<string, "totalCraftedBasic" | "totalCraftedRare" | "totalCraftedEpic" | "totalCraftedMythic" | "totalCraftedGold" | "totalCraftedV1" | null> = {
     BASIC: "totalCraftedBasic",
     RARE: "totalCraftedRare",
     EPIC: "totalCraftedEpic",
+    MYTHIC: "totalCraftedMythic",
     GOLD: "totalCraftedGold",
     V1: "totalCraftedV1",
-    // MYTHIC has no leaderboard column yet → silently accept and noop.
-    MYTHIC: null,
   };
   const field = fieldMap[planetType];
   if (!field) { res.json({ ok: true }); return; }

@@ -158,6 +158,7 @@ export interface GameState {
   claimedBonusRare: number;
   claimedBonusEpic: number;
   claimedBonusGold: number;
+  claimedBonusMythic: number;
   claimedBonusV1: number;
   claimedBonusV1NftPlatinum: number;
   claimedBonusSun: boolean;
@@ -497,6 +498,7 @@ const INITIAL_STATE: GameState = {
   claimedBonusRare: 0,
   claimedBonusEpic: 0,
   claimedBonusGold: 0,
+  claimedBonusMythic: 0,
   claimedBonusV1: 0,
   claimedBonusV1NftPlatinum: 0,
   claimedBonusSun: false,
@@ -1481,7 +1483,7 @@ export function useGameState() {
       // only as a placeholder for the few non-destructive read sites and
       // gate the entire grants-derived block on grantsOk.
       const grantsOk = grantsResult !== null;
-      const grants = grantsResult ?? { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+      const grants = grantsResult ?? { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
       const serverCollectionByKey = indexServerCollectionPlanets(serverCollectionPlanets);
 
       // Prefer the post-credit balance returned by /farm/settle when the
@@ -1662,6 +1664,7 @@ export function useGameState() {
             claimedBonusRare:  Math.max(updated.claimedBonusRare  ?? 0, serverRegular.claimedBonusRare),
             claimedBonusEpic:  Math.max(updated.claimedBonusEpic  ?? 0, serverRegular.claimedBonusEpic),
             claimedBonusGold:  Math.max(updated.claimedBonusGold  ?? 0, serverRegular.claimedBonusGold),
+            claimedBonusMythic: Math.max(updated.claimedBonusMythic ?? 0, serverRegular.claimedBonusMythic),
             claimedBonusV1:    Math.max(updated.claimedBonusV1    ?? 0, serverRegular.claimedBonusV1),
             claimedBonusV1NftPlatinum: Math.max(updated.claimedBonusV1NftPlatinum ?? 0, serverRegular.claimedBonusV1NftPlatinum),
           };
@@ -1786,10 +1789,11 @@ export function useGameState() {
         }
 
         // Apply pending bonus planets per type (only new ones not yet claimed)
-        const bonusTypes: Array<{ key: "bonusBasic" | "bonusRare" | "bonusEpic" | "bonusGold" | "bonusV1" | "bonusV1NftPlatinum"; claimedKey: "claimedBonusBasic" | "claimedBonusRare" | "claimedBonusEpic" | "claimedBonusGold" | "claimedBonusV1" | "claimedBonusV1NftPlatinum"; type: PlanetType }> = [
+        const bonusTypes: Array<{ key: "bonusBasic" | "bonusRare" | "bonusEpic" | "bonusGold" | "bonusMythic" | "bonusV1" | "bonusV1NftPlatinum"; claimedKey: "claimedBonusBasic" | "claimedBonusRare" | "claimedBonusEpic" | "claimedBonusGold" | "claimedBonusMythic" | "claimedBonusV1" | "claimedBonusV1NftPlatinum"; type: PlanetType }> = [
           { key: "bonusBasic", claimedKey: "claimedBonusBasic", type: "BASIC" },
           { key: "bonusRare", claimedKey: "claimedBonusRare", type: "RARE" },
           { key: "bonusEpic", claimedKey: "claimedBonusEpic", type: "EPIC" },
+          { key: "bonusMythic", claimedKey: "claimedBonusMythic", type: "MYTHIC" },
           { key: "bonusGold", claimedKey: "claimedBonusGold", type: "GOLD" },
           { key: "bonusV1",   claimedKey: "claimedBonusV1",   type: "V1" },
           { key: "bonusV1NftPlatinum", claimedKey: "claimedBonusV1NftPlatinum", type: "V1_NFT" },
@@ -1897,6 +1901,7 @@ export function useGameState() {
       rare:  state.claimedBonusRare  ?? 0,
       epic:  state.claimedBonusEpic  ?? 0,
       gold:  state.claimedBonusGold  ?? 0,
+      mythic: state.claimedBonusMythic ?? 0,
       v1:    state.claimedBonusV1    ?? 0,
       v1NftPlatinum: state.claimedBonusV1NftPlatinum ?? 0,
     };
@@ -1929,6 +1934,7 @@ export function useGameState() {
     state.claimedBonusRare,
     state.claimedBonusEpic,
     state.claimedBonusGold,
+    state.claimedBonusMythic,
     state.claimedBonusV1,
     state.claimedBonusV1NftPlatinum,
     state.craftsCompleted,
@@ -2048,6 +2054,7 @@ export function useGameState() {
           { key: "bonusBasic", claimedKey: "claimedBonusBasic", type: "BASIC" },
           { key: "bonusRare",  claimedKey: "claimedBonusRare",  type: "RARE" },
           { key: "bonusEpic",  claimedKey: "claimedBonusEpic",  type: "EPIC" },
+          { key: "bonusMythic", claimedKey: "claimedBonusMythic", type: "MYTHIC" },
           { key: "bonusGold",  claimedKey: "claimedBonusGold",  type: "GOLD" },
           { key: "bonusV1",    claimedKey: "claimedBonusV1",    type: "V1" },
           { key: "bonusV1NftPlatinum", claimedKey: "claimedBonusV1NftPlatinum", type: "V1_NFT" },
@@ -2758,6 +2765,7 @@ export function useGameState() {
         claimedBonusBasic: isBonusPlanet && planet.name === "BASIC" ? Math.max(0, prev.claimedBonusBasic - 1) : prev.claimedBonusBasic,
         claimedBonusRare:  isBonusPlanet && planet.name === "RARE"  ? Math.max(0, prev.claimedBonusRare  - 1) : prev.claimedBonusRare,
         claimedBonusEpic:  isBonusPlanet && planet.name === "EPIC"  ? Math.max(0, prev.claimedBonusEpic  - 1) : prev.claimedBonusEpic,
+        claimedBonusMythic: isBonusPlanet && planet.name === "MYTHIC" ? Math.max(0, prev.claimedBonusMythic - 1) : prev.claimedBonusMythic,
         claimedBonusGold:  isBonusPlanet && planet.name === "GOLD"  ? Math.max(0, prev.claimedBonusGold  - 1) : prev.claimedBonusGold,
       };
       // Sync stateRef synchronously: if the user closes the app within a few
@@ -3408,14 +3416,16 @@ export function useGameState() {
       let cBasic = prev.claimedBonusBasic;
       let cRare = prev.claimedBonusRare;
       let cEpic = prev.claimedBonusEpic;
+      let cMythic = prev.claimedBonusMythic;
       let cGold = prev.claimedBonusGold;
       for (const p of toBurn) {
         const isBonus = p.id.startsWith(`bonus-${p.name}-`);
-        if (isBonus && prev.telegramId && (p.name === "BASIC" || p.name === "RARE" || p.name === "EPIC" || p.name === "GOLD")) {
+        if (isBonus && prev.telegramId && (p.name === "BASIC" || p.name === "RARE" || p.name === "EPIC" || p.name === "MYTHIC" || p.name === "GOLD")) {
           notifyPlanetBurn(prev.telegramId, p.name);
           if (p.name === "BASIC") cBasic = Math.max(0, cBasic - 1);
           else if (p.name === "RARE") cRare = Math.max(0, cRare - 1);
           else if (p.name === "EPIC") cEpic = Math.max(0, cEpic - 1);
+          else if (p.name === "MYTHIC") cMythic = Math.max(0, cMythic - 1);
           else if (p.name === "GOLD") cGold = Math.max(0, cGold - 1);
         }
       }
@@ -3426,6 +3436,7 @@ export function useGameState() {
         claimedBonusBasic: cBasic,
         claimedBonusRare: cRare,
         claimedBonusEpic: cEpic,
+        claimedBonusMythic: cMythic,
         claimedBonusGold: cGold,
       };
       stateRef.current = updated;

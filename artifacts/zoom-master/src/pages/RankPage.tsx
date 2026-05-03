@@ -224,11 +224,12 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                   )}
                 </div>
                 {profile.crafted && (
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     {([
                       { key: "BASIC", label: "Basic", color: "#8892b0" },
                       { key: "RARE", label: "Rare", color: "#4facfe" },
                       { key: "EPIC", label: "Epic", color: "#c471ed" },
+                      { key: "MYTHIC", label: "Mythic", color: "#dc143c" },
                       { key: "GOLD", label: "Gold", color: "#ffd700" },
                       { key: "V1", label: "V1", color: "#f5fbff" },
                     ] as const).map(({ key, label, color }) => (
