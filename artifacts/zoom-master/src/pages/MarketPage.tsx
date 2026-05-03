@@ -7,6 +7,7 @@ import { useGlobalStore, pushMarketSale, refreshMarketListings } from "../store/
 import { PlanetFloatBar } from "../components/PlanetFloatBar";
 import { getListingDisplayFloat, FLOAT_PLANET_TYPES } from "../utils/planetFloat";
 import { getPlanetDisplayName, deterministicNameFromId } from "../utils/planetNames";
+import { useT } from "../i18n/LanguageContext";
 
 
 const RARITY_FILTERS: (PlanetType | "ALL")[] = ["ALL", "BASIC", "RARE", "EPIC", "GOLD", "V1"];
@@ -32,6 +33,7 @@ interface MarketPageProps {
 interface Toast { text: string; ok: boolean }
 
 export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete }: MarketPageProps) {
+  const { t } = useT();
   const [filter, setFilter] = useState<PlanetType | "ALL">("ALL");
   const [toast, setToast] = useState<Toast | null>(null);
   const serverListings = useGlobalStore((s) => s.marketListings);
@@ -148,7 +150,7 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
   return (
     <div className="flex flex-col h-full relative">
       <div className="px-5 pt-4 pb-2 flex-shrink-0">
-        <h2 className="font-black text-lg tracking-tight">Marketplace</h2>
+        <h2 className="font-black text-lg tracking-tight">{t("market.title")}</h2>
         <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
           25% $ZOOM fee · P2P trading · {filtered.length} listings
         </p>

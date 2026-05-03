@@ -129,9 +129,9 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
       )}
       <div className="px-5 pt-4 pb-2 flex-shrink-0 flex items-center justify-between">
         <div>
-          <h2 className="font-black text-lg tracking-tight">My Planets</h2>
+          <h2 className="font-black text-lg tracking-tight">{t("farm.myPlanets")}</h2>
           <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-            {planets.length}/{maxSlots} slots · {totalRate > 0 ? `+${totalRate.toLocaleString()} $ZOOM/hr` : "No active farming"}
+            {totalRate > 0 ? t("farm.slotsRate", { n: planets.length, max: maxSlots, rate: totalRate.toLocaleString() }) : `${planets.length}/${maxSlots} · ${t("farm.noActive")}`}
           </p>
         </div>
         {totalRate > 0 && (
@@ -291,8 +291,8 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
                     className="btn-widget flex-1 btn-glass-farm"
                     onClick={handleSunStartOrReactivate}
                   >
-                    <span>FARM</span>
-                    <span style={{ fontSize: 8, opacity: 0.6 }}>Start</span>
+                    <span>{t("farm.farm")}</span>
+                    <span style={{ fontSize: 8, opacity: 0.6 }}>{t("farm.startSmall")}</span>
                   </button>
                 )}
               </div>
@@ -459,8 +459,8 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
                       onClick={handleStartOrReactivate}
                       data-testid={`btn-farm-${planet.id}`}
                     >
-                      <span>START</span>
-                      <span style={{ fontSize: 8, opacity: 0.7 }}>Farm</span>
+                      <span>{t("farm.startBig")}</span>
+                      <span style={{ fontSize: 8, opacity: 0.7 }}>{t("farm.farm")}</span>
                     </button>
                   )}
 
@@ -471,7 +471,7 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
                     onClick={() => !isListed && handleBurnClick(planet.id)}
                     data-testid={`btn-burn-${planet.id}`}
                   >
-                    <span>{confirmBurn === planet.id ? "SURE?" : "BURN"}</span>
+                    <span>{confirmBurn === planet.id ? t("farm.sure") : t("farm.burn")}</span>
                     <span style={{ fontSize: 8, opacity: 0.7 }}>+{refund}</span>
                   </button>
 
@@ -482,8 +482,8 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
                       data-testid={`btn-unlist-${planet.id}`}
                     >
                       <span style={{ fontSize: 14 }}>✕</span>
-                      <span>LISTED</span>
-                      <span style={{ fontSize: 8, opacity: 0.7 }}>Delist</span>
+                      <span>{t("farm.listed")}</span>
+                      <span style={{ fontSize: 8, opacity: 0.7 }}>{t("farm.delist")}</span>
                     </button>
                   ) : planet.name === "V1" ? (
                     // V1 is bound to its owner — cannot be listed on the
@@ -496,7 +496,7 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
                       data-testid={`btn-sell-${planet.id}`}
                     >
                       <span>SOULBOUND</span>
-                      <span style={{ fontSize: 8, opacity: 0.7 }}>Cannot sell</span>
+                      <span style={{ fontSize: 8, opacity: 0.7 }}>{t("farm.cannotSell")}</span>
                     </button>
                   ) : (
                     <button
@@ -504,8 +504,8 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
                       onClick={() => openSellPopup(planet)}
                       data-testid={`btn-sell-${planet.id}`}
                     >
-                      <span>SELL</span>
-                      <span style={{ fontSize: 8, opacity: 0.7 }}>Market</span>
+                      <span>{t("farm.sell")}</span>
+                      <span style={{ fontSize: 8, opacity: 0.7 }}>{t("farm.marketLabel")}</span>
                     </button>
                   )}
                 </div>
@@ -525,7 +525,7 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
               data-testid={`slot-empty-${i}`}
             >
               <div style={{ fontSize: 32, opacity: 0.15 }}>◌</div>
-              <div className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.2)" }}>Empty Slot</div>
+              <div className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.2)" }}>{t("farm.emptySlot")}</div>
             </div>
           ))}
 
@@ -577,7 +577,7 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
                 onChange={(e) => setSellPrice(e.target.value)}
                 className="w-full rounded-xl px-4 py-4 text-xl font-black pr-20 outline-none"
                 style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${sellPopup.planetColor}44`, color: "white", caretColor: sellPopup.planetColor }}
-                placeholder="Enter price"
+                placeholder={t("farm.enterPrice")}
                 inputMode="numeric"
               />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "rgba(255,255,255,0.35)" }}>

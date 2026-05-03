@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { PlanetOrb } from "./PlanetOrb";
 import type { Planet, PlanetType } from "../hooks/useGameState";
+import { useT } from "../i18n/LanguageContext";
 
 export type ForgePhase = "idle" | "flash" | "waiting" | "revealed";
 
@@ -74,6 +75,7 @@ export function PlanetCanvas({
   currentCraftRarity,
   forgePhase,
 }: PlanetCanvasProps) {
+  const { t } = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const fragmentLayerRef = useRef<HTMLDivElement>(null);
   const orbitARef = useRef<HTMLDivElement>(null);
@@ -426,7 +428,7 @@ export function PlanetCanvas({
         <div className="absolute bottom-0 left-0 right-0 px-6 pb-2 pt-4">
           <div className="flex justify-between text-xs mb-1.5">
             <span className="font-semibold tracking-wider uppercase" style={{ color: "rgba(255,255,255,0.4)" }}>
-              {pct < 0.04 ? "Primordial Light" : "Forging Mass"}
+              {pct < 0.04 ? t("planetCanvas.primordial") : t("planetCanvas.forgingMass")}
             </span>
             <span className="font-bold" style={{ color: displayColor }}>
               {progress}/{goal}

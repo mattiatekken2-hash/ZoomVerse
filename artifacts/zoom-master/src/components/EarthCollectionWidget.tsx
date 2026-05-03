@@ -222,7 +222,7 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
           >
             <button
               onClick={() => setOpen(false)}
-              aria-label="Close"
+              aria-label={t("common.close")}
               style={{
                 position: "absolute", top: 12, right: 12, width: 32, height: 32,
                 borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)",
@@ -320,7 +320,7 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
                 className="ec-buy-btn"
                 onClick={handleBuy}
                 disabled={buying || soldOut || sunCount <= 0}
-                title={sunCount <= 0 ? "You must own a SUN to unlock this collection" : undefined}
+                title={sunCount <= 0 ? t("earthColl.requirementSun") : undefined}
                 data-testid="button-buy-earth-collection"
               >
                 {soldOut

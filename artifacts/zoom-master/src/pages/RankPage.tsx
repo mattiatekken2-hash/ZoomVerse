@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { FeedEvent } from "../hooks/useGameState";
 import { useGlobalStore } from "../store/globalStore";
+import { useT } from "../i18n/LanguageContext";
 
 interface RankPageProps {
   balance: number;
@@ -41,6 +42,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
   const feedRef = useRef<HTMLDivElement>(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [convertInput, setConvertInput] = useState("");
+  const { t } = useT();
 
   // All shared data is pre-loaded centrally — no per-mount fetch, no pop-in
   const leaderboard = useGlobalStore((s) => s.leaderboard);
@@ -214,10 +216,10 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
             <div className="px-4 mb-3">
               <div className="rounded-2xl border p-3" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="font-black text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>My Profile</span>
+                  <span className="font-black text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>{t("rank.myProfile")}</span>
                   {profile.createdAt && (
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(0,242,254,0.08)", color: "rgba(0,242,254,0.6)", border: "1px solid rgba(0,242,254,0.15)" }}>
-                      Joined: {new Date(profile.createdAt).toLocaleDateString("it-IT")}
+                      {t("rank.joined", { date: new Date(profile.createdAt).toLocaleDateString("it-IT") })}
                     </span>
                   )}
                 </div>
@@ -410,10 +412,10 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
             >
               <div className="flex items-center gap-2 mb-3">
                 <span style={{ fontSize: 14 }}>🧮</span>
-                <span className="font-black text-sm tracking-wide" style={{ color: "#ffd700" }}>Conversion Simulator</span>
+                <span className="font-black text-sm tracking-wide" style={{ color: "#ffd700" }}>{t("rank.convSim")}</span>
               </div>
               <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.35)" }}>
-                Simulate how much TON your $ZOOM could be worth. Rate: 1,000,000 $ZOOM = 1 TON
+                {t("rank.convDesc")}
               </div>
 
               <div className="relative mb-2">
@@ -422,7 +424,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                   min={0}
                   value={convertInput}
                   onChange={e => setConvertInput(e.target.value)}
-                  placeholder="Enter $ZOOM amount"
+                  placeholder={t("rank.enterAmount")}
                   className="w-full rounded-xl px-4 py-3.5 text-base font-bold pr-20 outline-none"
                   style={{
                     background: "rgba(0,0,0,0.3)",
@@ -441,7 +443,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                 className="rounded-xl px-4 py-3 mb-3 flex items-center justify-between border"
                 style={{ borderColor: "rgba(255,215,0,0.1)", background: "rgba(255,215,0,0.04)" }}
               >
-                <span className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.4)" }}>Estimated value</span>
+                <span className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.4)" }}>{t("rank.estValue")}</span>
                 <span className="font-black text-lg gold-text">
                   {estimatedTon() != null ? `≈ ${estimatedTon()} TON` : "—"}
                 </span>
@@ -458,22 +460,22 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                   letterSpacing: "0.1em",
                 }}
               >
-                CONVERT (Disabled)
+                {t("rank.convBtn")}
               </button>
               <div className="text-xs text-center mt-2" style={{ color: "rgba(255,255,255,0.2)", lineHeight: 1.5 }}>
-                Real conversion is based on the final pool at Season 1 end. This is a simulation only.
+                {t("rank.convNote")}
               </div>
             </div>
 
             {/* How it works */}
             <div className="rounded-2xl p-4 border" style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.01)" }}>
-              <div className="font-black text-xs tracking-widest uppercase mb-3" style={{ color: "rgba(255,255,255,0.25)" }}>How it works</div>
+              <div className="font-black text-xs tracking-widest uppercase mb-3" style={{ color: "rgba(255,255,255,0.25)" }}>{t("rank.howWorks")}</div>
               {[
-                { icon: "🪐", text: "Earn $ZOOM by farming, crafting, and referrals" },
-                { icon: "☀️", text: "THE SUN generates 1,000 $ZOOM/hr — maximum yield" },
-                { icon: "⏳", text: "Hold $ZOOM until Season 1 ends (3 months)" },
-                { icon: "💱", text: "Exchange $ZOOM for TON from the final pool" },
-                { icon: "🏆", text: "Top Zoom Season holders earn bonus rewards" },
+                { icon: "🪐", text: t("rank.step1") },
+                { icon: "☀️", text: t("rank.step2") },
+                { icon: "⏳", text: t("rank.step3") },
+                { icon: "💱", text: t("rank.step4") },
+                { icon: "🏆", text: t("rank.step5") },
               ].map((step, i) => (
                 <div key={i} className="flex items-center gap-3 mb-2 last:mb-0">
                   <div style={{ fontSize: 14, flexShrink: 0 }}>{step.icon}</div>

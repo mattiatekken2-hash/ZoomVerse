@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { claimDailyReward, fetchTasksState, claimTask, type TasksState } from "../utils/api";
 import { useGlobalStore, refreshDailyStatus } from "../store/globalStore";
+import { useT } from "../i18n/LanguageContext";
 
 
 interface EarnPageProps {
@@ -40,6 +41,7 @@ const sponsorGateKey = (telegramId: string | null) =>
   `zoom:sponsor-gate-opened-at:${telegramId ?? "_anon"}`;
 
 export function EarnPage({ referralCode, referralCount, referralSpeedBonus, referredBy, claimedMilestones, telegramId, onRedeemCode }: EarnPageProps) {
+  const { t } = useT();
   const firstName = (() => {
     try { return (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.first_name ?? null; } catch { return null; }
   })();
@@ -77,13 +79,13 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
     const res = await claimDailyReward(telegramId, firstName ?? undefined);
     setClaiming(false);
     if (res.ok && res.reward) {
-      setClaimMsg(`+${res.reward.toLocaleString()} $ZOOM (Day ${res.day})`);
+      setClaimMsg(t("earn.zoomDay", { n: res.reward.toLocaleString(), d: res.day ?? 0 }));
       window.dispatchEvent(new CustomEvent("zoom-credit-local", { detail: { amount: res.reward } }));
       window.dispatchEvent(new Event("zoom-data-refresh"));
       await refreshDailyStatus();
       setTimeout(() => setClaimMsg(null), 3500);
     } else {
-      setClaimMsg(res.error || "Claim failed");
+      setClaimMsg(res.error || t("earn.claimFailed"));
       setTimeout(() => setClaimMsg(null), 3500);
     }
   };
@@ -115,13 +117,13 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
     const result = onRedeemCode(redeemInput);
     if (result.success) {
       if (result.isSun) {
-        setRedeemStatus({ type: "sun", message: "☀️ THE SUN added to your inventory! Go to Farm to activate." });
+        setRedeemStatus({ type: "sun", message: t("earn.sunAdded") });
       } else {
-        setRedeemStatus({ type: "success", message: `+${result.amount?.toLocaleString()} $ZOOM credited!` });
+        setRedeemStatus({ type: "success", message: t("earn.zoomCredited", { n: result.amount?.toLocaleString() ?? "0" }) });
       }
       setRedeemInput("");
     } else {
-      setRedeemStatus({ type: "error", message: result.error || "Invalid code" });
+      setRedeemStatus({ type: "error", message: result.error || t("earn.invalidCode") });
     }
     setTimeout(() => setRedeemStatus(null), 4000);
   };
@@ -157,7 +159,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
     setTasksLoading(true);
     setTasksError(null);
     const s = await fetchTasksState(telegramId);
-    if (s) setTasks(s); else setTasksError("Could not load tasks");
+    if (s) setTasks(s); else setTasksError(t("earn.couldNotLoadTasks"));
     setTasksLoading(false);
   }, [telegramId]);
 
@@ -177,19 +179,19 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         window.dispatchEvent(new CustomEvent("zoom-credit-local", { detail: { amount: res.rewardZoom } }));
       }
       if (res.rewardSpins && res.rewardSpins > 0) {
-        parts.push(`+${res.rewardSpins} Wheel Spin${res.rewardSpins > 1 ? "s" : ""}`);
+        parts.push(t(res.rewardSpins > 1 ? "earn.spinsCreditedMany" : "earn.spinsCreditedOne", { n: res.rewardSpins }));
       }
-      setTaskMsg(parts.join(" · ") || "Claimed");
+      setTaskMsg(parts.join(" · ") || t("earn.claimedBtn"));
       window.dispatchEvent(new Event("zoom-data-refresh"));
       await reloadTasks();
     } else if (res.error === "ALREADY_CLAIMED") {
-      setTaskMsg("Already claimed");
+      setTaskMsg(t("earn.alreadyClaimed"));
       await reloadTasks();
     } else if (res.error === "THRESHOLD_NOT_MET") {
-      setTaskMsg(`Need ${res.threshold} planets (you have ${res.planetsBuilt ?? 0})`);
+      setTaskMsg(t("earn.thresholdNotMet", { t: String(res.threshold ?? 0), b: String(res.planetsBuilt ?? 0) }));
       await reloadTasks();
     } else {
-      setTaskMsg("Claim failed");
+      setTaskMsg(t("earn.claimFailed"));
     }
     setTimeout(() => setTaskMsg(null), 3500);
   };
@@ -216,8 +218,8 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="px-5 pt-4 pb-2 flex-shrink-0">
-        <h2 className="font-black text-lg tracking-tight">Earn</h2>
-        <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Daily rewards & referrals</p>
+        <h2 className="font-black text-lg tracking-tight">{t("earn.title")}</h2>
+        <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>{t("earn.subtitle")}</p>
       </div>
 
       <div className="px-4 pb-4 flex flex-col gap-4">
@@ -230,14 +232,14 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             <div className="flex items-center gap-2">
               <div className="text-2xl">🎁</div>
               <div>
-                <div className="font-black text-base tracking-wide neon-text">Daily Streak</div>
+                <div className="font-black text-base tracking-wide neon-text">{t("earn.dailyStreak")}</div>
                 <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.4)" }}>
-                  7-DAY LOOP · CYCLE {cycle + 1} · +{cyclePct.toFixed(0)}% BONUS
+                  {t("earn.streakLoop", { n: cycle + 1, pct: cyclePct.toFixed(0) })}
                 </div>
               </div>
             </div>
             <div className="text-right">
-              <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.35)" }}>NEXT</div>
+              <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.35)" }}>{t("earn.next")}</div>
               <div className="text-sm font-black neon-text">+{Math.round(upcomingReward).toLocaleString()}</div>
             </div>
           </div>
@@ -298,10 +300,10 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             data-testid="button-claim-daily"
           >
             {claiming
-              ? "CLAIMING..."
+              ? t("earn.claiming")
               : canClaim
-                ? `CLAIM DAY ${upcomingDay} — +${Math.round(upcomingReward).toLocaleString()} $ZOOM`
-                : `NEXT IN ${hLeft}h ${mLeft}m ${sLeft}s`}
+                ? t("earn.claimDayBtn", { n: upcomingDay, r: Math.round(upcomingReward).toLocaleString() })
+                : t("earn.nextIn", { h: hLeft, m: mLeft, s: sLeft })}
           </button>
 
           {claimMsg && (
@@ -311,7 +313,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           )}
 
           <div className="mt-2 text-[10px] text-center" style={{ color: "rgba(255,255,255,0.3)" }}>
-            Miss 24h after available → streak resets to Day 1
+            {t("earn.streakResetHint")}
           </div>
         </div>
 
@@ -322,10 +324,10 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         >
           <div className="flex items-center gap-2 mb-2">
             <div className="text-xl">🎟️</div>
-            <div className="font-black text-base" style={{ color: "#ffb347" }}>Redeem Code</div>
+            <div className="font-black text-base" style={{ color: "#ffb347" }}>{t("earn.redeemCode")}</div>
           </div>
           <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.4)" }}>
-            Enter a promo or SUN code (SUN-****) to claim instant rewards
+            {t("earn.redeemHint")}
           </div>
           <div className="flex gap-2">
             <input
@@ -353,7 +355,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
               }}
               data-testid="button-redeem"
             >
-              GO
+              {t("earn.go")}
             </button>
           </div>
           {redeemStatus && (
@@ -374,10 +376,10 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         <div className="rounded-2xl p-5 border" style={{ borderColor: "rgba(255,215,0,0.15)", background: "rgba(255,215,0,0.03)" }}>
           <div className="flex items-center gap-2 mb-3">
             <div className="text-xl">🔗</div>
-            <div className="font-black text-base gold-text">Referral Program</div>
+            <div className="font-black text-base gold-text">{t("earn.referralProgram")}</div>
           </div>
           <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
-            +20 $ZOOM per new user who joins via your link. Milestone bonuses auto-credited!
+            {t("earn.referralProgramHint")}
           </div>
           <button
             onClick={() => {
@@ -392,13 +394,13 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
               border: "1px solid rgba(255,215,0,0.25)",
             }}
           >
-            INVITE FRIENDS
+            {t("earn.inviteFriends")}
           </button>
           <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
             <span>ID:</span>
             <span className="font-bold font-mono gold-text">{referralCode}</span>
             <span>·</span>
-            <span className="font-bold" style={{ color: "#00e676" }}>{referralCount} invited</span>
+            <span className="font-bold" style={{ color: "#00e676" }}>{t("earn.invitedSuffix", { n: referralCount })}</span>
           </div>
         </div>
 
@@ -411,12 +413,10 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             <div className="text-2xl">⚡</div>
             <div className="flex-1">
               <div className="font-black text-sm" style={{ color: "#00e676" }}>
-                +{Math.round(referralSpeedBonus * 100)}% Farming Speed Active
+                {t("earn.speedActive", { n: Math.round(referralSpeedBonus * 100) })}
               </div>
               <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
-                {referredBy
-                  ? `You joined via a friend's invite — enjoy the speed boost!`
-                  : "Referral speed bonus active"}
+                {referredBy ? t("earn.speedActiveJoined") : t("earn.speedActiveSub")}
               </div>
             </div>
           </div>
@@ -425,13 +425,13 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         {/* Milestones */}
         <div className="rounded-2xl p-4 border" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}>
           <div className="font-black text-sm tracking-wide mb-3" style={{ color: "rgba(255,255,255,0.7)" }}>
-            Referral Milestones
+            {t("earn.referralMilestones")}
           </div>
           {nextMilestone && (
             <div className="mb-4">
               <div className="flex justify-between text-xs mb-1.5">
                 <span style={{ color: "rgba(255,255,255,0.4)" }}>
-                  Next: {nextMilestone.count} invites → {nextMilestone.reward.toLocaleString()} $ZOOM
+                  {t("earn.nextMilestone", { c: nextMilestone.count, r: nextMilestone.reward.toLocaleString() })}
                 </span>
                 <span className="font-bold neon-text">{referralCount}/{nextMilestone.count}</span>
               </div>
@@ -464,11 +464,11 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                   <div className="flex items-center gap-2">
                     <div style={{ fontSize: 14 }}>{claimed ? "✅" : reached ? "🎉" : isCurrent ? "⏳" : "○"}</div>
                     <span className="text-xs font-bold" style={{ color: claimed ? "#00e676" : reached ? "#ffd700" : isCurrent ? "#00f2fe" : "rgba(255,255,255,0.3)" }}>
-                      {m.count} invites
+                      {t("earn.invites", { n: m.count })}
                     </span>
                   </div>
                   <span className="text-xs font-black" style={{ color: claimed ? "#00e676" : "rgba(255,255,255,0.4)" }}>
-                    {claimed ? "✓ Claimed" : `+${m.reward.toLocaleString()} $ZOOM`}
+                    {claimed ? t("earn.claimedTick") : `+${m.reward.toLocaleString()} $ZOOM`}
                   </span>
                 </div>
               );
@@ -476,7 +476,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           </div>
           {claimedMilestones.length > 0 && (
             <div className="mt-2 text-center text-xs" style={{ color: "rgba(0,230,118,0.7)" }}>
-              {claimedMilestones.length} milestone{claimedMilestones.length > 1 ? "s" : ""} claimed ✓
+              {t(claimedMilestones.length > 1 ? "earn.milestoneClaimedMany" : "earn.milestoneClaimedOne", { n: claimedMilestones.length })}
             </div>
           )}
         </div>
@@ -488,13 +488,13 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         >
           <div className="flex items-center justify-between mb-3">
             <div>
-              <div className="font-black text-base tracking-wide" style={{ color: "#b39dff" }}>Tasks</div>
+              <div className="font-black text-base tracking-wide" style={{ color: "#b39dff" }}>{t("earn.tasks")}</div>
               <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.4)" }}>
-                BUILD PLANETS · OPEN PARTNER CHANNELS
+                {t("earn.tasksSub")}
               </div>
             </div>
             <div className="text-right">
-              <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.35)" }}>BUILT</div>
+              <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.35)" }}>{t("earn.built")}</div>
               <div className="text-sm font-black" style={{ color: "#b39dff" }}>
                 {(tasks?.planetsBuilt ?? 0).toLocaleString()}
               </div>
@@ -503,7 +503,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
 
           {tasksLoading && !tasks && (
             <div className="text-center text-xs py-4" style={{ color: "rgba(255,255,255,0.35)" }}>
-              Loading tasks…
+              {t("earn.loadingTasks")}
             </div>
           )}
           {tasksError && (
@@ -515,22 +515,22 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
 
           {tasks && (
             <div className="flex flex-col gap-2">
-              {tasks.planetTasks.map((t) => {
-                const pct = Math.min(100, Math.round((tasks.planetsBuilt / t.threshold) * 100));
-                const isClaiming = claimingTaskId === t.id;
+              {tasks.planetTasks.map((task) => {
+                const pct = Math.min(100, Math.round((tasks.planetsBuilt / task.threshold) * 100));
+                const isClaiming = claimingTaskId === task.id;
                 return (
                   <div
-                    key={t.id}
+                    key={task.id}
                     className="rounded-xl border p-3"
                     style={{
-                      borderColor: t.claimed
+                      borderColor: task.claimed
                         ? "rgba(0,230,118,0.22)"
-                        : t.claimable
+                        : task.claimable
                           ? "rgba(255,215,0,0.28)"
                           : "rgba(255,255,255,0.06)",
-                      background: t.claimed
+                      background: task.claimed
                         ? "rgba(0,230,118,0.05)"
-                        : t.claimable
+                        : task.claimable
                           ? "rgba(255,215,0,0.04)"
                           : "rgba(255,255,255,0.02)",
                     }}
@@ -540,41 +540,41 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                         <span
                           className="text-xs font-black tracking-wide"
                           style={{
-                            color: t.claimed ? "#00e676" : t.claimable ? "#ffd700" : "rgba(255,255,255,0.75)",
+                            color: task.claimed ? "#00e676" : task.claimable ? "#ffd700" : "rgba(255,255,255,0.75)",
                           }}
                         >
-                          Build {t.threshold.toLocaleString()} planets
+                          {t("earn.buildPlanetsN", { n: task.threshold.toLocaleString() })}
                         </span>
                         <span className="text-[10px] font-bold mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
-                          Reward: +{t.rewardZoom.toLocaleString()} $ZOOM
+                          {t("earn.rewardZoom", { n: task.rewardZoom.toLocaleString() })}
                         </span>
                       </div>
                       <button
-                        onClick={() => void handleClaimTask(t.id)}
-                        disabled={t.claimed || !t.claimable || isClaiming}
+                        onClick={() => void handleClaimTask(task.id)}
+                        disabled={task.claimed || !task.claimable || isClaiming}
                         className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase transition-all active:scale-95"
                         style={{
-                          background: t.claimed
+                          background: task.claimed
                             ? "rgba(0,230,118,0.1)"
-                            : t.claimable
+                            : task.claimable
                               ? "linear-gradient(135deg, #ffd700, #ffb347)"
                               : "rgba(255,255,255,0.04)",
-                          color: t.claimed
+                          color: task.claimed
                             ? "#00e676"
-                            : t.claimable
+                            : task.claimable
                               ? "#1a0f00"
                               : "rgba(255,255,255,0.25)",
-                          border: t.claimed
+                          border: task.claimed
                             ? "1px solid rgba(0,230,118,0.25)"
-                            : t.claimable
+                            : task.claimable
                               ? "1px solid transparent"
                               : "1px solid rgba(255,255,255,0.06)",
-                          cursor: t.claimed || !t.claimable || isClaiming ? "not-allowed" : "pointer",
+                          cursor: task.claimed || !task.claimable || isClaiming ? "not-allowed" : "pointer",
                           minWidth: 88,
                         }}
-                        data-testid={`button-task-${t.id}`}
+                        data-testid={`button-task-${task.id}`}
                       >
-                        {t.claimed ? "Claimed" : isClaiming ? "…" : t.claimable ? "Claim" : "Locked"}
+                        {task.claimed ? t("earn.claimedBtn") : isClaiming ? "…" : task.claimable ? t("earn.claimBtn") : t("earn.lockedBtn")}
                       </button>
                     </div>
                     <div className="flex items-center gap-2">
@@ -583,52 +583,52 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                           className="h-full rounded-full"
                           style={{
                             width: `${pct}%`,
-                            background: t.claimed
+                            background: task.claimed
                               ? "linear-gradient(90deg, #00e676, #00c853)"
                               : "linear-gradient(90deg, #b39dff, #7c4dff)",
                           }}
                         />
                       </div>
                       <span className="text-[10px] font-bold tabular-nums" style={{ color: "rgba(255,255,255,0.5)", minWidth: 70, textAlign: "right" }}>
-                        {Math.min(tasks.planetsBuilt, t.threshold).toLocaleString()} / {t.threshold.toLocaleString()}
+                        {Math.min(tasks.planetsBuilt, task.threshold).toLocaleString()} / {task.threshold.toLocaleString()}
                       </span>
                     </div>
                   </div>
                 );
               })}
 
-              {tasks.sponsorTasks.map((t) => {
-                const isClaiming = claimingTaskId === t.id;
+              {tasks.sponsorTasks.map((task) => {
+                const isClaiming = claimingTaskId === task.id;
                 const remainingS = Math.ceil(sponsorGateRemainingMs / 1000);
                 // Three sequential states for a sponsor task:
                 //   1) "Open"   — never tapped Open yet (sponsorOpenedAt = 0)
                 //   2) "Wait Ns"— Open tapped, gate timer still running
                 //   3) "Claim"  — gate elapsed, server still says not claimed
-                const canClaimNow = !t.claimed && sponsorGateOpen;
-                const showOpen = !t.claimed && sponsorOpenedAt === 0;
-                const showWait = !t.claimed && sponsorOpenedAt > 0 && !sponsorGateOpen;
+                const canClaimNow = !task.claimed && sponsorGateOpen;
+                const showOpen = !task.claimed && sponsorOpenedAt === 0;
+                const showWait = !task.claimed && sponsorOpenedAt > 0 && !sponsorGateOpen;
                 return (
                   <div
-                    key={t.id}
+                    key={task.id}
                     className="rounded-xl border p-3"
                     style={{
-                      borderColor: t.claimed ? "rgba(0,230,118,0.22)" : "rgba(0,242,254,0.2)",
-                      background: t.claimed ? "rgba(0,230,118,0.05)" : "rgba(0,242,254,0.04)",
+                      borderColor: task.claimed ? "rgba(0,230,118,0.22)" : "rgba(0,242,254,0.2)",
+                      background: task.claimed ? "rgba(0,230,118,0.05)" : "rgba(0,242,254,0.04)",
                     }}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex flex-col">
                         <span
                           className="text-xs font-black tracking-wide"
-                          style={{ color: t.claimed ? "#00e676" : "#00f2fe" }}
+                          style={{ color: task.claimed ? "#00e676" : "#00f2fe" }}
                         >
                           Join @coinflip_vip
                         </span>
                         <span className="text-[10px] font-bold mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-                          Reward: +{t.rewardSpins} Wheel Spin{t.rewardSpins > 1 ? "s" : ""}
+                          {t(task.rewardSpins > 1 ? "earn.rewardSpinsMany" : "earn.rewardSpinsOne", { n: task.rewardSpins })}
                         </span>
                       </div>
-                      {t.claimed ? (
+                      {task.claimed ? (
                         <button
                           disabled
                           className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase"
@@ -638,13 +638,13 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                             border: "1px solid rgba(0,230,118,0.25)",
                             minWidth: 88,
                           }}
-                          data-testid={`button-task-${t.id}`}
+                          data-testid={`button-task-${task.id}`}
                         >
-                          Claimed
+                          {t("earn.claimedBtn")}
                         </button>
                       ) : showOpen ? (
                         <button
-                          onClick={() => handleOpenSponsor(t.url)}
+                          onClick={() => handleOpenSponsor(task.url)}
                           className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase transition-all active:scale-95"
                           style={{
                             background: "linear-gradient(135deg, #00f2fe, #4facfe)",
@@ -652,9 +652,9 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                             border: "1px solid transparent",
                             minWidth: 88,
                           }}
-                          data-testid={`button-task-${t.id}-open`}
+                          data-testid={`button-task-${task.id}-open`}
                         >
-                          Open
+                          {t("earn.openBtn")}
                         </button>
                       ) : showWait ? (
                         <button
@@ -666,13 +666,13 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                             border: "1px solid rgba(255,255,255,0.06)",
                             minWidth: 88,
                           }}
-                          data-testid={`button-task-${t.id}-wait`}
+                          data-testid={`button-task-${task.id}-wait`}
                         >
-                          Wait {remainingS}s
+                          {t("earn.waitSec", { n: remainingS })}
                         </button>
                       ) : (
                         <button
-                          onClick={() => void handleClaimTask(t.id)}
+                          onClick={() => void handleClaimTask(task.id)}
                           disabled={isClaiming || !canClaimNow}
                           className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase transition-all active:scale-95"
                           style={{
@@ -682,15 +682,15 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                             minWidth: 88,
                             cursor: isClaiming ? "not-allowed" : "pointer",
                           }}
-                          data-testid={`button-task-${t.id}-claim`}
+                          data-testid={`button-task-${task.id}-claim`}
                         >
-                          {isClaiming ? "…" : "Claim"}
+                          {isClaiming ? "…" : t("earn.claimBtn")}
                         </button>
                       )}
                     </div>
-                    {!t.claimed && (
+                    {!task.claimed && (
                       <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.35)" }}>
-                        Tap Open, join the channel, then return here to claim.
+                        {t("earn.sponsorHint")}
                       </div>
                     )}
                   </div>

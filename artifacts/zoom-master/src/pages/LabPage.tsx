@@ -211,8 +211,8 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           switch. Hidden when no merchant is currently in the system. */}
       {merchantActive && (
         <div
-          aria-label="Space merchant nearby"
-          title="Space merchant nearby"
+          aria-label={t("lab.merchantNearby")}
+          title={t("lab.merchantNearby")}
           style={{
             position: "fixed",
             left: 12,
@@ -282,13 +282,13 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
                 className="font-black tracking-widest"
                 style={{ fontSize: 14, color: "#ff5555", textShadow: "0 0 12px rgba(255,80,80,0.7)", letterSpacing: "0.18em" }}
               >
-                PLANET BROKEN!
+                {t("lab.planetBroken")}
               </div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 6, fontWeight: 600 }}>
-                Your {PLANET_CONFIG[brokenFlash.rarity].label} shattered during construction.
+                {t("lab.brokenBody", { kind: PLANET_CONFIG[brokenFlash.rarity].label })}
               </div>
               <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 4, fontWeight: 500 }}>
-                Try again on the next craft.
+                {t("lab.tryAgainNext")}
               </div>
             </div>
           </div>
@@ -351,7 +351,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
               }}
               data-testid="button-claim-planet"
             >
-              CLAIM PLANET
+              {t("lab.claimPlanet")}
             </button>
           </div>
         )}
@@ -402,7 +402,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           <div className="flex justify-between text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
             <span>
               {currentCraftRarity
-                ? `${PLANET_CONFIG[currentCraftRarity].tapsNeeded} taps · 1 $ZOOM each`
+                ? t("lab.tapsNeeded", { n: PLANET_CONFIG[currentCraftRarity].tapsNeeded })
                 : t("lab.perTap")}
             </span>
             <span>{t("lab.slotsFree", { n: Math.max(0, maxSlots - planets.length) })}</span>

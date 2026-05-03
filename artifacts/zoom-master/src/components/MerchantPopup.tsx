@@ -161,7 +161,7 @@ export function MerchantPopup({
         // Slots full at the moment the result lands — surface it loudly.
         // The server already counted this fusion against the cap, so we
         // don't refund. The player can free a slot next time.
-        try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: "Slots full — planet lost", ok: false } })); } catch { /**/ }
+        try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: t("common.slotsFullPlanetLost"), ok: false } })); } catch { /**/ }
       }
     } else if (out === "DOWNGRADE") {
       // Downgrade mints a single planet one tier below the materials burned:
@@ -171,7 +171,7 @@ export function MerchantPopup({
       const downgradeTo: PlanetType = level === 3 ? "RARE" : "BASIC";
       const add = addCraftedPlanet(downgradeTo);
       if (!add.ok) {
-        try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: "Slots full — planet lost", ok: false } })); } catch { /**/ }
+        try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: t("common.slotsFullPlanetLost"), ok: false } })); } catch { /**/ }
       }
     }
     // EXPLOSION: nothing to mint, materials already burned.

@@ -11,6 +11,22 @@
 //   • Label    — "0.847 · Field-Tested" (number + tier name).
 
 import { formatFloat, getFloatTier } from "../utils/planetFloat";
+import { useT } from "../i18n/LanguageContext";
+
+const TIER_KEY: Record<string, string> = {
+  "Perfect": "float.perfect",
+  "Pristine": "float.pristine",
+  "Field-Tested": "float.fieldTested",
+  "Well-Worn": "float.wellWorn",
+  "Battle-Scarred": "float.battleScarred",
+};
+const TIER_SHORT_KEY: Record<string, string> = {
+  "PFCT": "float.short.pfct",
+  "PRST": "float.short.prst",
+  "FT": "float.short.ft",
+  "WW": "float.short.ww",
+  "BS": "float.short.bs",
+};
 
 interface Props {
   // Float value in [0, 1].
@@ -21,12 +37,15 @@ interface Props {
 }
 
 export function PlanetFloatBar({ value, compact = false }: Props) {
+  const { t } = useT();
   // Defensive clamp — getDisplayFloat already returns [0, 1] but keep
   // this here so the component is safe to import standalone.
   const v = Math.max(0, Math.min(1, value));
   const pct = v * 100;
   const tier = getFloatTier(v);
   const trackHeight = compact ? 4 : 6;
+  const tierLabel = t(TIER_KEY[tier.label] ?? "");
+  const tierShort = t(TIER_SHORT_KEY[tier.short] ?? "");
 
   return (
     <div className="w-full" data-testid="planet-float-bar">
@@ -58,7 +77,7 @@ export function PlanetFloatBar({ value, compact = false }: Props) {
             {formatFloat(v)}
           </span>
           <span className="font-black tracking-wider" style={{ color: tier.color }}>
-            {tier.label.toUpperCase()}
+            {tierLabel.toUpperCase()}
           </span>
         </div>
       )}
@@ -71,7 +90,7 @@ export function PlanetFloatBar({ value, compact = false }: Props) {
             {formatFloat(v)}
           </span>
           <span className="font-black tracking-wider" style={{ color: tier.color }}>
-            {tier.short}
+            {tierShort}
           </span>
         </div>
       )}

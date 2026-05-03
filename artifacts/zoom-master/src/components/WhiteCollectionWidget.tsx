@@ -217,7 +217,7 @@ function WhiteCollectionWidgetBase({ telegramId, unlocked: _unlocked = false, ow
         data-testid="button-white-collection"
       >
         <div className="wc-tile-img" style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", filter: `drop-shadow(0 0 6px ${NEON_CYAN}aa)` }}>
-          <div className="wc-planet" aria-label="White Collection planet" />
+          <div className="wc-planet" aria-label={t("whiteColl.openAria")} />
         </div>
       </button>
 
@@ -253,7 +253,7 @@ function WhiteCollectionWidgetBase({ telegramId, unlocked: _unlocked = false, ow
           >
             <button
               onClick={() => setOpen(false)}
-              aria-label="Close"
+              aria-label={t("common.close")}
               style={{
                 position: "absolute", top: 12, right: 12, width: 32, height: 32,
                 borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)",
@@ -280,7 +280,7 @@ function WhiteCollectionWidgetBase({ telegramId, unlocked: _unlocked = false, ow
                 }}
               >
                 <div className="wc-tile-img" style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", filter: `drop-shadow(0 0 12px ${NEON_CYAN}cc)` }}>
-                  <div className="wc-planet wc-planet-lg" aria-label="White Collection planet" />
+                  <div className="wc-planet wc-planet-lg" aria-label={t("whiteColl.openAria")} />
                 </div>
               </div>
             </div>
@@ -329,7 +329,7 @@ function WhiteCollectionWidgetBase({ telegramId, unlocked: _unlocked = false, ow
                 onClick={handleBuy}
                 disabled={buying || soldOut || sunCount <= 0}
                 data-testid="button-buy-white-collection"
-                title={sunCount <= 0 ? "You must own a SUN to unlock this collection" : undefined}
+                title={sunCount <= 0 ? t("earthColl.requirementSun") : undefined}
               >
                 {soldOut
                   ? t("common.soldOut")

@@ -17,6 +17,7 @@ import {
   type RoomInviteInbox,
 } from "../utils/api";
 import { PixelPlant } from "../components/PixelPlant";
+import { useT } from "../i18n/LanguageContext";
 import {
   PixelAstronaut,
   SleepingAstronaut,
@@ -148,6 +149,7 @@ function shallowSameHomeState(a: HomeState, b: HomeState): boolean {
 }
 
 export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
+  const { t } = useT();
   const [state, setState] = useState<HomeState | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -465,7 +467,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
     return <div className="flex-1 flex items-center justify-center text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>Loading…</div>;
   }
   if (!state) {
-    return <div className="flex-1 flex items-center justify-center text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>Could not load HOME</div>;
+    return <div className="flex-1 flex items-center justify-center text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{t("home.couldNotLoad")}</div>;
   }
 
   // ─── LIVE DERIVED READINESS ─────────────────────────────────────────

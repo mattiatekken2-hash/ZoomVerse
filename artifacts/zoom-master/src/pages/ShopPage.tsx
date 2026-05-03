@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase, fetchSunStock, pollTxnUntilFinal, fetchHomeState, buyComputer, buyPlantSeed, type SunStock, type HomeState } from "../utils/api";
 import { PixelPlant } from "../components/PixelPlant";
+import { useT } from "../i18n/LanguageContext";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 
@@ -39,6 +40,7 @@ interface ShopPageProps {
 }
 
 export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
+  const { t } = useT();
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
   const [buying, setBuying] = useState<string | null>(null);
@@ -371,7 +373,7 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
             <div className="absolute top-0 right-0 w-40 h-40 rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(255,179,71,0.15) 0%, transparent 70%)", filter: "blur(20px)", transform: "translate(30%, -30%)" }} />
             <div className="flex items-start justify-between mb-3">
               <div>
-                <div className="font-black text-xl tracking-wide" style={{ color: "#ffb347" }}>THE SUN</div>
+                <div className="font-black text-xl tracking-wide" style={{ color: "#ffb347" }}>SUN</div>
                 <div className="text-xs mt-1" style={{ color: "rgba(255,179,71,0.6)" }}>
                   Limited Edition · {sunStock ? `${sunStock.remaining}/${sunStock.max} left` : "Exclusive"}
                 </div>
@@ -390,7 +392,7 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
             <button
               onClick={async () => {
                 if (sunDisabled) return;
-                const sunItem: ShopItem = { id: "the_sun", title: "THE SUN", desc: "Exclusive", starsPrice: 1000, tonPrice: 10, color: "#ffb347", icon: "☀", type: "sun" };
+                const sunItem: ShopItem = { id: "the_sun", title: "SUN", desc: "Exclusive", starsPrice: 1000, tonPrice: 10, color: "#ffb347", icon: "☀", type: "sun" };
                 if (payMode === "stars") await handleStarsBuy(sunItem);
                 else await handleTonBuy(sunItem);
                 refreshSunStock();
@@ -482,14 +484,14 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-black text-sm" style={{ color: "#ffd740" }}>COMPUTER</div>
+                <div className="font-black text-sm" style={{ color: "#ffd740" }}>{t("shop.computer")}</div>
                 <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
                   Place it in your HOME · produces 25 stardust every 24h
                 </div>
               </div>
               <div className="flex-shrink-0 text-right">
                 <div className="font-black text-base" style={{ color: "#ffd740" }}>★ {computerCost.toLocaleString()}</div>
-                <div className="text-xs opacity-70" style={{ color: "#ffd740" }}>Stardust</div>
+                <div className="text-xs opacity-70" style={{ color: "#ffd740" }}>{t("shop.stardust")}</div>
               </div>
             </div>
             <div style={{ borderTop: "1px solid rgba(255,215,64,0.15)" }}>
@@ -532,14 +534,14 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
                 <PixelPlant level={plantOwned ? 9 : 1} size={36} />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-black text-sm" style={{ color: "#00e676" }}>PLANT SEED</div>
+                <div className="font-black text-sm" style={{ color: "#00e676" }}>{t("shop.plantSeed")}</div>
                 <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
                   Grow a plant in your HOME · 10 levels · matures into 0.1 TON every 30 days
                 </div>
               </div>
               <div className="flex-shrink-0 text-right">
                 <div className="font-black text-base" style={{ color: "#00e676" }}>★ {plantSeedCost.toLocaleString()}</div>
-                <div className="text-xs opacity-70" style={{ color: "#00e676" }}>Stardust</div>
+                <div className="text-xs opacity-70" style={{ color: "#00e676" }}>{t("shop.stardust")}</div>
               </div>
             </div>
             <div style={{ borderTop: "1px solid rgba(0,230,118,0.20)" }}>

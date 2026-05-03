@@ -15,6 +15,7 @@ import {
   type WheelSpinResult,
   type WheelFeedEntry,
 } from "../utils/api";
+import { useT } from "../i18n/LanguageContext";
 
 // Same wallet used in ShopPage / LottoStellare / MysteryBox.
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
@@ -284,6 +285,7 @@ const WheelFeedTicker = memo(function WheelFeedTicker() {
 });
 
 export function WheelPage({ telegramId }: WheelPageProps) {
+  const { t } = useT();
   // Seed with the static catalog so the wheel structure is in the DOM on the
   // first frame (no opacity gate, no skeleton). The fetch below upgrades it
   // silently if the server config differs.
@@ -734,7 +736,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
       <div className="px-5 pt-4 pb-2 flex-shrink-0">
         <div className="flex items-baseline justify-between">
           <div>
-            <div className="font-black text-2xl tracking-wider neon-text">FORTUNE WHEEL</div>
+            <div className="font-black text-2xl tracking-wider neon-text">{t("wheel.fortuneWheel")}</div>
             <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
               Spin to win mega prizes
             </div>
