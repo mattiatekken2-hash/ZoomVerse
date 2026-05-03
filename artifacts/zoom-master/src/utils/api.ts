@@ -472,6 +472,7 @@ export interface Grants {
   bonusEpic: number;
   bonusGold: number;
   bonusV1: number;
+  bonusV1NftPlatinum: number;
   hasAutoTap: boolean;
   whiteCollectionUnlocked: boolean;
   whiteCollectionBundles: number;
@@ -485,7 +486,7 @@ export interface Grants {
   sunCycleCount: number;
 }
 
-const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusV1: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
 
 /**
  * Push the current SUN cycle to the server so it persists across
@@ -524,6 +525,22 @@ export async function syncSunCycle(params: {
   if (succeeded) return;
   setTimeout(() => { void attempt(); }, 3000);
   setTimeout(() => { void attempt(); }, 8000);
+}
+
+export interface V1NftPlatinumStock {
+  sold: number;
+  remaining: number;
+  max: number;
+}
+
+export async function fetchV1NftPlatinumStock(): Promise<V1NftPlatinumStock> {
+  try {
+    const res = await fetch(`${API_BASE}/v1-nft-platinum/stock?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return { sold: 0, remaining: 5, max: 5 };
+    return res.json();
+  } catch {
+    return { sold: 0, remaining: 5, max: 5 };
+  }
 }
 
 export interface SunStock {
@@ -1861,6 +1878,7 @@ export interface RegularPlanetsState {
   claimedBonusEpic: number;
   claimedBonusGold: number;
   claimedBonusV1: number;
+  claimedBonusV1NftPlatinum: number;
 }
 
 export async function fetchRegularPlanets(
@@ -1875,6 +1893,7 @@ export async function fetchRegularPlanets(
     claimedBonusEpic: 0,
     claimedBonusGold: 0,
     claimedBonusV1: 0,
+    claimedBonusV1NftPlatinum: 0,
   };
   try {
     const res = await fetch(
@@ -1893,6 +1912,7 @@ export async function fetchRegularPlanets(
       claimedBonusEpic: Number(j.claimedBonusEpic ?? 0),
       claimedBonusGold: Number(j.claimedBonusGold ?? 0),
       claimedBonusV1: Number(j.claimedBonusV1 ?? 0),
+      claimedBonusV1NftPlatinum: Number(j.claimedBonusV1NftPlatinum ?? 0),
     };
   } catch {
     return failure;
@@ -1988,6 +2008,7 @@ export async function saveRegularPlanets(
     epic: number;
     gold: number;
     v1: number;
+    v1NftPlatinum: number;
   },
   craftsCompleted?: number,
 ): Promise<boolean> {
@@ -2008,6 +2029,7 @@ export async function saveRegularPlanets(
         claimedBonusEpic: claimed.epic,
         claimedBonusGold: claimed.gold,
         claimedBonusV1: claimed.v1,
+        claimedBonusV1NftPlatinum: claimed.v1NftPlatinum,
         ...(craftsCompleted != null ? { craftsCompleted } : {}),
       }),
       keepalive: true,

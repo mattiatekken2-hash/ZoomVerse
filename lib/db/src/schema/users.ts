@@ -20,6 +20,12 @@ export const usersTable = pgTable("users", {
   bonusEpic: integer("bonus_epic").notNull().default(0),
   bonusGold: integer("bonus_gold").notNull().default(0),
   bonusV1: integer("bonus_v1").notNull().default(0),
+  // V1 NFT Platinum Edition — esclusivo NFT, max 5 venduti globalmente
+  // (cap atomico in creditUserTx via WHERE-guard sulla SOMMA della colonna).
+  // Pagamento solo TON (20 TON). Genera 275 $ZOOM/h in farm. Non droppabile
+  // dal Lab (chance: 0 in PLANET_CONFIG.V1_NFT). Mirrored claim-counter
+  // sotto (claimed_bonus_v1_nft_platinum) come gli altri pianeti bonus.
+  bonusV1NftPlatinum: integer("bonus_v1_nft_platinum").notNull().default(0),
   claimedMilestones: text("claimed_milestones").notNull().default(""),
   // Long-term Earn tasks (planet-build milestones + sponsor tasks).
   // CSV of claimed task ids ("planets_200", "planets_500", "planets_1000",
@@ -114,6 +120,7 @@ export const usersTable = pgTable("users", {
   claimedBonusEpic: integer("claimed_bonus_epic").notNull().default(0),
   claimedBonusGold: integer("claimed_bonus_gold").notNull().default(0),
   claimedBonusV1: integer("claimed_bonus_v1").notNull().default(0),
+  claimedBonusV1NftPlatinum: integer("claimed_bonus_v1_nft_platinum").notNull().default(0),
   // ─────────────────────────────────────────────────────────────────────
   // HOME — pixel-art Comfort Zone (Phase 1: server foundations).
   //

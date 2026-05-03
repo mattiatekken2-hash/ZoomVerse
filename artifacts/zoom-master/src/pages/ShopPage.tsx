@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
-import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase, fetchSunStock, pollTxnUntilFinal, fetchHomeState, buyComputer, buyPlantSeed, type SunStock, type HomeState } from "../utils/api";
+import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase, fetchSunStock, fetchV1NftPlatinumStock, pollTxnUntilFinal, fetchHomeState, buyComputer, buyPlantSeed, type SunStock, type V1NftPlatinumStock, type HomeState } from "../utils/api";
 import { PixelPlant } from "../components/PixelPlant";
 import { useT } from "../i18n/LanguageContext";
 
@@ -47,6 +47,7 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [payMode, setPayMode] = useState<"stars" | "ton">("stars");
   const [sunStock, setSunStock] = useState<SunStock | null>(null);
+  const [v1NftStock, setV1NftStock] = useState<V1NftPlatinumStock | null>(null);
   // Stardust shop section reads `/home/state` because that single endpoint
   // already returns both the live stardust balance AND whether the user
   // owns the COMPUTER (so we can hide the buy button after purchase). One
@@ -57,6 +58,10 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
     if (!telegramId) return;
     const stock = await fetchSunStock(telegramId);
     setSunStock(stock);
+  };
+  const refreshV1NftStock = async () => {
+    const stock = await fetchV1NftPlatinumStock();
+    setV1NftStock(stock);
   };
   // Sequence guard so an older in-flight `/home/state` response can't
   // overwrite a newer one (e.g. interval tick racing the post-purchase
@@ -72,10 +77,12 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
 
   useEffect(() => {
     refreshSunStock();
+    refreshV1NftStock();
     refreshHome();
     const id = setInterval(() => {
       if (document.hidden) return;
       refreshSunStock();
+      refreshV1NftStock();
       refreshHome();
     }, 20000);
     const onRefresh = () => { refreshHome(); };
@@ -570,6 +577,69 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
           <div className="font-black text-sm tracking-widest uppercase mb-1 mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
             Packs & Items
           </div>
+
+          {(() => {
+            // V1 NFT Platinum Edition — esclusivo NFT, SOLO TON (20),
+            // max 5 globali. Pulsante Stars NASCOSTO (forziamo TON
+            // anche se l'utente ha attivato payMode="stars"). Card
+            // platinum/blu con badge "NFT" e indicatore stock live.
+            const v1NftSoldOut = !!v1NftStock && v1NftStock.remaining <= 0;
+            const v1NftDisabled = v1NftSoldOut || buying === "v1_nft_platinum";
+            return (
+              <div
+                key="v1_nft_platinum"
+                className="rounded-2xl border overflow-hidden relative"
+                style={{
+                  borderColor: "rgba(126,168,224,0.55)",
+                  background: "linear-gradient(135deg, rgba(202,225,255,0.10), rgba(126,168,224,0.04))",
+                  boxShadow: "0 0 28px rgba(126,168,224,0.10)",
+                }}
+              >
+                <div className="absolute top-0 right-0 w-40 h-40 rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(202,225,255,0.18) 0%, transparent 70%)", filter: "blur(20px)", transform: "translate(30%, -30%)" }} />
+                <div className="flex items-start justify-between mb-1 p-4 pb-2">
+                  <div>
+                    <div className="font-black text-lg tracking-wide" style={{ color: "#cfe4ff" }}>V1 NFT Platinum Edition</div>
+                    <div className="text-xs mt-1" style={{ color: "rgba(202,225,255,0.65)" }}>
+                      Limited NFT · {v1NftStock ? `${v1NftStock.remaining}/${v1NftStock.max} left` : "only 5 ever"} · 275 $ZOOM/h
+                    </div>
+                  </div>
+                  <div className="px-3 py-1.5 rounded-full text-xs font-black" style={{ background: "linear-gradient(135deg, #cfe4ff, #7ea8e0)", color: "#0a1a3d", border: "1px solid rgba(255,255,255,0.7)", letterSpacing: 1 }}>
+                    NFT
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 px-4 pb-3">
+                  {["Exclusive", "Max 5 worldwide", "TON only", "Instant inventory"].map(tag => (
+                    <span key={tag} className="text-xs px-2 py-0.5 rounded-full" style={{ background: "rgba(202,225,255,0.08)", color: "rgba(202,225,255,0.75)", border: "1px solid rgba(202,225,255,0.20)" }}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <div style={{ borderTop: "1px solid rgba(126,168,224,0.20)" }}>
+                  <button
+                    onClick={async () => {
+                      if (v1NftDisabled) return;
+                      const item: ShopItem = { id: "v1_nft_platinum", title: "V1 NFT Platinum Edition", desc: "Limited NFT · only 5 ever · 275 $ZOOM/h", starsPrice: 0, tonPrice: 20, color: "#7ea8e0", icon: "◆", type: "bundle" };
+                      // SOLO TON: ignoriamo payMode e forziamo handleTonBuy
+                      // (starsPrice=0 sul server rifiuterebbe comunque
+                      // un acquisto via Stars).
+                      await handleTonBuy(item);
+                      refreshV1NftStock();
+                    }}
+                    disabled={v1NftDisabled}
+                    className="w-full py-4 font-black text-base tracking-wider text-center transition-all active:scale-95"
+                    style={{
+                      background: v1NftDisabled ? "rgba(255,255,255,0.04)" : "linear-gradient(135deg, rgba(202,225,255,0.18), rgba(126,168,224,0.14))",
+                      color: v1NftDisabled ? "rgba(255,255,255,0.25)" : "#cfe4ff",
+                      cursor: v1NftDisabled ? "not-allowed" : "pointer",
+                      opacity: buying === "v1_nft_platinum" ? 0.6 : 1,
+                    }}
+                  >
+                    {v1NftSoldOut ? "Sold Out" : buying === "v1_nft_platinum" ? "Processing..." : "BUY — 20 TON"}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
 
           {SHOP_ITEMS.map(item => (
             <div

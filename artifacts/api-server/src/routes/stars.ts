@@ -150,6 +150,11 @@ const SUN_MAX_GLOBAL = 100;
 // raising it is safe and has no effect on already-credited members.
 const WHITE_COLLECTION_MAX_GLOBAL = 20;
 const EARTH_COLLECTION_MAX_GLOBAL = 50;
+// V1 NFT Platinum Edition — esclusivo NFT, max 5 venduti GLOBALMENTE.
+// Cap enforced atomicamente in creditUserTx via WHERE-guard sulla SOMMA
+// di bonus_v1_nft_platinum (stesso pattern di white_collection /
+// earth_collection). Pagamento solo TON (20 TON).
+const V1_NFT_PLATINUM_MAX_GLOBAL = 5;
 
 const STARS_CATALOG: StarsItem[] = [
   { id: "starter_pack", title: "Starter Pack", description: "2,000 $ZOOM + 1 Basic Planet", starsPrice: 50, tonPrice: 0.5, zoomAmount: 2000, itemType: "bundle" },
@@ -188,6 +193,11 @@ const STARS_CATALOG: StarsItem[] = [
   // Pricing follows the catalog-wide 100 Stars = 1 TON ratio.
   { id: "stardust_100", title: "Stardust Pack — 100",  description: "Instant top-up · 100 stardust",  starsPrice: 100, tonPrice: 1, zoomAmount: 100, itemType: "stardust" },
   { id: "stardust_500", title: "Stardust Pack — 500",  description: "Instant top-up · 500 stardust",  starsPrice: 500, tonPrice: 5, zoomAmount: 500, itemType: "stardust" },
+  // V1 NFT Platinum Edition — esclusivo. SOLO TON (starsPrice=0 segnala
+  // ai client di nascondere/disabilitare il pulsante Stars). Max 5 globali
+  // gestiti atomicamente in creditUserTx. NON inserito nelle drop-table del
+  // Lab (PLANET_CONFIG.V1_NFT.chance = 0).
+  { id: "v1_nft_platinum", title: "V1 NFT Platinum Edition", description: "Limited NFT · only 5 ever · 275 $ZOOM/h", starsPrice: 0, tonPrice: 20, itemType: "v1_nft_platinum" },
 ];
 
 const MYSTERY_BOX_SUN_GLOBAL_CAP = 50;
@@ -402,6 +412,22 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string,
       bundleId: item.id,
       txnId,
     });
+  } else if (item.itemType === "v1_nft_platinum") {
+    // V1 NFT Platinum — max 5 globali. Stesso pattern di white_collection:
+    // advisory lock dedicato + UPDATE atomico gated su SUM globale < cap.
+    // Nessun cap per-utente esplicito (il cap globale di 5 è già fortissimo).
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(7913042043)`);
+    const result = await tx.execute(sql`
+      UPDATE users
+      SET bonus_v1_nft_platinum = bonus_v1_nft_platinum + 1
+      WHERE telegram_id = ${telegramId}
+        AND (SELECT COALESCE(SUM(bonus_v1_nft_platinum), 0) FROM users) < ${V1_NFT_PLATINUM_MAX_GLOBAL}
+      RETURNING bonus_v1_nft_platinum
+    `);
+    if (!result.rows || result.rows.length === 0) {
+      console.error(`[creditUserTx] V1_NFT_PLATINUM sold out at credit time for ${telegramId}`);
+      throw new Error("V1_NFT_PLATINUM_SOLD_OUT");
+    }
   } else if (item.itemType === "earth_collection") {
     // Mirrors white_collection but with its own dedicated advisory lock id and
     // global cap. No per-user cap — a single user could buy all 50.
@@ -434,6 +460,13 @@ async function getEarthCollectionStock(): Promise<{ sold: number; remaining: num
     .from(usersTable);
   const sold = Number(row?.sold ?? 0);
   return { sold, remaining: Math.max(0, EARTH_COLLECTION_MAX_GLOBAL - sold), max: EARTH_COLLECTION_MAX_GLOBAL };
+}
+
+async function getV1NftPlatinumStock(): Promise<{ sold: number; remaining: number; max: number }> {
+  const [row] = await db.select({ sold: sql<number>`COALESCE(SUM(${usersTable.bonusV1NftPlatinum}), 0)::int` })
+    .from(usersTable);
+  const sold = Number(row?.sold ?? 0);
+  return { sold, remaining: Math.max(0, V1_NFT_PLATINUM_MAX_GLOBAL - sold), max: V1_NFT_PLATINUM_MAX_GLOBAL };
 }
 
 async function getSunStock(): Promise<{ sold: number; remaining: number }> {
@@ -505,6 +538,17 @@ router.get("/earth-collection/stock", async (_req, res) => {
     res.json(stock);
   } catch (err) {
     console.error("[earth-collection/stock] error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+router.get("/v1-nft-platinum/stock", async (_req, res) => {
+  try {
+    const stock = await getV1NftPlatinumStock();
+    res.set("Cache-Control", "no-store");
+    res.json(stock);
+  } catch (err) {
+    console.error("[v1-nft-platinum/stock] error:", err);
     res.status(500).json({ error: "Internal error" });
   }
 });
@@ -650,6 +694,14 @@ router.post("/stars/create-invoice", async (req, res) => {
   const item = findItem(itemId);
   if (!item) {
     res.status(404).json({ error: "Item not found" });
+    return;
+  }
+
+  // TON-ONLY items: V1 NFT Platinum si paga ESCLUSIVAMENTE in TON
+  // (catalogo ha starsPrice=0 — un'invoice Stars darebbe l'NFT GRATIS).
+  // Difesa server-side: rifiuta qualsiasi tentativo di create-invoice.
+  if (item.itemType === "v1_nft_platinum" || item.starsPrice <= 0) {
+    res.status(400).json({ error: "This item is TON-only and cannot be purchased with Stars" });
     return;
   }
 
@@ -810,6 +862,11 @@ router.post("/ton/confirm", async (req, res) => {
   if (item.itemType === "earth_collection") {
     const stock = await getEarthCollectionStock();
     if (stock.remaining <= 0) { res.status(409).json({ error: "Earth Collection sold out" }); return; }
+  }
+
+  if (item.itemType === "v1_nft_platinum") {
+    const stock = await getV1NftPlatinumStock();
+    if (stock.remaining <= 0) { res.status(409).json({ error: "V1 NFT Platinum sold out" }); return; }
   }
 
   // Normalize the connected wallet to raw form; payment must originate from this address.
@@ -1001,7 +1058,13 @@ router.post("/stars/webhook", async (req, res) => {
 
       const item = findItem(payloadData.itemId);
       if (item) {
-        await atomicCreditIfPending(payloadData.txnId, payment.telegram_payment_charge_id, item, payloadData.telegramId);
+        // Defense-in-depth: items TON-only non devono mai essere accreditati via Stars,
+        // anche se per qualche motivo arriva un successful_payment per loro.
+        if (item.itemType === "v1_nft_platinum" || item.starsPrice <= 0) {
+          console.error(`[stars/webhook] REJECTED Stars payment for TON-only item ${item.id} txn=${payloadData.txnId}`);
+        } else {
+          await atomicCreditIfPending(payloadData.txnId, payment.telegram_payment_charge_id, item, payloadData.telegramId);
+        }
       }
     } catch (err) {
       console.error("[stars] webhook error:", err);

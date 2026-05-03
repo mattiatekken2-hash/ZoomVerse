@@ -55,6 +55,7 @@ const SaveBody = z.object({
   claimedBonusEpic: z.number().int().min(0).optional(),
   claimedBonusGold: z.number().int().min(0).optional(),
   claimedBonusV1: z.number().int().min(0).optional(),
+  claimedBonusV1NftPlatinum: z.number().int().min(0).optional(),
   // Monotonic client-side count of every planet ever forged / crafted /
   // fused on this device's localStorage. Server stores GREATEST(stored,
   // incoming) so the value can only grow — this is the source of truth
@@ -83,6 +84,7 @@ router.get("/regular-planets/:telegramId", async (req, res) => {
         claimedBonusEpic: usersTable.claimedBonusEpic,
         claimedBonusGold: usersTable.claimedBonusGold,
         claimedBonusV1: usersTable.claimedBonusV1,
+        claimedBonusV1NftPlatinum: usersTable.claimedBonusV1NftPlatinum,
       })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
@@ -98,6 +100,7 @@ router.get("/regular-planets/:telegramId", async (req, res) => {
         claimedBonusEpic: 0,
         claimedBonusGold: 0,
         claimedBonusV1: 0,
+        claimedBonusV1NftPlatinum: 0,
       });
       return;
     }
@@ -127,6 +130,7 @@ router.get("/regular-planets/:telegramId", async (req, res) => {
       claimedBonusEpic: row.claimedBonusEpic ?? 0,
       claimedBonusGold: row.claimedBonusGold ?? 0,
       claimedBonusV1: row.claimedBonusV1 ?? 0,
+      claimedBonusV1NftPlatinum: row.claimedBonusV1NftPlatinum ?? 0,
     });
   } catch (err) {
     console.error("[regular-planets/get] error:", err);
@@ -154,6 +158,7 @@ router.post("/regular-planets/save", async (req, res) => {
     claimedBonusEpic,
     claimedBonusGold,
     claimedBonusV1,
+    claimedBonusV1NftPlatinum,
     craftsCompleted,
   } = parsed.data;
   try {
@@ -216,6 +221,7 @@ router.post("/regular-planets/save", async (req, res) => {
             ...(claimedBonusEpic  != null ? { claimedBonusEpic:  sql`GREATEST(${usersTable.claimedBonusEpic},  ${claimedBonusEpic})`  } : {}),
             ...(claimedBonusGold  != null ? { claimedBonusGold:  sql`GREATEST(${usersTable.claimedBonusGold},  ${claimedBonusGold})`  } : {}),
             ...(claimedBonusV1    != null ? { claimedBonusV1:    sql`GREATEST(${usersTable.claimedBonusV1},    ${claimedBonusV1})`    } : {}),
+            ...(claimedBonusV1NftPlatinum != null ? { claimedBonusV1NftPlatinum: sql`GREATEST(${usersTable.claimedBonusV1NftPlatinum}, ${claimedBonusV1NftPlatinum})` } : {}),
             ...(craftsCompleted   != null ? { totalPlanetsBuilt: sql`GREATEST(${usersTable.totalPlanetsBuilt}, ${craftsCompleted})` } : {}),
           })
           .where(eq(usersTable.telegramId, telegramId));
@@ -283,6 +289,7 @@ router.post("/regular-planets/save", async (req, res) => {
           ...(claimedBonusEpic  != null ? { claimedBonusEpic:  sql`GREATEST(${usersTable.claimedBonusEpic},  ${claimedBonusEpic})`  } : {}),
           ...(claimedBonusGold  != null ? { claimedBonusGold:  sql`GREATEST(${usersTable.claimedBonusGold},  ${claimedBonusGold})`  } : {}),
           ...(claimedBonusV1    != null ? { claimedBonusV1:    sql`GREATEST(${usersTable.claimedBonusV1},    ${claimedBonusV1})`    } : {}),
+          ...(claimedBonusV1NftPlatinum != null ? { claimedBonusV1NftPlatinum: sql`GREATEST(${usersTable.claimedBonusV1NftPlatinum}, ${claimedBonusV1NftPlatinum})` } : {}),
           ...(craftsCompleted   != null ? { totalPlanetsBuilt: sql`GREATEST(${usersTable.totalPlanetsBuilt}, ${craftsCompleted})` } : {}),
         })
         .where(eq(usersTable.telegramId, telegramId))

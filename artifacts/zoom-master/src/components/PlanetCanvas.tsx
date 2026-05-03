@@ -26,7 +26,7 @@ const RARITY_FROM_COLOR: Record<string, PlanetType> = {
 };
 
 const RATE_BY_TYPE: Record<PlanetType, number> = {
-  BASIC: 2, RARE: 15, EPIC: 80, GOLD: 150, V1: 400,
+  BASIC: 2, RARE: 15, EPIC: 80, GOLD: 150, V1: 400, V1_NFT: 275,
   WHITE1: 0, WHITE2: 0, WHITE3: 0, WHITE4: 0,
   EARTH1: 0, EARTH2: 0, EARTH3: 0, EARTH4: 0,
 };
@@ -36,6 +36,7 @@ const GLOW_BY_TYPE: Record<PlanetType, string> = {
   EPIC: "rgba(196,113,237,0.5)",
   GOLD: "rgba(255,215,0,0.5)",
   V1: "rgba(245,251,255,0.7)",
+  V1_NFT: "rgba(180,220,255,0.85)",
   WHITE1: "rgba(255,255,255,0.5)",
   WHITE2: "rgba(248,250,255,0.5)",
   WHITE3: "rgba(240,244,255,0.5)",

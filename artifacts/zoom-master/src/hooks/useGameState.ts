@@ -46,7 +46,7 @@ async function refreshServerOffset(): Promise<void> {
   } catch { /* keep last known offset */ }
 }
 
-export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD" | "V1" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4";
+export type PlanetType = "BASIC" | "RARE" | "EPIC" | "GOLD" | "V1" | "V1_NFT" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4";
 
 export const WHITE_PLANET_TYPES: PlanetType[] = ["WHITE1", "WHITE2", "WHITE3", "WHITE4"];
 
@@ -151,6 +151,7 @@ export interface GameState {
   claimedBonusEpic: number;
   claimedBonusGold: number;
   claimedBonusV1: number;
+  claimedBonusV1NftPlatinum: number;
   claimedBonusSun: boolean;
   sunCount: number;
   hasAutoTap: boolean;
@@ -252,6 +253,21 @@ export const PLANET_CONFIG: Record<PlanetType, {
     glowColor: "rgba(245,251,255,0.7)",
     chance: 0.00005,
     label: "V1",
+    craftCost: 250,
+    activationTon: 2.0,
+    tapsNeeded: 1000,
+    reactivationFee: 4000,
+  },
+  // V1 NFT Platinum Edition — esclusivo NFT vendibile SOLO via shop (20 TON,
+  // max 5 globali). chance: 0 ⇒ rollRarity() nel Lab non potrà mai produrlo.
+  // Rate intermedio fra GOLD (150) e V1 (400). Stessi costi craft/activation
+  // di V1 (anche se craft è disabilitato). Reactivation fee = quella V1.
+  V1_NFT: {
+    rate: 275,
+    color: "#e9f4ff",
+    glowColor: "rgba(180,220,255,0.85)",
+    chance: 0,
+    label: "V1 NFT",
     craftCost: 250,
     activationTon: 2.0,
     tapsNeeded: 1000,
@@ -454,6 +470,7 @@ const INITIAL_STATE: GameState = {
   claimedBonusEpic: 0,
   claimedBonusGold: 0,
   claimedBonusV1: 0,
+  claimedBonusV1NftPlatinum: 0,
   claimedBonusSun: false,
   sunCount: 0,
   hasAutoTap: false,
@@ -1436,7 +1453,7 @@ export function useGameState() {
       // only as a placeholder for the few non-destructive read sites and
       // gate the entire grants-derived block on grantsOk.
       const grantsOk = grantsResult !== null;
-      const grants = grantsResult ?? { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusV1: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+      const grants = grantsResult ?? { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
       const serverCollectionByKey = indexServerCollectionPlanets(serverCollectionPlanets);
 
       // Prefer the post-credit balance returned by /farm/settle when the
@@ -1618,6 +1635,7 @@ export function useGameState() {
             claimedBonusEpic:  Math.max(updated.claimedBonusEpic  ?? 0, serverRegular.claimedBonusEpic),
             claimedBonusGold:  Math.max(updated.claimedBonusGold  ?? 0, serverRegular.claimedBonusGold),
             claimedBonusV1:    Math.max(updated.claimedBonusV1    ?? 0, serverRegular.claimedBonusV1),
+            claimedBonusV1NftPlatinum: Math.max(updated.claimedBonusV1NftPlatinum ?? 0, serverRegular.claimedBonusV1NftPlatinum),
           };
         }
 
@@ -1740,12 +1758,13 @@ export function useGameState() {
         }
 
         // Apply pending bonus planets per type (only new ones not yet claimed)
-        const bonusTypes: Array<{ key: "bonusBasic" | "bonusRare" | "bonusEpic" | "bonusGold" | "bonusV1"; claimedKey: "claimedBonusBasic" | "claimedBonusRare" | "claimedBonusEpic" | "claimedBonusGold" | "claimedBonusV1"; type: PlanetType }> = [
+        const bonusTypes: Array<{ key: "bonusBasic" | "bonusRare" | "bonusEpic" | "bonusGold" | "bonusV1" | "bonusV1NftPlatinum"; claimedKey: "claimedBonusBasic" | "claimedBonusRare" | "claimedBonusEpic" | "claimedBonusGold" | "claimedBonusV1" | "claimedBonusV1NftPlatinum"; type: PlanetType }> = [
           { key: "bonusBasic", claimedKey: "claimedBonusBasic", type: "BASIC" },
           { key: "bonusRare", claimedKey: "claimedBonusRare", type: "RARE" },
           { key: "bonusEpic", claimedKey: "claimedBonusEpic", type: "EPIC" },
           { key: "bonusGold", claimedKey: "claimedBonusGold", type: "GOLD" },
           { key: "bonusV1",   claimedKey: "claimedBonusV1",   type: "V1" },
+          { key: "bonusV1NftPlatinum", claimedKey: "claimedBonusV1NftPlatinum", type: "V1_NFT" },
         ];
         const now = serverNow();
         const newPlanets: Planet[] = [];
@@ -1851,6 +1870,7 @@ export function useGameState() {
       epic:  state.claimedBonusEpic  ?? 0,
       gold:  state.claimedBonusGold  ?? 0,
       v1:    state.claimedBonusV1    ?? 0,
+      v1NftPlatinum: state.claimedBonusV1NftPlatinum ?? 0,
     };
     // Ghost-RARE guard: if applyGrants just minted a bonus planet, fire
     // an extra save NOW so the new planet reaches the server before the
@@ -1882,6 +1902,7 @@ export function useGameState() {
     state.claimedBonusEpic,
     state.claimedBonusGold,
     state.claimedBonusV1,
+    state.claimedBonusV1NftPlatinum,
     state.craftsCompleted,
   ]);
 
@@ -2001,6 +2022,7 @@ export function useGameState() {
           { key: "bonusEpic",  claimedKey: "claimedBonusEpic",  type: "EPIC" },
           { key: "bonusGold",  claimedKey: "claimedBonusGold",  type: "GOLD" },
           { key: "bonusV1",    claimedKey: "claimedBonusV1",    type: "V1" },
+          { key: "bonusV1NftPlatinum", claimedKey: "claimedBonusV1NftPlatinum", type: "V1_NFT" },
         ];
         const now = serverNow();
         const newPlanets: Planet[] = [];
