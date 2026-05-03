@@ -481,7 +481,12 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
                         className={`font-black text-base tracking-wide text-left ${isPlatinumNft ? "nft-platinum-text" : RARITY_CLASS[planet.name]}`}
                         style={{
                           opacity: expired ? 0.55 : 1,
-                          background: "transparent",
+                          // Don't override `background` for the NFT case —
+                          // `.nft-platinum-text` sets a gradient that the
+                          // -webkit-background-clip:text trick relies on,
+                          // so a `background: transparent` inline would
+                          // make the chrome name disappear.
+                          ...(isPlatinumNft ? {} : { background: "transparent" }),
                           padding: 0,
                           border: 0,
                           cursor: telegramId && !isListed ? "pointer" : "default",
