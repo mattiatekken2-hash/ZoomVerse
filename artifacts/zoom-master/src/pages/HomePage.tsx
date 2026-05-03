@@ -733,7 +733,28 @@ function nextVisitDelayMs(): number {
 }
 
 function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean }) {
-  const activity = useAstronautActivity();
+  const baseActivity = useAstronautActivity();
+  // Idle detection — if the user hasn't touched the screen for 30 s
+  // we override the rotation and force the "drum" activity (the
+  // astronaut grabs his sticks and bangs on the kitchen table).
+  // Any pointer/touch/key resets the timer back to normal life.
+  const [idle, setIdle] = useState(false);
+  useEffect(() => {
+    let t = 0;
+    const reset = () => {
+      setIdle(false);
+      window.clearTimeout(t);
+      t = window.setTimeout(() => setIdle(true), 30000);
+    };
+    reset();
+    const events: (keyof WindowEventMap)[] = ["pointerdown", "touchstart", "keydown", "wheel"];
+    events.forEach((ev) => window.addEventListener(ev, reset, { passive: true } as AddEventListenerOptions));
+    return () => {
+      window.clearTimeout(t);
+      events.forEach((ev) => window.removeEventListener(ev, reset));
+    };
+  }, []);
+  const activity: ReturnType<typeof useAstronautActivity> = idle ? "drum" : baseActivity;
   const [birds, setBirds] = useState<Bird[]>([]);
   // Measure the room so the astronaut sprite scales relative to the
   // room size — keeps the character a sensible portion of the bed,
@@ -812,6 +833,8 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
     music: { left: "62%", top: "82%" },     // standing on the floor, head bobbing to the beat
     sing: { left: "38%", top: "82%" },      // singing in the middle of the floor
     pizza: { left: "76%", top: "78%" },     // standing next to the fridge with a pizza slice
+    paint: { left: "30%", top: "78%" },     // standing on the floor, drawing on a sheet of paper
+    drum: { left: "55%", top: "78%" },      // standing at the kitchen table, drumming
   };
   const pos = astroPos[activity];
 
@@ -857,6 +880,8 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
     music: { left: "70%", top: "88%" },     // bobbing along on the floor next to the astronaut
     sing: { left: "46%", top: "88%" },      // listening to the singing astronaut
     pizza: { left: "68%", top: "88%" },     // begging for a pizza crumb on the floor
+    paint: { left: "20%", top: "88%" },     // sitting next to the painter, watching
+    drum: { left: "65%", top: "88%" },      // bopping along to the drum beat next to the table
   };
   const petState: "idle" | "sleep" | "eat" =
     activity === "sleep" ? "sleep" :
@@ -1227,6 +1252,111 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
             >
               <PixelPizzaSlice size={Math.round(spriteW * 0.35)} />
             </div>
+          </div>
+        )}
+        {activity === "paint" && (
+          // PAINTER — standing on the floor holding a small sheet of
+          // paper in one hand and a brush in the other. A few colored
+          // pixel dots already on the paper, with a tiny brush-stroke
+          // animation so it looks like he's actually painting.
+          <div style={{ position: "relative" }}>
+            <PixelAstronaut pose="stand" width={spriteW} />
+            {/* Paper held in front of the chest */}
+            <div
+              aria-hidden
+              style={{
+                position: "absolute",
+                left: "10%",
+                top: "38%",
+                width: Math.round(spriteW * 0.45),
+                height: Math.round(spriteW * 0.45),
+                background: "#fffaf0",
+                border: "2px solid #0a1a3d",
+              }}
+            >
+              {/* A few colored pixels — the ongoing painting */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", width: "100%", height: "100%" }}>
+                {["#d63a2a","#ffd166","#3da33d","#7fdfff","#7a4cc4","#ff8a3c","#fffaf0","#fffaf0",
+                  "#fffaf0","#3da33d","#d63a2a","#fffaf0","#fffaf0","#fffaf0","#7fdfff","#ffd166"
+                ].map((c, i) => (
+                  <div key={i} style={{ background: c }} />
+                ))}
+              </div>
+            </div>
+            {/* Brush — small wooden stick with a colored tip, swings
+                back and forth to mimic painting strokes. */}
+            <div
+              aria-hidden
+              style={{
+                position: "absolute",
+                left: "55%",
+                top: "55%",
+                width: Math.max(6, Math.round(spriteW * 0.30)),
+                height: Math.max(2, Math.round(spriteW * 0.08)),
+                background: "#8a5a2a",
+                transformOrigin: "0% 50%",
+                animation: "home-astro-paint 0.45s ease-in-out infinite",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  right: -Math.max(2, Math.round(spriteW * 0.06)),
+                  top: -Math.max(1, Math.round(spriteW * 0.03)),
+                  width: Math.max(3, Math.round(spriteW * 0.10)),
+                  height: Math.max(3, Math.round(spriteW * 0.14)),
+                  background: "#d63a2a",
+                }}
+              />
+            </div>
+          </div>
+        )}
+        {activity === "drum" && (
+          // DRUMMER — standing at the kitchen table, banging two white
+          // drumsticks on the surface. Three pixel notes (♪ ♫ ♬) pop
+          // out in a steady rhythm so it really reads as "playing".
+          <div style={{ position: "relative", animation: "home-astro-bob 0.3s ease-in-out infinite" }}>
+            <PixelAstronaut pose="stand" width={spriteW} />
+            {/* Two drumsticks angled toward the table top */}
+            {[-1, 1].map((side) => (
+              <div
+                key={side}
+                aria-hidden
+                style={{
+                  position: "absolute",
+                  left: side < 0 ? "8%" : "70%",
+                  top: "55%",
+                  width: Math.max(2, Math.round(spriteW * 0.08)),
+                  height: Math.max(8, Math.round(spriteW * 0.40)),
+                  background: "#fffaf0",
+                  borderRadius: 1,
+                  transformOrigin: "50% 0%",
+                  animation: `home-astro-drumstick 0.30s ease-in-out ${side < 0 ? 0 : 0.15}s infinite`,
+                }}
+              />
+            ))}
+            {/* Rhythmic notes flying out of the kitchen table */}
+            {[
+              { d: 0,    side: -1, sym: "♪" },
+              { d: 0.30, side:  1, sym: "♫" },
+              { d: 0.60, side: -1, sym: "♬" },
+              { d: 0.90, side:  1, sym: "♪" },
+            ].map((n, i) => (
+              <span
+                key={i}
+                style={{
+                  position: "absolute",
+                  left: n.side > 0 ? "85%" : "0%",
+                  bottom: "-10%",
+                  fontSize: Math.round(spriteW * 0.28),
+                  color: "#9ad8ff",
+                  textShadow: "0 0 4px rgba(0,0,0,0.5)",
+                  animation: `home-music-note 1.6s ease-out ${n.d}s infinite`,
+                }}
+              >
+                {n.sym}
+              </span>
+            ))}
           </div>
         )}
         {activity === "sing" && (

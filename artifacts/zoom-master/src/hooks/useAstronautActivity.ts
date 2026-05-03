@@ -25,8 +25,12 @@ export type AstronautActivity =
   | "play"
   | "music"
   | "sing"
-  | "pizza";
+  | "pizza"
+  | "paint"
+  | "drum";
 
+// "drum" is intentionally NOT in the random rotation — it's only
+// triggered by 30 s of screen inactivity (see RoomLifeOverlay).
 const ACTIVITIES: AstronautActivity[] = [
   "sleep",
   "walk",
@@ -40,6 +44,7 @@ const ACTIVITIES: AstronautActivity[] = [
   "music",
   "sing",
   "pizza",
+  "paint",
 ];
 
 // Initial activity is RANDOM on every page load instead of always
@@ -110,4 +115,6 @@ export const ACTIVITY_LABEL_IT: Record<AstronautActivity, string> = {
   music: "ascolta musica",
   sing: "canta",
   pizza: "mangia la pizza",
+  paint: "dipinge",
+  drum: "suona la batteria",
 };

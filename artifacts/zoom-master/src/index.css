@@ -1008,6 +1008,16 @@
   20%  { opacity: 0.9; }
   100% { transform: translate(6px, -28px) scale(1.4); opacity: 0; }
 }
+/* Painter brush — sweeps left↔right like a wrist stroke. */
+@keyframes home-astro-paint {
+  0%, 100% { transform: rotate(-12deg); }
+  50%      { transform: rotate(22deg); }
+}
+/* Drumsticks tapping the table — quick down-up motion. */
+@keyframes home-astro-drumstick {
+  0%, 100% { transform: rotate(-15deg) translateY(0); }
+  50%      { transform: rotate( 15deg) translateY(2px); }
+}
 @keyframes home-z-float {
   0%   { transform: translate(0, 0) scale(0.6); opacity: 0; }
   20%  { opacity: 1; }
