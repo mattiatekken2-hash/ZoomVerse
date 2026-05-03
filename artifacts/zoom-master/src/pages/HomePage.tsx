@@ -424,6 +424,10 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
     const r = await waterPlant(telegramId);
     setBusy(null);
     if (r.ok) {
+      // Bump the watering tick so PlantSlotContent triggers its
+      // shake-and-droplets animation. Each bump is unique so the
+      // animation re-runs even on rapid successive successful waters.
+      setWateringTick((t) => t + 1);
       if (r.maxedOut) setToast("PLANT FULLY GROWN — STELLAR PLANT!");
       else if (r.leveledUp) setToast(`Level up! → L${r.plantLevel}`);
       else setToast(`+${10} XP`);
@@ -505,6 +509,10 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
   // timestamp so the cooldown unlocks immediately at the 24h mark
   // without waiting for the next /home/state poll.
   const liveZoomBonusReady = nowMs >= (state.computer.zoomBonusNextReadyAt || 0);
+  // Watering tick — bumps each time the player successfully waters the
+  // plant. PlantSlotContent listens to this number to (re-)trigger a
+  // happy shake + blue water-droplet burst around the sprite.
+  const [wateringTick, setWateringTick] = useState(0);
   const livePlant: HomeState["plant"] = {
     ...state.plant,
     waterReady: state.plant.owned && nowMs >= state.plant.waterNextReadyAt,
@@ -788,6 +796,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
             computerClaimable={liveComputerClaimable}
             secondsToReady={state.computer.secondsToReady}
             plant={livePlant}
+            wateringTick={wateringTick}
             visible={visible}
             friends={roomOccupants}
             onComputerExtraClick={() => {
@@ -978,8 +987,32 @@ function PixelLock() {
 //   3. A subtle pulsing dot when an action is ready (water ready or
 //      a TON claim ready), so the player knows to tap.
 // ────────────────────────────────────────────────────────────────────────
-function PlantSlotContent({ plant }: { plant: HomeState["plant"] }) {
+function PlantSlotContent({ plant, wateringTick }: { plant: HomeState["plant"]; wateringTick: number }) {
   const isMature = plant.level >= plant.maxLevel;
+  // Watering reaction — when `wateringTick` changes, run a one-shot
+  // ~900 ms animation: the plant shakes happily and a small burst of
+  // blue water droplets rains around it. The tick is a unique number,
+  // so even back-to-back successful waters re-trigger the effect.
+  const [watering, setWatering] = useState(false);
+  useEffect(() => {
+    if (wateringTick === 0) return;
+    setWatering(true);
+    const id = window.setTimeout(() => setWatering(false), 900);
+    return () => window.clearTimeout(id);
+  }, [wateringTick]);
+  // Eight pre-computed droplet trajectories arranged around the plant
+  // — fixed angles + slight delays so the burst feels organic without
+  // recomputing on every render.
+  const droplets = [
+    { left: "20%", top: "55%", delay: "0ms" },
+    { left: "80%", top: "55%", delay: "60ms" },
+    { left: "30%", top: "30%", delay: "120ms" },
+    { left: "70%", top: "30%", delay: "30ms" },
+    { left: "50%", top: "20%", delay: "180ms" },
+    { left: "10%", top: "70%", delay: "90ms" },
+    { left: "90%", top: "70%", delay: "150ms" },
+    { left: "50%", top: "85%", delay: "200ms" },
+  ];
   // Live-tick the accrued TON since the last claim — purely visual,
   // server is the source of truth on actual claim. 1Hz is plenty.
   const [, setTick] = useState(0);
@@ -1040,7 +1073,40 @@ function PlantSlotContent({ plant }: { plant: HomeState["plant"] }) {
         )}
       </div>
 
-      <PixelPlant level={plant.level} size={56} glowing={isMature} />
+      <div style={{ animation: watering ? "home-plant-shake 0.45s ease-in-out 2" : undefined }}>
+        <PixelPlant level={plant.level} size={56} glowing={isMature} />
+      </div>
+      {/* Blue water droplet burst — only while `watering` is true. Each
+          droplet falls slightly, fades out, and is positioned via fixed
+          percentages around the plant. Pure CSS, pointer-events:none. */}
+      {watering && (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+          }}
+        >
+          {droplets.map((d, i) => (
+            <span
+              key={i}
+              style={{
+                position: "absolute",
+                left: d.left,
+                top: d.top,
+                width: 5,
+                height: 7,
+                borderRadius: "50% 50% 50% 50% / 60% 60% 40% 40%",
+                background: "radial-gradient(circle at 35% 30%, #cdeaff 0%, #4ec3ff 60%, #1f7fbf 100%)",
+                boxShadow: "0 0 4px rgba(78,195,255,0.85)",
+                animation: `home-water-drop 0.7s ease-in ${d.delay} 1 forwards`,
+                opacity: 0,
+              }}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Action-ready pulse — water-ready droplet (pre-mature) or a
           claim-ready golden dot (mature). */}
@@ -1186,6 +1252,10 @@ interface PixelRoomProps {
   computerClaimable: boolean;
   secondsToReady: number;
   plant: HomeState["plant"];
+  /** Increments each time the player successfully waters the plant —
+   *  forwarded to PlantSlotContent to (re-)trigger the happy shake +
+   *  blue droplet burst. */
+  wateringTick: number;
   onSlotClick: (slot: Slot) => void;
   friends: InvitedFriend[];
   /** Easter-egg: fired on every COMPUTER tap (regardless of slot
@@ -1218,7 +1288,7 @@ const OUTDOOR_SCENES: Array<OutdoorOverride | null> = [
   },
 ];
 
-function PixelRoom({ phase, slots, arrange, computerClaimable, plant, onSlotClick, visible, friends, onComputerExtraClick }: PixelRoomProps & { visible: boolean }) {
+function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTick, onSlotClick, visible, friends, onComputerExtraClick }: PixelRoomProps & { visible: boolean }) {
   // Outdoor scene cycle (index into OUTDOOR_SCENES). null = follow phase.
   const [outdoorIdx, setOutdoorIdx] = useState(0);
   const [sceneLabel, setSceneLabel] = useState<string | null>(null);
@@ -1514,7 +1584,7 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, onSlotClic
               </div>
             )}
             {item === "plant" && (
-              <PlantSlotContent plant={plant} />
+              <PlantSlotContent plant={plant} wateringTick={wateringTick} />
             )}
             {arrange && (
               <span

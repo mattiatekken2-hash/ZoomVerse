@@ -1032,6 +1032,23 @@
   0%, 100% { opacity: 0.85; }
   50%      { opacity: 1; }
 }
+/* Plant happy shake — quick wiggle when the player waters the plant.
+   Combined with the blue droplet burst it reads as "the plant is
+   delighted". 0.45s × 2 iterations covers the full reaction. */
+@keyframes home-plant-shake {
+  0%, 100% { transform: rotate(0deg)   translateY(0); }
+  20%      { transform: rotate(-8deg)  translateY(-2px); }
+  40%      { transform: rotate(7deg)   translateY(0); }
+  60%      { transform: rotate(-5deg)  translateY(-1px); }
+  80%      { transform: rotate(4deg)   translateY(0); }
+}
+/* Water droplet — appears briefly at the plant, falls a few pixels
+   while fading out. One-shot, ~0.7s. */
+@keyframes home-water-drop {
+  0%   { opacity: 0;    transform: translateY(-6px) scale(0.6); }
+  20%  { opacity: 1;    transform: translateY(-2px) scale(1); }
+  100% { opacity: 0;    transform: translateY(10px) scale(0.8); }
+}
 @keyframes home-z-float {
   0%   { transform: translate(0, 0) scale(0.6); opacity: 0; }
   20%  { opacity: 1; }
