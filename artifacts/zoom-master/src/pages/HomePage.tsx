@@ -1318,6 +1318,11 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
   const sitting = forceSitUntil > Date.now();
   // TV power state — toggles ON/OFF when the user taps the TV.
   const [tvOn, setTvOn] = useState(false);
+  // View mode — "flat" (default elevation pixel view) vs "persp"
+  // (3D first-person tilt with central vanishing point). Toggled by
+  // a small floating widget in the top-right corner of the room.
+  const [viewMode, setViewMode] = useState<"flat" | "persp">("flat");
+  const persp = viewMode === "persp";
   // Re-tick every second so the room rerenders when forceSleep / forceSit
   // expire (the booleans are derived from absolute deadlines).
   const [, setSleepTick] = useState(0);
@@ -1415,7 +1420,33 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
   };
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+    <div
+      style={{
+        position: "relative",
+        width: "100%",
+        height: "100%",
+        // Establish the perspective rig on the OUTER container so that
+        // the inner wrapper's rotateX/scale produce a real first-person
+        // depth effect (vanishing point centered, slightly low — the
+        // camera sits inside the room at robot eye level).
+        perspective: persp ? "900px" : "none",
+        perspectiveOrigin: "50% 60%",
+        overflow: "hidden",
+      }}
+    >
+      {/* Inner content wrapper — receives the 3D tilt when "persp"
+          view is active. The toggle widget below stays OUTSIDE this
+          wrapper so it's never tilted along with the room. */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          transformOrigin: "50% 100%",
+          transform: persp ? "rotateX(22deg) scale(1.08)" : "none",
+          transition: "transform 700ms cubic-bezier(0.22, 1, 0.36, 1)",
+          willChange: "transform",
+        }}
+      >
       {/* Background room layout. Single SVG so everything stays pixel-aligned. */}
       <svg
         viewBox="0 0 80 64"
@@ -1756,6 +1787,38 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
           </button>
         );
       })}
+      </div>
+
+      {/* View-mode widget — small floating pill in the top-right
+          corner. Toggles between FLAT (default elevation pixel
+          look) and PERSP (3D first-person tilt). Sits OUTSIDE the
+          tilted wrapper so it never rotates with the room. */}
+      <button
+        type="button"
+        onClick={() => setViewMode((m) => (m === "flat" ? "persp" : "flat"))}
+        aria-label={persp ? "Switch to flat view" : "Switch to first-person view"}
+        style={{
+          position: "absolute",
+          top: 8,
+          right: 8,
+          zIndex: 20,
+          padding: "5px 9px",
+          fontFamily: "'Press Start 2P', monospace",
+          fontSize: 8,
+          letterSpacing: "0.08em",
+          color: persp ? "#0a0e1a" : "#bcd9ec",
+          background: persp
+            ? "linear-gradient(135deg, #5fb4ff, #a8d8ff)"
+            : "rgba(10,14,26,0.72)",
+          border: `1px solid ${persp ? "#a8d8ff" : "rgba(188,217,236,0.45)"}`,
+          borderRadius: 6,
+          cursor: "pointer",
+          boxShadow: persp ? "0 0 12px rgba(95,180,255,0.55)" : "0 0 6px rgba(0,0,0,0.4)",
+          transition: "all 200ms ease",
+        }}
+      >
+        {persp ? "VIEW: 3D" : "VIEW: FLAT"}
+      </button>
     </div>
   );
 }
