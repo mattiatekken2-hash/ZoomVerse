@@ -997,6 +997,17 @@
   0%, 100% { transform: translate(-50%, -4px) scale(1); }
   50%      { transform: translate(-50%, -7px) scale(1.06); }
 }
+/* Welcome wave — small hand rocks back and forth like a greeting. */
+@keyframes home-astro-wave {
+  0%, 100% { transform: rotate(-25deg); }
+  50%      { transform: rotate(25deg); }
+}
+/* Annoyed-astronaut smoke puffs: rise, drift sideways, fade out. */
+@keyframes home-annoyed-smoke {
+  0%   { transform: translate(0, 0) scale(0.5); opacity: 0; }
+  20%  { opacity: 0.9; }
+  100% { transform: translate(6px, -28px) scale(1.4); opacity: 0; }
+}
 @keyframes home-z-float {
   0%   { transform: translate(0, 0) scale(0.6); opacity: 0; }
   20%  { opacity: 1; }

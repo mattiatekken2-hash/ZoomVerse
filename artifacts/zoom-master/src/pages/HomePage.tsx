@@ -930,6 +930,51 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
       ? visitor.fromSide === "left" ? -1 : 1
       : visitor?.fromSide === "left" ? 1 : -1;
 
+  // ── Welcome wave on app open ───────────────────────────────────
+  // First mount: the astronaut waves and a "Welcome back, Commander!"
+  // speech bubble pops above his helmet for ~5 seconds.
+  const [welcome, setWelcome] = useState(true);
+  useEffect(() => {
+    const t = window.setTimeout(() => setWelcome(false), 5000);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  // ── Annoyed astronaut (10 fast clicks) ─────────────────────────
+  // Tap the astronaut 10 times within 3 seconds → he turns RED, puffs
+  // smoke and dashes to the OPPOSITE side of the room. Holds the
+  // grumpy state for a few seconds before going back to normal life.
+  const ANNOYED_PALETTE = {
+    suit: "#d63a2a",
+    suitShade: "#7a1f15",
+    helmet: "#f4c8c2",
+    accent: "#ffd166",
+    visorShine: "#ffd166",
+  };
+  const [annoyed, setAnnoyed] = useState(false);
+  const [escapePos, setEscapePos] = useState<{ left: string; top: string } | null>(null);
+  const clickTimesRef = useRef<number[]>([]);
+  const onAstroClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (annoyed) return;
+    const now = Date.now();
+    clickTimesRef.current = [...clickTimesRef.current.filter((t) => now - t < 3000), now];
+    if (clickTimesRef.current.length >= 10) {
+      clickTimesRef.current = [];
+      const curLeftN = parseFloat(pos.left);
+      // Dash to the opposite half of the room, keeping the same Y.
+      const escLeft = curLeftN < 50 ? "85%" : "15%";
+      setEscapePos({ left: escLeft, top: "82%" });
+      setAnnoyed(true);
+      window.setTimeout(() => {
+        setAnnoyed(false);
+        setEscapePos(null);
+      }, 6000);
+    }
+  };
+  // While annoyed, override the activity-driven position with the
+  // escape spot so the existing CSS transition slides him over there.
+  const effectivePos = escapePos ?? pos;
+
   return (
     <div
       ref={overlayRef}
@@ -978,17 +1023,98 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
           Slow CSS transition (1.4s ease-in-out) so the slide between
           two activity spots is clearly visible as a walk, not a jump. */}
       <div
+        onClick={onAstroClick}
         style={{
           position: "absolute",
-          left: pos.left,
-          top: pos.top,
+          left: effectivePos.left,
+          top: effectivePos.top,
           width: spriteW,
           height: spriteW,
           transform: "translate(-50%, -50%)",
-          transition: `left ${TRAVEL_MS}ms ease-in-out, top ${TRAVEL_MS}ms ease-in-out`,
+          transition: annoyed
+            ? "left 1.2s ease-in, top 1.2s ease-in"
+            : `left ${TRAVEL_MS}ms ease-in-out, top ${TRAVEL_MS}ms ease-in-out`,
+          // Make the sprite tappable so the "10 fast clicks" easter
+          // egg can fire. Parent overlay disables pointer events.
+          pointerEvents: "auto",
+          cursor: "pointer",
         }}
       >
-        {isMoving ? (
+        {/* Welcome speech bubble — only on first mount, ~5s */}
+        {welcome && !annoyed && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: "100%",
+              left: "50%",
+              transform: "translate(-50%, -4px)",
+              background: "#fff",
+              color: "#0a1a3d",
+              fontFamily: "'Press Start 2P', monospace",
+              fontSize: Math.max(8, Math.round(spriteW * 0.16)),
+              padding: "4px 6px",
+              borderRadius: 4,
+              border: "2px solid #0a1a3d",
+              whiteSpace: "nowrap",
+              animation: "home-visitor-bubble 2s ease-in-out infinite",
+              pointerEvents: "none",
+            }}
+          >
+            Welcome back, Commander!
+          </div>
+        )}
+        {/* Smoke puffs while annoyed — three offset puffs rising */}
+        {annoyed && (
+          <>
+            {[0, 0.25, 0.55].map((delay, i) => (
+              <div
+                key={i}
+                aria-hidden
+                style={{
+                  position: "absolute",
+                  left: `${30 + i * 20}%`,
+                  top: "10%",
+                  width: Math.max(6, Math.round(spriteW * 0.22)),
+                  height: Math.max(6, Math.round(spriteW * 0.22)),
+                  borderRadius: "50%",
+                  background: "rgba(180,180,180,0.85)",
+                  filter: "blur(1px)",
+                  animation: `home-annoyed-smoke 1.2s ease-out ${delay}s infinite`,
+                  pointerEvents: "none",
+                }}
+              />
+            ))}
+          </>
+        )}
+        {annoyed ? (
+          // Angry RED astronaut dashing across the room.
+          <div style={{ transform: `scaleX(${escapePos && parseFloat(escapePos.left) < parseFloat(pos.left) ? -1 : 1})` }}>
+            <div style={{ animation: "home-astro-bob 0.3s ease-in-out infinite" }}>
+              <WalkingVisitor width={spriteW} palette={ANNOYED_PALETTE} />
+            </div>
+          </div>
+        ) : welcome ? (
+          // Standing still + waving hand. Same standing sprite, plus a
+          // small skin-coloured hand that swings overhead like a wave.
+          <div style={{ position: "relative" }}>
+            <PixelAstronaut pose="stand" width={spriteW} />
+            <div
+              aria-hidden
+              style={{
+                position: "absolute",
+                left: "78%",
+                top: "8%",
+                width: Math.max(6, Math.round(spriteW * 0.22)),
+                height: Math.max(6, Math.round(spriteW * 0.22)),
+                background: "#f3f4f6",
+                borderRadius: 2,
+                transformOrigin: "50% 100%",
+                animation: "home-astro-wave 0.55s ease-in-out infinite",
+                pointerEvents: "none",
+              }}
+            />
+          </div>
+        ) : isMoving ? (
           // Travelling between activity spots — show the walking sprite
           // with bob, flipped to face the direction of travel.
           <div style={{ transform: `scaleX(${walkFacing})` }}>
