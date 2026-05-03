@@ -389,13 +389,17 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
             };
 
             const isPlatinumNft = planet.name === "V1_NFT";
+            const planetFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
+            const isPerfectFloat = typeof planetFloat === "number" && planetFloat >= 0.99 && !expired;
             return (
               <div
                 key={planet.id}
-                className={`slot-enter rounded-2xl p-4 border ${isPlatinumNft ? "nft-card-glow" : ""}`}
+                className={`slot-enter rounded-2xl p-4 border ${isPlatinumNft ? "nft-card-glow" : isPerfectFloat ? "perfect-card-glow" : ""}`}
                 style={{
                   borderColor: isPlatinumNft
                     ? "rgba(220,232,255,0.10)"
+                    : isPerfectFloat
+                    ? planet.color + "20"
                     : isListed ? "rgba(255,215,0,0.3)" : expired ? "rgba(255,255,255,0.08)" : planet.color + "40",
                   background: `linear-gradient(135deg, ${planet.color}0d 0%, rgba(6,8,16,0.6) 100%)`,
                   // Single, smaller shadow. The previous double 60px halo was
@@ -425,7 +429,7 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
                       transition: "filter 0.4s ease",
                     }}
                   >
-                    <PlanetOrb planet={planet} size={72} animate={active} />
+                    <PlanetOrb planet={planet} size={72} animate={active} displayFloat={planetFloat} />
                     {expired && (
                       <div
                         className="absolute inset-0 rounded-full pointer-events-none"

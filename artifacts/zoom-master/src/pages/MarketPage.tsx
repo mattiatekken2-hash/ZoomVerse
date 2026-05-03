@@ -263,7 +263,7 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
                   }}
                   data-testid={`sale-${s.id}`}
                 >
-                  <PlanetOrb planet={fakePlanet} size={42} animate={false} />
+                  <PlanetOrb planet={fakePlanet} size={42} animate={false} displayFloat={FLOAT_PLANET_TYPES.has(s.planetType) ? getListingDisplayFloat({ id: `sale-${s.id}`, planetFloat: null }) : undefined} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full" style={{ color: rarityColor, background: rarityColor + "14", border: `1px solid ${rarityColor}33` }}>
@@ -405,21 +405,27 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
             const isOwn = listing.isLocal;
             const canBuy = !isOwn && balance >= total && myListings.filter((p) => !p.isListedInMarket).length < maxSlots;
             const isPlatinumNft = listing.name === "V1_NFT";
+            const listingFloat = FLOAT_PLANET_TYPES.has(listing.name)
+              ? getListingDisplayFloat({ id: listing.serverId ?? listing.id, planetFloat: listing.planetFloat })
+              : undefined;
+            const isPerfectFloat = typeof listingFloat === "number" && listingFloat >= 0.99;
 
             return (
               <div
                 key={listing.id}
-                className={`rounded-2xl border overflow-hidden ${isPlatinumNft ? "nft-card-glow" : ""}`}
+                className={`rounded-2xl border overflow-hidden ${isPlatinumNft ? "nft-card-glow" : isPerfectFloat ? "perfect-card-glow" : ""}`}
                 style={{
                   borderColor: isPlatinumNft
                     ? "rgba(220,232,255,0.10)"
+                    : isPerfectFloat
+                    ? rarityColor + "20"
                     : isOwn ? "rgba(255,215,0,0.3)" : rarityColor + "28",
                   background: `linear-gradient(135deg, ${rarityColor}07 0%, rgba(6,8,16,0.65) 100%)`,
                 }}
                 data-testid={`listing-${listing.id}`}
               >
                 <div className="flex items-center gap-3 px-4 py-3">
-                  <PlanetOrb planet={fakePlanet} size={56} animate={isPlatinumNft} />
+                  <PlanetOrb planet={fakePlanet} size={56} animate={isPlatinumNft || isPerfectFloat} displayFloat={listingFloat} />
                   <div className="flex-1 min-w-0">
                     {listing.displayName && (
                       <div

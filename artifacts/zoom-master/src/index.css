@@ -1284,3 +1284,40 @@
   position: relative;
   z-index: 1;
 }
+
+/* ─── Perfect-float card glow (≥0.99) ─────────────────────────────────
+   Lighter cousin of `.nft-card-glow` for normal rarities that rolled
+   an essentially-1.000 Float. Same masked rotating ring trick but the
+   conic gradient uses warm gold/white tones instead of platinum, and
+   the rotation is a bit slower so cards don't fight the NFT for
+   attention. Inset 0 so it survives `overflow: hidden` cards.       ── */
+@keyframes perfect-border-spin { to { transform: rotate(360deg); } }
+.perfect-card-glow {
+  position: relative;
+  isolation: isolate;
+}
+.perfect-card-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.25px;
+  background: conic-gradient(
+    from 0deg,
+    rgba(255,255,255,0.04)  0deg,
+    rgba(255,238,180,0.85) 70deg,
+    rgba(255,255,255,1)   100deg,
+    rgba(255,210,120,0.80) 130deg,
+    rgba(255,255,255,0.04) 220deg,
+    rgba(255,255,255,0.04) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: perfect-border-spin 6s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+.perfect-card-glow > * { position: relative; z-index: 1; }

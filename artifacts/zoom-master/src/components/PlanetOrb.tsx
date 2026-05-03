@@ -1,11 +1,33 @@
 import { memo } from "react";
 import type { Planet } from "../hooks/useGameState";
+import { FLOAT_PLANET_TYPES } from "../utils/planetFloat";
 
 interface PlanetOrbProps {
   planet: Planet;
   size?: number;
   animate?: boolean;
+  /**
+   * Optional cosmetic Float in [0,1] that drives a continuous visual
+   * grading of the orb (CS:GO-style). Only honored for floatable rarities
+   * (BASIC/RARE/EPIC/GOLD/V1) — V1_NFT keeps its dedicated chrome look.
+   *
+   * Stages, but every 0.01 step nudges params continuously:
+   *   0.00–0.20  battle-scarred — desaturated, dim, dark crack overlay
+   *   0.20–0.50  well-worn      — clean but muted
+   *   0.50–0.80  field-tested   — vivid, small glossy reflections appear
+   *   0.80–1.00  pristine       — saturated, strong outer glow
+   *   ≥0.99      perfect        — adds 2 sparkles + faster rotation
+   */
+  displayFloat?: number;
 }
+
+// Convert a numeric multiplier to a 2-digit hex alpha for "#rrggbbAA"
+// shorthand. Used to scale the existing planet colour glows by the float
+// without rewriting every gradient stop.
+const alphaHex = (mult: number, base: number): string => {
+  const v = Math.max(0, Math.min(255, Math.round(base * mult)));
+  return v.toString(16).padStart(2, "0");
+};
 
 const PLANET_GRADIENTS: Record<string, { stops: string[]; glowAlpha: number }> = {
   BASIC: {
@@ -75,10 +97,54 @@ const PLANET_GRADIENTS: Record<string, { stops: string[]; glowAlpha: number }> =
 
 const DEFAULT_GRADIENT = PLANET_GRADIENTS.BASIC;
 
-function PlanetOrbImpl({ planet, size = 60, animate = true }: PlanetOrbProps) {
+function PlanetOrbImpl({ planet, size = 60, animate = true, displayFloat }: PlanetOrbProps) {
   const c = planet.color;
   const grad = PLANET_GRADIENTS[planet.name] || DEFAULT_GRADIENT;
   const [s0, s1, s2, s3, s4] = grad.stops;
+
+  // ── Float-driven cosmetic grading ────────────────────────────────────
+  // Only floatable rarities react to the float; V1_NFT has its own
+  // premium look and we don't want to flatten that. Earth/White/SUN are
+  // not floatable so they never receive a value.
+  const isFloatGraded =
+    typeof displayFloat === "number" &&
+    Number.isFinite(displayFloat) &&
+    planet.name !== "V1_NFT" &&
+    FLOAT_PLANET_TYPES.has(planet.name);
+  const f = isFloatGraded ? Math.max(0, Math.min(1, displayFloat as number)) : null;
+
+  // Continuous filter (every 0.01 nudges the look slightly):
+  //   f=0  → sat 0.55 / br 0.70 / con 0.88 (dim, washed-out veteran)
+  //   f=1  → sat 1.20 / br 1.15 / con 1.10 (vivid, lively)
+  const bodyFilter = f !== null
+    ? `saturate(${(0.55 + 0.65 * f).toFixed(3)}) brightness(${(0.70 + 0.45 * f).toFixed(3)}) contrast(${(0.88 + 0.22 * f).toFixed(3)})`
+    : undefined;
+
+  // Outer halo intensity also rides the float — soft at low values,
+  // bigger and brighter near 1.0.
+  const haloMult = f !== null ? 0.35 + 1.05 * f : 1;
+  const haloInnerAlpha = alphaHex(haloMult, 0x55);
+  const haloMidAlpha = alphaHex(haloMult, 0x20);
+  const haloScale = f !== null ? 1.6 + 0.7 * f : 2.2;
+
+  // Box-shadow glow scaling for the orb body. Same multiplier so the
+  // change feels coherent across the breathing halo and the rim glow.
+  const shadowMult = haloMult;
+
+  // Stage 1 (cracks/dark spots): only when f < 0.25, fades out to 0 at
+  // 0.25. Six dark radial blobs, opacity scaled by stage strength.
+  const crackStrength = f !== null && f < 0.25 ? (0.25 - f) / 0.25 : 0;
+
+  // Stage 3 (glossy reflections): two small white highlights that fade
+  // in past 0.5, max around 0.9. Skipped for V1 (already has craters)
+  // because the highlights would clash with the moon texture.
+  const reflectStrength = f !== null && f > 0.5 && planet.name !== "V1"
+    ? Math.min(1, (f - 0.5) / 0.4)
+    : 0;
+
+  // Stage 4 (perfect): full sparkle + faster spin when essentially 1.000.
+  const isPerfect = f !== null && f >= 0.99;
+  const rotateDuration = isPerfect ? 7 : 10;
 
   return (
     <div
@@ -95,10 +161,10 @@ function PlanetOrbImpl({ planet, size = 60, animate = true }: PlanetOrbProps) {
       <div
         style={{
           position: "absolute",
-          width: size * 2.2,
-          height: size * 2.2,
+          width: size * haloScale,
+          height: size * haloScale,
           borderRadius: "50%",
-          background: `radial-gradient(circle, ${c}55 0%, ${c}20 40%, transparent 70%)`,
+          background: `radial-gradient(circle, ${c}${haloInnerAlpha} 0%, ${c}${haloMidAlpha} 40%, transparent 70%)`,
           filter: `blur(${size * 0.2}px)`,
           animation: animate ? "planet-breathe 3s ease-in-out infinite alternate" : "none",
           pointerEvents: "none",
@@ -130,12 +196,13 @@ function PlanetOrbImpl({ planet, size = 60, animate = true }: PlanetOrbProps) {
               inset ${size * 0.05}px ${size * 0.04}px ${size * 0.10}px rgba(255,255,255,0.55)
             `
             : `
-              0 0 ${size * 0.4}px ${c}99,
-              0 0 ${size * 0.8}px ${c}44,
-              0 0 ${size * 1.3}px ${c}18,
+              0 0 ${size * 0.4}px ${c}${alphaHex(shadowMult, 0x99)},
+              0 0 ${size * 0.8}px ${c}${alphaHex(shadowMult, 0x44)},
+              0 0 ${size * 1.3}px ${c}${alphaHex(shadowMult, 0x18)},
               inset -${size * 0.06}px -${size * 0.04}px ${size * 0.12}px rgba(0,0,0,0.25)
             `,
-          animation: animate ? "planet-rotate 10s linear infinite" : "none",
+          animation: animate ? `planet-rotate ${rotateDuration}s linear infinite` : "none",
+          filter: bodyFilter,
         }}
       >
         <div
@@ -151,6 +218,72 @@ function PlanetOrbImpl({ planet, size = 60, animate = true }: PlanetOrbProps) {
             pointerEvents: "none",
           }}
         />
+        {/* Stage 1 (low-float "battle-scarred") dark cracks/spots overlay.
+            Only rendered for floatable rarities at f < 0.25; opacity is
+            modulated continuously by `crackStrength` so a 0.05 vs 0.18
+            float feels visibly different. Six fixed positions, scaled by
+            orb size so the texture stays consistent across pages. */}
+        {crackStrength > 0 && (
+          <>
+            {[
+              { top: "20%", left: "55%", w: "20%", h: "22%" },
+              { top: "50%", left: "18%", w: "26%", h: "20%" },
+              { top: "65%", left: "60%", w: "16%", h: "18%" },
+              { top: "30%", left: "30%", w: "12%", h: "12%" },
+              { top: "75%", left: "40%", w: "10%", h: "10%" },
+              { top: "15%", left: "75%", w: "9%",  h: "9%"  },
+            ].map((cr, i) => (
+              <div
+                key={`crack-${i}`}
+                style={{
+                  position: "absolute",
+                  top: cr.top,
+                  left: cr.left,
+                  width: cr.w,
+                  height: cr.h,
+                  borderRadius: "50%",
+                  background: `radial-gradient(circle at 40% 40%, rgba(0,0,0,${(0.55 * crackStrength).toFixed(3)}) 0%, rgba(0,0,0,${(0.30 * crackStrength).toFixed(3)}) 55%, transparent 80%)`,
+                  filter: `blur(${size * 0.012}px)`,
+                  pointerEvents: "none",
+                }}
+              />
+            ))}
+          </>
+        )}
+        {/* Stage 3 (high-float "field-tested+") glossy reflections. Two
+            small bright spots fade in past 0.5; opacity continuous via
+            `reflectStrength`. Skipped on V1 (already moon-textured). */}
+        {reflectStrength > 0 && (
+          <>
+            <div
+              style={{
+                position: "absolute",
+                top: "55%",
+                left: "60%",
+                width: "22%",
+                height: "16%",
+                borderRadius: "50%",
+                background: `radial-gradient(ellipse at 50% 50%, rgba(255,255,255,${(0.55 * reflectStrength).toFixed(3)}) 0%, rgba(255,255,255,${(0.18 * reflectStrength).toFixed(3)}) 50%, transparent 80%)`,
+                filter: `blur(${size * 0.02}px)`,
+                pointerEvents: "none",
+                transform: "rotate(25deg)",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                top: "30%",
+                left: "62%",
+                width: "12%",
+                height: "12%",
+                borderRadius: "50%",
+                background: `radial-gradient(circle at 50% 50%, rgba(255,255,255,${(0.65 * reflectStrength).toFixed(3)}) 0%, transparent 70%)`,
+                filter: `blur(${size * 0.015}px)`,
+                pointerEvents: "none",
+              }}
+            />
+          </>
+        )}
         {/* V1 — moon-like crater spots overlay. Only rendered for V1 so the
             other planets keep their clean orb look. The craters are subtle
             grey radial blobs at fixed positions, scaled with the orb size
@@ -216,6 +349,41 @@ function PlanetOrbImpl({ planet, size = 60, animate = true }: PlanetOrbProps) {
           schedules so the planet always feels alive without ever
           showing more than ~2 sparkles at once. Pure CSS, GPU-friendly,
           pointer-events:none so they don't block the rename tap. */}
+      {/* Stage 4 (perfect, f ≥ 0.99) — two small ★ sparkles around the
+          orb. Lighter than the V1_NFT four-sparkle treatment so the
+          chrome NFT still feels in a class of its own. */}
+      {isPerfect && animate && planet.name !== "V1_NFT" && (
+        <>
+          {[
+            { top: "-6%", left: "70%", size: 0.18, anim: "nft-sparkle-1 2.8s ease-in-out infinite", delay: "0s"   },
+            { top: "70%", left: "-4%", size: 0.16, anim: "nft-sparkle-3 3.1s ease-in-out infinite", delay: "1.1s" },
+          ].map((sp, i) => (
+            <div
+              key={`perfect-sp-${i}`}
+              style={{
+                position: "absolute",
+                top: sp.top,
+                left: sp.left,
+                width: size * sp.size,
+                height: size * sp.size,
+                pointerEvents: "none",
+                color: "#ffffff",
+                fontSize: size * sp.size,
+                lineHeight: 1,
+                textShadow: `0 0 6px ${c}cc, 0 0 12px ${c}66`,
+                animation: sp.anim,
+                animationDelay: sp.delay,
+                zIndex: 2,
+                fontWeight: 900,
+                userSelect: "none",
+              }}
+              aria-hidden="true"
+            >
+              ★
+            </div>
+          ))}
+        </>
+      )}
       {planet.name === "V1_NFT" && animate && (
         <>
           {[
@@ -262,5 +430,6 @@ export const PlanetOrb = memo(PlanetOrbImpl, (prev, next) =>
   prev.size === next.size &&
   prev.animate === next.animate &&
   prev.planet.name === next.planet.name &&
-  prev.planet.color === next.planet.color
+  prev.planet.color === next.planet.color &&
+  prev.displayFloat === next.displayFloat
 );
