@@ -1,5 +1,6 @@
 import { useEffect, useState, memo } from "react";
 import { fetchHallOfFameDaily, type HallOfFameResponse } from "../utils/api";
+import { useT } from "../i18n/LanguageContext";
 
 // HALL OF FAME — Daily Referrals widget.
 //
@@ -22,6 +23,7 @@ interface Props {
 }
 
 function HallOfFameWidgetBase(_props: Props) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<HallOfFameResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -74,7 +76,7 @@ function HallOfFameWidgetBase(_props: Props) {
           WebkitTapHighlightColor: "transparent",
         }}
         data-testid="button-hall-of-fame"
-        aria-label="Open Hall of Fame"
+        aria-label={t("hof.openAria")}
       >
         <div style={{ animation: "hof-float 2.4s ease-in-out infinite" }}>
           <PixelTrophy size={40} />
@@ -113,24 +115,24 @@ function HallOfFameWidgetBase(_props: Props) {
             }}
           >
             <div className="font-black text-lg tracking-wider" style={{ color: "#ffd23f", marginBottom: 4 }}>
-              HALL OF FAME
+              {t("hof.title")}
             </div>
             <div className="text-xs" style={{ color: "rgba(255,255,255,0.6)", marginBottom: 4 }}>
-              Daily Referrals — Top 10
+              {t("hof.subtitle")}
             </div>
             <div className="text-xs" style={{ color: "rgba(255,210,63,0.7)", marginBottom: 14, fontWeight: 700 }}>
-              Resets every day at 00:00 UTC
+              {t("hof.resets")}
             </div>
 
             {loading && !data && (
               <div className="text-xs" style={{ color: "rgba(255,255,255,0.5)", padding: "20px 0" }}>
-                Loading…
+                {t("common.loading")}
               </div>
             )}
 
             {data && data.entries.length === 0 && (
               <div className="text-xs" style={{ color: "rgba(255,255,255,0.5)", padding: "20px 0" }}>
-                No referrals yet today — be the first!
+                {t("hof.empty")}
               </div>
             )}
 
@@ -172,7 +174,7 @@ function HallOfFameWidgetBase(_props: Props) {
                           {e.name}
                         </div>
                         <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 10 }}>
-                          {e.count} referral{e.count === 1 ? "" : "s"} today
+                          {e.count === 1 ? t("hof.referralToday", { n: e.count }) : t("hof.referralsToday", { n: e.count })}
                         </div>
                       </div>
                       {e.prize !== null && (
@@ -229,7 +231,7 @@ function HallOfFameWidgetBase(_props: Props) {
               }}
               data-testid="button-hof-close"
             >
-              CLOSE
+              {t("common.close").toUpperCase()}
             </button>
           </div>
         </div>

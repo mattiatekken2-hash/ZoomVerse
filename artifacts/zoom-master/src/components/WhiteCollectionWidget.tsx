@@ -1,6 +1,7 @@
 import { useEffect, useState, memo } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { confirmTonPurchase, pollTxnUntilFinal } from "../utils/api";
+import { useT } from "../i18n/LanguageContext";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 // Server-authoritative price (see STARS_CATALOG.white_collection.tonPrice in
@@ -19,7 +20,8 @@ interface Props {
   onUnlocked?: () => void;
 }
 
-function WhiteCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles = 0, sunCount = 0, onUnlocked }: Props) {
+function WhiteCollectionWidgetBase({ telegramId, unlocked: _unlocked = false, ownedBundles = 0, sunCount = 0, onUnlocked }: Props) {
+  const { t } = useT();
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
   const [open, setOpen] = useState(false);
@@ -52,14 +54,14 @@ function WhiteCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
   const soldOut = !!stock && stock.remaining <= 0;
 
   const handleBuy = async () => {
-    if (!telegramId) { setMessage("Telegram ID missing"); return; }
+    if (!telegramId) { setMessage(t("pay.tgMissing")); return; }
     if (sunCount <= 0) {
-      setMessage("Requirement: You must own a SUN to unlock this collection");
+      setMessage(t("earthColl.requirementSun"));
       return;
     }
     if (!connectedAddress) {
       tonConnectUI.openModal();
-      setMessage("Connect your wallet first");
+      setMessage(t("pay.connectFirst"));
       return;
     }
     setBuying(true);
@@ -72,32 +74,32 @@ function WhiteCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
       const boc = txResult.boc || "";
       const confirmResult = await confirmTonPurchase(telegramId, "white_collection", connectedAddress, PRICE_TON, boc);
       if (confirmResult.alreadyCredited || confirmResult.ok) {
-        setMessage("White Collection unlocked!");
+        setMessage(t("whiteColl.unlocked"));
         onUnlocked?.();
         window.dispatchEvent(new Event("zoom-data-refresh"));
         setOpen(false);
       } else if (confirmResult.pending && confirmResult.txnId) {
-        setMessage("Verifying payment on-chain…");
+        setMessage(t("pay.verifying"));
         const final = await pollTxnUntilFinal(confirmResult.txnId);
         if (final?.status === "completed") {
-          setMessage("White Collection unlocked!");
+          setMessage(t("whiteColl.unlocked"));
           onUnlocked?.();
           window.dispatchEvent(new Event("zoom-data-refresh"));
           setOpen(false);
         } else if (final?.status === "failed") {
-          setMessage("Payment not detected on-chain");
+          setMessage(t("pay.notDetected"));
         } else {
-          setMessage("Awaiting confirmation…");
+          setMessage(t("pay.awaiting"));
         }
       } else {
-        setMessage(confirmResult.error || "Credit failed");
+        setMessage(confirmResult.error || t("pay.creditFailed"));
       }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       if (errMsg.includes("cancel") || errMsg.includes("reject") || errMsg.includes("Interrupted")) {
-        setMessage("Payment cancelled");
+        setMessage(t("pay.cancelled"));
       } else {
-        setMessage("TON payment failed");
+        setMessage(t("pay.failed"));
         console.error("[white_collection] sendTransaction error:", err);
       }
     }
@@ -195,7 +197,7 @@ function WhiteCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
 
       <button
         onClick={() => setOpen(true)}
-        aria-label="White Collection Limited"
+        aria-label={t("whiteColl.openAria")}
         style={{
           position: "fixed",
           right: 12,
@@ -290,13 +292,13 @@ function WhiteCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
               textShadow: `0 0 12px ${NEON_CYAN}88, 0 0 24px ${NEON_CYAN}44`,
               textTransform: "uppercase",
             }}>
-              White Collection Limited
+              {t("whiteColl.title")}
             </div>
             <div style={{
               fontSize: 12, color: "rgba(255,255,255,0.65)", textAlign: "center",
               lineHeight: 1.5, marginBottom: 18, padding: "0 6px",
             }}>
-              Unlock 4 exclusive farm slots. Yield: <b style={{ color: NEON_CYAN }}>0.11 TON / Day</b>. Requires SUN module.
+              {t("whiteColl.desc", { yield: "0.11 TON / Day" })}
             </div>
 
             <div style={{
@@ -307,9 +309,9 @@ function WhiteCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
             }}>
               {stock
                 ? soldOut
-                  ? "SOLD OUT"
-                  : <>Limited: <b style={{ color: "#fff" }}>{stock.remaining}</b> / {stock.max} left</>
-                : "Loading…"}
+                  ? t("common.soldOut")
+                  : t("earthColl.limited", { left: stock.remaining, max: stock.max })
+                : t("common.loading")}
             </div>
 
             <div style={{
@@ -319,7 +321,7 @@ function WhiteCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
               border: `1px solid ${NEON_GREEN}44`,
             }}>
               <div style={{ display: "flex", flexDirection: "column" }}>
-                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Price</span>
+                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{t("earthColl.price")}</span>
                 <span style={{ fontSize: 26, fontWeight: 900, color: "#fff" }}>{PRICE_TON} TON</span>
               </div>
               <button
@@ -330,14 +332,14 @@ function WhiteCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
                 title={sunCount <= 0 ? "You must own a SUN to unlock this collection" : undefined}
               >
                 {soldOut
-                  ? "SOLD OUT"
+                  ? t("common.soldOut")
                   : buying
-                  ? "PROCESSING…"
+                  ? t("market.processing").toUpperCase()
                   : sunCount <= 0
-                  ? "🔒 SUN REQUIRED"
+                  ? t("earthColl.sunRequired")
                   : ownedBundles > 0
-                  ? `BUY ANOTHER (OWN ${ownedBundles})`
-                  : "BUY"}
+                  ? t("earthColl.buyAnother", { n: ownedBundles })
+                  : t("common.buy")}
               </button>
             </div>
 

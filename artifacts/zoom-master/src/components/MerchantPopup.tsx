@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { type PlanetType, PLANET_CONFIG } from "../hooks/useGameState";
 import type { MerchantOutcome, MerchantFuseResult } from "../utils/api";
 import alienMerchantImg from "../assets/alien-merchant.png";
+import { useT } from "../i18n/LanguageContext";
 
 interface Props {
   expiresAt: string | null;
@@ -23,33 +24,15 @@ const FUSE_ANIMATION_MS = 2000;
 // dispatch a hair earlier so a click landing at +29.5s still has headroom.
 const FUSE_GRACE_MS = 27_000;
 
-const RESULT_LABEL: Record<MerchantOutcome, string> = {
-  EXPLOSION: "Core collapsed!",
-  DOWNGRADE: "Insufficient energy!",
-  BASIC: "Basic planet acquired",
-  RARE: "Rare planet acquired",
-  EPIC: "Epic planet acquired",
-  GOLD: "Gold planet acquired",
-  V1: "V1 LEGENDARY acquired",
+const OUTCOME_KEY: Record<MerchantOutcome, string> = {
+  EXPLOSION: "explosion",
+  DOWNGRADE: "downgrade",
+  BASIC: "basic",
+  RARE: "rare",
+  EPIC: "epic",
+  GOLD: "gold",
+  V1: "v1",
 };
-
-const RESULT_BODY: Record<MerchantOutcome, string> = {
-  EXPLOSION: "Fusion failed and your materials were lost in the void.",
-  // DOWNGRADE body is rendered dynamically (it depends on the fusion level
-  // — L2 mints BASIC, L3 mints RARE) so this default is only a fallback.
-  DOWNGRADE: "Your planets merged into a lower-tier planet.",
-  BASIC: "Fusion complete! You got a Basic planet.",
-  RARE: "Fusion complete! You got a Rare planet.",
-  EPIC: "Fusion complete! You got an Epic planet.",
-  GOLD: "Fusion complete! You got a Gold planet.",
-  V1: "Fusion complete! You got the legendary V1.",
-};
-
-function downgradeBody(level: 1 | 2 | 3 | null): string {
-  if (level === 3) return "Your Epic planets merged into a measly Rare planet.";
-  if (level === 2) return "Your Rare planets merged into a measly Basic planet.";
-  return RESULT_BODY.DOWNGRADE;
-}
 
 export function MerchantPopup({
   expiresAt,
@@ -63,6 +46,7 @@ export function MerchantPopup({
   addCraftedPlanet,
   onClose,
 }: Props) {
+  const { t } = useT();
   const [view, setView] = useState<View>("idle");
   const [result, setResult] = useState<MerchantOutcome | null>(null);
   // Tracks which fusion level produced the current `result`. Needed so the
@@ -134,7 +118,7 @@ export function MerchantPopup({
     const need: PlanetType = level === 1 ? "BASIC" : level === 2 ? "RARE" : "EPIC";
     const have = level === 1 ? basicCount : level === 2 ? rareCount : epicCount;
     if (have < 2) {
-      setError(`You need 2 idle ${PLANET_CONFIG[need].label} planets`);
+      setError(t("merchant.needTwo", { kind: PLANET_CONFIG[need].label }));
       setView("idle");
       return;
     }
@@ -148,7 +132,7 @@ export function MerchantPopup({
     const burnRes = burnTwoOfType(need);
     if (!burnRes.ok) {
       inFlightRef.current = false;
-      setError(burnRes.reason ?? "Burn failed");
+      setError(burnRes.reason ?? t("merchant.burnFailed"));
       setView("idle");
       return;
     }
@@ -222,7 +206,7 @@ export function MerchantPopup({
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        aria-label={isOpen ? "Close Space Merchant" : "Open Space Merchant"}
+        aria-label={isOpen ? t("merchant.closeAria") : t("merchant.openAria")}
         style={{
           position: "fixed",
           left: 12,
@@ -302,7 +286,7 @@ export function MerchantPopup({
       {isOpen && (
       <div
         role="dialog"
-        aria-label="Space Merchant"
+        aria-label={t("merchant.title")}
         style={{
           position: "fixed",
           left: 80, // sits to the right of the icon so they don't overlap
@@ -337,12 +321,12 @@ export function MerchantPopup({
         </div>
 
         <div style={{ textAlign: "center", fontWeight: 900, letterSpacing: "0.08em", fontSize: 11, color: "#caa6ff" }}>
-          SPACE MERCHANT
+          {t("merchant.title")}
         </div>
 
         {/* Counters row */}
         <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 9, color: "rgba(255,255,255,0.7)" }}>
-          <span>{fusionsUsed}/{maxFusions} fusions</span>
+          <span>{t("merchant.fusions", { used: fusionsUsed, max: maxFusions })}</span>
           <span>{remainingSec}s</span>
         </div>
 
@@ -360,9 +344,9 @@ export function MerchantPopup({
                 style={fusionBtnStyle(lvl1Disabled, "#8892b0")}
                 data-testid="button-merchant-lv1"
               >
-                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.04em" }}>LV 1</div>
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.04em" }}>{t("merchant.lvl", { n: 1 })}</div>
                 <div style={{ fontSize: 8, marginTop: 1 }}>2 Basic</div>
-                <div style={{ fontSize: 7, marginTop: 2, opacity: 0.7 }}>have: {basicCount}</div>
+                <div style={{ fontSize: 7, marginTop: 2, opacity: 0.7 }}>{t("merchant.have", { n: basicCount })}</div>
               </button>
               <button
                 type="button"
@@ -371,9 +355,9 @@ export function MerchantPopup({
                 style={fusionBtnStyle(lvl2Disabled, "#4facfe")}
                 data-testid="button-merchant-lv2"
               >
-                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.04em" }}>LV 2</div>
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.04em" }}>{t("merchant.lvl", { n: 2 })}</div>
                 <div style={{ fontSize: 8, marginTop: 1 }}>2 Rare</div>
-                <div style={{ fontSize: 7, marginTop: 2, opacity: 0.7 }}>have: {rareCount}</div>
+                <div style={{ fontSize: 7, marginTop: 2, opacity: 0.7 }}>{t("merchant.have", { n: rareCount })}</div>
               </button>
               <button
                 type="button"
@@ -382,17 +366,18 @@ export function MerchantPopup({
                 style={fusionBtnStyle(lvl3Disabled, "#c47bff")}
                 data-testid="button-merchant-lv3"
               >
-                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.04em" }}>LV 3</div>
+                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.04em" }}>{t("merchant.lvl", { n: 3 })}</div>
                 <div style={{ fontSize: 8, marginTop: 1 }}>2 Epic</div>
-                <div style={{ fontSize: 7, marginTop: 2, opacity: 0.7 }}>have: {epicCount}</div>
+                <div style={{ fontSize: 7, marginTop: 2, opacity: 0.7 }}>{t("merchant.have", { n: epicCount })}</div>
               </button>
             </div>
-            <button type="button" onClick={tryClose} style={ghostBtnStyle}>LEAVE</button>
+            <button type="button" onClick={tryClose} style={ghostBtnStyle}>{t("common.leave")}</button>
           </div>
         )}
 
         {(view === "confirm1" || view === "confirm2" || view === "confirm3") && (
           <ConfirmView
+            t={t}
             level={view === "confirm1" ? 1 : view === "confirm2" ? 2 : 3}
             onCancel={() => setView("idle")}
             onConfirm={() => startFuse(view === "confirm1" ? 1 : view === "confirm2" ? 2 : 3)}
@@ -401,8 +386,8 @@ export function MerchantPopup({
 
         {view === "fusing" && (
           <div style={{ marginTop: 10, textAlign: "center" }}>
-            <div style={{ fontSize: 10, color: "#caa6ff", letterSpacing: "0.1em", fontWeight: 800 }}>FUSING…</div>
-            <div style={{ fontSize: 9, marginTop: 4, color: "rgba(255,255,255,0.55)" }}>The void hums.</div>
+            <div style={{ fontSize: 10, color: "#caa6ff", letterSpacing: "0.1em", fontWeight: 800 }}>{t("merchant.fusing")}</div>
+            <div style={{ fontSize: 9, marginTop: 4, color: "rgba(255,255,255,0.55)" }}>{t("merchant.fusingHint")}</div>
           </div>
         )}
 
@@ -416,24 +401,30 @@ export function MerchantPopup({
                 color: result === "EXPLOSION" ? "#ff6b6b" : result === "DOWNGRADE" ? "#ffb347" : "#8aff8a",
               }}
             >
-              {RESULT_LABEL[result]}
+              {t(`merchant.label.${OUTCOME_KEY[result]}`)}
             </div>
             <div style={{ fontSize: 9, marginTop: 4, color: "rgba(230,222,255,0.85)", lineHeight: 1.35 }}>
-              {result === "DOWNGRADE" ? downgradeBody(resultLevel) : RESULT_BODY[result]}
+              {result === "DOWNGRADE"
+                ? (resultLevel === 3
+                    ? t("merchant.body.downgradeL3")
+                    : resultLevel === 2
+                      ? t("merchant.body.downgradeL2")
+                      : t("merchant.body.downgrade"))
+                : t(`merchant.body.${OUTCOME_KEY[result]}`)}
             </div>
-            <button type="button" onClick={dismissResult} style={primaryBtnStyle}>OK</button>
+            <button type="button" onClick={dismissResult} style={primaryBtnStyle}>{t("common.ok")}</button>
           </div>
         )}
 
         {view === "expired" && (
           <div style={{ marginTop: 8, textAlign: "center" }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: "#caa6ff", letterSpacing: "0.04em" }}>
-              Too slow, earthling.
+              {t("merchant.tooSlow")}
             </div>
             <div style={{ fontSize: 9, marginTop: 4, color: "rgba(230,222,255,0.8)", lineHeight: 1.35 }}>
-              I'll return when you have more courage.
+              {t("merchant.tooSlowHint")}
             </div>
-            <button type="button" onClick={onClose} style={primaryBtnStyle}>CLOSE</button>
+            <button type="button" onClick={onClose} style={primaryBtnStyle}>{t("common.close").toUpperCase()}</button>
           </div>
         )}
       </div>
@@ -457,20 +448,16 @@ export function MerchantPopup({
   );
 }
 
-function ConfirmView({ level, onCancel, onConfirm }: { level: 1 | 2 | 3; onCancel: () => void; onConfirm: () => void }) {
-  const text = level === 1
-    ? "Burn 2 Basic planets."
-    : level === 2
-      ? "Burn 2 Rare planets."
-      : "Burn 2 Epic planets.";
+function ConfirmView({ t, level, onCancel, onConfirm }: { t: (k: string, p?: Record<string, string | number>) => string; level: 1 | 2 | 3; onCancel: () => void; onConfirm: () => void }) {
+  const kind = level === 1 ? "Basic" : level === 2 ? "Rare" : "Epic";
   return (
     <div style={{ marginTop: 14 }}>
       <p style={{ fontSize: 12, lineHeight: 1.45, color: "rgba(230,222,255,0.9)", textAlign: "center", margin: 0 }}>
-        {text}
+        {t("merchant.burnConfirm", { kind })}
       </p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }}>
-        <button type="button" onClick={onCancel} style={ghostBtnStyle}>CANCEL</button>
-        <button type="button" onClick={onConfirm} style={primaryBtnStyle}>CONFIRM</button>
+        <button type="button" onClick={onCancel} style={ghostBtnStyle}>{t("common.cancel").toUpperCase()}</button>
+        <button type="button" onClick={onConfirm} style={primaryBtnStyle}>{t("common.confirm").toUpperCase()}</button>
       </div>
     </div>
   );

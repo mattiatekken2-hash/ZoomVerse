@@ -11,6 +11,7 @@ import {
 } from "../utils/api";
 import { PlanetOrb } from "./PlanetOrb";
 import type { Planet } from "../hooks/useGameState";
+import { useT } from "../i18n/LanguageContext";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 const PRICE_TON = 1.5;
@@ -55,6 +56,7 @@ interface MysteryBoxWidgetProps {
 type Phase = "idle" | "buying" | "verifying" | "shaking" | "revealed";
 
 function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
+  const { t } = useT();
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
   const [open, setOpen] = useState(false);
@@ -118,10 +120,10 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
   };
 
   const handleBuy = async () => {
-    if (!telegramId) { setMessage("Telegram ID missing"); return; }
+    if (!telegramId) { setMessage(t("pay.tgMissing")); return; }
     if (!connectedAddress) {
       tonConnectUI.openModal();
-      setMessage("Connect your wallet first");
+      setMessage(t("pay.connectFirst"));
       return;
     }
     setMessage(null);
@@ -152,11 +154,11 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
           await new Promise((r) => setTimeout(r, 3500));
           const s = await fetchTxnStatus(confirmResult.txnId, telegramId);
           if (s?.status === "completed") { finalAward = (s.award as string) ?? null; break; }
-          if (s?.status === "failed") { setMessage("Payment not detected on-chain"); setPhase("idle"); return; }
+          if (s?.status === "failed") { setMessage(t("pay.notDetected")); setPhase("idle"); return; }
         }
-        if (!finalAward) { setMessage("Awaiting confirmation…"); setPhase("idle"); return; }
+        if (!finalAward) { setMessage(t("pay.awaiting")); setPhase("idle"); return; }
       } else {
-        setMessage(confirmResult.error || "Credit failed");
+        setMessage(confirmResult.error || t("pay.creditFailed"));
         setPhase("idle");
         return;
       }
@@ -175,9 +177,9 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       if (errMsg.includes("cancel") || errMsg.includes("reject") || errMsg.includes("Interrupted")) {
-        setMessage("Payment cancelled");
+        setMessage(t("pay.cancelled"));
       } else {
-        setMessage("TON payment failed");
+        setMessage(t("pay.failed"));
         console.error("[mystery_box] sendTransaction error:", err);
       }
       setPhase("idle");
@@ -246,7 +248,7 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
           WebkitTapHighlightColor: "transparent",
         }}
         data-testid="button-mystery-box"
-        aria-label="Open Mystery Box"
+        aria-label={t("mystery.openAria")}
       >
         <PixelCrate size={40} animate />
       </button>
@@ -277,7 +279,7 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
           <span style={{ color: RARITY_COLORS[tickerEvent.award] || "#fff", fontWeight: 800 }}>
             {tickerEvent.userName}
           </span>{" "}
-          got <span style={{ color: RARITY_COLORS[tickerEvent.award] || "#fff" }}>{tickerEvent.awardLabel}</span>
+          {t("mystery.gotShort")} <span style={{ color: RARITY_COLORS[tickerEvent.award] || "#fff" }}>{tickerEvent.awardLabel}</span>
         </div>
       )}
 
@@ -308,10 +310,10 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
             }}
           >
             <div className="font-black text-lg tracking-wider" style={{ color: "#c060ff", marginBottom: 4 }}>
-              MYSTERY BOX
+              {t("mystery.title")}
             </div>
             <div className="text-xs" style={{ color: "rgba(255,255,255,0.55)", marginBottom: 14, lineHeight: 1.5 }}>
-              Open the space crate: try to win a Rare, Epic, Gold planet — or, very rarely, THE SUN.
+              {t("mystery.desc")}
             </div>
 
             {/* Crate stage */}
@@ -364,7 +366,7 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
                     );
                   })()}
                   <div style={{ color: RARITY_COLORS[award] || "#fff", fontWeight: 900, fontSize: 16, letterSpacing: 1, textTransform: "uppercase" }}>
-                    {award === "sun" ? "THE SUN!!" : `${award} PLANET`}
+                    {award === "sun" ? t("mystery.gotSun") : t("mystery.gotPlanet", { kind: award })}
                   </div>
                 </div>
               ) : (
@@ -398,7 +400,7 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
                   fontWeight: 700,
                   textAlign: "center",
                 }}>
-                  ☀️ THE SUN — ultra rare
+                  {t("mystery.sunUltra")}
                 </div>
               </div>
             )}
@@ -422,10 +424,10 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
                 }}
                 data-testid="button-buy-mystery-box"
               >
-                {phase === "buying" ? "Sending payment…"
-                  : phase === "verifying" ? "Verifying…"
-                  : phase === "shaking" ? "Opening…"
-                  : `OPEN — ${PRICE_TON} TON`}
+                {phase === "buying" ? t("mystery.sending")
+                  : phase === "verifying" ? t("mystery.verifying")
+                  : phase === "shaking" ? t("mystery.opening")
+                  : t("mystery.openBtn", { n: PRICE_TON })}
               </button>
             ) : (
               <button
@@ -439,7 +441,7 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
                 }}
                 data-testid="button-mystery-open-again"
               >
-                OPEN ANOTHER — {PRICE_TON} TON
+                {t("mystery.openAgain", { n: PRICE_TON })}
               </button>
             )}
 
@@ -454,7 +456,7 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
                 marginBottom: 14,
               }}
             >
-              CLOSE
+              {t("common.close").toUpperCase()}
             </button>
 
             {/* Live activity feed */}
@@ -467,11 +469,11 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
                 fontSize: 10, fontWeight: 800, letterSpacing: 1.5,
                 color: "rgba(255,255,255,0.5)", marginBottom: 8, textTransform: "uppercase",
               }}>
-                Live openings
+                {t("mystery.live")}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto" }}>
                 {feed.length === 0 && (
-                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>No openings yet — be the first!</div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>{t("mystery.noOpenings")}</div>
                 )}
                 {feed.slice(0, 12).map((ev) => (
                   <div key={ev.id} style={{

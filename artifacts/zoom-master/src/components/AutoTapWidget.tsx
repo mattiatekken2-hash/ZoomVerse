@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback, memo } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { confirmTonPurchase, pollTxnUntilFinal } from "../utils/api";
+import { useT } from "../i18n/LanguageContext";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 const PRICE_TON = 3;
@@ -14,6 +15,7 @@ interface AutoTapWidgetProps {
 }
 
 function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapWidgetProps) {
+  const { t } = useT();
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
   const [showBuy, setShowBuy] = useState(false);
@@ -60,10 +62,10 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
   };
 
   const handleBuy = async () => {
-    if (!telegramId) { setMessage("Telegram ID missing"); return; }
+    if (!telegramId) { setMessage(t("pay.tgMissing")); return; }
     if (!connectedAddress) {
       tonConnectUI.openModal();
-      setMessage("Connect your wallet first");
+      setMessage(t("pay.connectFirst"));
       return;
     }
     setBuying(true);
@@ -76,30 +78,30 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
       const boc = txResult.boc || "";
       const confirmResult = await confirmTonPurchase(telegramId, "auto_tap", connectedAddress, PRICE_TON, boc);
       if (confirmResult.alreadyCredited || confirmResult.ok) {
-        setMessage("Auto-Tap unlocked!");
+        setMessage(t("autoTap.unlocked"));
         setShowBuy(false);
         window.dispatchEvent(new Event("zoom-data-refresh"));
       } else if (confirmResult.pending && confirmResult.txnId) {
-        setMessage("Verifying payment on-chain…");
+        setMessage(t("pay.verifying"));
         const final = await pollTxnUntilFinal(confirmResult.txnId);
         if (final?.status === "completed") {
-          setMessage("Auto-Tap unlocked!");
+          setMessage(t("autoTap.unlocked"));
           setShowBuy(false);
           window.dispatchEvent(new Event("zoom-data-refresh"));
         } else if (final?.status === "failed") {
-          setMessage("Payment not detected on-chain");
+          setMessage(t("pay.notDetected"));
         } else {
-          setMessage("Awaiting confirmation…");
+          setMessage(t("pay.awaiting"));
         }
       } else {
-        setMessage(confirmResult.error || "Credit failed");
+        setMessage(confirmResult.error || t("pay.creditFailed"));
       }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       if (errMsg.includes("cancel") || errMsg.includes("reject") || errMsg.includes("Interrupted")) {
-        setMessage("Payment cancelled");
+        setMessage(t("pay.cancelled"));
       } else {
-        setMessage("TON payment failed");
+        setMessage(t("pay.failed"));
         console.error("[auto_tap] sendTransaction error:", err);
       }
     }
@@ -158,7 +160,7 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
           backdropFilter: "blur(8px)",
         }}
         data-testid="button-auto-tap"
-        aria-label={hasAutoTap ? "Hold to auto-tap" : "Buy Auto-Tap"}
+        aria-label={hasAutoTap ? t("autoTap.holdAria") : t("autoTap.buyAria")}
       >
         {hasAutoTap ? "⚡" : "🔒"}
       </button>
@@ -193,10 +195,10 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
           >
             <div style={{ fontSize: 48, marginBottom: 8 }}>⚡</div>
             <div className="font-black text-lg tracking-wider" style={{ color: "#00f2fe", marginBottom: 4 }}>
-              AUTO-TAP
+              {t("autoTap.title")}
             </div>
             <div className="text-xs" style={{ color: "rgba(255,255,255,0.6)", marginBottom: 18, lineHeight: 1.5 }}>
-              Hold the widget to auto-tap the FORGE PLANET. One-time purchase.
+              {t("autoTap.desc")}
             </div>
             <div className="font-black text-2xl" style={{ color: "#fff", marginBottom: 16 }}>
               {PRICE_TON} TON
@@ -218,7 +220,7 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
               }}
               data-testid="button-buy-auto-tap"
             >
-              {buying ? "Processing..." : `BUY — ${PRICE_TON} TON`}
+              {buying ? t("common.processing") : t("autoTap.buyBtn", { n: PRICE_TON })}
             </button>
             <button
               onClick={() => setShowBuy(false)}
@@ -230,7 +232,7 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
                 border: "1px solid rgba(255,255,255,0.15)",
               }}
             >
-              CANCEL
+              {t("common.cancel").toUpperCase()}
             </button>
           </div>
         </div>

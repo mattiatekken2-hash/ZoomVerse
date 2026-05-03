@@ -1,6 +1,7 @@
 import { useEffect, useState, memo, useCallback } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { confirmTonPurchase, pollTxnUntilFinal, fetchLottoState, type LottoStateResponse } from "../utils/api";
+import { useT } from "../i18n/LanguageContext";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 const NEON_GOLD = "#ffd84d";
@@ -20,6 +21,12 @@ const BUNDLES: Bundle[] = [
   { id: "lotto_ticket_15", tickets: 15, tonPrice: 1.0, label: "15 tickets", badge: "−33%" },
   { id: "lotto_ticket_40", tickets: 40, tonPrice: 2.5, label: "40 tickets", badge: "−38%" },
 ];
+
+const BUNDLE_LABEL_KEY: Record<Bundle["id"], string> = {
+  lotto_ticket_1: "lotto.bundle1",
+  lotto_ticket_15: "lotto.bundle15",
+  lotto_ticket_40: "lotto.bundle40",
+};
 
 interface Props {
   telegramId: string | null;
@@ -86,6 +93,7 @@ function PixelTicket({ size = 48 }: { size?: number }) {
 }
 
 function LottoStellareWidgetBase({ telegramId }: Props) {
+  const { t } = useT();
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
   const [open, setOpen] = useState(false);
@@ -115,10 +123,10 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
   useEffect(() => { if (open) refresh(); }, [open, refresh]);
 
   const handleBuy = async (bundle: Bundle) => {
-    if (!telegramId) { setMessage("Telegram ID missing"); return; }
+    if (!telegramId) { setMessage(t("pay.tgMissing")); return; }
     if (!connectedAddress) {
       tonConnectUI.openModal();
-      setMessage("Connect your TON wallet first");
+      setMessage(t("lotto.connectFirst"));
       return;
     }
     setBuying(bundle.id);
@@ -131,30 +139,30 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
       const boc = txResult.boc || "";
       const confirmResult = await confirmTonPurchase(telegramId, bundle.id, connectedAddress, bundle.tonPrice, boc);
       if (confirmResult.alreadyCredited || confirmResult.ok) {
-        setMessage(`+${bundle.tickets} tickets credited!`);
+        setMessage(t("lotto.credited", { n: bundle.tickets }));
         await refresh();
         window.dispatchEvent(new Event("zoom-data-refresh"));
       } else if (confirmResult.pending && confirmResult.txnId) {
-        setMessage("Verifying payment…");
+        setMessage(t("lotto.verifying"));
         const final = await pollTxnUntilFinal(confirmResult.txnId);
         if (final?.status === "completed") {
-          setMessage(`+${bundle.tickets} tickets credited!`);
+          setMessage(t("lotto.credited", { n: bundle.tickets }));
           await refresh();
           window.dispatchEvent(new Event("zoom-data-refresh"));
         } else if (final?.status === "failed") {
-          setMessage("Payment not confirmed on blockchain");
+          setMessage(t("lotto.notConfirmed"));
         } else {
-          setMessage("Waiting for confirmation…");
+          setMessage(t("lotto.waiting"));
         }
       } else {
-        setMessage(confirmResult.error || "Credit error");
+        setMessage(confirmResult.error || t("lotto.creditError"));
       }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       if (errMsg.includes("cancel") || errMsg.includes("reject") || errMsg.includes("Interrupted")) {
-        setMessage("Payment cancelled");
+        setMessage(t("pay.cancelled"));
       } else {
-        setMessage("TON error");
+        setMessage(t("lotto.tonError"));
         console.error("[lotto] sendTransaction error:", err);
       }
     }
@@ -181,12 +189,12 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
   const countdownLabel = nextDrawAt === 0
     ? "—"
     : msLeft === 0
-      ? "in progress…"
+      ? t("lotto.inProgress")
       : days > 0
-        ? `${days}d ${hours}h`
+        ? t("lotto.countDays", { d: days, h: hours })
         : hours > 0
-          ? `${hours}h ${minutes}m`
-          : `${minutes}m`;
+          ? t("lotto.countHours", { h: hours, m: minutes })
+          : t("lotto.countMin", { m: minutes });
 
   return (
     <>
@@ -224,7 +232,7 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
 
       <button
         onClick={() => setOpen(true)}
-        aria-label="Stellar Lottery"
+        aria-label={t("lotto.openAria")}
         style={{
           position: "fixed",
           left: 12,
@@ -317,7 +325,7 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
           >
             <button
               onClick={() => setOpen(false)}
-              aria-label="Close"
+              aria-label={t("common.close")}
               style={{
                 position: "absolute", top: 12, right: 12, width: 32, height: 32,
                 borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)",
@@ -349,10 +357,10 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
               textShadow: `0 0 12px ${NEON_GOLD}88, 0 0 24px ${NEON_RED}44`,
               textTransform: "uppercase",
             }}>
-              Stellar Lottery
+              {t("lotto.title")}
             </div>
             <div style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", textAlign: "center", marginBottom: 8, letterSpacing: "0.06em" }}>
-              the more tickets you buy, the higher your chance to win
+              {t("lotto.subtitle")}
             </div>
 
             <div style={{
@@ -362,7 +370,7 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
               border: `1px solid ${NEON_PURPLE}44`,
             }}>
               <span style={{ fontSize: 9, color: "rgba(255,255,255,0.6)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                Next draw:
+                {t("lotto.nextDraw")}
               </span>
               <span style={{ fontSize: 12, fontWeight: 900, color: NEON_PURPLE, letterSpacing: "0.05em" }}>
                 {countdownLabel}
@@ -378,19 +386,19 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
               border: `1px solid ${NEON_GOLD}33`,
             }}>
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Jackpot</div>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{t("lotto.jackpot")}</div>
                 <div style={{ fontSize: 18, fontWeight: 900, color: NEON_GOLD, marginTop: 2 }}>{jackpotTon.toFixed(2)}</div>
                 <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>TON</div>
               </div>
               <div style={{ textAlign: "center", borderLeft: "1px solid rgba(255,255,255,0.08)", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
-                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Yours</div>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{t("lotto.yours")}</div>
                 <div style={{ fontSize: 18, fontWeight: 900, color: "#fff", marginTop: 2 }}>{userTickets}</div>
-                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>tickets</div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>{t("lotto.tickets")}</div>
               </div>
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Win chance</div>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{t("lotto.winChance")}</div>
                 <div style={{ fontSize: 18, fontWeight: 900, color: NEON_PURPLE, marginTop: 2 }}>{winChancePct.toFixed(2)}%</div>
-                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>{totalTickets} total</div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>{t("lotto.totalShort", { n: totalTickets })}</div>
               </div>
             </div>
 
@@ -404,7 +412,7 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
                 }}>
                   <div style={{ display: "flex", flexDirection: "column" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 14, fontWeight: 900, color: "#fff" }}>{b.label}</span>
+                      <span style={{ fontSize: 14, fontWeight: 900, color: "#fff" }}>{t(BUNDLE_LABEL_KEY[b.id])}</span>
                       {b.badge && (
                         <span style={{
                           fontSize: 9, fontWeight: 900, padding: "2px 6px",
@@ -421,7 +429,7 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
                     disabled={buying !== null}
                     data-testid={`button-buy-${b.id}`}
                   >
-                    {buying === b.id ? "…" : "BUY"}
+                    {buying === b.id ? "…" : t("common.buy")}
                   </button>
                 </div>
               ))}

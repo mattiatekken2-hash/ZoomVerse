@@ -15,7 +15,7 @@ const STORAGE_KEY = "zoom-lang";
 function readInitial(): Lang {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
-    if (v === "en" || v === "ru" || v === "uk") return v;
+    if (v === "en" || v === "it" || v === "ru" || v === "uk") return v;
   } catch { /**/ }
   // Auto-detect from Telegram WebApp / browser
   try {
@@ -24,6 +24,7 @@ function readInitial(): Lang {
         .Telegram?.WebApp?.initDataUnsafe?.user?.language_code ||
       (typeof navigator !== "undefined" ? navigator.language : "");
     const norm = (code || "").toLowerCase().slice(0, 2);
+    if (norm === "it") return "it";
     if (norm === "ru") return "ru";
     if (norm === "uk") return "uk";
   } catch { /**/ }
@@ -56,7 +57,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     let alive = true;
     fetchUserLanguage(tid).then((serverLang) => {
       if (!alive) return;
-      if (serverLang && (serverLang === "en" || serverLang === "ru" || serverLang === "uk")) {
+      if (serverLang && (serverLang === "en" || serverLang === "it" || serverLang === "ru" || serverLang === "uk")) {
         setLangState(serverLang);
         try { localStorage.setItem(STORAGE_KEY, serverLang); } catch { /**/ }
       }

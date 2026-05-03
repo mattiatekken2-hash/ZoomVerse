@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useT } from "../i18n/LanguageContext";
 
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
@@ -14,7 +15,8 @@ interface WalletPopupProps {
   confirmLabel?: string;
 }
 
-export function WalletPopup({ isOpen, amount, purpose, instruction, copyLabel, onClose, onConfirm, confirmLabel }: WalletPopupProps) {
+export function WalletPopup({ isOpen, amount, purpose, instruction, copyLabel, onClose, onConfirm: _onConfirm, confirmLabel: _confirmLabel }: WalletPopupProps) {
+  const { t } = useT();
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
@@ -47,13 +49,13 @@ export function WalletPopup({ isOpen, amount, purpose, instruction, copyLabel, o
           <div>
             <div className="font-black text-base gold-text tracking-wide">{purpose}</div>
             <div className="text-sm font-bold mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>
-              Send exactly <span className="gold-text">{amount}</span>
+              {t("wallet.sendExactly")} <span className="gold-text">{amount}</span>
             </div>
           </div>
         </div>
 
         <div className="text-xs mb-3 font-bold tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.3)" }}>
-          TON Wallet Address
+          {t("wallet.address")}
         </div>
 
         <div
@@ -73,12 +75,12 @@ export function WalletPopup({ isOpen, amount, purpose, instruction, copyLabel, o
               boxShadow: copied ? "0 0 16px rgba(0,230,118,0.2)" : "none",
             }}
           >
-            {copied ? "✓ COPIED!" : (copyLabel || "📋 COPY ADDRESS")}
+            {copied ? t("wallet.copied") : (copyLabel || t("wallet.copy"))}
           </button>
         </div>
 
         <div className="text-xs mb-4 text-center" style={{ color: "rgba(255,255,255,0.3)" }}>
-          {instruction || `Open your TON wallet app, send ${amount} to the address above, then confirm below`}
+          {instruction || t("wallet.instruction", { amount })}
         </div>
 
         <button
@@ -86,7 +88,7 @@ export function WalletPopup({ isOpen, amount, purpose, instruction, copyLabel, o
           className="w-full py-3 rounded-xl font-bold text-sm transition-all active:scale-95"
           style={{ color: "rgba(255,255,255,0.35)", border: "1px solid rgba(255,255,255,0.08)" }}
         >
-          Cancel
+          {t("wallet.cancel")}
         </button>
       </div>
     </div>

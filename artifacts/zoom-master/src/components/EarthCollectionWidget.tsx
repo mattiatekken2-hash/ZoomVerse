@@ -2,6 +2,7 @@ import { useEffect, useState, memo } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { confirmTonPurchase, pollTxnUntilFinal } from "../utils/api";
 import { RealisticEarth } from "./RealisticEarth";
+import { useT } from "../i18n/LanguageContext";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 const PRICE_TON = 7;
@@ -17,6 +18,7 @@ interface Props {
 }
 
 function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles = 0, sunCount = 0, onUnlocked }: Props) {
+  const { t } = useT();
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
   const [open, setOpen] = useState(false);
@@ -49,14 +51,14 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
   const soldOut = !!stock && stock.remaining <= 0;
 
   const handleBuy = async () => {
-    if (!telegramId) { setMessage("Telegram ID missing"); return; }
+    if (!telegramId) { setMessage(t("pay.tgMissing")); return; }
     if (sunCount <= 0) {
-      setMessage("Requirement: You must own a SUN to unlock this collection");
+      setMessage(t("earthColl.requirementSun"));
       return;
     }
     if (!connectedAddress) {
       tonConnectUI.openModal();
-      setMessage("Connect your wallet first");
+      setMessage(t("pay.connectFirst"));
       return;
     }
     setBuying(true);
@@ -69,32 +71,32 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
       const boc = txResult.boc || "";
       const confirmResult = await confirmTonPurchase(telegramId, "earth_collection", connectedAddress, PRICE_TON, boc);
       if (confirmResult.alreadyCredited || confirmResult.ok) {
-        setMessage("Earth Collection unlocked!");
+        setMessage(t("earthColl.unlocked"));
         onUnlocked?.();
         window.dispatchEvent(new Event("zoom-data-refresh"));
         setOpen(false);
       } else if (confirmResult.pending && confirmResult.txnId) {
-        setMessage("Verifying payment on-chain…");
+        setMessage(t("pay.verifying"));
         const final = await pollTxnUntilFinal(confirmResult.txnId);
         if (final?.status === "completed") {
-          setMessage("Earth Collection unlocked!");
+          setMessage(t("earthColl.unlocked"));
           onUnlocked?.();
           window.dispatchEvent(new Event("zoom-data-refresh"));
           setOpen(false);
         } else if (final?.status === "failed") {
-          setMessage("Payment not detected on-chain");
+          setMessage(t("pay.notDetected"));
         } else {
-          setMessage("Awaiting confirmation…");
+          setMessage(t("pay.awaiting"));
         }
       } else {
-        setMessage(confirmResult.error || "Credit failed");
+        setMessage(confirmResult.error || t("pay.creditFailed"));
       }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       if (errMsg.includes("cancel") || errMsg.includes("reject") || errMsg.includes("Interrupted")) {
-        setMessage("Payment cancelled");
+        setMessage(t("pay.cancelled"));
       } else {
-        setMessage("TON payment failed");
+        setMessage(t("pay.failed"));
         console.error("[earth_collection] sendTransaction error:", err);
       }
     }
@@ -147,7 +149,7 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
 
       <button
         onClick={() => setOpen(true)}
-        aria-label="Earth Collection Limited"
+        aria-label={t("earthColl.openAria")}
         style={{
           position: "fixed",
           left: 12,
@@ -258,13 +260,13 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
               textShadow: `0 0 12px ${NEON_BLUE}88, 0 0 24px ${NEON_GREEN_E}44`,
               textTransform: "uppercase",
             }}>
-              Earth Collection Limited
+              {t("earthColl.title")}
             </div>
             <div style={{
               fontSize: 12, color: "rgba(255,255,255,0.65)", textAlign: "center",
               lineHeight: 1.5, marginBottom: 18, padding: "0 6px",
             }}>
-              Unlock 4 exclusive earth slots. Speed: <b style={{ color: NEON_BLUE }}>0.017 TON/day</b>. Requires SUN module.
+              {t("earthColl.desc", { speed: "0.017 TON/day" })}
             </div>
 
             {unlocked ? (
@@ -280,11 +282,13 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
                   fontSize: 11, fontWeight: 900, letterSpacing: "0.18em",
                   textTransform: "uppercase", color: NEON_GREEN_E, marginBottom: 6,
                 }}>
-                  ● Active — Producing TON
+                  {t("earthColl.active")}
                 </div>
                 <div style={{ fontSize: 11, color: "rgba(255,255,255,0.75)", lineHeight: 1.5 }}>
-                  You own <b style={{ color: "#fff" }}>{ownedBundles}</b> bundle{ownedBundles === 1 ? "" : "s"} ({ownedBundles * 4} planets).
-                  <br/>Tap your <b style={{ color: NEON_BLUE }}>avatar</b> to place planets in slots and collect TON.
+                  {ownedBundles === 1
+                    ? t("earthColl.ownInfo", { n: ownedBundles, total: ownedBundles * 4 })
+                    : t("earthColl.ownInfoPlural", { n: ownedBundles, total: ownedBundles * 4 })}
+                  <br/>{t("earthColl.tapAvatar")}
                 </div>
               </div>
             ) : (
@@ -296,9 +300,9 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
               }}>
                 {stock
                   ? soldOut
-                    ? "SOLD OUT"
-                    : <>Limited: <b style={{ color: "#fff" }}>{stock.remaining}</b> / {stock.max} left</>
-                  : "Loading…"}
+                    ? t("common.soldOut")
+                    : t("earthColl.limited", { left: stock.remaining, max: stock.max })
+                  : t("common.loading")}
               </div>
             )}
 
@@ -309,7 +313,7 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
               border: `1px solid ${NEON_GREEN_E}44`,
             }}>
               <div style={{ display: "flex", flexDirection: "column" }}>
-                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em", textTransform: "uppercase" }}>Price</span>
+                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{t("earthColl.price")}</span>
                 <span style={{ fontSize: 26, fontWeight: 900, color: "#fff" }}>7 TON</span>
               </div>
               <button
@@ -320,14 +324,14 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
                 data-testid="button-buy-earth-collection"
               >
                 {soldOut
-                  ? "SOLD OUT"
+                  ? t("common.soldOut")
                   : buying
-                  ? "PROCESSING…"
+                  ? t("market.processing").toUpperCase()
                   : sunCount <= 0
-                  ? "🔒 SUN REQUIRED"
+                  ? t("earthColl.sunRequired")
                   : ownedBundles > 0
-                  ? `BUY ANOTHER (OWN ${ownedBundles})`
-                  : "BUY"}
+                  ? t("earthColl.buyAnother", { n: ownedBundles })
+                  : t("common.buy")}
               </button>
             </div>
 

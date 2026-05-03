@@ -8,6 +8,7 @@ import {
 } from "../utils/planetNames";
 import { renamePlanet } from "../utils/api";
 import type { Planet } from "../hooks/useGameState";
+import { useT } from "../i18n/LanguageContext";
 
 interface Props {
   planet: Planet;
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export function PlanetRenameModal({ planet, telegramId, onClose, onRenamed }: Props) {
+  const { t } = useT();
   const currentName = getPlanetDisplayName(planet);
   const [tab, setTab] = useState<"random" | "custom">("random");
   const [customInput, setCustomInput] = useState("");
@@ -52,7 +54,7 @@ export function PlanetRenameModal({ planet, telegramId, onClose, onRenamed }: Pr
     setBusy(false);
     if (!result.ok) {
       if (result.code === "insufficient_stardust" && typeof result.have === "number" && typeof result.need === "number") {
-        setError(`Not enough stardust. You have ${result.have}, need ${result.need}.`);
+        setError(t("rename.notEnough", { have: result.have, need: result.need }));
       } else {
         setError(result.error);
       }
@@ -91,7 +93,7 @@ export function PlanetRenameModal({ planet, telegramId, onClose, onRenamed }: Pr
       >
         <div className="flex items-center justify-between mb-3">
           <div className="text-sm font-black tracking-wider" style={{ color: "#00f2fe" }}>
-            RENAME PLANET
+            {t("rename.title")}
           </div>
           <button
             onClick={() => { if (!busy) onClose(); }}
@@ -103,7 +105,7 @@ export function PlanetRenameModal({ planet, telegramId, onClose, onRenamed }: Pr
           </button>
         </div>
 
-        <div className="text-xs mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>Currently</div>
+        <div className="text-xs mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>{t("rename.currently")}</div>
         <div className="text-base font-black mb-4" style={{ color: "#fff" }}>{currentName}</div>
 
         <div className="flex gap-2 mb-4">
@@ -116,7 +118,7 @@ export function PlanetRenameModal({ planet, telegramId, onClose, onRenamed }: Pr
               border: tab === "random" ? "1px solid rgba(0,242,254,0.5)" : "1px solid rgba(255,255,255,0.1)",
             }}
           >
-            RANDOM · ★ {RENAME_RANDOM_COST}
+            {t("rename.tab.random")} · ★ {RENAME_RANDOM_COST}
           </button>
           <button
             onClick={() => { setTab("custom"); setError(null); }}
@@ -127,14 +129,14 @@ export function PlanetRenameModal({ planet, telegramId, onClose, onRenamed }: Pr
               border: tab === "custom" ? "1px solid rgba(255,215,0,0.5)" : "1px solid rgba(255,255,255,0.1)",
             }}
           >
-            CUSTOM · ★ {RENAME_CUSTOM_COST}
+            {t("rename.tab.custom")} · ★ {RENAME_CUSTOM_COST}
           </button>
         </div>
 
         {tab === "random" ? (
           <div className="mb-4">
             <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.5)" }}>
-              {revealedName ? "You got" : "Random epic name"}
+              {revealedName ? t("rename.youGot") : t("rename.randomLabel")}
             </div>
             <div
               className="rounded-lg p-3 text-center"
@@ -146,21 +148,21 @@ export function PlanetRenameModal({ planet, telegramId, onClose, onRenamed }: Pr
             </div>
             {!revealedName && (
               <div className="text-xs mt-2 text-center" style={{ color: "rgba(255,255,255,0.45)" }}>
-                The galaxy will pick one for you on confirm.
+                {t("rename.galaxyHint")}
               </div>
             )}
           </div>
         ) : (
           <div className="mb-4">
             <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.5)" }}>
-              Type your custom name (max {RENAME_MAX_LEN})
+              {t("rename.customHint", { n: RENAME_MAX_LEN })}
             </div>
             <input
               type="text"
               value={customInput}
               onChange={(e) => { setCustomInput(e.target.value); setError(null); }}
               maxLength={RENAME_MAX_LEN + 8}
-              placeholder="e.g. Stella, Bella, Drako"
+              placeholder={t("rename.placeholder")}
               className="w-full px-3 py-2 rounded-lg text-base font-black"
               style={{
                 background: "rgba(0,0,0,0.4)",
@@ -194,7 +196,7 @@ export function PlanetRenameModal({ planet, telegramId, onClose, onRenamed }: Pr
             opacity: busy ? 0.7 : 1,
           }}
         >
-          {busy ? "RENAMING..." : `CONFIRM · ★ ${cost}`}
+          {busy ? t("rename.busy") : `${t("rename.confirm")} · ★ ${cost}`}
         </button>
       </div>
     </div>

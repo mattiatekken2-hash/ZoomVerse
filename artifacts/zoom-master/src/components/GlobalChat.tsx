@@ -5,6 +5,7 @@ import {
   sendChatMessage,
   type ChatMessage,
 } from "../utils/api";
+import { useT } from "../i18n/LanguageContext";
 
 // ─────────────────────────────────────────────────────────────────────
 // HOME — Global Chat panel (Phase 5b).
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export function GlobalChat({ telegramId, username }: Props) {
+  const { t } = useT();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -114,11 +116,11 @@ export function GlobalChat({ telegramId, username }: Props) {
       pinnedToBottomRef.current = true;
     } else if (result.error === "COOLDOWN") {
       const secs = Math.ceil((result.retryAfterMs ?? 3000) / 1000);
-      setError(`Aspetta ${secs}s prima del prossimo messaggio.`);
+      setError(t("chat.cooldown", { n: secs }));
     } else if (result.error === "EMPTY") {
-      setError("Messaggio vuoto.");
+      setError(t("chat.empty2"));
     } else {
-      setError("Invio non riuscito. Riprova.");
+      setError(t("chat.failed"));
     }
   }, [draft, sending, telegramId, username]);
 
@@ -144,10 +146,10 @@ export function GlobalChat({ telegramId, username }: Props) {
         style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
       >
         <div className="font-black text-xs tracking-widest" style={{ color: "rgba(255,255,255,0.7)" }}>
-          CHAT GLOBALE
+          {t("chat.title")}
         </div>
         <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.35)" }}>
-          {messages.length} msg
+          {messages.length} {t("chat.msg")}
         </div>
       </div>
 
@@ -167,7 +169,7 @@ export function GlobalChat({ telegramId, username }: Props) {
       >
         {messages.length === 0 ? (
           <div className="text-xs" style={{ color: "rgba(255,255,255,0.35)", padding: "8px 0" }}>
-            Nessun messaggio ancora. Scrivi tu il primo!
+            {t("chat.empty")}
           </div>
         ) : (
           messages.map((m) => {
@@ -203,7 +205,7 @@ export function GlobalChat({ telegramId, username }: Props) {
           }}
           onKeyDown={onKeyDown}
           maxLength={MAX_LEN}
-          placeholder={telegramId ? "Scrivi un messaggio…" : "Apri da Telegram per scrivere"}
+          placeholder={telegramId ? t("chat.placeholder") : t("chat.placeholderTg")}
           disabled={!telegramId || sending}
           className="flex-1 text-xs px-2 py-1.5 rounded-lg outline-none"
           style={{
@@ -225,7 +227,7 @@ export function GlobalChat({ telegramId, username }: Props) {
             opacity: !telegramId || sending || draft.trim().length === 0 ? 0.5 : 1,
           }}
         >
-          {sending ? "…" : "INVIA"}
+          {sending ? "…" : t("chat.send")}
         </button>
       </div>
 
