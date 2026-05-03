@@ -292,49 +292,13 @@ export function HomePage({ telegramId, visible }: HomePageProps) {
           />
         </div>
 
-        {/* Computer status panel — always visible (when owned) so the
-            user can see the timer even with the computer not placed.
-            Now sits BELOW the full-bleed room as a flex-shrink-0 strip
-            so it doesn't steal vertical space from the scene. */}
-        {state.computer.owned && (
-          <div
-            className="flex-shrink-0 mx-3 my-3 rounded-xl px-4 py-3 flex items-center gap-3"
-            style={{
-              background: state.computer.claimable ? "rgba(255,215,64,0.10)" : "rgba(255,255,255,0.03)",
-              border: `1px solid ${state.computer.claimable ? "rgba(255,215,64,0.35)" : "rgba(255,255,255,0.08)"}`,
-            }}
-          >
-            <PixelComputerIcon size={28} screenOn={state.computer.claimable} />
-            <div className="flex-1 min-w-0">
-              <div className="font-black text-xs tracking-widest" style={{ color: state.computer.claimable ? "#ffd740" : "rgba(255,255,255,0.7)" }}>
-                COMPUTER
-              </div>
-              <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-                {state.computer.claimable
-                  ? `+25 stardust ready`
-                  : `Next +25 in ${fmtCountdown(state.computer.secondsToReady)}`}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleClaim}
-              disabled={!state.computer.claimable || busy === "claim"}
-              className="px-3 py-1.5 rounded-lg text-xs font-black tracking-wider transition-all active:scale-95"
-              style={{
-                background: state.computer.claimable ? "rgba(255,215,64,0.20)" : "rgba(255,255,255,0.04)",
-                color: state.computer.claimable ? "#ffd740" : "rgba(255,255,255,0.25)",
-                border: `1px solid ${state.computer.claimable ? "rgba(255,215,64,0.5)" : "rgba(255,255,255,0.08)"}`,
-                cursor: state.computer.claimable ? "pointer" : "not-allowed",
-                opacity: busy === "claim" ? 0.6 : 1,
-              }}
-            >
-              {busy === "claim" ? "…" : "CLAIM"}
-            </button>
-          </div>
-        )}
+        {/* NOTE: the old COMPUTER status strip + CLAIM button used to
+            sit here. We removed it on the player's request: the monitor
+            in the room now shows "25/H ★" directly on its screen, and
+            tapping the monitor after the 24h cooldown is the claim. */}
 
-        {/* Global chat panel — Phase 5b. Lives below the room/computer
-            strip so the player can chat with the rest of the universe
+        {/* Global chat panel — Phase 5b. Lives below the room
+            so the player can chat with the rest of the universe
             while their astronaut and pet do their thing in the scene. */}
         <GlobalChat telegramId={telegramId} username={readTelegramDisplayName()} />
 
@@ -470,24 +434,66 @@ function PixelLock() {
 
 // Small pixel computer used by the status panel. Optionally lit up
 // with a yellow screen when there's stardust ready to claim.
-function PixelComputerIcon({ size = 24, screenOn = false }: { size?: number; screenOn?: boolean }) {
+function PixelComputerIcon({
+  size = 24,
+  screenOn = false,
+  showLabel = false,
+}: {
+  size?: number;
+  screenOn?: boolean;
+  /** When true, overlays "25/H ★" on the monitor screen so the
+   *  player can read the reward at a glance from the room view. */
+  showLabel?: boolean;
+}) {
   const cy = "#cfd6e6";
-  return (
+  const iconH = size * (12 / 16);
+  const inner = (
     <svg
       viewBox="0 0 16 12"
       width={size}
-      height={size * (12 / 16)}
-      style={{ imageRendering: "pixelated", flexShrink: 0 }}
+      height={iconH}
+      style={{ imageRendering: "pixelated", flexShrink: 0, display: "block" }}
     >
       {/* Monitor body */}
       <rect x="1" y="1" width="14" height="9" fill={cy} />
-      {/* Screen */}
+      {/* Screen — yellow/lit when stardust is ready, deep navy otherwise */}
       <rect x="2" y="2" width="12" height="7" fill={screenOn ? "#ffd740" : "#0a1a3d"} />
-      {screenOn && <rect x="6" y="4" width="4" height="3" fill="#fff7c2" />}
       {/* Stand */}
       <rect x="6" y="10" width="4" height="1" fill={cy} />
       <rect x="4" y="11" width="8" height="1" fill={cy} />
     </svg>
+  );
+  if (!showLabel) return inner;
+  // Screen rect (in icon coords) occupies x=2..14, y=2..9 of the
+  // 16×12 viewBox → 12.5%..87.5% horizontally, 16.7%..75% vertically.
+  return (
+    <div style={{ position: "relative", width: size, height: iconH, flexShrink: 0 }}>
+      {inner}
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          left: "12.5%",
+          top: "16.7%",
+          width: "75%",
+          height: "58.3%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
+          fontWeight: 900,
+          fontSize: Math.max(8, Math.round(size * 0.18)),
+          letterSpacing: 0.5,
+          color: screenOn ? "#1a1300" : "#7fa8d6",
+          textShadow: screenOn ? "0 0 2px rgba(255,247,194,0.8)" : "none",
+          userSelect: "none",
+          lineHeight: 1,
+          whiteSpace: "nowrap",
+        }}
+      >
+        25/H ★
+      </span>
+    </div>
   );
 }
 
@@ -595,7 +601,7 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, onSlotClick, visi
           >
             {item === "computer" && (
               <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <PixelComputerIcon size={48} screenOn={computerClaimable} />
+                <PixelComputerIcon size={64} screenOn={computerClaimable} showLabel />
                 {computerClaimable && (
                   <span
                     aria-hidden
