@@ -257,6 +257,32 @@ export async function fetchReferralData(telegramId: string): Promise<ReferralDat
   }
 }
 
+export interface InvitedFriend {
+  /** Per-host stable opaque key (sha256 of host_id:friend_id, truncated).
+   *  Safe to use as React key and to derive a deterministic palette/spot
+   *  on the client. NOT a real telegramId — cannot be reversed. */
+  key: string;
+  /** Short display name (first_name fallback @username, max 16 chars). */
+  name: string;
+}
+
+/** List of users who joined via the CALLING user's referral link. Auth
+ *  comes from Telegram initData headers attached by apiHeaders(); the
+ *  server returns the friends of `req.tgUser.id` only. */
+export async function fetchReferralFriends(): Promise<InvitedFriend[]> {
+  try {
+    const res = await fetch(`${API_BASE}/referral/friends`, {
+      cache: "no-store",
+      headers: apiHeaders(),
+    });
+    if (!res.ok) return [];
+    const j = (await res.json()) as { friends?: InvitedFriend[] };
+    return j.friends ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchReferralCount(telegramId: string): Promise<number> {
   const data = await fetchReferralData(telegramId);
   return data.referralCount;

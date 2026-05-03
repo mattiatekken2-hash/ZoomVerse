@@ -672,7 +672,7 @@ function AppShellWithState() {
                 <WheelPage telegramId={state.telegramId} />
               )}
               {t === "home" && (
-                <HomePage telegramId={state.telegramId} visible={tab === "home"} />
+                <HomePage telegramId={state.telegramId} referralCode={state.referralCode} visible={tab === "home"} />
               )}
             </div>
           );

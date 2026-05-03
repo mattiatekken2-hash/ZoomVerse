@@ -5,7 +5,9 @@ import {
   claimComputer,
   placeHomeSlot,
   clearHomeSlot,
+  fetchReferralFriends,
   type HomeState,
+  type InvitedFriend,
 } from "../utils/api";
 import {
   PixelAstronaut,
@@ -38,6 +40,7 @@ function readTelegramDisplayName(): string {
 
 interface HomePageProps {
   telegramId: string | null;
+  referralCode: string;
   visible: boolean;
 }
 
@@ -80,13 +83,57 @@ function fmtCountdown(s: number): string {
   return `${sec}s`;
 }
 
-export function HomePage({ telegramId, visible }: HomePageProps) {
+export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
   const [state, setState] = useState<HomeState | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [arrange, setArrange] = useState(false);
   const [pickerSlot, setPickerSlot] = useState<Slot | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [friends, setFriends] = useState<InvitedFriend[]>([]);
+
+  // Telegram deep-link to launch the bot with the user's referralCode as
+  // start_param. /referral/register on the friend's first launch picks
+  // this up and credits the inviter (+20 ZOOM, +1 referralCount).
+  const referralLink = `https://t.me/ZoomVerse_bot?startapp=${referralCode}`;
+
+  // Fetch the list of users who have already accepted this user's
+  // invite. Used to render one "friend astronaut" per invite inside the
+  // host's room. Refresh every 30 s while the HOME tab is visible so a
+  // newly accepted invite shows up without a manual reload.
+  //
+  // Sequence guard (seqRef) prevents a slow request from a previous
+  // poll from overwriting fresher data. We also clear `friends` when
+  // the telegramId changes so a brief account switch can't flash the
+  // previous user's invitees.
+  const friendsSeqRef = useRef(0);
+  useEffect(() => {
+    setFriends([]);
+    if (!telegramId || !visible) return;
+    let cancelled = false;
+    const load = async () => {
+      const my = ++friendsSeqRef.current;
+      const list = await fetchReferralFriends();
+      if (!cancelled && my === friendsSeqRef.current) setFriends(list);
+    };
+    load();
+    const id = window.setInterval(load, 30000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [telegramId, visible]);
+
+  const openTelegramShare = useCallback(() => {
+    const text = encodeURIComponent("Join Zoom and earn $ZOOM!");
+    const url = encodeURIComponent(referralLink);
+    window.open(`https://t.me/share/url?url=${url}&text=${text}`, "_blank");
+  }, [referralLink]);
+
+  const copyLink = useCallback(() => {
+    navigator.clipboard.writeText(referralLink).catch(() => {});
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  }, [referralLink]);
 
   // Re-render the countdown every second so it actually counts down.
   const [tick, setTick] = useState(0);
@@ -247,6 +294,21 @@ export function HomePage({ telegramId, visible }: HomePageProps) {
         <div className="flex-1" />
         <button
           type="button"
+          onClick={() => setInviteOpen(true)}
+          className="px-3 py-1.5 rounded-lg text-xs font-bold tracking-wider transition-all active:scale-95"
+          style={{
+            background: "rgba(0,230,118,0.14)",
+            color: "#00e676",
+            border: "1px solid rgba(0,230,118,0.4)",
+          }}
+        >
+          + INVITE
+          {friends.length > 0 && (
+            <span style={{ marginLeft: 6, opacity: 0.85 }}>· {friends.length}</span>
+          )}
+        </button>
+        <button
+          type="button"
           onClick={() => { setArrange((v) => !v); setPickerSlot(null); }}
           className="px-3 py-1.5 rounded-lg text-xs font-bold tracking-wider transition-all active:scale-95"
           style={{
@@ -258,6 +320,100 @@ export function HomePage({ telegramId, visible }: HomePageProps) {
           {arrange ? "DONE" : "ARRANGE"}
         </button>
       </div>
+
+      {/* Invite modal — choose between sharing the link in Telegram
+          (forwards to a friend / chat) or copying the raw link to
+          paste anywhere. Closes by tapping the backdrop. */}
+      {inviteOpen && (
+        <div
+          onClick={() => setInviteOpen(false)}
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 50,
+            background: "rgba(0,0,0,0.65)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: 360,
+              width: "100%",
+              background: "#0c1226",
+              border: "1px solid rgba(0,230,118,0.35)",
+              borderRadius: 12,
+              padding: 18,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+            }}
+          >
+            <div className="font-black text-base mb-1" style={{ color: "#00e676" }}>
+              Invite a Friend
+            </div>
+            <div className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.55)" }}>
+              +20 $ZOOM for every friend who joins. Their astronaut will appear in your room.
+            </div>
+
+            <button
+              type="button"
+              onClick={openTelegramShare}
+              className="w-full py-3 mb-2 rounded-xl font-black text-sm tracking-wider uppercase transition-all active:scale-95"
+              style={{
+                background: "linear-gradient(135deg, rgba(0,230,118,0.22), rgba(0,176,255,0.16))",
+                color: "#fff",
+                border: "1px solid rgba(0,230,118,0.45)",
+              }}
+            >
+              Choose a Friend on Telegram
+            </button>
+
+            <button
+              type="button"
+              onClick={copyLink}
+              className="w-full py-2.5 mb-3 rounded-xl font-bold text-xs tracking-wider uppercase transition-all active:scale-95"
+              style={{
+                background: "rgba(255,255,255,0.06)",
+                color: copied ? "#00e676" : "rgba(255,255,255,0.85)",
+                border: "1px solid rgba(255,255,255,0.15)",
+              }}
+            >
+              {copied ? "Link Copied!" : "Copy Invite Link"}
+            </button>
+
+            <div
+              className="text-xs font-mono px-2 py-2 rounded mb-3"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                color: "rgba(255,255,255,0.55)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                wordBreak: "break-all",
+              }}
+            >
+              {referralLink}
+            </div>
+
+            <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.5)" }}>
+              Friends in your room: <span style={{ color: "#00e676", fontWeight: 700 }}>{friends.length}</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setInviteOpen(false)}
+              className="w-full py-2 rounded-lg text-xs font-bold tracking-wider"
+              style={{
+                background: "transparent",
+                color: "rgba(255,255,255,0.55)",
+                border: "1px solid rgba(255,255,255,0.12)",
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Pixel room — fills the entire HOME area (no max-width clamp).
           The room SVG uses preserveAspectRatio="none" so it stretches to
@@ -281,6 +437,7 @@ export function HomePage({ telegramId, visible }: HomePageProps) {
             computerClaimable={state.computer.claimable}
             secondsToReady={state.computer.secondsToReady}
             visible={visible}
+            friends={friends}
             onSlotClick={(s) => {
               if (!arrange) {
                 // Outside arrange mode: clicking the slot only does
@@ -552,9 +709,10 @@ interface PixelRoomProps {
   computerClaimable: boolean;
   secondsToReady: number;
   onSlotClick: (slot: Slot) => void;
+  friends: InvitedFriend[];
 }
 
-function PixelRoom({ phase, slots, arrange, computerClaimable, onSlotClick, visible }: PixelRoomProps & { visible: boolean }) {
+function PixelRoom({ phase, slots, arrange, computerClaimable, onSlotClick, visible, friends }: PixelRoomProps & { visible: boolean }) {
   const sky = PHASE_GRADIENT[phase];
   const ground = PHASE_GROUND[phase];
   const wall = "#2a2540";
@@ -614,7 +772,7 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, onSlotClick, visi
       {/* Life overlay — astronaut going about his routine, plus the
           occasional bird drifting across the window. Sits ABOVE the room
           SVG and BELOW the slot buttons so it never intercepts clicks. */}
-      <RoomLifeOverlay phase={phase} visible={visible} />
+      <RoomLifeOverlay phase={phase} visible={visible} friends={friends} />
 
       {/* Slot overlays — positioned absolutely on top of the SVG so we
           can attach onClick handlers and the rendered item without
@@ -732,7 +890,25 @@ function nextVisitDelayMs(): number {
   return Math.floor(minMs + Math.random() * (maxMs - minMs));
 }
 
-function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean }) {
+// Stable hash → palette index, so the same friend always shows up in
+// the same color (and same friend always sits in the same spot).
+function friendHash(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+// Where each invited friend stands in the host's room. Capped at the
+// length of this array — beyond that, additional invites still earn the
+// referral bonus but don't add more sprites (the room would be unreadable).
+const FRIEND_SPOTS: { left: string; top: string }[] = [
+  { left: "12%", top: "82%" },
+  { left: "84%", top: "82%" },
+  { left: "30%", top: "50%" },
+  { left: "76%", top: "50%" },
+];
+
+function RoomLifeOverlay({ phase, visible, friends }: { phase: SkyPhase; visible: boolean; friends: InvitedFriend[] }) {
   const baseActivity = useAstronautActivity();
   // Idle detection — if the user hasn't touched the screen for 30 s
   // we override the rotation and force the "drum" activity (the
@@ -1446,6 +1622,58 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
           </div>
         </div>
       )}
+
+      {/* Friend astronauts — one per accepted referral, capped at
+          FRIEND_SPOTS.length so the room stays readable. Each friend
+          gets a stable color (palette derived from a hash of their
+          telegramId) and a stable spot, with their first name floating
+          above the helmet. They idle in place with a small bob. */}
+      {friends.slice(0, FRIEND_SPOTS.length).map((f, i) => {
+        const spot = FRIEND_SPOTS[i]!;
+        const palette = VISITOR_PALETTES[friendHash(f.key) % VISITOR_PALETTES.length]!;
+        const label = (f.name || "Friend").slice(0, 12);
+        // Even-indexed friends face right (+1), odd face left (-1) so
+        // they don't all look the same direction.
+        const facing = i % 2 === 0 ? 1 : -1;
+        return (
+          <div
+            key={f.key}
+            style={{
+              position: "absolute",
+              left: spot.left,
+              top: spot.top,
+              width: spriteW,
+              height: spriteW,
+              transform: "translate(-50%, -50%)",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                bottom: "100%",
+                left: "50%",
+                transform: "translate(-50%, -2px)",
+                background: "rgba(10,26,61,0.85)",
+                color: "#fff",
+                fontFamily: "'Press Start 2P', monospace",
+                fontSize: Math.max(7, Math.round(spriteW * 0.13)),
+                padding: "2px 5px",
+                borderRadius: 3,
+                border: "1px solid rgba(0,230,118,0.45)",
+                whiteSpace: "nowrap",
+                pointerEvents: "none",
+              }}
+            >
+              {label}
+            </div>
+            <div style={{ transform: `scaleX(${facing})` }}>
+              <div style={{ animation: "home-astro-bob 0.7s ease-in-out infinite" }}>
+                <PixelAstronaut pose="stand" width={spriteW} palette={palette} />
+              </div>
+            </div>
+          </div>
+        );
+      })}
 
       {/* Pet companion — Space Slime. Smoothly drifts with the astronaut. */}
       <div

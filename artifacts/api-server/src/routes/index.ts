@@ -123,6 +123,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
     methods: ["GET"],
     paths: [
       "/lottery/state",
+      "/referral/friends",
     ],
     bindField: "",
   },

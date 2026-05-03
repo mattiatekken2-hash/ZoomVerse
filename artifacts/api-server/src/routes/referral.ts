@@ -174,6 +174,65 @@ router.post("/referral/register", async (req, res) => {
   }
 });
 
+// ─── GET /referral/friends ──────────────────────────────────────────────
+// List the most recent users who joined via the CALLING user's referral
+// link. Used by HOME to spawn one extra "friend astronaut" per accepted
+// invite so the host's room visibly fills up over time.
+//
+// Auth: relies on Telegram initData (the global auth middleware in
+// routes/index.ts populates `req.tgUser` for this path). We only ever
+// query referrals belonging to the verified caller — the path is
+// parameterless on purpose so a malicious client cannot ask for someone
+// else's friend list.
+//
+// Privacy: we deliberately do NOT return raw telegramIds or @usernames
+// of the invited friends. The host only sees a non-reversible per-room
+// `key` (used by the client just to assign a stable color/spot) plus a
+// short display name. This is strictly less sensitive than what the
+// existing /referral/:id endpoint already exposes (referralCount).
+import { createHash } from "node:crypto";
+
+router.get("/referral/friends", async (req, res) => {
+  const tgUser = (req as unknown as { tgUser?: { id: string } | null }).tgUser ?? null;
+  if (!tgUser?.id) {
+    res.json({ friends: [] });
+    return;
+  }
+  const MAX = 8;
+  try {
+    const rows = await db
+      .select({
+        telegramId: usersTable.telegramId,
+        firstName: usersTable.firstName,
+        username: usersTable.username,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.referredBy, tgUser.id))
+      .limit(MAX);
+
+    // Hash telegramId with the host's id as salt so the resulting key
+    // is stable for THIS host's view but cannot be cross-correlated to
+    // identify the friend across other endpoints.
+    const friends = rows.map((r) => {
+      const key = createHash("sha256")
+        .update(`${tgUser.id}:${r.telegramId}`)
+        .digest("hex")
+        .slice(0, 16);
+      const name = (r.firstName || r.username || "Friend").toString().slice(0, 16);
+      return { key, name };
+    });
+
+    res.json({ friends });
+  } catch (err) {
+    console.error("[referral] friends fetch error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// NOTE: this catch-all by-id route MUST stay below `/referral/friends`
+// (and any other static segment under `/referral/`) — Express route
+// matching is order-sensitive, so a literal segment registered after
+// `:telegramId` would otherwise be swallowed by the wildcard.
 router.get("/referral/:telegramId", async (req, res) => {
   const { telegramId } = req.params;
 
