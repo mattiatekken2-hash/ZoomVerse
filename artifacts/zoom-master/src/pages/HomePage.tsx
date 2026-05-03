@@ -722,7 +722,7 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
   // Astronaut placement per activity. Coords are % of the room container,
   // matching the SVG's 80×64 furniture layout.
   const astroPos: Record<ReturnType<typeof useAstronautActivity>, { left: string; top: string }> = {
-    sleep: { left: "14%", top: "52%" },     // tucked into the wider bed
+    sleep: { left: "13.75%", top: "51%" },  // exact center of the bed sheet
     walk: { left: "50%", top: "82%" },      // walking strip across the floor
     coffee: { left: "70%", top: "76%" },    // sitting on the chair
     snack: { left: "55%", top: "78%" },     // standing by the table
@@ -810,7 +810,12 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
           transition: "left 0.6s ease, top 0.6s ease",
         }}
       >
-        {activity === "sleep" && <SleepingAstronaut width={spriteW * 2} />}
+        {activity === "sleep" && (
+          // Width matches the bed sheet area (~1.2 × spriteW after the
+          // bed widening) so the figure fits neatly between the head-
+          // board and the foot board without poking out either side.
+          <SleepingAstronaut width={Math.round(spriteW * 1.2)} />
+        )}
         {activity === "walk" && (
           // 14 s cycle = walk → pause → walk → pause (see keyframe).
           // ease-in-out smooths the start/stop of each leg of the walk

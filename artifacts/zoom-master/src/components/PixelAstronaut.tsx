@@ -265,7 +265,21 @@ export function SleepingAstronaut({ width = 70 }: { width?: number }) {
   // Total wrapper height keeps room above the helmet for the Z's.
   const wrapperH = helmetH + 6;
   return (
-    <div style={{ position: "relative", width, height: wrapperH }}>
+    <div
+      style={{
+        // Self-center on the parent: the parent positioned wrapper from
+        // HomePage is `spriteW × spriteW`, but the sleeping figure is
+        // wider (we pass ~1.2 × spriteW). Anchoring with absolute +
+        // translate keeps the lying figure perfectly centered on the
+        // bed regardless of its own width.
+        position: "absolute",
+        left: "50%",
+        top: "50%",
+        transform: "translate(-50%, -50%)",
+        width,
+        height: wrapperH,
+      }}
+    >
       {/* Sheet covering the body — anchored to the BOTTOM of the
           wrapper so the lower edge lines up with the bed's sheet line. */}
       <div
