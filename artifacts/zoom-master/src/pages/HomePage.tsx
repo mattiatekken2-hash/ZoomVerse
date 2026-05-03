@@ -1419,30 +1419,49 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
     C: { left: "82%", top: "60%" },   // right: floor pedestal
   };
 
+  // ── First-person 3D rig ─────────────────────────────────────────
+  // When "persp" mode is on we build a true 3D box around the camera:
+  // the existing pixel scene becomes the BACK WALL pushed to z=-DEPTH,
+  // and four extra planes (floor, ceiling, left wall, right wall) hinge
+  // along the viewport edges and recede toward the back wall, all
+  // converging on a centered vanishing point. The camera sits inside
+  // the room and looks straight at the back wall, giving the user an
+  // immersive first-person view of their pixel apartment.
+  const ROOM_DEPTH_PX = 420;        // distance from camera to back wall
+  const PERSPECTIVE_PX = 620;       // CSS perspective focal length
+
   return (
     <div
       style={{
         position: "relative",
         width: "100%",
         height: "100%",
-        // Establish the perspective rig on the OUTER container so that
-        // the inner wrapper's rotateX/scale produce a real first-person
-        // depth effect (vanishing point centered, slightly low — the
-        // camera sits inside the room at robot eye level).
-        perspective: persp ? "900px" : "none",
-        perspectiveOrigin: "50% 60%",
+        perspective: persp ? `${PERSPECTIVE_PX}px` : "none",
+        perspectiveOrigin: "50% 50%",
         overflow: "hidden",
+        background: persp ? "#0a0e1a" : "transparent",
       }}
     >
-      {/* Inner content wrapper — receives the 3D tilt when "persp"
-          view is active. The toggle widget below stays OUTSIDE this
-          wrapper so it's never tilted along with the room. */}
+      {/* 3D stage — preserves child transforms in 3D space so the
+          back wall, floor, ceiling and side walls compose a real box. */}
       <div
         style={{
           position: "absolute",
           inset: 0,
-          transformOrigin: "50% 100%",
-          transform: persp ? "rotateX(22deg) scale(1.08)" : "none",
+          transformStyle: "preserve-3d",
+        }}
+      >
+      {/* Back-wall plane — holds the entire existing pixel scene.
+          When perspective is on it gets pushed back by ROOM_DEPTH_PX
+          so the side walls + floor + ceiling can extend from the
+          viewport edges toward it, creating a corridor of depth. */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          transformStyle: "preserve-3d",
+          transformOrigin: "50% 50%",
+          transform: persp ? `translateZ(-${ROOM_DEPTH_PX}px)` : "none",
           transition: "transform 700ms cubic-bezier(0.22, 1, 0.36, 1)",
           willChange: "transform",
         }}
@@ -1788,6 +1807,88 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
         );
       })}
       </div>
+      {/* End of back-wall plane. */}
+
+      {/* Floor / ceiling / side walls — drawn ONLY in perspective
+          mode. Each plane hinges along a viewport edge and rotates
+          90° to recede into the screen, meeting the back-wall plane
+          (at z = -ROOM_DEPTH_PX) along its far edge. Together they
+          form a closed corridor that gives the user a real
+          first-person sense of standing inside the apartment. */}
+      {persp && (
+        <>
+          {/* Floor — hinged along the bottom edge of the viewport. */}
+          <div
+            aria-hidden
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: `${ROOM_DEPTH_PX}px`,
+              transformOrigin: "50% 100%",
+              transform: "rotateX(90deg)",
+              background:
+                "repeating-linear-gradient(0deg, #5b3a22 0px, #5b3a22 28px, #4a2f1c 28px, #4a2f1c 30px)",
+              boxShadow: "inset 0 0 60px rgba(0,0,0,0.55)",
+              backfaceVisibility: "hidden",
+            }}
+          />
+          {/* Ceiling — hinged along the top edge of the viewport. */}
+          <div
+            aria-hidden
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: 0,
+              height: `${ROOM_DEPTH_PX}px`,
+              transformOrigin: "50% 0%",
+              transform: "rotateX(-90deg)",
+              background:
+                "linear-gradient(180deg, #1a1730 0%, #2a2540 100%)",
+              boxShadow: "inset 0 0 60px rgba(0,0,0,0.4)",
+              backfaceVisibility: "hidden",
+            }}
+          />
+          {/* Left wall — hinged along the left edge of the viewport. */}
+          <div
+            aria-hidden
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: 0,
+              width: `${ROOM_DEPTH_PX}px`,
+              transformOrigin: "0% 50%",
+              transform: "rotateY(90deg)",
+              background:
+                "linear-gradient(90deg, #2f2a4a 0%, #1f1b35 100%)",
+              boxShadow: "inset 0 0 60px rgba(0,0,0,0.4)",
+              backfaceVisibility: "hidden",
+            }}
+          />
+          {/* Right wall — hinged along the right edge of the viewport. */}
+          <div
+            aria-hidden
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              right: 0,
+              width: `${ROOM_DEPTH_PX}px`,
+              transformOrigin: "100% 50%",
+              transform: "rotateY(-90deg)",
+              background:
+                "linear-gradient(270deg, #2f2a4a 0%, #1f1b35 100%)",
+              boxShadow: "inset 0 0 60px rgba(0,0,0,0.4)",
+              backfaceVisibility: "hidden",
+            }}
+          />
+        </>
+      )}
+      </div>
+      {/* End of 3D stage. */}
 
       {/* View-mode widget — small floating pill in the top-right
           corner. Toggles between FLAT (default elevation pixel
@@ -1817,7 +1918,7 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
           transition: "all 200ms ease",
         }}
       >
-        {persp ? "VIEW: 3D" : "VIEW: FLAT"}
+        {persp ? "VIEW: 1ST" : "VIEW: FLAT"}
       </button>
     </div>
   );
