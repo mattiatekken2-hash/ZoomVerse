@@ -21,6 +21,23 @@ const C = {
   sleepLine: "#1a3a5c",
 };
 
+// Alternate palettes for VISITORS that drop by to greet the main
+// astronaut. Same sprite shape, just different suit/visor/accent
+// colors so each guest reads as a distinct character.
+export type AstronautPalette = Partial<typeof C>;
+export const VISITOR_PALETTES: AstronautPalette[] = [
+  // Mars Ranger — orange suit, gold visor highlight
+  { suit: "#ff8a3c", suitShade: "#b34a14", helmet: "#ffd9b8", accent: "#ffd166", visorShine: "#ffe27a" },
+  // Deep Space Ops — black suit, magenta accent
+  { suit: "#2b2b33", suitShade: "#0f0f14", helmet: "#5b6070", accent: "#ff4fd8", visorShine: "#ff9bea" },
+  // Forest Cadet — green suit, lime accent
+  { suit: "#3da33d", suitShade: "#225f22", helmet: "#bde6bd", accent: "#c8ff4a", visorShine: "#dfff8f" },
+  // Crimson Pilot — red suit, sky accent
+  { suit: "#d63a2a", suitShade: "#7a1f15", helmet: "#f4c8c2", accent: "#7fdfff", visorShine: "#bff0ff" },
+  // Royal Engineer — purple suit, gold accent
+  { suit: "#7a4cc4", suitShade: "#3f2670", helmet: "#d8c4f0", accent: "#ffd166", visorShine: "#ffe27a" },
+];
+
 interface AstronautProps {
   /** "stand"  = normal, "sit" = legs tucked (chair), "snack" = holding cookie,
    *  "coffee" = standing, mug held to chest (same full-height sprite). */
@@ -35,9 +52,13 @@ interface AstronautProps {
   /** Rendered width in CSS pixels. Sprite is 8×12 logical, height keeps
    *  the same aspect (×1.5). */
   width?: number;
+  /** Optional color overrides to render a "visitor" variant in a
+   *  different suit/visor/accent. Falls back to the default palette. */
+  palette?: AstronautPalette;
 }
 
-export function PixelAstronaut({ pose = "stand", facing = "side", legFrame, width = 28 }: AstronautProps) {
+export function PixelAstronaut({ pose = "stand", facing = "side", legFrame, width = 28, palette }: AstronautProps) {
+  const P = { ...C, ...(palette ?? {}) };
   const legBaseY = pose === "sit" ? 8 : 9;
   const legBaseH = pose === "sit" ? 1 : 2;
   // Walk frames: lift one leg by 1 pixel (y-1, h+0) — the "lifted" leg
@@ -50,44 +71,44 @@ export function PixelAstronaut({ pose = "stand", facing = "side", legFrame, widt
   return (
     <svg viewBox="0 0 8 12" width={width} height={height} style={{ imageRendering: "pixelated", display: "block" }}>
       {/* Backpack */}
-      <rect x="6" y="4" width="2" height="3" fill={C.suitShade} />
+      <rect x="6" y="4" width="2" height="3" fill={P.suitShade} />
       {/* Helmet */}
-      <rect x="1" y="0" width="6" height="4" fill={C.helmet} />
+      <rect x="1" y="0" width="6" height="4" fill={P.helmet} />
       {/* Visor */}
-      <rect x="2" y="1" width="4" height="2" fill={C.visor} />
+      <rect x="2" y="1" width="4" height="2" fill={P.visor} />
       {facing === "sleep" ? (
-        <rect x="2" y="2" width="4" height="1" fill={C.sleepLine} />
+        <rect x="2" y="2" width="4" height="1" fill={P.sleepLine} />
       ) : facing === "up" ? (
-        <rect x="3" y="1" width="2" height="1" fill={C.visorShine} />
+        <rect x="3" y="1" width="2" height="1" fill={P.visorShine} />
       ) : (
-        <rect x="4" y="1" width="1" height="1" fill={C.visorShine} />
+        <rect x="4" y="1" width="1" height="1" fill={P.visorShine} />
       )}
       {/* Body */}
-      <rect x="2" y="4" width="4" height="4" fill={C.suit} />
+      <rect x="2" y="4" width="4" height="4" fill={P.suit} />
       {/* Chest patch */}
-      <rect x="3" y="5" width="2" height="1" fill={C.accent} />
+      <rect x="3" y="5" width="2" height="1" fill={P.accent} />
       {/* Belt */}
-      <rect x="2" y="7" width="4" height="1" fill={C.suitShade} />
+      <rect x="2" y="7" width="4" height="1" fill={P.suitShade} />
       {/* Arms / props */}
       {pose === "snack" ? (
         <>
-          <rect x="1" y="4" width="1" height="2" fill={C.suit} />
-          <rect x="6" y="3" width="1" height="3" fill={C.suit} />
+          <rect x="1" y="4" width="1" height="2" fill={P.suit} />
+          <rect x="6" y="3" width="1" height="3" fill={P.suit} />
           <rect x="6" y="2" width="2" height="2" fill="#c89060" />
-          <rect x="6" y="2" width="1" height="1" fill={C.skinDark} />
+          <rect x="6" y="2" width="1" height="1" fill={P.skinDark} />
         </>
       ) : pose === "sit" ? (
         <>
-          <rect x="1" y="5" width="1" height="2" fill={C.suit} />
-          <rect x="6" y="5" width="1" height="2" fill={C.suit} />
+          <rect x="1" y="5" width="1" height="2" fill={P.suit} />
+          <rect x="6" y="5" width="1" height="2" fill={P.suit} />
           <rect x="5" y="6" width="2" height="2" fill="#ffffff" />
           <rect x="5" y="7" width="2" height="1" fill="#8a5a2a" />
         </>
       ) : pose === "coffee" ? (
         <>
           {/* Right arm raised to chest, holding the mug. Left arm at side. */}
-          <rect x="1" y="4" width="1" height="3" fill={C.suit} />
-          <rect x="6" y="5" width="1" height="2" fill={C.suit} />
+          <rect x="1" y="4" width="1" height="3" fill={P.suit} />
+          <rect x="6" y="5" width="1" height="2" fill={P.suit} />
           {/* Mug — white cup with brown coffee top, sits at chest height
               just in front of the visor. Same scale as `snack` so the
               full body remains the same height as `stand`. */}
@@ -98,19 +119,19 @@ export function PixelAstronaut({ pose = "stand", facing = "side", legFrame, widt
         </>
       ) : (
         <>
-          <rect x="1" y="4" width="1" height="3" fill={C.suit} />
-          <rect x="6" y="4" width="1" height="3" fill={C.suit} />
+          <rect x="1" y="4" width="1" height="3" fill={P.suit} />
+          <rect x="6" y="4" width="1" height="3" fill={P.suit} />
         </>
       )}
       {/* Legs */}
-      <rect x="2" y={lLegY} width="2" height={lLegH} fill={C.suit} />
-      <rect x="4" y={rLegY} width="2" height={rLegH} fill={C.suit} />
+      <rect x="2" y={lLegY} width="2" height={lLegH} fill={P.suit} />
+      <rect x="4" y={rLegY} width="2" height={rLegH} fill={P.suit} />
       {/* Boots — only when standing. Boots follow the leg they belong to
           so a lifted leg also lifts its boot. */}
       {pose !== "sit" && (
         <>
-          <rect x="2" y={lLegY + lLegH} width="2" height="1" fill={C.suitShade} />
-          <rect x="4" y={rLegY + rLegH} width="2" height="1" fill={C.suitShade} />
+          <rect x="2" y={lLegY + lLegH} width="2" height="1" fill={P.suitShade} />
+          <rect x="4" y={rLegY + rLegH} width="2" height="1" fill={P.suitShade} />
         </>
       )}
     </svg>
@@ -129,6 +150,23 @@ export function WalkingAstronaut({ width = 28 }: { width?: number }) {
       </div>
       <div style={{ position: "absolute", inset: 0, animation: "home-astro-step-b 0.4s steps(1) infinite" }}>
         <PixelAstronaut pose="stand" legFrame="b" width={width} />
+      </div>
+    </div>
+  );
+}
+
+/** Visitor walking sprite. Same animation as WalkingAstronaut, but
+ *  re-colored via a palette override so the guest reads as a different
+ *  person/character than the resident astronaut. */
+export function WalkingVisitor({ width = 28, palette }: { width?: number; palette: AstronautPalette }) {
+  const height = Math.round((width * 12) / 8);
+  return (
+    <div style={{ position: "relative", width, height }}>
+      <div style={{ position: "absolute", inset: 0, animation: "home-astro-step-a 0.4s steps(1) infinite" }}>
+        <PixelAstronaut pose="stand" legFrame="a" width={width} palette={palette} />
+      </div>
+      <div style={{ position: "absolute", inset: 0, animation: "home-astro-step-b 0.4s steps(1) infinite" }}>
+        <PixelAstronaut pose="stand" legFrame="b" width={width} palette={palette} />
       </div>
     </div>
   );

@@ -13,6 +13,8 @@ import {
   CoffeeSteam,
   PixelBird,
   WalkingAstronaut,
+  WalkingVisitor,
+  VISITOR_PALETTES,
   ExercisingAstronaut,
   DrinkingAstronaut,
   ShoweringAstronaut,
@@ -696,6 +698,32 @@ interface Bird {
   durationS: number;
 }
 
+// ── Visitor (random guest who comes to greet) ─────────────────────
+// A guest astronaut with a different palette walks in from one side
+// of the room every 20–50 minutes, says "Ciao!" near the resident,
+// and walks out. Phase timing:
+//   "in"    → walking from the door toward the greeting spot
+//   "greet" → standing next to the resident with a speech bubble
+//   "out"   → walking back to the door and leaving the screen
+type VisitorPhase = "in" | "greet" | "out";
+interface Visitor {
+  /** Door side — also the side the visitor enters from. */
+  fromSide: "left" | "right";
+  /** Index into VISITOR_PALETTES so each visit looks like a different guest. */
+  paletteIdx: number;
+  /** Current animation phase. */
+  phase: VisitorPhase;
+}
+const VISITOR_IN_MS = 4500;     // walk from door to greeting spot
+const VISITOR_GREET_MS = 6000;  // stand and say hello
+const VISITOR_OUT_MS = 4500;    // walk back out
+// Random delay between consecutive visits, in ms (20–50 minutes).
+function nextVisitDelayMs(): number {
+  const minMs = 20 * 60 * 1000;
+  const maxMs = 50 * 60 * 1000;
+  return Math.floor(minMs + Math.random() * (maxMs - minMs));
+}
+
 function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean }) {
   const activity = useAstronautActivity();
   const [birds, setBirds] = useState<Bird[]>([]);
@@ -829,6 +857,70 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
   const pet = petPos[activity];
   // Pet ~45% the size of the astronaut so it reads as a small companion.
   const petW = Math.max(22, Math.round(spriteW * 0.55));
+
+  // ── Visitor scheduling ─────────────────────────────────────────
+  // Schedule a guest visit every 20-50 minutes. The visitor enters
+  // from one of the room sides, walks toward the astronaut, says
+  // "Ciao!" with a speech bubble for a few seconds, then walks out.
+  // Pause everything when the page is hidden so timers don't pile up.
+  const [visitor, setVisitor] = useState<Visitor | null>(null);
+  useEffect(() => {
+    if (!visible) return;
+    let cancelled = false;
+    const timers = new Set<number>();
+    const startVisit = () => {
+      if (cancelled) return;
+      const fromSide: "left" | "right" = Math.random() < 0.5 ? "left" : "right";
+      const paletteIdx = Math.floor(Math.random() * VISITOR_PALETTES.length);
+      setVisitor({ fromSide, paletteIdx, phase: "in" });
+      const tGreet = window.setTimeout(() => {
+        if (cancelled) return;
+        setVisitor((v) => (v ? { ...v, phase: "greet" } : v));
+        const tOut = window.setTimeout(() => {
+          if (cancelled) return;
+          setVisitor((v) => (v ? { ...v, phase: "out" } : v));
+          const tEnd = window.setTimeout(() => {
+            if (cancelled) return;
+            setVisitor(null);
+            const tNext = window.setTimeout(startVisit, nextVisitDelayMs());
+            timers.add(tNext);
+          }, VISITOR_OUT_MS);
+          timers.add(tEnd);
+        }, VISITOR_GREET_MS);
+        timers.add(tOut);
+      }, VISITOR_IN_MS);
+      timers.add(tGreet);
+    };
+    // First visit: schedule it within the same 20-50 min window so
+    // people don't see a guest immediately on every page load.
+    const first = window.setTimeout(startVisit, nextVisitDelayMs());
+    timers.add(first);
+    return () => {
+      cancelled = true;
+      timers.forEach((id) => window.clearTimeout(id));
+      timers.clear();
+      setVisitor(null);
+    };
+  }, [visible]);
+
+  // Visitor placement. The "greeting spot" is just to the side of the
+  // resident astronaut so the two characters read as facing each other.
+  // When entering/leaving, the visitor sits at the door (off-screen).
+  const visitorGreetLeft = visitor
+    ? visitor.fromSide === "left"
+      ? `calc(${pos.left} - ${Math.round(spriteW * 1.0)}px)`
+      : `calc(${pos.left} + ${Math.round(spriteW * 1.0)}px)`
+    : pos.left;
+  const visitorOffLeft = visitor?.fromSide === "left" ? "-12%" : "112%";
+  const visitorLeft =
+    visitor?.phase === "greet" ? visitorGreetLeft : visitor?.phase === "in" ? visitorGreetLeft : visitorOffLeft;
+  // Visitor faces the resident: from the LEFT door means walking right (+1),
+  // from the RIGHT door means walking left (-1). When greeting they keep
+  // facing the resident; when leaving they flip to head back to the door.
+  const visitorFacing: 1 | -1 =
+    visitor?.phase === "out"
+      ? visitor.fromSide === "left" ? -1 : 1
+      : visitor?.fromSide === "left" ? 1 : -1;
 
   return (
     <div
@@ -1034,6 +1126,62 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
           </>
         )}
       </div>
+
+      {/* Visitor — random guest who walks in every 20-50 minutes,
+          says "Ciao!" near the resident astronaut, then walks back
+          out. Same sprite as WalkingAstronaut, recolored via palette. */}
+      {visitor && (
+        <div
+          style={{
+            position: "absolute",
+            left: visitorLeft,
+            top: pos.top,
+            width: spriteW,
+            height: spriteW,
+            transform: "translate(-50%, -50%)",
+            transition: `left ${visitor.phase === "in" ? VISITOR_IN_MS : visitor.phase === "out" ? VISITOR_OUT_MS : 300}ms ease-in-out`,
+          }}
+        >
+          {/* Speech bubble — only during the greeting phase. */}
+          {visitor.phase === "greet" && (
+            <div
+              style={{
+                position: "absolute",
+                bottom: "100%",
+                left: "50%",
+                transform: "translate(-50%, -4px)",
+                background: "#fff",
+                color: "#0a1a3d",
+                fontFamily: "'Press Start 2P', monospace",
+                fontSize: Math.max(8, Math.round(spriteW * 0.18)),
+                padding: "4px 6px",
+                borderRadius: 4,
+                border: "2px solid #0a1a3d",
+                whiteSpace: "nowrap",
+                animation: "home-visitor-bubble 2s ease-in-out infinite",
+              }}
+            >
+              Ciao!
+            </div>
+          )}
+          <div style={{ transform: `scaleX(${visitorFacing})` }}>
+            {visitor.phase === "greet" ? (
+              // Standing still during greeting — small bob so they feel alive.
+              <div style={{ animation: "home-astro-bob 0.6s ease-in-out infinite" }}>
+                <PixelAstronaut
+                  pose="stand"
+                  width={spriteW}
+                  palette={VISITOR_PALETTES[visitor.paletteIdx]}
+                />
+              </div>
+            ) : (
+              <div style={{ animation: "home-astro-bob 0.5s ease-in-out infinite" }}>
+                <WalkingVisitor width={spriteW} palette={VISITOR_PALETTES[visitor.paletteIdx]!} />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Pet companion — Space Slime. Smoothly drifts with the astronaut. */}
       <div
