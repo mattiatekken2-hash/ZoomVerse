@@ -391,6 +391,86 @@ export function CoffeeSteam() {
   );
 }
 
+/** ─── PHASE 5 — Space Slime pet companion ──────────────────────────
+ *  A tiny green hovering creature that lives in the room with the
+ *  astronaut. Two eyes, a single antenna with a yellow spark, and a
+ *  gentle vertical bob to suggest hovering. State drives the eyes /
+ *  mouth so it can sleep, eat or just look around. */
+export function PixelPet({
+  state = "idle",
+  width = 32,
+}: {
+  state?: "idle" | "sleep" | "eat";
+  width?: number;
+}) {
+  // Sprite is 8 wide × 7 tall (1 antenna row + 6 body rows).
+  const height = Math.round((width * 7) / 8);
+  const body = "#6dd66d";
+  const bodyShade = "#3da33d";
+  const eye = "#0a1a3d";
+  const eyeShine = "#ffffff";
+  const spark = "#ffd740";
+  return (
+    <div
+      style={{
+        position: "relative",
+        width,
+        height: height + 6,
+        animation: "home-pet-float 2.4s ease-in-out infinite",
+      }}
+    >
+      <svg
+        viewBox="0 0 8 7"
+        width={width}
+        height={height}
+        style={{ imageRendering: "pixelated", display: "block" }}
+      >
+        {/* Antenna spark + stem */}
+        <rect x="3" y="0" width="2" height="1" fill={spark} />
+        <rect x="3" y="1" width="1" height="1" fill={bodyShade} />
+        {/* Body — rounded blob */}
+        <rect x="2" y="2" width="4" height="1" fill={body} />
+        <rect x="1" y="3" width="6" height="1" fill={body} />
+        <rect x="0" y="4" width="8" height="2" fill={body} />
+        <rect x="1" y="6" width="6" height="1" fill={bodyShade} />
+        {/* Eyes */}
+        {state === "sleep" ? (
+          <>
+            <rect x="2" y="4" width="2" height="1" fill={bodyShade} />
+            <rect x="4" y="4" width="2" height="1" fill={bodyShade} />
+          </>
+        ) : (
+          <>
+            <rect x="2" y="4" width="1" height="1" fill={eye} />
+            <rect x="5" y="4" width="1" height="1" fill={eye} />
+            {/* Tiny shine on the right eye */}
+            <rect x="5" y="4" width="1" height="1" fill={eyeShine} opacity="0.35" />
+          </>
+        )}
+        {/* Mouth — only when eating, a small dark chomp */}
+        {state === "eat" && <rect x="3" y="5" width="2" height="1" fill={eye} />}
+      </svg>
+      {/* Floating "z" only when asleep */}
+      {state === "sleep" && (
+        <span
+          style={{
+            position: "absolute",
+            left: Math.round(width * 0.7),
+            top: -4,
+            fontSize: 9,
+            fontWeight: 900,
+            color: "#cfe2ff",
+            textShadow: "0 0 3px rgba(0,0,0,0.6)",
+            animation: "home-z-float 3.3s ease-in-out infinite",
+          }}
+        >
+          z
+        </span>
+      )}
+    </div>
+  );
+}
+
 /** Tiny "M" wing silhouette — a passing bird in the window sky. */
 export function PixelBird() {
   return (

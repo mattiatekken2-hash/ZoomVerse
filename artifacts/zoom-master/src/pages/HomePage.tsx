@@ -16,6 +16,7 @@ import {
   ExercisingAstronaut,
   DrinkingAstronaut,
   ShoweringAstronaut,
+  PixelPet,
 } from "../components/PixelAstronaut";
 import { useAstronautActivity } from "../hooks/useAstronautActivity";
 
@@ -712,6 +713,27 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
   };
   const pos = astroPos[activity];
 
+  // ── Phase 5: pet companion (Space Slime) ───────────────────────
+  // Pet position + state derive from the astronaut's activity so
+  // the two characters always read as a pair.
+  const petPos: Record<ReturnType<typeof useAstronautActivity>, { left: string; top: string }> = {
+    sleep: { left: "23%", top: "62%" },     // curled up at the foot of the bed
+    walk: { left: "35%", top: "88%" },      // trailing the astronaut
+    coffee: { left: "78%", top: "88%" },    // begging by the chair
+    snack: { left: "65%", top: "88%" },     // sharing the table snack
+    window: { left: "48%", top: "78%" },    // sitting by the astronaut at the window
+    exercise: { left: "55%", top: "88%" },  // watching the workout
+    fridge: { left: "72%", top: "88%" },    // tail of the astronaut at the fridge
+    shower: { left: "42%", top: "65%" },    // waiting outside the shower
+  };
+  const petState: "idle" | "sleep" | "eat" =
+    activity === "sleep" ? "sleep" :
+    activity === "snack" || activity === "fridge" || activity === "coffee" ? "eat" :
+    "idle";
+  const pet = petPos[activity];
+  // Pet ~45% the size of the astronaut so it reads as a small companion.
+  const petW = Math.max(22, Math.round(spriteW * 0.55));
+
   return (
     <div
       ref={overlayRef}
@@ -787,6 +809,21 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
         {activity === "exercise" && <ExercisingAstronaut width={spriteW} />}
         {activity === "fridge" && <DrinkingAstronaut width={spriteW} />}
         {activity === "shower" && <ShoweringAstronaut width={spriteW} />}
+      </div>
+
+      {/* Pet companion — Space Slime. Smoothly drifts with the astronaut. */}
+      <div
+        style={{
+          position: "absolute",
+          left: pet.left,
+          top: pet.top,
+          width: petW,
+          height: petW,
+          transform: "translate(-50%, -50%)",
+          transition: "left 0.8s ease, top 0.8s ease",
+        }}
+      >
+        <PixelPet state={petState} width={petW} />
       </div>
     </div>
   );

@@ -1034,3 +1034,14 @@
   50%, 90%  { transform: translateY(-2px); }
   100%      { transform: translateY(0); }
 }
+
+/* ─── HOME — pet float / blink (Space Slime companion) ──────────────
+   Gentle vertical bob that suggests hovering. Pure transform = GPU. */
+@keyframes home-pet-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+@keyframes home-pet-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  94%, 98%      { transform: scaleY(0.1); }
+}
