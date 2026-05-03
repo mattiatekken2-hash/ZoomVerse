@@ -16,7 +16,7 @@ interface PlanetOrbProps {
    *   0.20–0.50  well-worn      — clean but muted
    *   0.50–0.80  field-tested   — vivid, small glossy reflections appear
    *   0.80–1.00  pristine       — saturated, strong outer glow
-   *   ≥0.99      perfect        — adds 2 sparkles + faster rotation
+   *   ≥0.991     perfect        — adds 2 sparkles + faster rotation (top 1%)
    */
   displayFloat?: number;
 }
@@ -175,7 +175,7 @@ function PlanetOrbImpl({ planet, size = 60, animate = true, displayFloat }: Plan
     : 0;
 
   // Stage 4 (perfect): full sparkle + faster spin when essentially 1.000.
-  const isPerfect = f !== null && f >= 0.99;
+  const isPerfect = f !== null && f >= 0.991;
   const rotateDuration = isPerfect ? 7 : 10;
 
   return (
@@ -447,7 +447,7 @@ function PlanetOrbImpl({ planet, size = 60, animate = true, displayFloat }: Plan
           schedules so the planet always feels alive without ever
           showing more than ~2 sparkles at once. Pure CSS, GPU-friendly,
           pointer-events:none so they don't block the rename tap. */}
-      {/* Stage 4 (perfect, f ≥ 0.99) — two small ★ sparkles around the
+      {/* Stage 4 (perfect, f ≥ 0.991, top 1%) — two small ★ sparkles around the
           orb. Lighter than the V1_NFT four-sparkle treatment so the
           chrome NFT still feels in a class of its own. */}
       {isPerfect && animate && planet.name !== "V1_NFT" && (

@@ -391,7 +391,7 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
 
             const isPlatinumNft = planet.name === "V1_NFT";
             const planetFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
-            const isPerfectFloat = typeof planetFloat === "number" && planetFloat >= 0.99 && !expired;
+            const isPerfectFloat = typeof planetFloat === "number" && planetFloat >= 0.991 && !expired;
             return (
               <div
                 key={planet.id}
@@ -402,7 +402,7 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
                     : isPerfectFloat
                     ? "rgba(255,215,0,0.10)"
                     : isListed ? "rgba(255,215,0,0.3)" : expired ? "rgba(255,255,255,0.08)" : planet.color + "40",
-                  // Perfect-float (≥0.99): warm gold gradient so the whole
+                  // Perfect-float (≥0.991, top 1%): warm gold gradient so the whole
                   // card reads as "premium" beyond just the rotating ring.
                   background: isPerfectFloat
                     ? "linear-gradient(135deg, rgba(255,215,0,0.18) 0%, rgba(255,170,40,0.10) 45%, rgba(20,12,4,0.85) 100%)"

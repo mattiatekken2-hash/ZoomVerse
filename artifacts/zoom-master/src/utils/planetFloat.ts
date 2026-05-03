@@ -71,10 +71,11 @@ export interface FloatTier {
   color: string;
 }
 export function getFloatTier(value: number): FloatTier {
-  // Perfect is now the top 1% (≥0.99) so it lines up with the in-orb
-  // sparkle/gold-card-glow trigger. Pristine covers the 0.80–0.99 band.
-  if (value >= 0.99) return { label: "Perfect",        short: "PFCT", color: "#ffd700" };
-  if (value >= 0.80) return { label: "Pristine",       short: "PRST", color: "#00f2fe" };
+  // Perfect is the top 1% (≥0.991 → 10/1001 ≈ 0.999%) so it lines up
+  // with the in-orb sparkle/gold-card-glow trigger. Pristine covers
+  // the 0.80–0.991 band.
+  if (value >= 0.991) return { label: "Perfect",        short: "PFCT", color: "#ffd700" };
+  if (value >= 0.80)  return { label: "Pristine",       short: "PRST", color: "#00f2fe" };
   if (value >= 0.50) return { label: "Field-Tested",   short: "FT",   color: "#4facfe" };
   if (value >= 0.20) return { label: "Well-Worn",      short: "WW",   color: "#c471ed" };
   return                     { label: "Battle-Scarred", short: "BS",  color: "#ff5252" };
