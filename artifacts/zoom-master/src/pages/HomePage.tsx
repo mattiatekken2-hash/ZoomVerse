@@ -1436,10 +1436,16 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
         position: "relative",
         width: "100%",
         height: "100%",
-        perspective: persp ? `${PERSPECTIVE_PX}px` : "none",
+        // Perspective is ALWAYS on (even in flat mode) so toggling
+        // between modes doesn't cause a flash: the back-wall plane
+        // can smoothly animate its translateZ from 0 → -ROOM_DEPTH_PX
+        // and back. With no translateZ in flat mode the scene looks
+        // identical to a non-3D render.
+        perspective: `${PERSPECTIVE_PX}px`,
         perspectiveOrigin: "50% 50%",
         overflow: "hidden",
         background: persp ? "#0a0e1a" : "transparent",
+        transition: "background 700ms ease",
       }}
     >
       {/* 3D stage — preserves child transforms in 3D space so the
@@ -1832,6 +1838,7 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
                 "repeating-linear-gradient(0deg, #5b3a22 0px, #5b3a22 28px, #4a2f1c 28px, #4a2f1c 30px)",
               boxShadow: "inset 0 0 60px rgba(0,0,0,0.55)",
               backfaceVisibility: "hidden",
+              pointerEvents: "none",
             }}
           />
           {/* Ceiling — hinged along the top edge of the viewport. */}
@@ -1849,6 +1856,7 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
                 "linear-gradient(180deg, #1a1730 0%, #2a2540 100%)",
               boxShadow: "inset 0 0 60px rgba(0,0,0,0.4)",
               backfaceVisibility: "hidden",
+              pointerEvents: "none",
             }}
           />
           {/* Left wall — hinged along the left edge of the viewport. */}
@@ -1866,6 +1874,7 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
                 "linear-gradient(90deg, #2f2a4a 0%, #1f1b35 100%)",
               boxShadow: "inset 0 0 60px rgba(0,0,0,0.4)",
               backfaceVisibility: "hidden",
+              pointerEvents: "none",
             }}
           />
           {/* Right wall — hinged along the right edge of the viewport. */}
@@ -1883,6 +1892,7 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
                 "linear-gradient(270deg, #2f2a4a 0%, #1f1b35 100%)",
               boxShadow: "inset 0 0 60px rgba(0,0,0,0.4)",
               backfaceVisibility: "hidden",
+              pointerEvents: "none",
             }}
           />
         </>
