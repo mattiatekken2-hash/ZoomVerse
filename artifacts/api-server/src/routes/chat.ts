@@ -117,20 +117,23 @@ router.post("/chat/send", async (req, res) => {
     return;
   }
 
-  // ── Defense-in-depth identity check (Phase 5b hardening). ──────────
+  // ── Identity check (Phase 5b — pragmatic). ────────────────────────
   // The global PROTECTED_ROUTES middleware enforces telegramId binding
-  // ONLY when TG_AUTH_MODE === "strict". The default project mode is
-  // "soft", which would let a forged telegramId reach this handler and
-  // post under another user's name — unacceptable for chat trust.
-  // Here we require a verified initData identity that matches the body
-  // telegramId, regardless of global mode. Reads (`GET /chat/messages`)
-  // remain fully public — only the write side gets the hard check.
+  // ONLY when TG_AUTH_MODE === "strict". The project default is "soft"
+  // because some Telegram clients produce initData with `signature`
+  // ed25519 fields that our HMAC verifier cannot validate (same issue
+  // documented for /lottery/state). Rejecting all of them would lock
+  // out a non-trivial slice of real users from chat.
+  //
+  // Compromise: ANTI-IMPERSONATION ONLY. If we DO have a verified
+  // identity from initData and it does NOT match the body telegramId,
+  // we reject (a verified user cannot post under another user's name).
+  // If we don't have a verified identity (HMAC failed for known reasons),
+  // we accept the body telegramId — exactly the soft-auth policy used
+  // by every other write endpoint in this codebase. The blast radius
+  // is bounded by the per-user 3s cooldown and the 200-char cap.
   const verifiedId = req.tgUser?.id ? String(req.tgUser.id) : "";
-  if (!verifiedId) {
-    res.status(401).json({ ok: false, error: "AUTH_REQUIRED" });
-    return;
-  }
-  if (verifiedId !== telegramId) {
+  if (verifiedId && verifiedId !== telegramId) {
     res.status(403).json({ ok: false, error: "ID_MISMATCH" });
     return;
   }
