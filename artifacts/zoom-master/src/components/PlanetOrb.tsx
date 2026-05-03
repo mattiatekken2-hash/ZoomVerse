@@ -447,41 +447,11 @@ function PlanetOrbImpl({ planet, size = 60, animate = true, displayFloat }: Plan
           schedules so the planet always feels alive without ever
           showing more than ~2 sparkles at once. Pure CSS, GPU-friendly,
           pointer-events:none so they don't block the rename tap. */}
-      {/* Stage 4 (perfect, f = 1.000 only) — two small ★ sparkles around the
-          orb. Lighter than the V1_NFT four-sparkle treatment so the
-          chrome NFT still feels in a class of its own. */}
-      {isPerfect && animate && planet.name !== "V1_NFT" && (
-        <>
-          {[
-            { top: "-6%", left: "70%", size: 0.18, anim: "nft-sparkle-1 2.8s ease-in-out infinite", delay: "0s"   },
-            { top: "70%", left: "-4%", size: 0.16, anim: "nft-sparkle-3 3.1s ease-in-out infinite", delay: "1.1s" },
-          ].map((sp, i) => (
-            <div
-              key={`perfect-sp-${i}`}
-              style={{
-                position: "absolute",
-                top: sp.top,
-                left: sp.left,
-                width: size * sp.size,
-                height: size * sp.size,
-                pointerEvents: "none",
-                color: "#ffffff",
-                fontSize: size * sp.size,
-                lineHeight: 1,
-                textShadow: `0 0 6px ${c}cc, 0 0 12px ${c}66`,
-                animation: sp.anim,
-                animationDelay: sp.delay,
-                zIndex: 2,
-                fontWeight: 900,
-                userSelect: "none",
-              }}
-              aria-hidden="true"
-            >
-              ★
-            </div>
-          ))}
-        </>
-      )}
+      {/* Stage 4 (perfect, f = 1.000 only) — sparkles intentionally
+          removed. The Perfect tier still keeps its faster orb rotation
+          and the gold card glow / rotating ring on the surrounding
+          card; the orb itself stays clean so the V1 NFT remains the
+          only planet with overlay ★ particles. */}
       {/* V1 NFT Platinum — pulsing platinum light. Replaces the old four
           ★ sparkles. A soft chrome-blue halo behind the orb pulses in
           opacity + scale so the planet itself "breathes light", which
