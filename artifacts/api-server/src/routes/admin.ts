@@ -421,6 +421,33 @@ router.post("/admin/grant-v1", async (req, res) => {
   }
 });
 
+// Admin grant V1 NFT Platinum Edition: bypassa il cap globale di 5
+// (gli admin grant sono override intenzionali, stesso pattern di grant-v1).
+// Incrementa bonus_v1_nft_platinum così il client materializza il pianeta
+// V1_NFT in inventory tramite applyGrants alla prossima sync.
+router.post("/admin/grant-v1-nft", async (req, res) => {
+  const parsed = RevokeCollectionBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+
+  try {
+    await db
+      .update(usersTable)
+      .set({
+        bonusV1NftPlatinum: sql`${usersTable.bonusV1NftPlatinum} + 1`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
+      .where(eq(usersTable.telegramId, telegramId));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/grant-v1-nft] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 router.post("/admin/global-bonus", async (req, res) => {
   const parsed = GlobalBonusBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });

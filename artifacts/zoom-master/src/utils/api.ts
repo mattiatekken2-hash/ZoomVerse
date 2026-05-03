@@ -987,6 +987,17 @@ export async function adminGrantV1(adminId: string, telegramId: string): Promise
   } catch { return false; }
 }
 
+export async function adminGrantV1Nft(adminId: string, telegramId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/grant-v1-nft`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, telegramId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminRemoveZoom(adminId: string, telegramId: string, amount: number): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/remove-zoom`, {

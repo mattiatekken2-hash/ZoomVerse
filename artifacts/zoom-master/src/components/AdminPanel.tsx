@@ -11,6 +11,7 @@ import {
   adminRevokeWhiteCollection,
   adminRevokeEarthCollection,
   adminGrantV1,
+  adminGrantV1Nft,
   adminGrantAutoTap,
   adminTestWithdrawalChannel,
   adminFetchWithdrawals,
@@ -73,7 +74,7 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "revoke-white" | "revoke-earth" | "autotap" | "test-wd-chan" | "v1" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "revoke-white" | "revoke-earth" | "autotap" | "test-wd-chan" | "v1" | "v1nft" | null>(null);
   const [confirmBulkNebo, setConfirmBulkNebo] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [delistId, setDelistId] = useState("");
@@ -655,6 +656,37 @@ export function AdminPanel({ telegramId }: Props) {
                   }}
                 >
                   {loading === "v1" ? "..." : "✦ GRANT V1 (+1 su Rank)"}
+                </motion.button>
+
+                {/* Grant V1 NFT Platinum (bypassa cap globale) */}
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={async () => {
+                    haptic();
+                    const id = targetId.trim() || ADMIN_ID;
+                    setLoading("v1nft");
+                    const ok = await adminGrantV1Nft(telegramId, id);
+                    setLoading(null);
+                    if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+                    showFeedback(ok ? `✓ V1 NFT Platinum +1 accreditato a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(202,225,255,0.55)",
+                    background: "linear-gradient(135deg, rgba(202,225,255,0.14), rgba(126,168,224,0.10))",
+                    color: "#cfe4ff",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "opacity 0.15s",
+                    boxShadow: "0 0 14px rgba(202,225,255,0.25)",
+                  }}
+                >
+                  {loading === "v1nft" ? "..." : "◆ GRANT V1 NFT (+1 inventory)"}
                 </motion.button>
 
                 {/* Auto-Tap grant */}
