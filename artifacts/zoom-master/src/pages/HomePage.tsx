@@ -1444,8 +1444,12 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
         perspective: `${PERSPECTIVE_PX}px`,
         perspectiveOrigin: "50% 50%",
         overflow: "hidden",
-        background: persp ? "#0a0e1a" : "transparent",
-        transition: "background 700ms ease",
+        // Background is always dark — in FLAT mode the SVG covers the
+        // entire viewport so this colour is invisible; in 3D mode it
+        // fills the corner gaps where the wall planes don't reach.
+        // Keeping it constant prevents the colour-fade flash that
+        // happened when we transitioned bg between transparent ↔ dark.
+        background: "#0a0e1a",
       }}
     >
       {/* 3D stage — preserves child transforms in 3D space so the
@@ -1815,14 +1819,26 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
       </div>
       {/* End of back-wall plane. */}
 
-      {/* Floor / ceiling / side walls — drawn ONLY in perspective
-          mode. Each plane hinges along a viewport edge and rotates
-          90° to recede into the screen, meeting the back-wall plane
-          (at z = -ROOM_DEPTH_PX) along its far edge. Together they
-          form a closed corridor that gives the user a real
-          first-person sense of standing inside the apartment. */}
-      {persp && (
-        <>
+      {/* Floor / ceiling / side walls — ALWAYS mounted, but their
+          opacity fades in/out in sync with the back-wall transform
+          so toggling between modes is one smooth motion (no flash
+          from instant mount/unmount). Each plane hinges along a
+          viewport edge and rotates 90° to recede into the screen,
+          meeting the back-wall plane (at z = -ROOM_DEPTH_PX) along
+          its far edge. Together they form a closed corridor that
+          gives the user a real first-person sense of standing
+          inside the apartment. */}
+      <div
+        aria-hidden
+        style={{
+          position: "absolute",
+          inset: 0,
+          transformStyle: "preserve-3d",
+          opacity: persp ? 1 : 0,
+          transition: "opacity 700ms cubic-bezier(0.22, 1, 0.36, 1)",
+          pointerEvents: "none",
+        }}
+      >
           {/* Floor — hinged along the bottom edge of the viewport. */}
           <div
             aria-hidden
@@ -1895,8 +1911,8 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
               pointerEvents: "none",
             }}
           />
-        </>
-      )}
+      </div>
+      {/* End of corridor planes wrapper. */}
       </div>
       {/* End of 3D stage. */}
 
