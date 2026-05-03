@@ -2743,7 +2743,7 @@ export function useGameState() {
       // one entitlement on the server. Otherwise the next /grants poll will
       // see entitlement > claimed and silently re-add the burned planet.
       const isBonusPlanet = planet.id.startsWith(`bonus-${planet.name}-`);
-      if (isBonusPlanet && prev.telegramId && (planet.name === "BASIC" || planet.name === "RARE" || planet.name === "EPIC" || planet.name === "GOLD")) {
+      if (isBonusPlanet && prev.telegramId && (planet.name === "BASIC" || planet.name === "RARE" || planet.name === "EPIC" || planet.name === "MYTHIC" || planet.name === "GOLD")) {
         notifyPlanetBurn(prev.telegramId, planet.name);
       }
       const refund = Math.floor(planet.craftCost * 0.15);
