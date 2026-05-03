@@ -399,13 +399,19 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
                   borderColor: isPlatinumNft
                     ? "rgba(220,232,255,0.10)"
                     : isPerfectFloat
-                    ? planet.color + "20"
+                    ? "rgba(255,215,0,0.10)"
                     : isListed ? "rgba(255,215,0,0.3)" : expired ? "rgba(255,255,255,0.08)" : planet.color + "40",
-                  background: `linear-gradient(135deg, ${planet.color}0d 0%, rgba(6,8,16,0.6) 100%)`,
+                  // Perfect-float (≥0.99): warm gold gradient so the whole
+                  // card reads as "premium" beyond just the rotating ring.
+                  background: isPerfectFloat
+                    ? "linear-gradient(135deg, rgba(255,215,0,0.18) 0%, rgba(255,170,40,0.10) 45%, rgba(20,12,4,0.85) 100%)"
+                    : `linear-gradient(135deg, ${planet.color}0d 0%, rgba(6,8,16,0.6) 100%)`,
                   // Single, smaller shadow. The previous double 60px halo was
                   // a major cause of dropped repaints during scroll on Android
                   // Telegram WebView (cards going visually "empty" mid-scroll).
-                  boxShadow: active ? `0 0 18px ${planet.color}26` : `0 0 10px ${planet.color}10`,
+                  boxShadow: isPerfectFloat
+                    ? "0 0 22px rgba(255,215,0,0.35)"
+                    : active ? `0 0 18px ${planet.color}26` : `0 0 10px ${planet.color}10`,
                   // Promote each card to its own GPU layer so its painted
                   // content is cached as a texture and survives fast scrolls
                   // without being re-rasterised every frame. NOTE: no

@@ -418,9 +418,12 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
                   borderColor: isPlatinumNft
                     ? "rgba(220,232,255,0.10)"
                     : isPerfectFloat
-                    ? rarityColor + "20"
+                    ? "rgba(255,215,0,0.10)"
                     : isOwn ? "rgba(255,215,0,0.3)" : rarityColor + "28",
-                  background: `linear-gradient(135deg, ${rarityColor}07 0%, rgba(6,8,16,0.65) 100%)`,
+                  background: isPerfectFloat
+                    ? "linear-gradient(135deg, rgba(255,215,0,0.18) 0%, rgba(255,170,40,0.10) 45%, rgba(20,12,4,0.85) 100%)"
+                    : `linear-gradient(135deg, ${rarityColor}07 0%, rgba(6,8,16,0.65) 100%)`,
+                  boxShadow: isPerfectFloat ? "0 0 22px rgba(255,215,0,0.35)" : undefined,
                 }}
                 data-testid={`listing-${listing.id}`}
               >
