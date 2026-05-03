@@ -141,6 +141,27 @@ export const usersTable = pgTable("users", {
   computerOwnedAt: timestamp("computer_owned_at"),
   computerLastClaimAt: timestamp("computer_last_claim_at"),
 
+  // ─────────────────────────────────────────────────────────────────────
+  // PLANT item (sold in Shop for 10,000 stardust): a virtual pixel-art
+  // plant the user grows by watering. 10 levels (1=seed → 10=Stellar
+  // Plant). Each watering costs 100 stardust, gives +10 XP, with a
+  // 12h cooldown. 100 XP per level → exactly 10 waterings per level.
+  //
+  // Once the plant reaches level 10 it stops accepting water and starts
+  // generating 0.1 TON every 30 days, claimable on demand (mirrors the
+  // computer claim flow). On the 9→10 transition we stamp
+  // `plantLastClaimAt = NOW()` so the first TON drop is exactly 30 days
+  // after maturing, not instant.
+  //
+  // All five columns are NULL/default for a user that hasn't bought the
+  // seed yet (`plantOwnedAt IS NULL` is the cheapest "owned?" check).
+  // ─────────────────────────────────────────────────────────────────────
+  plantOwnedAt: timestamp("plant_owned_at"),
+  plantLevel: integer("plant_level").notNull().default(1),
+  plantXp: integer("plant_xp").notNull().default(0),
+  plantLastWaterAt: timestamp("plant_last_water_at"),
+  plantLastClaimAt: timestamp("plant_last_claim_at"),
+
   // Monotonic write-time used to fence out stale saves of `planets_json`.
   // The save endpoint rejects any incoming write whose `client_write_at_ms`
   // is <= the stored value. Using the client's clock is fine because a

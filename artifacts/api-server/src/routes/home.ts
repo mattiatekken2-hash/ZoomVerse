@@ -27,11 +27,26 @@ const COMPUTER_COST = 5000;           // stardust
 const COMPUTER_REWARD = 25;           // stardust per claim
 const COMPUTER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
+// PLANT — virtual pixel-art plant that the user grows by watering.
+// 10 levels, +10 XP per watering, 100 XP per level → 10 waterings per
+// level → 90 waterings total to reach level 10 (~45 days at 1/12h).
+// At level 10 it stops accepting water and starts generating 0.1 TON
+// every 30 days, claimed manually (same UX as the computer claim).
+const PLANT_SEED_COST = 10000;        // stardust
+const PLANT_WATER_COST = 100;         // stardust per watering
+const PLANT_WATER_COOLDOWN_MS = 12 * 60 * 60 * 1000;
+const PLANT_XP_PER_WATER = 10;
+const PLANT_XP_PER_LEVEL = 100;
+const PLANT_MAX_LEVEL = 10;
+const PLANT_TON_REWARD = 0.1;         // TON per claim once mature
+const PLANT_CLAIM_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
 // Whitelist of item ids that can occupy a HOME slot. Each id maps to a
 // "do you own it?" predicate so /home/slot/place can refuse to display
 // an item the user hasn't purchased.
 const SLOT_ITEMS: Record<string, { ownedColumn: keyof typeof usersTable._.columns | null }> = {
   computer: { ownedColumn: "computerOwnedAt" },
+  plant: { ownedColumn: "plantOwnedAt" },
 };
 const VALID_SLOTS = ["A", "B", "C"] as const;
 type Slot = (typeof VALID_SLOTS)[number];
@@ -59,6 +74,11 @@ router.get("/home/state/:telegramId", async (req, res) => {
         homeSlotC: usersTable.homeSlotC,
         computerOwnedAt: usersTable.computerOwnedAt,
         computerLastClaimAt: usersTable.computerLastClaimAt,
+        plantOwnedAt: usersTable.plantOwnedAt,
+        plantLevel: usersTable.plantLevel,
+        plantXp: usersTable.plantXp,
+        plantLastWaterAt: usersTable.plantLastWaterAt,
+        plantLastClaimAt: usersTable.plantLastClaimAt,
         sunCount: usersTable.sunCount,
         stardustBalance: usersTable.stardustBalance,
       })
@@ -75,6 +95,25 @@ router.get("/home/state/:telegramId", async (req, res) => {
     const owned = row.computerOwnedAt != null;
     const nextReadyAt = owned ? lastClaim + COMPUTER_COOLDOWN_MS : 0;
     const secondsToReady = owned ? Math.max(0, Math.ceil((nextReadyAt - now) / 1000)) : 0;
+
+    // PLANT derived state. waterReadyAt = lastWaterAt + 12h, or NOW
+    // when the user has never watered (first watering is immediate).
+    // claimReadyAt only matters at level 10 — before that the field is
+    // typically NULL so we keep it at 0 (UI hides the claim block).
+    const plantOwned = row.plantOwnedAt != null;
+    const plantLevel = row.plantLevel ?? 1;
+    const plantXp = row.plantXp ?? 0;
+    const plantLastWater = row.plantLastWaterAt ? new Date(row.plantLastWaterAt).getTime() : 0;
+    const plantLastClaim = row.plantLastClaimAt ? new Date(row.plantLastClaimAt).getTime() : 0;
+    const waterNextReadyAt = plantLastWater === 0 ? now : plantLastWater + PLANT_WATER_COOLDOWN_MS;
+    const secondsToWater = plantOwned && plantLevel < PLANT_MAX_LEVEL
+      ? Math.max(0, Math.ceil((waterNextReadyAt - now) / 1000))
+      : 0;
+    const claimNextReadyAt = plantLastClaim === 0 ? 0 : plantLastClaim + PLANT_CLAIM_COOLDOWN_MS;
+    const secondsToClaim = plantOwned && plantLevel >= PLANT_MAX_LEVEL && plantLastClaim > 0
+      ? Math.max(0, Math.ceil((claimNextReadyAt - now) / 1000))
+      : 0;
+
     res.json({
       ok: true,
       unlocked: row.homeUnlocked,
@@ -92,6 +131,31 @@ router.get("/home/state/:telegramId", async (req, res) => {
         cost: COMPUTER_COST,
         rewardPerClaim: COMPUTER_REWARD,
         cooldownMs: COMPUTER_COOLDOWN_MS,
+      },
+      plant: {
+        owned: plantOwned,
+        level: plantLevel,
+        xp: plantXp,
+        xpPerLevel: PLANT_XP_PER_LEVEL,
+        xpPerWater: PLANT_XP_PER_WATER,
+        maxLevel: PLANT_MAX_LEVEL,
+        ownedAt: row.plantOwnedAt,
+        lastWaterAt: row.plantLastWaterAt,
+        lastClaimAt: row.plantLastClaimAt,
+        waterNextReadyAt: plantOwned && plantLevel < PLANT_MAX_LEVEL ? waterNextReadyAt : 0,
+        secondsToWater,
+        waterReady: plantOwned && plantLevel < PLANT_MAX_LEVEL && secondsToWater === 0,
+        waterCost: PLANT_WATER_COST,
+        waterCooldownMs: PLANT_WATER_COOLDOWN_MS,
+        claimNextReadyAt,
+        secondsToClaim,
+        claimReady: plantOwned && plantLevel >= PLANT_MAX_LEVEL && plantLastClaim > 0 && secondsToClaim === 0,
+        tonPerClaim: PLANT_TON_REWARD,
+        claimCooldownMs: PLANT_CLAIM_COOLDOWN_MS,
+        // TON/sec accrual rate at level 10 (display-only — actual payout
+        // is the lump-sum on claim every 30d, not per-second).
+        tonPerSecond: PLANT_TON_REWARD / (PLANT_CLAIM_COOLDOWN_MS / 1000),
+        seedCost: PLANT_SEED_COST,
       },
     });
   } catch (err) {
@@ -349,12 +413,13 @@ router.post("/home/slot/place", async (req, res) => {
       setObj[col] = sql`CASE WHEN ${slotColumn(s)} = ${itemId} THEN NULL ELSE ${slotColumn(s)} END`;
     }
 
-    // Ownership predicate. Right now the only item is "computer", whose
-    // ownership is `computer_owned_at IS NOT NULL`. Future items extend
-    // this switch.
+    // Ownership predicate. Each placeable item maps to its "owned?"
+    // SQL predicate. Future items extend this switch.
     let ownership = sql`TRUE`;
     if (itemId === "computer") {
       ownership = sql`${usersTable.computerOwnedAt} IS NOT NULL`;
+    } else if (itemId === "plant") {
+      ownership = sql`${usersTable.plantOwnedAt} IS NOT NULL`;
     }
 
     const updated = await db
@@ -392,6 +457,17 @@ router.post("/home/slot/place", async (req, res) => {
       if (itemId === "computer" && existing[0]!.computerOwnedAt == null) {
         res.status(409).json({ ok: false, error: "ITEM_NOT_OWNED" });
         return;
+      }
+      if (itemId === "plant") {
+        const ownerCheck = await db
+          .select({ plantOwnedAt: usersTable.plantOwnedAt })
+          .from(usersTable)
+          .where(eq(usersTable.telegramId, telegramId))
+          .limit(1);
+        if (ownerCheck[0] && ownerCheck[0].plantOwnedAt == null) {
+          res.status(409).json({ ok: false, error: "ITEM_NOT_OWNED" });
+          return;
+        }
       }
       res.status(500).json({ ok: false, error: "UNKNOWN" });
       return;
@@ -444,6 +520,276 @@ router.post("/home/slot/clear", async (req, res) => {
   }
 });
 
+// ─── POST /home/plant/buy ───────────────────────────────────────────────
+// Single atomic UPDATE: only lands when the user does not yet own a
+// plant AND has at least 10,000 stardust. Same statement debits the
+// cost, sets plantOwnedAt=NOW, plantLevel=1, plantXp=0, and leaves
+// plantLastWaterAt NULL so the very first watering is immediately
+// available (no 12h wait at level 1).
+router.post("/home/plant/buy", async (req, res) => {
+  const parsed = TgIdBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ ok: false, error: "BAD_REQUEST" });
+    return;
+  }
+  const { telegramId } = parsed.data;
+  try {
+    const updated = await db
+      .update(usersTable)
+      .set({
+        plantOwnedAt: sql`NOW()`,
+        plantLevel: 1,
+        plantXp: 0,
+        plantLastWaterAt: null,
+        plantLastClaimAt: null,
+        stardustBalance: sql`${usersTable.stardustBalance} - ${PLANT_SEED_COST}`,
+      })
+      .where(
+        sql`
+          ${usersTable.telegramId} = ${telegramId}
+          AND ${usersTable.plantOwnedAt} IS NULL
+          AND ${usersTable.stardustBalance} >= ${PLANT_SEED_COST}
+        `,
+      )
+      .returning({
+        stardustBalance: usersTable.stardustBalance,
+        plantOwnedAt: usersTable.plantOwnedAt,
+      });
+    if (updated.length === 0) {
+      const existing = await db
+        .select({
+          plantOwnedAt: usersTable.plantOwnedAt,
+          stardustBalance: usersTable.stardustBalance,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.telegramId, telegramId))
+        .limit(1);
+      if (existing.length === 0) {
+        res.status(404).json({ ok: false, error: "USER_NOT_FOUND" });
+        return;
+      }
+      const e = existing[0]!;
+      if (e.plantOwnedAt != null) {
+        res.status(409).json({ ok: false, error: "ALREADY_OWNED" });
+        return;
+      }
+      if ((e.stardustBalance ?? 0) < PLANT_SEED_COST) {
+        res.status(409).json({
+          ok: false,
+          error: "NOT_ENOUGH_STARDUST",
+          have: e.stardustBalance ?? 0,
+          need: PLANT_SEED_COST,
+        });
+        return;
+      }
+      res.status(500).json({ ok: false, error: "UNKNOWN" });
+      return;
+    }
+    console.log(`[home/plant/buy] ${telegramId} bought PLANT SEED (-${PLANT_SEED_COST} stardust)`);
+    res.json({
+      ok: true,
+      stardustBalance: updated[0]!.stardustBalance,
+      plantOwnedAt: updated[0]!.plantOwnedAt,
+    });
+  } catch (err) {
+    console.error("[home/plant/buy] error:", err);
+    res.status(500).json({ ok: false, error: "INTERNAL" });
+  }
+});
+
+// ─── POST /home/plant/water ─────────────────────────────────────────────
+// Single atomic UPDATE that:
+//   • debits 100 stardust
+//   • adds +10 XP (resets to 0 on level-up; +10 always lands ≤100, no overshoot)
+//   • bumps the level when XP would reach 100
+//   • on the 9→10 transition, stamps plantLastClaimAt = NOW so the first
+//     0.1 TON drop is exactly 30 days after maturing
+//   • stamps plantLastWaterAt = NOW
+//
+// Guards: plant owned, level < 10, ≥100 stardust, water cooldown elapsed
+// (or NULL — first watering is always free of cooldown). Concurrent
+// double-taps cannot land twice because the cooldown predicate sees the
+// just-stamped NOW() in the same UPDATE.
+router.post("/home/plant/water", async (req, res) => {
+  const parsed = TgIdBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ ok: false, error: "BAD_REQUEST" });
+    return;
+  }
+  const { telegramId } = parsed.data;
+  try {
+    const updated = await db
+      .update(usersTable)
+      .set({
+        stardustBalance: sql`${usersTable.stardustBalance} - ${PLANT_WATER_COST}`,
+        plantXp: sql`CASE WHEN ${usersTable.plantXp} + ${PLANT_XP_PER_WATER} >= ${PLANT_XP_PER_LEVEL} THEN 0 ELSE ${usersTable.plantXp} + ${PLANT_XP_PER_WATER} END`,
+        plantLevel: sql`CASE WHEN ${usersTable.plantXp} + ${PLANT_XP_PER_WATER} >= ${PLANT_XP_PER_LEVEL} THEN ${usersTable.plantLevel} + 1 ELSE ${usersTable.plantLevel} END`,
+        plantLastWaterAt: sql`NOW()`,
+        // Stamp the claim anchor exactly when the plant transitions
+        // 9→10, so the first TON claim unlocks 30 days later.
+        plantLastClaimAt: sql`CASE
+          WHEN ${usersTable.plantXp} + ${PLANT_XP_PER_WATER} >= ${PLANT_XP_PER_LEVEL}
+            AND ${usersTable.plantLevel} + 1 >= ${PLANT_MAX_LEVEL}
+          THEN NOW()
+          ELSE ${usersTable.plantLastClaimAt}
+        END`,
+      })
+      .where(
+        sql`
+          ${usersTable.telegramId} = ${telegramId}
+          AND ${usersTable.plantOwnedAt} IS NOT NULL
+          AND ${usersTable.plantLevel} < ${PLANT_MAX_LEVEL}
+          AND ${usersTable.stardustBalance} >= ${PLANT_WATER_COST}
+          AND (
+            ${usersTable.plantLastWaterAt} IS NULL
+            OR (EXTRACT(EPOCH FROM (NOW() - ${usersTable.plantLastWaterAt})) * 1000) >= ${PLANT_WATER_COOLDOWN_MS}
+          )
+        `,
+      )
+      .returning({
+        stardustBalance: usersTable.stardustBalance,
+        plantLevel: usersTable.plantLevel,
+        plantXp: usersTable.plantXp,
+        plantLastWaterAt: usersTable.plantLastWaterAt,
+        plantLastClaimAt: usersTable.plantLastClaimAt,
+      });
+    if (updated.length === 0) {
+      // Disambiguate the failure for friendly UI.
+      const existing = await db
+        .select({
+          plantOwnedAt: usersTable.plantOwnedAt,
+          plantLevel: usersTable.plantLevel,
+          plantLastWaterAt: usersTable.plantLastWaterAt,
+          stardustBalance: usersTable.stardustBalance,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.telegramId, telegramId))
+        .limit(1);
+      if (existing.length === 0) {
+        res.status(404).json({ ok: false, error: "USER_NOT_FOUND" });
+        return;
+      }
+      const e = existing[0]!;
+      if (e.plantOwnedAt == null) {
+        res.status(409).json({ ok: false, error: "NOT_OWNED" });
+        return;
+      }
+      if ((e.plantLevel ?? 1) >= PLANT_MAX_LEVEL) {
+        res.status(409).json({ ok: false, error: "MAX_LEVEL" });
+        return;
+      }
+      if ((e.stardustBalance ?? 0) < PLANT_WATER_COST) {
+        res.status(409).json({
+          ok: false,
+          error: "NOT_ENOUGH_STARDUST",
+          have: e.stardustBalance ?? 0,
+          need: PLANT_WATER_COST,
+        });
+        return;
+      }
+      const lastWater = e.plantLastWaterAt ? new Date(e.plantLastWaterAt).getTime() : 0;
+      const secondsToReady = Math.max(
+        0,
+        Math.ceil((lastWater + PLANT_WATER_COOLDOWN_MS - Date.now()) / 1000),
+      );
+      res.status(409).json({ ok: false, error: "NOT_READY", secondsToReady });
+      return;
+    }
+    const row = updated[0]!;
+    console.log(
+      `[home/plant/water] ${telegramId} watered plant → L${row.plantLevel} (${row.plantXp}/${PLANT_XP_PER_LEVEL} xp)`,
+    );
+    res.json({
+      ok: true,
+      stardustBalance: row.stardustBalance,
+      plantLevel: row.plantLevel,
+      plantXp: row.plantXp,
+      plantLastWaterAt: row.plantLastWaterAt,
+      plantLastClaimAt: row.plantLastClaimAt,
+      leveledUp: row.plantXp === 0,
+      maxedOut: row.plantLevel >= PLANT_MAX_LEVEL,
+    });
+  } catch (err) {
+    console.error("[home/plant/water] error:", err);
+    res.status(500).json({ ok: false, error: "INTERNAL" });
+  }
+});
+
+// ─── POST /home/plant/claim ─────────────────────────────────────────────
+// Atomic: only lands when plant is at level 10 AND plantLastClaimAt is
+// at least 30 days ago. Same UPDATE credits +0.1 TON to ton_balance and
+// resets the 30-day cooldown anchor.
+router.post("/home/plant/claim", async (req, res) => {
+  const parsed = TgIdBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ ok: false, error: "BAD_REQUEST" });
+    return;
+  }
+  const { telegramId } = parsed.data;
+  try {
+    const updated = await db
+      .update(usersTable)
+      .set({
+        tonBalance: sql`${usersTable.tonBalance} + ${PLANT_TON_REWARD}`,
+        plantLastClaimAt: sql`NOW()`,
+      })
+      .where(
+        sql`
+          ${usersTable.telegramId} = ${telegramId}
+          AND ${usersTable.plantOwnedAt} IS NOT NULL
+          AND ${usersTable.plantLevel} >= ${PLANT_MAX_LEVEL}
+          AND ${usersTable.plantLastClaimAt} IS NOT NULL
+          AND (EXTRACT(EPOCH FROM (NOW() - ${usersTable.plantLastClaimAt})) * 1000) >= ${PLANT_CLAIM_COOLDOWN_MS}
+        `,
+      )
+      .returning({
+        tonBalance: usersTable.tonBalance,
+        plantLastClaimAt: usersTable.plantLastClaimAt,
+      });
+    if (updated.length === 0) {
+      const existing = await db
+        .select({
+          plantOwnedAt: usersTable.plantOwnedAt,
+          plantLevel: usersTable.plantLevel,
+          plantLastClaimAt: usersTable.plantLastClaimAt,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.telegramId, telegramId))
+        .limit(1);
+      if (existing.length === 0) {
+        res.status(404).json({ ok: false, error: "USER_NOT_FOUND" });
+        return;
+      }
+      const e = existing[0]!;
+      if (e.plantOwnedAt == null) {
+        res.status(409).json({ ok: false, error: "NOT_OWNED" });
+        return;
+      }
+      if ((e.plantLevel ?? 1) < PLANT_MAX_LEVEL) {
+        res.status(409).json({ ok: false, error: "NOT_MATURE", level: e.plantLevel ?? 1 });
+        return;
+      }
+      const lastClaim = e.plantLastClaimAt ? new Date(e.plantLastClaimAt).getTime() : 0;
+      const secondsToReady = Math.max(
+        0,
+        Math.ceil((lastClaim + PLANT_CLAIM_COOLDOWN_MS - Date.now()) / 1000),
+      );
+      res.status(409).json({ ok: false, error: "NOT_READY", secondsToReady });
+      return;
+    }
+    console.log(`[home/plant/claim] ${telegramId} claimed +${PLANT_TON_REWARD} TON from plant`);
+    res.json({
+      ok: true,
+      reward: PLANT_TON_REWARD,
+      tonBalance: updated[0]!.tonBalance,
+      plantLastClaimAt: updated[0]!.plantLastClaimAt,
+    });
+  } catch (err) {
+    console.error("[home/plant/claim] error:", err);
+    res.status(500).json({ ok: false, error: "INTERNAL" });
+  }
+});
+
 export default router;
 
 export {
@@ -451,4 +797,9 @@ export {
   COMPUTER_COST as _COMPUTER_COST,
   COMPUTER_REWARD as _COMPUTER_REWARD,
   COMPUTER_COOLDOWN_MS as _COMPUTER_COOLDOWN_MS,
+  PLANT_SEED_COST as _PLANT_SEED_COST,
+  PLANT_WATER_COST as _PLANT_WATER_COST,
+  PLANT_WATER_COOLDOWN_MS as _PLANT_WATER_COOLDOWN_MS,
+  PLANT_TON_REWARD as _PLANT_TON_REWARD,
+  PLANT_CLAIM_COOLDOWN_MS as _PLANT_CLAIM_COOLDOWN_MS,
 };

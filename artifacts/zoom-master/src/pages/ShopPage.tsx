@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
-import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase, fetchSunStock, pollTxnUntilFinal, fetchHomeState, buyComputer, type SunStock, type HomeState } from "../utils/api";
+import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase, fetchSunStock, pollTxnUntilFinal, fetchHomeState, buyComputer, buyPlantSeed, type SunStock, type HomeState } from "../utils/api";
+import { PixelPlant } from "../components/PixelPlant";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 
@@ -264,6 +265,32 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
     }
   };
 
+  // ─── PLANT SEED (stardust-priced) ───────────────────────────────────
+  // Same flow as the computer: a one-time buy that the player then places
+  // in a HOME slot. Hidden buy-button after purchase. The plant is grown
+  // through 10 levels of watering on the HOME page itself.
+  const plantOwned = !!home?.plant.owned;
+  const plantSeedCost = home?.plant.seedCost ?? 10000;
+  const canBuyPlant = !!telegramId && !plantOwned && stardustBalance >= plantSeedCost;
+  const handleBuyPlant = async () => {
+    if (!telegramId || !canBuyPlant) return;
+    setBuying("plant");
+    const r = await buyPlantSeed(telegramId);
+    setBuying(null);
+    if (r.ok) {
+      setMessage("PLANT SEED purchased!");
+      window.dispatchEvent(new Event("zoom-data-refresh"));
+      refreshHome();
+    } else if (r.error === "NOT_ENOUGH_STARDUST") {
+      setMessage(`Need ${r.need?.toLocaleString()} stardust (have ${r.have?.toLocaleString()})`);
+    } else if (r.error === "ALREADY_OWNED") {
+      setMessage("You already own a PLANT");
+      refreshHome();
+    } else {
+      setMessage("Purchase failed");
+    }
+  };
+
   return (
     <div className="flex flex-col h-full overflow-hidden relative">
       {message && (
@@ -428,6 +455,56 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
                   : stardustBalance < computerCost
                   ? `Need ${(computerCost - stardustBalance).toLocaleString()} more stardust`
                   : `BUY — ★ ${computerCost.toLocaleString()} STARDUST`}
+              </button>
+            </div>
+          </div>
+
+          {/* PLANT SEED — second stardust item. Same card pattern as the
+              computer; the player then grows it on the HOME page through
+              10 levels of watering until it produces 0.1 TON / 30 days. */}
+          <div
+            className="rounded-2xl border overflow-hidden"
+            style={{ borderColor: "rgba(0,230,118,0.30)", background: "rgba(0,230,118,0.04)" }}
+          >
+            <div className="flex items-center gap-4 p-4">
+              <div
+                className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center"
+                style={{ background: "rgba(0,230,118,0.12)", border: "1px solid rgba(0,230,118,0.30)" }}
+              >
+                {/* Show a level-1 seed in the pot when not owned, full
+                    grown level-9 plant when owned (preview of progress). */}
+                <PixelPlant level={plantOwned ? 9 : 1} size={36} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-black text-sm" style={{ color: "#00e676" }}>PLANT SEED</div>
+                <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
+                  Grow a plant in your HOME · 10 levels · matures into 0.1 TON every 30 days
+                </div>
+              </div>
+              <div className="flex-shrink-0 text-right">
+                <div className="font-black text-base" style={{ color: "#00e676" }}>★ {plantSeedCost.toLocaleString()}</div>
+                <div className="text-xs opacity-70" style={{ color: "#00e676" }}>Stardust</div>
+              </div>
+            </div>
+            <div style={{ borderTop: "1px solid rgba(0,230,118,0.20)" }}>
+              <button
+                onClick={handleBuyPlant}
+                disabled={!canBuyPlant || buying === "plant"}
+                className="w-full py-3 font-black text-sm tracking-wider uppercase transition-all active:scale-95"
+                style={{
+                  background: "rgba(0,230,118,0.10)",
+                  color: canBuyPlant ? "#00e676" : "rgba(0,230,118,0.40)",
+                  cursor: canBuyPlant ? "pointer" : "not-allowed",
+                  opacity: buying === "plant" ? 0.6 : 1,
+                }}
+              >
+                {plantOwned
+                  ? "OWNED — PLACE IT IN YOUR HOME"
+                  : buying === "plant"
+                  ? "Processing..."
+                  : stardustBalance < plantSeedCost
+                  ? `Need ${(plantSeedCost - stardustBalance).toLocaleString()} more stardust`
+                  : `BUY — ★ ${plantSeedCost.toLocaleString()} STARDUST`}
               </button>
             </div>
           </div>

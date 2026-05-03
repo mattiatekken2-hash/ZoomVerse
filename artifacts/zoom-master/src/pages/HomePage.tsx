@@ -3,6 +3,8 @@ import {
   fetchHomeState,
   unlockHome,
   claimComputer,
+  waterPlant,
+  claimPlant,
   placeHomeSlot,
   clearHomeSlot,
   fetchReferralFriends,
@@ -14,6 +16,7 @@ import {
   type InvitedFriend,
   type RoomInviteInbox,
 } from "../utils/api";
+import { PixelPlant } from "../components/PixelPlant";
 import {
   PixelAstronaut,
   SleepingAstronaut,
@@ -268,6 +271,16 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
     return () => window.removeEventListener("zoom-data-refresh", onRefresh);
   }, [refresh]);
 
+  // Periodic /home/state reconciliation while the page is visible.
+  // Belt-and-suspenders alongside the per-second client-side derivation
+  // of cooldowns: re-syncs server-truth fields like xp, level, balances,
+  // and exact timestamps every 30s so long-idle sessions stay correct.
+  useEffect(() => {
+    if (!visible || !telegramId) return;
+    const id = window.setInterval(() => { void refresh(); }, 30000);
+    return () => window.clearInterval(id);
+  }, [visible, telegramId, refresh]);
+
   // Toast auto-dismiss.
   useEffect(() => {
     if (!toast) return;
@@ -306,6 +319,51 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
     else setToast("Claim failed");
   };
 
+  const handleWaterPlant = async () => {
+    if (!telegramId) return;
+    setBusy("water-plant");
+    const r = await waterPlant(telegramId);
+    setBusy(null);
+    if (r.ok) {
+      if (r.maxedOut) setToast("PLANT FULLY GROWN — STELLAR PLANT!");
+      else if (r.leveledUp) setToast(`Level up! → L${r.plantLevel}`);
+      else setToast(`+${10} XP`);
+      window.dispatchEvent(new Event("zoom-data-refresh"));
+      void refresh();
+    } else if (r.error === "NOT_READY") {
+      setToast(`Wait ${fmtCountdown(r.secondsToReady ?? 0)} to water again`);
+      void refresh();
+    } else if (r.error === "NOT_ENOUGH_STARDUST") {
+      setToast(`Need ${r.need} stardust (have ${r.have})`);
+    } else if (r.error === "MAX_LEVEL") {
+      setToast("Plant is fully grown");
+      void refresh();
+    } else if (r.error === "NOT_OWNED") {
+      setToast("Buy the PLANT SEED in the SHOP");
+    } else {
+      setToast("Watering failed");
+    }
+  };
+
+  const handleClaimPlant = async () => {
+    if (!telegramId) return;
+    setBusy("claim-plant");
+    const r = await claimPlant(telegramId);
+    setBusy(null);
+    if (r.ok) {
+      setToast(`+${r.reward} TON`);
+      window.dispatchEvent(new Event("zoom-data-refresh"));
+      void refresh();
+    } else if (r.error === "NOT_READY") {
+      setToast(`Not ready: ${fmtCountdown(r.secondsToReady ?? 0)}`);
+      void refresh();
+    } else if (r.error === "NOT_MATURE") {
+      setToast("Plant is not fully grown yet");
+    } else {
+      setToast("Claim failed");
+    }
+  };
+
   const handlePlace = async (slot: Slot, itemId: string) => {
     if (!telegramId) return;
     setBusy(`place-${slot}`);
@@ -331,6 +389,29 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
   if (!state) {
     return <div className="flex-1 flex items-center justify-center text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>Could not load HOME</div>;
   }
+
+  // ─── LIVE DERIVED READINESS ─────────────────────────────────────────
+  // The server snapshot includes booleans (`claimable`, `waterReady`,
+  // `claimReady`) that are correct only at the instant of fetch. To
+  // avoid a stale UI keeping a button blocked after the cooldown has
+  // already expired, we re-derive readiness every render from the
+  // absolute timestamps the server provides (`nextReadyAt` / unix-ms).
+  // Combined with the 1Hz `tick`, this re-evaluates each second so the
+  // moment a cooldown ends the slot becomes interactive — without
+  // waiting for the periodic 30s /home/state reconciliation.
+  const nowMs = Date.now();
+  const liveComputerClaimable =
+    state.computer.owned && nowMs >= state.computer.nextReadyAt;
+  const livePlant: HomeState["plant"] = {
+    ...state.plant,
+    waterReady: state.plant.owned && nowMs >= state.plant.waterNextReadyAt,
+    claimReady:
+      state.plant.owned &&
+      state.plant.level >= state.plant.maxLevel &&
+      nowMs >= state.plant.claimNextReadyAt,
+    secondsToWater: Math.max(0, Math.ceil((state.plant.waterNextReadyAt - nowMs) / 1000)),
+    secondsToClaim: Math.max(0, Math.ceil((state.plant.claimNextReadyAt - nowMs) / 1000)),
+  };
 
   // ─── LOCK SCREEN ────────────────────────────────────────────────────
   if (!state.unlocked) {
@@ -601,16 +682,30 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
             slots={state.slots}
             arrange={arrange}
             computerOwned={state.computer.owned}
-            computerClaimable={state.computer.claimable}
+            computerClaimable={liveComputerClaimable}
             secondsToReady={state.computer.secondsToReady}
+            plant={livePlant}
             visible={visible}
             friends={roomOccupants}
             onSlotClick={(s) => {
               if (!arrange) {
-                // Outside arrange mode: clicking the slot only does
-                // anything if it holds the computer and it's claimable.
+                // Outside arrange mode: tapping the slot does the
+                // appropriate per-item interaction. Readiness is derived
+                // live from server timestamps each tick, so cooldown
+                // expiry unlocks the action immediately without needing
+                // a manual refresh.
                 const id = state.slots[s];
-                if (id === "computer" && state.computer.claimable) handleClaim();
+                if (id === "computer" && liveComputerClaimable) handleClaim();
+                else if (id === "plant") {
+                  if (livePlant.level >= livePlant.maxLevel) {
+                    if (livePlant.claimReady) handleClaimPlant();
+                    else setToast(`Next TON in ${fmtCountdown(livePlant.secondsToClaim)}`);
+                  } else if (livePlant.waterReady) {
+                    handleWaterPlant();
+                  } else {
+                    setToast(`Water in ${fmtCountdown(livePlant.secondsToWater)}`);
+                  }
+                }
                 return;
               }
               setPickerSlot((cur) => (cur === s ? null : s));
@@ -647,6 +742,12 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
                 owned={state.computer.owned}
                 disabled={!state.computer.owned || busy === `place-${pickerSlot}`}
                 onClick={() => handlePlace(pickerSlot, "computer")}
+              />
+              <SlotPickerOption
+                label="PLANT"
+                owned={state.plant.owned}
+                disabled={!state.plant.owned || busy === `place-${pickerSlot}`}
+                onClick={() => handlePlace(pickerSlot, "plant")}
               />
               {state.slots[pickerSlot] && (
                 <button
@@ -755,6 +856,109 @@ function PixelLock() {
       <rect x="7" y="10" width="2" height="2" fill={px} />
       <rect x="7" y="12" width="2" height="3" fill={px} />
     </svg>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// PlantSlotContent — what gets rendered inside a HOME slot when the
+// player has placed their plant there.
+//
+// Shows three layers:
+//   1. The pixel-art plant sprite (PixelPlant) at its current level.
+//   2. A floating "balance" badge ABOVE the sprite — at level <10 it
+//      shows the level + XP progress bar; at level 10 it shows the
+//      live TON-per-second accrual rate (per spec) and the live
+//      accumulated balance ticking up in real time.
+//   3. A subtle pulsing dot when an action is ready (water ready or
+//      a TON claim ready), so the player knows to tap.
+// ────────────────────────────────────────────────────────────────────────
+function PlantSlotContent({ plant }: { plant: HomeState["plant"] }) {
+  const isMature = plant.level >= plant.maxLevel;
+  // Live-tick the accrued TON since the last claim — purely visual,
+  // server is the source of truth on actual claim. 1Hz is plenty.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!isMature) return;
+    const id = window.setInterval(() => setTick((x) => x + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [isMature]);
+  const lastClaimMs = plant.lastClaimAt ? new Date(plant.lastClaimAt).getTime() : 0;
+  const elapsedSec = isMature && lastClaimMs > 0 ? Math.max(0, (Date.now() - lastClaimMs) / 1000) : 0;
+  const accruedTon = Math.min(plant.tonPerClaim, elapsedSec * plant.tonPerSecond);
+  const ratePerSecStr = plant.tonPerSecond.toExponential(2); // e.g. "3.86e-8"
+  const accruedStr = accruedTon.toFixed(8);
+
+  const actionReady =
+    (!isMature && plant.waterReady) || (isMature && plant.claimReady);
+
+  return (
+    <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      {/* Floating "balance" badge above the plant. At pre-mature levels
+          it shows L?/10 + xp; at level 10 it shows the live TON rate and
+          accumulated TON. Anchored above the slot so it doesn't cover
+          the plant sprite. */}
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: -34,
+          transform: "translateX(-50%)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 2,
+          padding: "3px 6px",
+          borderRadius: 6,
+          background: "rgba(6,8,16,0.78)",
+          border: `1px solid ${isMature ? "rgba(255,215,64,0.45)" : "rgba(0,230,118,0.35)"}`,
+          color: isMature ? "#ffd740" : "#00e676",
+          fontWeight: 800,
+          letterSpacing: "0.04em",
+          whiteSpace: "nowrap",
+          pointerEvents: "none",
+          textShadow: "0 0 4px rgba(0,0,0,0.6)",
+        }}
+      >
+        {isMature ? (
+          <>
+            <span style={{ fontSize: 9, lineHeight: 1 }}>{ratePerSecStr} TON/s</span>
+            <span style={{ fontSize: 10, lineHeight: 1, color: "#fff4a3" }}>+{accruedStr}</span>
+          </>
+        ) : (
+          <>
+            <span style={{ fontSize: 9, lineHeight: 1 }}>L{plant.level}/{plant.maxLevel}</span>
+            <span style={{ fontSize: 9, lineHeight: 1, color: "rgba(255,255,255,0.7)" }}>
+              {plant.xp}/{plant.xpPerLevel} xp
+            </span>
+          </>
+        )}
+      </div>
+
+      <PixelPlant level={plant.level} size={56} glowing={isMature} />
+
+      {/* Action-ready pulse — water-ready droplet (pre-mature) or a
+          claim-ready golden dot (mature). */}
+      {actionReady && (
+        <span
+          aria-hidden
+          className="stardust-spawn-pop"
+          style={{
+            position: "absolute",
+            top: -4,
+            right: -4,
+            width: 14,
+            height: 14,
+            borderRadius: "50%",
+            background: isMature
+              ? "radial-gradient(circle, #fff7c2 0%, #ffd740 60%, rgba(255,179,71,0) 90%)"
+              : "radial-gradient(circle, #cdeaff 0%, #4ec3ff 60%, rgba(78,195,255,0) 90%)",
+            boxShadow: isMature
+              ? "0 0 10px rgba(255,215,64,0.95)"
+              : "0 0 10px rgba(78,195,255,0.9)",
+          }}
+        />
+      )}
+    </div>
   );
 }
 
@@ -875,11 +1079,12 @@ interface PixelRoomProps {
   computerOwned: boolean;
   computerClaimable: boolean;
   secondsToReady: number;
+  plant: HomeState["plant"];
   onSlotClick: (slot: Slot) => void;
   friends: InvitedFriend[];
 }
 
-function PixelRoom({ phase, slots, arrange, computerClaimable, onSlotClick, visible, friends }: PixelRoomProps & { visible: boolean }) {
+function PixelRoom({ phase, slots, arrange, computerClaimable, plant, onSlotClick, visible, friends }: PixelRoomProps & { visible: boolean }) {
   const sky = PHASE_GRADIENT[phase];
   const ground = PHASE_GROUND[phase];
   const wall = "#2a2540";
@@ -964,7 +1169,13 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, onSlotClick, visi
               background: "transparent",
               border: arrange && !item ? "2px dashed #ffd740" : "none",
               borderRadius: 6,
-              cursor: arrange || (item === "computer" && computerClaimable) ? "pointer" : "default",
+              cursor:
+                arrange ||
+                (item === "computer" && computerClaimable) ||
+                (item === "plant" && plant.level < plant.maxLevel && plant.waterReady) ||
+                (item === "plant" && plant.level >= plant.maxLevel && plant.claimReady)
+                  ? "pointer"
+                  : "default",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -990,6 +1201,9 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, onSlotClick, visi
                   />
                 )}
               </div>
+            )}
+            {item === "plant" && (
+              <PlantSlotContent plant={plant} />
             )}
             {arrange && (
               <span

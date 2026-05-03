@@ -1960,6 +1960,29 @@ export interface HomeState {
     rewardPerClaim: number;
     cooldownMs: number;
   };
+  plant: {
+    owned: boolean;
+    level: number;
+    xp: number;
+    xpPerLevel: number;
+    xpPerWater: number;
+    maxLevel: number;
+    ownedAt: string | null;
+    lastWaterAt: string | null;
+    lastClaimAt: string | null;
+    waterNextReadyAt: number;
+    secondsToWater: number;
+    waterReady: boolean;
+    waterCost: number;
+    waterCooldownMs: number;
+    claimNextReadyAt: number;
+    secondsToClaim: number;
+    claimReady: boolean;
+    tonPerClaim: number;
+    claimCooldownMs: number;
+    tonPerSecond: number;
+    seedCost: number;
+  };
 }
 
 export async function fetchHomeState(telegramId: string): Promise<HomeState | null> {
@@ -1986,6 +2009,11 @@ export interface HomeActionResult {
   secondsToReady?: number;
   reward?: number;
   stardustBalance?: number;
+  tonBalance?: number;
+  plantLevel?: number;
+  plantXp?: number;
+  leveledUp?: boolean;
+  maxedOut?: boolean;
   slots?: { A: string | null; B: string | null; C: string | null };
 }
 
@@ -2011,6 +2039,15 @@ export function buyComputer(telegramId: string): Promise<HomeActionResult> {
 }
 export function claimComputer(telegramId: string): Promise<HomeActionResult> {
   return homePost("/home/computer/claim", { telegramId });
+}
+export function buyPlantSeed(telegramId: string): Promise<HomeActionResult> {
+  return homePost("/home/plant/buy", { telegramId });
+}
+export function waterPlant(telegramId: string): Promise<HomeActionResult> {
+  return homePost("/home/plant/water", { telegramId });
+}
+export function claimPlant(telegramId: string): Promise<HomeActionResult> {
+  return homePost("/home/plant/claim", { telegramId });
 }
 export function placeHomeSlot(telegramId: string, slot: "A" | "B" | "C", itemId: string): Promise<HomeActionResult> {
   return homePost("/home/slot/place", { telegramId, slot, itemId });
