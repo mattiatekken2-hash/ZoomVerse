@@ -726,12 +726,38 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
     walk: { left: "50%", top: "82%" },      // walking strip across the floor
     coffee: { left: "70%", top: "76%" },    // sitting on the chair
     snack: { left: "55%", top: "78%" },     // standing by the table
-    window: { left: "58%", top: "62%" },    // facing the window
+    window: { left: "57%", top: "78%" },    // standing on the floor UNDER the window, looking up
     exercise: { left: "40%", top: "78%" },  // jumping jacks center floor
     fridge: { left: "82%", top: "60%" },    // in front of the fridge
     shower: { left: "29%", top: "48%" },    // inside the shower stall
   };
   const pos = astroPos[activity];
+
+  // ── Walking transition ─────────────────────────────────────────
+  // The user wants every activity change to look like the astronaut
+  // PHYSICALLY walks to the new spot, not teleports. We:
+  //   1. detect a position change
+  //   2. enter `isMoving` mode → render WalkingAstronaut, facing the
+  //      direction of travel (compare left % values)
+  //   3. let CSS animate `left`/`top` over 1.4 s
+  //   4. exit `isMoving`, render the activity-specific sprite
+  const TRAVEL_MS = 1400;
+  const prevPosRef = useRef(pos);
+  const [isMoving, setIsMoving] = useState(false);
+  const [walkFacing, setWalkFacing] = useState<1 | -1>(1);
+  useEffect(() => {
+    const prev = prevPosRef.current;
+    if (prev.left === pos.left && prev.top === pos.top) return;
+    const prevLeftN = parseFloat(prev.left);
+    const newLeftN = parseFloat(pos.left);
+    setWalkFacing(newLeftN >= prevLeftN ? 1 : -1);
+    setIsMoving(true);
+    const t = window.setTimeout(() => {
+      setIsMoving(false);
+      prevPosRef.current = pos;
+    }, TRAVEL_MS);
+    return () => window.clearTimeout(t);
+  }, [pos.left, pos.top]);
 
   // ── Phase 5: pet companion (Space Slime) ───────────────────────
   // Pet position + state derive from the astronaut's activity so
@@ -741,7 +767,7 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
     walk: { left: "35%", top: "88%" },      // trailing the astronaut
     coffee: { left: "78%", top: "88%" },    // begging by the chair
     snack: { left: "65%", top: "88%" },     // sharing the table snack
-    window: { left: "48%", top: "78%" },    // sitting by the astronaut at the window
+    window: { left: "48%", top: "88%" },    // sitting by the astronaut on the floor under the window
     exercise: { left: "55%", top: "88%" },  // watching the workout
     fridge: { left: "72%", top: "88%" },    // tail of the astronaut at the fridge
     shower: { left: "42%", top: "65%" },    // waiting outside the shower
@@ -798,7 +824,9 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
       </div>
 
       {/* Astronaut — sprite size scales with the measured room width
-          so the character is always proportional to the furniture. */}
+          so the character is always proportional to the furniture.
+          Slow CSS transition (1.4s ease-in-out) so the slide between
+          two activity spots is clearly visible as a walk, not a jump. */}
       <div
         style={{
           position: "absolute",
@@ -807,9 +835,19 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
           width: spriteW,
           height: spriteW,
           transform: "translate(-50%, -50%)",
-          transition: "left 0.6s ease, top 0.6s ease",
+          transition: `left ${TRAVEL_MS}ms ease-in-out, top ${TRAVEL_MS}ms ease-in-out`,
         }}
       >
+        {isMoving ? (
+          // Travelling between activity spots — show the walking sprite
+          // with bob, flipped to face the direction of travel.
+          <div style={{ transform: `scaleX(${walkFacing})` }}>
+            <div style={{ animation: "home-astro-bob 0.5s ease-in-out infinite" }}>
+              <WalkingAstronaut width={spriteW} />
+            </div>
+          </div>
+        ) : (
+          <>
         {activity === "sleep" && (
           // Total figure ~1.8 × spriteW so the lying body has the same
           // proportions as a standing astronaut tipped on its side.
@@ -852,6 +890,8 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
         {activity === "exercise" && <ExercisingAstronaut width={spriteW} />}
         {activity === "fridge" && <DrinkingAstronaut width={spriteW} />}
         {activity === "shower" && <ShoweringAstronaut width={spriteW} />}
+          </>
+        )}
       </div>
 
       {/* Pet companion — Space Slime. Smoothly drifts with the astronaut. */}
