@@ -368,34 +368,6 @@ function PlanetOrbImpl({ planet, size = 60, animate = true, displayFloat }: Plan
           </>
         )}
       </div>
-      {/* V1 NFT Platinum — chip "NFT" appoggiato sopra l'orbita per
-          marcarlo come oggetto unico anche in lista farm. Posizionato
-          assoluto fuori dal cerchio così non viene tagliato dall'overflow
-          hidden del corpo del pianeta. */}
-      {planet.name === "V1_NFT" && (
-        <div
-          style={{
-            position: "absolute",
-            top: -size * 0.18,
-            left: "50%",
-            transform: "translateX(-50%)",
-            padding: `${Math.max(2, size * 0.04)}px ${Math.max(4, size * 0.1)}px`,
-            borderRadius: 999,
-            background: "linear-gradient(135deg, #cfe4ff, #7ea8e0)",
-            color: "#0a1a3d",
-            fontWeight: 900,
-            fontSize: Math.max(8, size * 0.16),
-            letterSpacing: 1,
-            boxShadow: "0 2px 8px rgba(126,168,224,0.55)",
-            border: "1px solid rgba(255,255,255,0.7)",
-            pointerEvents: "none",
-            lineHeight: 1,
-            zIndex: 3,
-          }}
-        >
-          NFT
-        </div>
-      )}
       {/* V1 NFT Platinum — sparkle particles. Four ★ glyphs at fixed
           relative positions around the orb fade in/out on staggered
           schedules so the planet always feels alive without ever
