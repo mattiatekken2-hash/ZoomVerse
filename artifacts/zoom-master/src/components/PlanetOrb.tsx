@@ -411,7 +411,7 @@ function PlanetOrbImpl({ planet, size = 60, animate = true, displayFloat }: Plan
                   // Each glyph is offset around the orbit, then rotated
                   // back upright so the text always faces the viewer
                   // (counter-rotates the parent's X tilt and its own Y).
-                  transform: `translate(-50%, -50%) rotateY(${deg}deg) translateZ(${size * 0.58}px) rotateX(-82deg)`,
+                  transform: `translate(-50%, -50%) rotateY(${deg}deg) translateZ(${size * 0.62}px) rotateX(-18deg)`,
                   background: "linear-gradient(135deg,#ffffff 0%,#cfe4ff 50%,#ffffff 100%)",
                   WebkitBackgroundClip: "text",
                   backgroundClip: "text",
