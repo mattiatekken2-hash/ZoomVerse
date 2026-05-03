@@ -36,6 +36,12 @@ interface Toast { text: string; ok: boolean }
 export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete }: MarketPageProps) {
   const { t } = useT();
   const [filter, setFilter] = useState<PlanetType | "ALL">("ALL");
+  // Float sort widget for the marketplace (▲ = low→high, ▼ = high→low,
+  // null = natural order). Floatable planets sort by their actual float;
+  // non-floatable listings always trail the floatable ones in a stable
+  // fashion so a player searching for "highest float" can scan the top
+  // of the list without picking up irrelevant rarities.
+  const [floatSort, setFloatSort] = useState<"asc" | "desc" | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const serverListings = useGlobalStore((s) => s.marketListings);
   const sales = useGlobalStore((s) => s.marketSales);
@@ -107,7 +113,35 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
     })),
   ];
 
-  const filtered = filter === "ALL" ? allDisplayListings : allDisplayListings.filter((l) => l.name === filter);
+  const filteredBase = filter === "ALL" ? allDisplayListings : allDisplayListings.filter((l) => l.name === filter);
+
+  // Apply float sort. Listings of non-floatable rarities are pushed to
+  // the end (stable) so a "high float" search surfaces real candidates
+  // first. The displayed value uses `getListingDisplayFloat` — the same
+  // helper rendered inside the card — so the sort matches what the user
+  // sees on the float bar (no off-by-one between display and order).
+  const filtered = (() => {
+    if (!floatSort) return filteredBase;
+    const withKey = filteredBase.map((l) => {
+      const isFloatable = FLOAT_PLANET_TYPES.has(l.name);
+      const f = isFloatable
+        ? getListingDisplayFloat({
+            id: l.serverId ?? l.id,
+            planetFloat: l.planetFloat,
+          })
+        : null;
+      return { l, isFloatable, f };
+    });
+    withKey.sort((a, b) => {
+      // Non-floatable rarities trail the floatable ones regardless of dir.
+      if (a.isFloatable !== b.isFloatable) return a.isFloatable ? -1 : 1;
+      if (!a.isFloatable) return 0;
+      const fa = a.f ?? 0;
+      const fb = b.f ?? 0;
+      return floatSort === "asc" ? fa - fb : fb - fa;
+    });
+    return withKey.map((x) => x.l);
+  })();
 
   const handleBuyServer = async (serverId: number, planetType: PlanetType, planetRate: number, price: number, planetFloat: number | null) => {
     if (!telegramId) return;
@@ -261,7 +295,11 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
         ) : (
         <div className="flex flex-col gap-3">
 
-          <div className="flex gap-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+          {/* Filter row: rarity pills on the left, Float sort widget on
+              the right. The widget is always visible; tapping the active
+              arrow again clears the sort and restores natural order. */}
+          <div className="flex items-center gap-2">
+            <div className="flex gap-2 overflow-x-auto flex-1" style={{ scrollbarWidth: "none" }}>
             {RARITY_FILTERS.map((f) => (
               <button
                 key={f}
@@ -283,6 +321,58 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
                 {f === "ALL" ? "All" : PLANET_CONFIG[f].label}
               </button>
             ))}
+            </div>
+            <div
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded-full flex-shrink-0"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.07)",
+              }}
+              data-testid="market-float-sort"
+            >
+              <span
+                className="text-[9px] font-bold tracking-wider"
+                style={{ color: "rgba(255,255,255,0.4)", marginRight: 2 }}
+              >
+                FLOAT
+              </span>
+              <button
+                type="button"
+                onClick={() => setFloatSort((d) => (d === "asc" ? null : "asc"))}
+                aria-label="Sort by Float low to high"
+                aria-pressed={floatSort === "asc"}
+                data-testid="market-sort-float-asc"
+                className="flex items-center justify-center"
+                style={{
+                  width: 22, height: 22, borderRadius: 6,
+                  background: floatSort === "asc" ? "rgba(0,242,254,0.20)" : "transparent",
+                  border: floatSort === "asc" ? "1px solid rgba(0,242,254,0.55)" : "1px solid transparent",
+                  color: floatSort === "asc" ? "#00f2fe" : "rgba(255,255,255,0.45)",
+                  fontSize: 11, lineHeight: 1, fontWeight: 900,
+                  transition: "background 0.15s, color 0.15s, border-color 0.15s",
+                }}
+              >
+                ▲
+              </button>
+              <button
+                type="button"
+                onClick={() => setFloatSort((d) => (d === "desc" ? null : "desc"))}
+                aria-label="Sort by Float high to low"
+                aria-pressed={floatSort === "desc"}
+                data-testid="market-sort-float-desc"
+                className="flex items-center justify-center"
+                style={{
+                  width: 22, height: 22, borderRadius: 6,
+                  background: floatSort === "desc" ? "rgba(0,242,254,0.20)" : "transparent",
+                  border: floatSort === "desc" ? "1px solid rgba(0,242,254,0.55)" : "1px solid transparent",
+                  color: floatSort === "desc" ? "#00f2fe" : "rgba(255,255,255,0.45)",
+                  fontSize: 11, lineHeight: 1, fontWeight: 900,
+                  transition: "background 0.15s, color 0.15s, border-color 0.15s",
+                }}
+              >
+                ▼
+              </button>
+            </div>
           </div>
 
           {loading && serverListings.length === 0 && filtered.length === 0 && (
