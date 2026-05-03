@@ -22,7 +22,9 @@ export type AstronautActivity =
   | "exercise"
   | "fridge"
   | "shower"
-  | "play";
+  | "play"
+  | "music"
+  | "sing";
 
 const ACTIVITIES: AstronautActivity[] = [
   "sleep",
@@ -34,6 +36,8 @@ const ACTIVITIES: AstronautActivity[] = [
   "fridge",
   "shower",
   "play",
+  "music",
+  "sing",
 ];
 
 let current: AstronautActivity = "walk";
@@ -99,4 +103,6 @@ export const ACTIVITY_LABEL_IT: Record<AstronautActivity, string> = {
   fridge: "frigo",
   shower: "doccia",
   play: "gioca con l'animale",
+  music: "ascolta musica",
+  sing: "canta",
 };

@@ -740,6 +740,8 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
     fridge: { left: "82%", top: "60%" },    // in front of the fridge
     shower: { left: "39%", top: "48%" },    // INSIDE the shower stall (centered on the glass area)
     play: { left: "44%", top: "82%" },      // crouched on the floor, facing the pet
+    music: { left: "62%", top: "82%" },     // standing on the floor, head bobbing to the beat
+    sing: { left: "38%", top: "82%" },      // singing in the middle of the floor
   };
   const pos = astroPos[activity];
 
@@ -782,6 +784,8 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
     fridge: { left: "72%", top: "88%" },    // tail of the astronaut at the fridge
     shower: { left: "50%", top: "88%" },    // waiting just outside the shower door, on the floor
     play: { left: "52%", top: "82%" },      // right next to the astronaut, hopping around
+    music: { left: "70%", top: "88%" },     // bobbing along on the floor next to the astronaut
+    sing: { left: "46%", top: "88%" },      // listening to the singing astronaut
   };
   const petState: "idle" | "sleep" | "eat" =
     activity === "sleep" ? "sleep" :
@@ -919,6 +923,57 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
             >
               ♥
             </span>
+          </div>
+        )}
+        {activity === "music" && (
+          // Listening to music — head bobs to the beat, three musical
+          // notes drift up from beside the helmet, each on its own delay.
+          <div style={{ position: "relative", animation: "home-astro-bob 0.45s ease-in-out infinite" }}>
+            <PixelAstronaut pose="stand" width={spriteW} />
+            {[0, 0.7, 1.4].map((d, i) => (
+              <span
+                key={i}
+                style={{
+                  position: "absolute",
+                  left: i % 2 === 0 ? "92%" : "-12%",
+                  bottom: "60%",
+                  fontSize: Math.round(spriteW * 0.26),
+                  color: "#9ad8ff",
+                  textShadow: "0 0 4px rgba(0,0,0,0.55)",
+                  animation: `home-music-note 2.4s ease-in-out ${d}s infinite`,
+                }}
+              >
+                ♪
+              </span>
+            ))}
+          </div>
+        )}
+        {activity === "sing" && (
+          // Singing — gentler bob and louder notes (♫) coming OUT of the
+          // helmet area, fanning upward and to the sides.
+          <div style={{ position: "relative", animation: "home-astro-bob 0.6s ease-in-out infinite" }}>
+            <PixelAstronaut pose="stand" width={spriteW} />
+            {[
+              { d: 0,   side: -1, sym: "♫" },
+              { d: 0.6, side:  1, sym: "♪" },
+              { d: 1.2, side: -1, sym: "♬" },
+              { d: 1.8, side:  1, sym: "♫" },
+            ].map((n, i) => (
+              <span
+                key={i}
+                style={{
+                  position: "absolute",
+                  left: n.side > 0 ? "85%" : "-5%",
+                  bottom: "70%",
+                  fontSize: Math.round(spriteW * 0.30),
+                  color: "#ffd166",
+                  textShadow: "0 0 5px rgba(0,0,0,0.6)",
+                  animation: `home-sing-note 2.2s ease-out ${n.d}s infinite`,
+                }}
+              >
+                {n.sym}
+              </span>
+            ))}
           </div>
         )}
           </>
