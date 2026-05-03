@@ -264,6 +264,10 @@ export interface InvitedFriend {
   key: string;
   /** Short display name (first_name fallback @username, max 16 chars). */
   name: string;
+  /** ISO timestamp of when the friend created their account (server
+   *  authoritative). The HOME view uses this to auto-hide the friend
+   *  astronaut after a fixed visit window. */
+  joinedAt: string;
 }
 
 /** List of users who joined via the CALLING user's referral link. Auth

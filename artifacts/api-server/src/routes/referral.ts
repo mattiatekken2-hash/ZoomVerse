@@ -205,6 +205,7 @@ router.get("/referral/friends", async (req, res) => {
         telegramId: usersTable.telegramId,
         firstName: usersTable.firstName,
         username: usersTable.username,
+        createdAt: usersTable.createdAt,
       })
       .from(usersTable)
       .where(eq(usersTable.referredBy, tgUser.id))
@@ -212,14 +213,17 @@ router.get("/referral/friends", async (req, res) => {
 
     // Hash telegramId with the host's id as salt so the resulting key
     // is stable for THIS host's view but cannot be cross-correlated to
-    // identify the friend across other endpoints.
+    // identify the friend across other endpoints. `joinedAt` is the
+    // server timestamp of when the friend created their account; the
+    // client uses it to auto-hide the friend's astronaut after a fixed
+    // visit window (currently 30 min).
     const friends = rows.map((r) => {
       const key = createHash("sha256")
         .update(`${tgUser.id}:${r.telegramId}`)
         .digest("hex")
         .slice(0, 16);
       const name = (r.firstName || r.username || "Friend").toString().slice(0, 16);
-      return { key, name };
+      return { key, name, joinedAt: r.createdAt.toISOString() };
     });
 
     res.json({ friends });

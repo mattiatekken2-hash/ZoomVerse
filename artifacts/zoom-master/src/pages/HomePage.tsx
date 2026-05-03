@@ -898,6 +898,12 @@ function friendHash(id: string): number {
   return h;
 }
 
+// How long after a friend creates their account their astronaut keeps
+// showing in the host's room. After this window the sprite simply
+// disappears (the +20 ZOOM bonus and the lifetime referralCount are
+// untouched — only the visual presence in the room times out).
+const FRIEND_VISIT_MS = 30 * 60 * 1000;
+
 // Where each invited friend stands in the host's room. Capped at the
 // length of this array — beyond that, additional invites still earn the
 // referral bonus but don't add more sprites (the room would be unreadable).
@@ -1627,8 +1633,15 @@ function RoomLifeOverlay({ phase, visible, friends }: { phase: SkyPhase; visible
           FRIEND_SPOTS.length so the room stays readable. Each friend
           gets a stable color (palette derived from a hash of their
           telegramId) and a stable spot, with their first name floating
-          above the helmet. They idle in place with a small bob. */}
-      {friends.slice(0, FRIEND_SPOTS.length).map((f, i) => {
+          above the helmet. They idle in place with a small bob.
+          Auto-hidden after FRIEND_VISIT_MS from their join time so the
+          room doesn't stay cluttered forever — counted server-side off
+          the friend's account creation timestamp. */}
+      {friends.filter((f) => {
+        const t = Date.parse(f.joinedAt);
+        if (!Number.isFinite(t)) return true;
+        return Date.now() - t < FRIEND_VISIT_MS;
+      }).slice(0, FRIEND_SPOTS.length).map((f, i) => {
         const spot = FRIEND_SPOTS[i]!;
         const palette = VISITOR_PALETTES[friendHash(f.key) % VISITOR_PALETTES.length]!;
         const label = (f.name || "Friend").slice(0, 12);
