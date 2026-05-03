@@ -25,6 +25,7 @@ import lotteryRouter from "./lottery";
 import tasksRouter from "./tasks";
 import homeRouter from "./home";
 import chatRouter from "./chat";
+import roomInvitesRouter from "./roomInvites";
 
 const router: IRouter = Router();
 
@@ -96,6 +97,8 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/stars/create-invoice",
       "/stars/confirm",
       "/ton/confirm",
+      "/room-invites/send",
+      "/room-invites/respond",
     ],
     bindField: "telegramId",
   },
@@ -124,6 +127,8 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
     paths: [
       "/lottery/state",
       "/referral/friends",
+      "/room-invites/inbox",
+      "/room-invites/visitors",
     ],
     bindField: "",
   },
@@ -234,5 +239,6 @@ router.use(lotteryRouter);
 router.use(tasksRouter);
 router.use(homeRouter);
 router.use(chatRouter);
+router.use(roomInvitesRouter);
 
 export default router;

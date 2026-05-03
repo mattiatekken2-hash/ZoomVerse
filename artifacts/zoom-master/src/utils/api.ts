@@ -287,6 +287,84 @@ export async function fetchReferralFriends(): Promise<InvitedFriend[]> {
   }
 }
 
+// ─── Room invites (peer-to-peer "visit my room" between existing players)
+//
+// Distinct from the Telegram referral system: referrals onboard NEW
+// users via a Telegram start_param link, room invites bring ALREADY
+// REGISTERED players into your room for a 30-min visit. Both sources
+// are merged client-side and rendered the same way.
+
+export interface RoomInviteInbox {
+  /** Server-side row id; pass back to /room-invites/respond. */
+  id: number;
+  /** Sender's display name (first_name fallback @username). No raw
+   *  telegramId or @username is exposed on this endpoint. */
+  from: string;
+  /** ISO timestamp of when the invite was sent. */
+  sentAt: string;
+}
+
+export type SendRoomInviteResult =
+  | { ok: true; inviteId: number | null }
+  | { ok: false; error: "user_not_found" | "ambiguous_username" | "cannot_invite_self" | "cooldown" | "too_many_pending" | "invalid_username" | "network"; waitSeconds?: number };
+
+export async function sendRoomInvite(telegramId: string, toUsername: string): Promise<SendRoomInviteResult> {
+  try {
+    const res = await fetch(`${API_BASE}/room-invites/send`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, toUsername }),
+    });
+    const j = (await res.json().catch(() => ({}))) as { ok?: boolean; inviteId?: number | null; error?: string; waitSeconds?: number };
+    if (res.ok && j.ok) return { ok: true, inviteId: j.inviteId ?? null };
+    const err = (j.error as SendRoomInviteResult extends { error: infer E } ? E : never) || "network";
+    return { ok: false, error: err, ...(j.waitSeconds ? { waitSeconds: j.waitSeconds } : {}) };
+  } catch {
+    return { ok: false, error: "network" };
+  }
+}
+
+export async function fetchRoomInviteInbox(): Promise<RoomInviteInbox[]> {
+  try {
+    const res = await fetch(`${API_BASE}/room-invites/inbox`, {
+      cache: "no-store",
+      headers: apiHeaders(),
+    });
+    if (!res.ok) return [];
+    const j = (await res.json()) as { invites?: RoomInviteInbox[] };
+    return j.invites ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function respondRoomInvite(telegramId: string, inviteId: number, action: "accept" | "decline"): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/room-invites/respond`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, inviteId, action }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function fetchRoomVisitors(): Promise<InvitedFriend[]> {
+  try {
+    const res = await fetch(`${API_BASE}/room-invites/visitors`, {
+      cache: "no-store",
+      headers: apiHeaders(),
+    });
+    if (!res.ok) return [];
+    const j = (await res.json()) as { visitors?: InvitedFriend[] };
+    return j.visitors ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchReferralCount(telegramId: string): Promise<number> {
   const data = await fetchReferralData(telegramId);
   return data.referralCount;

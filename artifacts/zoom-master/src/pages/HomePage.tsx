@@ -6,8 +6,13 @@ import {
   placeHomeSlot,
   clearHomeSlot,
   fetchReferralFriends,
+  fetchRoomVisitors,
+  fetchRoomInviteInbox,
+  sendRoomInvite,
+  respondRoomInvite,
   type HomeState,
   type InvitedFriend,
+  type RoomInviteInbox,
 } from "../utils/api";
 import {
   PixelAstronaut,
@@ -93,6 +98,15 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [friends, setFriends] = useState<InvitedFriend[]>([]);
+  const [visitors, setVisitors] = useState<InvitedFriend[]>([]);
+  const [inbox, setInbox] = useState<RoomInviteInbox[]>([]);
+  // In-room invite (peer-to-peer) — username input + UI feedback.
+  const [inviteUsername, setInviteUsername] = useState("");
+  const [inviteSending, setInviteSending] = useState(false);
+  const [inviteFeedback, setInviteFeedback] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  // Tracks which inbox row is currently being responded to (to disable
+  // its buttons while the request is in flight).
+  const [responding, setResponding] = useState<number | null>(null);
 
   // Telegram deep-link to launch the bot with the user's referralCode as
   // start_param. /referral/register on the friend's first launch picks
@@ -111,17 +125,101 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
   const friendsSeqRef = useRef(0);
   useEffect(() => {
     setFriends([]);
+    setVisitors([]);
     if (!telegramId || !visible) return;
     let cancelled = false;
     const load = async () => {
       const my = ++friendsSeqRef.current;
-      const list = await fetchReferralFriends();
-      if (!cancelled && my === friendsSeqRef.current) setFriends(list);
+      // Fire both lookups in parallel — they hit independent endpoints
+      // and a slow one shouldn't block the other from refreshing.
+      const [f, v] = await Promise.all([
+        fetchReferralFriends(),
+        fetchRoomVisitors(),
+      ]);
+      if (!cancelled && my === friendsSeqRef.current) {
+        setFriends(f);
+        setVisitors(v);
+      }
     };
     load();
     const id = window.setInterval(load, 30000);
     return () => { cancelled = true; window.clearInterval(id); };
   }, [telegramId, visible]);
+
+  // Inbox of pending room invites addressed to me. Polled more often
+  // than the visitors list (15s vs 30s) so a fresh invite shows up
+  // promptly while the user is on HOME. The seq guard prevents a slow
+  // poll from clobbering a faster one.
+  const inboxSeqRef = useRef(0);
+  useEffect(() => {
+    setInbox([]);
+    if (!telegramId || !visible) return;
+    let cancelled = false;
+    const load = async () => {
+      const my = ++inboxSeqRef.current;
+      const list = await fetchRoomInviteInbox();
+      if (!cancelled && my === inboxSeqRef.current) setInbox(list);
+    };
+    load();
+    const id = window.setInterval(load, 15000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [telegramId, visible]);
+
+  // Friends + visitors are rendered with the same room-overlay code
+  // (same shape, same palette function, same FRIEND_SPOTS). Visitors
+  // win when both sources reference the same `key` so the more recent
+  // 30-min window takes precedence over the long-lived referral entry.
+  const roomOccupants: InvitedFriend[] = (() => {
+    const byKey = new Map<string, InvitedFriend>();
+    for (const f of friends) byKey.set(f.key, f);
+    for (const v of visitors) byKey.set(v.key, v);
+    return [...byKey.values()];
+  })();
+
+  const handleSendRoomInvite = useCallback(async () => {
+    if (!telegramId) return;
+    const raw = inviteUsername.trim();
+    if (!raw) {
+      setInviteFeedback({ kind: "err", text: "Type a @username first" });
+      return;
+    }
+    setInviteSending(true);
+    setInviteFeedback(null);
+    const r = await sendRoomInvite(telegramId, raw);
+    setInviteSending(false);
+    if (r.ok) {
+      setInviteUsername("");
+      setInviteFeedback({ kind: "ok", text: "Invite sent! They will see it on their HOME." });
+    } else {
+      const msg = (() => {
+        switch (r.error) {
+          case "user_not_found": return "No player with that @username.";
+          case "ambiguous_username": return "More than one account uses that @username. Try again later.";
+          case "cannot_invite_self": return "You can't invite yourself.";
+          case "cooldown": return `Already invited recently. Try again in ${r.waitSeconds ?? 60}s.`;
+          case "too_many_pending": return "Too many pending invites. Wait for replies first.";
+          case "invalid_username": return "That @username doesn't look right.";
+          default: return "Could not send the invite.";
+        }
+      })();
+      setInviteFeedback({ kind: "err", text: msg });
+    }
+  }, [telegramId, inviteUsername]);
+
+  const handleRespondInvite = useCallback(async (id: number, action: "accept" | "decline") => {
+    if (!telegramId) return;
+    setResponding(id);
+    const ok = await respondRoomInvite(telegramId, id, action);
+    setResponding(null);
+    if (ok) {
+      // Optimistically drop the row so the banner disappears immediately;
+      // the next 15s poll will reconcile if the server disagrees.
+      setInbox((cur) => cur.filter((i) => i.id !== id));
+      if (action === "accept") setToast("Joined the room!");
+    } else {
+      setToast("Could not respond");
+    }
+  }, [telegramId]);
 
   const openTelegramShare = useCallback(() => {
     const text = encodeURIComponent("Join Zoom and earn $ZOOM!");
@@ -303,8 +401,13 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
           }}
         >
           + INVITE
-          {friends.length > 0 && (
-            <span style={{ marginLeft: 6, opacity: 0.85 }}>· {friends.length}</span>
+          {(roomOccupants.length > 0 || inbox.length > 0) && (
+            <span style={{ marginLeft: 6, opacity: 0.85 }}>
+              · {roomOccupants.length}
+              {inbox.length > 0 && (
+                <span style={{ color: "#ffd740", marginLeft: 4 }}>(+{inbox.length})</span>
+              )}
+            </span>
           )}
         </button>
         <button
@@ -354,9 +457,70 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
               Invite a Friend
             </div>
             <div className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.55)" }}>
-              +20 $ZOOM for every friend who joins. Their astronaut will appear in your room.
+              Bring a player already in the game into your room for 30 min, or invite a NEW friend via Telegram (+20 $ZOOM).
             </div>
 
+            {/* SECTION 1 — Invite an EXISTING player by @username. They
+                will see a notification on their HOME and tap Accept to
+                appear in your room for 30 min. */}
+            <div className="text-[10px] uppercase font-black tracking-widest mb-2" style={{ color: "rgba(0,230,118,0.85)" }}>
+              Invite a player to your room
+            </div>
+            <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
+              <input
+                type="text"
+                value={inviteUsername}
+                onChange={(e) => { setInviteUsername(e.target.value); setInviteFeedback(null); }}
+                onKeyDown={(e) => { if (e.key === "Enter") void handleSendRoomInvite(); }}
+                placeholder="@username"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                disabled={inviteSending}
+                className="flex-1 px-2 py-2 rounded-lg text-sm font-mono"
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  color: "#fff",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  outline: "none",
+                  minWidth: 0,
+                }}
+              />
+              <button
+                type="button"
+                onClick={handleSendRoomInvite}
+                disabled={inviteSending || !inviteUsername.trim()}
+                className="px-3 py-2 rounded-lg font-bold text-xs tracking-wider uppercase transition-all active:scale-95"
+                style={{
+                  background: inviteSending ? "rgba(255,255,255,0.06)" : "rgba(0,230,118,0.22)",
+                  color: inviteSending ? "rgba(255,255,255,0.4)" : "#00e676",
+                  border: "1px solid rgba(0,230,118,0.45)",
+                  opacity: inviteUsername.trim() ? 1 : 0.5,
+                }}
+              >
+                {inviteSending ? "..." : "Invite"}
+              </button>
+            </div>
+            {inviteFeedback && (
+              <div
+                className="text-xs mb-3 px-2 py-1.5 rounded"
+                style={{
+                  background: inviteFeedback.kind === "ok" ? "rgba(0,230,118,0.10)" : "rgba(255,90,90,0.12)",
+                  color: inviteFeedback.kind === "ok" ? "#00e676" : "#ff7a7a",
+                  border: `1px solid ${inviteFeedback.kind === "ok" ? "rgba(0,230,118,0.35)" : "rgba(255,90,90,0.35)"}`,
+                }}
+              >
+                {inviteFeedback.text}
+              </div>
+            )}
+
+            {/* Divider between in-game invite and Telegram-link invite. */}
+            <div style={{ height: 1, background: "rgba(255,255,255,0.08)", margin: "10px 0 12px" }} />
+
+            {/* SECTION 2 — Bring a NEW user via Telegram referral link. */}
+            <div className="text-[10px] uppercase font-black tracking-widest mb-2" style={{ color: "rgba(0,176,255,0.85)" }}>
+              Invite a new friend (Telegram)
+            </div>
             <button
               type="button"
               onClick={openTelegramShare}
@@ -396,7 +560,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
             </div>
 
             <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.5)" }}>
-              Friends in your room: <span style={{ color: "#00e676", fontWeight: 700 }}>{friends.length}</span>
+              In your room now: <span style={{ color: "#00e676", fontWeight: 700 }}>{roomOccupants.length}</span>
             </div>
 
             <button
@@ -412,6 +576,73 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
               Close
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Pending room-invite banner — only renders when someone has
+          invited me into their room. Shows the most recent invite with
+          Accept / Decline; older invites are stacked underneath, capped
+          at 3 visible so the banner doesn't push the room offscreen. */}
+      {inbox.length > 0 && (
+        <div
+          style={{
+            padding: "8px 10px 0",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
+        >
+          {inbox.slice(0, 3).map((inv) => {
+            const busy = responding === inv.id;
+            return (
+              <div
+                key={inv.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 10px",
+                  borderRadius: 10,
+                  background: "rgba(255,215,64,0.10)",
+                  border: "1px solid rgba(255,215,64,0.45)",
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.35)",
+                }}
+              >
+                <div className="text-xs" style={{ flex: 1, color: "rgba(255,255,255,0.92)" }}>
+                  <span style={{ color: "#ffd740", fontWeight: 800 }}>{inv.from}</span>{" "}
+                  invited you to their room
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleRespondInvite(inv.id, "accept")}
+                  disabled={busy}
+                  className="px-2.5 py-1 rounded-md text-xs font-black tracking-wider uppercase active:scale-95"
+                  style={{
+                    background: "rgba(0,230,118,0.22)",
+                    color: "#00e676",
+                    border: "1px solid rgba(0,230,118,0.55)",
+                    opacity: busy ? 0.5 : 1,
+                  }}
+                >
+                  Accept
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleRespondInvite(inv.id, "decline")}
+                  disabled={busy}
+                  className="px-2 py-1 rounded-md text-xs font-bold tracking-wider uppercase active:scale-95"
+                  style={{
+                    background: "rgba(255,255,255,0.04)",
+                    color: "rgba(255,255,255,0.6)",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    opacity: busy ? 0.5 : 1,
+                  }}
+                >
+                  No
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -437,7 +668,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
             computerClaimable={state.computer.claimable}
             secondsToReady={state.computer.secondsToReady}
             visible={visible}
-            friends={friends}
+            friends={roomOccupants}
             onSlotClick={(s) => {
               if (!arrange) {
                 // Outside arrange mode: clicking the slot only does
