@@ -296,11 +296,19 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
         ) : (
         <div className="flex flex-col gap-3">
 
-          {/* Filter row: rarity pills on the left, Float sort widget on
-              the right. The widget is always visible; tapping the active
-              arrow again clears the sort and restores natural order. */}
-          <div className="flex items-center gap-2">
-            <div className="flex gap-2 overflow-x-auto flex-1" style={{ scrollbarWidth: "none" }}>
+          {/* Filter rows: rarity pills now span the full width on their
+              own line so the new MYTHIC tier (and any future ones) fit
+              without being hidden behind the FLOAT widget. The widget
+              moved to its own row, right-aligned. A subtle fade on the
+              right edge of the rarity row hints that the list scrolls. */}
+          <div
+            className="flex gap-2 overflow-x-auto -mx-1 px-1"
+            style={{
+              scrollbarWidth: "none",
+              WebkitMaskImage: "linear-gradient(to right, #000 0, #000 calc(100% - 18px), transparent 100%)",
+              maskImage: "linear-gradient(to right, #000 0, #000 calc(100% - 18px), transparent 100%)",
+            }}
+          >
             {RARITY_FILTERS.map((f) => (
               <button
                 key={f}
@@ -319,10 +327,12 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
                 }}
                 data-testid={`filter-${f.toLowerCase()}`}
               >
-                {f === "ALL" ? "All" : PLANET_CONFIG[f].label}
+                {f === "ALL" ? "All" : f === "V1_NFT" ? "V1 NFT" : PLANET_CONFIG[f].label}
               </button>
             ))}
-            </div>
+          </div>
+
+          <div className="flex justify-end">
             <div
               className="flex items-center gap-1 px-1.5 py-0.5 rounded-full flex-shrink-0"
               style={{
