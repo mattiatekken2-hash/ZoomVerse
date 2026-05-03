@@ -29,6 +29,7 @@ import {
   adminForceDelist,
   adminDisableUser,
   adminEnableUser,
+  adminBulkDisable,
   adminReconcileReferrals,
   adminFetchLottoDashboard,
   adminLottoDraw,
@@ -68,7 +69,8 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "white" | "earth" | "revoke-white" | "revoke-earth" | "autotap" | "test-wd-chan" | "v1" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "revoke-white" | "revoke-earth" | "autotap" | "test-wd-chan" | "v1" | null>(null);
+  const [confirmBulkNebo, setConfirmBulkNebo] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [delistId, setDelistId] = useState("");
   const [disableId, setDisableId] = useState("");
@@ -865,6 +867,54 @@ export function AdminPanel({ telegramId }: Props) {
                     {loading === "enable" ? "..." : "ENABLE"}
                   </motion.button>
                 </div>
+
+                {/* One-click ban for the Nebo MVP referral-farm case */}
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={async () => {
+                    haptic();
+                    if (!confirmBulkNebo) {
+                      setConfirmBulkNebo(true);
+                      setTimeout(() => setConfirmBulkNebo(false), 4000);
+                      return;
+                    }
+                    setConfirmBulkNebo(false);
+                    setLoading("bulk-nebo");
+                    const ids = [
+                      "6146915686",
+                      "6635251318","7063908258","6998414565","6707354644","7183981146",
+                      "7142328234","7024910715","6744006845","6108390927","7173815503",
+                      "7105736820","6965069519","7144279392","7121448815","7164889297",
+                      "6820659857","6609114207",
+                    ];
+                    const r = await adminBulkDisable(telegramId, ids);
+                    setLoading(null);
+                    if (r.ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+                    showFeedback(
+                      r.ok ? `✓ ${r.disabled}/${ids.length} account disabilitati` : "✗ Errore bulk-disable",
+                      r.ok,
+                    );
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: 10,
+                    border: confirmBulkNebo ? "1px solid #ff3b3b" : "1px solid rgba(255,60,60,0.35)",
+                    background: confirmBulkNebo ? "rgba(255,60,60,0.25)" : "rgba(255,60,60,0.1)",
+                    color: "#ff5555",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  {loading === "bulk-nebo"
+                    ? "..."
+                    : confirmBulkNebo
+                      ? "CONFERMA: BAN NEBO + 17 ALTS"
+                      : "BAN NEBO + 17 ALTS (1 click)"}
+                </motion.button>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
 

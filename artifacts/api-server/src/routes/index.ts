@@ -170,6 +170,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/admin/lottery/draw",
       "/admin/disable-user",
       "/admin/enable-user",
+      "/admin/bulk-disable",
       "/referral/unlink",
     ],
     bindField: "adminId",

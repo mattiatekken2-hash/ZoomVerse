@@ -576,6 +576,50 @@ router.post("/admin/enable-user", async (req, res) => {
   }
 });
 
+// Bulk disable: takes a list of telegramIds (or @usernames) and flips
+// is_disabled=true on each one in a single transaction. Used by the
+// "BAN NEBO + 17 ALTS" one-click button in the admin panel. Returns
+// per-id status so the UI can show how many were actually frozen.
+const BulkDisableBody = z.object({
+  adminId: z.string(),
+  telegramIds: z.array(z.string().min(1)).min(1).max(100),
+});
+
+router.post("/admin/bulk-disable", async (req, res) => {
+  const parsed = BulkDisableBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const resolved: { input: string; telegramId: string | null }[] = [];
+  for (const input of parsed.data.telegramIds) {
+    resolved.push({ input, telegramId: await resolveTargetTelegramId(input) });
+  }
+  const ids = resolved.map((r) => r.telegramId).filter((x): x is string => !!x);
+  if (ids.length === 0) return res.json({ ok: true, disabled: 0, results: resolved });
+
+  try {
+    const updated = await db
+      .update(usersTable)
+      .set({
+        isDisabled: true,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
+      .where(sql`${usersTable.telegramId} = ANY(${ids})`)
+      .returning({ id: usersTable.telegramId });
+    const disabledSet = new Set(updated.map((u) => u.id));
+    const results = resolved.map((r) => ({
+      input: r.input,
+      telegramId: r.telegramId,
+      disabled: r.telegramId ? disabledSet.has(r.telegramId) : false,
+    }));
+    logger.warn({ adminId: parsed.data.adminId, count: updated.length }, "[admin] bulk-disable");
+    res.json({ ok: true, disabled: updated.length, results });
+  } catch (err) {
+    logger.error({ err }, "[admin/bulk-disable] db error");
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 // ----- STARDUST -----
 const CreditStardustBody = z.object({
   adminId: z.string(),

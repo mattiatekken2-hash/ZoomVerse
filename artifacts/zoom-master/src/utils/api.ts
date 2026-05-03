@@ -575,6 +575,22 @@ export async function adminEnableUser(adminId: string, telegramId: string): Prom
   } catch { return false; }
 }
 
+export async function adminBulkDisable(
+  adminId: string,
+  telegramIds: string[],
+): Promise<{ ok: boolean; disabled: number }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/bulk-disable`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, telegramIds }),
+    });
+    if (!res.ok) return { ok: false, disabled: 0 };
+    const data = await res.json() as { ok: boolean; disabled: number };
+    return { ok: !!data.ok, disabled: Number(data.disabled) || 0 };
+  } catch { return { ok: false, disabled: 0 }; }
+}
+
 export async function adminCreditStardust(adminId: string, telegramId: string, amount: number): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/credit-stardust`, {
