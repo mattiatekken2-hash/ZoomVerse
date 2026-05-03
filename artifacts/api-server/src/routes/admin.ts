@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, transactionsTable, marketListingsTable } from "@workspace/db";
 import { usersTable, appSettingsTable } from "@workspace/db/schema";
 import { and } from "drizzle-orm";
-import { sql, eq } from "drizzle-orm";
+import { sql, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import fs from "node:fs";
 import path from "node:path";
@@ -604,7 +604,7 @@ router.post("/admin/bulk-disable", async (req, res) => {
         isDisabled: true,
         balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
-      .where(sql`${usersTable.telegramId} = ANY(${ids})`)
+      .where(inArray(usersTable.telegramId, ids))
       .returning({ id: usersTable.telegramId });
     const disabledSet = new Set(updated.map((u) => u.id));
     const results = resolved.map((r) => ({
