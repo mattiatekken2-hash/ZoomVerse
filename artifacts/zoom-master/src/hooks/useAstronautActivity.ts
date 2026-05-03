@@ -42,7 +42,9 @@ const ACTIVITIES: AstronautActivity[] = [
   "pizza",
 ];
 
-let current: AstronautActivity = "walk";
+// Initial activity is RANDOM on every page load instead of always
+// "walk", so opening HOME doesn't replay the same starting beat.
+let current: AstronautActivity = ACTIVITIES[Math.floor(Math.random() * ACTIVITIES.length)]!;
 const listeners = new Set<() => void>();
 let timer: number | null = null;
 
