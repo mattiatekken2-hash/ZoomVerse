@@ -404,19 +404,22 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
             const total = listing.price + fee;
             const isOwn = listing.isLocal;
             const canBuy = !isOwn && balance >= total && myListings.filter((p) => !p.isListedInMarket).length < maxSlots;
+            const isPlatinumNft = listing.name === "V1_NFT";
 
             return (
               <div
                 key={listing.id}
-                className="rounded-2xl border overflow-hidden"
+                className={`rounded-2xl border overflow-hidden ${isPlatinumNft ? "nft-card-glow" : ""}`}
                 style={{
-                  borderColor: isOwn ? "rgba(255,215,0,0.3)" : rarityColor + "28",
+                  borderColor: isPlatinumNft
+                    ? "rgba(220,232,255,0.10)"
+                    : isOwn ? "rgba(255,215,0,0.3)" : rarityColor + "28",
                   background: `linear-gradient(135deg, ${rarityColor}07 0%, rgba(6,8,16,0.65) 100%)`,
                 }}
                 data-testid={`listing-${listing.id}`}
               >
                 <div className="flex items-center gap-3 px-4 py-3">
-                  <PlanetOrb planet={fakePlanet} size={56} animate={false} />
+                  <PlanetOrb planet={fakePlanet} size={56} animate={isPlatinumNft} />
                   <div className="flex-1 min-w-0">
                     {listing.displayName && (
                       <div

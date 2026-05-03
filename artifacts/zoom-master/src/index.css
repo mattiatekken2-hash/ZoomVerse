@@ -1257,7 +1257,9 @@
 .nft-card-glow::before {
   content: "";
   position: absolute;
-  inset: -1px;
+  /* inset: 0 (not -1px) so the ring stays inside cards that use
+     `overflow: hidden` (e.g. the Marketplace listing card). */
+  inset: 0;
   border-radius: inherit;
   padding: 1.5px;
   background: conic-gradient(
