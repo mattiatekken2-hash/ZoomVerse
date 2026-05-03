@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
   fetchHomeState,
   unlockHome,
@@ -91,6 +91,62 @@ function fmtCountdown(s: number): string {
   return `${sec}s`;
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Identity-stable update helpers — used to dampen the per-30s polling
+// flicker. Each helper returns true when the new payload is "the same"
+// for rendering purposes, so the calling setState can skip the commit
+// and keep the previous array/object reference. This prevents the
+// downstream tree (room overlays, friend astronauts, plant slots) from
+// re-rendering and visually jittering when nothing actually changed.
+// ─────────────────────────────────────────────────────────────────────
+function sameKeyList(a: InvitedFriend[], b: InvitedFriend[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].key !== b[i].key) return false;
+  }
+  return true;
+}
+function sameInboxList(a: RoomInviteInbox[], b: RoomInviteInbox[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].id !== b[i].id) return false;
+  }
+  return true;
+}
+function shallowSameHomeState(a: HomeState, b: HomeState): boolean {
+  // Compare the small set of fields that actually drive UI state. We
+  // intentionally ignore long timestamp strings and instead derive
+  // readiness client-side from the numeric `*NextReadyAt` fields, so
+  // an unchanged snapshot stays referentially equal across polls.
+  if (
+    a.unlocked !== b.unlocked ||
+    a.hasSun !== b.hasSun ||
+    a.stardustBalance !== b.stardustBalance ||
+    a.unlockCost !== b.unlockCost ||
+    a.slots.A !== b.slots.A ||
+    a.slots.B !== b.slots.B ||
+    a.slots.C !== b.slots.C
+  ) return false;
+  if (
+    a.computer.owned !== b.computer.owned ||
+    a.computer.nextReadyAt !== b.computer.nextReadyAt ||
+    a.computer.cost !== b.computer.cost ||
+    a.computer.rewardPerClaim !== b.computer.rewardPerClaim
+  ) return false;
+  if (
+    a.plant.owned !== b.plant.owned ||
+    a.plant.level !== b.plant.level ||
+    a.plant.xp !== b.plant.xp ||
+    a.plant.waterNextReadyAt !== b.plant.waterNextReadyAt ||
+    a.plant.claimNextReadyAt !== b.plant.claimNextReadyAt ||
+    a.plant.tonPerClaim !== b.plant.tonPerClaim ||
+    a.plant.seedCost !== b.plant.seedCost
+  ) return false;
+  return true;
+}
+
 export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
   const [state, setState] = useState<HomeState | null>(null);
   const [loading, setLoading] = useState(true);
@@ -122,26 +178,33 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
   // newly accepted invite shows up without a manual reload.
   //
   // Sequence guard (seqRef) prevents a slow request from a previous
-  // poll from overwriting fresher data. We also clear `friends` when
-  // the telegramId changes so a brief account switch can't flash the
-  // previous user's invitees.
+  // poll from overwriting fresher data.
+  //
+  // ⚠️ Flicker fix: we used to clear `friends`/`visitors` on every
+  // `visible` toggle (i.e. each tab switch to/from HOME), which made
+  // every friend astronaut briefly disappear and pop back in. Clearing
+  // is now scoped to telegramId changes only — the cached list stays
+  // visible while the next poll is in flight.
   const friendsSeqRef = useRef(0);
   useEffect(() => {
     setFriends([]);
     setVisitors([]);
+  }, [telegramId]);
+  useEffect(() => {
     if (!telegramId || !visible) return;
     let cancelled = false;
     const load = async () => {
       const my = ++friendsSeqRef.current;
-      // Fire both lookups in parallel — they hit independent endpoints
-      // and a slow one shouldn't block the other from refreshing.
       const [f, v] = await Promise.all([
         fetchReferralFriends(),
         fetchRoomVisitors(),
       ]);
       if (!cancelled && my === friendsSeqRef.current) {
-        setFriends(f);
-        setVisitors(v);
+        // Only commit a new array reference when the contents actually
+        // changed — otherwise downstream room overlays see "new" friend
+        // props every 30 s and re-render their astronauts for nothing.
+        setFriends((cur) => (sameKeyList(cur, f) ? cur : f));
+        setVisitors((cur) => (sameKeyList(cur, v) ? cur : v));
       }
     };
     load();
@@ -152,16 +215,19 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
   // Inbox of pending room invites addressed to me. Polled more often
   // than the visitors list (15s vs 30s) so a fresh invite shows up
   // promptly while the user is on HOME. The seq guard prevents a slow
-  // poll from clobbering a faster one.
+  // poll from clobbering a faster one. Same flicker fix as above:
+  // clear only on telegramId change, not on every visible toggle.
   const inboxSeqRef = useRef(0);
+  useEffect(() => { setInbox([]); }, [telegramId]);
   useEffect(() => {
-    setInbox([]);
     if (!telegramId || !visible) return;
     let cancelled = false;
     const load = async () => {
       const my = ++inboxSeqRef.current;
       const list = await fetchRoomInviteInbox();
-      if (!cancelled && my === inboxSeqRef.current) setInbox(list);
+      if (!cancelled && my === inboxSeqRef.current) {
+        setInbox((cur) => (sameInboxList(cur, list) ? cur : list));
+      }
     };
     load();
     const id = window.setInterval(load, 15000);
@@ -172,12 +238,16 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
   // (same shape, same palette function, same FRIEND_SPOTS). Visitors
   // win when both sources reference the same `key` so the more recent
   // 30-min window takes precedence over the long-lived referral entry.
-  const roomOccupants: InvitedFriend[] = (() => {
+  //
+  // Memoised on the underlying arrays so the per-second `tick` re-render
+  // doesn't rebuild the array (which would trigger every astronaut
+  // overlay to re-render and restart its CSS animations).
+  const roomOccupants: InvitedFriend[] = useMemo(() => {
     const byKey = new Map<string, InvitedFriend>();
     for (const f of friends) byKey.set(f.key, f);
     for (const v of visitors) byKey.set(v.key, v);
     return [...byKey.values()];
-  })();
+  }, [friends, visitors]);
 
   const handleSendRoomInvite = useCallback(async () => {
     if (!telegramId) return;
@@ -256,7 +326,15 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
     const mySeq = ++refreshSeqRef.current;
     const s = await fetchHomeState(telegramId);
     if (mySeq !== refreshSeqRef.current) return; // a newer refresh already won
-    setState(s);
+    // ⚠️ Flicker fix: only commit when the snapshot actually differs.
+    // Without this, every 30 s reconcile + every global "zoom-data-refresh"
+    // event would replace `state` with a brand-new object reference even
+    // when nothing changed, forcing the entire 2k-line HOME tree to
+    // re-render and visibly flashing CSS-driven sub-elements.
+    setState((cur) => {
+      if (cur && s && shallowSameHomeState(cur, s)) return cur;
+      return s;
+    });
     setLoading(false);
   }, [telegramId]);
 
