@@ -147,7 +147,10 @@ function PlanetOrbImpl({ planet, size = 60, animate = true, displayFloat }: Plan
   const haloMult = f !== null ? 0.35 + 1.05 * f : 1;
   const haloInnerAlpha = alphaHex(haloMult, 0x55);
   const haloMidAlpha = alphaHex(haloMult, 0x20);
-  const haloScale = f !== null ? 1.6 + 0.7 * f : 2.2;
+  // V1_NFT keeps a tight halo so the chrome look stays close to the
+  // orb (we already provide the platinum pulse halo separately, sized
+  // 1.18x). Other planets use the float-driven scale or default 2.2x.
+  const haloScale = planet.name === "V1_NFT" ? 1.2 : (f !== null ? 1.6 + 0.7 * f : 2.2);
 
   // Box-shadow glow scaling for the orb body. Same multiplier so the
   // change feels coherent across the breathing halo and the rim glow.
