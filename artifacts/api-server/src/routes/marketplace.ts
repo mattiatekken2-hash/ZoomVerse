@@ -67,7 +67,12 @@ const ListBody = z.object({
   // Required: anchors the listing to a specific planet in the seller's
   // inventory. Without this we have no way to verify ownership.
   planetId: z.string().min(1).max(128),
-  planetType: z.enum(["BASIC", "RARE", "EPIC", "GOLD"]),
+  // V1_NFT è incluso: il pianeta NFT esclusivo (20 TON, max 5 globali)
+  // è tradabile sul marketplace come secondario. Trasferimento diretto via
+  // planets_json: il counter `bonusV1NftPlatinum` non viene toccato (la cap
+  // globale di 5 resta intatta perché il SUM non cambia col trade).
+  // V1 invece resta soulbound (gate lato client in useGameState.listPlanet).
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "GOLD", "V1_NFT"]),
   planetRate: z.number().int().positive(),
   price: z.number().int().positive(),
 });
