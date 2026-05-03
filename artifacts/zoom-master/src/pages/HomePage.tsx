@@ -298,6 +298,13 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
     }
   }, [telegramId]);
 
+  // Watering tick — bumps each time the player successfully waters the
+  // plant. PlantSlotContent listens to this number to (re-)trigger a
+  // happy shake + blue water-droplet burst around the sprite. Declared
+  // up here (above any conditional return) so the hook order stays
+  // stable across loading/loaded/locked/unlocked render branches.
+  const [wateringTick, setWateringTick] = useState(0);
+
   // Re-render the countdown every second so it actually counts down.
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -509,10 +516,6 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
   // timestamp so the cooldown unlocks immediately at the 24h mark
   // without waiting for the next /home/state poll.
   const liveZoomBonusReady = nowMs >= (state.computer.zoomBonusNextReadyAt || 0);
-  // Watering tick — bumps each time the player successfully waters the
-  // plant. PlantSlotContent listens to this number to (re-)trigger a
-  // happy shake + blue water-droplet burst around the sprite.
-  const [wateringTick, setWateringTick] = useState(0);
   const livePlant: HomeState["plant"] = {
     ...state.plant,
     waterReady: state.plant.owned && nowMs >= state.plant.waterNextReadyAt,
