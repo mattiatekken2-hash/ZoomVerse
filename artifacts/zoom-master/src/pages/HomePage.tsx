@@ -1844,8 +1844,13 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
           position: "absolute",
           inset: 0,
           transformStyle: "preserve-3d",
-          opacity: persp ? 1 : 0,
-          transition: "opacity 700ms cubic-bezier(0.22, 1, 0.36, 1)",
+          // Walls are ALWAYS at full opacity. In FLAT mode they are
+          // completely hidden behind the back-wall plane (which is
+          // at scale 1 and covers the whole viewport). As soon as
+          // the back-wall starts shrinking they reveal themselves
+          // smoothly — no opacity fade means no black void appears
+          // around the back-wall during the transition.
+          opacity: 1,
           pointerEvents: "none",
         }}
       >
