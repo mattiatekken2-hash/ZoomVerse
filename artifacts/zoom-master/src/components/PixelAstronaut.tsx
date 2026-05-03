@@ -229,55 +229,69 @@ export function PixelAstronautHead({
   );
 }
 
-/** Astronaut sleeping on the bed. Uses the SAME PixelAstronaut sprite
- *  as every other activity — helmet + suit always visible, no skin
- *  swap — so the character stays consistent. The sprite is rotated
- *  -90deg (head to the left, feet to the right) so it lies on the bed,
- *  with a sheet stripe across the legs and 3 floating Z's. */
-export function SleepingAstronaut({ width = 56 }: { width?: number }) {
-  // The wrapper is sized to the rotated sprite footprint: original
-  // sprite is `spriteW` wide × `spriteW * 1.5` tall, so after a -90deg
-  // rotation we end up `spriteW * 1.5` wide × `spriteW` tall. We pick
-  // a sprite size that keeps the lying figure ~`width` long.
-  const spriteW = Math.round(width * 0.66);
-  const spriteH = Math.round((spriteW * 12) / 8);
-  const sheetTop = Math.round(spriteW * 0.55);
+/** Astronaut sleeping in the bed, tucked UNDER the covers. The helmet
+ *  pokes out at the pillow end (so the player still recognises the
+ *  character — same helmet sprite as every other activity, closed-eye
+ *  visor variant) while the rest of the body is hidden under a sheet
+ *  stripe with a small chest bump. Three Z's drift up from the helmet.
+ *
+ *  Layout (logical units, the wrapper is `width` long × `helmetH+pad`
+ *  tall): helmet on the LEFT (over the pillow), sheet extending RIGHT
+ *  for the rest of the bed length. */
+export function SleepingAstronaut({ width = 70 }: { width?: number }) {
+  // Helmet sprite is 8 wide × 4 tall (PixelAstronautHead ratio). Size
+  // it so it occupies ~30% of the total bed length — that matches the
+  // pillow proportions in the PixelBed SVG.
+  const helmetW = Math.round(width * 0.3);
+  const helmetH = Math.round((helmetW * 4) / 8);
+  // Sheet covers the remaining ~70% of the bed length, ending just
+  // shy of the foot board.
+  const sheetW = width - helmetW;
+  const sheetH = Math.round(helmetH * 1.1);
+  // Total wrapper height keeps room above the helmet for the Z's.
+  const wrapperH = helmetH + 6;
   return (
-    <div style={{ position: "relative", width: spriteH, height: spriteW + 8 }}>
-      {/* Sheet stripe covering the legs / lower body. Sits BEHIND the
-          rotated astronaut so the helmet + suit body still read clearly. */}
+    <div style={{ position: "relative", width, height: wrapperH }}>
+      {/* Sheet covering the body — anchored to the BOTTOM of the
+          wrapper so the lower edge lines up with the bed's sheet line. */}
       <div
         style={{
           position: "absolute",
-          left: Math.round(spriteH * 0.45),
-          top: sheetTop,
-          width: Math.round(spriteH * 0.55),
-          height: Math.round(spriteW * 0.45),
+          left: helmetW - 1,
+          bottom: 0,
+          width: sheetW,
+          height: sheetH,
           background: C.sheet,
-          borderBottom: `2px solid ${C.sheetShade}`,
+          // Darker fold along the bottom — same trick as the bed sprite,
+          // so the covers visually melt into the bed sheet.
+          boxShadow: `inset 0 -2px 0 ${C.sheetShade}`,
         }}
       />
-      {/* Astronaut sprite, rotated -90deg so the head is on the left */}
+      {/* Tiny chest bump suggesting the body under the covers, sits on
+          top of the sheet near the helmet end. */}
       <div
         style={{
           position: "absolute",
-          left: 0,
-          top: Math.round((spriteW - spriteH) / 2 + spriteH / 2 - spriteW / 2),
-          width: spriteW,
-          height: spriteH,
-          transform: "rotate(-90deg)",
-          transformOrigin: "center center",
+          left: helmetW + Math.round(sheetW * 0.1),
+          bottom: sheetH - 2,
+          width: Math.round(sheetW * 0.35),
+          height: 3,
+          background: C.sheet,
         }}
-      >
-        <PixelAstronaut pose="stand" facing="sleep" width={spriteW} />
+      />
+      {/* Helmet poking out of the covers — same closed-eye sprite used
+          by the LAB sleep pill, so the character reads as the SAME
+          astronaut, just tucked in. */}
+      <div style={{ position: "absolute", left: 0, bottom: 0 }}>
+        <PixelAstronautHead variant="sleep" width={helmetW} />
       </div>
-      {/* Floating Z's drifting up from the helmet area (left side). */}
+      {/* Floating Z's drifting up from the helmet area. */}
       {[0, 1.1, 2.2].map((delay, i) => (
         <span
           key={i}
           style={{
             position: "absolute",
-            left: Math.round(spriteH * 0.1),
+            left: Math.round(helmetW * 0.45) + i * 2,
             top: -6,
             fontSize: 10,
             fontWeight: 900,

@@ -543,12 +543,13 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, onSlotClick, visi
         {/* Window — large panoramic window in the back wall */}
         <PixelWindow x={28} y={4} w={36} h={26} sky={sky} ground={ground} phase={phase} />
 
-        {/* Bed (left wall) — narrow variant so we make room for the
-            shower stall right next to it. */}
-        <PixelBed x={2} y={28} width={14} />
+        {/* Bed (left wall) — wider variant so the sleeping astronaut
+            fits under the covers without spilling over the foot board. */}
+        <PixelBed x={2} y={28} width={18} />
 
-        {/* Shower stall (left, between bed and window/table area) */}
-        <PixelShower x={18} y={22} />
+        {/* Shower stall (left, between bed and window/table area). Shifted
+            right by 4 units to make room for the wider bed. */}
+        <PixelShower x={22} y={22} />
 
         {/* Dining table + chair (center / right) */}
         <PixelTable x={36} y={36} />
@@ -721,7 +722,7 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
   // Astronaut placement per activity. Coords are % of the room container,
   // matching the SVG's 80×64 furniture layout.
   const astroPos: Record<ReturnType<typeof useAstronautActivity>, { left: string; top: string }> = {
-    sleep: { left: "11%", top: "53%" },     // on the (narrower) bed
+    sleep: { left: "14%", top: "52%" },     // tucked into the wider bed
     walk: { left: "50%", top: "82%" },      // walking strip across the floor
     coffee: { left: "70%", top: "76%" },    // sitting on the chair
     snack: { left: "55%", top: "78%" },     // standing by the table
@@ -736,7 +737,7 @@ function RoomLifeOverlay({ phase, visible }: { phase: SkyPhase; visible: boolean
   // Pet position + state derive from the astronaut's activity so
   // the two characters always read as a pair.
   const petPos: Record<ReturnType<typeof useAstronautActivity>, { left: string; top: string }> = {
-    sleep: { left: "23%", top: "62%" },     // curled up at the foot of the bed
+    sleep: { left: "27%", top: "62%" },     // curled up at the foot of the (wider) bed
     walk: { left: "35%", top: "88%" },      // trailing the astronaut
     coffee: { left: "78%", top: "88%" },    // begging by the chair
     snack: { left: "65%", top: "88%" },     // sharing the table snack
