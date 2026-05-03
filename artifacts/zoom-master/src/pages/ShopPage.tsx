@@ -47,6 +47,11 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [payMode, setPayMode] = useState<"stars" | "ton">("stars");
   const [sunStock, setSunStock] = useState<SunStock | null>(null);
+  // Shop categories: tabs per organizzare i prodotti.
+  // - exclusive: SUN (e in futuro altri NFT/limited shop items)
+  // - items: bundle pacchetti + extra slot (consumabili "in-game")
+  // - resources: stardust top-ups + computer/plant (currency e item stardust)
+  const [shopTab, setShopTab] = useState<"exclusive" | "items" | "resources">("exclusive");
   // Stardust shop section reads `/home/state` because that single endpoint
   // already returns both the live stardust balance AND whether the user
   // owns the COMPUTER (so we can hide the buy button after purchase). One
@@ -360,8 +365,40 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
         </div>
       </div>
 
+      {/* Shop category tabs — Exclusive / Items / Resources.
+          Sticky sotto l'header pay-mode così la categoria attiva è
+          sempre visibile mentre lo shop scrolla. */}
+      <div className="px-4 pb-3" style={{ background: "rgba(6,8,16,0.4)" }}>
+        <div className="flex gap-1 p-0.5 rounded-lg" style={{ background: "rgba(255,255,255,0.04)" }}>
+          {([
+            { id: "exclusive", label: "EXCLUSIVE", color: "#ffb347" },
+            { id: "items", label: "ITEMS", color: "#c471ed" },
+            { id: "resources", label: "RESOURCES", color: "#ffd740" },
+          ] as const).map(tab => {
+            const active = shopTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setShopTab(tab.id)}
+                className="flex-1 py-2 rounded-md text-xs font-black tracking-wider transition-all"
+                style={{
+                  background: active ? `${tab.color}20` : "transparent",
+                  color: active ? tab.color : "rgba(255,255,255,0.35)",
+                  border: active ? `1px solid ${tab.color}45` : "1px solid transparent",
+                  textShadow: active ? `0 0 8px ${tab.color}80` : "none",
+                }}
+                data-testid={`tab-shop-${tab.id}`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="flex flex-col gap-3">
+          {shopTab === "exclusive" && (<>
           <div
             className="rounded-2xl p-5 border relative overflow-hidden"
             style={{
@@ -411,7 +448,9 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
               {sunSoldOut ? "Sold Out" : sunUserMaxed ? `Max ${sunStock?.maxPerUser ?? 5} Reached` : buying === "the_sun" ? "Processing..." : payMode === "stars" ? "BUY — ⭐ 1,000 Stars" : "BUY — 10 TON"}
             </button>
           </div>
+          </>)}
 
+          {shopTab === "resources" && (<>
           {/* Stardust top-up bundles — pay in Stars or TON to instantly
               get stardust. Sits above the stardust-priced items so a player
               who's short on stardust can fix that first, then keep shopping. */}
@@ -566,8 +605,10 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
               </button>
             </div>
           </div>
+          </>)}
 
-          <div className="font-black text-sm tracking-widest uppercase mb-1 mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
+          {shopTab === "items" && (<>
+          <div className="font-black text-sm tracking-widest uppercase mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
             Packs & Items
           </div>
 
@@ -613,6 +654,7 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
               </div>
             </div>
           ))}
+          </>)}
         </div>
       </div>
     </div>

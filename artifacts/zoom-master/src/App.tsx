@@ -537,13 +537,53 @@ function AppShellWithState() {
         </div>
         <div className="flex items-center gap-3">
           <div
-            className="glass-neon flex items-center gap-1.5 px-3.5 py-2 rounded-full font-black text-sm cursor-pointer"
-            onClick={() => switchTab("shop")}
+            className="glass-neon flex items-center gap-1.5 px-3.5 py-2 rounded-full font-black text-sm"
             data-testid="balance-display"
+            aria-label="ZOOM balance"
           >
             <span style={{ fontSize: 13 }}>🪐</span>
             <span className="neon-text">{Math.floor(state.balance).toLocaleString()}</span>
           </div>
+          <button
+            onClick={() => switchTab("shop")}
+            data-testid="button-shop-nav"
+            aria-label="Open shop"
+            className="flex flex-col items-center justify-center gap-0.5 active:scale-95"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              background: "linear-gradient(135deg, rgba(196,113,237,0.18), rgba(0,242,254,0.10))",
+              border: "1px solid rgba(196,113,237,0.55)",
+              boxShadow: "0 0 14px rgba(196,113,237,0.35), inset 0 0 8px rgba(0,242,254,0.10)",
+              cursor: "pointer",
+              padding: 0,
+              transition: "transform 0.12s",
+            }}
+          >
+            {/* Pixel-art shopping bag — neon magenta/cyan, matching ZOOM palette */}
+            <svg width={20} height={20} viewBox="0 0 16 16" shapeRendering="crispEdges" style={{ filter: "drop-shadow(0 0 4px rgba(196,113,237,0.8))" }}>
+              <rect x="5" y="2" width="1" height="3" fill="#c471ed" />
+              <rect x="10" y="2" width="1" height="3" fill="#c471ed" />
+              <rect x="6" y="1" width="4" height="1" fill="#c471ed" />
+              <rect x="3" y="5" width="10" height="1" fill="#00f2fe" />
+              <rect x="3" y="6" width="1" height="8" fill="#00f2fe" />
+              <rect x="12" y="6" width="1" height="8" fill="#00f2fe" />
+              <rect x="3" y="13" width="10" height="1" fill="#00f2fe" />
+              <rect x="4" y="6" width="8" height="7" fill="rgba(196,113,237,0.18)" />
+              <rect x="6" y="8" width="1" height="1" fill="#fff" />
+              <rect x="9" y="8" width="1" height="1" fill="#fff" />
+              <rect x="6" y="10" width="4" height="1" fill="#fff" />
+            </svg>
+            <span style={{
+              fontSize: 7,
+              fontWeight: 900,
+              letterSpacing: 1,
+              color: "#c471ed",
+              textShadow: "0 0 4px rgba(196,113,237,0.7)",
+              lineHeight: 1,
+            }}>SHOP</span>
+          </button>
           <div
             className="flex items-center gap-1 px-2.5 py-2 rounded-full font-black text-sm cursor-pointer"
             onClick={() => setStardustPopupOpen(true)}
