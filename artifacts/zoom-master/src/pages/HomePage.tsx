@@ -972,9 +972,21 @@ function PixelWindow({ x, y, w, h, sky, ground, phase }: { x: number; y: number;
       <rect x={x + 1} y={y + 1} width={w - 2} height={h - 6} fill={`url(#${frameId})`} />
       {/* Ground band */}
       <rect x={x + 1} y={y + h - 6} width={w - 2} height={5} fill={ground} />
-      {/* Stars */}
+      {/* Stars — slow pulse (opacity in/out) with a per-star delay so
+          they twinkle out of sync, like a real night sky. 4s cycle. */}
       {stars.map(([sx, sy], i) => (
-        <rect key={i} x={x + sx} y={y + sy} width={1} height={1} fill="#ffffff" />
+        <rect
+          key={i}
+          x={x + sx}
+          y={y + sy}
+          width={1}
+          height={1}
+          fill="#ffffff"
+          style={{
+            animation: `home-star-pulse 4s ease-in-out ${(i * 0.37) % 4}s infinite`,
+            transformOrigin: "center",
+          }}
+        />
       ))}
       {/* Cross frame */}
       <rect x={x + w / 2 - 1} y={y} width={2} height={h} fill={frame} />

@@ -1063,6 +1063,14 @@
    Subtle horizontal lean (±1 px) used while the astronaut is at the
    window. Replaces a previous full-body turn that the player found
    unnatural. Pure transform = GPU friendly. */
+/* Slow twinkle for the night-sky stars in the bedroom window.
+   Drifts opacity from a soft 30% glow to bright 100% and back. The
+   per-star animation-delay (set inline) staggers the cycle so the
+   sky doesn't pulse in unison. */
+@keyframes home-star-pulse {
+  0%, 100% { opacity: 0.30; }
+  50%      { opacity: 1.00; }
+}
 /* Heart drifting up between astronaut and pet during the "play"
    activity — pops in, floats up, fades out. */
 @keyframes home-play-heart {
