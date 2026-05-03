@@ -3,6 +3,7 @@ import {
   fetchHomeState,
   unlockHome,
   claimComputer,
+  claimComputerZoomBonus,
   waterPlant,
   claimPlant,
   placeHomeSlot,
@@ -134,7 +135,8 @@ function shallowSameHomeState(a: HomeState, b: HomeState): boolean {
     a.computer.owned !== b.computer.owned ||
     a.computer.nextReadyAt !== b.computer.nextReadyAt ||
     a.computer.cost !== b.computer.cost ||
-    a.computer.rewardPerClaim !== b.computer.rewardPerClaim
+    a.computer.rewardPerClaim !== b.computer.rewardPerClaim ||
+    a.computer.zoomBonusNextReadyAt !== b.computer.zoomBonusNextReadyAt
   ) return false;
   if (
     a.plant.owned !== b.plant.owned ||
@@ -399,6 +401,23 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
     else setToast("Claim failed");
   };
 
+  // Easter-egg: tap the computer to try the +200 $ZOOM daily bonus.
+  // Silent on cooldown (the visual binary-rain animation is enough
+  // feedback) — only the success path shows a toast so it feels like a
+  // surprise reward, not a button.
+  const handleComputerZoomBonus = async () => {
+    if (!telegramId) return;
+    const r = await claimComputerZoomBonus(telegramId);
+    if (r.ok) {
+      setToast(`+${r.reward} $ZOOM`);
+      window.dispatchEvent(new Event("zoom-data-refresh"));
+      void refresh();
+    } else if (r.error === "NOT_READY") {
+      // Stay quiet — the next bonus is on tomorrow's tap.
+      void refresh();
+    }
+  };
+
   const handleWaterPlant = async () => {
     if (!telegramId) return;
     setBusy("water-plant");
@@ -482,6 +501,10 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
   const nowMs = Date.now();
   const liveComputerClaimable =
     state.computer.owned && nowMs >= state.computer.nextReadyAt;
+  // Easter-egg 200 $ZOOM bonus — derived live from the absolute server
+  // timestamp so the cooldown unlocks immediately at the 24h mark
+  // without waiting for the next /home/state poll.
+  const liveZoomBonusReady = nowMs >= (state.computer.zoomBonusNextReadyAt || 0);
   const livePlant: HomeState["plant"] = {
     ...state.plant,
     waterReady: state.plant.owned && nowMs >= state.plant.waterNextReadyAt,
@@ -767,6 +790,9 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
             plant={livePlant}
             visible={visible}
             friends={roomOccupants}
+            onComputerExtraClick={() => {
+              if (liveZoomBonusReady) void handleComputerZoomBonus();
+            }}
             onSlotClick={(s) => {
               if (!arrange) {
                 // Outside arrange mode: tapping the slot does the
@@ -1162,15 +1188,84 @@ interface PixelRoomProps {
   plant: HomeState["plant"];
   onSlotClick: (slot: Slot) => void;
   friends: InvitedFriend[];
+  /** Easter-egg: fired on every COMPUTER tap (regardless of slot
+   *  position) so the parent can attempt the daily +200 $ZOOM bonus. */
+  onComputerExtraClick?: () => void;
 }
 
-function PixelRoom({ phase, slots, arrange, computerClaimable, plant, onSlotClick, visible, friends }: PixelRoomProps & { visible: boolean }) {
-  const sky = PHASE_GRADIENT[phase];
-  const ground = PHASE_GROUND[phase];
-  const wall = "#2a2540";
-  const wallTrim = "#3a3556";
-  const floor = "#5b3a22";
-  const floorDark = "#3f2916";
+// Outdoor scene cycles when the user taps the window. Index 0 = the
+// natural day/night sky (UTC-driven). Indices 1..3 are deliberate
+// "skin" overrides — they ignore phase so a Pink Nebula stays pink even
+// at midnight UTC. Stars draw on top only when phase==="night" still.
+type OutdoorOverride = { sky: string; ground: string; label: string; planet?: "ringed" | "giant" };
+const OUTDOOR_SCENES: Array<OutdoorOverride | null> = [
+  null,
+  {
+    sky: "linear-gradient(180deg, #2a0540 0%, #6a1480 45%, #ff5db5 100%)",
+    ground: "#3a0a4a",
+    label: "Pink Nebula",
+  },
+  {
+    sky: "linear-gradient(180deg, #1a0533 0%, #471174 60%, #b47ce0 100%)",
+    ground: "#2a1040",
+    label: "Giant Planet",
+    planet: "giant",
+  },
+  {
+    sky: "linear-gradient(180deg, #000000 0%, #050018 60%, #0a0030 100%)",
+    ground: "#020010",
+    label: "Deep Space",
+  },
+];
+
+function PixelRoom({ phase, slots, arrange, computerClaimable, plant, onSlotClick, visible, friends, onComputerExtraClick }: PixelRoomProps & { visible: boolean }) {
+  // Outdoor scene cycle (index into OUTDOOR_SCENES). null = follow phase.
+  const [outdoorIdx, setOutdoorIdx] = useState(0);
+  const [sceneLabel, setSceneLabel] = useState<string | null>(null);
+  const override = OUTDOOR_SCENES[outdoorIdx] || null;
+  const sky = override ? override.sky : PHASE_GRADIENT[phase];
+  const ground = override ? override.ground : PHASE_GROUND[phase];
+  // Night dim — when no outdoor override is active and it's night UTC,
+  // darken the room interior so the lit lamp on the table reads as the
+  // main light source.
+  const nightDim = !override && phase === "night";
+  const wall = nightDim ? "#1a1730" : "#2a2540";
+  const wallTrim = nightDim ? "#27243f" : "#3a3556";
+  const floor = nightDim ? "#3a2415" : "#5b3a22";
+  const floorDark = nightDim ? "#2a1a0e" : "#3f2916";
+  const lampLit = nightDim;
+
+  // PC binary-rain easter egg — local visual flash. Lasts 1.5 s.
+  const [pcAnim, setPcAnim] = useState(false);
+  // Bed click → force the astronaut to walk to bed and sleep for ~30 s.
+  const [forceSleepUntil, setForceSleepUntil] = useState(0);
+  const sleeping = forceSleepUntil > Date.now();
+  // Re-tick every second so the room rerenders when forceSleep expires.
+  const [, setSleepTick] = useState(0);
+  useEffect(() => {
+    if (!sleeping) return;
+    const id = window.setInterval(() => setSleepTick((x) => x + 1), 500);
+    return () => window.clearInterval(id);
+  }, [sleeping]);
+
+  const cycleOutdoor = useCallback(() => {
+    setOutdoorIdx((i) => {
+      const next = (i + 1) % OUTDOOR_SCENES.length;
+      const lbl = OUTDOOR_SCENES[next]?.label || "Sky";
+      setSceneLabel(lbl);
+      window.setTimeout(() => setSceneLabel(null), 1800);
+      return next;
+    });
+  }, []);
+
+  const triggerBedSleep = useCallback(() => {
+    setForceSleepUntil(Date.now() + 30000);
+  }, []);
+
+  const triggerPcAnim = useCallback(() => {
+    setPcAnim(true);
+    window.setTimeout(() => setPcAnim(false), 1500);
+  }, []);
 
   // Slot screen positions (% of room) — kept fixed across all devices.
   const SLOT_POS: Record<Slot, { left: string; top: string }> = {
@@ -1203,7 +1298,7 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, onSlotClic
         <rect x="0" y="56" width="80" height="1" fill={floorDark} />
 
         {/* Window — large panoramic window in the back wall */}
-        <PixelWindow x={28} y={4} w={36} h={26} sky={sky} ground={ground} phase={phase} />
+        <PixelWindow x={28} y={4} w={36} h={26} sky={sky} ground={ground} phase={phase} planet={override?.planet} hideStars={override != null} />
 
         {/* Bed (left wall) — wider variant so the sleeping astronaut
             fits under the covers without spilling over the foot board. */}
@@ -1216,6 +1311,10 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, onSlotClic
         {/* Dining table + chair (center / right) */}
         <PixelTable x={36} y={36} />
         <PixelChair x={50} y={42} />
+        {/* Bedside lamp on the dining table — only LIT during night UTC
+            (and when no outdoor scene override is active). Provides the
+            "warm pool of light" that explains the dimmed walls. */}
+        <PixelLamp x={37} y={31} lit={lampLit} />
 
         {/* Fridge — right wall, sits on the floor */}
         <PixelFridge x={68} y={24} />
@@ -1224,7 +1323,87 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, onSlotClic
       {/* Life overlay — astronaut going about his routine, plus the
           occasional bird drifting across the window. Sits ABOVE the room
           SVG and BELOW the slot buttons so it never intercepts clicks. */}
-      <RoomLifeOverlay phase={phase} visible={visible} friends={friends} />
+      <RoomLifeOverlay phase={phase} visible={visible} friends={friends} forceSleep={sleeping} />
+
+      {/* Warm lamp glow — soft yellow radial bloom over the table at
+          night, reinforces that the lamp is the room's light source.
+          Pure CSS, sits between the SVG and the interactive overlays. */}
+      {lampLit && (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: `${(38 / 80) * 100}%`,
+            top: `${(34 / 64) * 100}%`,
+            width: "32%",
+            height: "40%",
+            transform: "translate(-50%, -50%)",
+            background: "radial-gradient(circle, rgba(255,225,140,0.35) 0%, rgba(255,200,100,0.15) 40%, rgba(0,0,0,0) 70%)",
+            pointerEvents: "none",
+            animation: "home-lamp-glow 4s ease-in-out infinite",
+          }}
+        />
+      )}
+
+      {/* Window click overlay — cycles through outdoor scenes (default
+          phase → Pink Nebula → Giant Planet → Deep Space). */}
+      <button
+        type="button"
+        onClick={cycleOutdoor}
+        aria-label="Cycle outdoor view"
+        style={{
+          position: "absolute",
+          left: `${(28 / 80) * 100}%`,
+          top: `${(4 / 64) * 100}%`,
+          width: `${(36 / 80) * 100}%`,
+          height: `${(26 / 64) * 100}%`,
+          background: "transparent",
+          border: "none",
+          padding: 0,
+          cursor: "pointer",
+        }}
+      />
+      {sceneLabel && (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            left: `${(46 / 80) * 100}%`,
+            top: `${(2 / 64) * 100}%`,
+            transform: "translate(-50%, 0)",
+            background: "rgba(10,26,61,0.85)",
+            color: "#fff",
+            fontFamily: "'Press Start 2P', monospace",
+            fontSize: 9,
+            padding: "3px 6px",
+            borderRadius: 3,
+            border: "1px solid rgba(255,255,255,0.25)",
+            whiteSpace: "nowrap",
+            pointerEvents: "none",
+            animation: "home-visitor-bubble 1.6s ease-in-out infinite",
+          }}
+        >
+          {sceneLabel}
+        </div>
+      )}
+
+      {/* Bed click overlay — astronaut walks to bed and sleeps for 30 s. */}
+      <button
+        type="button"
+        onClick={triggerBedSleep}
+        aria-label="Send astronaut to sleep"
+        style={{
+          position: "absolute",
+          left: `${(2 / 80) * 100}%`,
+          top: `${(28 / 64) * 100}%`,
+          width: `${(22 / 80) * 100}%`,
+          height: `${(12 / 64) * 100}%`,
+          background: "transparent",
+          border: "none",
+          padding: 0,
+          cursor: "pointer",
+        }}
+      />
 
       {/* Slot overlays — positioned absolutely on top of the SVG so we
           can attach onClick handlers and the rendered item without
@@ -1236,7 +1415,18 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, onSlotClic
           <button
             key={s}
             type="button"
-            onClick={() => onSlotClick(s)}
+            onClick={() => {
+              // Easter-egg fires on EVERY computer tap (regardless of
+              // whether the regular 24h stardust claim is ready). The
+              // parent decides whether the +200 ZOOM bonus actually
+              // lands; the binary-rain animation always plays so the
+              // room reads as interactive.
+              if (item === "computer" && !arrange) {
+                triggerPcAnim();
+                onComputerExtraClick?.();
+              }
+              onSlotClick(s);
+            }}
             aria-label={`Slot ${s}`}
             style={{
               position: "absolute",
@@ -1263,7 +1453,48 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, onSlotClic
           >
             {item === "computer" && (
               <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <PixelComputerIcon size={64} screenOn={computerClaimable} showLabel />
+                <PixelComputerIcon size={64} screenOn={computerClaimable || pcAnim} showLabel />
+                {/* Binary-rain overlay — covers the monitor screen with
+                    falling 0/1 glyphs while the easter-egg animation
+                    plays. Pure CSS, autocleaned after 1.5 s. */}
+                {pcAnim && (
+                  <div
+                    aria-hidden
+                    style={{
+                      position: "absolute",
+                      left: "12.5%",
+                      top: "12%",
+                      width: "75%",
+                      height: "55%",
+                      overflow: "hidden",
+                      pointerEvents: "none",
+                      animation: "home-pc-flash 1.5s steps(6) 1 forwards",
+                      borderRadius: 1,
+                    }}
+                  >
+                    {Array.from({ length: 6 }).map((_, col) => (
+                      <span
+                        key={col}
+                        style={{
+                          position: "absolute",
+                          left: `${(col * 100) / 6}%`,
+                          top: 0,
+                          width: `${100 / 6}%`,
+                          color: "#7fff9f",
+                          fontFamily: "ui-monospace, monospace",
+                          fontSize: 8,
+                          lineHeight: 1,
+                          textAlign: "center",
+                          textShadow: "0 0 3px rgba(127,255,159,0.9)",
+                          whiteSpace: "pre",
+                          animation: `home-binary-fall 0.${5 + col}s linear ${col * 0.05}s infinite`,
+                        }}
+                      >
+                        {"01\n10\n01\n11\n00\n10"}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {computerClaimable && (
                   <span
                     aria-hidden
@@ -1375,7 +1606,17 @@ const FRIEND_SPOTS: { left: string; top: string }[] = [
   { left: "76%", top: "50%" },
 ];
 
-function RoomLifeOverlay({ phase, visible, friends }: { phase: SkyPhase; visible: boolean; friends: InvitedFriend[] }) {
+// Random English speech bubbles surfaced when the user taps the resident
+// astronaut. Brief one-liners that hint at the game without nagging.
+const ASTRO_SPEECH: string[] = [
+  "All good, Captain?",
+  "I'm hungry for Stardust!",
+  "Did you check the plant?",
+  "Need a coffee break ★",
+  "The window view is amazing!",
+];
+
+function RoomLifeOverlay({ phase, visible, friends, forceSleep }: { phase: SkyPhase; visible: boolean; friends: InvitedFriend[]; forceSleep?: boolean }) {
   const baseActivity = useAstronautActivity();
   // Idle detection — if the user hasn't touched the screen for 30 s
   // we override the rotation and force the "drum" activity (the
@@ -1397,7 +1638,11 @@ function RoomLifeOverlay({ phase, visible, friends }: { phase: SkyPhase; visible
       events.forEach((ev) => window.removeEventListener(ev, reset));
     };
   }, []);
-  const activity: ReturnType<typeof useAstronautActivity> = idle ? "drum" : baseActivity;
+  // forceSleep (bed click) wins over everything: idle→drum and the
+  // normal rotation. Releases automatically when the parent flips the
+  // flag back to false (~30 s after the bed tap).
+  const activity: ReturnType<typeof useAstronautActivity> =
+    forceSleep ? "sleep" : idle ? "drum" : baseActivity;
   const [birds, setBirds] = useState<Bird[]>([]);
   // Measure the room so the astronaut sprite scales relative to the
   // room size — keeps the character a sensible portion of the bed,
@@ -1621,10 +1866,22 @@ function RoomLifeOverlay({ phase, visible, friends }: { phase: SkyPhase; visible
   const [annoyed, setAnnoyed] = useState(false);
   const [escapePos, setEscapePos] = useState<{ left: string; top: string } | null>(null);
   const clickTimesRef = useRef<number[]>([]);
+  // Single-tap easter egg: jump + random English speech bubble. The
+  // bubble auto-clears after 2.5 s; the jump animation runs once per
+  // tap and is throttled by `jumping` so spam-clicking doesn't restart
+  // it mid-air. Annoyed mode (10 fast clicks) still takes priority.
+  const [jumping, setJumping] = useState(false);
+  const [bubbleText, setBubbleText] = useState<string | null>(null);
   const onAstroClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (annoyed) return;
     const now = Date.now();
+    if (!jumping) {
+      setJumping(true);
+      setBubbleText(ASTRO_SPEECH[Math.floor(Math.random() * ASTRO_SPEECH.length)]!);
+      window.setTimeout(() => setJumping(false), 600);
+      window.setTimeout(() => setBubbleText((cur) => (cur && Date.now() - now >= 2400 ? null : cur)), 2500);
+    }
     clickTimesRef.current = [...clickTimesRef.current.filter((t) => now - t < 3000), now];
     if (clickTimesRef.current.length >= 10) {
       clickTimesRef.current = [];
@@ -1708,8 +1965,10 @@ function RoomLifeOverlay({ phase, visible, friends }: { phase: SkyPhase; visible
           cursor: "pointer",
         }}
       >
-        {/* Welcome speech bubble — only on first mount, ~5s */}
-        {welcome && !annoyed && (
+        {/* Welcome speech bubble — only on first mount, ~5s. Replaced
+            by the random tap-bubble whenever the user clicks the
+            astronaut directly. */}
+        {(welcome || bubbleText) && !annoyed && (
           <div
             style={{
               position: "absolute",
@@ -1728,8 +1987,33 @@ function RoomLifeOverlay({ phase, visible, friends }: { phase: SkyPhase; visible
               pointerEvents: "none",
             }}
           >
-            Welcome back, Commander!
+            {bubbleText || "Welcome back, Commander!"}
           </div>
+        )}
+        {/* Sleeping Zzz cloud — drifts up from the helmet whenever the
+            astronaut is asleep (random sleep activity OR forced bed nap). */}
+        {activity === "sleep" && !annoyed && (
+          <>
+            {[0, 0.6, 1.2].map((d, i) => (
+              <span
+                key={i}
+                aria-hidden
+                style={{
+                  position: "absolute",
+                  left: "60%",
+                  top: "10%",
+                  fontSize: Math.max(10, Math.round(spriteW * 0.32)),
+                  color: "#cfe4ff",
+                  fontFamily: "'Press Start 2P', monospace",
+                  textShadow: "0 0 4px rgba(0,0,0,0.5)",
+                  animation: `home-z-float 2.4s ease-out ${d}s infinite`,
+                  pointerEvents: "none",
+                }}
+              >
+                Z
+              </span>
+            ))}
+          </>
         )}
         {/* Smoke puffs while annoyed — three offset puffs rising */}
         {annoyed && (
@@ -1791,7 +2075,7 @@ function RoomLifeOverlay({ phase, visible, friends }: { phase: SkyPhase; visible
             </div>
           </div>
         ) : (
-          <>
+          <div style={{ animation: jumping ? "home-astro-jump 0.6s ease-out 1" : undefined }}>
         {activity === "sleep" && (
           // Total figure ~1.8 × spriteW so the lying body has the same
           // proportions as a standing astronaut tipped on its side.
@@ -2002,6 +2286,7 @@ function RoomLifeOverlay({ phase, visible, friends }: { phase: SkyPhase; visible
             ))}
           </div>
         )}
+        {/* sing block below */}
         {activity === "sing" && (
           // Singing — gentler bob and louder notes (♫) coming OUT of the
           // helmet area, fanning upward and to the sides.
@@ -2030,7 +2315,7 @@ function RoomLifeOverlay({ phase, visible, friends }: { phase: SkyPhase; visible
             ))}
           </div>
         )}
-          </>
+          </div>
         )}
       </div>
 
@@ -2167,14 +2452,24 @@ function RoomLifeOverlay({ phase, visible, friends }: { phase: SkyPhase; visible
   );
 }
 
-function PixelWindow({ x, y, w, h, sky, ground, phase }: { x: number; y: number; w: number; h: number; sky: string; ground: string; phase: SkyPhase }) {
+function PixelWindow({ x, y, w, h, sky, ground, phase, planet, hideStars }: { x: number; y: number; w: number; h: number; sky: string; ground: string; phase: SkyPhase; planet?: "ringed" | "giant"; hideStars?: boolean }) {
   const frame = "#cfd6e6";
-  const frameId = `winsky-${phase}`;
-  // Star dots only at night.
-  const stars = phase === "night" ? [
+  const frameId = `winsky-${phase}-${planet || "n"}-${hideStars ? "h" : "v"}`;
+  // Star dots only at night AND when no outdoor scene override hides them.
+  const stars = !hideStars && phase === "night" ? [
     [4, 3], [10, 5], [16, 2], [22, 6], [28, 3], [33, 5],
     [6, 9], [14, 11], [20, 8], [26, 12], [31, 9],
   ] : [];
+  // Pre-compute the giant planet (a chunky pixel-art circle approximation
+  // covering most of the right half of the window) so the SVG returns it
+  // when the user has cycled to the Giant Planet outdoor scene.
+  const giantPlanet = planet === "giant" ? (
+    <g>
+      <circle cx={x + w * 0.65} cy={y + h * 0.45} r={Math.min(w, h) * 0.35} fill="#ff8c5a" />
+      <ellipse cx={x + w * 0.55} cy={y + h * 0.4} rx={Math.min(w, h) * 0.18} ry={Math.min(w, h) * 0.05} fill="#ffba8a" opacity={0.75} />
+      <ellipse cx={x + w * 0.7} cy={y + h * 0.5} rx={Math.min(w, h) * 0.2} ry={Math.min(w, h) * 0.04} fill="#c25a32" opacity={0.7} />
+    </g>
+  ) : null;
   return (
     <g>
       {/* Frame outer */}
@@ -2194,6 +2489,9 @@ function PixelWindow({ x, y, w, h, sky, ground, phase }: { x: number; y: number;
         </linearGradient>
       </defs>
       <rect x={x + 1} y={y + 1} width={w - 2} height={h - 6} fill={`url(#${frameId})`} />
+      {/* Giant planet (Easter-egg outdoor scene) drawn on top of the sky
+          and underneath the cross-frame so it reads as "out the window". */}
+      {giantPlanet}
       {/* Ground band */}
       <rect x={x + 1} y={y + h - 6} width={w - 2} height={5} fill={ground} />
       {/* Stars — slow pulse (opacity in/out) with a per-star delay so
@@ -2217,6 +2515,36 @@ function PixelWindow({ x, y, w, h, sky, ground, phase }: { x: number; y: number;
       <rect x={x} y={y + h / 2 - 1} width={w} height={2} fill={frame} />
       {/* Sill */}
       <rect x={x - 2} y={y + h - 1} width={w + 4} height={2} fill={frame} />
+    </g>
+  );
+}
+
+// Bedside lamp — small base + shade. When `lit`, the shade glows yellow
+// with a soft pulsing CSS animation. Pure SVG so it composes inside the
+// pixel-art room without breaking the pixelated rendering.
+function PixelLamp({ x, y, lit }: { x: number; y: number; lit: boolean }) {
+  const shade = lit ? "#ffd97a" : "#7a6a40";
+  const base = "#3a2f1a";
+  return (
+    <g>
+      {/* Shade (trapezoid-ish: wider top) */}
+      <rect x={x} y={y} width={4} height={1} fill={shade} />
+      <rect x={x - 1} y={y + 1} width={6} height={2} fill={shade} />
+      {/* Neck */}
+      <rect x={x + 1} y={y + 3} width={2} height={1} fill={base} />
+      {/* Base */}
+      <rect x={x - 1} y={y + 4} width={6} height={1} fill={base} />
+      {lit && (
+        <rect
+          x={x - 2}
+          y={y - 1}
+          width={8}
+          height={6}
+          fill="#ffe7a0"
+          opacity={0.25}
+          style={{ animation: "home-lamp-glow 4s ease-in-out infinite" }}
+        />
+      )}
     </g>
   );
 }

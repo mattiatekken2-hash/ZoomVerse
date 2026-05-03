@@ -2096,6 +2096,11 @@ export interface HomeState {
     cost: number;
     rewardPerClaim: number;
     cooldownMs: number;
+    zoomBonusReward: number;
+    zoomBonusCooldownMs: number;
+    zoomBonusNextReadyAt: number;
+    zoomBonusSecondsToReady: number;
+    zoomBonusReady: boolean;
   };
   plant: {
     owned: boolean;
@@ -2176,6 +2181,9 @@ export function buyComputer(telegramId: string): Promise<HomeActionResult> {
 }
 export function claimComputer(telegramId: string): Promise<HomeActionResult> {
   return homePost("/home/computer/claim", { telegramId });
+}
+export function claimComputerZoomBonus(telegramId: string): Promise<HomeActionResult> {
+  return homePost("/home/computer/zoom-bonus", { telegramId });
 }
 export function buyPlantSeed(telegramId: string): Promise<HomeActionResult> {
   return homePost("/home/plant/buy", { telegramId });

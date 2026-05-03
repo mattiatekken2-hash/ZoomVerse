@@ -91,6 +91,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/home/unlock",
       "/home/computer/buy",
       "/home/computer/claim",
+      "/home/computer/zoom-bonus",
       "/home/plant/buy",
       "/home/plant/water",
       "/home/plant/claim",

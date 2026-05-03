@@ -147,6 +147,12 @@ export const usersTable = pgTable("users", {
   homeSlotC: text("home_slot_c"),
   computerOwnedAt: timestamp("computer_owned_at"),
   computerLastClaimAt: timestamp("computer_last_claim_at"),
+  // Easter-egg: tapping the COMPUTER on the HOME screen can drop a
+  // one-off 200 $ZOOM bonus once every 24h (in addition to the regular
+  // 25 stardust claim). Tracked server-side so a cache wipe or extra
+  // device cannot re-claim. NULL = never claimed yet → first tap drops
+  // the bonus immediately.
+  computerZoomBonusLastAt: timestamp("computer_zoom_bonus_last_at"),
 
   // ─────────────────────────────────────────────────────────────────────
   // PLANT item (sold in Shop for 10,000 stardust): a virtual pixel-art

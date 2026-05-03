@@ -26,6 +26,10 @@ const HOME_UNLOCK_COST = 1000;        // stardust
 const COMPUTER_COST = 5000;           // stardust
 const COMPUTER_REWARD = 25;           // stardust per claim
 const COMPUTER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+// Easter-egg bonus: tapping the computer can drop +200 $ZOOM once every
+// 24h (separate cooldown from the stardust claim above).
+const COMPUTER_ZOOM_BONUS_REWARD = 200;
+const COMPUTER_ZOOM_BONUS_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 // PLANT — virtual pixel-art plant that the user grows by watering.
 // 10 levels, +10 XP per watering, 100 XP per level → 10 waterings per
@@ -81,6 +85,7 @@ router.get("/home/state/:telegramId", async (req, res) => {
         plantLastClaimAt: usersTable.plantLastClaimAt,
         sunCount: usersTable.sunCount,
         stardustBalance: usersTable.stardustBalance,
+        computerZoomBonusLastAt: usersTable.computerZoomBonusLastAt,
       })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
@@ -95,6 +100,13 @@ router.get("/home/state/:telegramId", async (req, res) => {
     const owned = row.computerOwnedAt != null;
     const nextReadyAt = owned ? lastClaim + COMPUTER_COOLDOWN_MS : 0;
     const secondsToReady = owned ? Math.max(0, Math.ceil((nextReadyAt - now) / 1000)) : 0;
+    // Easter-egg 200 $ZOOM bonus state. Available immediately on first
+    // ever tap (lastBonus === 0); otherwise 24h after the last grant.
+    const lastBonus = row.computerZoomBonusLastAt
+      ? new Date(row.computerZoomBonusLastAt).getTime()
+      : 0;
+    const zoomBonusNextReadyAt = lastBonus === 0 ? now : lastBonus + COMPUTER_ZOOM_BONUS_COOLDOWN_MS;
+    const zoomBonusSecondsToReady = Math.max(0, Math.ceil((zoomBonusNextReadyAt - now) / 1000));
 
     // PLANT derived state. waterReadyAt = lastWaterAt + 12h, or NOW
     // when the user has never watered (first watering is immediate).
@@ -131,6 +143,11 @@ router.get("/home/state/:telegramId", async (req, res) => {
         cost: COMPUTER_COST,
         rewardPerClaim: COMPUTER_REWARD,
         cooldownMs: COMPUTER_COOLDOWN_MS,
+        zoomBonusReward: COMPUTER_ZOOM_BONUS_REWARD,
+        zoomBonusCooldownMs: COMPUTER_ZOOM_BONUS_COOLDOWN_MS,
+        zoomBonusNextReadyAt,
+        zoomBonusSecondsToReady,
+        zoomBonusReady: zoomBonusSecondsToReady === 0,
       },
       plant: {
         owned: plantOwned,
@@ -377,6 +394,82 @@ router.post("/home/computer/claim", async (req, res) => {
     });
   } catch (err) {
     console.error("[home/computer/claim] error:", err);
+    res.status(500).json({ ok: false, error: "INTERNAL" });
+  }
+});
+
+// ─── POST /home/computer/zoom-bonus ─────────────────────────────────────
+// Easter-egg: tapping the COMPUTER on HOME drops +200 $ZOOM once every
+// 24h, atomic CAS-style update so a double-tap can't pay twice. NULL
+// `computerZoomBonusLastAt` (never claimed) counts as "ready now".
+router.post("/home/computer/zoom-bonus", async (req, res) => {
+  const parsed = TgIdBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ ok: false, error: "BAD_REQUEST" });
+    return;
+  }
+  const { telegramId } = parsed.data;
+  try {
+    const updated = await db
+      .update(usersTable)
+      .set({
+        zoomBalance: sql`${usersTable.zoomBalance} + ${COMPUTER_ZOOM_BONUS_REWARD}`,
+        computerZoomBonusLastAt: sql`NOW()`,
+      })
+      .where(
+        sql`
+          ${usersTable.telegramId} = ${telegramId}
+          AND ${usersTable.computerOwnedAt} IS NOT NULL
+          AND (
+            ${usersTable.computerZoomBonusLastAt} IS NULL
+            OR (EXTRACT(EPOCH FROM (NOW() - ${usersTable.computerZoomBonusLastAt})) * 1000)
+                >= ${COMPUTER_ZOOM_BONUS_COOLDOWN_MS}
+          )
+        `,
+      )
+      .returning({
+        zoomBalance: usersTable.zoomBalance,
+        computerZoomBonusLastAt: usersTable.computerZoomBonusLastAt,
+      });
+    if (updated.length === 0) {
+      // Disambiguate the failure: USER_NOT_FOUND vs NOT_OWNED (bonus
+      // requires owning the COMPUTER) vs NOT_READY (cooldown active).
+      const existing = await db
+        .select({
+          computerOwnedAt: usersTable.computerOwnedAt,
+          computerZoomBonusLastAt: usersTable.computerZoomBonusLastAt,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.telegramId, telegramId))
+        .limit(1);
+      if (existing.length === 0) {
+        res.status(404).json({ ok: false, error: "USER_NOT_FOUND" });
+        return;
+      }
+      if (existing[0]!.computerOwnedAt == null) {
+        res.status(409).json({ ok: false, error: "NOT_OWNED" });
+        return;
+      }
+      const last = existing[0]!.computerZoomBonusLastAt
+        ? new Date(existing[0]!.computerZoomBonusLastAt).getTime()
+        : 0;
+      const secondsToReady = Math.max(
+        0,
+        Math.ceil((last + COMPUTER_ZOOM_BONUS_COOLDOWN_MS - Date.now()) / 1000),
+      );
+      res.status(409).json({ ok: false, error: "NOT_READY", secondsToReady });
+      return;
+    }
+    console.log(
+      `[home/computer/zoom-bonus] ${telegramId} +${COMPUTER_ZOOM_BONUS_REWARD} ZOOM (easter egg)`,
+    );
+    res.json({
+      ok: true,
+      reward: COMPUTER_ZOOM_BONUS_REWARD,
+      zoomBalance: updated[0]!.zoomBalance,
+    });
+  } catch (err) {
+    console.error("[home/computer/zoom-bonus] error:", err);
     res.status(500).json({ ok: false, error: "INTERNAL" });
   }
 });

@@ -1004,6 +1004,34 @@
   0%, 100% { transform: rotate(-15deg) translateY(0); }
   50%      { transform: rotate( 15deg) translateY(2px); }
 }
+/* Astronaut tap — single quick hop straight up. Used by the room
+   resident's click easter egg in HomePage. 0.6s one-shot. */
+@keyframes home-astro-jump {
+  0%, 100% { transform: translateY(0); }
+  35%      { transform: translateY(-12px); }
+  60%      { transform: translateY(-6px); }
+  85%      { transform: translateY(-2px); }
+}
+/* PC binary-rain easter egg — falling 0/1 columns over the monitor. */
+@keyframes home-binary-fall {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+/* PC screen color flash while the binary rain is playing — cycles
+   through cyan / green / magenta. Pulsing background for the overlay. */
+@keyframes home-pc-flash {
+  0%   { background: rgba(0, 30, 0, 0.85); }
+  25%  { background: rgba(0, 60, 90, 0.85); }
+  50%  { background: rgba(60, 0, 80, 0.85); }
+  75%  { background: rgba(0, 60, 30, 0.85); }
+  100% { background: rgba(0, 0, 0, 0); }
+}
+/* Bedside lamp glow — gentle warm-yellow pulse so the lit shade and
+   the radial bloom on the floor breathe in sync. 4s loop. */
+@keyframes home-lamp-glow {
+  0%, 100% { opacity: 0.85; }
+  50%      { opacity: 1; }
+}
 @keyframes home-z-float {
   0%   { transform: translate(0, 0) scale(0.6); opacity: 0; }
   20%  { opacity: 1; }
