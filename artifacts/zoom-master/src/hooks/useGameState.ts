@@ -2471,9 +2471,11 @@ export function useGameState() {
       }
 
       const planet = makePlanet(rarity);
-      const { telegramId: tid } = getTelegramContext();
-      // Fire-and-forget — never await on the tap critical path.
-      if (tid) { void recordCraft(tid, planet.name); }
+      // NOTE: recordCraft moved to claimCraft. The leaderboard counter must
+      // only increment AFTER the planet is actually added to the user's
+      // inventory. Otherwise, if the user closes the app before claiming,
+      // pendingPlanet is local-only and gets lost on next session, leaving
+      // total_crafted_X inflated and the planet gone (the MYTHIC bug).
       setState((prev) => {
         const next: GameState = {
           ...(planet.name === "GOLD"
@@ -2510,6 +2512,7 @@ export function useGameState() {
 
   const claimCraft = useCallback((): { ok: boolean; reason?: string } => {
     let outcome: { ok: boolean; reason?: string } = { ok: true };
+    let claimedName: PlanetType | null = null;
     setState((prev) => {
       if (!prev.pendingPlanet) { outcome = { ok: false, reason: "No planet to claim" }; return prev; }
       // Hard slot guard: between the moment the planet finished forging and
@@ -2521,12 +2524,21 @@ export function useGameState() {
         try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: "Slots full", ok: false } })); } catch { /**/ }
         return prev;
       }
+      claimedName = prev.pendingPlanet.name;
       return {
         ...prev,
         planets: [...prev.planets, prev.pendingPlanet],
         pendingPlanet: null,
       };
     });
+    // Increment the leaderboard counter ONLY after the planet is committed
+    // to inventory (fire-and-forget). Previously this was called at forge
+    // time, which inflated total_crafted_X when users closed the app before
+    // claiming (pendingPlanet is local-only and didn't survive reload).
+    if (outcome.ok && claimedName) {
+      const { telegramId: tid } = getTelegramContext();
+      if (tid) { void recordCraft(tid, claimedName); }
+    }
     return outcome;
   }, []);
 
