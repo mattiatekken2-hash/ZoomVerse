@@ -984,6 +984,66 @@ router.post("/admin/reconcile-stars", async (req, res) => {
 });
 
 /**
+ * Anti-cheat purge: rimuove i referral fake da un utente sospetto e/o azzera
+ * i suoi contatori. Operazione in singola transazione, idempotente.
+ *
+ * Parametri:
+ *   - telegramId: l'utente sospetto da sgonfiare
+ *   - purgeReferralsSinceMs (opzionale): se presente, scollega TUTTI i referral
+ *     che hanno questo utente come referrer e che sono stati creati a partire
+ *     da questo timestamp (in ms). Tipicamente l'inizio della "burst" sospetta.
+ *   - zeroTotal (opzionale): se true, azzera referral_count.
+ *   - zeroDaily (opzionale): se true, azzera daily_referral_count e
+ *     daily_referral_day_key (lo toglie dalla competizione HOF di oggi).
+ */
+router.post("/admin/anti-cheat-purge-referrals", async (req, res) => {
+  const Body = z.object({
+    adminId: z.string(),
+    telegramId: z.string().min(1),
+    purgeReferralsSinceMs: z.number().int().positive().optional(),
+    zeroTotal: z.boolean().optional(),
+    zeroDaily: z.boolean().optional(),
+  });
+  const parsed = Body.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const { telegramId, purgeReferralsSinceMs, zeroTotal, zeroDaily } = parsed.data;
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      let unlinked = 0;
+      if (purgeReferralsSinceMs) {
+        const cutoff = new Date(purgeReferralsSinceMs);
+        const r = await tx.execute(sql`
+          UPDATE users
+          SET referred_by = NULL
+          WHERE referred_by = ${telegramId}
+            AND created_at >= ${cutoff}
+        `);
+        unlinked = (r as { rowCount?: number }).rowCount ?? 0;
+      }
+      const setClauses: Record<string, unknown> = {};
+      if (zeroTotal) setClauses["referralCount"] = 0;
+      if (zeroDaily) {
+        setClauses["dailyReferralCount"] = 0;
+        setClauses["dailyReferralDayKey"] = null;
+      }
+      if (Object.keys(setClauses).length > 0) {
+        await tx.update(usersTable).set(setClauses).where(eq(usersTable.telegramId, telegramId));
+      }
+      return { unlinked };
+    });
+    logger.info({ telegramId, ...result, zeroTotal, zeroDaily }, "[admin] anti-cheat purge applied");
+    scheduleAdminAssetSnapshot();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    logger.error({ err, telegramId }, "[admin] anti-cheat purge failed");
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+/**
  * Send a fake "Withdrawal Paid" message to the configured withdrawals chat /
  * forum topic, using the same exact format the real approval flow posts.
  * Lets the admin verify the bot has channel write access without paying out
