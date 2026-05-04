@@ -2,13 +2,19 @@
  * Global $ZOOM price index.
  *
  * The price is a single global numeric value shared by every user. It starts
- * at the genesis value of 0.0001 and increases by tiny per-action deltas
- * (rebalanced May 2026 to keep the displayed Portfolio Value realistic for
- * users who hold tens or hundreds of thousands of $ZOOM):
- *   - market buy:    +0.000005   (≈5% of genesis)
- *   - market list:   +0.000003   (≈3% of genesis)
- *   - planet cycle:  +0.000001   (≈1% of genesis, per /farm/start)
- *   - craft mint:    +0.000002   (≈2% of genesis, per /craft/record)
+ * at the genesis value of 0.0001 and increases by tiny PERCENTAGE-based
+ * per-action deltas (rebalanced May 2026 to v4: percentage curve so the
+ * relative impact of each action stays constant — at low prices the bump
+ * is small in absolute terms, at high prices it scales naturally):
+ *   - market buy:    +0.30%   (cost-bound — real $ZOOM debit)
+ *   - market list:   +0.15%   (cost-bound — planet inventory)
+ *   - planet cycle:  +0.05%   (per /farm/start, cooldown 60s/user)
+ *   - craft mint:    +0.10%   (per /craft/record, cooldown 30s/user)
+ *
+ * A floor of +1 micro per bump guarantees the chart still moves at the
+ * very lowest prices (otherwise rounding would zero out tiny percentages).
+ * Combined with the MAX_PRICE_MICRO ceiling at $1.00 the curve is bounded:
+ * grows visibly early, asymptotically slows near the top.
  *
  * Storage uses the existing `app_settings` table to avoid a new migration:
  *   - key="zoom_price_micro"  -> value_num = price * 1_000_000 (atomic +=)
@@ -59,7 +65,13 @@ export const GENESIS_PRICE_MICRO = 100;
  *   1 = (implicit) original genesis $0.01 with large deltas
  *   2 = first attempt at the rebalance (had a bootstrap bug — never ran
  *       the reset on DBs that already had price rows)
- *   3 = current — genesis $0.0001, slow deltas, fixed migration logic
+ *   3 = genesis $0.0001, slow FIXED-micro deltas, fixed migration logic
+ *   4 = current — same genesis, percentage-based deltas (gentler curve
+ *       that scales with current price). NOTE: we intentionally do NOT
+ *       bump GENESIS_VERSION here because we want the price to continue
+ *       from wherever it currently is, just growing more slowly going
+ *       forward — resetting back to $0.0001 would erase legitimate
+ *       portfolio gains players have already earned.
  */
 const GENESIS_VERSION = 3;
 
@@ -115,16 +127,23 @@ function checkCooldown(action: PriceAction, userId: string | null | undefined): 
 // of legitimate activity, but we keep it as a safety belt. 1.0 = 1_000_000
 // micro is plenty of headroom for the rebalanced economy.
 const MAX_PRICE_MICRO = 1_000_000;
-// Per-action deltas (micro = price * 1e6). Rebalanced May 2026 to be
-// roughly 100-200x smaller than the previous values so the curve grows
-// gently instead of doubling Portfolio Value every few minutes.
-export const DELTA = {
-  market_buy: 5,    // +0.000005  (≈5% of genesis per cost-bound trade)
-  market_list: 3,   // +0.000003  (≈3% of genesis per listing)
-  farm_cycle: 1,    // +0.000001  (≈1% of genesis per farming activation)
-  craft: 2,         // +0.000002  (≈2% of genesis per craft)
+// Per-action deltas in BASIS POINTS (1 bp = 0.01% of current price).
+// Rebalanced May 2026 to a percentage curve: each action moves the price
+// by a small relative amount instead of a fixed micro value. This keeps
+// the perceived "+X%" steady regardless of the current price level —
+// early game grows in tiny absolute steps, late game grows in larger
+// absolute steps, but the relative pace stays the same.
+//
+// Effective floor of +1 micro per bump (enforced in the SQL UPDATE) so
+// the chart still moves visibly at genesis when ROUND(price * bp / 10k)
+// would otherwise round to zero.
+export const DELTA_BP = {
+  market_buy: 30,   // +0.30% (cost-bound — real $ZOOM debit)
+  market_list: 15,  // +0.15% (cost-bound — planet inventory limit)
+  farm_cycle: 5,    // +0.05% (cooldown 60s/user — see COOLDOWN_MS)
+  craft: 10,        // +0.10% (cooldown 30s/user — see COOLDOWN_MS)
 } as const;
-export type PriceAction = keyof typeof DELTA;
+export type PriceAction = keyof typeof DELTA_BP;
 
 // Chart sizing.
 const CHART_MAX_POINTS = 240;
@@ -281,20 +300,33 @@ export async function getZoomChart(): Promise<ChartPoint[]> {
  * ignore — the price is decorative). Internal failures are logged.
  */
 export async function bumpZoomPrice(action: PriceAction, userId?: string | null): Promise<number | null> {
-  const delta = DELTA[action];
-  if (!delta || delta <= 0) return null;
+  const bp = DELTA_BP[action];
+  if (!bp || bp <= 0) return null;
   // Per-user × per-action cooldown — see COOLDOWN_MS for rationale.
   // Spam attempts return null (silently no-op) without any DB work.
   if (!checkCooldown(action, userId)) return null;
   try {
     await ensureGenesis();
-    // Atomic clamp: increase by `delta` but never exceed MAX_PRICE_MICRO.
-    // LEAST() handles the cap in one statement so concurrent bumps that
-    // would race past the ceiling all settle on the same value.
+    // Atomic percentage-based bump:
+    //   new = LEAST(MAX, current + GREATEST(1, ROUND(current * bp / 10000)))
+    // - bp is basis points (1 bp = 0.01%) so dividing by 10_000 gives a
+    //   plain percentage multiplier.
+    // - GREATEST(1, ...) is the +1 micro floor so the curve still moves
+    //   at very low prices where the percentage would round to 0.
+    // - LEAST(MAX, ...) caps at MAX_PRICE_MICRO so concurrent bumps near
+    //   the ceiling all settle on the same final value.
+    // Done in a single SQL statement so concurrent bumps stay atomic.
     const updated = await db
       .update(appSettingsTable)
       .set({
-        valueNum: sql`LEAST(${MAX_PRICE_MICRO}, COALESCE(${appSettingsTable.valueNum}, ${GENESIS_PRICE_MICRO}) + ${delta})`,
+        valueNum: sql`LEAST(
+          ${MAX_PRICE_MICRO},
+          COALESCE(${appSettingsTable.valueNum}, ${GENESIS_PRICE_MICRO})
+          + GREATEST(
+              1,
+              ROUND(COALESCE(${appSettingsTable.valueNum}, ${GENESIS_PRICE_MICRO}) * ${bp}::numeric / 10000)
+            )
+        )`,
         updatedAt: sql`NOW()`,
       })
       .where(eq(appSettingsTable.key, PRICE_KEY))
