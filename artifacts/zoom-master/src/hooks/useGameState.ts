@@ -2786,6 +2786,28 @@ export function useGameState() {
       // would write the PRE-burn snapshot and resurrect the planet on reload.
       stateRef.current = updated;
       saveState(updated);
+      // CRITICAL — same reason as burnTwoOfType: push the post-burn planets
+      // array to the server IMMEDIATELY (not via 1.2s debounce). Otherwise a
+      // burn followed by a fast app-close resurrects the planet on the next
+      // launch because the server still holds the pre-burn planets_json.
+      // `saveRegularPlanets` uses `keepalive: true` so the request survives
+      // page-hide / Mini App close.
+      if (updated.telegramId) {
+        void saveRegularPlanets(
+          updated.telegramId,
+          updated.planets as unknown as Array<Record<string, unknown>>,
+          {
+            basic: updated.claimedBonusBasic ?? 0,
+            rare:  updated.claimedBonusRare  ?? 0,
+            epic:  updated.claimedBonusEpic  ?? 0,
+            gold:  updated.claimedBonusGold  ?? 0,
+            mythic: updated.claimedBonusMythic ?? 0,
+            v1:    updated.claimedBonusV1    ?? 0,
+            v1NftPlatinum: updated.claimedBonusV1NftPlatinum ?? 0,
+          },
+          updated.craftsCompleted,
+        );
+      }
       return updated;
     });
   }, []);
@@ -3453,6 +3475,29 @@ export function useGameState() {
       };
       stateRef.current = updated;
       saveState(updated);
+      // CRITICAL — push the post-burn planets array to the server IMMEDIATELY,
+      // not via the 1.2s debounce. If the user closes the Mini App within
+      // that window (very likely after a satisfying merchant fusion), the
+      // debounce never fires, the server keeps the pre-burn planets_json,
+      // and the next launch resurrects the burned planets when local state
+      // gets overwritten by the server hydration. `keepalive: true` inside
+      // saveRegularPlanets keeps the request alive even past page-hide.
+      if (updated.telegramId) {
+        void saveRegularPlanets(
+          updated.telegramId,
+          updated.planets as unknown as Array<Record<string, unknown>>,
+          {
+            basic: updated.claimedBonusBasic ?? 0,
+            rare:  updated.claimedBonusRare  ?? 0,
+            epic:  updated.claimedBonusEpic  ?? 0,
+            gold:  updated.claimedBonusGold  ?? 0,
+            mythic: updated.claimedBonusMythic ?? 0,
+            v1:    updated.claimedBonusV1    ?? 0,
+            v1NftPlatinum: updated.claimedBonusV1NftPlatinum ?? 0,
+          },
+          updated.craftsCompleted,
+        );
+      }
       return updated;
     });
     return outcome;
