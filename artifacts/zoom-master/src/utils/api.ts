@@ -1091,6 +1091,41 @@ export async function adminReconcileReferrals(adminId: string): Promise<{ ok: bo
   }
 }
 
+export async function adminReconcileStars(adminId: string): Promise<{ ok: boolean; scanned?: number; credited?: number; alreadyDone?: number; notFound?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/reconcile-stars`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data?.error || `HTTP ${res.status}` };
+    return {
+      ok: true,
+      scanned: data?.starTxnsScanned,
+      credited: data?.credited,
+      alreadyDone: data?.alreadyDone,
+      notFound: data?.notFound,
+    };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export async function adminWebhookInfo(adminId: string): Promise<{ ok: boolean; info?: unknown; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/webhook-info?adminId=${encodeURIComponent(adminId)}`, {
+      method: "GET",
+      headers: apiHeaders(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data?.error || `HTTP ${res.status}` };
+    return { ok: true, info: data?.info };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export async function adminResetSeason(adminId: string): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/reset-season`, {

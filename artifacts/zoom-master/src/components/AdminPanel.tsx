@@ -32,6 +32,8 @@ import {
   adminEnableUser,
   adminBulkDisable,
   adminReconcileReferrals,
+  adminReconcileStars,
+  adminWebhookInfo,
   adminFetchLottoDashboard,
   adminLottoDraw,
   type LottoAdminDashboard,
@@ -75,7 +77,7 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "revoke-white" | "revoke-earth" | "autotap" | "test-wd-chan" | "v1" | "v1nft" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "revoke-white" | "revoke-earth" | "autotap" | "test-wd-chan" | "v1" | "v1nft" | "rec-stars" | "wh-info" | null>(null);
   const [confirmBulkNebo, setConfirmBulkNebo] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [delistId, setDelistId] = useState("");
@@ -749,6 +751,85 @@ export function AdminPanel({ telegramId }: Props) {
                   }}
                 >
                   {loading === "test-wd-chan" ? "..." : "🧪 TEST WITHDRAWAL CHANNEL"}
+                </motion.button>
+
+                {/* Reconcile Stars payments — credits any pending Stars purchases that webhook missed */}
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={async () => {
+                    haptic();
+                    setLoading("rec-stars");
+                    const res = await adminReconcileStars(telegramId);
+                    setLoading(null);
+                    if (res.ok) {
+                      window.dispatchEvent(new Event("zoom-admin-refresh"));
+                      showFeedback(`✓ Scansionati ${res.scanned ?? 0} • Accreditati ${res.credited ?? 0} • Già fatti ${res.alreadyDone ?? 0}`, true);
+                    } else {
+                      showFeedback(`✗ ${res.error || "Errore"}`, false);
+                    }
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(255,200,80,0.45)",
+                    background: "rgba(40,30,15,0.55)",
+                    color: "#ffc850",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "opacity 0.15s",
+                    boxShadow: "0 0 14px rgba(255,200,80,0.18)",
+                  }}
+                >
+                  {loading === "rec-stars" ? "..." : "★ RICONCILIA PAGAMENTI STARS"}
+                </motion.button>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.4 }}>
+                  Recupera da Telegram tutti i pagamenti Stars ricevuti e accredita quelli che il webhook non ha consegnato. Sicuro: non accredita due volte.
+                </div>
+
+                {/* Webhook info — live diagnostic */}
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={async () => {
+                    haptic();
+                    setLoading("wh-info");
+                    const res = await adminWebhookInfo(telegramId);
+                    setLoading(null);
+                    if (res.ok) {
+                      const info = res.info as { result?: { url?: string; pending_update_count?: number; last_error_message?: string; last_error_date?: number } } | undefined;
+                      const r = info?.result;
+                      const pending = r?.pending_update_count ?? 0;
+                      const err = r?.last_error_message;
+                      if (err) {
+                        showFeedback(`Pending: ${pending} • Errore: ${err.slice(0, 60)}`, false);
+                      } else {
+                        showFeedback(`✓ Webhook ok • Pending: ${pending} • Nessun errore`, true);
+                      }
+                      // Also log full info to console for deep inspection
+                      try { console.warn("[admin webhook-info]", JSON.stringify(info, null, 2)); } catch { /**/ }
+                    } else {
+                      showFeedback(`✗ ${res.error || "Errore"}`, false);
+                    }
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(140,180,255,0.35)",
+                    background: "rgba(20,30,55,0.55)",
+                    color: "#9ec1ff",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "opacity 0.15s",
+                  }}
+                >
+                  {loading === "wh-info" ? "..." : "🛰 STATO WEBHOOK TELEGRAM"}
                 </motion.button>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />

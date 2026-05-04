@@ -910,6 +910,25 @@ router.post("/admin/reconcile-referrals", async (req, res) => {
  * existing atomic `UPDATE ... WHERE status='pending'` semantics in the
  * crediting path. Never double-credits a completed row.
  */
+router.get("/admin/webhook-info", async (req, res) => {
+  const adminId = (req.query?.["adminId"] as string) || "";
+  if (!isAdmin(adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const BOT_TOKEN = process.env["BOT_TOKEN"] || "";
+  if (!BOT_TOKEN) return res.status(500).json({ error: "BOT_TOKEN not set" });
+
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getWebhookInfo`);
+    const data = await r.json() as { ok?: boolean; description?: string };
+    if (!data?.ok) {
+      return res.status(502).json({ ok: false, error: data?.description || "Telegram getWebhookInfo failed", info: data });
+    }
+    return res.json({ ok: true, info: data });
+  } catch (err) {
+    return res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 router.post("/admin/reconcile-stars", async (req, res) => {
   const adminId = (req.body?.adminId as string) || "";
   if (!isAdmin(adminId)) return res.status(403).json({ error: "Forbidden" });
