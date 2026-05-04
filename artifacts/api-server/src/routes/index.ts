@@ -27,6 +27,7 @@ import homeRouter from "./home";
 import chatRouter from "./chat";
 import roomInvitesRouter from "./roomInvites";
 import redeemCodesRouter from "./redeemCodes";
+import economyRouter from "./economy";
 
 const router: IRouter = Router();
 
@@ -255,5 +256,6 @@ router.use(homeRouter);
 router.use(chatRouter);
 router.use(roomInvitesRouter);
 router.use(redeemCodesRouter);
+router.use(economyRouter);
 
 export default router;

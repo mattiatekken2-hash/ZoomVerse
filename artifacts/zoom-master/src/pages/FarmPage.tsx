@@ -8,6 +8,7 @@ import { PlanetRenameModal } from "../components/PlanetRenameModal";
 import { getPlanetDisplayName } from "../utils/planetNames";
 import { PlanetFloatBar } from "../components/PlanetFloatBar";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
+import { EconomyWidget } from "../components/EconomyWidget";
 
 
 interface FarmPageProps {
@@ -49,7 +50,7 @@ const RARITY_CLASS: Record<string, string> = {
 };
 
 
-export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRename }: FarmPageProps) {
+export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRename }: FarmPageProps) {
   const { t } = useT();
   const sunMultiplier = Math.max(1, sunCount || (sun?.isOwned ? 1 : 0));
   const sunDisplayRate = SUN_CONFIG.rate * sunMultiplier;
@@ -267,6 +268,11 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
         }}
       >
         <div className="flex flex-col gap-3">
+
+          {/* ECONOMY widget — global $ZOOM price + live portfolio.
+              Tappable card; opens the full chart modal. Polls /economy
+              every 12s while mounted. Read-only, no mutations. */}
+          <EconomyWidget balance={balance} />
 
           {/* SUN CARD */}
           {sun?.isOwned && (

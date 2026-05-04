@@ -5,6 +5,7 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { addClient, removeClient, broadcastSale } from "../lib/activityBus";
 import { sendBotMessage } from "../lib/notify";
+import { bumpZoomPriceFireAndForget } from "../lib/zoomPrice";
 import {
   FLOAT_PLANET_TYPES,
   deterministicFloatFromId,
@@ -281,6 +282,11 @@ router.post("/market/list", async (req, res) => {
     );
 
     await client.query("COMMIT");
+    // Bump the global $ZOOM price index — every new listing nudges the
+    // public price up. Fire-and-forget; never blocks the response.
+    // Cooldown keyed on sellerTelegramId so a single user can't pump the
+    // price by repeatedly listing in tight loops.
+    bumpZoomPriceFireAndForget("market_list", sellerTelegramId);
     res.json({ ok: true, listing });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
@@ -526,6 +532,12 @@ router.post("/market/buy", async (req, res) => {
       listing.sellerTelegramId,
       "💰 Great news! One of your planets has been sold! Check your balance.",
     ).catch((e) => console.error("[market/buy] seller notify failed:", e));
+
+    // Bump the global $ZOOM price index — buys move the price more than
+    // listings (real demand-side signal). Fire-and-forget. Cooldown keyed
+    // on the buyer so a wash-trader running scripted buys still only
+    // contributes one bump per cooldown window.
+    bumpZoomPriceFireAndForget("market_buy", buyerTelegramId);
 
     // Echo the listing's snapshotted Float so the buyer's client can
     // mint the new planet with EXACTLY the perfection score they saw on

@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
-import { db, farmCyclesTable } from "@workspace/db";
+import { db, farmCyclesTable, usersTable } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
+import { bumpZoomPriceFireAndForget } from "../lib/zoomPrice";
 
 const router: IRouter = Router();
 
@@ -55,6 +56,26 @@ router.post("/farm/start", async (req, res) => {
           notifiedAt: null,
         },
       });
+    // Bump the global $ZOOM price — but only if the user actually OWNS
+    // the planet they claim to be activating. Without this check anyone
+    // could spam /farm/start with arbitrary planet ids and pump the
+    // public price index. The per-user cooldown inside bumpZoomPrice is
+    // a second layer (max 1 bump per minute per user). We do the
+    // ownership lookup AFTER the upsert so the user's own cycle insert
+    // path stays unaffected if the lookup fails for any reason.
+    void (async () => {
+      try {
+        const [u] = await db
+          .select({ planetsJson: usersTable.planetsJson })
+          .from(usersTable)
+          .where(eq(usersTable.telegramId, telegramId))
+          .limit(1);
+        const owned = Array.isArray(u?.planetsJson)
+          && (u!.planetsJson as Array<Record<string, unknown>>)
+              .some((p) => p && typeof p === "object" && p["id"] === planetId);
+        if (owned) bumpZoomPriceFireAndForget("farm_cycle", telegramId);
+      } catch { /* ignore — price is decorative */ }
+    })();
     res.json({ ok: true });
   } catch (err) {
     console.error("[farm/start] error:", err);

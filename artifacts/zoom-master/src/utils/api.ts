@@ -1305,6 +1305,46 @@ export async function recordCraft(telegramId: string, planetType: string): Promi
   } catch { /**/ }
 }
 
+/**
+ * Public read-only feed for the global $ZOOM price index. Returns the
+ * current price and the chart history (~10s granularity, last ~240 points).
+ * No auth required; the price is a public signal driven by gameplay
+ * actions (market trades, farming cycles, crafts).
+ */
+export interface EconomyPriceResponse {
+  priceMicro: number;
+  price: number;
+  genesisPrice: number;
+  updatedAt: number;
+}
+
+export interface EconomyChartPoint {
+  t: number;
+  p: number;
+  price: number;
+}
+
+export interface EconomyHistoryResponse {
+  points: EconomyChartPoint[];
+  genesisPrice: number;
+}
+
+export async function fetchEconomyPrice(): Promise<EconomyPriceResponse | null> {
+  try {
+    const res = await fetch(`${API_BASE}/economy/price`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return (await res.json()) as EconomyPriceResponse;
+  } catch { return null; }
+}
+
+export async function fetchEconomyHistory(): Promise<EconomyHistoryResponse | null> {
+  try {
+    const res = await fetch(`${API_BASE}/economy/history`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return (await res.json()) as EconomyHistoryResponse;
+  } catch { return null; }
+}
+
 export interface WheelPrizeConfig {
   index: number;
   type: "zoom" | "planet" | "stars" | "ton";

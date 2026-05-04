@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
 import { z } from "zod";
+import { bumpZoomPriceFireAndForget } from "../lib/zoomPrice";
 
 const router: IRouter = Router();
 
@@ -269,6 +270,10 @@ router.post("/craft/record", async (req, res) => {
       .update(usersTable)
       .set({ [field]: sql`${usersTable[field]} + 1` })
       .where(eq(usersTable.telegramId, telegramId));
+    // Bump the global $ZOOM price — every successful craft mints supply
+    // and contributes a small upward nudge. Fire-and-forget. Per-user
+    // cooldown blocks scripted /craft/record loops from pumping the price.
+    bumpZoomPriceFireAndForget("craft", telegramId);
     res.json({ ok: true });
   } catch (err) {
     console.error("[craft/record] error:", err);
