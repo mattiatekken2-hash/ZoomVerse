@@ -8,7 +8,7 @@ const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 // artifacts/api-server/src/routes/stars.ts). The wallet must send EXACTLY
 // this many TON or the on-chain verification will reject the payment.
 // If you change this, also update tonPrice in the server catalog.
-const PRICE_TON = 30;
+const PRICE_TON = 20;
 const NEON_GREEN = "#39ff7e";
 const NEON_CYAN = "#0fd9ff";
 

@@ -5,7 +5,7 @@ import { RealisticEarth } from "./RealisticEarth";
 import { useT } from "../i18n/LanguageContext";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
-const PRICE_TON = 7;
+const PRICE_TON = 5;
 const NEON_BLUE = "#3b82f6";
 const NEON_GREEN_E = "#22c55e";
 
@@ -314,7 +314,7 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
             }}>
               <div style={{ display: "flex", flexDirection: "column" }}>
                 <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{t("earthColl.price")}</span>
-                <span style={{ fontSize: 26, fontWeight: 900, color: "#fff" }}>7 TON</span>
+                <span style={{ fontSize: 26, fontWeight: 900, color: "#fff" }}>{PRICE_TON} TON</span>
               </div>
               <button
                 className="ec-buy-btn"

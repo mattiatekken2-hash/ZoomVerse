@@ -167,7 +167,7 @@ const STARS_CATALOG: StarsItem[] = [
   { id: "wheel_spin_10", title: "10 Wheel Spins", description: "10 spins on the Fortune Wheel — 30% off", starsPrice: 350, tonPrice: 3.5, zoomAmount: 10, itemType: "wheel_spin" },
   { id: "auto_tap", title: "Auto-Tap", description: "Hold-to-tap auto-clicker on the FORGE PLANET", starsPrice: 300, tonPrice: 3, itemType: "auto_tap" },
   { id: "mystery_box", title: "Mystery Box", description: "Open a space crate — chance for Rare/Epic/Gold and a tiny shot at THE SUN", starsPrice: 150, tonPrice: 1.5, itemType: "mystery_box" },
-  { id: "white_collection", title: "White Collection Limited", description: "Unlock 4 exclusive farm slots. Yield: 0.11 TON / Day. Requires SUN module.", starsPrice: 2000, tonPrice: 30, itemType: "white_collection" },
+  { id: "white_collection", title: "White Collection Limited", description: "Unlock 4 exclusive farm slots. Yield: 0.11 TON / Day. Requires SUN module.", starsPrice: 2000, tonPrice: 20, itemType: "white_collection" },
   // Reactivation fee for an expired white-planet farming cycle. Same per-tier
   // fee for W1..W4 (0.005 TON). Server records the payment but applies no
   // grant — the client toggles the specific planet's farming state on success.
@@ -175,7 +175,7 @@ const STARS_CATALOG: StarsItem[] = [
   // EARTH Collection — 4 exclusive earth-themed planets per bundle, combined
   // 0.017 TON/day output. Capped at 50 bundles globally. Requires SUN to
   // unlock TON withdrawals.
-  { id: "earth_collection", title: "Earth Collection Limited", description: "Unlock 4 exclusive earth planets. Speed: 0.017 TON/day. Requires SUN module.", starsPrice: 700, tonPrice: 7, itemType: "earth_collection" },
+  { id: "earth_collection", title: "Earth Collection Limited", description: "Unlock 4 exclusive earth planets. Speed: 0.017 TON/day. Requires SUN module.", starsPrice: 700, tonPrice: 5, itemType: "earth_collection" },
   // Reactivation fee for an expired earth-planet farming cycle. Same per-tier
   // fee for E1..E4 (0.001 TON). Server records the payment but applies no
   // grant — the client toggles the specific planet's farming state on success.
