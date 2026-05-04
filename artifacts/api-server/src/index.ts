@@ -323,6 +323,38 @@ async function registerTelegramWebhook() {
     } else {
       logger.error({ description: data.description }, "Failed to register Telegram webhook");
     }
+
+    try {
+      const infoRes = await fetch(`https://api.telegram.org/bot${botToken}/getWebhookInfo`);
+      const infoData = await infoRes.json() as {
+        ok: boolean;
+        result?: {
+          url?: string;
+          has_custom_certificate?: boolean;
+          pending_update_count?: number;
+          last_error_date?: number;
+          last_error_message?: string;
+          last_synchronization_error_date?: number;
+          max_connections?: number;
+          allowed_updates?: string[];
+        };
+      };
+      if (infoData.ok && infoData.result) {
+        logger.info({
+          url: infoData.result.url,
+          pending: infoData.result.pending_update_count,
+          lastErrorDate: infoData.result.last_error_date,
+          lastErrorMessage: infoData.result.last_error_message,
+          lastSyncErrorDate: infoData.result.last_synchronization_error_date,
+          allowedUpdates: infoData.result.allowed_updates,
+          maxConnections: infoData.result.max_connections,
+        }, "Telegram webhook info");
+      } else {
+        logger.warn({ infoData }, "getWebhookInfo returned non-ok");
+      }
+    } catch (err) {
+      logger.error({ err }, "Failed to fetch getWebhookInfo");
+    }
   } catch (err) {
     logger.error({ err }, "Error registering Telegram webhook");
   }
