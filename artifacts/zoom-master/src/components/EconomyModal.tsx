@@ -12,6 +12,7 @@
  * invariants. Recharts is already a dep of this artifact.
  */
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { fetchEconomyPrice, fetchEconomyHistory, type EconomyChartPoint } from "../utils/api";
 
@@ -67,11 +68,23 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis }:
     return () => window.clearInterval(id);
   }, [refresh]);
 
-  // Lock background scroll while the modal is open.
+  // Lock background scroll AND touch panning while the modal is open. We
+  // need both `overflow:hidden` (desktop / wheel) and an explicit
+  // `touch-action: none` lock (mobile / Telegram WebView) — without the
+  // latter, iOS still pans the underlying page through the overlay even
+  // though body overflow is hidden. Restored exactly on close.
   useEffect(() => {
-    const prev = document.body.style.overflow;
+    const prevOverflow = document.body.style.overflow;
+    const prevTouch = document.body.style.touchAction;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    document.body.style.touchAction = "none";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.touchAction = prevTouch;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+    };
   }, []);
 
   // Close on ESC for desktop / external keyboard.
@@ -104,27 +117,69 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis }:
     return max * 1.005;
   }, [chartData, genesis]);
 
-  return (
+  // We render via `createPortal` straight to `document.body` so the modal
+  // escapes ancestor stacking/containing blocks (the FARM page scroll
+  // container uses `transform: translateZ(0)` + `contain: layout paint`,
+  // which would otherwise turn `position: fixed` into "fixed relative to
+  // that ancestor" — clipping the header and the × button off-screen).
+  // Touch-panning and wheel scrolling are blocked at the overlay level so
+  // the page underneath cannot move at all while the modal is open.
+  const stop = (e: React.SyntheticEvent) => { e.stopPropagation(); };
+  const blockTouch = (e: React.TouchEvent) => {
+    // Allow scrolling INSIDE the modal card, block everything else (the
+    // black overlay area surrounding the card). Cancellable to make iOS
+    // momentum-scroll respect the lock too. We compare against the
+    // overlay node so any descendant (the card or its inner elements)
+    // keeps its native scroll behaviour while the surrounding backdrop
+    // can never pan the page underneath.
+    if (e.target === e.currentTarget) e.preventDefault();
+  };
+
+  const node = (
     <div
-      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center"
-      style={{ background: "rgba(0,4,12,0.78)", backdropFilter: "blur(8px)" }}
+      className="fixed inset-0 z-[1000] flex items-center justify-center"
+      style={{
+        background: "rgba(0,4,12,0.82)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+        // Belt-and-braces: prevent the overlay itself from being scrolled
+        // by the user's panning gesture.
+        overscrollBehavior: "contain",
+        touchAction: "none",
+        padding: "16px",
+      }}
       onClick={onClose}
+      onTouchMove={blockTouch}
+      onWheel={blockTouch as unknown as (e: React.WheelEvent) => void}
       data-testid="economy-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="economy-modal-title"
     >
       <div
-        className="w-full max-w-md rounded-t-3xl sm:rounded-3xl flex flex-col"
+        className="w-full max-w-sm rounded-3xl flex flex-col"
         style={{
           background: "linear-gradient(180deg, rgba(4,18,32,0.98) 0%, rgba(0,8,18,0.98) 100%)",
           border: "1px solid rgba(0,242,254,0.35)",
           boxShadow: "0 -8px 40px rgba(0,242,254,0.18), 0 0 60px rgba(0,242,254,0.10)",
-          maxHeight: "92vh",
+          maxHeight: "min(92vh, 720px)",
+          // Card allows internal vertical scroll so the content remains
+          // reachable on very small screens (iPhone SE etc.). The overlay
+          // around the card is still locked, so the page underneath cannot
+          // pan — only the card scrolls when needed. `overscroll-behavior:
+          // contain` prevents the scroll chain from bubbling to the body.
+          overflowY: "auto",
+          overscrollBehavior: "contain",
+          WebkitOverflowScrolling: "touch",
         }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={stop}
+        onWheel={stop}
       >
         {/* Header */}
         <div className="px-5 pt-4 pb-3 flex items-start justify-between border-b" style={{ borderColor: "rgba(0,242,254,0.14)" }}>
           <div>
             <div
+              id="economy-modal-title"
               className="text-[10px] font-black tracking-widest"
               style={{ color: "rgba(0,242,254,0.85)", letterSpacing: 1.4 }}
             >
@@ -158,13 +213,25 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis }:
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
+            onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); onClose(); }}
             aria-label="Close"
-            className="w-8 h-8 rounded-full flex items-center justify-center text-base font-black"
+            className="rounded-full flex items-center justify-center font-black flex-shrink-0"
             style={{
-              background: "rgba(0,242,254,0.10)",
-              border: "1px solid rgba(0,242,254,0.30)",
-              color: "rgba(220,235,255,0.85)",
+              width: 36,
+              height: 36,
+              background: "rgba(0,242,254,0.14)",
+              border: "1px solid rgba(0,242,254,0.45)",
+              color: "#00f2fe",
+              fontSize: 20,
+              lineHeight: 1,
+              cursor: "pointer",
+              // Bigger hit target on mobile + force foreground so the touch
+              // is never swallowed by overlapping decorative pseudo-elements.
+              touchAction: "manipulation",
+              WebkitTapHighlightColor: "transparent",
+              position: "relative",
+              zIndex: 2,
             }}
             data-testid="btn-economy-close"
           >
@@ -256,6 +323,8 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis }:
       </div>
     </div>
   );
+
+  return createPortal(node, document.body);
 }
 
 function Stat({ label, value, accent }: { label: string; value: string; accent: "cyan" | "green" | "dim" }) {
