@@ -78,6 +78,51 @@ export async function broadcastBotMessageToAllUsers(text: string): Promise<{ sen
   return { sent, skipped };
 }
 
+// Telegram chat ID of the admin/owner. Hardcoded because it's the same
+// person who owns the bot — overridable via env if ever needed.
+const ADMIN_NOTIFY_CHAT_ID = process.env["ADMIN_NOTIFY_CHAT_ID"] || "8144744644";
+
+/**
+ * Notifica all'admin (sul bot personale) ogni acquisto Stars completato.
+ * Serve a sapere in tempo reale quando un pagamento entra (sia via webhook
+ * che via /admin/reconcile-stars). Fire-and-forget, errori non fatali.
+ */
+export async function notifyAdminPurchase(params: {
+  txnId: number;
+  itemName: string;
+  starsAmount: number;
+  telegramId: string;
+  username?: string | null;
+  firstName?: string | null;
+  source: "webhook" | "reconcile";
+}): Promise<void> {
+  if (!BOT_TOKEN) return;
+  const who = params.username
+    ? `@${params.username}`
+    : (params.firstName || params.telegramId);
+  const tag = params.source === "reconcile" ? "♻️ RECONCILE" : "★ WEBHOOK";
+  const text =
+    `${tag}\n` +
+    `Acquisto: ${params.itemName}\n` +
+    `★ ${params.starsAmount}\n` +
+    `Da: ${who}\n` +
+    `ID: ${params.telegramId}\n` +
+    `Txn: #${params.txnId}`;
+  try {
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: ADMIN_NOTIFY_CHAT_ID,
+        text,
+        disable_web_page_preview: true,
+      }),
+    });
+  } catch (err) {
+    logger.warn({ err, txnId: params.txnId }, "[notify] admin purchase notify failed");
+  }
+}
+
 /**
  * Post a message to the withdrawals announcement chat / forum topic.
  * Used after a withdrawal is approved so the community sees the payout.

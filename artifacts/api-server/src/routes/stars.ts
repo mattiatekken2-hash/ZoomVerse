@@ -648,6 +648,28 @@ async function atomicCreditIfPending(txnId: number, paymentId: string, item: Sta
 
   if (!didFlip) return false;
 
+  // Fire-and-forget admin notification on every successful Stars purchase.
+  // Lets the owner see in real time when payments land (and notice when
+  // they don't, so she knows when to use the reconcile button).
+  void (async () => {
+    try {
+      const [u] = await db.select({ uname: usersTable.username, first: usersTable.firstName })
+        .from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
+      const { notifyAdminPurchase } = await import("../lib/notify");
+      await notifyAdminPurchase({
+        txnId,
+        itemName: item.title,
+        starsAmount: item.starsPrice,
+        telegramId,
+        username: u?.uname ?? null,
+        firstName: u?.first ?? null,
+        source: "webhook",
+      });
+    } catch (e) {
+      console.warn("[admin-notify] webhook notify failed:", e);
+    }
+  })();
+
   // Fire-and-forget Telegram channel announcement for activation/reactivation
   // payments AFTER the tx committed (so a rollback never produces a spurious
   // post). Re-uses the withdrawal channel target. Failure is non-fatal.

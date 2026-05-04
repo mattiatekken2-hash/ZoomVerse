@@ -162,6 +162,25 @@ export async function reconcilePendingStarPayment(
       }
     });
     console.log(`[reconcile-stars] credited txn ${txnId} item=${itemId} for ${telegramId}`);
+    // Fire-and-forget admin notification — same channel as the webhook path.
+    void (async () => {
+      try {
+        const [u] = await db.select({ uname: usersTable.username, first: usersTable.firstName })
+          .from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
+        const { notifyAdminPurchase } = await import("../lib/notify");
+        await notifyAdminPurchase({
+          txnId,
+          itemName: row.itemName ?? itemId,
+          starsAmount: row.starsAmount ?? 0,
+          telegramId,
+          username: u?.uname ?? null,
+          firstName: u?.first ?? null,
+          source: "reconcile",
+        });
+      } catch (e) {
+        console.warn("[admin-notify] reconcile notify failed:", e);
+      }
+    })();
     return { status: "credited" };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
