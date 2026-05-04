@@ -393,35 +393,21 @@ router.post("/market/buy", async (req, res) => {
       return;
     }
 
-    // Recursive ancestry walk — does the seller appear anywhere in the
-    // buyer's ancestor chain (or vice versa)? Postgres recursive CTE
-    // does the traversal in one round-trip; the depth cap prevents
-    // pathological cycles (the schema doesn't enforce DAG-ness).
+    // Anti-fraud: block trades only between direct referrer and direct
+    // referee (1 level). Wider chain bans were too restrictive for
+    // legitimate players. Multi-account self-dealing on the direct edge
+    // is still prevented; broader network trades are allowed.
     const chainCheck = await client.query<{ blocked: boolean }>(
-      `WITH RECURSIVE up AS (
-         SELECT telegram_id, referred_by, 1 AS depth FROM users WHERE telegram_id = $1
-         UNION ALL
-         SELECT u.telegram_id, u.referred_by, up.depth + 1
-         FROM users u JOIN up ON u.telegram_id = up.referred_by
-         WHERE up.depth < 8 AND up.referred_by IS NOT NULL
-       ),
-       down AS (
-         SELECT telegram_id, referred_by, 1 AS depth FROM users WHERE telegram_id = $2
-         UNION ALL
-         SELECT u.telegram_id, u.referred_by, down.depth + 1
-         FROM users u JOIN down ON u.telegram_id = down.referred_by
-         WHERE down.depth < 8 AND down.referred_by IS NOT NULL
-       )
-       SELECT EXISTS(
-         SELECT 1 FROM up   WHERE telegram_id = $2
-         UNION ALL
-         SELECT 1 FROM down WHERE telegram_id = $1
+      `SELECT EXISTS(
+         SELECT 1 FROM users
+         WHERE (telegram_id = $1 AND referred_by = $2)
+            OR (telegram_id = $2 AND referred_by = $1)
        ) AS blocked`,
       [buyerTelegramId, listing.sellerTelegramId],
     );
     if (chainCheck.rows[0]?.blocked) {
       await client.query("ROLLBACK");
-      res.status(403).json({ error: "Cannot trade with users in your referral chain" });
+      res.status(403).json({ error: "Cannot trade with your direct inviter or invitee" });
       return;
     }
 
