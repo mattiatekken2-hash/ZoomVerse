@@ -159,14 +159,30 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
           {comingSoonMsg}
         </div>
       )}
-      <div className="px-5 pt-4 pb-2 flex-shrink-0 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="font-black text-lg tracking-tight">{t("farm.myPlanets")}</h2>
-          <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-            {totalRate > 0 ? t("farm.slotsRate", { n: planets.length, max: maxSlots, rate: totalRate.toLocaleString() }) : `${planets.length}/${maxSlots} · ${t("farm.noActive")}`}
-          </p>
+      <div className="px-5 pt-4 pb-2 flex-shrink-0">
+        {/* Row 1: title + slots subtitle on the left, live +ZOOM/hr
+            chip on the right. The previous layout crammed STAKING,
+            COLLECTION and the rate chip together which forced "My
+            Planets" to wrap. We now hoist the two teaser buttons to
+            their own row underneath so all three pills sit cleanly
+            on a single line at every viewport width. */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="font-black text-lg tracking-tight">{t("farm.myPlanets")}</h2>
+            <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
+              {totalRate > 0
+                ? `${planets.length}/${maxSlots} ${t("farm.slots") || "slots"}`
+                : `${planets.length}/${maxSlots} · ${t("farm.noActive")}`}
+            </p>
+          </div>
+          {totalRate > 0 && (
+            <div className="glass-neon px-3 py-1.5 rounded-full text-xs font-bold neon-text flex-shrink-0" data-testid="total-farm-rate">
+              +{totalRate.toLocaleString()}/hr
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        {/* Row 2: teaser pills aligned left, equal gap, no wrapping. */}
+        <div className="flex items-center gap-2 mt-2 flex-wrap">
           {/* STAKING teaser button — sits to the left of COLLECTION.
               Same disabled "coming soon" pattern: greyscale + reduced
               opacity, click shows a transient neutral toast, never
@@ -230,11 +246,6 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
           >
             COLLECTION
           </button>
-          {totalRate > 0 && (
-            <div className="glass-neon px-3 py-1.5 rounded-full text-xs font-bold neon-text" data-testid="total-farm-rate">
-              +{totalRate.toLocaleString()}/hr
-            </div>
-          )}
         </div>
       </div>
 
