@@ -2,16 +2,22 @@
  * Global $ZOOM price index.
  *
  * The price is a single global numeric value shared by every user. It starts
- * at the genesis value of 0.01 and increases by small per-action deltas:
- *   - market buy:    +0.0010
- *   - market list:   +0.0005
- *   - planet cycle:  +0.0002 (per /farm/start activation)
- *   - craft mint:    +0.0003 (per /craft/record)
+ * at the genesis value of 0.0001 and increases by tiny per-action deltas
+ * (rebalanced May 2026 to keep the displayed Portfolio Value realistic for
+ * users who hold tens or hundreds of thousands of $ZOOM):
+ *   - market buy:    +0.000005   (≈5% of genesis)
+ *   - market list:   +0.000003   (≈3% of genesis)
+ *   - planet cycle:  +0.000001   (≈1% of genesis, per /farm/start)
+ *   - craft mint:    +0.000002   (≈2% of genesis, per /craft/record)
  *
  * Storage uses the existing `app_settings` table to avoid a new migration:
  *   - key="zoom_price_micro"  -> value_num = price * 1_000_000 (atomic +=)
  *   - key="zoom_price_chart"  -> value_text = JSON array of last N points
  *                                ([{t, p}, ...] where t = epoch ms, p = micro)
+ *   - key="zoom_price_version" -> value_num = GENESIS_VERSION; if missing or
+ *                                  stale, the price + chart rows are reset
+ *                                  to the new genesis on first request after
+ *                                  redeploy (one-shot, idempotent).
  *
  * Concurrency:
  *   - Price increment uses a single SQL UPDATE so concurrent bumps are
@@ -34,9 +40,28 @@ import { logger } from "./logger";
 
 const PRICE_KEY = "zoom_price_micro";
 const CHART_KEY = "zoom_price_chart";
+const VERSION_KEY = "zoom_price_version";
 
-// Genesis: 1 ZOOM = 0.01. Stored as micro-units (price * 1e6).
-export const GENESIS_PRICE_MICRO = 10_000;
+// Genesis: 1 ZOOM = 0.0001. Stored as micro-units (price * 1e6).
+// Lowered May 2026 from 10_000 ($0.01) to 100 ($0.0001) so that holders of
+// large $ZOOM bags see a realistic Portfolio Value rather than a misleading
+// "I have $900" framing — the token is decorative, not real money.
+export const GENESIS_PRICE_MICRO = 100;
+
+/**
+ * Bump this whenever the genesis or delta scale changes. On the first
+ * request after redeploy with a new GENESIS_VERSION, `ensureGenesis()`
+ * wipes the stored price + chart and reseeds them at the current genesis.
+ * Without this, the old higher price (e.g. $0.0105 from the 0.01-genesis
+ * era) would persist forever and the new genesis would have no effect.
+ *
+ * Version history:
+ *   1 = (implicit) original genesis $0.01 with large deltas
+ *   2 = first attempt at the rebalance (had a bootstrap bug — never ran
+ *       the reset on DBs that already had price rows)
+ *   3 = current — genesis $0.0001, slow deltas, fixed migration logic
+ */
+const GENESIS_VERSION = 3;
 
 /**
  * Per-user, per-action cooldown (ms). Anti-spam: a single user can only
@@ -85,14 +110,19 @@ function checkCooldown(action: PriceAction, userId: string | null | undefined): 
   return true;
 }
 // Hard ceiling so a runaway loop or admin bug can't drive the price into
-// astronomical territory. 100.0 = 100_000_000 micro.
-const MAX_PRICE_MICRO = 100_000_000;
-// Per-action deltas (micro = price * 1e6).
+// astronomical territory. With the new genesis (100 micro = $0.0001) and
+// the slower deltas below, hitting this cap requires an enormous amount
+// of legitimate activity, but we keep it as a safety belt. 1.0 = 1_000_000
+// micro is plenty of headroom for the rebalanced economy.
+const MAX_PRICE_MICRO = 1_000_000;
+// Per-action deltas (micro = price * 1e6). Rebalanced May 2026 to be
+// roughly 100-200x smaller than the previous values so the curve grows
+// gently instead of doubling Portfolio Value every few minutes.
 export const DELTA = {
-  market_buy: 1000,    // +0.0010
-  market_list: 500,    // +0.0005
-  farm_cycle: 200,     // +0.0002
-  craft: 300,          // +0.0003
+  market_buy: 5,    // +0.000005  (≈5% of genesis per cost-bound trade)
+  market_list: 3,   // +0.000003  (≈3% of genesis per listing)
+  farm_cycle: 1,    // +0.000001  (≈1% of genesis per farming activation)
+  craft: 2,         // +0.000002  (≈2% of genesis per craft)
 } as const;
 export type PriceAction = keyof typeof DELTA;
 
@@ -103,29 +133,76 @@ const CHART_THROTTLE_MS = 10_000;
 interface ChartPoint { t: number; p: number }
 
 /**
- * One-shot genesis bootstrap. The first caller does the INSERT ... ON
- * CONFLICT DO NOTHING; subsequent calls return immediately. The promise
- * is cached so multiple concurrent first-callers all await the same
- * underlying inserts (no thundering herd of identical no-op inserts on
- * every request).
+ * One-shot genesis bootstrap + version migration. The first caller after
+ * a process start (or after a GENESIS_VERSION bump) does the work; all
+ * subsequent calls return the cached promise.
+ *
+ * Behaviour:
+ *   1. Inserts the version row if missing.
+ *   2. If the stored version is OLDER than GENESIS_VERSION, this is the
+ *      first request after a genesis-rescale deploy: the price + chart
+ *      rows are RESET (not just reseeded) to the new genesis value, then
+ *      the version row is updated. This is idempotent — once the version
+ *      matches, the reset block is skipped.
+ *   3. If the version matches and the rows already exist, the inserts
+ *      below are no-ops thanks to ON CONFLICT DO NOTHING.
+ *
+ * Run in a single transaction so a partial failure can't leave the
+ * version bumped while the price still sits at the old value.
  */
 let genesisPromise: Promise<void> | null = null;
 async function ensureGenesis(): Promise<void> {
   if (genesisPromise) return genesisPromise;
   genesisPromise = (async () => {
     const now = Date.now();
-    await db
-      .insert(appSettingsTable)
-      .values({ key: PRICE_KEY, valueNum: GENESIS_PRICE_MICRO, valueText: null })
-      .onConflictDoNothing({ target: appSettingsTable.key });
-    await db
-      .insert(appSettingsTable)
-      .values({
-        key: CHART_KEY,
-        valueNum: null,
-        valueText: JSON.stringify([{ t: now, p: GENESIS_PRICE_MICRO } satisfies ChartPoint]),
-      })
-      .onConflictDoNothing({ target: appSettingsTable.key });
+    const initialChart = JSON.stringify([{ t: now, p: GENESIS_PRICE_MICRO } satisfies ChartPoint]);
+
+    await db.transaction(async (tx) => {
+      // Read current stored version (if any). FOR UPDATE so two concurrent
+      // bootstraps can't both run the reset. A missing version row is
+      // treated as version 1 — that covers DBs whose price/chart rows were
+      // created BEFORE we introduced versioning, so they still get the
+      // rescale reset on the first deploy that bumps GENESIS_VERSION.
+      const verSel = await tx.execute(sql`
+        SELECT value_num FROM app_settings WHERE key = ${VERSION_KEY} FOR UPDATE
+      `);
+      const verRows = (verSel as unknown as { rows: Array<{ value_num?: number | string | null }> }).rows;
+      const storedVersion = verRows?.[0]?.value_num != null ? Number(verRows[0].value_num) : 1;
+
+      if (storedVersion >= GENESIS_VERSION) {
+        // Up to date — nothing to do.
+        return;
+      }
+
+      // Either fresh DB (no rows yet) or stale-version DB. UPSERT the
+      // price + chart to the current genesis values, then UPSERT the
+      // version row so this branch can never run again until the next
+      // intentional GENESIS_VERSION bump. Idempotent + safe under retry.
+      await tx.execute(sql`
+        INSERT INTO app_settings (key, value_num, value_text)
+        VALUES (${PRICE_KEY}, ${GENESIS_PRICE_MICRO}, NULL)
+        ON CONFLICT (key) DO UPDATE
+          SET value_num = EXCLUDED.value_num,
+              value_text = NULL,
+              updated_at = NOW()
+      `);
+      await tx.execute(sql`
+        INSERT INTO app_settings (key, value_num, value_text)
+        VALUES (${CHART_KEY}, NULL, ${initialChart})
+        ON CONFLICT (key) DO UPDATE
+          SET value_num = NULL,
+              value_text = EXCLUDED.value_text,
+              updated_at = NOW()
+      `);
+      await tx.execute(sql`
+        INSERT INTO app_settings (key, value_num, value_text)
+        VALUES (${VERSION_KEY}, ${GENESIS_VERSION}, NULL)
+        ON CONFLICT (key) DO UPDATE
+          SET value_num = EXCLUDED.value_num,
+              value_text = NULL,
+              updated_at = NOW()
+      `);
+    });
   })().catch((err) => {
     // If init fails we let the next call retry rather than caching the
     // failure forever (which would brick the price feed across restarts

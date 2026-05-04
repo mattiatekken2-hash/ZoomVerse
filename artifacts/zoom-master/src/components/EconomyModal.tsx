@@ -26,7 +26,12 @@ interface EconomyModalProps {
 }
 
 function formatPrice(p: number): string {
-  if (!Number.isFinite(p) || p <= 0) return "0.0000";
+  // After the May 2026 rebalance the genesis is $0.0001 and prices grow
+  // very slowly, so we need 6 decimals to show meaningful movement at
+  // sub-cent scale. Larger values fall back to fewer decimals so the
+  // tooltip / axis labels don't look noisy.
+  if (!Number.isFinite(p) || p <= 0) return "0.000000";
+  if (p < 0.01) return p.toFixed(6);
   if (p < 1) return p.toFixed(4);
   if (p < 10) return p.toFixed(3);
   return p.toFixed(2);

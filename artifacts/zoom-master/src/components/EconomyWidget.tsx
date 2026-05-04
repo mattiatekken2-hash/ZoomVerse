@@ -19,8 +19,11 @@ interface EconomyWidgetProps {
 }
 
 function formatPrice(p: number): string {
-  if (!Number.isFinite(p) || p <= 0) return "0.0000";
-  // Show 4 decimals up to ~1.0, then 3 decimals up to ~10, then 2.
+  // After the May 2026 rebalance the genesis is $0.0001 and prices grow
+  // very slowly, so sub-cent values need 6 decimals to show meaningful
+  // movement. Larger values fall back to fewer decimals to stay readable.
+  if (!Number.isFinite(p) || p <= 0) return "0.000000";
+  if (p < 0.01) return p.toFixed(6);
   if (p < 1) return p.toFixed(4);
   if (p < 10) return p.toFixed(3);
   return p.toFixed(2);
