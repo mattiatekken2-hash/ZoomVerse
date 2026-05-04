@@ -179,6 +179,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/referral/unlink",
       "/admin/redeem-codes/create",
       "/admin/redeem-codes/list",
+      "/admin/anti-cheat-purge-referrals",
     ],
     bindField: "adminId",
   },

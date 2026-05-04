@@ -1007,6 +1007,13 @@ router.post("/admin/anti-cheat-purge-referrals", async (req, res) => {
   const parsed = Body.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
   if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+  // Defense-in-depth: requireTelegramAuth (PROTECTED_ROUTES, bindField:"adminId")
+  // already enforces that the verified Telegram initData id equals body.adminId.
+  // This explicit check guarantees the same invariant even if the route were ever
+  // accidentally removed from PROTECTED_ROUTES.
+  if (!req.tgUser || req.tgUser.id !== parsed.data.adminId) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
 
   const { telegramId, purgeReferralsSinceMs, zeroTotal, zeroDaily } = parsed.data;
 
