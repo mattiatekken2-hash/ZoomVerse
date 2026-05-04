@@ -167,6 +167,37 @@ export function FarmPage({ planets, sun, sunCount, maxSlots, defectPlanets, tele
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* STAKING teaser button — sits to the left of COLLECTION.
+              Same disabled "coming soon" pattern: greyscale + reduced
+              opacity, click shows a transient neutral toast, never
+              navigates or mutates state. */}
+          <button
+            type="button"
+            onClick={() => {
+              setComingSoonMsg("Coming Soon: Stake your $ZOOM or Planets to earn massive rewards!");
+              if (comingSoonTimeoutRef.current !== null) {
+                window.clearTimeout(comingSoonTimeoutRef.current);
+              }
+              comingSoonTimeoutRef.current = window.setTimeout(() => {
+                setComingSoonMsg(null);
+                comingSoonTimeoutRef.current = null;
+              }, 2400);
+            }}
+            aria-label="Staking — coming soon"
+            data-testid="btn-staking-coming-soon"
+            className="px-3 py-1.5 rounded-full text-xs font-black tracking-wide"
+            style={{
+              background: "linear-gradient(135deg, rgba(120,140,180,0.18) 0%, rgba(60,72,96,0.14) 100%)",
+              border: "1px solid rgba(180,200,230,0.22)",
+              color: "rgba(220,230,245,0.85)",
+              filter: "grayscale(1)",
+              opacity: 0.55,
+              cursor: "pointer",
+              letterSpacing: 0.5,
+            }}
+          >
+            STAKING
+          </button>
           {/* COLLECTION teaser button.
               Visually disabled (greyscale + reduced opacity) to signal
               "coming soon" without removing it from the layout. Click
