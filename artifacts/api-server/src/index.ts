@@ -47,6 +47,7 @@ server.listen(port, () => {
   startFarmNotificationCron();
   startHallOfFameResetCron();
   startLotteryDrawCron();
+  startStarsReconcileCron();
 });
 
 /**
@@ -263,6 +264,94 @@ function utcDayKeyForCron(now: Date = new Date()): string {
   const m = String(now.getUTCMonth() + 1).padStart(2, "0");
   const d = String(now.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+/**
+ * Auto-riconciliazione pagamenti Stars.
+ *
+ * Telegram occasionalmente non consegna l'update `successful_payment` al
+ * webhook (problema noto di cold-start del loro sistema): l'utente paga,
+ * Telegram conferma il pagamento ma il nostro server non viene avvertito,
+ * quindi l'oggetto non viene accreditato finché l'admin non preme il
+ * pulsante "RICONCILIA PAGAMENTI STARS".
+ *
+ * Questo cron fa la stessa cosa automaticamente ogni 2 minuti:
+ * 1. Chiede a Telegram l'elenco delle ultime transazioni Stars
+ *    (getStarTransactions, fino a 100 per pagina).
+ * 2. Per ogni transazione di tipo invoice_payment, prova a riconciliarla.
+ *    `reconcilePendingStarPayment` è idempotente — se la txn è già stata
+ *    accreditata dal webhook, ritorna `already_done` senza effetti.
+ * 3. Le transazioni effettivamente recuperate emettono la notifica
+ *    "♻️ RECONCILE" sul bot dell'admin (stesso flusso del pulsante manuale).
+ *
+ * Single-flight: se un tick è ancora in corso (es. tante txn da riconciliare),
+ * il successivo viene saltato per evitare double-work.
+ */
+function startStarsReconcileCron() {
+  const intervalMs = 2 * 60 * 1000;
+  const BOT_TOKEN = process.env["BOT_TOKEN"] || "";
+  if (!BOT_TOKEN) {
+    logger.warn("[stars-cron] BOT_TOKEN not set — skipping stars reconcile cron");
+    return;
+  }
+  let inFlight = false;
+
+  type StarsTx = {
+    id: string;
+    date: number;
+    source?: { transaction_type?: string; invoice_payload?: string };
+  };
+
+  const tick = async () => {
+    if (inFlight) return;
+    inFlight = true;
+    try {
+      const { reconcilePendingStarPayment } = await import("./routes/stars-reconcile");
+
+      // Walk forward through the last few pages of Stars transactions.
+      // 3 pages * 100 = 300 most-recent transactions, ampiamente sufficiente
+      // per coprire anche picchi di volume su una finestra di 2 minuti.
+      const collected: StarsTx[] = [];
+      let offset = 0;
+      for (let i = 0; i < 3; i++) {
+        const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getStarTransactions?limit=100&offset=${offset}`);
+        const data = await r.json() as { ok: boolean; result?: { transactions?: StarsTx[] } };
+        const page = data?.result?.transactions || [];
+        if (page.length === 0) break;
+        collected.push(...page);
+        if (page.length < 100) break;
+        offset += page.length;
+      }
+
+      let credited = 0;
+      let alreadyDone = 0;
+      let errors = 0;
+      for (const t of collected) {
+        if (t.source?.transaction_type !== "invoice_payment") continue;
+        const payload = t.source?.invoice_payload;
+        if (!payload) continue;
+        let parsed: { txnId?: number; itemId?: string; telegramId?: string };
+        try { parsed = JSON.parse(payload); } catch { continue; }
+        if (typeof parsed.txnId !== "number" || !parsed.itemId || !parsed.telegramId) continue;
+        const r = await reconcilePendingStarPayment(parsed.txnId, parsed.itemId, parsed.telegramId, t.id);
+        if (r.status === "credited") credited++;
+        else if (r.status === "already_done") alreadyDone++;
+        else if (r.status === "error") errors++;
+      }
+      if (credited > 0 || errors > 0) {
+        logger.info({ scanned: collected.length, credited, alreadyDone, errors }, "[stars-cron] reconcile tick");
+      }
+    } catch (err) {
+      logger.warn({ err }, "[stars-cron] tick failed");
+    } finally {
+      inFlight = false;
+    }
+  };
+
+  // Primo tick 30s dopo il boot per coprire subito eventuali pagamenti
+  // arrivati durante il restart.
+  setTimeout(tick, 30_000).unref();
+  setInterval(tick, intervalMs).unref();
 }
 
 function startKeepAlive() {
