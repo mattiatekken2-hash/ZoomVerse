@@ -379,8 +379,18 @@ async function registerTelegramWebhook() {
     return;
   }
 
-  if (process.env["NODE_ENV"] === "development") {
-    logger.info("Skipping webhook registration in dev mode (production webhook preserved)");
+  // ONLY the published deployment may touch the Telegram webhook. In a Replit
+  // dev workspace `REPLIT_DOMAINS` points at a SHORT-LIVED preview hostname
+  // (e.g. *.janeway.replit.dev / *.repl.run); calling setWebhook from dev
+  // overwrites production with that ephemeral URL, Telegram then receives
+  // 500 errors and queues `successful_payment` updates that are never
+  // processed — silently breaking every Stars purchase until the next prod
+  // restart. `REPLIT_DEPLOYMENT === "1"` is the canonical signal that we're
+  // running inside the published deployment (NODE_ENV is unreliable: it is
+  // empty in this dev workspace). Belt-and-suspenders: also refuse to
+  // register if the resolved domain still looks like an ephemeral preview.
+  if (process.env["REPLIT_DEPLOYMENT"] !== "1") {
+    logger.info("Skipping webhook registration: not running in published deployment (production webhook preserved)");
     return;
   }
 
@@ -388,6 +398,11 @@ async function registerTelegramWebhook() {
 
   if (!deployDomain) {
     logger.warn("No domain available for webhook registration");
+    return;
+  }
+
+  if (deployDomain.includes(".janeway.") || deployDomain.includes(".repl.run") || deployDomain.includes(".replit.dev")) {
+    logger.warn({ deployDomain }, "Refusing to register webhook on what looks like an ephemeral preview domain (production webhook preserved)");
     return;
   }
 
