@@ -1051,6 +1051,155 @@ router.post("/admin/anti-cheat-purge-referrals", async (req, res) => {
 });
 
 /**
+ * Audit a user's referrals: returns total / today counts plus how many of them
+ * are "fake" (the referred user has zoom_balance = 0 AND balance_epoch = 0,
+ * i.e. the account exists but has never produced any in-app activity — typical
+ * signal of a bot signup farm). Read-only, safe to call freely.
+ */
+router.post("/admin/referrals/audit", async (req, res) => {
+  const Body = z.object({
+    adminId: z.string(),
+    target: z.string().min(1),
+  });
+  const parsed = Body.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+  if (!req.tgUser || req.tgUser.id !== parsed.data.adminId) return res.status(403).json({ error: "Forbidden" });
+
+  const targetId = await resolveTargetTelegramId(parsed.data.target);
+  if (!targetId) return res.status(404).json({ error: "Target not found" });
+
+  try {
+    const countsRow = await db.execute(sql`
+      SELECT
+        COUNT(*)::int AS total_refs,
+        COUNT(*) FILTER (WHERE created_at::date = (NOW() AT TIME ZONE 'UTC')::date)::int AS today_refs,
+        COUNT(*) FILTER (WHERE zoom_balance = 0 AND balance_epoch = 0)::int AS total_fake,
+        COUNT(*) FILTER (
+          WHERE created_at::date = (NOW() AT TIME ZONE 'UTC')::date
+            AND zoom_balance = 0 AND balance_epoch = 0
+        )::int AS today_fake
+      FROM users WHERE referred_by = ${targetId}
+    `);
+    const counts = (countsRow as unknown as {
+      rows: { total_refs: number; today_refs: number; total_fake: number; today_fake: number }[];
+    }).rows[0] ?? { total_refs: 0, today_refs: 0, total_fake: 0, today_fake: 0 };
+
+    const [user] = await db
+      .select({
+        username: usersTable.username,
+        firstName: usersTable.firstName,
+        dailyReferralCount: usersTable.dailyReferralCount,
+        referralCount: usersTable.referralCount,
+        dailyReferralDayKey: usersTable.dailyReferralDayKey,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, targetId))
+      .limit(1);
+
+    res.json({
+      ok: true,
+      targetTelegramId: targetId,
+      username: user?.username ?? null,
+      firstName: user?.firstName ?? null,
+      dailyReferralCount: user?.dailyReferralCount ?? 0,
+      referralCount: user?.referralCount ?? 0,
+      dailyReferralDayKey: user?.dailyReferralDayKey ?? null,
+      counts,
+    });
+  } catch (err) {
+    logger.error({ err, targetId }, "[admin/referrals/audit] failed");
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+/**
+ * Surgical purge of fake referrals for a target user. Unlinks (sets
+ * referred_by = NULL) every referred user whose zoom_balance = 0 AND
+ * balance_epoch = 0 (never opened the app), within the chosen scope
+ * ("today" UTC by default, or "all" time). Decrements the referrer's
+ * referral_count and daily_referral_count by the exact unlinked count
+ * (clamped at 0). Real referrals (anyone with any balance or epoch
+ * activity) are left untouched. Wrapped in a single transaction with
+ * SELECT ... FOR UPDATE on the referrer row to prevent races with
+ * concurrent referral increments.
+ */
+router.post("/admin/referrals/purge-fakes", async (req, res) => {
+  const Body = z.object({
+    adminId: z.string(),
+    target: z.string().min(1),
+    scope: z.enum(["today", "all"]).default("today"),
+  });
+  const parsed = Body.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+  if (!req.tgUser || req.tgUser.id !== parsed.data.adminId) return res.status(403).json({ error: "Forbidden" });
+
+  const targetId = await resolveTargetTelegramId(parsed.data.target);
+  if (!targetId) return res.status(404).json({ error: "Target not found" });
+
+  const scope = parsed.data.scope;
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      // Lock the referrer row so concurrent /referral writes can't race the
+      // counter math below.
+      await tx.execute(sql`SELECT 1 FROM users WHERE telegram_id = ${targetId} FOR UPDATE`);
+
+      // Count what's about to be unlinked, partitioned so we can decrement
+      // both counters precisely (total + today subset).
+      const scopeFilter =
+        scope === "today"
+          ? sql`AND created_at::date = (NOW() AT TIME ZONE 'UTC')::date`
+          : sql``;
+
+      const countRow = await tx.execute(sql`
+        SELECT
+          COUNT(*) FILTER (WHERE zoom_balance = 0 AND balance_epoch = 0)::int AS fake_total,
+          COUNT(*) FILTER (
+            WHERE zoom_balance = 0 AND balance_epoch = 0
+              AND created_at::date = (NOW() AT TIME ZONE 'UTC')::date
+          )::int AS fake_today
+        FROM users
+        WHERE referred_by = ${targetId} ${scopeFilter}
+      `);
+      const { fake_total, fake_today } = (countRow as unknown as {
+        rows: { fake_total: number; fake_today: number }[];
+      }).rows[0] ?? { fake_total: 0, fake_today: 0 };
+
+      // Sever the referral link on the fake accounts.
+      const upd = await tx.execute(sql`
+        UPDATE users
+        SET referred_by = NULL
+        WHERE referred_by = ${targetId}
+          AND zoom_balance = 0
+          AND balance_epoch = 0
+          ${scopeFilter}
+      `);
+      const unlinked = (upd as { rowCount?: number }).rowCount ?? 0;
+
+      // Decrement counters atomically, clamped at 0.
+      await tx.execute(sql`
+        UPDATE users
+        SET
+          referral_count = GREATEST(0, COALESCE(referral_count, 0) - ${fake_total}),
+          daily_referral_count = GREATEST(0, COALESCE(daily_referral_count, 0) - ${fake_today})
+        WHERE telegram_id = ${targetId}
+      `);
+
+      return { unlinked, decrementedTotal: fake_total, decrementedDaily: fake_today };
+    });
+
+    logger.info({ targetId, scope, ...result }, "[admin] purge fakes applied");
+    scheduleAdminAssetSnapshot();
+    res.json({ ok: true, targetTelegramId: targetId, scope, ...result });
+  } catch (err) {
+    logger.error({ err, targetId }, "[admin/referrals/purge-fakes] failed");
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+/**
  * Send a fake "Withdrawal Paid" message to the configured withdrawals chat /
  * forum topic, using the same exact format the real approval flow posts.
  * Lets the admin verify the bot has channel write access without paying out

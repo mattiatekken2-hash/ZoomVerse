@@ -1091,6 +1091,52 @@ export async function adminReconcileReferrals(adminId: string): Promise<{ ok: bo
   }
 }
 
+export interface ReferralAudit {
+  ok: boolean;
+  targetTelegramId?: string;
+  username?: string | null;
+  firstName?: string | null;
+  dailyReferralCount?: number;
+  referralCount?: number;
+  dailyReferralDayKey?: string | null;
+  counts?: { total_refs: number; today_refs: number; total_fake: number; today_fake: number };
+  error?: string;
+}
+
+export async function adminAuditReferrals(adminId: string, target: string): Promise<ReferralAudit> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/referrals/audit`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, target }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data?.error || `HTTP ${res.status}` };
+    return { ok: true, ...data };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export async function adminPurgeFakeReferrals(
+  adminId: string,
+  target: string,
+  scope: "today" | "all",
+): Promise<{ ok: boolean; unlinked?: number; decrementedTotal?: number; decrementedDaily?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/referrals/purge-fakes`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, target, scope }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data?.error || `HTTP ${res.status}` };
+    return { ok: true, unlinked: data?.unlinked, decrementedTotal: data?.decrementedTotal, decrementedDaily: data?.decrementedDaily };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export async function adminReconcileStars(adminId: string): Promise<{ ok: boolean; scanned?: number; credited?: number; alreadyDone?: number; notFound?: number; error?: string }> {
   try {
     const res = await fetch(`${API_BASE}/admin/reconcile-stars`, {

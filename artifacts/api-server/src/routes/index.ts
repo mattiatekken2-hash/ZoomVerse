@@ -181,6 +181,8 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/admin/redeem-codes/create",
       "/admin/redeem-codes/list",
       "/admin/anti-cheat-purge-referrals",
+      "/admin/referrals/audit",
+      "/admin/referrals/purge-fakes",
     ],
     bindField: "adminId",
   },

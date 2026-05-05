@@ -32,6 +32,9 @@ import {
   adminEnableUser,
   adminBulkDisable,
   adminReconcileReferrals,
+  adminAuditReferrals,
+  adminPurgeFakeReferrals,
+  type ReferralAudit,
   adminReconcileStars,
   adminWebhookInfo,
   adminFetchLottoDashboard,
@@ -1183,6 +1186,11 @@ export function AdminPanel({ telegramId }: Props) {
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
 
+                {/* AUDIT + PURGE FAKE REFERRALS — chirurgico, solo i fantasmi */}
+                <FakeReferralsAdminSection adminId={telegramId} onFeedback={showFeedback} />
+
+                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+
                 {/* REDEEM CODES — generate 24h promo codes */}
                 <RedeemCodesAdminSection adminId={telegramId} onFeedback={showFeedback} />
 
@@ -1562,6 +1570,223 @@ function WithdrawalRow({ w, loading, onApprove, onReject }: WithdrawalRowProps) 
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+interface FakeReferralsAdminSectionProps {
+  adminId: string;
+  onFeedback: (msg: string, ok: boolean) => void;
+}
+
+function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSectionProps) {
+  const [target, setTarget] = useState("");
+  const [scope, setScope] = useState<"today" | "all">("today");
+  const [audit, setAudit] = useState<ReferralAudit | null>(null);
+  const [busy, setBusy] = useState<"audit" | "purge" | null>(null);
+  const [confirmPurge, setConfirmPurge] = useState(false);
+
+  const runAudit = useCallback(async () => {
+    haptic();
+    const t = target.trim();
+    if (!t) { onFeedback("Inserisci username o telegram_id", false); return; }
+    setBusy("audit");
+    setConfirmPurge(false);
+    const res = await adminAuditReferrals(adminId, t);
+    setBusy(null);
+    if (!res.ok) {
+      setAudit(null);
+      onFeedback(`✗ ${res.error || "Errore audit"}`, false);
+      return;
+    }
+    setAudit(res);
+    onFeedback("✓ Audit completato", true);
+  }, [adminId, target, onFeedback]);
+
+  const runPurge = useCallback(async () => {
+    haptic();
+    const t = target.trim();
+    if (!t) return;
+    setBusy("purge");
+    const res = await adminPurgeFakeReferrals(adminId, t, scope);
+    setBusy(null);
+    setConfirmPurge(false);
+    if (!res.ok) {
+      onFeedback(`✗ ${res.error || "Errore purge"}`, false);
+      return;
+    }
+    onFeedback(`✓ Sganciati ${res.unlinked} fake (-${res.decrementedDaily} oggi, -${res.decrementedTotal} totale)`, true);
+    // Auto-refresh audit per mostrare i nuovi numeri.
+    const refreshed = await adminAuditReferrals(adminId, t);
+    if (refreshed.ok) setAudit(refreshed);
+  }, [adminId, target, scope, onFeedback]);
+
+  const c = audit?.counts;
+  const targetCount = scope === "today" ? (c?.today_fake ?? 0) : (c?.total_fake ?? 0);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
+        AUDIT + PURGE FAKE REFERRALS
+      </div>
+
+      <input
+        type="text"
+        placeholder="@username o telegram_id"
+        value={target}
+        onChange={(e) => { setTarget(e.target.value); setAudit(null); setConfirmPurge(false); }}
+        disabled={busy !== null}
+        style={{
+          background: "rgba(0,0,0,0.25)",
+          border: "1px solid rgba(255,200,80,0.25)",
+          borderRadius: 8,
+          padding: "9px 10px",
+          color: "#fff",
+          fontSize: 12,
+          outline: "none",
+        }}
+      />
+
+      <motion.button
+        whileTap={{ scale: 0.94 }}
+        onClick={runAudit}
+        disabled={busy !== null}
+        style={{
+          padding: "10px",
+          borderRadius: 10,
+          border: "1px solid rgba(255,200,80,0.35)",
+          background: "rgba(255,200,80,0.10)",
+          color: "#ffc850",
+          fontSize: 12,
+          fontWeight: 800,
+          letterSpacing: "0.06em",
+          cursor: busy ? "not-allowed" : "pointer",
+          opacity: busy ? 0.5 : 1,
+        }}
+      >
+        {busy === "audit" ? "..." : "🔍 AUDIT REFERRALS"}
+      </motion.button>
+
+      {audit && c && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            padding: 10,
+            borderRadius: 10,
+            background: "rgba(0,0,0,0.30)",
+            border: "1px solid rgba(255,255,255,0.06)",
+            fontSize: 11,
+            color: "rgba(255,255,255,0.85)",
+          }}
+        >
+          <div style={{ fontSize: 11, color: "#ffc850", fontWeight: 800 }}>
+            {audit.username ? `@${audit.username}` : audit.firstName || "—"}{" "}
+            <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 600 }}>
+              ({audit.targetTelegramId})
+            </span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+            <div>Oggi totali: <b>{c.today_refs}</b></div>
+            <div style={{ color: "#ff7a7a" }}>Oggi fake: <b>{c.today_fake}</b></div>
+            <div>Tutti totali: <b>{c.total_refs}</b></div>
+            <div style={{ color: "#ff7a7a" }}>Tutti fake: <b>{c.total_fake}</b></div>
+          </div>
+          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)" }}>
+            HOF count: <b>{audit.dailyReferralCount}</b> oggi · <b>{audit.referralCount}</b> totale
+          </div>
+
+          <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+            {(["today", "all"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => { setScope(s); setConfirmPurge(false); }}
+                style={{
+                  flex: 1,
+                  padding: "7px",
+                  borderRadius: 6,
+                  border: scope === s ? "1px solid rgba(255,80,80,0.6)" : "1px solid rgba(255,255,255,0.08)",
+                  background: scope === s ? "rgba(255,80,80,0.15)" : "rgba(255,255,255,0.03)",
+                  color: scope === s ? "#ff7a7a" : "rgba(255,255,255,0.5)",
+                  fontSize: 10,
+                  fontWeight: 800,
+                  letterSpacing: "0.06em",
+                  cursor: "pointer",
+                }}
+              >
+                {s === "today" ? "OGGI" : "TUTTI"}
+              </button>
+            ))}
+          </div>
+
+          {!confirmPurge ? (
+            <motion.button
+              whileTap={{ scale: 0.94 }}
+              onClick={() => setConfirmPurge(true)}
+              disabled={busy !== null || targetCount === 0}
+              style={{
+                padding: "10px",
+                borderRadius: 8,
+                border: "1px solid rgba(255,80,80,0.4)",
+                background: "rgba(255,80,80,0.10)",
+                color: "#ff7a7a",
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: "0.06em",
+                cursor: targetCount === 0 ? "not-allowed" : "pointer",
+                opacity: targetCount === 0 ? 0.4 : 1,
+              }}
+            >
+              {targetCount === 0 ? "Nessun fake da rimuovere" : `🧹 RIMUOVI ${targetCount} FAKE (${scope === "today" ? "oggi" : "tutti"})`}
+            </motion.button>
+          ) : (
+            <div style={{ display: "flex", gap: 4 }}>
+              <motion.button
+                whileTap={{ scale: 0.94 }}
+                onClick={runPurge}
+                disabled={busy !== null}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,60,60,0.6)",
+                  background: "rgba(255,60,60,0.20)",
+                  color: "#ff7a7a",
+                  fontSize: 11,
+                  fontWeight: 800,
+                  letterSpacing: "0.06em",
+                  cursor: "pointer",
+                  opacity: busy ? 0.5 : 1,
+                }}
+              >
+                {busy === "purge" ? "..." : `CONFERMA RIMOZIONE ${targetCount}`}
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.94 }}
+                onClick={() => setConfirmPurge(false)}
+                disabled={busy !== null}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  background: "rgba(255,255,255,0.04)",
+                  color: "rgba(255,255,255,0.7)",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                ANNULLA
+              </motion.button>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.4 }}>
+        "Fake" = utente referenziato che non ha mai aperto l'app (zoom_balance=0 e mai loggato). La rimozione sgancia il referral e decrementa il contatore Hall of Fame.
+      </div>
     </div>
   );
 }
