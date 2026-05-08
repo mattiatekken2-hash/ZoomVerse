@@ -10,89 +10,38 @@ const DEEP_PURPLE = "#4a0e8f";
 const ACCENT = "#c084fc";
 
 function BlackPlanetOrb({ size }: { size: number }) {
-  // Pianeta totalmente nero con fulmini viola che orbitano attorno.
-  // Box esterno = arena dei fulmini (1.55x); sfera centrale = nera assoluta.
-  const arena = Math.round(size * 1.55);
-  const orb = size;
-  const offset = (arena - orb) / 2;
-  const r = arena / 2;
-  // Tre fulmini disposti a 120° l'uno dall'altro, ruotano in continuo.
-  const bolts = [0, 120, 240];
   return (
     <div
       style={{
-        width: arena,
-        height: arena,
-        position: "relative",
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: `radial-gradient(circle at 35% 35%, #1a0033 0%, #0a0014 55%, #000005 100%)`,
+        boxShadow: [
+          `0 0 ${size * 0.3}px ${VOID_PURPLE}cc`,
+          `0 0 ${size * 0.6}px ${VOID_PURPLE}66`,
+          `0 0 ${size * 1.1}px ${DEEP_PURPLE}33`,
+          `inset 0 0 ${size * 0.2}px rgba(123,47,255,0.18)`,
+        ].join(", "),
         flexShrink: 0,
+        position: "relative",
+        overflow: "hidden",
       }}
     >
       <div
-        className="bc-bolts-spin"
         style={{
           position: "absolute",
           inset: 0,
-          transformOrigin: "50% 50%",
+          borderRadius: "50%",
+          background: `radial-gradient(ellipse at 70% 25%, rgba(192,132,252,0.22) 0%, transparent 60%)`,
         }}
-      >
-        <svg
-          width={arena}
-          height={arena}
-          viewBox={`0 0 ${arena} ${arena}`}
-          style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
-        >
-          <defs>
-            <filter id={`bcGlow-${arena}`} x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="1.6" result="b" />
-              <feMerge>
-                <feMergeNode in="b" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-          {bolts.map((angle) => {
-            const rad = (angle * Math.PI) / 180;
-            const cx = r + Math.cos(rad) * (r - 2);
-            const cy = r + Math.sin(rad) * (r - 2);
-            const ax = r + Math.cos(rad) * (r * 0.55);
-            const ay = r + Math.sin(rad) * (r * 0.55);
-            const perpX = -Math.sin(rad);
-            const perpY = Math.cos(rad);
-            const mid1x = (cx + ax) / 2 + perpX * (r * 0.18);
-            const mid1y = (cy + ay) / 2 + perpY * (r * 0.18);
-            const mid2x = (cx + ax) / 2 - perpX * (r * 0.12);
-            const mid2y = (cy + ay) / 2 - perpY * (r * 0.12);
-            const d = `M ${cx} ${cy} L ${mid1x} ${mid1y} L ${mid2x} ${mid2y} L ${ax} ${ay}`;
-            return (
-              <path
-                key={angle}
-                d={d}
-                stroke={ACCENT}
-                strokeWidth={Math.max(1.2, size * 0.06)}
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                filter={`url(#bcGlow-${arena})`}
-                style={{ opacity: 0.95 }}
-              />
-            );
-          })}
-        </svg>
-      </div>
+      />
       <div
         style={{
           position: "absolute",
-          left: offset,
-          top: offset,
-          width: orb,
-          height: orb,
+          inset: 0,
           borderRadius: "50%",
-          background: "#000000",
-          boxShadow: [
-            `0 0 ${orb * 0.35}px ${VOID_PURPLE}aa`,
-            `0 0 ${orb * 0.7}px ${DEEP_PURPLE}55`,
-            `inset 0 0 ${orb * 0.18}px rgba(123,47,255,0.35)`,
-          ].join(", "),
+          background: `radial-gradient(ellipse at 20% 80%, rgba(74,14,143,0.35) 0%, transparent 55%)`,
         }}
       />
     </div>
@@ -206,11 +155,6 @@ function BlackCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
           from { opacity: 0; transform: translateY(10px) scale(0.97); }
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
-        @keyframes bcBoltsSpin {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-        .bc-bolts-spin { animation: bcBoltsSpin 4s linear infinite; }
         .bc-tile-img { animation: blackCollFloat 3.5s ease-in-out infinite; }
         .bc-tile-frame { animation: blackCollGlow 2.8s ease-in-out infinite; }
         .bc-buy-btn {
@@ -252,7 +196,7 @@ function BlackCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
         data-testid="button-black-collection"
       >
         <div className="bc-tile-img" style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <BlackPlanetOrb size={28} />
+          <BlackPlanetOrb size={44} />
         </div>
         {unlocked && (
           <span
