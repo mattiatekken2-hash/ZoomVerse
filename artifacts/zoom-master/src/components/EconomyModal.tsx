@@ -16,23 +16,18 @@ import { createPortal } from "react-dom";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import { fetchEconomyPrice, fetchEconomyHistory, type EconomyChartPoint } from "../utils/api";
 
-// Number of synthetic sub-points injected between two real history points
-// to give the chart its "jagged" / volatile look. The sub-points use a
-// deterministic seeded pseudo-random walk anchored to the two real values,
-// so the line stays anchored to real data but has realistic micro-peaks
-// and micro-troughs in between. Higher = smoother + more wiggles, but
-// more SVG nodes; 6 is a good visual/perf balance for ~240 history points.
-const JAGGED_SUBSTEPS = 6;
-// Volatility amplitude (fraction of the local price range). At 0.18 the
-// noise lands well below the inter-point delta on average, so the line
-// looks volatile but never overshoots beyond plausible market wiggle.
-const JAGGED_AMPLITUDE = 0.18;
+// One synthetic mid-point per real segment so the line gently undulates
+// up/down instead of being perfectly straight. Lower than before (was 6)
+// to avoid the dense "noise spike" look the user disliked.
+const JAGGED_SUBSTEPS = 1;
+// Very small amplitude (fraction of the global price range). At 0.04 the
+// wiggle is just enough to feel "alive" without looking like static.
+const JAGGED_AMPLITUDE = 0.04;
 
 // Cheap deterministic PRNG so the same history always renders the same
-// jagged shape (no flicker on poll refresh). Seed is derived from the
-// real point's timestamp so each segment has its own stable noise pattern.
+// shape (no flicker on poll refresh). Seed is derived from the real
+// point's timestamp so each segment has its own stable wiggle direction.
 function seededNoise(seed: number, i: number): number {
-  // Mulberry32-ish: returns a value in [-1, 1].
   let x = (seed ^ (i * 0x9E3779B1)) >>> 0;
   x = Math.imul(x ^ (x >>> 15), x | 1);
   x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
@@ -372,10 +367,10 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, i
                   />
                 )}
                 <Area
-                  type="linear"
+                  type="monotone"
                   dataKey="price"
                   stroke="#00f2fe"
-                  strokeWidth={1.6}
+                  strokeWidth={2}
                   fill="url(#zoomPriceFill)"
                   isAnimationActive={false}
                   dot={false}
