@@ -1238,7 +1238,7 @@ function PixelAvatarBase({
                     textTransform: "uppercase",
                   }}
                 >
-                  ⬛ Black Collection Farm
+                  Black Collection Farm
                 </div>
                 {blackCollectionUnlocked && (
                   <div
@@ -1421,7 +1421,7 @@ function PixelAvatarBase({
                     opacity: 0.8,
                   }}
                 >
-                  All {maxBlackSlots} black planets have been placed ⬛
+                  All {maxBlackSlots} black planets have been placed
                 </div>
               )}
             </div>
