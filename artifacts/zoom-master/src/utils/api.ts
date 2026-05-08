@@ -979,6 +979,28 @@ export async function adminRevokeEarthCollection(adminId: string, telegramId: st
   } catch { return false; }
 }
 
+export async function adminUnlockBlackCollection(adminId: string, telegramId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/unlock-black-collection`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, telegramId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function adminRevokeBlackCollection(adminId: string, telegramId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/revoke-black-collection`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, telegramId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminGrantV1(adminId: string, telegramId: string): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/grant-v1`, {
