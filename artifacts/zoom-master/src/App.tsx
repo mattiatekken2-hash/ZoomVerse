@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
+import { BlackPlanetOrbStyles } from "./components/BlackPlanetOrb";
 import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/useGameState";
 import { useGlobalInit } from "./store/globalStore";
 import { NebulaBackground } from "./components/NebulaBackground";
@@ -40,6 +41,7 @@ const ALL_TABS: Tab[] = ["lab", "home", "farm", "market", "earn", "wheel", "rank
 export default function App() {
   return (
     <LanguageProvider>
+      <BlackPlanetOrbStyles />
       <AppShellWithState />
     </LanguageProvider>
   );
