@@ -166,7 +166,10 @@ const STARS_CATALOG: StarsItem[] = [
   { id: "explorer_pack", title: "Explorer Pack", description: "8,000 $ZOOM + 1 Rare Planet", starsPrice: 150, tonPrice: 1.5, zoomAmount: 8000, itemType: "bundle" },
   { id: "legend_pack", title: "Legend Pack", description: "25,000 $ZOOM + 1 Epic Planet", starsPrice: 400, tonPrice: 4.0, zoomAmount: 25000, itemType: "bundle" },
   { id: "the_sun", title: "THE SUN", description: "Exclusive limited-edition star — 1000 $ZOOM/hr", starsPrice: 1000, tonPrice: 10, itemType: "sun" },
-  { id: "extra_slot", title: "Extra Slot", description: "Unlock 1 additional planet slot", starsPrice: 25, tonPrice: 0.25, itemType: "slot" },
+  // Extra Slot pricing is DYNAMIC and TON-ONLY: price escalates per slot
+  // already owned (see SLOT_PRICE_LADDER_TON below). starsPrice is set to 0
+  // so the create-invoice/webhook guards reject any Stars-path attempt.
+  { id: "extra_slot", title: "Extra Slot", description: "Unlock 1 additional planet slot", starsPrice: 0, tonPrice: 0.25, itemType: "slot" },
   { id: "wheel_spin_1",  title: "1 Wheel Spin",   description: "1 spin on the Fortune Wheel",   starsPrice: 50,  tonPrice: 0.5, zoomAmount: 1,  itemType: "wheel_spin" },
   { id: "wheel_spin_5",  title: "5 Wheel Spins",  description: "5 spins on the Fortune Wheel — 20% off",  starsPrice: 200, tonPrice: 2.0, zoomAmount: 5,  itemType: "wheel_spin" },
   { id: "wheel_spin_10", title: "10 Wheel Spins", description: "10 spins on the Fortune Wheel — 30% off", starsPrice: 350, tonPrice: 3.5, zoomAmount: 10, itemType: "wheel_spin" },
@@ -774,10 +777,10 @@ router.post("/stars/create-invoice", async (req, res) => {
     return;
   }
 
-  // TON-ONLY items: V1 NFT Platinum si paga ESCLUSIVAMENTE in TON
-  // (catalogo ha starsPrice=0 — un'invoice Stars darebbe l'NFT GRATIS).
-  // Difesa server-side: rifiuta qualsiasi tentativo di create-invoice.
-  if (item.itemType === "v1_nft_platinum" || item.starsPrice <= 0) {
+  // TON-ONLY items: V1 NFT Platinum, Extra Slot e qualsiasi item con
+  // starsPrice<=0 si pagano ESCLUSIVAMENTE in TON. Difesa server-side:
+  // rifiuta qualsiasi tentativo di create-invoice in Stars.
+  if (item.itemType === "v1_nft_platinum" || item.itemType === "slot" || item.starsPrice <= 0) {
     res.status(400).json({ error: "This item is TON-only and cannot be purchased with Stars" });
     return;
   }
@@ -906,6 +909,34 @@ async function backgroundVerifyTon(txnId: number, item: StarsItem, telegramId: s
   console.warn(`[ton-bg] verification timed out for txn ${txnId}`);
 }
 
+// Progressive TON price ladder for the Extra Slot purchase. The N-th extra
+// slot costs LADDER[min(N, LADDER.length-1)] TON, capped at 3 TON.
+// Index 0 = first extra slot (when bonusSlots=0), 1 = second, etc.
+export const SLOT_PRICE_LADDER_TON: readonly number[] = [0.25, 0.5, 1, 1.5, 2, 2.5, 3];
+export function getSlotPriceTon(currentBonusSlots: number): number {
+  const i = Math.max(0, Math.floor(currentBonusSlots));
+  return SLOT_PRICE_LADDER_TON[Math.min(i, SLOT_PRICE_LADDER_TON.length - 1)] ?? 3;
+}
+
+router.get("/shop/slot-price/:telegramId", async (req, res) => {
+  const telegramId = req.params.telegramId;
+  if (!telegramId) { res.status(400).json({ error: "Missing telegramId" }); return; }
+  try {
+    const [u] = await db.select({ bonusSlots: usersTable.bonusSlots })
+      .from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
+    const current = u?.bonusSlots ?? 0;
+    res.json({
+      bonusSlots: current,
+      nextPriceTon: getSlotPriceTon(current),
+      ladder: SLOT_PRICE_LADDER_TON,
+      maxPriceTon: SLOT_PRICE_LADDER_TON[SLOT_PRICE_LADDER_TON.length - 1],
+    });
+  } catch (err) {
+    console.error("[shop/slot-price] error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
 router.post("/ton/confirm", async (req, res) => {
   const { telegramId, itemId, walletAddress, boc } = req.body as {
     telegramId?: string;
@@ -922,8 +953,14 @@ router.post("/ton/confirm", async (req, res) => {
   const item = findItem(itemId);
   if (!item) { res.status(404).json({ error: "Item not found" }); return; }
 
-  // Server-authoritative amount: ignore any client-sent value
-  const expectedTon = item.tonPrice;
+  // Server-authoritative amount: ignore any client-sent value.
+  // For the Extra Slot, price escalates per slot already owned (see ladder).
+  let expectedTon = item.tonPrice;
+  if (item.itemType === "slot") {
+    const [u] = await db.select({ bonusSlots: usersTable.bonusSlots })
+      .from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
+    expectedTon = getSlotPriceTon(u?.bonusSlots ?? 0);
+  }
   const expectedNano = BigInt(Math.round(expectedTon * 1e9));
 
   if (item.itemType === "sun") {
@@ -1137,7 +1174,7 @@ router.post("/stars/webhook", async (req, res) => {
       if (item) {
         // Defense-in-depth: items TON-only non devono mai essere accreditati via Stars,
         // anche se per qualche motivo arriva un successful_payment per loro.
-        if (item.itemType === "v1_nft_platinum" || item.starsPrice <= 0) {
+        if (item.itemType === "v1_nft_platinum" || item.itemType === "slot" || item.starsPrice <= 0) {
           console.error(`[stars/webhook] REJECTED Stars payment for TON-only item ${item.id} txn=${payloadData.txnId}`);
         } else {
           await atomicCreditIfPending(payloadData.txnId, payment.telegram_payment_charge_id, item, payloadData.telegramId);

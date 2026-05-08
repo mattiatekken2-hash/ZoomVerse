@@ -604,6 +604,22 @@ export async function fetchTotalPool(): Promise<TotalPool> {
  * Callers should `if (grants) applyGrants(grants)` and otherwise leave
  * local state untouched — the next successful poll will re-converge.
  */
+export interface SlotPriceInfo {
+  bonusSlots: number;
+  nextPriceTon: number;
+  ladder: number[];
+  maxPriceTon: number;
+}
+export async function fetchSlotPrice(telegramId: string): Promise<SlotPriceInfo | null> {
+  try {
+    const res = await fetch(`${API_BASE}/shop/slot-price/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return await res.json() as SlotPriceInfo;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchGrants(telegramId: string): Promise<Grants | null> {
   try {
     const res = await fetch(`${API_BASE}/grants/${encodeURIComponent(telegramId)}?t=${Date.now()}`, { cache: "no-store" });

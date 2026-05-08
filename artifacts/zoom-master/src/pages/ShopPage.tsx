@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
-import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase, fetchSunStock, pollTxnUntilFinal, fetchHomeState, buyComputer, buyPlantSeed, type SunStock, type HomeState } from "../utils/api";
+import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase, fetchSunStock, pollTxnUntilFinal, fetchHomeState, buyComputer, buyPlantSeed, fetchSlotPrice, type SunStock, type HomeState, type SlotPriceInfo } from "../utils/api";
 import { PixelPlant } from "../components/PixelPlant";
 import { useT } from "../i18n/LanguageContext";
 
@@ -22,8 +22,14 @@ const SHOP_ITEMS: ShopItem[] = [
   { id: "starter_pack", title: "Starter Pack", desc: "2,000 $ZOOM + 1 Basic Planet", starsPrice: 50, tonPrice: 0.5, zoomAmount: 2000, color: "#8892b0", icon: "◇", type: "bundle" },
   { id: "explorer_pack", title: "Explorer Pack", desc: "8,000 $ZOOM + 1 Rare Planet", starsPrice: 150, tonPrice: 1.5, zoomAmount: 8000, color: "#4facfe", icon: "◈", type: "bundle" },
   { id: "legend_pack", title: "Legend Pack", desc: "25,000 $ZOOM + 1 Epic Planet", starsPrice: 400, tonPrice: 4.0, zoomAmount: 25000, color: "#c471ed", icon: "⬡", type: "bundle" },
-  { id: "extra_slot", title: "Extra Slot", desc: "Unlock 1 additional planet slot", starsPrice: 25, tonPrice: 0.25, color: "#00f2fe", icon: "+", type: "slot" },
 ];
+
+// Extra Slot is rendered as its own TON-only card with a dynamic price
+// (escalates per slot already owned, capped at 3 TON).
+const EXTRA_SLOT_ITEM: ShopItem = {
+  id: "extra_slot", title: "Extra Slot", desc: "Unlock 1 additional planet slot",
+  starsPrice: 0, tonPrice: 0.25, color: "#00f2fe", icon: "+", type: "slot",
+};
 
 // Stardust top-up bundles — paid in Stars or TON via the same shop pay-mode
 // toggle. Rendered in their own card group above the existing stardust items
@@ -47,6 +53,7 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [payMode, setPayMode] = useState<"stars" | "ton">("stars");
   const [sunStock, setSunStock] = useState<SunStock | null>(null);
+  const [slotPrice, setSlotPrice] = useState<SlotPriceInfo | null>(null);
   // Shop categories: tabs per organizzare i prodotti.
   // - exclusive: SUN (e in futuro altri NFT/limited shop items)
   // - items: bundle pacchetti + extra slot (consumabili "in-game")
@@ -63,6 +70,11 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
     const stock = await fetchSunStock(telegramId);
     setSunStock(stock);
   };
+  const refreshSlotPrice = async () => {
+    if (!telegramId) return;
+    const p = await fetchSlotPrice(telegramId);
+    if (p) setSlotPrice(p);
+  };
   // Sequence guard so an older in-flight `/home/state` response can't
   // overwrite a newer one (e.g. interval tick racing the post-purchase
   // refresh and momentarily flipping `computer.owned` back to false).
@@ -78,12 +90,14 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
   useEffect(() => {
     refreshSunStock();
     refreshHome();
+    refreshSlotPrice();
     const id = setInterval(() => {
       if (document.hidden) return;
       refreshSunStock();
       refreshHome();
+      refreshSlotPrice();
     }, 20000);
-    const onRefresh = () => { refreshHome(); };
+    const onRefresh = () => { refreshHome(); refreshSlotPrice(); };
     window.addEventListener("zoom-data-refresh", onRefresh);
     return () => {
       clearInterval(id);
@@ -195,7 +209,14 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
 
     setBuying(item.id);
     try {
-      const nanotons = BigInt(Math.round(item.tonPrice * 1e9)).toString();
+      // For the Extra Slot, the price is dynamic (escalates per slot already
+      // owned, capped at 3 TON). The server is the source of truth — we just
+      // send the amount it told us via /shop/slot-price so the on-chain
+      // payment matches what /ton/confirm expects.
+      const effectiveTonPrice = item.id === "extra_slot"
+        ? (slotPrice?.nextPriceTon ?? item.tonPrice)
+        : item.tonPrice;
+      const nanotons = BigInt(Math.round(effectiveTonPrice * 1e9)).toString();
 
       const txResult = await tonConnectUI.sendTransaction({
         validUntil: Math.floor(Date.now() / 1000) + 300,
@@ -208,7 +229,7 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
       });
 
       const boc = txResult.boc || "";
-      const confirmResult = await confirmTonPurchase(telegramId, item.id, connectedAddress, item.tonPrice, boc);
+      const confirmResult = await confirmTonPurchase(telegramId, item.id, connectedAddress, effectiveTonPrice, boc);
       if (confirmResult.alreadyCredited) {
         setMessage(`${item.title} purchased!`);
         triggerDataRefresh();
@@ -236,6 +257,8 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
       } else {
         setMessage(confirmResult.error || "Credit failed");
       }
+      // Refresh the dynamic slot price so the next price tier is shown.
+      if (item.id === "extra_slot") refreshSlotPrice();
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       if (errMsg.includes("cancel") || errMsg.includes("reject") || errMsg.includes("Interrupted")) {
@@ -611,6 +634,61 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
           <div className="font-black text-sm tracking-widest uppercase mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
             Packs & Items
           </div>
+
+          {/* Extra Slot — TON-only, prezzo progressivo (0.25 → 0.5 → 1 →
+              1.5 → 2 → 2.5 → 3 TON) per slot già acquistato. Il pagamento
+              in Stars è disabilitato lato server e nascosto qui. */}
+          {(() => {
+            const item = EXTRA_SLOT_ITEM;
+            const price = slotPrice?.nextPriceTon ?? item.tonPrice;
+            const owned = slotPrice?.bonusSlots ?? 0;
+            const maxPrice = slotPrice?.maxPriceTon ?? 3;
+            const atCap = price >= maxPrice;
+            return (
+              <div
+                key={item.id}
+                className="rounded-2xl border overflow-hidden"
+                style={{ borderColor: item.color + "30", background: item.color + "06" }}
+              >
+                <div className="flex items-center gap-4 p-4">
+                  <div
+                    className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center font-black text-lg"
+                    style={{ background: item.color + "18", color: item.color, border: `1px solid ${item.color}30` }}
+                  >
+                    {item.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-black text-sm" style={{ color: item.color }}>{item.title}</div>
+                    <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
+                      {item.desc}
+                    </div>
+                    <div className="text-[10px] mt-1 font-bold tracking-wider" style={{ color: "rgba(0,242,254,0.7)" }}>
+                      {owned > 0 ? `Slot extra posseduti: ${owned}` : "Primo slot extra"}
+                      {atCap ? " · prezzo max" : ""}
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0 text-right">
+                    <div className="font-black text-base" style={{ color: "#0088ff" }}>{price}</div>
+                    <div className="text-xs opacity-70" style={{ color: "#0088ff" }}>TON</div>
+                  </div>
+                </div>
+                <div style={{ borderTop: `1px solid ${item.color}15` }}>
+                  <button
+                    onClick={() => handleTonBuy(item)}
+                    disabled={buying === item.id || !slotPrice}
+                    className="w-full py-3 font-black text-sm tracking-wider uppercase transition-all active:scale-95"
+                    style={{
+                      background: item.color + "10",
+                      color: item.color,
+                      opacity: buying === item.id || !slotPrice ? 0.6 : 1,
+                    }}
+                  >
+                    {buying === item.id ? "Processing..." : !slotPrice ? "Loading..." : `BUY — ${price} TON`}
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
 
           {SHOP_ITEMS.map(item => (
             <div
