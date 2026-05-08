@@ -270,7 +270,7 @@ function BlackCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
               fontSize: 12, color: "rgba(192,132,252,0.7)", textAlign: "center",
               lineHeight: 1.5, marginBottom: 18, padding: "0 6px",
             }}>
-              {t("blackColl.desc", { yield: "~0.333 TON/giorno" })}
+              {t("blackColl.desc")}
             </div>
 
             {unlocked ? (

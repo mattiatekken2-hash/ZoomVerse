@@ -164,7 +164,7 @@ const en: Dict = {
 
   // black collection
   "blackColl.title": "Black Collection Limited",
-  "blackColl.desc": "Unlock 4 exclusive black slots. Earn 10 TON/month with a public, on-chain payout. Yield: {yield}. TON only — no SUN required.",
+  "blackColl.desc": "Unlock 4 exclusive black slots. Earn 10 TON/month with a public, on-chain payout. Yield: ~0.333 TON/day. TON only — no SUN required.",
   "blackColl.active": "● Active — Producing TON",
   "blackColl.ownInfo": "You own {n} bundle ({total} planets).",
   "blackColl.ownInfoPlural": "You own {n} bundles ({total} planets).",
@@ -579,7 +579,7 @@ const it: Dict = {
   "earthColl.price": "Prezzo",
 
   "blackColl.title": "Black Collection Limited",
-  "blackColl.desc": "Sblocca 4 slot neri esclusivi. Guadagna 10 TON al mese con payout pubblico on-chain. Resa: {yield}. Solo TON — SUN non richiesto.",
+  "blackColl.desc": "Sblocca 4 slot neri esclusivi. Guadagna 10 TON al mese con payout pubblico on-chain. Resa: ~0.333 TON/giorno. Solo TON — SUN non richiesto.",
   "blackColl.active": "● Attivo — Produce TON",
   "blackColl.ownInfo": "Possiedi {n} bundle ({total} pianeti).",
   "blackColl.ownInfoPlural": "Possiedi {n} bundle ({total} pianeti).",
