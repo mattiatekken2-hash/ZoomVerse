@@ -12,7 +12,10 @@ import { memo, useEffect, useState, useCallback } from "react";
 import { fetchEconomyPrice, type EconomyChartPoint, fetchEconomyHistory } from "../utils/api";
 import { EconomyModal } from "./EconomyModal";
 
-const POLL_MS = 12_000;
+// Slow poll: the price is event-driven server-side (no per-second tick),
+// capped at +1% per UTC day. Polling more often than this just burns
+// bandwidth without showing any new movement.
+const POLL_MS = 60_000;
 
 interface EconomyWidgetProps {
   balance: number;

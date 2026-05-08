@@ -16,26 +16,16 @@ import { createPortal } from "react-dom";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import { fetchEconomyPrice, fetchEconomyHistory, type EconomyChartPoint } from "../utils/api";
 
-// One synthetic mid-point per real segment so the line gently undulates
-// up/down instead of being perfectly straight. Lower than before (was 6)
-// to avoid the dense "noise spike" look the user disliked.
-const JAGGED_SUBSTEPS = 1;
-// Very small amplitude (fraction of the global price range). At 0.04 the
-// wiggle is just enough to feel "alive" without looking like static.
-const JAGGED_AMPLITUDE = 0.04;
-
-// Cheap deterministic PRNG so the same history always renders the same
-// shape (no flicker on poll refresh). Seed is derived from the real
-// point's timestamp so each segment has its own stable wiggle direction.
-function seededNoise(seed: number, i: number): number {
-  let x = (seed ^ (i * 0x9E3779B1)) >>> 0;
-  x = Math.imul(x ^ (x >>> 15), x | 1);
-  x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
-  const r = ((x ^ (x >>> 14)) >>> 0) / 0xFFFFFFFF;
-  return r * 2 - 1;
-}
-
-const REFRESH_MS = 8_000;
+// Real micro-volatility now lives on the SERVER (zoomPrice.ts:
+// randomDeltaBp signed delta around each action's base bp). The chart
+// shows ONLY the actual server-recorded points — no synthetic wiggle,
+// no per-segment noise. This is what the user asked for: an organic
+// curve driven entirely by real player activity.
+//
+// Refresh cadence: 30s while the modal is open. The price is event-
+// driven server-side (no per-second tick), so polling more often just
+// burns bandwidth without showing anything new.
+const REFRESH_MS = 30_000;
 
 interface EconomyModalProps {
   onClose: () => void;
@@ -131,48 +121,14 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, i
   const positive = change >= 0;
   const portfolio = Number.isFinite(balance) ? balance * currentPrice : 0;
 
-  // Chart-friendly data. We render `price` as the Y axis (in TON) and
-  // an integer index on the X axis for monotonic spacing. Between every
-  // pair of REAL history points we inject `JAGGED_SUBSTEPS` synthetic
-  // sub-points whose Y value follows the linear interpolation plus a
-  // deterministic seeded noise term scaled by the local price range.
-  // This makes the line look volatile (micro-peaks/troughs) without
-  // touching server data — the real points are always preserved as the
-  // anchors, and tooltip/axis values still come from real prices.
-  const chartData = useMemo(() => {
-    if (points.length === 0) return [] as Array<{ i: number; t: number; price: number; real: boolean }>;
-    if (points.length === 1) {
-      return [{ i: 0, t: points[0]!.t, price: points[0]!.price, real: true }];
-    }
-    const out: Array<{ i: number; t: number; price: number; real: boolean }> = [];
-    let idx = 0;
-    // Local volatility amplitude is computed from the global series range,
-    // not per-segment, so quiet stretches still get a visible wiggle.
-    const allPrices = points.map((pt) => pt.price);
-    const globalMin = Math.min(...allPrices);
-    const globalMax = Math.max(...allPrices);
-    const globalRange = Math.max(globalMax - globalMin, globalMax * 0.005, 1e-9);
-    for (let k = 0; k < points.length - 1; k += 1) {
-      const a = points[k]!;
-      const b = points[k + 1]!;
-      out.push({ i: idx++, t: a.t, price: a.price, real: true });
-      const seed = Math.floor(a.t / 1000) >>> 0;
-      for (let s = 1; s <= JAGGED_SUBSTEPS; s += 1) {
-        const f = s / (JAGGED_SUBSTEPS + 1);
-        const lin = a.price + (b.price - a.price) * f;
-        // Triangular envelope: zero at endpoints, max in the middle, so
-        // the noise never pulls the line away from a real anchor.
-        const envelope = 1 - Math.abs(f - 0.5) * 2;
-        const noise = seededNoise(seed, s) * JAGGED_AMPLITUDE * globalRange * envelope;
-        const t = a.t + (b.t - a.t) * f;
-        const price = Math.max(lin + noise, lin * 0.5); // soft floor: never below 50% of the line
-        out.push({ i: idx++, t, price, real: false });
-      }
-    }
-    const last = points[points.length - 1]!;
-    out.push({ i: idx, t: last.t, price: last.price, real: true });
-    return out;
-  }, [points]);
+  // Chart-friendly data: just the REAL server points, indexed for
+  // monotonic X spacing. Volatility (the up/down wiggle) is produced on
+  // the server by the signed-random delta in zoomPrice.bumpZoomPrice —
+  // we render exactly what was recorded, no synthetic interpolation.
+  const chartData = useMemo(
+    () => points.map((pt, i) => ({ i, t: pt.t, price: pt.price, real: true })),
+    [points],
+  );
 
   const yMin = useMemo(() => {
     if (chartData.length === 0) return 0;
@@ -399,9 +355,9 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, i
           }}
         >
           <span style={{ color: "#00f2fe", fontWeight: 800 }}>♪ How it works.</span>{" "}
-          The $ZOOM price reflects player activity. Every market trade, every
-          new farming cycle and every craft nudges it up. Your Portfolio Value
-          updates live as the price moves.
+          The $ZOOM price moves only on real player actions — market trades,
+          farming cycles and crafts. Each tick is a small organic shift, with
+          a +1% daily growth cap so the curve climbs slowly and steadily.
         </div>
       </div>
     </div>

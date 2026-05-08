@@ -53,12 +53,27 @@ const VERSION_KEY = "zoom_price_version";
 // below the previous day's high — see `applyDailyResetIfNeeded`.
 const DAILY_HIGH_KEY = "zoom_price_daily_high";
 const LAST_DAY_KEY = "zoom_price_last_day_utc";
+// Today's UTC opening price (set at midnight reset and on first-run).
+// The daily growth cap is enforced as: max_price_today = open * (1 + DAILY_GROWTH_CAP).
+const DAILY_OPEN_KEY = "zoom_price_daily_open";
 
 // Daily correction range (fraction). Each midnight-UTC reset picks a
 // random value in [DAILY_CORRECTION_MIN, DAILY_CORRECTION_MAX] and the
 // new starting price = previousDailyHigh * (1 - pct).
 const DAILY_CORRECTION_MIN = 0.01; // 1%
 const DAILY_CORRECTION_MAX = 0.05; // 5%
+
+// Hard daily growth ceiling: the price can never exceed the day's
+// opening value by more than this fraction. Protects the (decorative)
+// TON-pegged Portfolio Value from runaway pumps when activity spikes —
+// players still see organic growth, but it's bounded per UTC day.
+const DAILY_GROWTH_CAP = 0.01; // +1% per day, max
+
+// Soft floor expressed as a fraction of the day's opening price. With
+// micro-volatility deltas occasionally going negative, this keeps the
+// price from drifting unboundedly down over a quiet day. -2% is enough
+// headroom for organic wiggle without ever falling far below the open.
+const DAILY_FLOOR_PCT = 0.02; // up to -2% from the day's open
 
 function utcDayIndex(ts: number): number {
   return Math.floor(ts / 86_400_000);
@@ -144,22 +159,34 @@ function checkCooldown(action: PriceAction, userId: string | null | undefined): 
 // micro is plenty of headroom for the rebalanced economy.
 const MAX_PRICE_MICRO = 1_000_000;
 // Per-action deltas in BASIS POINTS (1 bp = 0.01% of current price).
-// Rebalanced May 2026 to a percentage curve: each action moves the price
-// by a small relative amount instead of a fixed micro value. This keeps
-// the perceived "+X%" steady regardless of the current price level —
-// early game grows in tiny absolute steps, late game grows in larger
-// absolute steps, but the relative pace stays the same.
-//
-// Effective floor of +1 micro per bump (enforced in the SQL UPDATE) so
-// the chart still moves visibly at genesis when ROUND(price * bp / 10k)
-// would otherwise round to zero.
+// These are the BASE values; the actual delta applied to the price is
+// randomized per call (see `randomDeltaBp` below) to introduce real
+// server-side micro-volatility — small dips and pops around the base —
+// so the chart shows an organic wiggle instead of a perfect straight
+// line up. Combined with the per-day cap (DAILY_GROWTH_CAP) this gives
+// a slow, jagged climb capped at +1%/day.
 export const DELTA_BP = {
-  market_buy: 30,   // +0.30% (cost-bound — real $ZOOM debit)
-  market_list: 15,  // +0.15% (cost-bound — planet inventory limit)
-  farm_cycle: 5,    // +0.05% (cooldown 60s/user — see COOLDOWN_MS)
-  craft: 10,        // +0.10% (cooldown 30s/user — see COOLDOWN_MS)
+  market_buy: 30,   // base +0.30% (cost-bound — real $ZOOM debit)
+  market_list: 15,  // base +0.15% (cost-bound — planet inventory limit)
+  farm_cycle: 5,    // base +0.05% (cooldown 60s/user — see COOLDOWN_MS)
+  craft: 10,        // base +0.10% (cooldown 30s/user — see COOLDOWN_MS)
 } as const;
 export type PriceAction = keyof typeof DELTA_BP;
+
+/**
+ * Randomize the per-action bump for organic micro-volatility. Returns a
+ * SIGNED basis-point value drawn from [base * -0.4, base * +1.6] with
+ * uniform distribution. Mean ≈ +0.6 × base, so the price drifts upward
+ * slowly while individual ticks can be small dips — exactly what makes
+ * the chart look alive (jagged organic curve) instead of a synthetic
+ * straight line. Negative ticks at very low prices may round to 0 in
+ * the SQL ROUND(); that's fine, missing one tick keeps the curve calm.
+ */
+function randomDeltaBp(base: number): number {
+  const lo = base * -0.4;
+  const hi = base * 1.6;
+  return lo + Math.random() * (hi - lo);
+}
 
 // Chart sizing.
 const CHART_MAX_POINTS = 240;
@@ -315,6 +342,12 @@ async function applyDailyResetIfNeeded(): Promise<number> {
         VALUES (${LAST_DAY_KEY}, ${today}, NULL)
         ON CONFLICT (key) DO UPDATE SET value_num = EXCLUDED.value_num, updated_at = NOW()
       `);
+      // Anchor today's opening price for the daily growth cap.
+      await tx.execute(sql`
+        INSERT INTO app_settings (key, value_num, value_text)
+        VALUES (${DAILY_OPEN_KEY}, ${corrected}, NULL)
+        ON CONFLICT (key) DO UPDATE SET value_num = EXCLUDED.value_num, updated_at = NOW()
+      `);
       logger.info(
         { previousHigh, corrected, pctApplied: pct, today },
         "[zoomPrice] daily reset applied",
@@ -337,6 +370,15 @@ async function applyDailyResetIfNeeded(): Promise<number> {
           ON CONFLICT (key) DO NOTHING
         `);
       }
+      // First-run / migration: seed the daily-open anchor with the
+      // current price so the cap has a sensible reference point until
+      // the next midnight reset takes over. ON CONFLICT DO NOTHING so a
+      // proper open already set by a previous reset is preserved.
+      await tx.execute(sql`
+        INSERT INTO app_settings (key, value_num, value_text)
+        VALUES (${DAILY_OPEN_KEY}, ${currentPrice}, NULL)
+        ON CONFLICT (key) DO NOTHING
+      `);
     }
   });
 
@@ -474,25 +516,40 @@ export async function bumpZoomPrice(action: PriceAction, userId?: string | null)
     // Apply the midnight-UTC reset BEFORE bumping so the bump always
     // builds on top of the corrected base, never on yesterday's high.
     await applyDailyResetIfNeeded();
-    // Atomic percentage-based bump:
-    //   new = LEAST(MAX, current + GREATEST(1, ROUND(current * bp / 10000)))
-    // - bp is basis points (1 bp = 0.01%) so dividing by 10_000 gives a
-    //   plain percentage multiplier.
-    // - GREATEST(1, ...) is the +1 micro floor so the curve still moves
-    //   at very low prices where the percentage would round to 0.
-    // - LEAST(MAX, ...) caps at MAX_PRICE_MICRO so concurrent bumps near
-    //   the ceiling all settle on the same final value.
+    // SIGNED random delta around the action's base bp — see randomDeltaBp.
+    // The delta can be slightly negative so the chart shows organic
+    // micro-volatility (small dips between pops) instead of a perfect
+    // straight line up.
+    const effectiveBp = randomDeltaBp(bp);
+    // Atomic percentage-based bump with daily cap & floor:
+    //   raw = current + ROUND(current * effectiveBp / 10000)   -- can be < current
+    //   cap = open * (1 + DAILY_GROWTH_CAP)                    -- daily ceiling
+    //   floor = open * (1 - DAILY_FLOOR_PCT)                   -- daily floor
+    //   new = GREATEST(genesis_floor, LEAST(MAX, cap, raw))    -- final clamp
     // Done in a single SQL statement so concurrent bumps stay atomic.
+    // The daily-open subquery runs once at planning time per execution.
     const updated = await db
       .update(appSettingsTable)
       .set({
-        valueNum: sql`LEAST(
-          ${MAX_PRICE_MICRO},
-          COALESCE(${appSettingsTable.valueNum}, ${GENESIS_PRICE_MICRO})
-          + GREATEST(
-              1,
-              ROUND(COALESCE(${appSettingsTable.valueNum}, ${GENESIS_PRICE_MICRO}) * ${bp}::numeric / 10000)
-            )
+        valueNum: sql`GREATEST(
+          ${GENESIS_PRICE_MICRO},
+          ROUND(
+            COALESCE(
+              (SELECT value_num FROM app_settings WHERE key = ${DAILY_OPEN_KEY}),
+              COALESCE(${appSettingsTable.valueNum}, ${GENESIS_PRICE_MICRO})
+            ) * (1 - ${DAILY_FLOOR_PCT}::numeric)
+          ),
+          LEAST(
+            ${MAX_PRICE_MICRO},
+            ROUND(
+              COALESCE(
+                (SELECT value_num FROM app_settings WHERE key = ${DAILY_OPEN_KEY}),
+                COALESCE(${appSettingsTable.valueNum}, ${GENESIS_PRICE_MICRO})
+              ) * (1 + ${DAILY_GROWTH_CAP}::numeric)
+            ),
+            COALESCE(${appSettingsTable.valueNum}, ${GENESIS_PRICE_MICRO})
+            + ROUND(COALESCE(${appSettingsTable.valueNum}, ${GENESIS_PRICE_MICRO}) * ${effectiveBp}::numeric / 10000)
+          )
         )`,
         updatedAt: sql`NOW()`,
       })
