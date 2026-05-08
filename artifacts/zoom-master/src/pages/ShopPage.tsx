@@ -27,7 +27,7 @@ const SHOP_ITEMS: ShopItem[] = [
 // Extra Slot is rendered as its own TON-only card with a dynamic price
 // (escalates per slot already owned, capped at 3 TON).
 const EXTRA_SLOT_ITEM: ShopItem = {
-  id: "extra_slot", title: "Slot Extra", desc: "Sblocca 1 slot pianeta aggiuntivo",
+  id: "extra_slot", title: "Extra Slot", desc: "Unlock 1 additional planet slot",
   starsPrice: 0, tonPrice: 0.25, color: "#00f2fe", icon: "+", type: "slot",
 };
 
@@ -663,8 +663,8 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
                       {item.desc}
                     </div>
                     <div className="text-[10px] mt-1 font-bold tracking-wider" style={{ color: "rgba(0,242,254,0.7)" }}>
-                      {owned > 0 ? `Slot extra posseduti: ${owned}` : "Primo slot extra"}
-                      {atCap ? " · prezzo max" : ""}
+                      {owned > 0 ? `Extra slots owned: ${owned}` : "First extra slot"}
+                      {atCap ? " · max price" : ""}
                     </div>
                   </div>
                   <div className="flex-shrink-0 text-right">
@@ -683,7 +683,7 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
                       opacity: buying === item.id || !slotPrice ? 0.6 : 1,
                     }}
                   >
-                    {buying === item.id ? "In corso..." : !slotPrice ? "Caricamento..." : `ACQUISTA — ${price} TON`}
+                    {buying === item.id ? "Processing..." : !slotPrice ? "Loading..." : `BUY — ${price} TON`}
                   </button>
                 </div>
               </div>
