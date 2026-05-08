@@ -2691,7 +2691,15 @@ export function useGameState() {
     // claiming (pendingPlanet is local-only and didn't survive reload).
     if (outcome.ok && claimedName) {
       const { telegramId: tid } = getTelegramContext();
-      if (tid) { void recordCraft(tid, claimedName); }
+      if (tid) {
+        // Fire the server counter update, then immediately refresh the
+        // global profile so that the "My Profile" panel in RankPage
+        // reflects the new craft in real-time (otherwise the user would
+        // have to wait up to 15s for the next periodic poll).
+        void recordCraft(tid, claimedName).then(() => {
+          try { window.dispatchEvent(new Event("zoom-data-refresh")); } catch { /**/ }
+        });
+      }
     }
     return outcome;
   }, []);
