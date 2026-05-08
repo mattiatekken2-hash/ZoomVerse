@@ -56,6 +56,12 @@ export const usersTable = pgTable("users", {
   whiteCollectionBundles: integer("white_collection_bundles").notNull().default(0),
   earthCollectionUnlocked: boolean("earth_collection_unlocked").notNull().default(false),
   earthCollectionBundles: integer("earth_collection_bundles").notNull().default(0),
+  // BLACK Collection — ultra-exclusive tier (max 3 bundles globally, 40 TON each).
+  // 4 black planets per bundle, combined output ~0.333 TON/day. Same pattern as
+  // white/earth: unlocked flag + bundle counter; planet state lives in
+  // collection_planets with kind='black'.
+  blackCollectionUnlocked: boolean("black_collection_unlocked").notNull().default(false),
+  blackCollectionBundles: integer("black_collection_bundles").notNull().default(0),
   tonBalance: real("ton_balance").notNull().default(0),
   language: text("language").notNull().default("en"),
   // Stardust — second currency. Accumulable but NOT spendable yet (its

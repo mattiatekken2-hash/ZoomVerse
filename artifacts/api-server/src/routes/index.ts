@@ -154,6 +154,8 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/admin/unlock-earth-collection",
       "/admin/revoke-white-collection",
       "/admin/revoke-earth-collection",
+      "/admin/unlock-black-collection",
+      "/admin/revoke-black-collection",
       "/admin/grant-v1",
       "/admin/grant-v1-nft",
       "/admin/global-bonus",

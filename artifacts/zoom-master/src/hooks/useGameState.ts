@@ -46,7 +46,7 @@ async function refreshServerOffset(): Promise<void> {
   } catch { /* keep last known offset */ }
 }
 
-export type PlanetType = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "GOLD" | "V1" | "V1_NFT" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4";
+export type PlanetType = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "GOLD" | "V1" | "V1_NFT" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4" | "BLACK1" | "BLACK2" | "BLACK3" | "BLACK4";
 
 export const WHITE_PLANET_TYPES: PlanetType[] = ["WHITE1", "WHITE2", "WHITE3", "WHITE4"];
 
@@ -58,6 +58,12 @@ export const EARTH_PLANET_TYPES: PlanetType[] = ["EARTH1", "EARTH2", "EARTH3", "
 
 export function isEarthPlanet(name: PlanetType): boolean {
   return name === "EARTH1" || name === "EARTH2" || name === "EARTH3" || name === "EARTH4";
+}
+
+export const BLACK_PLANET_TYPES: PlanetType[] = ["BLACK1", "BLACK2", "BLACK3", "BLACK4"];
+
+export function isBlackPlanet(name: PlanetType): boolean {
+  return name === "BLACK1" || name === "BLACK2" || name === "BLACK3" || name === "BLACK4";
 }
 
 export interface Planet {
@@ -184,6 +190,12 @@ export interface GameState {
   earthCollectionBundles: number;
   claimedEarthCollectionBundles: number;
   earthPlanets: Planet[];
+  // Black Collection — 4 black TON-farming planets per bundle.
+  // 40 TON per bundle, max 3 bundles globally. Rate: 0.003472 TON/h each.
+  blackCollectionUnlocked: boolean;
+  blackCollectionBundles: number;
+  claimedBlackCollectionBundles: number;
+  blackPlanets: Planet[];
   // Accumulated TON earnings from White Collection planets (claimed via COLLECT).
   // Reactivation fees for white planets are deducted from this balance.
   tonBalance: number;
@@ -407,6 +419,57 @@ export const PLANET_CONFIG: Record<PlanetType, {
     reactivationFee: 0.001,
     isTonFarming: true,
   },
+  // BLACK Collection — 40 TON/bundle, max 3 bundles globally.
+  // Rate per planet: 10 TON / 30 days / 24h / 4 planets ≈ 0.003472 TON/h.
+  // Combined: ~0.333 TON/day. Reactivation fee: 0.01 TON per planet.
+  BLACK1: {
+    rate: 0.003472,
+    color: "#0a0014",
+    glowColor: "rgba(123,47,255,0.75)",
+    chance: 0,
+    label: "B1",
+    craftCost: 0,
+    activationTon: 0,
+    tapsNeeded: 0,
+    reactivationFee: 0.01,
+    isTonFarming: true,
+  },
+  BLACK2: {
+    rate: 0.003472,
+    color: "#0d0018",
+    glowColor: "rgba(157,78,221,0.75)",
+    chance: 0,
+    label: "B2",
+    craftCost: 0,
+    activationTon: 0,
+    tapsNeeded: 0,
+    reactivationFee: 0.01,
+    isTonFarming: true,
+  },
+  BLACK3: {
+    rate: 0.003472,
+    color: "#0a001a",
+    glowColor: "rgba(123,47,255,0.8)",
+    chance: 0,
+    label: "B3",
+    craftCost: 0,
+    activationTon: 0,
+    tapsNeeded: 0,
+    reactivationFee: 0.01,
+    isTonFarming: true,
+  },
+  BLACK4: {
+    rate: 0.003472,
+    color: "#080012",
+    glowColor: "rgba(157,78,221,0.8)",
+    chance: 0,
+    label: "B4",
+    craftCost: 0,
+    activationTon: 0,
+    tapsNeeded: 0,
+    reactivationFee: 0.01,
+    isTonFarming: true,
+  },
 };
 
 export const SUN_CONFIG = {
@@ -512,6 +575,10 @@ const INITIAL_STATE: GameState = {
   earthCollectionBundles: 0,
   claimedEarthCollectionBundles: 0,
   earthPlanets: [],
+  blackCollectionUnlocked: false,
+  blackCollectionBundles: 0,
+  claimedBlackCollectionBundles: 0,
+  blackPlanets: [],
   tonBalance: 0,
   // Default to 0 (not serverNow()) so a brand-new device / cleared cache is
   // recognized as "no prior local settle" — the server-side /farm/settle
@@ -628,6 +695,10 @@ function loadState(): GameState {
           earthCollectionBundles: (parsed as unknown as Record<string, unknown>).earthCollectionBundles as number ?? 0,
           claimedEarthCollectionBundles: (parsed as unknown as Record<string, unknown>).claimedEarthCollectionBundles as number ?? 0,
           earthPlanets: ((parsed as unknown as Record<string, unknown>).earthPlanets as Planet[] | undefined ?? []).map(migratePlanet),
+          blackCollectionUnlocked: (parsed as unknown as Record<string, unknown>).blackCollectionUnlocked as boolean ?? false,
+          blackCollectionBundles: (parsed as unknown as Record<string, unknown>).blackCollectionBundles as number ?? 0,
+          claimedBlackCollectionBundles: (parsed as unknown as Record<string, unknown>).claimedBlackCollectionBundles as number ?? 0,
+          blackPlanets: ((parsed as unknown as Record<string, unknown>).blackPlanets as Planet[] | undefined ?? []).map(migratePlanet),
           tonBalance: parsed.tonBalance ?? 0,
         };
         const resolvedTelegramId = telegramId || base.telegramId;
@@ -960,6 +1031,28 @@ function makeEarthCollectionPlanets(bundleIndex = 0): Planet[] {
   });
 }
 
+function makeBlackCollectionPlanets(bundleIndex = 0): Planet[] {
+  const now = serverNow();
+  return BLACK_PLANET_TYPES.map((type, i) => {
+    const cfg = PLANET_CONFIG[type];
+    return {
+      id: `black-${type}-b${bundleIndex}-${now}-${i}-${Math.random().toString(36).slice(2)}`,
+      name: type,
+      rate: cfg.rate,
+      color: cfg.color,
+      glowColor: cfg.glowColor,
+      createdAt: now,
+      farmStartedAt: 0,
+      lastCollectedAt: 0,
+      isListedInMarket: false,
+      isFarmingActive: false,
+      marketPrice: null,
+      craftCost: 0,
+      slotIndex: null,
+    };
+  });
+}
+
 // Parse the (kind, bundleIndex, subIndex) tuple out of a White or Earth
 // collection planet id. Returns null for any other planet id (regular,
 // bonus, marketplace, etc.). Format produced by makeWhiteCollectionPlanets
@@ -970,11 +1063,11 @@ function makeEarthCollectionPlanets(bundleIndex = 0): Planet[] {
 // half-RTT calibration), so the timestamp segment must allow `.<digits>`.
 export function parseCollectionPlanetKey(
   id: string,
-): { kind: "white" | "earth"; bundleIndex: number; subIndex: number } | null {
-  const m = /^(white|earth)-[A-Z0-9]+-b(\d+)-\d+(?:\.\d+)?-(\d+)-/.exec(id);
+): { kind: "white" | "earth" | "black"; bundleIndex: number; subIndex: number } | null {
+  const m = /^(white|earth|black)-[A-Z0-9]+-b(\d+)-\d+(?:\.\d+)?-(\d+)-/.exec(id);
   if (!m) return null;
   return {
-    kind: m[1] as "white" | "earth",
+    kind: m[1] as "white" | "earth" | "black",
     bundleIndex: parseInt(m[2]!, 10),
     subIndex: parseInt(m[3]!, 10),
   };
@@ -1672,6 +1765,7 @@ export function useGameState() {
 
         const serverBundles = Math.max(0, Number(grants.whiteCollectionBundles ?? 0));
         const serverEarthBundles = Math.max(0, Number(grants.earthCollectionBundles ?? 0));
+        const serverBlackBundles = Math.max(0, Number(grants.blackCollectionBundles ?? 0));
         updated = {
           ...updated,
           maxSlots: Math.max(INITIAL_STATE.maxSlots, INITIAL_STATE.maxSlots + grants.bonusSlots),
@@ -1680,6 +1774,8 @@ export function useGameState() {
           whiteCollectionBundles: serverBundles,
           earthCollectionUnlocked: !!grants.earthCollectionUnlocked || serverEarthBundles > 0,
           earthCollectionBundles: serverEarthBundles,
+          blackCollectionUnlocked: !!grants.blackCollectionUnlocked || serverBlackBundles > 0,
+          blackCollectionBundles: serverBlackBundles,
         };
 
         // White Collection: each owned bundle materializes 4 fresh white
@@ -1755,6 +1851,33 @@ export function useGameState() {
             ...updated,
             whitePlanets: applyServerOverrides(updated.whitePlanets || [], serverCollectionByKey),
             earthPlanets: applyServerOverrides(updated.earthPlanets || [], serverCollectionByKey),
+            blackPlanets: applyServerOverrides(updated.blackPlanets || [], serverCollectionByKey),
+          };
+        }
+
+        // Earth Collection black bundle materialization (initial hydration).
+        const claimedBlackBundles = Math.max(0, updated.claimedBlackCollectionBundles ?? 0);
+        if (serverBlackBundles > claimedBlackBundles) {
+          const toMaterializeBlack = serverBlackBundles - claimedBlackBundles;
+          const newBlackPlanets: Planet[] = [];
+          for (let b = 0; b < toMaterializeBlack; b++) {
+            newBlackPlanets.push(...makeBlackCollectionPlanets(claimedBlackBundles + b));
+          }
+          updated = {
+            ...updated,
+            claimedBlackCollectionBundles: serverBlackBundles,
+            blackPlanets: [...(updated.blackPlanets || []), ...newBlackPlanets],
+          };
+        } else if (serverBlackBundles < claimedBlackBundles) {
+          const keepBlack = (p: Planet) => {
+            const m = /-b(\d+)-/.exec(p.id);
+            const idx = m ? parseInt(m[1]!, 10) : 0;
+            return idx < serverBlackBundles;
+          };
+          updated = {
+            ...updated,
+            claimedBlackCollectionBundles: serverBlackBundles,
+            blackPlanets: (updated.blackPlanets || []).filter(keepBlack),
           };
         }
 
@@ -1776,6 +1899,15 @@ export function useGameState() {
           }
         }
         for (const p of updated.earthPlanets || []) {
+          const snap = snapshotCollectionPlanet(p);
+          if (!snap) continue;
+          const k = `${snap.kind}-${snap.bundleIndex}-${snap.subIndex}`;
+          if (serverCollectionByKey.has(k)) continue;
+          if (snap.slotIndex != null || snap.isFarmingActive || snap.lastCollectedAtMs > 0) {
+            toSeed.push(snap);
+          }
+        }
+        for (const p of updated.blackPlanets || []) {
           const snap = snapshotCollectionPlanet(p);
           if (!snap) continue;
           const k = `${snap.kind}-${snap.bundleIndex}-${snap.subIndex}`;
@@ -2048,6 +2180,28 @@ export function useGameState() {
           };
         }
         // Grow-only: never delete earth-collection planets when the server
+        // bundle counter is below the local claimed count.
+
+        const serverBlackBundles2 = Math.max(0, Number(grants.blackCollectionBundles ?? 0));
+        updated = {
+          ...updated,
+          blackCollectionUnlocked: !!grants.blackCollectionUnlocked || serverBlackBundles2 > 0,
+          blackCollectionBundles: serverBlackBundles2,
+        };
+        const claimedBlackBundles2 = Math.max(0, updated.claimedBlackCollectionBundles ?? 0);
+        if (serverBlackBundles2 > claimedBlackBundles2) {
+          const toMaterializeBlack2 = serverBlackBundles2 - claimedBlackBundles2;
+          const newBlackPlanets2: Planet[] = [];
+          for (let b = 0; b < toMaterializeBlack2; b++) {
+            newBlackPlanets2.push(...makeBlackCollectionPlanets(claimedBlackBundles2 + b));
+          }
+          updated = {
+            ...updated,
+            claimedBlackCollectionBundles: serverBlackBundles2,
+            blackPlanets: [...(updated.blackPlanets || []), ...newBlackPlanets2],
+          };
+        }
+        // Grow-only: never delete black-collection planets when the server
         // bundle counter is below the local claimed count.
 
         const bonusTypes: Array<{ key: keyof Grants; claimedKey: keyof GameState; type: PlanetType }> = [
@@ -3420,6 +3574,107 @@ export function useGameState() {
     });
   }, []);
 
+  // ───── Black Collection — mirrors the earth-planet API exactly.
+  const placeBlackPlanet = useCallback((id: string, slotIndex: number): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: true };
+    setState((prev) => {
+      const target = prev.blackPlanets.find((p) => p.id === id);
+      if (!target) {
+        outcome = { ok: false, reason: "Planet not found" };
+        return prev;
+      }
+      if (target.slotIndex != null) {
+        outcome = { ok: false, reason: "Already placed" };
+        return prev;
+      }
+      const maxBlackSlots = (prev.blackCollectionBundles || (prev.blackCollectionUnlocked ? 1 : 0)) * 4;
+      if (slotIndex < 0 || slotIndex >= maxBlackSlots) {
+        outcome = { ok: false, reason: "Invalid slot" };
+        return prev;
+      }
+      const occupied = prev.blackPlanets.some((p) => p.slotIndex === slotIndex);
+      if (occupied) {
+        outcome = { ok: false, reason: "Slot occupied" };
+        return prev;
+      }
+      const now = serverNow();
+      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, target.name, true);
+      const updatedPlanet: Planet = { ...target, slotIndex, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+      persistCollectionPlanet(prev.telegramId, updatedPlanet);
+      return {
+        ...prev,
+        blackPlanets: prev.blackPlanets.map((p) => (p.id === id ? updatedPlanet : p)),
+      };
+    });
+    return outcome;
+  }, []);
+
+  const markBlackPlanetReactivated = useCallback((id: string): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: true };
+    setState((prev) => {
+      const planet = prev.blackPlanets.find((p) => p.id === id);
+      if (!planet || planet.slotIndex == null) {
+        outcome = { ok: false, reason: "Planet not placed" };
+        return prev;
+      }
+      const now = serverNow();
+      const cfg = PLANET_CONFIG[planet.name];
+      const start = Math.max(planet.farmStartedAt, planet.lastCollectedAt);
+      const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+      const earnedTon = end > start ? (cfg.rate / 3_600_000) * (end - start) : 0;
+      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
+      const updatedPlanet: Planet = { ...planet, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+      persistCollectionPlanet(prev.telegramId, updatedPlanet);
+      return {
+        ...prev,
+        tonBalance: (prev.tonBalance || 0) + earnedTon,
+        blackPlanets: prev.blackPlanets.map((p) => (p.id === id ? updatedPlanet : p)),
+      };
+    });
+    return outcome;
+  }, []);
+
+  const reactivateBlackPlanet = useCallback((id: string): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: true };
+    setState((prev) => {
+      const planet = prev.blackPlanets.find((p) => p.id === id);
+      if (!planet || planet.slotIndex == null) {
+        outcome = { ok: false, reason: "Planet not placed" };
+        return prev;
+      }
+      const now = serverNow();
+      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
+      const updatedPlanet: Planet = { ...planet, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+      persistCollectionPlanet(prev.telegramId, updatedPlanet);
+      return {
+        ...prev,
+        blackPlanets: prev.blackPlanets.map((p) => (p.id === id ? updatedPlanet : p)),
+      };
+    });
+    return outcome;
+  }, []);
+
+  const collectBlackPlanet = useCallback((id: string) => {
+    setState((prev) => {
+      const planet = prev.blackPlanets.find((p) => p.id === id);
+      if (!planet || planet.slotIndex == null || !planet.isFarmingActive) return prev;
+      const now = serverNow();
+      const cfg = PLANET_CONFIG[planet.name];
+      const start = Math.max(planet.farmStartedAt, planet.lastCollectedAt);
+      const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+      const earnedTon = end > start ? (cfg.rate / 3_600_000) * (end - start) : 0;
+      if (earnedTon <= 0) return prev;
+      if (prev.telegramId) notifyFarmCollect(prev.telegramId, id);
+      const updatedPlanet: Planet = { ...planet, lastCollectedAt: now };
+      persistCollectionPlanet(prev.telegramId, updatedPlanet);
+      return {
+        ...prev,
+        tonBalance: (prev.tonBalance || 0) + earnedTon,
+        blackPlanets: prev.blackPlanets.map((p) => (p.id === id ? updatedPlanet : p)),
+      };
+    });
+  }, []);
+
   // ─────────────────────────────────────────────────────────────────
   // SPACE MERCHANT helpers — burn N planets of a given type, mint a
   // freshly-crafted (non-bonus) planet on success. Bonus planets that
@@ -3548,6 +3803,7 @@ export function useGameState() {
     startSunFarming, stopSunFarming, burnSun,
     placeWhitePlanet, reactivateWhitePlanet, markWhitePlanetReactivated, collectWhitePlanet,
     placeEarthPlanet, reactivateEarthPlanet, markEarthPlanetReactivated, collectEarthPlanet,
+    placeBlackPlanet, reactivateBlackPlanet, markBlackPlanetReactivated, collectBlackPlanet,
     burnTwoOfType, addCraftedPlanet,
   };
 }

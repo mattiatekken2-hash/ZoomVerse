@@ -150,6 +150,11 @@ const SUN_MAX_GLOBAL = 100;
 // raising it is safe and has no effect on already-credited members.
 const WHITE_COLLECTION_MAX_GLOBAL = 20;
 const EARTH_COLLECTION_MAX_GLOBAL = 50;
+// BLACK Collection — ultra-exclusive. Max 3 bundles globally (one per buyer
+// unless a single user buys all 3). Cap enforced atomically via advisory lock
+// + WHERE-guard on the SUM of black_collection_bundles, mirroring the white /
+// earth pattern. Each bundle = 4 black planets @ ~0.333 TON/day combined.
+const BLACK_COLLECTION_MAX_GLOBAL = 3;
 // V1 NFT Platinum Edition — esclusivo NFT, max 5 venduti GLOBALMENTE.
 // Cap enforced atomicamente in creditUserTx via WHERE-guard sulla SOMMA
 // di bonus_v1_nft_platinum (stesso pattern di white_collection /
@@ -180,6 +185,13 @@ const STARS_CATALOG: StarsItem[] = [
   // fee for E1..E4 (0.001 TON). Server records the payment but applies no
   // grant — the client toggles the specific planet's farming state on success.
   { id: "earth_react", title: "Earth Planet Reactivation", description: "Restart an expired earth-planet farming cycle", starsPrice: 10, tonPrice: 0.001, itemType: "earth_react" },
+  // BLACK Collection — ultra-exclusive. Max 3 bundles globally. 4 black
+  // planets per bundle with intense purple nebula glow. Combined output
+  // ~0.333 TON/day. starsPrice: 0 disables Stars button (TON only, like V1).
+  { id: "black_collection", title: "Black Collection Ultra", description: "Unlock 4 exclusive black planets. Speed: 0.333 TON/day. Ultra limited: only 3 ever.", starsPrice: 0, tonPrice: 40, itemType: "black_collection" },
+  // Reactivation fee for an expired black-planet farming cycle (0.01 TON).
+  // Same payment-only pattern as white/earth — no server-side grant.
+  { id: "black_react", title: "Black Planet Reactivation", description: "Restart an expired black-planet farming cycle", starsPrice: 0, tonPrice: 0.01, itemType: "black_react" },
   // LOTTO STELLARE — bundle di biglietti per la lotteria a probabilità
   // ponderate. zoomAmount qui rappresenta il numero di biglietti del bundle
   // (riusato come "count" per non aggiungere campi al catalogo). Lo
@@ -377,6 +389,9 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string,
   } else if (item.itemType === "earth_react") {
     // Same as white_react — payment-only, no server-side grant. Client toggles
     // the specific earth planet's farming state on confirmation.
+  } else if (item.itemType === "black_react") {
+    // Same as white/earth_react — payment-only, no server-side grant. Client
+    // toggles the specific black planet's farming state on confirmation.
   } else if (item.itemType === "white_collection") {
     // Serialize all White Collection credits via a transaction-scoped advisory
     // lock so the global cap is enforced strictly even under concurrent buys.
@@ -444,6 +459,22 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string,
       console.error(`[creditUserTx] EARTH_COLLECTION sold out at credit time for ${telegramId}`);
       throw new Error("EARTH_COLLECTION_SOLD_OUT");
     }
+  } else if (item.itemType === "black_collection") {
+    // Same pattern as white/earth but with advisory lock id 7913042044 and a
+    // global cap of only 3 bundles (ultra-exclusive).
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(7913042044)`);
+    const result = await tx.execute(sql`
+      UPDATE users
+      SET black_collection_bundles = black_collection_bundles + 1,
+          black_collection_unlocked = true
+      WHERE telegram_id = ${telegramId}
+        AND (SELECT COALESCE(SUM(black_collection_bundles), 0) FROM users) < ${BLACK_COLLECTION_MAX_GLOBAL}
+      RETURNING black_collection_bundles
+    `);
+    if (!result.rows || result.rows.length === 0) {
+      console.error(`[creditUserTx] BLACK_COLLECTION sold out at credit time for ${telegramId}`);
+      throw new Error("BLACK_COLLECTION_SOLD_OUT");
+    }
   }
   return {};
 }
@@ -460,6 +491,13 @@ async function getEarthCollectionStock(): Promise<{ sold: number; remaining: num
     .from(usersTable);
   const sold = Number(row?.sold ?? 0);
   return { sold, remaining: Math.max(0, EARTH_COLLECTION_MAX_GLOBAL - sold), max: EARTH_COLLECTION_MAX_GLOBAL };
+}
+
+async function getBlackCollectionStock(): Promise<{ sold: number; remaining: number; max: number }> {
+  const [row] = await db.select({ sold: sql<number>`COALESCE(SUM(${usersTable.blackCollectionBundles}), 0)::int` })
+    .from(usersTable);
+  const sold = Number(row?.sold ?? 0);
+  return { sold, remaining: Math.max(0, BLACK_COLLECTION_MAX_GLOBAL - sold), max: BLACK_COLLECTION_MAX_GLOBAL };
 }
 
 async function getV1NftPlatinumStock(): Promise<{ sold: number; remaining: number; max: number }> {
@@ -542,6 +580,17 @@ router.get("/earth-collection/stock", async (_req, res) => {
   }
 });
 
+router.get("/black-collection/stock", async (_req, res) => {
+  try {
+    const stock = await getBlackCollectionStock();
+    res.set("Cache-Control", "no-store");
+    res.json(stock);
+  } catch (err) {
+    console.error("[black-collection/stock] error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
 router.get("/v1-nft-platinum/stock", async (_req, res) => {
   try {
     const stock = await getV1NftPlatinumStock();
@@ -581,11 +630,17 @@ async function postActivationChannelMessage(item: StarsItem, telegramId: string)
     case "white_collection":
       title = "⚪ <b>New White Collection Activation!</b>";
       break;
+    case "black_collection":
+      title = "⬛ <b>New Black Collection Activation!</b>";
+      break;
     case "earth_react":
       title = "🌍 <b>Earth Planet Reactivated!</b>";
       break;
     case "white_react":
       title = "⚪ <b>White Planet Reactivated!</b>";
+      break;
+    case "black_react":
+      title = "⬛ <b>Black Planet Reactivated!</b>";
       break;
     default:
       return; // not an activation event

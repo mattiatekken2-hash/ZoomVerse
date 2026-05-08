@@ -79,6 +79,7 @@ function AppShellWithState() {
     claimDaily, startSunFarming, stopSunFarming, burnSun,
     placeWhitePlanet, reactivateWhitePlanet, markWhitePlanetReactivated, collectWhitePlanet,
     placeEarthPlanet, reactivateEarthPlanet, markEarthPlanetReactivated, collectEarthPlanet,
+    placeBlackPlanet, reactivateBlackPlanet, markBlackPlanetReactivated, collectBlackPlanet,
     burnTwoOfType, addCraftedPlanet,
   } = useGameState();
 
@@ -647,6 +648,13 @@ function AppShellWithState() {
                   onCollectEarthPlanet={collectEarthPlanet}
                   onReactivateEarthPlanet={reactivateEarthPlanet}
                   onMarkEarthPlanetReactivated={markEarthPlanetReactivated}
+                  blackCollectionUnlocked={!!state.blackCollectionUnlocked}
+                  blackCollectionBundles={Number(state.blackCollectionBundles) || 0}
+                  blackPlanets={state.blackPlanets || []}
+                  onPlaceBlackPlanet={placeBlackPlanet}
+                  onCollectBlackPlanet={collectBlackPlanet}
+                  onReactivateBlackPlanet={reactivateBlackPlanet}
+                  onMarkBlackPlanetReactivated={markBlackPlanetReactivated}
                   visible={tab === "lab"}
                   merchantActive={merchant.active}
                 />

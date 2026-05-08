@@ -6,6 +6,7 @@ import { HallOfFameWidget } from "../components/HallOfFameWidget";
 import { PixelAvatar } from "../components/PixelAvatar";
 import { WhiteCollectionWidget } from "../components/WhiteCollectionWidget";
 import { EarthCollectionWidget } from "../components/EarthCollectionWidget";
+import { BlackCollectionWidget } from "../components/BlackCollectionWidget";
 import { LottoStellareWidget } from "../components/LottoStellareWidget";
 import { V1NftWidget } from "../components/V1NftWidget";
 import type { Planet, PlanetType } from "../hooks/useGameState";
@@ -42,6 +43,13 @@ interface LabPageProps {
   onCollectEarthPlanet: (planetId: string) => void;
   onReactivateEarthPlanet: (planetId: string) => { ok: boolean; reason?: string };
   onMarkEarthPlanetReactivated: (planetId: string) => { ok: boolean; reason?: string };
+  blackCollectionUnlocked: boolean;
+  blackCollectionBundles: number;
+  blackPlanets: Planet[];
+  onPlaceBlackPlanet: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
+  onCollectBlackPlanet: (planetId: string) => void;
+  onReactivateBlackPlanet: (planetId: string) => { ok: boolean; reason?: string };
+  onMarkBlackPlanetReactivated: (planetId: string) => { ok: boolean; reason?: string };
   visible?: boolean;
   /** When true, the radar LED next to the Earth widget pulses red so the
    *  player notices the merchant even if the popup hasn't yet rendered. */
@@ -53,7 +61,7 @@ interface FloatMsg { id: number; text: string; color: string }
 const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, sunCount, tonBalance, telegramId, onCraft, onClaim, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, visible = true, merchantActive = false }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, blackCollectionUnlocked, blackCollectionBundles, blackPlanets, sunCount, tonBalance, telegramId, onCraft, onClaim, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, onPlaceBlackPlanet, onCollectBlackPlanet, onReactivateBlackPlanet, onMarkBlackPlanetReactivated, visible = true, merchantActive = false }: LabPageProps) {
   const { t } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
@@ -207,6 +215,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       <HallOfFameWidget telegramId={telegramId} />
       <WhiteCollectionWidget telegramId={telegramId} unlocked={whiteCollectionUnlocked} ownedBundles={whiteCollectionBundles} sunCount={sunCount} />
       <EarthCollectionWidget telegramId={telegramId} unlocked={earthCollectionUnlocked} ownedBundles={earthCollectionBundles} sunCount={sunCount} />
+      <BlackCollectionWidget telegramId={telegramId} unlocked={blackCollectionUnlocked} ownedBundles={blackCollectionBundles} />
       <LottoStellareWidget telegramId={telegramId} />
       <V1NftWidget telegramId={telegramId} />
       {/* Space-merchant radar LED — small red blink near the Earth widget so
@@ -387,6 +396,9 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             earthPlanets={earthPlanets}
             earthCollectionUnlocked={earthCollectionUnlocked}
             earthCollectionBundles={earthCollectionBundles}
+            blackPlanets={blackPlanets}
+            blackCollectionUnlocked={blackCollectionUnlocked}
+            blackCollectionBundles={blackCollectionBundles}
             sunCount={sunCount}
             tonBalance={tonBalance}
             telegramId={telegramId}
@@ -398,6 +410,10 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             onCollectEarthPlanet={onCollectEarthPlanet}
             onReactivateEarthPlanet={onReactivateEarthPlanet}
             onMarkEarthPlanetReactivated={onMarkEarthPlanetReactivated}
+            onPlaceBlackPlanet={onPlaceBlackPlanet}
+            onCollectBlackPlanet={onCollectBlackPlanet}
+            onReactivateBlackPlanet={onReactivateBlackPlanet}
+            onMarkBlackPlanetReactivated={onMarkBlackPlanetReactivated}
           />
         </div>
 

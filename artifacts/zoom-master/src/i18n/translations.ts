@@ -162,6 +162,19 @@ const en: Dict = {
   "earthColl.openAria": "Earth Collection Limited",
   "earthColl.price": "Price",
 
+  // black collection
+  "blackColl.title": "Black Collection Limited",
+  "blackColl.desc": "Unlock 4 exclusive black slots. Yield: {yield}/day. TON only — no SUN required.",
+  "blackColl.active": "● Active — Producing TON",
+  "blackColl.ownInfo": "You own {n} bundle ({total} planets).",
+  "blackColl.ownInfoPlural": "You own {n} bundles ({total} planets).",
+  "blackColl.tapAvatar": "Tap your avatar to place planets in slots and collect TON.",
+  "blackColl.limited": "Limited: {left} / {max} left",
+  "blackColl.buyAnother": "BUY ANOTHER (OWN {n})",
+  "blackColl.unlocked": "Black Collection unlocked!",
+  "blackColl.openAria": "Black Collection Limited",
+  "blackColl.price": "Price",
+
   // white collection
   "whiteColl.title": "White Collection Limited",
   "whiteColl.desc": "Unlock 4 exclusive farm slots. Yield: {yield}. Requires SUN module.",
@@ -564,6 +577,18 @@ const it: Dict = {
   "earthColl.requirementSun": "Requisito: devi possedere un SUN per sbloccare questa collezione",
   "earthColl.openAria": "Earth Collection Limited",
   "earthColl.price": "Prezzo",
+
+  "blackColl.title": "Black Collection Limited",
+  "blackColl.desc": "Sblocca 4 slot neri esclusivi. Resa: {yield}/giorno. Solo TON — SUN non richiesto.",
+  "blackColl.active": "● Attivo — Produce TON",
+  "blackColl.ownInfo": "Possiedi {n} bundle ({total} pianeti).",
+  "blackColl.ownInfoPlural": "Possiedi {n} bundle ({total} pianeti).",
+  "blackColl.tapAvatar": "Tocca il tuo avatar per piazzare i pianeti negli slot e raccogliere TON.",
+  "blackColl.limited": "Limitati: {left} / {max} rimasti",
+  "blackColl.buyAnother": "COMPRA ALTRO (POSSIEDI {n})",
+  "blackColl.unlocked": "Black Collection sbloccata!",
+  "blackColl.openAria": "Black Collection Limited",
+  "blackColl.price": "Prezzo",
 
   "whiteColl.title": "White Collection Limited",
   "whiteColl.desc": "Sblocca 4 slot farm esclusivi. Resa: {yield}. Richiede modulo SUN.",

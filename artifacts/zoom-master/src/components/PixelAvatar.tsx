@@ -62,6 +62,9 @@ interface PixelAvatarProps {
   earthPlanets?: Planet[];
   earthCollectionUnlocked?: boolean;
   earthCollectionBundles?: number;
+  blackPlanets?: Planet[];
+  blackCollectionUnlocked?: boolean;
+  blackCollectionBundles?: number;
   sunCount?: number;
   tonBalance?: number;
   telegramId?: string | null;
@@ -73,6 +76,10 @@ interface PixelAvatarProps {
   onCollectEarthPlanet?: (planetId: string) => void;
   onReactivateEarthPlanet?: (planetId: string) => { ok: boolean; reason?: string };
   onMarkEarthPlanetReactivated?: (planetId: string) => { ok: boolean; reason?: string };
+  onPlaceBlackPlanet?: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
+  onCollectBlackPlanet?: (planetId: string) => void;
+  onReactivateBlackPlanet?: (planetId: string) => { ok: boolean; reason?: string };
+  onMarkBlackPlanetReactivated?: (planetId: string) => { ok: boolean; reason?: string };
 }
 
 function PixelAvatarBase({
@@ -83,6 +90,9 @@ function PixelAvatarBase({
   earthPlanets = [],
   earthCollectionUnlocked = false,
   earthCollectionBundles = 0,
+  blackPlanets = [],
+  blackCollectionUnlocked = false,
+  blackCollectionBundles = 0,
   sunCount = 0,
   tonBalance = 0,
   telegramId = null,
@@ -94,6 +104,10 @@ function PixelAvatarBase({
   onCollectEarthPlanet,
   onReactivateEarthPlanet: _onReactivateEarthPlanet,
   onMarkEarthPlanetReactivated,
+  onPlaceBlackPlanet,
+  onCollectBlackPlanet,
+  onReactivateBlackPlanet: _onReactivateBlackPlanet,
+  onMarkBlackPlanetReactivated,
 }: PixelAvatarProps) {
   // TonConnect — same wiring used by the Shop page (SUN, packs, etc.). The
   // REACT button on a white-planet slot opens the wallet, sends 0.005 TON to
@@ -111,9 +125,12 @@ function PixelAvatarBase({
     ? earthCollectionBundles
     : (earthCollectionUnlocked ? 1 : 0);
   const maxEarthSlots = effectiveEarthBundles * 4;
-  // Withdrawals are gated by either: a White Collection bundle (always
-  // unlocks), OR an Earth Collection bundle PLUS at least one SUN module.
-  const canWithdraw = whiteCollectionUnlocked || (earthCollectionUnlocked && sunCount > 0);
+  const effectiveBlackBundles = blackCollectionBundles > 0
+    ? blackCollectionBundles
+    : (blackCollectionUnlocked ? 1 : 0);
+  const maxBlackSlots = effectiveBlackBundles * 4;
+  // Withdrawals are gated by: White Collection, OR Earth+SUN, OR Black Collection.
+  const canWithdraw = whiteCollectionUnlocked || (earthCollectionUnlocked && sunCount > 0) || blackCollectionUnlocked;
   const [tapped, setTapped] = useState(false);
   const [open, setOpen] = useState(false);
   const [depositMsg, setDepositMsg] = useState<string | null>(null);
@@ -156,6 +173,7 @@ function PixelAvatarBase({
     let pending = 0;
     for (const p of whitePlanets) pending += getWhitePlanetPendingTon(p, now);
     for (const p of earthPlanets) pending += getWhitePlanetPendingTon(p, now);
+    for (const p of blackPlanets) pending += getWhitePlanetPendingTon(p, now);
     return tonBalance + pending;
   })();
 
@@ -234,6 +252,13 @@ function PixelAvatarBase({
   );
   const [selectedEarthInvId, setSelectedEarthInvId] = useState<string | null>(null);
 
+  // Black Collection — mirrors earth collection.
+  const blackInventory = blackPlanets.filter((p) => p.slotIndex == null);
+  const blackSlotOccupants: (Planet | null)[] = Array.from({ length: maxBlackSlots }, (_, i) =>
+    blackPlanets.find((p) => p.slotIndex === i) || null
+  );
+  const [selectedBlackInvId, setSelectedBlackInvId] = useState<string | null>(null);
+
   const flashWhiteMsg = (msg: string) => {
     setWhiteMsg(msg);
     window.setTimeout(() => setWhiteMsg(null), 2200);
@@ -277,6 +302,26 @@ function PixelAvatarBase({
 
   const handleEarthInvClick = (id: string) => {
     setSelectedEarthInvId((cur) => (cur === id ? null : id));
+  };
+
+  const handleBlackSlotClick = (slotIndex: number) => {
+    if (slotIndex < 0 || slotIndex >= maxBlackSlots) return;
+    const occupant = blackSlotOccupants[slotIndex];
+    if (occupant) return;
+    if (!selectedBlackInvId || !onPlaceBlackPlanet) {
+      flashWhiteMsg("Select a black planet from the inventory first");
+      return;
+    }
+    const res = onPlaceBlackPlanet(selectedBlackInvId, slotIndex);
+    if (!res.ok) {
+      flashWhiteMsg(res.reason || "Cannot place planet");
+      return;
+    }
+    setSelectedBlackInvId(null);
+  };
+
+  const handleBlackInvClick = (id: string) => {
+    setSelectedBlackInvId((cur) => (cur === id ? null : id));
   };
 
   return (
@@ -1167,6 +1212,214 @@ function PixelAvatarBase({
                 </div>
               )}
             </div>
+
+            {/* Black Collection Farm — 40 TON/bundle, ~0.333 TON/day. */}
+            <div style={{ marginTop: 18 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 10,
+                  gap: 8,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: "0.18em",
+                    color: "#fff",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  ⬛ Black Collection Farm
+                </div>
+                {blackCollectionUnlocked && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: "#7b2fff",
+                      padding: "4px 9px",
+                      borderRadius: 8,
+                      background: "rgba(123,47,255,0.10)",
+                      border: "1px solid rgba(123,47,255,0.45)",
+                      whiteSpace: "nowrap",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                    title="Live TON balance including uncollected black planet earnings"
+                  >
+                    {liveTonBalance.toFixed(6)} TON
+                  </div>
+                )}
+              </div>
+
+              {blackCollectionUnlocked && maxBlackSlots > 0 && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4, 1fr)",
+                    gap: 10,
+                    marginBottom: 10,
+                    maxHeight: maxBlackSlots > 12 ? 360 : undefined,
+                    overflowY: maxBlackSlots > 12 ? "auto" : "visible",
+                    paddingRight: maxBlackSlots > 12 ? 4 : 0,
+                  }}
+                >
+                  {blackSlotOccupants.map((_unused, i) => {
+                    const occupant = blackSlotOccupants[i];
+                    const targetable = !occupant && !!selectedBlackInvId;
+                    return (
+                      <div
+                        key={`black-slot-${i}`}
+                        className={`pixel-farm-slot ${occupant ? "filled locked-tag" : ""} ${targetable ? "targetable" : ""}`}
+                        style={{ position: "relative", padding: occupant ? 6 : 0, flexDirection: "column" }}
+                        onClick={() => handleBlackSlotClick(i)}
+                      >
+                        {occupant ? (
+                          <SlotContent
+                            planet={occupant}
+                            tonBalance={tonBalance}
+                            busy={reactingId === occupant.id}
+                            onCollect={onCollectBlackPlanet}
+                            onReactivate={async (id, planet) => {
+                              if (!telegramId) { flashWhiteMsg("Session not ready"); return; }
+                              if (!connectedAddress) { tonConnectUI.openModal(); flashWhiteMsg("Connect your wallet"); return; }
+                              if (reactingId) return;
+                              setReactingId(id);
+                              try {
+                                const fee = getReactivationFee(planet);
+                                const nanotons = BigInt(Math.round(fee * 1e9)).toString();
+                                const txResult = await tonConnectUI.sendTransaction({
+                                  validUntil: Math.floor(Date.now() / 1000) + 300,
+                                  messages: [{ address: TON_RECEIVER_WALLET, amount: nanotons }],
+                                });
+                                const boc = txResult.boc || "";
+                                const confirm = await confirmTonPurchase(telegramId, "black_react", connectedAddress, fee, boc);
+                                let creditedOk = confirm.ok && !confirm.pending;
+                                if (confirm.pending && confirm.txnId) {
+                                  flashWhiteMsg("Verifying payment on-chain…");
+                                  const final = await pollTxnUntilFinal(confirm.txnId);
+                                  creditedOk = final?.status === "completed";
+                                  if (final?.status === "failed") {
+                                    flashWhiteMsg("Payment not detected on-chain");
+                                    setReactingId(null);
+                                    return;
+                                  }
+                                } else if (!confirm.ok) {
+                                  flashWhiteMsg(confirm.error || "Payment failed");
+                                  setReactingId(null);
+                                  return;
+                                }
+                                if (creditedOk) {
+                                  const res = onMarkBlackPlanetReactivated?.(id);
+                                  if (res && !res.ok) flashWhiteMsg(res.reason || "Reactivation failed");
+                                  else flashWhiteMsg("Reactivated!");
+                                } else {
+                                  flashWhiteMsg("Awaiting confirmation…");
+                                }
+                              } catch (err: unknown) {
+                                const m = err instanceof Error ? err.message : String(err);
+                                if (m.includes("cancel") || m.includes("reject") || m.includes("Interrupted")) flashWhiteMsg("Payment cancelled");
+                                else { flashWhiteMsg("TON payment failed"); console.error("[black-react] ton tx error:", err); }
+                              } finally {
+                                setReactingId(null);
+                              }
+                            }}
+                          />
+                        ) : (
+                          <div style={{ fontSize: 18, opacity: 0.3 }}>◌</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {blackCollectionUnlocked && blackInventory.length > 0 && (
+                <>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: "0.14em",
+                      color: "rgba(255,255,255,0.6)",
+                      textTransform: "uppercase",
+                      marginBottom: 8,
+                    }}
+                  >
+                    Black Inventory · Tap to select, then tap a slot
+                  </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: `repeat(${Math.min(4, blackInventory.length)}, 1fr)`,
+                      gap: 8,
+                      marginBottom: 10,
+                    }}
+                  >
+                    {blackInventory.map((p) => {
+                      const cfg = PLANET_CONFIG[p.name];
+                      return (
+                        <div
+                          key={p.id}
+                          className={`pixel-inv-item ${selectedBlackInvId === p.id ? "selected" : ""}`}
+                          onClick={() => handleBlackInvClick(p.id)}
+                        >
+                          <PlanetOrb planet={p} size={42} animate={false} />
+                          <div style={{ fontSize: 9, fontWeight: 800, opacity: 0.85, textAlign: "center", lineHeight: 1.1 }}>
+                            {cfg.label}
+                          </div>
+                          <div style={{ fontSize: 8, opacity: 0.6 }}>+{cfg.rate}/h</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {!blackCollectionUnlocked && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "rgba(255,255,255,0.5)",
+                    textAlign: "center",
+                    fontStyle: "italic",
+                  }}
+                >
+                  Unlock the Black Collection (40 TON) to receive 4 exclusive black planets
+                </div>
+              )}
+
+              {blackCollectionUnlocked && effectiveBlackBundles > 1 && (
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "rgba(255,255,255,0.55)",
+                    textAlign: "center",
+                    marginTop: 4,
+                    letterSpacing: "0.08em",
+                  }}
+                >
+                  {effectiveBlackBundles}× bundles · {maxBlackSlots} slots
+                </div>
+              )}
+
+              {blackCollectionUnlocked && maxBlackSlots > 0 && blackInventory.length === 0 && blackSlotOccupants.every((o) => o) && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "#9d4edd",
+                    textAlign: "center",
+                    fontStyle: "italic",
+                    opacity: 0.8,
+                  }}
+                >
+                  All {maxBlackSlots} black planets have been placed ⬛
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -1200,6 +1453,7 @@ function SlotContent({ planet, busy = false, onReactivate }: SlotContentProps) {
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
       {isEarth ? <RealisticEarth size={36} /> : isWhite ? <RealisticWhite size={36} /> : <PlanetOrb planet={planet} size={36} animate={active} />}
+
       <div style={{ fontSize: 8, fontWeight: 800, opacity: 0.95, lineHeight: 1.1, textAlign: "center" }}>
         {cfg.label.replace("White Planet ", "W")}
       </div>

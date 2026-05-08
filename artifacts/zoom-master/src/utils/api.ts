@@ -479,6 +479,8 @@ export interface Grants {
   whiteCollectionBundles: number;
   earthCollectionUnlocked: boolean;
   earthCollectionBundles: number;
+  blackCollectionUnlocked: boolean;
+  blackCollectionBundles: number;
   tonBalance: number;
   // SUN cycle (24h) — server-side mirror so the cycle survives localStorage
   // loss. 0 means "never started" / fresh state.
@@ -487,7 +489,7 @@ export interface Grants {
   sunCycleCount: number;
 }
 
-const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
 
 /**
  * Push the current SUN cycle to the server so it persists across
