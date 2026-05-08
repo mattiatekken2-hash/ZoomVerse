@@ -468,10 +468,18 @@ router.post("/market/buy", async (req, res) => {
     }
 
     // Credit also fences on is_disabled = false on the seller side.
+    //
+    // IMPORTANT: we write to `pending_zoom_credits` (NOT directly to
+    // `zoom_balance` + epoch bump). The next /balance/sync from the
+    // seller atomically consumes pending_zoom_credits and adds it on top
+    // of the post-CASE balance (see leaderboard.ts /balance/sync), which
+    // is the race-free way to credit a player who may be actively
+    // playing — directly bumping zoom_balance + epoch is silently
+    // overwritten by the next sync's ELSE-GREATEST branch when the
+    // seller's local balance has grown past the credited value.
     const credited = await txDb.update(usersTable)
       .set({
-        zoomBalance: sql`${usersTable.zoomBalance} + ${listing.price}`,
-        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+        pendingZoomCredits: sql`${usersTable.pendingZoomCredits} + ${listing.price}`,
       })
       .where(and(
         eq(usersTable.telegramId, listing.sellerTelegramId),

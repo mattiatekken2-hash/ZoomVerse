@@ -54,7 +54,18 @@ router.post("/balance/sync", async (req, res) => {
       .onConflictDoUpdate({
         target: usersTable.telegramId,
         set: {
-          zoomBalance: sql`CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.zoomBalance} ELSE GREATEST(0, ${zoomBalance}) END`,
+          // Add `pending_zoom_credits` on top of the post-CASE balance.
+          // Postgres reads OLD column values on the RHS in a single UPDATE,
+          // so this is race-free against concurrent credit appends (they
+          // serialize on the row lock and the credits we don't see now will
+          // simply be applied at the next sync).
+          zoomBalance: sql`(CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.zoomBalance} ELSE GREATEST(0, ${zoomBalance}) END) + ${usersTable.pendingZoomCredits}`,
+          // Atomically clear the consumed credits in the same statement.
+          pendingZoomCredits: sql`0`,
+          // Bump balance_epoch ONLY when we actually consumed a credit, so
+          // the client's reconcileFromSyncResponse takes the snap-up path
+          // (serverAdvanced=true) and surfaces the credited amount.
+          balanceEpoch: sql`${usersTable.balanceEpoch} + (CASE WHEN ${usersTable.pendingZoomCredits} > 0 THEN 1 ELSE 0 END)`,
           // TON balance uses a non-destructive merge: take the MAX of server
           // and client. Unlike ZOOM, internal TON has no client-side spends
           // (reactivation fees are paid on-chain via TonConnect and the only

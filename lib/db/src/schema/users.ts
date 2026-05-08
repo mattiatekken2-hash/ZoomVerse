@@ -239,6 +239,27 @@ export const usersTable = pgTable("users", {
   // ─────────────────────────────────────────────────────────────────────
   stakingV1StartedAtMs: bigint("staking_v1_started_at_ms", { mode: "number" }).notNull().default(0),
   stakingSunStartedAtMs: bigint("staking_sun_started_at_ms", { mode: "number" }).notNull().default(0),
+
+  // ─────────────────────────────────────────────────────────────────────
+  // PENDING ZOOM CREDITS — race-free server→client credit channel.
+  //
+  // PROBLEM: a marketplace sale credits the seller via
+  // `zoom_balance += price; balance_epoch += 1`, but the client's
+  // /balance/sync uses CASE WHEN epoch > ce THEN stored ELSE GREATEST(0, client).
+  // For an ACTIVELY-PLAYING seller whose local balance has grown past the
+  // server's stored value (active farming/tap-crafting between syncs),
+  // the next sync's ELSE branch overwrites the server-credited value
+  // with the higher local value, silently losing the sale price.
+  //
+  // FIX: marketplace seller credits are written here INSTEAD of directly
+  // bumping zoom_balance/balance_epoch. /balance/sync atomically adds
+  // this field on top of the post-CASE balance and zeroes it (Postgres
+  // UPDATE SET reads OLD column values on the RHS, so the read-clear is
+  // race-free against concurrent credit appends, which serialize on the
+  // row lock). The next sync after a sale therefore always shows the
+  // credit, regardless of how active the seller was in between.
+  // ─────────────────────────────────────────────────────────────────────
+  pendingZoomCredits: real("pending_zoom_credits").notNull().default(0),
 }, (table) => [
   index("idx_users_zoom_balance").on(table.zoomBalance),
   index("idx_users_referred_by").on(table.referredBy),
