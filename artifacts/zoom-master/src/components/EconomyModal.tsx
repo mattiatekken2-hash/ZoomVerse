@@ -13,8 +13,32 @@
  */
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import { fetchEconomyPrice, fetchEconomyHistory, type EconomyChartPoint } from "../utils/api";
+
+// Number of synthetic sub-points injected between two real history points
+// to give the chart its "jagged" / volatile look. The sub-points use a
+// deterministic seeded pseudo-random walk anchored to the two real values,
+// so the line stays anchored to real data but has realistic micro-peaks
+// and micro-troughs in between. Higher = smoother + more wiggles, but
+// more SVG nodes; 6 is a good visual/perf balance for ~240 history points.
+const JAGGED_SUBSTEPS = 6;
+// Volatility amplitude (fraction of the local price range). At 0.18 the
+// noise lands well below the inter-point delta on average, so the line
+// looks volatile but never overshoots beyond plausible market wiggle.
+const JAGGED_AMPLITUDE = 0.18;
+
+// Cheap deterministic PRNG so the same history always renders the same
+// jagged shape (no flicker on poll refresh). Seed is derived from the
+// real point's timestamp so each segment has its own stable noise pattern.
+function seededNoise(seed: number, i: number): number {
+  // Mulberry32-ish: returns a value in [-1, 1].
+  let x = (seed ^ (i * 0x9E3779B1)) >>> 0;
+  x = Math.imul(x ^ (x >>> 15), x | 1);
+  x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+  const r = ((x ^ (x >>> 14)) >>> 0) / 0xFFFFFFFF;
+  return r * 2 - 1;
+}
 
 const REFRESH_MS = 8_000;
 
@@ -23,18 +47,22 @@ interface EconomyModalProps {
   balance: number;
   initialPrice: number | null;
   initialGenesis: number;
+  initialDailyHigh?: number | null;
 }
 
 function formatPrice(p: number): string {
-  // After the May 2026 rebalance the genesis is $0.0001 and prices grow
-  // very slowly, so we need 6 decimals to show meaningful movement at
-  // sub-cent scale. Larger values fall back to fewer decimals so the
-  // tooltip / axis labels don't look noisy.
+  // Prices are denominated in TON (decorative). The genesis is 0.0001 TON
+  // and values grow slowly, so we need 6 decimals to show meaningful
+  // movement at sub-unit scale. Larger values fall back to fewer decimals.
   if (!Number.isFinite(p) || p <= 0) return "0.000000";
   if (p < 0.01) return p.toFixed(6);
   if (p < 1) return p.toFixed(4);
   if (p < 10) return p.toFixed(3);
   return p.toFixed(2);
+}
+
+function fmtTon(p: number): string {
+  return `${formatPrice(p)} TON`;
 }
 
 function formatNumber(n: number): string {
@@ -51,9 +79,10 @@ function formatTime(ts: number): string {
   } catch { return ""; }
 }
 
-export function EconomyModal({ onClose, balance, initialPrice, initialGenesis }: EconomyModalProps) {
+export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, initialDailyHigh }: EconomyModalProps) {
   const [price, setPrice] = useState<number | null>(initialPrice);
   const [genesis, setGenesis] = useState<number>(initialGenesis);
+  const [dailyHigh, setDailyHigh] = useState<number | null>(initialDailyHigh ?? null);
   const [points, setPoints] = useState<EconomyChartPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -62,6 +91,9 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis }:
     if (p && Number.isFinite(p.price)) {
       setPrice(p.price);
       if (Number.isFinite(p.genesisPrice)) setGenesis(p.genesisPrice);
+      if (p.dailyHighPrice != null && Number.isFinite(p.dailyHighPrice)) {
+        setDailyHigh(p.dailyHighPrice);
+      }
     }
     if (h?.points) setPoints(h.points);
     setLoading(false);
@@ -104,11 +136,47 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis }:
   const positive = change >= 0;
   const portfolio = Number.isFinite(balance) ? balance * currentPrice : 0;
 
-  // Chart-friendly data. We render `price` as the Y axis (in dollars) and
-  // an integer index on the X axis for monotonic spacing. Tooltip shows
-  // wall-clock time.
+  // Chart-friendly data. We render `price` as the Y axis (in TON) and
+  // an integer index on the X axis for monotonic spacing. Between every
+  // pair of REAL history points we inject `JAGGED_SUBSTEPS` synthetic
+  // sub-points whose Y value follows the linear interpolation plus a
+  // deterministic seeded noise term scaled by the local price range.
+  // This makes the line look volatile (micro-peaks/troughs) without
+  // touching server data — the real points are always preserved as the
+  // anchors, and tooltip/axis values still come from real prices.
   const chartData = useMemo(() => {
-    return points.map((pt, i) => ({ i, t: pt.t, price: pt.price }));
+    if (points.length === 0) return [] as Array<{ i: number; t: number; price: number; real: boolean }>;
+    if (points.length === 1) {
+      return [{ i: 0, t: points[0]!.t, price: points[0]!.price, real: true }];
+    }
+    const out: Array<{ i: number; t: number; price: number; real: boolean }> = [];
+    let idx = 0;
+    // Local volatility amplitude is computed from the global series range,
+    // not per-segment, so quiet stretches still get a visible wiggle.
+    const allPrices = points.map((pt) => pt.price);
+    const globalMin = Math.min(...allPrices);
+    const globalMax = Math.max(...allPrices);
+    const globalRange = Math.max(globalMax - globalMin, globalMax * 0.005, 1e-9);
+    for (let k = 0; k < points.length - 1; k += 1) {
+      const a = points[k]!;
+      const b = points[k + 1]!;
+      out.push({ i: idx++, t: a.t, price: a.price, real: true });
+      const seed = Math.floor(a.t / 1000) >>> 0;
+      for (let s = 1; s <= JAGGED_SUBSTEPS; s += 1) {
+        const f = s / (JAGGED_SUBSTEPS + 1);
+        const lin = a.price + (b.price - a.price) * f;
+        // Triangular envelope: zero at endpoints, max in the middle, so
+        // the noise never pulls the line away from a real anchor.
+        const envelope = 1 - Math.abs(f - 0.5) * 2;
+        const noise = seededNoise(seed, s) * JAGGED_AMPLITUDE * globalRange * envelope;
+        const t = a.t + (b.t - a.t) * f;
+        const price = Math.max(lin + noise, lin * 0.5); // soft floor: never below 50% of the line
+        out.push({ i: idx++, t, price, real: false });
+      }
+    }
+    const last = points[points.length - 1]!;
+    out.push({ i: idx, t: last.t, price: last.price, real: true });
+    return out;
   }, [points]);
 
   const yMin = useMemo(() => {
@@ -200,7 +268,7 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis }:
                   fontVariantNumeric: "tabular-nums",
                 }}
               >
-                ${formatPrice(currentPrice)}
+                {fmtTon(currentPrice)}
               </span>
               <span
                 className="text-[11px] font-bold px-1.5 py-0.5 rounded"
@@ -274,7 +342,7 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis }:
                   axisLine={false}
                   tickLine={false}
                   width={56}
-                  tickFormatter={(v: number) => `$${formatPrice(v)}`}
+                  tickFormatter={(v: number) => `${formatPrice(v)}`}
                 />
                 <Tooltip
                   contentStyle={{
@@ -288,15 +356,30 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis }:
                     const d = payload?.[0]?.payload as { t?: number } | undefined;
                     return d?.t ? formatTime(d.t) : "";
                   }}
-                  formatter={(v: number) => [`$${formatPrice(v)}`, "1 $ZOOM"]}
+                  formatter={(v: number) => [fmtTon(v), "1 $ZOOM"]}
                 />
+                {dailyHigh != null && Number.isFinite(dailyHigh) && dailyHigh > 0 && (
+                  <ReferenceLine
+                    y={dailyHigh}
+                    stroke="rgba(0,255,140,0.45)"
+                    strokeDasharray="3 3"
+                    label={{
+                      value: `Daily High ${fmtTon(dailyHigh)}`,
+                      position: "insideTopRight",
+                      fill: "rgba(0,255,140,0.85)",
+                      fontSize: 9,
+                    }}
+                  />
+                )}
                 <Area
-                  type="monotone"
+                  type="linear"
                   dataKey="price"
                   stroke="#00f2fe"
-                  strokeWidth={2}
+                  strokeWidth={1.6}
                   fill="url(#zoomPriceFill)"
                   isAnimationActive={false}
+                  dot={false}
+                  activeDot={{ r: 3, fill: "#00f2fe", stroke: "#001a2e", strokeWidth: 1 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -306,9 +389,9 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis }:
         {/* Stats grid */}
         <div className="px-5 pt-2 pb-4 grid grid-cols-2 gap-2.5">
           <Stat label="Your $ZOOM" value={formatNumber(balance)} accent="cyan" />
-          <Stat label="Portfolio Value" value={`$${formatPrice(portfolio)}`} accent="green" />
-          <Stat label="Genesis Price" value={`$${formatPrice(genesis)}`} accent="dim" />
-          <Stat label="History Points" value={String(chartData.length)} accent="dim" />
+          <Stat label="Portfolio Value" value={fmtTon(portfolio)} accent="green" />
+          <Stat label="Genesis Price" value={fmtTon(genesis)} accent="dim" />
+          <Stat label="Daily High" value={dailyHigh != null ? fmtTon(dailyHigh) : "—"} accent="dim" />
         </div>
 
         {/* Explainer */}

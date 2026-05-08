@@ -61,6 +61,7 @@ function MiniSpark({ points }: { points: EconomyChartPoint[] }) {
 function EconomyWidgetBase({ balance }: EconomyWidgetProps) {
   const [price, setPrice] = useState<number | null>(null);
   const [genesis, setGenesis] = useState<number>(0.01);
+  const [dailyHigh, setDailyHigh] = useState<number | null>(null);
   const [spark, setSpark] = useState<EconomyChartPoint[]>([]);
   const [open, setOpen] = useState(false);
 
@@ -69,6 +70,9 @@ function EconomyWidgetBase({ balance }: EconomyWidgetProps) {
     if (p && Number.isFinite(p.price)) {
       setPrice(p.price);
       if (Number.isFinite(p.genesisPrice)) setGenesis(p.genesisPrice);
+      if (p.dailyHighPrice != null && Number.isFinite(p.dailyHighPrice)) {
+        setDailyHigh(p.dailyHighPrice);
+      }
     }
     if (h?.points && h.points.length > 0) {
       // Keep last ~24 points for the inline spark.
@@ -139,7 +143,7 @@ function EconomyWidgetBase({ balance }: EconomyWidgetProps) {
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              ${formatPrice(displayPrice)}
+              {formatPrice(displayPrice)} TON
             </span>
           </div>
         </div>
@@ -150,7 +154,7 @@ function EconomyWidgetBase({ balance }: EconomyWidgetProps) {
               className="text-[10px] font-bold"
               style={{ color: "rgba(220,235,255,0.7)", fontVariantNumeric: "tabular-nums" }}
             >
-              Portfolio ${formatPrice(portfolio)}
+              Portfolio {formatPrice(portfolio)} TON
             </span>
           )}
         </div>
@@ -161,6 +165,7 @@ function EconomyWidgetBase({ balance }: EconomyWidgetProps) {
           balance={balance}
           initialPrice={price}
           initialGenesis={genesis}
+          initialDailyHigh={dailyHigh}
         />
       )}
     </>

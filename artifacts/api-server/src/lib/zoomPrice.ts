@@ -47,6 +47,22 @@ import { logger } from "./logger";
 const PRICE_KEY = "zoom_price_micro";
 const CHART_KEY = "zoom_price_chart";
 const VERSION_KEY = "zoom_price_version";
+// Daily-reset state. Tracks the highest price seen so far during the
+// current UTC day and the UTC-day index of the last reset. When the day
+// rolls over, the price is corrected DOWN by a small random pct (1–5%)
+// below the previous day's high — see `applyDailyResetIfNeeded`.
+const DAILY_HIGH_KEY = "zoom_price_daily_high";
+const LAST_DAY_KEY = "zoom_price_last_day_utc";
+
+// Daily correction range (fraction). Each midnight-UTC reset picks a
+// random value in [DAILY_CORRECTION_MIN, DAILY_CORRECTION_MAX] and the
+// new starting price = previousDailyHigh * (1 - pct).
+const DAILY_CORRECTION_MIN = 0.01; // 1%
+const DAILY_CORRECTION_MAX = 0.05; // 5%
+
+function utcDayIndex(ts: number): number {
+  return Math.floor(ts / 86_400_000);
+}
 
 // Genesis: 1 ZOOM = 0.0001. Stored as micro-units (price * 1e6).
 // Lowered May 2026 from 10_000 ($0.01) to 100 ($0.0001) so that holders of
@@ -233,11 +249,159 @@ async function ensureGenesis(): Promise<void> {
 }
 
 /**
+ * Apply the midnight-UTC daily reset if the current UTC day differs from
+ * the last-recorded reset day. Idempotent and safe under concurrency
+ * (uses a row-level FOR UPDATE lock on the price row). Behaviour:
+ *   1. Read stored last-day index and daily high (defaults: today / current price).
+ *   2. If today's UTC day index > storedLastDay, the day has rolled over:
+ *      newPrice = round(previousDailyHigh * (1 - randomPct in [1%, 5%]))
+ *      The new price is set as the floor for the new day, daily high is
+ *      reset to newPrice, last-day is set to today, and a correction
+ *      point is appended to the chart so the dip is visible.
+ *   3. Otherwise: bump dailyHigh upward to max(stored, currentPrice).
+ *
+ * The correction is the only mechanism that ever DECREASES the price.
+ * Returns the (possibly corrected) current price in micro-units.
+ */
+async function applyDailyResetIfNeeded(): Promise<number> {
+  const now = Date.now();
+  const today = utcDayIndex(now);
+  let finalPrice = GENESIS_PRICE_MICRO;
+  let didReset = false;
+
+  await db.transaction(async (tx) => {
+    const priceSel = await tx.execute(sql`
+      SELECT value_num FROM app_settings WHERE key = ${PRICE_KEY} FOR UPDATE
+    `);
+    const priceRows = (priceSel as unknown as { rows: Array<{ value_num?: number | string | null }> }).rows;
+    const currentPrice = priceRows?.[0]?.value_num != null
+      ? Number(priceRows[0].value_num)
+      : GENESIS_PRICE_MICRO;
+
+    const lastDaySel = await tx.execute(sql`
+      SELECT value_num FROM app_settings WHERE key = ${LAST_DAY_KEY}
+    `);
+    const lastDayRows = (lastDaySel as unknown as { rows: Array<{ value_num?: number | string | null }> }).rows;
+    const storedLastDay = lastDayRows?.[0]?.value_num != null
+      ? Number(lastDayRows[0].value_num)
+      : today; // first run: pretend "today" so we don't immediately correct
+
+    const highSel = await tx.execute(sql`
+      SELECT value_num FROM app_settings WHERE key = ${DAILY_HIGH_KEY}
+    `);
+    const highRows = (highSel as unknown as { rows: Array<{ value_num?: number | string | null }> }).rows;
+    const storedHigh = highRows?.[0]?.value_num != null
+      ? Number(highRows[0].value_num)
+      : currentPrice;
+
+    if (today > storedLastDay) {
+      // Day rolled over — apply correction below the previous day's high.
+      const previousHigh = Math.max(storedHigh, currentPrice);
+      const pct = DAILY_CORRECTION_MIN + Math.random() * (DAILY_CORRECTION_MAX - DAILY_CORRECTION_MIN);
+      const corrected = Math.max(GENESIS_PRICE_MICRO, Math.round(previousHigh * (1 - pct)));
+      finalPrice = corrected;
+      didReset = true;
+
+      await tx.execute(sql`
+        UPDATE app_settings SET value_num = ${corrected}, updated_at = NOW() WHERE key = ${PRICE_KEY}
+      `);
+      await tx.execute(sql`
+        INSERT INTO app_settings (key, value_num, value_text)
+        VALUES (${DAILY_HIGH_KEY}, ${corrected}, NULL)
+        ON CONFLICT (key) DO UPDATE SET value_num = EXCLUDED.value_num, updated_at = NOW()
+      `);
+      await tx.execute(sql`
+        INSERT INTO app_settings (key, value_num, value_text)
+        VALUES (${LAST_DAY_KEY}, ${today}, NULL)
+        ON CONFLICT (key) DO UPDATE SET value_num = EXCLUDED.value_num, updated_at = NOW()
+      `);
+      logger.info(
+        { previousHigh, corrected, pctApplied: pct, today },
+        "[zoomPrice] daily reset applied",
+      );
+    } else {
+      finalPrice = currentPrice;
+      // Bump daily high upward (no DB write if unchanged to avoid churn).
+      const newHigh = Math.max(storedHigh, currentPrice);
+      if (newHigh !== storedHigh || highRows.length === 0) {
+        await tx.execute(sql`
+          INSERT INTO app_settings (key, value_num, value_text)
+          VALUES (${DAILY_HIGH_KEY}, ${newHigh}, NULL)
+          ON CONFLICT (key) DO UPDATE SET value_num = EXCLUDED.value_num, updated_at = NOW()
+        `);
+      }
+      if (lastDayRows.length === 0) {
+        await tx.execute(sql`
+          INSERT INTO app_settings (key, value_num, value_text)
+          VALUES (${LAST_DAY_KEY}, ${today}, NULL)
+          ON CONFLICT (key) DO NOTHING
+        `);
+      }
+    }
+  });
+
+  // Append a correction point to the chart OUTSIDE the price tx so the
+  // chart-row lock doesn't tangle with the price-row lock above.
+  if (didReset) {
+    try {
+      await db.transaction(async (tx) => {
+        const sel = await tx.execute(sql`
+          SELECT value_text FROM app_settings WHERE key = ${CHART_KEY} FOR UPDATE
+        `);
+        const rows = (sel as unknown as { rows: Array<{ value_text?: string | null }> }).rows;
+        const raw = rows?.[0]?.value_text ?? null;
+        let arr: ChartPoint[] = [];
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) arr = parsed.filter((it): it is ChartPoint =>
+              !!it && typeof it === "object" &&
+              Number.isFinite((it as ChartPoint).t) &&
+              Number.isFinite((it as ChartPoint).p));
+          } catch { arr = []; }
+        }
+        arr.push({ t: now, p: finalPrice });
+        if (arr.length > CHART_MAX_POINTS) {
+          arr = arr.slice(arr.length - CHART_MAX_POINTS);
+        }
+        await tx.execute(sql`
+          UPDATE app_settings SET value_text = ${JSON.stringify(arr)}, updated_at = NOW()
+          WHERE key = ${CHART_KEY}
+        `);
+      });
+    } catch (err) {
+      logger.warn({ err }, "[zoomPrice] daily reset chart append failed");
+    }
+  }
+
+  return finalPrice;
+}
+
+/**
+ * Read current Daily High in micro-units. Returns the current price if no
+ * row exists yet (will be created on the next bump/reset).
+ */
+export async function getDailyHighMicro(): Promise<number> {
+  await ensureGenesis();
+  const [row] = await db
+    .select({ v: appSettingsTable.valueNum })
+    .from(appSettingsTable)
+    .where(eq(appSettingsTable.key, DAILY_HIGH_KEY))
+    .limit(1);
+  const v = row?.v;
+  if (typeof v === "number" && Number.isFinite(v) && v > 0) return v;
+  return getZoomPriceMicro();
+}
+
+/**
  * Read the current price in micro-units. Returns the genesis value if the
  * row is somehow missing (defensive — `ensureGenesis` is also called).
+ * Also runs the midnight-UTC daily reset lazily on read so the chart
+ * shows the correction even if no bumps happen at midnight itself.
  */
 export async function getZoomPriceMicro(): Promise<number> {
   await ensureGenesis();
+  await applyDailyResetIfNeeded();
   const [row] = await db
     .select({ v: appSettingsTable.valueNum })
     .from(appSettingsTable)
@@ -307,6 +471,9 @@ export async function bumpZoomPrice(action: PriceAction, userId?: string | null)
   if (!checkCooldown(action, userId)) return null;
   try {
     await ensureGenesis();
+    // Apply the midnight-UTC reset BEFORE bumping so the bump always
+    // builds on top of the corrected base, never on yesterday's high.
+    await applyDailyResetIfNeeded();
     // Atomic percentage-based bump:
     //   new = LEAST(MAX, current + GREATEST(1, ROUND(current * bp / 10000)))
     // - bp is basis points (1 bp = 0.01%) so dividing by 10_000 gives a
@@ -370,6 +537,19 @@ export async function bumpZoomPrice(action: PriceAction, userId?: string | null)
          WHERE key = ${CHART_KEY}
       `);
     });
+
+    // Bump the in-day high if this new price is the highest seen today.
+    try {
+      await db.execute(sql`
+        INSERT INTO app_settings (key, value_num, value_text)
+        VALUES (${DAILY_HIGH_KEY}, ${newPrice}, NULL)
+        ON CONFLICT (key) DO UPDATE
+          SET value_num = GREATEST(app_settings.value_num, EXCLUDED.value_num),
+              updated_at = NOW()
+      `);
+    } catch (err) {
+      logger.warn({ err }, "[zoomPrice] daily-high update failed");
+    }
 
     return newPrice;
   } catch (err) {

@@ -1400,6 +1400,8 @@ export async function recordCraft(telegramId: string, planetType: string): Promi
 export interface EconomyPriceResponse {
   priceMicro: number;
   price: number;
+  /** Highest price reached so far during the current UTC day. */
+  dailyHighPrice?: number;
   genesisPrice: number;
   updatedAt: number;
 }

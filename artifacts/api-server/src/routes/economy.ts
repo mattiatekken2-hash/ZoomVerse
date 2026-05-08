@@ -10,17 +10,25 @@
  * values — the underlying queries are cheap (single row reads).
  */
 import { Router, type IRouter } from "express";
-import { getZoomPriceMicro, getZoomChart, GENESIS_PRICE_MICRO } from "../lib/zoomPrice";
+import { getZoomPriceMicro, getZoomChart, getDailyHighMicro, GENESIS_PRICE_MICRO } from "../lib/zoomPrice";
 
 const router: IRouter = Router();
 
 router.get("/economy/price", async (_req, res) => {
   try {
+    // Sequential, not parallel: getZoomPriceMicro() runs the lazy
+    // midnight-UTC reset transaction. If we read the daily-high in
+    // parallel it may observe the OLD high before the reset commits,
+    // returning a dailyHighPrice greater than the freshly-corrected
+    // price for that one poll. Reading after the reset guarantees the
+    // response is internally consistent.
     const micro = await getZoomPriceMicro();
+    const dailyHighMicro = await getDailyHighMicro();
     res.setHeader("Cache-Control", "no-store");
     res.json({
       priceMicro: micro,
       price: micro / 1_000_000,
+      dailyHighPrice: dailyHighMicro / 1_000_000,
       genesisPrice: GENESIS_PRICE_MICRO / 1_000_000,
       updatedAt: Date.now(),
     });
@@ -29,6 +37,7 @@ router.get("/economy/price", async (_req, res) => {
     res.json({
       priceMicro: GENESIS_PRICE_MICRO,
       price: GENESIS_PRICE_MICRO / 1_000_000,
+      dailyHighPrice: GENESIS_PRICE_MICRO / 1_000_000,
       genesisPrice: GENESIS_PRICE_MICRO / 1_000_000,
       updatedAt: Date.now(),
     });
