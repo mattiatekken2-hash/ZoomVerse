@@ -1576,7 +1576,7 @@ export function useGameState() {
       // only as a placeholder for the few non-destructive read sites and
       // gate the entire grants-derived block on grantsOk.
       const grantsOk = grantsResult !== null;
-      const grants = grantsResult ?? { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+      const grants = grantsResult ?? { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
       const serverCollectionByKey = indexServerCollectionPlanets(serverCollectionPlanets);
 
       // Prefer the post-credit balance returned by /farm/settle when the
@@ -1838,24 +1838,8 @@ export function useGameState() {
             earthPlanets: (updated.earthPlanets || []).filter(keepEarth),
           };
         }
-        } // end of `if (grantsOk)` — grants-derived hydration block
 
-        // ─── SERVER COLLECTION-PLANET STATE — single source of truth ───
-        // After (re)materializing white/earth planets, override slot index
-        // and farming timers with whatever the server has on file. This is
-        // what survives a localStorage wipe: even if every white planet was
-        // just freshly minted with `slotIndex=null`, the server still knows
-        // which one was in slot #2 and when its farming timer started.
-        if (serverCollectionByKey.size > 0) {
-          updated = {
-            ...updated,
-            whitePlanets: applyServerOverrides(updated.whitePlanets || [], serverCollectionByKey),
-            earthPlanets: applyServerOverrides(updated.earthPlanets || [], serverCollectionByKey),
-            blackPlanets: applyServerOverrides(updated.blackPlanets || [], serverCollectionByKey),
-          };
-        }
-
-        // Earth Collection black bundle materialization (initial hydration).
+        // Black Collection bundle materialization (initial hydration).
         const claimedBlackBundles = Math.max(0, updated.claimedBlackCollectionBundles ?? 0);
         if (serverBlackBundles > claimedBlackBundles) {
           const toMaterializeBlack = serverBlackBundles - claimedBlackBundles;
@@ -1878,6 +1862,22 @@ export function useGameState() {
             ...updated,
             claimedBlackCollectionBundles: serverBlackBundles,
             blackPlanets: (updated.blackPlanets || []).filter(keepBlack),
+          };
+        }
+        } // end of `if (grantsOk)` — grants-derived hydration block
+
+        // ─── SERVER COLLECTION-PLANET STATE — single source of truth ───
+        // After (re)materializing white/earth planets, override slot index
+        // and farming timers with whatever the server has on file. This is
+        // what survives a localStorage wipe: even if every white planet was
+        // just freshly minted with `slotIndex=null`, the server still knows
+        // which one was in slot #2 and when its farming timer started.
+        if (serverCollectionByKey.size > 0) {
+          updated = {
+            ...updated,
+            whitePlanets: applyServerOverrides(updated.whitePlanets || [], serverCollectionByKey),
+            earthPlanets: applyServerOverrides(updated.earthPlanets || [], serverCollectionByKey),
+            blackPlanets: applyServerOverrides(updated.blackPlanets || [], serverCollectionByKey),
           };
         }
 

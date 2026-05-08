@@ -1923,7 +1923,7 @@ export interface MerchantFuseResult {
 // would dump every placed planet back into inventory and erase any
 // uncollected farm earnings, which is exactly the bug we're closing.
 // ─────────────────────────────────────────────────────────────────
-export type CollectionKind = "white" | "earth";
+export type CollectionKind = "white" | "earth" | "black";
 
 export interface CollectionPlanetState {
   kind: CollectionKind;

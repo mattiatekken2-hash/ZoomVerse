@@ -29,6 +29,7 @@ const RATE_BY_TYPE: Record<PlanetType, number> = {
   BASIC: 2, RARE: 15, EPIC: 80, MYTHIC: 115, GOLD: 150, V1: 400, V1_NFT: 275,
   WHITE1: 0, WHITE2: 0, WHITE3: 0, WHITE4: 0,
   EARTH1: 0, EARTH2: 0, EARTH3: 0, EARTH4: 0,
+  BLACK1: 0, BLACK2: 0, BLACK3: 0, BLACK4: 0,
 };
 const GLOW_BY_TYPE: Record<PlanetType, string> = {
   BASIC: "rgba(136,146,176,0.5)",
@@ -46,6 +47,10 @@ const GLOW_BY_TYPE: Record<PlanetType, string> = {
   EARTH2: "rgba(74,222,128,0.55)",
   EARTH3: "rgba(56,189,248,0.55)",
   EARTH4: "rgba(34,197,94,0.55)",
+  BLACK1: "rgba(123,47,255,0.75)",
+  BLACK2: "rgba(123,47,255,0.75)",
+  BLACK3: "rgba(123,47,255,0.75)",
+  BLACK4: "rgba(123,47,255,0.75)",
 };
 
 // Number of particles in each orbit ring
