@@ -28,6 +28,7 @@ import chatRouter from "./chat";
 import roomInvitesRouter from "./roomInvites";
 import redeemCodesRouter from "./redeemCodes";
 import economyRouter from "./economy";
+import stakingRouter from "./staking";
 
 const router: IRouter = Router();
 
@@ -106,6 +107,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/room-invites/send",
       "/room-invites/respond",
       "/redeem-codes/redeem",
+      "/staking/start",
     ],
     bindField: "telegramId",
   },
@@ -261,5 +263,6 @@ router.use(chatRouter);
 router.use(roomInvitesRouter);
 router.use(redeemCodesRouter);
 router.use(economyRouter);
+router.use(stakingRouter);
 
 export default router;

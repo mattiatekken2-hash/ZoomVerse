@@ -222,6 +222,23 @@ export const usersTable = pgTable("users", {
   cometStardustSettledAtMs: bigint("comet_stardust_settled_at_ms", { mode: "number" }).notNull().default(0),
   pendingWheelClaim: jsonb("pending_wheel_claim"),
   lastFarmingSettledAtMs: bigint("last_farming_settled_at_ms", { mode: "number" }).notNull().default(0),
+
+  // ─────────────────────────────────────────────────────────────────────
+  // TON STAKING — V1 set & SUN set.
+  //
+  // The user can lock 4 V1 (or 4 SUN) into a "staking set" that yields a
+  // FIXED 0.5 TON / 30 days for the entire set (NOT per planet). The
+  // server only stores the activation timestamp; the live counter and the
+  // claimable amount are derived: accrued = (now - startedAt) / 30d * 0.5.
+  //
+  // 0 = "not staking". > 0 = epoch ms of the activation. The eligibility
+  // (≥4 V1 or ≥4 SUN) is re-checked at start-time only — once the set is
+  // staked, selling/burning the underlying planets does not auto-stop the
+  // accrual (admin can intervene if abused). This mirrors how SUN_FARM_*
+  // is treated as a pure timestamp pair, not a denormalised counter.
+  // ─────────────────────────────────────────────────────────────────────
+  stakingV1StartedAtMs: bigint("staking_v1_started_at_ms", { mode: "number" }).notNull().default(0),
+  stakingSunStartedAtMs: bigint("staking_sun_started_at_ms", { mode: "number" }).notNull().default(0),
 }, (table) => [
   index("idx_users_zoom_balance").on(table.zoomBalance),
   index("idx_users_referred_by").on(table.referredBy),

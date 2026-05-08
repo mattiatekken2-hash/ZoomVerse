@@ -1433,6 +1433,49 @@ export async function fetchEconomyHistory(): Promise<EconomyHistoryResponse | nu
   } catch { return null; }
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// TON STAKING — V1 set & SUN set (4 planets each, 0.5 TON / 30 days).
+// ─────────────────────────────────────────────────────────────────────
+export interface StakingSetStatus {
+  eligible: boolean;
+  count: number;
+  required: number;
+  startedAtMs: number;
+  accruedTon: number;
+  rewardTonPerMonth: number;
+}
+export interface StakingStatusResponse {
+  v1: StakingSetStatus;
+  sun: StakingSetStatus;
+  nowMs: number;
+}
+
+export async function fetchStakingStatus(telegramId: string): Promise<StakingStatusResponse | null> {
+  if (!telegramId) return null;
+  try {
+    const res = await fetch(`${API_BASE}/staking/status?telegramId=${encodeURIComponent(telegramId)}`, {
+      headers: apiHeaders(),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as StakingStatusResponse;
+  } catch { return null; }
+}
+
+export async function startStaking(telegramId: string, kind: "v1" | "sun"): Promise<{ ok: boolean; startedAtMs?: number; reason?: string }> {
+  if (!telegramId) return { ok: false, reason: "NO_USER" };
+  try {
+    const res = await fetch(`${API_BASE}/staking/start`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, kind }),
+    });
+    const data = await res.json().catch(() => null) as { startedAtMs?: number; error?: string } | null;
+    if (!res.ok || !data) return { ok: false, reason: data?.error ?? "ERROR" };
+    return { ok: true, startedAtMs: data.startedAtMs ?? 0 };
+  } catch { return { ok: false, reason: "NETWORK" }; }
+}
+
 export interface WheelPrizeConfig {
   index: number;
   type: "zoom" | "planet" | "stars" | "ton";

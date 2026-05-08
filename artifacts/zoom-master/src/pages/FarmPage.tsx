@@ -9,6 +9,7 @@ import { getPlanetDisplayName } from "../utils/planetNames";
 import { PlanetFloatBar } from "../components/PlanetFloatBar";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { EconomyWidget } from "../components/EconomyWidget";
+import { StakingWidget } from "../components/StakingWidget";
 
 
 interface FarmPageProps {
@@ -273,6 +274,16 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
               Tappable card; opens the full chart modal. Polls /economy
               every 12s while mounted. Read-only, no mutations. */}
           <EconomyWidget balance={balance} />
+
+          {/* TON STAKING — locks 4 V1 or 4 SUN for 0.5 TON / 30 days each.
+              Server is the source of truth (re-validates count on start);
+              the widget polls /staking/status every 30s and ticks a local
+              counter every second for the live display. */}
+          <StakingWidget
+            telegramId={telegramId}
+            v1CountClient={planets.filter(p => p.name === "V1" || p.name === "V1_NFT").length}
+            sunCountClient={Math.max(sunCount ?? 0, sun?.isOwned ? 1 : 0)}
+          />
 
           {/* SUN CARD */}
           {sun?.isOwned && (
