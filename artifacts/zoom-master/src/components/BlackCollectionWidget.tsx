@@ -16,35 +16,15 @@ function BlackPlanetOrb({ size }: { size: number }) {
         width: size,
         height: size,
         borderRadius: "50%",
-        background: `radial-gradient(circle at 35% 35%, #1a0033 0%, #0a0014 55%, #000005 100%)`,
+        background: "#000000",
         boxShadow: [
           `0 0 ${size * 0.3}px ${VOID_PURPLE}cc`,
           `0 0 ${size * 0.6}px ${VOID_PURPLE}66`,
           `0 0 ${size * 1.1}px ${DEEP_PURPLE}33`,
-          `inset 0 0 ${size * 0.2}px rgba(123,47,255,0.18)`,
         ].join(", "),
         flexShrink: 0,
-        position: "relative",
-        overflow: "hidden",
       }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          borderRadius: "50%",
-          background: `radial-gradient(ellipse at 70% 25%, rgba(192,132,252,0.22) 0%, transparent 60%)`,
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          borderRadius: "50%",
-          background: `radial-gradient(ellipse at 20% 80%, rgba(74,14,143,0.35) 0%, transparent 55%)`,
-        }}
-      />
-    </div>
+    />
   );
 }
 
@@ -290,7 +270,7 @@ function BlackCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
               fontSize: 12, color: "rgba(192,132,252,0.7)", textAlign: "center",
               lineHeight: 1.5, marginBottom: 18, padding: "0 6px",
             }}>
-              {t("blackColl.desc", { speed: "0.333 TON/day" })}
+              {t("blackColl.desc", { yield: "~0.333 TON/giorno" })}
             </div>
 
             {unlocked ? (
