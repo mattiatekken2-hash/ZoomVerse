@@ -1,16 +1,6 @@
 {
-  "updatedAt": "2026-05-03T22:47:13.986Z",
+  "updatedAt": "2026-05-08T02:07:06.949Z",
   "users": [
-    {
-      "telegramId": "99999",
-      "zoomBalance": 0,
-      "bonusSlots": 0,
-      "bonusSun": false,
-      "bonusBasic": 0,
-      "bonusRare": 0,
-      "bonusEpic": 0,
-      "bonusGold": 0
-    },
     {
       "telegramId": "77777",
       "zoomBalance": 0,
@@ -92,14 +82,14 @@
       "bonusGold": 0
     },
     {
-      "telegramId": "8144744644",
-      "zoomBalance": 40509,
-      "bonusSlots": 4,
-      "bonusSun": true,
-      "bonusBasic": 2,
-      "bonusRare": 1,
+      "telegramId": "99999",
+      "zoomBalance": 0,
+      "bonusSlots": 0,
+      "bonusSun": false,
+      "bonusBasic": 0,
+      "bonusRare": 0,
       "bonusEpic": 0,
-      "bonusGold": 1
+      "bonusGold": 0
     },
     {
       "telegramId": "1218161083",
@@ -110,6 +100,16 @@
       "bonusRare": 0,
       "bonusEpic": 0,
       "bonusGold": 0
+    },
+    {
+      "telegramId": "8144744644",
+      "zoomBalance": 125779,
+      "bonusSlots": 4,
+      "bonusSun": true,
+      "bonusBasic": 2,
+      "bonusRare": 1,
+      "bonusEpic": 0,
+      "bonusGold": 1
     }
   ]
 }

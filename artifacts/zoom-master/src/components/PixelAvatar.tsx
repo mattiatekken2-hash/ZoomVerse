@@ -366,6 +366,11 @@ function PixelAvatarBase({
            inventory whenever the user switched tabs with the modal open. */
         .pixel-modal-backdrop { /* opens instantly */ }
         .pixel-modal-card { /* opens instantly */ }
+        @keyframes blackSlotSpin {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+        .black-slot-orb-spin { animation: blackSlotSpin 6s linear infinite; }
         .pixel-farm-slot {
           background: rgba(255,255,255,0.03);
           border: 2px dashed rgba(255,255,255,0.18);
@@ -1367,7 +1372,7 @@ function PixelAvatarBase({
                           className={`pixel-inv-item ${selectedBlackInvId === p.id ? "selected" : ""}`}
                           onClick={() => handleBlackInvClick(p.id)}
                         >
-                          <PlanetOrb planet={p} size={42} animate={false} />
+                          <BlackSlotOrb size={42} spin={false} />
                           <div style={{ fontSize: 9, fontWeight: 800, opacity: 0.85, textAlign: "center", lineHeight: 1.1 }}>
                             {cfg.label}
                           </div>
@@ -1427,6 +1432,32 @@ function PixelAvatarBase({
   );
 }
 
+/**
+ * BlackSlotOrb — sfera nera con bagliore viola usata negli slot/inventario.
+ * Quando `spin` è true (farming attivo) ruota lentamente su sé stessa per
+ * dare feedback visivo che il pianeta sta producendo TON. L'animazione
+ * keyframes vive in PixelAvatar.css (vedi `.black-slot-orb-spin`).
+ */
+function BlackSlotOrb({ size, spin }: { size: number; spin: boolean }) {
+  return (
+    <div
+      className={spin ? "black-slot-orb-spin" : undefined}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: "#000000",
+        boxShadow: [
+          `0 0 ${size * 0.25}px rgba(123,47,255,0.8)`,
+          `0 0 ${size * 0.55}px rgba(123,47,255,0.45)`,
+          `0 0 ${size * 0.95}px rgba(74,14,143,0.25)`,
+        ].join(", "),
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+
 interface SlotContentProps {
   planet: Planet;
   tonBalance: number;
@@ -1450,9 +1481,10 @@ function SlotContent({ planet, busy = false, onReactivate }: SlotContentProps) {
 
   const isEarth = planet.name === "EARTH1" || planet.name === "EARTH2" || planet.name === "EARTH3" || planet.name === "EARTH4";
   const isWhite = planet.name === "WHITE1" || planet.name === "WHITE2" || planet.name === "WHITE3" || planet.name === "WHITE4";
+  const isBlack = planet.name === "BLACK1" || planet.name === "BLACK2" || planet.name === "BLACK3" || planet.name === "BLACK4";
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-      {isEarth ? <RealisticEarth size={36} /> : isWhite ? <RealisticWhite size={36} /> : <PlanetOrb planet={planet} size={36} animate={active} />}
+      {isEarth ? <RealisticEarth size={36} /> : isWhite ? <RealisticWhite size={36} /> : isBlack ? <BlackSlotOrb size={36} spin={active} /> : <PlanetOrb planet={planet} size={36} animate={active} />}
 
       <div style={{ fontSize: 8, fontWeight: 800, opacity: 0.95, lineHeight: 1.1, textAlign: "center" }}>
         {cfg.label.replace("White Planet ", "W")}
