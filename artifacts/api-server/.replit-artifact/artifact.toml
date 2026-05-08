@@ -9,22 +9,18 @@ localPort = 8080
 name = "API Server"
 paths = ["/api"]
 
+[services.env]
+PORT = "8080"
+
 [services.development]
 run = "pnpm --filter @workspace/api-server run dev"
 
 [services.production]
 deploymentTarget = "vm"
+build = ["pnpm", "--filter", "@workspace/api-server", "run", "build"]
+run = ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
 
-[services.production.build]
-args = ["pnpm", "--filter", "@workspace/api-server", "run", "build"]
-
-[services.production.build.env]
-NODE_ENV = "production"
-
-[services.production.run]
-args = ["node", "--enable-source-maps", "artifacts/api-server/dist/index.mjs"]
-
-[services.production.run.env]
+[services.production.env]
 PORT = "8080"
 NODE_ENV = "production"
 
