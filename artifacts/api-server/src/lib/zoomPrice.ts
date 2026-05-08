@@ -17,7 +17,10 @@
  * grows visibly early, asymptotically slows near the top.
  *
  * Storage uses the existing `app_settings` table to avoid a new migration:
- *   - key="zoom_price_micro"  -> value_num = price * 1_000_000 (atomic +=)
+ *   - key="zoom_price_micro"  -> value_num = price * 1e12 (PICO units; the
+ *                                key name is legacy from the previous
+ *                                micro-scale era — kept to avoid a DB
+ *                                migration. Atomic +=)
  *   - key="zoom_price_chart"  -> value_text = JSON array of last N points
  *                                ([{t, p}, ...] where t = epoch ms, p = micro)
  *   - key="zoom_price_version" -> value_num = GENESIS_VERSION; if missing or
@@ -79,11 +82,17 @@ function utcDayIndex(ts: number): number {
   return Math.floor(ts / 86_400_000);
 }
 
-// Genesis: 1 ZOOM = 0.0001. Stored as micro-units (price * 1e6).
-// Lowered May 2026 from 10_000 ($0.01) to 100 ($0.0001) so that holders of
-// large $ZOOM bags see a realistic Portfolio Value rather than a misleading
-// "I have $900" framing — the token is decorative, not real money.
-export const GENESIS_PRICE_MICRO = 100;
+// Genesis: 1 ZOOM = 0.000001 TON. Stored as PICO-units (price * 1e12).
+// Storage scale was rescaled May 2026 from MICRO (1e6) to PICO (1e12) to
+// preserve sub-micro precision: at the new genesis of 0.000001 TON the
+// old micro scale would round each +1% daily growth tick to zero. PICO
+// gives 6 extra decimal places of headroom so even the smallest farm
+// cycle delta produces a measurable integer change.
+//
+// IMPORTANT: the variable is still called *_MICRO purely to minimize
+// the diff. Mentally read it as "stored value, scaled by SCALE_FACTOR".
+export const SCALE_FACTOR = 1_000_000_000_000; // 1 TON = 1e12 stored units
+export const GENESIS_PRICE_MICRO = 1_000_000;  // 0.000001 TON
 
 /**
  * Bump this whenever the genesis or delta scale changes. On the first
@@ -104,7 +113,7 @@ export const GENESIS_PRICE_MICRO = 100;
  *       forward — resetting back to $0.0001 would erase legitimate
  *       portfolio gains players have already earned.
  */
-const GENESIS_VERSION = 3;
+const GENESIS_VERSION = 5;
 
 /**
  * Per-user, per-action cooldown (ms). Anti-spam: a single user can only
@@ -153,11 +162,10 @@ function checkCooldown(action: PriceAction, userId: string | null | undefined): 
   return true;
 }
 // Hard ceiling so a runaway loop or admin bug can't drive the price into
-// astronomical territory. With the new genesis (100 micro = $0.0001) and
-// the slower deltas below, hitting this cap requires an enormous amount
-// of legitimate activity, but we keep it as a safety belt. 1.0 = 1_000_000
-// micro is plenty of headroom for the rebalanced economy.
-const MAX_PRICE_MICRO = 1_000_000;
+// astronomical territory. With genesis at 1e6 stored units (0.000001 TON)
+// and the +1% daily cap, the price can never reach this ceiling through
+// normal play, but we keep it as a safety belt. 1.0 TON = 1e12 stored.
+const MAX_PRICE_MICRO = SCALE_FACTOR;
 // Per-action deltas in BASIS POINTS (1 bp = 0.01% of current price).
 // These are the BASE values; the actual delta applied to the price is
 // randomized per call (see `randomDeltaBp` below) to introduce real
@@ -263,6 +271,14 @@ async function ensureGenesis(): Promise<void> {
           SET value_num = EXCLUDED.value_num,
               value_text = NULL,
               updated_at = NOW()
+      `);
+      // Also wipe the daily-tracking rows: they were stored at the OLD
+      // scale, so leaving them around would cap/floor the new price
+      // against stale numbers and lock the chart. Deleting them lets
+      // applyDailyResetIfNeeded re-seed cleanly on the next call.
+      await tx.execute(sql`
+        DELETE FROM app_settings
+         WHERE key IN (${DAILY_HIGH_KEY}, ${LAST_DAY_KEY}, ${DAILY_OPEN_KEY})
       `);
     });
   })().catch((err) => {

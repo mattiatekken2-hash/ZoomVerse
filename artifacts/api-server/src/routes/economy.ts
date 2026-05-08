@@ -10,7 +10,7 @@
  * values — the underlying queries are cheap (single row reads).
  */
 import { Router, type IRouter } from "express";
-import { getZoomPriceMicro, getZoomChart, getDailyHighMicro, GENESIS_PRICE_MICRO } from "../lib/zoomPrice";
+import { getZoomPriceMicro, getZoomChart, getDailyHighMicro, GENESIS_PRICE_MICRO, SCALE_FACTOR } from "../lib/zoomPrice";
 
 const router: IRouter = Router();
 
@@ -27,18 +27,18 @@ router.get("/economy/price", async (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
     res.json({
       priceMicro: micro,
-      price: micro / 1_000_000,
-      dailyHighPrice: dailyHighMicro / 1_000_000,
-      genesisPrice: GENESIS_PRICE_MICRO / 1_000_000,
+      price: micro / SCALE_FACTOR,
+      dailyHighPrice: dailyHighMicro / SCALE_FACTOR,
+      genesisPrice: GENESIS_PRICE_MICRO / SCALE_FACTOR,
       updatedAt: Date.now(),
     });
   } catch {
     // Defensive: never break the FARM page if the price read fails.
     res.json({
       priceMicro: GENESIS_PRICE_MICRO,
-      price: GENESIS_PRICE_MICRO / 1_000_000,
-      dailyHighPrice: GENESIS_PRICE_MICRO / 1_000_000,
-      genesisPrice: GENESIS_PRICE_MICRO / 1_000_000,
+      price: GENESIS_PRICE_MICRO / SCALE_FACTOR,
+      dailyHighPrice: GENESIS_PRICE_MICRO / SCALE_FACTOR,
+      genesisPrice: GENESIS_PRICE_MICRO / SCALE_FACTOR,
       updatedAt: Date.now(),
     });
   }
@@ -50,11 +50,11 @@ router.get("/economy/history", async (_req, res) => {
     res.setHeader("Cache-Control", "no-store");
     // Convert micro -> human price client-side stays simple, so we ship both.
     res.json({
-      points: points.map((pt) => ({ t: pt.t, p: pt.p, price: pt.p / 1_000_000 })),
-      genesisPrice: GENESIS_PRICE_MICRO / 1_000_000,
+      points: points.map((pt) => ({ t: pt.t, p: pt.p, price: pt.p / SCALE_FACTOR })),
+      genesisPrice: GENESIS_PRICE_MICRO / SCALE_FACTOR,
     });
   } catch {
-    res.json({ points: [], genesisPrice: GENESIS_PRICE_MICRO / 1_000_000 });
+    res.json({ points: [], genesisPrice: GENESIS_PRICE_MICRO / SCALE_FACTOR });
   }
 });
 
