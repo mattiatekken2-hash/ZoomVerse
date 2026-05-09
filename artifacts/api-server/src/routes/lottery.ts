@@ -3,7 +3,6 @@ import { db } from "@workspace/db";
 import { lottoRoundsTable, lottoTicketsTable, usersTable } from "@workspace/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { logger } from "../lib/logger";
-import { broadcastBotMessageToAllUsers } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -373,11 +372,9 @@ export async function runScheduledLotteryDrawTick(): Promise<void> {
       { roundId: outcome.roundId, winnerTelegramId: outcome.winnerTelegramId, prizeTon: outcome.prizeTon },
       "[lotto-cron] auto-draw executed",
     );
-    // Broadcast fire-and-forget — non blocchiamo il tick del cron.
-    const text = buildWinnerBroadcastMessage(outcome);
-    broadcastBotMessageToAllUsers(text).catch((err) =>
-      logger.warn({ err }, "[lotto-cron] broadcast failed"),
-    );
+    // Broadcast disabilitato per richiesta admin — l'annuncio del vincitore
+    // viene inviato manualmente dall'admin tramite Telegram. Lasciamo il
+    // builder del messaggio importato per future riattivazioni rapide.
   } else if (outcome.kind === "no_tickets") {
     logger.info(
       { roundId: outcome.roundId, rescheduledTo: outcome.rescheduledTo },
@@ -395,11 +392,8 @@ router.post("/admin/lottery/draw", async (req, res) => {
     if (outcome.kind === "no_round") { res.status(409).json({ ok: false, error: "NO_ACTIVE_ROUND" }); return; }
     if (outcome.kind === "no_tickets") { res.status(409).json({ ok: false, error: "NO_TICKETS_SOLD" }); return; }
 
-    // Anche per il draw manuale facciamo broadcast a tutti i membri del bot.
-    const text = buildWinnerBroadcastMessage(outcome);
-    broadcastBotMessageToAllUsers(text).catch((err) =>
-      logger.warn({ err }, "[admin/lottery/draw] broadcast failed"),
-    );
+    // Broadcast disabilitato per richiesta admin — l'annuncio del vincitore
+    // viene inviato manualmente dall'admin tramite Telegram.
 
     res.json({
       ok: true,
