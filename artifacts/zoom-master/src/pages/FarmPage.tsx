@@ -283,6 +283,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
             telegramId={telegramId}
             planets={planets}
             sunCountClient={Math.max(sunCount ?? 0, sun?.isOwned ? 1 : 0)}
+            sunFarmStartedAtClient={sun?.farmStartedAt ?? 0}
           />
 
           {/* SUN CARD */}

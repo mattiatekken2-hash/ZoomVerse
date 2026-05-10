@@ -14,6 +14,11 @@ interface StakingWidgetProps {
   // first server response lands. Server is the source of truth.
   planets: Planet[];
   sunCountClient: number;
+  // Live SUN cycle timestamp from client state. We watch this so that the
+  // widget refreshes IMMEDIATELY when the user reactivates their SUN
+  // (instead of waiting for the next 30s poll). Same idea for any planet
+  // farm restart — `planets` already changes when farms restart.
+  sunFarmStartedAtClient?: number;
 }
 
 const POLL_MS = 30_000;
@@ -198,7 +203,7 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
   );
 }
 
-export function StakingWidget({ telegramId, planets, sunCountClient }: StakingWidgetProps) {
+export function StakingWidget({ telegramId, planets, sunCountClient, sunFarmStartedAtClient }: StakingWidgetProps) {
   const [status, setStatus] = useState<StakingStatusResponse | null>(null);
   const [now, setNow] = useState<number>(Date.now());
   const [busy, setBusy] = useState<StakingKind | null>(null);
@@ -218,6 +223,32 @@ export function StakingWidget({ telegramId, planets, sunCountClient }: StakingWi
     const tick = window.setInterval(() => setNow(Date.now()), TICK_MS);
     return () => { mountedRef.current = false; window.clearInterval(poll); window.clearInterval(tick); };
   }, [refresh]);
+
+  // Trigger an immediate refresh whenever the SUN cycle is (re)started,
+  // so the "Production paused — SUN cycle expired" banner clears within
+  // a frame instead of after the next 30s poll. Mirrors the same idea
+  // for V1/rarity farms via the `planets` dependency below.
+  useEffect(() => {
+    if (!telegramId) return;
+    void refresh();
+  }, [telegramId, sunFarmStartedAtClient, refresh]);
+
+  // Also refresh when farm timestamps change (planet farm restart). We
+  // intentionally key off a cheap fingerprint of the farm-state vector
+  // so unrelated planet-array mutations don't spam /staking/status.
+  const farmFingerprint = useMemo(() => {
+    let s = 0;
+    for (const p of planets) {
+      s += (p.farmStartedAt ?? 0) + (p.lastCollectedAt ?? 0);
+    }
+    return s;
+  }, [planets]);
+  useEffect(() => {
+    if (!telegramId) return;
+    void refresh();
+    // farmFingerprint intentionally drives this effect — we don't want
+    // refresh to refire on every render.
+  }, [telegramId, farmFingerprint, refresh]);
 
   // Locked-state fallback counts derived from the client planets array.
   // Server status overrides these the moment it lands.
