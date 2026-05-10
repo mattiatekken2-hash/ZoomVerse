@@ -6,6 +6,7 @@ import {
   fetchLabRankState,
   type LabRankState,
 } from "../utils/api";
+import trophyPx from "../assets/lab-rank-trophy.png";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 const ENTRY_TON = 1;
@@ -166,10 +167,18 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
             width: "100%", height: "100%",
             display: "flex", alignItems: "center", justifyContent: "center",
             filter: `drop-shadow(0 0 8px ${GOLD}aa)`,
-            fontSize: 32,
           }}
         >
-          🏆
+          <img
+            src={trophyPx}
+            alt=""
+            style={{
+              width: "84%",
+              height: "84%",
+              objectFit: "contain",
+              imageRendering: "pixelated",
+            }}
+          />
         </div>
         {state?.eligible && userRank != null && userRank <= 100 && (
           <span
@@ -255,7 +264,18 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
             </button>
 
             <div style={{ textAlign: "center", marginBottom: 14 }}>
-              <div style={{ fontSize: 38, marginBottom: 4 }}>🏆</div>
+              <img
+                src={trophyPx}
+                alt=""
+                style={{
+                  width: 56,
+                  height: 56,
+                  objectFit: "contain",
+                  imageRendering: "pixelated",
+                  marginBottom: 4,
+                  filter: `drop-shadow(0 0 10px ${GOLD}88)`,
+                }}
+              />
               <div
                 style={{
                   fontFamily: "'Orbitron', 'Inter', sans-serif",
@@ -451,7 +471,7 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
               </div>
               <div style={{ fontSize: 11, color: "#fff", lineHeight: 1.7 }}>
                 <div>
-                  <span style={{ color: ACCENT, fontWeight: 800 }}>#1</span> · TON manual payment
+                  <span style={{ color: ACCENT, fontWeight: 800 }}>#1</span> · TON pool to the first winner
                 </div>
                 <div>
                   <span style={{ color: ACCENT, fontWeight: 800 }}>#2</span> · 500 ★ Stardust

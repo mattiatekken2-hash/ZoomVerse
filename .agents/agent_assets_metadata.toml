@@ -6,3 +6,9 @@ id = "12Yn6Tp9W_85ZL2LxYId0"
 uri = "file://artifacts/zoom-master/src/assets/alien-merchant.png"
 type = "image"
 title = "alien merchant pixel art"
+
+[[generated]]
+id = "R1QtsVMCekHo-Fm9lLYMx"
+uri = "file://artifacts/zoom-master/src/assets/lab-rank-trophy.png"
+type = "image"
+title = "pixel art trophy"
