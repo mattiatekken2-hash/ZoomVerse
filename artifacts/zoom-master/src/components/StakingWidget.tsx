@@ -86,12 +86,19 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
   // staking started. Applies to all 7 tiers now (V1, SUN, BASIC..GOLD):
   // if the server says we're not currently accruing, we're paused.
   const stalled = isStaking && !status.isAccruing;
+  // V1 + dynamic tiers BOTH require an active SUN cycle (24h). When that's
+  // the missing piece, surface that explicitly instead of blaming the
+  // tier's own farm count — otherwise the user reads "only 4/4 V1 active"
+  // and is rightfully confused why production is paused.
+  const sunIsTheBlocker = stalled && meta.kind !== "sun" && !hasSun;
   const pausedReason = stalled
-    ? (meta.kind === "v1"
-        ? `⏸ Production paused — only ${activeCount}/${REQUIRED} V1 NFT farms active. Reactivate to resume.`
-        : meta.kind === "sun"
-          ? `⏸ Production paused — SUN cycle expired. Reactivate your SUN to resume.`
-          : `⏸ Production paused — only ${activeCount}/${REQUIRED} ${meta.label} farms active. Reactivate to resume.`)
+    ? (sunIsTheBlocker
+        ? `⏸ Production paused — your SUN cycle is not active. Reactivate your SUN (24h) to resume.`
+        : meta.kind === "v1"
+          ? `⏸ Production paused — only ${activeCount}/${REQUIRED} V1 NFT farms active. Reactivate to resume.`
+          : meta.kind === "sun"
+            ? `⏸ Production paused — SUN cycle expired. Reactivate your SUN to resume.`
+            : `⏸ Production paused — only ${activeCount}/${REQUIRED} ${meta.label} farms active. Reactivate to resume.`)
     : "";
 
   return (
