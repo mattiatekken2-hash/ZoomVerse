@@ -1394,12 +1394,26 @@ export async function confirmStarsPurchase(txnId: number, telegramId: string): P
   } catch { return { ok: false, error: "Network error" }; }
 }
 
-export async function confirmTonPurchase(telegramId: string, itemId: string, walletAddress: string, tonAmount: number, boc?: string): Promise<{ ok: boolean; error?: string; pending?: boolean; txnId?: number; alreadyCredited?: boolean }> {
+export interface TonConfirmReactMeta {
+  kind: "white" | "earth" | "black";
+  bundleIndex: number;
+  subIndex: number;
+  slotIndex?: number | null;
+}
+
+export async function confirmTonPurchase(
+  telegramId: string,
+  itemId: string,
+  walletAddress: string,
+  tonAmount: number,
+  boc?: string,
+  meta?: TonConfirmReactMeta,
+): Promise<{ ok: boolean; error?: string; pending?: boolean; txnId?: number; alreadyCredited?: boolean }> {
   try {
     const res = await fetch(`${API_BASE}/ton/confirm`, {
       method: "POST",
       headers: apiHeaders(),
-      body: JSON.stringify({ telegramId, itemId, walletAddress, tonAmount, boc }),
+      body: JSON.stringify({ telegramId, itemId, walletAddress, tonAmount, boc, ...(meta ? { meta } : {}) }),
     });
     const data = await res.json();
     return { ...data, ok: res.ok || res.status === 202 };
@@ -2137,7 +2151,7 @@ export async function fetchCollectionPlanets(
     const j = await res.json();
     if (!j?.ok || !Array.isArray(j.planets)) return [];
     return j.planets.map((p: Record<string, unknown>) => ({
-      kind: p.kind === "earth" ? "earth" : "white",
+      kind: p.kind === "earth" ? "earth" : p.kind === "black" ? "black" : "white",
       bundleIndex: Number(p.bundleIndex ?? 0),
       subIndex: Number(p.subIndex ?? 0),
       slotIndex:

@@ -13,6 +13,7 @@ import {
   needsCollect,
   formatDuration,
   getWhitePlanetPendingTon,
+  parseCollectionPlanetKey,
   type Planet,
 } from "../hooks/useGameState";
 import {
@@ -865,7 +866,9 @@ function PixelAvatarBase({
                                 messages: [{ address: TON_RECEIVER_WALLET, amount: nanotons }],
                               });
                               const boc = txResult.boc || "";
-                              const confirm = await confirmTonPurchase(telegramId, "white_react", connectedAddress, fee, boc);
+                              const reactKey = parseCollectionPlanetKey(planet.id);
+                              const reactMeta = reactKey ? { ...reactKey, slotIndex: planet.slotIndex ?? null } : undefined;
+                              const confirm = await confirmTonPurchase(telegramId, "white_react", connectedAddress, fee, boc, reactMeta);
                               let creditedOk = confirm.ok && !confirm.pending;
                               if (confirm.pending && confirm.txnId) {
                                 flashWhiteMsg("Verifying payment on-chain…");
@@ -1089,7 +1092,9 @@ function PixelAvatarBase({
                                   messages: [{ address: TON_RECEIVER_WALLET, amount: nanotons }],
                                 });
                                 const boc = txResult.boc || "";
-                                const confirm = await confirmTonPurchase(telegramId, "earth_react", connectedAddress, fee, boc);
+                                const reactKey = parseCollectionPlanetKey(planet.id);
+                                const reactMeta = reactKey ? { ...reactKey, slotIndex: planet.slotIndex ?? null } : undefined;
+                                const confirm = await confirmTonPurchase(telegramId, "earth_react", connectedAddress, fee, boc, reactMeta);
                                 let creditedOk = confirm.ok && !confirm.pending;
                                 if (confirm.pending && confirm.txnId) {
                                   flashWhiteMsg("Verifying payment on-chain…");
@@ -1297,7 +1302,9 @@ function PixelAvatarBase({
                                   messages: [{ address: TON_RECEIVER_WALLET, amount: nanotons }],
                                 });
                                 const boc = txResult.boc || "";
-                                const confirm = await confirmTonPurchase(telegramId, "black_react", connectedAddress, fee, boc);
+                                const reactKey = parseCollectionPlanetKey(planet.id);
+                                const reactMeta = reactKey ? { ...reactKey, slotIndex: planet.slotIndex ?? null } : undefined;
+                                const confirm = await confirmTonPurchase(telegramId, "black_react", connectedAddress, fee, boc, reactMeta);
                                 let creditedOk = confirm.ok && !confirm.pending;
                                 if (confirm.pending && confirm.txnId) {
                                   flashWhiteMsg("Verifying payment on-chain…");

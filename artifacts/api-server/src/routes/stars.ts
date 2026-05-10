@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, transactionsTable, usersTable } from "@workspace/db";
-import { appSettingsTable } from "@workspace/db/schema";
+import { appSettingsTable, collectionPlanetsTable } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { Cell, Address } from "@ton/core";
 import { broadcastBoxOpen } from "../lib/activityBus";
@@ -323,7 +323,79 @@ function findItem(itemId: string): StarsItem | undefined {
 // `db` and the transaction client share the same callable interface here.
 type DbExecutor = typeof db;
 
-async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string, txnId?: number): Promise<{ award?: MysteryAward }> {
+// Optional planet identifier carried by /ton/confirm for *_react payments.
+// When present, the credit transaction additionally upserts the matching
+// collection_planets row so the reactivation is durable even if the client
+// closes the tab before the fire-and-forget /collection-planets/upsert runs.
+export interface ReactPlanetMeta {
+  kind: "white" | "earth" | "black";
+  bundleIndex: number;
+  subIndex: number;
+  slotIndex?: number | null;
+}
+
+function isReactItemType(t: string): boolean {
+  return t === "white_react" || t === "earth_react" || t === "black_react";
+}
+
+function parseReactMeta(raw: unknown, itemType: string): ReactPlanetMeta | null {
+  if (!isReactItemType(itemType)) return null;
+  if (!raw || typeof raw !== "object") return null;
+  const m = raw as Record<string, unknown>;
+  const expectedKind = itemType === "white_react" ? "white" : itemType === "earth_react" ? "earth" : "black";
+  if (m["kind"] !== expectedKind) return null;
+  const bi = Number(m["bundleIndex"]);
+  const si = Number(m["subIndex"]);
+  if (!Number.isInteger(bi) || bi < 0 || bi > 64) return null;
+  if (!Number.isInteger(si) || si < 0 || si > 3) return null;
+  let slotIndex: number | null = null;
+  const rawSlot = m["slotIndex"];
+  if (typeof rawSlot === "number" && Number.isInteger(rawSlot) && rawSlot >= 0 && rawSlot <= 255) slotIndex = rawSlot;
+  return { kind: expectedKind, bundleIndex: bi, subIndex: si, slotIndex };
+}
+
+// Server-authoritative reactivation: when a *_react TON payment is verified
+// and credited, also bump the planet row to active with fresh timestamps.
+// Uses GREATEST() so a stale call can never rewind farming timers. We INSERT
+// ON CONFLICT so the missing-row case (the client's earlier upsert never
+// landed) is also covered — without this fallback, the user could pay the
+// fee and still see the planet expired on reload.
+async function applyReactToCollectionPlanet(tx: DbExecutor, telegramId: string, meta: ReactPlanetMeta): Promise<void> {
+  const now = Date.now();
+  const slotIndex = meta.slotIndex == null || meta.slotIndex < 0 ? null : meta.slotIndex;
+  await tx
+    .insert(collectionPlanetsTable)
+    .values({
+      telegramId,
+      kind: meta.kind,
+      bundleIndex: meta.bundleIndex,
+      subIndex: meta.subIndex,
+      slotIndex,
+      isFarmingActive: true,
+      farmStartedAtMs: now,
+      lastCollectedAtMs: now,
+    })
+    .onConflictDoUpdate({
+      target: [
+        collectionPlanetsTable.telegramId,
+        collectionPlanetsTable.kind,
+        collectionPlanetsTable.bundleIndex,
+        collectionPlanetsTable.subIndex,
+      ],
+      set: {
+        isFarmingActive: true,
+        // Preserve existing slotIndex if already set on the server; only
+        // overwrite when the existing row has no slot (placement happened
+        // client-side but the row was created without it).
+        slotIndex: sql`COALESCE(${collectionPlanetsTable.slotIndex}, ${slotIndex})`,
+        farmStartedAtMs: sql`GREATEST(${collectionPlanetsTable.farmStartedAtMs}, ${now})`,
+        lastCollectedAtMs: sql`GREATEST(${collectionPlanetsTable.lastCollectedAtMs}, ${now})`,
+        updatedAt: new Date(),
+      },
+    });
+}
+
+async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string, txnId?: number, reactMeta?: ReactPlanetMeta | null): Promise<{ award?: MysteryAward }> {
   if (item.itemType === "mystery_box") {
     // SUN allocation has its own internal transaction (rollMysteryBox); other
     // awards are inlined here so they share the outer credit transaction.
@@ -389,16 +461,18 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string,
     await tx.update(usersTable)
       .set({ hasAutoTap: true })
       .where(eq(usersTable.telegramId, telegramId));
-  } else if (item.itemType === "white_react") {
-    // Reactivation is a paid action with no server-side grant. The transaction
-    // row records the payment for audit; the client flips the planet's
-    // farming-state on success. Intentional no-op here.
-  } else if (item.itemType === "earth_react") {
-    // Same as white_react — payment-only, no server-side grant. Client toggles
-    // the specific earth planet's farming state on confirmation.
-  } else if (item.itemType === "black_react") {
-    // Same as white/earth_react — payment-only, no server-side grant. Client
-    // toggles the specific black planet's farming state on confirmation.
+  } else if (item.itemType === "white_react" || item.itemType === "earth_react" || item.itemType === "black_react") {
+    // Reactivation is a paid action that flips the targeted collection planet
+    // back to active. When the client supplies a valid `meta` identifier on
+    // /ton/confirm, we durably bump the planet row here as part of the same
+    // credit transaction. This makes the reactivation server-authoritative —
+    // the planet stays active even if the client tab closes before the
+    // fire-and-forget /collection-planets/upsert call lands. If `meta` is
+    // missing (older client), the legacy client-side mark-reactivated path
+    // still runs after credit.
+    if (reactMeta) {
+      await applyReactToCollectionPlanet(tx, telegramId, reactMeta);
+    }
   } else if (item.itemType === "white_collection") {
     // Serialize all White Collection credits via a transaction-scoped advisory
     // lock so the global cap is enforced strictly even under concurrent buys.
@@ -723,7 +797,7 @@ async function postActivationChannelMessage(item: StarsItem, telegramId: string)
   await sendWithdrawalChannelMessage(msg);
 }
 
-async function atomicCreditIfPending(txnId: number, paymentId: string, item: StarsItem, telegramId: string): Promise<boolean> {
+async function atomicCreditIfPending(txnId: number, paymentId: string, item: StarsItem, telegramId: string, reactMeta?: ReactPlanetMeta | null): Promise<boolean> {
   // For mystery boxes we MUST persist `award` together with `status=completed`
   // so a crash between credit and award-write cannot leave the row in an
   // inconsistent state (status completed but award null). Credit + status flip
@@ -743,7 +817,7 @@ async function atomicCreditIfPending(txnId: number, paymentId: string, item: Sta
       if (updated.length === 0) return; // already-completed or already-failed: leave it
       didFlip = true;
 
-      const result = await creditUserTx(tx, item, telegramId, txnId);
+      const result = await creditUserTx(tx, item, telegramId, txnId, reactMeta);
       if (result.award) {
         await tx.update(transactionsTable)
           .set({ award: result.award })
@@ -950,13 +1024,13 @@ router.post("/stars/confirm", async (req, res) => {
   }
 });
 
-async function tryVerifyAndCreditTon(txnId: number, item: StarsItem, telegramId: string, boc: string, expectedNano: bigint, expectedSenderRaw: string): Promise<{ status: "ok" | "pending" | "failed"; reason?: string }> {
+async function tryVerifyAndCreditTon(txnId: number, item: StarsItem, telegramId: string, boc: string, expectedNano: bigint, expectedSenderRaw: string, reactMeta?: ReactPlanetMeta | null): Promise<{ status: "ok" | "pending" | "failed"; reason?: string }> {
   const v = await verifyTonBoc(boc, expectedNano, expectedSenderRaw);
   if (v.ok) {
     try {
       // The DB unique constraint on telegram_payment_id (already set to ton_msg_<msgHash>) prevents double-credit.
       // atomicCreditIfPending only flips pending -> completed, then credits.
-      const credited = await atomicCreditIfPending(txnId, `ton_msg_${v.msgHash}`, item, telegramId);
+      const credited = await atomicCreditIfPending(txnId, `ton_msg_${v.msgHash}`, item, telegramId, reactMeta);
       if (credited) {
         console.log(`[ton] verified+credited txn ${txnId} msgHash=${v.msgHash} txHash=${v.txHash}`);
         return { status: "ok" };
@@ -976,11 +1050,11 @@ async function tryVerifyAndCreditTon(txnId: number, item: StarsItem, telegramId:
   return { status: "failed", reason: v.reason };
 }
 
-async function backgroundVerifyTon(txnId: number, item: StarsItem, telegramId: string, boc: string, expectedNano: bigint, expectedSenderRaw: string) {
+async function backgroundVerifyTon(txnId: number, item: StarsItem, telegramId: string, boc: string, expectedNano: bigint, expectedSenderRaw: string, reactMeta?: ReactPlanetMeta | null) {
   const attempts = [5_000, 8_000, 12_000, 18_000, 25_000, 30_000, 30_000, 30_000]; // up to ~160s
   for (const wait of attempts) {
     await new Promise((r) => setTimeout(r, wait));
-    const r = await tryVerifyAndCreditTon(txnId, item, telegramId, boc, expectedNano, expectedSenderRaw);
+    const r = await tryVerifyAndCreditTon(txnId, item, telegramId, boc, expectedNano, expectedSenderRaw, reactMeta);
     if (r.status !== "pending") return;
   }
   await db.update(transactionsTable)
@@ -1018,11 +1092,12 @@ router.get("/shop/slot-price/:telegramId", async (req, res) => {
 });
 
 router.post("/ton/confirm", async (req, res) => {
-  const { telegramId, itemId, walletAddress, boc } = req.body as {
+  const { telegramId, itemId, walletAddress, boc, meta } = req.body as {
     telegramId?: string;
     itemId?: string;
     walletAddress?: string;
     boc?: string;
+    meta?: unknown;
   };
 
   if (!telegramId || !itemId || !walletAddress || !boc) {
@@ -1125,8 +1200,12 @@ router.post("/ton/confirm", async (req, res) => {
     return;
   }
 
+  // Optional planet identifier for *_react payments — used to durably mark
+  // the targeted collection planet active inside the credit transaction.
+  const reactMeta = parseReactMeta(meta, item.itemType);
+
   // First verification attempt (synchronous, fast-path). If retriable, schedule background.
-  const first = await tryVerifyAndCreditTon(txnId, item, telegramId, boc, expectedNano, expectedSenderRaw);
+  const first = await tryVerifyAndCreditTon(txnId, item, telegramId, boc, expectedNano, expectedSenderRaw, reactMeta);
   if (first.status === "ok") {
     res.json({ ok: true, verified: true, txnId, itemId: item.id, itemName: item.title });
     return;
@@ -1136,7 +1215,7 @@ router.post("/ton/confirm", async (req, res) => {
     return;
   }
   // Pending — schedule background polling, frontend polls txn status
-  void backgroundVerifyTon(txnId, item, telegramId, boc, expectedNano, expectedSenderRaw);
+  void backgroundVerifyTon(txnId, item, telegramId, boc, expectedNano, expectedSenderRaw, reactMeta);
   res.status(202).json({ ok: true, pending: true, txnId, message: "Awaiting on-chain confirmation" });
 });
 
