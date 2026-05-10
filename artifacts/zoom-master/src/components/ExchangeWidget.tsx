@@ -326,71 +326,60 @@ function ExchangeWidgetBase({ balance, sunCount }: ExchangeWidgetProps) {
   const hasSun = sunCount > 0;
 
   const Body = (
-    <>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span
-            style={{
-              fontSize: 10, fontWeight: 900, letterSpacing: 1.4,
-              color: "rgba(0,242,254,0.9)",
-            }}
-          >
-            EXCHANGE
-          </span>
-          <span
-            style={{
-              fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 6,
-              background: "rgba(255,179,71,0.15)", color: "#ffb347",
-              border: "1px solid rgba(255,179,71,0.35)", letterSpacing: 0.6,
-            }}
-          >
-            SOON
-          </span>
-        </div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: 2 }}>
-          <span style={{ color: "#fff", fontSize: 14, fontWeight: 900, letterSpacing: 0.8, textShadow: "0 0 8px rgba(0,242,254,0.5)" }}>
-            ZOOM ~ TON
-          </span>
-        </div>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-        <div
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, lineHeight: 1.1 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+        <span
           style={{
-            display: "flex", alignItems: "baseline", gap: 4,
-            color: "#00f2fe", fontWeight: 900, fontSize: 13,
-            fontVariantNumeric: "tabular-nums", textShadow: "0 0 8px rgba(0,242,254,0.55)",
+            fontSize: 9, fontWeight: 900, letterSpacing: 0.8,
+            color: "#fff", textShadow: "0 0 6px rgba(0,242,254,0.55)",
           }}
         >
-          {cd.done ? (
-            <span style={{ fontSize: 12, color: "#00ff88" }}>LIVE</span>
-          ) : (
-            <>
-              <span>{cd.d}</span><span style={{ fontSize: 9, color: "rgba(220,235,255,0.55)" }}>g</span>
-              <span style={{ marginLeft: 3 }}>{String(cd.h).padStart(2, "0")}</span><span style={{ fontSize: 9, color: "rgba(220,235,255,0.55)" }}>h</span>
-              <span style={{ marginLeft: 3 }}>{String(cd.m).padStart(2, "0")}</span><span style={{ fontSize: 9, color: "rgba(220,235,255,0.55)" }}>m</span>
-              <span style={{ marginLeft: 3 }}>{String(cd.s).padStart(2, "0")}</span><span style={{ fontSize: 9, color: "rgba(220,235,255,0.55)" }}>s</span>
-            </>
-          )}
-        </div>
-        <span style={{ fontSize: 10, color: "rgba(220,235,255,0.6)", fontVariantNumeric: "tabular-nums" }}>
-          1 ZOOM = {formatPrice(price)} TON
+          ZOOM~TON
+        </span>
+        <span
+          style={{
+            fontSize: 7, fontWeight: 800, padding: "1px 4px", borderRadius: 4,
+            background: "rgba(255,179,71,0.18)", color: "#ffb347",
+            border: "1px solid rgba(255,179,71,0.4)", letterSpacing: 0.4,
+          }}
+        >
+          SOON
         </span>
       </div>
-    </>
+      <div
+        style={{
+          display: "flex", alignItems: "baseline", gap: 2,
+          color: "#00f2fe", fontWeight: 900, fontSize: 10,
+          fontVariantNumeric: "tabular-nums", textShadow: "0 0 6px rgba(0,242,254,0.5)",
+        }}
+      >
+        {cd.done ? (
+          <span style={{ fontSize: 10, color: "#00ff88" }}>LIVE</span>
+        ) : (
+          <span>
+            {cd.d}g {String(cd.h).padStart(2, "0")}:{String(cd.m).padStart(2, "0")}:{String(cd.s).padStart(2, "0")}
+          </span>
+        )}
+      </div>
+    </div>
   );
 
   const baseStyle: React.CSSProperties = {
-    width: "calc(100% - 32px)",
-    borderRadius: 14,
-    padding: "10px 14px",
-    margin: "8px 16px 0",
+    position: "absolute",
+    top: 8,
+    left: "50%",
+    transform: "translateX(-50%)",
+    zIndex: 30,
+    borderRadius: 10,
+    padding: "5px 10px",
     display: "flex",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    background: "linear-gradient(135deg, rgba(0,40,60,0.6) 0%, rgba(0,16,32,0.85) 100%)",
-    border: "1px solid rgba(0,242,254,0.35)",
-    boxShadow: "0 0 16px rgba(0,242,254,0.18), inset 0 0 10px rgba(0,242,254,0.06)",
+    justifyContent: "center",
+    background: "linear-gradient(135deg, rgba(0,40,60,0.75) 0%, rgba(0,16,32,0.9) 100%)",
+    border: "1px solid rgba(0,242,254,0.4)",
+    boxShadow: "0 0 12px rgba(0,242,254,0.25)",
+    backdropFilter: "blur(6px)",
+    WebkitBackdropFilter: "blur(6px)",
   };
 
   return (
