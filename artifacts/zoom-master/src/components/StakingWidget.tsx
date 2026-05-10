@@ -286,14 +286,22 @@ export function StakingWidget({ telegramId, planets, sunCountClient, sunFarmStar
       rewardTonPerMonth: REWARD_TON[meta.kind],
       requiresSunInInventory: meta.kind !== "v1" && meta.kind !== "sun",
     } as StakingSetStatus;
-    // Display the server snapshot for ALL tiers (V1/SUN included now).
-    // Previously V1/SUN linearly extrapolated `(now - startedAtMs) * rate`
-    // which kept ticking forever even when the server had paused
-    // accrual (e.g. SUN cycle expired or admin removed the SUN). The
-    // snapshot refreshes every 30s, plus an immediate refresh on SUN
-    // inventory/cycle changes — so the displayed value never drifts
-    // upward while production is paused.
-    const liveAccrued = t.accruedTon;
+    // Live-ticking display, GATED on isAccruing.
+    //   • If the server says we're not currently accruing (SUN missing,
+    //     cycle expired, farms inactive, etc.) → show the snapshot
+    //     unchanged; it never grows while paused.
+    //   • If we ARE accruing → extrapolate from the snapshot using
+    //     `serverNowMs` as the anchor (NOT startedAtMs), so we add
+    //     only the seconds elapsed since the last server settle. This
+    //     restores the "live numbers" feel without ever drifting past
+    //     reality when production is paused.
+    const serverNowMs = status?.nowMs ?? now;
+    const liveAccrued = (() => {
+      if (!t.isAccruing) return t.accruedTon;
+      const deltaMs = Math.max(0, now - serverNowMs);
+      const rate = t.rewardTonPerMonth ?? REWARD_TON[meta.kind];
+      return t.accruedTon + (deltaMs / PERIOD_MS) * rate;
+    })();
     return { meta, status: t, liveAccrued };
   });
 
