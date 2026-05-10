@@ -224,14 +224,18 @@ export function StakingWidget({ telegramId, planets, sunCountClient, sunFarmStar
     return () => { mountedRef.current = false; window.clearInterval(poll); window.clearInterval(tick); };
   }, [refresh]);
 
-  // Trigger an immediate refresh whenever the SUN cycle is (re)started,
-  // so the "Production paused — SUN cycle expired" banner clears within
-  // a frame instead of after the next 30s poll. Mirrors the same idea
-  // for V1/rarity farms via the `planets` dependency below.
+  // Trigger an immediate refresh whenever the SUN inventory or cycle
+  // changes — covers two cases:
+  //   1. user reactivates SUN → `sunFarmStartedAtClient` jumps; banner
+  //      "Production paused — SUN cycle expired" must clear within a
+  //      frame instead of after the next 30s poll.
+  //   2. admin removes the SUN from inventory → `sunCountClient` drops
+  //      to 0; all dynamic-tier staking (BASIC..GOLD) and SUN staking
+  //      must show as paused immediately.
   useEffect(() => {
     if (!telegramId) return;
     void refresh();
-  }, [telegramId, sunFarmStartedAtClient, refresh]);
+  }, [telegramId, sunFarmStartedAtClient, sunCountClient, refresh]);
 
   // Also refresh when farm timestamps change (planet farm restart). We
   // intentionally key off a cheap fingerprint of the farm-state vector
