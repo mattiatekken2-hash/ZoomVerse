@@ -9,6 +9,7 @@ import { EarthCollectionWidget } from "../components/EarthCollectionWidget";
 import { BlackCollectionWidget } from "../components/BlackCollectionWidget";
 import { LottoStellareWidget } from "../components/LottoStellareWidget";
 import { V1NftWidget } from "../components/V1NftWidget";
+import { ExchangeWidget } from "../components/ExchangeWidget";
 import type { Planet, PlanetType } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
@@ -241,6 +242,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         />
       )}
       <style>{`@keyframes merchant-radar-blink { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.25; transform: scale(0.7); } }`}</style>
+      <ExchangeWidget balance={balance} sunCount={sunCount} />
       <div
         className="relative flex-1"
         style={{ minHeight: 0 }}
