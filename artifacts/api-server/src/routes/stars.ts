@@ -6,6 +6,7 @@ import { Cell, Address } from "@ton/core";
 import { broadcastBoxOpen } from "../lib/activityBus";
 import { sendWithdrawalChannelMessage } from "../lib/notify";
 import { registerLottoTicketPurchase } from "./lottery";
+import { recordHistoryAsync } from "../lib/history";
 
 const router: IRouter = Router();
 
@@ -765,6 +766,25 @@ async function atomicCreditIfPending(txnId: number, paymentId: string, item: Sta
   }
 
   if (!didFlip) return false;
+
+  // Cronologia personale acquisto Stars/TON. Determiniamo il segno dal
+  // tipo voce: tutto in catalogo è un acquisto → delta negativo della
+  // valuta spesa. Il "credit" lato utente (zoom, sun, planets ecc.) è
+  // gestito separatamente da `creditUserTx` e non è un evento monetario
+  // della valuta SPESA, quindi qui logghiamo solo l'uscita.
+  const isTon = item.tonPrice > 0 && paymentId.startsWith("ton_msg_");
+  recordHistoryAsync({
+    telegramId,
+    kind: isTon ? "ton_purchase" : "stars_purchase",
+    delta: isTon ? -item.tonPrice : -item.starsPrice,
+    currency: isTon ? "ton" : "stars",
+    meta: {
+      txnId,
+      itemId: item.id,
+      itemName: item.title,
+      itemType: item.itemType,
+    },
+  });
 
   // Fire-and-forget admin notification on every successful Stars purchase.
   // Lets the owner see in real time when payments land (and notice when

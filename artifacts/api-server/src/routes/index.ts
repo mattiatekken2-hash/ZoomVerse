@@ -30,6 +30,7 @@ import redeemCodesRouter from "./redeemCodes";
 import economyRouter from "./economy";
 import stakingRouter from "./staking";
 import labRankingRouter from "./labRanking";
+import historyRouter from "./history";
 
 const router: IRouter = Router();
 
@@ -268,5 +269,6 @@ router.use(redeemCodesRouter);
 router.use(economyRouter);
 router.use(stakingRouter);
 router.use(labRankingRouter);
+router.use(historyRouter);
 
 export default router;

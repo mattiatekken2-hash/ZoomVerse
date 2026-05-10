@@ -7,6 +7,7 @@ import { z } from "zod";
 import fs from "node:fs";
 import path from "node:path";
 import { logger } from "../lib/logger";
+import { recordHistoryAsync } from "../lib/history";
 
 const router = Router();
 
@@ -175,6 +176,13 @@ router.post("/admin/credit-zoom", async (req, res) => {
       });
     scheduleAdminAssetSnapshot();
     res.json({ ok: true });
+    recordHistoryAsync({
+      telegramId,
+      kind: "admin_reward",
+      delta: amount,
+      currency: "zoom",
+      meta: { adminId: parsed.data.adminId },
+    });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
   }
@@ -201,6 +209,13 @@ router.post("/admin/credit-ton", async (req, res) => {
       });
     scheduleAdminAssetSnapshot();
     res.json({ ok: true });
+    recordHistoryAsync({
+      telegramId,
+      kind: "admin_reward",
+      delta: amount,
+      currency: "ton",
+      meta: { adminId: parsed.data.adminId },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Database error" });
@@ -544,6 +559,13 @@ router.post("/admin/remove-zoom", async (req, res) => {
       .where(sql`${usersTable.telegramId} = ${telegramId}`);
     scheduleAdminAssetSnapshot();
     res.json({ ok: true });
+    recordHistoryAsync({
+      telegramId,
+      kind: "admin_remove",
+      delta: -amount,
+      currency: "zoom",
+      meta: { adminId: parsed.data.adminId },
+    });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
   }
@@ -741,6 +763,13 @@ router.post("/admin/credit-stardust", async (req, res) => {
         },
       });
     res.json({ ok: true });
+    recordHistoryAsync({
+      telegramId,
+      kind: "admin_reward",
+      delta: amount,
+      currency: "stardust",
+      meta: { adminId: parsed.data.adminId },
+    });
   } catch (err) {
     console.error("[admin/credit-stardust]", err);
     res.status(500).json({ error: "Database error" });
@@ -774,6 +803,13 @@ router.post("/admin/remove-stardust", async (req, res) => {
       .returning({ id: usersTable.telegramId });
     if (updated.length === 0) return res.status(404).json({ error: "User not found" });
     res.json({ ok: true });
+    recordHistoryAsync({
+      telegramId,
+      kind: "admin_remove",
+      delta: -amount,
+      currency: "stardust",
+      meta: { adminId: parsed.data.adminId },
+    });
   } catch (err) {
     console.error("[admin/remove-stardust]", err);
     res.status(500).json({ error: "Database error" });
@@ -802,6 +838,13 @@ router.post("/admin/credit-spins", async (req, res) => {
         set: { wheelSpins: sql`${usersTable.wheelSpins} + ${count}` },
       });
     res.json({ ok: true });
+    recordHistoryAsync({
+      telegramId,
+      kind: "admin_reward",
+      delta: count,
+      currency: "spins",
+      meta: { adminId: parsed.data.adminId },
+    });
   } catch (err) {
     console.error("[admin/credit-spins]", err);
     res.status(500).json({ error: "Database error" });
@@ -849,6 +892,13 @@ router.post("/admin/remove-spins", async (req, res) => {
       .set({ wheelSpins: sql`GREATEST(0, ${usersTable.wheelSpins} - ${count})` })
       .where(sql`${usersTable.telegramId} = ${telegramId}`);
     res.json({ ok: true });
+    recordHistoryAsync({
+      telegramId,
+      kind: "admin_remove",
+      delta: -count,
+      currency: "spins",
+      meta: { adminId: parsed.data.adminId },
+    });
   } catch (err) {
     console.error("[admin/remove-spins]", err);
     res.status(500).json({ error: "Database error" });

@@ -4,6 +4,7 @@ import { usersTable, redeemCodesTable, redeemCodeUsesTable } from "@workspace/db
 import { sql, eq } from "drizzle-orm";
 import { z } from "zod";
 import { logger } from "../lib/logger";
+import { recordHistoryAsync } from "../lib/history";
 
 const router = Router();
 
@@ -246,6 +247,20 @@ router.post("/redeem-codes/redeem", async (req, res) => {
     if (outcome.kind === "expired") {
       res.status(410).json({ ok: false, error: "EXPIRED" });
       return;
+    }
+    if (outcome.kind === "ok") {
+      const currency = outcome.rewardType === "spins"
+        ? "spins"
+        : outcome.rewardType === "stardust"
+          ? "stardust"
+          : "zoom";
+      recordHistoryAsync({
+        telegramId,
+        kind: "redeem_code",
+        delta: outcome.rewardAmount,
+        currency,
+        meta: { code, rewardType: outcome.rewardType },
+      });
     }
     if (outcome.kind === "already_used") {
       res.status(409).json({ ok: false, error: "ALREADY_USED" });

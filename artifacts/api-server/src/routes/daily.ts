@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
+import { recordHistoryAsync } from "../lib/history";
 
 const router: IRouter = Router();
 
@@ -145,6 +146,13 @@ router.post("/daily/claim", async (req, res) => {
 
     const status = computeStatus(new Date(now), newDay, newCycle);
     res.json({ ok: true, reward, day: newDay, cycle: newCycle, ...status });
+    recordHistoryAsync({
+      telegramId,
+      kind: "daily_claim",
+      delta: reward,
+      currency: "zoom",
+      meta: { day: newDay, cycle: newCycle },
+    });
   } catch (err) {
     console.error("[daily/claim] error:", err);
     res.status(500).json({ error: "Internal error" });

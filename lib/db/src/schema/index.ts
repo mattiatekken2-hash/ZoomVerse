@@ -5,3 +5,4 @@ export * from "./labRanking";
 export * from "./chat";
 export * from "./roomInvites";
 export * from "./redeemCodes";
+export * from "./history";

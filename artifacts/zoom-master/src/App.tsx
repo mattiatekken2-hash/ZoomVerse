@@ -15,6 +15,7 @@ import { HomePage } from "./pages/HomePage";
 import { AdminPanel } from "./components/AdminPanel";
 import { SettingsMenu } from "./components/SettingsMenu";
 import { LanguageProvider, useT } from "./i18n/LanguageContext";
+import HistoryModal from "./components/HistoryModal";
 import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, type StardustLeaderboardEntry } from "./utils/api";
 import { useStardust } from "./hooks/useStardust";
 import { useMerchant } from "./hooks/useMerchant";
@@ -103,6 +104,7 @@ function AppShellWithState() {
   // 25/day cap are enforced inside the API.
   const stardust = useStardust(state.telegramId);
   const [stardustPopupOpen, setStardustPopupOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // ─────── STARDUST spawn mechanic (lifted to App level) ──────────
   // The star spawns on ANY screen so the user doesn't need to camp the LAB,
@@ -540,9 +542,18 @@ function AppShellWithState() {
         </div>
         <div className="flex items-center gap-3">
           <div
-            className="glass-neon flex items-center gap-1.5 px-3.5 py-2 rounded-full font-black text-sm"
+            className="glass-neon flex items-center gap-1.5 px-3.5 py-2 rounded-full font-black text-sm cursor-pointer active:scale-95"
             data-testid="balance-display"
-            aria-label="ZOOM balance"
+            aria-label="ZOOM balance — open history"
+            role="button"
+            tabIndex={0}
+            onClick={() => setHistoryOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setHistoryOpen(true);
+              }
+            }}
           >
             <span style={{ fontSize: 13 }}>🪐</span>
             <span className="neon-text">{Math.floor(state.balance).toLocaleString()}</span>
@@ -894,6 +905,10 @@ function AppShellWithState() {
       )}
 
       {state.telegramId && <AdminPanel telegramId={state.telegramId} />}
+
+      {historyOpen && state.telegramId && (
+        <HistoryModal telegramId={state.telegramId} onClose={() => setHistoryOpen(false)} />
+      )}
 
       {/* Space Merchant overlay — gated to LAB so the popup can't ambush
           users who are mid-trade in MARKET or mid-tap in another tab. The

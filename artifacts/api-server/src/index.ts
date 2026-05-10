@@ -4,6 +4,7 @@ import { logger } from "./lib/logger";
 import { sendBotMessage } from "./lib/notify";
 import { fetchPendingFarmNotifications, markFarmNotified } from "./routes/farm";
 import { runScheduledLotteryDrawTick } from "./routes/lottery";
+import { purgeExpiredHistory } from "./lib/history";
 import { db, usersTable } from "@workspace/db";
 import { desc, eq, sql } from "drizzle-orm";
 
@@ -48,7 +49,41 @@ server.listen(port, () => {
   startHallOfFameResetCron();
   startLotteryDrawCron();
   startStarsReconcileCron();
+  startHistoryCleanupCron();
 });
+
+/**
+ * Cron pulizia cronologia personale.
+ *
+ * Ogni ora elimina dalla tabella `history` tutte le righe più vecchie
+ * della retention di 48h (cap allineato con `HISTORY_RETENTION_HOURS`
+ * in `lib/history.ts` e con il filtro server-side in /history/list).
+ * Idempotente — la query DELETE è O(rows-eliminate) grazie all'indice
+ * `idx_history_created_at`. Single-flight per evitare overlap se il DB
+ * è momentaneamente lento. Primo tick ~30s dopo il boot così che un
+ * deploy "freddo" pulisca subito eventuali residui invece di aspettare
+ * un'ora intera.
+ */
+function startHistoryCleanupCron() {
+  const intervalMs = 60 * 60 * 1000;
+  let inFlight = false;
+  const tick = async () => {
+    if (inFlight) return;
+    inFlight = true;
+    try {
+      const removed = await purgeExpiredHistory();
+      if (removed > 0) {
+        logger.info({ removed }, "[history-cron] purged expired rows");
+      }
+    } catch (err) {
+      logger.warn({ err }, "[history-cron] tick failed");
+    } finally {
+      inFlight = false;
+    }
+  };
+  setTimeout(tick, 30_000).unref();
+  setInterval(tick, intervalMs).unref();
+}
 
 /**
  * Cron del Lotto Stellare. Ogni 60 secondi controlla se il round attivo

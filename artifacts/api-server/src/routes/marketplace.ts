@@ -6,6 +6,7 @@ import { z } from "zod";
 import { addClient, removeClient, broadcastSale } from "../lib/activityBus";
 import { sendBotMessage } from "../lib/notify";
 import { bumpZoomPriceFireAndForget } from "../lib/zoomPrice";
+import { recordHistoryAsync } from "../lib/history";
 import {
   FLOAT_PLANET_TYPES,
   deterministicFloatFromId,
@@ -546,6 +547,31 @@ router.post("/market/buy", async (req, res) => {
     // on the buyer so a wash-trader running scripted buys still only
     // contributes one bump per cooldown window.
     bumpZoomPriceFireAndForget("market_buy", buyerTelegramId);
+
+    // Cronologia personale per entrambe le parti — fire-and-forget.
+    recordHistoryAsync({
+      telegramId: buyerTelegramId,
+      kind: "market_buy",
+      delta: -totalCost,
+      currency: "zoom",
+      meta: {
+        listingId: listing.id,
+        planetType: listing.planetType,
+        price: listing.price,
+        fee,
+      },
+    });
+    recordHistoryAsync({
+      telegramId: listing.sellerTelegramId,
+      kind: "market_sale",
+      delta: listing.price,
+      currency: "zoom",
+      meta: {
+        listingId: listing.id,
+        planetType: listing.planetType,
+        price: listing.price,
+      },
+    });
 
     // Echo the listing's snapshotted Float so the buyer's client can
     // mint the new planet with EXACTLY the perfection score they saw on

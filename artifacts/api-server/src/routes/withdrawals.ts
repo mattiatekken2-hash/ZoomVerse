@@ -4,6 +4,7 @@ import { usersTable, tonWithdrawalsTable } from "@workspace/db/schema";
 import { eq, and, desc, sql, ne, gt } from "drizzle-orm";
 import { z } from "zod";
 import { sendWithdrawalChannelMessage } from "../lib/notify";
+import { recordHistoryAsync } from "../lib/history";
 
 const router = Router();
 
@@ -137,6 +138,18 @@ router.post("/withdrawals/request", async (req, res) => {
     if (result.kind === "err") {
       return res.status(result.status).json({ ok: false, error: result.error });
     }
+    recordHistoryAsync({
+      telegramId,
+      kind: "withdraw_request",
+      delta: -(amountTon + WITHDRAWAL_FEE_TON),
+      currency: "ton",
+      meta: {
+        withdrawalId: result.withdrawal.id,
+        amountTon,
+        feeTon: WITHDRAWAL_FEE_TON,
+        wallet,
+      },
+    });
     return res.json({
       ok: true,
       withdrawal: result.withdrawal,

@@ -2661,3 +2661,32 @@ export async function redeemServerCode(telegramId: string, code: string): Promis
     return { ok: false, error: "NETWORK" };
   }
 }
+
+// ─── Cronologia personale ──────────────────────────────────────────────
+// Eventi monetari (zoom/ton/stardust/stars/spins/planet) degli ultimi 48h
+// per l'utente loggato. Il server applica già il filtro 48h e l'ordine
+// (più recente prima); il cron pulisce poi le righe oltre il limite.
+export type HistoryCurrency =
+  | "zoom" | "ton" | "stardust" | "stars" | "spins" | "planet" | "none";
+
+export interface HistoryEntry {
+  id: number;
+  kind: string;
+  delta: number;
+  currency: HistoryCurrency;
+  createdAt: number; // unix ms
+  meta?: Record<string, unknown> | null;
+}
+
+export async function fetchHistory(telegramId: string): Promise<HistoryEntry[]> {
+  try {
+    const res = await fetch(`${API_BASE}/history/list/${encodeURIComponent(telegramId)}`, {
+      headers: apiHeaders(),
+    });
+    if (!res.ok) return [];
+    const j = await res.json().catch(() => ({} as { entries?: HistoryEntry[] }));
+    return Array.isArray(j.entries) ? j.entries : [];
+  } catch {
+    return [];
+  }
+}

@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
+import { recordHistoryAsync } from "../lib/history";
 
 const router: IRouter = Router();
 
@@ -421,6 +422,25 @@ router.post("/wheel/spin/claim", async (req, res) => {
     if (out.kind === "already") {
       res.json({ ok: true, alreadyClaimed: true });
       return;
+    }
+
+    // Cronologia personale: registra il premio appena creditato.
+    if (out.prize.type === "zoom" && typeof out.prize.zoomAmount === "number" && out.prize.zoomAmount > 0) {
+      recordHistoryAsync({
+        telegramId,
+        kind: "wheel_prize",
+        delta: out.prize.zoomAmount,
+        currency: "zoom",
+        meta: { prizeLabel: out.prize.label },
+      });
+    } else if (out.prize.type === "planet" && out.prize.planetType) {
+      recordHistoryAsync({
+        telegramId,
+        kind: "wheel_prize",
+        delta: 1,
+        currency: "planet",
+        meta: { planetType: out.prize.planetType, prizeLabel: out.prize.label },
+      });
     }
 
     // Push to public feed only AFTER the credit transaction commits, so

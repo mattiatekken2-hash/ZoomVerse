@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { usersTable, appSettingsTable } from "@workspace/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { z } from "zod";
+import { recordHistoryAsync } from "../lib/history";
 
 const router: IRouter = Router();
 
@@ -155,6 +156,14 @@ router.post("/stardust/collect", async (req, res) => {
       return { upd, globalTotal: Number(g?.valueNum ?? 0) };
     });
 
+    if (txResult) {
+      recordHistoryAsync({
+        telegramId,
+        kind: "stardust_collect",
+        delta: 1,
+        currency: "stardust",
+      });
+    }
     if (!txResult) {
       // Lost the race (cap reached or sun lost between read and write).
       // Re-read the authoritative current state so the client doesn't show

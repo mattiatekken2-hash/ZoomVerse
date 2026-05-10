@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
+import { recordHistoryAsync } from "../lib/history";
 
 const router: IRouter = Router();
 
@@ -327,6 +328,12 @@ router.post("/home/computer/buy", async (req, res) => {
       computerOwnedAt: updated[0]!.computerOwnedAt,
       computerLastClaimAt: updated[0]!.computerLastClaimAt,
     });
+    recordHistoryAsync({
+      telegramId,
+      kind: "computer_buy",
+      delta: -COMPUTER_COST,
+      currency: "stardust",
+    });
   } catch (err) {
     console.error("[home/computer/buy] error:", err);
     res.status(500).json({ ok: false, error: "INTERNAL" });
@@ -391,6 +398,12 @@ router.post("/home/computer/claim", async (req, res) => {
       reward: COMPUTER_REWARD,
       stardustBalance: updated[0]!.stardustBalance,
       computerLastClaimAt: updated[0]!.computerLastClaimAt,
+    });
+    recordHistoryAsync({
+      telegramId,
+      kind: "computer_claim",
+      delta: COMPUTER_REWARD,
+      currency: "stardust",
     });
   } catch (err) {
     console.error("[home/computer/claim] error:", err);
@@ -684,6 +697,12 @@ router.post("/home/plant/buy", async (req, res) => {
       stardustBalance: updated[0]!.stardustBalance,
       plantOwnedAt: updated[0]!.plantOwnedAt,
     });
+    recordHistoryAsync({
+      telegramId,
+      kind: "plant_buy",
+      delta: -PLANT_SEED_COST,
+      currency: "stardust",
+    });
   } catch (err) {
     console.error("[home/plant/buy] error:", err);
     res.status(500).json({ ok: false, error: "INTERNAL" });
@@ -802,6 +821,13 @@ router.post("/home/plant/water", async (req, res) => {
       leveledUp: row.plantXp === 0,
       maxedOut: row.plantLevel >= PLANT_MAX_LEVEL,
     });
+    recordHistoryAsync({
+      telegramId,
+      kind: "plant_water",
+      delta: -PLANT_WATER_COST,
+      currency: "stardust",
+      meta: { plantLevel: row.plantLevel },
+    });
   } catch (err) {
     console.error("[home/plant/water] error:", err);
     res.status(500).json({ ok: false, error: "INTERNAL" });
@@ -876,6 +902,12 @@ router.post("/home/plant/claim", async (req, res) => {
       reward: PLANT_TON_REWARD,
       tonBalance: updated[0]!.tonBalance,
       plantLastClaimAt: updated[0]!.plantLastClaimAt,
+    });
+    recordHistoryAsync({
+      telegramId,
+      kind: "plant_claim",
+      delta: PLANT_TON_REWARD,
+      currency: "ton",
     });
   } catch (err) {
     console.error("[home/plant/claim] error:", err);
