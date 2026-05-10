@@ -286,21 +286,14 @@ export function StakingWidget({ telegramId, planets, sunCountClient, sunFarmStar
       rewardTonPerMonth: REWARD_TON[meta.kind],
       requiresSunInInventory: meta.kind !== "v1" && meta.kind !== "sun",
     } as StakingSetStatus;
-    // Live ticking accrual for V1/SUN (continuous): linear from startedAtMs.
-    // For dynamic tiers we keep the server snapshot — accrual is only valid
-    // while currently active, and the next poll will refresh the snapshot.
-    const liveAccrued = (() => {
-      if (t.startedAtMs <= 0) return 0;
-      if (meta.kind === "v1" || meta.kind === "sun") {
-        return Math.max(0, (now - t.startedAtMs) / PERIOD_MS) * (t.rewardTonPerMonth ?? REWARD_TON[meta.kind]);
-      }
-      // Dynamic tier: extrapolate live-ticking only when currently accruing.
-      if (!t.isAccruing) return t.accruedTon;
-      // Server returns accruedTon as of nowMs; we have no server nowMs here
-      // for the snapshot reference, so just show the snapshot — it refreshes
-      // every 30s. Avoids divergence between client/server clocks.
-      return t.accruedTon;
-    })();
+    // Display the server snapshot for ALL tiers (V1/SUN included now).
+    // Previously V1/SUN linearly extrapolated `(now - startedAtMs) * rate`
+    // which kept ticking forever even when the server had paused
+    // accrual (e.g. SUN cycle expired or admin removed the SUN). The
+    // snapshot refreshes every 30s, plus an immediate refresh on SUN
+    // inventory/cycle changes — so the displayed value never drifts
+    // upward while production is paused.
+    const liveAccrued = t.accruedTon;
     return { meta, status: t, liveAccrued };
   });
 
