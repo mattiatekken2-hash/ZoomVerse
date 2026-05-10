@@ -1470,12 +1470,12 @@ export async function fetchProfile(telegramId: string): Promise<UserProfile> {
   } catch { return { exists: false }; }
 }
 
-export async function recordCraft(telegramId: string, planetType: string): Promise<void> {
+export async function recordCraft(telegramId: string, planetType: string, cost?: number): Promise<void> {
   try {
     await fetch(`${API_BASE}/craft/record`, {
       method: "POST",
       headers: apiHeaders(),
-      body: JSON.stringify({ telegramId, planetType }),
+      body: JSON.stringify({ telegramId, planetType, ...(typeof cost === "number" && cost > 0 ? { cost } : {}) }),
     });
   } catch { /**/ }
 }

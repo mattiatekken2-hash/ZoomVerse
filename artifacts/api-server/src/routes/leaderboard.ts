@@ -259,26 +259,16 @@ const CraftBody = z.object({
   // a Lab craft rolls one, but we don't currently track its lifetime
   // count (no totalCraftedMythic column yet) — see the field map below.
   planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "GOLD", "V1"]),
+  // Costo reale in $ZOOM speso per questo forge (= numero totale di tap).
+  // Sanity-clamped: in normali condizioni va da ~75 (BASIC) a ~1310 (V1).
+  cost: z.number().int().min(1).max(5000).optional(),
 });
-
-// Costo $ZOOM per ciascun tipo di pianeta. Mirror dei costi client in
-// `useGameState.ts` (PLANET_TYPES[*].craftCost). Usati solo per loggare
-// la cronologia personale: il bilancio resta client-authoritative
-// (vedi replit.md → "Client-Authoritative Balance").
-const CRAFT_COST_BY_TYPE: Record<string, number> = {
-  BASIC: 20,
-  RARE: 40,
-  EPIC: 80,
-  MYTHIC: 115,
-  GOLD: 150,
-  V1: 250,
-};
 
 router.post("/craft/record", async (req, res) => {
   const parsed = CraftBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid body" }); return; }
 
-  const { telegramId, planetType } = parsed.data;
+  const { telegramId, planetType, cost } = parsed.data;
   const fieldMap: Record<string, "totalCraftedBasic" | "totalCraftedRare" | "totalCraftedEpic" | "totalCraftedMythic" | "totalCraftedGold" | "totalCraftedV1" | null> = {
     BASIC: "totalCraftedBasic",
     RARE: "totalCraftedRare",
@@ -316,9 +306,11 @@ router.post("/craft/record", async (req, res) => {
     bumpZoomPriceFireAndForget("craft", telegramId);
     res.json({ ok: true });
 
-    // Cronologia personale: forge nel LAB → uscita di $ZOOM.
-    const cost = CRAFT_COST_BY_TYPE[planetType];
-    if (cost && cost > 0) {
+    // Cronologia personale: forge nel LAB → uscita di $ZOOM. Il costo è
+    // il totale dei tap spesi (1 ZOOM/tap), inviato dal client perché è
+    // una variabile per-forge (= goal randomizzato base+0..10) e il bilancio
+    // resta client-authoritative.
+    if (typeof cost === "number" && cost > 0) {
       recordHistoryAsync({
         telegramId,
         kind: "craft_planet",

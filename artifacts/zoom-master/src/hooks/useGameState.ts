@@ -154,6 +154,9 @@ export interface GameState {
   lastDailyClaimAt: number;
   feedEvents: FeedEvent[];
   pendingPlanet: Planet | null;
+  /** ZOOM tap-cost spent on the planet currently waiting to be claimed
+   *  (= goal at completion). Used purely for the personal history log. */
+  pendingPlanetCost: number;
   currentCraftRarity: PlanetType | null;
   usedRedeemCodes: string[];
   sun: SunState | null;
@@ -551,6 +554,7 @@ const INITIAL_STATE: GameState = {
   lastDailyClaimAt: 0,
   feedEvents: [],
   pendingPlanet: null,
+  pendingPlanetCost: 0,
   currentCraftRarity: null,
   usedRedeemCodes: [],
   sun: null,
@@ -677,6 +681,7 @@ function loadState(): GameState {
           ...parsed,
           planets: migratedPlanets,
           pendingPlanet: parsed.pendingPlanet ? migratePlanet(parsed.pendingPlanet) : null,
+          pendingPlanetCost: typeof parsed.pendingPlanetCost === "number" ? parsed.pendingPlanetCost : 0,
           usedRedeemCodes: parsed.usedRedeemCodes || [],
           sun: parsed.sun || null,
           referralSpeedBonus: parsed.referralSpeedBonus ?? 0,
@@ -2617,6 +2622,7 @@ export function useGameState() {
             goal: 50,
             currentCraftRarity: null,
             pendingPlanet: null,
+            pendingPlanetCost: 0,
           };
           schedulePersist(next);
           return next;
@@ -2630,6 +2636,9 @@ export function useGameState() {
       // inventory. Otherwise, if the user closes the app before claiming,
       // pendingPlanet is local-only and gets lost on next session, leaving
       // total_crafted_X inflated and the planet gone (the MYTHIC bug).
+      // `goal` here equals the total taps for this craft, and since each tap
+      // costs 1 ZOOM (line ~2607), it equals the ZOOM spent on this forge.
+      const craftCost = goal;
       setState((prev) => {
         const next: GameState = {
           ...(planet.name === "GOLD"
@@ -2640,6 +2649,7 @@ export function useGameState() {
           goal: 50,
           currentCraftRarity: null,
           pendingPlanet: planet,
+          pendingPlanetCost: craftCost,
           craftsCompleted: prev.craftsCompleted + 1,
         };
         // Persist in idle time so the tap stays at 60fps. Page-hide and unload
@@ -2667,6 +2677,7 @@ export function useGameState() {
   const claimCraft = useCallback((): { ok: boolean; reason?: string } => {
     let outcome: { ok: boolean; reason?: string } = { ok: true };
     let claimedName: PlanetType | null = null;
+    let claimedCost = 0;
     setState((prev) => {
       if (!prev.pendingPlanet) { outcome = { ok: false, reason: "No planet to claim" }; return prev; }
       // Hard slot guard: between the moment the planet finished forging and
@@ -2679,10 +2690,12 @@ export function useGameState() {
         return prev;
       }
       claimedName = prev.pendingPlanet.name;
+      claimedCost = prev.pendingPlanetCost || 0;
       return {
         ...prev,
         planets: [...prev.planets, prev.pendingPlanet],
         pendingPlanet: null,
+        pendingPlanetCost: 0,
       };
     });
     // Increment the leaderboard counter ONLY after the planet is committed
@@ -2696,7 +2709,7 @@ export function useGameState() {
         // global profile so that the "My Profile" panel in RankPage
         // reflects the new craft in real-time (otherwise the user would
         // have to wait up to 15s for the next periodic poll).
-        void recordCraft(tid, claimedName).then(() => {
+        void recordCraft(tid, claimedName, claimedCost).then(() => {
           try { window.dispatchEvent(new Event("zoom-data-refresh")); } catch { /**/ }
         });
       }
