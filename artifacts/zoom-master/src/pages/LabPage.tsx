@@ -8,6 +8,7 @@ import { WhiteCollectionWidget } from "../components/WhiteCollectionWidget";
 import { EarthCollectionWidget } from "../components/EarthCollectionWidget";
 import { BlackCollectionWidget } from "../components/BlackCollectionWidget";
 import { LottoStellareWidget } from "../components/LottoStellareWidget";
+import { LabRankWidget } from "../components/LabRankWidget";
 import { V1NftWidget } from "../components/V1NftWidget";
 import { ExchangeWidget } from "../components/ExchangeWidget";
 import type { Planet, PlanetType } from "../hooks/useGameState";
@@ -218,6 +219,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       <EarthCollectionWidget telegramId={telegramId} unlocked={earthCollectionUnlocked} ownedBundles={earthCollectionBundles} sunCount={sunCount} />
       <BlackCollectionWidget telegramId={telegramId} unlocked={blackCollectionUnlocked} ownedBundles={blackCollectionBundles} />
       <LottoStellareWidget telegramId={telegramId} />
+      <LabRankWidget telegramId={telegramId} sunCount={sunCount} />
       <V1NftWidget telegramId={telegramId} />
       {/* Space-merchant radar LED — small red blink near the Earth widget so
           the user spots the encounter even with the popup minimised by a tab

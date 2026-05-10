@@ -281,6 +281,21 @@ router.post("/craft/record", async (req, res) => {
       .update(usersTable)
       .set({ [field]: sql`${usersTable[field]} + 1` })
       .where(eq(usersTable.telegramId, telegramId));
+
+    // MONTHLY LAB LEADERBOARD: bump lab_points +1 SOLO se l'utente:
+    //   1. possiede SUN (sun_count > 0)
+    //   2. ha pagato la quota del round attivo corrente
+    //      (lab_round_id == lab_rounds.id WHERE status='active')
+    // L'eligibility è verificata interamente nel WHERE — nessuna race,
+    // nessun extra round-trip per check separato.
+    await db.execute(sql`
+      UPDATE users
+      SET lab_points = lab_points + 1
+      WHERE telegram_id = ${telegramId}
+        AND sun_count > 0
+        AND lab_round_id IN (SELECT id FROM lab_rounds WHERE status = 'active')
+    `);
+
     // Bump the global $ZOOM price — every successful craft mints supply
     // and contributes a small upward nudge. Fire-and-forget. Per-user
     // cooldown blocks scripted /craft/record loops from pumping the price.

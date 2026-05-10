@@ -299,6 +299,23 @@ export const usersTable = pgTable("users", {
   // credit, regardless of how active the seller was in between.
   // ─────────────────────────────────────────────────────────────────────
   pendingZoomCredits: real("pending_zoom_credits").notNull().default(0),
+
+  // ─────────────────────────────────────────────────────────────────────
+  // MONTHLY LAB LEADERBOARD
+  //
+  // `labPoints` accumula +1 per ogni pianeta forgiato nel Lab (claim
+  // confermato), gated server-side da /craft/record SOLO se l'utente:
+  //   1. possiede almeno 1 SUN (sun_count > 0)
+  //   2. ha pagato la quota d'iscrizione del round attivo corrente
+  //      (labRoundId == lab_rounds.id WHERE status='active')
+  //
+  // Alla chiusura del round (manuale, admin), labPoints viene resettato
+  // a 0 per TUTTI gli utenti e si apre un nuovo round con id diverso —
+  // così il check `labRoundId == active_round.id` cade automaticamente
+  // e nessuno accumula punti finché non rip-aga.
+  // ─────────────────────────────────────────────────────────────────────
+  labPoints: integer("lab_points").notNull().default(0),
+  labRoundId: integer("lab_round_id").notNull().default(0),
 }, (table) => [
   index("idx_users_zoom_balance").on(table.zoomBalance),
   index("idx_users_referred_by").on(table.referredBy),

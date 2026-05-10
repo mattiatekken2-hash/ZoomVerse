@@ -42,6 +42,9 @@ import {
   adminFetchLottoDashboard,
   adminLottoDraw,
   type LottoAdminDashboard,
+  adminFetchLabRankDashboard,
+  adminCloseLabRank,
+  type LabRankAdminDashboard,
   adminCreateRedeemCode,
   adminListRedeemCodes,
   type AdminRedeemCode,
@@ -1261,6 +1264,11 @@ export function AdminPanel({ telegramId }: Props) {
                 {/* LOTTO STELLARE — admin dashboard */}
                 <LottoAdminSection adminId={telegramId} onFeedback={showFeedback} />
 
+                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+
+                {/* CLASSIFICA MENSILE LAB — admin dashboard + close season */}
+                <LabRankAdminSection adminId={telegramId} onFeedback={showFeedback} />
+
                 <AnimatePresence>
                   {feedback && (
                     <motion.div
@@ -1472,6 +1480,197 @@ function LottoAdminSection({ adminId, onFeedback }: LottoAdminSectionProps) {
               </div>
               <div>
                 Premio: <b style={{ color: "#ffd84d" }}>{(h.prizeTon ?? 0).toFixed(4)} TON</b> · Profitto: <b style={{ color: "#00f264" }}>{(h.profitTon ?? 0).toFixed(4)} TON</b>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+interface LabRankAdminSectionProps {
+  adminId: string;
+  onFeedback: (msg: string, ok: boolean) => void;
+}
+
+function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) {
+  const [dash, setDash] = useState<LabRankAdminDashboard | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    const d = await adminFetchLabRankDashboard(adminId);
+    setLoading(false);
+    if (d) setDash(d);
+  }, [adminId]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const handleClose = async () => {
+    haptic();
+    if (!confirmClose) {
+      setConfirmClose(true);
+      setTimeout(() => setConfirmClose(false), 4000);
+      return;
+    }
+    if (!dash?.round.id) {
+      onFeedback("✗ Dashboard non caricata: aggiorna prima di chiudere", false);
+      return;
+    }
+    setClosing(true);
+    const res = await adminCloseLabRank(adminId, dash.round.id);
+    setClosing(false);
+    setConfirmClose(false);
+    if (res.ok) {
+      const winnerName = res.winner?.name || "Nessun vincitore";
+      const credited = res.credited?.length || 0;
+      onFeedback(`✓ Stagione chiusa · #1: ${winnerName} (${(res.prizeTon || 0).toFixed(4)} TON da pagare) · ${credited} stardust auto-pagati`, true);
+      refresh();
+    } else {
+      const msg = res.error === "NO_ACTIVE_ROUND" ? "Nessun round attivo" : res.error || "Errore chiusura";
+      onFeedback(`✗ ${msg}`, false);
+    }
+  };
+
+  const pool = dash?.poolTon ?? 0;
+  const prize = dash?.prizeToPayTon ?? 0;
+  const profit = dash?.profitTon ?? 0;
+  const participants = dash?.round.participants ?? 0;
+  const threshold = dash?.round.threshold ?? 20;
+  const isActivated = participants >= threshold;
+
+  return (
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontSize: 10, color: "rgba(255,215,0,0.75)", letterSpacing: "0.08em", fontWeight: 800 }}>
+          🏆 CLASSIFICA MENSILE LAB
+        </div>
+        <motion.button
+          whileTap={{ scale: 0.93 }}
+          onClick={() => { haptic(); refresh(); }}
+          style={{
+            padding: "4px 10px",
+            borderRadius: 8,
+            border: "1px solid rgba(255,255,255,0.15)",
+            background: "rgba(255,255,255,0.04)",
+            color: "rgba(255,255,255,0.7)",
+            fontSize: 10,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          {loading ? "..." : "↻ AGGIORNA"}
+        </motion.button>
+      </div>
+
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr 1fr",
+        gap: 6,
+        padding: 10,
+        borderRadius: 10,
+        background: "linear-gradient(135deg, rgba(255,215,0,0.06), rgba(255,140,0,0.04))",
+        border: "1px solid rgba(255,215,0,0.2)",
+      }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Pool TON</div>
+          <div style={{ fontSize: 16, fontWeight: 900, color: "#fff", marginTop: 2 }}>{pool.toFixed(4)}</div>
+          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>raccolto</div>
+        </div>
+        <div style={{ textAlign: "center", borderLeft: "1px solid rgba(255,255,255,0.08)", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Premio 80%</div>
+          <div style={{ fontSize: 16, fontWeight: 900, color: "#ffd700", marginTop: 2 }}>{prize.toFixed(4)}</div>
+          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>al #1</div>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Profit 20%</div>
+          <div style={{ fontSize: 16, fontWeight: 900, color: "#00f264", marginTop: 2 }}>{profit.toFixed(4)}</div>
+          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>tuo netto</div>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(255,255,255,0.6)", padding: "0 4px" }}>
+        <span>Round #{dash?.round.id ?? "—"}</span>
+        <span>
+          {participants}/{threshold} partecipanti {isActivated ? "· ✓ ATTIVA" : "· in attivazione"}
+        </span>
+      </div>
+
+      {dash?.currentLeader && (
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          fontSize: 11, padding: "8px 10px", borderRadius: 8,
+          background: "rgba(255,215,0,0.08)",
+          border: "1px solid rgba(255,215,0,0.25)",
+        }}>
+          <span style={{ color: "rgba(255,255,255,0.65)", letterSpacing: "0.04em" }}>
+            👑 Leader corrente
+          </span>
+          <span style={{ color: "#ffd700", fontWeight: 800 }}>
+            {dash.currentLeader.name} · {dash.currentLeader.labPoints} pt
+          </span>
+        </div>
+      )}
+
+      {dash && dash.top20.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto", padding: 8, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", marginBottom: 2 }}>TOP 20 — PAYOUT PREVIEW</div>
+          {dash.top20.map((r) => (
+            <div key={r.telegramId} style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#fff", padding: "3px 4px" }}>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }}>
+                #{r.rank} {r.name} · {r.labPoints} pt
+              </span>
+              <span style={{ color: r.rank === 1 ? "#ffd700" : "rgba(255,255,255,0.7)" }}>
+                {r.rank === 1 ? `${prize.toFixed(3)} TON` : r.stardustPayout > 0 ? `${r.stardustPayout} ★` : "—"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <motion.button
+        whileTap={{ scale: 0.93 }}
+        onClick={handleClose}
+        disabled={closing}
+        style={{
+          padding: "11px",
+          borderRadius: 10,
+          border: `1px solid ${confirmClose ? "rgba(255,215,0,0.6)" : "rgba(255,215,0,0.3)"}`,
+          background: confirmClose ? "rgba(255,215,0,0.18)" : "rgba(255,215,0,0.08)",
+          color: "#ffd700",
+          fontSize: 12,
+          fontWeight: 800,
+          letterSpacing: "0.06em",
+          cursor: closing ? "not-allowed" : "pointer",
+          opacity: closing ? 0.5 : 1,
+          transition: "all 0.2s",
+          boxShadow: confirmClose ? "0 0 14px rgba(255,215,0,0.3)" : "none",
+        }}
+        data-testid="button-close-lab-rank-season"
+      >
+        {closing ? "..." : confirmClose ? "⚠ CONFERMA CHIUSURA STAGIONE (tap)" : "🏁 CHIUDI STAGIONE & PAYOUT"}
+      </motion.button>
+      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", lineHeight: 1.4 }}>
+        Chiude la stagione corrente: <b style={{ color: "#ffd700" }}>il #1 va pagato manualmente in TON dal tuo wallet</b> ({prize.toFixed(4)} TON). Stardust per i ranghi 2–20 vengono accreditati automaticamente. Dopo la chiusura, lab_points di tutti viene azzerato e parte una nuova stagione.
+      </div>
+
+      {dash && dash.history.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto", padding: 8, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", marginBottom: 2 }}>STORICO STAGIONI</div>
+          {dash.history.map((h) => (
+            <div key={h.id} style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "rgba(255,255,255,0.7)", padding: "4px 4px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Stagione #{h.id}</span>
+                <span>{h.closedAt ? new Date(h.closedAt).toLocaleString() : ""}</span>
+              </div>
+              <div>
+                #1: <b style={{ color: "#fff" }}>{h.winnerTelegramId || "—"}</b> ({h.winnerLabPoints ?? 0} pt)
+              </div>
+              <div>
+                Pool: <b style={{ color: "#fff" }}>{(h.poolTon ?? 0).toFixed(4)}</b> · Premio: <b style={{ color: "#ffd700" }}>{(h.prizeTon ?? 0).toFixed(4)} TON</b> · Profitto: <b style={{ color: "#00f264" }}>{(h.profitTon ?? 0).toFixed(4)} TON</b>
               </div>
             </div>
           ))}

@@ -839,6 +839,95 @@ export async function fetchLottoState(telegramId: string): Promise<LottoStateRes
   } catch { return null; }
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// MONTHLY LAB LEADERBOARD
+// ─────────────────────────────────────────────────────────────────────
+export interface LabRankState {
+  roundId: number;
+  participants: number;
+  threshold: number;
+  isActivated: boolean;
+  poolTon: number;
+  entryTon: number;
+  prizePct: number;
+  stardustPayouts: Record<string, number>;
+  hasSun: boolean;
+  hasPaid: boolean;
+  eligible: boolean;
+  userPoints: number;
+  userRank: number | null;
+  top100: Array<{ rank: number; telegramId: string; name: string; labPoints: number }>;
+}
+
+export async function fetchLabRankState(telegramId: string): Promise<LabRankState | null> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/lab-rank/state?telegramId=${encodeURIComponent(telegramId)}&t=${Date.now()}`,
+      { cache: "no-store", headers: apiHeaders() },
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as LabRankState;
+  } catch {
+    return null;
+  }
+}
+
+export interface LabRankAdminDashboard {
+  round: { id: number; createdAt: string; participants: number; threshold: number };
+  poolTon: number;
+  prizeToPayTon: number;
+  profitTon: number;
+  currentLeader: { telegramId: string; name: string; labPoints: number } | null;
+  top20: Array<{ rank: number; telegramId: string; name: string; labPoints: number; stardustPayout: number }>;
+  history: Array<{
+    id: number;
+    winnerTelegramId: string | null;
+    winnerLabPoints: number | null;
+    prizeTon: number | null;
+    profitTon: number | null;
+    poolTon: number | null;
+    closedAt: string | null;
+  }>;
+}
+
+export async function adminFetchLabRankDashboard(adminId: string): Promise<LabRankAdminDashboard | null> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/admin/lab-rank/dashboard?adminId=${encodeURIComponent(adminId)}&t=${Date.now()}`,
+      { cache: "no-store", headers: apiHeaders() },
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as LabRankAdminDashboard;
+  } catch {
+    return null;
+  }
+}
+
+export interface LabRankCloseResult {
+  ok: boolean;
+  error?: string;
+  roundId?: number;
+  newRoundId?: number;
+  winner?: { telegramId: string; name: string; labPoints: number } | null;
+  poolTon?: number;
+  prizeTon?: number;
+  profitTon?: number;
+  credited?: Array<{ rank: number; telegramId: string; stardust: number }>;
+}
+
+export async function adminCloseLabRank(adminId: string, roundId: number): Promise<LabRankCloseResult> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/lab-rank/close`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, roundId }),
+    });
+    return (await res.json()) as LabRankCloseResult;
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
 export async function adminFetchLottoDashboard(adminId: string): Promise<LottoAdminDashboard | null> {
   try {
     const res = await fetch(`${API_BASE}/admin/lottery/dashboard?adminId=${encodeURIComponent(adminId)}&t=${Date.now()}`, { cache: "no-store" });

@@ -29,6 +29,7 @@ import roomInvitesRouter from "./roomInvites";
 import redeemCodesRouter from "./redeemCodes";
 import economyRouter from "./economy";
 import stakingRouter from "./staking";
+import labRankingRouter from "./labRanking";
 
 const router: IRouter = Router();
 
@@ -135,6 +136,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
     methods: ["GET"],
     paths: [
       "/lottery/state",
+      "/lab-rank/state",
       "/referral/friends",
       "/room-invites/inbox",
       "/room-invites/visitors",
@@ -178,6 +180,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/admin/withdrawals/reject",
       "/admin/maintenance",
       "/admin/lottery/draw",
+      "/admin/lab-rank/close",
       "/admin/disable-user",
       "/admin/enable-user",
       "/admin/bulk-disable",
@@ -264,5 +267,6 @@ router.use(roomInvitesRouter);
 router.use(redeemCodesRouter);
 router.use(economyRouter);
 router.use(stakingRouter);
+router.use(labRankingRouter);
 
 export default router;
