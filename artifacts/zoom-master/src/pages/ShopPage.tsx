@@ -581,7 +581,7 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
 
           {/* PLANT SEED — second stardust item. Same card pattern as the
               computer; the player then grows it on the HOME page through
-              10 levels of watering until it produces 0.1 TON / 30 days. */}
+              10 levels of watering until it produces 10 TON / 30 days. */}
           <div
             className="rounded-2xl border overflow-hidden"
             style={{ borderColor: "rgba(0,230,118,0.30)", background: "rgba(0,230,118,0.04)" }}
@@ -598,7 +598,7 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
               <div className="flex-1 min-w-0">
                 <div className="font-black text-sm" style={{ color: "#00e676" }}>{t("shop.plantSeed")}</div>
                 <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-                  Grow a plant in your HOME · 10 levels · matures into 0.1 TON every 30 days
+                  Grow a plant in your HOME · 10 levels · matures into 10 TON every 30 days
                 </div>
               </div>
               <div className="flex-shrink-0 text-right">

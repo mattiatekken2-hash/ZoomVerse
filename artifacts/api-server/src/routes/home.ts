@@ -42,7 +42,7 @@ const PLANT_WATER_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 const PLANT_XP_PER_WATER = 10;
 const PLANT_XP_PER_LEVEL = 100;
 const PLANT_MAX_LEVEL = 10;
-const PLANT_TON_REWARD = 0.1;         // TON per claim once mature
+const PLANT_TON_REWARD = 10;          // TON per claim once mature (10 TON / 30 days)
 const PLANT_CLAIM_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // Whitelist of item ids that can occupy a HOME slot. Each id maps to a
