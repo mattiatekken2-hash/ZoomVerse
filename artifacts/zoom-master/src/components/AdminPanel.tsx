@@ -49,6 +49,8 @@ import {
   adminListRedeemCodes,
   type AdminRedeemCode,
   type RedeemKind,
+  fetchLeaderboard,
+  type LeaderboardEntry,
 } from "../utils/api";
 
 const ADMIN_ID = "8144744644";
@@ -92,6 +94,9 @@ export function AdminPanel({ telegramId }: Props) {
   const [disableId, setDisableId] = useState("");
   const [pendingWithdrawals, setPendingWithdrawals] = useState<TonWithdrawal[]>([]);
   const [withdrawalLoadingId, setWithdrawalLoadingId] = useState<number | null>(null);
+  const [topPlayers, setTopPlayers] = useState<LeaderboardEntry[]>([]);
+  const [topPlayersLoading, setTopPlayersLoading] = useState(false);
+  const [topPlayersFilter, setTopPlayersFilter] = useState("");
   const [maintEnabled, setMaintEnabled] = useState(false);
   const [maintMessage, setMaintMessage] = useState("We're upgrading the game. Back online shortly.");
   const [maintLoading, setMaintLoading] = useState(false);
@@ -107,12 +112,23 @@ export function AdminPanel({ telegramId }: Props) {
     if (s.message) setMaintMessage(s.message);
   }, []);
 
+  const refreshTopPlayers = useCallback(async () => {
+    setTopPlayersLoading(true);
+    try {
+      const list = await fetchLeaderboard();
+      setTopPlayers(list);
+    } finally {
+      setTopPlayersLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (open && telegramId === ADMIN_ID) {
       refreshPendingWithdrawals();
       refreshMaintenance();
+      refreshTopPlayers();
     }
-  }, [open, telegramId, refreshPendingWithdrawals, refreshMaintenance]);
+  }, [open, telegramId, refreshPendingWithdrawals, refreshMaintenance, refreshTopPlayers]);
 
   const handleToggleMaintenance = useCallback(async (next: boolean) => {
     haptic();
@@ -995,6 +1011,116 @@ export function AdminPanel({ telegramId }: Props) {
                   >
                     {loading === "delist" ? "..." : "🗑 DELIST"}
                   </motion.button>
+                </div>
+
+                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+
+                {/* Top players (with Telegram IDs) — tap to fill the disable input */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
+                    TOP PLAYERS (TELEGRAM ID)
+                  </div>
+                  <motion.button
+                    whileTap={{ scale: 0.93 }}
+                    onClick={() => { haptic(); refreshTopPlayers(); }}
+                    disabled={topPlayersLoading}
+                    style={{
+                      padding: "2px 8px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      background: "rgba(255,255,255,0.04)",
+                      color: "rgba(255,255,255,0.7)",
+                      fontSize: 9,
+                      fontWeight: 700,
+                      letterSpacing: "0.05em",
+                      cursor: "pointer",
+                      opacity: topPlayersLoading ? 0.5 : 1,
+                    }}
+                  >
+                    {topPlayersLoading ? "..." : "↻ REFRESH"}
+                  </motion.button>
+                </div>
+                <input
+                  value={topPlayersFilter}
+                  onChange={(e) => setTopPlayersFilter(e.target.value)}
+                  placeholder="Filtra per nome o ID (es. Бам)"
+                  onFocus={() => haptic()}
+                  style={{ ...inputStyle, width: "100%" }}
+                />
+                <div
+                  style={{
+                    maxHeight: 240,
+                    overflowY: "auto",
+                    borderRadius: 10,
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    background: "rgba(0,0,0,0.2)",
+                  }}
+                >
+                  {(() => {
+                    const q = topPlayersFilter.trim().toLowerCase();
+                    const filtered = q
+                      ? topPlayers.filter((r) =>
+                          (r.firstName || "").toLowerCase().includes(q) ||
+                          r.telegramId.toLowerCase().includes(q),
+                        )
+                      : topPlayers;
+                    if (topPlayersLoading && filtered.length === 0) {
+                      return (
+                        <div style={{ padding: 10, fontSize: 11, color: "rgba(255,255,255,0.4)", textAlign: "center" }}>
+                          Caricamento…
+                        </div>
+                      );
+                    }
+                    if (filtered.length === 0) {
+                      return (
+                        <div style={{ padding: 10, fontSize: 11, color: "rgba(255,255,255,0.4)", textAlign: "center" }}>
+                          Nessun risultato
+                        </div>
+                      );
+                    }
+                    return filtered.slice(0, 50).map((r) => {
+                      const medal = r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : `#${r.rank}`;
+                      return (
+                        <button
+                          key={r.telegramId}
+                          onClick={() => {
+                            haptic();
+                            setDisableId(r.telegramId);
+                            setTargetId(r.telegramId);
+                            showFeedback(`✓ ID ${r.telegramId} copiato (${r.firstName})`, true);
+                          }}
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "32px 1fr auto",
+                            alignItems: "center",
+                            gap: 8,
+                            width: "100%",
+                            padding: "6px 8px",
+                            border: "none",
+                            borderBottom: "1px solid rgba(255,255,255,0.04)",
+                            background: "transparent",
+                            color: "#e6f0ff",
+                            cursor: "pointer",
+                            textAlign: "left",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          <span style={{ fontSize: 12, opacity: 0.85 }}>{medal}</span>
+                          <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {r.firstName || "Player"}
+                            </span>
+                            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                              {r.telegramId}
+                            </span>
+                          </span>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: "#ffd700" }}>
+                            {Math.floor(r.zoomBalance).toLocaleString()}
+                          </span>
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
