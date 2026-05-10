@@ -336,7 +336,10 @@ router.get("/staking/status", async (req, res) => {
       const v1ActiveCount = countActiveV1(planetsArr, now);
       const v1TotalCount = countV1(planetsArr);
       const sunTotalCount = r.sunCount ?? 0;
-      const v1Producing = v1ActiveCount >= STAKING_REQUIRED_COUNT;
+      // ALL tiers (V1 included) require an active SUN in inventory.
+      // Removing the SUN via admin panel, or letting the SUN cycle
+      // expire, freezes every TON staking line — no exceptions.
+      const v1Producing = v1ActiveCount >= STAKING_REQUIRED_COUNT && sActive;
       const sunProducing = sunTotalCount >= STAKING_REQUIRED_COUNT && sunCycleActive;
       const v1Settled  = settleContinuousTier(r, "v1",  v1Producing,  v1ActiveCount, v1TotalCount, now);
       const sunSettled = settleContinuousTier(r, "sun", sunProducing, sunTotalCount, sunTotalCount, now);
@@ -417,7 +420,9 @@ router.get("/staking/status", async (req, res) => {
         accruedTon: v1Settled.accruedTon,
         isAccruing: v1Settled.isAccruing,
         rewardTonPerMonth: v1Settled.rewardTonPerMonth,
-        requiresSunInInventory: false,
+        // V1 staking now requires an active SUN too — surface that to
+        // the client so the "Activate your SUN" banner is shown.
+        requiresSunInInventory: true,
       },
       sun: {
         // Eligible to START requires 4 SUN owned AND the SUN cycle to
@@ -475,6 +480,12 @@ router.post("/staking/start", async (req, res) => {
     const now = Date.now();
     const planets = asArray(row.planetsJson);
 
+    // SUN-active gate, computed once for both v1 and dynamic tiers below.
+    const _sunFarmStartedAtMs = row.sunFarmStartedAtMs ?? 0;
+    const _sunIsActive = (row.sunCount ?? 0) >= 1
+      && _sunFarmStartedAtMs > 0
+      && (now - _sunFarmStartedAtMs) <= FARM_DURATION_MS;
+
     if (kind === "v1") {
       const totalCount = countV1(planets);
       const activeCount = countActiveV1(planets, now);
@@ -485,6 +496,11 @@ router.post("/staking/start", async (req, res) => {
           activeCount,
           required: STAKING_REQUIRED_COUNT,
         });
+      }
+      // V1 staking now also requires an active SUN in inventory (parity
+      // with all other tiers — admin removing the SUN must freeze V1 too).
+      if (!_sunIsActive) {
+        return res.status(400).json({ error: "SUN_REQUIRED" });
       }
       const existing = row.stakingV1StartedAtMs ?? 0;
       if (existing > 0) {
@@ -499,14 +515,11 @@ router.post("/staking/start", async (req, res) => {
       return res.json({ kind, startedAtMs: now, accruedTon: 0, nowMs: now });
     }
 
-    // Helper: SUN is "active" only when its 24h farming cycle hasn't expired.
-    // Owning a SUN that's "EXPIRED — Reactivate" no longer counts as having
-    // an active SUN, so dynamic-tier staking won't accrue until the user
-    // pays the reactivation fee and starts a fresh cycle.
-    const sunFarmStartedAtMs = row.sunFarmStartedAtMs ?? 0;
-    const sunIsActive = (row.sunCount ?? 0) >= 1
-      && sunFarmStartedAtMs > 0
-      && (now - sunFarmStartedAtMs) <= FARM_DURATION_MS;
+    // Re-export the shared sun-active check under the previous local
+    // names for the rest of the handler (kept for minimal diff).
+    const sunFarmStartedAtMs = _sunFarmStartedAtMs;
+    const sunIsActive = _sunIsActive;
+    void sunFarmStartedAtMs;
 
     if (kind === "sun") {
       const count = row.sunCount ?? 0;
