@@ -2519,8 +2519,102 @@ export function useGameState() {
       }
     };
 
+    // Admin self-credit: explicit local mint that mirrors handleAdminSelfDecrement
+    // for the "add" side. Same scope/safety rationale — only fires from the
+    // admin button when targeting the operating user. This guarantees the
+    // first click reflects on the device without waiting for the /grants
+    // poll, which can lose a race against in-flight syncs.
+    const handleAdminSelfIncrement = (e: Event) => {
+      const detail = (e as CustomEvent<{ type: string; amount: number; planetType?: string }>).detail;
+      if (!detail) return;
+      const { type, amount, planetType } = detail;
+      const n = Math.max(0, Math.floor(amount || 0));
+      if (n <= 0) return;
+
+      if (type === "zoom") {
+        // Reuse the existing local-credit pipeline: mutates balance and
+        // immediately syncs to server with the current epoch.
+        window.dispatchEvent(new CustomEvent("zoom-credit-local", { detail: { amount: n } }));
+        return;
+      }
+
+      if (type === "slots") {
+        setState((prev) => ({ ...prev, maxSlots: (prev.maxSlots || INITIAL_STATE.maxSlots) + n }));
+        return;
+      }
+
+      if (type === "planets" && planetType) {
+        setState((prev) => {
+          if (planetType === "SUN") {
+            if (prev.sun?.isOwned) return { ...prev, claimedBonusSun: true, sunCount: Math.max(1, prev.sunCount || 1) };
+            return {
+              ...prev,
+              claimedBonusSun: true,
+              sunCount: 1,
+              sun: {
+                isOwned: true,
+                isActive: false,
+                activationCost: SUN_CONFIG.activationCostBase,
+                cycleCount: 0,
+                farmStartedAt: 0,
+                lastCollectedAt: 0,
+              },
+            };
+          }
+          const cfg = PLANET_CONFIG[planetType as PlanetType];
+          if (!cfg) return prev;
+          const now = serverNow();
+          const availableSlots = (prev.maxSlots || INITIAL_STATE.maxSlots) - prev.planets.length;
+          const actuallyAdd = Math.min(n, Math.max(0, availableSlots));
+          if (actuallyAdd <= 0) {
+            setTimeout(() => {
+              toast({ title: "Slots full", description: `Free up a slot to receive your bonus: ${n} ${cfg.label}` });
+            }, 0);
+            return prev;
+          }
+          const newPlanets: Planet[] = [];
+          for (let i = 0; i < actuallyAdd; i++) {
+            newPlanets.push({
+              id: `bonus-${planetType}-${now}-${i}-${Math.random().toString(36).slice(2)}`,
+              name: planetType as PlanetType,
+              rate: cfg.rate,
+              color: cfg.color,
+              glowColor: cfg.glowColor,
+              createdAt: now,
+              farmStartedAt: 0,
+              lastCollectedAt: 0,
+              isListedInMarket: false,
+              isFarmingActive: false,
+              marketPrice: null,
+              craftCost: cfg.craftCost,
+              float: generateRandomFloat(),
+            });
+          }
+          const claimedKey = (
+            planetType === "BASIC"  ? "claimedBonusBasic"  :
+            planetType === "RARE"   ? "claimedBonusRare"   :
+            planetType === "EPIC"   ? "claimedBonusEpic"   :
+            planetType === "MYTHIC" ? "claimedBonusMythic" :
+            planetType === "GOLD"   ? "claimedBonusGold"   : null
+          ) as keyof GameState | null;
+          const updated: GameState = { ...prev, planets: [...prev.planets, ...newPlanets] };
+          if (claimedKey) {
+            const cur = (prev[claimedKey] as number) ?? 0;
+            (updated as unknown as Record<string, unknown>)[claimedKey] = cur + actuallyAdd;
+          }
+          // Trigger the immediate (non-debounced) save so the new bonus
+          // planets reach the server before any close — same guard the
+          // applyGrants minting path uses.
+          bonusMintTickRef.current += 1;
+          return updated;
+        });
+        return;
+      }
+    };
+
     window.addEventListener("zoom-admin-refresh", handleAdminRefresh);
     window.addEventListener("zoom-admin-self-decrement", handleAdminSelfDecrement as EventListener);
+    window.addEventListener("zoom-admin-self-increment", handleAdminSelfIncrement as EventListener);
     window.addEventListener("zoom-data-refresh", doSync);
     window.addEventListener("zoom-credit-local", handleLocalCredit as EventListener);
     window.addEventListener("zoom-server-balance-snap", handleServerSnap as EventListener);
@@ -2530,6 +2624,7 @@ export function useGameState() {
       clearInterval(interval);
       window.removeEventListener("zoom-admin-refresh", handleAdminRefresh);
       window.removeEventListener("zoom-admin-self-decrement", handleAdminSelfDecrement as EventListener);
+      window.removeEventListener("zoom-admin-self-increment", handleAdminSelfIncrement as EventListener);
       window.removeEventListener("zoom-data-refresh", doSync);
       window.removeEventListener("zoom-credit-local", handleLocalCredit as EventListener);
       window.removeEventListener("zoom-server-balance-snap", handleServerSnap as EventListener);

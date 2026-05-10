@@ -166,8 +166,9 @@ export function AdminPanel({ telegramId }: Props) {
       // device, we dispatch a dedicated self-decrement event that the
       // game state listens for and applies as an EXPLICIT local mutation.
       // For other targets (or "add" mode), the regular refresh is enough.
-      if (mode === "remove" && id === telegramId) {
-        window.dispatchEvent(new CustomEvent("zoom-admin-self-decrement", {
+      if (id === telegramId) {
+        const eventName = mode === "remove" ? "zoom-admin-self-decrement" : "zoom-admin-self-increment";
+        window.dispatchEvent(new CustomEvent(eventName, {
           detail: { type, amount: val, planetType },
         }));
       }
