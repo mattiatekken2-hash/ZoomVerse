@@ -2,7 +2,6 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
-import { recordHistoryAsync } from "../lib/history";
 
 const router: IRouter = Router();
 
@@ -250,15 +249,6 @@ router.post("/farm/settle", async (req, res) => {
     });
 
     res.json(out);
-    if (out.exists && out.credited > 0) {
-      recordHistoryAsync({
-        telegramId,
-        kind: "farming_claim",
-        delta: out.credited,
-        currency: "zoom",
-        meta: { settledAtMs: out.settledAtMs },
-      });
-    }
   } catch (err) {
     console.error("[farm/settle] error:", err);
     res.status(500).json({ error: "INTERNAL" });
