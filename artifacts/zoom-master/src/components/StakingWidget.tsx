@@ -174,6 +174,10 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
             <div className="text-[11px] font-bold mb-1" style={{ color: "rgba(255,140,0,0.95)" }}>
               Activate {REQUIRED} {meta.label} farms ({activeCount}/{REQUIRED} active) to unlock TON staking
             </div>
+          ) : requiresSun && count < REQUIRED ? (
+            <div className="text-[11px] font-bold mb-1" style={{ color: "rgba(255,82,82,0.85)" }}>
+              Collect {REQUIRED} {meta.label} Planets ({count}/{REQUIRED} owned · {activeCount}/{REQUIRED} actively farming)
+            </div>
           ) : (
             <div className="text-[11px] font-bold mb-1" style={{ color: "rgba(255,82,82,0.85)" }}>
               Collect {REQUIRED} {meta.label} Planets to unlock TON farming
@@ -183,7 +187,7 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
             <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
               <div
                 style={{
-                  width: `${Math.min(100, ((requiresSun ? activeCount : count) / REQUIRED) * 100)}%`,
+                  width: `${Math.min(100, ((requiresSun ? Math.max(activeCount, Math.min(count, REQUIRED)) : count) / REQUIRED) * 100)}%`,
                   height: "100%",
                   background: meta.color,
                   transition: "width 0.4s ease",
@@ -191,7 +195,7 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
               />
             </div>
             <span className="text-[10px] font-black tabular-nums" style={{ color: "rgba(255,255,255,0.7)" }}>
-              {Math.min(requiresSun ? activeCount : count, REQUIRED)}/{REQUIRED}
+              {Math.min(requiresSun ? Math.max(activeCount, Math.min(count, REQUIRED)) : count, REQUIRED)}/{REQUIRED}
             </span>
           </div>
           <button disabled className="btn-widget w-full text-xs font-black tracking-wider mt-2" style={{ opacity: 0.35, cursor: "not-allowed" }}>
