@@ -113,10 +113,10 @@ function ExchangeModal({
         >
           <div style={{ fontSize: 28, textAlign: "center", marginBottom: 8 }}>☀️</div>
           <div style={{ color: "#ffb347", fontSize: 14, fontWeight: 800, textAlign: "center", letterSpacing: 1.2 }}>
-            SERVE UN PIANETA SUN
+            SUN PLANET REQUIRED
           </div>
           <div style={{ color: "rgba(220,235,255,0.7)", fontSize: 12, textAlign: "center", marginTop: 8, lineHeight: 1.5 }}>
-            Per accedere al cambio ZOOM ~ TON devi possedere almeno un pianeta SUN nel tuo inventario.
+            You need to own at least one SUN planet in your inventory to access the ZOOM ~ TON exchange.
           </div>
           <button
             onClick={onClose}
@@ -126,7 +126,7 @@ function ExchangeModal({
               color: "#ffb347", fontWeight: 800, letterSpacing: 1, fontSize: 12,
             }}
           >
-            CHIUDI
+            CLOSE
           </button>
         </div>
       </div>
@@ -166,7 +166,7 @@ function ExchangeModal({
           </div>
           <button
             onClick={onClose}
-            aria-label="Chiudi"
+            aria-label="Close"
             style={{
               width: 32, height: 32, borderRadius: 10, fontSize: 16,
               background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.18)",
@@ -184,7 +184,7 @@ function ExchangeModal({
           }}
         >
           <div style={{ color: "rgba(220,235,255,0.6)", fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>
-            TASSO ATTUALE
+            CURRENT RATE
           </div>
           <div style={{ marginTop: 4, display: "flex", alignItems: "baseline", gap: 6 }}>
             <span style={{ color: "rgba(220,235,255,0.6)", fontSize: 12 }}>1 $ZOOM =</span>
@@ -193,14 +193,14 @@ function ExchangeModal({
             </span>
           </div>
           <div style={{ color: "rgba(220,235,255,0.5)", fontSize: 10, marginTop: 4, lineHeight: 1.4 }}>
-            Il tasso di cambio è dinamico e segue l'andamento del grafico Economy.
+            The exchange rate is dynamic and follows the Economy chart.
           </div>
         </div>
 
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
             <span style={{ color: "rgba(220,235,255,0.6)", fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>
-              QUANTITÀ $ZOOM
+              $ZOOM AMOUNT
             </span>
             <button
               onClick={() => setAmount(String(Math.floor(balance)))}
@@ -236,7 +236,7 @@ function ExchangeModal({
           }}
         >
           <div style={{ color: "rgba(220,235,255,0.6)", fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>
-            RICEVI
+            YOU RECEIVE
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 4 }}>
             <span style={{ color: "#00ff88", fontSize: 22, fontWeight: 900, fontVariantNumeric: "tabular-nums", textShadow: "0 0 12px rgba(0,255,140,0.45)" }}>
@@ -254,7 +254,7 @@ function ExchangeModal({
           }}
         >
           <span style={{ color: "rgba(220,235,255,0.6)", fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>
-            VALORE PORTFOLIO
+            PORTFOLIO VALUE
           </span>
           <span style={{ color: "#fff", fontSize: 13, fontWeight: 900, fontVariantNumeric: "tabular-nums" }}>
             {formatTon(portfolio)} TON
