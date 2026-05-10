@@ -9,15 +9,20 @@ interface Props {
   sunCount?: number;
 }
 
-const ORBIT_CAPACITIES = [4, 6, 8, 10, 12, 14];
-const ORBIT_RADII = [78, 122, 168, 216, 266, 318];
-const ORBIT_PERIODS = [42, 60, 80, 100, 124, 150];
+// Compact mini-system: 3 orbits, max 15 visible planets. Small enough to
+// fit in the top-left corner without disturbing the LAB UI and cheap to
+// animate (only CSS transforms — no per-frame JS).
+const ORBIT_CAPACITIES = [3, 5, 7];
+const ORBIT_RADII = [20, 33, 46];
+const ORBIT_PERIODS = [22, 34, 48];
+const PLANET_SIZES = [6, 5, 4];
+
+const BOX = 110;
+const CENTER = BOX / 2;
 
 interface Placement {
   planet: Planet;
   orbit: number;
-  index: number;
-  capacity: number;
   radius: number;
   period: number;
   size: number;
@@ -32,16 +37,13 @@ function distribute(all: Planet[]): Placement[] {
     const cap = ORBIT_CAPACITIES[o]!;
     const radius = ORBIT_RADII[o]!;
     const period = ORBIT_PERIODS[o]!;
-    const size = o === 0 ? 22 : o === 1 ? 20 : o <= 3 ? 18 : 16;
+    const size = PLANET_SIZES[o]!;
     const reverse = o % 2 === 1;
     const taken = Math.min(cap, all.length - cursor);
     for (let i = 0; i < taken; i++) {
-      const planet = all[cursor + i]!;
       out.push({
-        planet,
+        planet: all[cursor + i]!,
         orbit: o,
-        index: i,
-        capacity: cap,
         radius,
         period,
         size,
@@ -61,8 +63,8 @@ function PlanetDot({ p }: { p: Placement }) {
     <div
       style={{
         position: "absolute",
-        left: "50%",
-        top: "50%",
+        left: CENTER,
+        top: CENTER,
         width: 0,
         height: 0,
         animation: `lsbOrbit${p.orbit} ${p.period}s linear infinite`,
@@ -79,9 +81,8 @@ function PlanetDot({ p }: { p: Placement }) {
           width: p.size,
           height: p.size,
           borderRadius: "50%",
-          background: `radial-gradient(circle at 32% 30%, #fff 0%, ${c} 38%, ${c} 60%, rgba(0,0,0,0.45) 100%)`,
-          boxShadow: `0 0 ${Math.round(p.size * 0.55)}px ${g}88, 0 0 ${Math.round(p.size * 0.25)}px ${g}cc inset`,
-          imageRendering: "pixelated",
+          background: `radial-gradient(circle at 32% 30%, #fff 0%, ${c} 55%, rgba(0,0,0,0.5) 100%)`,
+          boxShadow: `0 0 ${p.size}px ${g}aa`,
         }}
       />
     </div>
@@ -89,22 +90,16 @@ function PlanetDot({ p }: { p: Placement }) {
 }
 
 function LabSolarBackgroundImpl({ planets, whitePlanets = [], earthPlanets = [], blackPlanets = [], sunCount = 0 }: Props) {
-  // Combine inventories — only "owned" planets (not listed on market) so the
-  // background reflects what the user actually has at home.
   const all = useMemo(() => {
     const merged = [...planets, ...whitePlanets, ...earthPlanets, ...blackPlanets].filter(
       (p) => !p.isListedInMarket,
     );
-    // Stable order by createdAt so newly crafted planets always land on the
-    // outermost free slot instead of reshuffling the whole system.
     return merged.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
   }, [planets, whitePlanets, earthPlanets, blackPlanets]);
 
   const placements = useMemo(() => distribute(all), [all]);
   const visibleOrbits = placements.length === 0 ? 0 : (placements[placements.length - 1]!.orbit + 1);
 
-  // Pre-compute the orbit keyframes inline so each ring spins at its own
-  // angular speed without any JS animation loop.
   const keyframes = useMemo(
     () =>
       ORBIT_PERIODS.map(
@@ -114,95 +109,70 @@ function LabSolarBackgroundImpl({ planets, whitePlanets = [], earthPlanets = [],
     [],
   );
 
-  const sunSize = sunCount > 0 ? 64 : 56;
+  const sunSize = sunCount > 0 ? 14 : 12;
   const sunGlow = sunCount > 0 ? "#ffd95a" : "#ffb347";
 
   return (
     <div
       aria-hidden="true"
       style={{
-        position: "absolute",
-        inset: 0,
-        zIndex: 0,
+        position: "fixed",
+        left: 8,
+        top: 8,
+        width: BOX,
+        height: BOX,
+        zIndex: 1,
         pointerEvents: "none",
-        overflow: "hidden",
+        opacity: 0.78,
       }}
     >
       <style>{`
         ${keyframes}
-        @keyframes lsbSunPulse {
-          0%, 100% { box-shadow: 0 0 28px ${sunGlow}cc, 0 0 56px ${sunGlow}55, 0 0 90px ${sunGlow}33; }
-          50%      { box-shadow: 0 0 40px ${sunGlow}ee, 0 0 80px ${sunGlow}77, 0 0 120px ${sunGlow}44; }
-        }
-        @keyframes lsbDashDrift {
-          to { stroke-dashoffset: -40; }
+        @keyframes lsbSunPulseMini {
+          0%, 100% { box-shadow: 0 0 6px ${sunGlow}cc, 0 0 12px ${sunGlow}55; }
+          50%      { box-shadow: 0 0 9px ${sunGlow}ee, 0 0 18px ${sunGlow}77; }
         }
       `}</style>
 
-      {/* Anchor everything around the LAB visual centre. We pull the centre
-          slightly above viewport mid-line because the LAB content (anvil,
-          progress bar) sits in the upper-mid; the sun goes behind it. */}
+      {/* Dashed orbits — pure SVG, no per-frame animation, very cheap. */}
+      {visibleOrbits > 0 && (
+        <svg
+          width={BOX}
+          height={BOX}
+          style={{ position: "absolute", left: 0, top: 0, opacity: 0.5 }}
+        >
+          {ORBIT_RADII.slice(0, visibleOrbits).map((r, i) => (
+            <circle
+              key={i}
+              cx={CENTER}
+              cy={CENTER}
+              r={r}
+              fill="none"
+              stroke={i % 2 === 0 ? "#7fa9ff" : "#b58cff"}
+              strokeWidth={0.6}
+              strokeDasharray="2 3"
+            />
+          ))}
+        </svg>
+      )}
+
+      {/* Sun */}
       <div
         style={{
           position: "absolute",
-          left: "50%",
-          top: "42%",
-          width: 0,
-          height: 0,
+          left: CENTER - sunSize / 2,
+          top: CENTER - sunSize / 2,
+          width: sunSize,
+          height: sunSize,
+          borderRadius: "50%",
+          background: `radial-gradient(circle at 35% 30%, #fff7c0 0%, #ffd95a 45%, #ff9a2b 80%, #c54a05 100%)`,
+          animation: "lsbSunPulseMini 4.2s ease-in-out infinite",
         }}
-      >
-        {/* Dashed orbit rings (SVG) — only render rings that are actually used
-            so empty users don't see lonely circles. */}
-        {visibleOrbits > 0 && (
-          <svg
-            width={ORBIT_RADII[Math.min(visibleOrbits - 1, ORBIT_RADII.length - 1)]! * 2 + 40}
-            height={ORBIT_RADII[Math.min(visibleOrbits - 1, ORBIT_RADII.length - 1)]! * 2 + 40}
-            style={{
-              position: "absolute",
-              left: -(ORBIT_RADII[Math.min(visibleOrbits - 1, ORBIT_RADII.length - 1)]! + 20),
-              top: -(ORBIT_RADII[Math.min(visibleOrbits - 1, ORBIT_RADII.length - 1)]! + 20),
-              opacity: 0.35,
-            }}
-          >
-            {ORBIT_RADII.slice(0, visibleOrbits).map((r, i) => (
-              <circle
-                key={i}
-                cx="50%"
-                cy="50%"
-                r={r}
-                fill="none"
-                stroke={i % 2 === 0 ? "#7fa9ff" : "#b58cff"}
-                strokeWidth={1}
-                strokeDasharray="4 6"
-                style={{
-                  animation: `lsbDashDrift ${30 + i * 8}s linear infinite`,
-                  animationDirection: i % 2 === 0 ? "normal" : "reverse",
-                }}
-              />
-            ))}
-          </svg>
-        )}
+      />
 
-        {/* Central sun */}
-        <div
-          style={{
-            position: "absolute",
-            left: -sunSize / 2,
-            top: -sunSize / 2,
-            width: sunSize,
-            height: sunSize,
-            borderRadius: "50%",
-            background: `radial-gradient(circle at 35% 30%, #fff7c0 0%, #ffd95a 35%, #ff9a2b 70%, #c54a05 100%)`,
-            animation: "lsbSunPulse 4.2s ease-in-out infinite",
-            opacity: 0.92,
-          }}
-        />
-
-        {/* Planets on orbits */}
-        {placements.map((p) => (
-          <PlanetDot key={p.planet.id} p={p} />
-        ))}
-      </div>
+      {placements.map((p) => (
+        <PlanetDot key={p.planet.id} p={p} />
+      ))}
     </div>
   );
 }
