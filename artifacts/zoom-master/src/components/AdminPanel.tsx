@@ -158,7 +158,21 @@ export function AdminPanel({ telegramId }: Props) {
       else if (type === "stardust") ok = await adminRemoveStardust(telegramId, id, Math.floor(val));
     }
     setLoading(null);
-    if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+    if (ok) {
+      // When the admin removes assets from their OWN account, the regular
+      // /grants reconciliation path is grow-only (by design — protects real
+      // money from accidental counter desync wiping owned planets/ZOOM).
+      // To make the admin button actually take effect on the operating
+      // device, we dispatch a dedicated self-decrement event that the
+      // game state listens for and applies as an EXPLICIT local mutation.
+      // For other targets (or "add" mode), the regular refresh is enough.
+      if (mode === "remove" && id === telegramId) {
+        window.dispatchEvent(new CustomEvent("zoom-admin-self-decrement", {
+          detail: { type, amount: val, planetType },
+        }));
+      }
+      window.dispatchEvent(new Event("zoom-admin-refresh"));
+    }
     const direction = mode === "add" ? "aggiunti" : "rimossi";
     const item = type === "zoom" ? `${val} $ZOOM`
       : type === "slots" ? `${Math.floor(val)} slot`

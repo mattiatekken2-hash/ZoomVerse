@@ -2437,7 +2437,90 @@ export function useGameState() {
         lastBalanceEpoch: Math.max(prev.lastBalanceEpoch ?? 0, detail.epoch ?? 0),
       }));
     };
+    // Admin self-remove: explicit local decrement that bypasses the
+    // grow-only protections in applyGrants/handleAdminRefresh. This is
+    // safe because it only fires when the admin button itself is the
+    // trigger AND the target is the operating device's own user — never
+    // from background polling or cross-device reconciliation.
+    const handleAdminSelfDecrement = (e: Event) => {
+      const detail = (e as CustomEvent<{ type: string; amount: number; planetType?: string }>).detail;
+      if (!detail) return;
+      const { type, amount, planetType } = detail;
+      const n = Math.max(0, Math.floor(amount || 0));
+      if (n <= 0 && type !== "planets") return;
+
+      if (type === "zoom") {
+        setState((prev) => {
+          const newBal = Math.max(0, Math.floor(prev.balance) - n);
+          stateRef.current = { ...stateRef.current, balance: newBal };
+          _lastSyncedBalance = newBal;
+          _pendingSyncBalance = -1;
+          return { ...prev, balance: newBal };
+        });
+        // Push the lower value to the server immediately so the next
+        // doSync doesn't echo a stale higher local balance back. The
+        // server's epoch was already bumped by /admin/remove-zoom, so
+        // our send (clientEpoch < server) takes the server's authoritative
+        // value via the CASE branch — and our local is already in sync.
+        const { telegramId, firstName, username } = getTelegramContext();
+        if (telegramId) {
+          const sentEpoch = _currentBalanceEpoch;
+          const sentTon = Math.max(0, stateRef.current.tonBalance || 0);
+          void syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(stateRef.current.balance), tonBalance: sentTon, clientEpoch: sentEpoch })
+            .then((r) => reconcileFromSyncResponse(Math.floor(stateRef.current.balance), sentEpoch, r, sentTon));
+        }
+        return;
+      }
+
+      if (type === "slots") {
+        setState((prev) => {
+          const newMax = Math.max(INITIAL_STATE.maxSlots, (prev.maxSlots || INITIAL_STATE.maxSlots) - n);
+          return { ...prev, maxSlots: newMax };
+        });
+        return;
+      }
+
+      if (type === "planets" && planetType) {
+        setState((prev) => {
+          if (planetType === "SUN") {
+            return { ...prev, sun: null, claimedBonusSun: false, sunCount: 0 };
+          }
+          // Remove up to N bonus planets of the given type. Prefer planets
+          // that are NOT placed in a slot and NOT actively farming, so the
+          // user's running production is least disturbed.
+          const isBonusOfType = (p: Planet) =>
+            p.name === planetType && typeof p.id === "string" && p.id.startsWith(`bonus-${planetType}-`);
+          const candidates = prev.planets.filter(isBonusOfType);
+          if (candidates.length === 0) return prev;
+          const sorted = [...candidates].sort((a, b) => {
+            const aActive = a.isFarmingActive ? 1 : 0;
+            const bActive = b.isFarmingActive ? 1 : 0;
+            if (aActive !== bActive) return aActive - bActive;
+            return (a.createdAt || 0) - (b.createdAt || 0);
+          });
+          const toRemove = new Set(sorted.slice(0, n).map((p) => p.id));
+          if (toRemove.size === 0) return prev;
+          const newPlanets = prev.planets.filter((p) => !toRemove.has(p.id));
+          const claimedKey = (
+            planetType === "BASIC"  ? "claimedBonusBasic"  :
+            planetType === "RARE"   ? "claimedBonusRare"   :
+            planetType === "EPIC"   ? "claimedBonusEpic"   :
+            planetType === "MYTHIC" ? "claimedBonusMythic" :
+            planetType === "GOLD"   ? "claimedBonusGold"   : null
+          ) as keyof GameState | null;
+          const updated: GameState = { ...prev, planets: newPlanets };
+          if (claimedKey) {
+            const cur = (prev[claimedKey] as number) ?? 0;
+            (updated as unknown as Record<string, unknown>)[claimedKey] = Math.max(0, cur - toRemove.size);
+          }
+          return updated;
+        });
+        return;
+      }
+    };
+
     window.addEventListener("zoom-admin-refresh", handleAdminRefresh);
+    window.addEventListener("zoom-admin-self-decrement", handleAdminSelfDecrement as EventListener);
     window.addEventListener("zoom-data-refresh", doSync);
     window.addEventListener("zoom-credit-local", handleLocalCredit as EventListener);
     window.addEventListener("zoom-server-balance-snap", handleServerSnap as EventListener);
@@ -2446,6 +2529,7 @@ export function useGameState() {
     return () => {
       clearInterval(interval);
       window.removeEventListener("zoom-admin-refresh", handleAdminRefresh);
+      window.removeEventListener("zoom-admin-self-decrement", handleAdminSelfDecrement as EventListener);
       window.removeEventListener("zoom-data-refresh", doSync);
       window.removeEventListener("zoom-credit-local", handleLocalCredit as EventListener);
       window.removeEventListener("zoom-server-balance-snap", handleServerSnap as EventListener);
