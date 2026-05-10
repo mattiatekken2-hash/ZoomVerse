@@ -235,18 +235,24 @@ router.get("/staking/status", async (req, res) => {
         .for("update")
         .limit(1);
       if (sel.length === 0) {
-        return { rows: sel, dynPatches: {} as Record<string, number>, dynResults: null };
+        return { rows: sel, dynResults: null };
       }
       const r = sel[0]!;
       const planetsArr = asArray(r.planetsJson);
-      const sCount = r.sunCount ?? 0;
-      const sHasSun = sCount >= 1;
+      // SUN must be ACTIVE (within 24h cycle) to gate dynamic-tier accrual.
+      // Owning an EXPIRED SUN is no longer enough — once the user lets the
+      // SUN cycle lapse, the BASIC..GOLD staking pauses until they pay the
+      // reactivation fee and start a fresh SUN cycle.
+      const sFarmStarted = r.sunFarmStartedAtMs ?? 0;
+      const sActive = (r.sunCount ?? 0) >= 1
+        && sFarmStarted > 0
+        && (now - sFarmStarted) <= FARM_DURATION_MS;
       const dyn: Record<DynamicKind, DynamicSettleResult> = {
-        basic:  settleDynamicTier(r, planetsArr, "basic",  sHasSun, now),
-        rare:   settleDynamicTier(r, planetsArr, "rare",   sHasSun, now),
-        epic:   settleDynamicTier(r, planetsArr, "epic",   sHasSun, now),
-        mythic: settleDynamicTier(r, planetsArr, "mythic", sHasSun, now),
-        gold:   settleDynamicTier(r, planetsArr, "gold",   sHasSun, now),
+        basic:  settleDynamicTier(r, planetsArr, "basic",  sActive, now),
+        rare:   settleDynamicTier(r, planetsArr, "rare",   sActive, now),
+        epic:   settleDynamicTier(r, planetsArr, "epic",   sActive, now),
+        mythic: settleDynamicTier(r, planetsArr, "mythic", sActive, now),
+        gold:   settleDynamicTier(r, planetsArr, "gold",   sActive, now),
       };
       const patches: Record<string, number> = {};
       for (const k of DYNAMIC_KINDS) {
@@ -281,7 +287,13 @@ router.get("/staking/status", async (req, res) => {
     const row = rows[0]!;
     const v1Count = countV1(asArray(row.planetsJson));
     const sunCount = row.sunCount ?? 0;
-    const hasSun = sunCount >= 1;
+    // `hasSun` in the response now means "owns an ACTIVE SUN" (within the
+    // 24h cycle). The dynamic tiers gate accrual and start-eligibility on
+    // this stricter check, so the client UI must surface the same notion.
+    const sunFarmStartedAt = row.sunFarmStartedAtMs ?? 0;
+    const hasSun = sunCount >= 1
+      && sunFarmStartedAt > 0
+      && (Date.now() - sunFarmStartedAt) <= FARM_DURATION_MS;
 
     // V1 / SUN — unchanged continuous model.
     const v1Started = row.stakingV1StartedAtMs ?? 0;
@@ -377,6 +389,15 @@ router.post("/staking/start", async (req, res) => {
       return res.json({ kind, startedAtMs: now, accruedTon: 0, nowMs: now });
     }
 
+    // Helper: SUN is "active" only when its 24h farming cycle hasn't expired.
+    // Owning a SUN that's "EXPIRED — Reactivate" no longer counts as having
+    // an active SUN, so dynamic-tier staking won't accrue until the user
+    // pays the reactivation fee and starts a fresh cycle.
+    const sunFarmStartedAtMs = row.sunFarmStartedAtMs ?? 0;
+    const sunIsActive = (row.sunCount ?? 0) >= 1
+      && sunFarmStartedAtMs > 0
+      && (now - sunFarmStartedAtMs) <= FARM_DURATION_MS;
+
     if (kind === "sun") {
       const count = row.sunCount ?? 0;
       if (count < STAKING_REQUIRED_COUNT) {
@@ -393,8 +414,7 @@ router.post("/staking/start", async (req, res) => {
     // Dynamic tier (basic / rare / epic / mythic / gold).
     const dynKind = kind as DynamicKind;
     const cols = DYNAMIC_COLUMNS[dynKind];
-    const sunCount = row.sunCount ?? 0;
-    if (sunCount < 1) {
+    if (!sunIsActive) {
       return res.status(400).json({ error: "SUN_REQUIRED" });
     }
     const rarityName = RARITY_NAME[dynKind];

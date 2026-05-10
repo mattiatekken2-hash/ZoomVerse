@@ -154,7 +154,7 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
         <>
           {requiresSun && !hasSun ? (
             <div className="text-[11px] font-bold mb-1" style={{ color: "rgba(255,179,71,0.95)" }}>
-              ☀ Own a SUN planet to unlock {meta.label} staking
+              ☀ Activate your SUN (24h cycle) to unlock {meta.label} staking
             </div>
           ) : requiresSun && count >= REQUIRED && activeCount < REQUIRED ? (
             <div className="text-[11px] font-bold mb-1" style={{ color: "rgba(255,140,0,0.95)" }}>
