@@ -970,12 +970,12 @@ async function backgroundVerifyTon(txnId: number, item: StarsItem, telegramId: s
 }
 
 // Progressive TON price ladder for the Extra Slot purchase. The N-th extra
-// slot costs LADDER[min(N, LADDER.length-1)] TON, capped at 3 TON.
+// slot costs LADDER[min(N, LADDER.length-1)] TON, capped at 1 TON.
 // Index 0 = first extra slot (when bonusSlots=0), 1 = second, etc.
-export const SLOT_PRICE_LADDER_TON: readonly number[] = [0.25, 0.5, 1, 1.5, 2, 2.5, 3];
+export const SLOT_PRICE_LADDER_TON: readonly number[] = [0.25, 0.5, 1];
 export function getSlotPriceTon(currentBonusSlots: number): number {
   const i = Math.max(0, Math.floor(currentBonusSlots));
-  return SLOT_PRICE_LADDER_TON[Math.min(i, SLOT_PRICE_LADDER_TON.length - 1)] ?? 3;
+  return SLOT_PRICE_LADDER_TON[Math.min(i, SLOT_PRICE_LADDER_TON.length - 1)] ?? 1;
 }
 
 router.get("/shop/slot-price/:telegramId", async (req, res) => {

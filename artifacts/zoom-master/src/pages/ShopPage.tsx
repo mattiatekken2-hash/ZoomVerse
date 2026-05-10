@@ -635,14 +635,14 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
             Packs & Items
           </div>
 
-          {/* Extra Slot — TON-only, prezzo progressivo (0.25 → 0.5 → 1 →
-              1.5 → 2 → 2.5 → 3 TON) per slot già acquistato. Il pagamento
-              in Stars è disabilitato lato server e nascosto qui. */}
+          {/* Extra Slot — TON-only, prezzo progressivo (0.25 → 0.5 → 1 TON,
+              cap a 1 TON) per slot già acquistato. Il pagamento in Stars è
+              disabilitato lato server e nascosto qui. */}
           {(() => {
             const item = EXTRA_SLOT_ITEM;
             const price = slotPrice?.nextPriceTon ?? item.tonPrice;
             const owned = slotPrice?.bonusSlots ?? 0;
-            const maxPrice = slotPrice?.maxPriceTon ?? 3;
+            const maxPrice = slotPrice?.maxPriceTon ?? 1;
             const atCap = price >= maxPrice;
             return (
               <div
