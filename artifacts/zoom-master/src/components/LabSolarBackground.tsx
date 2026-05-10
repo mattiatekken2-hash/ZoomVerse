@@ -13,11 +13,11 @@ interface Props {
 // fit in the top-left corner without disturbing the LAB UI and cheap to
 // animate (only CSS transforms — no per-frame JS).
 const ORBIT_CAPACITIES = [3, 5, 7];
-const ORBIT_RADII = [20, 33, 46];
+const ORBIT_RADII = [13, 22, 31];
 const ORBIT_PERIODS = [22, 34, 48];
-const PLANET_SIZES = [6, 5, 4];
+const PLANET_SIZES = [4, 4, 3];
 
-const BOX = 110;
+const BOX = 76;
 const CENTER = BOX / 2;
 
 interface Placement {
@@ -109,7 +109,7 @@ function LabSolarBackgroundImpl({ planets, whitePlanets = [], earthPlanets = [],
     [],
   );
 
-  const sunSize = sunCount > 0 ? 14 : 12;
+  const sunSize = sunCount > 0 ? 9 : 8;
   const sunGlow = sunCount > 0 ? "#ffd95a" : "#ffb347";
 
   return (
@@ -117,13 +117,14 @@ function LabSolarBackgroundImpl({ planets, whitePlanets = [], earthPlanets = [],
       aria-hidden="true"
       style={{
         position: "fixed",
-        left: 8,
-        top: 8,
+        left: "50%",
+        top: 102,
         width: BOX,
         height: BOX,
+        marginLeft: -BOX / 2,
         zIndex: 1,
         pointerEvents: "none",
-        opacity: 0.78,
+        opacity: 0.85,
       }}
     >
       <style>{`
