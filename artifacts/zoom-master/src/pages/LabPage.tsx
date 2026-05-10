@@ -9,7 +9,6 @@ import { EarthCollectionWidget } from "../components/EarthCollectionWidget";
 import { BlackCollectionWidget } from "../components/BlackCollectionWidget";
 import { LottoStellareWidget } from "../components/LottoStellareWidget";
 import { LabRankWidget } from "../components/LabRankWidget";
-import { LabSolarBackground } from "../components/LabSolarBackground";
 import { V1NftWidget } from "../components/V1NftWidget";
 import { ExchangeWidget } from "../components/ExchangeWidget";
 import type { Planet, PlanetType } from "../hooks/useGameState";
@@ -204,18 +203,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
-      {/* Dynamic solar-system background — central sun + dashed orbits with
-          the user's owned planets as moving dots. Reactive to inventory:
-          newly crafted planets fill the outermost free slot, sold/burnt
-          planets disappear automatically. pointer-events:none so it never
-          blocks taps on the forge or any widget. */}
-      <LabSolarBackground
-        planets={planets}
-        whitePlanets={whitePlanets}
-        earthPlanets={earthPlanets}
-        blackPlanets={blackPlanets}
-        sunCount={sunCount}
-      />
       {/* Widgets stay mounted across tab switches — the parent tab container
           uses display:none when the LAB tab is inactive, which already hides
           these fixed-position widgets. Unmounting them on every tab switch
