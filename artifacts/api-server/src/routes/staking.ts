@@ -102,11 +102,91 @@ function countActiveByRarity(planets: PlanetJson[], rarity: string, now: number)
   return n;
 }
 
-// V1 / SUN — unchanged continuous accrual based on a single timestamp.
-function accruedTonContinuous(kind: "v1" | "sun", startedAtMs: number, nowMs: number): number {
-  if (!startedAtMs || startedAtMs <= 0) return 0;
-  const elapsed = Math.max(0, nowMs - startedAtMs);
-  return (elapsed / STAKING_PERIOD_MS) * STAKING_REWARDS_TON_PER_MONTH[kind];
+// Count V1 NFT planets that are currently actively farming (24h cycle,
+// not listed). Mirrors `countActiveByRarity` but accepts both legacy
+// names "V1" and "V1_NFT".
+function countActiveV1(planets: PlanetJson[], now: number): number {
+  let n = 0;
+  for (const p of planets) {
+    if (!p) continue;
+    const k = p.name ?? p.type;
+    if (k !== "V1" && k !== "V1_NFT") continue;
+    if (isPlanetActivelyFarming(p, now)) n++;
+  }
+  return n;
+}
+
+// (Legacy `accruedTonContinuous` removed — V1/SUN now use the same gated
+// settle as the dynamic tiers via `settleContinuousTier` below.)
+
+// V1 / SUN — column maps for the gated settle (parallel to DYNAMIC_COLUMNS).
+const CONTINUOUS_COLUMNS: Record<"v1" | "sun", {
+  started: keyof typeof usersTable.$inferSelect;
+  accrued: keyof typeof usersTable.$inferSelect;
+  lastSettled: keyof typeof usersTable.$inferSelect;
+}> = {
+  v1:  { started: "stakingV1StartedAtMs",  accrued: "stakingV1AccruedTon",  lastSettled: "stakingV1LastSettledAtMs"  },
+  sun: { started: "stakingSunStartedAtMs", accrued: "stakingSunAccruedTon", lastSettled: "stakingSunLastSettledAtMs" },
+};
+
+interface ContinuousSettleResult {
+  startedAtMs: number;
+  accruedTon: number;
+  count: number;
+  activeCount: number;
+  isStaking: boolean;
+  isAccruing: boolean;       // currently producing TON (active>=4 & started)
+  rewardTonPerMonth: number;
+  _patch?: Record<string, number>;
+}
+
+// Settle V1 or SUN tier using the SAME gated-accrual model as the
+// dynamic tiers: TON only accrues while the underlying source is
+// actively producing ZOOM. For V1 → 4 V1 planets actively farming;
+// for SUN → 4 SUNs owned AND the SUN cycle is within its 24h window.
+// Gaps where the source is "off" are silently skipped (lastSettledAtMs
+// still advances), so users can't back-claim by reactivating later.
+function settleContinuousTier(
+  row: UserRow,
+  kind: "v1" | "sun",
+  isProducing: boolean,
+  activeCount: number,
+  totalCount: number,
+  now: number,
+): ContinuousSettleResult {
+  const cols = CONTINUOUS_COLUMNS[kind];
+  const startedAtMs = (row[cols.started] as number) ?? 0;
+  const lastSettledAtMs = (row[cols.lastSettled] as number) ?? 0;
+  let accruedTon = (row[cols.accrued] as number) ?? 0;
+  const rewardTonPerMonth = STAKING_REWARDS_TON_PER_MONTH[kind];
+  const isStaking = startedAtMs > 0;
+
+  let patch: Record<string, number> | undefined;
+
+  if (isStaking) {
+    const anchor = lastSettledAtMs > 0 ? lastSettledAtMs : startedAtMs;
+    const deltaMs = Math.max(0, now - anchor);
+    if (deltaMs > 0) {
+      if (isProducing) {
+        accruedTon = accruedTon + (deltaMs / STAKING_PERIOD_MS) * rewardTonPerMonth;
+      }
+      patch = {
+        [cols.accrued]: accruedTon,
+        [cols.lastSettled]: now,
+      };
+    }
+  }
+
+  return {
+    startedAtMs,
+    accruedTon,
+    count: totalCount,
+    activeCount,
+    isStaking,
+    isAccruing: isStaking && isProducing,
+    rewardTonPerMonth,
+    _patch: patch,
+  };
 }
 
 // Column-name maps for the 5 dynamic rarities. Kept tightly scoped so a
@@ -227,7 +307,7 @@ router.get("/staking/status", async (req, res) => {
     // and double-credit the accruedTon. Using FOR UPDATE serialises the
     // pair on the row lock; the second call reads the freshly-settled
     // state and observes deltaMs ≈ 0.
-    const { rows, dynResults } = await db.transaction(async (tx) => {
+    const { rows, dynResults, v1Settled, sunSettled } = await db.transaction(async (tx) => {
       const sel = await tx
         .select()
         .from(usersTable)
@@ -235,7 +315,7 @@ router.get("/staking/status", async (req, res) => {
         .for("update")
         .limit(1);
       if (sel.length === 0) {
-        return { rows: sel, dynResults: null };
+        return { rows: sel, dynResults: null, v1Settled: null, sunSettled: null };
       }
       const r = sel[0]!;
       const planetsArr = asArray(r.planetsJson);
@@ -244,9 +324,23 @@ router.get("/staking/status", async (req, res) => {
       // SUN cycle lapse, the BASIC..GOLD staking pauses until they pay the
       // reactivation fee and start a fresh SUN cycle.
       const sFarmStarted = r.sunFarmStartedAtMs ?? 0;
-      const sActive = (r.sunCount ?? 0) >= 1
-        && sFarmStarted > 0
+      const sunCycleActive = sFarmStarted > 0
         && (now - sFarmStarted) <= FARM_DURATION_MS;
+      const sActive = (r.sunCount ?? 0) >= 1 && sunCycleActive;
+
+      // V1 / SUN settle — same gated model as the dynamic tiers. They
+      // only accrue TON while their underlying source is currently
+      // producing ZOOM (4 V1 actively farming, or 4 SUN owned + cycle
+      // active). When production is off, we still bump lastSettledAtMs
+      // so users can't back-claim the gap by reactivating later.
+      const v1ActiveCount = countActiveV1(planetsArr, now);
+      const v1TotalCount = countV1(planetsArr);
+      const sunTotalCount = r.sunCount ?? 0;
+      const v1Producing = v1ActiveCount >= STAKING_REQUIRED_COUNT;
+      const sunProducing = sunTotalCount >= STAKING_REQUIRED_COUNT && sunCycleActive;
+      const v1Settled  = settleContinuousTier(r, "v1",  v1Producing,  v1ActiveCount, v1TotalCount, now);
+      const sunSettled = settleContinuousTier(r, "sun", sunProducing, sunTotalCount, sunTotalCount, now);
+
       const dyn: Record<DynamicKind, DynamicSettleResult> = {
         basic:  settleDynamicTier(r, planetsArr, "basic",  sActive, now),
         rare:   settleDynamicTier(r, planetsArr, "rare",   sActive, now),
@@ -259,15 +353,17 @@ router.get("/staking/status", async (req, res) => {
         const p = dyn[k]._patch;
         if (p) Object.assign(patches, p);
       }
+      if (v1Settled._patch)  Object.assign(patches, v1Settled._patch);
+      if (sunSettled._patch) Object.assign(patches, sunSettled._patch);
       if (Object.keys(patches).length > 0) {
         await tx.update(usersTable)
           .set(patches as Partial<typeof usersTable.$inferInsert>)
           .where(eq(usersTable.telegramId, telegramId));
       }
-      return { rows: sel, dynResults: dyn };
+      return { rows: sel, dynResults: dyn, v1Settled, sunSettled };
     });
 
-    if (rows.length === 0 || !dynResults) {
+    if (rows.length === 0 || !dynResults || !v1Settled || !sunSettled) {
       const empty = (kind: StakingKind) => ({
         eligible: false, count: 0, activeCount: 0,
         required: STAKING_REQUIRED_COUNT, startedAtMs: 0,
@@ -285,7 +381,6 @@ router.get("/staking/status", async (req, res) => {
     }
 
     const row = rows[0]!;
-    const v1Count = countV1(asArray(row.planetsJson));
     const sunCount = row.sunCount ?? 0;
     // `hasSun` in the response now means "owns an ACTIVE SUN" (within the
     // 24h cycle). The dynamic tiers gate accrual and start-eligibility on
@@ -293,11 +388,7 @@ router.get("/staking/status", async (req, res) => {
     const sunFarmStartedAt = row.sunFarmStartedAtMs ?? 0;
     const hasSun = sunCount >= 1
       && sunFarmStartedAt > 0
-      && (Date.now() - sunFarmStartedAt) <= FARM_DURATION_MS;
-
-    // V1 / SUN — unchanged continuous model.
-    const v1Started = row.stakingV1StartedAtMs ?? 0;
-    const sunStarted = row.stakingSunStartedAtMs ?? 0;
+      && (now - sunFarmStartedAt) <= FARM_DURATION_MS;
 
     const dyn = dynResults;
     const dynPayload = (k: DynamicKind) => ({
@@ -314,25 +405,33 @@ router.get("/staking/status", async (req, res) => {
 
     return res.json({
       v1: {
-        eligible: v1Count >= STAKING_REQUIRED_COUNT,
-        count: v1Count,
-        activeCount: v1Count, // V1 keeps continuous model — surface count as active for UI symmetry.
+        // Eligible to START requires 4 V1 currently actively farming
+        // (mirrors the dynamic-tier rule). Once started, accrual is
+        // gated by the same condition — so production stops if all
+        // V1 cycles expire.
+        eligible: v1Settled.activeCount >= STAKING_REQUIRED_COUNT,
+        count: v1Settled.count,
+        activeCount: v1Settled.activeCount,
         required: STAKING_REQUIRED_COUNT,
-        startedAtMs: v1Started,
-        accruedTon: accruedTonContinuous("v1", v1Started, now),
-        isAccruing: v1Started > 0,
-        rewardTonPerMonth: STAKING_REWARDS_TON_PER_MONTH.v1,
+        startedAtMs: v1Settled.startedAtMs,
+        accruedTon: v1Settled.accruedTon,
+        isAccruing: v1Settled.isAccruing,
+        rewardTonPerMonth: v1Settled.rewardTonPerMonth,
         requiresSunInInventory: false,
       },
       sun: {
-        eligible: sunCount >= STAKING_REQUIRED_COUNT,
+        // Eligible to START requires 4 SUN owned AND the SUN cycle to
+        // be active (same rule as accrual gating). If the user lets
+        // the SUN cycle expire, both display "Production paused" and
+        // accrual freezes until they reactivate.
+        eligible: sunCount >= STAKING_REQUIRED_COUNT && hasSun,
         count: sunCount,
-        activeCount: sunCount,
+        activeCount: hasSun ? sunCount : 0,
         required: STAKING_REQUIRED_COUNT,
-        startedAtMs: sunStarted,
-        accruedTon: accruedTonContinuous("sun", sunStarted, now),
-        isAccruing: sunStarted > 0,
-        rewardTonPerMonth: STAKING_REWARDS_TON_PER_MONTH.sun,
+        startedAtMs: sunSettled.startedAtMs,
+        accruedTon: sunSettled.accruedTon,
+        isAccruing: sunSettled.isAccruing,
+        rewardTonPerMonth: sunSettled.rewardTonPerMonth,
         requiresSunInInventory: false,
       },
       basic: dynPayload("basic"),
@@ -377,15 +476,26 @@ router.post("/staking/start", async (req, res) => {
     const planets = asArray(row.planetsJson);
 
     if (kind === "v1") {
-      const count = countV1(planets);
-      if (count < STAKING_REQUIRED_COUNT) {
-        return res.status(400).json({ error: "NOT_ENOUGH", count, required: STAKING_REQUIRED_COUNT });
+      const totalCount = countV1(planets);
+      const activeCount = countActiveV1(planets, now);
+      if (activeCount < STAKING_REQUIRED_COUNT) {
+        return res.status(400).json({
+          error: totalCount < STAKING_REQUIRED_COUNT ? "NOT_ENOUGH" : "NOT_ACTIVE",
+          count: totalCount,
+          activeCount,
+          required: STAKING_REQUIRED_COUNT,
+        });
       }
       const existing = row.stakingV1StartedAtMs ?? 0;
       if (existing > 0) {
-        return res.json({ kind, startedAtMs: existing, accruedTon: accruedTonContinuous("v1", existing, now), nowMs: now });
+        const accrued = (row.stakingV1AccruedTon as number) ?? 0;
+        return res.json({ kind, startedAtMs: existing, accruedTon: accrued, nowMs: now });
       }
-      await db.update(usersTable).set({ stakingV1StartedAtMs: now }).where(eq(usersTable.telegramId, telegramId));
+      await db.update(usersTable).set({
+        stakingV1StartedAtMs: now,
+        stakingV1LastSettledAtMs: now,
+        stakingV1AccruedTon: 0,
+      }).where(eq(usersTable.telegramId, telegramId));
       return res.json({ kind, startedAtMs: now, accruedTon: 0, nowMs: now });
     }
 
@@ -403,11 +513,20 @@ router.post("/staking/start", async (req, res) => {
       if (count < STAKING_REQUIRED_COUNT) {
         return res.status(400).json({ error: "NOT_ENOUGH", count, required: STAKING_REQUIRED_COUNT });
       }
+      // SUN cycle must be active to start (and to accrue).
+      if (!sunIsActive) {
+        return res.status(400).json({ error: "NOT_ACTIVE", count, required: STAKING_REQUIRED_COUNT });
+      }
       const existing = row.stakingSunStartedAtMs ?? 0;
       if (existing > 0) {
-        return res.json({ kind, startedAtMs: existing, accruedTon: accruedTonContinuous("sun", existing, now), nowMs: now });
+        const accrued = (row.stakingSunAccruedTon as number) ?? 0;
+        return res.json({ kind, startedAtMs: existing, accruedTon: accrued, nowMs: now });
       }
-      await db.update(usersTable).set({ stakingSunStartedAtMs: now }).where(eq(usersTable.telegramId, telegramId));
+      await db.update(usersTable).set({
+        stakingSunStartedAtMs: now,
+        stakingSunLastSettledAtMs: now,
+        stakingSunAccruedTon: 0,
+      }).where(eq(usersTable.telegramId, telegramId));
       return res.json({ kind, startedAtMs: now, accruedTon: 0, nowMs: now });
     }
 

@@ -77,8 +77,17 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
   const activeCount = status.activeCount;
   const requiresSun = status.requiresSunInInventory;
   const reward = status.rewardTonPerMonth ?? REWARD_TON[meta.kind];
-  // Production stopped because farms went inactive AFTER staking started.
-  const stalled = isStaking && requiresSun && activeCount < REQUIRED;
+  // Production stopped because the underlying source went inactive AFTER
+  // staking started. Applies to all 7 tiers now (V1, SUN, BASIC..GOLD):
+  // if the server says we're not currently accruing, we're paused.
+  const stalled = isStaking && !status.isAccruing;
+  const pausedReason = stalled
+    ? (meta.kind === "v1"
+        ? `⏸ Production paused — only ${activeCount}/${REQUIRED} V1 NFT farms active. Reactivate to resume.`
+        : meta.kind === "sun"
+          ? `⏸ Production paused — SUN cycle expired. Reactivate your SUN to resume.`
+          : `⏸ Production paused — only ${activeCount}/${REQUIRED} ${meta.label} farms active. Reactivate to resume.`)
+    : "";
 
   return (
     <div
@@ -122,7 +131,7 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
           </div>
           {stalled ? (
             <div className="text-[10px] mt-1 font-bold" style={{ color: "rgba(255,140,0,0.95)" }}>
-              ⏸ Production paused — only {activeCount}/{REQUIRED} {meta.label} farms active. Reactivate to resume.
+              {pausedReason}
             </div>
           ) : (
             <div className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>

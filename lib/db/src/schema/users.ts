@@ -238,7 +238,11 @@ export const usersTable = pgTable("users", {
   // is treated as a pure timestamp pair, not a denormalised counter.
   // ─────────────────────────────────────────────────────────────────────
   stakingV1StartedAtMs: bigint("staking_v1_started_at_ms", { mode: "number" }).notNull().default(0),
+  stakingV1AccruedTon: real("staking_v1_accrued_ton").notNull().default(0),
+  stakingV1LastSettledAtMs: bigint("staking_v1_last_settled_at_ms", { mode: "number" }).notNull().default(0),
   stakingSunStartedAtMs: bigint("staking_sun_started_at_ms", { mode: "number" }).notNull().default(0),
+  stakingSunAccruedTon: real("staking_sun_accrued_ton").notNull().default(0),
+  stakingSunLastSettledAtMs: bigint("staking_sun_last_settled_at_ms", { mode: "number" }).notNull().default(0),
 
   // ─────────────────────────────────────────────────────────────────────
   // TON STAKING — extended rarities (BASIC / RARE / EPIC / MYTHIC / GOLD).
