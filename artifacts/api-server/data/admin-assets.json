@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-05-10T17:27:49.623Z",
+  "updatedAt": "2026-05-10T20:20:43.295Z",
   "users": [
     {
       "telegramId": "77777",
@@ -92,16 +92,6 @@
       "bonusGold": 0
     },
     {
-      "telegramId": "8144744644",
-      "zoomBalance": 143482,
-      "bonusSlots": 4,
-      "bonusSun": true,
-      "bonusBasic": 2,
-      "bonusRare": 1,
-      "bonusEpic": 0,
-      "bonusGold": 1
-    },
-    {
       "telegramId": "1218161083",
       "zoomBalance": 2000,
       "bonusSlots": 0,
@@ -110,6 +100,16 @@
       "bonusRare": 0,
       "bonusEpic": 0,
       "bonusGold": 0
+    },
+    {
+      "telegramId": "8144744644",
+      "zoomBalance": 157636,
+      "bonusSlots": 4,
+      "bonusSun": true,
+      "bonusBasic": 3,
+      "bonusRare": 1,
+      "bonusEpic": 0,
+      "bonusGold": 1
     }
   ]
 }

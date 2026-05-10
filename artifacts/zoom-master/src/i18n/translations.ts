@@ -46,6 +46,7 @@ const en: Dict = {
   "history.kind.plant_claim": "Plant harvested",
   "history.kind.computer_buy": "Computer bought",
   "history.kind.computer_claim": "Computer claimed",
+  "history.kind.craft_planet": "Planet forged",
 
   // maintenance
   "maint.title": "UNDER MAINTENANCE",
@@ -495,6 +496,7 @@ const it: Dict = {
   "history.kind.plant_claim": "Raccolta pianta",
   "history.kind.computer_buy": "Computer acquistato",
   "history.kind.computer_claim": "Riscossione computer",
+  "history.kind.craft_planet": "Pianeta forgiato",
 
 
   "maint.title": "MANUTENZIONE IN CORSO",
@@ -922,6 +924,7 @@ const ru: Dict = {
   "history.kind.plant_claim": "Сбор растения",
   "history.kind.computer_buy": "Покупка компьютера",
   "history.kind.computer_claim": "Сбор с компьютера",
+  "history.kind.craft_planet": "Планета создана",
 
 
   "maint.title": "ТЕХНИЧЕСКИЕ РАБОТЫ",
@@ -1337,6 +1340,7 @@ const uk: Dict = {
   "history.kind.plant_claim": "Збір рослини",
   "history.kind.computer_buy": "Покупка комп'ютера",
   "history.kind.computer_claim": "Збір з комп'ютера",
+  "history.kind.craft_planet": "Планета створена",
 
 
   "maint.title": "ТЕХНІЧНІ РОБОТИ",

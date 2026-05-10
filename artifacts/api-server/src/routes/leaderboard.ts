@@ -3,6 +3,7 @@ import { db, usersTable } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { bumpZoomPriceFireAndForget } from "../lib/zoomPrice";
+import { recordHistoryAsync } from "../lib/history";
 
 const router: IRouter = Router();
 
@@ -260,6 +261,19 @@ const CraftBody = z.object({
   planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "GOLD", "V1"]),
 });
 
+// Costo $ZOOM per ciascun tipo di pianeta. Mirror dei costi client in
+// `useGameState.ts` (PLANET_TYPES[*].craftCost). Usati solo per loggare
+// la cronologia personale: il bilancio resta client-authoritative
+// (vedi replit.md → "Client-Authoritative Balance").
+const CRAFT_COST_BY_TYPE: Record<string, number> = {
+  BASIC: 20,
+  RARE: 40,
+  EPIC: 80,
+  MYTHIC: 115,
+  GOLD: 150,
+  V1: 250,
+};
+
 router.post("/craft/record", async (req, res) => {
   const parsed = CraftBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid body" }); return; }
@@ -301,6 +315,18 @@ router.post("/craft/record", async (req, res) => {
     // cooldown blocks scripted /craft/record loops from pumping the price.
     bumpZoomPriceFireAndForget("craft", telegramId);
     res.json({ ok: true });
+
+    // Cronologia personale: forge nel LAB → uscita di $ZOOM.
+    const cost = CRAFT_COST_BY_TYPE[planetType];
+    if (cost && cost > 0) {
+      recordHistoryAsync({
+        telegramId,
+        kind: "craft_planet",
+        delta: -cost,
+        currency: "zoom",
+        meta: { planetType },
+      });
+    }
   } catch (err) {
     console.error("[craft/record] error:", err);
     res.status(500).json({ error: "Database error" });
