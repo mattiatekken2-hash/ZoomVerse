@@ -56,16 +56,16 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
 
   const handleBuy = async () => {
     if (!telegramId) {
-      setMsg("Telegram ID mancante");
+      setMsg("Telegram ID missing");
       return;
     }
     if (sunCount <= 0) {
-      setMsg("Serve almeno 1 SUN per partecipare");
+      setMsg("You need at least 1 SUN to join");
       return;
     }
     if (!wallet) {
       tonConnectUI.openModal();
-      setMsg("Collega prima il wallet TON");
+      setMsg("Connect your TON wallet first");
       return;
     }
     setBuying(true);
@@ -83,29 +83,29 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
         txr.boc || "",
       );
       if (r.alreadyCredited || r.ok) {
-        setMsg("Iscrizione confermata!");
+        setMsg("Entry confirmed!");
         await refresh();
         window.dispatchEvent(new Event("zoom-data-refresh"));
       } else if (r.pending && r.txnId) {
-        setMsg("Pagamento in verifica...");
+        setMsg("Verifying payment...");
         const f = await pollTxnUntilFinal(r.txnId);
         if (f?.status === "completed") {
-          setMsg("Iscrizione confermata!");
+          setMsg("Entry confirmed!");
           await refresh();
           window.dispatchEvent(new Event("zoom-data-refresh"));
         } else if (f?.status === "failed") {
-          setMsg("Pagamento non rilevato");
+          setMsg("Payment not detected");
         } else {
-          setMsg("In attesa di conferma...");
+          setMsg("Awaiting confirmation...");
         }
       } else {
-        setMsg(r.error || "Iscrizione fallita");
+        setMsg(r.error || "Entry failed");
       }
     } catch (e) {
       const m = e instanceof Error ? e.message : String(e);
       setMsg(m.toLowerCase().includes("cancel") || m.toLowerCase().includes("reject")
-        ? "Pagamento annullato"
-        : "Pagamento fallito");
+        ? "Payment cancelled"
+        : "Payment failed");
     }
     setBuying(false);
   };
@@ -141,7 +141,7 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
 
       <button
         onClick={() => setOpen(true)}
-        aria-label="Classifica Mensile Lab"
+        aria-label="Monthly Lab Leaderboard"
         className="lr-tile"
         style={{
           position: "fixed",
@@ -234,7 +234,7 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
           >
             <button
               onClick={() => setOpen(false)}
-              aria-label="Chiudi"
+              aria-label="Close"
               style={{
                 position: "absolute",
                 top: 12,
@@ -266,10 +266,10 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
                   textTransform: "uppercase",
                 }}
               >
-                Classifica Mensile Lab
+                Monthly Lab Leaderboard
               </div>
               <div style={{ fontSize: 11, color: "rgba(255,236,112,0.7)", marginTop: 4 }}>
-                +1 punto per ogni pianeta forgiato nel Lab
+                +1 point for every planet forged in the Lab
               </div>
             </div>
 
@@ -293,10 +293,10 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
                     letterSpacing: "0.04em",
                   }}
                 >
-                  CLASSIFICA IN FASE DI ATTIVAZIONE
+                LEADERBOARD ACTIVATING
                 </div>
                 <div style={{ fontSize: 14, color: "#fff", fontWeight: 800 }}>
-                  {participants}/{threshold} partecipanti
+                  {participants}/{threshold} participants
                 </div>
                 <div
                   style={{
@@ -306,7 +306,7 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
                     lineHeight: 1.4,
                   }}
                 >
-                  La classifica si attiva al raggiungimento di {threshold} iscritti paganti.
+                  The leaderboard activates once {threshold} paid entries are reached.
                 </div>
               </div>
             )}
@@ -336,12 +336,12 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
                     textTransform: "uppercase",
                   }}
                 >
-                  Montepremi TON
+                  TON Prize Pool
                 </div>
                 <div style={{ fontSize: 20, fontWeight: 900, color: ACCENT, marginTop: 2 }}>
                   {pool.toFixed(2)}
                 </div>
-                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>80% al #1</div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>80% to #1</div>
               </div>
               <div
                 style={{
@@ -360,7 +360,7 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
                     textTransform: "uppercase",
                   }}
                 >
-                  I tuoi punti
+                  Your Points
                 </div>
                 <div style={{ fontSize: 20, fontWeight: 900, color: "#fff", marginTop: 2 }}>
                   {userPoints}
@@ -394,7 +394,7 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
                       textTransform: "uppercase",
                     }}
                   >
-                    Quota d'iscrizione
+                    Entry Fee
                   </span>
                   <span style={{ fontSize: 24, fontWeight: 900, color: "#fff" }}>
                     {ENTRY_TON} TON
@@ -406,7 +406,7 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
                   disabled={buying || sunCount <= 0}
                   data-testid="button-buy-lab-rank-entry"
                 >
-                  {buying ? "..." : sunCount <= 0 ? "SUN RICHIESTO" : "ISCRIVITI"}
+                  {buying ? "..." : sunCount <= 0 ? "SUN REQUIRED" : "JOIN"}
                 </button>
               </div>
             )}
@@ -425,7 +425,7 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
                   color: "#00f264",
                 }}
               >
-                ✓ Sei iscritto a questa edizione
+                ✓ You're entered in this season
               </div>
             )}
 
@@ -447,11 +447,11 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
                   marginBottom: 6,
                 }}
               >
-                PREMI
+                PRIZES
               </div>
               <div style={{ fontSize: 11, color: "#fff", lineHeight: 1.7 }}>
                 <div>
-                  <span style={{ color: ACCENT, fontWeight: 800 }}>#1</span> · 80% montepremi TON (pagamento manuale)
+                  <span style={{ color: ACCENT, fontWeight: 800 }}>#1</span> · TON manual payment
                 </div>
                 <div>
                   <span style={{ color: ACCENT, fontWeight: 800 }}>#2</span> · 500 ★ Stardust
@@ -528,7 +528,7 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
                           ? "🥉"
                           : `#${r.rank}`}{" "}
                         {r.name}
-                        {isMe ? " (tu)" : ""}
+                        {isMe ? " (you)" : ""}
                       </span>
                       <span>{r.labPoints} pt</span>
                     </div>
