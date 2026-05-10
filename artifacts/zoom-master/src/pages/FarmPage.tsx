@@ -281,7 +281,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
               counter every second for the live display. */}
           <StakingWidget
             telegramId={telegramId}
-            v1CountClient={planets.filter(p => p.name === "V1" || p.name === "V1_NFT").length}
+            planets={planets}
             sunCountClient={Math.max(sunCount ?? 0, sun?.isOwned ? 1 : 0)}
           />
 

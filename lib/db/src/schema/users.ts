@@ -241,6 +241,41 @@ export const usersTable = pgTable("users", {
   stakingSunStartedAtMs: bigint("staking_sun_started_at_ms", { mode: "number" }).notNull().default(0),
 
   // ─────────────────────────────────────────────────────────────────────
+  // TON STAKING — extended rarities (BASIC / RARE / EPIC / MYTHIC / GOLD).
+  //
+  // Unlike V1 / SUN (continuous accrual after activation), these tiers
+  // require all 4 underlying planets to be ACTIVELY FARMING (within the
+  // 24h cycle, not listed on the marketplace) for accrual to progress.
+  // We therefore can't compute reward as `(now - startedAt) * rate`;
+  // we maintain a settled snapshot (`*AccruedTon`) plus the timestamp
+  // of the last settle (`*LastSettledAtMs`). Each /staking/status call
+  // settles the delta IF eligibility holds at that moment, otherwise
+  // it just advances `*LastSettledAtMs` without crediting (so the gap
+  // is silently skipped). `*StartedAtMs` > 0 is the on/off sentinel
+  // (kept once activated even if planets later go inactive — user can
+  // resume by reactivating their farms).
+  //
+  // SUN-in-inventory requirement is enforced ONLY at /staking/start
+  // for these tiers (mirrors how V1 / SUN don't auto-stop on later
+  // changes to the underlying planets).
+  // ─────────────────────────────────────────────────────────────────────
+  stakingBasicStartedAtMs: bigint("staking_basic_started_at_ms", { mode: "number" }).notNull().default(0),
+  stakingBasicAccruedTon: real("staking_basic_accrued_ton").notNull().default(0),
+  stakingBasicLastSettledAtMs: bigint("staking_basic_last_settled_at_ms", { mode: "number" }).notNull().default(0),
+  stakingRareStartedAtMs: bigint("staking_rare_started_at_ms", { mode: "number" }).notNull().default(0),
+  stakingRareAccruedTon: real("staking_rare_accrued_ton").notNull().default(0),
+  stakingRareLastSettledAtMs: bigint("staking_rare_last_settled_at_ms", { mode: "number" }).notNull().default(0),
+  stakingEpicStartedAtMs: bigint("staking_epic_started_at_ms", { mode: "number" }).notNull().default(0),
+  stakingEpicAccruedTon: real("staking_epic_accrued_ton").notNull().default(0),
+  stakingEpicLastSettledAtMs: bigint("staking_epic_last_settled_at_ms", { mode: "number" }).notNull().default(0),
+  stakingMythicStartedAtMs: bigint("staking_mythic_started_at_ms", { mode: "number" }).notNull().default(0),
+  stakingMythicAccruedTon: real("staking_mythic_accrued_ton").notNull().default(0),
+  stakingMythicLastSettledAtMs: bigint("staking_mythic_last_settled_at_ms", { mode: "number" }).notNull().default(0),
+  stakingGoldStartedAtMs: bigint("staking_gold_started_at_ms", { mode: "number" }).notNull().default(0),
+  stakingGoldAccruedTon: real("staking_gold_accrued_ton").notNull().default(0),
+  stakingGoldLastSettledAtMs: bigint("staking_gold_last_settled_at_ms", { mode: "number" }).notNull().default(0),
+
+  // ─────────────────────────────────────────────────────────────────────
   // PENDING ZOOM CREDITS — race-free server→client credit channel.
   //
   // PROBLEM: a marketplace sale credits the seller via

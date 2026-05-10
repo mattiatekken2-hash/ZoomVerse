@@ -1434,19 +1434,37 @@ export async function fetchEconomyHistory(): Promise<EconomyHistoryResponse | nu
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// TON STAKING — V1 set & SUN set (4 planets each, 0.5 TON / 30 days).
+// TON STAKING — 7 tiers. V1/SUN keep continuous accrual; BASIC..GOLD
+// require SUN in inventory + 4 ACTIVE farms of that rarity.
+//   • V1 / SUN  → 0.15 TON / 30d   (continuous)
+//   • MYTHIC    → 0.10 TON / 30d   (gated on active farming)
+//   • GOLD      → 0.07 TON / 30d   (gated on active farming)
+//   • EPIC      → 0.04 TON / 30d   (gated on active farming)
+//   • RARE      → 0.02 TON / 30d   (gated on active farming)
+//   • BASIC     → 0.01 TON / 30d   (gated on active farming)
 // ─────────────────────────────────────────────────────────────────────
+export type StakingKind = "v1" | "sun" | "basic" | "rare" | "epic" | "mythic" | "gold";
+
 export interface StakingSetStatus {
   eligible: boolean;
   count: number;
+  activeCount: number;
   required: number;
   startedAtMs: number;
   accruedTon: number;
+  isAccruing: boolean;
   rewardTonPerMonth: number;
+  requiresSunInInventory: boolean;
 }
 export interface StakingStatusResponse {
   v1: StakingSetStatus;
   sun: StakingSetStatus;
+  basic: StakingSetStatus;
+  rare: StakingSetStatus;
+  epic: StakingSetStatus;
+  mythic: StakingSetStatus;
+  gold: StakingSetStatus;
+  hasSun: boolean;
   nowMs: number;
 }
 
@@ -1462,7 +1480,7 @@ export async function fetchStakingStatus(telegramId: string): Promise<StakingSta
   } catch { return null; }
 }
 
-export async function startStaking(telegramId: string, kind: "v1" | "sun"): Promise<{ ok: boolean; startedAtMs?: number; reason?: string }> {
+export async function startStaking(telegramId: string, kind: StakingKind): Promise<{ ok: boolean; startedAtMs?: number; reason?: string }> {
   if (!telegramId) return { ok: false, reason: "NO_USER" };
   try {
     const res = await fetch(`${API_BASE}/staking/start`, {
