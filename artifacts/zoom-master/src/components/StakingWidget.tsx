@@ -245,7 +245,15 @@ export function StakingWidget({ telegramId, planets, sunCountClient, sunFarmStar
   //      must show as paused immediately.
   useEffect(() => {
     if (!telegramId) return;
+    // Two-shot, same race as the planet-farm fingerprint below: SUN
+    // reactivation pushes /sun/cycle fire-and-forget while the client
+    // state already shows a fresh 24h cycle. An immediate /staking/status
+    // can race that write and come back with sunCycleActive=false →
+    // every dynamic tier flips to "Activate your SUN (24h cycle)" until
+    // the next 30s poll. The 1.5s second-shot covers the slow-write case.
     void refresh();
+    const t = window.setTimeout(() => { void refresh(); }, 1500);
+    return () => window.clearTimeout(t);
   }, [telegramId, sunFarmStartedAtClient, sunCountClient, refresh]);
 
   // Also refresh when farm timestamps change (planet farm restart). We
