@@ -260,7 +260,16 @@ export function StakingWidget({ telegramId, planets, sunCountClient, sunFarmStar
   }, [planets]);
   useEffect(() => {
     if (!telegramId) return;
+    // Two-shot refresh: the planet save in useGameState is debounced by
+    // 1.2s, so an immediate /staking/status would still see the OLD
+    // planets_json on the server (activeCount = 0) and the user would
+    // be stuck on "Activate 4 RARE farms" until the next 30s poll. We
+    // refresh once now (covers cases where the save already flushed,
+    // e.g. an immediate save path) and once after the debounce window
+    // (covers the normal path).
     void refresh();
+    const t = window.setTimeout(() => { void refresh(); }, 1500);
+    return () => window.clearTimeout(t);
     // farmFingerprint intentionally drives this effect — we don't want
     // refresh to refire on every render.
   }, [telegramId, farmFingerprint, refresh]);
