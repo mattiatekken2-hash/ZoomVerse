@@ -36,6 +36,7 @@ import {
   adminReconcileReferrals,
   adminAuditReferrals,
   adminPurgeFakeReferrals,
+  adminForceZeroReferrals,
   type ReferralAudit,
   adminReconcileStars,
   adminWebhookInfo,
@@ -1985,8 +1986,9 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
   const [target, setTarget] = useState("");
   const [scope, setScope] = useState<"today" | "all">("today");
   const [audit, setAudit] = useState<ReferralAudit | null>(null);
-  const [busy, setBusy] = useState<"audit" | "purge" | null>(null);
+  const [busy, setBusy] = useState<"audit" | "purge" | "force-daily" | "force-all" | null>(null);
   const [confirmPurge, setConfirmPurge] = useState(false);
+  const [confirmForce, setConfirmForce] = useState<"daily" | "all" | null>(null);
 
   const runAudit = useCallback(async () => {
     haptic();
@@ -2022,6 +2024,32 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
     const refreshed = await adminAuditReferrals(adminId, t);
     if (refreshed.ok) setAudit(refreshed);
   }, [adminId, target, scope, onFeedback]);
+
+  // Nuclear option: bypass the strict "fake" heuristic and zero out the HoF
+  // counters directly. Needed when the bot accounts have balance_epoch >= 1
+  // (because they opened the WebApp once) and therefore evade the
+  // /referrals/purge-fakes filter.
+  const runForceZero = useCallback(async (mode: "daily" | "all") => {
+    haptic();
+    const id = audit?.targetTelegramId;
+    if (!id) return;
+    setBusy(mode === "daily" ? "force-daily" : "force-all");
+    const res = await adminForceZeroReferrals(adminId, id, {
+      zeroDaily: true,
+      zeroTotal: mode === "all",
+    });
+    setBusy(null);
+    setConfirmForce(null);
+    if (!res.ok) {
+      onFeedback(`✗ ${res.error || "Errore force-zero"}`, false);
+      return;
+    }
+    onFeedback(mode === "all"
+      ? "✓ HoF azzerato (oggi + totale). L'utente sparisce dalla classifica."
+      : "✓ HoF azzerato per oggi. L'utente sparisce dalla Hall of Fame.", true);
+    const refreshed = await adminAuditReferrals(adminId, id);
+    if (refreshed.ok) setAudit(refreshed);
+  }, [adminId, audit?.targetTelegramId, onFeedback]);
 
   const c = audit?.counts;
   const targetCount = scope === "today" ? (c?.today_fake ?? 0) : (c?.total_fake ?? 0);
@@ -2125,7 +2153,7 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
           {!confirmPurge ? (
             <motion.button
               whileTap={{ scale: 0.94 }}
-              onClick={() => setConfirmPurge(true)}
+              onClick={() => { setConfirmPurge(true); setConfirmForce(null); }}
               disabled={busy !== null || targetCount === 0}
               style={{
                 padding: "10px",
@@ -2183,11 +2211,118 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
               </motion.button>
             </div>
           )}
+
+          {/* Nuclear option: force-zero the HoF counters for this user.
+              Needed when the bot accounts already have balance_epoch >= 1
+              and slip past the strict "fake" filter above (so the purge
+              unlinks 0 rows and the HoF count never drops). */}
+          <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "2px 0" }} />
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.05em" }}>
+            FORZA AZZERAMENTO HALL OF FAME (bypassa il filtro fake)
+          </div>
+          {confirmForce === null ? (
+            <div style={{ display: "flex", gap: 4 }}>
+              <motion.button
+                whileTap={{ scale: 0.94 }}
+                onClick={() => { haptic(); setConfirmForce("daily"); setConfirmPurge(false); }}
+                disabled={busy !== null || (audit.dailyReferralCount ?? 0) === 0}
+                style={{
+                  flex: 1,
+                  padding: "9px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,160,40,0.45)",
+                  background: "rgba(255,160,40,0.10)",
+                  color: "#ffa830",
+                  fontSize: 10,
+                  fontWeight: 800,
+                  letterSpacing: "0.05em",
+                  cursor: (audit.dailyReferralCount ?? 0) === 0 ? "not-allowed" : "pointer",
+                  opacity: (audit.dailyReferralCount ?? 0) === 0 ? 0.4 : 1,
+                }}
+              >
+                ⚡ AZZERA HOF OGGI ({audit.dailyReferralCount ?? 0})
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.94 }}
+                onClick={() => { haptic(); setConfirmForce("all"); setConfirmPurge(false); }}
+                disabled={busy !== null || (audit.referralCount ?? 0) === 0}
+                style={{
+                  flex: 1,
+                  padding: "9px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(220,20,60,0.45)",
+                  background: "rgba(220,20,60,0.10)",
+                  color: "#ff5577",
+                  fontSize: 10,
+                  fontWeight: 800,
+                  letterSpacing: "0.05em",
+                  cursor: (audit.referralCount ?? 0) === 0 ? "not-allowed" : "pointer",
+                  opacity: (audit.referralCount ?? 0) === 0 ? 0.4 : 1,
+                }}
+              >
+                ☢ AZZERA TUTTO ({audit.referralCount ?? 0})
+              </motion.button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 4 }}>
+              <motion.button
+                whileTap={{ scale: 0.94 }}
+                onClick={() => runForceZero(confirmForce)}
+                disabled={busy !== null}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  borderRadius: 8,
+                  border: confirmForce === "all"
+                    ? "1px solid rgba(255,40,40,0.7)"
+                    : "1px solid rgba(255,160,40,0.7)",
+                  background: confirmForce === "all"
+                    ? "rgba(255,40,40,0.20)"
+                    : "rgba(255,160,40,0.20)",
+                  color: confirmForce === "all" ? "#ff5577" : "#ffa830",
+                  fontSize: 10,
+                  fontWeight: 800,
+                  letterSpacing: "0.05em",
+                  cursor: "pointer",
+                  opacity: busy ? 0.5 : 1,
+                }}
+              >
+                {busy === "force-daily" || busy === "force-all"
+                  ? "..."
+                  : confirmForce === "all"
+                    ? "CONFERMA AZZERAMENTO TOTALE"
+                    : "CONFERMA AZZERAMENTO OGGI"}
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.94 }}
+                onClick={() => setConfirmForce(null)}
+                disabled={busy !== null}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  background: "rgba(255,255,255,0.04)",
+                  color: "rgba(255,255,255,0.7)",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                ANNULLA
+              </motion.button>
+            </div>
+          )}
         </div>
       )}
 
       <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.4 }}>
-        "Fake" = utente referenziato che non ha mai aperto l'app (zoom_balance=0 e mai loggato). La rimozione sgancia il referral e decrementa il contatore Hall of Fame.
+        <b>RIMUOVI FAKE</b>: sgancia solo i referral fantasma (zoom_balance=0 + mai loggati).
+        Se i bot hanno aperto il WebApp anche solo una volta, questo non li trova
+        e il contatore HoF resta intero.
+        <br />
+        <b>AZZERA HOF OGGI</b>: forza a 0 il contatore di oggi (l'utente sparisce subito dalla Hall of Fame).
+        <br />
+        <b>AZZERA TUTTO</b>: forza a 0 anche il contatore lifetime (resetta i milestone visibili).
       </div>
     </div>
   );

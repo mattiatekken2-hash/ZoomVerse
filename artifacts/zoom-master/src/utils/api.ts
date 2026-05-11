@@ -1266,6 +1266,38 @@ export async function adminPurgeFakeReferrals(
   }
 }
 
+/**
+ * Nuclear option: zero out the target user's HoF counters directly, bypassing
+ * the strict "fake" heuristic of /referrals/purge-fakes (which only matches
+ * referred accounts with zoom_balance=0 AND balance_epoch=0 — bot accounts
+ * that opened the WebApp once already have balance_epoch>=1 and slip past).
+ * Calls /admin/anti-cheat-purge-referrals which atomically sets
+ * daily_referral_count = 0 (and optionally referral_count = 0) on the target.
+ */
+export async function adminForceZeroReferrals(
+  adminId: string,
+  telegramId: string,
+  opts: { zeroDaily?: boolean; zeroTotal?: boolean },
+): Promise<{ ok: boolean; unlinked?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/anti-cheat-purge-referrals`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({
+        adminId,
+        telegramId,
+        zeroDaily: !!opts.zeroDaily,
+        zeroTotal: !!opts.zeroTotal,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data?.error || `HTTP ${res.status}` };
+    return { ok: true, unlinked: data?.unlinked };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export async function adminReconcileStars(adminId: string): Promise<{ ok: boolean; scanned?: number; credited?: number; alreadyDone?: number; notFound?: number; error?: string }> {
   try {
     const res = await fetch(`${API_BASE}/admin/reconcile-stars`, {
