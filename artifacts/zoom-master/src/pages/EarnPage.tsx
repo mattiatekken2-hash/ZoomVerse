@@ -41,25 +41,35 @@ const SPONSOR_GATE_MS = 10_000;
 const sponsorGateKey = (telegramId: string | null, taskId: string) =>
   `zoom:sponsor-gate-opened-at:${telegramId ?? "_anon"}:${taskId}`;
 
-// Derive a human title from the sponsor URL. Used for sponsor tasks
-// that don't carry an explicit label from the server. Kept client-side
-// because it's purely cosmetic.
-function sponsorTitle(url: string): string {
+// Derive a localized human title from the sponsor URL. Used for sponsor
+// tasks that don't carry an explicit label from the server. Kept
+// client-side because it's purely cosmetic.
+function sponsorTitle(t: (k: string, p?: Record<string, string | number>) => string, url: string): string {
   try {
     const u = new URL(url);
-    if (u.hostname.includes("youtube")) return "Apri canale YouTube";
+    if (u.hostname.includes("youtube")) return t("earn.sponsorOpenYouTube");
     if (u.hostname.includes("t.me")) {
       const path = u.pathname.replace(/^\//, "");
-      if (path.startsWith("+")) return "Entra nel canale privato";
-      // bot deep link with ?startapp=... → "Apri @botname"
+      if (path.startsWith("+")) return t("earn.sponsorJoinPrivate");
+      // bot deep link with ?startapp=... → "Open @botname"
       const handle = path.split("/")[0] ?? path;
-      if (handle) return `Apri @${handle}`;
+      if (handle) return t("earn.sponsorOpenHandle", { h: handle });
     }
-    return `Apri ${u.hostname}`;
+    return t("earn.sponsorOpenLink", { h: u.hostname });
   } catch {
-    return "Apri il link";
+    return t("earn.sponsorOpenLink", { h: "" });
   }
 }
+
+// Translated requirement description per known sponsor task id. The
+// server returns an Italian-only `requirementLabel` for logging /
+// debugging; the client overrides it with the user's current language
+// based on the task id so non-IT players see the right text.
+const SPONSOR_REQ_KEY: Record<string, string> = {
+  sponsor_giftkombat: "earn.reqGiftkombat",
+  sponsor_izimoney: "earn.reqIzimoney",
+  sponsor_yt_miketamago: "earn.reqMiketamago",
+};
 
 export function EarnPage({ referralCode, referralCount, referralSpeedBonus, referredBy, claimedMilestones, telegramId, onRedeemCode }: EarnPageProps) {
   const { t } = useT();
@@ -266,7 +276,8 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
       setTaskMsg(t("earn.thresholdNotMet", { t: String(res.threshold ?? 0), b: String(res.planetsBuilt ?? 0) }));
       await reloadTasks();
     } else if (res.error === "INELIGIBLE") {
-      setTaskMsg(res.requirementLabel || "Requisiti non soddisfatti");
+      const reqKey = SPONSOR_REQ_KEY[taskId];
+      setTaskMsg(reqKey ? t(reqKey) : (res.requirementLabel || t("earn.requirementFallback")));
       await reloadTasks();
     } else {
       setTaskMsg(t("earn.claimFailed"));
@@ -683,18 +694,19 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                 const gateOpen = openedAt > 0 && gateRemainingMs === 0;
                 const remainingS = Math.ceil(gateRemainingMs / 1000);
 
-                // Title — first sponsor stays as the legacy hard-coded label
-                // for backward compat; everything else derives from URL.
+                // Title — derive a localized label from the URL. The
+                // legacy coinflip task uses "Join @handle" wording for
+                // continuity with what users already saw.
                 const title = task.id === "sponsor_coinflip"
-                  ? "Join @coinflip_vip"
-                  : sponsorTitle(task.url);
+                  ? t("earn.sponsorJoinHandle", { h: "coinflip_vip" })
+                  : sponsorTitle(t, task.url);
 
                 // Reward label varies by reward type. Exactly one of the
                 // three reward fields is non-zero per task today.
                 const rewardLabel = task.rewardZoom > 0
-                  ? `Premio: +${task.rewardZoom.toLocaleString()} $ZOOM`
+                  ? t("earn.rewardZoom", { n: task.rewardZoom.toLocaleString() })
                   : task.rewardStardust > 0
-                    ? `Premio: +${task.rewardStardust.toLocaleString()} Stardust`
+                    ? t("earn.rewardStardust", { n: task.rewardStardust.toLocaleString() })
                     : t(task.rewardSpins > 1 ? "earn.rewardSpinsMany" : "earn.rewardSpinsOne", { n: task.rewardSpins });
 
                 // Eligibility gate (server-side enforced; UI mirrors it).
@@ -766,7 +778,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                           }}
                           data-testid={`button-task-${task.id}-locked`}
                         >
-                          Bloccato
+                          {t("earn.lockedBtn")}
                         </button>
                       ) : showOpen ? (
                         <button
@@ -817,7 +829,9 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                     {!task.claimed && (
                       <div className="text-[10px]" style={{ color: isLocked ? "#ff9b6e" : "rgba(255,255,255,0.35)" }}>
                         {isLocked
-                          ? (task.requirementLabel || "Requisiti non soddisfatti")
+                          ? (SPONSOR_REQ_KEY[task.id]
+                              ? t(SPONSOR_REQ_KEY[task.id]!)
+                              : (task.requirementLabel || t("earn.requirementFallback")))
                           : t("earn.sponsorHint")}
                       </div>
                     )}
