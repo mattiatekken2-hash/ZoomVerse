@@ -1707,13 +1707,14 @@ export function useGameState() {
           const localCycleCount = updated.sun.cycleCount ?? 0;
           const mergedStarted = Math.max(localStarted, srvStarted);
           const mergedCollected = Math.max(localCollected, srvCollected);
+          const mergedCycleCount = Math.max(localCycleCount, srvCycleCount);
           updated = {
             ...updated,
             sun: {
               ...updated.sun,
               farmStartedAt: mergedStarted,
               lastCollectedAt: mergedCollected,
-              cycleCount: Math.max(localCycleCount, srvCycleCount),
+              cycleCount: mergedCycleCount,
               // Treat the cycle as active whenever a non-zero start exists.
               // The is-active gate is enforced separately by isSunActive()
               // (which also checks the 24h window), so this is just the
@@ -1721,6 +1722,29 @@ export function useGameState() {
               isActive: mergedStarted > 0 ? true : updated.sun.isActive,
             },
           };
+          // Self-heal: if the local SUN cycle is AHEAD of the server (start
+          // or collect timestamp), the original /sun/cycle write must have
+          // been lost (network blip, 500, app closed mid-flight). Re-push
+          // now so the server catches up — otherwise BASIC..GOLD staking
+          // stays permanently locked with "Activate your SUN" until the
+          // user reactivates manually. /sun/cycle uses GREATEST() so this
+          // is idempotent and safe to fire on every hydration.
+          //
+          // Compare on the SAME integer space we send to the server (we
+          // POST Math.round(...)). serverNow() can be fractional from
+          // RTT/2 calibration, so a raw `local > srv` check would stay
+          // true forever (1234.4 > 1234) and re-fire on every grants poll.
+          const tid = updated.telegramId;
+          const localStartedInt = Math.round(mergedStarted);
+          const localCollectedInt = Math.round(mergedCollected);
+          if (tid && (localStartedInt > srvStarted || localCollectedInt > srvCollected || mergedCycleCount > srvCycleCount)) {
+            void syncSunCycle({
+              telegramId: tid,
+              sunFarmStartedAtMs: localStartedInt,
+              sunLastCollectedAtMs: localCollectedInt,
+              sunCycleCount: mergedCycleCount,
+            });
+          }
         }
 
         // ─── REGULAR PLANETS — server is source of truth ───
@@ -2130,16 +2154,32 @@ export function useGameState() {
           const localCycleCount = updated.sun.cycleCount ?? 0;
           const mergedStarted = Math.max(localStarted, srvStarted);
           const mergedCollected = Math.max(localCollected, srvCollected);
+          const mergedCycleCount = Math.max(localCycleCount, srvCycleCount);
           updated = {
             ...updated,
             sun: {
               ...updated.sun,
               farmStartedAt: mergedStarted,
               lastCollectedAt: mergedCollected,
-              cycleCount: Math.max(localCycleCount, srvCycleCount),
+              cycleCount: mergedCycleCount,
               isActive: mergedStarted > 0 ? true : updated.sun.isActive,
             },
           };
+          // Self-heal lost /sun/cycle writes — same rationale as the
+          // hydration block above. Idempotent (server uses GREATEST).
+          // Compare integer-normalised values so fractional serverNow()
+          // drift doesn't keep firing on every poll.
+          const tid = updated.telegramId;
+          const localStartedInt = Math.round(mergedStarted);
+          const localCollectedInt = Math.round(mergedCollected);
+          if (tid && (localStartedInt > srvStarted || localCollectedInt > srvCollected || mergedCycleCount > srvCycleCount)) {
+            void syncSunCycle({
+              telegramId: tid,
+              sunFarmStartedAtMs: localStartedInt,
+              sunLastCollectedAtMs: localCollectedInt,
+              sunCycleCount: mergedCycleCount,
+            });
+          }
         }
 
         const serverBundles2 = Math.max(0, Number(grants.whiteCollectionBundles ?? 0));
