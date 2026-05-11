@@ -2314,7 +2314,12 @@ export interface SponsorTaskInfo {
   id: string;
   url: string;
   rewardSpins: number;
+  rewardZoom: number;
+  rewardStardust: number;
   claimed: boolean;
+  eligible: boolean;
+  ineligibleReason: string | null;
+  requirementLabel: string | null;
 }
 export interface TasksState {
   planetsBuilt: number;
@@ -2345,8 +2350,11 @@ export async function fetchTasksState(telegramId: string): Promise<TasksState | 
 export interface ClaimTaskResult {
   ok: boolean;
   error?: string;
+  reason?: string;
+  requirementLabel?: string | null;
   rewardZoom?: number;
   rewardSpins?: number;
+  rewardStardust?: number;
   planetsBuilt?: number;
   threshold?: number;
 }
@@ -2363,6 +2371,8 @@ export async function claimTask(telegramId: string, taskId: string): Promise<Cla
       return {
         ok: false,
         error: json?.error || "CLAIM_FAILED",
+        reason: typeof json?.reason === "string" ? json.reason : undefined,
+        requirementLabel: typeof json?.requirementLabel === "string" ? json.requirementLabel : null,
         planetsBuilt: typeof json?.planetsBuilt === "number" ? json.planetsBuilt : undefined,
         threshold: typeof json?.threshold === "number" ? json.threshold : undefined,
       };
@@ -2371,6 +2381,7 @@ export async function claimTask(telegramId: string, taskId: string): Promise<Cla
       ok: true,
       rewardZoom: Number(json.rewardZoom ?? 0),
       rewardSpins: Number(json.rewardSpins ?? 0),
+      rewardStardust: Number(json.rewardStardust ?? 0),
       planetsBuilt: Number(json.totalPlanetsBuilt ?? 0),
     };
   } catch {

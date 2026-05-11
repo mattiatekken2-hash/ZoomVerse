@@ -39,6 +39,7 @@ function logBootOnce(): void {
 export interface VerifiedTgUser {
   id: string;
   firstName?: string;
+  lastName?: string;
   username?: string;
   authDate: number;
 }
@@ -105,7 +106,7 @@ export function verifyInitData(initData: string | undefined | null): VerifyResul
 
   const userStr = params.get("user");
   if (!userStr) return { ok: false, reason: "no_user" };
-  let userObj: { id?: unknown; first_name?: unknown; username?: unknown };
+  let userObj: { id?: unknown; first_name?: unknown; last_name?: unknown; username?: unknown };
   try {
     userObj = JSON.parse(userStr) as typeof userObj;
   } catch {
@@ -161,6 +162,7 @@ export function verifyInitData(initData: string | undefined | null): VerifyResul
     user: {
       id: userId,
       firstName: typeof userObj.first_name === "string" ? userObj.first_name : undefined,
+      lastName: typeof userObj.last_name === "string" ? userObj.last_name : undefined,
       username: typeof userObj.username === "string" ? userObj.username : undefined,
       authDate,
     },

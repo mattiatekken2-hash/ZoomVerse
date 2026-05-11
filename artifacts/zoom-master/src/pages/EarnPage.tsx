@@ -33,12 +33,33 @@ const MILESTONES = [
 // app — the server has no way to verify channel membership without an
 // admin bot in the partner channel.
 const SPONSOR_GATE_MS = 10_000;
-// Per-user storage key so a shared device (e.g. family iPad with two
-// Telegram accounts) can't have one account's "I opened the channel"
-// timestamp unlock the Claim button on a second account that never
-// actually tapped Open.
-const sponsorGateKey = (telegramId: string | null) =>
-  `zoom:sponsor-gate-opened-at:${telegramId ?? "_anon"}`;
+// Per-user + per-task storage key so a shared device (e.g. family iPad
+// with two Telegram accounts) can't have one account's "I opened the
+// channel" timestamp unlock the Claim button on a second account, AND
+// so opening one sponsor task doesn't unlock the Claim button on every
+// other sponsor task in the list.
+const sponsorGateKey = (telegramId: string | null, taskId: string) =>
+  `zoom:sponsor-gate-opened-at:${telegramId ?? "_anon"}:${taskId}`;
+
+// Derive a human title from the sponsor URL. Used for sponsor tasks
+// that don't carry an explicit label from the server. Kept client-side
+// because it's purely cosmetic.
+function sponsorTitle(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes("youtube")) return "Apri canale YouTube";
+    if (u.hostname.includes("t.me")) {
+      const path = u.pathname.replace(/^\//, "");
+      if (path.startsWith("+")) return "Entra nel canale privato";
+      // bot deep link with ?startapp=... → "Apri @botname"
+      const handle = path.split("/")[0] ?? path;
+      if (handle) return `Apri @${handle}`;
+    }
+    return `Apri ${u.hostname}`;
+  } catch {
+    return "Apri il link";
+  }
+}
 
 export function EarnPage({ referralCode, referralCount, referralSpeedBonus, referredBy, claimedMilestones, telegramId, onRedeemCode }: EarnPageProps) {
   const { t } = useT();
@@ -182,20 +203,26 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
   const [tasksError, setTasksError] = useState<string | null>(null);
   const [taskMsg, setTaskMsg] = useState<string | null>(null);
   const [claimingTaskId, setClaimingTaskId] = useState<string | null>(null);
-  // Read the persisted "channel opened at" timestamp once on mount so the
-  // 10s countdown survives a page reload (otherwise an over-eager user
-  // could just refresh to bypass the wait).
-  const [sponsorOpenedAt, setSponsorOpenedAt] = useState<number>(0);
-  // Re-read the per-user gate timestamp whenever telegramId changes so an
-  // account switch on the same device doesn't carry over the previous
-  // user's "Open" tap.
+  // Per-task "channel opened at" timestamps. Persisted per (user, taskId)
+  // so the 10s countdown survives a reload AND opening one sponsor task
+  // doesn't accidentally unlock the Claim button on every other sponsor
+  // task. Hydrated from localStorage whenever the visible sponsor task
+  // list (or the user) changes.
+  const [sponsorOpenedAt, setSponsorOpenedAt] = useState<Record<string, number>>({});
+  const sponsorTaskIds = (tasks?.sponsorTasks ?? []).map((t) => t.id).join(",");
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(sponsorGateKey(telegramId));
-      const n = raw ? Number(raw) : 0;
-      setSponsorOpenedAt(Number.isFinite(n) && n > 0 ? n : 0);
-    } catch { setSponsorOpenedAt(0); }
-  }, [telegramId]);
+    if (!sponsorTaskIds) return;
+    const next: Record<string, number> = {};
+    for (const id of sponsorTaskIds.split(",")) {
+      if (!id) continue;
+      try {
+        const raw = localStorage.getItem(sponsorGateKey(telegramId, id));
+        const n = raw ? Number(raw) : 0;
+        next[id] = Number.isFinite(n) && n > 0 ? n : 0;
+      } catch { next[id] = 0; }
+    }
+    setSponsorOpenedAt(next);
+  }, [telegramId, sponsorTaskIds]);
   const tasksTickRef = useRef(0);
   void tasksTickRef;
 
@@ -226,6 +253,9 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
       if (res.rewardSpins && res.rewardSpins > 0) {
         parts.push(t(res.rewardSpins > 1 ? "earn.spinsCreditedMany" : "earn.spinsCreditedOne", { n: res.rewardSpins }));
       }
+      if (res.rewardStardust && res.rewardStardust > 0) {
+        parts.push(`+${res.rewardStardust.toLocaleString()} Stardust`);
+      }
       setTaskMsg(parts.join(" · ") || t("earn.claimedBtn"));
       window.dispatchEvent(new Event("zoom-data-refresh"));
       await reloadTasks();
@@ -235,30 +265,32 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
     } else if (res.error === "THRESHOLD_NOT_MET") {
       setTaskMsg(t("earn.thresholdNotMet", { t: String(res.threshold ?? 0), b: String(res.planetsBuilt ?? 0) }));
       await reloadTasks();
+    } else if (res.error === "INELIGIBLE") {
+      setTaskMsg(res.requirementLabel || "Requisiti non soddisfatti");
+      await reloadTasks();
     } else {
       setTaskMsg(t("earn.claimFailed"));
     }
-    setTimeout(() => setTaskMsg(null), 3500);
+    setTimeout(() => setTaskMsg(null), 4500);
   };
 
-  const handleOpenSponsor = (url: string) => {
+  const handleOpenSponsor = (taskId: string, url: string) => {
     const now = Date.now();
-    setSponsorOpenedAt(now);
-    try { localStorage.setItem(sponsorGateKey(telegramId), String(now)); } catch {}
+    setSponsorOpenedAt((prev) => ({ ...prev, [taskId]: now }));
+    try { localStorage.setItem(sponsorGateKey(telegramId, taskId), String(now)); } catch {}
     try {
       const tg = (window as any).Telegram?.WebApp;
-      if (tg?.openTelegramLink) {
+      if (tg?.openTelegramLink && url.startsWith("https://t.me/")) {
         tg.openTelegramLink(url);
+        return;
+      }
+      if (tg?.openLink) {
+        tg.openLink(url);
         return;
       }
     } catch {}
     window.open(url, "_blank");
   };
-
-  const sponsorGateRemainingMs = sponsorOpenedAt > 0
-    ? Math.max(0, SPONSOR_GATE_MS - (Date.now() - sponsorOpenedAt))
-    : SPONSOR_GATE_MS;
-  const sponsorGateOpen = sponsorOpenedAt > 0 && sponsorGateRemainingMs === 0;
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -644,33 +676,67 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
 
               {tasks.sponsorTasks.map((task) => {
                 const isClaiming = claimingTaskId === task.id;
-                const remainingS = Math.ceil(sponsorGateRemainingMs / 1000);
-                // Three sequential states for a sponsor task:
-                //   1) "Open"   — never tapped Open yet (sponsorOpenedAt = 0)
+                const openedAt = sponsorOpenedAt[task.id] ?? 0;
+                const gateRemainingMs = openedAt > 0
+                  ? Math.max(0, SPONSOR_GATE_MS - (Date.now() - openedAt))
+                  : SPONSOR_GATE_MS;
+                const gateOpen = openedAt > 0 && gateRemainingMs === 0;
+                const remainingS = Math.ceil(gateRemainingMs / 1000);
+
+                // Title — first sponsor stays as the legacy hard-coded label
+                // for backward compat; everything else derives from URL.
+                const title = task.id === "sponsor_coinflip"
+                  ? "Join @coinflip_vip"
+                  : sponsorTitle(task.url);
+
+                // Reward label varies by reward type. Exactly one of the
+                // three reward fields is non-zero per task today.
+                const rewardLabel = task.rewardZoom > 0
+                  ? `Premio: +${task.rewardZoom.toLocaleString()} $ZOOM`
+                  : task.rewardStardust > 0
+                    ? `Premio: +${task.rewardStardust.toLocaleString()} Stardust`
+                    : t(task.rewardSpins > 1 ? "earn.rewardSpinsMany" : "earn.rewardSpinsOne", { n: task.rewardSpins });
+
+                // Eligibility gate (server-side enforced; UI mirrors it).
+                // When ineligible, neither Open nor Claim do anything —
+                // we render a disabled "Bloccato" button and the
+                // requirement label inline.
+                const isLocked = !task.claimed && !task.eligible;
+
+                // Three sequential states for an eligible sponsor task:
+                //   1) "Open"   — never tapped Open yet (openedAt = 0)
                 //   2) "Wait Ns"— Open tapped, gate timer still running
                 //   3) "Claim"  — gate elapsed, server still says not claimed
-                const canClaimNow = !task.claimed && sponsorGateOpen;
-                const showOpen = !task.claimed && sponsorOpenedAt === 0;
-                const showWait = !task.claimed && sponsorOpenedAt > 0 && !sponsorGateOpen;
+                const canClaimNow = !task.claimed && task.eligible && gateOpen;
+                const showOpen = !task.claimed && task.eligible && openedAt === 0;
+                const showWait = !task.claimed && task.eligible && openedAt > 0 && !gateOpen;
                 return (
                   <div
                     key={task.id}
                     className="rounded-xl border p-3"
                     style={{
-                      borderColor: task.claimed ? "rgba(0,230,118,0.22)" : "rgba(0,242,254,0.2)",
-                      background: task.claimed ? "rgba(0,230,118,0.05)" : "rgba(0,242,254,0.04)",
+                      borderColor: task.claimed
+                        ? "rgba(0,230,118,0.22)"
+                        : isLocked
+                          ? "rgba(255,255,255,0.08)"
+                          : "rgba(0,242,254,0.2)",
+                      background: task.claimed
+                        ? "rgba(0,230,118,0.05)"
+                        : isLocked
+                          ? "rgba(255,255,255,0.02)"
+                          : "rgba(0,242,254,0.04)",
                     }}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <div className="flex flex-col">
+                      <div className="flex flex-col min-w-0 pr-2">
                         <span
-                          className="text-xs font-black tracking-wide"
-                          style={{ color: task.claimed ? "#00e676" : "#00f2fe" }}
+                          className="text-xs font-black tracking-wide truncate"
+                          style={{ color: task.claimed ? "#00e676" : isLocked ? "rgba(255,255,255,0.45)" : "#00f2fe" }}
                         >
-                          Join @coinflip_vip
+                          {title}
                         </span>
                         <span className="text-[10px] font-bold mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-                          {t(task.rewardSpins > 1 ? "earn.rewardSpinsMany" : "earn.rewardSpinsOne", { n: task.rewardSpins })}
+                          {rewardLabel}
                         </span>
                       </div>
                       {task.claimed ? (
@@ -687,9 +753,24 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                         >
                           {t("earn.claimedBtn")}
                         </button>
+                      ) : isLocked ? (
+                        <button
+                          disabled
+                          className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase"
+                          style={{
+                            background: "rgba(255,255,255,0.04)",
+                            color: "rgba(255,255,255,0.35)",
+                            border: "1px solid rgba(255,255,255,0.06)",
+                            minWidth: 88,
+                            cursor: "not-allowed",
+                          }}
+                          data-testid={`button-task-${task.id}-locked`}
+                        >
+                          Bloccato
+                        </button>
                       ) : showOpen ? (
                         <button
-                          onClick={() => handleOpenSponsor(task.url)}
+                          onClick={() => handleOpenSponsor(task.id, task.url)}
                           className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase transition-all active:scale-95"
                           style={{
                             background: "linear-gradient(135deg, #00f2fe, #4facfe)",
@@ -734,8 +815,10 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                       )}
                     </div>
                     {!task.claimed && (
-                      <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.35)" }}>
-                        {t("earn.sponsorHint")}
+                      <div className="text-[10px]" style={{ color: isLocked ? "#ff9b6e" : "rgba(255,255,255,0.35)" }}>
+                        {isLocked
+                          ? (task.requirementLabel || "Requisiti non soddisfatti")
+                          : t("earn.sponsorHint")}
                       </div>
                     )}
                   </div>
