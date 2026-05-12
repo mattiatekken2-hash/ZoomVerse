@@ -826,15 +826,22 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                         </button>
                       )}
                     </div>
-                    {!task.claimed && (
-                      <div className="text-[10px]" style={{ color: isLocked ? "#ff9b6e" : "rgba(255,255,255,0.35)" }}>
-                        {isLocked
-                          ? (SPONSOR_REQ_KEY[task.id]
-                              ? t(SPONSOR_REQ_KEY[task.id]!)
-                              : (task.requirementLabel || t("earn.requirementFallback")))
-                          : t("earn.sponsorHint")}
-                      </div>
-                    )}
+                    {!task.claimed && (() => {
+                      // For sponsor tasks that have a per-task hint key (e.g.
+                      // sponsor_giftkombat with the 🪐 name request), always
+                      // show that hint — even when the task is unlocked — so
+                      // the user keeps seeing the request to add 🪐 to their
+                      // Telegram name. The server no longer enforces it.
+                      const reqKey = SPONSOR_REQ_KEY[task.id];
+                      const hintText = isLocked
+                        ? (reqKey ? t(reqKey) : (task.requirementLabel || t("earn.requirementFallback")))
+                        : (reqKey ? t(reqKey) : t("earn.sponsorHint"));
+                      return (
+                        <div className="text-[10px]" style={{ color: isLocked ? "#ff9b6e" : "rgba(255,255,255,0.35)" }}>
+                          {hintText}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}

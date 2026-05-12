@@ -87,7 +87,9 @@ const SPONSOR_TASKS: SponsorTaskDef[] = [
     kind: "sponsor",
     url: "https://t.me/gift_kombat_bot?startapp=963796674utm_zoom",
     rewardSpins: 25,
-    requireNameEmoji: "🪐",
+    // Gate removed by design: anyone can claim. We still show the
+    // "Aggiungi 🪐 al tuo nome Telegram" hint client-side as a request
+    // to the user, but it's not enforced on the server.
     requirementLabel: "Aggiungi 🪐 al tuo nome Telegram per riscattare 25 spin",
   },
   {
