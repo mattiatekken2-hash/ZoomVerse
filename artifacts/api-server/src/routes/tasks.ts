@@ -88,8 +88,7 @@ const SPONSOR_TASKS: SponsorTaskDef[] = [
     url: "https://t.me/gift_kombat_bot?startapp=963796674utm_zoom",
     rewardSpins: 25,
     requireNameEmoji: "🪐",
-    requireAccountAgeDays: 7,
-    requirementLabel: "Aggiungi 🪐 al tuo nome Telegram e gioca da almeno 7 giorni per riscattare 25 spin",
+    requirementLabel: "Aggiungi 🪐 al tuo nome Telegram per riscattare 25 spin",
   },
   {
     id: "sponsor_channel_mb5",
