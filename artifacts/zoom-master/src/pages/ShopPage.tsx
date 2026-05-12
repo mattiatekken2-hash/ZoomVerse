@@ -635,8 +635,8 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
             Packs & Items
           </div>
 
-          {/* Extra Slot — TON-only, prezzo progressivo (0.25 → 0.5 → 1 TON,
-              cap a 1 TON) per slot già acquistato. Il pagamento in Stars è
+          {/* Extra Slot — TON-only, prezzo fisso 0.25 TON per ogni slot
+              acquistato (nessuna escalation). Il pagamento in Stars è
               disabilitato lato server e nascosto qui. */}
           {(() => {
             const item = EXTRA_SLOT_ITEM;

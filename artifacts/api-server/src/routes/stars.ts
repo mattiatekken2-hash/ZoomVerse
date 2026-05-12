@@ -1063,13 +1063,14 @@ async function backgroundVerifyTon(txnId: number, item: StarsItem, telegramId: s
   console.warn(`[ton-bg] verification timed out for txn ${txnId}`);
 }
 
-// Progressive TON price ladder for the Extra Slot purchase. The N-th extra
-// slot costs LADDER[min(N, LADDER.length-1)] TON, capped at 1 TON.
-// Index 0 = first extra slot (when bonusSlots=0), 1 = second, etc.
-export const SLOT_PRICE_LADDER_TON: readonly number[] = [0.25, 0.5, 1];
+// Flat TON price for every Extra Slot purchase: 0.25 TON per slot, no
+// escalation. The ladder shape is preserved so existing client code that
+// reads `ladder` and `maxPriceTon` keeps working without changes — we
+// just collapsed the ladder to a single tier.
+export const SLOT_PRICE_LADDER_TON: readonly number[] = [0.25];
 export function getSlotPriceTon(currentBonusSlots: number): number {
   const i = Math.max(0, Math.floor(currentBonusSlots));
-  return SLOT_PRICE_LADDER_TON[Math.min(i, SLOT_PRICE_LADDER_TON.length - 1)] ?? 1;
+  return SLOT_PRICE_LADDER_TON[Math.min(i, SLOT_PRICE_LADDER_TON.length - 1)] ?? 0.25;
 }
 
 router.get("/shop/slot-price/:telegramId", async (req, res) => {
