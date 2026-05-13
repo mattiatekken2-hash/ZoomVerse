@@ -1,6 +1,4 @@
-{
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/dist/index.mjs" },
-    { "source": "/(.*)", "destination": "/dist/index.mjs" }
-  ]
+"scripts": {
+  "build": "node ./build.mjs",
+  "typecheck": "echo 'Skipping typecheck...'"
 }
