@@ -1,4 +1,13 @@
-"scripts": {
-  "build": "node ./build.mjs",
-  "typecheck": "echo 'Skipping typecheck...'"
+{
+  "name": "api-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ./build.mjs",
+    "typecheck": "echo 'Skipping typecheck...'"
+  },
+  "dependencies": {
+    "dotenv": "latest"
+  }
 }
