@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { db } from "@workspace/db";
-import { usersTable, tonWithdrawalsTable } from "@workspace/db/schema";
+import { db } from "../db";
+import { usersTable, tonWithdrawalsTable } from "../db/schema";
 import { eq, and, desc, sql, ne, gt } from "drizzle-orm";
 import { z } from "zod";
 import { sendWithdrawalChannelMessage } from "../lib/notify";
