@@ -1,4 +1,4 @@
-import { db } from "@workspace/db";
+import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { logger } from "./logger";
 
