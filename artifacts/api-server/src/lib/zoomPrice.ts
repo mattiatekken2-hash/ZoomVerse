@@ -42,7 +42,7 @@
  * Bumps are fire-and-forget at call sites; failures are logged but never
  * surfaced to the user (price is decorative — never blocks gameplay).
  */
-import { db } from "@workspace/db";
+import { db } from "../db";
 import { appSettingsTable } from "@workspace/db/schema";
 import { sql, eq } from "drizzle-orm";
 import { logger } from "./logger";
