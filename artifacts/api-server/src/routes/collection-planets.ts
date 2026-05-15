@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "../db";
-import { collectionPlanetsTable } from "../db/schema/planets";
+import { usersTable, userPlanetsTable } from "../db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
