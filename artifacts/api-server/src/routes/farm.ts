@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, farmCyclesTable, usersTable } from "@workspace/db";
+import { db, farmCyclesTable, usersTable } from "../db";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { bumpZoomPriceFireAndForget } from "../lib/zoomPrice";
