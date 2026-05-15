@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db } from "@workspace/db";
+import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 
