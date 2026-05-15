@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db } from "@workspace/db";
-import { usersTable } from "@workspace/db/schema";
+import { db } from "../db";
+import { usersTable, stakingPositionsTable, appSettingsTable } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
