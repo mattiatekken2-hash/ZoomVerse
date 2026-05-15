@@ -43,7 +43,7 @@
  * surfaced to the user (price is decorative — never blocks gameplay).
  */
 import { db } from "../db";
-import { appSettingsTable } from "@workspace/db/schema";
+import { appSettingsTable } from "../db/schema";
 import { sql, eq } from "drizzle-orm";
 import { logger } from "./logger";
 
