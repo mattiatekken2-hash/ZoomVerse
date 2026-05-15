@@ -64,7 +64,7 @@ export async function broadcastBotMessageToAllUsers(text: string): Promise<{ sen
     return { sent: 0, skipped: 0 };
   }
   // Lazy import per evitare cicli con i route handlers che importano notify.
-  const { db, usersTable } = await import("@workspace/db");
+  const { db } = await import("../db");
   const rows = await db.select({ telegramId: usersTable.telegramId }).from(usersTable);
   let sent = 0;
   let skipped = 0;
