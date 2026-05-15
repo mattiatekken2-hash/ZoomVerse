@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db } from "@workspace/db";
-import { lottoRoundsTable, lottoTicketsTable, usersTable } from "@workspace/db/schema";
+import { db } from "../db";
+import { lotteryTable, ticketsTable } from "../db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
