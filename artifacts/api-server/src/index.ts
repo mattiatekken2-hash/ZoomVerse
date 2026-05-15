@@ -5,7 +5,9 @@ import { sendBotMessage } from "./lib/notify";
 import { fetchPendingFarmNotifications, markFarmNotified } from "./routes/farm";
 import { runScheduledLotteryDrawTick } from "./routes/lottery";
 import { purgeExpiredHistory } from "./lib/history";
-import { db, usersTable } from "@workspace/db";
+import { db } from "./db";
+import { usersTable } from "./db/schema/users";
+
 import { desc, eq, sql } from "drizzle-orm";
 
 const FARM_FULL_MESSAGE = "⚡ Your Farm is full! Collect your TON and restart the engines to keep earning.";
