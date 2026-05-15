@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db } from "@workspace/db";
-import { chatMessagesTable, usersTable } from "@workspace/db/schema";
+import { db } from "../db";
+import { chatMessagesTable, usersTable } from "../db/schema";
 import { and, desc, gt, sql, eq } from "drizzle-orm";
 import { z } from "zod";
 // Side-effect import: brings in the `Request.tgUser` type augmentation
