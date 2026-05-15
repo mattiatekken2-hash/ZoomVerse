@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable } from "../db";
 import { eq, sql } from "drizzle-orm";
 import { recordHistoryAsync } from "../lib/history";
 
