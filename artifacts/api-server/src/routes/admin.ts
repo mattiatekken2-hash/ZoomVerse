@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { db, transactionsTable, marketListingsTable } from "@workspace/db";
-import { usersTable, appSettingsTable } from "@workspace/db/schema";
+import { db, transactionsTable, marketListingsTable } from "../db";
+import { usersTable, appSettingsTable } from "../db/schema";
 import { and } from "drizzle-orm";
 import { sql, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
