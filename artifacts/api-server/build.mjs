@@ -15,10 +15,6 @@ async function buildAll() {
   await rm(distDir, { recursive: true, force: true });
 
   await esbuild({
-    alias: {
-      "@workspace/db/schema": path.resolve(artifactDir, "src/db/schema"),
-      "@workspace/db": path.resolve(artifactDir, "src/db"),
-    },
     entryPoints: [path.resolve(artifactDir, "src/index.ts")],
     platform: "node",
     bundle: true,
@@ -26,13 +22,11 @@ async function buildAll() {
     outdir: distDir,
     outExtension: { ".js": ".mjs" },
     logLevel: "info",
-    // Some packages may not be bundleable, so we externalize them, we can add more here as needed.
-    // Some of the packages below may not be imported or installed, but we're adding them in case they are in the future.
-    // Examples of unbundleable packages:
-    // - uses native modules and loads them dynamically (e.g. sharp)
-    // - use path traversal to read files (e.g. @google-cloud/secret-manager loads sibling .proto files)
+    // Mettiamo tutto il blocco workspace negli external così esbuild non controlla le tabelle interne e non si pianta
     external: [
       "@workspace/api-zod",
+      "@workspace/db",
+      "@workspace/db/schema",
       "*.node",
       "sharp",
       "better-sqlite3",
