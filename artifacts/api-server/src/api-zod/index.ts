@@ -1,5 +1,9 @@
 import { z } from "zod";
-export const apiZod = {}; 
-// Se vedi che dà errore su un export specifico (es. un qualche schema), aggiungi:
-// export const nomeSchema = z.object({});
 
+export const apiZod = {};
+
+// Creiamo lo schema finto che si aspetta la rotta health
+export const HealthCheckResponse = z.object({
+  status: z.string(),
+  timestamp: z.string(),
+});
