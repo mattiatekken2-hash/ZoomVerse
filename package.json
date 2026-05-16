@@ -23,7 +23,7 @@
   "devDependencies": {
     "@types/cookie-parser": "^1.4.7",
     "@types/cors": "^2.8.17",
-    "esbuild": "^0.21.0",
+    "esbuild": "0.25.8",
     "esbuild-plugin-pino": "^2.2.0",
     "pino-pretty": "^11.0.0"
   }
