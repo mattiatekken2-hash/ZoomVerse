@@ -1,0 +1,7 @@
+[build]
+  command = "pnpm install --no-frozen-lockfile && pnpm --filter zoom-master build"
+  publish = "artifacts/zoom-master/dist/public"
+
+[build.environment]
+  NODE_VERSION = "22"
+  PNPM_VERSION = "9"
