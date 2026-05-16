@@ -25,3 +25,11 @@ export const marketListingsTable = pgTable("market_listings_mock", {
 export const farmCyclesTable = pgTable("farm_cycles_mock", {
   id: serial("id").primaryKey(),
 });
+
+export const collectionPlanetsTable = pgTable("collection_planets_mock", {
+  id: serial("id").primaryKey(),
+});
+
+export const tonWithdrawalsTable = pgTable("ton_withdrawals_mock", {
+  id: serial("id").primaryKey(),
+});
