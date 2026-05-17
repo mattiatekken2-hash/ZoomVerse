@@ -5,3 +5,9 @@
 [build.environment]
   NODE_VERSION = "22"
   PNPM_VERSION = "9"
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://zoomverse-3.onrender.com/api/:splat"
+  status = 200
+  force = true
