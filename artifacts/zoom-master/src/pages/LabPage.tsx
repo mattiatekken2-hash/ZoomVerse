@@ -61,10 +61,7 @@ interface LabPageProps {
 interface FloatMsg { id: number; text: string; color: string }
 
 const GREY = "#8892b0";
-// Rarity colour is never pre-revealed during the build phase.
-// The planet materialises as a grey silhouette across all 100 taps;
-// only the flash→reveal cinematic at 100% shows the actual colour.
-const REVEAL_THRESHOLD = 1.01;
+const REVEAL_THRESHOLD = 0.90;
 
 export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, blackCollectionUnlocked, blackCollectionBundles, blackPlanets, sunCount, tonBalance, telegramId, onCraft, onClaim, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, onPlaceBlackPlanet, onCollectBlackPlanet, onReactivateBlackPlanet, onMarkBlackPlanetReactivated, visible = true, merchantActive = false }: LabPageProps) {
   const { t } = useT();
