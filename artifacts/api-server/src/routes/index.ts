@@ -31,6 +31,7 @@ import economyRouter from "./economy";
 import stakingRouter from "./staking";
 import labRankingRouter from "./labRanking";
 import historyRouter from "./history";
+import statsRouter from "./stats";
 
 const router: IRouter = Router();
 
@@ -270,5 +271,6 @@ router.use(economyRouter);
 router.use(stakingRouter);
 router.use(labRankingRouter);
 router.use(historyRouter);
+router.use(statsRouter);
 
 export default router;
