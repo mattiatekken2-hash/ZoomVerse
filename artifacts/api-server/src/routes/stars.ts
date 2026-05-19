@@ -1379,4 +1379,112 @@ router.get("/stars/txn/:txnId", async (req, res) => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// TON Deposit — variable-amount credit to ton_balance via TonConnect.
+// Min deposit: 10 TON. Amount must match what is actually sent on-chain.
+// ---------------------------------------------------------------------------
+const DEPOSIT_MIN_TON = 10;
+
+async function creditDepositIfPending(txnId: number, paymentId: string, telegramId: string, amount: number): Promise<boolean> {
+  let didFlip = false;
+  await db.transaction(async (tx) => {
+    const updated = await tx.update(transactionsTable)
+      .set({ status: "completed", telegramPaymentId: paymentId })
+      .where(and(eq(transactionsTable.id, txnId), eq(transactionsTable.status, "pending")))
+      .returning();
+    if (updated.length === 0) return; // already completed or failed
+    didFlip = true;
+    await tx.update(usersTable)
+      .set({ tonBalance: sql`${usersTable.tonBalance} + ${amount}` })
+      .where(eq(usersTable.telegramId, telegramId));
+  });
+  return didFlip;
+}
+
+async function backgroundVerifyDeposit(txnId: number, telegramId: string, boc: string, expectedNano: bigint, expectedSenderRaw: string, amount: number) {
+  const attempts = [5_000, 8_000, 12_000, 18_000, 25_000, 30_000, 30_000, 30_000];
+  for (const wait of attempts) {
+    await new Promise((r) => setTimeout(r, wait));
+    const v = await verifyTonBoc(boc, expectedNano, expectedSenderRaw);
+    if (v.ok) {
+      try {
+        await creditDepositIfPending(txnId, `ton_deposit_${v.msgHash}`, telegramId, amount);
+      } catch (e) {
+        console.error(`[deposit-bg] credit error txn ${txnId}:`, e);
+      }
+      return;
+    }
+    if (!v.retriable) {
+      await db.update(transactionsTable).set({ status: "failed" })
+        .where(and(eq(transactionsTable.id, txnId), eq(transactionsTable.status, "pending")));
+      return;
+    }
+  }
+  await db.update(transactionsTable).set({ status: "failed" })
+    .where(and(eq(transactionsTable.id, txnId), eq(transactionsTable.status, "pending")));
+  console.warn(`[deposit-bg] timed out txn ${txnId}`);
+}
+
+router.post("/ton/deposit/confirm", async (req, res) => {
+  const { telegramId, walletAddress, boc, amountTon } = req.body as {
+    telegramId?: string; walletAddress?: string; boc?: string; amountTon?: unknown;
+  };
+  if (!telegramId || !walletAddress || !boc || amountTon == null) {
+    res.status(400).json({ error: "Missing fields" }); return;
+  }
+  const amount = Number(amountTon);
+  if (!Number.isFinite(amount) || amount < DEPOSIT_MIN_TON) {
+    res.status(400).json({ error: `Minimum deposit is ${DEPOSIT_MIN_TON} TON` }); return;
+  }
+
+  const expectedNano = BigInt(Math.round(amount * 1e9));
+  let expectedSenderRaw: string;
+  try { expectedSenderRaw = Address.parse(walletAddress).toRawString().toLowerCase(); }
+  catch { res.status(400).json({ error: "Invalid wallet address" }); return; }
+
+  const msgHash = computeMsgHashFromBoc(boc);
+  if (!msgHash) { res.status(400).json({ error: "Invalid BOC" }); return; }
+  const paymentId = `ton_deposit_${msgHash}`;
+
+  const [existing] = await db.select().from(transactionsTable)
+    .where(eq(transactionsTable.telegramPaymentId, paymentId)).limit(1);
+  if (existing) {
+    if (existing.status === "completed") { res.json({ ok: true, alreadyCredited: true, txnId: existing.id }); return; }
+    if (existing.status === "failed")    { res.json({ ok: false, status: "failed", error: "Payment failed" }); return; }
+    res.status(202).json({ ok: true, pending: true, txnId: existing.id }); return;
+  }
+
+  let txnId: number;
+  try {
+    const [ins] = await db.insert(transactionsTable).values({
+      telegramId, type: "ton_deposit", currency: "TON",
+      amount: 0, tonAmount: amount,
+      itemId: "ton_deposit", itemName: "TON Deposit",
+      status: "pending", telegramPaymentId: paymentId,
+    }).returning();
+    txnId = ins.id;
+  } catch (e) {
+    console.error("[deposit] insert error:", e);
+    res.status(500).json({ error: "Internal error" }); return;
+  }
+
+  const v = await verifyTonBoc(boc, expectedNano, expectedSenderRaw);
+  if (v.ok) {
+    try {
+      await creditDepositIfPending(txnId, `ton_deposit_${v.msgHash}`, telegramId, amount);
+      res.json({ ok: true, verified: true, txnId }); return;
+    } catch (e) {
+      console.error(`[deposit] credit error txn ${txnId}:`, e);
+      res.status(500).json({ error: "Credit failed" }); return;
+    }
+  }
+  if (v.retriable) {
+    void backgroundVerifyDeposit(txnId, telegramId, boc, expectedNano, expectedSenderRaw, amount);
+    res.status(202).json({ ok: true, pending: true, txnId }); return;
+  }
+  await db.update(transactionsTable).set({ status: "failed" })
+    .where(and(eq(transactionsTable.id, txnId), eq(transactionsTable.status, "pending")));
+  res.json({ ok: false, status: "failed", error: v.reason });
+});
+
 export default router;

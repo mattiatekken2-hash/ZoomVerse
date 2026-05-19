@@ -618,8 +618,8 @@ function PixelAvatarBase({
               ✕
             </button>
 
-            {/* Wallet section */}
-            <div style={{ marginBottom: 22 }}>
+            {/* Wallet section removed — use the TON pill in the header */}
+            <div style={{ marginBottom: 22, display: "none" }}>
               <div
                 style={{
                   fontSize: 11,

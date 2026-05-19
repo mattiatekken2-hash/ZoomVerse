@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { TonWalletWidget } from "./components/TonWalletWidget";
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
 import { BlackPlanetOrbStyles } from "./components/BlackPlanetOrb";
 import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/useGameState";
@@ -558,6 +559,17 @@ function AppShellWithState() {
             <span style={{ fontSize: 13 }}>🪐</span>
             <span className="neon-text">{Math.floor(state.balance).toLocaleString()}</span>
           </div>
+          <TonWalletWidget
+            tonBalance={state.tonBalance || 0}
+            telegramId={state.telegramId || null}
+            whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
+            earthCollectionUnlocked={!!state.earthCollectionUnlocked}
+            blackCollectionUnlocked={!!state.blackCollectionUnlocked}
+            sunCount={state.sunCount || 0}
+            whitePlanets={state.whitePlanets || []}
+            earthPlanets={state.earthPlanets || []}
+            blackPlanets={state.blackPlanets || []}
+          />
           <button
             onClick={() => switchTab("shop")}
             data-testid="button-shop-nav"

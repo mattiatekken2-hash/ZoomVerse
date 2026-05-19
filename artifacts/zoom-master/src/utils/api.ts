@@ -960,6 +960,26 @@ export async function adminTestWithdrawalChannel(adminId: string): Promise<boole
   } catch { return false; }
 }
 
+// === TON Deposit via TonConnect ===
+export const DEPOSIT_MIN_TON = 10;
+
+export async function depositTonConfirm(params: {
+  telegramId: string;
+  walletAddress: string;
+  boc: string;
+  amountTon: number;
+}): Promise<{ ok: boolean; pending?: boolean; txnId?: number; alreadyCredited?: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/ton/deposit/confirm`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(params),
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ...data, ok: res.ok || res.status === 202 };
+  } catch { return { ok: false, error: "Network error" }; }
+}
+
 // === TON Withdrawals (manual processing by admin) ===
 export const WITHDRAWAL_MIN_TON = 10;
 export const WITHDRAWAL_FEE_TON = 0.02;
