@@ -532,18 +532,18 @@ function AppShellWithState() {
       )}
 
       <header
-        className="flex items-center justify-between px-5 py-3.5 flex-shrink-0 relative z-20"
+        className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 relative z-20"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
       >
         <div
-          className="font-black text-lg tracking-widest neon-text cursor-pointer"
+          className="font-black text-lg tracking-widest neon-text cursor-pointer flex-shrink-0"
           onClick={() => switchTab("lab")}
         >
           ZOOM
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 min-w-0">
           <div
-            className="glass-neon flex items-center gap-1.5 px-3.5 py-2 rounded-full font-black text-sm cursor-pointer active:scale-95"
+            className="glass-neon flex items-center gap-1 px-2.5 py-1.5 rounded-full font-black cursor-pointer active:scale-95 flex-shrink-0"
             data-testid="balance-display"
             aria-label="ZOOM balance — open history"
             role="button"
@@ -555,9 +555,18 @@ function AppShellWithState() {
                 setHistoryOpen(true);
               }
             }}
+            style={{ fontSize: 12 }}
           >
-            <span style={{ fontSize: 13 }}>🪐</span>
-            <span className="neon-text">{Math.floor(state.balance).toLocaleString()}</span>
+            <span style={{ fontSize: 12 }}>🪐</span>
+            <span className="neon-text" style={{ fontVariantNumeric: "tabular-nums" }}>
+              {(() => {
+                const n = Math.floor(state.balance);
+                if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + "B";
+                if (n >= 1_000_000)     return (n / 1_000_000).toFixed(1) + "M";
+                if (n >= 10_000)        return (n / 1_000).toFixed(1) + "K";
+                return n.toLocaleString();
+              })()}
+            </span>
           </div>
           <TonWalletWidget
             tonBalance={state.tonBalance || 0}
@@ -574,11 +583,11 @@ function AppShellWithState() {
             onClick={() => switchTab("shop")}
             data-testid="button-shop-nav"
             aria-label="Open shop"
-            className="flex flex-col items-center justify-center gap-0.5 active:scale-95"
+            className="flex flex-col items-center justify-center gap-0.5 active:scale-95 flex-shrink-0"
             style={{
-              width: 44,
-              height: 44,
-              borderRadius: 12,
+              width: 38,
+              height: 38,
+              borderRadius: 10,
               background: "linear-gradient(135deg, rgba(196,113,237,0.18), rgba(0,242,254,0.10))",
               border: "1px solid rgba(196,113,237,0.55)",
               boxShadow: "0 0 14px rgba(196,113,237,0.35), inset 0 0 8px rgba(0,242,254,0.10)",
@@ -587,8 +596,7 @@ function AppShellWithState() {
               transition: "transform 0.12s",
             }}
           >
-            {/* Pixel-art shopping bag — neon magenta/cyan, matching ZOOM palette */}
-            <svg width={20} height={20} viewBox="0 0 16 16" shapeRendering="crispEdges" style={{ filter: "drop-shadow(0 0 4px rgba(196,113,237,0.8))" }}>
+            <svg width={16} height={16} viewBox="0 0 16 16" shapeRendering="crispEdges" style={{ filter: "drop-shadow(0 0 4px rgba(196,113,237,0.8))" }}>
               <rect x="5" y="2" width="1" height="3" fill="#c471ed" />
               <rect x="10" y="2" width="1" height="3" fill="#c471ed" />
               <rect x="6" y="1" width="4" height="1" fill="#c471ed" />
@@ -602,16 +610,16 @@ function AppShellWithState() {
               <rect x="6" y="10" width="4" height="1" fill="#fff" />
             </svg>
             <span style={{
-              fontSize: 7,
+              fontSize: 6,
               fontWeight: 900,
-              letterSpacing: 1,
+              letterSpacing: 0.8,
               color: "#c471ed",
               textShadow: "0 0 4px rgba(196,113,237,0.7)",
               lineHeight: 1,
             }}>SHOP</span>
           </button>
           <div
-            className="flex items-center gap-1 px-2.5 py-2 rounded-full font-black text-sm cursor-pointer"
+            className="flex items-center gap-0.5 px-2 py-1.5 rounded-full font-black cursor-pointer flex-shrink-0"
             onClick={() => setStardustPopupOpen(true)}
             data-testid="stardust-display"
             style={{
@@ -620,11 +628,19 @@ function AppShellWithState() {
               boxShadow: "0 0 12px rgba(255, 215, 64, 0.18) inset",
               color: "#ffd740",
               textShadow: "0 0 8px rgba(255, 215, 64, 0.55)",
+              fontSize: 12,
             }}
             aria-label="Stardust balance"
           >
-            <span style={{ fontSize: 13, lineHeight: 1 }}>★</span>
-            <span>{stardust.balance.toLocaleString()}</span>
+            <span style={{ fontSize: 12, lineHeight: 1 }}>★</span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>
+              {(() => {
+                const n = stardust.balance;
+                if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+                if (n >= 10_000)    return (n / 1_000).toFixed(1) + "K";
+                return n.toLocaleString();
+              })()}
+            </span>
           </div>
           <SettingsMenu muted={muted} setMuted={setMuted} />
         </div>
