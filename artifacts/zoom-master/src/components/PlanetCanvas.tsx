@@ -284,6 +284,40 @@ export function PlanetCanvas({
   const showConverge = forgePhase === "waiting";
   const showPlanet = forgePhase === "revealed";
 
+  // ── Progressive planet assembly values ──────────────────────────
+  // The planet materializes layer by layer as the user taps.
+  // All layers use a neutral grey palette — rarity stays hidden until
+  // the flash→reveal cinematic at 100% completion.
+  //
+  // Layer 1 (base sphere)   — fades in at 22% progress
+  // Layer 2 (surface detail) — fades in at 48% progress
+  // Layer 3 (atmosphere)    — fades in at 75% progress
+  //
+  // The glowing forge-core fades out as the planet solidifies so the
+  // energy feels like it's "condensing" into the new world.
+  const asmBaseVisible = showCoreAndOrbits && pct >= 0.22;
+  const asmBaseOpacity  = asmBaseVisible ? Math.min(1, (pct - 0.22) / 0.14) : 0;
+  const asmBaseBlur     = Math.max(0, 10 - pct * 12);
+  const asmBaseScale    = 0.22 + pct * 0.78;
+
+  const asmDetailVisible = showCoreAndOrbits && pct >= 0.48;
+  const asmDetailOpacity  = asmDetailVisible ? Math.min(1, (pct - 0.48) / 0.14) : 0;
+  const asmDetailBlur     = Math.max(0, 5 - (pct - 0.48) * 22);
+
+  const asmAtmoVisible = showCoreAndOrbits && pct >= 0.75;
+  const asmAtmoOpacity  = asmAtmoVisible ? Math.min(1, (pct - 0.75) / 0.14) : 0;
+
+  // Core fades from full brightness down to 0 as the planet solidifies (18%→63%)
+  const coreOpacity = pct < 0.18 ? 1 : Math.max(0, 1 - (pct - 0.18) / 0.45);
+
+  // Stage label key — shown in the progress bar during build
+  const buildStageKey =
+    pct < 0.04 ? "planetCanvas.primordial"
+    : pct < 0.40 ? "planetCanvas.forgingCore"
+    : pct < 0.65 ? "planetCanvas.takingShape"
+    : pct < 0.85 ? "planetCanvas.crystallizing"
+    : "planetCanvas.lastTap";
+
   // Planet size when revealed — generous but anchored to canvas size.
   const planetSize = size * 0.78;
 
@@ -309,9 +343,9 @@ export function PlanetCanvas({
         data-testid="planet-wrap"
       >
         {/* ─── FIXED LIGHT CORE ──────────────────────────────────────────
-            Stays a small intense pinpoint of light through the entire
-            tap-build phase. Brightness pulses subtly and grows MORE intense
-            (not bigger) as charge approaches 100%. */}
+            Stays a small intense pinpoint of light through the early
+            tap-build phase. Fades out as the planet body solidifies,
+            creating the feeling of energy condensing into a new world. */}
         {showCoreAndOrbits && (
           <div
             ref={coreRef}
@@ -332,11 +366,89 @@ export function PlanetCanvas({
               boxShadow:
                 `0 0 50px 22px ${displayColor}96, ` +
                 `0 0 100px rgba(255,255,255,0.55)`,
+              opacity: coreOpacity,
               willChange: "transform, box-shadow",
               // Glow + scale are then mutated imperatively by the rAF loop
               // so taps never trigger React re-renders or paint thrash.
             }}
             data-testid="forge-core"
+          />
+        )}
+
+        {/* ─── PROGRESSIVE PLANET ASSEMBLY ───────────────────────────────
+            Three grey layers that materialise as the user taps.
+            Rarity colour is kept completely hidden until the flash→reveal
+            cinematic triggers at 100% completion.
+
+            Layer 1 — base sphere (solid dark-grey gradient): appears at 22%
+            Layer 2 — surface detail (highlight shimmer):      appears at 48%
+            Layer 3 — atmosphere halo:                         appears at 75% */}
+
+        {/* Layer 1: base sphere */}
+        {asmBaseVisible && (
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              width: planetSize,
+              height: planetSize,
+              marginLeft: -planetSize / 2,
+              marginTop: -planetSize / 2,
+              borderRadius: "50%",
+              background: "radial-gradient(circle at 35% 32%, #8b96c0 0%, #5a6282 35%, #2e3450 68%, #111428 100%)",
+              opacity: asmBaseOpacity,
+              filter: `blur(${asmBaseBlur}px)`,
+              transform: `scale(${asmBaseScale})`,
+              pointerEvents: "none",
+              willChange: "opacity, filter, transform",
+            }}
+          />
+        )}
+
+        {/* Layer 2: surface highlight / texture shimmer */}
+        {asmDetailVisible && (
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              width: planetSize,
+              height: planetSize,
+              marginLeft: -planetSize / 2,
+              marginTop: -planetSize / 2,
+              borderRadius: "50%",
+              // Top-left highlight gives a 3-D sphere look
+              background: "radial-gradient(ellipse at 30% 28%, rgba(200,210,255,0.35) 0%, rgba(120,135,190,0.18) 40%, transparent 68%)",
+              boxShadow: "inset -6px -6px 18px rgba(0,0,0,0.45), inset 3px 3px 10px rgba(180,196,255,0.18)",
+              opacity: asmDetailOpacity,
+              filter: `blur(${asmDetailBlur}px)`,
+              transform: `scale(${asmBaseScale})`,
+              pointerEvents: "none",
+              willChange: "opacity, filter",
+            }}
+          />
+        )}
+
+        {/* Layer 3: thin atmosphere glow ring */}
+        {asmAtmoVisible && (
+          <div
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              width: planetSize * 1.18,
+              height: planetSize * 1.18,
+              marginLeft: -planetSize * 1.18 / 2,
+              marginTop: -planetSize * 1.18 / 2,
+              borderRadius: "50%",
+              background: "radial-gradient(circle, transparent 42%, rgba(100,118,200,0.11) 62%, rgba(80,100,180,0.07) 78%, transparent 100%)",
+              boxShadow: "0 0 28px 8px rgba(100,118,200,0.12)",
+              opacity: asmAtmoOpacity,
+              transform: `scale(${asmBaseScale})`,
+              pointerEvents: "none",
+              willChange: "opacity",
+            }}
           />
         )}
 
@@ -435,7 +547,7 @@ export function PlanetCanvas({
         <div className="absolute bottom-0 left-0 right-0 px-6 pb-2 pt-4">
           <div className="flex justify-between text-xs mb-1.5">
             <span className="font-semibold tracking-wider uppercase" style={{ color: "rgba(255,255,255,0.4)" }}>
-              {pct < 0.04 ? t("planetCanvas.primordial") : t("planetCanvas.forgingMass")}
+              {t(buildStageKey)}
             </span>
             <span className="font-bold" style={{ color: displayColor }}>
               {progress}/{goal}
