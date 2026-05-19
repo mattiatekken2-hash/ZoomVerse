@@ -749,6 +749,13 @@
   background: linear-gradient(135deg, #8b0000 0%, #ff4500 100%);
   text-shadow: 0 0 6px rgba(0,0,0,0.45);
 }
+/* PLASMA pill — neon green glow, between MYTHIC and GOLD rarity. */
+.rarity-plasma {
+  color: #ffffff;
+  border-color: rgba(0,230,118,0.55);
+  background: linear-gradient(135deg, #005c2c 0%, #00e676 100%);
+  text-shadow: 0 0 6px rgba(0,0,0,0.45);
+}
 .rarity-gold { color: #ffd700; border-color: rgba(255,215,0,0.3); background: rgba(255,215,0,0.06); }
 
 /* ======== ANIMATIONS ======== */

@@ -1598,7 +1598,7 @@ export async function fetchEconomyHistory(): Promise<EconomyHistoryResponse | nu
 //   • RARE      → 0.02 TON / 30d   (gated on active farming)
 //   • BASIC     → 0.01 TON / 30d   (gated on active farming)
 // ─────────────────────────────────────────────────────────────────────
-export type StakingKind = "v1" | "sun" | "basic" | "rare" | "epic" | "mythic" | "gold";
+export type StakingKind = "v1" | "sun" | "basic" | "rare" | "epic" | "mythic" | "plasma" | "gold";
 
 export interface StakingSetStatus {
   eligible: boolean;
@@ -1618,6 +1618,7 @@ export interface StakingStatusResponse {
   rare: StakingSetStatus;
   epic: StakingSetStatus;
   mythic: StakingSetStatus;
+  plasma: StakingSetStatus;
   gold: StakingSetStatus;
   hasSun: boolean;
   nowMs: number;

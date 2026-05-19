@@ -29,7 +29,7 @@ const FARM_DURATION_MS = 24 * 60 * 60 * 1000;
 
 // Per-rarity rewards (mirror of artifacts/api-server/src/routes/staking.ts).
 const REWARD_TON: Record<StakingKind, number> = {
-  v1: 0.15, sun: 0.15, mythic: 0.10, gold: 0.07, epic: 0.04, rare: 0.02, basic: 0.01,
+  v1: 0.15, sun: 0.15, plasma: 5, mythic: 0.10, gold: 0.07, epic: 0.04, rare: 0.02, basic: 0.01,
 };
 
 // Display config per tier — order matches the visual stack in the widget.
@@ -40,6 +40,7 @@ interface TierMeta {
   glow: string;
 }
 const TIERS: TierMeta[] = [
+  { kind: "plasma", label: "PLASMA", color: "#00e676", glow: "rgba(0,230,118,0.55)" },
   { kind: "v1",     label: "V1",     color: "#ffd700", glow: "rgba(255,215,0,0.45)"  },
   { kind: "sun",    label: "SUN",    color: "#ffb347", glow: "rgba(255,179,71,0.45)" },
   { kind: "mythic", label: "MYTHIC", color: "#ff3b6b", glow: "rgba(255,59,107,0.40)" },

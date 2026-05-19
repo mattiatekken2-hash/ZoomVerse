@@ -15,11 +15,12 @@ const router: IRouter = Router();
 //   • EPIC      → 0.04  (requires SUN in inventory + 4 active farms)
 //   • RARE      → 0.02  (requires SUN in inventory + 4 active farms)
 //   • BASIC     → 0.01  (requires SUN in inventory + 4 active farms)
-export type StakingKind = "v1" | "sun" | "basic" | "rare" | "epic" | "mythic" | "gold";
+export type StakingKind = "v1" | "sun" | "basic" | "rare" | "epic" | "mythic" | "plasma" | "gold";
 
 export const STAKING_REWARDS_TON_PER_MONTH: Record<StakingKind, number> = {
   v1: 0.15,
   sun: 0.15,
+  plasma: 5,      // PLASMA — premium staking: 5 TON / 30 days per set of 4
   mythic: 0.10,
   gold: 0.07,
   epic: 0.04,
@@ -32,7 +33,7 @@ const FARM_DURATION_MS = 24 * 60 * 60 * 1000;
 
 // New rarities (BASIC..GOLD) follow the dynamic-accrual model.
 // SUN / V1 keep the legacy continuous-accrual model unchanged.
-const DYNAMIC_KINDS = ["basic", "rare", "epic", "mythic", "gold"] as const;
+const DYNAMIC_KINDS = ["basic", "rare", "epic", "mythic", "plasma", "gold"] as const;
 type DynamicKind = typeof DYNAMIC_KINDS[number];
 
 const RARITY_NAME: Record<DynamicKind, string> = {
@@ -40,6 +41,7 @@ const RARITY_NAME: Record<DynamicKind, string> = {
   rare: "RARE",
   epic: "EPIC",
   mythic: "MYTHIC",
+  plasma: "PLASMA",
   gold: "GOLD",
 };
 
@@ -197,11 +199,12 @@ const DYNAMIC_COLUMNS: Record<DynamicKind, {
   accrued: keyof typeof usersTable.$inferSelect;
   lastSettled: keyof typeof usersTable.$inferSelect;
 }> = {
-  basic:  { started: "stakingBasicStartedAtMs",  accrued: "stakingBasicAccruedTon",  lastSettled: "stakingBasicLastSettledAtMs"  },
-  rare:   { started: "stakingRareStartedAtMs",   accrued: "stakingRareAccruedTon",   lastSettled: "stakingRareLastSettledAtMs"   },
-  epic:   { started: "stakingEpicStartedAtMs",   accrued: "stakingEpicAccruedTon",   lastSettled: "stakingEpicLastSettledAtMs"   },
-  mythic: { started: "stakingMythicStartedAtMs", accrued: "stakingMythicAccruedTon", lastSettled: "stakingMythicLastSettledAtMs" },
-  gold:   { started: "stakingGoldStartedAtMs",   accrued: "stakingGoldAccruedTon",   lastSettled: "stakingGoldLastSettledAtMs"   },
+  basic:  { started: "stakingBasicStartedAtMs",   accrued: "stakingBasicAccruedTon",   lastSettled: "stakingBasicLastSettledAtMs"   },
+  rare:   { started: "stakingRareStartedAtMs",    accrued: "stakingRareAccruedTon",    lastSettled: "stakingRareLastSettledAtMs"    },
+  epic:   { started: "stakingEpicStartedAtMs",    accrued: "stakingEpicAccruedTon",    lastSettled: "stakingEpicLastSettledAtMs"    },
+  mythic: { started: "stakingMythicStartedAtMs",  accrued: "stakingMythicAccruedTon",  lastSettled: "stakingMythicLastSettledAtMs"  },
+  plasma: { started: "stakingPlasmaStartedAtMs",  accrued: "stakingPlasmaAccruedTon",  lastSettled: "stakingPlasmaLastSettledAtMs"  },
+  gold:   { started: "stakingGoldStartedAtMs",    accrued: "stakingGoldAccruedTon",    lastSettled: "stakingGoldLastSettledAtMs"    },
 };
 
 // Minimal DB row shape we actually read for staking. Using the inferred
@@ -286,7 +289,7 @@ function settleDynamicTier(
 
 const StartBody = z.object({
   telegramId: z.string().min(1),
-  kind: z.enum(["v1", "sun", "basic", "rare", "epic", "mythic", "gold"]),
+  kind: z.enum(["v1", "sun", "basic", "rare", "epic", "mythic", "plasma", "gold"]),
 });
 
 /**
@@ -349,6 +352,7 @@ router.get("/staking/status", async (req, res) => {
         rare:   settleDynamicTier(r, planetsArr, "rare",   sActive, now),
         epic:   settleDynamicTier(r, planetsArr, "epic",   sActive, now),
         mythic: settleDynamicTier(r, planetsArr, "mythic", sActive, now),
+        plasma: settleDynamicTier(r, planetsArr, "plasma", sActive, now),
         gold:   settleDynamicTier(r, planetsArr, "gold",   sActive, now),
       };
       const patches: Record<string, number> = {};
@@ -377,7 +381,7 @@ router.get("/staking/status", async (req, res) => {
       return res.json({
         v1: empty("v1"), sun: empty("sun"),
         basic: empty("basic"), rare: empty("rare"), epic: empty("epic"),
-        mythic: empty("mythic"), gold: empty("gold"),
+        mythic: empty("mythic"), plasma: empty("plasma"), gold: empty("gold"),
         hasSun: false,
         nowMs: now,
       });
@@ -443,6 +447,7 @@ router.get("/staking/status", async (req, res) => {
       rare: dynPayload("rare"),
       epic: dynPayload("epic"),
       mythic: dynPayload("mythic"),
+      plasma: dynPayload("plasma"),
       gold: dynPayload("gold"),
       hasSun,
       nowMs: now,

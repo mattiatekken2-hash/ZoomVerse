@@ -278,6 +278,11 @@ export const usersTable = pgTable("users", {
   stakingGoldStartedAtMs: bigint("staking_gold_started_at_ms", { mode: "number" }).notNull().default(0),
   stakingGoldAccruedTon: real("staking_gold_accrued_ton").notNull().default(0),
   stakingGoldLastSettledAtMs: bigint("staking_gold_last_settled_at_ms", { mode: "number" }).notNull().default(0),
+  // PLASMA — new rarity between Mythic and Gold. 5 TON/month staking reward
+  // with 4 active PLASMA planets + active SUN. Same gated-accrual model as gold.
+  stakingPlasmaStartedAtMs: bigint("staking_plasma_started_at_ms", { mode: "number" }).notNull().default(0),
+  stakingPlasmaAccruedTon: real("staking_plasma_accrued_ton").notNull().default(0),
+  stakingPlasmaLastSettledAtMs: bigint("staking_plasma_last_settled_at_ms", { mode: "number" }).notNull().default(0),
 
   // ─────────────────────────────────────────────────────────────────────
   // PENDING ZOOM CREDITS — race-free server→client credit channel.

@@ -46,7 +46,7 @@ async function refreshServerOffset(): Promise<void> {
   } catch { /* keep last known offset */ }
 }
 
-export type PlanetType = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "GOLD" | "V1" | "V1_NFT" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4" | "BLACK1" | "BLACK2" | "BLACK3" | "BLACK4";
+export type PlanetType = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "PLASMA" | "GOLD" | "V1" | "V1_NFT" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4" | "BLACK1" | "BLACK2" | "BLACK3" | "BLACK4";
 
 export const WHITE_PLANET_TYPES: PlanetType[] = ["WHITE1", "WHITE2", "WHITE3", "WHITE4"];
 
@@ -226,11 +226,11 @@ export const PLANET_CONFIG: Record<PlanetType, {
     rate: 2,
     color: "#8892b0",
     glowColor: "rgba(136,146,176,0.5)",
-    // Reduced by 0.00005 to make room for V1 (0.005% drop) and by another
-    // 0.00275 to make room for MYTHIC (≈ 0.275% drop, halfway between EPIC
-    // 0.5% and GOLD 0.05%) so the cumulative probability sum across all
-    // rollable rarities still equals exactly 1.
-    chance: 0.79170,
+    // Reduced by 0.00005 to make room for V1 (0.005% drop), by 0.00275 to
+    // make room for MYTHIC, and by 0.00150 for PLASMA (0.15% drop, halfway
+    // between MYTHIC 0.275% and GOLD 0.05%), so the cumulative probability
+    // sum across all rollable rarities still equals exactly 1.
+    chance: 0.79020,
     label: "Basic",
     craftCost: 20,
     activationTon: 0.05,
@@ -276,6 +276,21 @@ export const PLANET_CONFIG: Record<PlanetType, {
     activationTon: 0,
     tapsNeeded: 500,
     reactivationFee: 1500,
+  },
+  // PLASMA — rarity between MYTHIC and GOLD. Neon-green styling.
+  // Drop rate: 0.15% (midpoint of MYTHIC 0.275% and GOLD 0.05%).
+  // Rate: 130 ZOOM/h (midpoint of MYTHIC 115 and GOLD 150).
+  // Only obtainable through Lab crafting (no wheel / mystery box / merchant).
+  PLASMA: {
+    rate: 130,
+    color: "#00e676",
+    glowColor: "rgba(0,230,118,0.7)",
+    chance: 0.00150,
+    label: "Plasma",
+    craftCost: 130,
+    activationTon: 0,
+    tapsNeeded: 600,
+    reactivationFee: 1750,
   },
   GOLD: {
     rate: 150,
