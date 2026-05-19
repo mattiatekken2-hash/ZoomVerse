@@ -440,7 +440,7 @@ function TonWalletWidgetBase(props: Props) {
         type="button"
         aria-label="TON Wallet"
         onClick={() => setOpen(true)}
-        className="glass-neon flex items-center gap-1.5 px-3.5 py-2 rounded-full font-black text-sm cursor-pointer active:scale-95"
+        className="glass-neon flex items-center gap-1 px-2.5 py-1.5 rounded-full font-black cursor-pointer active:scale-95"
         style={{
           background: "linear-gradient(135deg, rgba(0,30,22,0.85), rgba(0,10,8,0.92))",
           border: "1px solid rgba(0,242,180,0.45)",
@@ -448,10 +448,12 @@ function TonWalletWidgetBase(props: Props) {
           color: "#00f2b4",
           textShadow: "0 0 6px rgba(0,242,180,0.55)",
           backdropFilter: "blur(6px)",
+          fontSize: 12,
+          whiteSpace: "nowrap",
         }}
       >
-        <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(0,242,180,0.7)", letterSpacing: 0.5 }}>TON</span>
-        <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatTon(total)}</span>
+        <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(0,242,180,0.7)", letterSpacing: 0.4 }}>TON</span>
+        <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatTon(total, 2)}</span>
       </button>
 
       {open && (
