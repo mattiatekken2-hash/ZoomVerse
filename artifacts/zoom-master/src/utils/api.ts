@@ -156,7 +156,7 @@ export async function settleOfflineFarming(params: {
  * with `bonus-`). Without this, the next /grants sync would re-grant the
  * same planet because the entitlement counter is still > claimed.
  */
-export function notifyPlanetBurn(telegramId: string, planetType: "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "GOLD"): void {
+export function notifyPlanetBurn(telegramId: string, planetType: "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "PLASMA" | "GOLD"): void {
   if (!telegramId) return;
   fetch(`${API_BASE}/planets/burn`, {
     method: "POST",
@@ -472,6 +472,7 @@ export interface Grants {
   bonusEpic: number;
   bonusGold: number;
   bonusMythic: number;
+  bonusPlasma: number;
   bonusV1: number;
   bonusV1NftPlatinum: number;
   hasAutoTap: boolean;
@@ -489,7 +490,7 @@ export interface Grants {
   sunCycleCount: number;
 }
 
-const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
 
 /**
  * Push the current SUN cycle to the server so it persists across
@@ -726,7 +727,7 @@ export async function fetchHallOfFameDaily(): Promise<HallOfFameResponse> {
   }
 }
 
-export async function adminAddPlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "GOLD" | "SUN"): Promise<boolean> {
+export async function adminAddPlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "PLASMA" | "GOLD" | "SUN"): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/add-planets`, {
       method: "POST",
@@ -1159,7 +1160,7 @@ export async function adminRemoveZoom(adminId: string, telegramId: string, amoun
   } catch { return false; }
 }
 
-export async function adminRemovePlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "GOLD" | "SUN"): Promise<boolean> {
+export async function adminRemovePlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "PLASMA" | "GOLD" | "SUN"): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/remove-planets`, {
       method: "POST",
@@ -2275,6 +2276,7 @@ export interface RegularPlanetsState {
   claimedBonusEpic: number;
   claimedBonusGold: number;
   claimedBonusMythic: number;
+  claimedBonusPlasma: number;
   claimedBonusV1: number;
   claimedBonusV1NftPlatinum: number;
 }
@@ -2291,6 +2293,7 @@ export async function fetchRegularPlanets(
     claimedBonusEpic: 0,
     claimedBonusGold: 0,
     claimedBonusMythic: 0,
+    claimedBonusPlasma: 0,
     claimedBonusV1: 0,
     claimedBonusV1NftPlatinum: 0,
   };
@@ -2311,6 +2314,7 @@ export async function fetchRegularPlanets(
       claimedBonusEpic: Number(j.claimedBonusEpic ?? 0),
       claimedBonusGold: Number(j.claimedBonusGold ?? 0),
       claimedBonusMythic: Number(j.claimedBonusMythic ?? 0),
+      claimedBonusPlasma: Number(j.claimedBonusPlasma ?? 0),
       claimedBonusV1: Number(j.claimedBonusV1 ?? 0),
       claimedBonusV1NftPlatinum: Number(j.claimedBonusV1NftPlatinum ?? 0),
     };
@@ -2419,6 +2423,7 @@ export async function saveRegularPlanets(
     epic: number;
     gold: number;
     mythic: number;
+    plasma: number;
     v1: number;
     v1NftPlatinum: number;
   },
@@ -2441,6 +2446,7 @@ export async function saveRegularPlanets(
         claimedBonusEpic: claimed.epic,
         claimedBonusGold: claimed.gold,
         claimedBonusMythic: claimed.mythic,
+        claimedBonusPlasma: claimed.plasma,
         claimedBonusV1: claimed.v1,
         claimedBonusV1NftPlatinum: claimed.v1NftPlatinum,
         ...(craftsCompleted != null ? { craftsCompleted } : {}),

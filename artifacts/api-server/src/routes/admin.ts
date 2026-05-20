@@ -97,7 +97,7 @@ const AddPlanetsBody = z.object({
   adminId: z.string(),
   telegramId: z.string().min(1),
   count: z.number().int().positive(),
-  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "GOLD", "SUN"]),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "SUN"]),
 });
 
 const UnlockSlotsBody = z.object({
@@ -146,7 +146,7 @@ const RemovePlanetsBody = z.object({
   adminId: z.string(),
   telegramId: z.string().min(1),
   count: z.number().int().positive(),
-  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "GOLD", "SUN"]),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "SUN"]),
 });
 
 const RemoveSlotsBody = z.object({
@@ -258,6 +258,9 @@ router.post("/admin/add-planets", async (req, res) => {
     } else if (planetType === "MYTHIC") {
       await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusMythic: count })
         .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusMythic: sql`${usersTable.bonusMythic} + ${count}` } });
+    } else if (planetType === "PLASMA") {
+      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusPlasma: count })
+        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusPlasma: sql`${usersTable.bonusPlasma} + ${count}` } });
     } else if (planetType === "GOLD") {
       await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusGold: count })
         .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusGold: sql`${usersTable.bonusGold} + ${count}` } });
@@ -590,6 +593,8 @@ router.post("/admin/remove-planets", async (req, res) => {
       await db.update(usersTable).set({ bonusEpic: sql`GREATEST(0, ${usersTable.bonusEpic} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
     } else if (planetType === "MYTHIC") {
       await db.update(usersTable).set({ bonusMythic: sql`GREATEST(0, ${usersTable.bonusMythic} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
+    } else if (planetType === "PLASMA") {
+      await db.update(usersTable).set({ bonusPlasma: sql`GREATEST(0, ${usersTable.bonusPlasma} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
     } else if (planetType === "GOLD") {
       await db.update(usersTable).set({ bonusGold: sql`GREATEST(0, ${usersTable.bonusGold} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
     }

@@ -20,6 +20,7 @@ export const usersTable = pgTable("users", {
   bonusEpic: integer("bonus_epic").notNull().default(0),
   bonusGold: integer("bonus_gold").notNull().default(0),
   bonusMythic: integer("bonus_mythic").notNull().default(0),
+  bonusPlasma: integer("bonus_plasma").notNull().default(0),
   bonusV1: integer("bonus_v1").notNull().default(0),
   // V1 NFT Platinum Edition — esclusivo NFT, max 5 venduti globalmente
   // (cap atomico in creditUserTx via WHERE-guard sulla SOMMA della colonna).
@@ -128,6 +129,7 @@ export const usersTable = pgTable("users", {
   claimedBonusEpic: integer("claimed_bonus_epic").notNull().default(0),
   claimedBonusGold: integer("claimed_bonus_gold").notNull().default(0),
   claimedBonusMythic: integer("claimed_bonus_mythic").notNull().default(0),
+  claimedBonusPlasma: integer("claimed_bonus_plasma").notNull().default(0),
   claimedBonusV1: integer("claimed_bonus_v1").notNull().default(0),
   claimedBonusV1NftPlatinum: integer("claimed_bonus_v1_nft_platinum").notNull().default(0),
   // ─────────────────────────────────────────────────────────────────────
