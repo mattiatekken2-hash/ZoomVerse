@@ -482,7 +482,12 @@ export interface Grants {
   earthCollectionBundles: number;
   blackCollectionUnlocked: boolean;
   blackCollectionBundles: number;
+  // EARNED TON balance — credited by staking accrual, collection-planet
+  // collections, admin /credit-ton, and withdrawal refunds. WITHDRAWABLE.
   tonBalance: number;
+  // DEPOSIT TON balance — credited by external TonConnect deposits via
+  // /ton/deposit/confirm. SPENDABLE in the Shop ONLY. Never withdrawable.
+  depositBalance: number;
   // SUN cycle (24h) — server-side mirror so the cycle survives localStorage
   // loss. 0 means "never started" / fresh state.
   sunFarmStartedAtMs: number;
@@ -490,7 +495,30 @@ export interface Grants {
   sunCycleCount: number;
 }
 
-const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+
+/**
+ * Buy a Shop item using the in-game DEPOSIT balance (not on-chain).
+ * The server atomically debits depositBalance and grants the entitlement.
+ */
+export async function buyShopItemFromDeposit(
+  telegramId: string,
+  itemId: string,
+  meta?: unknown,
+): Promise<{ ok: boolean; txnId?: number; itemName?: string; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/shop/buy-deposit`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, itemId, meta }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data?.error || `Purchase failed (${res.status})` };
+    return { ok: true, txnId: data.txnId, itemName: data.itemName };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
 
 /**
  * Push the current SUN cycle to the server so it persists across

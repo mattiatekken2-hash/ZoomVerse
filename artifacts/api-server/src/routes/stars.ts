@@ -1092,6 +1092,148 @@ router.get("/shop/slot-price/:telegramId", async (req, res) => {
   }
 });
 
+/**
+ * Shop purchase paid from the user's in-game DEPOSIT balance (not on-chain).
+ *
+ * Flow:
+ *   1. Lock the user's row (SELECT ... FOR UPDATE).
+ *   2. Validate the depositBalance covers the item's TON price.
+ *   3. Debit depositBalance, insert a completed transaction row, run the
+ *      same `creditUserTx` used by the on-chain `/ton/confirm` path so the
+ *      entitlement (planets, slots, stardust, bundles, etc.) is granted
+ *      atomically with the debit.
+ *
+ * Deposits credit `depositBalance` (see `creditDepositIfPending`); this is
+ * the ONLY way to spend that balance. Earned TON (column `ton_balance`) is
+ * untouched here — it stays withdrawable.
+ */
+router.post("/shop/buy-deposit", async (req, res) => {
+  const { telegramId, itemId, meta } = req.body as {
+    telegramId?: string;
+    itemId?: string;
+    meta?: unknown;
+  };
+  if (!telegramId || !itemId) {
+    res.status(400).json({ error: "Missing telegramId or itemId" });
+    return;
+  }
+
+  const item = findItem(itemId);
+  if (!item) { res.status(404).json({ error: "Item not found" }); return; }
+  if (!(item.tonPrice > 0)) {
+    res.status(400).json({ error: "Item is not purchasable with TON" });
+    return;
+  }
+
+  // Pre-check SUN purchasability outside the tx so we return a clean 409
+  // (the on-chain /ton/confirm path does the same upfront check).
+  if (item.itemType === "sun") {
+    const check = await checkSunPurchasable(telegramId);
+    if (!check.ok) { res.status(409).json({ error: check.reason }); return; }
+  }
+
+  const reactMeta = parseReactMeta(meta, item.itemType);
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [user] = await tx
+        .select({
+          depositBalance: usersTable.depositBalance,
+          bonusSlots: usersTable.bonusSlots,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.telegramId, telegramId))
+        .for("update")
+        .limit(1);
+
+      if (!user) throw new Error("USER_NOT_FOUND");
+
+      // Dynamic price for the Extra Slot (escalates with current bonusSlots,
+      // capped per the SLOT_PRICE_LADDER_TON). Source of truth is the same
+      // helper the /ton/confirm path uses, so a player can't bypass the
+      // ladder by sending a stale tonPrice from the client.
+      const effectivePrice = item.id === "extra_slot"
+        ? getSlotPriceTon(user.bonusSlots ?? 0)
+        : item.tonPrice;
+
+      const bal = user.depositBalance ?? 0;
+      if (bal < effectivePrice) throw new Error("INSUFFICIENT_DEPOSIT");
+
+      const [txn] = await tx.insert(transactionsTable).values({
+        telegramId,
+        type: item.itemType,
+        currency: "TON_DEPOSIT",
+        amount: item.zoomAmount || 0,
+        tonAmount: effectivePrice,
+        itemId: item.id,
+        itemName: item.title,
+        status: "completed",
+        telegramPaymentId: `deposit_${Date.now()}_${Math.random().toString(36).slice(2, 10)}_${item.id}`,
+      }).returning();
+
+      await tx.update(usersTable)
+        .set({ depositBalance: sql`${usersTable.depositBalance} - ${effectivePrice}` })
+        .where(eq(usersTable.telegramId, telegramId));
+
+      const creditRes = await creditUserTx(
+        tx,
+        { ...item, tonPrice: effectivePrice },
+        telegramId,
+        txn.id,
+        reactMeta,
+      );
+      if (creditRes.award) {
+        await tx.update(transactionsTable)
+          .set({ award: creditRes.award })
+          .where(eq(transactionsTable.id, txn.id));
+      }
+      return { txnId: txn.id, award: creditRes.award, price: effectivePrice };
+    });
+
+    recordHistoryAsync({
+      telegramId,
+      kind: "ton_purchase",
+      delta: -result.price,
+      currency: "ton",
+      meta: {
+        txnId: result.txnId,
+        itemId: item.id,
+        itemName: item.title,
+        itemType: item.itemType,
+        source: "deposit",
+      },
+    });
+
+    res.json({
+      ok: true,
+      txnId: result.txnId,
+      itemId: item.id,
+      itemName: item.title,
+      award: result.award,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === "INSUFFICIENT_DEPOSIT") {
+      res.status(400).json({ error: "Saldo deposito TON insufficiente. Deposita TON dal wallet per acquistare." });
+      return;
+    }
+    if (msg === "USER_NOT_FOUND") {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    // Surface business-rule errors from creditUserTx (sold-out caps,
+    // duplicate-entitlement guards, etc.) as 409 instead of 500 so the
+    // client shows a meaningful message and the user's deposit is
+    // preserved (the tx rolled back, so no debit happened either).
+    if (/SOLD_OUT|MAX_REACHED|ALREADY|NOT_ELIGIBLE|INSUFFICIENT_STOCK|GLOBAL_CAP/i.test(msg)) {
+      res.status(409).json({ error: msg });
+      return;
+    }
+    console.error("[shop/buy-deposit] error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
 router.post("/ton/confirm", async (req, res) => {
   const { telegramId, itemId, walletAddress, boc, meta } = req.body as {
     telegramId?: string;
@@ -1394,8 +1536,12 @@ async function creditDepositIfPending(txnId: number, paymentId: string, telegram
       .returning();
     if (updated.length === 0) return; // already completed or failed
     didFlip = true;
+    // Deposits credit the DEPOSIT balance (spendable only in the Shop), NOT
+    // the earned balance (withdrawable). This is the keystone of the
+    // deposit/earned split: external funds never become withdrawable, only
+    // spendable in-game.
     await tx.update(usersTable)
-      .set({ tonBalance: sql`${usersTable.tonBalance} + ${amount}` })
+      .set({ depositBalance: sql`${usersTable.depositBalance} + ${amount}` })
       .where(eq(usersTable.telegramId, telegramId));
   });
   return didFlip;

@@ -200,9 +200,16 @@ export interface GameState {
   blackCollectionBundles: number;
   claimedBlackCollectionBundles: number;
   blackPlanets: Planet[];
-  // Accumulated TON earnings from White Collection planets (claimed via COLLECT).
-  // Reactivation fees for white planets are deducted from this balance.
+  // EARNED TON balance. Accumulated TON from White/Earth/Black Collection
+  // planet collects, staking accrual, admin credits, leaderboard rewards.
+  // ONLY this balance can be withdrawn. Reactivation fees for white planets
+  // are deducted from here.
   tonBalance: number;
+  // DEPOSIT TON balance. Credited only by external TonConnect deposits.
+  // Spendable EXCLUSIVELY in the Shop — never withdrawable. Kept separate
+  // from `tonBalance` so deposits never become withdrawable (one-way:
+  // deposit → spend in-game).
+  depositBalance: number;
   lastFarmingSettledAt: number;
   claimedMilestones: number[];
   lastBalanceEpoch: number;
@@ -601,6 +608,7 @@ const INITIAL_STATE: GameState = {
   claimedBlackCollectionBundles: 0,
   blackPlanets: [],
   tonBalance: 0,
+  depositBalance: 0,
   // Default to 0 (not serverNow()) so a brand-new device / cleared cache is
   // recognized as "no prior local settle" — the server-side /farm/settle
   // endpoint will then use the per-planet timestamps as the floor and credit
@@ -722,6 +730,7 @@ function loadState(): GameState {
           claimedBlackCollectionBundles: (parsed as unknown as Record<string, unknown>).claimedBlackCollectionBundles as number ?? 0,
           blackPlanets: ((parsed as unknown as Record<string, unknown>).blackPlanets as Planet[] | undefined ?? []).map(migratePlanet),
           tonBalance: parsed.tonBalance ?? 0,
+          depositBalance: (parsed as unknown as Record<string, unknown>).depositBalance as number ?? 0,
         };
         const resolvedTelegramId = telegramId || base.telegramId;
         // Only treat as "fresh load" when we did NOT find an entry keyed to the
@@ -1598,7 +1607,7 @@ export function useGameState() {
       // only as a placeholder for the few non-destructive read sites and
       // gate the entire grants-derived block on grantsOk.
       const grantsOk = grantsResult !== null;
-      const grants = grantsResult ?? { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, tonBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+      const grants = grantsResult ?? { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
       const serverCollectionByKey = indexServerCollectionPlanets(serverCollectionPlanets);
 
       // Prefer the post-credit balance returned by /farm/settle when the
@@ -1642,6 +1651,7 @@ export function useGameState() {
       // it before syncing back, so other devices' TON earnings/spends are
       // reflected immediately on this device.
       const serverTonBalance = Math.max(0, grants.tonBalance ?? 0);
+      const serverDepositBalance = Math.max(0, grants.depositBalance ?? 0);
       const sentTon = serverTonBalance;
       const syncRes = await syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(finalBalance), tonBalance: sentTon, clientEpoch: serverEpoch });
       setCurrentBalanceEpoch(syncRes.balanceEpoch);
@@ -1667,6 +1677,10 @@ export function useGameState() {
           // captures collects/spends from other devices). After this seeding,
           // the local client becomes authoritative under epoch fencing.
           tonBalance: serverTonBalance,
+          // Deposit balance is server-authoritative on app load (the only
+          // mutations are server-side: TonConnect deposit credits and
+          // /shop/buy-deposit debits). Replace local value verbatim.
+          depositBalance: serverDepositBalance,
           lastBalanceEpoch: syncRes.balanceEpoch,
           // Adopt the server's settle watermark so subsequent client-side
           // ticks (and the next /farm/settle call) compute deltas from the
@@ -2343,6 +2357,16 @@ export function useGameState() {
               description: `Free up a slot to receive your bonus: ${parts}`,
             });
           }, 0);
+        }
+
+        // DEPOSIT TON balance — server is the SOLE source of truth (the only
+        // mutations are server-side: /ton/deposit/confirm credits, and
+        // /shop/buy-deposit debits). Adopt it verbatim on every grants refresh
+        // so deposit confirmations and shop purchases converge immediately
+        // without a full reload. Never merged with a local value — the client
+        // has no authority over this column.
+        if (typeof grants.depositBalance === "number") {
+          updated = { ...updated, depositBalance: Math.max(0, grants.depositBalance) };
         }
 
         return updated;

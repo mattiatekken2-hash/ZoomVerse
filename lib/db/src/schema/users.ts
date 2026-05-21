@@ -64,7 +64,16 @@ export const usersTable = pgTable("users", {
   // collection_planets with kind='black'.
   blackCollectionUnlocked: boolean("black_collection_unlocked").notNull().default(false),
   blackCollectionBundles: integer("black_collection_bundles").notNull().default(0),
+  // Earned TON balance — credited by staking accrual, collection-planet
+  // collections, admin /credit-ton, and withdrawal refunds. ONLY this balance
+  // can be withdrawn. NEVER credited from external deposits.
+  // NOTE: column name kept as `ton_balance` for backward compatibility with
+  // existing production data; semantically this is now "earned balance".
   tonBalance: real("ton_balance").notNull().default(0),
+  // Deposit TON balance — credited exclusively by external TonConnect deposits
+  // (/ton/deposit/confirm). ONLY this balance can be spent in the Shop. NEVER
+  // withdrawable to an external wallet (one-way: deposit → spend in-game).
+  depositBalance: real("deposit_balance").notNull().default(0),
   language: text("language").notNull().default("en"),
   // Stardust — second currency. Accumulable but NOT spendable yet (its
   // utility is intentionally hidden until a future event/release). Players

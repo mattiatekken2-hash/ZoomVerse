@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
-import { createStarsInvoice, confirmStarsPurchase, confirmTonPurchase, fetchSunStock, pollTxnUntilFinal, fetchHomeState, buyComputer, buyPlantSeed, fetchSlotPrice, type SunStock, type HomeState, type SlotPriceInfo } from "../utils/api";
+import { createStarsInvoice, confirmStarsPurchase, buyShopItemFromDeposit, fetchSunStock, pollTxnUntilFinal, fetchHomeState, buyComputer, buyPlantSeed, fetchSlotPrice, type SunStock, type HomeState, type SlotPriceInfo } from "../utils/api";
 import { PixelPlant } from "../components/PixelPlant";
 import { useT } from "../i18n/LanguageContext";
-
-const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 
 interface ShopItem {
   id: string;
@@ -41,11 +39,15 @@ const STARDUST_BUNDLES: ShopItem[] = [
 
 interface ShopPageProps {
   balance: number;
+  // DEPOSIT TON balance. Shop TON-priced items are paid EXCLUSIVELY from this
+  // (never from the earned/withdrawable balance, never via per-item TonConnect
+  // signing). External deposits → /shop/buy-deposit → entitlements.
+  depositBalance: number;
   hasSun: boolean;
   telegramId?: string | null;
 }
 
-export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
+export function ShopPage({ depositBalance, hasSun: _hasSun, telegramId }: ShopPageProps) {
   const { t } = useT();
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
@@ -198,77 +200,33 @@ export function ShopPage({ hasSun: _hasSun, telegramId }: ShopPageProps) {
     }
   };
 
+  // TON purchases are paid from the user's in-game DEPOSIT balance (credited
+  // by external TonConnect deposits via the TON Wallet widget). No on-chain
+  // signature per item — one deposit, many shop purchases.
   const handleTonBuy = async (item: ShopItem) => {
     if (!telegramId) { setMessage("Telegram ID missing"); return; }
 
-    if (!connectedAddress) {
-      tonConnectUI.openModal();
-      setMessage("Connect your wallet first");
+    // Dynamic price for extra_slot (server is the source of truth; this is
+    // just for the client-side balance gate — the endpoint re-derives it).
+    const effectiveTonPrice = item.id === "extra_slot"
+      ? (slotPrice?.nextPriceTon ?? item.tonPrice)
+      : item.tonPrice;
+
+    if (depositBalance < effectiveTonPrice) {
+      setMessage(`Saldo deposito insufficiente (${effectiveTonPrice} TON). Deposita TON dal wallet per acquistare.`);
       return;
     }
 
     setBuying(item.id);
-    try {
-      // For the Extra Slot, the price is dynamic (escalates per slot already
-      // owned, capped at 3 TON). The server is the source of truth — we just
-      // send the amount it told us via /shop/slot-price so the on-chain
-      // payment matches what /ton/confirm expects.
-      const effectiveTonPrice = item.id === "extra_slot"
-        ? (slotPrice?.nextPriceTon ?? item.tonPrice)
-        : item.tonPrice;
-      const nanotons = BigInt(Math.round(effectiveTonPrice * 1e9)).toString();
-
-      const txResult = await tonConnectUI.sendTransaction({
-        validUntil: Math.floor(Date.now() / 1000) + 300,
-        messages: [
-          {
-            address: WALLET,
-            amount: nanotons,
-          },
-        ],
-      });
-
-      const boc = txResult.boc || "";
-      const confirmResult = await confirmTonPurchase(telegramId, item.id, connectedAddress, effectiveTonPrice, boc);
-      if (confirmResult.alreadyCredited) {
-        setMessage(`${item.title} purchased!`);
-        triggerDataRefresh();
-      } else if (confirmResult.pending && confirmResult.txnId) {
-        setMessage("Verifying payment on-chain…");
-        const final = await pollTxnUntilFinal(confirmResult.txnId);
-        if (final?.status === "completed") {
-          setMessage(`${item.title} purchased!`);
-          triggerDataRefresh();
-        } else if (final?.status === "failed") {
-          setMessage("Payment not detected on-chain. Contact support if TON was sent.");
-        } else {
-          // Polling timed out before the background TON verifier finished.
-          // The credit may still land — keep refreshing for a couple of
-          // minutes so the slot/item appears in the UI without the user
-          // having to reopen the app.
-          setMessage("Still awaiting confirmation. Item will appear automatically once verified.");
-          triggerDataRefresh();
-          setTimeout(() => window.dispatchEvent(new Event("zoom-data-refresh")), 90_000);
-          setTimeout(() => window.dispatchEvent(new Event("zoom-data-refresh")), 150_000);
-        }
-      } else if (confirmResult.ok) {
-        setMessage(`${item.title} purchased!`);
-        triggerDataRefresh();
-      } else {
-        setMessage(confirmResult.error || "Credit failed");
-      }
-      // Refresh the dynamic slot price so the next price tier is shown.
-      if (item.id === "extra_slot") refreshSlotPrice();
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      if (errMsg.includes("cancel") || errMsg.includes("reject") || errMsg.includes("Interrupted")) {
-        setMessage("Payment cancelled");
-      } else {
-        setMessage("TON payment failed");
-        console.error("[ton] sendTransaction error:", err);
-      }
-    }
+    const res = await buyShopItemFromDeposit(telegramId, item.id);
     setBuying(null);
+    if (res.ok) {
+      setMessage(`${item.title} purchased!`);
+      triggerDataRefresh();
+      if (item.id === "extra_slot") refreshSlotPrice();
+    } else {
+      setMessage(res.error || "Purchase failed");
+    }
   };
 
   const handleConnectWallet = () => {

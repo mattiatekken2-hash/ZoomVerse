@@ -570,6 +570,7 @@ function AppShellWithState() {
           </div>
           <TonWalletWidget
             tonBalance={state.tonBalance || 0}
+            depositBalance={state.depositBalance || 0}
             telegramId={state.telegramId || null}
             whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
             earthCollectionUnlocked={!!state.earthCollectionUnlocked}
@@ -768,7 +769,7 @@ function AppShellWithState() {
                 />
               )}
               {t === "shop" && (
-                <ShopPage balance={state.balance} hasSun={!!state.sun?.isOwned} telegramId={state.telegramId} />
+                <ShopPage balance={state.balance} depositBalance={state.depositBalance || 0} hasSun={!!state.sun?.isOwned} telegramId={state.telegramId} />
               )}
               {t === "wheel" && (
                 <WheelPage telegramId={state.telegramId} />

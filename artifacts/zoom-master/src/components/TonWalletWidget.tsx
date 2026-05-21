@@ -25,7 +25,11 @@ const TON_RECEIVER_WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 const POLL_MS = 60_000;
 
 interface Props {
+  // Earned TON balance (withdrawable). From staking, collection collects,
+  // admin credits, leaderboard rewards.
   tonBalance: number;
+  // Deposit TON balance (spendable in Shop only — never withdrawable).
+  depositBalance: number;
   telegramId: string | null;
   whiteCollectionUnlocked: boolean;
   earthCollectionUnlocked: boolean;
@@ -62,6 +66,7 @@ function sumAccrued(s: StakingStatusResponse): number {
 function WalletModal({
   onClose,
   tonBalance,
+  depositBalance,
   telegramId,
   whiteCollectionUnlocked,
   earthCollectionUnlocked,
@@ -75,8 +80,11 @@ function WalletModal({
   const walletAddress   = useTonAddress();
   const canWithdraw = whiteCollectionUnlocked || (earthCollectionUnlocked && sunCount > 0) || blackCollectionUnlocked;
 
-  // ── live TON balance (settled + pending collection yields) ──────────────
-  const liveTon = (() => {
+  // ── live EARNED TON (settled tonBalance + pending collection yields) ────
+  // Pending collection yields are EARNED TON in the making — they get
+  // credited to `tonBalance` on COLLECT, so they're aggregated here, not
+  // in depositBalance.
+  const liveEarnedTon = (() => {
     const now = Date.now();
     let pending = 0;
     for (const p of whitePlanets) pending += getWhitePlanetPendingTon(p, now);
@@ -84,6 +92,7 @@ function WalletModal({
     for (const p of blackPlanets) pending += getWhitePlanetPendingTon(p, now);
     return Math.max(0, tonBalance) + pending;
   })();
+  const safeDeposit = Math.max(0, depositBalance);
 
   // ── staking accrued (poll once on open) ────────────────────────────────
   const [accrued, setAccrued] = useState(0);
@@ -96,7 +105,8 @@ function WalletModal({
     return () => { cancelled = true; };
   }, [telegramId]);
 
-  const totalTon = liveTon + Math.max(0, accrued);
+  // Total at the top = EARNED (settled + pending) + DEPOSIT + staking accrued.
+  const totalTon = liveEarnedTon + safeDeposit + Math.max(0, accrued);
 
   // ── withdraw state ──────────────────────────────────────────────────────
   const [wAmount,        setWAmount]    = useState("");
@@ -157,10 +167,11 @@ function WalletModal({
         // poll until final
         const final = await pollTxnUntilFinal(res.txnId, { maxMs: 120_000 });
         if (final?.status === "completed") {
-          window.dispatchEvent(new CustomEvent("zoom-server-ton-snap", {
-            detail: { tonBalance: Math.max(0, tonBalance) + n, epoch: -1 },
-          }));
-          setDMsg(`Deposit confirmed! +${n} TON credited to your balance.`);
+          // Deposits now credit the DEPOSIT balance (Shop-only), not the
+          // earned tonBalance. Fire a refresh so the next /grants pull picks
+          // up the new deposit balance authoritatively.
+          window.dispatchEvent(new Event("zoom-data-refresh"));
+          setDMsg(`Deposit confirmed! +${n} TON aggiunti al saldo deposito (spendibile nello Shop).`);
         } else if (final?.status === "failed") {
           setDErr("Deposit verification failed. Contact support if TON was deducted.");
         } else {
@@ -191,8 +202,13 @@ function WalletModal({
     if (!Number.isFinite(n) || n < WITHDRAWAL_MIN_TON) {
       setWErr(`Minimum amount: ${WITHDRAWAL_MIN_TON} TON`); return;
     }
-    if (liveTon < n + WITHDRAWAL_FEE_TON) {
-      setWErr(`Insufficient TON. Need ${(n + WITHDRAWAL_FEE_TON).toFixed(4)} TON (amount + ${WITHDRAWAL_FEE_TON} fee)`); return;
+    // Withdrawals are paid out of EARNED TON only — depositBalance is
+    // intentionally excluded so external deposits stay one-way (in-only).
+    if (liveEarnedTon < WITHDRAWAL_MIN_TON) {
+      setWErr(`Minimo ${WITHDRAWAL_MIN_TON} TON guadagnati per prelevare`); return;
+    }
+    if (liveEarnedTon < n + WITHDRAWAL_FEE_TON) {
+      setWErr(`Saldo TON guadagnato insufficiente. Servono ${(n + WITHDRAWAL_FEE_TON).toFixed(4)} TON (importo + ${WITHDRAWAL_FEE_TON} di fee)`); return;
     }
     if (!wWallet.trim()) { setWErr("Enter your TON wallet address"); return; }
 
@@ -252,14 +268,22 @@ function WalletModal({
           }}>✕</button>
         </div>
 
-        {/* balance row */}
+        {/* balance rows — earned (withdrawable) + deposit (shop-only) */}
         <div style={{ margin: "12px 18px 0", padding: "10px 14px", borderRadius: 12,
           background: `${NEON}08`, border: `1px solid ${NEON}22`,
-          display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ color: "rgba(180,220,240,0.6)", fontSize: 11, fontWeight: 700 }}>Spendable</span>
-          <span style={{ color: "#fff", fontSize: 15, fontWeight: 900, fontVariantNumeric: "tabular-nums" }}>
-            {formatTon(liveTon)} TON
-          </span>
+          display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ color: "rgba(180,220,240,0.6)", fontSize: 11, fontWeight: 700 }}>Earned TON</span>
+            <span style={{ color: "#fff", fontSize: 15, fontWeight: 900, fontVariantNumeric: "tabular-nums" }}>
+              {formatTon(liveEarnedTon)} TON
+            </span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ color: "rgba(180,220,240,0.45)", fontSize: 10, fontWeight: 700 }}>Deposit (Shop only)</span>
+            <span style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
+              {formatTon(safeDeposit)} TON
+            </span>
+          </div>
         </div>
 
         {/* tabs */}

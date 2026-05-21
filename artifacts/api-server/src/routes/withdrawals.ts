@@ -73,11 +73,21 @@ router.post("/withdrawals/request", async (req, res) => {
       if (!user.whiteCollectionUnlocked) {
         return { kind: "err" as const, status: 403, error: "Solo gli holder della White Collection possono prelevare" };
       }
+      // Withdrawals are paid out of the EARNED balance only (column kept
+      // as ton_balance for back-compat). Deposits sit in deposit_balance and
+      // can only be spent in the Shop — never withdrawn.
+      if ((user.tonBalance ?? 0) < WITHDRAWAL_MIN_TON) {
+        return {
+          kind: "err" as const,
+          status: 400,
+          error: `Minimo ${WITHDRAWAL_MIN_TON} TON guadagnati per prelevare`,
+        };
+      }
       if ((user.tonBalance ?? 0) < totalDeduction) {
         return {
           kind: "err" as const,
           status: 400,
-          error: `Saldo TON insufficiente. Servono ${totalDeduction.toFixed(4)} TON (importo + ${WITHDRAWAL_FEE_TON} di fee)`,
+          error: `Saldo TON guadagnato insufficiente. Servono ${totalDeduction.toFixed(4)} TON (importo + ${WITHDRAWAL_FEE_TON} di fee)`,
         };
       }
 

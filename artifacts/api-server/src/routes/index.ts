@@ -106,6 +106,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/stars/create-invoice",
       "/stars/confirm",
       "/ton/confirm",
+      "/shop/buy-deposit",
       "/room-invites/send",
       "/room-invites/respond",
       "/redeem-codes/redeem",
