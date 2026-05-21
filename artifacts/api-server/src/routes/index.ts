@@ -192,6 +192,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/admin/anti-cheat-purge-referrals",
       "/admin/referrals/audit",
       "/admin/referrals/purge-fakes",
+      "/admin/stardust/total",
     ],
     bindField: "adminId",
   },

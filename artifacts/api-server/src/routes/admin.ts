@@ -699,6 +699,33 @@ const BulkDisableBody = z.object({
   telegramIds: z.array(z.string().min(1)).min(1).max(100),
 });
 
+router.post("/admin/stardust/total", async (req, res) => {
+  const { adminId } = req.body as { adminId?: string };
+  if (!isAdmin(adminId ?? "")) { res.status(403).json({ error: "Forbidden" }); return; }
+  try {
+    const [global] = await db
+      .select({ valueNum: appSettingsTable.valueNum })
+      .from(appSettingsTable)
+      .where(eq(appSettingsTable.key, "stardust_global_total"))
+      .limit(1);
+    const [sumRow] = await db
+      .select({ total: sql<number>`COALESCE(SUM(${usersTable.stardustBalance}), 0)` })
+      .from(usersTable);
+    const [countRow] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(usersTable)
+      .where(sql`${usersTable.stardustBalance} > 0`);
+    res.json({
+      globalCounter: Number(global?.valueNum ?? 0),
+      sumFromUsers: Number(sumRow?.total ?? 0),
+      holdersWithBalance: Number(countRow?.count ?? 0),
+    });
+  } catch (err) {
+    logger.error(err, "[admin/stardust/total] error");
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
 router.post("/admin/bulk-disable", async (req, res) => {
   const parsed = BulkDisableBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
