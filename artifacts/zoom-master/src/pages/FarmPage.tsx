@@ -20,6 +20,7 @@ import {
   effectiveEquipmentStart,
   getEquipmentTimeRemaining,
   getEquipmentTotalRate,
+  getEquipmentReactivationFee,
   isEquipmentCycleActive,
   type EquipmentCategory,
   type EquipmentItem,
@@ -52,7 +53,7 @@ interface FarmPageProps {
   // the live +$ZOOM/hr chip.
   equipment: EquipmentItem[];
   onActivateEquipment: (id: string) => void;
-  onCollectEquipment: (id: string) => void;
+  onReactivateEquipment: (id: string) => { ok: boolean; reason?: string };
   onBurnEquipment: (id: string) => void;
   onSellEquipment: (id: string, price: number) => void;
   onUnlistEquipment: (id: string) => void;
@@ -68,17 +69,19 @@ interface FarmPageProps {
 function EquipmentInventory({
   equipment,
   onActivate,
-  onCollect,
+  onReactivate,
   onBurn,
   onSell,
   onUnlist,
+  balance,
 }: {
   equipment: EquipmentItem[];
   onActivate: (id: string) => void;
-  onCollect: (id: string) => void;
+  onReactivate: (id: string) => { ok: boolean; reason?: string };
   onBurn: (id: string) => void;
   onSell: (id: string, price: number) => void;
   onUnlist: (id: string) => void;
+  balance: number;
 }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -221,7 +224,10 @@ function EquipmentInventory({
                       >
                         {listed ? "LISTED" : remainingLabel}
                       </div>
-                      {/* Action row */}
+                      {/* Action row. No COLLECT button — earnings auto-
+                          credit via /farm/settle while the cycle runs.
+                          Expired items must pay a $ZOOM fee to start a
+                          fresh 24h window (mirrors planet reactivation). */}
                       {listed ? (
                         <button
                           onClick={() => onUnlist(item.id)}
@@ -236,18 +242,43 @@ function EquipmentInventory({
                           UNLIST
                         </button>
                       ) : active ? (
-                        <button
-                          onClick={() => onCollect(item.id)}
-                          className="text-[10px] font-black tracking-wider rounded-md py-1.5"
+                        <div
+                          className="text-[10px] font-black tracking-wider rounded-md py-1.5 text-center"
                           style={{
-                            background: "rgba(0,230,118,0.14)",
-                            border: "1px solid rgba(0,230,118,0.45)",
+                            background: "rgba(0,230,118,0.10)",
+                            border: "1px solid rgba(0,230,118,0.30)",
                             color: "#00e676",
                           }}
-                          data-testid={`eq-collect-${item.id}`}
+                          data-testid={`eq-farming-${item.id}`}
                         >
-                          COLLECT
-                        </button>
+                          FARMING
+                        </div>
+                      ) : expired ? (
+                        (() => {
+                          const fee = getEquipmentReactivationFee(item);
+                          const canAfford = balance >= fee;
+                          return (
+                            <button
+                              onClick={() => {
+                                if (!canAfford) return;
+                                const res = onReactivate(item.id);
+                                if (!res.ok && res.reason) alert(res.reason);
+                              }}
+                              disabled={!canAfford}
+                              className="text-[10px] font-black tracking-wider rounded-md py-1.5 flex flex-col items-center"
+                              style={{
+                                background: canAfford ? `${r.color}22` : "rgba(255,255,255,0.04)",
+                                border: `1px solid ${canAfford ? r.color + "77" : "rgba(255,255,255,0.15)"}`,
+                                color: canAfford ? r.color : "rgba(255,255,255,0.35)",
+                                cursor: canAfford ? "pointer" : "not-allowed",
+                              }}
+                              data-testid={`eq-reactivate-${item.id}`}
+                            >
+                              <span>REACTIVATE</span>
+                              <span className="text-[8px] opacity-80">{fee.toLocaleString()} $ZOOM</span>
+                            </button>
+                          );
+                        })()
                       ) : (
                         <button
                           onClick={() => onActivate(item.id)}
@@ -259,7 +290,7 @@ function EquipmentInventory({
                           }}
                           data-testid={`eq-activate-${item.id}`}
                         >
-                          {expired ? "REACTIVATE" : "ACTIVATE"}
+                          ACTIVATE
                         </button>
                       )}
                       {!listed && (
@@ -394,7 +425,7 @@ const RARITY_CLASS: Record<string, string> = {
 };
 
 
-export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRename, equipment, onActivateEquipment, onCollectEquipment, onBurnEquipment, onSellEquipment, onUnlistEquipment }: FarmPageProps) {
+export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRename, equipment, onActivateEquipment, onReactivateEquipment, onBurnEquipment, onSellEquipment, onUnlistEquipment }: FarmPageProps) {
   const { t } = useT();
   const sunMultiplier = Math.max(1, sunCount || (sun?.isOwned ? 1 : 0));
   const sunDisplayRate = SUN_CONFIG.rate * sunMultiplier;
@@ -1107,10 +1138,11 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
             <EquipmentInventory
               equipment={equipment}
               onActivate={onActivateEquipment}
-              onCollect={onCollectEquipment}
+              onReactivate={onReactivateEquipment}
               onBurn={onBurnEquipment}
               onSell={onSellEquipment}
               onUnlist={onUnlistEquipment}
+              balance={balance}
             />
           )}
         </div>

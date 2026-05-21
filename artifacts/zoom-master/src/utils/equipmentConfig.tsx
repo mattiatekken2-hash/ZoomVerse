@@ -131,6 +131,27 @@ export function getEquipmentTimeRemaining(item: EquipmentItem, now: number): num
   return Math.max(0, eff + EQUIPMENT_CYCLE_MS - now);
 }
 
+/**
+ * True when the item's 24h cycle has elapsed and the user must pay a
+ * $ZOOM reactivation fee to start a fresh cycle. Excludes never-started
+ * and listed items (which are not "expired", just inactive/escrowed).
+ */
+export function isEquipmentExpired(item: EquipmentItem, now: number = Date.now()): boolean {
+  if (item.isListedInMarket) return false;
+  const eff = effectiveEquipmentStart(item);
+  if (eff <= 0) return false;
+  return now - eff > EQUIPMENT_CYCLE_MS;
+}
+
+/**
+ * Reactivation fee in $ZOOM. Scales with the item's rate so high-rarity
+ * gear costs more to restart (4h of earnings — pays back in 4h once
+ * reactivated, same shape as planet reactivation economics).
+ */
+export function getEquipmentReactivationFee(item: EquipmentItem): number {
+  return Math.max(50, Math.round((item.rate || 0) * 4));
+}
+
 export function getEquipmentTotalRate(
   items: ReadonlyArray<EquipmentItem>,
   now: number = Date.now(),

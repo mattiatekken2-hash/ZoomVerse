@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem } from "../utils/equipmentConfig";
-import { getEquipmentTotalRate } from "../utils/equipmentConfig";
+import { getEquipmentTotalRate, getEquipmentReactivationFee, EQUIPMENT_CYCLE_MS } from "../utils/equipmentConfig";
 import { generateRandomFloat } from "../utils/planetFloat";
 import { toast } from "./use-toast";
 
@@ -4191,6 +4191,56 @@ export function useGameState() {
     void apiCollectEquipment(tid, id);
   }, []);
 
+  // Reactivate an expired (or never-started) equipment item by paying a
+  // $ZOOM fee. Mirrors planet reactivation: client-authoritative debit,
+  // server /equipment/start resets the cycle to now. Balance reconciles
+  // via /sync. Refuses if insufficient balance or item is listed.
+  const reactivateEquipmentAction = useCallback((id: string): { ok: boolean; reason?: string } => {
+    const tid = stateRef.current.telegramId;
+    if (!tid) return { ok: false, reason: "Not logged in" };
+    const item = (stateRef.current.equipment || []).find((e) => e.id === id);
+    if (!item) return { ok: false, reason: "Equipment not found" };
+    if (item.isListedInMarket) return { ok: false, reason: "Item is listed on the market" };
+    // Defensive expiry guard — UI only renders this button for expired
+    // items, but a stray caller (keyboard shortcut, future code path)
+    // must not silently re-debit a still-active cycle. Mirrors the
+    // planet reactivate flow which is a no-op when not expired.
+    const nowGuard = serverNow();
+    const effGuard = Math.max(item.farmStartedAt || 0, item.lastCollectedAt || 0);
+    const isExpired = effGuard > 0 && nowGuard - effGuard > EQUIPMENT_CYCLE_MS;
+    const isNeverStarted = effGuard <= 0;
+    if (!isExpired && !isNeverStarted) {
+      return { ok: false, reason: "Cycle still active" };
+    }
+    const fee = getEquipmentReactivationFee(item);
+    if (stateRef.current.balance < fee) {
+      return { ok: false, reason: `Need ${fee.toLocaleString()} $ZOOM to reactivate` };
+    }
+    setState((prev) => {
+      const idx = (prev.equipment || []).findIndex((e) => e.id === id);
+      if (idx < 0) return prev;
+      const cur = prev.equipment[idx]!;
+      if (cur.isListedInMarket) return prev;
+      const now = serverNow();
+      const next = prev.equipment.slice();
+      next[idx] = {
+        ...cur,
+        farmStartedAt: now,
+        lastCollectedAt: 0,
+        isFarmingActive: true,
+        pausedAt: 0,
+      };
+      return {
+        ...prev,
+        balance: Math.max(0, prev.balance - fee),
+        lastBalanceEpoch: (prev.lastBalanceEpoch || 0) + 1,
+        equipment: next,
+      };
+    });
+    void startEquipmentCycle(tid, id);
+    return { ok: true };
+  }, []);
+
   const burnEquipmentAction = useCallback((id: string) => {
     const tid = stateRef.current.telegramId;
     if (!tid) return;
@@ -4271,14 +4321,49 @@ export function useGameState() {
         void refreshMarketListings();
       });
     }
-    setState((prev) => ({
-      ...prev,
-      equipment: prev.equipment.map((e) =>
-        e.id === id
-          ? { ...e, isListedInMarket: false, marketPrice: undefined, serverListingId: undefined }
-          : e,
-      ),
-    }));
+    setState((prev) => {
+      const next = prev.equipment.map((e) => {
+        if (e.id !== id) return e;
+        // Resume the timer with the same time-remaining the item had
+        // when listed. pausedAt was set at list-time to either the
+        // moment we paused (mid-cycle) or carried over from a prior
+        // pause. The "was live when paused" predicate is anchored at
+        // pausedAt (NOT at now) — otherwise an item listed >24h ago
+        // would look expired today and lose its preserved remaining
+        // time, even though it was still mid-cycle at the moment we
+        // paused it. Mirrors planet pauseShift semantics.
+        const now = serverNow();
+        const eff = Math.max(e.farmStartedAt || 0, e.lastCollectedAt || 0);
+        const pausedAt = e.pausedAt || 0;
+        const wasLiveAtPause = eff > 0 && pausedAt > 0 && pausedAt - eff <= EQUIPMENT_CYCLE_MS;
+        const pauseShift = wasLiveAtPause ? Math.max(0, now - pausedAt) : 0;
+        const wasMidCycle = wasLiveAtPause;
+        return {
+          ...e,
+          isListedInMarket: false,
+          marketPrice: undefined,
+          serverListingId: undefined,
+          // Resume farming only if there was a live cycle when we paused.
+          isFarmingActive: wasMidCycle,
+          // Shift both anchors forward so effectiveStart advances by
+          // the pause duration → time-left is preserved.
+          farmStartedAt: wasMidCycle && e.farmStartedAt
+            ? e.farmStartedAt + pauseShift
+            : (e.farmStartedAt || 0),
+          lastCollectedAt: wasMidCycle && e.lastCollectedAt
+            ? e.lastCollectedAt + pauseShift
+            : (e.lastCollectedAt || 0),
+          pausedAt: 0,
+        };
+      });
+      const updated = { ...prev, equipment: next };
+      // Persist the new anchors so /farm/settle reads the shifted
+      // timestamps on its next tick. Without this, the server would
+      // accrue against the original (pre-pause) farmStartedAt and
+      // mis-credit the listing window.
+      void saveEquipment(tid, next);
+      return updated;
+    });
   }, []);
 
   // Buy an equipment listing from the marketplace. The server mints the
@@ -4337,6 +4422,7 @@ export function useGameState() {
     equipment: state.equipment ?? [],
     activateEquipment,
     collectEquipment: collectEquipmentAction,
+    reactivateEquipment: reactivateEquipmentAction,
     burnEquipment: burnEquipmentAction,
     listEquipment: listEquipmentAction,
     unlistEquipment: unlistEquipmentAction,

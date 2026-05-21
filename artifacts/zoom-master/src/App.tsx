@@ -85,7 +85,7 @@ function AppShellWithState() {
     placeEarthPlanet, reactivateEarthPlanet, markEarthPlanetReactivated, collectEarthPlanet,
     placeBlackPlanet, reactivateBlackPlanet, markBlackPlanetReactivated, collectBlackPlanet,
     burnTwoOfType, addCraftedPlanet,
-    activateEquipment, collectEquipment, burnEquipment, listEquipment, unlistEquipment, buyEquipmentFromMarket,
+    activateEquipment, reactivateEquipment, burnEquipment, listEquipment, unlistEquipment, buyEquipmentFromMarket,
   } = useGameState();
 
   // Space Merchant — wire once at App level so the radar LED in LAB and the
@@ -722,7 +722,7 @@ function AppShellWithState() {
                   onUnlist={unlistPlanet}
                   equipment={state.equipment ?? []}
                   onActivateEquipment={activateEquipment}
-                  onCollectEquipment={collectEquipment}
+                  onReactivateEquipment={reactivateEquipment}
                   onBurnEquipment={burnEquipment}
                   onSellEquipment={listEquipment}
                   onUnlistEquipment={unlistEquipment}
