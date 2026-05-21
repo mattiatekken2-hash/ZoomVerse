@@ -18,8 +18,9 @@ const router: IRouter = Router();
 router.get("/market/sales", async (_req, res) => {
   try {
     const rows = await db.execute(sql`
-      SELECT m.id, m.planet_type, m.planet_rate, m.price, m.sold_at,
+      SELECT m.id, m.kind, m.planet_type, m.planet_rate, m.price, m.sold_at,
              m.planet_float,
+             m.equipment_category, m.equipment_rarity, m.equipment_rate,
              COALESCE(s.first_name, m.seller_name, 'Anon') AS seller_name,
              COALESCE(b.first_name, 'Anon') AS buyer_name
       FROM market_listings m
@@ -36,8 +37,12 @@ router.get("/market/sales", async (_req, res) => {
         : (rawFloat != null && Number.isFinite(Number(rawFloat)) ? Number(rawFloat) : null);
       return {
         id: Number(r.id),
-        planetType: String(r.planet_type),
-        planetRate: Number(r.planet_rate),
+        kind: (r.kind === "equipment" ? "equipment" : "planet") as "planet" | "equipment",
+        planetType: r.planet_type == null ? null : String(r.planet_type),
+        planetRate: r.planet_rate == null ? null : Number(r.planet_rate),
+        equipmentCategory: r.equipment_category == null ? null : String(r.equipment_category),
+        equipmentRarity: r.equipment_rarity == null ? null : String(r.equipment_rarity),
+        equipmentRate: r.equipment_rate == null ? null : Number(r.equipment_rate),
         price: Number(r.price),
         sellerName: String(r.seller_name),
         buyerName: String(r.buyer_name),
@@ -292,6 +297,151 @@ router.post("/market/list", async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("[market/list] error:", err);
+    res.status(500).json({ error: "Database error" });
+  } finally {
+    client.release();
+  }
+});
+
+// ───────────────── List equipment on the market ─────────────────
+//
+// Mirrors /market/list for the equipment inventory. Same security model:
+// ownership verified inside a transaction under FOR UPDATE; the unique
+// partial index uq_market_seller_equipment_active_sold prevents
+// double-listing or re-listing of sold items.
+
+const ListEquipmentBody = z.object({
+  sellerTelegramId: z.string().min(1),
+  sellerName: z.string().optional(),
+  equipmentId: z.string().min(1).max(128),
+  price: z.number().int().positive(),
+});
+
+router.post("/market/list-equipment", async (req, res) => {
+  const parsed = ListEquipmentBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body" });
+    return;
+  }
+
+  const { sellerTelegramId, sellerName, equipmentId, price } = parsed.data;
+
+  const [sellerFlag] = await db
+    .select({ isDisabled: usersTable.isDisabled })
+    .from(usersTable)
+    .where(eq(usersTable.telegramId, sellerTelegramId))
+    .limit(1);
+  if (sellerFlag?.isDisabled) {
+    res.status(403).json({ error: "Account disabled" });
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const txDb = drizzle(client);
+
+    const [seller] = await txDb
+      .select({ equipmentJson: usersTable.equipmentJson })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, sellerTelegramId))
+      .for("update")
+      .limit(1);
+
+    if (!seller) {
+      await client.query("ROLLBACK");
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    const items = Array.isArray(seller.equipmentJson)
+      ? (seller.equipmentJson as Array<Record<string, unknown>>)
+      : [];
+    const item = items.find((it) => it && typeof it === "object" && it["id"] === equipmentId);
+    if (!item) {
+      await client.query("ROLLBACK");
+      res.status(400).json({ error: "Equipment not found in your inventory" });
+      return;
+    }
+    if (item["isListedInMarket"] === true) {
+      await client.query("ROLLBACK");
+      res.status(409).json({ error: "Equipment already listed" });
+      return;
+    }
+    const category = String(item["category"] || "");
+    const rarity = String(item["rarity"] || "");
+    const validCat = ["HELMET", "JETPACK", "HAT", "SCANNER"].includes(category);
+    const validRar = ["BASIC", "RARE", "EPIC", "GOLD", "PLASMA", "MYTHIC"].includes(rarity);
+    if (!validCat || !validRar) {
+      await client.query("ROLLBACK");
+      res.status(400).json({ error: "Corrupt equipment record" });
+      return;
+    }
+    const { EQUIPMENT_RATE_SERVER } = await import("./equipment");
+    const canonicalRate = (EQUIPMENT_RATE_SERVER as Record<string, Record<string, number>>)[category]![rarity]!;
+
+    let listing;
+    try {
+      const [inserted] = await txDb
+        .insert(marketListingsTable)
+        .values({
+          sellerTelegramId,
+          sellerName: sellerName ?? null,
+          kind: "equipment",
+          equipmentId,
+          equipmentCategory: category,
+          equipmentRarity: rarity,
+          equipmentRate: canonicalRate,
+          planetType: null,
+          planetRate: null,
+          planetId: null,
+          price,
+          status: "active",
+        })
+        .returning();
+      listing = inserted;
+    } catch (err: unknown) {
+      await client.query("ROLLBACK");
+      if (typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23505") {
+        res.status(409).json({ error: "This equipment was previously listed and cannot be sold again" });
+        return;
+      }
+      throw err;
+    }
+
+    const nowMs = Date.now();
+    await client.query(
+      `UPDATE users
+       SET equipment_json = COALESCE(
+         (SELECT jsonb_agg(
+            CASE WHEN e->>'id' = $2
+              THEN e || jsonb_build_object(
+                'isListedInMarket', true,
+                'serverListingId', $3::int,
+                'marketPrice', $4::int,
+                'isFarmingActive', false,
+                'pausedAt', CASE
+                  WHEN (e->>'isFarmingActive')::boolean IS TRUE THEN $5::bigint
+                  ELSE COALESCE((e->>'pausedAt')::bigint, 0)
+                END
+              )
+              ELSE e
+            END
+          )
+          FROM jsonb_array_elements(equipment_json) e),
+         '[]'::jsonb
+       ),
+       equipment_updated_at_ms = GREATEST(equipment_updated_at_ms, $5::bigint)
+       WHERE telegram_id = $1`,
+      [sellerTelegramId, equipmentId, listing!.id, price, nowMs],
+    );
+
+    await client.query("COMMIT");
+    bumpZoomPriceFireAndForget("market_list", sellerTelegramId);
+    res.json({ ok: true, listing });
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[market/list-equipment] error:", err);
     res.status(500).json({ error: "Database error" });
   } finally {
     client.release();

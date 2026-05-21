@@ -2,8 +2,20 @@ import type { Response } from "express";
 
 export interface MarketSaleEvent {
   id: number;
-  planetType: string;
-  planetRate: number;
+  // 'planet' (default, legacy) or 'equipment'. Lets the live-activity
+  // feed render the correct card variant — planet orb vs pixel-art
+  // equipment icon — without joining back to the listing row.
+  kind?: "planet" | "equipment";
+  // Planet fields — populated when kind='planet'. Nullable for equipment
+  // sales so the SSE payload stays one consistent shape.
+  planetType: string | null;
+  planetRate: number | null;
+  // Equipment fields — populated when kind='equipment'. Mirror the
+  // catalog identity (category/rarity) so the client can colour the
+  // card and pick the right pixel-art icon.
+  equipmentCategory?: string | null;
+  equipmentRarity?: string | null;
+  equipmentRate?: number | null;
   price: number;
   sellerName: string;
   buyerName: string;

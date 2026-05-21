@@ -79,6 +79,9 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/planets/burn",
       "/regular-planets/save",
       "/equipment/save",
+      "/equipment/start",
+      "/equipment/collect",
+      "/equipment/burn",
       "/planets/rename",
       "/collection-planets/upsert",
       "/collection-planets/bulk-seed",
@@ -119,7 +122,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
   // Marketplace — seller-initiated actions bind to sellerTelegramId
   {
     methods: ["POST"],
-    paths: ["/market/list", "/market/delist"],
+    paths: ["/market/list", "/market/list-equipment", "/market/delist"],
     bindField: "sellerTelegramId",
   },
   // Marketplace — buyer-initiated actions bind to buyerTelegramId

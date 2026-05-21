@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
+import { EQUIPMENT_RATE_SERVER } from "./equipment";
 
 const router: IRouter = Router();
 
@@ -99,6 +100,7 @@ router.post("/farm/settle", async (req, res) => {
                balance_epoch,
                last_farming_settled_at_ms,
                planets_json,
+               equipment_json,
                sun_count,
                sun_farm_started_at_ms,
                sun_last_collected_at_ms,
@@ -187,6 +189,37 @@ router.post("/farm/settle", async (req, res) => {
           // Dynamic bonus average — see DYNAMIC_BONUS_AVG comment above.
           const effectiveRate = rate + DYNAMIC_BONUS_AVG;
           earned += (effectiveRate / 3_600_000) * (end - start) * speedMultiplier;
+        }
+      }
+
+      // ─── Equipment ───
+      // Mirror per-planet 24h-cycle accrual, minus the DYNAMIC_BONUS_AVG
+      // (equipment has no client-side per-tick random bonus, so no offset
+      // is needed to keep client and server in sync). Server-canonical
+      // rate table — any tampered client `rate` was already stripped on
+      // /equipment/save, but we re-derive here as belt-and-suspenders.
+      const equipmentField = row["equipment_json"];
+      const equipment: Array<Record<string, unknown>> = Array.isArray(equipmentField)
+        ? (equipmentField as Array<Record<string, unknown>>)
+        : [];
+      for (const e of equipment) {
+        if (!e || typeof e !== "object") continue;
+        if (!e["isFarmingActive"]) continue;
+        if (e["isListedInMarket"]) continue;
+        const category = String(e["category"] || "");
+        const rarity = String(e["rarity"] || "");
+        const canon =
+          (EQUIPMENT_RATE_SERVER as Record<string, Record<string, number>>)[category]?.[rarity];
+        const rate = typeof canon === "number" ? canon : num(e["rate"]);
+        if (rate <= 0) continue;
+        const farmStartedAt = num(e["farmStartedAt"]);
+        const lastCollectedAt = num(e["lastCollectedAt"]);
+        const effectiveStart = Math.max(farmStartedAt, lastCollectedAt);
+        if (effectiveStart <= 0) continue;
+        const start = Math.max(watermark, effectiveStart);
+        const end = Math.min(now, effectiveStart + FARM_DURATION_MS);
+        if (end > start) {
+          earned += (rate / 3_600_000) * (end - start) * speedMultiplier;
         }
       }
 

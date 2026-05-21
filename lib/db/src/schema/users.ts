@@ -379,11 +379,29 @@ export const marketListingsTable = pgTable("market_listings", {
   id: serial("id").primaryKey(),
   sellerTelegramId: text("seller_telegram_id").notNull(),
   sellerName: text("seller_name"),
-  planetType: text("planet_type").notNull(),
-  planetRate: integer("planet_rate").notNull(),
+  // Listing kind discriminator. 'planet' (default, legacy) routes to the
+  // planet columns below; 'equipment' routes to the equipment_* columns.
+  // The marketplace handlers branch on this field for both /market/buy
+  // and /market/delist so the same listing row can carry either a planet
+  // or an equipment item without forking the schema into two tables.
+  kind: text("kind").notNull().default("planet"),
+  // Planet snapshot — nullable because equipment listings populate the
+  // equipment_* columns instead. The /market/list handler enforces
+  // notNull for kind='planet' at the application layer.
+  planetType: text("planet_type"),
+  planetRate: integer("planet_rate"),
   price: integer("price").notNull(),
   status: text("status").notNull().default("active"),
   buyerTelegramId: text("buyer_telegram_id"),
+  // Equipment snapshot. Anchored to a specific item in the seller's
+  // `users.equipment_json` array. Mirrors the planetId / planetType /
+  // planetRate / planetDisplayName triple on the planet side so the
+  // marketplace card and the /market/buy handler have everything they
+  // need without joining back to equipment_json.
+  equipmentId: text("equipment_id"),
+  equipmentCategory: text("equipment_category"),
+  equipmentRarity: text("equipment_rarity"),
+  equipmentRate: integer("equipment_rate"),
   // Anchors the listing to a specific planet inside the seller's
   // `users.planets_json` array. Required for all NEW listings (the
   // /market/list handler validates ownership against this id), nullable
@@ -427,6 +445,14 @@ export const marketListingsTable = pgTable("market_listings", {
   uniqueIndex("uq_market_seller_planet_active_sold")
     .on(table.sellerTelegramId, table.planetId)
     .where(sql`status IN ('active', 'sold') AND planet_id IS NOT NULL`),
+  // Equipment-side twin of the planet uniqueness constraint. Same logic:
+  // a given (seller, equipmentId) tuple can only appear in ONE active or
+  // sold listing — re-listing a sold equipment item or double-listing the
+  // same item across two active rows is a money exploit (the seller would
+  // receive multiple ZOOM payments for what is effectively one item).
+  uniqueIndex("uq_market_seller_equipment_active_sold")
+    .on(table.sellerTelegramId, table.equipmentId)
+    .where(sql`status IN ('active', 'sold') AND equipment_id IS NOT NULL`),
 ]);
 
 export const insertMarketListingSchema = createInsertSchema(marketListingsTable).omit({ id: true, createdAt: true, soldAt: true });
