@@ -15,6 +15,7 @@ import {
   adminGrantV1,
   adminGrantV1Nft,
   adminGrantAutoTap,
+  adminGrantEquipment,
   adminTestWithdrawalChannel,
   adminFetchWithdrawals,
   adminApproveWithdrawal,
@@ -57,6 +58,8 @@ import {
 const ADMIN_ID = "8144744644";
 
 type PlanetChoice = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "PLASMA" | "GOLD" | "SUN";
+type EqCategory = "HELMET" | "JETPACK" | "HAT" | "SCANNER";
+type EqRarity = "BASIC" | "RARE" | "EPIC" | "GOLD" | "PLASMA" | "MYTHIC";
 // Stardust supports both add (credit) and remove (subtract clamped at 0).
 type ActionType = "zoom" | "planets" | "slots" | "spins" | "stardust";
 
@@ -89,7 +92,9 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "black" | "revoke-white" | "revoke-earth" | "revoke-black" | "autotap" | "test-wd-chan" | "v1" | "v1nft" | "rec-stars" | "wh-info" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "black" | "revoke-white" | "revoke-earth" | "revoke-black" | "autotap" | "test-wd-chan" | "v1" | "v1nft" | "rec-stars" | "wh-info" | "grant-equipment" | null>(null);
+  const [eqCategory, setEqCategory] = useState<EqCategory>("HELMET");
+  const [eqRarity, setEqRarity] = useState<EqRarity>("BASIC");
   const [confirmBulkNebo, setConfirmBulkNebo] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [delistId, setDelistId] = useState("");
@@ -822,6 +827,64 @@ export function AdminPanel({ telegramId }: Props) {
                   }}
                 >
                   {loading === "autotap" ? "..." : "⚡ GRANT AUTO-TAP"}
+                </motion.button>
+
+                {/* ── EQUIPMENT GRANT ── */}
+                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {(["HELMET","JETPACK","HAT","SCANNER"] as EqCategory[]).map((c) => (
+                    <motion.button key={c} whileTap={{ scale: 0.9 }} onClick={() => { haptic(); setEqCategory(c); }}
+                      style={{
+                        padding: "6px 10px", borderRadius: 8,
+                        border: `1px solid ${eqCategory === c ? "rgba(120,200,255,0.6)" : "rgba(255,255,255,0.1)"}`,
+                        background: eqCategory === c ? "rgba(80,180,255,0.25)" : "transparent",
+                        color: eqCategory === c ? "#e6f3ff" : "rgba(220,230,245,0.45)",
+                        fontSize: 11, fontWeight: eqCategory === c ? 800 : 600, cursor: "pointer", transition: "all 0.15s",
+                      }}>
+                      {c === "HELMET" ? "🪖" : c === "JETPACK" ? "🚀" : c === "HAT" ? "🎩" : "📡"} {c}
+                    </motion.button>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {(["BASIC","RARE","EPIC","GOLD","PLASMA","MYTHIC"] as EqRarity[]).map((r) => {
+                    const color = r === "BASIC" ? "#9aa4b2" : r === "RARE" ? "#4fc3f7" : r === "EPIC" ? "#ab47bc" : r === "GOLD" ? "#ffd700" : r === "PLASMA" ? "#00e676" : "#ff1744";
+                    return (
+                      <motion.button key={r} whileTap={{ scale: 0.9 }} onClick={() => { haptic(); setEqRarity(r); }}
+                        style={{
+                          padding: "5px 9px", borderRadius: 8,
+                          border: `1px solid ${eqRarity === r ? color : color + "44"}`,
+                          background: eqRarity === r ? `${color}33` : "transparent",
+                          color: eqRarity === r ? color : color + "99",
+                          fontSize: 10, fontWeight: eqRarity === r ? 800 : 600, cursor: "pointer", transition: "all 0.15s",
+                        }}>
+                        {r}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={async () => {
+                    haptic();
+                    const id = targetId.trim() || ADMIN_ID;
+                    setLoading("grant-equipment");
+                    const ok = await adminGrantEquipment(telegramId, id, eqCategory, eqRarity);
+                    setLoading(null);
+                    if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+                    const label = `${eqCategory} ${eqRarity}`;
+                    showFeedback(ok ? `✓ Equipment [${label}] accreditato a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px", borderRadius: 10,
+                    border: "1px solid rgba(180,140,255,0.5)",
+                    background: "linear-gradient(135deg, rgba(180,140,255,0.16), rgba(120,80,220,0.10))",
+                    color: "#d4b0ff", fontSize: 12, fontWeight: 800, letterSpacing: "0.06em",
+                    cursor: "pointer", opacity: loading !== null ? 0.5 : 1, transition: "opacity 0.15s",
+                    boxShadow: "0 0 14px rgba(180,140,255,0.2)",
+                  }}
+                >
+                  {loading === "grant-equipment" ? "..." : `🪖 GRANT EQUIPMENT [${eqCategory} · ${eqRarity}]`}
                 </motion.button>
 
                 {/* Test withdrawal-channel announcement */}

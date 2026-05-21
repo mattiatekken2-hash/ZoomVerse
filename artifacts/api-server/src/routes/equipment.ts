@@ -22,7 +22,7 @@ const router: IRouter = Router();
 // items self-heal on the next debounced save.
 type EqCategory = "HELMET" | "JETPACK" | "HAT" | "SCANNER";
 type EqRarity = "BASIC" | "RARE" | "EPIC" | "GOLD" | "PLASMA" | "MYTHIC";
-const EQUIPMENT_RATE_SERVER: Record<EqCategory, Record<EqRarity, number>> = {
+export const EQUIPMENT_RATE_SERVER: Record<EqCategory, Record<EqRarity, number>> = {
   HELMET:  { BASIC: 10, RARE: 25, EPIC: 60, GOLD: 120, PLASMA: 180, MYTHIC: 260 },
   JETPACK: { BASIC: 12, RARE: 30, EPIC: 70, GOLD: 130, PLASMA: 195, MYTHIC: 280 },
   HAT:     { BASIC:  8, RARE: 22, EPIC: 55, GOLD: 110, PLASMA: 170, MYTHIC: 240 },

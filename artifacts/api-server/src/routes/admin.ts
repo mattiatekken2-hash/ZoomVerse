@@ -8,6 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { logger } from "../lib/logger";
 import { recordHistoryAsync } from "../lib/history";
+import { EQUIPMENT_RATE_SERVER } from "./equipment";
 
 const router = Router();
 
@@ -153,6 +154,13 @@ const RemoveSlotsBody = z.object({
   adminId: z.string(),
   telegramId: z.string().min(1),
   count: z.number().int().positive(),
+});
+
+const GrantEquipmentBody = z.object({
+  adminId: z.string(),
+  telegramId: z.string().min(1),
+  category: z.enum(["HELMET", "JETPACK", "HAT", "SCANNER"]),
+  rarity: z.enum(["BASIC", "RARE", "EPIC", "GOLD", "PLASMA", "MYTHIC"]),
 });
 
 router.post("/admin/credit-zoom", async (req, res) => {
@@ -621,6 +629,56 @@ router.post("/admin/remove-slots", async (req, res) => {
     scheduleAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// ─── EQUIPMENT GRANT ────────────────────────────────────────────────────────
+// Admin mints a single equipment item directly into the user's inventory.
+// The new item is appended to the existing `equipment_json` array; the
+// server computes the canonical rate from EQUIPMENT_RATE_SERVER and bumps
+// `equipment_updated_at_ms` so the stale-write fence on the client-side
+// /equipment/save won't accidentally overwrite the new item.
+router.post("/admin/grant-equipment", async (req, res) => {
+  const parsed = GrantEquipmentBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  const { category, rarity } = parsed.data;
+  const rate = EQUIPMENT_RATE_SERVER[category][rarity];
+  const now = Date.now();
+  const newItem = {
+    id: `eq-${category.toLowerCase()}-${rarity.toLowerCase()}-${now.toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+    category,
+    rarity,
+    rate,
+    createdAt: now,
+    color: rarity === "BASIC" ? "#9aa4b2"
+      : rarity === "RARE" ? "#4fc3f7"
+      : rarity === "EPIC" ? "#ab47bc"
+      : rarity === "GOLD" ? "#ffd700"
+      : rarity === "PLASMA" ? "#00e676"
+      : "#ff1744",
+  };
+  try {
+    const updatedRows = await db
+      .update(usersTable)
+      .set({
+        equipmentJson: sql`jsonb_insert(coalesce(${usersTable.equipmentJson}, '[]'::jsonb), '{999999}', ${JSON.stringify(newItem)}::jsonb, true)`,
+        equipmentUpdatedAtMs: now,
+      })
+      .where(eq(usersTable.telegramId, telegramId))
+      .returning({
+        equipmentJson: usersTable.equipmentJson,
+      });
+    const stored = updatedRows[0];
+    if (!stored) return res.status(404).json({ error: "User not found" });
+    scheduleAdminAssetSnapshot();
+    res.json({ ok: true, item: newItem, count: Array.isArray(stored.equipmentJson) ? stored.equipmentJson.length : 0 });
+  } catch (err) {
+    logger.error({ err }, "[admin/grant-equipment] database error");
     res.status(500).json({ error: "Database error" });
   }
 });

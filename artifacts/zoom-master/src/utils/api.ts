@@ -777,6 +777,17 @@ export async function adminUnlockSlots(adminId: string, telegramId: string, coun
   } catch { return false; }
 }
 
+export async function adminGrantEquipment(adminId: string, telegramId: string, category: "HELMET" | "JETPACK" | "HAT" | "SCANNER", rarity: "BASIC" | "RARE" | "EPIC" | "GOLD" | "PLASMA" | "MYTHIC"): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/grant-equipment`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, telegramId, category, rarity }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminGrantAutoTap(adminId: string, telegramId: string): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/grant-auto-tap`, {
