@@ -172,6 +172,7 @@ router.get("/profile/:telegramId", async (req, res) => {
         totalCraftedRare: usersTable.totalCraftedRare,
         totalCraftedEpic: usersTable.totalCraftedEpic,
         totalCraftedMythic: usersTable.totalCraftedMythic,
+        totalCraftedPlasma: usersTable.totalCraftedPlasma,
         totalCraftedGold: usersTable.totalCraftedGold,
         totalCraftedV1: usersTable.totalCraftedV1,
       })
@@ -192,6 +193,7 @@ router.get("/profile/:telegramId", async (req, res) => {
         RARE: rows[0]!.totalCraftedRare,
         EPIC: rows[0]!.totalCraftedEpic,
         MYTHIC: rows[0]!.totalCraftedMythic,
+        PLASMA: rows[0]!.totalCraftedPlasma,
         GOLD: rows[0]!.totalCraftedGold,
         V1: rows[0]!.totalCraftedV1,
       },
@@ -258,7 +260,7 @@ const CraftBody = z.object({
   // MYTHIC is accepted so the client stops short-circuiting to a 400 when
   // a Lab craft rolls one, but we don't currently track its lifetime
   // count (no totalCraftedMythic column yet) — see the field map below.
-  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "GOLD", "V1"]),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1"]),
   // Costo reale in $ZOOM speso per questo forge (= numero totale di tap).
   // Sanity-clamped: in normali condizioni va da ~75 (BASIC) a ~1310 (V1).
   cost: z.number().int().min(1).max(5000).optional(),
@@ -269,11 +271,12 @@ router.post("/craft/record", async (req, res) => {
   if (!parsed.success) { res.status(400).json({ error: "Invalid body" }); return; }
 
   const { telegramId, planetType, cost } = parsed.data;
-  const fieldMap: Record<string, "totalCraftedBasic" | "totalCraftedRare" | "totalCraftedEpic" | "totalCraftedMythic" | "totalCraftedGold" | "totalCraftedV1" | null> = {
+  const fieldMap: Record<string, "totalCraftedBasic" | "totalCraftedRare" | "totalCraftedEpic" | "totalCraftedMythic" | "totalCraftedPlasma" | "totalCraftedGold" | "totalCraftedV1" | null> = {
     BASIC: "totalCraftedBasic",
     RARE: "totalCraftedRare",
     EPIC: "totalCraftedEpic",
     MYTHIC: "totalCraftedMythic",
+    PLASMA: "totalCraftedPlasma",
     GOLD: "totalCraftedGold",
     V1: "totalCraftedV1",
   };

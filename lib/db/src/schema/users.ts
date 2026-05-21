@@ -46,6 +46,7 @@ export const usersTable = pgTable("users", {
   totalCraftedEpic: integer("total_crafted_epic").notNull().default(0),
   totalCraftedGold: integer("total_crafted_gold").notNull().default(0),
   totalCraftedMythic: integer("total_crafted_mythic").notNull().default(0),
+  totalCraftedPlasma: integer("total_crafted_plasma").notNull().default(0),
   totalCraftedV1: integer("total_crafted_v1").notNull().default(0),
   wheelSpins: integer("wheel_spins").notNull().default(0),
   lastWheelDailyAt: timestamp("last_wheel_daily_at"),
