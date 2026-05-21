@@ -538,7 +538,11 @@ function AppShellWithState() {
         style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
       >
         <div
-          className="font-black text-lg tracking-widest neon-text cursor-pointer flex-shrink-0"
+          className="font-black text-lg tracking-widest cursor-pointer flex-shrink-0"
+          style={{
+            color: "#ffd700",
+            textShadow: "0 0 8px rgba(255,215,0,0.8), 0 0 16px rgba(251,191,36,0.4)",
+          }}
           onClick={() => switchTab("lab")}
         >
           ZOOM
