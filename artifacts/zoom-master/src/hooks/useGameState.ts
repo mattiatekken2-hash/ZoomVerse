@@ -519,7 +519,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
   },
   // SUPERNOVA Collection — 12 TON/bundle, max 50 bundles globally.
   // Rate per planet: 1.5 TON / 30 days / 24h / 4 planets ≈ 0.000520833 TON/h.
-  // Combined: ~0.05 TON/day. Reactivation fee: 0.001 TON per planet.
+  // Combined: ~0.05 TON/day. Reactivation fee: 0.005 TON per planet.
   SUPERNOVA1: {
     rate: 0.000520833,
     color: "#ffd700",
@@ -529,7 +529,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     craftCost: 0,
     activationTon: 0,
     tapsNeeded: 0,
-    reactivationFee: 0.001,
+    reactivationFee: 0.005,
     isTonFarming: true,
   },
   SUPERNOVA2: {
@@ -541,7 +541,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     craftCost: 0,
     activationTon: 0,
     tapsNeeded: 0,
-    reactivationFee: 0.001,
+    reactivationFee: 0.005,
     isTonFarming: true,
   },
   SUPERNOVA3: {
@@ -553,7 +553,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     craftCost: 0,
     activationTon: 0,
     tapsNeeded: 0,
-    reactivationFee: 0.001,
+    reactivationFee: 0.005,
     isTonFarming: true,
   },
   SUPERNOVA4: {
@@ -565,7 +565,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     craftCost: 0,
     activationTon: 0,
     tapsNeeded: 0,
-    reactivationFee: 0.001,
+    reactivationFee: 0.005,
     isTonFarming: true,
   },
 };

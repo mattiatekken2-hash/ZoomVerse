@@ -203,8 +203,8 @@ const STARS_CATALOG: StarsItem[] = [
   // SUPERNOVA Collection — 4 yellow pixel-art star planets per bundle.
   // Combined yield 1.5 TON / 30 days. Capped at 50 bundles globally.
   { id: "supernova_collection", title: "Supernova Collection", description: "Unlock 4 exclusive supernova stars. Yield: 1.5 TON / 30 days. Limited: 50 bundles globally.", starsPrice: 0, tonPrice: 12, itemType: "supernova_collection" },
-  // Reactivation fee for an expired supernova-planet farming cycle (0.001 TON).
-  { id: "supernova_react", title: "Supernova Reactivation", description: "Restart an expired supernova-planet farming cycle", starsPrice: 0, tonPrice: 0.001, itemType: "supernova_react" },
+  // Reactivation fee for an expired supernova-planet farming cycle (0.005 TON).
+  { id: "supernova_react", title: "Supernova Reactivation", description: "Restart an expired supernova-planet farming cycle", starsPrice: 0, tonPrice: 0.005, itemType: "supernova_react" },
   // LOTTO STELLARE — bundle di biglietti per la lotteria a probabilità
   // ponderate. zoomAmount qui rappresenta il numero di biglietti del bundle
   // (riusato come "count" per non aggiungere campi al catalogo). Lo
