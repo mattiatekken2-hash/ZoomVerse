@@ -141,7 +141,7 @@ function SupernovaCollectionWidgetBase({ telegramId, unlocked = false, ownedBund
         aria-label={t("supernovaColl.openAria")}
         style={{
           position: "fixed",
-          left: 12,
+          right: 12,
           top: 478,
           width: 60,
           height: 60,
