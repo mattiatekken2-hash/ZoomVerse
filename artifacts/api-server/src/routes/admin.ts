@@ -1,8 +1,7 @@
 import { Router } from "express";
 import { db, transactionsTable, marketListingsTable } from "@workspace/db";
-import { usersTable, appSettingsTable } from "@workspace/db/schema";
-import { and } from "drizzle-orm";
-import { sql, eq, inArray } from "drizzle-orm";
+import { usersTable, appSettingsTable, collectionPlanetsTable } from "@workspace/db/schema";
+import { sql, eq, inArray, and } from "drizzle-orm";
 import { z } from "zod";
 import fs from "node:fs";
 import path from "node:path";
@@ -520,14 +519,26 @@ router.post("/admin/revoke-supernova-collection", async (req, res) => {
   if (!telegramId) return res.status(404).json({ error: "User not found" });
 
   try {
-    await db
-      .update(usersTable)
-      .set({
-        supernovaCollectionUnlocked: false,
-        supernovaCollectionBundles: 0,
-        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
-      })
-      .where(eq(usersTable.telegramId, telegramId));
+    await db.transaction(async (tx) => {
+      await tx
+        .update(usersTable)
+        .set({
+          supernovaCollectionUnlocked: false,
+          supernovaCollectionBundles: 0,
+          balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+        })
+        .where(eq(usersTable.telegramId, telegramId));
+      // Stop TON accrual: remove every supernova planet row for this user
+      // so the client-side `liveTonBalance` loop has nothing to accumulate.
+      await tx
+        .delete(collectionPlanetsTable)
+        .where(
+          and(
+            eq(collectionPlanetsTable.telegramId, telegramId),
+            eq(collectionPlanetsTable.kind, "supernova"),
+          ),
+        );
+    });
     scheduleAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
