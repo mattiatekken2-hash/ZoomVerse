@@ -71,6 +71,12 @@ const PLANET_GRADIENTS: Record<string, { stops: string[]; glowAlpha: number }> =
     stops: ["#ffd2c2", "#ff7a55", "#ff4500", "#a01005", "#5a0000"],
     glowAlpha: 0.85,
   },
+  // PLASMA — neon green gradient, between MYTHIC and GOLD rarity.
+  // Fully green palette that glows vivid and scales with float.
+  PLASMA: {
+    stops: ["#b2ff59", "#69f0ae", "#00e676", "#00c853", "#1b5e20"],
+    glowAlpha: 0.8,
+  },
   GOLD: {
     stops: ["#fff8e1", "#ffe082", "#ffd700", "#e6b800", "#b8860b"],
     glowAlpha: 0.7,
