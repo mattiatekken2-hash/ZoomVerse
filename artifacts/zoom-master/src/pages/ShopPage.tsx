@@ -213,7 +213,7 @@ export function ShopPage({ depositBalance, hasSun: _hasSun, telegramId }: ShopPa
       : item.tonPrice;
 
     if (depositBalance < effectiveTonPrice) {
-      setMessage(`Saldo deposito insufficiente (${effectiveTonPrice} TON). Deposita TON dal wallet per acquistare.`);
+      setMessage(`Insufficient deposit balance (${effectiveTonPrice} TON). Deposit TON from your wallet to buy.`);
       return;
     }
 
