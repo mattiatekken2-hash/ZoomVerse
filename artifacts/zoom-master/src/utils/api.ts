@@ -2351,6 +2351,65 @@ export async function fetchRegularPlanets(
   }
 }
 
+// ───────────────── Equipment inventory ─────────────────
+//
+// Equipment items (Helmets / Jetpacks / Hats / Scanners) live in their own
+// JSONB column on `users` and follow the same write pattern as planets:
+// a debounced client save with a monotonic stale-write fence.
+
+import type { EquipmentItem } from "./equipmentConfig";
+
+export interface EquipmentState {
+  ok: boolean;
+  exists: boolean;
+  equipment: EquipmentItem[];
+}
+
+export async function fetchEquipment(telegramId: string): Promise<EquipmentState> {
+  const failure: EquipmentState = { ok: false, exists: false, equipment: [] };
+  if (!telegramId) return failure;
+  try {
+    const res = await fetch(
+      `${API_BASE}/equipment/${encodeURIComponent(telegramId)}?t=${Date.now()}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return failure;
+    const j = await res.json();
+    if (!j?.ok) return failure;
+    return {
+      ok: true,
+      exists: !!j.exists,
+      equipment: Array.isArray(j.equipment) ? (j.equipment as EquipmentItem[]) : [],
+    };
+  } catch {
+    return failure;
+  }
+}
+
+export async function saveEquipment(
+  telegramId: string,
+  equipment: ReadonlyArray<EquipmentItem>,
+): Promise<{ ok: boolean; accepted: boolean }> {
+  if (!telegramId) return { ok: false, accepted: false };
+  try {
+    const res = await fetch(`${API_BASE}/equipment/save`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({
+        telegramId,
+        equipment,
+        clientWriteAtMs: Date.now(),
+      }),
+      keepalive: true,
+    });
+    if (!res.ok) return { ok: false, accepted: false };
+    const j = await res.json().catch(() => ({}));
+    return { ok: !!j?.ok, accepted: !!j?.accepted };
+  } catch {
+    return { ok: false, accepted: false };
+  }
+}
+
 // ───────────────── Earn-page long-term tasks ─────────────────
 // GET /tasks/state/:telegramId — returns the user's planet-build counter,
 // claimed-task ids, and the catalog of available tasks (planet milestones

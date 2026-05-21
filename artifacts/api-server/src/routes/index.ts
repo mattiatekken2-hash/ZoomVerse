@@ -21,6 +21,7 @@ import merchantRouter from "./merchant";
 import sunRouter from "./sun";
 import collectionPlanetsRouter from "./collection-planets";
 import regularPlanetsRouter from "./regular-planets";
+import equipmentRouter from "./equipment";
 import lotteryRouter from "./lottery";
 import tasksRouter from "./tasks";
 import homeRouter from "./home";
@@ -77,6 +78,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/craft/record",
       "/planets/burn",
       "/regular-planets/save",
+      "/equipment/save",
       "/planets/rename",
       "/collection-planets/upsert",
       "/collection-planets/bulk-seed",
@@ -262,6 +264,7 @@ router.use(merchantRouter);
 router.use(sunRouter);
 router.use(collectionPlanetsRouter);
 router.use(regularPlanetsRouter);
+router.use(equipmentRouter);
 router.use(lotteryRouter);
 router.use(tasksRouter);
 router.use(homeRouter);

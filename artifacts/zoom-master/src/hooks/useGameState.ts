@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, apiHeaders, withInitData, type Grants, type CollectionPlanetState } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, apiHeaders, withInitData, type Grants, type CollectionPlanetState } from "../utils/api";
+import type { EquipmentItem } from "../utils/equipmentConfig";
+import { getEquipmentTotalRate } from "../utils/equipmentConfig";
 import { generateRandomFloat } from "../utils/planetFloat";
 import { toast } from "./use-toast";
 
@@ -214,6 +216,11 @@ export interface GameState {
   claimedMilestones: number[];
   lastBalanceEpoch: number;
   defectPlanets: string[];
+  // Space equipment inventory (Helmets / Jetpacks / Hats / Scanners).
+  // Each item produces $ZOOM/hr passively (always-on, no farming cycle)
+  // and is summed into the live rate alongside planets and the SUN.
+  // Server-side: jsonb `equipment_json` column on `users`.
+  equipment: EquipmentItem[];
 }
 
 export const PLANET_CONFIG: Record<PlanetType, {
@@ -619,6 +626,7 @@ const INITIAL_STATE: GameState = {
   claimedMilestones: [],
   defectPlanets: [],
   lastBalanceEpoch: 0,
+  equipment: [],
 };
 
 /**
@@ -1441,6 +1449,17 @@ function settleFarmingState(state: GameState, now: number): GameState {
     }
   }
 
+  // Equipment items produce $ZOOM/hr continuously while owned (no farming
+  // cycle, no activation). Window = full (from → now) since equipment is
+  // always-on. NOTE: server-side /farm/settle does NOT yet credit equipment,
+  // so equipment offline accrual is currently client-only — fine while
+  // equipment is unobtainable outside of admin grants. Revisit once a shop
+  // / drop flow lands.
+  const eqRate = getEquipmentTotalRate(state.equipment || []);
+  if (eqRate > 0) {
+    earned += (eqRate / 3_600_000) * (now - from) * speedMultiplier;
+  }
+
   if (earned <= 0) return { ...state, lastFarmingSettledAt: now };
 
   return {
@@ -1472,6 +1491,10 @@ export function useGameState() {
   // copy with a stale local snapshot during the brief window between the
   // first React render and the async fetch completing.
   const regularPlanetsHydratedRef = useRef(false);
+  // Same gate, but for the equipment inventory. Set to true only after
+  // fetchEquipment has succeeded so the debounced save effect cannot push
+  // an empty local default over a populated server array on cold start.
+  const equipmentHydratedRef = useRef(false);
   // Monotonic counter bumped from inside applyGrants whenever a bonus
   // planet is materialized. The debounced save effect compares this to
   // `lastImmediateBonusSaveTickRef` and, if they differ, fires
@@ -1592,13 +1615,14 @@ export function useGameState() {
       // protected from a one-off double-credit on the very first
       // server-side settle. See settleOfflineFarming() doc for details.
       const _initClientFloor = Math.floor(stateRef.current.lastFarmingSettledAt || 0);
-      const [refData, grantsResult, balanceRecord, serverCollectionPlanets, serverRegular, settleRes] = await Promise.all([
+      const [refData, grantsResult, balanceRecord, serverCollectionPlanets, serverRegular, settleRes, serverEquipment] = await Promise.all([
         fetchReferralData(telegramId),
         fetchGrants(telegramId),
         fetchBalanceRecord(telegramId),
         fetchCollectionPlanets(telegramId),
         fetchRegularPlanets(telegramId),
         settleOfflineFarming({ telegramId, clientLastSettledAtMs: _initClientFloor }),
+        fetchEquipment(telegramId),
       ]);
       // grantsResult is `null` when /grants failed (network/HTTP). We must
       // NOT treat that as "user has nothing": doing so would trip the
@@ -1690,6 +1714,11 @@ export function useGameState() {
           lastFarmingSettledAt: settleRes.exists
             ? Math.max(prev.lastFarmingSettledAt || 0, settleRes.settledAtMs)
             : (prev.lastFarmingSettledAt || 0),
+          // Equipment inventory: server is the source of truth on app load.
+          // Replace the local array verbatim when the server responded ok;
+          // otherwise (network failure) keep the local copy so we don't
+          // wipe inventory on a transient blip.
+          equipment: serverEquipment.ok ? serverEquipment.equipment : (prev.equipment ?? []),
         };
 
         // ─── GRANTS-DERIVED HYDRATION (gated on a successful /grants fetch) ───
@@ -2076,8 +2105,26 @@ export function useGameState() {
       if (serverRegular.ok) {
         regularPlanetsHydratedRef.current = true;
       }
+      if (serverEquipment.ok) {
+        equipmentHydratedRef.current = true;
+      }
     })();
   }, []);
+
+  // ─── Debounced server save for equipment ───
+  // Mirrors the regular-planets save: 1.2s coalescing window, gated on
+  // first successful hydration. Anti-shrink + stale-write fence live on
+  // the server (see /equipment/save).
+  useEffect(() => {
+    if (!equipmentHydratedRef.current) return;
+    const tid = state.telegramId;
+    if (!tid) return;
+    const snapshot = state.equipment ?? [];
+    const t = setTimeout(() => {
+      void saveEquipment(tid, snapshot);
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [state.telegramId, state.equipment]);
 
   // ─── Debounced server save for regular planets ───
   // Watches state.planets and the per-rarity claimed-bonus counters; when
@@ -4099,5 +4146,6 @@ export function useGameState() {
     placeEarthPlanet, reactivateEarthPlanet, markEarthPlanetReactivated, collectEarthPlanet,
     placeBlackPlanet, reactivateBlackPlanet, markBlackPlanetReactivated, collectBlackPlanet,
     burnTwoOfType, addCraftedPlanet,
+    equipment: state.equipment ?? [],
   };
 }

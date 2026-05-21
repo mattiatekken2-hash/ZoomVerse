@@ -719,6 +719,7 @@ function AppShellWithState() {
                   onBurnSun={burnSun}
                   onSell={listPlanet}
                   onUnlist={unlistPlanet}
+                  equipment={state.equipment ?? []}
                   onRename={(planetId, displayName, _newStardustBalance) => {
                     // Patch the planet in local state — the debounced
                     // /regular-planets/save will mirror it to the server.

@@ -10,6 +10,15 @@ import { PlanetFloatBar } from "../components/PlanetFloatBar";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { EconomyWidget } from "../components/EconomyWidget";
 import { StakingWidget } from "../components/StakingWidget";
+import {
+  EQUIPMENT_CATEGORIES,
+  EQUIPMENT_CATEGORY_ORDER,
+  EQUIPMENT_RARITY_INFO,
+  EQUIPMENT_RARITY_ORDER,
+  getEquipmentTotalRate,
+  type EquipmentCategory,
+  type EquipmentItem,
+} from "../utils/equipmentConfig";
 
 
 interface FarmPageProps {
@@ -32,6 +41,133 @@ interface FarmPageProps {
   // Called after a successful rename so App can patch local state and
   // refresh the displayed stardust balance.
   onRename: (planetId: string, displayName: string, newStardustBalance: number) => void;
+  // Space equipment inventory. Always-on passive earners — each item
+  // contributes its `rate` to the live +$ZOOM/hr chip and to the offline
+  // accrual computed in settleFarmingState.
+  equipment: EquipmentItem[];
+}
+
+/**
+ * EquipmentInventory — passive-earning space gear, grouped by category and
+ * sorted by rarity (rarest first within each group). Equipment items have
+ * no farming cycle: they produce $ZOOM/hr continuously while owned.
+ * Burning, selling, and listing are intentionally NOT exposed yet — the
+ * inventory is read-only at this stage.
+ */
+function EquipmentInventory({ equipment }: { equipment: EquipmentItem[] }) {
+  const grouped = new Map<EquipmentCategory, EquipmentItem[]>();
+  for (const cat of EQUIPMENT_CATEGORY_ORDER) grouped.set(cat, []);
+  for (const item of equipment) {
+    const bucket = grouped.get(item.category);
+    if (bucket) bucket.push(item);
+  }
+  const rarityRank = new Map(EQUIPMENT_RARITY_ORDER.map((r, i) => [r, i]));
+  for (const [, list] of grouped) {
+    list.sort((a, b) => (rarityRank.get(b.rarity) ?? 0) - (rarityRank.get(a.rarity) ?? 0));
+  }
+
+  if (equipment.length === 0) {
+    return (
+      <div
+        className="rounded-2xl border border-dashed flex flex-col items-center justify-center py-10 gap-3"
+        style={{ borderColor: "rgba(120,160,220,0.22)", minHeight: 200 }}
+        data-testid="equipment-empty"
+      >
+        <div style={{ fontSize: 36, opacity: 0.45 }}>🛰️</div>
+        <div className="text-sm font-bold" style={{ color: "rgba(220,235,255,0.7)" }}>
+          No equipment yet
+        </div>
+        <div className="text-xs px-6 text-center" style={{ color: "rgba(220,235,255,0.35)" }}>
+          Space gear (Helmets, Jetpacks, Hats, Scanners) will produce $ZOOM passively.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4" data-testid="equipment-inventory">
+      {EQUIPMENT_CATEGORY_ORDER.map((cat) => {
+        const items = grouped.get(cat) ?? [];
+        const info = EQUIPMENT_CATEGORIES[cat];
+        return (
+          <div key={cat} className="flex flex-col gap-2">
+            <div className="flex items-baseline justify-between px-1">
+              <div className="flex items-center gap-2">
+                <span style={{ fontSize: 16 }}>{info.icon}</span>
+                <span className="font-black text-sm tracking-wide" style={{ color: "rgba(230,240,255,0.9)" }}>
+                  {info.label.toUpperCase()}
+                </span>
+              </div>
+              <span className="text-xs font-bold" style={{ color: "rgba(220,230,245,0.4)" }}>
+                {items.length}
+              </span>
+            </div>
+            {items.length === 0 ? (
+              <div
+                className="rounded-xl border border-dashed py-4 text-center text-xs"
+                style={{ borderColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.22)" }}
+              >
+                None
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {items.map((item) => {
+                  const r = EQUIPMENT_RARITY_INFO[item.rarity];
+                  return (
+                    <div
+                      key={item.id}
+                      className="rounded-xl p-3 border slot-enter"
+                      style={{
+                        borderColor: `${r.color}55`,
+                        background: `linear-gradient(135deg, ${r.color}1a 0%, rgba(6,8,16,0.6) 100%)`,
+                        boxShadow: `0 0 10px ${r.color}22`,
+                        transform: "translateZ(0)",
+                        contain: "layout style paint",
+                      } as React.CSSProperties}
+                      data-testid={`equipment-card-${item.id}`}
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <div
+                          className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                          style={{
+                            background: `radial-gradient(circle at 35% 30%, ${r.color}cc 0%, ${r.color}44 60%, rgba(6,8,16,0.9) 100%)`,
+                            boxShadow: `0 0 12px ${r.glowColor}`,
+                            fontSize: 18,
+                          }}
+                        >
+                          {info.icon}
+                        </div>
+                        <div className="min-w-0">
+                          <div
+                            className="text-[10px] font-black tracking-widest uppercase truncate"
+                            style={{ color: r.color, letterSpacing: 0.8 }}
+                          >
+                            {r.label}
+                          </div>
+                          <div
+                            className="text-[10px] font-bold truncate"
+                            style={{ color: "rgba(220,230,245,0.55)" }}
+                          >
+                            {info.label.slice(0, -1)}
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        className="text-xs font-black neon-text"
+                        style={{ color: "#a8d8ff" }}
+                      >
+                        +{item.rate.toLocaleString()}/hr
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 interface SellPopup {
@@ -52,7 +188,7 @@ const RARITY_CLASS: Record<string, string> = {
 };
 
 
-export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRename }: FarmPageProps) {
+export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRename, equipment }: FarmPageProps) {
   const { t } = useT();
   const sunMultiplier = Math.max(1, sunCount || (sun?.isOwned ? 1 : 0));
   const sunDisplayRate = SUN_CONFIG.rate * sunMultiplier;
@@ -73,6 +209,11 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
   const comingSoonTimeoutRef = useRef<number | null>(null);
   const [renamePlanet, setRenamePlanet] = useState<Planet | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Inventory tab — the FarmPage hosts the player's full inventory, split
+  // between "Planets" (existing planet/SUN/staking grid) and "Equipment"
+  // (new space gear: Helmets / Jetpacks / Hats / Scanners).
+  const [inventoryTab, setInventoryTab] = useState<"planets" | "equipment">("planets");
+  const equipmentRate = getEquipmentTotalRate(equipment);
 
   // Daily-collect removed — planets now farm autonomously for the full 24h
   // cycle and then need a $ZOOM reactivation, with no manual collect step.
@@ -80,7 +221,8 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
   void onCollect;
 
   const totalRate = planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0)
-    + (sun && isSunActive(sun) ? sunDisplayRate : 0);
+    + (sun && isSunActive(sun) ? sunDisplayRate : 0)
+    + equipmentRate;
 
   const handleBurnClick = (id: string) => {
     if (confirmBurn === id) {
@@ -180,9 +322,49 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
           </div>
           {totalRate > 0 && (
             <div className="glass-neon px-3 py-1.5 rounded-full text-xs font-bold neon-text flex-shrink-0" data-testid="total-farm-rate">
-              +{totalRate.toLocaleString()}/hr
+              +{Math.floor(totalRate).toLocaleString()}/hr
             </div>
           )}
+        </div>
+
+        {/* Inventory tab switcher — splits the FarmPage between the
+            existing planets/SUN/staking grid and the new space equipment
+            grid (Helmets / Jetpacks / Hats / Scanners). The Economy /
+            Staking widgets stay above this row because they describe the
+            overall portfolio, not a single inventory section. */}
+        <div
+          className="flex items-center gap-1 mt-3 p-1 rounded-xl"
+          style={{
+            background: "rgba(20,28,48,0.55)",
+            border: "1px solid rgba(120,160,220,0.18)",
+          }}
+        >
+          {([
+            { id: "planets", label: "Planets", count: planets.length },
+            { id: "equipment", label: "Equipment", count: equipment.length },
+          ] as const).map((tab) => {
+            const active = inventoryTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setInventoryTab(tab.id)}
+                data-testid={`tab-inventory-${tab.id}`}
+                className="flex-1 px-3 py-2 rounded-lg text-xs font-black tracking-wide transition-all"
+                style={{
+                  background: active
+                    ? "linear-gradient(135deg, rgba(80,180,255,0.30) 0%, rgba(60,120,220,0.18) 100%)"
+                    : "transparent",
+                  color: active ? "#e6f3ff" : "rgba(220,230,245,0.55)",
+                  border: active ? "1px solid rgba(120,200,255,0.5)" : "1px solid transparent",
+                  boxShadow: active ? "0 0 12px rgba(80,160,255,0.25)" : "none",
+                  letterSpacing: 0.6,
+                }}
+              >
+                {tab.label.toUpperCase()} · {tab.count}
+              </button>
+            );
+          })}
         </div>
         {/* Row 2: teaser pills aligned left, equal gap, no wrapping. */}
         <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -287,6 +469,8 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
             sunFarmStartedAtClient={sun?.farmStartedAt ?? 0}
           />
 
+          {inventoryTab === "planets" && (
+          <>
           {/* SUN CARD */}
           {sun?.isOwned && (
             <div
@@ -704,13 +888,19 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
             <div className="font-bold text-xs tracking-widest uppercase" style={{ color: "rgba(255,215,0,0.45)" }}>0.25 TON</div>
             <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)" }}>to unlock slot</div>
           </div>
-        </div>
 
         {planets.length === 0 && !sun?.isOwned && (
           <div className="text-center text-xs py-4" style={{ color: "rgba(255,255,255,0.22)" }}>
             Forge your first planet in the Lab
           </div>
         )}
+          </>
+          )}
+
+          {inventoryTab === "equipment" && (
+            <EquipmentInventory equipment={equipment} />
+          )}
+        </div>
       </div>
 
       {/* SELL PRICE POPUP */}

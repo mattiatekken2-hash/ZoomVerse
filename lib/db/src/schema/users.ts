@@ -217,6 +217,23 @@ export const usersTable = pgTable("users", {
   planetsUpdatedAtMs: bigint("planets_updated_at_ms", { mode: "number" }).notNull().default(0),
 
   // ─────────────────────────────────────────────────────────────────────
+  // EQUIPMENT — space gear inventory (Helmets / Jetpacks / Hats / Scanners).
+  //
+  // Each item has a category, a rarity tier (BASIC / RARE / EPIC / GOLD /
+  // PLASMA / MYTHIC) and produces a fixed amount of $ZOOM/hr while owned
+  // (always-on, no 24h cycle). The array is stored as JSONB and follows
+  // the same client→server save pattern as `planets_json` (debounced save,
+  // monotonic write fence, stale-write rejection).
+  //
+  // Items are minted by admin endpoints (future shop / drops). Burning
+  // / selling has not been added yet; equipment is purely additive at
+  // this stage. The earnings are summed client-side and contribute to
+  // the live $ZOOM/hr rate alongside planets.
+  // ─────────────────────────────────────────────────────────────────────
+  equipmentJson: jsonb("equipment_json").notNull().default(sql`'[]'::jsonb`),
+  equipmentUpdatedAtMs: bigint("equipment_updated_at_ms", { mode: "number" }).notNull().default(0),
+
+  // ─────────────────────────────────────────────────────────────────────
   // LEGACY / DEPRECATED COLUMNS — DO NOT REMOVE.
   //
   // These columns were created in production by past iterations of the
