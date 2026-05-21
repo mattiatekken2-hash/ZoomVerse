@@ -1632,7 +1632,7 @@ function PixelAvatarBase({
                           className={`pixel-inv-item ${selectedSupernovaInvId === p.id ? "selected" : ""}`}
                           onClick={() => handleSupernovaInvClick(p.id)}
                         >
-                          <SupernovaStarOrb size={42} color={cfg.color} />
+                          <SupernovaStarOrb size={32} color={cfg.color} />
                           <div style={{ fontSize: 9, fontWeight: 800, opacity: 0.85, textAlign: "center", lineHeight: 1.1 }}>
                             {cfg.label}
                           </div>
@@ -1653,7 +1653,7 @@ function PixelAvatarBase({
                     fontStyle: "italic",
                   }}
                 >
-                  Sblocca la Supernova Collection (12 TON) per ricevere 4 stelle pixel-art
+                  Unlock the Supernova Collection (12 TON) to receive 4 pixel-art stars
                 </div>
               )}
 

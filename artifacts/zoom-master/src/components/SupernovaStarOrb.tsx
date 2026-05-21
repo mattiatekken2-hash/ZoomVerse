@@ -44,7 +44,8 @@ function SupernovaStarOrbBase({ size = 48, spin = true, glow = true, color: _col
         justifyContent: "center",
         position: "relative",
         animation: spin ? "supernovaSpin 18s linear infinite" : undefined,
-        filter: glow ? "drop-shadow(0 0 6px rgba(255,215,0,0.85)) drop-shadow(0 0 14px rgba(252,211,77,0.5))" : undefined,
+        filter: glow ? "drop-shadow(0 0 2px rgba(255,215,0,0.75))" : undefined,
+        overflow: "hidden",
       }}
     >
       <style>{`
