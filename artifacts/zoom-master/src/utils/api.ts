@@ -1964,8 +1964,17 @@ export interface ServerMarketListing {
   id: number;
   sellerTelegramId: string;
   sellerName: string | null;
-  planetType: string;
-  planetRate: number;
+  // 'planet' (default for legacy rows) or 'equipment'. Discriminates
+  // which set of typed fields below is populated.
+  kind?: "planet" | "equipment" | null;
+  // Planet-listing fields. Null on equipment listings.
+  planetType: string | null;
+  planetRate: number | null;
+  // Equipment-listing fields. Null on planet listings.
+  equipmentId?: string | null;
+  equipmentCategory?: string | null;
+  equipmentRarity?: string | null;
+  equipmentRate?: number | null;
   // The seller's local planet id at listing time. Nullable on the very
   // oldest listings created before the column was added. Used by the
   // marketplace UI to compute a deterministic procedural name as a
@@ -2030,7 +2039,23 @@ export async function listOnMarket(params: {
   }
 }
 
-export async function buyFromMarket(buyerTelegramId: string, listingId: number): Promise<{ ok: boolean; planetType?: string; planetRate?: number; pricePaid?: number; planetFloat?: number | null; error?: string }> {
+export async function buyFromMarket(buyerTelegramId: string, listingId: number): Promise<{
+  ok: boolean;
+  // Distinguishes planet vs equipment so the client knows which local
+  // state slice to mint into. Older server builds omit this; treat
+  // missing as 'planet' for backwards compatibility.
+  kind?: "planet" | "equipment";
+  planetType?: string | null;
+  planetRate?: number | null;
+  // For kind='equipment' responses, the server-side minted item details.
+  equipmentId?: string | null;
+  equipmentCategory?: string | null;
+  equipmentRarity?: string | null;
+  equipmentRate?: number | null;
+  pricePaid?: number;
+  planetFloat?: number | null;
+  error?: string;
+}> {
   try {
     const res = await fetch(`${API_BASE}/market/buy`, {
       method: "POST",
@@ -2394,6 +2419,76 @@ export async function fetchEquipment(telegramId: string): Promise<EquipmentState
     };
   } catch {
     return failure;
+  }
+}
+
+export async function startEquipmentCycle(telegramId: string, equipmentId: string): Promise<{ ok: boolean; error?: string }> {
+  if (!telegramId || !equipmentId) return { ok: false, error: "Missing arg" };
+  try {
+    const res = await fetch(`${API_BASE}/equipment/start`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, equipmentId }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: typeof j?.error === "string" ? j.error : `HTTP ${res.status}` };
+    return { ok: !!j?.ok };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function collectEquipmentItem(telegramId: string, equipmentId: string): Promise<{ ok: boolean; error?: string }> {
+  if (!telegramId || !equipmentId) return { ok: false, error: "Missing arg" };
+  try {
+    const res = await fetch(`${API_BASE}/equipment/collect`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, equipmentId }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: typeof j?.error === "string" ? j.error : `HTTP ${res.status}` };
+    return { ok: !!j?.ok };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function burnEquipmentItem(telegramId: string, equipmentId: string): Promise<{ ok: boolean; error?: string }> {
+  if (!telegramId || !equipmentId) return { ok: false, error: "Missing arg" };
+  try {
+    const res = await fetch(`${API_BASE}/equipment/burn`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, equipmentId }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: typeof j?.error === "string" ? j.error : `HTTP ${res.status}` };
+    return { ok: !!j?.ok };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function listEquipmentOnMarket(params: {
+  sellerTelegramId: string;
+  sellerName?: string;
+  equipmentId: string;
+  price: number;
+}): Promise<{ ok: boolean; listing?: ServerMarketListing; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/market/list-equipment`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(params),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false, error: typeof data?.error === "string" ? data.error : `HTTP ${res.status}` };
+    }
+    return data;
+  } catch {
+    return { ok: false, error: "Network error" };
   }
 }
 

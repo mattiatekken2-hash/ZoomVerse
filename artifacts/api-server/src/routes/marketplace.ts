@@ -651,7 +651,49 @@ router.post("/market/buy", async (req, res) => {
     // re-listing this planet even if a stale client save resurrects it
     // in the JSON blob. Skip for legacy listings that pre-date the
     // planet_id column (planetId === null) since there's no anchor.
-    if (listing.planetId) {
+    const isEquipmentListing = listing.kind === "equipment";
+    // Identify the new buyer-side item id BEFORE the transaction commits
+    // so we can echo it back in the response. The buyer's equipment_json
+    // gets a fresh row appended; the seller's matching row is removed.
+    let buyerEquipmentId: string | null = null;
+    if (isEquipmentListing && listing.equipmentId) {
+      const nowMs = Date.now();
+      // Remove from seller's equipment_json.
+      await client.query(
+        `UPDATE users
+         SET equipment_json = COALESCE(
+           (SELECT jsonb_agg(e) FROM jsonb_array_elements(equipment_json) e WHERE e->>'id' != $2),
+           '[]'::jsonb
+         ),
+         equipment_updated_at_ms = GREATEST(equipment_updated_at_ms, $3::bigint)
+         WHERE telegram_id = $1`,
+        [listing.sellerTelegramId, listing.equipmentId, nowMs],
+      );
+      // Append fresh item to buyer's equipment_json. New id is derived
+      // from the listing id so it's stable & unique across re-syncs.
+      buyerEquipmentId = `mkt-${listing.id}-${nowMs}`;
+      const newItem = {
+        id: buyerEquipmentId,
+        category: listing.equipmentCategory,
+        rarity: listing.equipmentRarity,
+        rate: listing.equipmentRate,
+        createdAt: nowMs,
+        // Cycle is INACTIVE on mint — buyer must press Reactivate to
+        // start the 24h farming window, same as planet purchases.
+        isFarmingActive: false,
+        farmStartedAt: 0,
+        lastCollectedAt: 0,
+        pausedAt: 0,
+        isListedInMarket: false,
+      };
+      await client.query(
+        `UPDATE users
+         SET equipment_json = COALESCE(equipment_json, '[]'::jsonb) || $2::jsonb,
+             equipment_updated_at_ms = GREATEST(equipment_updated_at_ms, $3::bigint)
+         WHERE telegram_id = $1`,
+        [buyerTelegramId, JSON.stringify([newItem]), nowMs],
+      );
+    } else if (listing.planetId) {
       const nowMs = Date.now();
       await client.query(
         `UPDATE users
@@ -672,8 +714,12 @@ router.post("/market/buy", async (req, res) => {
       const [buyerInfo] = await db.select({ name: usersTable.firstName }).from(usersTable).where(eq(usersTable.telegramId, buyerTelegramId)).limit(1);
       broadcastSale({
         id: listing.id,
+        kind: isEquipmentListing ? "equipment" : "planet",
         planetType: listing.planetType,
         planetRate: listing.planetRate,
+        equipmentCategory: listing.equipmentCategory,
+        equipmentRarity: listing.equipmentRarity,
+        equipmentRate: listing.equipmentRate,
         price: listing.price,
         sellerName: sellerInfo?.name || listing.sellerName || "Anon",
         buyerName: buyerInfo?.name || "Anon",
@@ -730,15 +776,22 @@ router.post("/market/buy", async (req, res) => {
     // utils/planetFloat.ts → getListingDisplayFloat) so legacy listings
     // without a stored snapshot still produce a stable, predictable
     // float on the buyer side instead of a fresh random.
-    const buyerFloat = typeof listing.planetFloat === "number"
-      ? listing.planetFloat
-      : (FLOAT_PLANET_TYPES.has(String(listing.planetType).toUpperCase())
-          ? deterministicFloatFromId(`listing-${listing.id}`)
-          : null);
+    const buyerFloat = !isEquipmentListing && listing.planetType
+      ? (typeof listing.planetFloat === "number"
+          ? listing.planetFloat
+          : (FLOAT_PLANET_TYPES.has(String(listing.planetType).toUpperCase())
+              ? deterministicFloatFromId(`listing-${listing.id}`)
+              : null))
+      : null;
     res.json({
       ok: true,
+      kind: isEquipmentListing ? "equipment" : "planet",
       planetType: listing.planetType,
       planetRate: listing.planetRate,
+      equipmentId: buyerEquipmentId,
+      equipmentCategory: listing.equipmentCategory,
+      equipmentRarity: listing.equipmentRarity,
+      equipmentRate: listing.equipmentRate,
       pricePaid: totalCost,
       sellerReceived: listing.price,
       planetFloat: buyerFloat,
@@ -793,7 +846,25 @@ router.post("/market/delist", async (req, res) => {
     // back in the inventory on next refresh. Same best-effort caveat
     // as in /market/list. Skipped for legacy listings (planetId null).
     const delisted = result[0]!;
-    if (delisted.planetId) {
+    if (delisted.kind === "equipment" && delisted.equipmentId) {
+      const nowMs = Date.now();
+      await client.query(
+        `UPDATE users
+         SET equipment_json = COALESCE(
+           (SELECT jsonb_agg(
+              CASE WHEN e->>'id' = $2
+                THEN (e - 'serverListingId' - 'marketPrice') || jsonb_build_object('isListedInMarket', false)
+                ELSE e
+              END
+            )
+            FROM jsonb_array_elements(equipment_json) e),
+           '[]'::jsonb
+         ),
+         equipment_updated_at_ms = GREATEST(equipment_updated_at_ms, $3::bigint)
+         WHERE telegram_id = $1`,
+        [sellerTelegramId, delisted.equipmentId, nowMs],
+      );
+    } else if (delisted.planetId) {
       const nowMs = Date.now();
       await client.query(
         `UPDATE users

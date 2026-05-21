@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, apiHeaders, withInitData, type Grants, type CollectionPlanetState } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, type Grants, type CollectionPlanetState } from "../utils/api";
 import type { EquipmentItem } from "../utils/equipmentConfig";
 import { getEquipmentTotalRate } from "../utils/equipmentConfig";
 import { generateRandomFloat } from "../utils/planetFloat";
@@ -1449,15 +1449,19 @@ function settleFarmingState(state: GameState, now: number): GameState {
     }
   }
 
-  // Equipment items produce $ZOOM/hr continuously while owned (no farming
-  // cycle, no activation). Window = full (from → now) since equipment is
-  // always-on. NOTE: server-side /farm/settle does NOT yet credit equipment,
-  // so equipment offline accrual is currently client-only — fine while
-  // equipment is unobtainable outside of admin grants. Revisit once a shop
-  // / drop flow lands.
-  const eqRate = getEquipmentTotalRate(state.equipment || []);
-  if (eqRate > 0) {
-    earned += (eqRate / 3_600_000) * (now - from) * speedMultiplier;
+  // Equipment items follow the same 24h farming-cycle window as planets:
+  // user activates, item earns for 24h, then needs Reactivate. Mirrors
+  // the server formula in farm-settle.ts (no DYNAMIC_BONUS since
+  // equipment has no per-tick random bonus on the client).
+  for (const item of state.equipment || []) {
+    if (!item.isFarmingActive || item.isListedInMarket) continue;
+    const eff = Math.max(item.farmStartedAt || 0, item.lastCollectedAt || 0);
+    if (eff <= 0) continue;
+    const start = Math.max(from, eff);
+    const end = Math.min(now, eff + FARM_DURATION_MS);
+    if (end > start && item.rate > 0) {
+      earned += (item.rate / 3_600_000) * (end - start) * speedMultiplier;
+    }
   }
 
   if (earned <= 0) return { ...state, lastFarmingSettledAt: now };
@@ -4134,6 +4138,189 @@ export function useGameState() {
     });
   }, []);
 
+  // ─── Equipment actions ───────────────────────────────────────────
+  //
+  // Mirror planet patterns: optimistic local mutation, then fire the
+  // server endpoint. The server is the source of truth for the cycle
+  // timestamps (server.start sets farmStartedAt=now on its row, etc),
+  // and the periodic /equipment fetch eventually heals any drift.
+
+  const activateEquipment = useCallback((id: string) => {
+    const tid = stateRef.current.telegramId;
+    if (!tid) return;
+    setState((prev) => {
+      const idx = (prev.equipment || []).findIndex((e) => e.id === id);
+      if (idx < 0) return prev;
+      const item = prev.equipment[idx]!;
+      if (item.isListedInMarket) return prev;
+      const now = serverNow();
+      const next = prev.equipment.slice();
+      next[idx] = {
+        ...item,
+        farmStartedAt: now,
+        lastCollectedAt: 0,
+        isFarmingActive: true,
+        pausedAt: 0,
+      };
+      return { ...prev, equipment: next };
+    });
+    void startEquipmentCycle(tid, id);
+  }, []);
+
+  const collectEquipmentAction = useCallback((id: string) => {
+    const tid = stateRef.current.telegramId;
+    if (!tid) return;
+    setState((prev) => {
+      const idx = (prev.equipment || []).findIndex((e) => e.id === id);
+      if (idx < 0) return prev;
+      const item = prev.equipment[idx]!;
+      if (item.isListedInMarket) return prev;
+      const eff = Math.max(item.farmStartedAt || 0, item.lastCollectedAt || 0);
+      if (eff <= 0) return prev;
+      const now = serverNow();
+      const capped = Math.min(now, eff + FARM_DURATION_MS);
+      const next = prev.equipment.slice();
+      next[idx] = {
+        ...item,
+        lastCollectedAt: capped,
+        isFarmingActive: true,
+      };
+      return { ...prev, equipment: next };
+    });
+    void apiCollectEquipment(tid, id);
+  }, []);
+
+  const burnEquipmentAction = useCallback((id: string) => {
+    const tid = stateRef.current.telegramId;
+    if (!tid) return;
+    setState((prev) => {
+      const item = (prev.equipment || []).find((e) => e.id === id);
+      if (!item || item.isListedInMarket) return prev;
+      return { ...prev, equipment: prev.equipment.filter((e) => e.id !== id) };
+    });
+    void apiBurnEquipment(tid, id);
+  }, []);
+
+  const listEquipmentAction = useCallback((id: string, price: number) => {
+    const tid = stateRef.current.telegramId;
+    if (!tid) return;
+    const { firstName } = getTelegramContext();
+    let prevState: { isFarmingActive: boolean; pausedAt: number } | null = null;
+    setState((prev) => {
+      const idx = (prev.equipment || []).findIndex((e) => e.id === id);
+      if (idx < 0) return prev;
+      const item = prev.equipment[idx]!;
+      if (item.isListedInMarket) return prev;
+      prevState = {
+        isFarmingActive: !!item.isFarmingActive,
+        pausedAt: item.pausedAt ?? 0,
+      };
+      const pauseStamp = item.isFarmingActive ? serverNow() : (item.pausedAt ?? 0);
+      const next = prev.equipment.slice();
+      next[idx] = {
+        ...item,
+        isListedInMarket: true,
+        isFarmingActive: false,
+        marketPrice: price,
+        pausedAt: pauseStamp,
+      };
+      return { ...prev, equipment: next };
+    });
+    listEquipmentOnMarket({
+      sellerTelegramId: tid,
+      sellerName: firstName ?? undefined,
+      equipmentId: id,
+      price,
+    }).then((res) => {
+      if (res.ok && res.listing) {
+        setState((s) => ({
+          ...s,
+          equipment: s.equipment.map((e) =>
+            e.id === id ? { ...e, serverListingId: res.listing!.id } : e,
+          ),
+        }));
+        void refreshMarketListings();
+      } else {
+        // Roll back to pre-list state.
+        setState((s) => ({
+          ...s,
+          equipment: s.equipment.map((e) =>
+            e.id === id
+              ? {
+                  ...e,
+                  isListedInMarket: false,
+                  marketPrice: undefined,
+                  serverListingId: undefined,
+                  isFarmingActive: prevState?.isFarmingActive ?? false,
+                  pausedAt: prevState?.pausedAt ?? 0,
+                }
+              : e,
+          ),
+        }));
+      }
+    });
+  }, []);
+
+  const unlistEquipmentAction = useCallback((id: string) => {
+    const tid = stateRef.current.telegramId;
+    if (!tid) return;
+    const item = (stateRef.current.equipment || []).find((e) => e.id === id);
+    if (item?.serverListingId) {
+      void delistFromMarket(tid, item.serverListingId).then(() => {
+        void refreshMarketListings();
+      });
+    }
+    setState((prev) => ({
+      ...prev,
+      equipment: prev.equipment.map((e) =>
+        e.id === id
+          ? { ...e, isListedInMarket: false, marketPrice: undefined, serverListingId: undefined }
+          : e,
+      ),
+    }));
+  }, []);
+
+  // Buy an equipment listing from the marketplace. The server mints the
+  // item server-side and returns its identity; we mint a matching row
+  // locally so the FarmPage shows it immediately.
+  const buyEquipmentFromMarket = useCallback(async (listing: ServerMarketListing): Promise<{ success: boolean; reason?: string }> => {
+    const tid = stateRef.current.telegramId;
+    if (!tid) return { success: false, reason: "Not logged in" };
+    if (listing.kind !== "equipment") return { success: false, reason: "Not an equipment listing" };
+    const totalCost = listing.price + Math.floor(listing.price * 0.05);
+    if (stateRef.current.balance < totalCost) {
+      return { success: false, reason: "Insufficient $ZOOM balance" };
+    }
+    const result = await buyFromMarket(tid, listing.id);
+    if (!result.ok) return { success: false, reason: result.error ?? "Purchase failed" };
+    const cat = result.equipmentCategory as EquipmentItem["category"] | null | undefined;
+    const rar = result.equipmentRarity as EquipmentItem["rarity"] | null | undefined;
+    const rate = result.equipmentRate;
+    const equipmentId = result.equipmentId;
+    if (!cat || !rar || typeof rate !== "number" || !equipmentId) {
+      // Server accepted but didn't echo identity — refetch will heal it.
+      return { success: true };
+    }
+    const newItem: EquipmentItem = {
+      id: equipmentId,
+      category: cat,
+      rarity: rar,
+      rate,
+      createdAt: Date.now(),
+      farmStartedAt: 0,
+      lastCollectedAt: 0,
+      isFarmingActive: false,
+    };
+    setState((prev) => ({
+      ...prev,
+      balance: Math.max(0, prev.balance - (result.pricePaid ?? totalCost)),
+      lastBalanceEpoch: (prev.lastBalanceEpoch || 0) + 1,
+      equipment: [...(prev.equipment || []), newItem],
+    }));
+    void refreshMarketListings();
+    return { success: true };
+  }, []);
+
   return {
     state, craft, claimCraft, redeemCode,
     collectPlanet, burnPlanet, renamePlanetLocal,
@@ -4147,5 +4334,11 @@ export function useGameState() {
     placeBlackPlanet, reactivateBlackPlanet, markBlackPlanetReactivated, collectBlackPlanet,
     burnTwoOfType, addCraftedPlanet,
     equipment: state.equipment ?? [],
+    activateEquipment,
+    collectEquipment: collectEquipmentAction,
+    burnEquipment: burnEquipmentAction,
+    listEquipment: listEquipmentAction,
+    unlistEquipment: unlistEquipmentAction,
+    buyEquipmentFromMarket,
   };
 }
