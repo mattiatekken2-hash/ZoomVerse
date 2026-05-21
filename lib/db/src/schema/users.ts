@@ -64,6 +64,8 @@ export const usersTable = pgTable("users", {
   // collection_planets with kind='black'.
   blackCollectionUnlocked: boolean("black_collection_unlocked").notNull().default(false),
   blackCollectionBundles: integer("black_collection_bundles").notNull().default(0),
+  supernovaCollectionUnlocked: boolean("supernova_collection_unlocked").notNull().default(false),
+  supernovaCollectionBundles: integer("supernova_collection_bundles").notNull().default(0),
   // Earned TON balance — credited by staking accrual, collection-planet
   // collections, admin /credit-ton, and withdrawal refunds. ONLY this balance
   // can be withdrawn. NEVER credited from external deposits.

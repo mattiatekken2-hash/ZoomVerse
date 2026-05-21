@@ -28,6 +28,8 @@ router.get("/grants/:telegramId", async (req, res) => {
         earthCollectionBundles: usersTable.earthCollectionBundles,
         blackCollectionUnlocked: usersTable.blackCollectionUnlocked,
         blackCollectionBundles: usersTable.blackCollectionBundles,
+        supernovaCollectionUnlocked: usersTable.supernovaCollectionUnlocked,
+        supernovaCollectionBundles: usersTable.supernovaCollectionBundles,
         tonBalance: usersTable.tonBalance,
         depositBalance: usersTable.depositBalance,
         sunFarmStartedAtMs: usersTable.sunFarmStartedAtMs,
@@ -39,7 +41,7 @@ router.get("/grants/:telegramId", async (req, res) => {
       .limit(1);
 
     if (!user) {
-      return res.json({ bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 });
+      return res.json({ bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 });
     }
 
     return res.json({
@@ -61,6 +63,8 @@ router.get("/grants/:telegramId", async (req, res) => {
       earthCollectionBundles: user.earthCollectionBundles ?? 0,
       blackCollectionUnlocked: user.blackCollectionUnlocked ?? false,
       blackCollectionBundles: user.blackCollectionBundles ?? 0,
+      supernovaCollectionUnlocked: user.supernovaCollectionUnlocked ?? false,
+      supernovaCollectionBundles: user.supernovaCollectionBundles ?? 0,
       tonBalance: user.tonBalance ?? 0,
       depositBalance: user.depositBalance ?? 0,
       sunFarmStartedAtMs: user.sunFarmStartedAtMs ?? 0,

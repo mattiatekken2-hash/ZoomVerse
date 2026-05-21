@@ -167,6 +167,8 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/admin/revoke-earth-collection",
       "/admin/unlock-black-collection",
       "/admin/revoke-black-collection",
+      "/admin/unlock-supernova-collection",
+      "/admin/revoke-supernova-collection",
       "/admin/grant-v1",
       "/admin/grant-v1-nft",
       "/admin/global-bonus",

@@ -6,7 +6,7 @@ import { z } from "zod";
 
 const router: IRouter = Router();
 
-const KIND = z.enum(["white", "earth", "black"]);
+const KIND = z.enum(["white", "earth", "black", "supernova"]);
 
 const PlanetStateSchema = z.object({
   kind: KIND,
@@ -37,7 +37,7 @@ router.get("/collection-planets/:telegramId", async (req, res) => {
     res.json({
       ok: true,
       planets: rows.map((r) => ({
-        kind: r.kind as "white" | "earth" | "black",
+        kind: r.kind as "white" | "earth" | "black" | "supernova",
         bundleIndex: r.bundleIndex,
         subIndex: r.subIndex,
         slotIndex: r.slotIndex,

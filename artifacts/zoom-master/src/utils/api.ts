@@ -482,6 +482,8 @@ export interface Grants {
   earthCollectionBundles: number;
   blackCollectionUnlocked: boolean;
   blackCollectionBundles: number;
+  supernovaCollectionUnlocked: boolean;
+  supernovaCollectionBundles: number;
   // EARNED TON balance — credited by staking accrual, collection-planet
   // collections, admin /credit-ton, and withdrawal refunds. WITHDRAWABLE.
   tonBalance: number;
@@ -495,7 +497,7 @@ export interface Grants {
   sunCycleCount: number;
 }
 
-const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
 
 /**
  * Buy a Shop item using the in-game DEPOSIT balance (not on-chain).
@@ -1166,6 +1168,28 @@ export async function adminRevokeBlackCollection(adminId: string, telegramId: st
   } catch { return false; }
 }
 
+export async function adminUnlockSupernovaCollection(adminId: string, telegramId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/unlock-supernova-collection`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, telegramId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function adminRevokeSupernovaCollection(adminId: string, telegramId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/revoke-supernova-collection`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, telegramId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminGrantV1(adminId: string, telegramId: string): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/grant-v1`, {
@@ -1487,7 +1511,7 @@ export async function confirmStarsPurchase(txnId: number, telegramId: string): P
 }
 
 export interface TonConfirmReactMeta {
-  kind: "white" | "earth" | "black";
+  kind: "white" | "earth" | "black" | "supernova";
   bundleIndex: number;
   subIndex: number;
   slotIndex?: number | null;
@@ -2245,7 +2269,7 @@ export interface MerchantFuseResult {
 // would dump every placed planet back into inventory and erase any
 // uncollected farm earnings, which is exactly the bug we're closing.
 // ─────────────────────────────────────────────────────────────────
-export type CollectionKind = "white" | "earth" | "black";
+export type CollectionKind = "white" | "earth" | "black" | "supernova";
 
 export interface CollectionPlanetState {
   kind: CollectionKind;
@@ -2268,16 +2292,23 @@ export async function fetchCollectionPlanets(
     if (!res.ok) return [];
     const j = await res.json();
     if (!j?.ok || !Array.isArray(j.planets)) return [];
-    return j.planets.map((p: Record<string, unknown>) => ({
-      kind: p.kind === "earth" ? "earth" : p.kind === "black" ? "black" : "white",
-      bundleIndex: Number(p.bundleIndex ?? 0),
-      subIndex: Number(p.subIndex ?? 0),
-      slotIndex:
-        p.slotIndex == null ? null : Number(p.slotIndex),
-      isFarmingActive: !!p.isFarmingActive,
-      farmStartedAtMs: Number(p.farmStartedAtMs ?? 0),
-      lastCollectedAtMs: Number(p.lastCollectedAtMs ?? 0),
-    })) as CollectionPlanetState[];
+    return j.planets
+      .map((p: Record<string, unknown>) => {
+        const k = p.kind;
+        const kind: CollectionKind | null =
+          k === "white" || k === "earth" || k === "black" || k === "supernova" ? k : null;
+        if (!kind) return null;
+        return {
+          kind,
+          bundleIndex: Number(p.bundleIndex ?? 0),
+          subIndex: Number(p.subIndex ?? 0),
+          slotIndex: p.slotIndex == null ? null : Number(p.slotIndex),
+          isFarmingActive: !!p.isFarmingActive,
+          farmStartedAtMs: Number(p.farmStartedAtMs ?? 0),
+          lastCollectedAtMs: Number(p.lastCollectedAtMs ?? 0),
+        } as CollectionPlanetState;
+      })
+      .filter((p: CollectionPlanetState | null): p is CollectionPlanetState => p !== null);
   } catch {
     return [];
   }

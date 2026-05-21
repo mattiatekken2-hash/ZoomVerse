@@ -4,6 +4,7 @@ import { PlanetOrb } from "./PlanetOrb";
 import { RealisticEarth } from "./RealisticEarth";
 import { RealisticWhite } from "./RealisticWhite";
 import { BlackPlanetOrb } from "./BlackPlanetOrb";
+import { SupernovaStarOrb } from "./SupernovaStarOrb";
 import {
   PLANET_CONFIG,
   isFarmActive,
@@ -67,6 +68,9 @@ interface PixelAvatarProps {
   blackPlanets?: Planet[];
   blackCollectionUnlocked?: boolean;
   blackCollectionBundles?: number;
+  supernovaPlanets?: Planet[];
+  supernovaCollectionUnlocked?: boolean;
+  supernovaCollectionBundles?: number;
   sunCount?: number;
   tonBalance?: number;
   telegramId?: string | null;
@@ -82,6 +86,10 @@ interface PixelAvatarProps {
   onCollectBlackPlanet?: (planetId: string) => void;
   onReactivateBlackPlanet?: (planetId: string) => { ok: boolean; reason?: string };
   onMarkBlackPlanetReactivated?: (planetId: string) => { ok: boolean; reason?: string };
+  onPlaceSupernovaPlanet?: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
+  onCollectSupernovaPlanet?: (planetId: string) => void;
+  onReactivateSupernovaPlanet?: (planetId: string) => { ok: boolean; reason?: string };
+  onMarkSupernovaPlanetReactivated?: (planetId: string) => { ok: boolean; reason?: string };
 }
 
 function PixelAvatarBase({
@@ -95,6 +103,9 @@ function PixelAvatarBase({
   blackPlanets = [],
   blackCollectionUnlocked = false,
   blackCollectionBundles = 0,
+  supernovaPlanets = [],
+  supernovaCollectionUnlocked = false,
+  supernovaCollectionBundles = 0,
   sunCount = 0,
   tonBalance = 0,
   telegramId = null,
@@ -110,6 +121,10 @@ function PixelAvatarBase({
   onCollectBlackPlanet,
   onReactivateBlackPlanet: _onReactivateBlackPlanet,
   onMarkBlackPlanetReactivated,
+  onPlaceSupernovaPlanet,
+  onCollectSupernovaPlanet,
+  onReactivateSupernovaPlanet: _onReactivateSupernovaPlanet,
+  onMarkSupernovaPlanetReactivated,
 }: PixelAvatarProps) {
   // TonConnect — same wiring used by the Shop page (SUN, packs, etc.). The
   // REACT button on a white-planet slot opens the wallet, sends 0.005 TON to
@@ -131,8 +146,12 @@ function PixelAvatarBase({
     ? blackCollectionBundles
     : (blackCollectionUnlocked ? 1 : 0);
   const maxBlackSlots = effectiveBlackBundles * 4;
-  // Withdrawals are gated by: White Collection, OR Earth+SUN, OR Black Collection.
-  const canWithdraw = whiteCollectionUnlocked || (earthCollectionUnlocked && sunCount > 0) || blackCollectionUnlocked;
+  const effectiveSupernovaBundles = supernovaCollectionBundles > 0
+    ? supernovaCollectionBundles
+    : (supernovaCollectionUnlocked ? 1 : 0);
+  const maxSupernovaSlots = effectiveSupernovaBundles * 4;
+  // Withdrawals are gated by: White Collection, OR Earth+SUN, OR Black, OR Supernova.
+  const canWithdraw = whiteCollectionUnlocked || (earthCollectionUnlocked && sunCount > 0) || blackCollectionUnlocked || supernovaCollectionUnlocked;
   const [tapped, setTapped] = useState(false);
   const [open, setOpen] = useState(false);
   const [depositMsg, setDepositMsg] = useState<string | null>(null);
@@ -176,6 +195,7 @@ function PixelAvatarBase({
     for (const p of whitePlanets) pending += getWhitePlanetPendingTon(p, now);
     for (const p of earthPlanets) pending += getWhitePlanetPendingTon(p, now);
     for (const p of blackPlanets) pending += getWhitePlanetPendingTon(p, now);
+    for (const p of supernovaPlanets) pending += getWhitePlanetPendingTon(p, now);
     return tonBalance + pending;
   })();
 
@@ -261,6 +281,13 @@ function PixelAvatarBase({
   );
   const [selectedBlackInvId, setSelectedBlackInvId] = useState<string | null>(null);
 
+  // Supernova Collection — mirrors black collection.
+  const supernovaInventory = supernovaPlanets.filter((p) => p.slotIndex == null);
+  const supernovaSlotOccupants: (Planet | null)[] = Array.from({ length: maxSupernovaSlots }, (_, i) =>
+    supernovaPlanets.find((p) => p.slotIndex === i) || null
+  );
+  const [selectedSupernovaInvId, setSelectedSupernovaInvId] = useState<string | null>(null);
+
   const flashWhiteMsg = (msg: string) => {
     setWhiteMsg(msg);
     window.setTimeout(() => setWhiteMsg(null), 2200);
@@ -324,6 +351,26 @@ function PixelAvatarBase({
 
   const handleBlackInvClick = (id: string) => {
     setSelectedBlackInvId((cur) => (cur === id ? null : id));
+  };
+
+  const handleSupernovaSlotClick = (slotIndex: number) => {
+    if (slotIndex < 0 || slotIndex >= maxSupernovaSlots) return;
+    const occupant = supernovaSlotOccupants[slotIndex];
+    if (occupant) return;
+    if (!selectedSupernovaInvId || !onPlaceSupernovaPlanet) {
+      flashWhiteMsg("Select a supernova star from the inventory first");
+      return;
+    }
+    const res = onPlaceSupernovaPlanet(selectedSupernovaInvId, slotIndex);
+    if (!res.ok) {
+      flashWhiteMsg(res.reason || "Cannot place star");
+      return;
+    }
+    setSelectedSupernovaInvId(null);
+  };
+
+  const handleSupernovaInvClick = (id: string) => {
+    setSelectedSupernovaInvId((cur) => (cur === id ? null : id));
   };
 
   return (
@@ -1428,6 +1475,216 @@ function PixelAvatarBase({
                 </div>
               )}
             </div>
+
+            {/* ───── SUPERNOVA COLLECTION FARM ───── */}
+            <div style={{ borderTop: "1px solid rgba(255,215,0,0.18)", paddingTop: 12, marginTop: 12 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 10,
+                  gap: 8,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: "0.18em",
+                    color: "#ffd700",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Supernova Collection Farm
+                </div>
+                {supernovaCollectionUnlocked && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      color: "#ffd700",
+                      padding: "4px 9px",
+                      borderRadius: 8,
+                      background: "rgba(255,215,0,0.10)",
+                      border: "1px solid rgba(255,215,0,0.45)",
+                      whiteSpace: "nowrap",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                    title="Live TON balance including uncollected supernova earnings"
+                  >
+                    {liveTonBalance.toFixed(6)} TON
+                  </div>
+                )}
+              </div>
+
+              {supernovaCollectionUnlocked && maxSupernovaSlots > 0 && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4, 1fr)",
+                    gap: 10,
+                    marginBottom: 10,
+                    maxHeight: maxSupernovaSlots > 12 ? 360 : undefined,
+                    overflowY: maxSupernovaSlots > 12 ? "auto" : "visible",
+                    paddingRight: maxSupernovaSlots > 12 ? 4 : 0,
+                  }}
+                >
+                  {supernovaSlotOccupants.map((_unused, i) => {
+                    const occupant = supernovaSlotOccupants[i];
+                    const targetable = !occupant && !!selectedSupernovaInvId;
+                    return (
+                      <div
+                        key={`supernova-slot-${i}`}
+                        className={`pixel-farm-slot ${occupant ? "filled locked-tag" : ""} ${targetable ? "targetable" : ""}`}
+                        style={{ position: "relative", padding: occupant ? 6 : 0, flexDirection: "column" }}
+                        onClick={() => handleSupernovaSlotClick(i)}
+                      >
+                        {occupant ? (
+                          <SlotContent
+                            planet={occupant}
+                            tonBalance={tonBalance}
+                            busy={reactingId === occupant.id}
+                            onCollect={onCollectSupernovaPlanet}
+                            onReactivate={async (id, planet) => {
+                              if (!telegramId) { flashWhiteMsg("Session not ready"); return; }
+                              if (!connectedAddress) { tonConnectUI.openModal(); flashWhiteMsg("Connect your wallet"); return; }
+                              if (reactingId) return;
+                              setReactingId(id);
+                              try {
+                                const fee = getReactivationFee(planet);
+                                const nanotons = BigInt(Math.round(fee * 1e9)).toString();
+                                const txResult = await tonConnectUI.sendTransaction({
+                                  validUntil: Math.floor(Date.now() / 1000) + 300,
+                                  messages: [{ address: TON_RECEIVER_WALLET, amount: nanotons }],
+                                });
+                                const boc = txResult.boc || "";
+                                const reactKey = parseCollectionPlanetKey(planet.id);
+                                const reactMeta = reactKey ? { ...reactKey, slotIndex: planet.slotIndex ?? null } : undefined;
+                                const confirm = await confirmTonPurchase(telegramId, "supernova_react", connectedAddress, fee, boc, reactMeta);
+                                let creditedOk = confirm.ok && !confirm.pending;
+                                if (confirm.pending && confirm.txnId) {
+                                  flashWhiteMsg("Verifying payment on-chain…");
+                                  const final = await pollTxnUntilFinal(confirm.txnId);
+                                  creditedOk = final?.status === "completed";
+                                  if (final?.status === "failed") {
+                                    flashWhiteMsg("Payment not detected on-chain");
+                                    setReactingId(null);
+                                    return;
+                                  }
+                                } else if (!confirm.ok) {
+                                  flashWhiteMsg(confirm.error || "Payment failed");
+                                  setReactingId(null);
+                                  return;
+                                }
+                                if (creditedOk) {
+                                  const res = onMarkSupernovaPlanetReactivated?.(id);
+                                  if (res && !res.ok) flashWhiteMsg(res.reason || "Reactivation failed");
+                                  else flashWhiteMsg("Reactivated!");
+                                } else {
+                                  flashWhiteMsg("Awaiting confirmation…");
+                                }
+                              } catch (err: unknown) {
+                                const m = err instanceof Error ? err.message : String(err);
+                                if (m.includes("cancel") || m.includes("reject") || m.includes("Interrupted")) flashWhiteMsg("Payment cancelled");
+                                else { flashWhiteMsg("TON payment failed"); console.error("[supernova-react] ton tx error:", err); }
+                              } finally {
+                                setReactingId(null);
+                              }
+                            }}
+                          />
+                        ) : (
+                          <div style={{ fontSize: 18, opacity: 0.3 }}>◌</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {supernovaCollectionUnlocked && supernovaInventory.length > 0 && (
+                <>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: "0.14em",
+                      color: "rgba(255,255,255,0.6)",
+                      textTransform: "uppercase",
+                      marginBottom: 8,
+                    }}
+                  >
+                    Supernova Inventory · Tap to select, then tap a slot
+                  </div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: `repeat(${Math.min(4, supernovaInventory.length)}, 1fr)`,
+                      gap: 8,
+                      marginBottom: 10,
+                    }}
+                  >
+                    {supernovaInventory.map((p) => {
+                      const cfg = PLANET_CONFIG[p.name];
+                      return (
+                        <div
+                          key={p.id}
+                          className={`pixel-inv-item ${selectedSupernovaInvId === p.id ? "selected" : ""}`}
+                          onClick={() => handleSupernovaInvClick(p.id)}
+                        >
+                          <SupernovaStarOrb size={42} color={cfg.color} />
+                          <div style={{ fontSize: 9, fontWeight: 800, opacity: 0.85, textAlign: "center", lineHeight: 1.1 }}>
+                            {cfg.label}
+                          </div>
+                          <div style={{ fontSize: 8, opacity: 0.6 }}>+{cfg.rate}/h</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {!supernovaCollectionUnlocked && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "rgba(255,255,255,0.5)",
+                    textAlign: "center",
+                    fontStyle: "italic",
+                  }}
+                >
+                  Sblocca la Supernova Collection (12 TON) per ricevere 4 stelle pixel-art
+                </div>
+              )}
+
+              {supernovaCollectionUnlocked && effectiveSupernovaBundles > 1 && (
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "rgba(255,255,255,0.55)",
+                    textAlign: "center",
+                    marginTop: 4,
+                    letterSpacing: "0.08em",
+                  }}
+                >
+                  {effectiveSupernovaBundles}× bundles · {maxSupernovaSlots} slots
+                </div>
+              )}
+
+              {supernovaCollectionUnlocked && maxSupernovaSlots > 0 && supernovaInventory.length === 0 && supernovaSlotOccupants.every((o) => o) && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    color: "#ffd700",
+                    textAlign: "center",
+                    fontStyle: "italic",
+                    opacity: 0.8,
+                  }}
+                >
+                  All {maxSupernovaSlots} supernova stars have been placed
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -1459,9 +1716,10 @@ function SlotContent({ planet, busy = false, onReactivate }: SlotContentProps) {
   const isEarth = planet.name === "EARTH1" || planet.name === "EARTH2" || planet.name === "EARTH3" || planet.name === "EARTH4";
   const isWhite = planet.name === "WHITE1" || planet.name === "WHITE2" || planet.name === "WHITE3" || planet.name === "WHITE4";
   const isBlack = planet.name === "BLACK1" || planet.name === "BLACK2" || planet.name === "BLACK3" || planet.name === "BLACK4";
+  const isSupernova = planet.name === "SUPERNOVA1" || planet.name === "SUPERNOVA2" || planet.name === "SUPERNOVA3" || planet.name === "SUPERNOVA4";
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-      {isEarth ? <RealisticEarth size={36} /> : isWhite ? <RealisticWhite size={36} /> : isBlack ? <BlackPlanetOrb size={36} nebula={false} spin={active} /> : <PlanetOrb planet={planet} size={36} animate={active} />}
+      {isEarth ? <RealisticEarth size={36} /> : isWhite ? <RealisticWhite size={36} /> : isBlack ? <BlackPlanetOrb size={36} nebula={false} spin={active} /> : isSupernova ? <SupernovaStarOrb size={36} color={cfg.color} /> : <PlanetOrb planet={planet} size={36} animate={active} />}
 
       <div style={{ fontSize: 8, fontWeight: 800, opacity: 0.95, lineHeight: 1.1, textAlign: "center" }}>
         {cfg.label.replace("White Planet ", "W")}

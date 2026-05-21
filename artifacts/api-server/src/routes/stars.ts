@@ -156,6 +156,10 @@ const EARTH_COLLECTION_MAX_GLOBAL = 50;
 // + WHERE-guard on the SUM of black_collection_bundles, mirroring the white /
 // earth pattern. Each bundle = 4 black planets @ ~0.333 TON/day combined.
 const BLACK_COLLECTION_MAX_GLOBAL = 3;
+// SUPERNOVA Collection — 4 yellow pixel-art star planets per bundle. 12 TON
+// per bundle, max 50 bundles globally. Combined output 1.5 TON / 30 days
+// (~0.05 TON/day, 0.000520833 TON/h per planet). Reactivation fee 0.001 TON.
+const SUPERNOVA_COLLECTION_MAX_GLOBAL = 50;
 // V1 NFT Platinum Edition — esclusivo NFT, max 5 venduti GLOBALMENTE.
 // Cap enforced atomicamente in creditUserTx via WHERE-guard sulla SOMMA
 // di bonus_v1_nft_platinum (stesso pattern di white_collection /
@@ -196,6 +200,11 @@ const STARS_CATALOG: StarsItem[] = [
   // Reactivation fee for an expired black-planet farming cycle (0.01 TON).
   // Same payment-only pattern as white/earth — no server-side grant.
   { id: "black_react", title: "Black Planet Reactivation", description: "Restart an expired black-planet farming cycle", starsPrice: 0, tonPrice: 0.01, itemType: "black_react" },
+  // SUPERNOVA Collection — 4 yellow pixel-art star planets per bundle.
+  // Combined yield 1.5 TON / 30 days. Capped at 50 bundles globally.
+  { id: "supernova_collection", title: "Supernova Collection", description: "Unlock 4 exclusive supernova stars. Yield: 1.5 TON / 30 days. Limited: 50 bundles globally.", starsPrice: 0, tonPrice: 12, itemType: "supernova_collection" },
+  // Reactivation fee for an expired supernova-planet farming cycle (0.001 TON).
+  { id: "supernova_react", title: "Supernova Reactivation", description: "Restart an expired supernova-planet farming cycle", starsPrice: 0, tonPrice: 0.001, itemType: "supernova_react" },
   // LOTTO STELLARE — bundle di biglietti per la lotteria a probabilità
   // ponderate. zoomAmount qui rappresenta il numero di biglietti del bundle
   // (riusato come "count" per non aggiungere campi al catalogo). Lo
@@ -328,21 +337,25 @@ type DbExecutor = typeof db;
 // collection_planets row so the reactivation is durable even if the client
 // closes the tab before the fire-and-forget /collection-planets/upsert runs.
 export interface ReactPlanetMeta {
-  kind: "white" | "earth" | "black";
+  kind: "white" | "earth" | "black" | "supernova";
   bundleIndex: number;
   subIndex: number;
   slotIndex?: number | null;
 }
 
 function isReactItemType(t: string): boolean {
-  return t === "white_react" || t === "earth_react" || t === "black_react";
+  return t === "white_react" || t === "earth_react" || t === "black_react" || t === "supernova_react";
 }
 
 function parseReactMeta(raw: unknown, itemType: string): ReactPlanetMeta | null {
   if (!isReactItemType(itemType)) return null;
   if (!raw || typeof raw !== "object") return null;
   const m = raw as Record<string, unknown>;
-  const expectedKind = itemType === "white_react" ? "white" : itemType === "earth_react" ? "earth" : "black";
+  const expectedKind: "white" | "earth" | "black" | "supernova" =
+    itemType === "white_react" ? "white"
+    : itemType === "earth_react" ? "earth"
+    : itemType === "black_react" ? "black"
+    : "supernova";
   if (m["kind"] !== expectedKind) return null;
   const bi = Number(m["bundleIndex"]);
   const si = Number(m["subIndex"]);
@@ -461,7 +474,7 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string,
     await tx.update(usersTable)
       .set({ hasAutoTap: true })
       .where(eq(usersTable.telegramId, telegramId));
-  } else if (item.itemType === "white_react" || item.itemType === "earth_react" || item.itemType === "black_react") {
+  } else if (item.itemType === "white_react" || item.itemType === "earth_react" || item.itemType === "black_react" || item.itemType === "supernova_react") {
     // Reactivation is a paid action that flips the targeted collection planet
     // back to active. When the client supplies a valid `meta` identifier on
     // /ton/confirm, we durably bump the planet row here as part of the same
@@ -613,8 +626,30 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string,
       console.error(`[creditUserTx] BLACK_COLLECTION sold out at credit time for ${telegramId}`);
       throw new Error("BLACK_COLLECTION_SOLD_OUT");
     }
+  } else if (item.itemType === "supernova_collection") {
+    // SUPERNOVA — advisory lock id 7913042045, global cap 50 bundles.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(7913042045)`);
+    const result = await tx.execute(sql`
+      UPDATE users
+      SET supernova_collection_bundles = supernova_collection_bundles + 1,
+          supernova_collection_unlocked = true
+      WHERE telegram_id = ${telegramId}
+        AND (SELECT COALESCE(SUM(supernova_collection_bundles), 0) FROM users) < ${SUPERNOVA_COLLECTION_MAX_GLOBAL}
+      RETURNING supernova_collection_bundles
+    `);
+    if (!result.rows || result.rows.length === 0) {
+      console.error(`[creditUserTx] SUPERNOVA_COLLECTION sold out at credit time for ${telegramId}`);
+      throw new Error("SUPERNOVA_COLLECTION_SOLD_OUT");
+    }
   }
   return {};
+}
+
+async function getSupernovaCollectionStock(): Promise<{ sold: number; remaining: number; max: number }> {
+  const [row] = await db.select({ sold: sql<number>`COALESCE(SUM(${usersTable.supernovaCollectionBundles}), 0)::int` })
+    .from(usersTable);
+  const sold = Number(row?.sold ?? 0);
+  return { sold, remaining: Math.max(0, SUPERNOVA_COLLECTION_MAX_GLOBAL - sold), max: SUPERNOVA_COLLECTION_MAX_GLOBAL };
 }
 
 async function getWhiteCollectionStock(): Promise<{ sold: number; remaining: number; max: number }> {
@@ -729,6 +764,17 @@ router.get("/black-collection/stock", async (_req, res) => {
   }
 });
 
+router.get("/supernova-collection/stock", async (_req, res) => {
+  try {
+    const stock = await getSupernovaCollectionStock();
+    res.set("Cache-Control", "no-store");
+    res.json(stock);
+  } catch (err) {
+    console.error("[supernova-collection/stock] error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
 router.get("/v1-nft-platinum/stock", async (_req, res) => {
   try {
     const stock = await getV1NftPlatinumStock();
@@ -771,6 +817,9 @@ async function postActivationChannelMessage(item: StarsItem, telegramId: string)
     case "black_collection":
       title = "⬛ <b>New Black Collection Activation!</b>";
       break;
+    case "supernova_collection":
+      title = "🌟 <b>New Supernova Collection Activation!</b>";
+      break;
     case "earth_react":
       title = "🌍 <b>Earth Planet Reactivated!</b>";
       break;
@@ -779,6 +828,9 @@ async function postActivationChannelMessage(item: StarsItem, telegramId: string)
       break;
     case "black_react":
       title = "⬛ <b>Black Planet Reactivated!</b>";
+      break;
+    case "supernova_react":
+      title = "🌟 <b>Supernova Planet Reactivated!</b>";
       break;
     default:
       return; // not an activation event

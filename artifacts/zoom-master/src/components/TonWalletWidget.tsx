@@ -34,10 +34,12 @@ interface Props {
   whiteCollectionUnlocked: boolean;
   earthCollectionUnlocked: boolean;
   blackCollectionUnlocked: boolean;
+  supernovaCollectionUnlocked?: boolean;
   sunCount: number;
   whitePlanets: Planet[];
   earthPlanets: Planet[];
   blackPlanets: Planet[];
+  supernovaPlanets?: Planet[];
 }
 
 function formatTon(v: number, decimals = 3): string {
@@ -75,10 +77,12 @@ function WalletModal({
   whitePlanets,
   earthPlanets,
   blackPlanets,
+  supernovaCollectionUnlocked = false,
+  supernovaPlanets = [],
 }: Props & { onClose: () => void }) {
   const [tonConnectUI] = useTonConnectUI();
   const walletAddress   = useTonAddress();
-  const canWithdraw = whiteCollectionUnlocked || (earthCollectionUnlocked && sunCount > 0) || blackCollectionUnlocked;
+  const canWithdraw = whiteCollectionUnlocked || (earthCollectionUnlocked && sunCount > 0) || blackCollectionUnlocked || supernovaCollectionUnlocked;
 
   // ── live EARNED TON (settled tonBalance + pending collection yields) ────
   // Pending collection yields are EARNED TON in the making — they get
@@ -90,6 +94,7 @@ function WalletModal({
     for (const p of whitePlanets) pending += getWhitePlanetPendingTon(p, now);
     for (const p of earthPlanets) pending += getWhitePlanetPendingTon(p, now);
     for (const p of blackPlanets) pending += getWhitePlanetPendingTon(p, now);
+    for (const p of supernovaPlanets) pending += getWhitePlanetPendingTon(p, now);
     return Math.max(0, tonBalance) + pending;
   })();
   const safeDeposit = Math.max(0, depositBalance);
@@ -424,7 +429,7 @@ function WalletModal({
 
 /* ─── HEADER PILL BUTTON ─────────────────────────────────────────────────── */
 function TonWalletWidgetBase(props: Props) {
-  const { tonBalance, telegramId, whitePlanets, earthPlanets, blackPlanets } = props;
+  const { tonBalance, telegramId, whitePlanets, earthPlanets, blackPlanets, supernovaPlanets = [] } = props;
   const [open, setOpen] = useState(false);
   const [accrued, setAccrued] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -453,6 +458,7 @@ function TonWalletWidgetBase(props: Props) {
     for (const pl of whitePlanets) p += getWhitePlanetPendingTon(pl, now);
     for (const pl of earthPlanets) p += getWhitePlanetPendingTon(pl, now);
     for (const pl of blackPlanets) p += getWhitePlanetPendingTon(pl, now);
+    for (const pl of supernovaPlanets) p += getWhitePlanetPendingTon(pl, now);
     return p;
   })();
 

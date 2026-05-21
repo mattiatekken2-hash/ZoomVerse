@@ -84,6 +84,7 @@ function AppShellWithState() {
     placeWhitePlanet, reactivateWhitePlanet, markWhitePlanetReactivated, collectWhitePlanet,
     placeEarthPlanet, reactivateEarthPlanet, markEarthPlanetReactivated, collectEarthPlanet,
     placeBlackPlanet, reactivateBlackPlanet, markBlackPlanetReactivated, collectBlackPlanet,
+    placeSupernovaPlanet, reactivateSupernovaPlanet, markSupernovaPlanetReactivated, collectSupernovaPlanet,
     burnTwoOfType, addCraftedPlanet,
     activateEquipment, reactivateEquipment, burnEquipment, listEquipment, unlistEquipment, buyEquipmentFromMarket,
   } = useGameState();
@@ -576,10 +577,12 @@ function AppShellWithState() {
             whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
             earthCollectionUnlocked={!!state.earthCollectionUnlocked}
             blackCollectionUnlocked={!!state.blackCollectionUnlocked}
+            supernovaCollectionUnlocked={!!state.supernovaCollectionUnlocked}
             sunCount={state.sunCount || 0}
             whitePlanets={state.whitePlanets || []}
             earthPlanets={state.earthPlanets || []}
             blackPlanets={state.blackPlanets || []}
+            supernovaPlanets={state.supernovaPlanets || []}
           />
           <button
             onClick={() => switchTab("shop")}
@@ -698,6 +701,13 @@ function AppShellWithState() {
                   onCollectBlackPlanet={collectBlackPlanet}
                   onReactivateBlackPlanet={reactivateBlackPlanet}
                   onMarkBlackPlanetReactivated={markBlackPlanetReactivated}
+                  supernovaCollectionUnlocked={!!state.supernovaCollectionUnlocked}
+                  supernovaCollectionBundles={Number(state.supernovaCollectionBundles) || 0}
+                  supernovaPlanets={state.supernovaPlanets || []}
+                  onPlaceSupernovaPlanet={placeSupernovaPlanet}
+                  onCollectSupernovaPlanet={collectSupernovaPlanet}
+                  onReactivateSupernovaPlanet={reactivateSupernovaPlanet}
+                  onMarkSupernovaPlanetReactivated={markSupernovaPlanetReactivated}
                   visible={tab === "lab"}
                   merchantActive={merchant.active}
                 />

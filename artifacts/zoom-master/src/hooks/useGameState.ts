@@ -49,7 +49,7 @@ async function refreshServerOffset(): Promise<void> {
   } catch { /* keep last known offset */ }
 }
 
-export type PlanetType = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "PLASMA" | "GOLD" | "V1" | "V1_NFT" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4" | "BLACK1" | "BLACK2" | "BLACK3" | "BLACK4";
+export type PlanetType = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "PLASMA" | "GOLD" | "V1" | "V1_NFT" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4" | "BLACK1" | "BLACK2" | "BLACK3" | "BLACK4" | "SUPERNOVA1" | "SUPERNOVA2" | "SUPERNOVA3" | "SUPERNOVA4";
 
 export const WHITE_PLANET_TYPES: PlanetType[] = ["WHITE1", "WHITE2", "WHITE3", "WHITE4"];
 
@@ -67,6 +67,12 @@ export const BLACK_PLANET_TYPES: PlanetType[] = ["BLACK1", "BLACK2", "BLACK3", "
 
 export function isBlackPlanet(name: PlanetType): boolean {
   return name === "BLACK1" || name === "BLACK2" || name === "BLACK3" || name === "BLACK4";
+}
+
+export const SUPERNOVA_PLANET_TYPES: PlanetType[] = ["SUPERNOVA1", "SUPERNOVA2", "SUPERNOVA3", "SUPERNOVA4"];
+
+export function isSupernovaPlanet(name: PlanetType): boolean {
+  return name === "SUPERNOVA1" || name === "SUPERNOVA2" || name === "SUPERNOVA3" || name === "SUPERNOVA4";
 }
 
 export interface Planet {
@@ -203,6 +209,13 @@ export interface GameState {
   blackCollectionBundles: number;
   claimedBlackCollectionBundles: number;
   blackPlanets: Planet[];
+  // Supernova Collection — 4 yellow star TON-farming planets per bundle.
+  // 12 TON per bundle, max 50 bundles globally. Combined yield 1.5 TON / 30d.
+  // Rate per planet: 0.000520833 TON/h. Reactivation fee: 0.001 TON.
+  supernovaCollectionUnlocked: boolean;
+  supernovaCollectionBundles: number;
+  claimedSupernovaCollectionBundles: number;
+  supernovaPlanets: Planet[];
   // EARNED TON balance. Accumulated TON from White/Earth/Black Collection
   // planet collects, staking accrual, admin credits, leaderboard rewards.
   // ONLY this balance can be withdrawn. Reactivation fees for white planets
@@ -504,6 +517,57 @@ export const PLANET_CONFIG: Record<PlanetType, {
     reactivationFee: 0.01,
     isTonFarming: true,
   },
+  // SUPERNOVA Collection — 12 TON/bundle, max 50 bundles globally.
+  // Rate per planet: 1.5 TON / 30 days / 24h / 4 planets ≈ 0.000520833 TON/h.
+  // Combined: ~0.05 TON/day. Reactivation fee: 0.001 TON per planet.
+  SUPERNOVA1: {
+    rate: 0.000520833,
+    color: "#ffd700",
+    glowColor: "rgba(255,215,0,0.85)",
+    chance: 0,
+    label: "S1",
+    craftCost: 0,
+    activationTon: 0,
+    tapsNeeded: 0,
+    reactivationFee: 0.001,
+    isTonFarming: true,
+  },
+  SUPERNOVA2: {
+    rate: 0.000520833,
+    color: "#fcd34d",
+    glowColor: "rgba(252,211,77,0.85)",
+    chance: 0,
+    label: "S2",
+    craftCost: 0,
+    activationTon: 0,
+    tapsNeeded: 0,
+    reactivationFee: 0.001,
+    isTonFarming: true,
+  },
+  SUPERNOVA3: {
+    rate: 0.000520833,
+    color: "#facc15",
+    glowColor: "rgba(250,204,21,0.85)",
+    chance: 0,
+    label: "S3",
+    craftCost: 0,
+    activationTon: 0,
+    tapsNeeded: 0,
+    reactivationFee: 0.001,
+    isTonFarming: true,
+  },
+  SUPERNOVA4: {
+    rate: 0.000520833,
+    color: "#fbbf24",
+    glowColor: "rgba(251,191,36,0.85)",
+    chance: 0,
+    label: "S4",
+    craftCost: 0,
+    activationTon: 0,
+    tapsNeeded: 0,
+    reactivationFee: 0.001,
+    isTonFarming: true,
+  },
 };
 
 export const SUN_CONFIG = {
@@ -615,6 +679,10 @@ const INITIAL_STATE: GameState = {
   blackCollectionBundles: 0,
   claimedBlackCollectionBundles: 0,
   blackPlanets: [],
+  supernovaCollectionUnlocked: false,
+  supernovaCollectionBundles: 0,
+  claimedSupernovaCollectionBundles: 0,
+  supernovaPlanets: [],
   tonBalance: 0,
   depositBalance: 0,
   // Default to 0 (not serverNow()) so a brand-new device / cleared cache is
@@ -738,6 +806,10 @@ function loadState(): GameState {
           blackCollectionBundles: (parsed as unknown as Record<string, unknown>).blackCollectionBundles as number ?? 0,
           claimedBlackCollectionBundles: (parsed as unknown as Record<string, unknown>).claimedBlackCollectionBundles as number ?? 0,
           blackPlanets: ((parsed as unknown as Record<string, unknown>).blackPlanets as Planet[] | undefined ?? []).map(migratePlanet),
+          supernovaCollectionUnlocked: (parsed as unknown as Record<string, unknown>).supernovaCollectionUnlocked as boolean ?? false,
+          supernovaCollectionBundles: (parsed as unknown as Record<string, unknown>).supernovaCollectionBundles as number ?? 0,
+          claimedSupernovaCollectionBundles: (parsed as unknown as Record<string, unknown>).claimedSupernovaCollectionBundles as number ?? 0,
+          supernovaPlanets: ((parsed as unknown as Record<string, unknown>).supernovaPlanets as Planet[] | undefined ?? []).map(migratePlanet),
           tonBalance: parsed.tonBalance ?? 0,
           depositBalance: (parsed as unknown as Record<string, unknown>).depositBalance as number ?? 0,
         };
@@ -1071,6 +1143,28 @@ function makeEarthCollectionPlanets(bundleIndex = 0): Planet[] {
   });
 }
 
+function makeSupernovaCollectionPlanets(bundleIndex = 0): Planet[] {
+  const now = serverNow();
+  return SUPERNOVA_PLANET_TYPES.map((type, i) => {
+    const cfg = PLANET_CONFIG[type];
+    return {
+      id: `supernova-${type}-b${bundleIndex}-${now}-${i}-${Math.random().toString(36).slice(2)}`,
+      name: type,
+      rate: cfg.rate,
+      color: cfg.color,
+      glowColor: cfg.glowColor,
+      createdAt: now,
+      farmStartedAt: 0,
+      lastCollectedAt: 0,
+      isListedInMarket: false,
+      isFarmingActive: false,
+      marketPrice: null,
+      craftCost: 0,
+      slotIndex: null,
+    };
+  });
+}
+
 function makeBlackCollectionPlanets(bundleIndex = 0): Planet[] {
   const now = serverNow();
   return BLACK_PLANET_TYPES.map((type, i) => {
@@ -1103,11 +1197,11 @@ function makeBlackCollectionPlanets(bundleIndex = 0): Planet[] {
 // half-RTT calibration), so the timestamp segment must allow `.<digits>`.
 export function parseCollectionPlanetKey(
   id: string,
-): { kind: "white" | "earth" | "black"; bundleIndex: number; subIndex: number } | null {
-  const m = /^(white|earth|black)-[A-Z0-9]+-b(\d+)-\d+(?:\.\d+)?-(\d+)-/.exec(id);
+): { kind: "white" | "earth" | "black" | "supernova"; bundleIndex: number; subIndex: number } | null {
+  const m = /^(white|earth|black|supernova)-[A-Z0-9]+-b(\d+)-\d+(?:\.\d+)?-(\d+)-/.exec(id);
   if (!m) return null;
   return {
-    kind: m[1] as "white" | "earth" | "black",
+    kind: m[1] as "white" | "earth" | "black" | "supernova",
     bundleIndex: parseInt(m[2]!, 10),
     subIndex: parseInt(m[3]!, 10),
   };
@@ -1636,7 +1730,7 @@ export function useGameState() {
       // only as a placeholder for the few non-destructive read sites and
       // gate the entire grants-derived block on grantsOk.
       const grantsOk = grantsResult !== null;
-      const grants = grantsResult ?? { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+      const grants = grantsResult ?? { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
       const serverCollectionByKey = indexServerCollectionPlanets(serverCollectionPlanets);
 
       // Prefer the post-credit balance returned by /farm/settle when the
@@ -1861,6 +1955,7 @@ export function useGameState() {
         const serverBundles = Math.max(0, Number(grants.whiteCollectionBundles ?? 0));
         const serverEarthBundles = Math.max(0, Number(grants.earthCollectionBundles ?? 0));
         const serverBlackBundles = Math.max(0, Number(grants.blackCollectionBundles ?? 0));
+        const serverSupernovaBundles = Math.max(0, Number(grants.supernovaCollectionBundles ?? 0));
         updated = {
           ...updated,
           maxSlots: Math.max(INITIAL_STATE.maxSlots, INITIAL_STATE.maxSlots + grants.bonusSlots),
@@ -1871,6 +1966,8 @@ export function useGameState() {
           earthCollectionBundles: serverEarthBundles,
           blackCollectionUnlocked: !!grants.blackCollectionUnlocked || serverBlackBundles > 0,
           blackCollectionBundles: serverBlackBundles,
+          supernovaCollectionUnlocked: !!grants.supernovaCollectionUnlocked || serverSupernovaBundles > 0,
+          supernovaCollectionBundles: serverSupernovaBundles,
         };
 
         // White Collection: each owned bundle materializes 4 fresh white
@@ -1959,6 +2056,32 @@ export function useGameState() {
             blackPlanets: (updated.blackPlanets || []).filter(keepBlack),
           };
         }
+
+        // Supernova Collection bundle materialization (initial hydration).
+        const claimedSupernovaBundles = Math.max(0, updated.claimedSupernovaCollectionBundles ?? 0);
+        if (serverSupernovaBundles > claimedSupernovaBundles) {
+          const toMaterializeSupernova = serverSupernovaBundles - claimedSupernovaBundles;
+          const newSupernovaPlanets: Planet[] = [];
+          for (let b = 0; b < toMaterializeSupernova; b++) {
+            newSupernovaPlanets.push(...makeSupernovaCollectionPlanets(claimedSupernovaBundles + b));
+          }
+          updated = {
+            ...updated,
+            claimedSupernovaCollectionBundles: serverSupernovaBundles,
+            supernovaPlanets: [...(updated.supernovaPlanets || []), ...newSupernovaPlanets],
+          };
+        } else if (serverSupernovaBundles < claimedSupernovaBundles) {
+          const keepSupernova = (p: Planet) => {
+            const m = /-b(\d+)-/.exec(p.id);
+            const idx = m ? parseInt(m[1]!, 10) : 0;
+            return idx < serverSupernovaBundles;
+          };
+          updated = {
+            ...updated,
+            claimedSupernovaCollectionBundles: serverSupernovaBundles,
+            supernovaPlanets: (updated.supernovaPlanets || []).filter(keepSupernova),
+          };
+        }
         } // end of `if (grantsOk)` — grants-derived hydration block
 
         // ─── SERVER COLLECTION-PLANET STATE — single source of truth ───
@@ -1973,6 +2096,7 @@ export function useGameState() {
             whitePlanets: applyServerOverrides(updated.whitePlanets || [], serverCollectionByKey),
             earthPlanets: applyServerOverrides(updated.earthPlanets || [], serverCollectionByKey),
             blackPlanets: applyServerOverrides(updated.blackPlanets || [], serverCollectionByKey),
+            supernovaPlanets: applyServerOverrides(updated.supernovaPlanets || [], serverCollectionByKey),
           };
         }
 
@@ -2003,6 +2127,15 @@ export function useGameState() {
           }
         }
         for (const p of updated.blackPlanets || []) {
+          const snap = snapshotCollectionPlanet(p);
+          if (!snap) continue;
+          const k = `${snap.kind}-${snap.bundleIndex}-${snap.subIndex}`;
+          if (serverCollectionByKey.has(k)) continue;
+          if (snap.slotIndex != null || snap.isFarmingActive || snap.lastCollectedAtMs > 0) {
+            toSeed.push(snap);
+          }
+        }
+        for (const p of updated.supernovaPlanets || []) {
           const snap = snapshotCollectionPlanet(p);
           if (!snap) continue;
           const k = `${snap.kind}-${snap.bundleIndex}-${snap.subIndex}`;
@@ -2335,6 +2468,27 @@ export function useGameState() {
         }
         // Grow-only: never delete black-collection planets when the server
         // bundle counter is below the local claimed count.
+
+        const serverSupernovaBundles2 = Math.max(0, Number(grants.supernovaCollectionBundles ?? 0));
+        updated = {
+          ...updated,
+          supernovaCollectionUnlocked: !!grants.supernovaCollectionUnlocked || serverSupernovaBundles2 > 0,
+          supernovaCollectionBundles: serverSupernovaBundles2,
+        };
+        const claimedSupernovaBundles2 = Math.max(0, updated.claimedSupernovaCollectionBundles ?? 0);
+        if (serverSupernovaBundles2 > claimedSupernovaBundles2) {
+          const toMaterializeSupernova2 = serverSupernovaBundles2 - claimedSupernovaBundles2;
+          const newSupernovaPlanets2: Planet[] = [];
+          for (let b = 0; b < toMaterializeSupernova2; b++) {
+            newSupernovaPlanets2.push(...makeSupernovaCollectionPlanets(claimedSupernovaBundles2 + b));
+          }
+          updated = {
+            ...updated,
+            claimedSupernovaCollectionBundles: serverSupernovaBundles2,
+            supernovaPlanets: [...(updated.supernovaPlanets || []), ...newSupernovaPlanets2],
+          };
+        }
+        // Grow-only for supernova too.
 
         const bonusTypes: Array<{ key: keyof Grants; claimedKey: keyof GameState; type: PlanetType }> = [
           { key: "bonusBasic", claimedKey: "claimedBonusBasic", type: "BASIC" },
@@ -4017,6 +4171,89 @@ export function useGameState() {
     });
   }, []);
 
+  // ───── Supernova Collection — mirrors the black-planet API exactly.
+  const placeSupernovaPlanet = useCallback((id: string, slotIndex: number): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: true };
+    setState((prev) => {
+      const target = prev.supernovaPlanets.find((p) => p.id === id);
+      if (!target) { outcome = { ok: false, reason: "Planet not found" }; return prev; }
+      if (target.slotIndex != null) { outcome = { ok: false, reason: "Already placed" }; return prev; }
+      const maxSlots = (prev.supernovaCollectionBundles || (prev.supernovaCollectionUnlocked ? 1 : 0)) * 4;
+      if (slotIndex < 0 || slotIndex >= maxSlots) { outcome = { ok: false, reason: "Invalid slot" }; return prev; }
+      const occupied = prev.supernovaPlanets.some((p) => p.slotIndex === slotIndex);
+      if (occupied) { outcome = { ok: false, reason: "Slot occupied" }; return prev; }
+      const now = serverNow();
+      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, target.name, true);
+      const updatedPlanet: Planet = { ...target, slotIndex, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+      persistCollectionPlanet(prev.telegramId, updatedPlanet);
+      return {
+        ...prev,
+        supernovaPlanets: prev.supernovaPlanets.map((p) => (p.id === id ? updatedPlanet : p)),
+      };
+    });
+    return outcome;
+  }, []);
+
+  const markSupernovaPlanetReactivated = useCallback((id: string): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: true };
+    setState((prev) => {
+      const planet = prev.supernovaPlanets.find((p) => p.id === id);
+      if (!planet || planet.slotIndex == null) { outcome = { ok: false, reason: "Planet not placed" }; return prev; }
+      const now = serverNow();
+      const cfg = PLANET_CONFIG[planet.name];
+      const start = Math.max(planet.farmStartedAt, planet.lastCollectedAt);
+      const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+      const earnedTon = end > start ? (cfg.rate / 3_600_000) * (end - start) : 0;
+      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
+      const updatedPlanet: Planet = { ...planet, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+      persistCollectionPlanet(prev.telegramId, updatedPlanet);
+      return {
+        ...prev,
+        tonBalance: (prev.tonBalance || 0) + earnedTon,
+        supernovaPlanets: prev.supernovaPlanets.map((p) => (p.id === id ? updatedPlanet : p)),
+      };
+    });
+    return outcome;
+  }, []);
+
+  const reactivateSupernovaPlanet = useCallback((id: string): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: true };
+    setState((prev) => {
+      const planet = prev.supernovaPlanets.find((p) => p.id === id);
+      if (!planet || planet.slotIndex == null) { outcome = { ok: false, reason: "Planet not placed" }; return prev; }
+      const now = serverNow();
+      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, true);
+      const updatedPlanet: Planet = { ...planet, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now };
+      persistCollectionPlanet(prev.telegramId, updatedPlanet);
+      return {
+        ...prev,
+        supernovaPlanets: prev.supernovaPlanets.map((p) => (p.id === id ? updatedPlanet : p)),
+      };
+    });
+    return outcome;
+  }, []);
+
+  const collectSupernovaPlanet = useCallback((id: string) => {
+    setState((prev) => {
+      const planet = prev.supernovaPlanets.find((p) => p.id === id);
+      if (!planet || planet.slotIndex == null || !planet.isFarmingActive) return prev;
+      const now = serverNow();
+      const cfg = PLANET_CONFIG[planet.name];
+      const start = Math.max(planet.farmStartedAt, planet.lastCollectedAt);
+      const end = Math.min(now, planet.farmStartedAt + FARM_DURATION_MS, planet.lastCollectedAt + DAILY_COLLECT_MS);
+      const earnedTon = end > start ? (cfg.rate / 3_600_000) * (end - start) : 0;
+      if (earnedTon <= 0) return prev;
+      if (prev.telegramId) notifyFarmCollect(prev.telegramId, id);
+      const updatedPlanet: Planet = { ...planet, lastCollectedAt: now };
+      persistCollectionPlanet(prev.telegramId, updatedPlanet);
+      return {
+        ...prev,
+        tonBalance: (prev.tonBalance || 0) + earnedTon,
+        supernovaPlanets: prev.supernovaPlanets.map((p) => (p.id === id ? updatedPlanet : p)),
+      };
+    });
+  }, []);
+
   // ─────────────────────────────────────────────────────────────────
   // SPACE MERCHANT helpers — burn N planets of a given type, mint a
   // freshly-crafted (non-bonus) planet on success. Bonus planets that
@@ -4418,6 +4655,7 @@ export function useGameState() {
     placeWhitePlanet, reactivateWhitePlanet, markWhitePlanetReactivated, collectWhitePlanet,
     placeEarthPlanet, reactivateEarthPlanet, markEarthPlanetReactivated, collectEarthPlanet,
     placeBlackPlanet, reactivateBlackPlanet, markBlackPlanetReactivated, collectBlackPlanet,
+    placeSupernovaPlanet, reactivateSupernovaPlanet, markSupernovaPlanetReactivated, collectSupernovaPlanet,
     burnTwoOfType, addCraftedPlanet,
     equipment: state.equipment ?? [],
     activateEquipment,

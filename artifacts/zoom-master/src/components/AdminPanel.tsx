@@ -10,6 +10,8 @@ import {
   adminUnlockEarthCollection,
   adminUnlockBlackCollection,
   adminRevokeBlackCollection,
+  adminUnlockSupernovaCollection,
+  adminRevokeSupernovaCollection,
   adminRevokeWhiteCollection,
   adminRevokeEarthCollection,
   adminGrantV1,
@@ -92,7 +94,7 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "black" | "revoke-white" | "revoke-earth" | "revoke-black" | "autotap" | "test-wd-chan" | "v1" | "v1nft" | "rec-stars" | "wh-info" | "grant-equipment" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "black" | "revoke-white" | "revoke-earth" | "revoke-black" | "autotap" | "test-wd-chan" | "v1" | "v1nft" | "rec-stars" | "wh-info" | "grant-equipment" | "supernova" | "revoke-supernova" | null>(null);
   const [eqCategory, setEqCategory] = useState<EqCategory>("HELMET");
   const [eqRarity, setEqRarity] = useState<EqRarity>("BASIC");
   const [confirmBulkNebo, setConfirmBulkNebo] = useState(false);
@@ -643,6 +645,68 @@ export function AdminPanel({ telegramId }: Props) {
                   }}
                 >
                   {loading === "black" ? "..." : "⬛ GRANT BLACK COLLECTION (4 planets)"}
+                </motion.button>
+
+                {/* Supernova Collection unlock */}
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={async () => {
+                    haptic();
+                    const id = targetId.trim() || ADMIN_ID;
+                    setLoading("supernova");
+                    const ok = await adminUnlockSupernovaCollection(telegramId, id);
+                    setLoading(null);
+                    if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+                    showFeedback(ok ? `✓ Supernova Collection unlocked for ID ${id}` : `✗ Error for ID ${id}`, ok);
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(253,224,71,0.6)",
+                    background: "rgba(255,215,0,0.14)",
+                    color: "#fde047",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "opacity 0.15s",
+                    boxShadow: "0 0 14px rgba(255,215,0,0.28)",
+                  }}
+                >
+                  {loading === "supernova" ? "..." : "🌟 GRANT SUPERNOVA COLLECTION (4 stars)"}
+                </motion.button>
+
+                {/* Revoke Supernova */}
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={async () => {
+                    haptic();
+                    const id = targetId.trim() || ADMIN_ID;
+                    if (!confirm(`Rimuovere la SUPERNOVA COLLECTION a ID ${id}?`)) return;
+                    setLoading("revoke-supernova");
+                    const ok = await adminRevokeSupernovaCollection(telegramId, id);
+                    setLoading(null);
+                    if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+                    showFeedback(ok ? `✓ Supernova Collection rimossa a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "10px 4px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(255,85,85,0.45)",
+                    background: "rgba(255,85,85,0.10)",
+                    color: "#ff7a7a",
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: "0.05em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "opacity 0.15s",
+                  }}
+                >
+                  {loading === "revoke-supernova" ? "..." : "✗ REVOKE SUPERNOVA"}
                 </motion.button>
 
                 {/* Revoke collections */}

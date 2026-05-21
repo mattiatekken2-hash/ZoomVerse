@@ -122,6 +122,11 @@ const UnlockBlackCollectionBody = z.object({
   telegramId: z.string().min(1),
 });
 
+const UnlockSupernovaCollectionBody = z.object({
+  adminId: z.string(),
+  telegramId: z.string().min(1),
+});
+
 const RevokeCollectionBody = z.object({
   adminId: z.string(),
   telegramId: z.string().min(1),
@@ -477,6 +482,56 @@ router.post("/admin/revoke-black-collection", async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error("[admin/revoke-black-collection] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/unlock-supernova-collection", async (req, res) => {
+  const parsed = UnlockSupernovaCollectionBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+
+  try {
+    await db
+      .update(usersTable)
+      .set({
+        supernovaCollectionUnlocked: true,
+        supernovaCollectionBundles: sql`${usersTable.supernovaCollectionBundles} + 1`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
+      .where(eq(usersTable.telegramId, telegramId));
+    scheduleAdminAssetSnapshot();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/unlock-supernova-collection] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/revoke-supernova-collection", async (req, res) => {
+  const parsed = RevokeCollectionBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+
+  try {
+    await db
+      .update(usersTable)
+      .set({
+        supernovaCollectionUnlocked: false,
+        supernovaCollectionBundles: 0,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
+      .where(eq(usersTable.telegramId, telegramId));
+    scheduleAdminAssetSnapshot();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/revoke-supernova-collection] error:", err);
     res.status(500).json({ error: "Database error" });
   }
 });

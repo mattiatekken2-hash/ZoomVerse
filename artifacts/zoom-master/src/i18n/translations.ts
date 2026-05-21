@@ -199,6 +199,19 @@ const en: Dict = {
   "blackColl.openAria": "Black Collection Limited",
   "blackColl.price": "Price",
 
+  // supernova collection
+  "supernovaColl.title": "Supernova Collection",
+  "supernovaColl.desc": "Unlock 4 exclusive yellow supernova stars. Yield: 1.5 TON / 30 days credited to your earned balance. Limited: 50 bundles globally.",
+  "supernovaColl.active": "● Active — Producing TON",
+  "supernovaColl.ownInfo": "You own {n} bundle ({total} stars).",
+  "supernovaColl.ownInfoPlural": "You own {n} bundles ({total} stars).",
+  "supernovaColl.tapAvatar": "Tap your avatar to place stars in slots and collect TON.",
+  "supernovaColl.limited": "Limited: {left} / {max} left",
+  "supernovaColl.buyAnother": "BUY ANOTHER (OWN {n})",
+  "supernovaColl.unlocked": "Supernova Collection unlocked!",
+  "supernovaColl.openAria": "Supernova Collection",
+  "supernovaColl.price": "Price",
+
   // white collection
   "whiteColl.title": "White Collection Limited",
   "whiteColl.desc": "Unlock 4 exclusive farm slots. Yield: {yield}. Requires SUN module.",
@@ -647,6 +660,18 @@ const it: Dict = {
   "blackColl.unlocked": "Black Collection sbloccata!",
   "blackColl.openAria": "Black Collection Limited",
   "blackColl.price": "Prezzo",
+
+  "supernovaColl.title": "Supernova Collection",
+  "supernovaColl.desc": "Sblocca 4 stelle supernova gialle esclusive. Resa: 1.5 TON / 30 giorni accreditati al tuo saldo guadagnato. Limitato: 50 bundle globalmente.",
+  "supernovaColl.active": "● Attivo — Produce TON",
+  "supernovaColl.ownInfo": "Possiedi {n} bundle ({total} stelle).",
+  "supernovaColl.ownInfoPlural": "Possiedi {n} bundle ({total} stelle).",
+  "supernovaColl.tapAvatar": "Tocca il tuo avatar per piazzare le stelle negli slot e raccogliere TON.",
+  "supernovaColl.limited": "Limitati: {left} / {max} rimasti",
+  "supernovaColl.buyAnother": "COMPRA ALTRO (POSSIEDI {n})",
+  "supernovaColl.unlocked": "Supernova Collection sbloccata!",
+  "supernovaColl.openAria": "Supernova Collection",
+  "supernovaColl.price": "Prezzo",
 
   "whiteColl.title": "White Collection Limited",
   "whiteColl.desc": "Sblocca 4 slot farm esclusivi. Resa: {yield}. Richiede modulo SUN.",
