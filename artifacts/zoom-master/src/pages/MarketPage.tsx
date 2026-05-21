@@ -2,12 +2,19 @@ import { useState, useEffect } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
-import { buyFromMarket, openMarketActivityStream } from "../utils/api";
+import { buyFromMarket, openMarketActivityStream, type ServerMarketListing } from "../utils/api";
 import { useGlobalStore, pushMarketSale, refreshMarketListings } from "../store/globalStore";
 import { PlanetFloatBar } from "../components/PlanetFloatBar";
 import { getListingDisplayFloat, FLOAT_PLANET_TYPES } from "../utils/planetFloat";
 import { getPlanetDisplayName, deterministicNameFromId } from "../utils/planetNames";
 import { useT } from "../i18n/LanguageContext";
+import {
+  EQUIPMENT_CATEGORIES,
+  EQUIPMENT_RARITY_INFO,
+  PixelEquipmentIcon,
+  type EquipmentCategory,
+  type EquipmentRarity,
+} from "../utils/equipmentConfig";
 
 
 const RARITY_FILTERS: (PlanetType | "ALL")[] = ["ALL", "BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1_NFT"];
@@ -31,11 +38,15 @@ interface MarketPageProps {
   onBuy: (listing: MarketListing) => { success: boolean; reason?: string };
   onUnlist: (id: string) => void;
   onServerBuyComplete: (planetType: PlanetType, planetRate: number, pricePaid: number, planetFloat?: number | null) => void;
+  // Equipment marketplace — buy/unlist for ServerMarketListing rows
+  // whose `kind === 'equipment'`. Wired from useGameState.
+  onBuyEquipment: (listing: ServerMarketListing) => Promise<{ success: boolean; reason?: string }>;
+  onUnlistEquipment: (equipmentId: string) => void;
 }
 
 interface Toast { text: string; ok: boolean }
 
-export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete }: MarketPageProps) {
+export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete, onBuyEquipment, onUnlistEquipment }: MarketPageProps) {
   const { t } = useT();
   const [filter, setFilter] = useState<PlanetType | "ALL">("ALL");
   // Float sort widget for the marketplace (▲ = low→high, ▼ = high→low,
@@ -83,7 +94,14 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
       planetFloat: typeof p.float === "number" ? p.float : null,
     }));
 
-  const otherListings = serverListings.filter(
+  // Equipment listings are rendered in their own section (different card
+  // shape — pixel icon, no float bar, no planet config) and so must be
+  // excluded from the planet-grid pipeline below. Legacy rows have
+  // `kind === null` and are treated as planets for backwards compat.
+  const equipmentListings = serverListings.filter((l) => l.kind === "equipment");
+  const planetServerListings = serverListings.filter((l) => l.kind !== "equipment");
+
+  const otherListings = planetServerListings.filter(
     (l) => l.sellerTelegramId !== telegramId
   );
 
@@ -97,10 +115,10 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
     })),
     ...otherListings.map((l) => ({
       id: `server-${l.id}`,
-      name: l.planetType as PlanetType,
+      name: (l.planetType ?? "BASIC") as PlanetType,
       price: l.price,
       seller: l.sellerName || `Player ${l.sellerTelegramId.slice(-4)}`,
-      rate: l.planetRate,
+      rate: l.planetRate ?? 0,
       isLocal: false as const,
       serverId: l.id,
       planetFloat: l.planetFloat ?? null,
@@ -575,7 +593,127 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
             );
           })}
 
-          {!loading && filtered.length === 0 && (
+          {/* Equipment listings — same listings tab, distinct card. The
+              filter pills above are planet-rarity only, so equipment
+              shows only when ALL is selected (otherwise the user is
+              explicitly narrowing to a planet rarity). */}
+          {filter === "ALL" && equipmentListings.length > 0 && (
+            <div className="flex flex-col gap-2 mt-2">
+              <div
+                className="text-[10px] font-black tracking-widest px-1"
+                style={{ color: "rgba(220,235,255,0.5)" }}
+              >
+                EQUIPMENT
+              </div>
+              {equipmentListings.map((l) => {
+                const cat = l.equipmentCategory as EquipmentCategory | null;
+                const rar = l.equipmentRarity as EquipmentRarity | null;
+                if (!cat || !rar || !EQUIPMENT_CATEGORIES[cat] || !EQUIPMENT_RARITY_INFO[rar]) {
+                  return null;
+                }
+                const info = EQUIPMENT_CATEGORIES[cat];
+                const r = EQUIPMENT_RARITY_INFO[rar];
+                const fee = Math.floor(l.price * 0.25);
+                const total = l.price + fee;
+                const isOwn = l.sellerTelegramId === telegramId;
+                const canBuy = !isOwn && balance >= total;
+                return (
+                  <div
+                    key={`eq-${l.id}`}
+                    className="rounded-2xl border overflow-hidden"
+                    style={{
+                      borderColor: `${r.color}33`,
+                      background: `linear-gradient(135deg, ${r.color}10 0%, rgba(6,8,16,0.65) 100%)`,
+                    }}
+                    data-testid={`eq-listing-${l.id}`}
+                  >
+                    <div className="flex items-center gap-3 px-4 py-3">
+                      <div
+                        className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{
+                          background: `radial-gradient(circle at 35% 30%, ${r.color}cc 0%, ${r.color}44 60%, rgba(6,8,16,0.9) 100%)`,
+                          boxShadow: `0 0 14px ${r.glowColor}`,
+                        }}
+                      >
+                        <PixelEquipmentIcon category={cat} color={r.color} size={32} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-black text-sm tracking-wide" style={{ color: r.color }}>
+                          {r.label} {info.label.slice(0, -1)}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span
+                            className="text-[9px] font-black px-2 py-0.5 rounded-full border"
+                            style={{
+                              color: isOwn ? "#ffd700" : "#00f2fe",
+                              borderColor: isOwn ? "rgba(255,215,0,0.25)" : "rgba(0,242,254,0.25)",
+                              background: isOwn ? "rgba(255,215,0,0.06)" : "rgba(0,242,254,0.06)",
+                            }}
+                          >
+                            {isOwn ? "👤 you" : `👤 ${l.sellerName ?? `Player ${l.sellerTelegramId.slice(-4)}`}`}
+                          </span>
+                        </div>
+                        <div className="text-xs font-bold mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>
+                          +{(l.equipmentRate ?? 0).toLocaleString()} $ZOOM/hr · 24h cycle
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                        <div className="font-black text-sm" style={{ color: r.color }}>
+                          {l.price.toLocaleString()}
+                        </div>
+                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
+                          +{fee.toLocaleString()} fee
+                        </div>
+                      </div>
+                    </div>
+                    <div className="px-4 pb-3" style={{ borderTop: `1px solid ${r.color}12` }}>
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
+                          Total: {total.toLocaleString()} $ZOOM
+                        </div>
+                        {isOwn ? (
+                          <button
+                            className="px-4 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95"
+                            style={{ borderColor: "rgba(255,215,0,0.3)", background: "rgba(255,215,0,0.07)", color: "#ffd700" }}
+                            onClick={() => {
+                              if (l.equipmentId) onUnlistEquipment(l.equipmentId);
+                            }}
+                            data-testid={`btn-eq-unlist-${l.id}`}
+                          >
+                            Delist
+                          </button>
+                        ) : (
+                          <button
+                            className="px-4 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95"
+                            disabled={!canBuy}
+                            style={{
+                              borderColor: canBuy ? "rgba(0,230,118,0.3)" : "rgba(255,255,255,0.06)",
+                              background: canBuy ? "rgba(0,230,118,0.08)" : "transparent",
+                              color: canBuy ? "#00e676" : "rgba(255,255,255,0.15)",
+                              cursor: canBuy ? "pointer" : "not-allowed",
+                            }}
+                            onClick={async () => {
+                              const res = await onBuyEquipment(l);
+                              if (res.success) {
+                                showToast(`${r.label} ${info.label.slice(0, -1)} added to your inventory!`, true);
+                              } else {
+                                showToast(res.reason ?? "Purchase failed", false);
+                              }
+                            }}
+                            data-testid={`btn-eq-buy-${l.id}`}
+                          >
+                            Buy
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {!loading && filtered.length === 0 && equipmentListings.length === 0 && (
             <div className="text-center py-10 flex flex-col items-center gap-2">
               <div style={{ fontSize: 32, opacity: 0.15 }}>◌</div>
               <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>

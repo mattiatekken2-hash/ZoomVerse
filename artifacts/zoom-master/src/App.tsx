@@ -85,6 +85,7 @@ function AppShellWithState() {
     placeEarthPlanet, reactivateEarthPlanet, markEarthPlanetReactivated, collectEarthPlanet,
     placeBlackPlanet, reactivateBlackPlanet, markBlackPlanetReactivated, collectBlackPlanet,
     burnTwoOfType, addCraftedPlanet,
+    activateEquipment, collectEquipment, burnEquipment, listEquipment, unlistEquipment, buyEquipmentFromMarket,
   } = useGameState();
 
   // Space Merchant — wire once at App level so the radar LED in LAB and the
@@ -720,6 +721,11 @@ function AppShellWithState() {
                   onSell={listPlanet}
                   onUnlist={unlistPlanet}
                   equipment={state.equipment ?? []}
+                  onActivateEquipment={activateEquipment}
+                  onCollectEquipment={collectEquipment}
+                  onBurnEquipment={burnEquipment}
+                  onSellEquipment={listEquipment}
+                  onUnlistEquipment={unlistEquipment}
                   onRename={(planetId, displayName, _newStardustBalance) => {
                     // Patch the planet in local state — the debounced
                     // /regular-planets/save will mirror it to the server.
@@ -743,6 +749,8 @@ function AppShellWithState() {
                   onBuy={buyPlanet}
                   onUnlist={unlistPlanet}
                   onServerBuyComplete={serverBuyComplete}
+                  onBuyEquipment={buyEquipmentFromMarket}
+                  onUnlistEquipment={unlistEquipment}
                 />
               )}
               {t === "earn" && (

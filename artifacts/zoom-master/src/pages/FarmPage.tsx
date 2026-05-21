@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
 import type { Planet, SunState } from "../hooks/useGameState";
 import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getSunReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration } from "../hooks/useGameState";
@@ -13,9 +13,14 @@ import { StakingWidget } from "../components/StakingWidget";
 import {
   EQUIPMENT_CATEGORIES,
   EQUIPMENT_CATEGORY_ORDER,
+  EQUIPMENT_CYCLE_MS,
   EQUIPMENT_RARITY_INFO,
   EQUIPMENT_RARITY_ORDER,
+  PixelEquipmentIcon,
+  effectiveEquipmentStart,
+  getEquipmentTimeRemaining,
   getEquipmentTotalRate,
+  isEquipmentCycleActive,
   type EquipmentCategory,
   type EquipmentItem,
 } from "../utils/equipmentConfig";
@@ -41,10 +46,16 @@ interface FarmPageProps {
   // Called after a successful rename so App can patch local state and
   // refresh the displayed stardust balance.
   onRename: (planetId: string, displayName: string, newStardustBalance: number) => void;
-  // Space equipment inventory. Always-on passive earners — each item
-  // contributes its `rate` to the live +$ZOOM/hr chip and to the offline
-  // accrual computed in settleFarmingState.
+  // Space equipment inventory. Each item runs a 24h cycle (mirrors
+  // planets): activate → earns for 24h → Reactivate. While the cycle
+  // is running, getEquipmentTotalRate(equipment, now) contributes to
+  // the live +$ZOOM/hr chip.
   equipment: EquipmentItem[];
+  onActivateEquipment: (id: string) => void;
+  onCollectEquipment: (id: string) => void;
+  onBurnEquipment: (id: string) => void;
+  onSellEquipment: (id: string, price: number) => void;
+  onUnlistEquipment: (id: string) => void;
 }
 
 /**
@@ -54,7 +65,28 @@ interface FarmPageProps {
  * Burning, selling, and listing are intentionally NOT exposed yet — the
  * inventory is read-only at this stage.
  */
-function EquipmentInventory({ equipment }: { equipment: EquipmentItem[] }) {
+function EquipmentInventory({
+  equipment,
+  onActivate,
+  onCollect,
+  onBurn,
+  onSell,
+  onUnlist,
+}: {
+  equipment: EquipmentItem[];
+  onActivate: (id: string) => void;
+  onCollect: (id: string) => void;
+  onBurn: (id: string) => void;
+  onSell: (id: string, price: number) => void;
+  onUnlist: (id: string) => void;
+}) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const [sellFor, setSellFor] = useState<{ id: string; rate: number } | null>(null);
+  const [sellPrice, setSellPrice] = useState("");
   const grouped = new Map<EquipmentCategory, EquipmentItem[]>();
   for (const cat of EQUIPMENT_CATEGORY_ORDER) grouped.set(cat, []);
   for (const item of equipment) {
@@ -113,31 +145,43 @@ function EquipmentInventory({ equipment }: { equipment: EquipmentItem[] }) {
               <div className="grid grid-cols-2 gap-2">
                 {items.map((item) => {
                   const r = EQUIPMENT_RARITY_INFO[item.rarity];
+                  const eff = effectiveEquipmentStart(item);
+                  const active = isEquipmentCycleActive(item, now);
+                  const neverStarted = eff <= 0;
+                  const expired = !active && !neverStarted;
+                  const listed = !!item.isListedInMarket;
+                  const remainingMs = active ? getEquipmentTimeRemaining(item, now) : 0;
+                  const progress = active
+                    ? Math.min(1, Math.max(0, 1 - remainingMs / EQUIPMENT_CYCLE_MS))
+                    : expired ? 1 : 0;
+                  const remainingLabel = active
+                    ? formatDuration(remainingMs)
+                    : expired ? "Expired" : "Idle";
                   return (
                     <div
                       key={item.id}
-                      className="rounded-xl p-3 border slot-enter"
+                      className="rounded-xl p-3 border slot-enter flex flex-col gap-2"
                       style={{
-                        borderColor: `${r.color}55`,
+                        borderColor: listed ? "rgba(0,242,254,0.45)" : `${r.color}55`,
                         background: `linear-gradient(135deg, ${r.color}1a 0%, rgba(6,8,16,0.6) 100%)`,
                         boxShadow: `0 0 10px ${r.color}22`,
+                        opacity: listed ? 0.85 : 1,
                         transform: "translateZ(0)",
                         contain: "layout style paint",
                       } as React.CSSProperties}
                       data-testid={`equipment-card-${item.id}`}
                     >
-                      <div className="flex items-center gap-2 mb-1.5">
+                      <div className="flex items-center gap-2">
                         <div
                           className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
                           style={{
                             background: `radial-gradient(circle at 35% 30%, ${r.color}cc 0%, ${r.color}44 60%, rgba(6,8,16,0.9) 100%)`,
                             boxShadow: `0 0 12px ${r.glowColor}`,
-                            fontSize: 18,
                           }}
                         >
-                          {info.icon}
+                          <PixelEquipmentIcon category={cat} color={r.color} size={26} />
                         </div>
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div
                             className="text-[10px] font-black tracking-widest uppercase truncate"
                             style={{ color: r.color, letterSpacing: 0.8 }}
@@ -152,12 +196,107 @@ function EquipmentInventory({ equipment }: { equipment: EquipmentItem[] }) {
                           </div>
                         </div>
                       </div>
-                      <div
-                        className="text-xs font-black neon-text"
-                        style={{ color: "#a8d8ff" }}
-                      >
+                      <div className="text-[11px] font-black" style={{ color: "#a8d8ff" }}>
                         +{item.rate.toLocaleString()}/hr
                       </div>
+                      {/* Progress bar (24h cycle) */}
+                      <div
+                        className="h-1.5 rounded-full overflow-hidden"
+                        style={{ background: "rgba(255,255,255,0.06)" }}
+                      >
+                        <div
+                          className="h-full"
+                          style={{
+                            width: `${progress * 100}%`,
+                            background: active
+                              ? `linear-gradient(90deg, ${r.color} 0%, ${r.color}aa 100%)`
+                              : expired ? "rgba(255,80,80,0.7)" : "transparent",
+                            transition: "width 0.5s linear",
+                          }}
+                        />
+                      </div>
+                      <div
+                        className="text-[9px] font-bold tracking-wider text-center"
+                        style={{ color: active ? "#00e676" : expired ? "#ff6b6b" : "rgba(255,255,255,0.4)" }}
+                      >
+                        {listed ? "LISTED" : remainingLabel}
+                      </div>
+                      {/* Action row */}
+                      {listed ? (
+                        <button
+                          onClick={() => onUnlist(item.id)}
+                          className="text-[10px] font-black tracking-wider rounded-md py-1.5"
+                          style={{
+                            background: "rgba(0,242,254,0.12)",
+                            border: "1px solid rgba(0,242,254,0.4)",
+                            color: "#00f2fe",
+                          }}
+                          data-testid={`eq-unlist-${item.id}`}
+                        >
+                          UNLIST
+                        </button>
+                      ) : active ? (
+                        <button
+                          onClick={() => onCollect(item.id)}
+                          className="text-[10px] font-black tracking-wider rounded-md py-1.5"
+                          style={{
+                            background: "rgba(0,230,118,0.14)",
+                            border: "1px solid rgba(0,230,118,0.45)",
+                            color: "#00e676",
+                          }}
+                          data-testid={`eq-collect-${item.id}`}
+                        >
+                          COLLECT
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => onActivate(item.id)}
+                          className="text-[10px] font-black tracking-wider rounded-md py-1.5"
+                          style={{
+                            background: `${r.color}22`,
+                            border: `1px solid ${r.color}77`,
+                            color: r.color,
+                          }}
+                          data-testid={`eq-activate-${item.id}`}
+                        >
+                          {expired ? "REACTIVATE" : "ACTIVATE"}
+                        </button>
+                      )}
+                      {!listed && (
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            onClick={() => {
+                              setSellFor({ id: item.id, rate: item.rate });
+                              setSellPrice(String(Math.max(100, Math.round(item.rate * 24 * 2))));
+                            }}
+                            className="text-[9px] font-black tracking-wider rounded-md py-1"
+                            style={{
+                              background: "rgba(255,215,0,0.10)",
+                              border: "1px solid rgba(255,215,0,0.35)",
+                              color: "#ffd700",
+                            }}
+                            data-testid={`eq-sell-${item.id}`}
+                          >
+                            SELL
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Burn this ${r.label} ${info.label.slice(0, -1)}? This cannot be undone.`)) {
+                                onBurn(item.id);
+                              }
+                            }}
+                            className="text-[9px] font-black tracking-wider rounded-md py-1"
+                            style={{
+                              background: "rgba(255,80,80,0.10)",
+                              border: "1px solid rgba(255,80,80,0.35)",
+                              color: "#ff6b6b",
+                            }}
+                            data-testid={`eq-burn-${item.id}`}
+                          >
+                            BURN
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -166,6 +305,73 @@ function EquipmentInventory({ equipment }: { equipment: EquipmentItem[] }) {
           </div>
         );
       })}
+      {sellFor && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 px-6"
+          style={{ background: "rgba(2,4,10,0.78)", backdropFilter: "blur(4px)" }}
+          onClick={() => setSellFor(null)}
+        >
+          <div
+            className="rounded-2xl border p-5 w-full max-w-xs flex flex-col gap-3"
+            style={{
+              background: "linear-gradient(160deg, rgba(20,24,40,0.95) 0%, rgba(8,10,20,0.95) 100%)",
+              borderColor: "rgba(255,215,0,0.35)",
+              boxShadow: "0 0 30px rgba(255,215,0,0.18)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-sm font-black tracking-wider" style={{ color: "#ffd700" }}>
+              SELL EQUIPMENT
+            </div>
+            <div className="text-[11px]" style={{ color: "rgba(255,255,255,0.6)" }}>
+              Set a $ZOOM price. The buyer will receive a fresh 24h cycle.
+            </div>
+            <input
+              type="number"
+              min={1}
+              value={sellPrice}
+              onChange={(e) => setSellPrice(e.target.value)}
+              className="rounded-md px-3 py-2 text-sm font-bold"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,215,0,0.35)",
+                color: "#ffd700",
+              }}
+              data-testid="eq-sell-input"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setSellFor(null)}
+                className="text-xs font-black tracking-wider rounded-md py-2"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  color: "rgba(255,255,255,0.6)",
+                }}
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={() => {
+                  const n = Math.floor(Number(sellPrice));
+                  if (!Number.isFinite(n) || n <= 0) return;
+                  onSell(sellFor.id, n);
+                  setSellFor(null);
+                }}
+                className="text-xs font-black tracking-wider rounded-md py-2"
+                style={{
+                  background: "rgba(255,215,0,0.18)",
+                  border: "1px solid rgba(255,215,0,0.55)",
+                  color: "#ffd700",
+                }}
+                data-testid="eq-sell-confirm"
+              >
+                LIST
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -188,7 +394,7 @@ const RARITY_CLASS: Record<string, string> = {
 };
 
 
-export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRename, equipment }: FarmPageProps) {
+export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRename, equipment, onActivateEquipment, onCollectEquipment, onBurnEquipment, onSellEquipment, onUnlistEquipment }: FarmPageProps) {
   const { t } = useT();
   const sunMultiplier = Math.max(1, sunCount || (sun?.isOwned ? 1 : 0));
   const sunDisplayRate = SUN_CONFIG.rate * sunMultiplier;
@@ -898,7 +1104,14 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
           )}
 
           {inventoryTab === "equipment" && (
-            <EquipmentInventory equipment={equipment} />
+            <EquipmentInventory
+              equipment={equipment}
+              onActivate={onActivateEquipment}
+              onCollect={onCollectEquipment}
+              onBurn={onBurnEquipment}
+              onSell={onSellEquipment}
+              onUnlist={onUnlistEquipment}
+            />
           )}
         </div>
       </div>

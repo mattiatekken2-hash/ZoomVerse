@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, type Grants, type CollectionPlanetState } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
+import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem } from "../utils/equipmentConfig";
 import { getEquipmentTotalRate } from "../utils/equipmentConfig";
 import { generateRandomFloat } from "../utils/planetFloat";
@@ -4287,7 +4288,7 @@ export function useGameState() {
     const tid = stateRef.current.telegramId;
     if (!tid) return { success: false, reason: "Not logged in" };
     if (listing.kind !== "equipment") return { success: false, reason: "Not an equipment listing" };
-    const totalCost = listing.price + Math.floor(listing.price * 0.05);
+    const totalCost = listing.price + Math.floor(listing.price * 0.25);
     if (stateRef.current.balance < totalCost) {
       return { success: false, reason: "Insufficient $ZOOM balance" };
     }
