@@ -55,7 +55,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
   const loadingLb = !initialized && leaderboard.length === 0;
 
   const seasonProgress = getSeasonProgress(currentTime, seasonStart);
-  const currentSeason = 1;
+  const currentSeason = 2;
   const isExchangeOpen = currentTime >= seasonStart + SEASON_DURATION_MS;
   const seasonProgressPercent = seasonProgress * 100;
 
@@ -131,7 +131,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
             })}
           </div>
           <div className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.2)" }}>
-            Exchange activates when Season 1 concludes
+            Exchange activates when Season 2 concludes
           </div>
         </div>
       </div>
