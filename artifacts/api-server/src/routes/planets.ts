@@ -8,7 +8,7 @@ const router: IRouter = Router();
 
 const BurnBody = z.object({
   telegramId: z.string().min(1),
-  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "GOLD"]),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD"]),
 });
 
 /**
@@ -33,6 +33,7 @@ router.post("/planets/burn", async (req, res) => {
     : planetType === "RARE" ? "bonusRare"
     : planetType === "EPIC" ? "bonusEpic"
     : planetType === "MYTHIC" ? "bonusMythic"
+    : planetType === "PLASMA" ? "bonusPlasma"
     : "bonusGold";
   try {
     await db.update(usersTable)

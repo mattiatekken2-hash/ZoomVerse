@@ -156,7 +156,7 @@ export async function settleOfflineFarming(params: {
  * with `bonus-`). Without this, the next /grants sync would re-grant the
  * same planet because the entitlement counter is still > claimed.
  */
-export function notifyPlanetBurn(telegramId: string, planetType: "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "PLASMA" | "GOLD"): void {
+export function notifyPlanetBurn(telegramId: string, planetType: "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "PLASMA" | "GOLD" | "V1" | "V1_NFT" | "SUN" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4" | "BLACK1" | "BLACK2" | "BLACK3" | "BLACK4"): void {
   if (!telegramId) return;
   fetch(`${API_BASE}/planets/burn`, {
     method: "POST",
