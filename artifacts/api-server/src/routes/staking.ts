@@ -406,7 +406,7 @@ router.get("/staking/status", async (req, res) => {
       startedAtMs: dyn[k].startedAtMs,
       accruedTon: dyn[k].accruedTon,
       isAccruing: dyn[k].isAccruing,
-      rewardTonPerMonth: dyn[k].rewardTonPerMonth,
+      rewardTonPerMonth: STAKING_REWARDS_TON_PER_MONTH[k],
       requiresSunInInventory: true,
     });
 
