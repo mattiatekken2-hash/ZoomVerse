@@ -20,7 +20,7 @@ export type StakingKind = "v1" | "sun" | "basic" | "rare" | "epic" | "mythic" | 
 export const STAKING_REWARDS_TON_PER_MONTH: Record<StakingKind, number> = {
   v1: 0.15,
   sun: 0.15,
-  plasma: 5,      // PLASMA — premium staking: 5 TON / 30 days per set of 4
+  plasma: 0.25,    // PLASMA — premium staking: 0.25 TON / 30 days per set of 4
   mythic: 0.10,
   gold: 0.07,
   epic: 0.04,
