@@ -17,7 +17,9 @@ import {
 } from "../utils/equipmentConfig";
 
 
-const RARITY_FILTERS: (PlanetType | "ALL")[] = ["ALL", "BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1_NFT"];
+type MarketFilter = PlanetType | "ALL" | "EQUIPMENT";
+const RARITY_FILTERS: MarketFilter[] = ["ALL", "EQUIPMENT", "BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1_NFT"];
+const EQUIPMENT_FILTER_COLOR = "#7fd4ff";
 
 const RARITY_COLORS: Record<string, string> = {
   BASIC: "#8892b0",
@@ -48,7 +50,7 @@ interface Toast { text: string; ok: boolean }
 
 export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete, onBuyEquipment, onUnlistEquipment }: MarketPageProps) {
   const { t } = useT();
-  const [filter, setFilter] = useState<PlanetType | "ALL">("ALL");
+  const [filter, setFilter] = useState<MarketFilter>("ALL");
   // Float sort widget for the marketplace (▲ = low→high, ▼ = high→low,
   // null = natural order). Floatable planets sort by their actual float;
   // non-floatable listings always trail the floatable ones in a stable
@@ -133,7 +135,14 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
     })),
   ];
 
-  const filteredBase = filter === "ALL" ? allDisplayListings : allDisplayListings.filter((l) => l.name === filter);
+  // When the EQUIPMENT filter is active, hide every planet listing — the
+  // user is explicitly narrowing to gear. ALL shows planets + equipment;
+  // any rarity filter shows only matching planets.
+  const filteredBase = filter === "ALL"
+    ? allDisplayListings
+    : filter === "EQUIPMENT"
+      ? []
+      : allDisplayListings.filter((l) => l.name === filter);
 
   // Apply float sort. Listings of non-floatable rarities are pushed to
   // the end (stable) so a "high float" search surfaces real candidates
@@ -356,27 +365,36 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
               maskImage: "linear-gradient(to right, #000 0, #000 calc(100% - 18px), transparent 100%)",
             }}
           >
-            {RARITY_FILTERS.map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold tracking-wider border transition-all"
-                style={{
-                  borderColor: filter === f
-                    ? (f === "ALL" ? "rgba(0,242,254,0.4)" : RARITY_COLORS[f] + "66")
-                    : "rgba(255,255,255,0.08)",
-                  background: filter === f
-                    ? (f === "ALL" ? "rgba(0,242,254,0.08)" : RARITY_COLORS[f] + "12")
-                    : "transparent",
-                  color: filter === f
-                    ? (f === "ALL" ? "#00f2fe" : RARITY_COLORS[f])
-                    : "rgba(255,255,255,0.35)",
-                }}
-                data-testid={`filter-${f.toLowerCase()}`}
-              >
-                {f === "ALL" ? "All" : f === "V1_NFT" ? "V1 NFT" : PLANET_CONFIG[f].label}
-              </button>
-            ))}
+            {RARITY_FILTERS.map((f) => {
+              const accent = f === "ALL"
+                ? "#00f2fe"
+                : f === "EQUIPMENT"
+                  ? EQUIPMENT_FILTER_COLOR
+                  : RARITY_COLORS[f] ?? "#8892b0";
+              const label = f === "ALL"
+                ? "All"
+                : f === "EQUIPMENT"
+                  ? "Equipment"
+                  : f === "V1_NFT"
+                    ? "V1 NFT"
+                    : PLANET_CONFIG[f].label;
+              const isActive = filter === f;
+              return (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-bold tracking-wider border transition-all"
+                  style={{
+                    borderColor: isActive ? accent + "66" : "rgba(255,255,255,0.08)",
+                    background: isActive ? accent + "12" : "transparent",
+                    color: isActive ? accent : "rgba(255,255,255,0.35)",
+                  }}
+                  data-testid={`filter-${f.toLowerCase()}`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
 
           <div className="flex justify-end">
@@ -593,11 +611,10 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
             );
           })}
 
-          {/* Equipment listings — same listings tab, distinct card. The
-              filter pills above are planet-rarity only, so equipment
-              shows only when ALL is selected (otherwise the user is
-              explicitly narrowing to a planet rarity). */}
-          {filter === "ALL" && equipmentListings.length > 0 && (
+          {/* Equipment listings — same listings tab, distinct card. Shown
+              when the filter is ALL (planets + equipment) or EQUIPMENT
+              (gear only). Any planet-rarity filter hides this block. */}
+          {(filter === "ALL" || filter === "EQUIPMENT") && equipmentListings.length > 0 && (
             <div className="flex flex-col gap-2 mt-2">
               <div
                 className="text-[10px] font-black tracking-widest px-1"
