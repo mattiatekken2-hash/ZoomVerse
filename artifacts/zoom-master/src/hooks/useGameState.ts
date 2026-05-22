@@ -1,8 +1,71 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
 import { refreshMarketListings } from "../store/globalStore";
-import type { EquipmentItem } from "../utils/equipmentConfig";
-import { getEquipmentTotalRate, getEquipmentReactivationFee, EQUIPMENT_CYCLE_MS } from "../utils/equipmentConfig";
+import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
+import { getEquipmentTotalRate, getEquipmentReactivationFee, EQUIPMENT_CYCLE_MS, makeEquipmentItem, getEquipmentRate, EQUIPMENT_CATEGORY_ORDER } from "../utils/equipmentConfig";
+
+// ─── LAB equipment drop tuning ───────────────────────────────────────
+// Each successful planet craft has a small chance to ALSO drop a piece
+// of space gear. Category is uniform across the 4 slots; rarity is
+// weighted so high-tier gear stays scarce. Cap: at most 2 owned per
+// (category, rarity) model — any extra roll is converted to a $ZOOM
+// bonus equal to rate × 5 so the player never feels the drop "wasted".
+const LAB_EQUIPMENT_DROP_CHANCE = 0.05;
+const LAB_EQUIPMENT_CAP_PER_MODEL = 2;
+const LAB_EQUIPMENT_RARITY_WEIGHTS: ReadonlyArray<readonly [EquipmentRarity, number]> = [
+  ["BASIC", 45],
+  ["RARE", 28],
+  ["EPIC", 18],
+  ["GOLD", 6],
+  ["PLASMA", 2.5],
+  ["MYTHIC", 0.5],
+];
+
+function rollEquipmentRarity(): EquipmentRarity {
+  const total = LAB_EQUIPMENT_RARITY_WEIGHTS.reduce((s, [, w]) => s + w, 0);
+  let r = Math.random() * total;
+  for (const [rar, w] of LAB_EQUIPMENT_RARITY_WEIGHTS) {
+    r -= w;
+    if (r <= 0) return rar;
+  }
+  return "BASIC";
+}
+
+function rollEquipmentCategory(): EquipmentCategory {
+  return EQUIPMENT_CATEGORY_ORDER[Math.floor(Math.random() * EQUIPMENT_CATEGORY_ORDER.length)]!;
+}
+
+function countOwnedModel(equipment: ReadonlyArray<EquipmentItem>, category: EquipmentCategory, rarity: EquipmentRarity): number {
+  let n = 0;
+  for (const e of equipment) {
+    if (e.category === category && e.rarity === rarity) n++;
+  }
+  return n;
+}
+
+export type EquipmentDropResult =
+  | { item: EquipmentItem; convertedToZoom?: undefined }
+  | { item?: undefined; convertedToZoom: number; category: EquipmentCategory; rarity: EquipmentRarity };
+
+// Roll an equipment drop given the current inventory snapshot.
+// - With prob LAB_EQUIPMENT_DROP_CHANCE, picks a (category, rarity).
+// - If the user already owns LAB_EQUIPMENT_CAP_PER_MODEL of that exact
+//   (category, rarity), convert the drop to a $ZOOM bonus (rate × 5)
+//   so the player still feels rewarded for the roll.
+// - Otherwise mint a new equipment item (dormant cycle).
+// Returns null when no drop happened this craft.
+function rollLabEquipmentDrop(equipment: ReadonlyArray<EquipmentItem>): EquipmentDropResult | null {
+  if (Math.random() >= LAB_EQUIPMENT_DROP_CHANCE) return null;
+  const category = rollEquipmentCategory();
+  const rarity = rollEquipmentRarity();
+  const owned = countOwnedModel(equipment, category, rarity);
+  if (owned >= LAB_EQUIPMENT_CAP_PER_MODEL) {
+    const rate = getEquipmentRate(category, rarity);
+    return { convertedToZoom: Math.max(50, Math.round(rate * 5)), category, rarity };
+  }
+  return { item: makeEquipmentItem(category, rarity) };
+}
+
 import { generateRandomFloat } from "../utils/planetFloat";
 import { toast } from "./use-toast";
 
@@ -3061,7 +3124,7 @@ export function useGameState() {
     };
   }, []);
 
-  const craft = useCallback((): { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType } => {
+  const craft = useCallback((): { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType; equipmentDrop?: EquipmentDropResult } => {
     const current = stateRef.current;
     if (current.pendingPlanet) return { completed: false };
     if (current.planets.length >= current.maxSlots) return { completed: false };
@@ -3112,25 +3175,65 @@ export function useGameState() {
       // `goal` here equals the total taps for this craft, and since each tap
       // costs 1 ZOOM (line ~2607), it equals the ZOOM spent on this forge.
       const craftCost = goal;
+      // Pre-roll OUTSIDE setState: all randomness (Math.random,
+      // makeEquipmentItem's id+timestamp) must happen exactly once per
+      // craft, even under React strict-mode dev double-invocation.
+      // The cap COMPARISON is done atomically inside the updater against
+      // `prev.equipment` so concurrent /equipment writes can't allow a
+      // 3rd item to slip in past the 2-per-model cap.
+      const willDrop = Math.random() < LAB_EQUIPMENT_DROP_CHANCE;
+      const dropCategory = willDrop ? rollEquipmentCategory() : null;
+      const dropRarity = willDrop ? rollEquipmentRarity() : null;
+      const candidateItem = (willDrop && dropCategory && dropRarity)
+        ? makeEquipmentItem(dropCategory, dropRarity)
+        : null;
+      const consolationBonus = (willDrop && dropCategory && dropRarity)
+        ? Math.max(50, Math.round(getEquipmentRate(dropCategory, dropRarity) * 5))
+        : 0;
+      let equipmentDrop: EquipmentDropResult | null = null;
       setState((prev) => {
+        let droppedItem: EquipmentItem | undefined;
+        let zoomBonus = 0;
+        if (candidateItem && dropCategory && dropRarity) {
+          const owned = countOwnedModel(prev.equipment || [], dropCategory, dropRarity);
+          if (owned >= LAB_EQUIPMENT_CAP_PER_MODEL) {
+            zoomBonus = consolationBonus;
+            equipmentDrop = { convertedToZoom: zoomBonus, category: dropCategory, rarity: dropRarity };
+          } else {
+            droppedItem = candidateItem;
+            equipmentDrop = { item: droppedItem };
+          }
+        }
         const next: GameState = {
           ...(planet.name === "GOLD"
             ? withFeedEvent(prev, `${PLAYER_NAME} just forged a GOLD planet!`)
             : prev),
-          balance: newBalance,
+          balance: newBalance + zoomBonus,
           taps: 0,
           goal: 50,
           currentCraftRarity: null,
           pendingPlanet: planet,
           pendingPlanetCost: craftCost,
           craftsCompleted: prev.craftsCompleted + 1,
+          equipment: droppedItem ? [...(prev.equipment || []), droppedItem] : (prev.equipment || []),
+          // Bump the balance epoch when a duplicate-equipment ZOOM bonus is
+          // credited so /balance/sync's CASE-branch picks up the new local
+          // value instead of overwriting it with the older server snapshot.
+          lastBalanceEpoch: zoomBonus > 0 ? (prev.lastBalanceEpoch || 0) + 1 : (prev.lastBalanceEpoch || 0),
         };
         // Persist in idle time so the tap stays at 60fps. Page-hide and unload
         // listeners flush this synchronously to guarantee durability.
         schedulePersist(next);
+        // Immediate, non-debounced save of the equipment array when a real
+        // item dropped — the 1.2s debounce can lose the drop if the user
+        // closes the app right after crafting, and on next hydration the
+        // server snapshot would silently overwrite the unsaved local item.
+        if (droppedItem && next.telegramId) {
+          void saveEquipment(next.telegramId, next.equipment ?? []);
+        }
         return next;
       });
-      return { completed: true, planet };
+      return { completed: true, planet, ...(equipmentDrop ? { equipmentDrop } : {}) };
     } else {
       setState((prev) => {
         const next: GameState = {

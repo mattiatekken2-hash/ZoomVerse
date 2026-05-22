@@ -13,8 +13,9 @@ import { LabRankWidget } from "../components/LabRankWidget";
 import { V1NftWidget } from "../components/V1NftWidget";
 import { ExchangeWidget } from "../components/ExchangeWidget";
 
-import type { Planet, PlanetType } from "../hooks/useGameState";
+import type { Planet, PlanetType, EquipmentDropResult } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
+import { EQUIPMENT_RARITY_INFO, EQUIPMENT_CATEGORIES } from "../utils/equipmentConfig";
 import { hapticLight } from "../utils/haptic";
 import { useT } from "../i18n/LanguageContext";
 
@@ -37,7 +38,7 @@ interface LabPageProps {
   sunCount: number;
   tonBalance: number;
   telegramId: string | null;
-  onCraft: () => { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType };
+  onCraft: () => { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType; equipmentDrop?: EquipmentDropResult };
   onClaim: () => void;
   onPlaceWhitePlanet: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
   onCollectWhitePlanet: (planetId: string) => void;
@@ -190,6 +191,23 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     if (result.completed && result.planet) {
       const p = result.planet;
       addFloat(`✦ ${PLANET_CONFIG[p.name].label}!`, p.color);
+    }
+    // Equipment drop — surface it as a second float so the user sees the
+    // gear (or the consolation $ZOOM bonus when they already own the cap
+    // of 2 per model). Delay slightly so it doesn't overlap the planet
+    // float vertically.
+    if (result.completed && result.equipmentDrop) {
+      const drop = result.equipmentDrop;
+      setTimeout(() => {
+        if (drop.item) {
+          const cat = EQUIPMENT_CATEGORIES[drop.item.category];
+          const rar = EQUIPMENT_RARITY_INFO[drop.item.rarity];
+          addFloat(`🛠 ${rar.label} ${cat.label.replace(/s$/, "")}!`, rar.color);
+        } else {
+          const rar = EQUIPMENT_RARITY_INFO[drop.rarity];
+          addFloat(`+${drop.convertedToZoom} $ZOOM (cap raggiunto)`, rar.color);
+        }
+      }, 220);
     }
   }, [canCraft, onCraft, addFloat]);
 
