@@ -1003,7 +1003,7 @@ export async function adminTestWithdrawalChannel(adminId: string): Promise<boole
 }
 
 // === TON Deposit via TonConnect ===
-export const DEPOSIT_MIN_TON = 10;
+export const DEPOSIT_MIN_TON = 0.25;
 
 export async function depositTonConfirm(params: {
   telegramId: string;

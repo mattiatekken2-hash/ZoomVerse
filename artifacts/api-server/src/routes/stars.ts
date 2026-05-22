@@ -1575,9 +1575,9 @@ router.get("/stars/txn/:txnId", async (req, res) => {
 
 // ---------------------------------------------------------------------------
 // TON Deposit — variable-amount credit to ton_balance via TonConnect.
-// Min deposit: 10 TON. Amount must match what is actually sent on-chain.
+// Min deposit: 0.25 TON. Amount must match what is actually sent on-chain.
 // ---------------------------------------------------------------------------
-const DEPOSIT_MIN_TON = 10;
+const DEPOSIT_MIN_TON = 0.25;
 
 async function creditDepositIfPending(txnId: number, paymentId: string, telegramId: string, amount: number): Promise<boolean> {
   let didFlip = false;

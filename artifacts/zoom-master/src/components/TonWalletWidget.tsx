@@ -2,7 +2,7 @@
  * TonWalletWidget — header pill button showing "TON + balance".
  * Tap to open a full wallet modal with:
  *   - Unified TON balance (spendable + accrued staking)
- *   - Deposit via TonConnect (min 10 TON)
+ *   - Deposit via TonConnect (min 0.25 TON)
  *   - Withdrawal (min 10 TON) — moved here from PixelAvatar
  */
 import { memo, useState, useEffect, useRef, useCallback } from "react";
