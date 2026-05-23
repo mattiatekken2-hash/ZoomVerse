@@ -124,6 +124,63 @@ export async function notifyAdminPurchase(params: {
 }
 
 /**
+ * Notify the admin on their personal bot chat when a new withdrawal
+ * request arrives. Includes inline buttons so the admin can approve
+ * or reject directly from Telegram without opening the web dashboard.
+ */
+export async function notifyAdminWithdrawalRequest(params: {
+  withdrawalId: number;
+  amountTon: number;
+  walletAddress: string;
+  telegramId: string;
+  username?: string | null;
+  firstName?: string | null;
+}): Promise<boolean> {
+  if (!BOT_TOKEN) {
+    logger.warn("[notify] BOT_TOKEN not set — skipping admin withdrawal notify");
+    return false;
+  }
+  const who = params.username
+    ? `@${params.username}`
+    : (params.firstName || params.telegramId);
+  const shortAddr = params.walletAddress.length >= 12
+    ? `${params.walletAddress.slice(0, 6)}…${params.walletAddress.slice(-4)}`
+    : params.walletAddress;
+  const text =
+    `🔴 <b>Prelievo richiesto</b>\n` +
+    `\u2003• Importo: <b>${params.amountTon.toFixed(4)} TON</b>\n` +
+    `\u2003• Wallet: <code>${shortAddr}</code>\n` +
+    `\u2003• Utente: ${who} (ID: <code>${params.telegramId}</code>)`;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: ADMIN_NOTIFY_CHAT_ID,
+        text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+        reply_markup: {
+          inline_keyboard: [[
+            { text: "✅ Approva", callback_data: `withdraw_approve:${params.withdrawalId}` },
+            { text: "❌ Rifiuta", callback_data: `withdraw_reject:${params.withdrawalId}` },
+          ]],
+        },
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      logger.warn({ status: res.status, body }, "[notify] admin withdrawal notify non-OK");
+      return false;
+    }
+    return true;
+  } catch (err) {
+    logger.warn({ err }, "[notify] admin withdrawal notify failed");
+    return false;
+  }
+}
+
+/**
  * Post a message to the withdrawals announcement chat / forum topic.
  * Used after a withdrawal is approved so the community sees the payout.
  * The bot must be a member of the chat with permission to send messages.

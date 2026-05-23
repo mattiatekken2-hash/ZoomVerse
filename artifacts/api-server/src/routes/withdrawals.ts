@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { usersTable, tonWithdrawalsTable } from "@workspace/db/schema";
 import { eq, and, desc, sql, ne, gt } from "drizzle-orm";
 import { z } from "zod";
-import { sendWithdrawalChannelMessage } from "../lib/notify";
+import { sendWithdrawalChannelMessage, notifyAdminWithdrawalRequest, sendBotMessage } from "../lib/notify";
 import { recordHistoryAsync } from "../lib/history";
 
 const router = Router();
@@ -159,6 +159,14 @@ router.post("/withdrawals/request", async (req, res) => {
         feeTon: WITHDRAWAL_FEE_TON,
         wallet,
       },
+    });
+    // Notify the admin via the personal bot chat with inline approve/reject
+    // buttons so withdrawals can be processed without opening the dashboard.
+    void notifyAdminWithdrawalRequest({
+      withdrawalId: result.withdrawal.id,
+      amountTon,
+      walletAddress: wallet,
+      telegramId,
     });
     return res.json({
       ok: true,

@@ -1,10 +1,11 @@
 import { Router, type IRouter } from "express";
 import { db, transactionsTable, usersTable } from "@workspace/db";
-import { appSettingsTable, collectionPlanetsTable } from "@workspace/db/schema";
+import { appSettingsTable, collectionPlanetsTable, tonWithdrawalsTable } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { Cell, Address } from "@ton/core";
 import { broadcastBoxOpen } from "../lib/activityBus";
-import { sendWithdrawalChannelMessage } from "../lib/notify";
+import { sendWithdrawalChannelMessage, notifyAdminWithdrawalRequest, sendBotMessage } from "../lib/notify";
+import { logger } from "../lib/logger";
 import { registerLottoTicketPurchase } from "./lottery";
 import { recordHistoryAsync } from "../lib/history";
 
@@ -1448,6 +1449,12 @@ router.post("/stars/webhook", async (req, res) => {
 
   const update = req.body as {
     pre_checkout_query?: { id: string; invoice_payload: string };
+    callback_query?: {
+      id: string;
+      data?: string;
+      from?: { id: number };
+      message?: { message_id: number };
+    };
     message?: {
       from?: { id: number; first_name?: string };
       text?: string;
@@ -1525,6 +1532,106 @@ router.post("/stars/webhook", async (req, res) => {
       });
     } catch (err) {
       console.error("[webhook] Failed to send welcome message:", err);
+    }
+  }
+
+  // --- Inline keyboard: withdrawal approve / reject ---
+  if (update.callback_query) {
+    const cq = update.callback_query;
+    const data = cq.data || "";
+    const chatId = cq.from?.id;
+    if (data.startsWith("withdraw_approve:") || data.startsWith("withdraw_reject:")) {
+      const [action, idStr] = data.split(":");
+      const withdrawalId = parseInt(idStr || "", 10);
+      if (!Number.isFinite(withdrawalId) || !chatId) {
+        res.json({ ok: true });
+        return;
+      }
+      const ADMIN_NOTIFY_CHAT_ID = process.env["ADMIN_NOTIFY_CHAT_ID"] || "8144744644";
+      if (String(chatId) !== ADMIN_NOTIFY_CHAT_ID) {
+        res.json({ ok: true });
+        return;
+      }
+      try {
+        if (action === "withdraw_approve") {
+          const [w] = await db.select().from(tonWithdrawalsTable).where(eq(tonWithdrawalsTable.id, withdrawalId)).limit(1);
+          if (!w || w.status !== "pending") {
+            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ callback_query_id: cq.id, text: "Già processata o non trovata" }),
+            });
+            res.json({ ok: true });
+            return;
+          }
+          await db.update(tonWithdrawalsTable)
+            .set({ status: "paid", txHash: "pending", processedAt: new Date(), processedBy: String(chatId) })
+            .where(and(eq(tonWithdrawalsTable.id, withdrawalId), eq(tonWithdrawalsTable.status, "pending")));
+          void sendBotMessage(w.telegramId,
+            `✅ <b>Prelievo approvato!</b>\n` +
+            `Importo: ${Number(w.amountTon).toFixed(4)} TON\n` +
+            `Verrà inviato a breve al tuo wallet.`);
+          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ callback_query_id: cq.id, text: "Approvato ✅" }),
+          });
+          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageReplyMarkup`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: chatId,
+              message_id: cq.message?.message_id,
+              reply_markup: { inline_keyboard: [[{ text: "✅ Approvato", callback_data: "done" }]] },
+            }),
+          });
+        } else {
+          const [w] = await db.select().from(tonWithdrawalsTable).where(eq(tonWithdrawalsTable.id, withdrawalId)).limit(1);
+          if (!w || w.status !== "pending") {
+            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ callback_query_id: cq.id, text: "Già processata o non trovata" }),
+            });
+            res.json({ ok: true });
+            return;
+          }
+          const refund = Number(w.amountTon) + Number(w.feeTon ?? 0);
+          await db.transaction(async (tx) => {
+            await tx.update(tonWithdrawalsTable)
+              .set({ status: "rejected", processedAt: new Date(), processedBy: String(chatId) })
+              .where(and(eq(tonWithdrawalsTable.id, withdrawalId), eq(tonWithdrawalsTable.status, "pending")));
+            await tx.update(usersTable)
+              .set({
+                tonBalance: sql`${usersTable.tonBalance} + ${refund}`,
+                balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+              })
+              .where(eq(usersTable.telegramId, w.telegramId));
+          });
+          void sendBotMessage(w.telegramId,
+            `❌ <b>Prelievo rifiutato</b>\n` +
+            `Importo: ${Number(w.amountTon).toFixed(4)} TON\n` +
+            `I fondi sono stati riaccreditati sul tuo saldo.`);
+          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ callback_query_id: cq.id, text: "Rifiutato ❌" }),
+          });
+          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageReplyMarkup`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: chatId,
+              message_id: cq.message?.message_id,
+              reply_markup: { inline_keyboard: [[{ text: "❌ Rifiutato", callback_data: "done" }]] },
+            }),
+          });
+        }
+      } catch (err) {
+        logger.error({ err, action, withdrawalId }, "[webhook] inline withdrawal action failed");
+      }
+      res.json({ ok: true });
+      return;
     }
   }
 
