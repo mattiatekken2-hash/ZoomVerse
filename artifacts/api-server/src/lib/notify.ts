@@ -143,13 +143,10 @@ export async function notifyAdminWithdrawalRequest(params: {
   const who = params.username
     ? `@${params.username}`
     : (params.firstName || params.telegramId);
-  const shortAddr = params.walletAddress.length >= 12
-    ? `${params.walletAddress.slice(0, 6)}…${params.walletAddress.slice(-4)}`
-    : params.walletAddress;
   const text =
     `🔴 <b>Prelievo richiesto</b>\n` +
     `\u2003• Importo: <b>${params.amountTon.toFixed(4)} TON</b>\n` +
-    `\u2003• Wallet: <code>${shortAddr}</code>\n` +
+    `\u2003• Wallet: <code>${params.walletAddress}</code>\n` +
     `\u2003• Utente: ${who} (ID: <code>${params.telegramId}</code>)`;
   try {
     const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
