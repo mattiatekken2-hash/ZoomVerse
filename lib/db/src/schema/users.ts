@@ -392,7 +392,7 @@ export const marketListingsTable = pgTable("market_listings", {
   // notNull for kind='planet' at the application layer.
   planetType: text("planet_type"),
   planetRate: integer("planet_rate"),
-  price: integer("price").notNull(),
+  price: real("price").notNull(),
   status: text("status").notNull().default("active"),
   buyerTelegramId: text("buyer_telegram_id"),
   // Equipment snapshot. Anchored to a specific item in the seller's

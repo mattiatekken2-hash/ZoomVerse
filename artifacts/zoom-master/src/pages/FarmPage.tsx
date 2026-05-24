@@ -477,7 +477,8 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
     // legacy rarity that lands in `planets` (rendered through the
     // FarmPage fallback group) cannot crash the sell popup.
     const cfg = PLANET_CONFIG[planet.name];
-    const suggested = Math.floor(planet.craftCost * 2.5);
+    // Suggested price in TON: cap between 0.25 and 10.0
+    const suggested = Math.min(10.0, Math.max(0.25, +(planet.craftCost * 0.01).toFixed(2)));
     setSellPopup({ planetId: planet.id, planetName: cfg?.label ?? planet.name, planetColor: planet.color });
     setSellPrice(String(suggested));
     setTimeout(() => inputRef.current?.focus(), 100);
@@ -485,8 +486,14 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
 
   const confirmSell = () => {
     if (!sellPopup) return;
-    const price = parseInt(sellPrice, 10);
+    const price = parseFloat(sellPrice);
     if (!price || price <= 0) return;
+    // Price cap enforcement client-side: 0.25 – 10.0 TON
+    if (price < 0.25 || price > 10.0) {
+      setDefectMsg("Prezzo deve essere tra 0.25 e 10 TON");
+      setTimeout(() => setDefectMsg(null), 3000);
+      return;
+    }
     onSell(sellPopup.planetId, price);
     setSellPopup(null);
     setSellPrice("");
@@ -1071,19 +1078,6 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                       <span>{t("farm.listed")}</span>
                       <span style={{ fontSize: 8, opacity: 0.7 }}>{t("farm.delist")}</span>
                     </button>
-                  ) : planet.name === "V1" ? (
-                    // V1 is bound to its owner — cannot be listed on the
-                    // market. Render a disabled badge instead of the SELL
-                    // button so the slot still shows an action affordance.
-                    <button
-                      className="btn-widget btn-glass-sell"
-                      disabled
-                      style={{ opacity: 0.5, cursor: "not-allowed" }}
-                      data-testid={`btn-sell-${planet.id}`}
-                    >
-                      <span>SOULBOUND</span>
-                      <span style={{ fontSize: 8, opacity: 0.7 }}>{t("farm.cannotSell")}</span>
-                    </button>
                   ) : (
                     <button
                       className="btn-widget btn-glass-sell"
@@ -1166,27 +1160,29 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
               </div>
             </div>
             <div className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
-              Set your asking price in $ZOOM. A 25% marketplace fee applies on sale.
+              Prezzo in TON (min 0.25 – max 10). Commissione 10% inclusa.
             </div>
             <div className="relative mb-2">
               <input
                 ref={inputRef}
                 type="number"
-                min={1}
+                min={0.25}
+                max={10.0}
+                step={0.01}
                 value={sellPrice}
                 onChange={(e) => setSellPrice(e.target.value)}
                 className="w-full rounded-xl px-4 py-4 text-xl font-black pr-20 outline-none"
                 style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${sellPopup.planetColor}44`, color: "white", caretColor: sellPopup.planetColor }}
                 placeholder={t("farm.enterPrice")}
-                inputMode="numeric"
+                inputMode="decimal"
               />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "rgba(255,255,255,0.35)" }}>
-                $ZOOM
+                TON
               </span>
             </div>
-            {sellPrice && parseInt(sellPrice) > 0 && (
+            {sellPrice && parseFloat(sellPrice) > 0 && (
               <div className="text-xs mb-4 px-1" style={{ color: "rgba(255,255,255,0.35)" }}>
-                Buyer pays {Math.floor(parseInt(sellPrice) * 1.25).toLocaleString()} $ZOOM total · You receive {parseInt(sellPrice).toLocaleString()}
+                Ricevi ~{((parseFloat(sellPrice) || 0) * 0.9).toFixed(3)} TON netto
               </div>
             )}
             <div className="flex gap-3 mt-4">
@@ -1199,16 +1195,16 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
               </button>
               <button
                 className="flex-1 py-3.5 rounded-xl font-black text-sm transition-all active:scale-95"
-                disabled={!sellPrice || parseInt(sellPrice) <= 0}
+                disabled={!sellPrice || parseFloat(sellPrice) <= 0}
                 style={{
-                  background: (!sellPrice || parseInt(sellPrice) <= 0) ? "rgba(255,255,255,0.05)" : `linear-gradient(135deg, ${sellPopup.planetColor}cc, ${sellPopup.planetColor}88)`,
-                  color: (!sellPrice || parseInt(sellPrice) <= 0) ? "rgba(255,255,255,0.2)" : "#060810",
-                  boxShadow: (!sellPrice || parseInt(sellPrice) <= 0) ? "none" : `0 0 20px ${sellPopup.planetColor}40`,
+                  background: (!sellPrice || parseFloat(sellPrice) <= 0) ? "rgba(255,255,255,0.05)" : `linear-gradient(135deg, ${sellPopup.planetColor}cc, ${sellPopup.planetColor}88)`,
+                  color: (!sellPrice || parseFloat(sellPrice) <= 0) ? "rgba(255,255,255,0.2)" : "#060810",
+                  boxShadow: (!sellPrice || parseFloat(sellPrice) <= 0) ? "none" : `0 0 20px ${sellPopup.planetColor}40`,
                 }}
                 onClick={confirmSell}
                 data-testid="btn-confirm-sell"
               >
-                List for {sellPrice ? parseInt(sellPrice).toLocaleString() : "—"} $ZOOM
+                List for {sellPrice ? parseFloat(sellPrice).toFixed(3) : "—"} TON
               </button>
             </div>
           </div>

@@ -756,7 +756,7 @@ function AppShellWithState() {
               )}
               {t === "market" && (
                 <MarketPage
-                  balance={state.balance}
+                  depositBalance={state.depositBalance || 0}
                   myListings={state.planets}
                   maxSlots={state.maxSlots}
                   telegramId={state.telegramId}

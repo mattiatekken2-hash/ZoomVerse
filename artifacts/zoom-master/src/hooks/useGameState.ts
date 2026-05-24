@@ -3657,9 +3657,8 @@ export function useGameState() {
     setState((prev) => {
       const planet = prev.planets.find((p) => p.id === id);
       if (!planet) return prev;
-      // V1 is soulbound — guard here too in case any caller bypasses the
-      // disabled UI button (e.g. an old client cached in Telegram WebView).
-      if (planet.name === "V1") return prev;
+      // Tutte le rarità sono tradeabili sul marketplace globale P2P in TON,
+      // incluso V1 (precedentemente soulbound, ora abilitato).
       // Capture the pre-optimistic state BEFORE the .then closure runs
       // so the rejection rollback can restore the exact prior values
       // instead of inferring from `pausedAt`. Inferring is wrong when
@@ -3766,10 +3765,9 @@ export function useGameState() {
     if (current.planets.length >= current.maxSlots) {
       return { success: false, reason: "No free slots available" };
     }
-    const fee = Math.floor(listing.price * 0.25);
-    const total = listing.price + fee;
-    if (current.balance < total) {
-      return { success: false, reason: "Insufficient $ZOOM balance" };
+    // Marketplace globale P2P in TON: debit from depositBalance, no fee.
+    if (current.depositBalance < listing.price) {
+      return { success: false, reason: "TON deposit insufficient" };
     }
     const isOwnListing = current.planets.some(p => p.id === listing.id && p.isListedInMarket);
     if (isOwnListing) {
@@ -3804,7 +3802,7 @@ export function useGameState() {
     setState((prev) => {
       const updated = {
         ...prev,
-        balance: prev.balance - total,
+        depositBalance: +(prev.depositBalance - listing.price).toFixed(6),
         planets: [...prev.planets, newPlanet],
       };
       stateRef.current = updated;
@@ -3842,7 +3840,7 @@ export function useGameState() {
     setState((prev) => {
       const updated = {
         ...prev,
-        balance: prev.balance - pricePaid,
+        depositBalance: +(prev.depositBalance - pricePaid).toFixed(6),
         planets: [...prev.planets, newPlanet],
       };
       stateRef.current = updated;

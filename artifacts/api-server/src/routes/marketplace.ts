@@ -74,7 +74,10 @@ router.get("/market/activity/stream", (req, res) => {
   });
 });
 
-const MARKETPLACE_FEE = 0.25;
+// Price is in TON (supports decimals), capped between 0.25 and 10.0
+// per the Global P2P Marketplace rules.
+const TON_MIN = 0.25;
+const TON_MAX = 10.0;
 
 const ListBody = z.object({
   sellerTelegramId: z.string().min(1),
@@ -82,14 +85,13 @@ const ListBody = z.object({
   // Required: anchors the listing to a specific planet in the seller's
   // inventory. Without this we have no way to verify ownership.
   planetId: z.string().min(1).max(128),
-  // V1_NFT è incluso: il pianeta NFT esclusivo (20 TON, max 5 globali)
-  // è tradabile sul marketplace come secondario. Trasferimento diretto via
-  // planets_json: il counter `bonusV1NftPlatinum` non viene toccato (la cap
-  // globale di 5 resta intatta perché il SUM non cambia col trade).
-  // V1 invece resta soulbound (gate lato client in useGameState.listPlanet).
-  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1_NFT"]),
+  // Tutte le rarità di pianeti sono tradeabili sul marketplace globale P2P
+  // in TON: Basic, Rare, Epic, Mythic, Plasma, Gold, V1, V1_NFT.
+  // V1_NFT è l'esclusivo NFT (20 TON, max 5 globali) tradabile secondario.
+  // V1 era precedentemente soulbound — ora è tradeable.
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1", "V1_NFT"]),
   planetRate: z.number().int().positive(),
-  price: z.number().int().positive(),
+  price: z.number().positive(),
 });
 
 /**
@@ -131,6 +133,12 @@ router.post("/market/list", async (req, res) => {
   }
 
   const { sellerTelegramId, sellerName, planetId, planetType, planetRate, price } = parsed.data;
+
+  // Price cap: 0.25 – 10.0 TON per any planet
+  if (price < TON_MIN || price > TON_MAX) {
+    res.status(400).json({ error: `Prezzo deve essere tra ${TON_MIN} e ${TON_MAX} TON` });
+    return;
+  }
 
   // Block disabled accounts from creating new listings. Cheap pre-check
   // outside the transaction; the buy-side check is the authoritative
@@ -314,7 +322,7 @@ const ListEquipmentBody = z.object({
   sellerTelegramId: z.string().min(1),
   sellerName: z.string().optional(),
   equipmentId: z.string().min(1).max(128),
-  price: z.number().int().positive(),
+  price: z.number().positive(),
 });
 
 router.post("/market/list-equipment", async (req, res) => {
@@ -568,8 +576,9 @@ router.post("/market/buy", async (req, res) => {
       return;
     }
 
-    const fee = Math.floor(listing.price * MARKETPLACE_FEE);
-    const totalCost = listing.price + fee;
+    // Split: 90% to seller earned balance, 10% admin commission.
+    const sellerShare = +((listing.price as number) * 0.9).toFixed(6);
+    const adminShare = +((listing.price as number) * 0.1).toFixed(6);
 
     const updated = await txDb.update(marketListingsTable)
       .set({ status: "sold", buyerTelegramId, soldAt: new Date() })
@@ -582,55 +591,32 @@ router.post("/market/buy", async (req, res) => {
       return;
     }
 
-    // Atomic, race-safe debit (compare-and-swap in a single statement).
-    //
-    // The previous SELECT-balance-then-UPDATE pattern allowed two
-    // concurrent /market/buy calls from the same buyer to both pass the
-    // check and both deduct, driving the balance negative. Because ZOOM
-    // converts to TON in the withdrawal flow, a negative-balance buyer
-    // who later receives a referral bonus / sale payout would see it
-    // silently burned, but a buyer who just kept buying could effectively
-    // double-spend across listings — a real-money loss path.
-    //
-    // The fix: do the debit in one UPDATE with a balance-fence in the
-    // WHERE clause, then check `RETURNING` row count. Zero rows means
-    // either the user doesn't exist or their balance was below totalCost
-    // at the instant of the UPDATE — Postgres guarantees serializability
-    // on this row-level write so two concurrent buys cannot both succeed
-    // when only one is affordable.
-    // Debit fences on BOTH balance >= cost AND is_disabled = false so a
-    // freeze that races past the row lock above still aborts the buy.
+    // Atomic, race-safe debit from buyer's deposit_balance.
+    // depositBalance is one-way (external deposits only), so a negative
+    // balance here is a real-money loss path.
     const debited = await txDb.update(usersTable)
       .set({
-        zoomBalance: sql`${usersTable.zoomBalance} - ${totalCost}`,
-        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+        depositBalance: sql`${usersTable.depositBalance} - ${listing.price}`,
       })
       .where(and(
         eq(usersTable.telegramId, buyerTelegramId),
-        sql`${usersTable.zoomBalance} >= ${totalCost}`,
+        sql`${usersTable.depositBalance} >= ${listing.price}`,
         sql`${usersTable.isDisabled} = false`,
       ))
       .returning({ id: usersTable.telegramId });
 
     if (debited.length === 0) {
       await client.query("ROLLBACK");
-      res.status(400).json({ error: "Insufficient balance or account disabled" });
+      res.status(400).json({ error: "TON deposit insufficient or account disabled" });
       return;
     }
 
-    // Credit also fences on is_disabled = false on the seller side.
-    //
-    // IMPORTANT: we write to `pending_zoom_credits` (NOT directly to
-    // `zoom_balance` + epoch bump). The next /balance/sync from the
-    // seller atomically consumes pending_zoom_credits and adds it on top
-    // of the post-CASE balance (see leaderboard.ts /balance/sync), which
-    // is the race-free way to credit a player who may be actively
-    // playing — directly bumping zoom_balance + epoch is silently
-    // overwritten by the next sync's ELSE-GREATEST branch when the
-    // seller's local balance has grown past the credited value.
+    // Credit seller's earned balance (tonBalance) directly.
+    // Unlike ZOOM, tonBalance is NOT reconciled via epoch/balanceEpoch
+    // so a direct UPDATE is race-safe under our row lock.
     const credited = await txDb.update(usersTable)
       .set({
-        pendingZoomCredits: sql`${usersTable.pendingZoomCredits} + ${listing.price}`,
+        tonBalance: sql`${usersTable.tonBalance} + ${sellerShare}`,
       })
       .where(and(
         eq(usersTable.telegramId, listing.sellerTelegramId),
@@ -642,6 +628,15 @@ router.post("/market/buy", async (req, res) => {
       res.status(403).json({ error: "Seller account disabled" });
       return;
     }
+
+    // Credit 10% commission to admin personal wallet.
+    const ADMIN_ID = "8144744644";
+    await client.query(
+      `UPDATE users
+       SET ton_balance = ton_balance + $1
+       WHERE telegram_id = $2 AND is_disabled = false`,
+      [adminShare, ADMIN_ID],
+    );
 
     // Surgically remove the sold planet from the seller's planets_json
     // so their UI no longer shows it on the next refresh. Best-effort
@@ -745,27 +740,29 @@ router.post("/market/buy", async (req, res) => {
     bumpZoomPriceFireAndForget("market_buy", buyerTelegramId);
 
     // Cronologia personale per entrambe le parti — fire-and-forget.
+    // Ora la valuta è TON (non ZOOM).
     recordHistoryAsync({
       telegramId: buyerTelegramId,
       kind: "market_buy",
-      delta: -totalCost,
-      currency: "zoom",
+      delta: -(listing.price as number),
+      currency: "ton",
       meta: {
         listingId: listing.id,
         planetType: listing.planetType,
         price: listing.price,
-        fee,
       },
     });
     recordHistoryAsync({
       telegramId: listing.sellerTelegramId,
       kind: "market_sale",
-      delta: listing.price,
-      currency: "zoom",
+      delta: sellerShare,
+      currency: "ton",
       meta: {
         listingId: listing.id,
         planetType: listing.planetType,
         price: listing.price,
+        sellerShare,
+        adminShare,
       },
     });
 
@@ -792,8 +789,8 @@ router.post("/market/buy", async (req, res) => {
       equipmentCategory: listing.equipmentCategory,
       equipmentRarity: listing.equipmentRarity,
       equipmentRate: listing.equipmentRate,
-      pricePaid: totalCost,
-      sellerReceived: listing.price,
+      pricePaid: listing.price,
+      sellerReceived: sellerShare,
       planetFloat: buyerFloat,
     });
   } catch (err) {

@@ -18,7 +18,7 @@ import {
 
 
 type MarketFilter = PlanetType | "ALL" | "EQUIPMENT";
-const RARITY_FILTERS: MarketFilter[] = ["ALL", "EQUIPMENT", "BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1_NFT"];
+const RARITY_FILTERS: MarketFilter[] = ["ALL", "EQUIPMENT", "BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1", "V1_NFT"];
 const EQUIPMENT_FILTER_COLOR = "#7fd4ff";
 
 const RARITY_COLORS: Record<string, string> = {
@@ -33,7 +33,7 @@ const RARITY_COLORS: Record<string, string> = {
 };
 
 interface MarketPageProps {
-  balance: number;
+  depositBalance: number;
   myListings: Planet[];
   maxSlots: number;
   telegramId: string | null;
@@ -48,7 +48,7 @@ interface MarketPageProps {
 
 interface Toast { text: string; ok: boolean }
 
-export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete, onBuyEquipment, onUnlistEquipment }: MarketPageProps) {
+export function MarketPage({ depositBalance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete, onBuyEquipment, onUnlistEquipment }: MarketPageProps) {
   const { t } = useT();
   const [filter, setFilter] = useState<MarketFilter>("ALL");
   // Float sort widget for the marketplace (▲ = low→high, ▼ = high→low,
@@ -174,10 +174,9 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
 
   const handleBuyServer = async (serverId: number, planetType: PlanetType, planetRate: number, price: number, planetFloat: number | null) => {
     if (!telegramId) return;
-    const fee = Math.floor(price * 0.25);
-    const total = price + fee;
-    if (balance < total) {
-      showToast("Insufficient $ZOOM balance", false);
+    // P2P TON marketplace: buyer pays exact listing price from depositBalance.
+    if (depositBalance < price) {
+      showToast("TON deposit insufficient", false);
       return;
     }
     // Listed planets still occupy a slot (they remain in the farm grid as
@@ -194,7 +193,7 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
       // the listing carried); fall back to the listing snapshot we
       // sent in (matches the marketplace card the buyer just clicked).
       const finalFloat = typeof result.planetFloat === "number" ? result.planetFloat : planetFloat;
-      onServerBuyComplete(planetType, planetRate, total, finalFloat);
+      onServerBuyComplete(planetType, planetRate, price, finalFloat);
       void refreshMarketListings();
       showToast(`${PLANET_CONFIG[planetType].label} planet added to your farm!`, true);
     } else {
@@ -216,7 +215,7 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
       <div className="px-5 pt-4 pb-2 flex-shrink-0">
         <h2 className="font-black text-lg tracking-tight">{t("market.title")}</h2>
         <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-          25% $ZOOM fee · P2P trading · {filtered.length} listings
+          P2P TON trading · {filtered.length} listings · Min 0.25 – Max 10 TON
         </p>
         <div className="flex gap-2 mt-3">
           <button
@@ -476,10 +475,9 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
               marketPrice: listing.price,
             } as Planet;
 
-            const fee = Math.floor(listing.price * 0.25);
-            const total = listing.price + fee;
             const isOwn = listing.isLocal;
-            const canBuy = !isOwn && balance >= total && myListings.filter((p) => !p.isListedInMarket).length < maxSlots;
+            // P2P TON marketplace: buyer pays exact listing price from depositBalance
+            const canBuy = !isOwn && depositBalance >= listing.price && myListings.filter((p) => !p.isListedInMarket).length < maxSlots;
             const isPlatinumNft = listing.name === "V1_NFT";
             const listingFloat = FLOAT_PLANET_TYPES.has(listing.name)
               ? getListingDisplayFloat({ id: listing.serverId ?? listing.id, planetFloat: listing.planetFloat })
@@ -562,17 +560,14 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
                   </div>
                   <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                     <div className="font-black text-sm" style={{ color: rarityColor }}>
-                      {listing.price.toLocaleString()}
-                    </div>
-                    <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
-                      +{fee.toLocaleString()} fee
+                      {listing.price.toLocaleString()} TON
                     </div>
                   </div>
                 </div>
                 <div className="px-4 pb-3" style={{ borderTop: `1px solid ${rarityColor}12` }}>
                   <div className="flex items-center justify-between">
                     <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
-                      Total: {total.toLocaleString()} $ZOOM
+                      P2P TON
                     </div>
                     {isOwn ? (
                       <button
@@ -630,10 +625,8 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
                 }
                 const info = EQUIPMENT_CATEGORIES[cat];
                 const r = EQUIPMENT_RARITY_INFO[rar];
-                const fee = Math.floor(l.price * 0.25);
-                const total = l.price + fee;
                 const isOwn = l.sellerTelegramId === telegramId;
-                const canBuy = !isOwn && balance >= total;
+                const canBuy = !isOwn && depositBalance >= l.price;
                 return (
                   <div
                     key={`eq-${l.id}`}
@@ -676,17 +669,14 @@ export function MarketPage({ balance, myListings, maxSlots, telegramId, onBuy, o
                       </div>
                       <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                         <div className="font-black text-sm" style={{ color: r.color }}>
-                          {l.price.toLocaleString()}
-                        </div>
-                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.25)" }}>
-                          +{fee.toLocaleString()} fee
+                          {l.price.toLocaleString()} TON
                         </div>
                       </div>
                     </div>
                     <div className="px-4 pb-3" style={{ borderTop: `1px solid ${r.color}12` }}>
                       <div className="flex items-center justify-between">
                         <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
-                          Total: {total.toLocaleString()} $ZOOM
+                          P2P TON
                         </div>
                         {isOwn ? (
                           <button
