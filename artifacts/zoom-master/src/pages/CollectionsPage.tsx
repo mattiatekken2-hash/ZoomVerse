@@ -260,7 +260,7 @@ export function CollectionsPage({
           className="font-black text-lg tracking-widest"
           style={{ color: "#00f2fe", textShadow: "0 0 12px rgba(0,242,254,0.6)" }}
         >
-          {t("collections.title")}
+          {t("bundles.title")}
         </div>
       </div>
       <div className="flex flex-col gap-4 pb-20">

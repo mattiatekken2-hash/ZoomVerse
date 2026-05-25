@@ -20,8 +20,8 @@ const en: Dict = {
   "nav.earn": "EARN",
   "nav.rank": "RANK",
   "nav.shop": "SHOP",
-  "nav.collections": "COLLECTIONS",
-  "collections.title": "COLLECTIONS",
+  "nav.bundles": "BUNDLES",
+  "bundles.title": "BUNDLES",
 
   // header
   "header.perHour": "/hr",

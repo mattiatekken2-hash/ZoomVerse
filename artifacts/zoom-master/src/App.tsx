@@ -38,7 +38,7 @@ const NAV: { id: Tab; labelKey: string; icon: React.ElementType }[] = [
   { id: "wheel", labelKey: "nav.wheel", icon: CircleDot },
   { id: "earn", labelKey: "nav.earn", icon: Gem },
   { id: "rank", labelKey: "nav.rank", icon: Trophy },
-  { id: "collections", labelKey: "nav.collections", icon: Layers },
+  { id: "collections", labelKey: "nav.bundles", icon: Layers },
 ];
 
 const ALL_TABS: Tab[] = ["lab", "home", "farm", "market", "earn", "wheel", "rank", "shop", "collections"];
