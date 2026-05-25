@@ -387,10 +387,15 @@ router.post("/wheel/spin/claim", async (req, res) => {
           prize.planetType === "BASIC" ? "bonusBasic" :
           prize.planetType === "RARE"  ? "bonusRare"  :
                                          "bonusEpic";
+        const obtainedCol =
+          prize.planetType === "BASIC" ? "totalObtainedBasic"
+          : prize.planetType === "RARE" ? "totalObtainedRare"
+          : "totalObtainedEpic";
         await tx
           .update(usersTable)
           .set({
             [col]: sql`${usersTable[col as keyof typeof usersTable.$inferSelect] as never} + 1`,
+            [obtainedCol]: sql`${usersTable[obtainedCol as keyof typeof usersTable.$inferSelect] as never} + 1`,
             pendingWheelClaim: null,
           })
           .where(eq(usersTable.telegramId, telegramId));

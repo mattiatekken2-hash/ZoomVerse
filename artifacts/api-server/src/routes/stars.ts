@@ -316,8 +316,15 @@ async function applyMysteryAward(award: MysteryAward, telegramId: string): Promi
     : award === "rare" ? "bonusRare"
     : award === "epic" ? "bonusEpic"
     : "bonusGold";
+  const obtainedCol = award === "basic" ? "totalObtainedBasic"
+    : award === "rare" ? "totalObtainedRare"
+    : award === "epic" ? "totalObtainedEpic"
+    : "totalObtainedGold";
   await db.update(usersTable)
-    .set({ [col]: sql`${usersTable[col as "bonusBasic"]} + 1` })
+    .set({
+      [col]: sql`${usersTable[col as "bonusBasic"]} + 1`,
+      [obtainedCol]: sql`${usersTable[obtainedCol as "totalObtainedBasic"]} + 1`,
+    })
     .where(eq(usersTable.telegramId, telegramId));
 }
 
@@ -416,8 +423,15 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string,
         : award === "rare" ? "bonusRare"
         : award === "epic" ? "bonusEpic"
         : "bonusGold";
+      const obtainedCol = award === "basic" ? "totalObtainedBasic"
+        : award === "rare" ? "totalObtainedRare"
+        : award === "epic" ? "totalObtainedEpic"
+        : "totalObtainedGold";
       await tx.update(usersTable)
-        .set({ [col]: sql`${usersTable[col as "bonusBasic"]} + 1` })
+        .set({
+          [col]: sql`${usersTable[col as "bonusBasic"]} + 1`,
+          [obtainedCol]: sql`${usersTable[obtainedCol as keyof typeof usersTable.$inferSelect] as never} + 1`,
+        })
         .where(eq(usersTable.telegramId, telegramId));
     }
     return { award };
@@ -433,8 +447,14 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string,
     const planetType = item.id === "starter_pack" ? "bonusBasic"
       : item.id === "explorer_pack" ? "bonusRare"
       : "bonusEpic";
+    const obtainedCol = item.id === "starter_pack" ? "totalObtainedBasic"
+      : item.id === "explorer_pack" ? "totalObtainedRare"
+      : "totalObtainedEpic";
     await tx.update(usersTable)
-      .set({ [planetType]: sql`${usersTable[planetType]} + 1` })
+      .set({
+        [planetType]: sql`${usersTable[planetType]} + 1`,
+        [obtainedCol]: sql`${usersTable[obtainedCol as keyof typeof usersTable.$inferSelect] as never} + 1`,
+      })
       .where(eq(usersTable.telegramId, telegramId));
   } else if (item.itemType === "sun") {
     const result = await tx.execute(sql`

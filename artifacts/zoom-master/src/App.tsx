@@ -17,7 +17,7 @@ import { AdminPanel } from "./components/AdminPanel";
 import { SettingsMenu } from "./components/SettingsMenu";
 import { LanguageProvider, useT } from "./i18n/LanguageContext";
 import HistoryModal from "./components/HistoryModal";
-import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, type StardustLeaderboardEntry } from "./utils/api";
+import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, recordObtained, type StardustLeaderboardEntry } from "./utils/api";
 import { useStardust } from "./hooks/useStardust";
 import { useMerchant } from "./hooks/useMerchant";
 import { MerchantPopup } from "./components/MerchantPopup";
@@ -978,6 +978,7 @@ function AppShellWithState() {
           onFuse={merchant.fuse}
           burnTwoOfType={burnTwoOfType}
           addCraftedPlanet={addCraftedPlanet}
+          onRecordObtained={(type) => { void recordObtained(state.telegramId || "", type); }}
           onClose={merchant.dismissLocally}
         />
       )}

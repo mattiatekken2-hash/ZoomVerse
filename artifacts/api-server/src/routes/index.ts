@@ -28,6 +28,7 @@ import homeRouter from "./home";
 import chatRouter from "./chat";
 import roomInvitesRouter from "./roomInvites";
 import redeemCodesRouter from "./redeemCodes";
+import obtainedRouter from "./obtained";
 import economyRouter from "./economy";
 import stakingRouter from "./staking";
 import labRankingRouter from "./labRanking";
@@ -278,6 +279,7 @@ router.use(roomInvitesRouter);
 router.use(redeemCodesRouter);
 router.use(economyRouter);
 router.use(stakingRouter);
+router.use(obtainedRouter);
 router.use(labRankingRouter);
 router.use(historyRouter);
 

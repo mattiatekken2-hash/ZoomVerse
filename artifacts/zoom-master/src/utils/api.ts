@@ -1625,6 +1625,16 @@ export async function recordCraft(telegramId: string, planetType: string, cost?:
   } catch { /**/ }
 }
 
+export async function recordObtained(telegramId: string, planetType: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/obtained/record`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, planetType }),
+    });
+  } catch { /**/ }
+}
+
 /**
  * Public read-only feed for the global $ZOOM price index. Returns the
  * current price and the chart history (~10s granularity, last ~240 points).

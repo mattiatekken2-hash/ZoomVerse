@@ -14,6 +14,7 @@ interface Props {
   onFuse: (level: 1 | 2 | 3) => Promise<MerchantFuseResult>;
   burnTwoOfType: (t: PlanetType) => { ok: boolean; reason?: string };
   addCraftedPlanet: (t: PlanetType) => { ok: boolean; reason?: string };
+  onRecordObtained?: (type: PlanetType) => void;
   onClose: () => void;
 }
 
@@ -44,6 +45,7 @@ export function MerchantPopup({
   onFuse,
   burnTwoOfType,
   addCraftedPlanet,
+  onRecordObtained,
   onClose,
 }: Props) {
   const { t } = useT();
@@ -157,6 +159,7 @@ export function MerchantPopup({
     const out = res.outcome;
     if (out === "BASIC" || out === "RARE" || out === "EPIC" || out === "GOLD" || out === "V1") {
       const add = addCraftedPlanet(out);
+      if (add.ok && onRecordObtained) onRecordObtained(out);
       if (!add.ok) {
         // Slots full at the moment the result lands — surface it loudly.
         // The server already counted this fusion against the cap, so we
@@ -170,6 +173,7 @@ export function MerchantPopup({
       // (L1 cannot DOWNGRADE; the server never returns it for level 1.)
       const downgradeTo: PlanetType = level === 3 ? "RARE" : "BASIC";
       const add = addCraftedPlanet(downgradeTo);
+      if (add.ok && onRecordObtained) onRecordObtained(downgradeTo);
       if (!add.ok) {
         try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: t("common.slotsFullPlanetLost"), ok: false } })); } catch { /**/ }
       }

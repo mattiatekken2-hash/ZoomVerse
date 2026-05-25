@@ -48,6 +48,17 @@ export const usersTable = pgTable("users", {
   totalCraftedMythic: integer("total_crafted_mythic").notNull().default(0),
   totalCraftedPlasma: integer("total_crafted_plasma").notNull().default(0),
   totalCraftedV1: integer("total_crafted_v1").notNull().default(0),
+  // Lifetime obtained counters — tracks planets acquired from ANY source:
+  // Lab crafting, Wheel, Merchant fusion, marketplace buy, redeem codes,
+  // bonus grants, collection bundles, etc. NEVER decreases (even if sold
+  // or burned). Separate from totalCraftedX which only counts Lab forges.
+  totalObtainedBasic: integer("total_obtained_basic").notNull().default(0),
+  totalObtainedRare: integer("total_obtained_rare").notNull().default(0),
+  totalObtainedEpic: integer("total_obtained_epic").notNull().default(0),
+  totalObtainedGold: integer("total_obtained_gold").notNull().default(0),
+  totalObtainedMythic: integer("total_obtained_mythic").notNull().default(0),
+  totalObtainedPlasma: integer("total_obtained_plasma").notNull().default(0),
+  totalObtainedV1: integer("total_obtained_v1").notNull().default(0),
   wheelSpins: integer("wheel_spins").notNull().default(0),
   lastWheelDailyAt: timestamp("last_wheel_daily_at"),
   dailyStreakDay: integer("daily_streak_day").notNull().default(0),

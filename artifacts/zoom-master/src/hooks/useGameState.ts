@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import { getEquipmentTotalRate, getEquipmentReactivationFee, EQUIPMENT_CYCLE_MS, makeEquipmentItem, getEquipmentRate, EQUIPMENT_CATEGORY_ORDER } from "../utils/equipmentConfig";
@@ -2260,6 +2260,10 @@ export function useGameState() {
             // pending on the server until the user frees a slot.
             if (actuallyAdd > 0) {
               claimedUpdates[claimedKey] = Math.max(claimedCount, existingBonusCount) + actuallyAdd;
+              // Lifetime obtained tracking (profile rank page). Fire-and-forget.
+              if (updated.telegramId && type !== "V1_NFT") {
+                void recordObtained(updated.telegramId, type);
+              }
             }
           }
           // NOTE: we intentionally do NOT delete planets when toAdd < 0

@@ -259,23 +259,23 @@ router.post("/admin/add-planets", async (req, res) => {
           },
         });
     } else if (planetType === "BASIC") {
-      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusBasic: count })
-        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusBasic: sql`${usersTable.bonusBasic} + ${count}` } });
+      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusBasic: count, totalObtainedBasic: count })
+        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusBasic: sql`${usersTable.bonusBasic} + ${count}`, totalObtainedBasic: sql`${usersTable.totalObtainedBasic} + ${count}` } });
     } else if (planetType === "RARE") {
-      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusRare: count })
-        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusRare: sql`${usersTable.bonusRare} + ${count}` } });
+      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusRare: count, totalObtainedRare: count })
+        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusRare: sql`${usersTable.bonusRare} + ${count}`, totalObtainedRare: sql`${usersTable.totalObtainedRare} + ${count}` } });
     } else if (planetType === "EPIC") {
-      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusEpic: count })
-        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusEpic: sql`${usersTable.bonusEpic} + ${count}` } });
+      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusEpic: count, totalObtainedEpic: count })
+        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusEpic: sql`${usersTable.bonusEpic} + ${count}`, totalObtainedEpic: sql`${usersTable.totalObtainedEpic} + ${count}` } });
     } else if (planetType === "MYTHIC") {
-      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusMythic: count })
-        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusMythic: sql`${usersTable.bonusMythic} + ${count}` } });
+      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusMythic: count, totalObtainedMythic: count })
+        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusMythic: sql`${usersTable.bonusMythic} + ${count}`, totalObtainedMythic: sql`${usersTable.totalObtainedMythic} + ${count}` } });
     } else if (planetType === "PLASMA") {
-      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusPlasma: count })
-        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusPlasma: sql`${usersTable.bonusPlasma} + ${count}` } });
+      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusPlasma: count, totalObtainedPlasma: count })
+        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusPlasma: sql`${usersTable.bonusPlasma} + ${count}`, totalObtainedPlasma: sql`${usersTable.totalObtainedPlasma} + ${count}` } });
     } else if (planetType === "GOLD") {
-      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusGold: count })
-        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusGold: sql`${usersTable.bonusGold} + ${count}` } });
+      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusGold: count, totalObtainedGold: count })
+        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusGold: sql`${usersTable.bonusGold} + ${count}`, totalObtainedGold: sql`${usersTable.totalObtainedGold} + ${count}` } });
     }
     scheduleAdminAssetSnapshot();
     res.json({ ok: true });
@@ -561,6 +561,7 @@ router.post("/admin/grant-v1", async (req, res) => {
       .set({
         bonusV1: sql`${usersTable.bonusV1} + 1`,
         totalCraftedV1: sql`${usersTable.totalCraftedV1} + 1`,
+        totalObtainedV1: sql`${usersTable.totalObtainedV1} + 1`,
         balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
       .where(eq(usersTable.telegramId, telegramId));

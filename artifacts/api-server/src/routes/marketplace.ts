@@ -690,6 +690,17 @@ router.post("/market/buy", async (req, res) => {
       );
     } else if (listing.planetId) {
       const nowMs = Date.now();
+      const planetTypeUpper = String(listing.planetType ?? "").toUpperCase();
+      const obtainedCol =
+        planetTypeUpper === "BASIC" ? "total_obtained_basic"
+        : planetTypeUpper === "RARE" ? "total_obtained_rare"
+        : planetTypeUpper === "EPIC" ? "total_obtained_epic"
+        : planetTypeUpper === "MYTHIC" ? "total_obtained_mythic"
+        : planetTypeUpper === "PLASMA" ? "total_obtained_plasma"
+        : planetTypeUpper === "GOLD" ? "total_obtained_gold"
+        : planetTypeUpper === "V1" ? "total_obtained_v1"
+        : null;
+
       await client.query(
         `UPDATE users
          SET planets_json = COALESCE(
@@ -700,6 +711,14 @@ router.post("/market/buy", async (req, res) => {
          WHERE telegram_id = $1`,
         [listing.sellerTelegramId, listing.planetId, nowMs],
       );
+
+      // Buyer: also increment lifetime obtained counter for the planet type.
+      if (obtainedCol) {
+        await client.query(
+          `UPDATE users SET ${obtainedCol} = ${obtainedCol} + 1 WHERE telegram_id = $1`,
+          [buyerTelegramId],
+        );
+      }
     }
 
     await client.query("COMMIT");

@@ -168,13 +168,13 @@ router.get("/profile/:telegramId", async (req, res) => {
     const rows = await db
       .select({
         createdAt: usersTable.createdAt,
-        totalCraftedBasic: usersTable.totalCraftedBasic,
-        totalCraftedRare: usersTable.totalCraftedRare,
-        totalCraftedEpic: usersTable.totalCraftedEpic,
-        totalCraftedMythic: usersTable.totalCraftedMythic,
-        totalCraftedPlasma: usersTable.totalCraftedPlasma,
-        totalCraftedGold: usersTable.totalCraftedGold,
-        totalCraftedV1: usersTable.totalCraftedV1,
+        totalObtainedBasic: usersTable.totalObtainedBasic,
+        totalObtainedRare: usersTable.totalObtainedRare,
+        totalObtainedEpic: usersTable.totalObtainedEpic,
+        totalObtainedMythic: usersTable.totalObtainedMythic,
+        totalObtainedPlasma: usersTable.totalObtainedPlasma,
+        totalObtainedGold: usersTable.totalObtainedGold,
+        totalObtainedV1: usersTable.totalObtainedV1,
       })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
@@ -189,13 +189,13 @@ router.get("/profile/:telegramId", async (req, res) => {
       exists: true,
       createdAt: rows[0]!.createdAt,
       crafted: {
-        BASIC: rows[0]!.totalCraftedBasic,
-        RARE: rows[0]!.totalCraftedRare,
-        EPIC: rows[0]!.totalCraftedEpic,
-        MYTHIC: rows[0]!.totalCraftedMythic,
-        PLASMA: rows[0]!.totalCraftedPlasma,
-        GOLD: rows[0]!.totalCraftedGold,
-        V1: rows[0]!.totalCraftedV1,
+        BASIC: rows[0]!.totalObtainedBasic,
+        RARE: rows[0]!.totalObtainedRare,
+        EPIC: rows[0]!.totalObtainedEpic,
+        MYTHIC: rows[0]!.totalObtainedMythic,
+        PLASMA: rows[0]!.totalObtainedPlasma,
+        GOLD: rows[0]!.totalObtainedGold,
+        V1: rows[0]!.totalObtainedV1,
       },
     });
   } catch (err) {
@@ -283,10 +283,25 @@ router.post("/craft/record", async (req, res) => {
   const field = fieldMap[planetType];
   if (!field) { res.json({ ok: true }); return; }
 
+  const obtainedFieldMap: Record<string, "totalObtainedBasic" | "totalObtainedRare" | "totalObtainedEpic" | "totalObtainedMythic" | "totalObtainedPlasma" | "totalObtainedGold" | "totalObtainedV1" | null> = {
+    BASIC: "totalObtainedBasic",
+    RARE: "totalObtainedRare",
+    EPIC: "totalObtainedEpic",
+    MYTHIC: "totalObtainedMythic",
+    PLASMA: "totalObtainedPlasma",
+    GOLD: "totalObtainedGold",
+    V1: "totalObtainedV1",
+  };
+  const obtainedField = obtainedFieldMap[planetType];
+
   try {
+    const setClauses: Record<string, unknown> = { [field]: sql`${usersTable[field]} + 1` };
+    if (obtainedField) {
+      setClauses[obtainedField] = sql`${usersTable[obtainedField]} + 1`;
+    }
     await db
       .update(usersTable)
-      .set({ [field]: sql`${usersTable[field]} + 1` })
+      .set(setClauses)
       .where(eq(usersTable.telegramId, telegramId));
 
     // MONTHLY LAB LEADERBOARD: bump lab_points +1 SOLO se l'utente:
