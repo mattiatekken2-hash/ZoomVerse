@@ -184,37 +184,46 @@
   width: 600px; height: 600px;
   background: radial-gradient(circle, rgba(0,242,254,0.11) 0%, rgba(0,242,254,0.04) 40%, transparent 70%);
   top: -200px; left: -180px;
-  animation: nebula-drift-a 24s ease-in-out infinite alternate;
+  animation: nebula-drift-a 24s ease-in-out 4 alternate;
 }
 .nebula-orb-2 {
   width: 500px; height: 500px;
   background: radial-gradient(circle, rgba(196,113,237,0.12) 0%, rgba(196,113,237,0.04) 40%, transparent 70%);
   bottom: 40px; right: -150px;
-  animation: nebula-drift-b 19s ease-in-out infinite alternate;
+  animation: nebula-drift-b 19s ease-in-out 4 alternate;
 }
 .nebula-orb-3 {
   width: 380px; height: 380px;
   background: radial-gradient(circle, rgba(255,215,0,0.08) 0%, rgba(255,179,71,0.03) 40%, transparent 70%);
   top: 28%; left: 15%;
-  animation: nebula-drift-c 30s ease-in-out infinite alternate;
+  animation: nebula-drift-c 30s ease-in-out 3 alternate;
 }
 .nebula-orb-4 {
   width: 320px; height: 320px;
   background: radial-gradient(circle, rgba(79,172,254,0.09) 0%, transparent 70%);
   top: 50%; right: 10%;
-  animation: nebula-drift-d 22s ease-in-out infinite alternate;
+  animation: nebula-drift-d 22s ease-in-out 3 alternate;
 }
 .nebula-orb-5 {
   width: 260px; height: 260px;
   background: radial-gradient(circle, rgba(255,65,108,0.07) 0%, transparent 70%);
   top: 70%; left: -60px;
-  animation: nebula-drift-a 26s ease-in-out infinite alternate-reverse;
+  animation: nebula-drift-a 26s ease-in-out 3 alternate-reverse;
 }
 .nebula-orb-6 {
   width: 200px; height: 200px;
   background: radial-gradient(circle, rgba(0,230,118,0.06) 0%, transparent 70%);
   top: 15%; right: 20%;
-  animation: nebula-drift-b 34s ease-in-out infinite alternate-reverse;
+  animation: nebula-drift-b 34s ease-in-out 2 alternate-reverse;
+}
+
+/* Battery-saver: respect prefers-reduced-motion by freezing ALL nebula
+   animation after a few drift cycles. The static gradient blobs are still
+   beautiful and cost zero GPU/compositor cycles. */
+@media (prefers-reduced-motion: reduce) {
+  .nebula-orb {
+    animation: none !important;
+  }
 }
 
 /* `translate3d(...,0)` (instead of 2D `translate(...)`) keeps the orb
@@ -263,7 +272,7 @@
     radial-gradient(1px 1px at 17% 45%, rgba(255,255,255,0.4) 0%, transparent 100%),
     radial-gradient(1.5px 1.5px at 62% 15%, rgba(255,255,255,0.65) 0%, transparent 100%),
     radial-gradient(1px 1px at 97% 62%, rgba(255,255,255,0.4) 0%, transparent 100%);
-  animation: star-twinkle-a 9s ease-in-out infinite alternate;
+  animation: star-twinkle-a 9s ease-in-out 6 alternate;
 }
 .star-field-b {
   background-image:
@@ -279,7 +288,7 @@
     radial-gradient(0.8px 0.8px at 55% 72%, rgba(200,220,255,0.45) 0%, transparent 100%),
     radial-gradient(0.8px 0.8px at 10% 55%, rgba(200,220,255,0.35) 0%, transparent 100%),
     radial-gradient(0.8px 0.8px at 85% 68%, rgba(200,220,255,0.4) 0%, transparent 100%);
-  animation: star-twinkle-b 13s ease-in-out infinite alternate;
+  animation: star-twinkle-b 13s ease-in-out 4 alternate;
 }
 .star-field-c {
   background-image:
@@ -291,7 +300,7 @@
     radial-gradient(0.5px 0.5px at 65% 85%, rgba(255,240,200,0.35) 0%, transparent 100%),
     radial-gradient(0.5px 0.5px at 33% 42%, rgba(255,240,200,0.3) 0%, transparent 100%),
     radial-gradient(0.5px 0.5px at 88% 95%, rgba(255,240,200,0.4) 0%, transparent 100%);
-  animation: star-twinkle-c 17s ease-in-out infinite alternate;
+  animation: star-twinkle-c 17s ease-in-out 3 alternate;
 }
 @keyframes star-twinkle-a {
   0% { opacity: 0.55; }
@@ -327,7 +336,7 @@
     0 0 14px rgba(255, 40, 40, 0.55),
     0 0 28px rgba(255, 20, 20, 0.30);
   opacity: 0.9;
-  animation: red-planet-glow 2.5s ease-in-out infinite;
+  animation: red-planet-glow 2.5s ease-in-out 8 alternate;
   pointer-events: none;
   will-change: opacity, box-shadow;
 }
@@ -358,7 +367,7 @@
   pointer-events: none;
   opacity: 0.4;
   animation-name: hero-twinkle;
-  animation-iteration-count: infinite;
+  animation-iteration-count: 12;
   animation-timing-function: ease-in-out;
   will-change: opacity, transform;
 }
@@ -391,14 +400,14 @@
   top: 18%;
   left: -200px;
   transform: rotate(-22deg);
-  animation: comet-fly-a 38s linear 6s infinite;
+  animation: comet-fly-a 38s linear 6s 3;
 }
 .comet-2 {
   width: 140px;
   top: 58%;
   left: -180px;
   transform: rotate(-16deg);
-  animation: comet-fly-b 52s linear 24s infinite;
+  animation: comet-fly-b 52s linear 24s 2;
 }
 @keyframes comet-fly-a {
   0%   { transform: translate3d(0, 0, 0) rotate(-22deg); opacity: 0; }
@@ -443,13 +452,13 @@
   top: 14%;
   width: 56px;
   height: 26px;
-  animation: ufo-cross-a 95s linear 18s infinite;
+  animation: ufo-cross-a 95s linear 18s 2;
 }
 .ufo-2 {
   top: 64%;
   width: 44px;
   height: 22px;
-  animation: ufo-cross-b 145s linear 62s infinite;
+  animation: ufo-cross-b 145s linear 62s 1;
 }
 @keyframes ufo-cross-a {
   /* ~13s of visibility per 95s cycle; subtle vertical wobble. */

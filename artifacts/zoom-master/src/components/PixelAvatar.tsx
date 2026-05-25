@@ -181,8 +181,8 @@ function PixelAvatarBase({
 
   useEffect(() => {
     if (!open) return;
-    // Tick once a second so the live TON balance and slot timers refresh smoothly.
-    const t = window.setInterval(() => setTick((n) => n + 1), 1000);
+    // Battery-saver: tick every 5s is enough for minute-level timer labels.
+    const t = window.setInterval(() => setTick((n) => n + 1), 5000);
     return () => window.clearInterval(t);
   }, [open]);
 

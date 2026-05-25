@@ -297,7 +297,10 @@ function ExchangeWidgetBase({ balance, sunCount }: ExchangeWidgetProps) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    // Battery-saver: only tick every 5s. The countdown text is still
+    // perfectly readable at that resolution, and we avoid a React
+    // re-render every single second while the user is on the Lab page.
+    const id = window.setInterval(() => setNow(Date.now()), 5000);
     return () => window.clearInterval(id);
   }, []);
 

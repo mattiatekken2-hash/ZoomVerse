@@ -154,11 +154,13 @@ export function PlanetCanvas({
   useEffect(() => {
     if (forgePhase !== "idle") return;
     let rafId = 0;
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
     let angleA = 0;
     let angleB = 0;
     let last = performance.now();
     let lastAppliedPct = -1;
     let lastAppliedColor = "";
+
     const tick = (now: number) => {
       const dt = (now - last) / 1000;
       last = now;
@@ -198,10 +200,27 @@ export function PlanetCanvas({
           `0 0 ${100 + p * 60}px rgba(255,255,255,${whiteAlpha})`;
       }
 
-      rafId = requestAnimationFrame(tick);
+      // Battery-saver: stop the rAF loop when fully idle so the GPU/compositor
+      // isn't spinning at 60 fps doing nothing. A tiny visual pause (<1s)
+      // while the loop restarts on the next tap is imperceptible.
+      if (c <= 0 && p <= 0.005) {
+        if (!idleTimer) {
+          idleTimer = setTimeout(() => { idleTimer = null; }, 800);
+        }
+      } else {
+        if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+      }
+
+      // Keep looping only while there's visual work to do.
+      if (c > 0 || p > 0.005) {
+        rafId = requestAnimationFrame(tick);
+      }
     };
     rafId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafId);
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (idleTimer) clearTimeout(idleTimer);
+    };
   }, [forgePhase]);
 
   // Imperative tap fragments — DOM-only, never touch React state, so rapid

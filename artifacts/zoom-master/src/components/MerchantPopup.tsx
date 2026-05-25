@@ -73,7 +73,8 @@ export function MerchantPopup({
 
   // Local 1Hz tick for the bottom-left countdown.
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    // Battery-saver: 3s granularity is fine for the merchant countdown.
+    const id = setInterval(() => setNow(Date.now()), 3000);
     return () => clearInterval(id);
   }, []);
 

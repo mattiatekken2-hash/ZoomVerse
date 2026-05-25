@@ -139,7 +139,9 @@ function WalletModal({
   // ── tick for live balance ───────────────────────────────────────────────
   const [, setTick] = useState(0);
   useEffect(() => {
-    const id = window.setInterval(() => setTick((n) => n + 1), 2000);
+    // Battery-saver: tick only every 10s. Balance updates are server-side
+    // and don't need sub-second reactivity.
+    const id = window.setInterval(() => setTick((n) => n + 1), 10000);
     return () => window.clearInterval(id);
   }, []);
 
