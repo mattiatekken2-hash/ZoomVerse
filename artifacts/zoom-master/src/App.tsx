@@ -13,6 +13,7 @@ import { RankPage } from "./pages/RankPage";
 import { ShopPage } from "./pages/ShopPage";
 import { WheelPage } from "./pages/WheelPage";
 import { HomePage } from "./pages/HomePage";
+import { CollectionsPage } from "./pages/CollectionsPage";
 import { AdminPanel } from "./components/AdminPanel";
 import { SettingsMenu } from "./components/SettingsMenu";
 import { LanguageProvider, useT } from "./i18n/LanguageContext";
@@ -21,13 +22,13 @@ import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, reco
 import { useStardust } from "./hooks/useStardust";
 import { useMerchant } from "./hooks/useMerchant";
 import { MerchantPopup } from "./components/MerchantPopup";
-import { FlaskConical, Home, Sprout, ShoppingCart, CircleDot, Gem, Trophy } from "lucide-react";
+import { FlaskConical, Home, Sprout, ShoppingCart, CircleDot, Gem, Trophy, Layers } from "lucide-react";
 
 const MAINTENANCE_ADMIN_ID = "8144744644";
 
 const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
-type Tab = "lab" | "home" | "farm" | "market" | "earn" | "wheel" | "rank" | "shop";
+type Tab = "lab" | "home" | "farm" | "market" | "earn" | "wheel" | "rank" | "shop" | "collections";
 
 const NAV: { id: Tab; labelKey: string; icon: React.ElementType }[] = [
   { id: "lab", labelKey: "nav.lab", icon: FlaskConical },
@@ -37,9 +38,10 @@ const NAV: { id: Tab; labelKey: string; icon: React.ElementType }[] = [
   { id: "wheel", labelKey: "nav.wheel", icon: CircleDot },
   { id: "earn", labelKey: "nav.earn", icon: Gem },
   { id: "rank", labelKey: "nav.rank", icon: Trophy },
+  { id: "collections", labelKey: "nav.collections", icon: Layers },
 ];
 
-const ALL_TABS: Tab[] = ["lab", "home", "farm", "market", "earn", "wheel", "rank", "shop"];
+const ALL_TABS: Tab[] = ["lab", "home", "farm", "market", "earn", "wheel", "rank", "shop", "collections"];
 
 export default function App() {
   return (
@@ -800,6 +802,21 @@ function AppShellWithState() {
               )}
               {t === "home" && (
                 <HomePage telegramId={state.telegramId} referralCode={state.referralCode} visible={tab === "home"} />
+              )}
+              {t === "collections" && (
+                <CollectionsPage
+                  telegramId={state.telegramId}
+                  sunCount={state.sunCount || 0}
+                  whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
+                  whiteCollectionBundles={Number(state.whiteCollectionBundles) || 0}
+                  earthCollectionUnlocked={!!state.earthCollectionUnlocked}
+                  earthCollectionBundles={Number(state.earthCollectionBundles) || 0}
+                  blackCollectionUnlocked={!!state.blackCollectionUnlocked}
+                  blackCollectionBundles={Number(state.blackCollectionBundles) || 0}
+                  supernovaCollectionUnlocked={!!state.supernovaCollectionUnlocked}
+                  supernovaCollectionBundles={Number(state.supernovaCollectionBundles) || 0}
+                  visible={tab === "collections"}
+                />
               )}
             </div>
           );
