@@ -1,26 +1,21 @@
 import { useEffect, useState, memo } from "react";
-import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import {
-  confirmTonPurchase,
-  pollTxnUntilFinal,
   fetchLabRankState,
+  joinLabRank,
   type LabRankState,
 } from "../utils/api";
 import trophyPx from "../assets/lab-rank-trophy.png";
 
-const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
-const ENTRY_TON = 1;
 const GOLD = "#ffd700";
 const ACCENT = "#ffec70";
 
 interface Props {
   telegramId: string | null;
   sunCount: number;
+  balance: number;
 }
 
-function LabRankWidgetBase({ telegramId, sunCount }: Props) {
-  const [tonConnectUI] = useTonConnectUI();
-  const wallet = useTonAddress();
+function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<LabRankState | null>(null);
   const [buying, setBuying] = useState(false);
@@ -55,7 +50,7 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
     return () => clearTimeout(t);
   }, [msg]);
 
-  const handleBuy = async () => {
+  const handleJoin = async () => {
     if (!telegramId) {
       setMsg("Telegram ID missing");
       return;
@@ -64,56 +59,30 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
       setMsg("You need at least 1 SUN to join");
       return;
     }
-    if (!wallet) {
-      tonConnectUI.openModal();
-      setMsg("Connect your TON wallet first");
+    const entryZoom = state?.entryZoom ?? 50000;
+    if (balance < entryZoom) {
+      setMsg(`Need ${entryZoom.toLocaleString()} $ZOOM to join`);
       return;
     }
     setBuying(true);
     try {
-      const nano = BigInt(Math.round(ENTRY_TON * 1e9)).toString();
-      const txr = await tonConnectUI.sendTransaction({
-        validUntil: Math.floor(Date.now() / 1000) + 300,
-        messages: [{ address: WALLET, amount: nano }],
-      });
-      const r = await confirmTonPurchase(
-        telegramId,
-        "monthly_lab_entry",
-        wallet,
-        ENTRY_TON,
-        txr.boc || "",
-      );
-      if (r.alreadyCredited || r.ok) {
+      const r = await joinLabRank(telegramId);
+      if (r.ok) {
         setMsg("Entry confirmed!");
         await refresh();
         window.dispatchEvent(new Event("zoom-data-refresh"));
-      } else if (r.pending && r.txnId) {
-        setMsg("Verifying payment...");
-        const f = await pollTxnUntilFinal(r.txnId);
-        if (f?.status === "completed") {
-          setMsg("Entry confirmed!");
-          await refresh();
-          window.dispatchEvent(new Event("zoom-data-refresh"));
-        } else if (f?.status === "failed") {
-          setMsg("Payment not detected");
-        } else {
-          setMsg("Awaiting confirmation...");
-        }
       } else {
         setMsg(r.error || "Entry failed");
       }
     } catch (e) {
-      const m = e instanceof Error ? e.message : String(e);
-      setMsg(m.toLowerCase().includes("cancel") || m.toLowerCase().includes("reject")
-        ? "Payment cancelled"
-        : "Payment failed");
+      setMsg("Entry failed");
     }
     setBuying(false);
   };
 
   const participants = state?.participants ?? 0;
-  const threshold = state?.threshold ?? 20;
-  const isActivated = state?.isActivated ?? false;
+  const entryZoom = state?.entryZoom ?? 50000;
+  const winnerTon = state?.winnerTon ?? 5;
   const pool = state?.poolTon ?? 0;
   const userPoints = state?.userPoints ?? 0;
   const userRank = state?.userRank ?? null;
@@ -293,43 +262,6 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
               </div>
             </div>
 
-            {!isActivated && (
-              <div
-                style={{
-                  padding: "12px 14px",
-                  borderRadius: 10,
-                  background: "rgba(255,215,0,0.08)",
-                  border: `1px solid ${GOLD}33`,
-                  marginBottom: 14,
-                  textAlign: "center",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 900,
-                    color: ACCENT,
-                    marginBottom: 4,
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                LEADERBOARD ACTIVATING
-                </div>
-                <div style={{ fontSize: 14, color: "#fff", fontWeight: 800 }}>
-                  {participants}/{threshold} participants
-                </div>
-                <div
-                  style={{
-                    fontSize: 10,
-                    color: "rgba(255,255,255,0.55)",
-                    marginTop: 6,
-                    lineHeight: 1.4,
-                  }}
-                >
-                  The leaderboard activates once {threshold} paid entries are reached.
-                </div>
-              </div>
-            )}
 
             <div
               style={{
@@ -356,12 +288,12 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
                     textTransform: "uppercase",
                   }}
                 >
-                  TON Prize Pool
+                  Participants
                 </div>
                 <div style={{ fontSize: 20, fontWeight: 900, color: ACCENT, marginTop: 2 }}>
-                  {pool.toFixed(2)}
+                  {participants}
                 </div>
-                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>80% to #1</div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Active now</div>
               </div>
               <div
                 style={{
@@ -417,16 +349,16 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
                     Entry Fee
                   </span>
                   <span style={{ fontSize: 24, fontWeight: 900, color: "#fff" }}>
-                    {ENTRY_TON} TON
+                    {entryZoom.toLocaleString()} $ZOOM
                   </span>
                 </div>
                 <button
                   className="lr-buy"
-                  onClick={handleBuy}
-                  disabled={buying || sunCount <= 0}
+                  onClick={handleJoin}
+                  disabled={buying || sunCount <= 0 || balance < entryZoom}
                   data-testid="button-buy-lab-rank-entry"
                 >
-                  {buying ? "..." : sunCount <= 0 ? "SUN REQUIRED" : "JOIN"}
+                  {buying ? "..." : sunCount <= 0 ? "SUN REQUIRED" : balance < entryZoom ? "NOT ENOUGH $ZOOM" : "JOIN"}
                 </button>
               </div>
             )}
@@ -471,27 +403,27 @@ function LabRankWidgetBase({ telegramId, sunCount }: Props) {
               </div>
               <div style={{ fontSize: 11, color: "#fff", lineHeight: 1.7 }}>
                 <div>
-                  <span style={{ color: ACCENT, fontWeight: 800 }}>#1</span> · TON pool to the first winner
+                  <span style={{ color: ACCENT, fontWeight: 800 }}>#1</span> · {winnerTon} TON prize
                 </div>
                 <div>
-                  <span style={{ color: ACCENT, fontWeight: 800 }}>#2</span> · 500 ★ Stardust
+                  <span style={{ color: ACCENT, fontWeight: 800 }}>#2</span> · {(state?.stardustPayouts[2] ?? 500).toLocaleString()} ★ Stardust
                 </div>
                 <div>
-                  <span style={{ color: ACCENT, fontWeight: 800 }}>#3</span> · 250 ★ Stardust
+                  <span style={{ color: ACCENT, fontWeight: 800 }}>#3</span> · {(state?.stardustPayouts[3] ?? 250).toLocaleString()} ★ Stardust
                 </div>
                 <div>
-                  <span style={{ color: ACCENT, fontWeight: 800 }}>#4–5</span> · 100 ★ Stardust
+                  <span style={{ color: ACCENT, fontWeight: 800 }}>#4–5</span> · {(state?.stardustPayouts[4] ?? 100).toLocaleString()} ★ Stardust
                 </div>
                 <div>
-                  <span style={{ color: ACCENT, fontWeight: 800 }}>#6–10</span> · 50 ★ Stardust
+                  <span style={{ color: ACCENT, fontWeight: 800 }}>#6–10</span> · {(state?.stardustPayouts[6] ?? 50).toLocaleString()} ★ Stardust
                 </div>
                 <div>
-                  <span style={{ color: ACCENT, fontWeight: 800 }}>#11–20</span> · 20 ★ Stardust
+                  <span style={{ color: ACCENT, fontWeight: 800 }}>#11–20</span> · {(state?.stardustPayouts[11] ?? 20).toLocaleString()} ★ Stardust
                 </div>
               </div>
             </div>
 
-            {isActivated && state?.top100 && state.top100.length > 0 && (
+            {state?.top100 && state.top100.length > 0 && (
               <div
                 style={{
                   display: "flex",

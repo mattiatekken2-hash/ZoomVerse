@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { z } from "zod";
 import { db } from "@workspace/db";
 import { labRoundsTable, usersTable } from "@workspace/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
@@ -7,14 +8,13 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 
 const ADMIN_ID = "8144744644";
-export const LAB_ENTRY_TON = 1;
-export const LAB_THRESHOLD = 20;
-const PRIZE_PCT = 0.8;
-const PROFIT_PCT = 0.2;
+export const LAB_ENTRY_ZOOM = 50000;
+export const LAB_WINNER_TON = 5;
 
-// Stardust auto-payouts — ranks 2..20.
-// #1 viene pagato manualmente dall'admin in TON (80% del pool).
-export const STARDUST_PAYOUTS: Record<number, number> = {
+// Stardust auto-payouts — ranks 2..20 (BASE values).
+// These are multiplied by max(1, floor(participants / 10)) so prize
+// scales with real participation.
+const STARDUST_BASE: Record<number, number> = {
   2: 500,
   3: 250,
   4: 100, 5: 100,
@@ -22,6 +22,21 @@ export const STARDUST_PAYOUTS: Record<number, number> = {
   11: 20, 12: 20, 13: 20, 14: 20, 15: 20,
   16: 20, 17: 20, 18: 20, 19: 20, 20: 20,
 };
+
+function stardustPayout(rank: number, participants: number): number {
+  const base = STARDUST_BASE[rank] || 0;
+  if (!base) return 0;
+  const multiplier = Math.max(1, Math.floor(participants / 10));
+  return base * multiplier;
+}
+
+function stardustPayoutsMap(participants: number): Record<number, number> {
+  const map: Record<number, number> = {};
+  for (let r = 2; r <= 20; r++) {
+    map[r] = stardustPayout(r, participants);
+  }
+  return map;
+}
 
 function isAdmin(adminId: string | undefined): boolean {
   return !!adminId && adminId === ADMIN_ID;
@@ -53,6 +68,76 @@ export async function getOrCreateActiveLabRound() {
  * Stato del round attivo per l'utente: gate di attivazione, pool, top 100,
  * iscrizione, punti e rank.
  */
+const JoinBody = z.object({
+  telegramId: z.string().min(1),
+});
+
+/**
+ * POST /lab-rank/join
+ * Iscrizione al round attivo della classifica mensile Lab.
+ * Richiede: SUN (sunCount > 0), ZOOM balance >= 50.000, e non
+ * già iscritto al round corrente.
+ * L'iscrizione debita 50.000 ZOOM e incrementa il numero di partecipanti.
+ * Nessun pool TON è accumulato — il premio #1 è fisso (5 TON).
+ */
+router.post("/lab-rank/join", async (req, res) => {
+  const parsed = JoinBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ ok: false, error: "Invalid body" });
+    return;
+  }
+  const { telegramId } = parsed.data;
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(7913042200)`);
+
+      const roundRes = await tx.execute(sql`SELECT id FROM lab_rounds WHERE status = 'active' LIMIT 1 FOR UPDATE`);
+      let activeId: number | undefined;
+      if (roundRes.rows && roundRes.rows.length > 0) {
+        activeId = Number((roundRes.rows[0] as Record<string, unknown>)["id"]);
+      }
+      if (!activeId) {
+        await tx.execute(sql`INSERT INTO lab_rounds (status) VALUES ('active') ON CONFLICT DO NOTHING`);
+        const r2 = await tx.execute(sql`SELECT id FROM lab_rounds WHERE status = 'active' LIMIT 1 FOR UPDATE`);
+        activeId = Number((r2.rows[0] as Record<string, unknown>)["id"]);
+      }
+      if (!activeId) throw new Error("LAB_JOIN_NO_ACTIVE_ROUND");
+
+      const userRes = await tx.execute(sql`
+        UPDATE users
+        SET lab_round_id = ${activeId}, lab_points = 0,
+            zoom_balance = zoom_balance - ${LAB_ENTRY_ZOOM},
+            balance_epoch = balance_epoch + 1
+        WHERE telegram_id = ${telegramId}
+          AND sun_count > 0
+          AND zoom_balance >= ${LAB_ENTRY_ZOOM}
+          AND COALESCE(lab_round_id, 0) <> ${activeId}
+        RETURNING telegram_id
+      `);
+      if (!userRes.rows || userRes.rows.length === 0) {
+        return { kind: "ineligible" as const, reason: "Already joined, no SUN, or insufficient ZOOM" };
+      }
+
+      await tx.execute(sql`
+        UPDATE lab_rounds
+        SET participants = participants + 1
+        WHERE id = ${activeId} AND status = 'active'
+      `);
+
+      return { kind: "ok" as const, roundId: activeId };
+    });
+
+    if (result.kind === "ineligible") {
+      return res.status(409).json({ ok: false, error: result.reason });
+    }
+    return res.json({ ok: true, roundId: result.roundId });
+  } catch (err) {
+    logger.error({ err }, "[lab-rank/join] error");
+    return res.status(500).json({ ok: false, error: "Internal error" });
+  }
+});
+
 router.get("/lab-rank/state", async (req, res) => {
   try {
     const verifiedId = req.tgUser?.id ? String(req.tgUser.id) : "";
@@ -62,8 +147,6 @@ router.get("/lab-rank/state", async (req, res) => {
 
     const round = await getOrCreateActiveLabRound();
     const participants = Number(round.participants || 0);
-    const threshold = Number(round.threshold || LAB_THRESHOLD);
-    const isActivated = participants >= threshold;
     const poolTon = Number(round.poolTon || 0);
 
     let userPoints = 0;
@@ -75,6 +158,7 @@ router.get("/lab-rank/state", async (req, res) => {
           labPoints: usersTable.labPoints,
           sunCount: usersTable.sunCount,
           labRoundId: usersTable.labRoundId,
+          zoomBalance: usersTable.zoomBalance,
         })
         .from(usersTable)
         .where(eq(usersTable.telegramId, telegramId))
@@ -87,51 +171,45 @@ router.get("/lab-rank/state", async (req, res) => {
     }
     const eligible = hasSun && hasPaid;
 
-    let top100: Array<{ rank: number; telegramId: string; name: string; labPoints: number }> = [];
+    // Leaderboard is always active (no threshold gate)
+    const rows = await db
+      .select({
+        telegramId: usersTable.telegramId,
+        labPoints: usersTable.labPoints,
+        firstName: usersTable.firstName,
+        username: usersTable.username,
+      })
+      .from(usersTable)
+      .where(sql`${usersTable.labRoundId} = ${round.id} AND ${usersTable.sunCount} > 0`)
+      .orderBy(desc(usersTable.labPoints), usersTable.telegramId)
+      .limit(100);
+    const top100 = rows.map((r, i) => ({
+      rank: i + 1,
+      telegramId: r.telegramId,
+      name: r.firstName || (r.username ? `@${r.username}` : `User ${r.telegramId.slice(-4)}`),
+      labPoints: Number(r.labPoints || 0),
+    }));
+
     let userRank: number | null = null;
-
-    if (isActivated) {
-      const rows = await db
-        .select({
-          telegramId: usersTable.telegramId,
-          labPoints: usersTable.labPoints,
-          firstName: usersTable.firstName,
-          username: usersTable.username,
-        })
+    if (telegramId && eligible) {
+      const [rk] = await db
+        .select({ c: sql<number>`COUNT(*)::int` })
         .from(usersTable)
-        .where(sql`${usersTable.labRoundId} = ${round.id} AND ${usersTable.sunCount} > 0`)
-        .orderBy(desc(usersTable.labPoints), usersTable.telegramId)
-        .limit(100);
-      top100 = rows.map((r, i) => ({
-        rank: i + 1,
-        telegramId: r.telegramId,
-        name: r.firstName || (r.username ? `@${r.username}` : `User ${r.telegramId.slice(-4)}`),
-        labPoints: Number(r.labPoints || 0),
-      }));
-
-      if (telegramId && eligible) {
-        // Rank esatto via COUNT(*) di chi sta più in alto (ordering uguale: lab_points DESC, telegram_id ASC tie-break).
-        const [rk] = await db
-          .select({ c: sql<number>`COUNT(*)::int` })
-          .from(usersTable)
-          .where(sql`${usersTable.labRoundId} = ${round.id}
-            AND ${usersTable.sunCount} > 0
-            AND (${usersTable.labPoints} > ${userPoints}
-                 OR (${usersTable.labPoints} = ${userPoints} AND ${usersTable.telegramId} < ${telegramId}))`);
-        userRank = Number(rk?.c ?? 0) + 1;
-      }
+        .where(sql`${usersTable.labRoundId} = ${round.id}
+          AND ${usersTable.sunCount} > 0
+          AND (${usersTable.labPoints} > ${userPoints}
+               OR (${usersTable.labPoints} = ${userPoints} AND ${usersTable.telegramId} < ${telegramId}))`);
+      userRank = Number(rk?.c ?? 0) + 1;
     }
 
     res.set("Cache-Control", "no-store");
     res.json({
       roundId: round.id,
       participants,
-      threshold,
-      isActivated,
       poolTon,
-      entryTon: LAB_ENTRY_TON,
-      prizePct: PRIZE_PCT,
-      stardustPayouts: STARDUST_PAYOUTS,
+      entryZoom: LAB_ENTRY_ZOOM,
+      winnerTon: LAB_WINNER_TON,
+      stardustPayouts: stardustPayoutsMap(participants),
       hasSun,
       hasPaid,
       eligible,
@@ -177,17 +255,19 @@ router.get("/admin/lab-rank/dashboard", async (req, res) => {
       .orderBy(desc(labRoundsTable.closedAt))
       .limit(10);
 
+    const participants = Number(round.participants || 0);
+    const winnerTon = LAB_WINNER_TON;
+    const stardustMap = stardustPayoutsMap(participants);
     res.set("Cache-Control", "no-store");
     res.json({
       round: {
         id: round.id,
         createdAt: round.createdAt,
-        participants: Number(round.participants || 0),
-        threshold: Number(round.threshold || LAB_THRESHOLD),
+        participants,
       },
       poolTon: pool,
-      prizeToPayTon: pool * PRIZE_PCT,
-      profitTon: pool * PROFIT_PCT,
+      winnerTon,
+      entryZoom: LAB_ENTRY_ZOOM,
       currentLeader: top20[0]
         ? {
             telegramId: top20[0].telegramId,
@@ -200,7 +280,7 @@ router.get("/admin/lab-rank/dashboard", async (req, res) => {
         telegramId: r.telegramId,
         name: r.firstName || (r.username ? `@${r.username}` : r.telegramId),
         labPoints: Number(r.labPoints || 0),
-        stardustPayout: STARDUST_PAYOUTS[i + 1] || 0,
+        stardustPayout: stardustMap[i + 1] || 0,
       })),
       history,
     });
@@ -276,14 +356,15 @@ router.post("/admin/lab-rank/close", async (req, res) => {
 
       const winner = ranking[0] ?? null;
       const pool = Number(round.poolTon || 0);
-      const prize = pool * PRIZE_PCT;
-      const profit = pool * PROFIT_PCT;
+      const prizeTon = LAB_WINNER_TON;
+      const participants = Number(round.participants || 0);
+      const stardustMap = stardustPayoutsMap(participants);
 
       // Accredito Stardust ranghi 2..20 (non includere il #1).
       const credited: Array<{ rank: number; telegramId: string; stardust: number }> = [];
       for (let i = 1; i < ranking.length; i++) {
         const rank = i + 1;
-        const amount = STARDUST_PAYOUTS[rank];
+        const amount = stardustMap[rank];
         if (!amount) continue;
         const r = ranking[i];
         await tx
@@ -303,8 +384,8 @@ router.post("/admin/lab-rank/close", async (req, res) => {
           status: "closed",
           winnerTelegramId: winner?.telegramId ?? null,
           winnerLabPoints: winner ? Number(winner.labPoints || 0) : null,
-          prizeTon: prize,
-          profitTon: profit,
+          prizeTon,
+          profitTon: 0,
           closedAt: new Date(),
           closedBy: adminId,
         })
@@ -332,8 +413,7 @@ router.post("/admin/lab-rank/close", async (req, res) => {
             }
           : null,
         poolTon: pool,
-        prizeTon: prize,
-        profitTon: profit,
+        prizeTon,
         credited,
       };
     });

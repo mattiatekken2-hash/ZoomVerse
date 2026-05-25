@@ -887,11 +887,9 @@ export async function fetchLottoState(telegramId: string): Promise<LottoStateRes
 export interface LabRankState {
   roundId: number;
   participants: number;
-  threshold: number;
-  isActivated: boolean;
   poolTon: number;
-  entryTon: number;
-  prizePct: number;
+  entryZoom: number;
+  winnerTon: number;
   stardustPayouts: Record<string, number>;
   hasSun: boolean;
   hasPaid: boolean;
@@ -911,6 +909,23 @@ export async function fetchLabRankState(telegramId: string): Promise<LabRankStat
     return (await res.json()) as LabRankState;
   } catch {
     return null;
+  }
+}
+
+export async function joinLabRank(telegramId: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/lab-rank/join`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false, error: typeof data?.error === "string" ? data.error : `HTTP ${res.status}` };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error" };
   }
 }
 

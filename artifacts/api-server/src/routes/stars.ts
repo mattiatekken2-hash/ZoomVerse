@@ -214,9 +214,6 @@ const STARS_CATALOG: StarsItem[] = [
   { id: "lotto_ticket_1",  title: "Lotto Stellare — 1 biglietto",   description: "1 biglietto per l'estrazione corrente",   starsPrice: 10,  tonPrice: 0.1, zoomAmount: 1,  itemType: "lotto" },
   { id: "lotto_ticket_15", title: "Lotto Stellare — 15 biglietti", description: "15 biglietti — risparmio 33%",            starsPrice: 100, tonPrice: 1.0, zoomAmount: 15, itemType: "lotto" },
   { id: "lotto_ticket_40", title: "Lotto Stellare — 40 biglietti", description: "40 biglietti — risparmio 38%",            starsPrice: 250, tonPrice: 2.5, zoomAmount: 40, itemType: "lotto" },
-  // CLASSIFICA MENSILE LAB — quota d'iscrizione 1 TON (no Stars: starsPrice=0).
-  // Solo per utenti con SUN. Pre-check in /ton/confirm rifiuta senza SUN.
-  { id: "monthly_lab_entry", title: "Classifica Mensile Lab — Iscrizione", description: "Quota d'iscrizione mensile · richiede SUN", starsPrice: 0, tonPrice: 1, itemType: "monthly_lab_entry" },
   // STARDUST bundles — instant top-up of the in-game premium currency.
   // zoomAmount is reused as the stardust amount granted (no schema change).
   // Pricing follows the catalog-wide 100 Stars = 1 TON ratio.
@@ -553,63 +550,6 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string,
     if (!result.rows || result.rows.length === 0) {
       console.error(`[creditUserTx] EARTH_COLLECTION sold out at credit time for ${telegramId}`);
       throw new Error("EARTH_COLLECTION_SOLD_OUT");
-    }
-  } else if (item.itemType === "monthly_lab_entry") {
-    // CLASSIFICA MENSILE LAB — registra l'iscrizione al round attivo.
-    // 1) Risolvi (o crea) il round attivo
-    // 2) UPDATE atomico SOLO se l'utente ha SUN E non è già iscritto a
-    //    questo round (lab_round_id != active.id).
-    // 3) Incrementa pool e participants del round.
-    // Nessuna race: la riga utente è lockata implicitamente dall'UPDATE,
-    // e il round attivo è unico per partial UNIQUE index.
-    if (!txnId) throw new Error("LAB_ENTRY_MISSING_TXN_ID");
-
-    // Stesso advisory lock usato da /admin/lab-rank/close: serializza
-    // entry-credit vs close-season così non si può accreditare in un
-    // round che sta venendo chiuso o già chiuso.
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(7913042200)`);
-
-    // Risolvi (o crea) il round attivo. Lock di riga FOR UPDATE per
-    // bloccare in attesa di chi ha appena aperto un nuovo round.
-    const roundRes = await tx.execute(sql`SELECT id FROM lab_rounds WHERE status = 'active' LIMIT 1 FOR UPDATE`);
-    let activeId: number | undefined;
-    if (roundRes.rows && roundRes.rows.length > 0) {
-      activeId = Number((roundRes.rows[0] as Record<string, unknown>)["id"]);
-    }
-    if (!activeId) {
-      await tx.execute(sql`INSERT INTO lab_rounds (status) VALUES ('active') ON CONFLICT DO NOTHING`);
-      const r2 = await tx.execute(sql`SELECT id FROM lab_rounds WHERE status = 'active' LIMIT 1 FOR UPDATE`);
-      activeId = Number((r2.rows[0] as Record<string, unknown>)["id"]);
-    }
-    if (!activeId) throw new Error("LAB_ENTRY_NO_ACTIVE_ROUND");
-
-    const userUpd = await tx.execute(sql`
-      UPDATE users
-      SET lab_round_id = ${activeId}, lab_points = 0
-      WHERE telegram_id = ${telegramId}
-        AND sun_count > 0
-        AND COALESCE(lab_round_id, 0) <> ${activeId}
-      RETURNING telegram_id
-    `);
-    if (!userUpd.rows || userUpd.rows.length === 0) {
-      // Già iscritto a questo round oppure SUN mancante. Throw → rollback,
-      // /ton/confirm marcherà il txn come failed e il flusso dirà fallimento.
-      // (Pre-check su /ton/confirm respinge prima il caso "no SUN".)
-      throw new Error("LAB_ENTRY_INELIGIBLE_OR_DUP");
-    }
-
-    // Pool/participants update è gated su status='active': se il round è
-    // stato chiuso fra il SELECT e qui (impossibile sotto advisory lock,
-    // ma cintura+bretelle), 0 righe → throw → rollback.
-    const poolUpd = await tx.execute(sql`
-      UPDATE lab_rounds
-      SET pool_ton = pool_ton + ${item.tonPrice},
-          participants = participants + 1
-      WHERE id = ${activeId} AND status = 'active'
-      RETURNING id
-    `);
-    if (!poolUpd.rows || poolUpd.rows.length === 0) {
-      throw new Error("LAB_ENTRY_ROUND_ROTATED");
     }
   } else if (item.itemType === "black_collection") {
     // Same pattern as white/earth but with advisory lock id 7913042044 and a
@@ -1334,14 +1274,6 @@ router.post("/ton/confirm", async (req, res) => {
     if (stock.remaining <= 0) { res.status(409).json({ error: "V1 NFT Platinum sold out" }); return; }
   }
 
-  if (item.itemType === "monthly_lab_entry") {
-    // Pre-check: SUN required to participate.
-    const sunCount = await getUserSunCount(telegramId);
-    if (sunCount <= 0) {
-      res.status(409).json({ error: "SUN richiesto per partecipare alla classifica mensile" });
-      return;
-    }
-  }
 
   // Normalize the connected wallet to raw form; payment must originate from this address.
   let expectedSenderRaw: string;
