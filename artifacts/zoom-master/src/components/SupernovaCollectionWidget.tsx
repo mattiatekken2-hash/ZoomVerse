@@ -2,7 +2,7 @@ import { useEffect, useState, memo } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { confirmTonPurchase, pollTxnUntilFinal } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
-import { SupernovaStarOrb } from "./SupernovaStarOrb";
+import supernovaStarImg from "@assets/IMG_0827_1779741591473.jpeg";
 
 const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 const PRICE_TON = 12;
@@ -158,7 +158,11 @@ function SupernovaCollectionWidgetBase({ telegramId, unlocked = false, ownedBund
         data-testid="button-supernova-collection"
       >
         <div className="sc-tile-img" style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <SupernovaStarOrb size={48} spin={false} />
+          <img
+            src={supernovaStarImg}
+            alt="Supernova Star"
+            style={{ width: 40, height: 40, objectFit: "contain", filter: "drop-shadow(0 0 4px rgba(255,215,0,0.7))" }}
+          />
         </div>
         {unlocked && (
           <span
@@ -234,7 +238,11 @@ function SupernovaCollectionWidgetBase({ telegramId, unlocked = false, ownedBund
                 }}
               >
                 <div className="sc-tile-img" style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <SupernovaStarOrb size={140} />
+                  <img
+                    src={supernovaStarImg}
+                    alt="Supernova Star"
+                    style={{ width: 120, height: 120, objectFit: "contain", filter: "drop-shadow(0 0 8px rgba(255,215,0,0.7))" }}
+                  />
                 </div>
               </div>
             </div>
