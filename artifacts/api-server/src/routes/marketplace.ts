@@ -277,7 +277,7 @@ router.post("/market/list", async (req, res) => {
               THEN p || jsonb_build_object(
                 'isListedInMarket', true,
                 'serverListingId', $3::int,
-                'marketPrice', $4::int,
+                'marketPrice', $4::real,
                 'isFarmingActive', false,
                 'pausedAt', CASE
                   WHEN (p->>'isFarmingActive')::boolean IS TRUE THEN $5::bigint
@@ -426,7 +426,7 @@ router.post("/market/list-equipment", async (req, res) => {
               THEN e || jsonb_build_object(
                 'isListedInMarket', true,
                 'serverListingId', $3::int,
-                'marketPrice', $4::int,
+                'marketPrice', $4::real,
                 'isFarmingActive', false,
                 'pausedAt', CASE
                   WHEN (e->>'isFarmingActive')::boolean IS TRUE THEN $5::bigint
