@@ -21,6 +21,7 @@ import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, reco
 import { useStardust } from "./hooks/useStardust";
 import { useMerchant } from "./hooks/useMerchant";
 import { MerchantPopup } from "./components/MerchantPopup";
+import { FlaskConical, Home, Sprout, ShoppingCart, CircleDot, Gem, Trophy } from "lucide-react";
 
 const MAINTENANCE_ADMIN_ID = "8144744644";
 
@@ -28,14 +29,14 @@ const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
 type Tab = "lab" | "home" | "farm" | "market" | "earn" | "wheel" | "rank" | "shop";
 
-const NAV: { id: Tab; labelKey: string; icon: string }[] = [
-  { id: "lab", labelKey: "nav.lab", icon: "⬡" },
-  { id: "home", labelKey: "nav.home", icon: "⌂" },
-  { id: "farm", labelKey: "nav.farm", icon: "🪐" },
-  { id: "market", labelKey: "nav.market", icon: "💫" },
-  { id: "wheel", labelKey: "nav.wheel", icon: "🎡" },
-  { id: "earn", labelKey: "nav.earn", icon: "🎁" },
-  { id: "rank", labelKey: "nav.rank", icon: "🏆" },
+const NAV: { id: Tab; labelKey: string; icon: React.ElementType }[] = [
+  { id: "lab", labelKey: "nav.lab", icon: FlaskConical },
+  { id: "home", labelKey: "nav.home", icon: Home },
+  { id: "farm", labelKey: "nav.farm", icon: Sprout },
+  { id: "market", labelKey: "nav.market", icon: ShoppingCart },
+  { id: "wheel", labelKey: "nav.wheel", icon: CircleDot },
+  { id: "earn", labelKey: "nav.earn", icon: Gem },
+  { id: "rank", labelKey: "nav.rank", icon: Trophy },
 ];
 
 const ALL_TABS: Tab[] = ["lab", "home", "farm", "market", "earn", "wheel", "rank", "shop"];
@@ -1010,15 +1011,15 @@ function AppShellWithState() {
                     style={{ background: "#00f2fe", boxShadow: "0 0 10px rgba(0,242,254,0.9)" }}
                   />
                 )}
-                <div
+                <item.icon
+                  size={20}
+                  strokeWidth={isActive ? 2.5 : 1.5}
                   style={{
-                    fontSize: 17,
                     transform: isActive ? "scale(1.15)" : "scale(1)",
-                    textShadow: isActive ? "0 0 12px rgba(0,242,254,0.9)" : "none",
+                    filter: isActive ? "drop-shadow(0 0 8px rgba(0,242,254,0.8))" : "none",
+                    transition: "transform 150ms ease, filter 150ms ease",
                   }}
-                >
-                  {item.icon}
-                </div>
+                />
                 <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>
                   {t(item.labelKey)}
                 </div>
