@@ -251,7 +251,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           style={{
             position: "fixed",
             left: 12,
-            top: 178,
+            top: 330,
             zIndex: 55,
             width: 12,
             height: 12,

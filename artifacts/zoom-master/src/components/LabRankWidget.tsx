@@ -115,8 +115,9 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
         className="lr-tile"
         style={{
           position: "fixed",
-          right: 12,
-          top: 460,
+          left: 12,
+          // Sotto Lotto Stellare a sinistra (top:180 + h:60 = 240).
+          top: 250,
           width: 60,
           height: 60,
           borderRadius: 14,
