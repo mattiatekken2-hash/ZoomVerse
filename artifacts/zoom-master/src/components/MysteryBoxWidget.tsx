@@ -229,7 +229,7 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
         onClick={handleOpenClick}
         style={{
           position: "fixed",
-          top: 270,
+          top: 180,
           right: 12,
           width: 60,
           height: 60,

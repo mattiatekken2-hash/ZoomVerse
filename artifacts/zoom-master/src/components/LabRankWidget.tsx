@@ -115,8 +115,8 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
         className="lr-tile"
         style={{
           position: "fixed",
-          left: 12,
-          top: 480,
+          right: 12,
+          top: 460,
           width: 60,
           height: 60,
           borderRadius: 14,

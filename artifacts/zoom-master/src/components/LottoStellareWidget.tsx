@@ -235,12 +235,12 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
         aria-label={t("lotto.openAria")}
         style={{
           position: "fixed",
-          left: 12,
-          // Sotto Earth (top:200, h:60 → 260) e Mystery Box (top:270, h:60
-          // → 330). Il widget sta a left:12 top:340 dove il lato sinistro è
+          right: 12,
+          // In fila sulla destra sotto V1NFT (top:320, h:60 → 380).
+          // Il widget sta a right:12 top:390 nella colonna destra.
           // libero (Hall of Fame e gli altri widget verticali stanno a
           // right:12 a quote diverse).
-          top: 340,
+          top: 390,
           width: 60,
           height: 60,
           borderRadius: 14,
