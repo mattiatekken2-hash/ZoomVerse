@@ -59,7 +59,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
       setMsg("You need at least 1 SUN to join");
       return;
     }
-    const entryZoom = state?.entryZoom ?? 50000;
+    const entryZoom = state?.entryZoom ?? 1_000_000;
     if (balance < entryZoom) {
       setMsg(`Need ${entryZoom.toLocaleString()} $ZOOM to join`);
       return;
@@ -81,7 +81,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
   };
 
   const participants = state?.participants ?? 0;
-  const entryZoom = state?.entryZoom ?? 50000;
+  const entryZoom = state?.entryZoom ?? 1_000_000;
   const winnerTon = state?.winnerTon ?? 5;
   const pool = state?.poolTon ?? 0;
   const userPoints = state?.userPoints ?? 0;

@@ -8,7 +8,7 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 
 const ADMIN_ID = "8144744644";
-export const LAB_ENTRY_ZOOM = 50000;
+export const LAB_ENTRY_ZOOM = 1_000_000;
 export const LAB_WINNER_TON = 5;
 
 // Stardust auto-payouts — ranks 2..20 (BASE values).
