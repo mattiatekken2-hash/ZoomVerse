@@ -713,7 +713,6 @@ function AppShellWithState() {
                   onReactivateSupernovaPlanet={reactivateSupernovaPlanet}
                   onMarkSupernovaPlanetReactivated={markSupernovaPlanetReactivated}
                   visible={tab === "lab"}
-                  merchantActive={merchant.active}
                 />
               )}
               {t === "farm" && (
