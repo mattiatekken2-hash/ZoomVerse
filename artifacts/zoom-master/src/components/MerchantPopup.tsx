@@ -215,7 +215,9 @@ export function MerchantPopup({
         style={{
           position: "fixed",
           left: 12,
-          top: 270,
+          // Sotto la colonna sinistra: Lotto (180+60=240) → LabRank (250+60=310).
+          // Posizionato a top:330 per non sovrapporsi a nulla.
+          top: 330,
           width: 60,
           height: 60,
           borderRadius: 14,
@@ -255,7 +257,7 @@ export function MerchantPopup({
       </button>
 
       {/* Tiny countdown badge — sits to the RIGHT of the alien icon
-          (the icon is 60x60 at left:12, top:270 → place this just past it
+          (the icon is 60x60 at left:12, top:330 → place this just past it
           at left:78, vertically centered). Kept as a separate fixed element
           so it doesn't move with the icon's vibrate animation. */}
       {remaining > 0 && (
@@ -264,7 +266,7 @@ export function MerchantPopup({
           style={{
             position: "fixed",
             left: 78,
-            top: 290, // (270 + 60/2) - badgeHeight/2 ≈ vertical center
+            top: 350, // (330 + 60/2) - badgeHeight/2 ≈ vertical center
             zIndex: 41,
             minWidth: 22,
             padding: "2px 6px",
@@ -295,7 +297,7 @@ export function MerchantPopup({
         style={{
           position: "fixed",
           left: 80, // sits to the right of the icon so they don't overlap
-          top: 270,
+          top: 330,
           width: 220,
           zIndex: 60,
           borderRadius: 16,
