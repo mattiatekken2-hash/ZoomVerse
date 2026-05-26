@@ -674,7 +674,9 @@ function AppShellWithState() {
             <span style={{ fontSize: 12, lineHeight: 1 }}>★</span>
             <span style={{ fontVariantNumeric: "tabular-nums" }}>
               {(() => {
-                const n = stardust.balance;
+                // Local balance is primary so crafting deductions update live.
+                // Fall back to the server value only before local state is seeded.
+                const n = state.stardustBalance || stardust.balance;
                 if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
                 if (n >= 10_000)    return (n / 1_000).toFixed(1) + "K";
                 return n.toLocaleString();
