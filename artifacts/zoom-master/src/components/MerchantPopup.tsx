@@ -166,7 +166,7 @@ export function MerchantPopup({
             height: 50,
             objectFit: "contain",
             imageRendering: "pixelated",
-            filter: `drop-shadow(0 0 6px rgba(${GOLD_ACCENT_RGB},0.7))`,
+            filter: `drop-shadow(0 0 6px rgba(${GOLD_ACCENT_RGB},0.7)) sepia(1) saturate(5) hue-rotate(-20deg) brightness(1.1)`,
             pointerEvents: "none",
           }}
         />
@@ -230,7 +230,7 @@ export function MerchantPopup({
                 height: 64,
                 objectFit: "contain",
                 imageRendering: "pixelated",
-                filter: `drop-shadow(0 0 8px rgba(${GOLD_ACCENT_RGB},0.6))`,
+                filter: `drop-shadow(0 0 8px rgba(${GOLD_ACCENT_RGB},0.6)) sepia(1) saturate(5) hue-rotate(-20deg) brightness(1.1)`,
                 animation: view === "scrapping" ? "merchant-shake 0.18s linear infinite" : "merchant-bob 2.4s ease-in-out infinite",
                 pointerEvents: "none",
               }}
