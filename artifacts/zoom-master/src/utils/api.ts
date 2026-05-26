@@ -1326,6 +1326,19 @@ export async function adminForceDelist(adminId: string, listingId: number): Prom
   } catch { return false; }
 }
 
+export async function adminClearEquipmentMarket(adminId: string): Promise<{ ok: boolean; cleared?: number }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/clear-equipment-market`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false };
+    return { ok: true, cleared: data?.cleared ?? 0 };
+  } catch { return { ok: false }; }
+}
+
 export async function adminClearPlanetMarket(adminId: string): Promise<{ ok: boolean; cleared?: number }> {
   try {
     const res = await fetch(`${API_BASE}/admin/clear-planet-market`, {
