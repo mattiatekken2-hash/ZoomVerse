@@ -24,7 +24,7 @@ interface StakingWidgetProps {
 const POLL_MS = 30_000;
 const TICK_MS = 1_000;
 const PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
-const REQUIRED = 4;
+const REQUIRED = 8;
 const FARM_DURATION_MS = 24 * 60 * 60 * 1000;
 
 // Per-rarity rewards (mirror of artifacts/api-server/src/routes/staking.ts).

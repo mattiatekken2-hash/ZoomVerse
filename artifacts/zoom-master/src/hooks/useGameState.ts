@@ -2834,21 +2834,9 @@ export function useGameState() {
         return;
       }
 
-      if (type === "stardust") {
-        setState((prev) => ({
-          ...prev,
-          stardustBalance: Math.max(0, (prev.stardustBalance || 0) - n),
-        }));
-        return;
-      }
-
-      if (type === "ton") {
-        setState((prev) => ({
-          ...prev,
-          tonBalance: Math.max(0, (prev.tonBalance || 0) - n),
-        }));
-        return;
-      }
+      // stardust / ton admin decrements are handled exclusively in
+      // App.tsx (HMR-safe listener) so the state stays consistent without
+      // double-application from this mount-once effect.
 
       if (type === "slots") {
         setState((prev) => {
@@ -2917,21 +2905,9 @@ export function useGameState() {
         return;
       }
 
-      if (type === "stardust") {
-        setState((prev) => ({
-          ...prev,
-          stardustBalance: (prev.stardustBalance || 0) + n,
-        }));
-        return;
-      }
-
-      if (type === "ton") {
-        setState((prev) => ({
-          ...prev,
-          tonBalance: (prev.tonBalance || 0) + n,
-        }));
-        return;
-      }
+      // stardust / ton admin increments are handled exclusively in
+      // App.tsx (HMR-safe listener) so the state stays consistent without
+      // double-application from this mount-once effect.
 
       if (type === "slots") {
         setState((prev) => ({ ...prev, maxSlots: (prev.maxSlots || INITIAL_STATE.maxSlots) + n }));

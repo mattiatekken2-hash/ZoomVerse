@@ -1,0 +1,1 @@
+- [HMR-safe event listeners](hmr-listeners.md) — mount-once `useEffect` with `[]` deps traps stale closures after hot reload; move currency mutations to a HMR-safe effect with proper cleanup, or use `useRef` for latest handler references.

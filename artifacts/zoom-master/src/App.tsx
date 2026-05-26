@@ -154,6 +154,43 @@ function AppShellWithState() {
     });
   }, [stardust.ready, stardust.balance]);
 
+  // ───── HMR-safe admin self-credit/debit listener ───────────────
+  // The mount-once listener inside useGameState.ts (dependency []) can
+  // get stuck with an old closure after hot reload. We handle stardust
+  // and ton admin self-actions here so they always reflect immediately.
+  useEffect(() => {
+    const onInc = (e: Event) => {
+      const d = (e as CustomEvent<{ type: string; amount: number }>).detail;
+      if (!d || !d.type) return;
+      const n = Math.max(0, Math.floor(d.amount || 0));
+      if (d.type === "stardust") {
+        setState((prev) => ({ ...prev, stardustBalance: (prev.stardustBalance || 0) + n }));
+        void stardust.refresh();
+      }
+      if (d.type === "ton") {
+        setState((prev) => ({ ...prev, tonBalance: (prev.tonBalance || 0) + n }));
+      }
+    };
+    const onDec = (e: Event) => {
+      const d = (e as CustomEvent<{ type: string; amount: number }>).detail;
+      if (!d || !d.type) return;
+      const n = Math.max(0, Math.floor(d.amount || 0));
+      if (d.type === "stardust") {
+        setState((prev) => ({ ...prev, stardustBalance: Math.max(0, (prev.stardustBalance || 0) - n) }));
+        void stardust.refresh();
+      }
+      if (d.type === "ton") {
+        setState((prev) => ({ ...prev, tonBalance: Math.max(0, (prev.tonBalance || 0) - n) }));
+      }
+    };
+    window.addEventListener("zoom-admin-self-increment", onInc);
+    window.addEventListener("zoom-admin-self-decrement", onDec);
+    return () => {
+      window.removeEventListener("zoom-admin-self-increment", onInc);
+      window.removeEventListener("zoom-admin-self-decrement", onDec);
+    };
+  }, [stardust]);
+
   // Maintenance mode: poll status, show fullscreen overlay for non-admins.
   // We cache the last known status in localStorage so a repeat visit during
   // maintenance shows the lock screen immediately (zero Lab flash). On a
@@ -674,9 +711,9 @@ function AppShellWithState() {
             <span style={{ fontSize: 12, lineHeight: 1 }}>★</span>
             <span style={{ fontVariantNumeric: "tabular-nums" }}>
               {(() => {
-                // Local balance is primary so crafting deductions update live.
-                // Fall back to the server value only before local state is seeded.
-                const n = state.stardustBalance || stardust.balance;
+                // Show whichever is highest: local tracks live crafting,
+                // server catches admin grants / cross-device collections.
+                const n = state.stardustBalance || 0;
                 if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
                 if (n >= 10_000)    return (n / 1_000).toFixed(1) + "K";
                 return n.toLocaleString();
@@ -719,7 +756,7 @@ function AppShellWithState() {
                   earthPlanets={state.earthPlanets || []}
                   sunCount={state.sunCount || 0}
                   tonBalance={state.tonBalance || 0}
-                  stardustBalance={Math.max(state.stardustBalance || 0, stardust.balance)}
+                  stardustBalance={state.stardustBalance || 0}
                   telegramId={state.telegramId}
                   onCraft={craft}
                   onClaim={claimCraft}
