@@ -10,7 +10,7 @@ const router = Router();
 
 const ADMIN_ID = "8144744644";
 
-export const WITHDRAWAL_MIN_TON = 1;
+export const WITHDRAWAL_MIN_TON = 10;
 export const WITHDRAWAL_FEE_TON = 0.02;
 export const WITHDRAWAL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
