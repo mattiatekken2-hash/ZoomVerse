@@ -1677,6 +1677,24 @@ export async function fetchEconomyHistory(): Promise<EconomyHistoryResponse | nu
   } catch { return null; }
 }
 
+
+export async function deductCraftStardust(telegramId: string, amount: number): Promise<{ ok: boolean; newBalance?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/stardust/deduct`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, amount }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({} as Record<string, unknown>));
+      return { ok: false, error: String(j["error"] ?? "SERVER_ERROR") };
+    }
+    const j = await res.json().catch(() => ({} as Record<string, unknown>));
+    return { ok: true, newBalance: Number(j["newBalance"] ?? 0) };
+  } catch {
+    return { ok: false, error: "NETWORK" };
+  }
+}
 // ─────────────────────────────────────────────────────────────────────
 // TON STAKING — 7 tiers. V1/SUN keep continuous accrual; BASIC..GOLD
 // require SUN in inventory + 8 ACTIVE farms of that rarity.

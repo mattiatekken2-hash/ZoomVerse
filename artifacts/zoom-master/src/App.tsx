@@ -79,7 +79,7 @@ function AppShellWithState() {
     };
   }, [t]);
   const {
-    state, craft, claimCraft, redeemCode,
+    state, setState, craft, claimCraft, redeemCode,
     collectPlanet, burnPlanet, renamePlanetLocal,
     startFarming, stopFarming,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
@@ -129,6 +129,30 @@ function AppShellWithState() {
   // re-running its cleanup (which would also kill an active despawn timer).
   const stardustCapReachedRef = useRef(stardustCapReached);
   useEffect(() => { stardustCapReachedRef.current = stardustCapReached; }, [stardustCapReached]);
+
+  // One-shot init + periodic up-sync: when the server-side stardust state
+  // first arrives, seed the local GameState if it still holds the default 0.
+  // Afterwards, only snap UPWARD (server grants, admin credits) — never
+  // overwrite downwards, because local crafts deduct immediately.
+  const stardustInitDoneRef = useRef(false);
+  useEffect(() => {
+    if (!stardust.ready) return;
+    setState((prev) => {
+      // First time ever: adopt server value unconditionally.
+      if (!stardustInitDoneRef.current) {
+        stardustInitDoneRef.current = true;
+        if (prev.stardustBalance === 0 && stardust.balance > 0) {
+          return { ...prev, stardustBalance: stardust.balance };
+        }
+        return prev;
+      }
+      // Subsequent syncs: grow-only to avoid clobbering a live craft deduction.
+      if (stardust.balance > prev.stardustBalance && !prev.pendingPlanet) {
+        return { ...prev, stardustBalance: stardust.balance };
+      }
+      return prev;
+    });
+  }, [stardust.ready, stardust.balance]);
 
   // Maintenance mode: poll status, show fullscreen overlay for non-admins.
   // We cache the last known status in localStorage so a repeat visit during
@@ -486,6 +510,12 @@ function AppShellWithState() {
     try {
       const res = await stardust.collect();
       if (res.ok) {
+        // Reflect the newly-collected stardust into GameState so the Lab
+        // crafting cost check and the header counter stay in sync.
+        setState((prev) => ({
+          ...prev,
+          stardustBalance: (prev.stardustBalance || 0) + 1,
+        }));
         showStardustToast("✦ +1 STARDUST", 1600);
       } else if (res.reason === "DAILY_CAP") {
         showStardustToast("Daily Stardust limit reached.");
@@ -687,7 +717,7 @@ function AppShellWithState() {
                   earthPlanets={state.earthPlanets || []}
                   sunCount={state.sunCount || 0}
                   tonBalance={state.tonBalance || 0}
-                  stardustBalance={state.stardustBalance || 0}
+                  stardustBalance={Math.max(state.stardustBalance || 0, stardust.balance)}
                   telegramId={state.telegramId}
                   onCraft={craft}
                   onClaim={claimCraft}

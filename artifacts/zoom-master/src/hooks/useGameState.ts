@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, deductCraftStardust, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import { getEquipmentTotalRate, getEquipmentReactivationFee, EQUIPMENT_CYCLE_MS, makeEquipmentItem, getEquipmentRate, EQUIPMENT_CATEGORY_ORDER } from "../utils/equipmentConfig";
@@ -3131,7 +3131,7 @@ export function useGameState() {
     };
   }, []);
 
-  const craft = useCallback((): { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType; equipmentDrop?: EquipmentDropResult } => {
+  const craft = useCallback((availableStardust?: number): { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType; equipmentDrop?: EquipmentDropResult } => {
     const current = stateRef.current;
     if (current.pendingPlanet) return { completed: false };
     if (current.planets.length >= current.maxSlots) return { completed: false };
@@ -3142,9 +3142,20 @@ export function useGameState() {
     if (rarity === null) {
       rarity = rollRarity();
       const config = PLANET_CONFIG[rarity];
+      const stardustBalance = availableStardust ?? current.stardustBalance;
       // Stardust cost check at forge start — block if insufficient.
-      if (current.stardustBalance < config.craftCost) {
+      if (stardustBalance < config.craftCost) {
         return { completed: false };
+      }
+      // Deduct Stardust immediately so the balance counter updates live.
+      setState((prev) => ({
+        ...prev,
+        stardustBalance: prev.stardustBalance - config.craftCost,
+      }));
+      // Also deduct on the server (fire-and-forget). The local state is
+      // authoritative for the UI; the server sync corrects on next refresh.
+      if (current.telegramId) {
+        void deductCraftStardust(current.telegramId, config.craftCost);
       }
       const baseTaps = config.tapsNeeded;
       goal = baseTaps + Math.floor(Math.random() * 11);
@@ -3166,7 +3177,6 @@ export function useGameState() {
         setState((prev) => {
           const next: GameState = {
             ...prev,
-            stardustBalance: prev.stardustBalance - craftCost,
             taps: 0,
             goal: 50,
             currentCraftRarity: null,
@@ -3213,7 +3223,6 @@ export function useGameState() {
           ...(planet.name === "GOLD"
             ? withFeedEvent(prev, `${PLAYER_NAME} just forged a GOLD planet!`)
             : prev),
-          stardustBalance: prev.stardustBalance - craftCost,
           balance: prev.balance + zoomBonus,
           taps: 0,
           goal: 50,
@@ -4751,7 +4760,7 @@ export function useGameState() {
   }, []);
 
   return {
-    state, craft, claimCraft, redeemCode,
+    state, setState, craft, claimCraft, redeemCode,
     collectPlanet, burnPlanet, renamePlanetLocal,
     startFarming, stopFarming,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,

@@ -88,6 +88,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/collection-planets/bulk-seed",
       "/sun/cycle",
       "/stardust/collect",
+      "/stardust/deduct",
       "/merchant/scrap",
       "/wheel/claim-daily",
       "/wheel/spin",

@@ -137,7 +137,7 @@ interface ContinuousSettleResult {
   count: number;
   activeCount: number;
   isStaking: boolean;
-  isAccruing: boolean;       // currently producing TON (active>=4 & started)
+  isAccruing: boolean;       // currently producing TON (active>=8 & started)
   rewardTonPerMonth: number;
   _patch?: Record<string, number>;
 }
@@ -217,9 +217,9 @@ interface DynamicSettleResult {
   lastSettledAtMs: number;     // bumped to `now` if the row was updated
   count: number;               // total planets of this rarity in inventory
   activeCount: number;         // currently actively-farming subset
-  eligible: boolean;           // can START staking right now (4 active + SUN)
+  eligible: boolean;           // can START staking right now (8 active + SUN)
   isStaking: boolean;          // already activated (startedAtMs > 0)
-  isAccruing: boolean;         // currently producing TON (active>=4 & started)
+  isAccruing: boolean;         // currently producing TON (active>=8 & started)
   rewardTonPerMonth: number;
   // Internal — populated when the snapshot needs persisting.
   _patch?: Record<string, number>;
@@ -245,7 +245,7 @@ function settleDynamicTier(
   const activeCount = countActiveByRarity(planets, rarityName, now);
   const isStaking = startedAtMs > 0;
   const fullyActive = activeCount >= STAKING_REQUIRED_COUNT;
-  // Eligibility to START staking: SUN in inventory AND 4 active planets.
+  // Eligibility to START staking: SUN in inventory AND 8 active planets.
   const eligible = hasSun && fullyActive;
   const rewardTonPerMonth = STAKING_REWARDS_TON_PER_MONTH[kind];
 
@@ -295,7 +295,7 @@ const StartBody = z.object({
 /**
  * GET /staking/status?telegramId=...
  * Returns the live status of all 7 staking tiers. Side-effect: settles
- * the dynamic tiers (BASIC..GOLD) — accrues TON when 4 of that rarity
+ * the dynamic tiers (BASIC..GOLD) — accrues TON when 8 of that rarity
  * are actively farming, otherwise just bumps `lastSettledAtMs`.
  */
 router.get("/staking/status", async (req, res) => {
@@ -429,7 +429,7 @@ router.get("/staking/status", async (req, res) => {
         requiresSunInInventory: true,
       },
       sun: {
-        // Eligible to START requires 4 SUN owned AND the SUN cycle to
+        // Eligible to START requires 8 SUN owned AND the SUN cycle to
         // be active (same rule as accrual gating). If the user lets
         // the SUN cycle expire, both display "Production paused" and
         // accrual freezes until they reactivate.
@@ -465,8 +465,8 @@ router.get("/staking/status", async (req, res) => {
  * the existing timestamp is returned unchanged.
  *
  * Eligibility rules:
- *   • V1 / SUN  → 4 of that type in inventory.
- *   • BASIC..GOLD → 4 of that rarity ACTIVELY FARMING + SUN in inventory.
+ *   • V1 / SUN  → 8 of that type in inventory.
+ *   • BASIC..GOLD → 8 of that rarity ACTIVELY FARMING + SUN in inventory.
  */
 router.post("/staking/start", async (req, res) => {
   const parsed = StartBody.safeParse(req.body);

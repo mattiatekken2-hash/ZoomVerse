@@ -29,7 +29,7 @@ interface LabPageProps {
   tonBalance: number;
   stardustBalance: number;
   telegramId: string | null;
-  onCraft: () => { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType; equipmentDrop?: EquipmentDropResult };
+  onCraft: (availableStardust?: number) => { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType; equipmentDrop?: EquipmentDropResult };
   onClaim: () => void;
   whiteCollectionUnlocked: boolean;
   whiteCollectionBundles: number;
@@ -121,9 +121,10 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   }, []);
 
   const isFull = planets.length >= maxSlots && !pendingPlanet;
+  const effectiveStardust = stardustBalance;
   const canCraft = !pendingPlanet && planets.length < maxSlots && (currentCraftRarity
     ? true
-    : (stardustBalance >= (PLANET_CONFIG["BASIC"].craftCost ?? 2)));
+    : (effectiveStardust >= (PLANET_CONFIG["BASIC"].craftCost ?? 2)));
 
   const progress = goal > 0 ? taps / goal : 0;
 
@@ -169,7 +170,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   const handleCraft = useCallback(() => {
     if (!canCraft) return;
     hapticLight();
-    const result = onCraft();
+    const result = onCraft(stardustBalance);
     if (result.completed && result.broken && result.brokenRarity) {
       try {
         const tg = (window as unknown as { Telegram?: { WebApp?: { HapticFeedback?: { notificationOccurred?: (s: string) => void } } } }).Telegram?.WebApp;

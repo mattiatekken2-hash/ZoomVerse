@@ -208,6 +208,39 @@ router.post("/stardust/collect", async (req, res) => {
 // it's safe to render in the client. We prefer username, fall back to
 // firstName, then to a generic "Player". Players with 0 balance are filtered
 // out so the list doesn't pad with empty entries on a fresh database.
+const DeductBody = z.object({
+  telegramId: z.string().min(1),
+  amount: z.number().min(1),
+});
+
+router.post("/stardust/deduct", async (req, res) => {
+  const parsed = DeductBody.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ ok: false, error: "BAD_REQUEST" });
+  }
+  const { telegramId, amount } = parsed.data;
+  try {
+    const [upd] = await db
+      .update(usersTable)
+      .set({
+        stardustBalance: sql`GREATEST(0, ${usersTable.stardustBalance} - ${amount})`,
+      })
+      .where(
+        sql`${usersTable.telegramId} = ${telegramId}
+          AND ${usersTable.stardustBalance} >= ${amount}
+          AND ${usersTable.isDisabled} = false`
+      )
+      .returning({ stardustBalance: usersTable.stardustBalance });
+    if (!upd) {
+      return res.status(402).json({ ok: false, error: "Insufficient stardust" });
+    }
+    res.json({ ok: true, newBalance: Number(upd.stardustBalance ?? 0) });
+  } catch (err) {
+    req.log.error(err, "[stardust/deduct] error");
+    res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+});
+
 router.get("/stardust/leaderboard", async (_req, res) => {
   try {
     const rows = await db
