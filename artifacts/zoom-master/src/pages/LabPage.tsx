@@ -27,6 +27,7 @@ interface LabPageProps {
   hasAutoTap: boolean;
   sunCount: number;
   tonBalance: number;
+  stardustBalance: number;
   telegramId: string | null;
   onCraft: () => { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType; equipmentDrop?: EquipmentDropResult };
   onClaim: () => void;
@@ -66,7 +67,7 @@ interface FloatMsg { id: number; text: string; color: string }
 const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, sunCount, tonBalance, telegramId, onCraft, onClaim, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, blackCollectionUnlocked, blackCollectionBundles, blackPlanets, supernovaCollectionUnlocked, supernovaCollectionBundles, supernovaPlanets, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, onPlaceBlackPlanet, onCollectBlackPlanet, onReactivateBlackPlanet, onMarkBlackPlanetReactivated, onPlaceSupernovaPlanet, onCollectSupernovaPlanet, onReactivateSupernovaPlanet, onMarkSupernovaPlanetReactivated, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, sunCount, tonBalance, stardustBalance, telegramId, onCraft, onClaim, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, blackCollectionUnlocked, blackCollectionBundles, blackPlanets, supernovaCollectionUnlocked, supernovaCollectionBundles, supernovaPlanets, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, onPlaceBlackPlanet, onCollectBlackPlanet, onReactivateBlackPlanet, onMarkBlackPlanetReactivated, onPlaceSupernovaPlanet, onCollectSupernovaPlanet, onReactivateSupernovaPlanet, onMarkSupernovaPlanetReactivated, visible = true }: LabPageProps) {
   const { t } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
@@ -120,7 +121,9 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   }, []);
 
   const isFull = planets.length >= maxSlots && !pendingPlanet;
-  const canCraft = !pendingPlanet && planets.length < maxSlots && balance >= 1;
+  const canCraft = !pendingPlanet && planets.length < maxSlots && (currentCraftRarity
+    ? true
+    : (stardustBalance >= (PLANET_CONFIG["BASIC"].craftCost ?? 2)));
 
   const progress = goal > 0 ? taps / goal : 0;
 
@@ -384,7 +387,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
               data-testid="button-craft"
               style={{ flex: 1 }}
             >
-              {isFull ? t("lab.farmFull") : balance < 1 ? t("lab.noZoom") : t("lab.forgePlanet")}
+              {isFull ? t("lab.farmFull") : !canCraft ? t("lab.noStardust") : t("lab.forgePlanet")}
             </button>
           )}
           <PixelAvatar

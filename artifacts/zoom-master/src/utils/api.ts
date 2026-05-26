@@ -1679,7 +1679,7 @@ export async function fetchEconomyHistory(): Promise<EconomyHistoryResponse | nu
 
 // ─────────────────────────────────────────────────────────────────────
 // TON STAKING — 7 tiers. V1/SUN keep continuous accrual; BASIC..GOLD
-// require SUN in inventory + 4 ACTIVE farms of that rarity.
+// require SUN in inventory + 8 ACTIVE farms of that rarity.
 //   • V1 / SUN  → 0.15 TON / 30d   (continuous)
 //   • MYTHIC    → 0.10 TON / 30d   (gated on active farming)
 //   • GOLD      → 0.07 TON / 30d   (gated on active farming)

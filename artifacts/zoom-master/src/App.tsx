@@ -687,6 +687,7 @@ function AppShellWithState() {
                   earthPlanets={state.earthPlanets || []}
                   sunCount={state.sunCount || 0}
                   tonBalance={state.tonBalance || 0}
+                  stardustBalance={state.stardustBalance || 0}
                   telegramId={state.telegramId}
                   onCraft={craft}
                   onClaim={claimCraft}

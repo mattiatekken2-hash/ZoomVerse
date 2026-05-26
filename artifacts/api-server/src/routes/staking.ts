@@ -7,20 +7,20 @@ import { z } from "zod";
 const router: IRouter = Router();
 
 // ─────────────────────────────────────────────────────────────────────
-// PER-RARITY MONTHLY YIELD (TON / 30 days, full set of 4 planets)
+// PER-RARITY MONTHLY YIELD (TON / 30 days, full set of 8 planets)
 // ─────────────────────────────────────────────────────────────────────
 //   • V1 / SUN  → 0.15  (continuous accrual after activation, like before)
-//   • MYTHIC    → 0.10  (requires SUN in inventory + 4 active farms)
-//   • GOLD      → 0.07  (requires SUN in inventory + 4 active farms)
-//   • EPIC      → 0.04  (requires SUN in inventory + 4 active farms)
-//   • RARE      → 0.02  (requires SUN in inventory + 4 active farms)
-//   • BASIC     → 0.01  (requires SUN in inventory + 4 active farms)
+//   • MYTHIC    → 0.10  (requires SUN in inventory + 8 active farms)
+//   • GOLD      → 0.07  (requires SUN in inventory + 8 active farms)
+//   • EPIC      → 0.04  (requires SUN in inventory + 8 active farms)
+//   • RARE      → 0.02  (requires SUN in inventory + 8 active farms)
+//   • BASIC     → 0.01  (requires SUN in inventory + 8 active farms)
 export type StakingKind = "v1" | "sun" | "basic" | "rare" | "epic" | "mythic" | "plasma" | "gold";
 
 export const STAKING_REWARDS_TON_PER_MONTH: Record<StakingKind, number> = {
   v1: 0.15,
   sun: 0.15,
-  plasma: 0.25,    // PLASMA — premium staking: 0.25 TON / 30 days per set of 4
+  plasma: 0.25,    // PLASMA — premium staking: 0.25 TON / 30 days per set of 8
   mythic: 0.10,
   gold: 0.07,
   epic: 0.04,
@@ -28,7 +28,7 @@ export const STAKING_REWARDS_TON_PER_MONTH: Record<StakingKind, number> = {
   basic: 0.01,
 };
 export const STAKING_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
-export const STAKING_REQUIRED_COUNT = 4;
+export const STAKING_REQUIRED_COUNT = 8;
 const FARM_DURATION_MS = 24 * 60 * 60 * 1000;
 
 // New rarities (BASIC..GOLD) follow the dynamic-accrual model.
@@ -144,8 +144,8 @@ interface ContinuousSettleResult {
 
 // Settle V1 or SUN tier using the SAME gated-accrual model as the
 // dynamic tiers: TON only accrues while the underlying source is
-// actively producing ZOOM. For V1 → 4 V1 planets actively farming;
-// for SUN → 4 SUNs owned AND the SUN cycle is within its 24h window.
+// actively producing ZOOM. For V1 → 8 V1 planets actively farming;
+// for SUN → 8 SUNs owned AND the SUN cycle is within its 24h window.
 // Gaps where the source is "off" are silently skipped (lastSettledAtMs
 // still advances), so users can't back-claim by reactivating later.
 function settleContinuousTier(
@@ -333,7 +333,7 @@ router.get("/staking/status", async (req, res) => {
 
       // V1 / SUN settle — same gated model as the dynamic tiers. They
       // only accrue TON while their underlying source is currently
-      // producing ZOOM (4 V1 actively farming, or 4 SUN owned + cycle
+      // producing ZOOM (8 V1 actively farming, or 8 SUN owned + cycle
       // active). When production is off, we still bump lastSettledAtMs
       // so users can't back-claim the gap by reactivating later.
       const v1ActiveCount = countActiveV1(planetsArr, now);
@@ -412,7 +412,7 @@ router.get("/staking/status", async (req, res) => {
 
     return res.json({
       v1: {
-        // Eligible to START requires 4 V1 currently actively farming
+        // Eligible to START requires 8 V1 currently actively farming
         // (mirrors the dynamic-tier rule). Once started, accrual is
         // gated by the same condition — so production stops if all
         // V1 cycles expire.

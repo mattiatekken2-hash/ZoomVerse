@@ -59,9 +59,9 @@ const en: Dict = {
   // lab
   "lab.farmFull": "FARM FULL",
   "lab.farmFullHint": "Burn or sell a planet to continue",
-  "lab.noZoom": "NO $ZOOM",
+  "lab.noStardust": "NO STARDUST",
   "lab.forgePlanet": "FORGE PLANET",
-  "lab.perTap": "1 $ZOOM per tap",
+  "lab.perTap": "Stardust cost varies by rarity",
   "lab.slotsFree": "{n} slots free",
 
   // farm
@@ -516,9 +516,9 @@ const it: Dict = {
 
   "lab.farmFull": "FARM PIENA",
   "lab.farmFullHint": "Brucia o vendi un pianeta per continuare",
-  "lab.noZoom": "NESSUN $ZOOM",
+  "lab.noStardust": "NESSUN STARDUST",
   "lab.forgePlanet": "FORGE PLANET",
-  "lab.perTap": "1 $ZOOM per tap",
+  "lab.perTap": "Costo Stardust variabile per rarità",
   "lab.slotsFree": "{n} slot liberi",
 
   "farm.collect": "RACCOGLI",
@@ -966,9 +966,9 @@ const ru: Dict = {
 
   "lab.farmFull": "ФЕРМА ПОЛНА",
   "lab.farmFullHint": "Сожгите или продайте планету, чтобы продолжить",
-  "lab.noZoom": "НЕТ $ZOOM",
+  "lab.noStardust": "НЕТ STARDUST",
   "lab.forgePlanet": "СОЗДАТЬ ПЛАНЕТУ",
-  "lab.perTap": "1 $ZOOM за тап",
+  "lab.perTap": "Стоимость Stardust зависит от редкости",
   "lab.slotsFree": "{n} свободно",
 
   "farm.collect": "СОБРАТЬ",
@@ -1392,9 +1392,9 @@ const uk: Dict = {
 
   "lab.farmFull": "ФЕРМА ЗАПОВНЕНА",
   "lab.farmFullHint": "Спаліть або продайте планету, щоб продовжити",
-  "lab.noZoom": "НЕМАЄ $ZOOM",
+  "lab.noStardust": "НЕМАЄ STARDUST",
   "lab.forgePlanet": "СТВОРИТИ ПЛАНЕТУ",
-  "lab.perTap": "1 $ZOOM за тап",
+  "lab.perTap": "Вартість Stardust залежить від рідкості",
   "lab.slotsFree": "{n} вільно",
 
   "farm.collect": "ЗІБРАТИ",

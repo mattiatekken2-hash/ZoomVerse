@@ -289,6 +289,7 @@ export interface GameState {
   // from `tonBalance` so deposits never become withdrawable (one-way:
   // deposit → spend in-game).
   depositBalance: number;
+  stardustBalance: number;
   lastFarmingSettledAt: number;
   claimedMilestones: number[];
   lastBalanceEpoch: number;
@@ -324,7 +325,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     // sum across all rollable rarities still equals exactly 1.
     chance: 0.79020,
     label: "Basic",
-    craftCost: 20,
+    craftCost: 2,
     activationTon: 0.05,
     tapsNeeded: 200,
     reactivationFee: 25,
@@ -335,7 +336,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     glowColor: "rgba(79,172,254,0.5)",
     chance: 0.20,
     label: "Rare",
-    craftCost: 40,
+    craftCost: 5,
     activationTon: 0.15,
     tapsNeeded: 500,
     reactivationFee: 200,
@@ -346,7 +347,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     glowColor: "rgba(196,113,237,0.5)",
     chance: 0.005,
     label: "Epic",
-    craftCost: 80,
+    craftCost: 12,
     activationTon: 0.5,
     tapsNeeded: 1200,
     reactivationFee: 1000,
@@ -361,7 +362,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     glowColor: "rgba(255,69,0,0.7)",
     chance: 0.00275,
     label: "Mythic",
-    craftCost: 115,
+    craftCost: 50,
     // No TON activation — MYTHIC starts farming for free and follows the
     // same 24h cycle as all other planets, after which it must be
     // reactivated with ZOOM (reactivationFee).
@@ -379,7 +380,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     glowColor: "rgba(0,230,118,0.7)",
     chance: 0.00150,
     label: "Plasma",
-    craftCost: 130,
+    craftCost: 75,
     activationTon: 0,
     tapsNeeded: 4000,
     reactivationFee: 1750,
@@ -390,7 +391,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     glowColor: "rgba(255,215,0,0.5)",
     chance: 0.0005,
     label: "Gold",
-    craftCost: 150,
+    craftCost: 25,
     activationTon: 1.0,
     tapsNeeded: 6000,
     reactivationFee: 2000,
@@ -404,7 +405,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     glowColor: "rgba(245,251,255,0.7)",
     chance: 0.00005,
     label: "V1",
-    craftCost: 250,
+    craftCost: 100,
     activationTon: 2.0,
     tapsNeeded: 10000,
     reactivationFee: 4000,
@@ -748,6 +749,7 @@ const INITIAL_STATE: GameState = {
   supernovaPlanets: [],
   tonBalance: 0,
   depositBalance: 0,
+  stardustBalance: 0,
   // Default to 0 (not serverNow()) so a brand-new device / cleared cache is
   // recognized as "no prior local settle" — the server-side /farm/settle
   // endpoint will then use the per-planet timestamps as the floor and credit
@@ -875,6 +877,7 @@ function loadState(): GameState {
           supernovaPlanets: ((parsed as unknown as Record<string, unknown>).supernovaPlanets as Planet[] | undefined ?? []).map(migratePlanet),
           tonBalance: parsed.tonBalance ?? 0,
           depositBalance: (parsed as unknown as Record<string, unknown>).depositBalance as number ?? 0,
+          stardustBalance: (parsed as unknown as Record<string, unknown>).stardustBalance as number ?? 0,
         };
         const resolvedTelegramId = telegramId || base.telegramId;
         // Only treat as "fresh load" when we did NOT find an entry keyed to the
@@ -3132,23 +3135,29 @@ export function useGameState() {
     const current = stateRef.current;
     if (current.pendingPlanet) return { completed: false };
     if (current.planets.length >= current.maxSlots) return { completed: false };
-    if (current.balance < 1) return { completed: false };
 
     let rarity = current.currentCraftRarity;
     let goal = current.goal;
 
     if (rarity === null) {
       rarity = rollRarity();
-      const baseTaps = PLANET_CONFIG[rarity].tapsNeeded;
+      const config = PLANET_CONFIG[rarity];
+      // Stardust cost check at forge start — block if insufficient.
+      if (current.stardustBalance < config.craftCost) {
+        return { completed: false };
+      }
+      const baseTaps = config.tapsNeeded;
       goal = baseTaps + Math.floor(Math.random() * 11);
     }
 
     const newTaps = current.taps + 1;
-    const newBalance = current.balance - 1;
 
     if (newTaps >= goal) {
+      const config = PLANET_CONFIG[rarity];
+      const craftCost = config.craftCost;
+
       // 4% chance the planet shatters during construction. The player loses
-      // the ZOOM and taps spent, but no planet is added to the inventory.
+      // the Stardust cost, but no planet is added to the inventory.
       const BREAK_CHANCE = 0.04;
       const isBroken = Math.random() < BREAK_CHANCE;
 
@@ -3157,7 +3166,7 @@ export function useGameState() {
         setState((prev) => {
           const next: GameState = {
             ...prev,
-            balance: newBalance,
+            stardustBalance: prev.stardustBalance - craftCost,
             taps: 0,
             goal: 50,
             currentCraftRarity: null,
@@ -3171,14 +3180,6 @@ export function useGameState() {
       }
 
       const planet = makePlanet(rarity);
-      // NOTE: recordCraft moved to claimCraft. The leaderboard counter must
-      // only increment AFTER the planet is actually added to the user's
-      // inventory. Otherwise, if the user closes the app before claiming,
-      // pendingPlanet is local-only and gets lost on next session, leaving
-      // total_crafted_X inflated and the planet gone (the MYTHIC bug).
-      // `goal` here equals the total taps for this craft, and since each tap
-      // costs 1 ZOOM (line ~2607), it equals the ZOOM spent on this forge.
-      const craftCost = goal;
       // Pre-roll OUTSIDE setState: all randomness (Math.random,
       // makeEquipmentItem's id+timestamp) must happen exactly once per
       // craft, even under React strict-mode dev double-invocation.
@@ -3212,7 +3213,8 @@ export function useGameState() {
           ...(planet.name === "GOLD"
             ? withFeedEvent(prev, `${PLAYER_NAME} just forged a GOLD planet!`)
             : prev),
-          balance: newBalance + zoomBonus,
+          stardustBalance: prev.stardustBalance - craftCost,
+          balance: prev.balance + zoomBonus,
           taps: 0,
           goal: 50,
           currentCraftRarity: null,
@@ -3242,7 +3244,6 @@ export function useGameState() {
       setState((prev) => {
         const next: GameState = {
           ...prev,
-          balance: newBalance,
           taps: newTaps,
           goal,
           currentCraftRarity: rarity,
