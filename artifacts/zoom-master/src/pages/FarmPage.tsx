@@ -298,7 +298,7 @@ function EquipmentInventory({
                           <button
                             onClick={() => {
                               setSellFor({ id: item.id, rate: item.rate });
-                              setSellPrice(String(Math.max(100, Math.round(item.rate * 24 * 2))));
+                              setSellPrice(String(Math.min(10.0, Math.max(0.25, +(item.rate * 0.01).toFixed(2)))));
                             }}
                             className="text-[9px] font-black tracking-wider rounded-md py-1"
                             style={{
@@ -356,10 +356,14 @@ function EquipmentInventory({
             </div>
             <div className="text-[11px]" style={{ color: "rgba(255,255,255,0.6)" }}>
               Set a TON price. The buyer pays with deposited TON and receives a fresh 24h cycle.
+              <br/>
+              Min 0.25 – Max 10.0 TON.
             </div>
             <input
               type="number"
-              min={1}
+              step="0.01"
+              min={0.25}
+              max={10.0}
               value={sellPrice}
               onChange={(e) => setSellPrice(e.target.value)}
               className="rounded-md px-3 py-2 text-sm font-bold"
@@ -384,8 +388,8 @@ function EquipmentInventory({
               </button>
               <button
                 onClick={() => {
-                  const n = Math.floor(Number(sellPrice));
-                  if (!Number.isFinite(n) || n <= 0) return;
+                  const n = Number(sellPrice);
+                  if (!Number.isFinite(n) || n < 0.25 || n > 10.0) return;
                   onSell(sellFor.id, n);
                   setSellFor(null);
                 }}

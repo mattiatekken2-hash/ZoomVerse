@@ -334,6 +334,12 @@ router.post("/market/list-equipment", async (req, res) => {
 
   const { sellerTelegramId, sellerName, equipmentId, price } = parsed.data;
 
+  // Price cap: 0.25 – 10.0 TON per any equipment (same rules as planets)
+  if (price < TON_MIN || price > TON_MAX) {
+    res.status(400).json({ error: `Prezzo deve essere tra ${TON_MIN} e ${TON_MAX} TON` });
+    return;
+  }
+
   const [sellerFlag] = await db
     .select({ isDisabled: usersTable.isDisabled })
     .from(usersTable)
