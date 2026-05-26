@@ -35,6 +35,7 @@ import {
   adminRemoveSpins,
   adminResetSeason,
   adminForceDelist,
+  adminClearPlanetMarket,
   adminDisableUser,
   adminEnableUser,
   adminBulkDisable,
@@ -96,7 +97,7 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "black" | "revoke-white" | "revoke-earth" | "revoke-black" | "autotap" | "test-wd-chan" | "v1" | "v1nft" | "rec-stars" | "wh-info" | "grant-equipment" | "supernova" | "revoke-supernova" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "black" | "revoke-white" | "revoke-earth" | "revoke-black" | "autotap" | "test-wd-chan" | "v1" | "v1nft" | "rec-stars" | "wh-info" | "grant-equipment" | "supernova" | "revoke-supernova" | "clear-planet-market" | null>(null);
   const [eqCategory, setEqCategory] = useState<EqCategory>("HELMET");
   const [eqRarity, setEqRarity] = useState<EqRarity>("BASIC");
   const [confirmBulkNebo, setConfirmBulkNebo] = useState(false);
@@ -1093,6 +1094,35 @@ export function AdminPanel({ telegramId }: Props) {
                   }}
                 >
                   {loading === "global" ? "..." : "⚡ BONUS ZOOM GLOBALE"}
+                </motion.button>
+
+                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+
+                {/* Clear planet marketplace */}
+                <motion.button
+                  onClick={async () => {
+                    haptic();
+                    setLoading("clear-planet-market");
+                    const r = await adminClearPlanetMarket(telegramId);
+                    setLoading(null);
+                    showFeedback(r.ok ? `✓ ${r.cleared ?? 0} listing rimossi dal mercato` : "✗ Errore pulizia mercato", r.ok);
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(255,60,60,0.3)",
+                    background: "rgba(255,60,60,0.1)",
+                    color: "#ff5555",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "opacity 0.15s",
+                  }}
+                >
+                  {loading === "clear-planet-market" ? "..." : "🧹 PULISCI MERCATO PIANETI"}
                 </motion.button>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />

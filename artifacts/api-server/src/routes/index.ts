@@ -182,6 +182,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/admin/remove-ton",
       "/admin/credit-spins",
       "/admin/force-delist",
+      "/admin/clear-planet-market",
       "/admin/clear-equipment-market",
       "/admin/remove-spins",
       "/admin/reset-season",

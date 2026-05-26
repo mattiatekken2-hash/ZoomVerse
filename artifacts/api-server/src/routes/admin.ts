@@ -1148,6 +1148,86 @@ router.post("/admin/clear-equipment-market", async (req, res) => {
   }
 });
 
+// ─── CLEAR PLANET MARKETPLACE ───────────────────────────────────────────────
+// Admin-only bulk delist: mark every active planet listing as 'delisted'
+// and sync the seller's planets_json so the items return to inventory.
+// Mirrors clear-equipment-market but for kind='planet'.
+router.post("/admin/clear-planet-market", async (req, res) => {
+  const ClearMarketBody = z.object({ adminId: z.string() });
+  const parsed = ClearMarketBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const rows = await client.query(
+      `SELECT id, seller_telegram_id, planet_id
+       FROM market_listings
+       WHERE kind = 'planet' AND status = 'active'
+       FOR UPDATE`
+    );
+    const listings = rows.rows as Array<{ id: number; seller_telegram_id: string; planet_id: string }>;
+
+    if (listings.length === 0) {
+      await client.query("COMMIT");
+      res.json({ ok: true, cleared: 0 });
+      return;
+    }
+
+    const nowMs = Date.now();
+    // 1) bulk mark listings as delisted
+    const listingIds = listings.map(l => l.id);
+    await client.query(
+      `UPDATE market_listings
+       SET status = 'delisted'
+       WHERE id = ANY($1::int[])
+         AND kind = 'planet'
+         AND status = 'active'`,
+      [listingIds]
+    );
+
+    // 2) per-seller group + rebuild planets_json via jsonb aggregation
+    const bySeller = new Map<string, string[]>();
+    for (const l of listings) {
+      const arr = bySeller.get(l.seller_telegram_id) ?? [];
+      arr.push(l.planet_id);
+      bySeller.set(l.seller_telegram_id, arr);
+    }
+
+    for (const [sellerId, planetIds] of bySeller) {
+      await client.query(
+        `UPDATE users
+         SET planets_json = COALESCE(
+           (SELECT jsonb_agg(
+              CASE
+                WHEN p->>'id' = ANY($2::text[])
+                  THEN (p - 'serverListingId' - 'marketPrice') || jsonb_build_object('isListedInMarket', false)
+                ELSE p
+              END
+            )
+            FROM jsonb_array_elements(planets_json) p),
+           '[]'::jsonb
+         ),
+         planets_updated_at_ms = GREATEST(planets_updated_at_ms, $3::bigint)
+         WHERE telegram_id = $1`,
+        [sellerId, planetIds, nowMs]
+      );
+    }
+
+    await client.query("COMMIT");
+    console.log(`[admin/clear-planet-market] Cleared ${listings.length} planet listings`);
+    res.json({ ok: true, cleared: listings.length });
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[admin/clear-planet-market] error:", err);
+    res.status(500).json({ error: "Database error" });
+  } finally {
+    client.release();
+  }
+});
+
 router.post("/admin/remove-spins", async (req, res) => {
   const parsed = SpinsBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
