@@ -185,6 +185,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/admin/clear-planet-market",
       "/admin/clear-equipment-market",
       "/admin/remove-spins",
+      "/admin/force-merchant-spawn",
       "/admin/reset-season",
       "/admin/mark-ton-completed",
       "/admin/reconcile-referrals",

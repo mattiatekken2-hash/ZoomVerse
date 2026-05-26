@@ -1228,6 +1228,33 @@ router.post("/admin/clear-planet-market", async (req, res) => {
   }
 });
 
+// ─── FORCE MERCHANT SPAWN ────────────────────────────────────────────────
+// Overrides the global merchant timer so the Space Merchant appears
+// immediately for all users. Next auto-spawn will resume normally
+// after the forced visit expires (15 min window).
+router.post("/admin/force-merchant-spawn", async (req, res) => {
+  const parsed = z.object({ adminId: z.string() }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+  try {
+    const now = Date.now();
+    const expiresAtMs = now + 15 * 60 * 1000;
+    const nextAtMs = null;
+    const valueText = JSON.stringify({ nextAtMs, expiresAtMs });
+    await db
+      .insert(appSettingsTable)
+      .values({ key: "merchant.global", valueText, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: appSettingsTable.key,
+        set: { valueText, updatedAt: new Date() },
+      });
+    res.json({ ok: true, expiresAt: new Date(expiresAtMs).toISOString() });
+  } catch (err) {
+    console.error("[admin/force-merchant-spawn] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 router.post("/admin/remove-spins", async (req, res) => {
   const parsed = SpinsBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
