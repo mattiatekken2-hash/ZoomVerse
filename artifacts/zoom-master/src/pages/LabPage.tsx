@@ -386,9 +386,14 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
               onClick={handleCraft}
               disabled={!canCraft}
               data-testid="button-craft"
-              style={{ flex: 1 }}
+              style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}
             >
-              {isFull ? t("lab.farmFull") : !canCraft ? t("lab.noStardust") : t("lab.forgePlanet")}
+              {isFull ? t("lab.farmFull") : !canCraft ? t("lab.noStardust") : (
+                <>
+                  <img src="/lightning-pixel.png" alt="" style={{ width: 28, height: 28, imageRendering: "pixelated" }} />
+                  {t("lab.forgePlanet")}
+                </>
+              )}
             </button>
           )}
           <PixelAvatar
