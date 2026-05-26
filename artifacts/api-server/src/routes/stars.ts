@@ -510,12 +510,13 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string,
     // The lock id is an arbitrary stable bigint dedicated to this resource.
     await tx.execute(sql`SELECT pg_advisory_xact_lock(7913042041)`);
     // Atomically increment bundle count, gated by GLOBAL cap on the SUM of bundles
-    // across all users. No per-user cap (a single user could buy all 10).
+    // across all users AND a per-user cap of 6 bundles.
     const result = await tx.execute(sql`
       UPDATE users
       SET white_collection_bundles = white_collection_bundles + 1,
           white_collection_unlocked = true
       WHERE telegram_id = ${telegramId}
+        AND white_collection_bundles < 6
         AND (SELECT COALESCE(SUM(white_collection_bundles), 0) FROM users) < ${WHITE_COLLECTION_MAX_GLOBAL}
       RETURNING white_collection_bundles
     `);

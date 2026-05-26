@@ -133,6 +133,7 @@ export async function reconcilePendingStarPayment(
               white_collection_unlocked = true,
               balance_epoch = balance_epoch + 1
           WHERE telegram_id = ${telegramId}
+            AND white_collection_bundles < 6
             AND (SELECT COALESCE(SUM(white_collection_bundles), 0) FROM users) < ${WHITE_COLLECTION_MAX_GLOBAL}
           RETURNING white_collection_bundles
         `);

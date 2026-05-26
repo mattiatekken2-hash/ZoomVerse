@@ -346,6 +346,14 @@ router.post("/admin/unlock-white-collection", async (req, res) => {
   if (!telegramId) return res.status(404).json({ error: "User not found" });
 
   try {
+    const [user] = await db
+      .select({ bundles: usersTable.whiteCollectionBundles })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, telegramId))
+      .limit(1);
+    if ((user?.bundles ?? 0) >= 6) {
+      return res.status(400).json({ error: "User already owns max 6 White Collection bundles" });
+    }
     await db
       .update(usersTable)
       .set({

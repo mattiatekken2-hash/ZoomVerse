@@ -110,9 +110,11 @@ const CollectionCard = memo(function CollectionCardBase({ item, telegramId, unlo
   const [message, setMessage] = useState<string | null>(null);
   const { stock, refresh } = useCollectionStock(item.stockEndpoint);
 
+  const maxBundles = 6;
+  const atUserCap = item.key === "white" && ownedBundles >= maxBundles;
   const soldOut = !!stock && stock.remaining <= 0;
   const sunLocked = item.key !== "black" && item.key !== "supernova" && sunCount < 1;
-  const disabled = soldOut || sunLocked || buying;
+  const disabled = soldOut || sunLocked || buying || atUserCap;
 
   const handleBuy = async () => {
     if (!telegramId) { setMessage(t("pay.tgMissing")); return; }
@@ -183,7 +185,7 @@ const CollectionCard = memo(function CollectionCardBase({ item, telegramId, unlo
         <div className="px-3 py-1.5 rounded-full text-xs font-bold"
           style={{ background: `${c}26`, color: c, border: `1px solid ${c}4d` }}
         >
-          {unlocked ? `OWNED ${ownedBundles}` : "LOCKED"}
+          {unlocked ? `OWNED ${ownedBundles}${item.key === "white" ? "/6" : ""}` : "LOCKED"}
         </div>
       </div>
       <div className="flex flex-wrap gap-2 mb-4 relative z-10">
@@ -217,7 +219,7 @@ const CollectionCard = memo(function CollectionCardBase({ item, telegramId, unlo
           opacity: buying ? 0.6 : 1,
         }}
       >
-        {soldOut ? "Sold Out" : sunLocked ? "🔒 SUN REQUIRED" : buying ? "Processing..." : `BUY — ${item.priceTon} TON`}
+        {soldOut ? "Sold Out" : atUserCap ? "MAX OWNED (6/6)" : sunLocked ? "🔒 SUN REQUIRED" : buying ? "Processing..." : `BUY — ${item.priceTon} TON`}
       </button>
     </div>
   );
