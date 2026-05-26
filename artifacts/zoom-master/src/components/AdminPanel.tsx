@@ -5,6 +5,7 @@ import {
   adminCreditStardust,
   adminCreditTon,
   adminRemoveStardust,
+  adminRemoveTon,
   adminAddPlanets,
   adminUnlockSlots,
   adminUnlockWhiteCollection,
@@ -183,6 +184,7 @@ export function AdminPanel({ telegramId }: Props) {
       else if (type === "slots") ok = await adminRemoveSlots(telegramId, id, Math.floor(val));
       else if (type === "spins") ok = await adminRemoveSpins(telegramId, id, Math.floor(val));
       else if (type === "stardust") ok = await adminRemoveStardust(telegramId, id, Math.floor(val));
+      else if (type === "ton") ok = await adminRemoveTon(telegramId, id, val);
     }
     setLoading(null);
     if (ok) {
@@ -242,8 +244,7 @@ export function AdminPanel({ telegramId }: Props) {
   return (
     <>
       <motion.button
-        onTap={() => { haptic(); setOpen(true); }}
-        whileTap={{ scale: 0.85 }}
+        onClick={() => { haptic(); setOpen(true); }}
         style={{
           position: "fixed",
           bottom: 88,
@@ -273,15 +274,13 @@ export function AdminPanel({ telegramId }: Props) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.1 }}
               onClick={() => { haptic(); setOpen(false); }}
               style={{
                 position: "fixed",
                 inset: 0,
                 zIndex: 50,
-                background: "rgba(0,0,0,0.55)",
-                backdropFilter: "blur(8px)",
-                WebkitBackdropFilter: "blur(8px)",
+                background: "rgba(0,0,0,0.65)",
               }}
             />
 
@@ -290,7 +289,7 @@ export function AdminPanel({ telegramId }: Props) {
               initial={{ opacity: 0, scale: 0.92 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.88 }}
-              transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+              transition={{ duration: 0.12, ease: "easeOut" }}
               style={{
                 position: "fixed",
                 top: "50%",
@@ -304,8 +303,6 @@ export function AdminPanel({ telegramId }: Props) {
                 background: "rgba(10, 13, 28, 0.92)",
                 border: "1px solid rgba(0,242,254,0.2)",
                 borderRadius: 20,
-                backdropFilter: "blur(28px)",
-                WebkitBackdropFilter: "blur(28px)",
                 boxShadow: "0 12px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,242,254,0.07) inset",
               }}
             >

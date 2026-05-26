@@ -620,6 +620,36 @@ router.post("/admin/global-bonus", async (req, res) => {
   }
 });
 
+router.post("/admin/remove-ton", async (req, res) => {
+  const parsed = CreditTonBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  const { amount } = parsed.data;
+  try {
+    await db
+      .update(usersTable)
+      .set({
+        tonBalance: sql`GREATEST(0, ${usersTable.tonBalance} - ${amount})`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
+      .where(sql`${usersTable.telegramId} = ${telegramId}`);
+    scheduleAdminAssetSnapshot();
+    res.json({ ok: true });
+    recordHistoryAsync({
+      telegramId,
+      kind: "admin_remove",
+      delta: -amount,
+      currency: "ton",
+      meta: { adminId: parsed.data.adminId },
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 router.post("/admin/remove-zoom", async (req, res) => {
   const parsed = RemoveZoomBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
