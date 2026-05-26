@@ -2834,6 +2834,22 @@ export function useGameState() {
         return;
       }
 
+      if (type === "stardust") {
+        setState((prev) => ({
+          ...prev,
+          stardustBalance: Math.max(0, (prev.stardustBalance || 0) - n),
+        }));
+        return;
+      }
+
+      if (type === "ton") {
+        setState((prev) => ({
+          ...prev,
+          tonBalance: Math.max(0, (prev.tonBalance || 0) - n),
+        }));
+        return;
+      }
+
       if (type === "slots") {
         setState((prev) => {
           const newMax = Math.max(INITIAL_STATE.maxSlots, (prev.maxSlots || INITIAL_STATE.maxSlots) - n);
@@ -2898,6 +2914,22 @@ export function useGameState() {
         // Reuse the existing local-credit pipeline: mutates balance and
         // immediately syncs to server with the current epoch.
         window.dispatchEvent(new CustomEvent("zoom-credit-local", { detail: { amount: n } }));
+        return;
+      }
+
+      if (type === "stardust") {
+        setState((prev) => ({
+          ...prev,
+          stardustBalance: (prev.stardustBalance || 0) + n,
+        }));
+        return;
+      }
+
+      if (type === "ton") {
+        setState((prev) => ({
+          ...prev,
+          tonBalance: (prev.tonBalance || 0) + n,
+        }));
         return;
       }
 
