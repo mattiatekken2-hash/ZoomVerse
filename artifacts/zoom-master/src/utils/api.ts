@@ -1767,12 +1767,14 @@ export async function deductCraftStardust(telegramId: string, amount: number): P
 // ─────────────────────────────────────────────────────────────────────
 // TON STAKING — 7 tiers. V1/SUN keep continuous accrual; BASIC..GOLD
 // require SUN in inventory + 8 ACTIVE farms of that rarity.
-//   • V1 / SUN  → 0.15 TON / 30d   (continuous)
-//   • MYTHIC    → 0.10 TON / 30d   (gated on active farming)
-//   • GOLD      → 0.07 TON / 30d   (gated on active farming)
-//   • EPIC      → 0.04 TON / 30d   (gated on active farming)
-//   • RARE      → 0.02 TON / 30d   (gated on active farming)
-//   • BASIC     → 0.01 TON / 30d   (gated on active farming)
+//   • SUN       → 2.50 TON / 30d   (continuous, 5 planets)
+//   • V1        → 1.60 TON / 30d   (continuous, 5 planets)
+//   • PLASMA    → 2.00 TON / 30d   (gated on active farming)
+//   • MYTHIC    → 1.30 TON / 30d   (gated on active farming)
+//   • GOLD      → 0.65 TON / 30d   (gated on active farming)
+//   • EPIC      → 0.30 TON / 30d   (gated on active farming)
+//   • RARE      → 0.12 TON / 30d   (gated on active farming)
+//   • BASIC     → 0.05 TON / 30d   (gated on active farming)
 // ─────────────────────────────────────────────────────────────────────
 export type StakingKind = "v1" | "sun" | "basic" | "rare" | "epic" | "mythic" | "plasma" | "gold";
 

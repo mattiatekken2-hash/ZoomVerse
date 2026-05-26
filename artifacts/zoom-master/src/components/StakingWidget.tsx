@@ -34,7 +34,7 @@ const FARM_DURATION_MS = 24 * 60 * 60 * 1000;
 
 // Per-rarity rewards (mirror of artifacts/api-server/src/routes/staking.ts).
 const REWARD_TON: Record<StakingKind, number> = {
-  v1: 0.15, sun: 0.15, plasma: 0.25, mythic: 0.10, gold: 0.07, epic: 0.04, rare: 0.02, basic: 0.01,
+  sun: 2.50, v1: 1.60, plasma: 2.00, mythic: 1.30, gold: 0.65, epic: 0.30, rare: 0.12, basic: 0.05,
 };
 
 // Display config per tier — order matches the visual stack in the widget.

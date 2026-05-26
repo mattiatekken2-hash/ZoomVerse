@@ -9,23 +9,25 @@ const router: IRouter = Router();
 // ─────────────────────────────────────────────────────────────────────
 // PER-RARITY MONTHLY YIELD (TON / 30 days, full set of 5 planets)
 // ─────────────────────────────────────────────────────────────────────
-//   • V1 / SUN  → 0.15  (continuous accrual after activation, like before)
-//   • MYTHIC    → 0.10  (requires SUN in inventory + 5 active farms)
-//   • GOLD      → 0.07  (requires SUN in inventory + 5 active farms)
-//   • EPIC      → 0.04  (requires SUN in inventory + 5 active farms)
-//   • RARE      → 0.02  (requires SUN in inventory + 5 active farms)
-//   • BASIC     → 0.01  (requires SUN in inventory + 5 active farms)
+//   • SUN       → 2.50  (continuous accrual after activation, 5 planets)
+//   • V1        → 1.60  (continuous accrual after activation, 5 planets)
+//   • PLASMA    → 2.00  (requires SUN in inventory + 8 active farms)
+//   • MYTHIC    → 1.30  (requires SUN in inventory + 8 active farms)
+//   • GOLD      → 0.65  (requires SUN in inventory + 8 active farms)
+//   • EPIC      → 0.30  (requires SUN in inventory + 8 active farms)
+//   • RARE      → 0.12  (requires SUN in inventory + 8 active farms)
+//   • BASIC     → 0.05  (requires SUN in inventory + 8 active farms)
 export type StakingKind = "v1" | "sun" | "basic" | "rare" | "epic" | "mythic" | "plasma" | "gold";
 
 export const STAKING_REWARDS_TON_PER_MONTH: Record<StakingKind, number> = {
-  v1: 0.15,
-  sun: 0.15,
-  plasma: 0.25,    // PLASMA — premium staking: 0.25 TON / 30 days per set of 5
-  mythic: 0.10,
-  gold: 0.07,
-  epic: 0.04,
-  rare: 0.02,
-  basic: 0.01,
+  sun: 2.50,
+  v1: 1.60,
+  plasma: 2.00,
+  mythic: 1.30,
+  gold: 0.65,
+  epic: 0.30,
+  rare: 0.12,
+  basic: 0.05,
 };
 export const STAKING_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
 export const STAKING_REQUIRED_COUNT = 8;
