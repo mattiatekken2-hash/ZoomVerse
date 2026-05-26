@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   adminCreditZoom,
   adminCreditStardust,
+  adminCreditTon,
   adminRemoveStardust,
   adminAddPlanets,
   adminUnlockSlots,
@@ -63,7 +64,7 @@ type PlanetChoice = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "PLASMA" | "GOLD" | "
 type EqCategory = "HELMET" | "JETPACK" | "HAT" | "SCANNER";
 type EqRarity = "BASIC" | "RARE" | "EPIC" | "GOLD" | "PLASMA" | "MYTHIC";
 // Stardust supports both add (credit) and remove (subtract clamped at 0).
-type ActionType = "zoom" | "planets" | "slots" | "spins" | "stardust";
+type ActionType = "zoom" | "planets" | "slots" | "spins" | "stardust" | "ton";
 
 function haptic() {
   try {
@@ -175,6 +176,7 @@ export function AdminPanel({ telegramId }: Props) {
       else if (type === "slots") ok = await adminUnlockSlots(telegramId, id, Math.floor(val));
       else if (type === "spins") ok = await adminCreditSpins(telegramId, id, Math.floor(val));
       else if (type === "stardust") ok = await adminCreditStardust(telegramId, id, Math.floor(val));
+      else if (type === "ton") ok = await adminCreditTon(telegramId, id, val);
     } else {
       if (type === "zoom") ok = await adminRemoveZoom(telegramId, id, val);
       else if (type === "planets") ok = await adminRemovePlanets(telegramId, id, Math.floor(val), planetType);
@@ -204,6 +206,7 @@ export function AdminPanel({ telegramId }: Props) {
       : type === "slots" ? `${Math.floor(val)} slot`
       : type === "spins" ? `${Math.floor(val)} spin`
       : type === "stardust" ? `${Math.floor(val)} stardust ⭐`
+      : type === "ton" ? `${val} TON 💎`
       : `${Math.floor(val)} ${planetType === "SUN" ? "Sole" : `pianeti ${planetType}`}`;
     showFeedback(ok ? `✓ ${item} ${direction} a ID ${id}` : `✗ Errore per ID ${id}`, ok);
   }, [targetId, amount, planetType, mode, telegramId]);
@@ -490,6 +493,8 @@ export function AdminPanel({ telegramId }: Props) {
                     // Stardust supports both add and remove (subtract is
                     // server-clamped at 0 so we can't push balances negative).
                     { type: "stardust" as ActionType, label: "⭐ Stardust", color: "#ffd23f" },
+                    // TON earned balance — admin credit only; users withdraw naturally.
+                    { type: "ton" as ActionType,      label: "💎 TON",     color: "#00e5ff" },
                   ])
                     .map(({ type, label, color }) => {
                     const btnColor = mode === "remove" ? "#ff5555" : color;

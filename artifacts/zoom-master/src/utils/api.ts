@@ -721,6 +721,17 @@ export async function adminCreditStardust(adminId: string, telegramId: string, a
   } catch { return false; }
 }
 
+export async function adminCreditTon(adminId: string, telegramId: string, amount: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/credit-ton`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, telegramId, amount }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminRemoveStardust(adminId: string, telegramId: string, amount: number): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/remove-stardust`, {
