@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { db, transactionsTable, marketListingsTable } from "@workspace/db";
+import { db, pool, transactionsTable, marketListingsTable } from "@workspace/db";
 import { usersTable, appSettingsTable, collectionPlanetsTable } from "@workspace/db/schema";
 import { sql, eq, inArray, and } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { z } from "zod";
 import fs from "node:fs";
 import path from "node:path";
@@ -1034,6 +1035,86 @@ router.post("/admin/force-delist", async (req, res) => {
   } catch (err) {
     console.error("[admin/force-delist]", err);
     res.status(500).json({ error: "Database error" });
+  }
+});
+
+// ─── CLEAR EQUIPMENT MARKETPLACE ────────────────────────────────────────────
+// Admin-only bulk delist: mark every active equipment listing as 'delisted'
+// and sync the seller's equipment_json so the items return to inventory.
+// Does NOT create or grant equipment — it only undoes existing listings.
+router.post("/admin/clear-equipment-market", async (req, res) => {
+  const ClearMarketBody = z.object({ adminId: z.string() });
+  const parsed = ClearMarketBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const rows = await client.query(
+      `SELECT id, seller_telegram_id, equipment_id
+       FROM market_listings
+       WHERE kind = 'equipment' AND status = 'active'
+       FOR UPDATE`
+    );
+    const listings = rows.rows as Array<{ id: number; seller_telegram_id: string; equipment_id: string }>;
+
+    if (listings.length === 0) {
+      await client.query("COMMIT");
+      res.json({ ok: true, cleared: 0 });
+      return;
+    }
+
+    const nowMs = Date.now();
+    // 1) bulk mark listings as delisted
+    const listingIds = listings.map(l => l.id);
+    await client.query(
+      `UPDATE market_listings
+       SET status = 'delisted'
+       WHERE id = ANY($1::int[])
+         AND kind = 'equipment'
+         AND status = 'active'`,
+      [listingIds]
+    );
+
+    // 2) per-seller group + rebuild equipment_json via jsonb aggregation
+    const bySeller = new Map<string, string[]>();
+    for (const l of listings) {
+      const arr = bySeller.get(l.seller_telegram_id) ?? [];
+      arr.push(l.equipment_id);
+      bySeller.set(l.seller_telegram_id, arr);
+    }
+
+    for (const [sellerId, eqIds] of bySeller) {
+      await client.query(
+        `UPDATE users
+         SET equipment_json = COALESCE(
+           (SELECT jsonb_agg(
+              CASE
+                WHEN e->>'id' = ANY($2::text[])
+                  THEN (e - 'serverListingId' - 'marketPrice') || jsonb_build_object('isListedInMarket', false)
+                ELSE e
+              END
+            )
+            FROM jsonb_array_elements(equipment_json) e),
+           '[]'::jsonb
+         ),
+         equipment_updated_at_ms = GREATEST(equipment_updated_at_ms, $3::bigint)
+         WHERE telegram_id = $1`,
+        [sellerId, eqIds, nowMs]
+      );
+    }
+
+    await client.query("COMMIT");
+    console.log(`[admin/clear-equipment-market] Cleared ${listings.length} equipment listings`);
+    res.json({ ok: true, cleared: listings.length });
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[admin/clear-equipment-market] error:", err);
+    res.status(500).json({ error: "Database error" });
+  } finally {
+    client.release();
   }
 });
 
