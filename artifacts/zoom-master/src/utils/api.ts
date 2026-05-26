@@ -2242,7 +2242,7 @@ export async function collectStardustOnServer(telegramId: string): Promise<Stard
 
 // ─────────────────────────────────────────────────────────────────
 // SPACE MERCHANT — random alien encounter; backend authoritative for
-// spawn cadence (20–50 min) and the 3-fusion-per-visit cap.
+// spawn cadence (4–6 h) and the 15-minute visit window.
 // ─────────────────────────────────────────────────────────────────
 export interface MerchantState {
   active: boolean;
@@ -2256,7 +2256,7 @@ const EMPTY_MERCHANT: MerchantState = {
   active: false,
   expiresAt: null,
   fusionsUsed: 0,
-  maxFusions: 3,
+  maxFusions: 0,
 };
 
 export async function fetchMerchantState(telegramId: string): Promise<MerchantState> {
@@ -2276,15 +2276,11 @@ export async function fetchMerchantState(telegramId: string): Promise<MerchantSt
   }
 }
 
-export type MerchantOutcome = "EXPLOSION" | "BASIC" | "RARE" | "EPIC" | "GOLD" | "V1" | "DOWNGRADE";
-
-export interface MerchantFuseResult {
+export interface MerchantScrapResult {
   ok: boolean;
-  outcome?: MerchantOutcome;
-  reason?: "EXPIRED_OR_MAX" | "INTERNAL" | "BAD_REQUEST" | "NETWORK";
-  fusionsUsed: number;
-  fusionsRemaining: number;
-  maxFusions: number;
+  reward?: number;
+  planetType?: string;
+  reason?: "EXPIRED" | "INTERNAL" | "BAD_REQUEST" | "NETWORK" | "USER_NOT_FOUND" | "PLANET_NOT_FOUND";
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -2708,24 +2704,26 @@ export async function saveRegularPlanets(
   }
 }
 
-export async function merchantFuse(telegramId: string, level: 1 | 2 | 3): Promise<MerchantFuseResult> {
+export async function merchantScrap(
+  telegramId: string,
+  planetId: string,
+  planetType: string,
+): Promise<MerchantScrapResult> {
   try {
-    const res = await fetch(`${API_BASE}/merchant/fuse`, {
+    const res = await fetch(`${API_BASE}/merchant/scrap`, {
       method: "POST",
       headers: apiHeaders(),
-      body: JSON.stringify({ telegramId, level }),
+      body: JSON.stringify({ telegramId, planetId, planetType }),
     });
     const j = await res.json().catch(() => ({}));
     return {
       ok: !!j?.ok,
-      outcome: j?.outcome,
+      reward: typeof j?.reward === "number" ? j.reward : undefined,
+      planetType: typeof j?.planetType === "string" ? j.planetType : undefined,
       reason: j?.reason,
-      fusionsUsed: Number(j?.fusionsUsed ?? 0),
-      fusionsRemaining: Number(j?.fusionsRemaining ?? 0),
-      maxFusions: Number(j?.maxFusions ?? 3),
     };
   } catch {
-    return { ok: false, reason: "NETWORK", fusionsUsed: 0, fusionsRemaining: 0, maxFusions: 3 };
+    return { ok: false, reason: "NETWORK" };
   }
 }
 

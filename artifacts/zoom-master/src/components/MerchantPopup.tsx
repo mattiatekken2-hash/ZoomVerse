@@ -1,67 +1,46 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type PlanetType, PLANET_CONFIG } from "../hooks/useGameState";
-import type { MerchantOutcome, MerchantFuseResult } from "../utils/api";
+import { type Planet, type PlanetType, PLANET_CONFIG } from "../hooks/useGameState";
 import alienMerchantImg from "../assets/alien-merchant.png";
-import { useT } from "../i18n/LanguageContext";
 
 interface Props {
   expiresAt: string | null;
-  fusionsUsed: number;
-  maxFusions: number;
-  basicCount: number;
-  rareCount: number;
-  epicCount: number;
-  onFuse: (level: 1 | 2 | 3) => Promise<MerchantFuseResult>;
-  burnTwoOfType: (t: PlanetType) => { ok: boolean; reason?: string };
-  addCraftedPlanet: (t: PlanetType) => { ok: boolean; reason?: string };
-  onRecordObtained?: (type: PlanetType) => void;
+  planets: Planet[];
+  onScrap: (planetId: string, planetType: string) => Promise<{ ok: boolean; reward?: number; reason?: string }>;
+  onBurnPlanet: (id: string) => void;
   onClose: () => void;
 }
 
-type View = "idle" | "confirm1" | "confirm2" | "confirm3" | "fusing" | "result" | "expired";
+type View = "idle" | "confirm" | "scrapping" | "result" | "expired";
 
-const FUSE_ANIMATION_MS = 2000;
-// Server already accepts in-flight fusions for 30s past expiry, but we cut UI
-// dispatch a hair earlier so a click landing at +29.5s still has headroom.
-const FUSE_GRACE_MS = 27_000;
+const SCRAP_ANIMATION_MS = 1500;
+const SCRAP_GRACE_MS = 25_000;
 
-const OUTCOME_KEY: Record<MerchantOutcome, string> = {
-  EXPLOSION: "explosion",
-  DOWNGRADE: "downgrade",
-  BASIC: "basic",
-  RARE: "rare",
-  EPIC: "epic",
-  GOLD: "gold",
-  V1: "v1",
+const REWARD_MAP: Record<string, number> = {
+  BASIC: 1,
+  RARE: 2,
+  EPIC: 5,
+  GOLD: 10,
+  MYTHIC: 20,
+  PLASMA: 35,
+  V1: 50,
 };
+
+const GOLD_ACCENT = "#ffd700";
+const GOLD_ACCENT_RGB = "255,215,0";
 
 export function MerchantPopup({
   expiresAt,
-  fusionsUsed,
-  maxFusions,
-  basicCount,
-  rareCount,
-  epicCount,
-  onFuse,
-  burnTwoOfType,
-  addCraftedPlanet,
-  onRecordObtained,
+  planets,
+  onScrap,
+  onBurnPlanet,
   onClose,
 }: Props) {
-  const { t } = useT();
   const [view, setView] = useState<View>("idle");
-  const [result, setResult] = useState<MerchantOutcome | null>(null);
-  // Tracks which fusion level produced the current `result`. Needed so the
-  // DOWNGRADE result body can describe the correct tier transition (L2: Rare→Basic,
-  // L3: Epic→Rare). Cleared together with `result` on dismiss.
-  const [resultLevel, setResultLevel] = useState<1 | 2 | 3 | null>(null);
+  const [selected, setSelected] = useState<Planet | null>(null);
+  const [resultReward, setResultReward] = useState<number | null>(null);
+  const [resultType, setResultType] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  // The merchant now behaves like the Earth / White Collection widgets:
-  // a small vibrating icon docked under the Earth button. The full panel
-  // is hidden by default and only opens when the player taps the icon, so
-  // it can never ambush the screen mid-game. When a fusion completes, we
-  // force `isOpen` true so the player actually sees the result.
   const [isOpen, setIsOpen] = useState(false);
 
   const expiresMs = useMemo(() => (expiresAt ? new Date(expiresAt).getTime() : 0), [expiresAt]);
@@ -69,20 +48,14 @@ export function MerchantPopup({
   const remainingSec = Math.ceil(remaining / 1000);
 
   const inFlightRef = useRef(false);
-  const fusionsRemaining = Math.max(0, maxFusions - fusionsUsed);
 
-  // Local 1Hz tick for the bottom-left countdown.
   useEffect(() => {
-    // Battery-saver: 3s granularity is fine for the merchant countdown.
     const id = setInterval(() => setNow(Date.now()), 3000);
     return () => clearInterval(id);
   }, []);
 
-  // When expiry hits and we're not in the middle of a fusion, show the
-  // farewell line. Then auto-close after 5s so the player never gets
-  // stuck staring at a dead popup.
   useEffect(() => {
-    if (view === "fusing" || view === "result") return;
+    if (view === "scrapping" || view === "result") return;
     if (remaining <= 0 && view !== "expired") setView("expired");
   }, [remaining, view]);
 
@@ -92,137 +65,82 @@ export function MerchantPopup({
     return () => clearTimeout(id);
   }, [view, onClose]);
 
-  // LEAVE button now just collapses the panel — the icon stays vibrating
-  // so the player can re-open it later without losing the active merchant
-  // window. The merchant only fully goes away when its server expiry hits.
+  useEffect(() => {
+    if (view === "result" || view === "scrapping") setIsOpen(true);
+  }, [view]);
+
   const tryClose = () => {
-    if (inFlightRef.current) return; // protect in-flight fusions
+    if (inFlightRef.current) return;
     setIsOpen(false);
   };
 
-  // Force the panel open whenever a fusion finishes (success, downgrade or
-  // explosion) — the player must see the outcome even if they had collapsed
-  // the icon while it was running.
-  useEffect(() => {
-    if (view === "result" || view === "fusing") setIsOpen(true);
-  }, [view]);
+  const eligible = useMemo(() => {
+    return planets.filter((p) => !p.isFarmingActive && !p.isListedInMarket);
+  }, [planets]);
 
-  const startFuse = async (level: 1 | 2 | 3) => {
+  const startScrap = async () => {
+    if (!selected) return;
     if (inFlightRef.current) return;
-    if (fusionsRemaining <= 0) { setView("expired"); return; }
-
-    // Sanity: never even consider a fusion if the server has clearly given
-    // up (>30s past expiry); the request would be rejected anyway.
-    if (expiresMs > 0 && Date.now() - expiresMs > FUSE_GRACE_MS) {
+    if (expiresMs > 0 && Date.now() - expiresMs > SCRAP_GRACE_MS) {
       setView("expired");
-      return;
-    }
-
-    const need: PlanetType = level === 1 ? "BASIC" : level === 2 ? "RARE" : "EPIC";
-    const have = level === 1 ? basicCount : level === 2 ? rareCount : epicCount;
-    if (have < 2) {
-      setError(t("merchant.needTwo", { kind: PLANET_CONFIG[need].label }));
-      setView("idle");
       return;
     }
 
     inFlightRef.current = true;
     setError(null);
-    setView("fusing");
+    setView("scrapping");
 
-    // Burn locally first so the inventory display reflects the cost
-    // immediately and the user can't double-spend the same pair.
-    const burnRes = burnTwoOfType(need);
-    if (!burnRes.ok) {
-      inFlightRef.current = false;
-      setError(burnRes.reason ?? t("merchant.burnFailed"));
+    const anim = new Promise<void>((r) => setTimeout(r, SCRAP_ANIMATION_MS));
+    const scrap = onScrap(selected.id, selected.name);
+    const [, res] = await Promise.all([anim, scrap]);
+
+    if (!res.ok) {
+      setError(res.reason ?? "Scrap failed");
       setView("idle");
-      return;
-    }
-
-    // Animation timer runs in parallel with the network call so the result
-    // never appears before the dramatic ~2s delay.
-    const animation = new Promise<void>((r) => setTimeout(r, FUSE_ANIMATION_MS));
-    const fuse = onFuse(level);
-    const [, res] = await Promise.all([animation, fuse]);
-
-    if (!res.ok || !res.outcome) {
-      // The server refused (race with expiry, etc). Treat as explosion in
-      // spirit — the materials are gone client-side and we tell the player.
-      setResult("EXPLOSION");
-      setResultLevel(level);
-      setView("result");
       inFlightRef.current = false;
       return;
     }
 
-    // Apply the outcome to local inventory.
-    const out = res.outcome;
-    if (out === "BASIC" || out === "RARE" || out === "EPIC" || out === "GOLD" || out === "V1") {
-      const add = addCraftedPlanet(out);
-      if (add.ok && onRecordObtained) onRecordObtained(out);
-      if (!add.ok) {
-        // Slots full at the moment the result lands — surface it loudly.
-        // The server already counted this fusion against the cap, so we
-        // don't refund. The player can free a slot next time.
-        try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: t("common.slotsFullPlanetLost"), ok: false } })); } catch { /**/ }
-      }
-    } else if (out === "DOWNGRADE") {
-      // Downgrade mints a single planet one tier below the materials burned:
-      //   L2 (2 Rare)  → 1 Basic
-      //   L3 (2 Epic)  → 1 Rare
-      // (L1 cannot DOWNGRADE; the server never returns it for level 1.)
-      const downgradeTo: PlanetType = level === 3 ? "RARE" : "BASIC";
-      const add = addCraftedPlanet(downgradeTo);
-      if (add.ok && onRecordObtained) onRecordObtained(downgradeTo);
-      if (!add.ok) {
-        try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: t("common.slotsFullPlanetLost"), ok: false } })); } catch { /**/ }
-      }
-    }
-    // EXPLOSION: nothing to mint, materials already burned.
+    // Burn locally so inventory updates immediately
+    onBurnPlanet(selected.id);
 
-    setResult(out);
-    setResultLevel(level);
+    setResultReward(res.reward ?? null);
+    setResultType(selected.name);
+    setSelected(null);
     setView("result");
     inFlightRef.current = false;
   };
 
   const dismissResult = () => {
-    setResult(null);
-    setResultLevel(null);
+    setResultReward(null);
+    setResultType(null);
     setError(null);
-    if (fusionsRemaining <= 0 || remaining <= 0) onClose();
+    if (remaining <= 0) onClose();
     else setView("idle");
   };
 
-  const lvl1Disabled = view === "fusing" || basicCount < 2 || fusionsRemaining <= 0;
-  const lvl2Disabled = view === "fusing" || rareCount < 2 || fusionsRemaining <= 0;
-  const lvl3Disabled = view === "fusing" || epicCount < 2 || fusionsRemaining <= 0;
+  const formatTime = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  };
 
   return (
     <>
-      {/* Vibrating alien tile — sits directly under the Earth Collection
-          button (left:12, top:200, 60x60). It mirrors the look & feel of
-          the collection widgets: a small 60x60 chip you can tap to open
-          the panel. The vibration draws attention without ambushing the
-          screen. The full merchant panel only renders when `isOpen` is
-          true, which only happens on tap (or automatically on a fusion
-          result so the outcome is never missed). */}
+      {/* Vibrating alien tile — yellow theme */}
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        aria-label={isOpen ? t("merchant.closeAria") : t("merchant.openAria")}
+        aria-label={isOpen ? "Close Stardust Scrapper" : "Open Stardust Scrapper"}
         style={{
           position: "fixed",
           left: 12,
-          // Sotto la colonna sinistra: Lotto (180+60=240) → LabRank (250+60=310).
-          // Posizionato a top:330 per non sovrapporsi a nulla.
           top: 330,
           width: 60,
           height: 60,
           borderRadius: 14,
-          background: "rgba(20,8,32,0.82)",
-          border: "1.5px solid rgba(180,70,255,0.65)",
+          background: "rgba(32,28,4,0.88)",
+          border: `1.5px solid rgba(${GOLD_ACCENT_RGB},0.65)`,
           padding: 0,
           cursor: "pointer",
           zIndex: 40,
@@ -233,10 +151,8 @@ export function MerchantPopup({
           alignItems: "center",
           justifyContent: "center",
           lineHeight: 1,
-          boxShadow: "0 0 14px rgba(180,70,255,0.45)",
-          // Vibrate while merchant is active. Hold still during the
-          // fusion animation (the panel takes over the visual focus).
-          animation: view === "fusing" ? "none" : "merchant-vibrate 1.2s ease-in-out infinite",
+          boxShadow: `0 0 14px rgba(${GOLD_ACCENT_RGB},0.45)`,
+          animation: "merchant-vibrate 1.2s ease-in-out infinite",
         }}
         data-testid="button-space-merchant"
       >
@@ -250,23 +166,20 @@ export function MerchantPopup({
             height: 50,
             objectFit: "contain",
             imageRendering: "pixelated",
-            filter: "drop-shadow(0 0 6px rgba(180,70,255,0.7))",
+            filter: `drop-shadow(0 0 6px rgba(${GOLD_ACCENT_RGB},0.7))`,
             pointerEvents: "none",
           }}
         />
       </button>
 
-      {/* Tiny countdown badge — sits to the RIGHT of the alien icon
-          (the icon is 60x60 at left:12, top:330 → place this just past it
-          at left:78, vertically centered). Kept as a separate fixed element
-          so it doesn't move with the icon's vibrate animation. */}
+      {/* Countdown badge */}
       {remaining > 0 && (
         <div
           aria-hidden
           style={{
             position: "fixed",
             left: 78,
-            top: 350, // (330 + 60/2) - badgeHeight/2 ≈ vertical center
+            top: 350,
             zIndex: 41,
             minWidth: 22,
             padding: "2px 6px",
@@ -282,159 +195,172 @@ export function MerchantPopup({
             pointerEvents: "none",
           }}
         >
-          {remainingSec}s
+          {formatTime(remainingSec)}
         </div>
       )}
 
-      {/* Docked square panel — only visible when the player taps the icon
-          OR a fusion result needs to be shown. NO full-screen overlay,
-          because in the Telegram WebApp a fullscreen modal would trigger
-          the system "Chiudi" swipe-to-close prompt. */}
+      {/* Panel */}
       {isOpen && (
-      <div
-        role="dialog"
-        aria-label={t("merchant.title")}
-        style={{
-          position: "fixed",
-          left: 80, // sits to the right of the icon so they don't overlap
-          top: 330,
-          width: 220,
-          zIndex: 60,
-          borderRadius: 16,
-          background: "linear-gradient(180deg,#0d0a1f 0%,#170a26 100%)",
-          border: "1px solid rgba(180, 70, 255, 0.55)",
-          boxShadow: "0 0 28px rgba(180,70,255,0.35), inset 0 0 18px rgba(80,0,120,0.4)",
-          padding: 12,
-          color: "#e9e2ff",
-        }}
-      >
-        {/* Alien character */}
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
-          <img
-            src={alienMerchantImg}
-            alt=""
-            aria-hidden
-            draggable={false}
-            style={{
-              width: 64,
-              height: 64,
-              objectFit: "contain",
-              imageRendering: "pixelated",
-              filter: view === "fusing" ? "hue-rotate(120deg) drop-shadow(0 0 10px #b46aff)" : "drop-shadow(0 0 8px rgba(180,70,255,0.6))",
-              animation: view === "fusing" ? "merchant-shake 0.18s linear infinite" : "merchant-bob 2.4s ease-in-out infinite",
-              pointerEvents: "none",
-            }}
-          />
-        </div>
-
-        <div style={{ textAlign: "center", fontWeight: 900, letterSpacing: "0.08em", fontSize: 11, color: "#caa6ff" }}>
-          {t("merchant.title")}
-        </div>
-
-        {/* Counters row */}
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 9, color: "rgba(255,255,255,0.7)" }}>
-          <span>{t("merchant.fusions", { used: fusionsUsed, max: maxFusions })}</span>
-          <span>{remainingSec}s</span>
-        </div>
-
-        {/* Body switches by view */}
-        {view === "idle" && (
-          <div style={{ marginTop: 8 }}>
-            {error && (
-              <div style={{ marginBottom: 6, fontSize: 9, color: "#ff8080", textAlign: "center" }}>{error}</div>
-            )}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5 }}>
-              <button
-                type="button"
-                disabled={lvl1Disabled}
-                onClick={() => setView("confirm1")}
-                style={fusionBtnStyle(lvl1Disabled, "#8892b0")}
-                data-testid="button-merchant-lv1"
-              >
-                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.04em" }}>{t("merchant.lvl", { n: 1 })}</div>
-                <div style={{ fontSize: 8, marginTop: 1 }}>2 Basic</div>
-                <div style={{ fontSize: 7, marginTop: 2, opacity: 0.7 }}>{t("merchant.have", { n: basicCount })}</div>
-              </button>
-              <button
-                type="button"
-                disabled={lvl2Disabled}
-                onClick={() => setView("confirm2")}
-                style={fusionBtnStyle(lvl2Disabled, "#4facfe")}
-                data-testid="button-merchant-lv2"
-              >
-                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.04em" }}>{t("merchant.lvl", { n: 2 })}</div>
-                <div style={{ fontSize: 8, marginTop: 1 }}>2 Rare</div>
-                <div style={{ fontSize: 7, marginTop: 2, opacity: 0.7 }}>{t("merchant.have", { n: rareCount })}</div>
-              </button>
-              <button
-                type="button"
-                disabled={lvl3Disabled}
-                onClick={() => setView("confirm3")}
-                style={fusionBtnStyle(lvl3Disabled, "#c47bff")}
-                data-testid="button-merchant-lv3"
-              >
-                <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.04em" }}>{t("merchant.lvl", { n: 3 })}</div>
-                <div style={{ fontSize: 8, marginTop: 1 }}>2 Epic</div>
-                <div style={{ fontSize: 7, marginTop: 2, opacity: 0.7 }}>{t("merchant.have", { n: epicCount })}</div>
-              </button>
-            </div>
-            <button type="button" onClick={tryClose} style={ghostBtnStyle}>{t("common.leave")}</button>
-          </div>
-        )}
-
-        {(view === "confirm1" || view === "confirm2" || view === "confirm3") && (
-          <ConfirmView
-            t={t}
-            level={view === "confirm1" ? 1 : view === "confirm2" ? 2 : 3}
-            onCancel={() => setView("idle")}
-            onConfirm={() => startFuse(view === "confirm1" ? 1 : view === "confirm2" ? 2 : 3)}
-          />
-        )}
-
-        {view === "fusing" && (
-          <div style={{ marginTop: 10, textAlign: "center" }}>
-            <div style={{ fontSize: 10, color: "#caa6ff", letterSpacing: "0.1em", fontWeight: 800 }}>{t("merchant.fusing")}</div>
-            <div style={{ fontSize: 9, marginTop: 4, color: "rgba(255,255,255,0.55)" }}>{t("merchant.fusingHint")}</div>
-          </div>
-        )}
-
-        {view === "result" && result && (
-          <div style={{ marginTop: 8, textAlign: "center" }}>
-            <div
+        <div
+          role="dialog"
+          aria-label="Stardust Scrapper"
+          style={{
+            position: "fixed",
+            left: 80,
+            top: 330,
+            width: 240,
+            zIndex: 60,
+            borderRadius: 16,
+            background: "linear-gradient(180deg,#1a1708 0%,#0f0d04 100%)",
+            border: `1px solid rgba(${GOLD_ACCENT_RGB},0.55)`,
+            boxShadow: `0 0 28px rgba(${GOLD_ACCENT_RGB},0.35), inset 0 0 18px rgba(${GOLD_ACCENT_RGB},0.1)`,
+            padding: 12,
+            color: "#fff8d6",
+          }}
+        >
+          {/* Alien character */}
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
+            <img
+              src={alienMerchantImg}
+              alt=""
+              aria-hidden
+              draggable={false}
               style={{
-                fontSize: 11,
-                fontWeight: 900,
-                letterSpacing: "0.04em",
-                color: result === "EXPLOSION" ? "#ff6b6b" : result === "DOWNGRADE" ? "#ffb347" : "#8aff8a",
+                width: 64,
+                height: 64,
+                objectFit: "contain",
+                imageRendering: "pixelated",
+                filter: `drop-shadow(0 0 8px rgba(${GOLD_ACCENT_RGB},0.6))`,
+                animation: view === "scrapping" ? "merchant-shake 0.18s linear infinite" : "merchant-bob 2.4s ease-in-out infinite",
+                pointerEvents: "none",
               }}
-            >
-              {t(`merchant.label.${OUTCOME_KEY[result]}`)}
-            </div>
-            <div style={{ fontSize: 9, marginTop: 4, color: "rgba(230,222,255,0.85)", lineHeight: 1.35 }}>
-              {result === "DOWNGRADE"
-                ? (resultLevel === 3
-                    ? t("merchant.body.downgradeL3")
-                    : resultLevel === 2
-                      ? t("merchant.body.downgradeL2")
-                      : t("merchant.body.downgrade"))
-                : t(`merchant.body.${OUTCOME_KEY[result]}`)}
-            </div>
-            <button type="button" onClick={dismissResult} style={primaryBtnStyle}>{t("common.ok")}</button>
+            />
           </div>
-        )}
 
-        {view === "expired" && (
-          <div style={{ marginTop: 8, textAlign: "center" }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: "#caa6ff", letterSpacing: "0.04em" }}>
-              {t("merchant.tooSlow")}
-            </div>
-            <div style={{ fontSize: 9, marginTop: 4, color: "rgba(230,222,255,0.8)", lineHeight: 1.35 }}>
-              {t("merchant.tooSlowHint")}
-            </div>
-            <button type="button" onClick={onClose} style={primaryBtnStyle}>{t("common.close").toUpperCase()}</button>
+          <div style={{ textAlign: "center", fontWeight: 900, letterSpacing: "0.08em", fontSize: 11, color: GOLD_ACCENT }}>
+            STARDUST SCRAPPER
           </div>
-        )}
-      </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 9, color: "rgba(255,255,255,0.7)" }}>
+            <span>Scrap your planets for Stardust</span>
+            <span>{formatTime(remainingSec)}</span>
+          </div>
+
+          {/* Body switches by view */}
+          {view === "idle" && (
+            <div style={{ marginTop: 8, maxHeight: 220, overflowY: "auto" }}>
+              {error && (
+                <div style={{ marginBottom: 6, fontSize: 9, color: "#ff8080", textAlign: "center" }}>{error}</div>
+              )}
+              {eligible.length === 0 ? (
+                <div style={{ textAlign: "center", fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 12 }}>
+                  No planets available to scrap.
+                  <br />
+                  Unfarm or unlist a planet first.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {eligible.map((p) => {
+                    const reward = REWARD_MAP[p.name] ?? 0;
+                    const conf = PLANET_CONFIG[p.name];
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => { setSelected(p); setView("confirm"); }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "8px 10px",
+                          borderRadius: 10,
+                          background: "rgba(255,255,255,0.04)",
+                          border: "1px solid rgba(255,255,255,0.08)",
+                          cursor: "pointer",
+                          textAlign: "left",
+                          color: "#fff",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: 8,
+                            background: conf?.color ?? "#333",
+                            flexShrink: 0,
+                          }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 10, fontWeight: 800 }}>{conf?.label ?? p.name}</div>
+                          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.55)" }}>
+                            +{p.rate.toLocaleString()} $ZOOM/hr
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 900,
+                            color: GOLD_ACCENT,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          +{reward} ✦
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <button type="button" onClick={tryClose} style={ghostBtnStyle}>LEAVE</button>
+            </div>
+          )}
+
+          {view === "confirm" && selected && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ textAlign: "center", fontSize: 11, color: "rgba(255,248,214,0.9)", marginBottom: 8 }}>
+                Scrap this {PLANET_CONFIG[selected.name]?.label ?? selected.name} planet?
+              </div>
+              <div style={{ textAlign: "center", fontSize: 14, fontWeight: 900, color: GOLD_ACCENT, marginBottom: 12 }}>
+                +{REWARD_MAP[selected.name] ?? 0} ✦ Stardust
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <button type="button" onClick={() => { setSelected(null); setView("idle"); }} style={ghostBtnStyle}>CANCEL</button>
+                <button type="button" onClick={startScrap} style={primaryBtnStyle}>SCRAP</button>
+              </div>
+            </div>
+          )}
+
+          {view === "scrapping" && (
+            <div style={{ marginTop: 10, textAlign: "center" }}>
+              <div style={{ fontSize: 10, color: GOLD_ACCENT, letterSpacing: "0.1em", fontWeight: 800 }}>SCRAPPING...</div>
+              <div style={{ fontSize: 9, marginTop: 4, color: "rgba(255,255,255,0.55)" }}>The scrapper feeds on planetary matter.</div>
+            </div>
+          )}
+
+          {view === "result" && resultReward != null && resultType && (
+            <div style={{ marginTop: 8, textAlign: "center" }}>
+              <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: "0.04em", color: GOLD_ACCENT }}>
+                +{resultReward} ✦ Stardust!
+              </div>
+              <div style={{ fontSize: 9, marginTop: 4, color: "rgba(255,248,214,0.85)", lineHeight: 1.35 }}>
+                Your {(PLANET_CONFIG as Record<string, { label?: string }>)[resultType]?.label ?? resultType} planet was recycled into stardust.
+              </div>
+              <button type="button" onClick={dismissResult} style={primaryBtnStyle}>OK</button>
+            </div>
+          )}
+
+          {view === "expired" && (
+            <div style={{ marginTop: 8, textAlign: "center" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: GOLD_ACCENT, letterSpacing: "0.04em" }}>
+                The scrapper left.
+              </div>
+              <div style={{ fontSize: 9, marginTop: 4, color: "rgba(255,248,214,0.8)", lineHeight: 1.35 }}>
+                It will return in 4–6 hours.
+              </div>
+              <button type="button" onClick={onClose} style={primaryBtnStyle}>CLOSE</button>
+            </div>
+          )}
+        </div>
       )}
 
       <style>{`
@@ -455,34 +381,6 @@ export function MerchantPopup({
   );
 }
 
-function ConfirmView({ t, level, onCancel, onConfirm }: { t: (k: string, p?: Record<string, string | number>) => string; level: 1 | 2 | 3; onCancel: () => void; onConfirm: () => void }) {
-  const kind = level === 1 ? "Basic" : level === 2 ? "Rare" : "Epic";
-  return (
-    <div style={{ marginTop: 14 }}>
-      <p style={{ fontSize: 12, lineHeight: 1.45, color: "rgba(230,222,255,0.9)", textAlign: "center", margin: 0 }}>
-        {t("merchant.burnConfirm", { kind })}
-      </p>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 }}>
-        <button type="button" onClick={onCancel} style={ghostBtnStyle}>{t("common.cancel").toUpperCase()}</button>
-        <button type="button" onClick={onConfirm} style={primaryBtnStyle}>{t("common.confirm").toUpperCase()}</button>
-      </div>
-    </div>
-  );
-}
-
-function fusionBtnStyle(disabled: boolean, accent: string): React.CSSProperties {
-  return {
-    padding: "12px 8px",
-    borderRadius: 12,
-    background: disabled ? "rgba(255,255,255,0.04)" : `linear-gradient(180deg, rgba(180,70,255,0.18), rgba(60,0,90,0.4))`,
-    border: `1px solid ${disabled ? "rgba(255,255,255,0.1)" : accent}`,
-    color: disabled ? "rgba(255,255,255,0.35)" : "#fff",
-    cursor: disabled ? "not-allowed" : "pointer",
-    textAlign: "center",
-    boxShadow: disabled ? "none" : `0 0 18px ${accent}33`,
-  };
-}
-
 const ghostBtnStyle: React.CSSProperties = {
   width: "100%",
   marginTop: 12,
@@ -501,12 +399,12 @@ const primaryBtnStyle: React.CSSProperties = {
   marginTop: 14,
   padding: "10px 22px",
   borderRadius: 10,
-  background: "linear-gradient(180deg, rgba(180,70,255,0.4), rgba(90,0,140,0.6))",
-  border: "1px solid rgba(180,70,255,0.7)",
+  background: `linear-gradient(180deg, rgba(${GOLD_ACCENT_RGB},0.4), rgba(120,100,0,0.6))`,
+  border: `1px solid rgba(${GOLD_ACCENT_RGB},0.7)`,
   color: "#fff",
   fontWeight: 800,
   fontSize: 12,
   letterSpacing: "0.08em",
   cursor: "pointer",
-  boxShadow: "0 0 18px rgba(180,70,255,0.45)",
+  boxShadow: `0 0 18px rgba(${GOLD_ACCENT_RGB},0.45)`,
 };

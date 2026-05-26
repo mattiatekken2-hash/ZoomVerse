@@ -18,7 +18,7 @@ import { AdminPanel } from "./components/AdminPanel";
 import { SettingsMenu } from "./components/SettingsMenu";
 import { LanguageProvider, useT } from "./i18n/LanguageContext";
 import HistoryModal from "./components/HistoryModal";
-import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, recordObtained, type StardustLeaderboardEntry } from "./utils/api";
+import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, merchantScrap, type StardustLeaderboardEntry } from "./utils/api";
 import { useStardust } from "./hooks/useStardust";
 import { useMerchant } from "./hooks/useMerchant";
 import { MerchantPopup } from "./components/MerchantPopup";
@@ -88,7 +88,6 @@ function AppShellWithState() {
     placeEarthPlanet, reactivateEarthPlanet, markEarthPlanetReactivated, collectEarthPlanet,
     placeBlackPlanet, reactivateBlackPlanet, markBlackPlanetReactivated, collectBlackPlanet,
     placeSupernovaPlanet, reactivateSupernovaPlanet, markSupernovaPlanetReactivated, collectSupernovaPlanet,
-    burnTwoOfType, addCraftedPlanet,
     activateEquipment, reactivateEquipment, burnEquipment, listEquipment, unlistEquipment, buyEquipmentFromMarket,
   } = useGameState();
 
@@ -98,9 +97,7 @@ function AppShellWithState() {
   // the popup itself is gated to the LAB tab below, so the alien can only be
   // *interacted with* in the lab even though it can *appear* anywhere.
   const merchant = useMerchant(state.telegramId);
-  const basicCount = state.planets.filter((p) => p.name === "BASIC" && !p.isFarmingActive && !p.isListedInMarket).length;
-  const rareCount = state.planets.filter((p) => p.name === "RARE" && !p.isFarmingActive && !p.isListedInMarket).length;
-  const epicCount = state.planets.filter((p) => p.name === "EPIC" && !p.isFarmingActive && !p.isListedInMarket).length;
+  const scrapEligiblePlanets = state.planets.filter((p) => !p.isFarmingActive && !p.isListedInMarket);
 
   // Centralized global data fetch — Season epoch, leaderboard, profile, daily, market.
   // Pages read from the global store so tab switches show pre-loaded data with no pop-in.
@@ -988,15 +985,12 @@ function AppShellWithState() {
       {merchant.active && tab === "lab" && (
         <MerchantPopup
           expiresAt={merchant.expiresAt}
-          fusionsUsed={merchant.fusionsUsed}
-          maxFusions={merchant.maxFusions}
-          basicCount={basicCount}
-          rareCount={rareCount}
-          epicCount={epicCount}
-          onFuse={merchant.fuse}
-          burnTwoOfType={burnTwoOfType}
-          addCraftedPlanet={addCraftedPlanet}
-          onRecordObtained={(type) => { void recordObtained(state.telegramId || "", type); }}
+          planets={scrapEligiblePlanets}
+          onScrap={async (planetId, planetType) => {
+            const res = await merchantScrap(state.telegramId || "", planetId, planetType);
+            return res;
+          }}
+          onBurnPlanet={burnPlanet}
           onClose={merchant.dismissLocally}
         />
       )}

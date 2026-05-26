@@ -4761,7 +4761,6 @@ export function useGameState() {
     placeEarthPlanet, reactivateEarthPlanet, markEarthPlanetReactivated, collectEarthPlanet,
     placeBlackPlanet, reactivateBlackPlanet, markBlackPlanetReactivated, collectBlackPlanet,
     placeSupernovaPlanet, reactivateSupernovaPlanet, markSupernovaPlanetReactivated, collectSupernovaPlanet,
-    burnTwoOfType, addCraftedPlanet,
     equipment: state.equipment ?? [],
     activateEquipment,
     collectEquipment: collectEquipmentAction,

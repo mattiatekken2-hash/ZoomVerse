@@ -1,79 +1,38 @@
 import { Router, type IRouter } from "express";
-import { db } from "@workspace/db";
+import { db, pool } from "@workspace/db";
 import { usersTable, appSettingsTable } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
 
 const router: IRouter = Router();
 
-const SPAWN_MIN_MS = 20 * 60 * 1000;
-const SPAWN_MAX_MS = 50 * 60 * 1000;
-const VISIT_DURATION_MS = 90 * 1000;
-const MAX_FUSIONS_PER_VISIT = 3;
-const FUSE_GRACE_MS = 30 * 1000;
+const SPAWN_MIN_MS = 4 * 60 * 60 * 1000;   // 4 hours
+const SPAWN_MAX_MS = 6 * 60 * 60 * 1000;   // 6 hours
+const VISIT_DURATION_MS = 15 * 60 * 1000;  // 15 minutes
+const SCRAP_GRACE_MS = 30 * 1000;
 
-// Single key in app_settings that holds the GLOBAL merchant schedule shared
-// by every player. Storing both timestamps in one JSON value lets us flip
-// from "pending" to "live" (or "live" to "ended") in a single atomic UPDATE
-// guarded by the row's updated_at, so two concurrent /state polls can never
-// produce two different spawn moments for different users.
+// Stardust recycling table — how much Stardust each planet rarity yields when scrapped.
+const SCRAP_REWARDS: Record<string, number> = {
+  BASIC: 1,
+  RARE: 2,
+  EPIC: 5,
+  GOLD: 10,
+  MYTHIC: 20,
+  PLASMA: 35,
+  V1: 50,
+};
+
 const GLOBAL_KEY = "merchant.global";
 
 interface GlobalState {
-  // Earliest moment the next visit may begin. null when a visit is currently
-  // live or when the global row hasn't been initialised yet.
   nextAtMs: number | null;
-  // When the currently-visible visit disappears. null when no visit is live.
   expiresAtMs: number | null;
-  // Raw JSON we read from value_text. Used as the CAS token for atomic
-  // transitions: every transition flips the JSON content, so comparing on
-  // value_text equality gives us strict "compare-and-swap" semantics with
-  // no timestamp-precision pitfalls (Postgres stores updated_at at microsecond
-  // precision but JS Date only carries milliseconds, so a CAS on updated_at
-  // would silently fail forever after the row's first NOW()-default insert).
-  // null when the row doesn't exist OR when its value_text column is NULL.
   rawValueText: string | null;
-  // Distinguishes "row missing entirely" (need INSERT) from "row exists with
-  // NULL value_text" (need UPDATE-CAS with IS NOT DISTINCT FROM NULL); without
-  // this flag a NULL-valued legacy row would freeze on the INSERT-on-conflict
-  // path forever.
   rowExists: boolean;
 }
 
 function rollNextDelay(): number {
   return SPAWN_MIN_MS + Math.floor(Math.random() * (SPAWN_MAX_MS - SPAWN_MIN_MS));
-}
-
-type Outcome = "EXPLOSION" | "BASIC" | "RARE" | "EPIC" | "GOLD" | "V1" | "DOWNGRADE";
-
-function rollLevel1(): Outcome {
-  const r = Math.random() * 100;
-  if (r < 30) return "EXPLOSION";
-  if (r < 90) return "RARE";
-  if (r < 99) return "EPIC";
-  return "V1";
-}
-
-function rollLevel2(): Outcome {
-  const r = Math.random() * 100;
-  if (r < 15) return "EXPLOSION";
-  if (r < 50) return "DOWNGRADE";
-  if (r < 90) return "EPIC";
-  if (r < 99) return "GOLD";
-  return "V1";
-}
-
-// Level 3 fuses 2 EPIC. Same shape as Level 2 but the rewards are bumped one
-// tier up: the common upgrade is GOLD (instead of EPIC) and the jackpot is V1
-// (instead of GOLD). Failure rates (EXPLOSION + DOWNGRADE) are identical to L2.
-// On DOWNGRADE the client mints a RARE (one tier below EPIC), mirroring the
-// L2 RARE → BASIC fallback.
-function rollLevel3(): Outcome {
-  const r = Math.random() * 100;
-  if (r < 15) return "EXPLOSION";
-  if (r < 50) return "DOWNGRADE";
-  if (r < 90) return "GOLD";
-  return "V1";
 }
 
 async function readGlobal(): Promise<GlobalState> {
@@ -90,35 +49,17 @@ async function readGlobal(): Promise<GlobalState> {
       const parsed = JSON.parse(row.valueText) as { nextAtMs?: number | null; expiresAtMs?: number | null };
       nextAtMs = typeof parsed.nextAtMs === "number" ? parsed.nextAtMs : null;
       expiresAtMs = typeof parsed.expiresAtMs === "number" ? parsed.expiresAtMs : null;
-    } catch { /* fallthrough — treat as uninitialised */ }
+    } catch { /* fallthrough */ }
   }
   return { nextAtMs, expiresAtMs, rawValueText: row.valueText ?? null, rowExists: true };
 }
 
-// CAS write of the global row. Returns true if the write landed, false if
-// another request already mutated the row (caller should re-read and retry
-// from the new state, or just bail and let the next /state poll handle it).
-//
-// We CAS on the row's value_text content (not on updated_at). Every legitimate
-// transition flips the JSON, so equality on the previous JSON is a sufficient
-// optimistic-lock token, and unlike updated_at it isn't subject to the
-// JS-millisecond / Postgres-microsecond precision mismatch that would silently
-// freeze the schedule forever after the first defaultNow() insert.
-//
-// Two distinct cases for the "we have no JSON to compare against" branch:
-//   - rowExists=false → INSERT-on-conflict (real first-ever bootstrap).
-//   - rowExists=true with NULL value_text → UPDATE-CAS using IS NOT DISTINCT
-//     FROM NULL so a legacy/manually-edited row with a NULL JSON can still
-//     transition forward instead of being permanently wedged on the INSERT
-//     path (which would always no-op against the existing row).
 async function writeGlobalIf(
   expected: GlobalState,
   next: { nextAtMs: number | null; expiresAtMs: number | null },
 ): Promise<boolean> {
   const valueText = JSON.stringify({ nextAtMs: next.nextAtMs, expiresAtMs: next.expiresAtMs });
   if (!expected.rowExists) {
-    // Row doesn't exist → INSERT … ON CONFLICT DO NOTHING. If the row was
-    // just inserted by another request, our INSERT no-ops and we return false.
     const inserted = await db
       .insert(appSettingsTable)
       .values({ key: GLOBAL_KEY, valueText, updatedAt: new Date() })
@@ -126,9 +67,6 @@ async function writeGlobalIf(
       .returning({ key: appSettingsTable.key });
     return inserted.length > 0;
   }
-  // Row exists. CAS on value_text content. `IS NOT DISTINCT FROM` treats
-  // NULL = NULL as TRUE so the comparison works whether expected.rawValueText
-  // is a JSON string or NULL.
   const updated = await db
     .update(appSettingsTable)
     .set({ valueText, updatedAt: new Date() })
@@ -142,14 +80,9 @@ async function writeGlobalIf(
   return updated.length > 0;
 }
 
-// Drive the global state machine forward until it's in a "stable" state for
-// the given moment in time, returning the final state. Performs at most one
-// transition; if our CAS write loses the race, we re-read instead of looping
-// — the next /state poll will land within seconds and finish the work.
 async function advanceGlobal(now: number): Promise<GlobalState> {
   let g = await readGlobal();
 
-  // 1. Visit ended → schedule the next spawn.
   if (g.expiresAtMs != null && g.expiresAtMs <= now) {
     const nextAtMs = now + rollNextDelay();
     const ok = await writeGlobalIf(g, { nextAtMs, expiresAtMs: null });
@@ -158,7 +91,6 @@ async function advanceGlobal(now: number): Promise<GlobalState> {
       : await readGlobal();
   }
 
-  // 2. Bootstrap on the very first request ever.
   if (g.expiresAtMs == null && g.nextAtMs == null) {
     const nextAtMs = now + rollNextDelay();
     const ok = await writeGlobalIf(g, { nextAtMs, expiresAtMs: null });
@@ -167,7 +99,6 @@ async function advanceGlobal(now: number): Promise<GlobalState> {
       : await readGlobal();
   }
 
-  // 3. nextAt elapsed → spawn the visit (everyone sees it from this moment).
   if (g.expiresAtMs == null && g.nextAtMs != null && g.nextAtMs <= now) {
     const expiresAtMs = now + VISIT_DURATION_MS;
     const ok = await writeGlobalIf(g, { nextAtMs: null, expiresAtMs });
@@ -186,115 +117,114 @@ router.get("/merchant/state/:telegramId", async (req, res) => {
     const now = Date.now();
     const g = await advanceGlobal(now);
 
-    // Visit live globally?
     if (g.expiresAtMs != null && g.expiresAtMs > now) {
-      // Per-user fusion bookkeeping:
-      // `usersTable.merchantExpiresAt` is repurposed as a marker of which
-      // global visit this user has already participated in. If it doesn't
-      // match the current global visit, this is a NEW visit for them and
-      // they have a fresh budget of MAX_FUSIONS_PER_VISIT — no DB write
-      // here; the actual reset happens lazily inside /merchant/fuse so that
-      // /state stays purely a read for the common idle case.
       const [u] = await db
-        .select({
-          marker: usersTable.merchantExpiresAt,
-          fusionsUsed: usersTable.merchantFusionsUsed,
-        })
+        .select({ marker: usersTable.merchantExpiresAt })
         .from(usersTable)
         .where(eq(usersTable.telegramId, telegramId))
         .limit(1);
 
       const visitMarker = new Date(g.expiresAtMs);
       const isAttending = !!(u?.marker && u.marker.getTime() === visitMarker.getTime());
-      const fusionsUsed = isAttending ? (u!.fusionsUsed ?? 0) : 0;
 
       return res.json({
         active: true,
         expiresAt: visitMarker.toISOString(),
-        fusionsUsed,
-        maxFusions: MAX_FUSIONS_PER_VISIT,
-        // Always set on the first poll where this user sees this visit so
-        // the client can fire haptics / vibration once.
         justSpawned: !isAttending,
       });
     }
 
-    return res.json({
-      active: false,
-      expiresAt: null,
-      fusionsUsed: 0,
-      maxFusions: MAX_FUSIONS_PER_VISIT,
-    });
+    return res.json({ active: false, expiresAt: null });
   } catch (err) {
     console.error("[merchant/state] error:", err);
     return res.status(500).json({ error: "Internal error" });
   }
 });
 
-const FuseBody = z.object({
+const ScrapBody = z.object({
   telegramId: z.string().min(1),
-  level: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  planetId: z.string().min(1).max(128),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1"]),
 });
 
-router.post("/merchant/fuse", async (req, res) => {
-  const parsed = FuseBody.safeParse(req.body);
+router.post("/merchant/scrap", async (req, res) => {
+  const parsed = ScrapBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ ok: false, reason: "BAD_REQUEST" });
-  const { telegramId, level } = parsed.data;
+  const { telegramId, planetId, planetType } = parsed.data;
+
+  const reward = SCRAP_REWARDS[planetType];
+  if (reward == null) return res.status(400).json({ ok: false, reason: "BAD_REQUEST" });
 
   try {
     const now = Date.now();
     const g = await advanceGlobal(now);
 
-    // Visit must be live (with a small grace for in-flight requests).
-    if (g.expiresAtMs == null || g.expiresAtMs < now - FUSE_GRACE_MS) {
-      return res.status(409).json({ ok: false, reason: "EXPIRED_OR_MAX" });
+    if (g.expiresAtMs == null || g.expiresAtMs < now - SCRAP_GRACE_MS) {
+      return res.status(409).json({ ok: false, reason: "EXPIRED" });
     }
     const visitMarker = new Date(g.expiresAtMs);
 
-    // Atomic per-user counter update. A single SQL CASE handles both the
-    // "first fuse of a new visit (reset to 1)" and the "increment within an
-    // ongoing visit (cap at MAX)" branches in one statement, so two
-    // concurrent /fuse calls from the same user can never both pass the
-    // cap check.
-    const updated = await db
-      .update(usersTable)
-      .set({
-        merchantExpiresAt: visitMarker,
-        merchantFusionsUsed: sql`CASE
-          WHEN ${usersTable.merchantExpiresAt} IS DISTINCT FROM ${visitMarker} THEN 1
-          ELSE ${usersTable.merchantFusionsUsed} + 1
-        END`,
-      })
-      .where(
-        and(
-          eq(usersTable.telegramId, telegramId),
-          // Allow the write only if either this is a new visit (reset) OR
-          // the user still has fusions available in the current visit.
-          sql`(
-            ${usersTable.merchantExpiresAt} IS DISTINCT FROM ${visitMarker}
-            OR ${usersTable.merchantFusionsUsed} < ${MAX_FUSIONS_PER_VISIT}
-          )`,
-        ),
-      )
-      .returning({ fusionsUsed: usersTable.merchantFusionsUsed });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    if (updated.length === 0) {
-      return res.status(409).json({ ok: false, reason: "EXPIRED_OR_MAX" });
+      // Verify the user owns this exact planet in planets_json
+      const rows = await client.query(
+        `SELECT planets_json FROM users WHERE telegram_id = $1 FOR UPDATE`,
+        [telegramId]
+      );
+      if (rows.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ ok: false, reason: "USER_NOT_FOUND" });
+      }
+
+      const rawPlanets = rows.rows[0].planets_json;
+      const planets = Array.isArray(rawPlanets) ? rawPlanets as Array<Record<string, unknown>> : [];
+      const idx = planets.findIndex((p) => p && typeof p === "object" && p["id"] === planetId && p["name"] === planetType);
+      if (idx === -1) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ ok: false, reason: "PLANET_NOT_FOUND" });
+      }
+
+      // Remove the planet from planets_json, credit stardust, stamp merchant attendance
+      const nextPlanets = planets.filter((_, i) => i !== idx);
+      await client.query(
+        `UPDATE users
+         SET planets_json = $2::jsonb,
+             stardust_balance = stardust_balance + $3::int,
+             merchant_expires_at = $4::timestamp,
+             planets_updated_at_ms = GREATEST(planets_updated_at_ms, $5::bigint)
+         WHERE telegram_id = $1`,
+        [telegramId, JSON.stringify(nextPlanets), reward, visitMarker, now]
+      );
+
+      // If the burned planet was a bonus planet, decrement the server-side entitlement
+      const burned = planets[idx]!;
+      const isBonus = typeof burned["id"] === "string" && (burned["id"] as string).startsWith(`bonus-${planetType}-`);
+      if (isBonus) {
+        const col = planetType === "BASIC" ? "bonus_basic"
+          : planetType === "RARE" ? "bonus_rare"
+          : planetType === "EPIC" ? "bonus_epic"
+          : planetType === "MYTHIC" ? "bonus_mythic"
+          : planetType === "PLASMA" ? "bonus_plasma"
+          : planetType === "GOLD" ? "bonus_gold"
+          : "bonus_v1";
+        await client.query(
+          `UPDATE users SET ${col} = GREATEST(0, ${col} - 1) WHERE telegram_id = $1`,
+          [telegramId]
+        );
+      }
+
+      await client.query("COMMIT");
+      return res.json({ ok: true, reward, planetType });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw err;
+    } finally {
+      client.release();
     }
-
-    const fusionsUsed = updated[0]!.fusionsUsed;
-    const fusionsRemaining = Math.max(0, MAX_FUSIONS_PER_VISIT - fusionsUsed);
-    const outcome = level === 1 ? rollLevel1() : level === 2 ? rollLevel2() : rollLevel3();
-
-    return res.json({
-      ok: true,
-      outcome,
-      fusionsUsed,
-      fusionsRemaining,
-      maxFusions: MAX_FUSIONS_PER_VISIT,
-    });
   } catch (err) {
-    console.error("[merchant/fuse] error:", err);
+    console.error("[merchant/scrap] error:", err);
     return res.status(500).json({ ok: false, reason: "INTERNAL" });
   }
 });
