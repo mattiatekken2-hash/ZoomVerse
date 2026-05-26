@@ -355,7 +355,7 @@ function EquipmentInventory({
               SELL EQUIPMENT
             </div>
             <div className="text-[11px]" style={{ color: "rgba(255,255,255,0.6)" }}>
-              Set a $ZOOM price. The buyer will receive a fresh 24h cycle.
+              Set a TON price. The buyer pays with deposited TON and receives a fresh 24h cycle.
             </div>
             <input
               type="number"
