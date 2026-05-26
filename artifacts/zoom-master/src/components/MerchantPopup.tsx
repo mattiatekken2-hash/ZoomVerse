@@ -6,7 +6,7 @@ interface Props {
   expiresAt: string | null;
   planets: Planet[];
   onScrap: (planetId: string, planetType: string) => Promise<{ ok: boolean; reward?: number; reason?: string }>;
-  onBurnPlanet: (id: string) => void;
+  onBurnPlanet: (id: string, stardustReward?: number) => void;
   onClose: () => void;
 }
 
@@ -101,8 +101,8 @@ export function MerchantPopup({
       return;
     }
 
-    // Burn locally so inventory updates immediately
-    onBurnPlanet(selected.id);
+    // Burn locally so inventory updates immediately (credit stardust reward)
+    onBurnPlanet(selected.id, res.reward ?? 0);
 
     setResultReward(res.reward ?? null);
     setResultType(selected.name);

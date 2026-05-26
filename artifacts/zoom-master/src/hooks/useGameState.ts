@@ -3518,7 +3518,7 @@ export function useGameState() {
     return { defect: false };
   }, []);
 
-  const burnPlanet = useCallback((id: string) => {
+  const burnPlanet = useCallback((id: string, stardustReward?: number) => {
     setState((prev) => {
       const planet = prev.planets.find((p) => p.id === id);
       if (!planet) return prev;
@@ -3546,6 +3546,7 @@ export function useGameState() {
       const updated = {
         ...prev,
         balance: prev.balance + refund,
+        stardustBalance: prev.stardustBalance + (stardustReward ?? 0),
         planets: prev.planets.filter((p) => p.id !== id),
         claimedBonusBasic: isBonusPlanet && planet.name === "BASIC" ? Math.max(0, prev.claimedBonusBasic - 1) : prev.claimedBonusBasic,
         claimedBonusRare:  isBonusPlanet && planet.name === "RARE"  ? Math.max(0, prev.claimedBonusRare  - 1) : prev.claimedBonusRare,
