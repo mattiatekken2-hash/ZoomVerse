@@ -25,6 +25,11 @@ const POLL_MS = 30_000;
 const TICK_MS = 1_000;
 const PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
 const REQUIRED = 8;
+const REQUIRED_SUN_V1 = 5;
+
+function getRequired(kind: StakingKind): number {
+  return kind === "v1" || kind === "sun" ? REQUIRED_SUN_V1 : REQUIRED;
+}
 const FARM_DURATION_MS = 24 * 60 * 60 * 1000;
 
 // Per-rarity rewards (mirror of artifacts/api-server/src/routes/staking.ts).
@@ -96,10 +101,10 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
     ? (sunIsTheBlocker
         ? `⏸ Production paused — your SUN cycle is not active. Reactivate your SUN (24h) to resume.`
         : meta.kind === "v1"
-          ? `⏸ Production paused — only ${activeCount}/${REQUIRED} V1 NFT farms active. Reactivate to resume.`
+          ? `⏸ Production paused — only ${activeCount}/${getRequired("v1")} V1 NFT farms active. Reactivate to resume.`
           : meta.kind === "sun"
             ? `⏸ Production paused — SUN cycle expired. Reactivate your SUN to resume.`
-            : `⏸ Production paused — only ${activeCount}/${REQUIRED} ${meta.label} farms active. Reactivate to resume.`)
+            : `⏸ Production paused — only ${activeCount}/${getRequired(meta.kind)} ${meta.label} farms active. Reactivate to resume.`)
     : "";
 
   return (
@@ -148,7 +153,7 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
             </div>
           ) : (
             <div className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-              {requiresSun ? `${REQUIRED} ${meta.label} active · accruing in real time` : `${REQUIRED} ${meta.label} locked · accruing in real time`}
+              {requiresSun ? `${getRequired(meta.kind)} ${meta.label} active · accruing in real time` : `${getRequired(meta.kind)} ${meta.label} locked · accruing in real time`}
             </div>
           )}
         </>
@@ -157,7 +162,7 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
           <div className="text-[11px] mb-2" style={{ color: "rgba(255,255,255,0.7)" }}>
             {requiresSun
               ? `${activeCount} ${meta.label} active — ready to stake.`
-              : `You have ${count} ${meta.label} — ready to stake ${REQUIRED} of them.`}
+              : `You have ${count} ${meta.label} — ready to stake ${getRequired(meta.kind)} of them.`}
           </div>
           <button
             onClick={onStart}
@@ -178,24 +183,24 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
             <div className="text-[11px] font-bold mb-1" style={{ color: "rgba(255,179,71,0.95)" }}>
               ☀ Activate your SUN (24h cycle) to unlock {meta.label} staking
             </div>
-          ) : requiresSun && count >= REQUIRED && activeCount < REQUIRED ? (
+          ) : requiresSun && count >= getRequired(meta.kind) && activeCount < getRequired(meta.kind) ? (
             <div className="text-[11px] font-bold mb-1" style={{ color: "rgba(255,140,0,0.95)" }}>
-              Activate {REQUIRED} {meta.label} farms ({activeCount}/{REQUIRED} active) to unlock TON staking
+              Activate {getRequired(meta.kind)} {meta.label} farms ({activeCount}/{getRequired(meta.kind)} active) to unlock TON staking
             </div>
-          ) : requiresSun && count < REQUIRED ? (
+          ) : requiresSun && count < getRequired(meta.kind) ? (
             <div className="text-[11px] font-bold mb-1" style={{ color: "rgba(255,82,82,0.85)" }}>
-              Collect {REQUIRED} {meta.label} Planets ({count}/{REQUIRED} owned · {activeCount}/{REQUIRED} actively farming)
+              Collect {getRequired(meta.kind)} {meta.label} Planets ({count}/{getRequired(meta.kind)} owned · {activeCount}/{getRequired(meta.kind)} actively farming)
             </div>
           ) : (
             <div className="text-[11px] font-bold mb-1" style={{ color: "rgba(255,82,82,0.85)" }}>
-              Collect {REQUIRED} {meta.label} Planets to unlock TON farming
+              Collect {getRequired(meta.kind)} {meta.label} Planets to unlock TON farming
             </div>
           )}
           <div className="flex items-center gap-2">
             <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
               <div
                 style={{
-                  width: `${Math.min(100, ((requiresSun ? Math.max(activeCount, Math.min(count, REQUIRED)) : count) / REQUIRED) * 100)}%`,
+                  width: `${Math.min(100, ((requiresSun ? Math.max(activeCount, Math.min(count, getRequired(meta.kind))) : count) / getRequired(meta.kind)) * 100)}%`,
                   height: "100%",
                   background: meta.color,
                   transition: "width 0.4s ease",
@@ -203,7 +208,7 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
               />
             </div>
             <span className="text-[10px] font-black tabular-nums" style={{ color: "rgba(255,255,255,0.7)" }}>
-              {Math.min(requiresSun ? Math.max(activeCount, Math.min(count, REQUIRED)) : count, REQUIRED)}/{REQUIRED}
+              {Math.min(requiresSun ? Math.max(activeCount, Math.min(count, getRequired(meta.kind))) : count, getRequired(meta.kind))}/{getRequired(meta.kind)}
             </span>
           </div>
           <button disabled className="btn-widget w-full text-xs font-black tracking-wider mt-2" style={{ opacity: 0.35, cursor: "not-allowed" }}>
@@ -308,7 +313,7 @@ export function StakingWidget({ telegramId, planets, sunCountClient, sunFarmStar
       eligible: false,
       count: fallbackCounts.total(meta.kind),
       activeCount: fallbackCounts.active(meta.kind, now),
-      required: REQUIRED,
+      required: getRequired(meta.kind),
       startedAtMs: 0,
       accruedTon: 0,
       isAccruing: false,

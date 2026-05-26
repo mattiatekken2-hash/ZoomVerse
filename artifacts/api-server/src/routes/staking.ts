@@ -7,20 +7,20 @@ import { z } from "zod";
 const router: IRouter = Router();
 
 // ─────────────────────────────────────────────────────────────────────
-// PER-RARITY MONTHLY YIELD (TON / 30 days, full set of 8 planets)
+// PER-RARITY MONTHLY YIELD (TON / 30 days, full set of 5 planets)
 // ─────────────────────────────────────────────────────────────────────
 //   • V1 / SUN  → 0.15  (continuous accrual after activation, like before)
-//   • MYTHIC    → 0.10  (requires SUN in inventory + 8 active farms)
-//   • GOLD      → 0.07  (requires SUN in inventory + 8 active farms)
-//   • EPIC      → 0.04  (requires SUN in inventory + 8 active farms)
-//   • RARE      → 0.02  (requires SUN in inventory + 8 active farms)
-//   • BASIC     → 0.01  (requires SUN in inventory + 8 active farms)
+//   • MYTHIC    → 0.10  (requires SUN in inventory + 5 active farms)
+//   • GOLD      → 0.07  (requires SUN in inventory + 5 active farms)
+//   • EPIC      → 0.04  (requires SUN in inventory + 5 active farms)
+//   • RARE      → 0.02  (requires SUN in inventory + 5 active farms)
+//   • BASIC     → 0.01  (requires SUN in inventory + 5 active farms)
 export type StakingKind = "v1" | "sun" | "basic" | "rare" | "epic" | "mythic" | "plasma" | "gold";
 
 export const STAKING_REWARDS_TON_PER_MONTH: Record<StakingKind, number> = {
   v1: 0.15,
   sun: 0.15,
-  plasma: 0.25,    // PLASMA — premium staking: 0.25 TON / 30 days per set of 8
+  plasma: 0.25,    // PLASMA — premium staking: 0.25 TON / 30 days per set of 5
   mythic: 0.10,
   gold: 0.07,
   epic: 0.04,
@@ -29,6 +29,11 @@ export const STAKING_REWARDS_TON_PER_MONTH: Record<StakingKind, number> = {
 };
 export const STAKING_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
 export const STAKING_REQUIRED_COUNT = 8;
+const STAKING_REQUIRED_COUNT_SUN_V1 = 5;
+
+function getRequiredCount(kind: StakingKind): number {
+  return kind === "v1" || kind === "sun" ? STAKING_REQUIRED_COUNT_SUN_V1 : STAKING_REQUIRED_COUNT;
+}
 const FARM_DURATION_MS = 24 * 60 * 60 * 1000;
 
 // New rarities (BASIC..GOLD) follow the dynamic-accrual model.
@@ -137,15 +142,15 @@ interface ContinuousSettleResult {
   count: number;
   activeCount: number;
   isStaking: boolean;
-  isAccruing: boolean;       // currently producing TON (active>=8 & started)
+  isAccruing: boolean;       // currently producing TON (active>=5 & started)
   rewardTonPerMonth: number;
   _patch?: Record<string, number>;
 }
 
 // Settle V1 or SUN tier using the SAME gated-accrual model as the
 // dynamic tiers: TON only accrues while the underlying source is
-// actively producing ZOOM. For V1 → 8 V1 planets actively farming;
-// for SUN → 8 SUNs owned AND the SUN cycle is within its 24h window.
+// actively producing ZOOM. For V1 → 5 V1 planets actively farming;
+// for SUN → 5 SUNs owned AND the SUN cycle is within its 24h window.
 // Gaps where the source is "off" are silently skipped (lastSettledAtMs
 // still advances), so users can't back-claim by reactivating later.
 function settleContinuousTier(
@@ -217,9 +222,9 @@ interface DynamicSettleResult {
   lastSettledAtMs: number;     // bumped to `now` if the row was updated
   count: number;               // total planets of this rarity in inventory
   activeCount: number;         // currently actively-farming subset
-  eligible: boolean;           // can START staking right now (8 active + SUN)
+  eligible: boolean;           // can START staking right now (5 active + SUN)
   isStaking: boolean;          // already activated (startedAtMs > 0)
-  isAccruing: boolean;         // currently producing TON (active>=8 & started)
+  isAccruing: boolean;         // currently producing TON (active>=5 & started)
   rewardTonPerMonth: number;
   // Internal — populated when the snapshot needs persisting.
   _patch?: Record<string, number>;
@@ -244,8 +249,8 @@ function settleDynamicTier(
   const count = countByRarity(planets, rarityName);
   const activeCount = countActiveByRarity(planets, rarityName, now);
   const isStaking = startedAtMs > 0;
-  const fullyActive = activeCount >= STAKING_REQUIRED_COUNT;
-  // Eligibility to START staking: SUN in inventory AND 8 active planets.
+  const fullyActive = activeCount >= getRequiredCount(kind);
+  // Eligibility to START staking: SUN in inventory AND 5 active planets.
   const eligible = hasSun && fullyActive;
   const rewardTonPerMonth = STAKING_REWARDS_TON_PER_MONTH[kind];
 
@@ -295,7 +300,7 @@ const StartBody = z.object({
 /**
  * GET /staking/status?telegramId=...
  * Returns the live status of all 7 staking tiers. Side-effect: settles
- * the dynamic tiers (BASIC..GOLD) — accrues TON when 8 of that rarity
+ * the dynamic tiers (BASIC..GOLD) — accrues TON when 5 of that rarity
  * are actively farming, otherwise just bumps `lastSettledAtMs`.
  */
 router.get("/staking/status", async (req, res) => {
@@ -333,7 +338,7 @@ router.get("/staking/status", async (req, res) => {
 
       // V1 / SUN settle — same gated model as the dynamic tiers. They
       // only accrue TON while their underlying source is currently
-      // producing ZOOM (8 V1 actively farming, or 8 SUN owned + cycle
+      // producing ZOOM (5 V1 actively farming, or 5 SUN owned + cycle
       // active). When production is off, we still bump lastSettledAtMs
       // so users can't back-claim the gap by reactivating later.
       const v1ActiveCount = countActiveV1(planetsArr, now);
@@ -342,8 +347,8 @@ router.get("/staking/status", async (req, res) => {
       // ALL tiers (V1 included) require an active SUN in inventory.
       // Removing the SUN via admin panel, or letting the SUN cycle
       // expire, freezes every TON staking line — no exceptions.
-      const v1Producing = v1ActiveCount >= STAKING_REQUIRED_COUNT && sActive;
-      const sunProducing = sunTotalCount >= STAKING_REQUIRED_COUNT && sunCycleActive;
+      const v1Producing = v1ActiveCount >= STAKING_REQUIRED_COUNT_SUN_V1 && sActive;
+      const sunProducing = sunTotalCount >= STAKING_REQUIRED_COUNT_SUN_V1 && sunCycleActive;
       const v1Settled  = settleContinuousTier(r, "v1",  v1Producing,  v1ActiveCount, v1TotalCount, now);
       const sunSettled = settleContinuousTier(r, "sun", sunProducing, sunTotalCount, sunTotalCount, now);
 
@@ -373,7 +378,7 @@ router.get("/staking/status", async (req, res) => {
     if (rows.length === 0 || !dynResults || !v1Settled || !sunSettled) {
       const empty = (kind: StakingKind) => ({
         eligible: false, count: 0, activeCount: 0,
-        required: STAKING_REQUIRED_COUNT, startedAtMs: 0,
+        required: getRequiredCount(kind), startedAtMs: 0,
         accruedTon: 0, isAccruing: false,
         rewardTonPerMonth: STAKING_REWARDS_TON_PER_MONTH[kind],
         requiresSunInInventory: kind !== "v1" && kind !== "sun",
@@ -402,7 +407,7 @@ router.get("/staking/status", async (req, res) => {
       eligible: dyn[k].eligible,
       count: dyn[k].count,
       activeCount: dyn[k].activeCount,
-      required: STAKING_REQUIRED_COUNT,
+      required: getRequiredCount(k),
       startedAtMs: dyn[k].startedAtMs,
       accruedTon: dyn[k].accruedTon,
       isAccruing: dyn[k].isAccruing,
@@ -412,14 +417,14 @@ router.get("/staking/status", async (req, res) => {
 
     return res.json({
       v1: {
-        // Eligible to START requires 8 V1 currently actively farming
+        // Eligible to START requires 5 V1 currently actively farming
         // (mirrors the dynamic-tier rule). Once started, accrual is
         // gated by the same condition — so production stops if all
         // V1 cycles expire.
-        eligible: v1Settled.activeCount >= STAKING_REQUIRED_COUNT,
+        eligible: v1Settled.activeCount >= getRequiredCount("v1"),
         count: v1Settled.count,
         activeCount: v1Settled.activeCount,
-        required: STAKING_REQUIRED_COUNT,
+        required: getRequiredCount("v1"),
         startedAtMs: v1Settled.startedAtMs,
         accruedTon: v1Settled.accruedTon,
         isAccruing: v1Settled.isAccruing,
@@ -429,14 +434,14 @@ router.get("/staking/status", async (req, res) => {
         requiresSunInInventory: true,
       },
       sun: {
-        // Eligible to START requires 8 SUN owned AND the SUN cycle to
+        // Eligible to START requires 5 SUN owned AND the SUN cycle to
         // be active (same rule as accrual gating). If the user lets
         // the SUN cycle expire, both display "Production paused" and
         // accrual freezes until they reactivate.
-        eligible: sunCount >= STAKING_REQUIRED_COUNT && hasSun,
+        eligible: sunCount >= getRequiredCount("sun") && hasSun,
         count: sunCount,
         activeCount: hasSun ? sunCount : 0,
-        required: STAKING_REQUIRED_COUNT,
+        required: getRequiredCount("sun"),
         startedAtMs: sunSettled.startedAtMs,
         accruedTon: sunSettled.accruedTon,
         isAccruing: sunSettled.isAccruing,
@@ -465,7 +470,7 @@ router.get("/staking/status", async (req, res) => {
  * the existing timestamp is returned unchanged.
  *
  * Eligibility rules:
- *   • V1 / SUN  → 8 of that type in inventory.
+ *   • V1 / SUN  → 5 of that type in inventory.
  *   • BASIC..GOLD → 8 of that rarity ACTIVELY FARMING + SUN in inventory.
  */
 router.post("/staking/start", async (req, res) => {
@@ -494,12 +499,12 @@ router.post("/staking/start", async (req, res) => {
     if (kind === "v1") {
       const totalCount = countV1(planets);
       const activeCount = countActiveV1(planets, now);
-      if (activeCount < STAKING_REQUIRED_COUNT) {
+      if (activeCount < getRequiredCount("v1")) {
         return res.status(400).json({
-          error: totalCount < STAKING_REQUIRED_COUNT ? "NOT_ENOUGH" : "NOT_ACTIVE",
+          error: totalCount < getRequiredCount("v1") ? "NOT_ENOUGH" : "NOT_ACTIVE",
           count: totalCount,
           activeCount,
-          required: STAKING_REQUIRED_COUNT,
+          required: getRequiredCount("v1"),
         });
       }
       // V1 staking now also requires an active SUN in inventory (parity
@@ -528,12 +533,12 @@ router.post("/staking/start", async (req, res) => {
 
     if (kind === "sun") {
       const count = row.sunCount ?? 0;
-      if (count < STAKING_REQUIRED_COUNT) {
-        return res.status(400).json({ error: "NOT_ENOUGH", count, required: STAKING_REQUIRED_COUNT });
+      if (count < getRequiredCount("sun")) {
+        return res.status(400).json({ error: "NOT_ENOUGH", count, required: getRequiredCount("sun") });
       }
       // SUN cycle must be active to start (and to accrue).
       if (!sunIsActive) {
-        return res.status(400).json({ error: "NOT_ACTIVE", count, required: STAKING_REQUIRED_COUNT });
+        return res.status(400).json({ error: "NOT_ACTIVE", count, required: getRequiredCount("sun") });
       }
       const existing = row.stakingSunStartedAtMs ?? 0;
       if (existing > 0) {
@@ -557,12 +562,12 @@ router.post("/staking/start", async (req, res) => {
     const rarityName = RARITY_NAME[dynKind];
     const totalCount = countByRarity(planets, rarityName);
     const activeCount = countActiveByRarity(planets, rarityName, now);
-    if (activeCount < STAKING_REQUIRED_COUNT) {
+    if (activeCount < getRequiredCount(kind)) {
       return res.status(400).json({
-        error: totalCount < STAKING_REQUIRED_COUNT ? "NOT_ENOUGH" : "NOT_ACTIVE",
+        error: totalCount < getRequiredCount(kind) ? "NOT_ENOUGH" : "NOT_ACTIVE",
         count: totalCount,
         activeCount,
-        required: STAKING_REQUIRED_COUNT,
+        required: getRequiredCount(kind),
       });
     }
     const existing = (row[cols.started] as number) ?? 0;
