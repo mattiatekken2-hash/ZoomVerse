@@ -386,7 +386,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
               onClick={handleCraft}
               disabled={!canCraft}
               data-testid="button-craft"
-              style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}
+              style={{ flex: 1 }}
             >
               {isFull ? t("lab.farmFull") : !canCraft ? t("lab.noStardust") : t("lab.forgePlanet")}
             </button>

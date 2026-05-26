@@ -162,7 +162,7 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
         data-testid="button-auto-tap"
         aria-label={hasAutoTap ? t("autoTap.holdAria") : t("autoTap.buyAria")}
       >
-        {hasAutoTap ? <img src="/lightning-pixel.png" alt="" style={{ width: 28, height: 28, imageRendering: "pixelated" }} /> : "🔒"}
+        {hasAutoTap ? "⚡" : "🔒"}
       </button>
 
       {showBuy && (
@@ -193,9 +193,7 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
               textAlign: "center",
             }}
           >
-            <div style={{ marginBottom: 8 }}>
-              <img src="/lightning-pixel.png" alt="" style={{ width: 48, height: 48, imageRendering: "pixelated" }} />
-            </div>
+            <div style={{ fontSize: 48, marginBottom: 8 }}>⚡</div>
             <div className="font-black text-lg tracking-wider" style={{ color: "#00f2fe", marginBottom: 4 }}>
               {t("autoTap.title")}
             </div>

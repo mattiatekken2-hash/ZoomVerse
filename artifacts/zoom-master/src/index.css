@@ -600,10 +600,10 @@
   position: relative;
   overflow: hidden;
   transition: transform 0.1s, box-shadow 0.2s;
-  background: linear-gradient(135deg, #ffd700, #ffb347, #ff8c00, #ffd700);
+  background: linear-gradient(135deg, #00f2fe, #4facfe, #00f2fe);
   background-size: 200% 100%;
-  color: #1a1200;
-  box-shadow: 0 0 30px rgba(255,215,0,0.5), 0 6px 24px rgba(0,0,0,0.5);
+  color: #060810;
+  box-shadow: 0 0 30px rgba(0,242,254,0.5), 0 6px 24px rgba(0,0,0,0.5);
   animation: gradient-shift 3s linear infinite;
 }
 .btn-craft:active { transform: scale(0.96); }
