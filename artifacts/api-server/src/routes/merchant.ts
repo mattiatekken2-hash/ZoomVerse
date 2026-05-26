@@ -22,7 +22,7 @@ const SCRAP_REWARDS: Record<string, number> = {
   V1: 50,
 };
 
-const GLOBAL_KEY = "merchant.global";
+export const GLOBAL_KEY = "merchant.global";
 
 interface GlobalState {
   nextAtMs: number | null;
@@ -35,7 +35,7 @@ function rollNextDelay(): number {
   return SPAWN_MIN_MS + Math.floor(Math.random() * (SPAWN_MAX_MS - SPAWN_MIN_MS));
 }
 
-async function readGlobal(): Promise<GlobalState> {
+export async function readGlobal(): Promise<GlobalState> {
   const [row] = await db
     .select()
     .from(appSettingsTable)

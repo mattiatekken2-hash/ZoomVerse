@@ -1326,6 +1326,14 @@ export async function adminForceDelist(adminId: string, listingId: number): Prom
   } catch { return false; }
 }
 
+export async function adminFetchMerchantStatus(adminId: string): Promise<{ active: boolean; expiresAt?: string; nextAt?: string; remainingSec?: number }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/merchant-status?adminId=${encodeURIComponent(adminId)}`, { cache: "no-store" });
+    if (!res.ok) return { active: false };
+    return await res.json();
+  } catch { return { active: false }; }
+}
+
 export async function adminForceMerchantSpawn(adminId: string): Promise<{ ok: boolean; expiresAt?: string }> {
   try {
     const res = await fetch(`${API_BASE}/admin/force-merchant-spawn`, {

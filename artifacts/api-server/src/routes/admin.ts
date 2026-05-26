@@ -9,6 +9,7 @@ import path from "node:path";
 import { logger } from "../lib/logger";
 import { recordHistoryAsync } from "../lib/history";
 import { EQUIPMENT_RATE_SERVER } from "./equipment";
+import { readGlobal as readMerchantGlobal, GLOBAL_KEY as MERCHANT_GLOBAL_KEY } from "./merchant";
 
 const router = Router();
 
@@ -1708,6 +1709,27 @@ router.get("/season/epoch", async (_req, res) => {
     res.json({ epoch: row?.valueNum ?? 0 });
   } catch {
     res.json({ epoch: 0 });
+  }
+});
+
+router.get("/admin/merchant-status", async (req, res) => {
+  const adminId = (req.query?.["adminId"] as string) || "";
+  if (!isAdmin(adminId)) return res.status(403).json({ error: "Forbidden" });
+  try {
+    const g = await readMerchantGlobal();
+    const now = Date.now();
+    if (g.expiresAtMs != null && g.expiresAtMs > now) {
+      const remainingSec = Math.max(0, Math.ceil((g.expiresAtMs - now) / 1000));
+      return res.json({ active: true, expiresAt: new Date(g.expiresAtMs).toISOString(), remainingSec });
+    }
+    if (g.nextAtMs != null && g.nextAtMs > now) {
+      const remainingSec = Math.max(0, Math.ceil((g.nextAtMs - now) / 1000));
+      return res.json({ active: false, nextAt: new Date(g.nextAtMs).toISOString(), remainingSec });
+    }
+    return res.json({ active: false, nextAt: null, remainingSec: null });
+  } catch (err) {
+    console.error("[admin/merchant-status] error:", err);
+    return res.status(500).json({ error: "Internal error" });
   }
 });
 

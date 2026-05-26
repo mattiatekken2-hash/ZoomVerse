@@ -38,6 +38,7 @@ import {
   adminClearPlanetMarket,
   adminClearEquipmentMarket,
   adminForceMerchantSpawn,
+  adminFetchMerchantStatus,
   adminDisableUser,
   adminEnableUser,
   adminBulkDisable,
@@ -114,10 +115,16 @@ export function AdminPanel({ telegramId }: Props) {
   const [maintEnabled, setMaintEnabled] = useState(false);
   const [maintMessage, setMaintMessage] = useState("We're upgrading the game. Back online shortly.");
   const [maintLoading, setMaintLoading] = useState(false);
+  const [merchantStatus, setMerchantStatus] = useState<{ active: boolean; expiresAt?: string; nextAt?: string; remainingSec?: number }>({ active: false });
 
   const refreshPendingWithdrawals = useCallback(async () => {
     const list = await adminFetchWithdrawals(telegramId, "pending");
     setPendingWithdrawals(list);
+  }, [telegramId]);
+
+  const refreshMerchantStatus = useCallback(async () => {
+    const s = await adminFetchMerchantStatus(telegramId);
+    setMerchantStatus(s);
   }, [telegramId]);
 
   const refreshMaintenance = useCallback(async () => {
@@ -141,8 +148,15 @@ export function AdminPanel({ telegramId }: Props) {
       refreshPendingWithdrawals();
       refreshMaintenance();
       refreshTopPlayers();
+      refreshMerchantStatus();
     }
-  }, [open, telegramId, refreshPendingWithdrawals, refreshMaintenance, refreshTopPlayers]);
+  }, [open, telegramId, refreshPendingWithdrawals, refreshMaintenance, refreshTopPlayers, refreshMerchantStatus]);
+
+  useEffect(() => {
+    if (!open || telegramId !== ADMIN_ID) return;
+    const id = setInterval(() => refreshMerchantStatus(), 5000);
+    return () => clearInterval(id);
+  }, [open, telegramId, refreshMerchantStatus]);
 
   const handleToggleMaintenance = useCallback(async (next: boolean) => {
     haptic();
@@ -158,6 +172,12 @@ export function AdminPanel({ telegramId }: Props) {
       showFeedback(`✗ ${res.error || "Failed"}`, false);
     }
   }, [telegramId, maintMessage]);
+
+  const formatCountdown = (sec: number) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  };
 
   const showFeedback = (msg: string, ok: boolean) => {
     setFeedback({ msg, ok });
@@ -1154,6 +1174,39 @@ export function AdminPanel({ telegramId }: Props) {
                 </motion.button>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+
+                {/* Merchant status monitor */}
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
+                  STATO ALIENO
+                </div>
+                <div
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    background: "rgba(0,0,0,0.2)",
+                    fontSize: 12,
+                    color: merchantStatus.active ? "#00e676" : "rgba(255,255,255,0.6)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                  }}
+                >
+                  <span>
+                    {merchantStatus.active
+                      ? `🔴 ATTIVO (scade tra ${formatCountdown(merchantStatus.remainingSec ?? 0)})`
+                      : merchantStatus.nextAt
+                        ? `🕓 Prossimo: ${formatCountdown(merchantStatus.remainingSec ?? 0)}`
+                        : "— Nessun timer —"}
+                  </span>
+                  <span
+                    onClick={() => { haptic(); refreshMerchantStatus(); }}
+                    style={{ cursor: "pointer", fontSize: 10, opacity: 0.5 }}
+                  >
+                    🔄
+                  </span>
+                </div>
 
                 {/* Force Space Merchant spawn */}
                 <motion.button
