@@ -447,7 +447,7 @@ async function registerTelegramWebhook() {
   try {
     const body: Record<string, unknown> = {
       url: webhookUrl,
-      allowed_updates: ["message", "pre_checkout_query"],
+      allowed_updates: ["message", "pre_checkout_query", "callback_query"],
     };
     if (secretToken) body["secret_token"] = secretToken;
 
