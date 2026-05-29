@@ -59,6 +59,7 @@ router.post("/withdrawals/request", async (req, res) => {
         .select({
           tonBalance: usersTable.tonBalance,
           whiteCollectionUnlocked: usersTable.whiteCollectionUnlocked,
+          earthCollectionUnlocked: usersTable.earthCollectionUnlocked,
           isDisabled: usersTable.isDisabled,
         })
         .from(usersTable)
@@ -70,8 +71,8 @@ router.post("/withdrawals/request", async (req, res) => {
       if (user.isDisabled) {
         return { kind: "err" as const, status: 403, error: "Account disabilitato. Contatta l'admin." };
       }
-      if (!user.whiteCollectionUnlocked) {
-        return { kind: "err" as const, status: 403, error: "Solo gli holder della White Collection possono prelevare" };
+      if (!user.whiteCollectionUnlocked && !user.earthCollectionUnlocked) {
+        return { kind: "err" as const, status: 403, error: "Solo gli holder della White Collection o Earth Collection possono prelevare" };
       }
       // Withdrawals are paid out of the EARNED balance only (column kept
       // as ton_balance for back-compat). Deposits sit in deposit_balance and

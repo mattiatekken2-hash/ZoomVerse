@@ -150,8 +150,8 @@ function PixelAvatarBase({
     ? supernovaCollectionBundles
     : (supernovaCollectionUnlocked ? 1 : 0);
   const maxSupernovaSlots = effectiveSupernovaBundles * 4;
-  // Withdrawals are gated by: White Collection, OR Earth+SUN, OR Black, OR Supernova.
-  const canWithdraw = whiteCollectionUnlocked || (earthCollectionUnlocked && sunCount > 0) || blackCollectionUnlocked || supernovaCollectionUnlocked;
+  // Withdrawals are gated by: White Collection, OR Earth Collection, OR Black, OR Supernova.
+  const canWithdraw = whiteCollectionUnlocked || earthCollectionUnlocked || blackCollectionUnlocked || supernovaCollectionUnlocked;
   const [tapped, setTapped] = useState(false);
   const [open, setOpen] = useState(false);
   const [depositMsg, setDepositMsg] = useState<string | null>(null);
@@ -215,13 +215,7 @@ function PixelAvatarBase({
     setWithdrawErr(null);
     setWithdrawMsg(null);
     if (!canWithdraw) {
-      // Earth holders need at least one SUN; surface the precise reason so
-      // the user knows exactly what's missing.
-      if (earthCollectionUnlocked && sunCount <= 0) {
-        setWithdrawErr("Earth Collection requires a SUN module to withdraw");
-      } else {
-        setWithdrawErr("White or Earth Collection holders only");
-      }
+      setWithdrawErr("White or Earth Collection holders only");
       return;
     }
     if (!telegramId) {
