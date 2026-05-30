@@ -6,9 +6,13 @@ const BOT_TOKEN = process.env["BOT_TOKEN"] || "";
 
 type Mode = "off" | "soft" | "strict";
 function readMode(): Mode {
-  const raw = (process.env["TG_AUTH_MODE"] || "soft").toLowerCase();
+  const raw = (process.env["TG_AUTH_MODE"] || "").toLowerCase();
   if (raw === "off" || raw === "soft" || raw === "strict") return raw;
-  return "soft";
+  // No explicit override: secure-by-default in production, lenient in dev.
+  // Production (REPLIT_DEPLOYMENT==="1") rejects spoofed/unauthenticated
+  // requests (strict). Dev keeps `soft` so the Replit browser preview — which
+  // has no Telegram initData — still works for manual testing.
+  return process.env["REPLIT_DEPLOYMENT"] === "1" ? "strict" : "soft";
 }
 const MODE: Mode = readMode();
 
@@ -226,7 +230,26 @@ export interface RequireTgAuthOptions {
  */
 export function requireTelegramAuth(opts: RequireTgAuthOptions = {}): RequestHandler {
   return (req: Request, res: Response, next: NextFunction): void => {
+    // `off` disables auth entirely.
     if (MODE === "off") {
+      req.tgUser = null;
+      next();
+      return;
+    }
+
+    // No BOT_TOKEN: `verifyInitData` can never succeed. We split the response
+    // by route sensitivity instead of blanket fail-open:
+    //   - forceStrict routes (admin) FAIL CLOSED (503) — re-opening admin
+    //     takeover via the spoofable body `adminId` check is far worse than an
+    //     admin-panel outage on a token misconfig.
+    //   - all other routes FAIL OPEN — a missing token shouldn't take the whole
+    //     game down for regular players; they degrade to `req.tgUser = null`.
+    // (logBootOnce already warns loudly that the token is missing.)
+    if (!BOT_TOKEN) {
+      if (opts.forceStrict === true) {
+        res.status(503).json({ error: "AUTH_UNAVAILABLE" });
+        return;
+      }
       req.tgUser = null;
       next();
       return;

@@ -52,12 +52,14 @@ const router: IRouter = Router();
  *
  * Effective behavior is gated by `TG_AUTH_MODE`:
  *   - `off`    — verification is fully disabled
- *   - `soft`   — verifies & logs but never rejects (default; migration-safe)
+ *   - `soft`   — verifies & logs but never rejects
  *   - `strict` — rejects 401 on missing/invalid initData, 403 on mismatch
  *
- * Default `soft` is intentional: in-flight clients (already-loaded JS
- * that doesn't yet send the header) keep working through a deploy. Flip
- * to `strict` once logs confirm all clients are sending it cleanly.
+ * When `TG_AUTH_MODE` is unset, the default is secure-by-context:
+ * `strict` in production (`REPLIT_DEPLOYMENT==="1"`) and `soft` in dev (so
+ * the Replit browser preview, which has no Telegram initData, still works).
+ * As a safety net, auth fails OPEN when `BOT_TOKEN` is missing — without the
+ * token verification can never succeed, so strict would only cause an outage.
  */
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 interface ProtectedRoute {
@@ -126,6 +128,9 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/room-invites/respond",
       "/redeem-codes/redeem",
       "/staking/start",
+      "/lab-rank/join",
+      "/ton/deposit/confirm",
+      "/obtained/record",
     ],
     bindField: "telegramId",
   },
