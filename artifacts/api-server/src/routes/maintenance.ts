@@ -51,7 +51,25 @@ router.post("/admin/maintenance", async (req, res) => {
   const parsed = SetBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ ok: false, error: "Invalid body" });
   const { adminId, enabled, message } = parsed.data;
-  if (adminId !== ADMIN_ID) return res.status(403).json({ ok: false, error: "Forbidden" });
+  // The body-only `adminId` check is NOT a security boundary: the admin id is
+  // public (hardcoded), so anyone could send it. The real gate is the
+  // cryptographically verified Telegram identity (`req.tgUser`), which an
+  // attacker cannot forge without the bot token used for the initData HMAC.
+  // Require BOTH: the verified user must exist AND be the admin. This holds
+  // even in soft TG_AUTH_MODE, where the central middleware only logs and lets
+  // requests through. Without this, the endpoint was trivially exploitable.
+  if (!req.tgUser || req.tgUser.id !== ADMIN_ID) {
+    req.log?.warn(
+      {
+        path: req.path,
+        verifiedId: req.tgUser?.id ?? null,
+        claimedAdminId: adminId,
+        ip: req.ip,
+      },
+      "[admin/maintenance] rejected: caller is not the verified admin",
+    );
+    return res.status(403).json({ ok: false, error: "Forbidden" });
+  }
 
   try {
     await db

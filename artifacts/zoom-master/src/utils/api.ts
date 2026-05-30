@@ -1009,7 +1009,7 @@ export async function adminCloseLabRank(adminId: string, roundId: number): Promi
 
 export async function adminFetchLottoDashboard(adminId: string): Promise<LottoAdminDashboard | null> {
   try {
-    const res = await fetch(`${API_BASE}/admin/lottery/dashboard?adminId=${encodeURIComponent(adminId)}&t=${Date.now()}`, { cache: "no-store" });
+    const res = await fetch(`${API_BASE}/admin/lottery/dashboard?adminId=${encodeURIComponent(adminId)}&t=${Date.now()}`, { cache: "no-store", headers: apiHeaders() });
     if (!res.ok) return null;
     return await res.json();
   } catch { return null; }
@@ -1106,7 +1106,7 @@ export async function fetchMyWithdrawals(telegramId: string): Promise<TonWithdra
 
 export async function adminFetchWithdrawals(adminId: string, status: "pending" | "paid" | "rejected" = "pending"): Promise<TonWithdrawal[]> {
   try {
-    const res = await fetch(`${API_BASE}/admin/withdrawals?adminId=${encodeURIComponent(adminId)}&status=${status}&t=${Date.now()}`, { cache: "no-store" });
+    const res = await fetch(`${API_BASE}/admin/withdrawals?adminId=${encodeURIComponent(adminId)}&status=${status}&t=${Date.now()}`, { cache: "no-store", headers: apiHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
     return Array.isArray(data?.withdrawals) ? data.withdrawals : [];
@@ -1328,7 +1328,7 @@ export async function adminForceDelist(adminId: string, listingId: number): Prom
 
 export async function adminFetchMerchantStatus(adminId: string): Promise<{ active: boolean; expiresAt?: string; nextAt?: string; remainingSec?: number }> {
   try {
-    const res = await fetch(`${API_BASE}/admin/merchant-status?adminId=${encodeURIComponent(adminId)}`, { cache: "no-store" });
+    const res = await fetch(`${API_BASE}/admin/merchant-status?adminId=${encodeURIComponent(adminId)}`, { cache: "no-store", headers: apiHeaders() });
     if (!res.ok) return { active: false };
     return await res.json();
   } catch { return { active: false }; }

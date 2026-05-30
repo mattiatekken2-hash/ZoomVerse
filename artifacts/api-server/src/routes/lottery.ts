@@ -116,8 +116,7 @@ router.get("/lottery/state", async (req, res) => {
  */
 router.get("/admin/lottery/dashboard", async (req, res) => {
   try {
-    const adminId = (req.query["adminId"] as string) || "";
-    if (!isAdmin(adminId)) { res.status(403).json({ error: "Forbidden" }); return; }
+    if (!req.tgUser || !isAdmin(req.tgUser.id)) { res.status(403).json({ error: "Forbidden" }); return; }
 
     const round = await getOrCreateActiveRound();
     const totalCollected = Number(round.totalCollectedTon || 0);

@@ -1400,8 +1400,7 @@ router.post("/admin/reconcile-referrals", async (req, res) => {
  * crediting path. Never double-credits a completed row.
  */
 router.get("/admin/webhook-info", async (req, res) => {
-  const adminId = (req.query?.["adminId"] as string) || "";
-  if (!isAdmin(adminId)) return res.status(403).json({ error: "Forbidden" });
+  if (!req.tgUser || !isAdmin(req.tgUser.id)) return res.status(403).json({ error: "Forbidden" });
 
   const BOT_TOKEN = process.env["BOT_TOKEN"] || "";
   if (!BOT_TOKEN) return res.status(500).json({ error: "BOT_TOKEN not set" });
@@ -1721,8 +1720,10 @@ router.get("/season/epoch", async (_req, res) => {
 });
 
 router.get("/admin/merchant-status", async (req, res) => {
-  const adminId = (req.query?.["adminId"] as string) || "";
-  if (!isAdmin(adminId)) return res.status(403).json({ error: "Forbidden" });
+  // Authorize on the cryptographically verified Telegram identity, NOT the
+  // spoofable query param. forceStrict in PROTECTED_ROUTES guarantees req.tgUser
+  // is populated (or the request was already rejected 401).
+  if (!req.tgUser || !isAdmin(req.tgUser.id)) return res.status(403).json({ error: "Forbidden" });
   try {
     const g = await readMerchantGlobal();
     const now = Date.now();

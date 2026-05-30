@@ -196,8 +196,7 @@ router.get("/withdrawals/me/:telegramId", async (req, res) => {
 });
 
 router.get("/admin/withdrawals", async (req, res) => {
-  const adminId = String(req.query.adminId || "");
-  if (!isAdmin(adminId)) return res.status(403).json({ error: "Forbidden" });
+  if (!req.tgUser || !isAdmin(req.tgUser.id)) return res.status(403).json({ error: "Forbidden" });
   const status = String(req.query.status || "pending");
   try {
     const rows = await db

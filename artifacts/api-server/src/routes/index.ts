@@ -64,6 +64,14 @@ interface ProtectedRoute {
   methods: Method[];
   paths: string[];
   bindField: string;
+  /**
+   * When true, these routes are enforced strictly (reject on missing/invalid
+   * initData and on bound-field mismatch) REGARDLESS of the global
+   * `TG_AUTH_MODE`. Used for admin endpoints, which must never be reachable in
+   * the migration-safe `soft` mode — the admin id is public, so the body-only
+   * `isAdmin()` check is not a security boundary on its own.
+   */
+  forceStrict?: boolean;
 }
 
 const PROTECTED_ROUTES: ProtectedRoute[] = [
@@ -173,6 +181,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/admin/revoke-supernova-collection",
       "/admin/grant-v1",
       "/admin/grant-v1-nft",
+      "/admin/grant-equipment",
       "/admin/global-bonus",
       "/admin/remove-zoom",
       "/admin/remove-planets",
@@ -186,7 +195,6 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/admin/clear-equipment-market",
       "/admin/remove-spins",
       "/admin/force-merchant-spawn",
-      "/admin/merchant-status",
       "/admin/reset-season",
       "/admin/mark-ton-completed",
       "/admin/reconcile-referrals",
@@ -209,11 +217,30 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/admin/stardust/total",
     ],
     bindField: "adminId",
+    forceStrict: true,
+  },
+  // Admin READ endpoints (GET). These expose sensitive data (withdrawals,
+  // dashboards, webhook config) and previously gated only on a spoofable
+  // `?adminId=` query param. GET requests carry no body, so we cannot bind to
+  // a body field — instead `forceStrict` requires valid Telegram initData
+  // (rejects 401 without it, even in soft mode), and each handler additionally
+  // verifies `req.tgUser.id` is the admin (not the query param).
+  {
+    methods: ["GET"],
+    paths: [
+      "/admin/webhook-info",
+      "/admin/merchant-status",
+      "/admin/lottery/dashboard",
+      "/admin/lab-rank/dashboard",
+      "/admin/withdrawals",
+    ],
+    bindField: "",
+    forceStrict: true,
   },
 ];
 
 // Pre-compute lookup map for O(1) per-request match.
-const protectedMap = new Map<string, { methods: Set<Method>; bindField: string }>();
+const protectedMap = new Map<string, { methods: Set<Method>; bindField: string; forceStrict: boolean }>();
 for (const entry of PROTECTED_ROUTES) {
   for (const path of entry.paths) {
     const existing = protectedMap.get(path);
@@ -222,7 +249,11 @@ for (const entry of PROTECTED_ROUTES) {
       // rather than letting one definition silently win.
       throw new Error(`[tg-auth] duplicate protected route configuration for ${path}`);
     }
-    protectedMap.set(path, { methods: new Set(entry.methods), bindField: entry.bindField });
+    protectedMap.set(path, {
+      methods: new Set(entry.methods),
+      bindField: entry.bindField,
+      forceStrict: entry.forceStrict === true,
+    });
   }
 }
 
@@ -252,7 +283,7 @@ router.use((req: Request, res: Response, next: NextFunction) => {
   const conf = protectedMap.get(canonical);
   if (!conf) return next();
   if (!conf.methods.has(req.method as Method)) return next();
-  return requireTelegramAuth({ bindField: conf.bindField })(req, res, next);
+  return requireTelegramAuth({ bindField: conf.bindField, forceStrict: conf.forceStrict })(req, res, next);
 });
 
 router.use(healthRouter);

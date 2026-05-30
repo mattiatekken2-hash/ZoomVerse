@@ -169,11 +169,20 @@ export function verifyInitData(initData: string | undefined | null): VerifyResul
   };
 }
 
-declare module "express-serve-static-core" {
-  // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
-  interface Request {
-    tgUser?: VerifiedTgUser | null;
-    tgAuthReason?: VerifyResult["reason"];
+// Augment the global Express namespace. This project uses @types/express v5
+// without a directly-resolvable `express-serve-static-core` package, so the
+// previous `declare module "express-serve-static-core"` augmentation silently
+// had no effect (which is why `req.tgUser` was untyped everywhere). The global
+// `Express.Request` namespace is re-exported by @types/express and is the
+// canonical, version-stable place to augment.
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    // eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+    interface Request {
+      tgUser?: VerifiedTgUser | null;
+      tgAuthReason?: VerifyResult["reason"];
+    }
   }
 }
 
@@ -187,6 +196,14 @@ export interface RequireTgAuthOptions {
    * another user. In soft mode, mismatches are logged but allowed.
    */
   bindField?: string;
+  /**
+   * When true, enforce strict behavior (reject on missing/invalid initData and
+   * on bound-field mismatch) even when the global `TG_AUTH_MODE` is `soft`.
+   * Used for admin endpoints, which must never be reachable just because the
+   * server is running in migration-safe soft mode. Has no effect in `off` mode
+   * (auth fully disabled for local development).
+   */
+  forceStrict?: boolean;
 }
 
 /**
@@ -223,6 +240,11 @@ export function requireTelegramAuth(opts: RequireTgAuthOptions = {}): RequestHan
       ? headerVal
       : (typeof bodyVal === "string" ? bodyVal : "");
 
+    // Admin (and other forceStrict) routes are enforced strictly even when the
+    // global mode is the migration-safe `soft`. `off` still disables auth (it
+    // returned early above) so local dev is unaffected.
+    const strict = MODE === "strict" || opts.forceStrict === true;
+
     const result = verifyInitData(initData);
     req.tgAuthReason = result.reason;
 
@@ -241,7 +263,7 @@ export function requireTelegramAuth(opts: RequireTgAuthOptions = {}): RequestHan
           "[tg-auth] verification failed",
         );
       }
-      if (MODE === "strict") {
+      if (strict) {
         res.status(401).json({ error: "TG_AUTH_REQUIRED", reason: result.reason });
         return;
       }
@@ -294,7 +316,7 @@ export function requireTelegramAuth(opts: RequireTgAuthOptions = {}): RequestHan
           },
           "[tg-auth] bound-field mismatch (claimed user != verified user)",
         );
-        if (MODE === "strict") {
+        if (strict) {
           res.status(403).json({ error: "TG_USER_MISMATCH", field: opts.bindField });
           return;
         }
