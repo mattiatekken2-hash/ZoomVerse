@@ -67,17 +67,17 @@ router.post("/balance/sync", async (req, res) => {
           // the client's reconcileFromSyncResponse takes the snap-up path
           // (serverAdvanced=true) and surfaces the credited amount.
           balanceEpoch: sql`${usersTable.balanceEpoch} + (CASE WHEN ${usersTable.pendingZoomCredits} > 0 THEN 1 ELSE 0 END)`,
-          // TON balance uses a non-destructive merge: take the MAX of server
-          // and client. Unlike ZOOM, internal TON has no client-side spends
-          // (reactivation fees are paid on-chain via TonConnect and the only
-          // server-side decrement, withdrawals, immediately snaps the client
-          // via the zoom-server-ton-snap event before the next sync). Picking
-          // MAX preserves both client-side credits (white/earth COLLECT) and
-          // server-side credits (admin TON grants) without one wiping the
-          // other when balance_epoch advances.
+          // TON balance now follows the same epoch-fencing logic as ZOOM.
+          // The server is the source of truth for TON whenever it has bumped
+          // balance_epoch (admin credit/remove, deposit confirmations). This
+          // prevents the admin remove-ton decrement from being silently
+          // resurrected by the client's stale high value on the next sync.
+          // When epochs match, we fall back to the client's value (which is
+          // authoritative for client-side TON credits such as white/earth
+          // collection that have not yet been persisted server-side).
           ...(typeof tonBalance === "number"
             ? {
-                tonBalance: sql`GREATEST(${usersTable.tonBalance}, ${tb})`,
+                tonBalance: sql`(CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.tonBalance} ELSE GREATEST(0, ${tb}) END)`,
               }
             : {}),
           ...(firstName ? { firstName } : {}),
