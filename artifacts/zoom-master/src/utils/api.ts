@@ -1293,6 +1293,17 @@ export async function adminGlobalBonus(adminId: string, amount: number): Promise
   } catch { return false; }
 }
 
+export async function adminGlobalRemove(adminId: string, amount: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/global-remove`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, amount }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminCreditSpins(adminId: string, telegramId: string, count: number): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/credit-spins`, {

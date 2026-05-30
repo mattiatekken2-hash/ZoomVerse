@@ -188,6 +188,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/admin/grant-v1-nft",
       "/admin/grant-equipment",
       "/admin/global-bonus",
+      "/admin/global-remove",
       "/admin/remove-zoom",
       "/admin/remove-planets",
       "/admin/remove-slots",
