@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { PlanetOrb } from "../components/PlanetOrb";
+import { OrbDisplay } from "../components/ItemOrb";
 import type { Planet, SunState } from "../hooks/useGameState";
 import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getSunReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration } from "../hooks/useGameState";
 import { WalletPopup } from "../components/WalletPopup";
@@ -929,7 +929,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                       transition: "filter 0.4s ease",
                     }}
                   >
-                    <PlanetOrb planet={planet} size={72} animate={active} displayFloat={planetFloat} />
+                    <OrbDisplay planet={planet} size={72} animate={active} displayFloat={planetFloat} />
                     {isPlatinumNft && (
                       <span
                         className="nft-badge absolute"

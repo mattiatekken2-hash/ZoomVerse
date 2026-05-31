@@ -67,6 +67,7 @@ function rollLabEquipmentDrop(equipment: ReadonlyArray<EquipmentItem>): Equipmen
 }
 
 import { generateRandomFloat } from "../utils/planetFloat";
+import { ITEM_DROP_CHANCE, rollItemKind } from "../utils/itemConfig";
 import { toast } from "./use-toast";
 
 // Server-authoritative clock: every farming/idle-income time check is computed
@@ -176,6 +177,13 @@ export interface Planet {
   // anchored to the resume moment, not the original start). Cleared
   // (set to 0) on every fresh / resumed start.
   pausedAt?: number;
+  // Cosmetic LAB-item tag. When present, this "planet" is actually one of
+  // the 20 LAB items (see utils/itemConfig.ts) and renders as an ItemOrb
+  // glyph instead of the PlanetOrb disc. It carries NO gameplay value:
+  // rate / color / glow / craftCost / float / farming / burn / sell +
+  // marketplace ALL stay keyed on the rarity `name`. Absent on real
+  // planets. Server-preserved as a passthrough field.
+  itemKind?: string;
 }
 
 export interface SunState {
@@ -208,6 +216,10 @@ export interface MarketListing {
   // the paid /planets/rename endpoint). Optional — when absent the UI
   // falls back to the rarity label.
   displayName?: string | null;
+  // Cosmetic LAB-item tag carried from the seller's planet so the buyer
+  // gets the SAME item identity (glyph) they saw on the marketplace card.
+  // Absent for real planets and for legacy listings.
+  itemKind?: string | null;
 }
 
 export interface GameState {
@@ -1334,7 +1346,7 @@ function persistCollectionPlanet(telegramId: string | null | undefined, planet: 
   void upsertCollectionPlanet(telegramId, snap);
 }
 
-function makePlanet(rarity: PlanetType): Planet {
+function makePlanet(rarity: PlanetType, itemKind?: string): Planet {
   const cfg = PLANET_CONFIG[rarity];
   const now = serverNow();
   return {
@@ -1343,6 +1355,9 @@ function makePlanet(rarity: PlanetType): Planet {
     rate: cfg.rate,
     color: cfg.color,
     glowColor: cfg.glowColor,
+    // Cosmetic LAB-item tag — inherits the rarity above for every gameplay
+    // value; only the rendered glyph differs. Omitted for real planets.
+    ...(itemKind ? { itemKind } : {}),
     createdAt: now,
     // farmStartedAt and lastCollectedAt remain 0 until the user actually
     // presses START for the first time. This is what lets startFarming
@@ -3197,7 +3212,13 @@ export function useGameState() {
         return { completed: true, broken: true, brokenRarity };
       }
 
-      const planet = makePlanet(rarity);
+      // Item-vs-planet roll (~80% items / ~20% planets). Pre-rolled OUTSIDE
+      // setState alongside the other craft randomness so it happens exactly
+      // once per craft. The item inherits WHATEVER rarity was already rolled
+      // above — rate/color/glow/craftCost/float all come from `rarity`; only
+      // the rendered glyph differs. A non-item craft yields a normal planet.
+      const itemKind = Math.random() < ITEM_DROP_CHANCE ? rollItemKind() : undefined;
+      const planet = makePlanet(rarity, itemKind);
       // Pre-roll OUTSIDE setState: all randomness (Math.random,
       // makeEquipmentItem's id+timestamp) must happen exactly once per
       // craft, even under React strict-mode dev double-invocation.
@@ -3702,6 +3723,9 @@ export function useGameState() {
           planetId: planet.id,
           planetType: planet.name,
           planetRate: planet.rate,
+          // Carry the cosmetic item tag so the listing (and the buyer's
+          // resulting planet) keeps the SAME item identity.
+          itemKind: planet.itemKind ?? null,
           price,
         }).then((result) => {
           if (result.ok && result.listing) {
@@ -3821,6 +3845,8 @@ export function useGameState() {
       float: typeof listing.planetFloat === "number"
         ? listing.planetFloat
         : generateRandomFloat(),
+      // Carry the cosmetic item tag so a bought item keeps its glyph.
+      ...(listing.itemKind ? { itemKind: listing.itemKind } : {}),
     };
     setState((prev) => {
       const updated = {
@@ -3835,7 +3861,7 @@ export function useGameState() {
     return { success: true };
   }, []);
 
-  const serverBuyComplete = useCallback((planetType: PlanetType, planetRate: number, pricePaid: number, planetFloat?: number | null) => {
+  const serverBuyComplete = useCallback((planetType: PlanetType, planetRate: number, pricePaid: number, planetFloat?: number | null, itemKind?: string | null) => {
     const cfg = PLANET_CONFIG[planetType];
     const now = serverNow();
     const newPlanet: Planet = {
@@ -3859,6 +3885,9 @@ export function useGameState() {
       float: typeof planetFloat === "number" && Number.isFinite(planetFloat)
         ? planetFloat
         : generateRandomFloat(),
+      // Carry the cosmetic item tag from the listing so the buyer's new
+      // planet keeps the SAME item identity (glyph) shown on the card.
+      ...(itemKind ? { itemKind } : {}),
     };
     setState((prev) => {
       const updated = {
