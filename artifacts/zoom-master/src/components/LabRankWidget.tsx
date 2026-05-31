@@ -2,8 +2,8 @@ import { useEffect, useState, memo } from "react";
 import { fetchLabRankState, type LabRankState } from "../utils/api";
 import trophyPx from "../assets/lab-rank-trophy.png";
 
-const GOLD = "#ffd700";
-const ACCENT = "#ffec70";
+const CYAN = "#00d4ff";
+const ACCENT = "#4dd4ff";
 
 interface Props {
   telegramId: string | null;
@@ -75,8 +75,8 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
       <style>{`
         @keyframes lrFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
         @keyframes lrGlow {
-          0%,100% { box-shadow: 0 0 12px ${GOLD}88, 0 0 22px ${GOLD}33; }
-          50%     { box-shadow: 0 0 20px ${GOLD}cc, 0 0 38px ${GOLD}55; }
+          0%,100% { box-shadow: 0 0 12px ${CYAN}88, 0 0 22px ${CYAN}33; }
+          50%     { box-shadow: 0 0 20px ${CYAN}cc, 0 0 38px ${CYAN}55; }
         }
         @keyframes lrPulse {
           0%, 85% { transform: scale(1); opacity: 0.75; }
@@ -89,7 +89,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
         }
         .lr-tile { animation: lrGlow 2.6s ease-in-out infinite; }
         .lr-img { animation: lrFloat 3s ease-in-out infinite; }
-        .lr-pulse { animation: lrPulse 8s ease-in-out infinite; }
+        .lr-pulse { animation: lrPulse 4s ease-in-out infinite; }
       `}</style>
 
       <div
@@ -112,7 +112,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
             height: 60,
             borderRadius: 14,
             background: "rgba(20,12,4,0.85)",
-            border: `1.5px solid ${GOLD}88`,
+            border: `1.5px solid ${CYAN}88`,
             padding: 4,
             cursor: "pointer",
             backdropFilter: "blur(8px)",
@@ -125,7 +125,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
             style={{
               width: "100%", height: "100%",
               display: "flex", alignItems: "center", justifyContent: "center",
-              filter: `drop-shadow(0 0 8px ${GOLD}aa)`,
+              filter: `drop-shadow(0 0 8px ${CYAN}aa)`,
             }}
           >
             <img
@@ -150,7 +150,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                 height: 18,
                 padding: "0 5px",
                 borderRadius: 9,
-                background: GOLD,
+                background: CYAN,
                 color: "#1a0d00",
                 fontSize: 10,
                 fontWeight: 900,
@@ -170,8 +170,8 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
           style={{
             fontSize: 11,
             fontWeight: 900,
-            color: GOLD,
-            textShadow: `0 0 8px ${GOLD}66`,
+            color: CYAN,
+            textShadow: `0 0 8px ${CYAN}66`,
             letterSpacing: "0.02em",
             whiteSpace: "nowrap",
           }}
@@ -207,8 +207,8 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
               maxWidth: 440,
               background:
                 "linear-gradient(180deg, rgba(20,12,4,0.97), rgba(8,4,0,0.99))",
-              border: `1px solid ${GOLD}55`,
-              boxShadow: `0 0 40px ${GOLD}33`,
+              border: `1px solid ${CYAN}55`,
+              boxShadow: `0 0 40px ${CYAN}33`,
               borderRadius: 18,
               padding: 22,
               color: "#fff",
@@ -224,7 +224,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                 width: 32,
                 height: 32,
                 borderRadius: 8,
-                border: `1px solid ${GOLD}44`,
+                border: `1px solid ${CYAN}44`,
                 background: "rgba(255,215,0,0.08)",
                 color: ACCENT,
                 fontSize: 16,
@@ -246,7 +246,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                   objectFit: "contain",
                   imageRendering: "pixelated",
                   marginBottom: 4,
-                  filter: `drop-shadow(0 0 10px ${GOLD}88)`,
+                  filter: `drop-shadow(0 0 10px ${CYAN}88)`,
                 }}
               />
               <div
@@ -272,7 +272,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                 padding: "12px 14px",
                 borderRadius: 14,
                 background: "rgba(255,215,0,0.06)",
-                border: `1px solid ${GOLD}33`,
+                border: `1px solid ${CYAN}33`,
                 marginBottom: 14,
                 textAlign: "center",
               }}
@@ -332,7 +332,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                   padding: 10,
                   borderRadius: 10,
                   background: "rgba(255,215,0,0.05)",
-                  border: `1px solid ${GOLD}22`,
+                  border: `1px solid ${CYAN}22`,
                   textAlign: "center",
                 }}
               >
@@ -356,7 +356,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                   padding: 10,
                   borderRadius: 10,
                   background: "rgba(255,215,0,0.05)",
-                  border: `1px solid ${GOLD}22`,
+                  border: `1px solid ${CYAN}22`,
                   textAlign: "center",
                 }}
               >
@@ -380,7 +380,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                   padding: 10,
                   borderRadius: 10,
                   background: "rgba(255,215,0,0.05)",
-                  border: `1px solid ${GOLD}22`,
+                  border: `1px solid ${CYAN}22`,
                   textAlign: "center",
                 }}
               >
@@ -472,7 +472,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                         padding: "5px 6px",
                         borderRadius: 6,
                         background: isMe ? "rgba(255,215,0,0.10)" : "transparent",
-                        border: isMe ? `1px solid ${GOLD}44` : "1px solid transparent",
+                        border: isMe ? `1px solid ${CYAN}44` : "1px solid transparent",
                         color: r.rank === 1 ? ACCENT : "#fff",
                         fontWeight: r.rank <= 30 ? 800 : 600,
                       }}
