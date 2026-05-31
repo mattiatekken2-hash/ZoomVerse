@@ -1072,18 +1072,6 @@ function AppShellWithState() {
         />
       )}
 
-      <style>{`
-        @keyframes rankShake {
-          0%, 90% { transform: translateX(0) scale(1); }
-          91% { transform: translateX(-2px) scale(1.05); }
-          92% { transform: translateX(2px) scale(1.05); }
-          93% { transform: translateX(-2px) scale(1.05); }
-          94% { transform: translateX(2px) scale(1.05); }
-          95% { transform: translateX(0) scale(1); }
-          100% { transform: translateX(0) scale(1); }
-        }
-        .rank-vibrate { animation: rankShake 4s ease-in-out infinite; }
-      `}</style>
       <nav
         className="flex-shrink-0 relative z-20"
         style={{
@@ -1100,7 +1088,7 @@ function AppShellWithState() {
             return (
               <button
                 key={item.id}
-                className={["flex-1 flex flex-col items-center justify-center gap-0.5 relative", item.id === "rank" && !isActive ? "rank-vibrate" : ""].filter(Boolean).join(" ")}
+                className="flex-1 flex flex-col items-center justify-center gap-0.5 relative"
                 onClick={() => switchTab(item.id)}
                 data-testid={`nav-${item.id}`}
                 style={{ color: isActive ? "#00f2fe" : "rgba(255,255,255,0.2)" }}
