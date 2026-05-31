@@ -149,6 +149,8 @@ router.post("/withdrawals/request", async (req, res) => {
         withdrawal: row,
         newTonBalance: updated!.tonBalance,
         balanceEpoch: updated!.balanceEpoch,
+        username: user.username,
+        firstName: user.firstName,
       };
     });
 
@@ -174,8 +176,8 @@ router.post("/withdrawals/request", async (req, res) => {
       amountTon,
       walletAddress: wallet,
       telegramId,
-      username: user.username,
-      firstName: user.firstName,
+      username: result.username,
+      firstName: result.firstName,
     });
     return res.json({
       ok: true,
