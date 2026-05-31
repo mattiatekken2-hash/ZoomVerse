@@ -999,6 +999,21 @@ export async function buyLabTicket(telegramId: string, costTon: number): Promise
   }
 }
 
+export async function adminResetLabPoints(adminId: string): Promise<{ ok: boolean; resetCount?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/lab-rank/reset-points`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data?.error || `HTTP ${res.status}` };
+    return { ok: true, resetCount: data?.resetCount };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
 export async function adminCloseLabRank(adminId: string, roundId: number): Promise<LabRankCloseResult> {
   try {
     const res = await fetch(`${API_BASE}/admin/lab-rank/close`, {

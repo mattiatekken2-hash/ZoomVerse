@@ -456,6 +456,29 @@ router.post("/admin/lab-rank/close", async (req, res) => {
 });
 
 /**
+ * POST /admin/lab-rank/reset-points
+ * Resetta tutti i lab_points a 0 senza premi, round, o side-effect.
+ * Utile per ripartire "da zero" con una classifica pulita.
+ */
+router.post("/admin/lab-rank/reset-points", async (req, res) => {
+  try {
+    const adminId = (req.body?.adminId as string) || "";
+    if (!isAdmin(adminId)) {
+      res.status(403).json({ ok: false, error: "Forbidden" });
+      return;
+    }
+    const result = await db
+      .update(usersTable)
+      .set({ labPoints: 0 })
+      .returning({ telegramId: usersTable.telegramId });
+    res.json({ ok: true, resetCount: result.length });
+  } catch (err) {
+    logger.error({ err }, "[admin/lab-rank/reset-points] error");
+    res.status(500).json({ ok: false, error: "Internal error" });
+  }
+});
+
+/**
  * POST /lab-rank/buy-ticket
  * Acquisto istantaneo di un ticket Lab: costo 1 TON (deposit_balance),
  * accredita +30 punti alla classifica craft attuale e +300 stardust.

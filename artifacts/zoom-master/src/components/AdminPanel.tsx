@@ -57,6 +57,7 @@ import {
   type LottoAdminDashboard,
   adminFetchLabRankDashboard,
   adminCloseLabRank,
+  adminResetLabPoints,
   type LabRankAdminDashboard,
   adminCreateRedeemCode,
   adminListRedeemCodes,
@@ -1975,6 +1976,8 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
   const [loading, setLoading] = useState(false);
   const [closing, setClosing] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -2010,6 +2013,25 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
         ? "Nessun round attivo o già ruotato"
         : res.error || "Errore chiusura";
       onFeedback(`✗ ${msg}`, false);
+    }
+  };
+
+  const handleResetPoints = async () => {
+    haptic();
+    if (!confirmReset) {
+      setConfirmReset(true);
+      setTimeout(() => setConfirmReset(false), 4000);
+      return;
+    }
+    setResetting(true);
+    const res = await adminResetLabPoints(adminId);
+    setResetting(false);
+    setConfirmReset(false);
+    if (res.ok) {
+      onFeedback(`✓ Punti azzerati per ${res.resetCount || 0} giocatori`, true);
+      refresh();
+    } else {
+      onFeedback(`✗ ${res.error || "Errore reset"}`, false);
     }
   };
 
@@ -2134,6 +2156,33 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
       </motion.button>
       <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", lineHeight: 1.4 }}>
         La stagione si chiude <b style={{ color: "#ffd700" }}>automaticamente dopo 60 giorni</b>: i premi TON ({pool} TON in totale) vengono accreditati <b style={{ color: "#ffd700" }}>direttamente sul saldo Earned (ritirabile)</b> dei primi 30, i punti di tutti vengono azzerati e parte una nuova stagione. Questo pulsante è solo un fallback manuale.
+      </div>
+
+      <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+
+      <motion.button
+        whileTap={{ scale: 0.93 }}
+        onClick={handleResetPoints}
+        disabled={resetting || loading !== null}
+        style={{
+          padding: "11px",
+          borderRadius: 10,
+          border: `1px solid ${confirmReset ? "rgba(255,80,80,0.6)" : "rgba(255,80,80,0.3)"}`,
+          background: confirmReset ? "rgba(255,80,80,0.18)" : "rgba(255,80,80,0.08)",
+          color: "#ff6b6b",
+          fontSize: 12,
+          fontWeight: 800,
+          letterSpacing: "0.06em",
+          cursor: resetting ? "not-allowed" : "pointer",
+          opacity: resetting ? 0.5 : 1,
+          transition: "all 0.2s",
+          boxShadow: confirmReset ? "0 0 14px rgba(255,80,80,0.3)" : "none",
+        }}
+      >
+        {resetting ? "..." : confirmReset ? "⚠ CONFERMA RESET PUNTI (tap)" : "🔄 RESET PUNTI CLASSIFICA"}
+      </motion.button>
+      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", lineHeight: 1.4 }}>
+        Azzera <b style={{ color: "#ff6b6b" }}>tutti i punti</b> della classifica craft per tutti i giocatori. <b>Nessun premio viene distribuito</b> — i punti tornano solo a 0. Utile per ripartire da zero con una classifica pulita.
       </div>
 
       {dash && dash.history.length > 0 && (
