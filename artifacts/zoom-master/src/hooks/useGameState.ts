@@ -1032,19 +1032,13 @@ function reconcileFromSyncResponse(
   // epoch. Now any concurrent sync sees the already-snapped (balance, epoch)
   // pair and the server preserves the credit.
   const serverAdvanced = res.balanceEpoch > sentEpoch;
-  // USER REQUIREMENT (May 2026): visible $ZOOM must never tick downward.
-  // We only snap to the server value when it is HIGHER than the *live*
-  // local balance (offline credit, wheel/admin/marketplace grant). We
-  // compare against `_stateRefHolder.current.balance` (current live state)
-  // rather than `sentBalance` so a tap that happened while the request
-  // was in-flight doesn't cause a visible step down on the response.
-  // If the server returns a LOWER value (admin-remove or another-device-
-  // spend race), we keep local — the next sync re-asserts upward via the
-  // server's CASE ELSE GREATEST(0, client) branch (epoch is adopted below
-  // so the next sync travels with the right ce and is not fenced out).
-  const liveLocalBalance = Math.floor(_stateRefHolder?.current.balance ?? sentBalance);
-  const serverHigher = res.zoomBalance > liveLocalBalance;
-  if (serverAdvanced && serverHigher) {
+  // When the server has advanced the epoch (admin credit/remove, wheel
+  // prize, marketplace sale, offline farming credit), the server value is
+  // authoritative. We snap the client balance regardless of direction so
+  // that admin removals and cross-device reconciliations are visible.
+  // The epoch advance itself is the signal of authority, not the relative
+  // balance magnitude.
+  if (serverAdvanced) {
     if (_stateRefHolder) {
       _stateRefHolder.current = { ..._stateRefHolder.current, balance: res.zoomBalance };
     }
