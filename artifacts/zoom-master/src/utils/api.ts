@@ -977,6 +977,28 @@ export interface LabRankCloseResult {
   credited?: Array<{ rank: number; telegramId: string; ton: number }>;
 }
 
+export async function buyLabTicket(telegramId: string, costTon: number): Promise<{ ok: boolean; newLabPoints?: number; newStardustBalance?: number; newDepositBalance?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/lab-rank/buy-ticket`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, costTon }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false, error: typeof data?.error === "string" ? data.error : `HTTP ${res.status}` };
+    }
+    return {
+      ok: true,
+      newLabPoints: Number(data?.newLabPoints ?? 0),
+      newStardustBalance: Number(data?.newStardustBalance ?? 0),
+      newDepositBalance: Number(data?.newDepositBalance ?? 0),
+    };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
 export async function adminCloseLabRank(adminId: string, roundId: number): Promise<LabRankCloseResult> {
   try {
     const res = await fetch(`${API_BASE}/admin/lab-rank/close`, {

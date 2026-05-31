@@ -455,4 +455,77 @@ router.post("/admin/lab-rank/close", async (req, res) => {
   }
 });
 
+/**
+ * POST /lab-rank/buy-ticket
+ * Acquisto istantaneo di un ticket Lab: costo 1 TON (deposit_balance),
+ * accredita +30 punti alla classifica craft attuale e +300 stardust.
+ * Richiede un round attivo; se non esiste lo crea automaticamente.
+ */
+router.post("/lab-rank/buy-ticket", async (req, res) => {
+  try {
+    const telegramId = req.body?.telegramId as string;
+    const costTon = Number(req.body?.costTon ?? 0);
+
+    if (costTon !== 1) {
+      res.status(400).json({ ok: false, error: "INVALID_COST" });
+      return;
+    }
+
+    const round = await getOrCreateActiveLabRound();
+
+    const result = await db.transaction(async (tx) => {
+      const [user] = await tx
+        .select({
+          depositBalance: usersTable.depositBalance,
+          labPoints: usersTable.labPoints,
+          labRoundId: usersTable.labRoundId,
+          stardustBalance: usersTable.stardustBalance,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.telegramId, telegramId))
+        .for("update")
+        .limit(1);
+
+      if (!user) {
+        return { ok: false, error: "USER_NOT_FOUND" };
+      }
+
+      const deposit = Number(user.depositBalance ?? 0);
+      if (deposit < costTon) {
+        return { ok: false, error: "INSUFFICIENT_TON" };
+      }
+
+      const wasInRound = Number(user.labRoundId ?? 0) === round.id;
+
+      const [updated] = await tx
+        .update(usersTable)
+        .set({
+          depositBalance: sql`${usersTable.depositBalance} - ${costTon}`,
+          labPoints: wasInRound ? sql`${usersTable.labPoints} + ${30}` : 30,
+          labRoundId: round.id,
+          stardustBalance: sql`${usersTable.stardustBalance} + ${300}`,
+          balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+        })
+        .where(eq(usersTable.telegramId, telegramId))
+        .returning({
+          labPoints: usersTable.labPoints,
+          stardustBalance: usersTable.stardustBalance,
+          depositBalance: usersTable.depositBalance,
+        });
+
+      return {
+        ok: true,
+        newLabPoints: Number(updated?.labPoints ?? 0),
+        newStardustBalance: Number(updated?.stardustBalance ?? 0),
+        newDepositBalance: Number(updated?.depositBalance ?? 0),
+      };
+    });
+
+    res.json(result);
+  } catch (err) {
+    logger.error({ err }, "[lab-rank/buy-ticket] error");
+    res.status(500).json({ ok: false, error: "Internal error" });
+  }
+});
+
 export default router;

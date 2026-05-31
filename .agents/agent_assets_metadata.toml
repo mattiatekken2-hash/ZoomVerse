@@ -12,6 +12,12 @@ uri = "file://artifacts/zoom-master/src/assets/lab-rank-trophy.png"
 type = "image"
 title = "pixel art trophy"
 
+[[generated]]
+id = "Pqrwd9qbi1reAlofif9yZ"
+uri = "file://artifacts/zoom-master/src/assets/lab-ticket.png"
+type = "image"
+title = "pixel art lab ticket icon"
+
 [[outputs]]
 id = "LC-OqxhhErJi9k0U6zNId"
 uri = "file://attached_assets/screenshots/ff2c98ae-73c5-4b70-a718-8d57eb2d808a-00-wlb63ixykwec_janeway_replit_dev_mockup_preview_zoom-pixel_PixelFarm.png"

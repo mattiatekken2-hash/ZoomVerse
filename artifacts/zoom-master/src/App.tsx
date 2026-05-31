@@ -756,9 +756,17 @@ function AppShellWithState() {
                   earthPlanets={state.earthPlanets || []}
                   sunCount={state.sunCount || 0}
                   tonBalance={state.tonBalance || 0}
+                  depositBalance={state.depositBalance || 0}
                   stardustBalance={state.stardustBalance || 0}
                   telegramId={state.telegramId}
                   onCraft={craft}
+                  onPurchase={(labPointsDelta, stardustDelta) => {
+                    setState((prev) => ({
+                      ...prev,
+                      depositBalance: Math.max(0, (prev.depositBalance || 0) - 1),
+                      stardustBalance: (prev.stardustBalance || 0) + stardustDelta,
+                    }));
+                  }}
                   onClaim={claimCraft}
                   onPlaceWhitePlanet={placeWhitePlanet}
                   onCollectWhitePlanet={collectWhitePlanet}

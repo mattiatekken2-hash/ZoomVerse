@@ -87,6 +87,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/farm/settle",
       "/balance/sync",
       "/craft/record",
+      "/lab-rank/buy-ticket",
       "/planets/burn",
       "/regular-planets/save",
       "/equipment/save",
