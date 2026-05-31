@@ -136,6 +136,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                 height: "84%",
                 objectFit: "contain",
                 imageRendering: "pixelated",
+                filter: "hue-rotate(140deg) saturate(2.2)",
               }}
             />
           </div>
