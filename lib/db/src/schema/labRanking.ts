@@ -2,15 +2,19 @@ import { pgTable, text, integer, timestamp, real, index, serial, uniqueIndex } f
 import { sql } from "drizzle-orm";
 
 /**
- * MONTHLY LAB LEADERBOARD
+ * CRAFT (LAB) LEADERBOARD
  *
- * Stagione di un mese (chiusura manuale dall'admin). Ogni utente paga
- * 1 TON per iscriversi, deve possedere SUN, e accumula `lab_points`
- * (+1 per ogni pianeta forgiato nel Lab — vedi /craft/record).
+ * Stagione a tempo fisso di 60 giorni, gratuita e aperta a TUTTI: nessuna
+ * quota d'iscrizione, nessun requisito SUN. Ogni utente parte da 0 e
+ * accumula `lab_points` (+1 per ogni pianeta forgiato nel Lab — vedi
+ * /craft/record), iscrivendosi automaticamente al round attivo al primo
+ * craft.
  *
- * Il pool TON cumula tutte le quote d'iscrizione del round attivo.
- * Alla chiusura: 80% al #1 (pagato manualmente dall'admin), 20% profit;
- * Stardust auto-payouts per i ranghi 2-20.
+ * Montepremi fisso di 200 TON distribuito alla Top 30 alla chiusura
+ * (1°=50, 2°=30, 3°=20, 4°-10°=10, 11°-30°=1.5 — somma 200). I premi
+ * vengono accreditati automaticamente sul saldo TON ritirabile di ogni
+ * vincitore. Alla scadenza dei 60 giorni un cron chiude il round, paga,
+ * azzera i punti di tutti e apre un nuovo round con un nuovo `ends_at`.
  *
  * Race-safety: partial UNIQUE su status='active' garantisce un solo round
  * attivo alla volta (stesso pattern di lotto_rounds).
@@ -21,9 +25,13 @@ export const labRoundsTable = pgTable("lab_rounds", {
   status: text("status").notNull().default("active"),
   participants: integer("participants").notNull().default(0),
   poolTon: real("pool_ton").notNull().default(0),
-  // Soglia di attivazione della Top100 (default 20 — cambiando qui il
-  // valore di default NON modifica i round già esistenti).
+  // Soglia legacy (non più usata come gate; mantenuta per compatibilità
+  // dello storico round già esistenti).
   threshold: integer("threshold").notNull().default(20),
+  // Scadenza del round: createdAt + 60 giorni. Nullable per i round
+  // legacy creati prima di questa colonna — il backfill avviene in
+  // getOrCreateActiveLabRound / nel cron di settlement.
+  endsAt: timestamp("ends_at"),
   // Compilati alla chiusura
   winnerTelegramId: text("winner_telegram_id"),
   winnerLabPoints: integer("winner_lab_points"),

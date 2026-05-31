@@ -906,16 +906,17 @@ export async function fetchLottoState(telegramId: string): Promise<LottoStateRes
 // ─────────────────────────────────────────────────────────────────────
 // MONTHLY LAB LEADERBOARD
 // ─────────────────────────────────────────────────────────────────────
+export interface LabRankPrize {
+  label: string;
+  ton: number;
+}
+
 export interface LabRankState {
   roundId: number;
   participants: number;
   poolTon: number;
-  entryZoom: number;
-  winnerTon: number;
-  stardustPayouts: Record<string, number>;
-  hasSun: boolean;
-  hasPaid: boolean;
-  eligible: boolean;
+  endsAt: string | null;
+  prizes: LabRankPrize[];
   userPoints: number;
   userRank: number | null;
   top100: Array<{ rank: number; telegramId: string; name: string; labPoints: number }>;
@@ -934,30 +935,12 @@ export async function fetchLabRankState(telegramId: string): Promise<LabRankStat
   }
 }
 
-export async function joinLabRank(telegramId: string): Promise<{ ok: boolean; error?: string }> {
-  try {
-    const res = await fetch(`${API_BASE}/lab-rank/join`, {
-      method: "POST",
-      headers: apiHeaders(),
-      body: JSON.stringify({ telegramId }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      return { ok: false, error: typeof data?.error === "string" ? data.error : `HTTP ${res.status}` };
-    }
-    return { ok: true };
-  } catch {
-    return { ok: false, error: "Network error" };
-  }
-}
-
 export interface LabRankAdminDashboard {
-  round: { id: number; createdAt: string; participants: number; threshold: number };
+  round: { id: number; createdAt: string; endsAt: string | null; participants: number };
   poolTon: number;
-  prizeToPayTon: number;
-  profitTon: number;
+  prizes: LabRankPrize[];
   currentLeader: { telegramId: string; name: string; labPoints: number } | null;
-  top20: Array<{ rank: number; telegramId: string; name: string; labPoints: number; stardustPayout: number }>;
+  top30: Array<{ rank: number; telegramId: string; name: string; labPoints: number; tonPrize: number }>;
   history: Array<{
     id: number;
     winnerTelegramId: string | null;
@@ -991,7 +974,7 @@ export interface LabRankCloseResult {
   poolTon?: number;
   prizeTon?: number;
   profitTon?: number;
-  credited?: Array<{ rank: number; telegramId: string; stardust: number }>;
+  credited?: Array<{ rank: number; telegramId: string; ton: number }>;
 }
 
 export async function adminCloseLabRank(adminId: string, roundId: number): Promise<LabRankCloseResult> {

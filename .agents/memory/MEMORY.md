@@ -1,1 +1,2 @@
 - [Admin route auth](admin-route-auth.md) — public adminId in body/query is NOT auth; trust only verified req.tgUser. Admin routes need forceStrict (soft mode rejects nothing) + initData header on GETs.
+- [Drizzle push data-loss prompt](drizzle-push-data-loss.md) — `db run push` can block on a destructive prompt from pre-existing schema drift; apply additive DDL via psql instead.

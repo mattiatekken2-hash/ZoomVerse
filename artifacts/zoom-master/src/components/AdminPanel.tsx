@@ -2009,20 +2009,20 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
     if (res.ok) {
       const winnerName = res.winner?.name || "Nessun vincitore";
       const credited = res.credited?.length || 0;
-      onFeedback(`✓ Stagione chiusa · #1: ${winnerName} (${(res.prizeTon || 0).toFixed(4)} TON da pagare) · ${credited} stardust auto-pagati`, true);
+      onFeedback(`✓ Stagione chiusa · #1: ${winnerName} · ${(res.prizeTon || 0).toFixed(2)} TON accreditati a ${credited} vincitori`, true);
       refresh();
     } else {
-      const msg = res.error === "NO_ACTIVE_ROUND" ? "Nessun round attivo" : res.error || "Errore chiusura";
+      const msg = res.error === "NO_ACTIVE_ROUND_OR_ALREADY_ROTATED"
+        ? "Nessun round attivo o già ruotato"
+        : res.error || "Errore chiusura";
       onFeedback(`✗ ${msg}`, false);
     }
   };
 
-  const pool = dash?.poolTon ?? 0;
-  const prize = dash?.prizeToPayTon ?? 0;
-  const profit = dash?.profitTon ?? 0;
+  const pool = dash?.poolTon ?? 200;
+  const prizes = dash?.prizes ?? [];
   const participants = dash?.round.participants ?? 0;
-  const threshold = dash?.round.threshold ?? 20;
-  const isActivated = participants >= threshold;
+  const endsAt = dash?.round.endsAt ? new Date(dash.round.endsAt) : null;
 
   return (
     <>
@@ -2050,36 +2050,39 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
 
       <div style={{
         display: "grid",
-        gridTemplateColumns: "1fr 1fr 1fr",
+        gridTemplateColumns: "1fr 1fr",
         gap: 6,
         padding: 10,
         borderRadius: 10,
         background: "linear-gradient(135deg, rgba(255,215,0,0.06), rgba(255,140,0,0.04))",
         border: "1px solid rgba(255,215,0,0.2)",
       }}>
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Pool TON</div>
-          <div style={{ fontSize: 16, fontWeight: 900, color: "#fff", marginTop: 2 }}>{pool.toFixed(4)}</div>
-          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>raccolto</div>
-        </div>
-        <div style={{ textAlign: "center", borderLeft: "1px solid rgba(255,255,255,0.08)", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
-          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Premio 80%</div>
-          <div style={{ fontSize: 16, fontWeight: 900, color: "#ffd700", marginTop: 2 }}>{prize.toFixed(4)}</div>
-          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>al #1</div>
+        <div style={{ textAlign: "center", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Montepremi</div>
+          <div style={{ fontSize: 16, fontWeight: 900, color: "#ffd700", marginTop: 2 }}>{pool} TON</div>
+          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>fisso · Top 30</div>
         </div>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Profit 20%</div>
-          <div style={{ fontSize: 16, fontWeight: 900, color: "#00f264", marginTop: 2 }}>{profit.toFixed(4)}</div>
-          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>tuo netto</div>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Giocatori</div>
+          <div style={{ fontSize: 16, fontWeight: 900, color: "#fff", marginTop: 2 }}>{participants}</div>
+          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>nella stagione</div>
         </div>
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(255,255,255,0.6)", padding: "0 4px" }}>
         <span>Round #{dash?.round.id ?? "—"}</span>
-        <span>
-          {participants}/{threshold} partecipanti {isActivated ? "· ✓ ATTIVA" : "· in attivazione"}
-        </span>
+        <span>{endsAt ? `Scade: ${endsAt.toLocaleString()}` : "Scadenza —"}</span>
       </div>
+
+      {prizes.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "0 4px" }}>
+          {prizes.map((p) => (
+            <span key={p.label} style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", background: "rgba(255,215,0,0.06)", border: "1px solid rgba(255,215,0,0.15)", borderRadius: 6, padding: "2px 7px" }}>
+              <b style={{ color: "#ffd700" }}>{p.label}</b> · {p.ton} TON
+            </span>
+          ))}
+        </div>
+      )}
 
       {dash?.currentLeader && (
         <div style={{
@@ -2097,16 +2100,16 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
         </div>
       )}
 
-      {dash && dash.top20.length > 0 && (
+      {dash && dash.top30.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto", padding: 8, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", marginBottom: 2 }}>TOP 20 — PAYOUT PREVIEW</div>
-          {dash.top20.map((r) => (
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", marginBottom: 2 }}>TOP 30 — ANTEPRIMA PAYOUT</div>
+          {dash.top30.map((r) => (
             <div key={r.telegramId} style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#fff", padding: "3px 4px" }}>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }}>
                 #{r.rank} {r.name} · {r.labPoints} pt
               </span>
               <span style={{ color: r.rank === 1 ? "#ffd700" : "rgba(255,255,255,0.7)" }}>
-                {r.rank === 1 ? `${prize.toFixed(3)} TON` : r.stardustPayout > 0 ? `${r.stardustPayout} ★` : "—"}
+                {r.tonPrize > 0 ? `${r.tonPrize} TON` : "—"}
               </span>
             </div>
           ))}
@@ -2136,7 +2139,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
         {closing ? "..." : confirmClose ? "⚠ CONFERMA CHIUSURA STAGIONE (tap)" : "🏁 CHIUDI STAGIONE & PAYOUT"}
       </motion.button>
       <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", lineHeight: 1.4 }}>
-        Chiude la stagione corrente: <b style={{ color: "#ffd700" }}>il #1 va pagato manualmente in TON dal tuo wallet</b> ({prize.toFixed(4)} TON). Stardust per i ranghi 2–20 vengono accreditati automaticamente. Dopo la chiusura, lab_points di tutti viene azzerato e parte una nuova stagione.
+        La stagione si chiude <b style={{ color: "#ffd700" }}>automaticamente dopo 60 giorni</b>: i premi TON ({pool} TON in totale) vengono accreditati <b style={{ color: "#ffd700" }}>direttamente sul saldo Earned (ritirabile)</b> dei primi 30, i punti di tutti vengono azzerati e parte una nuova stagione. Questo pulsante è solo un fallback manuale.
       </div>
 
       {dash && dash.history.length > 0 && (

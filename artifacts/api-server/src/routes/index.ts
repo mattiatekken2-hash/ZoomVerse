@@ -128,7 +128,6 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/room-invites/respond",
       "/redeem-codes/redeem",
       "/staking/start",
-      "/lab-rank/join",
       "/ton/deposit/confirm",
       "/obtained/record",
     ],

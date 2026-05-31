@@ -1,9 +1,5 @@
 import { useEffect, useState, memo } from "react";
-import {
-  fetchLabRankState,
-  joinLabRank,
-  type LabRankState,
-} from "../utils/api";
+import { fetchLabRankState, type LabRankState } from "../utils/api";
 import trophyPx from "../assets/lab-rank-trophy.png";
 
 const GOLD = "#ffd700";
@@ -15,11 +11,27 @@ interface Props {
   balance: number;
 }
 
+function formatCountdown(ms: number): { d: number; h: number; m: number; s: number } {
+  const clamped = Math.max(0, ms);
+  const totalSec = Math.floor(clamped / 1000);
+  const d = Math.floor(totalSec / 86400);
+  const h = Math.floor((totalSec % 86400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return { d, h, m, s };
+}
+
+function pad(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
 function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
+  // sunCount/balance kept for prop compatibility — craft leaderboard is now free.
+  void sunCount;
+  void balance;
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<LabRankState | null>(null);
-  const [buying, setBuying] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
 
   const refresh = async () => {
     if (!telegramId) return;
@@ -44,49 +56,19 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Live 1s ticker for the countdown timer.
   useEffect(() => {
-    if (!msg) return;
-    const t = setTimeout(() => setMsg(null), 4500);
-    return () => clearTimeout(t);
-  }, [msg]);
-
-  const handleJoin = async () => {
-    if (!telegramId) {
-      setMsg("Telegram ID missing");
-      return;
-    }
-    if (sunCount <= 0) {
-      setMsg("You need at least 1 SUN to join");
-      return;
-    }
-    const entryZoom = state?.entryZoom ?? 1_000_000;
-    if (balance < entryZoom) {
-      setMsg(`Need ${entryZoom.toLocaleString()} $ZOOM to join`);
-      return;
-    }
-    setBuying(true);
-    try {
-      const r = await joinLabRank(telegramId);
-      if (r.ok) {
-        setMsg("Entry confirmed!");
-        await refresh();
-        window.dispatchEvent(new Event("zoom-data-refresh"));
-      } else {
-        setMsg(r.error || "Entry failed");
-      }
-    } catch (e) {
-      setMsg("Entry failed");
-    }
-    setBuying(false);
-  };
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const participants = state?.participants ?? 0;
-  const entryZoom = state?.entryZoom ?? 1_000_000;
-  const winnerTon = state?.winnerTon ?? 5;
-  const pool = state?.poolTon ?? 0;
+  const pool = state?.poolTon ?? 200;
   const userPoints = state?.userPoints ?? 0;
   const userRank = state?.userRank ?? null;
-  const hasPaid = state?.hasPaid ?? false;
+  const prizes = state?.prizes ?? [];
+  const endsAtMs = state?.endsAt ? new Date(state.endsAt).getTime() : null;
+  const remaining = endsAtMs != null ? formatCountdown(endsAtMs - now) : null;
 
   return (
     <>
@@ -98,20 +80,11 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
         }
         .lr-tile { animation: lrGlow 2.6s ease-in-out infinite; }
         .lr-img { animation: lrFloat 3s ease-in-out infinite; }
-        .lr-buy {
-          background: linear-gradient(135deg, ${GOLD}, #b8860b);
-          color: #1a0d00; font-weight: 900; letter-spacing: 0.05em;
-          border: none; border-radius: 12px; padding: 12px 18px;
-          cursor: pointer; box-shadow: 0 0 14px ${GOLD}77;
-          transition: transform 0.1s ease, filter 0.15s ease;
-        }
-        .lr-buy:active { transform: scale(0.96); }
-        .lr-buy:disabled { opacity: 0.55; cursor: not-allowed; filter: grayscale(0.4); }
       `}</style>
 
       <button
         onClick={() => setOpen(true)}
-        aria-label="Monthly Lab Leaderboard"
+        aria-label="Craft Leaderboard"
         className="lr-tile"
         style={{
           position: "fixed",
@@ -150,7 +123,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
             }}
           />
         </div>
-        {state?.eligible && userRank != null && userRank <= 100 && (
+        {userRank != null && userRank <= 100 && (
           <span
             aria-hidden="true"
             style={{
@@ -256,18 +229,70 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                   textTransform: "uppercase",
                 }}
               >
-                Monthly Lab Leaderboard
+                Craft Leaderboard
               </div>
               <div style={{ fontSize: 11, color: "rgba(255,236,112,0.7)", marginTop: 4 }}>
-                +1 point for every planet forged in the Lab
+                Free for everyone · +1 point for every planet you craft
               </div>
             </div>
 
+            {/* Countdown timer */}
+            <div
+              style={{
+                padding: "12px 14px",
+                borderRadius: 14,
+                background: "rgba(255,215,0,0.06)",
+                border: `1px solid ${GOLD}33`,
+                marginBottom: 14,
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 9,
+                  color: "rgba(255,255,255,0.5)",
+                  letterSpacing: "0.12em",
+                  textTransform: "uppercase",
+                  marginBottom: 6,
+                }}
+              >
+                Season ends in
+              </div>
+              {remaining ? (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    gap: 10,
+                    fontFamily: "'Orbitron', 'Inter', sans-serif",
+                  }}
+                  data-testid="text-lab-rank-countdown"
+                >
+                  {[
+                    { v: remaining.d, l: "D" },
+                    { v: remaining.h, l: "H" },
+                    { v: remaining.m, l: "M" },
+                    { v: remaining.s, l: "S" },
+                  ].map((seg) => (
+                    <div key={seg.l} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                      <span style={{ fontSize: 22, fontWeight: 900, color: ACCENT }}>
+                        {seg.l === "D" ? seg.v : pad(seg.v)}
+                      </span>
+                      <span style={{ fontSize: 8, color: "rgba(255,255,255,0.4)", letterSpacing: "0.1em" }}>
+                        {seg.l}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.6)" }}>—</div>
+              )}
+            </div>
 
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 1fr",
+                gridTemplateColumns: "1fr 1fr 1fr",
                 gap: 8,
                 marginBottom: 14,
               }}
@@ -289,12 +314,36 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                     textTransform: "uppercase",
                   }}
                 >
-                  Participants
+                  Prize Pool
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: ACCENT, marginTop: 2 }}>
+                <div style={{ fontSize: 18, fontWeight: 900, color: ACCENT, marginTop: 2 }}>
+                  {pool} TON
+                </div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Top 30</div>
+              </div>
+              <div
+                style={{
+                  padding: 10,
+                  borderRadius: 10,
+                  background: "rgba(255,215,0,0.05)",
+                  border: `1px solid ${GOLD}22`,
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 9,
+                    color: "rgba(255,255,255,0.5)",
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Players
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 900, color: "#fff", marginTop: 2 }}>
                   {participants}
                 </div>
-                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Active now</div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>In season</div>
               </div>
               <div
                 style={{
@@ -315,7 +364,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                 >
                   Your Points
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: "#fff", marginTop: 2 }}>
+                <div style={{ fontSize: 18, fontWeight: 900, color: "#fff", marginTop: 2 }}>
                   {userPoints}
                 </div>
                 <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>
@@ -323,64 +372,6 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                 </div>
               </div>
             </div>
-
-            {!hasPaid && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  padding: "14px 16px",
-                  borderRadius: 14,
-                  background: "rgba(255,215,0,0.08)",
-                  border: `1px solid ${GOLD}44`,
-                  marginBottom: 12,
-                }}
-              >
-                <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      color: "rgba(255,236,112,0.6)",
-                      letterSpacing: "0.1em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Entry Fee
-                  </span>
-                  <span style={{ fontSize: 24, fontWeight: 900, color: "#fff" }}>
-                    {entryZoom.toLocaleString()} $ZOOM
-                  </span>
-                </div>
-                <button
-                  className="lr-buy"
-                  onClick={handleJoin}
-                  disabled={buying || sunCount <= 0 || balance < entryZoom}
-                  data-testid="button-buy-lab-rank-entry"
-                >
-                  {buying ? "..." : sunCount <= 0 ? "SUN REQUIRED" : balance < entryZoom ? "NOT ENOUGH $ZOOM" : "JOIN"}
-                </button>
-              </div>
-            )}
-
-            {hasPaid && (
-              <div
-                style={{
-                  padding: "10px 14px",
-                  borderRadius: 10,
-                  background: "rgba(0,242,100,0.08)",
-                  border: "1px solid rgba(0,242,100,0.3)",
-                  marginBottom: 12,
-                  textAlign: "center",
-                  fontSize: 12,
-                  fontWeight: 800,
-                  color: "#00f264",
-                }}
-              >
-                ✓ You're entered in this season
-              </div>
-            )}
 
             {/* Prize map */}
             <div
@@ -400,27 +391,18 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                   marginBottom: 6,
                 }}
               >
-                PRIZES
+                PRIZES · {pool} TON TO TOP 30
               </div>
-              <div style={{ fontSize: 11, color: "#fff", lineHeight: 1.7 }}>
-                <div>
-                  <span style={{ color: ACCENT, fontWeight: 800 }}>#1</span> · {winnerTon} TON prize
-                </div>
-                <div>
-                  <span style={{ color: ACCENT, fontWeight: 800 }}>#2</span> · {(state?.stardustPayouts[2] ?? 500).toLocaleString()} ★ Stardust
-                </div>
-                <div>
-                  <span style={{ color: ACCENT, fontWeight: 800 }}>#3</span> · {(state?.stardustPayouts[3] ?? 250).toLocaleString()} ★ Stardust
-                </div>
-                <div>
-                  <span style={{ color: ACCENT, fontWeight: 800 }}>#4–5</span> · {(state?.stardustPayouts[4] ?? 100).toLocaleString()} ★ Stardust
-                </div>
-                <div>
-                  <span style={{ color: ACCENT, fontWeight: 800 }}>#6–10</span> · {(state?.stardustPayouts[6] ?? 50).toLocaleString()} ★ Stardust
-                </div>
-                <div>
-                  <span style={{ color: ACCENT, fontWeight: 800 }}>#11–20</span> · {(state?.stardustPayouts[11] ?? 20).toLocaleString()} ★ Stardust
-                </div>
+              <div style={{ fontSize: 11, color: "#fff", lineHeight: 1.8 }}>
+                {prizes.map((p) => (
+                  <div key={p.label} style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: ACCENT, fontWeight: 800 }}>{p.label}</span>
+                    <span>{p.ton} TON{p.label.includes("–") ? " each" : ""}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginTop: 6 }}>
+                Prizes are credited automatically to your withdrawable Earned TON balance when the season ends.
               </div>
             </div>
 
@@ -462,7 +444,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                         background: isMe ? "rgba(255,215,0,0.10)" : "transparent",
                         border: isMe ? `1px solid ${GOLD}44` : "1px solid transparent",
                         color: r.rank === 1 ? ACCENT : "#fff",
-                        fontWeight: r.rank <= 20 ? 800 : 600,
+                        fontWeight: r.rank <= 30 ? 800 : 600,
                       }}
                     >
                       <span
@@ -487,23 +469,6 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                     </div>
                   );
                 })}
-              </div>
-            )}
-
-            {msg && (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: "8px 12px",
-                  borderRadius: 8,
-                  background: "rgba(255,215,0,0.10)",
-                  border: `1px solid ${GOLD}33`,
-                  fontSize: 12,
-                  color: ACCENT,
-                  textAlign: "center",
-                }}
-              >
-                {msg}
               </div>
             )}
           </div>

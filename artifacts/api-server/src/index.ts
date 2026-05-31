@@ -4,6 +4,7 @@ import { logger } from "./lib/logger";
 import { sendBotMessage } from "./lib/notify";
 import { fetchPendingFarmNotifications, markFarmNotified } from "./routes/farm";
 import { runScheduledLotteryDrawTick } from "./routes/lottery";
+import { runScheduledLabSettlementTick } from "./routes/labRanking";
 import { purgeExpiredHistory } from "./lib/history";
 import { db, usersTable } from "@workspace/db";
 import { desc, eq, sql } from "drizzle-orm";
@@ -48,6 +49,7 @@ server.listen(port, () => {
   startFarmNotificationCron();
   startHallOfFameResetCron();
   startLotteryDrawCron();
+  startLabSettlementCron();
   startStarsReconcileCron();
   startHistoryCleanupCron();
 });
@@ -111,6 +113,31 @@ function startLotteryDrawCron() {
   };
   // Primo tick ~10 secondi dopo il boot (evita di sovraccaricare lo startup).
   setTimeout(tick, 10_000).unref();
+  setInterval(tick, intervalMs).unref();
+}
+
+/**
+ * Cron della Classifica Craft (Lab). Ogni 60 secondi controlla se il round
+ * attivo ha `ends_at <= NOW()`; in tal caso esegue il settlement automatico
+ * (accredito premi TON alla Top 30 sul saldo ritirabile, reset punti, apertura
+ * nuovo round +60 giorni). Single-flight per evitare overlap se il DB è lento.
+ */
+function startLabSettlementCron() {
+  const intervalMs = 60 * 1000;
+  let inFlight = false;
+  const tick = async () => {
+    if (inFlight) return;
+    inFlight = true;
+    try {
+      await runScheduledLabSettlementTick();
+    } catch (err) {
+      logger.warn({ err }, "[lab-cron] tick failed");
+    } finally {
+      inFlight = false;
+    }
+  };
+  // Primo tick ~15 secondi dopo il boot (dopo lotto, evita picco di startup).
+  setTimeout(tick, 15_000).unref();
   setInterval(tick, intervalMs).unref();
 }
 

@@ -4,6 +4,7 @@ import { eq, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { bumpZoomPriceFireAndForget } from "../lib/zoomPrice";
 import { recordHistoryAsync } from "../lib/history";
+import { getOrCreateActiveLabRound } from "./labRanking";
 
 const router: IRouter = Router();
 
@@ -304,18 +305,23 @@ router.post("/craft/record", async (req, res) => {
       .set(setClauses)
       .where(eq(usersTable.telegramId, telegramId));
 
-    // MONTHLY LAB LEADERBOARD: bump lab_points +1 SOLO se l'utente:
-    //   1. possiede SUN (sun_count > 0)
-    //   2. ha pagato la quota del round attivo corrente
-    //      (lab_round_id == lab_rounds.id WHERE status='active')
-    // L'eligibility è verificata interamente nel WHERE — nessuna race,
-    // nessun extra round-trip per check separato.
+    // CRAFT (LAB) LEADERBOARD: la classifica è GRATUITA e aperta a TUTTI —
+    // nessun requisito SUN, nessuna quota d'iscrizione. Ogni craft iscrive
+    // automaticamente l'utente al round attivo e incrementa i suoi punti:
+    //   • Primo craft del round (lab_round_id != round attivo) → punti = 1
+    //     e lab_round_id viene allineato al round corrente.
+    //   • Craft successivi nello stesso round → punti += 1.
+    // Garantisce prima l'esistenza di un round attivo (cold-start / drift safe),
+    // poi esegue una UPDATE atomica contro l'id esplicito del round.
+    const activeRound = await getOrCreateActiveLabRound();
     await db.execute(sql`
       UPDATE users
-      SET lab_points = lab_points + 1
+      SET lab_points = CASE
+            WHEN lab_round_id = ${activeRound.id} THEN lab_points + 1
+            ELSE 1
+          END,
+          lab_round_id = ${activeRound.id}
       WHERE telegram_id = ${telegramId}
-        AND sun_count > 0
-        AND lab_round_id IN (SELECT id FROM lab_rounds WHERE status = 'active')
     `);
 
     // Bump the global $ZOOM price — every successful craft mints supply

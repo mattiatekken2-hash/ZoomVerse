@@ -1,5 +1,4 @@
 import { Router, type IRouter } from "express";
-import { z } from "zod";
 import { db } from "@workspace/db";
 import { labRoundsTable, usersTable } from "@workspace/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
@@ -8,34 +7,41 @@ import { logger } from "../lib/logger";
 const router: IRouter = Router();
 
 const ADMIN_ID = "8144744644";
-export const LAB_ENTRY_ZOOM = 1_000_000;
-export const LAB_WINNER_TON = 5;
 
-// Stardust auto-payouts — ranks 2..20 (BASE values).
-// These are multiplied by max(1, floor(participants / 10)) so prize
-// scales with real participation.
-const STARDUST_BASE: Record<number, number> = {
-  2: 500,
-  3: 250,
-  4: 100, 5: 100,
-  6: 50, 7: 50, 8: 50, 9: 50, 10: 50,
-  11: 20, 12: 20, 13: 20, 14: 20, 15: 20,
-  16: 20, 17: 20, 18: 20, 19: 20, 20: 20,
-};
+// Montepremi FISSO della stagione craft: 200 TON distribuiti alla Top 30.
+export const LAB_POOL_TON = 200;
 
-function stardustPayout(rank: number, participants: number): number {
-  const base = STARDUST_BASE[rank] || 0;
-  if (!base) return 0;
-  const multiplier = Math.max(1, Math.floor(participants / 10));
-  return base * multiplier;
+// Durata fissa del round: 60 giorni.
+export const LAB_ROUND_DURATION_MS = 60 * 24 * 60 * 60 * 1000;
+
+// Lock advisory condiviso da TUTTI i percorsi di settlement (cron + admin)
+// così non possono mai sovrapporsi e doppio-pagare.
+const LAB_SETTLE_LOCK = 7913042200;
+
+/**
+ * Premio TON per rango. La somma sulla Top 30 è esattamente 200:
+ *   #1=50, #2=30, #3=20, #4..10=10 (×7=70), #11..30=1.5 (×20=30).
+ */
+function tonPrizeForRank(rank: number): number {
+  if (rank === 1) return 50;
+  if (rank === 2) return 30;
+  if (rank === 3) return 20;
+  if (rank >= 4 && rank <= 10) return 10;
+  if (rank >= 11 && rank <= 30) return 1.5;
+  return 0;
 }
 
-function stardustPayoutsMap(participants: number): Record<number, number> {
-  const map: Record<number, number> = {};
-  for (let r = 2; r <= 20; r++) {
-    map[r] = stardustPayout(r, participants);
-  }
-  return map;
+/**
+ * Ripartizione premi per la UI (label leggibile + TON per posizione).
+ */
+function labPrizeBreakdown(): Array<{ label: string; ton: number }> {
+  return [
+    { label: "#1", ton: 50 },
+    { label: "#2", ton: 30 },
+    { label: "#3", ton: 20 },
+    { label: "#4–10", ton: 10 },
+    { label: "#11–30", ton: 1.5 },
+  ];
 }
 
 function isAdmin(adminId: string | undefined): boolean {
@@ -44,7 +50,9 @@ function isAdmin(adminId: string | undefined): boolean {
 
 /**
  * Risolve il round attivo, creandone uno se non esiste. Race-safe grazie
- * al partial UNIQUE index `uniq_lab_active_round`.
+ * al partial UNIQUE index `uniq_lab_active_round`. Esegue anche il backfill
+ * di `ends_at` per i round legacy creati prima dell'introduzione della
+ * colonna (createdAt + 60 giorni).
  */
 export async function getOrCreateActiveLabRound() {
   const [existing] = await db
@@ -52,8 +60,19 @@ export async function getOrCreateActiveLabRound() {
     .from(labRoundsTable)
     .where(eq(labRoundsTable.status, "active"))
     .limit(1);
-  if (existing) return existing;
-  await db.insert(labRoundsTable).values({ status: "active" }).onConflictDoNothing();
+  if (existing) {
+    if (!existing.endsAt) {
+      const ends = new Date(new Date(existing.createdAt).getTime() + LAB_ROUND_DURATION_MS);
+      await db
+        .update(labRoundsTable)
+        .set({ endsAt: ends })
+        .where(eq(labRoundsTable.id, existing.id));
+      existing.endsAt = ends;
+    }
+    return existing;
+  }
+  const ends = new Date(Date.now() + LAB_ROUND_DURATION_MS);
+  await db.insert(labRoundsTable).values({ status: "active", endsAt: ends }).onConflictDoNothing();
   const [round] = await db
     .select()
     .from(labRoundsTable)
@@ -64,80 +83,214 @@ export async function getOrCreateActiveLabRound() {
 }
 
 /**
- * GET /lab-rank/state?telegramId=
- * Stato del round attivo per l'utente: gate di attivazione, pool, top 100,
- * iscrizione, punti e rank.
+ * Conta i partecipanti reali del round: ogni utente associato al round
+ * (lab_round_id = round.id). L'iscrizione è automatica al primo craft.
  */
-const JoinBody = z.object({
-  telegramId: z.string().min(1),
-});
+async function countParticipants(roundId: number): Promise<number> {
+  const [row] = await db
+    .select({ c: sql<number>`COUNT(*)::int` })
+    .from(usersTable)
+    .where(eq(usersTable.labRoundId, roundId));
+  return Number(row?.c ?? 0);
+}
+
+type SettleOutcome =
+  | { kind: "no_round" }
+  | {
+      kind: "already_closed";
+      roundId: number;
+      winner: { telegramId: string; name: string; labPoints: number } | null;
+      poolTon: number;
+      prizeTon: number;
+      profitTon: number;
+      credited: Array<{ rank: number; telegramId: string; ton: number }>;
+    }
+  | {
+      kind: "closed";
+      roundId: number;
+      newRoundId: number;
+      winner: { telegramId: string; name: string; labPoints: number } | null;
+      poolTon: number;
+      prizeTon: number;
+      profitTon: number;
+      credited: Array<{ rank: number; telegramId: string; ton: number }>;
+    };
 
 /**
- * POST /lab-rank/join
- * Iscrizione al round attivo della classifica mensile Lab.
- * Richiede: SUN (sunCount > 0), ZOOM balance >= 50.000, e non
- * già iscritto al round corrente.
- * L'iscrizione debita 50.000 ZOOM e incrementa il numero di partecipanti.
- * Nessun pool TON è accumulato — il premio #1 è fisso (5 TON).
+ * Routine di settlement CONDIVISA (cron automatico + chiusura manuale admin).
+ *
+ * Tutto in un'unica transazione protetta da advisory lock:
+ *   1. Seleziona il round da chiudere (per id, oppure il round attivo —
+ *      opzionalmente solo se `ends_at <= NOW()` per il path automatico).
+ *   2. Classifica la Top 30 (lab_points > 0) e accredita il premio TON di
+ *      ogni posizione sul saldo TON RITIRABILE del vincitore, bumpando
+ *      balance_epoch così la sync client riflette l'accredito.
+ *   3. Registra vincitore/pool/premi sul round e lo marca 'closed'.
+ *   4. Azzera lab_points di TUTTI gli utenti.
+ *   5. Apre un nuovo round attivo con ends_at = NOW() + 60 giorni.
+ *
+ * Idempotenza: se viene passato un `targetRoundId` già chiuso, restituisce
+ * lo snapshot storico senza side-effect (replay-safe per i retry admin).
  */
-router.post("/lab-rank/join", async (req, res) => {
-  const parsed = JoinBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ ok: false, error: "Invalid body" });
-    return;
-  }
-  const { telegramId } = parsed.data;
+async function settleLabRoundCore(opts: {
+  targetRoundId?: number;
+  requireDue?: boolean;
+  closedBy: string;
+}): Promise<SettleOutcome> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${LAB_SETTLE_LOCK})`);
 
-  try {
-    const result = await db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(7913042200)`);
+    let round: typeof labRoundsTable.$inferSelect | undefined;
 
-      const roundRes = await tx.execute(sql`SELECT id FROM lab_rounds WHERE status = 'active' LIMIT 1 FOR UPDATE`);
-      let activeId: number | undefined;
-      if (roundRes.rows && roundRes.rows.length > 0) {
-        activeId = Number((roundRes.rows[0] as Record<string, unknown>)["id"]);
+    if (opts.targetRoundId) {
+      // Replay-safe: round già chiuso → snapshot, nessun side-effect.
+      const [closed] = await tx
+        .select()
+        .from(labRoundsTable)
+        .where(sql`${labRoundsTable.id} = ${opts.targetRoundId} AND ${labRoundsTable.status} = 'closed'`)
+        .limit(1);
+      if (closed) {
+        return {
+          kind: "already_closed",
+          roundId: closed.id,
+          winner: closed.winnerTelegramId
+            ? { telegramId: closed.winnerTelegramId, name: closed.winnerTelegramId, labPoints: Number(closed.winnerLabPoints || 0) }
+            : null,
+          poolTon: Number(closed.poolTon || 0),
+          prizeTon: Number(closed.prizeTon || 0),
+          profitTon: Number(closed.profitTon || 0),
+          credited: [],
+        };
       }
-      if (!activeId) {
-        await tx.execute(sql`INSERT INTO lab_rounds (status) VALUES ('active') ON CONFLICT DO NOTHING`);
-        const r2 = await tx.execute(sql`SELECT id FROM lab_rounds WHERE status = 'active' LIMIT 1 FOR UPDATE`);
-        activeId = Number((r2.rows[0] as Record<string, unknown>)["id"]);
-      }
-      if (!activeId) throw new Error("LAB_JOIN_NO_ACTIVE_ROUND");
-
-      const userRes = await tx.execute(sql`
-        UPDATE users
-        SET lab_round_id = ${activeId}, lab_points = 0,
-            zoom_balance = zoom_balance - ${LAB_ENTRY_ZOOM},
-            balance_epoch = balance_epoch + 1
-        WHERE telegram_id = ${telegramId}
-          AND sun_count > 0
-          AND zoom_balance >= ${LAB_ENTRY_ZOOM}
-          AND COALESCE(lab_round_id, 0) <> ${activeId}
-        RETURNING telegram_id
-      `);
-      if (!userRes.rows || userRes.rows.length === 0) {
-        return { kind: "ineligible" as const, reason: "Already joined, no SUN, or insufficient ZOOM" };
-      }
-
-      await tx.execute(sql`
-        UPDATE lab_rounds
-        SET participants = participants + 1
-        WHERE id = ${activeId} AND status = 'active'
-      `);
-
-      return { kind: "ok" as const, roundId: activeId };
-    });
-
-    if (result.kind === "ineligible") {
-      return res.status(409).json({ ok: false, error: result.reason });
+      [round] = await tx
+        .select()
+        .from(labRoundsTable)
+        .where(sql`${labRoundsTable.id} = ${opts.targetRoundId} AND ${labRoundsTable.status} = 'active'`)
+        .limit(1);
+    } else {
+      const cond = opts.requireDue
+        ? sql`${labRoundsTable.status} = 'active' AND ${labRoundsTable.endsAt} IS NOT NULL AND ${labRoundsTable.endsAt} <= NOW()`
+        : sql`${labRoundsTable.status} = 'active'`;
+      [round] = await tx.select().from(labRoundsTable).where(cond).limit(1);
     }
-    return res.json({ ok: true, roundId: result.roundId });
-  } catch (err) {
-    logger.error({ err }, "[lab-rank/join] error");
-    return res.status(500).json({ ok: false, error: "Internal error" });
-  }
-});
 
+    if (!round) return { kind: "no_round" };
+
+    // Top 30 del round (solo chi ha almeno 1 punto). Tie-break deterministico
+    // su telegram_id per un ordinamento stabile dei premi.
+    const ranking = await tx
+      .select({
+        telegramId: usersTable.telegramId,
+        labPoints: usersTable.labPoints,
+        firstName: usersTable.firstName,
+        username: usersTable.username,
+      })
+      .from(usersTable)
+      .where(sql`${usersTable.labRoundId} = ${round.id} AND ${usersTable.labPoints} > 0`)
+      .orderBy(desc(usersTable.labPoints), usersTable.telegramId)
+      .limit(30);
+
+    const credited: Array<{ rank: number; telegramId: string; ton: number }> = [];
+    let prizeTotal = 0;
+    for (let i = 0; i < ranking.length; i++) {
+      const rank = i + 1;
+      const ton = tonPrizeForRank(rank);
+      if (ton <= 0) continue;
+      const r = ranking[i]!;
+      await tx
+        .update(usersTable)
+        .set({
+          tonBalance: sql`${usersTable.tonBalance} + ${ton}`,
+          balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+        })
+        .where(eq(usersTable.telegramId, r.telegramId));
+      credited.push({ rank, telegramId: r.telegramId, ton });
+      prizeTotal += ton;
+    }
+
+    const winner = ranking[0] ?? null;
+    const profitTon = LAB_POOL_TON - prizeTotal;
+
+    // Chiudi round — UPDATE gated su status='active' = idempotency.
+    await tx
+      .update(labRoundsTable)
+      .set({
+        status: "closed",
+        winnerTelegramId: winner?.telegramId ?? null,
+        winnerLabPoints: winner ? Number(winner.labPoints || 0) : null,
+        poolTon: LAB_POOL_TON,
+        prizeTon: prizeTotal,
+        profitTon,
+        closedAt: new Date(),
+        closedBy: opts.closedBy,
+      })
+      .where(sql`${labRoundsTable.id} = ${round.id} AND ${labRoundsTable.status} = 'active'`);
+
+    // Reset lab_points per TUTTI. lab_round_id viene lasciato com'è — diventa
+    // stale di default rispetto al nuovo round con id diverso.
+    await tx.update(usersTable).set({ labPoints: 0 });
+
+    // Apri nuovo round con scadenza fresca (+60 giorni).
+    const ends = new Date(Date.now() + LAB_ROUND_DURATION_MS);
+    const [newRound] = await tx
+      .insert(labRoundsTable)
+      .values({ status: "active", endsAt: ends })
+      .returning();
+
+    return {
+      kind: "closed",
+      roundId: round.id,
+      newRoundId: newRound!.id,
+      winner: winner
+        ? {
+            telegramId: winner.telegramId,
+            name: winner.firstName || (winner.username ? `@${winner.username}` : winner.telegramId),
+            labPoints: Number(winner.labPoints || 0),
+          }
+        : null,
+      poolTon: LAB_POOL_TON,
+      prizeTon: prizeTotal,
+      profitTon,
+      credited,
+    };
+  });
+}
+
+/**
+ * Tick del cron di settlement automatico. Chiamato da index.ts ogni 60s.
+ * Garantisce prima che il round attivo abbia un `ends_at` (backfill legacy),
+ * poi — se è scaduto — esegue la routine condivisa con closedBy="system".
+ */
+export async function runScheduledLabSettlementTick(): Promise<void> {
+  // Assicura l'esistenza del round attivo e il backfill di ends_at.
+  await getOrCreateActiveLabRound();
+
+  const [due] = await db
+    .select({ id: labRoundsTable.id })
+    .from(labRoundsTable)
+    .where(sql`${labRoundsTable.status} = 'active' AND ${labRoundsTable.endsAt} IS NOT NULL AND ${labRoundsTable.endsAt} <= NOW()`)
+    .limit(1);
+  if (!due) return;
+
+  const outcome = await settleLabRoundCore({ requireDue: true, closedBy: "system" });
+  if (outcome.kind === "closed") {
+    logger.info(
+      {
+        roundId: outcome.roundId,
+        newRoundId: outcome.newRoundId,
+        winners: outcome.credited.length,
+        prizeTon: outcome.prizeTon,
+      },
+      "[lab-cron] auto-settlement executed",
+    );
+  }
+}
+
+/**
+ * GET /lab-rank/state?telegramId=
+ * Stato pubblico del round attivo: pool fisso 200 TON, ripartizione premi
+ * Top 30, conto alla rovescia (ends_at), Top 100 live, punti e rank utente.
+ */
 router.get("/lab-rank/state", async (req, res) => {
   try {
     const verifiedId = req.tgUser?.id ? String(req.tgUser.id) : "";
@@ -146,32 +299,22 @@ router.get("/lab-rank/state", async (req, res) => {
     const telegramId = verifiedId || queryId;
 
     const round = await getOrCreateActiveLabRound();
-    const participants = Number(round.participants || 0);
-    const poolTon = Number(round.poolTon || 0);
+    const participants = await countParticipants(round.id);
 
     let userPoints = 0;
-    let hasSun = false;
-    let hasPaid = false;
     if (telegramId) {
       const [u] = await db
-        .select({
-          labPoints: usersTable.labPoints,
-          sunCount: usersTable.sunCount,
-          labRoundId: usersTable.labRoundId,
-          zoomBalance: usersTable.zoomBalance,
-        })
+        .select({ labPoints: usersTable.labPoints, labRoundId: usersTable.labRoundId })
         .from(usersTable)
         .where(eq(usersTable.telegramId, telegramId))
         .limit(1);
-      if (u) {
+      // Mostra i punti solo se l'utente appartiene al round corrente.
+      if (u && Number(u.labRoundId || 0) === round.id) {
         userPoints = Number(u.labPoints || 0);
-        hasSun = Number(u.sunCount || 0) > 0;
-        hasPaid = Number(u.labRoundId || 0) === round.id;
       }
     }
-    const eligible = hasSun && hasPaid;
 
-    // Leaderboard is always active (no threshold gate)
+    // Classifica aperta a TUTTI i partecipanti del round (nessun filtro SUN).
     const rows = await db
       .select({
         telegramId: usersTable.telegramId,
@@ -180,7 +323,7 @@ router.get("/lab-rank/state", async (req, res) => {
         username: usersTable.username,
       })
       .from(usersTable)
-      .where(sql`${usersTable.labRoundId} = ${round.id} AND ${usersTable.sunCount} > 0`)
+      .where(sql`${usersTable.labRoundId} = ${round.id} AND ${usersTable.labPoints} > 0`)
       .orderBy(desc(usersTable.labPoints), usersTable.telegramId)
       .limit(100);
     const top100 = rows.map((r, i) => ({
@@ -191,12 +334,12 @@ router.get("/lab-rank/state", async (req, res) => {
     }));
 
     let userRank: number | null = null;
-    if (telegramId && eligible) {
+    if (telegramId && userPoints > 0) {
       const [rk] = await db
         .select({ c: sql<number>`COUNT(*)::int` })
         .from(usersTable)
         .where(sql`${usersTable.labRoundId} = ${round.id}
-          AND ${usersTable.sunCount} > 0
+          AND ${usersTable.labPoints} > 0
           AND (${usersTable.labPoints} > ${userPoints}
                OR (${usersTable.labPoints} = ${userPoints} AND ${usersTable.telegramId} < ${telegramId}))`);
       userRank = Number(rk?.c ?? 0) + 1;
@@ -206,13 +349,9 @@ router.get("/lab-rank/state", async (req, res) => {
     res.json({
       roundId: round.id,
       participants,
-      poolTon,
-      entryZoom: LAB_ENTRY_ZOOM,
-      winnerTon: LAB_WINNER_TON,
-      stardustPayouts: stardustPayoutsMap(participants),
-      hasSun,
-      hasPaid,
-      eligible,
+      poolTon: LAB_POOL_TON,
+      endsAt: round.endsAt ? new Date(round.endsAt).toISOString() : null,
+      prizes: labPrizeBreakdown(),
       userPoints,
       userRank,
       top100,
@@ -225,17 +364,17 @@ router.get("/lab-rank/state", async (req, res) => {
 
 /**
  * GET /admin/lab-rank/dashboard?adminId=
- * Pannello admin: round attivo, current leader, top 20 con stardust preview,
- * splits TON 80/20 e storico round chiusi.
+ * Pannello admin: round attivo, conto alla rovescia, current leader, Top 30
+ * con premio TON per posizione e storico round chiusi.
  */
 router.get("/admin/lab-rank/dashboard", async (req, res) => {
   try {
     if (!req.tgUser || !isAdmin(req.tgUser.id)) { res.status(403).json({ error: "Forbidden" }); return; }
 
     const round = await getOrCreateActiveLabRound();
-    const pool = Number(round.poolTon || 0);
+    const participants = await countParticipants(round.id);
 
-    const top20 = await db
+    const top30 = await db
       .select({
         telegramId: usersTable.telegramId,
         labPoints: usersTable.labPoints,
@@ -243,9 +382,9 @@ router.get("/admin/lab-rank/dashboard", async (req, res) => {
         username: usersTable.username,
       })
       .from(usersTable)
-      .where(sql`${usersTable.labRoundId} = ${round.id} AND ${usersTable.sunCount} > 0 AND ${usersTable.labPoints} > 0`)
+      .where(sql`${usersTable.labRoundId} = ${round.id} AND ${usersTable.labPoints} > 0`)
       .orderBy(desc(usersTable.labPoints), usersTable.telegramId)
-      .limit(20);
+      .limit(30);
 
     const history = await db
       .select()
@@ -254,32 +393,29 @@ router.get("/admin/lab-rank/dashboard", async (req, res) => {
       .orderBy(desc(labRoundsTable.closedAt))
       .limit(10);
 
-    const participants = Number(round.participants || 0);
-    const winnerTon = LAB_WINNER_TON;
-    const stardustMap = stardustPayoutsMap(participants);
     res.set("Cache-Control", "no-store");
     res.json({
       round: {
         id: round.id,
         createdAt: round.createdAt,
+        endsAt: round.endsAt ? new Date(round.endsAt).toISOString() : null,
         participants,
       },
-      poolTon: pool,
-      winnerTon,
-      entryZoom: LAB_ENTRY_ZOOM,
-      currentLeader: top20[0]
+      poolTon: LAB_POOL_TON,
+      prizes: labPrizeBreakdown(),
+      currentLeader: top30[0]
         ? {
-            telegramId: top20[0].telegramId,
-            name: top20[0].firstName || (top20[0].username ? `@${top20[0].username}` : top20[0].telegramId),
-            labPoints: Number(top20[0].labPoints || 0),
+            telegramId: top30[0].telegramId,
+            name: top30[0].firstName || (top30[0].username ? `@${top30[0].username}` : top30[0].telegramId),
+            labPoints: Number(top30[0].labPoints || 0),
           }
         : null,
-      top20: top20.map((r, i) => ({
+      top30: top30.map((r, i) => ({
         rank: i + 1,
         telegramId: r.telegramId,
         name: r.firstName || (r.username ? `@${r.username}` : r.telegramId),
         labPoints: Number(r.labPoints || 0),
-        stardustPayout: stardustMap[i + 1] || 0,
+        tonPrize: tonPrizeForRank(i + 1),
       })),
       history,
     });
@@ -291,133 +427,27 @@ router.get("/admin/lab-rank/dashboard", async (req, res) => {
 
 /**
  * POST /admin/lab-rank/close
- * Chiude il round attivo, accredita Stardust ai ranghi 2-20, resetta
- * lab_points di tutti gli utenti e apre un nuovo round.
- * Il pagamento del 80% TON al #1 lo fa manualmente l'admin off-chain.
+ * Chiusura MANUALE di fallback. Delega alla stessa routine condivisa del
+ * cron automatico: accredita i premi TON alla Top 30, azzera i punti e apre
+ * un nuovo round. Idempotente sull'id del round (replay-safe).
  */
 router.post("/admin/lab-rank/close", async (req, res) => {
   try {
     const adminId = (req.body?.adminId as string) || "";
     if (!isAdmin(adminId)) { res.status(403).json({ error: "Forbidden" }); return; }
 
-    // Idempotency: il client DEVE passare l'id del round che vuole chiudere
-    // (lo conosce dalla dashboard). Se la richiesta viene rigiocata dopo
-    // una chiusura riuscita, il round risulta già 'closed' e ritorniamo
-    // lo snapshot storico invece di chiudere il NUOVO round attivo.
     const targetRoundId = Number(req.body?.roundId ?? 0);
     if (!Number.isFinite(targetRoundId) || targetRoundId <= 0) {
       res.status(400).json({ ok: false, error: "MISSING_ROUND_ID" });
       return;
     }
 
-    const result = await db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(7913042200)`);
+    const result = await settleLabRoundCore({ targetRoundId, closedBy: adminId });
 
-      // Replay-safe: se il round target è già chiuso, restituisci lo snapshot
-      // — nessun side-effect, l'admin vede l'esito originale.
-      const [existingClosed] = await tx
-        .select()
-        .from(labRoundsTable)
-        .where(sql`${labRoundsTable.id} = ${targetRoundId} AND ${labRoundsTable.status} = 'closed'`)
-        .limit(1);
-      if (existingClosed) {
-        return {
-          kind: "already_closed" as const,
-          roundId: existingClosed.id,
-          winner: existingClosed.winnerTelegramId
-            ? { telegramId: existingClosed.winnerTelegramId, name: existingClosed.winnerTelegramId, labPoints: Number(existingClosed.winnerLabPoints || 0) }
-            : null,
-          poolTon: Number(existingClosed.poolTon || 0),
-          prizeTon: Number(existingClosed.prizeTon || 0),
-          profitTon: Number(existingClosed.profitTon || 0),
-          credited: [] as Array<{ rank: number; telegramId: string; stardust: number }>,
-        };
-      }
-
-      const [round] = await tx
-        .select()
-        .from(labRoundsTable)
-        .where(sql`${labRoundsTable.id} = ${targetRoundId} AND ${labRoundsTable.status} = 'active'`)
-        .limit(1);
-      if (!round) return { kind: "no_round" as const };
-
-      const ranking = await tx
-        .select({
-          telegramId: usersTable.telegramId,
-          labPoints: usersTable.labPoints,
-          firstName: usersTable.firstName,
-          username: usersTable.username,
-        })
-        .from(usersTable)
-        .where(sql`${usersTable.labRoundId} = ${round.id} AND ${usersTable.sunCount} > 0 AND ${usersTable.labPoints} > 0`)
-        .orderBy(desc(usersTable.labPoints), usersTable.telegramId)
-        .limit(20);
-
-      const winner = ranking[0] ?? null;
-      const pool = Number(round.poolTon || 0);
-      const prizeTon = LAB_WINNER_TON;
-      const participants = Number(round.participants || 0);
-      const stardustMap = stardustPayoutsMap(participants);
-
-      // Accredito Stardust ranghi 2..20 (non includere il #1).
-      const credited: Array<{ rank: number; telegramId: string; stardust: number }> = [];
-      for (let i = 1; i < ranking.length; i++) {
-        const rank = i + 1;
-        const amount = stardustMap[rank];
-        if (!amount) continue;
-        const r = ranking[i];
-        await tx
-          .update(usersTable)
-          .set({
-            stardustBalance: sql`${usersTable.stardustBalance} + ${amount}`,
-            balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
-          })
-          .where(eq(usersTable.telegramId, r.telegramId));
-        credited.push({ rank, telegramId: r.telegramId, stardust: amount });
-      }
-
-      // Chiudi round (UPDATE gated su status='active' = idempotency)
-      await tx
-        .update(labRoundsTable)
-        .set({
-          status: "closed",
-          winnerTelegramId: winner?.telegramId ?? null,
-          winnerLabPoints: winner ? Number(winner.labPoints || 0) : null,
-          prizeTon,
-          profitTon: 0,
-          closedAt: new Date(),
-          closedBy: adminId,
-        })
-        .where(sql`${labRoundsTable.id} = ${round.id} AND ${labRoundsTable.status} = 'active'`);
-
-      // Reset lab_points per TUTTI. lab_round_id viene lasciato com'è —
-      // diventa stale di default quando crea il nuovo round con id diverso.
-      await tx.update(usersTable).set({ labPoints: 0 });
-
-      // Apri nuovo round
-      const [newRound] = await tx
-        .insert(labRoundsTable)
-        .values({ status: "active" })
-        .returning();
-
-      return {
-        kind: "closed" as const,
-        roundId: round.id,
-        newRoundId: newRound.id,
-        winner: winner
-          ? {
-              telegramId: winner.telegramId,
-              name: winner.firstName || (winner.username ? `@${winner.username}` : winner.telegramId),
-              labPoints: Number(winner.labPoints || 0),
-            }
-          : null,
-        poolTon: pool,
-        prizeTon,
-        credited,
-      };
-    });
-
-    if (result.kind === "no_round") { res.status(409).json({ ok: false, error: "NO_ACTIVE_ROUND_OR_ALREADY_ROTATED" }); return; }
+    if (result.kind === "no_round") {
+      res.status(409).json({ ok: false, error: "NO_ACTIVE_ROUND_OR_ALREADY_ROTATED" });
+      return;
+    }
     res.json({ ok: true, ...result });
   } catch (err) {
     logger.error({ err }, "[admin/lab-rank/close] error");
