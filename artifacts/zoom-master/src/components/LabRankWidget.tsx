@@ -78,77 +78,107 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
           0%,100% { box-shadow: 0 0 12px ${GOLD}88, 0 0 22px ${GOLD}33; }
           50%     { box-shadow: 0 0 20px ${GOLD}cc, 0 0 38px ${GOLD}55; }
         }
+        @keyframes lrPulse {
+          0%, 85% { transform: scale(1); opacity: 0.75; }
+          87% { transform: scale(1.12) rotate(-2deg); opacity: 1; }
+          89% { transform: scale(1.12) rotate(2deg); }
+          91% { transform: scale(1.12) rotate(-2deg); }
+          93% { transform: scale(1.12) rotate(2deg); }
+          95% { transform: scale(1); opacity: 0.75; }
+          100% { transform: scale(1); opacity: 0.75; }
+        }
         .lr-tile { animation: lrGlow 2.6s ease-in-out infinite; }
         .lr-img { animation: lrFloat 3s ease-in-out infinite; }
+        .lr-pulse { animation: lrPulse 8s ease-in-out infinite; }
       `}</style>
 
-      <button
-        onClick={() => setOpen(true)}
-        aria-label="Craft Leaderboard"
-        className="lr-tile"
+      <div
         style={{
           position: "fixed",
           left: 12,
-          // Sotto Lotto Stellare a sinistra (top:180 + h:60 = 240).
           top: 250,
-          width: 60,
-          height: 60,
-          borderRadius: 14,
-          background: "rgba(20,12,4,0.85)",
-          border: `1.5px solid ${GOLD}88`,
-          padding: 4,
-          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
           zIndex: 40,
-          backdropFilter: "blur(8px)",
-          WebkitTapHighlightColor: "transparent",
         }}
-        data-testid="button-lab-rank"
       >
-        <div
-          className="lr-img"
+        <button
+          onClick={() => setOpen(true)}
+          aria-label="Craft Leaderboard"
+          className="lr-tile"
           style={{
-            width: "100%", height: "100%",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            filter: `drop-shadow(0 0 8px ${GOLD}aa)`,
+            width: 60,
+            height: 60,
+            borderRadius: 14,
+            background: "rgba(20,12,4,0.85)",
+            border: `1.5px solid ${GOLD}88`,
+            padding: 4,
+            cursor: "pointer",
+            backdropFilter: "blur(8px)",
+            WebkitTapHighlightColor: "transparent",
           }}
+          data-testid="button-lab-rank"
         >
-          <img
-            src={trophyPx}
-            alt=""
+          <div
+            className="lr-img"
             style={{
-              width: "84%",
-              height: "84%",
-              objectFit: "contain",
-              imageRendering: "pixelated",
-            }}
-          />
-        </div>
-        {userRank != null && userRank <= 100 && (
-          <span
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              top: -6,
-              right: -6,
-              minWidth: 22,
-              height: 18,
-              padding: "0 5px",
-              borderRadius: 9,
-              background: GOLD,
-              color: "#1a0d00",
-              fontSize: 10,
-              fontWeight: 900,
-              border: "2px solid rgba(8,4,0,0.95)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              lineHeight: 1,
+              width: "100%", height: "100%",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              filter: `drop-shadow(0 0 8px ${GOLD}aa)`,
             }}
           >
-            #{userRank}
-          </span>
-        )}
-      </button>
+            <img
+              src={trophyPx}
+              alt=""
+              style={{
+                width: "84%",
+                height: "84%",
+                objectFit: "contain",
+                imageRendering: "pixelated",
+              }}
+            />
+          </div>
+          {userRank != null && userRank <= 100 && (
+            <span
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                top: -6,
+                right: -6,
+                minWidth: 22,
+                height: 18,
+                padding: "0 5px",
+                borderRadius: 9,
+                background: GOLD,
+                color: "#1a0d00",
+                fontSize: 10,
+                fontWeight: 900,
+                border: "2px solid rgba(8,4,0,0.95)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                lineHeight: 1,
+              }}
+            >
+              #{userRank}
+            </span>
+          )}
+        </button>
+        <span
+          className="lr-pulse"
+          style={{
+            fontSize: 11,
+            fontWeight: 900,
+            color: GOLD,
+            textShadow: `0 0 8px ${GOLD}66`,
+            letterSpacing: "0.02em",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {pool} TON
+        </span>
+      </div>
 
       {open && (
         <div
