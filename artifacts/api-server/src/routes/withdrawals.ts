@@ -11,6 +11,7 @@ const router = Router();
 const ADMIN_ID = "8144744644";
 
 export const WITHDRAWAL_MIN_TON = 1;
+export const WITHDRAWAL_MAX_TON = 1;
 export const WITHDRAWAL_FEE_TON = 0.02;
 export const WITHDRAWAL_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
@@ -46,6 +47,9 @@ router.post("/withdrawals/request", async (req, res) => {
   }
   if (amountTon < WITHDRAWAL_MIN_TON) {
     return res.status(400).json({ ok: false, error: `Importo minimo: ${WITHDRAWAL_MIN_TON} TON` });
+  }
+  if (amountTon > WITHDRAWAL_MAX_TON) {
+    return res.status(400).json({ ok: false, error: `Importo massimo: ${WITHDRAWAL_MAX_TON} TON ogni 24h` });
   }
 
   try {

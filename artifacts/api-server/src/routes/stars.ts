@@ -144,7 +144,7 @@ interface StarsItem {
   itemType: string;
 }
 
-const SUN_MAX_PER_USER = 5;
+const SUN_MAX_PER_USER = 10;
 const SUN_MAX_GLOBAL = 100;
 // Increased from 10 → 20 in May 2026 after the first 10 bundles sold out,
 // adding 10 fresh bundles for new buyers. The cap is enforced atomically in
@@ -516,7 +516,7 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string,
       SET white_collection_bundles = white_collection_bundles + 1,
           white_collection_unlocked = true
       WHERE telegram_id = ${telegramId}
-        AND white_collection_bundles < 6
+        AND white_collection_bundles < 10
         AND (SELECT COALESCE(SUM(white_collection_bundles), 0) FROM users) < ${WHITE_COLLECTION_MAX_GLOBAL}
       RETURNING white_collection_bundles
     `);

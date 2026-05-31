@@ -189,6 +189,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/admin/grant-equipment",
       "/admin/global-bonus",
       "/admin/global-remove",
+      "/admin/global-stardust",
       "/admin/remove-zoom",
       "/admin/remove-planets",
       "/admin/remove-slots",

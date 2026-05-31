@@ -146,6 +146,10 @@ const GlobalRemoveBody = z.object({
   adminId: z.string(),
   amount: z.number().positive(),
 });
+const GlobalStardustBody = z.object({
+  adminId: z.string(),
+  amount: z.number().positive(),
+});
 
 const RemoveZoomBody = z.object({
   adminId: z.string(),
@@ -645,6 +649,25 @@ router.post("/admin/global-remove", async (req, res) => {
       .set({
         zoomBalance: sql`GREATEST(0, ${usersTable.zoomBalance} - ${amount})`,
         balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      });
+    scheduleAdminAssetSnapshot();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/global-stardust", async (req, res) => {
+  const parsed = GlobalStardustBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const { amount } = parsed.data;
+  try {
+    await db
+      .update(usersTable)
+      .set({
+        stardustBalance: sql`${usersTable.stardustBalance} + ${amount}`,
       });
     scheduleAdminAssetSnapshot();
     res.json({ ok: true });

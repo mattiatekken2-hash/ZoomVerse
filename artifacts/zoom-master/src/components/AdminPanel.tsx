@@ -29,6 +29,7 @@ import {
   adminSetMaintenance,
   adminGlobalBonus,
   adminGlobalRemove,
+  adminGlobalStardust,
   adminRemoveZoom,
   adminRemovePlanets,
   adminRemoveSlots,
@@ -263,6 +264,20 @@ export function AdminPanel({ telegramId }: Props) {
     setLoading(null);
     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
     showFeedback(ok ? "✓ ZOOM rimosso a tutti!" : "✗ Errore", ok);
+  }, [globalAmount, telegramId]);
+
+  const handleGlobalStardust = useCallback(async () => {
+    haptic();
+    const val = parseFloat(globalAmount);
+    if (isNaN(val) || val <= 0) {
+      showFeedback("Valore non valido", false);
+      return;
+    }
+    setLoading("global");
+    const ok = await adminGlobalStardust(telegramId, val);
+    setLoading(null);
+    if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+    showFeedback(ok ? "✓ Stardust inviato a tutti!" : "✗ Errore", ok);
   }, [globalAmount, telegramId]);
 
   if (telegramId !== ADMIN_ID) return null;
@@ -1151,6 +1166,26 @@ export function AdminPanel({ telegramId }: Props) {
                   }}
                 >
                   {loading === "global" ? "..." : "🗑 RIMUOVI ZOOM GLOBALE"}
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={handleGlobalStardust}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(255,215,0,0.3)",
+                    background: "rgba(255,215,0,0.1)",
+                    color: "#ffd700",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "opacity 0.15s",
+                  }}
+                >
+                  {loading === "global" ? "..." : "⭐ INVIA STARDUST GLOBALE"}
                 </motion.button>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
