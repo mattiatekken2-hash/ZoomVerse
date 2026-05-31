@@ -2163,7 +2163,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
       <motion.button
         whileTap={{ scale: 0.93 }}
         onClick={handleResetPoints}
-        disabled={resetting || loading !== null}
+        disabled={resetting}
         style={{
           padding: "11px",
           borderRadius: 10,
