@@ -5,6 +5,7 @@ import {
   adminCreditZoom,
   adminCreditStardust,
   adminCreditTon,
+  adminCreditLabPoints,
   adminRemoveStardust,
   adminRemoveTon,
   adminAddPlanets,
@@ -73,7 +74,7 @@ type PlanetChoice = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "PLASMA" | "GOLD" | "
 type EqCategory = "HELMET" | "JETPACK" | "HAT" | "SCANNER";
 type EqRarity = "BASIC" | "RARE" | "EPIC" | "GOLD" | "PLASMA" | "MYTHIC";
 // Stardust supports both add (credit) and remove (subtract clamped at 0).
-type ActionType = "zoom" | "planets" | "slots" | "spins" | "stardust" | "ton";
+type ActionType = "zoom" | "planets" | "slots" | "spins" | "stardust" | "ton" | "labpoints";
 
 const PLANET_OPTIONS: { type: PlanetChoice; label: string; color: string }[] = [
   { type: "BASIC",  label: "Basic",  color: "#8892b0" },
@@ -97,7 +98,7 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "black" | "revoke-white" | "revoke-earth" | "revoke-black" | "autotap" | "test-wd-chan" | "v1" | "v1nft" | "rec-stars" | "wh-info" | "grant-equipment" | "supernova" | "revoke-supernova" | "clear-planet-market" | "clear-equipment-market" | "force-merchant" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "black" | "revoke-white" | "revoke-earth" | "revoke-black" | "autotap" | "test-wd-chan" | "v1" | "v1nft" | "rec-stars" | "wh-info" | "grant-equipment" | "supernova" | "revoke-supernova" | "clear-planet-market" | "clear-equipment-market" | "force-merchant" | "labpoints" | null>(null);
   const [eqCategory, setEqCategory] = useState<EqCategory>("HELMET");
   const [eqRarity, setEqRarity] = useState<EqRarity>("BASIC");
   const [confirmBulkNebo, setConfirmBulkNebo] = useState(false);
@@ -198,6 +199,7 @@ export function AdminPanel({ telegramId }: Props) {
       else if (type === "spins") ok = await adminCreditSpins(telegramId, id, Math.floor(val));
       else if (type === "stardust") ok = await adminCreditStardust(telegramId, id, Math.floor(val));
       else if (type === "ton") ok = await adminCreditTon(telegramId, id, val);
+      else if (type === "labpoints") ok = await adminCreditLabPoints(telegramId, id, Math.floor(val));
     } else {
       if (type === "zoom") ok = await adminRemoveZoom(telegramId, id, val);
       else if (type === "planets") ok = await adminRemovePlanets(telegramId, id, Math.floor(val), planetType);
@@ -229,6 +231,7 @@ export function AdminPanel({ telegramId }: Props) {
       : type === "spins" ? `${Math.floor(val)} spin`
       : type === "stardust" ? `${Math.floor(val)} stardust ⭐`
       : type === "ton" ? `${val} TON 💎`
+      : type === "labpoints" ? `${Math.floor(val)} punti classifica 🏆`
       : `${Math.floor(val)} ${planetType === "SUN" ? "Sole" : `pianeti ${planetType}`}`;
     showFeedback(ok ? `✓ ${item} ${direction} a ID ${id}` : `✗ Errore per ID ${id}`, ok);
   }, [targetId, amount, planetType, mode, telegramId]);
@@ -540,6 +543,7 @@ export function AdminPanel({ telegramId }: Props) {
                     { type: "stardust" as ActionType, label: "⭐ Stardust", color: "#ffd23f" },
                     // TON earned balance — admin credit only; users withdraw naturally.
                     { type: "ton" as ActionType,      label: "💎 TON",     color: "#00e5ff" },
+                    { type: "labpoints" as ActionType, label: "🏆 LAB POINTS", color: "#00d4ff" },
                   ])
                     .map(({ type, label, color }) => {
                     const btnColor = mode === "remove" ? "#ff5555" : color;

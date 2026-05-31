@@ -754,6 +754,17 @@ export async function adminRemoveStardust(adminId: string, telegramId: string, a
   } catch { return false; }
 }
 
+export async function adminCreditLabPoints(adminId: string, telegramId: string, points: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/lab-rank/credit-points`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, telegramId, points }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 // HALL OF FAME — daily-referrals leaderboard.
 // Returns top 10 with the prize tier baked in (null for ranks 6-10).
 export type HallOfFameEntry = {

@@ -26,7 +26,7 @@ function isAdmin(adminId: string): boolean {
  * looking up the username column we now persist on register/sync.
  * Returns null if the username cannot be matched to any user.
  */
-async function resolveTargetTelegramId(input: string): Promise<string | null> {
+export async function resolveTargetTelegramId(input: string): Promise<string | null> {
   const trimmed = input.trim();
   if (!trimmed) return null;
   // numeric telegram id passes through unchanged

@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { labRoundsTable, usersTable } from "@workspace/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { logger } from "../lib/logger";
+import { resolveTargetTelegramId } from "./admin";
 
 const router: IRouter = Router();
 
@@ -474,6 +475,41 @@ router.post("/admin/lab-rank/reset-points", async (req, res) => {
     res.json({ ok: true, resetCount: result.length });
   } catch (err) {
     logger.error({ err }, "[admin/lab-rank/reset-points] error");
+    res.status(500).json({ ok: false, error: "Internal error" });
+  }
+});
+
+/**
+ * POST /admin/lab-rank/credit-points
+ * Accredita punti lab a un utente specifico (admin-only).
+ * Aggiorna lab_points e lab_round_id se necessario.
+ */
+router.post("/admin/lab-rank/credit-points", async (req, res) => {
+  try {
+    const adminId = (req.body?.adminId as string) || "";
+    if (!isAdmin(adminId)) {
+      res.status(403).json({ ok: false, error: "Forbidden" });
+      return;
+    }
+    const telegramId = await resolveTargetTelegramId(req.body?.telegramId as string);
+    const points = Number(req.body?.points);
+    if (!telegramId || !Number.isFinite(points) || points <= 0 || points > 10000) {
+      res.status(400).json({ ok: false, error: "Invalid body" });
+      return;
+    }
+    const activeRound = await getOrCreateActiveLabRound();
+    await db.execute(sql`
+      UPDATE users
+      SET lab_points = CASE
+            WHEN lab_round_id = ${activeRound.id} THEN lab_points + ${points}
+            ELSE ${points}
+          END,
+          lab_round_id = ${activeRound.id}
+      WHERE telegram_id = ${telegramId}
+    `);
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "[admin/lab-rank/credit-points] error");
     res.status(500).json({ ok: false, error: "Internal error" });
   }
 });

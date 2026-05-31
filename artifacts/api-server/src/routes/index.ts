@@ -212,6 +212,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/admin/maintenance",
       "/admin/lottery/draw",
       "/admin/lab-rank/close",
+      "/admin/lab-rank/credit-points",
       "/admin/lab-rank/reset-points",
       "/admin/disable-user",
       "/admin/enable-user",
