@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { haptic } from "../utils/haptic";
 import {
   adminCreditZoom,
   adminCreditStardust,
@@ -72,13 +73,6 @@ type EqCategory = "HELMET" | "JETPACK" | "HAT" | "SCANNER";
 type EqRarity = "BASIC" | "RARE" | "EPIC" | "GOLD" | "PLASMA" | "MYTHIC";
 // Stardust supports both add (credit) and remove (subtract clamped at 0).
 type ActionType = "zoom" | "planets" | "slots" | "spins" | "stardust" | "ton";
-
-function haptic() {
-  try {
-    const tg = (window as unknown as { Telegram?: { WebApp?: { HapticFeedback?: { impactOccurred: (s: string) => void } } } }).Telegram?.WebApp;
-    tg?.HapticFeedback?.impactOccurred("light");
-  } catch { /**/ }
-}
 
 const PLANET_OPTIONS: { type: PlanetChoice; label: string; color: string }[] = [
   { type: "BASIC",  label: "Basic",  color: "#8892b0" },
