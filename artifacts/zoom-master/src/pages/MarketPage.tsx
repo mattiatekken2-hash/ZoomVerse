@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { OrbDisplay } from "../components/ItemOrb";
+import { PlanetOrb } from "../components/PlanetOrb";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
 import { buyFromMarket, openMarketActivityStream, type ServerMarketListing } from "../utils/api";
@@ -39,7 +39,7 @@ interface MarketPageProps {
   telegramId: string | null;
   onBuy: (listing: MarketListing) => { success: boolean; reason?: string };
   onUnlist: (id: string) => void;
-  onServerBuyComplete: (planetType: PlanetType, planetRate: number, pricePaid: number, planetFloat?: number | null, itemKind?: string | null) => void;
+  onServerBuyComplete: (planetType: PlanetType, planetRate: number, pricePaid: number, planetFloat?: number | null) => void;
   // Equipment marketplace — buy/unlist for ServerMarketListing rows
   // whose `kind === 'equipment'`. Wired from useGameState.
   onBuyEquipment: (listing: ServerMarketListing) => Promise<{ success: boolean; reason?: string }>;
@@ -94,7 +94,6 @@ export function MarketPage({ depositBalance, myListings, maxSlots, telegramId, o
       // inventory even when they never paid for a custom rename.
       displayName: getPlanetDisplayName(p),
       planetFloat: typeof p.float === "number" ? p.float : null,
-      itemKind: p.itemKind ?? null,
     }));
 
   // Equipment listings are rendered in their own section (different card
@@ -125,7 +124,6 @@ export function MarketPage({ depositBalance, myListings, maxSlots, telegramId, o
       isLocal: false as const,
       serverId: l.id,
       planetFloat: l.planetFloat ?? null,
-      itemKind: l.itemKind ?? null,
       // Same fallback rule as for the seller's own listings: if the
       // server didn't snapshot a custom name (planet was never paid-
       // renamed, or it's a legacy listing), derive the deterministic
@@ -174,7 +172,7 @@ export function MarketPage({ depositBalance, myListings, maxSlots, telegramId, o
     return withKey.map((x) => x.l);
   })();
 
-  const handleBuyServer = async (serverId: number, planetType: PlanetType, planetRate: number, price: number, planetFloat: number | null, itemKind: string | null = null) => {
+  const handleBuyServer = async (serverId: number, planetType: PlanetType, planetRate: number, price: number, planetFloat: number | null) => {
     if (!telegramId) return;
     // P2P TON marketplace: buyer pays exact listing price from depositBalance.
     if (depositBalance < price) {
@@ -195,10 +193,7 @@ export function MarketPage({ depositBalance, myListings, maxSlots, telegramId, o
       // the listing carried); fall back to the listing snapshot we
       // sent in (matches the marketplace card the buyer just clicked).
       const finalFloat = typeof result.planetFloat === "number" ? result.planetFloat : planetFloat;
-      // Prefer the server-echoed item tag (authoritative); fall back to the
-      // listing snapshot the buyer just clicked.
-      const finalItemKind = typeof result.itemKind === "string" ? result.itemKind : itemKind;
-      onServerBuyComplete(planetType, planetRate, price, finalFloat, finalItemKind);
+      onServerBuyComplete(planetType, planetRate, price, finalFloat);
       void refreshMarketListings();
       showToast(`${PLANET_CONFIG[planetType].label} planet added to your farm!`, true);
     } else {
@@ -278,7 +273,6 @@ export function MarketPage({ depositBalance, myListings, maxSlots, telegramId, o
                 lastCollectedAt: 0,
                 isListedInMarket: false,
                 isFarmingActive: false,
-                ...(s.itemKind ? { itemKind: s.itemKind } : {}),
               } as Planet;
               const ago = Math.max(0, Math.floor((Date.now() - s.soldAt) / 1000));
               const agoLabel = ago < 60 ? `${ago}s ago` : ago < 3600 ? `${Math.floor(ago / 60)}m ago` : `${Math.floor(ago / 3600)}h ago`;
@@ -317,7 +311,7 @@ export function MarketPage({ depositBalance, myListings, maxSlots, telegramId, o
                   {(() => {
                     return (
                       <>
-                        <OrbDisplay planet={fakePlanet} size={42} animate={isPerfectFloat} displayFloat={saleFloat} />
+                        <PlanetOrb planet={fakePlanet} size={42} animate={isPerfectFloat} displayFloat={saleFloat} />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full" style={{ color: rarityColor, background: rarityColor + "14", border: `1px solid ${rarityColor}33` }}>
@@ -479,7 +473,6 @@ export function MarketPage({ depositBalance, myListings, maxSlots, telegramId, o
               isListedInMarket: true,
               isFarmingActive: false,
               marketPrice: listing.price,
-              ...(listing.itemKind ? { itemKind: listing.itemKind } : {}),
             } as Planet;
 
             const isOwn = listing.isLocal;
@@ -510,7 +503,7 @@ export function MarketPage({ depositBalance, myListings, maxSlots, telegramId, o
               >
                 <div className="flex items-center gap-3 px-4 py-3">
                   <div style={{ position: "relative", flexShrink: 0 }}>
-                    <OrbDisplay planet={fakePlanet} size={56} animate={isPlatinumNft || isPerfectFloat} displayFloat={listingFloat} />
+                    <PlanetOrb planet={fakePlanet} size={56} animate={isPlatinumNft || isPerfectFloat} displayFloat={listingFloat} />
                     {isPlatinumNft && (
                       <span
                         className="nft-badge absolute"
@@ -597,7 +590,7 @@ export function MarketPage({ depositBalance, myListings, maxSlots, telegramId, o
                         }}
                         onClick={() => {
                           if (listing.serverId) {
-                            handleBuyServer(listing.serverId, listing.name, listing.rate, listing.price, listing.planetFloat, listing.itemKind);
+                            handleBuyServer(listing.serverId, listing.name, listing.rate, listing.price, listing.planetFloat);
                           } else {
                             handleBuyLocal(listing as MarketListing);
                           }

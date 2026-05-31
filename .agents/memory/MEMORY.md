@@ -1,3 +1,1 @@
 - [Admin route auth](admin-route-auth.md) — public adminId in body/query is NOT auth; trust only verified req.tgUser. Admin routes need forceStrict (soft mode rejects nothing) + initData header on GETs.
-- [LAB cosmetic items](lab-items-cosmetic-tag.md) — items are Planets with optional itemKind tag reusing all rarity logic; thread itemKind everywhere + server-validate market itemKind against allowlist.
-- [Zoom Master conventions](zoom-master-conventions.md) — market endpoints are hand-written fetch (not codegen); PlanetRow.passthrough() persists extra fields; api-server has pre-existing typecheck errors.

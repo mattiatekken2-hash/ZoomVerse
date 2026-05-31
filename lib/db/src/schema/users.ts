@@ -437,11 +437,6 @@ export const marketListingsTable = pgTable("market_listings", {
   // listings AND for planets that were never renamed (UI then falls
   // back to the rarity label).
   planetDisplayName: text("planet_display_name"),
-  // Snapshot of the planet's cosmetic LAB-item tag (e.g. "cat", "ufo") at
-  // listing time. Null for plain planets and for legacy listings created
-  // before items shipped. Lets the marketplace card / activity feed render
-  // the item glyph without joining back to the seller's planets_json.
-  itemKind: text("item_kind"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   soldAt: timestamp("sold_at"),
   lastActivatedAt: timestamp("last_activated_at"),

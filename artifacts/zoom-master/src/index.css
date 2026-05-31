@@ -889,20 +889,6 @@
   animation: labFragmentFly 0.7s cubic-bezier(.55,.05,.85,.55) forwards;
 }
 
-/* ─── White-squares assembly (Lab build phase) ─────────────────────
-   Each square streaks in from a per-cell offset/spin and locks into its
-   grid slot. Runs once on mount (when the square becomes "filled"); it
-   never replays on subsequent re-renders because the class is stable. */
-@keyframes labSquareIn {
-  0%   { opacity: 0; transform: translate(var(--sx, 0), var(--sy, 0)) scale(0.25) rotate(var(--sr, 0deg)); }
-  60%  { opacity: 1; }
-  100% { opacity: 1; transform: translate(0, 0) scale(1) rotate(0deg); }
-}
-.lab-square {
-  animation: labSquareIn 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
-  will-change: transform, opacity;
-}
-
 /* ─── Forge cinematic animations ───────────────────────────────────
    The forge sequence runs: idle → flash (220ms) → waiting (2000ms) →
    revealed. All transforms use translate/rotate/scale only so the GPU

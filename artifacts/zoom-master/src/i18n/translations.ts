@@ -11,28 +11,6 @@ export const LANGS: { code: Lang; flag: string; label: string }[] = [
 type Dict = Record<string, string>;
 
 const en: Dict = {
-  // lab items (20 cosmetic drop variants)
-  "item.cat": "Cat",
-  "item.dog": "Dog",
-  "item.ufo": "UFO",
-  "item.spaceship": "Spaceship",
-  "item.computer": "Computer",
-  "item.helmet": "Astronaut Helmet",
-  "item.boot": "Boot",
-  "item.flag": "Zoom Flag",
-  "item.backpack": "Backpack",
-  "item.glove": "Glove",
-  "item.radar": "Radar",
-  "item.satellite": "Satellite",
-  "item.telescope": "Telescope",
-  "item.lighthouse": "Lighthouse",
-  "item.happyplanet": "Happy Planet",
-  "item.starmap": "Star Map",
-  "item.alien": "Alien",
-  "item.human_male": "Man",
-  "item.human_female": "Woman",
-  "item.dragon": "Pet Dragon",
-
   // nav
   "nav.lab": "LAB",
   "nav.home": "HOME",
@@ -496,28 +474,6 @@ const en: Dict = {
 
 // Italian
 const it: Dict = {
-  // lab items (20 varianti cosmetiche)
-  "item.cat": "Gatto",
-  "item.dog": "Cane",
-  "item.ufo": "UFO",
-  "item.spaceship": "Astronave",
-  "item.computer": "Computer",
-  "item.helmet": "Casco astronauta",
-  "item.boot": "Stivale",
-  "item.flag": "Bandiera di Zoom",
-  "item.backpack": "Zaino",
-  "item.glove": "Guanto",
-  "item.radar": "Radar",
-  "item.satellite": "Satellite",
-  "item.telescope": "Telescopio",
-  "item.lighthouse": "Faro",
-  "item.happyplanet": "Pianeta felice",
-  "item.starmap": "Mappa stellare",
-  "item.alien": "Alieno",
-  "item.human_male": "Umano",
-  "item.human_female": "Umana",
-  "item.dragon": "Draghetto domestico",
-
   "nav.lab": "LAB",
   "nav.home": "HOME",
   "nav.farm": "FARM",
@@ -968,28 +924,6 @@ const it: Dict = {
 
 // Russian
 const ru: Dict = {
-  // lab items (20 косметических вариантов)
-  "item.cat": "Кот",
-  "item.dog": "Пёс",
-  "item.ufo": "НЛО",
-  "item.spaceship": "Космолёт",
-  "item.computer": "Компьютер",
-  "item.helmet": "Шлем космонавта",
-  "item.boot": "Ботинок",
-  "item.flag": "Флаг Zoom",
-  "item.backpack": "Рюкзак",
-  "item.glove": "Перчатка",
-  "item.radar": "Радар",
-  "item.satellite": "Спутник",
-  "item.telescope": "Телескоп",
-  "item.lighthouse": "Маяк",
-  "item.happyplanet": "Счастливая планета",
-  "item.starmap": "Звёздная карта",
-  "item.alien": "Пришелец",
-  "item.human_male": "Человек",
-  "item.human_female": "Женщина",
-  "item.dragon": "Домашний дракончик",
-
   "nav.lab": "LAB",
   "nav.home": "HOME",
   "nav.farm": "FARM",
@@ -1416,28 +1350,6 @@ const ru: Dict = {
 
 // Ukrainian
 const uk: Dict = {
-  // lab items (20 косметичних варіантів)
-  "item.cat": "Кіт",
-  "item.dog": "Пес",
-  "item.ufo": "НЛО",
-  "item.spaceship": "Космоліт",
-  "item.computer": "Комп'ютер",
-  "item.helmet": "Шолом космонавта",
-  "item.boot": "Черевик",
-  "item.flag": "Прапор Zoom",
-  "item.backpack": "Рюкзак",
-  "item.glove": "Рукавиця",
-  "item.radar": "Радар",
-  "item.satellite": "Супутник",
-  "item.telescope": "Телескоп",
-  "item.lighthouse": "Маяк",
-  "item.happyplanet": "Щаслива планета",
-  "item.starmap": "Зоряна карта",
-  "item.alien": "Прибулець",
-  "item.human_male": "Людина",
-  "item.human_female": "Жінка",
-  "item.dragon": "Домашній дракончик",
-
   "nav.lab": "LAB",
   "nav.home": "HOME",
   "nav.farm": "FARM",

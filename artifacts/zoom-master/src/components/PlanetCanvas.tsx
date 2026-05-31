@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
-import { OrbDisplay } from "./ItemOrb";
+import { PlanetOrb } from "./PlanetOrb";
 import type { Planet, PlanetType } from "../hooks/useGameState";
 import { useT } from "../i18n/LanguageContext";
 
@@ -102,6 +102,7 @@ export function PlanetCanvas({
   const chargeRef = useRef(0);
   const [size, setSize] = useState(280);
   const sizeRef = useRef(280);
+  const fragIdRef = useRef(0);
   const lastProgressRef = useRef(progress);
 
   const color = planetColor || DEFAULT_COLOR;
@@ -222,18 +223,50 @@ export function PlanetCanvas({
     };
   }, [forgePhase]);
 
-  // Per-tap spin-charge bump. The actual "assembling" visual is the white
-  // squares grid below, which is rendered declaratively from `pct` — each
-  // tap raises progress, which fills (and fly-animates) the next squares.
-  // We still bump chargeRef here so the orbit rings accelerate while tapping
-  // and naturally decelerate to a stop when the user pauses.
+  // Imperative tap fragments — DOM-only, never touch React state, so rapid
+  // tapping never re-renders the heavy planet/orbital tree.
   useEffect(() => {
     const delta = progress - lastProgressRef.current;
     lastProgressRef.current = progress;
     if (delta <= 0) return;
     if (forgePhase !== "idle") return;
+
+    // Each tap bumps the spin charge so the orbits accelerate while tapping
+    // and naturally decelerate to a stop when the user pauses.
     chargeRef.current = Math.min(1, chargeRef.current + 0.22 * delta);
-  }, [progress, forgePhase]);
+
+    const layer = fragmentLayerRef.current;
+    if (!layer || sizeRef.current <= 0) return;
+    const half = sizeRef.current / 2;
+    const dotSize = Math.max(5, sizeRef.current * 0.022);
+    for (let i = 0; i < 2; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 0.4 + Math.random() * 0.45;
+      const fx = Math.cos(angle) * dist * half;
+      const fy = Math.sin(angle) * dist * half;
+      const dot = document.createElement("div");
+      dot.className = "lab-fragment";
+      const id = `f-${fragIdRef.current++}`;
+      dot.dataset["fid"] = id;
+      const s = dot.style;
+      s.position = "absolute";
+      s.left = "50%";
+      s.top = "50%";
+      s.width = `${dotSize}px`;
+      s.height = `${dotSize}px`;
+      s.borderRadius = "50%";
+      s.background = displayColor;
+      s.boxShadow = `0 0 10px ${displayColor}, 0 0 22px ${displayColor}88`;
+      s.pointerEvents = "none";
+      s.willChange = "transform, opacity";
+      s.setProperty("--fx", `${fx}px`);
+      s.setProperty("--fy", `${fy}px`);
+      layer.appendChild(dot);
+      const cleanup = () => { dot.remove(); };
+      dot.addEventListener("animationend", cleanup, { once: true });
+      window.setTimeout(cleanup, 900);
+    }
+  }, [progress, displayColor, forgePhase]);
 
   // Core has a FIXED rendered size; growth is applied via transform: scale
   // by the rAF loop, which keeps each tap on the GPU compositor (no layout,
@@ -268,47 +301,6 @@ export function PlanetCanvas({
       delay: (i % 5) * 80,
     }));
   }, [orbitBRadius]);
-
-  // ─── WHITE-SQUARES ASSEMBLY GRID ────────────────────────────────────
-  // The build phase is visualised as a grid of white squares that fly in
-  // and lock into place as `pct` climbs. We mask the grid into a disc so
-  // the assembled silhouette reads as a forming planet, then it bursts
-  // (flash) and the real planet/item is revealed only at 100%.
-  const SQUARE_GRID_N = 9;
-  const squareCells = useMemo(() => {
-    const cells: Array<{ r: number; col: number }> = [];
-    const c = (SQUARE_GRID_N - 1) / 2;
-    const radius = SQUARE_GRID_N / 2;
-    for (let r = 0; r < SQUARE_GRID_N; r++) {
-      for (let col = 0; col < SQUARE_GRID_N; col++) {
-        const dx = col - c;
-        const dy = r - c;
-        if (Math.sqrt(dx * dx + dy * dy) <= radius) cells.push({ r, col });
-      }
-    }
-    return cells;
-  }, []);
-  // Deterministic shuffle → a stable, organic fill order (squares don't
-  // simply fill row-by-row). Seeded LCG so the order is identical every run.
-  const fillOrder = useMemo(() => {
-    const idx = squareCells.map((_, i) => i);
-    let seed = 1337;
-    for (let i = idx.length - 1; i > 0; i--) {
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-      const j = seed % (i + 1);
-      const tmp = idx[i]!;
-      idx[i] = idx[j]!;
-      idx[j] = tmp;
-    }
-    return idx;
-  }, [squareCells]);
-  const rankByCell = useMemo(() => {
-    const ranks = new Array<number>(squareCells.length);
-    fillOrder.forEach((cellIndex, rank) => { ranks[cellIndex] = rank; });
-    return ranks;
-  }, [fillOrder, squareCells.length]);
-  const squareArea = size * 0.62;
-  const filledSquares = Math.round(pct * squareCells.length);
 
   const handleClick = () => { if (onPunch) onPunch(); };
 
@@ -371,59 +363,6 @@ export function PlanetCanvas({
             }}
             data-testid="forge-core"
           />
-        )}
-
-        {/* ─── WHITE-SQUARES ASSEMBLY GRID ───────────────────────────────
-            Disc-masked grid of white squares. A square locks in (and
-            fly-animates) once its shuffled rank is below the current fill
-            count, so each tap snaps the next few squares into place. The
-            grid only exists during the build (idle) phase; at 100% it gives
-            way to the flash and then the revealed planet/item. */}
-        {showCoreAndOrbits && (
-          <div
-            style={{
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              width: squareArea,
-              height: squareArea,
-              marginLeft: -squareArea / 2,
-              marginTop: -squareArea / 2,
-              display: "grid",
-              gridTemplateColumns: `repeat(${SQUARE_GRID_N}, 1fr)`,
-              gridTemplateRows: `repeat(${SQUARE_GRID_N}, 1fr)`,
-              gap: squareArea * 0.014,
-              pointerEvents: "none",
-            }}
-            data-testid="lab-square-grid"
-          >
-            {squareCells.map((cell, i) => {
-              const filled = rankByCell[i]! < filledSquares;
-              if (!filled) return <div key={i} style={{ gridColumn: cell.col + 1, gridRow: cell.r + 1 }} />;
-              // Deterministic per-cell fly-in offset/spin so squares streak
-              // in from varied directions without a fresh random each render.
-              const sx = ((i * 73) % 200) - 100;
-              const sy = ((i * 139) % 200) - 100;
-              const sr = ((i * 47) % 120) - 60;
-              return (
-                <div key={i} style={{ gridColumn: cell.col + 1, gridRow: cell.r + 1 }}>
-                  <div
-                    className="lab-square"
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      borderRadius: Math.max(1, squareArea * 0.008),
-                      background: "linear-gradient(135deg, #ffffff 0%, #eaf0ff 55%, #d7e2ff 100%)",
-                      boxShadow: `0 0 ${squareArea * 0.03}px ${displayColor}cc`,
-                      ["--sx" as string]: `${sx}px`,
-                      ["--sy" as string]: `${sy}px`,
-                      ["--sr" as string]: `${sr}deg`,
-                    } as React.CSSProperties}
-                  />
-                </div>
-              );
-            })}
-          </div>
         )}
 
         {/* ─── FLASH (brief white burst at 100%) ─────────────────────── */}
@@ -505,7 +444,7 @@ export function PlanetCanvas({
             }}
             data-testid="lab-planet-orb"
           >
-            <OrbDisplay planet={orbPlanet} size={planetSize} animate={true} />
+            <PlanetOrb planet={orbPlanet} size={planetSize} animate={true} />
           </div>
         )}
 

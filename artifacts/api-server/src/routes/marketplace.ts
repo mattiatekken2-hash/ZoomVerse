@@ -19,7 +19,7 @@ router.get("/market/sales", async (_req, res) => {
   try {
     const rows = await db.execute(sql`
       SELECT m.id, m.kind, m.planet_type, m.planet_rate, m.price, m.sold_at,
-             m.planet_float, m.item_kind,
+             m.planet_float,
              m.equipment_category, m.equipment_rarity, m.equipment_rate,
              COALESCE(s.first_name, m.seller_name, 'Anon') AS seller_name,
              COALESCE(b.first_name, 'Anon') AS buyer_name
@@ -48,7 +48,6 @@ router.get("/market/sales", async (_req, res) => {
         buyerName: String(r.buyer_name),
         soldAt: r.sold_at instanceof Date ? r.sold_at.getTime() : new Date(r.sold_at).getTime(),
         planetFloat,
-        itemKind: r.item_kind == null ? null : String(r.item_kind),
       };
     });
     res.json({ sales });
@@ -80,23 +79,6 @@ router.get("/market/activity/stream", (req, res) => {
 const TON_MIN = 0.25;
 const TON_MAX = 10.0;
 
-// Canonical set of the 20 cosmetic LAB-item tags. Kept in lockstep with the
-// client's ITEM_KINDS (utils/itemConfig.ts) — cross-artifact imports are not
-// allowed, so this is duplicated intentionally. Any value not in this set is
-// treated as "no item" (null) to block cosmetic identity spoofing on listings.
-const ALLOWED_ITEM_KINDS: ReadonlySet<string> = new Set([
-  "cat", "dog", "ufo", "spaceship", "computer", "helmet", "boot", "flag",
-  "backpack", "glove", "radar", "satellite", "telescope", "lighthouse",
-  "happyplanet", "starmap", "alien", "human_male", "human_female", "dragon",
-]);
-
-/** Normalize an arbitrary value to a known item kind, or null. */
-function sanitizeItemKind(v: unknown): string | null {
-  if (typeof v !== "string") return null;
-  const t = v.trim();
-  return ALLOWED_ITEM_KINDS.has(t) ? t : null;
-}
-
 const ListBody = z.object({
   sellerTelegramId: z.string().min(1),
   sellerName: z.string().optional(),
@@ -110,9 +92,6 @@ const ListBody = z.object({
   planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1", "V1_NFT"]),
   planetRate: z.number().int().positive(),
   price: z.number().positive(),
-  // Optional cosmetic LAB-item tag to snapshot on the listing. Bounded to
-  // 64 chars defensively; null/omitted for plain planets.
-  itemKind: z.string().max(64).optional().nullable(),
 });
 
 /**
@@ -153,7 +132,7 @@ router.post("/market/list", async (req, res) => {
     return;
   }
 
-  const { sellerTelegramId, sellerName, planetId, planetType, planetRate, price, itemKind } = parsed.data;
+  const { sellerTelegramId, sellerName, planetId, planetType, planetRate, price } = parsed.data;
 
   // Price cap: 0.25 – 10.0 TON per any planet
   if (price < TON_MIN || price > TON_MAX) {
@@ -247,15 +226,6 @@ router.post("/market/list", async (req, res) => {
         ? rawDisplayName.trim().slice(0, 64)
         : null;
 
-    // Snapshot the planet's cosmetic LAB-item tag, validated against the known
-    // item allowlist so a tampered client cannot spoof a plain planet as an
-    // item (or stamp an arbitrary tag). The server-owned planets_json is
-    // authoritative; the client tag is only a fallback for planets listed
-    // before their itemKind was flushed to the server. Null for plain planets.
-    const itemKindSnapshot: string | null =
-      sanitizeItemKind((planet as { itemKind?: unknown }).itemKind) ??
-      sanitizeItemKind(itemKind);
-
     let listing;
     try {
       const [inserted] = await txDb
@@ -268,7 +238,6 @@ router.post("/market/list", async (req, res) => {
           planetRate,
           planetFloat: planetFloatSnapshot,
           planetDisplayName: planetDisplayNameSnapshot,
-          itemKind: itemKindSnapshot,
           price,
           status: "active",
         })
@@ -778,8 +747,6 @@ router.post("/market/buy", async (req, res) => {
         // Carry the listing's snapshotted Float so the live-activity
         // feed shows the SAME perfection score the buyer paid for.
         planetFloat: typeof listing.planetFloat === "number" ? listing.planetFloat : null,
-        // Carry the cosmetic item tag so the feed shows the item glyph.
-        itemKind: typeof listing.itemKind === "string" ? listing.itemKind : null,
       });
     } catch (e) { console.error("[market/buy] broadcast failed:", e); }
 
@@ -850,8 +817,6 @@ router.post("/market/buy", async (req, res) => {
       pricePaid: listing.price,
       sellerReceived: sellerShare,
       planetFloat: buyerFloat,
-      // Echo the cosmetic item tag so the buyer mints the same item.
-      itemKind: !isEquipmentListing && typeof listing.itemKind === "string" ? listing.itemKind : null,
     });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});

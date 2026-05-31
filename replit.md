@@ -76,7 +76,6 @@ A planet crafting clicker/idle game where users can craft, farm, and trade plane
 - **Drizzle Unique Violation Errors**: When checking for unique constraint violations, Drizzle wraps the original PostgreSQL error. Use a helper function that walks the `.cause` chain to find the `23505` error code.
 - **Float Sorting on MarketPage**: Non-floatable rarities are pushed to the end when a float sort is active.
 - **Stardust Daily Cap**: Stardust collection is capped daily and requires SUN ownership.
-- **LAB Items (`itemKind`)**: Items are normal Planets carrying an optional cosmetic `itemKind` tag (20 keys); they reuse all rarity-derived gameplay (rate/farming/burn/sell/marketplace). Thread `itemKind` wherever a planet's identity travels. Reload persistence needs no `regular-planets/save` change because `PlanetRow` uses Zod `.passthrough()`. Marketplace `itemKind` must be validated against the server allowlist (duplicated in `marketplace.ts`) to block cosmetic spoofing.
 
 ## Pointers
 

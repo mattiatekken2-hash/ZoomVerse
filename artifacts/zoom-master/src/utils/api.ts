@@ -2049,10 +2049,6 @@ export interface MarketSale {
   // stored snapshot — in that case the UI falls back to the
   // deterministic-from-id helper.
   planetFloat?: number | null;
-  // Cosmetic LAB-item tag (e.g. "cat", "ufo"). Null for plain planets and
-  // for legacy sales created before items shipped. When set, the activity
-  // feed renders the item glyph instead of a plain planet orb.
-  itemKind?: string | null;
 }
 
 export async function fetchMarketSales(): Promise<MarketSale[]> {
@@ -2142,9 +2138,6 @@ export interface ServerMarketListing {
   // (paid action). Nullable for legacy listings and for planets that
   // were never renamed — UI then falls back to the rarity label.
   planetDisplayName?: string | null;
-  // Cosmetic LAB-item tag (e.g. "cat", "ufo") snapshotted at listing time.
-  // Null for plain planets and legacy listings created before items shipped.
-  itemKind?: string | null;
   price: number;
   status: string;
   createdAt: string;
@@ -2175,9 +2168,6 @@ export async function listOnMarket(params: {
   planetType: string;
   planetRate: number;
   price: number;
-  // Cosmetic LAB-item tag to snapshot on the listing so buyers see the
-  // same item identity the seller had. Omitted for plain planets.
-  itemKind?: string | null;
 }): Promise<{ ok: boolean; listing?: ServerMarketListing; error?: string }> {
   try {
     const res = await fetch(`${API_BASE}/market/list`, {
@@ -2213,9 +2203,6 @@ export async function buyFromMarket(buyerTelegramId: string, listingId: number):
   equipmentRate?: number | null;
   pricePaid?: number;
   planetFloat?: number | null;
-  // Cosmetic LAB-item tag echoed from the purchased listing so the buyer
-  // mints the same item into their farm. Null for plain planets.
-  itemKind?: string | null;
   error?: string;
 }> {
   try {
