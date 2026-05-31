@@ -2,7 +2,6 @@ import { useEffect, useState, memo } from "react";
 import { buyLabTicket } from "../utils/api";
 import { haptic } from "../utils/haptic";
 import ticketPx from "../assets/lab-ticket.png";
-import ticketModalPx from "../assets/lab-ticket-modal.png";
 
 const PURPLE = "#a78bfa";
 const ACCENT = "#e0c3fc";
@@ -163,18 +162,7 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase }: Props) 
             </button>
 
             <div style={{ textAlign: "center", marginBottom: 14 }}>
-              <div style={{ marginBottom: 4, display: "flex", justifyContent: "center" }}>
-                <img
-                  src={ticketModalPx}
-                  alt="Lab Ticket"
-                  style={{
-                    width: 68,
-                    height: 68,
-                    imageRendering: "pixelated",
-                    objectFit: "contain",
-                  }}
-                />
-              </div>
+              <div style={{ fontSize: 40, lineHeight: 1, marginBottom: 4 }}>🎟️</div>
               <div
                 style={{
                   fontFamily: "'Orbitron', 'Inter', sans-serif",
