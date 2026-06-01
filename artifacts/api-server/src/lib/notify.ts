@@ -144,10 +144,10 @@ export async function notifyAdminWithdrawalRequest(params: {
     ? `@${params.username}`
     : (params.firstName || params.telegramId);
   const text =
-    `🔴 <b>Withdrawal Requested</b>\n` +
-    `\u2003• Amount: <b>${params.amountTon.toFixed(4)} TON</b>\n` +
+    `🔴 <b>Prelievo richiesto</b>\n` +
+    `\u2003• Importo: <b>${params.amountTon.toFixed(4)} TON</b>\n` +
     `\u2003• Wallet: <code>${params.walletAddress}</code>\n` +
-    `\u2003• User: ${who} (ID: <code>${params.telegramId}</code>)`;
+    `\u2003• Utente: ${who} (ID: <code>${params.telegramId}</code>)`;
   try {
     const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: "POST",
@@ -159,8 +159,8 @@ export async function notifyAdminWithdrawalRequest(params: {
         disable_web_page_preview: true,
         reply_markup: {
           inline_keyboard: [[
-            { text: "✅ Approve", callback_data: `withdraw_approve:${params.withdrawalId}` },
-            { text: "❌ Reject", callback_data: `withdraw_reject:${params.withdrawalId}` },
+            { text: "✅ Approva", callback_data: `withdraw_approve:${params.withdrawalId}` },
+            { text: "❌ Rifiuta", callback_data: `withdraw_reject:${params.withdrawalId}` },
           ]],
         },
       }),

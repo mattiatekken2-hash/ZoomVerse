@@ -43,13 +43,13 @@ router.post("/withdrawals/request", async (req, res) => {
   const wallet = walletAddress.trim();
 
   if (!isValidTonAddress(wallet)) {
-    return res.status(400).json({ ok: false, error: "Invalid TON address" });
+    return res.status(400).json({ ok: false, error: "Indirizzo TON non valido" });
   }
   if (amountTon < WITHDRAWAL_MIN_TON) {
-    return res.status(400).json({ ok: false, error: `Minimum amount: ${WITHDRAWAL_MIN_TON} TON` });
+    return res.status(400).json({ ok: false, error: `Importo minimo: ${WITHDRAWAL_MIN_TON} TON` });
   }
   if (amountTon > WITHDRAWAL_MAX_TON) {
-    return res.status(400).json({ ok: false, error: `Maximum amount: ${WITHDRAWAL_MAX_TON} TON per 24h` });
+    return res.status(400).json({ ok: false, error: `Importo massimo: ${WITHDRAWAL_MAX_TON} TON ogni 24h` });
   }
 
   try {
@@ -65,20 +65,18 @@ router.post("/withdrawals/request", async (req, res) => {
           whiteCollectionUnlocked: usersTable.whiteCollectionUnlocked,
           earthCollectionUnlocked: usersTable.earthCollectionUnlocked,
           isDisabled: usersTable.isDisabled,
-          username: usersTable.username,
-          firstName: usersTable.firstName,
         })
         .from(usersTable)
         .where(eq(usersTable.telegramId, telegramId))
         .for("update")
         .limit(1);
 
-      if (!user) return { kind: "err" as const, status: 404, error: "User not found" };
+      if (!user) return { kind: "err" as const, status: 404, error: "Utente non trovato" };
       if (user.isDisabled) {
-        return { kind: "err" as const, status: 403, error: "Account disabled. Contact admin." };
+        return { kind: "err" as const, status: 403, error: "Account disabilitato. Contatta l'admin." };
       }
       if (!user.whiteCollectionUnlocked && !user.earthCollectionUnlocked) {
-        return { kind: "err" as const, status: 403, error: "Only White Collection or Earth Collection holders can withdraw" };
+        return { kind: "err" as const, status: 403, error: "Solo gli holder della White Collection o Earth Collection possono prelevare" };
       }
       // Withdrawals are paid out of the EARNED balance only (column kept
       // as ton_balance for back-compat). Deposits sit in deposit_balance and
@@ -87,14 +85,14 @@ router.post("/withdrawals/request", async (req, res) => {
         return {
           kind: "err" as const,
           status: 400,
-          error: `Minimum ${WITHDRAWAL_MIN_TON} earned TON required to withdraw`,
+          error: `Minimo ${WITHDRAWAL_MIN_TON} TON guadagnati per prelevare`,
         };
       }
       if ((user.tonBalance ?? 0) < totalDeduction) {
         return {
           kind: "err" as const,
           status: 400,
-          error: `Insufficient earned TON balance. Need ${totalDeduction.toFixed(4)} TON (amount + ${WITHDRAWAL_FEE_TON} fee)`,
+          error: `Saldo TON guadagnato insufficiente. Servono ${totalDeduction.toFixed(4)} TON (importo + ${WITHDRAWAL_FEE_TON} di fee)`,
         };
       }
 
@@ -120,7 +118,7 @@ router.post("/withdrawals/request", async (req, res) => {
         return {
           kind: "err" as const,
           status: 429,
-          error: `You already have a recent request. Retry in ~${hoursLeft}h`,
+          error: `Hai già una richiesta recente. Riprova fra ~${hoursLeft}h`,
         };
       }
 
@@ -149,8 +147,6 @@ router.post("/withdrawals/request", async (req, res) => {
         withdrawal: row,
         newTonBalance: updated!.tonBalance,
         balanceEpoch: updated!.balanceEpoch,
-        username: user.username,
-        firstName: user.firstName,
       };
     });
 
@@ -176,8 +172,6 @@ router.post("/withdrawals/request", async (req, res) => {
       amountTon,
       walletAddress: wallet,
       telegramId,
-      username: result.username,
-      firstName: result.firstName,
     });
     return res.json({
       ok: true,
@@ -253,32 +247,24 @@ router.post("/admin/withdrawals/approve", async (req, res) => {
       .returning();
 
     if (updated.length === 0) {
-      return res.status(404).json({ ok: false, error: "Request not found or already processed" });
+      return res.status(404).json({ ok: false, error: "Richiesta non trovata o già elaborata" });
     }
 
     // Fire-and-forget channel announcement (don't block the response on Telegram).
     const w = updated[0];
-    const [userRow] = await db
-      .select({ username: usersTable.username, firstName: usersTable.firstName })
-      .from(usersTable)
-      .where(eq(usersTable.telegramId, w.telegramId))
-      .limit(1);
-    const who = userRow?.username
-      ? `@${userRow.username}`
-      : (userRow?.firstName || w.telegramId);
     const amount = Number(w.amountTon ?? 0).toFixed(4).replace(/\.?0+$/, "");
     const addr = typeof w.walletAddress === "string" ? w.walletAddress : "";
     const shortAddr = addr.length >= 12 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : (addr || "—");
     const msg =
       `✅ <b>Withdrawal Paid</b>\n` +
       `💎 <b>${amount} TON</b>\n` +
-      `👤 User: ${who} (ID: <code>${w.telegramId}</code>)\n` +
+      `👤 User ID: <code>${w.telegramId}</code>\n` +
       `📬 ${shortAddr}`;
     void sendWithdrawalChannelMessage(msg);
 
     res.json({ ok: true, withdrawal: updated[0] });
   } catch (err) {
-    res.status(500).json({ ok: false, error: "Internal error" });
+    res.status(500).json({ ok: false, error: "Errore interno" });
   }
 });
 
@@ -317,7 +303,7 @@ router.post("/admin/withdrawals/reject", async (req, res) => {
           .from(tonWithdrawalsTable)
           .where(eq(tonWithdrawalsTable.id, withdrawalId))
           .limit(1);
-        return { kind: "err" as const, status: existing ? 400 : 404, error: existing ? `Request already ${existing.status}` : "Request not found" };
+        return { kind: "err" as const, status: existing ? 400 : 404, error: existing ? `Richiesta già ${existing.status}` : "Richiesta non trovata" };
       }
 
       const w = updated[0]!;
