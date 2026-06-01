@@ -1738,23 +1738,42 @@ export async function fetchProfile(telegramId: string): Promise<UserProfile> {
 }
 
 export async function recordCraft(telegramId: string, planetType: string, cost?: number): Promise<void> {
-  try {
-    await fetch(`${API_BASE}/craft/record`, {
-      method: "POST",
-      headers: apiHeaders(),
-      body: JSON.stringify({ telegramId, planetType, ...(typeof cost === "number" && cost > 0 ? { cost } : {}) }),
-    });
-  } catch { /**/ }
+  const body = JSON.stringify({ telegramId, planetType, ...(typeof cost === "number" && cost > 0 ? { cost } : {}) });
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await fetch(`${API_BASE}/craft/record`, {
+        method: "POST",
+        headers: apiHeaders(),
+        body,
+      });
+      if (res.ok) return;
+      // Log non-ok responses so we can see server-side errors in Sentry/devtools
+      console.warn(`[recordCraft] attempt ${attempt} non-ok:`, res.status, await res.text().catch(() => ""));
+    } catch (err) {
+      console.warn(`[recordCraft] attempt ${attempt} error:`, err);
+    }
+    if (attempt < 3) await new Promise((r) => setTimeout(r, 300 * attempt));
+  }
+  console.error(`[recordCraft] failed after 3 attempts for ${telegramId} ${planetType}`);
 }
 
 export async function recordObtained(telegramId: string, planetType: string): Promise<void> {
-  try {
-    await fetch(`${API_BASE}/obtained/record`, {
-      method: "POST",
-      headers: apiHeaders(),
-      body: JSON.stringify({ telegramId, planetType }),
-    });
-  } catch { /**/ }
+  const body = JSON.stringify({ telegramId, planetType });
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await fetch(`${API_BASE}/obtained/record`, {
+        method: "POST",
+        headers: apiHeaders(),
+        body,
+      });
+      if (res.ok) return;
+      console.warn(`[recordObtained] attempt ${attempt} non-ok:`, res.status, await res.text().catch(() => ""));
+    } catch (err) {
+      console.warn(`[recordObtained] attempt ${attempt} error:`, err);
+    }
+    if (attempt < 3) await new Promise((r) => setTimeout(r, 300 * attempt));
+  }
+  console.error(`[recordObtained] failed after 3 attempts for ${telegramId} ${planetType}`);
 }
 
 /**
