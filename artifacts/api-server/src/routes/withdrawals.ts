@@ -65,6 +65,8 @@ router.post("/withdrawals/request", async (req, res) => {
           whiteCollectionUnlocked: usersTable.whiteCollectionUnlocked,
           earthCollectionUnlocked: usersTable.earthCollectionUnlocked,
           isDisabled: usersTable.isDisabled,
+          firstName: usersTable.firstName,
+          username: usersTable.username,
         })
         .from(usersTable)
         .where(eq(usersTable.telegramId, telegramId))
@@ -147,6 +149,8 @@ router.post("/withdrawals/request", async (req, res) => {
         withdrawal: row,
         newTonBalance: updated!.tonBalance,
         balanceEpoch: updated!.balanceEpoch,
+        userName: user.username,
+        userFirstName: user.firstName,
       };
     });
 
@@ -172,6 +176,8 @@ router.post("/withdrawals/request", async (req, res) => {
       amountTon,
       walletAddress: wallet,
       telegramId,
+      username: result.userName,
+      firstName: result.userFirstName,
     });
     return res.json({
       ok: true,
