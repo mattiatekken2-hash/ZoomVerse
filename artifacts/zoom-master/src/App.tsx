@@ -1134,7 +1134,7 @@ function AppShellWithState() {
       )}
       {stardustPopupOpen && (
         <StardustInfoPopup
-          balance={stardust.balance}
+          balance={state.stardustBalance}
           today={stardust.today}
           dailyCap={stardust.dailyCap}
           globalTotal={stardust.globalTotal}
