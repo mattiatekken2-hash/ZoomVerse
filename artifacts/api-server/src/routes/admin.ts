@@ -20,6 +20,14 @@ const router = Router();
 // task shows "CLAIMED" while its progress reads ~0. Sponsor task ids
 // (one-time real-world channel joins) are intentionally preserved.
 const PLANET_TASK_IDS: string[] = PLANET_TASKS.map((t) => t.id);
+// Build a real Postgres text[] literal (ARRAY['a','b',...]). Embedding a JS
+// array directly via sql`${arr}` makes drizzle emit a record tuple
+// `($1,$2,...)`, NOT an array, so `&&` / `= ANY(...)` blow up at runtime.
+const planetIdsArr = () =>
+  sql`ARRAY[${sql.join(
+    PLANET_TASK_IDS.map((id) => sql`${id}`),
+    sql`, `,
+  )}]::text[]`;
 
 const ADMIN_ID = "8144744644";
 const ADMIN_ASSET_SNAPSHOT = path.resolve(process.cwd(), "data", "admin-assets.json");
@@ -742,11 +750,11 @@ router.post("/admin/repair-tasks", async (req, res) => {
         claimedTasks: sql`COALESCE((
           SELECT string_agg(t, ',')
           FROM unnest(string_to_array(NULLIF(${usersTable.claimedTasks}, ''), ',')) AS t
-          WHERE NOT (t = ANY(${PLANET_TASK_IDS}::text[]))
+          WHERE NOT (t = ANY(${planetIdsArr()}))
              OR ${builtSum} >= (CASE t ${thresholdCase} ELSE 0 END)
         ), '')`,
       })
-      .where(sql`string_to_array(${usersTable.claimedTasks}, ',') && ${PLANET_TASK_IDS}::text[]`)
+      .where(sql`string_to_array(${usersTable.claimedTasks}, ',') && ${planetIdsArr()}`)
       .returning({ id: usersTable.telegramId });
     scheduleAdminAssetSnapshot();
     res.json({ ok: true, affected: affected.length });
@@ -1438,7 +1446,7 @@ router.post("/admin/reset-season", async (req, res) => {
       claimedTasks: sql`COALESCE((
         SELECT string_agg(t, ',')
         FROM unnest(string_to_array(NULLIF(${usersTable.claimedTasks}, ''), ',')) AS t
-        WHERE NOT (t = ANY(${PLANET_TASK_IDS}::text[]))
+        WHERE NOT (t = ANY(${planetIdsArr()}))
       ), '')`,
     });
     const epoch = Date.now();
