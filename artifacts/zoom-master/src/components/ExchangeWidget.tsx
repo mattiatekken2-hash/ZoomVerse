@@ -14,16 +14,21 @@
  */
 import { memo, useEffect, useState, useCallback, useMemo } from "react";
 import { fetchEconomyPrice, fetchEconomyHistory } from "../utils/api";
+import { useGlobalStore } from "../store/globalStore";
 
 const POLL_MS = 60_000;
 
-// Global, fixed launch target — must be identical for every user. Two
-// months from the feature build date (10 May 2026 → 10 Jul 2026 00:00 UTC).
-// Override at runtime by setting localStorage["zm.exchangeLaunchAtMs"] for
-// admin/QA, but the default is hard-coded so all users see the same clock.
-const LAUNCH_AT_MS: number = (() => {
-  const FIXED = Date.UTC(2026, 6, 10, 0, 0, 0);
-  if (typeof window === "undefined") return FIXED;
+// The exchange opens 90 days after the current season starts. Anchoring to
+// the season epoch (a single server timestamp, identical for every user)
+// keeps the countdown perfectly in sync across all clients and makes it
+// auto-restart whenever a new season begins. Admin/QA can still pin an
+// absolute launch timestamp via localStorage["zm.exchangeLaunchAtMs"].
+const EXCHANGE_DELAY_MS = 90 * 24 * 60 * 60 * 1000;
+// Fallback launch used only until the season epoch has loaded from the server.
+const FALLBACK_LAUNCH_AT_MS = Date.UTC(2026, 8, 1, 0, 0, 0);
+
+function readLaunchOverride(): number | null {
+  if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem("zm.exchangeLaunchAtMs");
     if (raw) {
@@ -31,8 +36,8 @@ const LAUNCH_AT_MS: number = (() => {
       if (Number.isFinite(n) && n > 0) return n;
     }
   } catch { /**/ }
-  return FIXED;
-})();
+  return null;
+}
 
 interface ExchangeWidgetProps {
   balance: number;
@@ -56,8 +61,8 @@ function formatTon(t: number): string {
 
 interface Countdown { d: number; h: number; m: number; s: number; done: boolean }
 
-function getCountdown(now: number): Countdown {
-  const ms = Math.max(0, LAUNCH_AT_MS - now);
+function getCountdown(now: number, launchAtMs: number): Countdown {
+  const ms = Math.max(0, launchAtMs - now);
   const d = Math.floor(ms / 86_400_000);
   const h = Math.floor((ms % 86_400_000) / 3_600_000);
   const m = Math.floor((ms % 3_600_000) / 60_000);
@@ -295,12 +300,12 @@ function ExchangeWidgetBase({ balance, sunCount }: ExchangeWidgetProps) {
   const [now, setNow] = useState<number>(Date.now());
   const [price, setPrice] = useState<number>(0.000001);
   const [open, setOpen] = useState(false);
+  const seasonEpoch = useGlobalStore((s) => s.seasonEpoch);
 
   useEffect(() => {
-    // Battery-saver: only tick every 5s. The countdown text is still
-    // perfectly readable at that resolution, and we avoid a React
-    // re-render every single second while the user is on the Lab page.
-    const id = window.setInterval(() => setNow(Date.now()), 5000);
+    // Live countdown — tick every second so the seconds digit visibly
+    // counts down in real time while the user is on the Lab page.
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
 
@@ -325,7 +330,14 @@ function ExchangeWidgetBase({ balance, sunCount }: ExchangeWidgetProps) {
     };
   }, [refreshPrice, open]);
 
-  const cd = getCountdown(now);
+  const launchAtMs = useMemo(() => {
+    const override = readLaunchOverride();
+    if (override != null) return override;
+    if (seasonEpoch && seasonEpoch > 0) return seasonEpoch + EXCHANGE_DELAY_MS;
+    return FALLBACK_LAUNCH_AT_MS;
+  }, [seasonEpoch]);
+
+  const cd = getCountdown(now, launchAtMs);
   const hasSun = sunCount > 0;
 
   const Body = (

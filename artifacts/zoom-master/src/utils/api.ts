@@ -1346,6 +1346,17 @@ export async function adminGlobalStardust(adminId: string, amount: number): Prom
   } catch { return false; }
 }
 
+export async function adminGlobalTon(adminId: string, amount: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/global-ton`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, amount }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminCreditSpins(adminId: string, telegramId: string, count: number): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/credit-spins`, {
