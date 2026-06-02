@@ -10,8 +10,16 @@ import { logger } from "../lib/logger";
 import { recordHistoryAsync } from "../lib/history";
 import { EQUIPMENT_RATE_SERVER } from "./equipment";
 import { readGlobal as readMerchantGlobal, GLOBAL_KEY as MERCHANT_GLOBAL_KEY } from "./merchant";
+import { PLANET_TASKS } from "./tasks";
 
 const router = Router();
+
+// EARN planet-milestone task ids. These are claimable when the per-tier
+// crafting counters reach a threshold, so they are SEASONAL: a season reset
+// zeroes those counters and must therefore also clear these claims, or the
+// task shows "CLAIMED" while its progress reads ~0. Sponsor task ids
+// (one-time real-world channel joins) are intentionally preserved.
+const PLANET_TASK_IDS: string[] = PLANET_TASKS.map((t) => t.id);
 
 const ADMIN_ID = "8144744644";
 const ADMIN_ASSET_SNAPSHOT = path.resolve(process.cwd(), "data", "admin-assets.json");
@@ -154,6 +162,7 @@ const GlobalTonBody = z.object({
   adminId: z.string(),
   amount: z.number().positive(),
 });
+const RepairTasksBody = z.object({ adminId: z.string() });
 
 const RemoveZoomBody = z.object({
   adminId: z.string(),
@@ -696,6 +705,53 @@ router.post("/admin/global-ton", async (req, res) => {
     scheduleAdminAssetSnapshot();
     res.json({ ok: true });
   } catch (err) {
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+// ----- REPAIR EARN TASKS -----
+// Removes ORPHANED planet-milestone claims: a task marked claimed whose live
+// build progress is now below its threshold (e.g. left over after a season
+// reset zeroed the crafting counters, so the UI shows "CLAIMED" next to a
+// near-zero progress bar). It NEVER removes a claim that is still backed by
+// enough progress, so a real reward can never be re-claimed — safe to run at
+// any time. Sponsor claims (one-time channel joins) are always preserved.
+router.post("/admin/repair-tasks", async (req, res) => {
+  const parsed = RepairTasksBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body" });
+    return;
+  }
+  if (!isAdmin(parsed.data.adminId)) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
+  try {
+    const builtSum = sql`(
+      ${usersTable.totalCraftedBasic} + ${usersTable.totalCraftedRare} +
+      ${usersTable.totalCraftedEpic}  + ${usersTable.totalCraftedMythic} +
+      ${usersTable.totalCraftedGold}  + ${usersTable.totalCraftedV1}
+    )`;
+    const thresholdCase = sql.join(
+      PLANET_TASKS.map((t) => sql`WHEN ${t.id} THEN ${t.threshold}`),
+      sql` `,
+    );
+    const affected = await db
+      .update(usersTable)
+      .set({
+        claimedTasks: sql`COALESCE((
+          SELECT string_agg(t, ',')
+          FROM unnest(string_to_array(NULLIF(${usersTable.claimedTasks}, ''), ',')) AS t
+          WHERE NOT (t = ANY(${PLANET_TASK_IDS}::text[]))
+             OR ${builtSum} >= (CASE t ${thresholdCase} ELSE 0 END)
+        ), '')`,
+      })
+      .where(sql`string_to_array(${usersTable.claimedTasks}, ',') && ${PLANET_TASK_IDS}::text[]`)
+      .returning({ id: usersTable.telegramId });
+    scheduleAdminAssetSnapshot();
+    res.json({ ok: true, affected: affected.length });
+  } catch (err) {
+    console.error("[admin/repair-tasks]", err);
     res.status(500).json({ error: "Database error" });
   }
 });
@@ -1378,6 +1434,12 @@ router.post("/admin/reset-season", async (req, res) => {
       totalCraftedGold: 0,
       totalCraftedV1: 0,
       claimedMilestones: "",
+      // Strip only the seasonal planet-milestone claims; keep sponsor claims.
+      claimedTasks: sql`COALESCE((
+        SELECT string_agg(t, ',')
+        FROM unnest(string_to_array(NULLIF(${usersTable.claimedTasks}, ''), ',')) AS t
+        WHERE NOT (t = ANY(${PLANET_TASK_IDS}::text[]))
+      ), '')`,
     });
     const epoch = Date.now();
     await db.insert(appSettingsTable)

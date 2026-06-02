@@ -33,6 +33,7 @@ import {
   adminGlobalRemove,
   adminGlobalStardust,
   adminGlobalTon,
+  adminRepairTasks,
   adminRemoveZoom,
   adminRemovePlanets,
   adminRemoveSlots,
@@ -292,6 +293,18 @@ export function AdminPanel({ telegramId }: Props) {
     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
     showFeedback(ok ? "✓ TON accreditato a tutti!" : "✗ Errore", ok);
   }, [globalAmount, telegramId]);
+
+  const handleRepairTasks = useCallback(async () => {
+    haptic();
+    setLoading("global");
+    const affected = await adminRepairTasks(telegramId);
+    setLoading(null);
+    if (affected != null) window.dispatchEvent(new Event("zoom-admin-refresh"));
+    showFeedback(
+      affected != null ? `✓ Task riparate (${affected} utenti)` : "✗ Errore",
+      affected != null,
+    );
+  }, [telegramId]);
 
   if (telegramId !== ADMIN_ID) return null;
 
@@ -1220,6 +1233,26 @@ export function AdminPanel({ telegramId }: Props) {
                   }}
                 >
                   {loading === "global" ? "..." : "💎 ACCREDITA TON GLOBALE"}
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={handleRepairTasks}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(168,255,96,0.3)",
+                    background: "rgba(168,255,96,0.1)",
+                    color: "#a8ff60",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "opacity 0.15s",
+                  }}
+                >
+                  {loading === "global" ? "..." : "🧹 RIPARA TASK"}
                 </motion.button>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />

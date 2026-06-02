@@ -3,3 +3,4 @@
 - [Exchange countdown anchor](exchange-countdown-anchor.md) — LAB ZOOM~TON "SOON" timer = seasonEpoch + 90d (not a fixed date); auto-restarts each season. Tune via EXCHANGE_DELAY_MS.
 - [Telegram forced update](telegram-forced-update.md) — Telegram webview caches the bundle (stale on reload, fresh in browser); BUILD_VERSION define + version.json drive a self-reload.
 - [Balance epoch cold-start seed](balance-epoch-seed.md) — module-scope _currentBalanceEpoch starts at 0; must be seeded from persisted lastBalanceEpoch on mount or first sync sends ce=0 and server force-snaps balance DOWN.
+- [EARN tasks vs season reset](earn-tasks-season-coupling.md) — season reset must strip seasonal planets_* claims with the counters; task repair must be orphan-aware (built<threshold) to avoid double-claim.

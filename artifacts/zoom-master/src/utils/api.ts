@@ -1357,6 +1357,19 @@ export async function adminGlobalTon(adminId: string, amount: number): Promise<b
   } catch { return false; }
 }
 
+export async function adminRepairTasks(adminId: string): Promise<number | null> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/repair-tasks`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data?.affected === "number" ? data.affected : 0;
+  } catch { return null; }
+}
+
 export async function adminCreditSpins(adminId: string, telegramId: string, count: number): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/credit-spins`, {
