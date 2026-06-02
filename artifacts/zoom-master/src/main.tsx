@@ -2,6 +2,11 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { hapticLight } from "./utils/haptic";
+import { initVersionCheck } from "./utils/appVersion";
+
+// Force-update guard: reloads the app when a newer build has been published,
+// defeating Telegram's webview cache. No-op in development.
+initVersionCheck();
 
 function configureTelegramViewport() {
   try {
