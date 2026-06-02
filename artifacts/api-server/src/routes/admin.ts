@@ -1378,6 +1378,7 @@ router.post("/admin/reset-season", async (req, res) => {
       totalCraftedGold: 0,
       totalCraftedV1: 0,
       claimedMilestones: "",
+      claimedTasks: "",
     });
     const epoch = Date.now();
     await db.insert(appSettingsTable)
