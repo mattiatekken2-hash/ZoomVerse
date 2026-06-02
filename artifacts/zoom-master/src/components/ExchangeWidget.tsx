@@ -21,23 +21,12 @@ const POLL_MS = 60_000;
 // The exchange opens 90 days after the current season starts. Anchoring to
 // the season epoch (a single server timestamp, identical for every user)
 // keeps the countdown perfectly in sync across all clients and makes it
-// auto-restart whenever a new season begins. Admin/QA can still pin an
-// absolute launch timestamp via localStorage["zm.exchangeLaunchAtMs"].
+// auto-restart whenever a new season begins. There is intentionally NO
+// client-side override — a stale localStorage value used to silently pin
+// an old launch date, so the countdown is now driven purely by the season.
 const EXCHANGE_DELAY_MS = 90 * 24 * 60 * 60 * 1000;
 // Fallback launch used only until the season epoch has loaded from the server.
 const FALLBACK_LAUNCH_AT_MS = Date.UTC(2026, 8, 1, 0, 0, 0);
-
-function readLaunchOverride(): number | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem("zm.exchangeLaunchAtMs");
-    if (raw) {
-      const n = Number(raw);
-      if (Number.isFinite(n) && n > 0) return n;
-    }
-  } catch { /**/ }
-  return null;
-}
 
 interface ExchangeWidgetProps {
   balance: number;
@@ -331,8 +320,6 @@ function ExchangeWidgetBase({ balance, sunCount }: ExchangeWidgetProps) {
   }, [refreshPrice, open]);
 
   const launchAtMs = useMemo(() => {
-    const override = readLaunchOverride();
-    if (override != null) return override;
     if (seasonEpoch && seasonEpoch > 0) return seasonEpoch + EXCHANGE_DELAY_MS;
     return FALLBACK_LAUNCH_AT_MS;
   }, [seasonEpoch]);
