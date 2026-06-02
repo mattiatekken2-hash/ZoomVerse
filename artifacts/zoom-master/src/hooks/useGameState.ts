@@ -653,8 +653,8 @@ const REDEEM_CODES: Record<string, number> = {
 
 const SUN_CODES = ["SUN-ALPHA", "SUN-OMEGA", "SUN-PRIME", "SUN-NOVA", "SUN-CORE"];
 
-const STATE_VERSION = 4;
-const STORAGE_KEY = "zoom-master-v4";
+const STATE_VERSION = 5;
+const STORAGE_KEY = "zoom-master-v5";
 const LIVE_EVENT_KEY = "zoom-master-live-activity-event";
 const LIVE_EVENT_CHANNEL = "zoom-master-live-activity";
 const MAX_FEED_EVENTS = 50;
