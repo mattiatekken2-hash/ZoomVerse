@@ -324,6 +324,11 @@ function ExchangeWidgetBase({ balance, sunCount }: ExchangeWidgetProps) {
     return FALLBACK_LAUNCH_AT_MS;
   }, [seasonEpoch]);
 
+  // Until the season epoch has actually loaded from the server we must NOT
+  // render a number derived from the fallback launch date — doing so flashes
+  // a wrong value (e.g. "90g") for one frame and then visibly jumps to the
+  // real season-anchored value. Show a neutral placeholder instead.
+  const seasonReady = seasonEpoch != null && seasonEpoch > 0;
   const cd = getCountdown(now, launchAtMs);
   const hasSun = sunCount > 0;
 
@@ -355,7 +360,9 @@ function ExchangeWidgetBase({ balance, sunCount }: ExchangeWidgetProps) {
           fontVariantNumeric: "tabular-nums", textShadow: "0 0 6px rgba(0,242,254,0.5)",
         }}
       >
-        {cd.done ? (
+        {!seasonReady ? (
+          <span style={{ opacity: 0.6 }}>--g --:--:--</span>
+        ) : cd.done ? (
           <span style={{ fontSize: 10, color: "#00ff88" }}>LIVE</span>
         ) : (
           <span>
