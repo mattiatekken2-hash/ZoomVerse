@@ -1664,6 +1664,25 @@ export function useGameState() {
   const lastImmediateBonusSaveTickRef = useRef(0);
   stateRef.current = state;
 
+  // Seed the module-scope epoch tracker from the persisted balance epoch on
+  // first mount. `_currentBalanceEpoch` starts at 0; without this seed, the
+  // first debounced /balance/sync (fired ~400ms after the cold-start
+  // farming-settle setState, before the async init flow has run
+  // setCurrentBalanceEpoch) travels with clientEpoch=0. The server then takes
+  // its `balance_epoch > clientEpoch` branch, treats this client as stale,
+  // returns the stored server value with an advanced epoch — and
+  // reconcileFromSyncResponse snaps the VISIBLE balance DOWN a few seconds
+  // after open (USER REPORT, June 2026: "per un attimo è giusto, dopo qualche
+  // secondo scende"). Seeding the last-known epoch makes the cold-start sync
+  // carry the correct `ce`, so the server only snaps us down on a GENUINE
+  // authoritative change (real admin remove / cross-device spend), never on
+  // every re-entry.
+  const epochSeededRef = useRef(false);
+  if (!epochSeededRef.current) {
+    epochSeededRef.current = true;
+    if (state.lastBalanceEpoch) setCurrentBalanceEpoch(state.lastBalanceEpoch);
+  }
+
   // Throttle save+sync: writes & network traffic are expensive on every state change.
   // Debounce 400ms so rapid taps coalesce into one save+sync. Always flush on hide/unload.
   useEffect(() => {

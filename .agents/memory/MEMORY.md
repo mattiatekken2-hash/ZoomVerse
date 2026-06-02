@@ -1,2 +1,3 @@
 - [Admin route auth](admin-route-auth.md) — public adminId in body/query is NOT auth; trust only verified req.tgUser. Admin routes need forceStrict (soft mode rejects nothing) + initData header on GETs.
 - [Drizzle push data-loss prompt](drizzle-push-data-loss.md) — `db run push` can block on a destructive prompt from pre-existing schema drift; apply additive DDL via psql instead.
+- [Balance epoch cold-start seed](balance-epoch-seed.md) — module-scope _currentBalanceEpoch starts at 0; must be seeded from persisted lastBalanceEpoch on mount or first sync sends ce=0 and server force-snaps balance DOWN.
