@@ -36,7 +36,7 @@ const COLLECTIONS = [
     priceTon: 20,
     stockEndpoint: "api/white-collection/stock",
     purchaseType: "white_collection" as const,
-    tags: ["4 exclusive slots", "~0.44 TON/mo", "~11,520 ZOOM/day", "Requires SUN", "Limited edition"],
+    tags: ["4 exclusive slots", "3.3 TON/month", "Requires SUN", "Limited edition"],
   },
   {
     key: "earth" as const,
