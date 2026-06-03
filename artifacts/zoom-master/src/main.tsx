@@ -159,3 +159,17 @@ document.addEventListener("pointerup", (e: PointerEvent) => {
 });
 
 createRoot(document.getElementById("root")!).render(<App />);
+
+// Hide the HTML splash screen once React has mounted and loaded enough.
+// React mounts the first components immediately, but data is still fetching.
+// We wait 1.2s after mount so the user sees the splash screen briefly even
+// on fast connections, then fade it out.
+window.addEventListener("load", () => {
+  setTimeout(() => {
+    const splash = document.getElementById("splash-screen");
+    if (splash) {
+      splash.classList.add("hidden");
+      setTimeout(() => splash.remove(), 700);
+    }
+  }, 1200);
+});
