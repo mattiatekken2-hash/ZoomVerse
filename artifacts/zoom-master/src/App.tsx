@@ -47,8 +47,80 @@ export default function App() {
   return (
     <LanguageProvider>
       <BlackPlanetOrbStyles />
+      <SplashScreen />
       <AppShellWithState />
     </LanguageProvider>
+  );
+}
+
+function SplashScreen() {
+  const [phase, setPhase] = useState<"enter" | "hold" | "exit" | "done">("enter");
+  useEffect(() => {
+    const hold = setTimeout(() => setPhase("hold"), 800);
+    const exit = setTimeout(() => setPhase("exit"), 1800);
+    const done = setTimeout(() => setPhase("done"), 2600);
+    return () => {
+      clearTimeout(hold);
+      clearTimeout(exit);
+      clearTimeout(done);
+    };
+  }, []);
+  if (phase === "done") return null;
+  const opacity =
+    phase === "enter" ? 0 : phase === "hold" ? 1 : phase === "exit" ? 0 : 0;
+  const scale =
+    phase === "enter" ? 0.85 : phase === "hold" ? 1 : phase === "exit" ? 1.05 : 1;
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#060810",
+        transition: "opacity 0.6s ease-in-out",
+        opacity,
+        pointerEvents: phase === "exit" ? "none" : "auto",
+      }}
+    >
+      <div
+        style={{
+          textAlign: "center",
+          transition: "transform 0.6s ease-in-out",
+          transform: `scale(${scale})`,
+        }}
+      >
+        <div style={{ fontSize: 72, marginBottom: 12, filter: "drop-shadow(0 0 24px rgba(106,90,205,0.6))" }}>
+          🪐
+        </div>
+        <div
+          style={{
+            fontFamily: "'Orbitron', sans-serif",
+            fontWeight: 900,
+            fontSize: 28,
+            letterSpacing: "0.2em",
+            color: "#e0e6ff",
+            textShadow: "0 0 12px rgba(138,180,255,0.4), 0 0 32px rgba(106,90,205,0.3)",
+          }}
+        >
+          ZOOM
+        </div>
+        <div
+          style={{
+            marginTop: 8,
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: "0.15em",
+            color: "rgba(255,255,255,0.3)",
+            textTransform: "uppercase",
+          }}
+        >
+          Loading
+        </div>
+      </div>
+    </div>
   );
 }
 
