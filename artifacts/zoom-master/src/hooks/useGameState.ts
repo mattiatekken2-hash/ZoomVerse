@@ -1009,8 +1009,9 @@ export function _registerStateRef(ref: StateRefHolder): void {
 function reconcileFromSyncResponse(
   sentBalance: number,
   sentEpoch: number,
-  res: { zoomBalance: number; balanceEpoch: number; tonBalance?: number },
+  res: { zoomBalance: number; balanceEpoch: number; tonBalance?: number; stardustBalance?: number },
   sentTonBalance?: number,
+  sentStardustBalance?: number,
 ): void {
   // ORDER MATTERS — race fix.
   //
@@ -1072,6 +1073,23 @@ function reconcileFromSyncResponse(
       }));
     } catch { /**/ }
   }
+  // Stardust: always server-authoritative-up only (same as TON). If the server
+  // reports a higher value than the client sent, snap local up so admin
+  // grants or cross-device stardust collect are visible immediately.
+  if (
+    typeof res.stardustBalance === "number" &&
+    typeof sentStardustBalance === "number" &&
+    (res.stardustBalance ?? 0) - (sentStardustBalance ?? 0) > 0
+  ) {
+    if (_stateRefHolder) {
+      _stateRefHolder.current = { ..._stateRefHolder.current, stardustBalance: res.stardustBalance };
+    }
+    try {
+      window.dispatchEvent(new CustomEvent("zoom-server-stardust-snap", {
+        detail: { stardustBalance: res.stardustBalance, epoch: res.balanceEpoch },
+      }));
+    } catch { /**/ }
+  }
   // Bump the epoch LAST so any sync that fires after this point already sees
   // the snapped balance/TON in stateRef + _lastSyncedBalance.
   setCurrentBalanceEpoch(res.balanceEpoch);
@@ -1100,9 +1118,10 @@ function immediateSyncToServer(state: GameState) {
   const username = ctx_.username;
   const sentEpoch = _currentBalanceEpoch;
   const sentTon = Math.max(0, state.tonBalance || 0);
-  syncBalance({ telegramId, firstName, username, zoomBalance: balance, tonBalance: sentTon, clientEpoch: sentEpoch })
+  const sentStardust = Math.floor(state.stardustBalance || 0);
+  syncBalance({ telegramId, firstName, username, zoomBalance: balance, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
     .then((res) => {
-      reconcileFromSyncResponse(balance, sentEpoch, res, sentTon);
+      reconcileFromSyncResponse(balance, sentEpoch, res, sentTon, sentStardust);
       _syncInFlight = false;
       if (_pendingSyncBalance >= 0 && _pendingSyncBalance !== _lastSyncedBalance) {
         const nextBalance = _pendingSyncBalance;
@@ -1116,8 +1135,9 @@ function immediateSyncToServer(state: GameState) {
           // only chasing the deferred ZOOM update; tonBalance state is owned
           // by setState callbacks and we don't have access to it here.
           const sentTon2 = sentTon;
-          syncBalance({ telegramId: tid, firstName: fn, username: un, zoomBalance: nextBalance, tonBalance: sentTon2, clientEpoch: sentEpoch2 })
-            .then((r2) => { reconcileFromSyncResponse(nextBalance, sentEpoch2, r2, sentTon2); _syncInFlight = false; })
+          const sentStardust2 = sentStardust;
+          syncBalance({ telegramId: tid, firstName: fn, username: un, zoomBalance: nextBalance, tonBalance: sentTon2, stardustBalance: sentStardust2, clientEpoch: sentEpoch2 })
+            .then((r2) => { reconcileFromSyncResponse(nextBalance, sentEpoch2, r2, sentTon2, sentStardust2); _syncInFlight = false; })
             .catch(() => { _syncInFlight = false; });
         }
       }
@@ -2314,8 +2334,9 @@ export function useGameState() {
         {
           const sent = Math.floor(updated.balance);
           const sentTon = Math.max(0, updated.tonBalance || 0);
-          {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, tonBalance: sentTon, clientEpoch: sentEpoch })
-            .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon));}
+          const sentStardust = Math.floor(updated.stardustBalance || 0);
+          {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
+            .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon, sentStardust));}
         }
         return updated;
       });
@@ -2725,11 +2746,12 @@ export function useGameState() {
       const localBalance = Math.floor(stateRef.current.balance);
       const sentEpoch = _currentBalanceEpoch;
       const sentTon = Math.max(0, stateRef.current.tonBalance || 0);
+      const sentStardust = Math.floor(stateRef.current.stardustBalance || 0);
       const [syncRes, grants] = await Promise.all([
-        syncBalance({ telegramId, firstName, username, zoomBalance: localBalance, tonBalance: sentTon, clientEpoch: sentEpoch }),
+        syncBalance({ telegramId, firstName, username, zoomBalance: localBalance, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch }),
         fetchGrants(telegramId),
       ]);
-      reconcileFromSyncResponse(localBalance, sentEpoch, syncRes, sentTon);
+      reconcileFromSyncResponse(localBalance, sentEpoch, syncRes, sentTon, sentStardust);
 
       // Skip on transient /grants failure — applying an empty payload would
       // trip the destructive branches inside applyGrants (SUN reset,
@@ -2785,8 +2807,9 @@ export function useGameState() {
         if (telegramId) {
           const sent = Math.floor(newBal);
           const sentTon = Math.max(0, prev.tonBalance || 0);
-          {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, tonBalance: sentTon, clientEpoch: sentEpoch })
-            .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon));}
+          const sentStardust = Math.floor(prev.stardustBalance || 0);
+          {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
+            .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon, sentStardust));}
         }
         return { ...prev, balance: newBal, totalEarned: prev.totalEarned + amount };
       });
@@ -2809,6 +2832,15 @@ export function useGameState() {
       setState((prev) => ({
         ...prev,
         tonBalance: Math.max(0, detail.tonBalance),
+        lastBalanceEpoch: Math.max(prev.lastBalanceEpoch ?? 0, detail.epoch ?? 0),
+      }));
+    };
+    const handleServerStardustSnap = (e: Event) => {
+      const detail = (e as CustomEvent<{ stardustBalance: number; epoch: number }>).detail;
+      if (!detail || typeof detail.stardustBalance !== "number") return;
+      setState((prev) => ({
+        ...prev,
+        stardustBalance: Math.max(0, detail.stardustBalance),
         lastBalanceEpoch: Math.max(prev.lastBalanceEpoch ?? 0, detail.epoch ?? 0),
       }));
     };
@@ -2841,8 +2873,9 @@ export function useGameState() {
         if (telegramId) {
           const sentEpoch = _currentBalanceEpoch;
           const sentTon = Math.max(0, stateRef.current.tonBalance || 0);
-          void syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(stateRef.current.balance), tonBalance: sentTon, clientEpoch: sentEpoch })
-            .then((r) => reconcileFromSyncResponse(Math.floor(stateRef.current.balance), sentEpoch, r, sentTon));
+          const sentStardust = Math.floor(stateRef.current.stardustBalance || 0);
+          void syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(stateRef.current.balance), tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
+            .then((r) => reconcileFromSyncResponse(Math.floor(stateRef.current.balance), sentEpoch, r, sentTon, sentStardust));
         }
         return;
       }
@@ -3004,6 +3037,7 @@ export function useGameState() {
     window.addEventListener("zoom-credit-local", handleLocalCredit as EventListener);
     window.addEventListener("zoom-server-balance-snap", handleServerSnap as EventListener);
     window.addEventListener("zoom-server-ton-snap", handleServerTonSnap as EventListener);
+    window.addEventListener("zoom-server-stardust-snap", handleServerStardustSnap as EventListener);
 
     return () => {
       clearInterval(interval);
@@ -3014,6 +3048,7 @@ export function useGameState() {
       window.removeEventListener("zoom-credit-local", handleLocalCredit as EventListener);
       window.removeEventListener("zoom-server-balance-snap", handleServerSnap as EventListener);
       window.removeEventListener("zoom-server-ton-snap", handleServerTonSnap as EventListener);
+      window.removeEventListener("zoom-server-stardust-snap", handleServerStardustSnap as EventListener);
     };
   }, []);
 
@@ -3035,8 +3070,9 @@ export function useGameState() {
             {
               const sent = Math.floor(settled.balance);
               const sentTon = Math.max(0, settled.tonBalance || 0);
-              {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, tonBalance: sentTon, clientEpoch: sentEpoch })
-                .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon));}
+              const sentStardust = Math.floor(settled.stardustBalance || 0);
+              {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
+                .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon, sentStardust));}
             }
             return settled;
           });

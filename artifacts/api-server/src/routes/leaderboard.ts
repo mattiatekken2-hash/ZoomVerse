@@ -14,6 +14,7 @@ const SyncBody = z.object({
   username: z.string().optional(),
   zoomBalance: z.number().min(0),
   tonBalance: z.number().min(0).optional(),
+  stardustBalance: z.number().int().min(0).optional(),
   clientEpoch: z.number().int().nonnegative().optional(),
 });
 
@@ -24,7 +25,7 @@ router.post("/balance/sync", async (req, res) => {
     return;
   }
 
-  const { telegramId, firstName, username, zoomBalance, tonBalance, clientEpoch } = parsed.data;
+  const { telegramId, firstName, username, zoomBalance, tonBalance, stardustBalance, clientEpoch } = parsed.data;
   const normalizedUsername = username ? username.replace(/^@/, "").toLowerCase() : null;
 
   try {
@@ -81,6 +82,11 @@ router.post("/balance/sync", async (req, res) => {
                 tonBalance: sql`GREATEST(${usersTable.tonBalance}, ${tb})`,
               }
             : {}),
+          ...(typeof stardustBalance === "number"
+            ? {
+                stardustBalance: sql`GREATEST(${usersTable.stardustBalance}, ${stardustBalance})`,
+              }
+            : {}),
           ...(firstName ? { firstName } : {}),
           ...(normalizedUsername ? { username: normalizedUsername } : {}),
         },
@@ -88,6 +94,7 @@ router.post("/balance/sync", async (req, res) => {
       .returning({
         zoomBalance: usersTable.zoomBalance,
         tonBalance: usersTable.tonBalance,
+        stardustBalance: usersTable.stardustBalance,
         balanceEpoch: usersTable.balanceEpoch,
       });
 
@@ -95,6 +102,7 @@ router.post("/balance/sync", async (req, res) => {
       ok: true,
       zoomBalance: row?.zoomBalance ?? zoomBalance,
       tonBalance: row?.tonBalance ?? tb,
+      stardustBalance: row?.stardustBalance ?? 0,
       balanceEpoch: row?.balanceEpoch ?? 0,
     });
   } catch (err) {
