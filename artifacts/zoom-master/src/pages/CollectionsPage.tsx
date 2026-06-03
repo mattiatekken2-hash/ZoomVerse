@@ -36,7 +36,7 @@ const COLLECTIONS = [
     priceTon: 20,
     stockEndpoint: "api/white-collection/stock",
     purchaseType: "white_collection" as const,
-    tags: ["4 exclusive slots", "~120/hr each", "Requires SUN", "Limited edition"],
+    tags: ["4 exclusive slots", "~0.44 TON/mo", "~11,520 ZOOM/day", "Requires SUN", "Limited edition"],
   },
   {
     key: "earth" as const,
@@ -48,7 +48,7 @@ const COLLECTIONS = [
     priceTon: 5,
     stockEndpoint: "api/earth-collection/stock",
     purchaseType: "earth_collection" as const,
-    tags: ["4 earth slots", "Public TON payout", "~0.333 TON/day", "Requires SUN"],
+    tags: ["4 earth slots", "~0.017 TON/day", "~0.51 TON/mo", "Requires SUN", "Public TON payout"],
   },
   {
     key: "black" as const,

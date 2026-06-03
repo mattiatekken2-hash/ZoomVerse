@@ -164,12 +164,14 @@ createRoot(document.getElementById("root")!).render(<App />);
 // React mounts the first components immediately, but data is still fetching.
 // We wait 1.2s after mount so the user sees the splash screen briefly even
 // on fast connections, then fade it out.
-window.addEventListener("load", () => {
-  setTimeout(() => {
-    const splash = document.getElementById("splash-screen");
-    if (splash) {
-      splash.classList.add("hidden");
-      setTimeout(() => splash.remove(), 700);
-    }
-  }, 1200);
-});
+function hideSplash() {
+  const splash = document.getElementById("splash-screen");
+  if (!splash) return;
+  splash.classList.add("hidden");
+  setTimeout(() => splash.remove(), 700);
+}
+// Vite HMR or fast reload: window.load may already be done.
+// Always hide splash after 1.2s; if load hasn't fired yet, the listener
+// will fire the same function (idempotent thanks to the element check).
+setTimeout(hideSplash, 1200);
+window.addEventListener("load", () => setTimeout(hideSplash, 1200));
