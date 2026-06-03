@@ -96,10 +96,8 @@
           splash.classList.add('hidden');
           setTimeout(function() { splash && splash.remove(); }, 700);
         }
-        // In dev preview (iframe reloads, HMR) we still show the splash briefly,
-        // then hide it. In production (Telegram WebApp) we keep it for 1.2s.
-        var isDev = location.hostname === 'localhost' || location.hostname.includes('replit');
-        var delay = isDev ? 600 : 1200;
+        // Show splash for 1.2s in both dev and production.
+        var delay = 1200;
         setTimeout(hide, delay);
         window.addEventListener('load', function() { setTimeout(hide, delay); });
       })();
