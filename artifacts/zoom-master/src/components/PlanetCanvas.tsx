@@ -440,7 +440,7 @@ export function PlanetCanvas({
             }}
             data-testid="lab-planet-orb"
           >
-            <PlanetOrb planet={orbPlanet} size={planetSize} animate={true} />
+            <PlanetOrb planet={orbPlanet} size={planetSize} animate={true} displayFloat={pendingPlanet?.float ?? 0} />
           </div>
         )}
 
