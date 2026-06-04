@@ -432,21 +432,9 @@ function AppShellWithState() {
       } catch { return null; }
     };
 
+    // Spawn loop disabled per admin request — no random stardust stars.
     const performAttempt = () => {
       if (cancelled) return;
-      if (Math.random() < 0.5 && !stardustCapReachedRef.current) {
-        const id = ++stardustIdRef.current;
-        // Position in viewport %, kept inside safe margins so the star
-        // never lands under the header / nav bar.
-        const x = 12 + Math.random() * 76;
-        const y = 22 + Math.random() * 50;
-        setSpawnedStar({ id, x, y });
-        if (stardustDespawnTimerRef.current) clearTimeout(stardustDespawnTimerRef.current);
-        stardustDespawnTimerRef.current = setTimeout(() => {
-          setSpawnedStar((curr) => (curr && curr.id === id ? null : curr));
-          stardustDespawnTimerRef.current = null;
-        }, 7000);
-      }
       scheduleNext();
     };
 
@@ -897,41 +885,7 @@ function AppShellWithState() {
         })}
       </main>
 
-      {/* ─── Stardust floating star — visible across every screen.
-          Click only collects when on the LAB tab; elsewhere it shows
-          a hint pointing the user to the LAB. ─── */}
-      {spawnedStar && (
-        <button
-          type="button"
-          onClick={handleStardustStarClick}
-          data-testid="stardust-spawn"
-          aria-label={tab === "lab" ? "Collect stardust" : "Go to LAB to harvest stardust"}
-          title={tab === "lab" ? "Collect stardust" : "Go to LAB to harvest stardust"}
-          className="stardust-spawn-pop"
-          style={{
-            position: "fixed",
-            left: `${spawnedStar.x}vw`,
-            top: `${spawnedStar.y}vh`,
-            transform: "translate(-50%, -50%)",
-            zIndex: 200,
-            width: 56,
-            height: 56,
-            border: "none",
-            background: "transparent",
-            padding: 0,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 38,
-            lineHeight: 1,
-            color: "#ffd740",
-            textShadow: "0 0 18px rgba(255,215,64,0.9), 0 0 36px rgba(255,179,71,0.6)",
-          }}
-        >
-          ★
-        </button>
-      )}
+      {/* Stardust floating star removed per admin request. */}
 
       {/* Golden particle burst on successful collect (LAB-only). */}
       {stardustBurst && (
