@@ -78,6 +78,10 @@ export async function broadcastBotMessageToAllUsers(text: string): Promise<{ sen
   return { sent, skipped };
 }
 
+// Telegram channel/group for the Space Merchant (alien) radar + landed messages.
+const ALIEN_CHAT_ID = process.env["ALIEN_CHAT_ID"] || "@ZoomVerse_Chat";
+const ALIEN_THREAD_ID = Number(process.env["ALIEN_THREAD_ID"] || "") || undefined;
+
 // Telegram chat ID of the admin/owner. Hardcoded because it's the same
 // person who owns the bot — overridable via env if ever needed.
 const ADMIN_NOTIFY_CHAT_ID = process.env["ADMIN_NOTIFY_CHAT_ID"] || "8144744644";
@@ -173,6 +177,40 @@ export async function notifyAdminWithdrawalRequest(params: {
     return true;
   } catch (err) {
     logger.warn({ err }, "[notify] admin withdrawal notify failed");
+    return false;
+  }
+}
+
+/**
+ * Send a message to the Alien chat channel (community updates).
+ * Used for radar countdown and landing alerts for the Space Merchant.
+ */
+export async function sendAlienChannelMessage(text: string): Promise<boolean> {
+  if (!BOT_TOKEN) {
+    logger.warn("[notify] BOT_TOKEN not set — skipping alien channel send");
+    return false;
+  }
+  try {
+    const body: Record<string, unknown> = {
+      chat_id: ALIEN_CHAT_ID,
+      text,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+    };
+    if (ALIEN_THREAD_ID) body["message_thread_id"] = ALIEN_THREAD_ID;
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const responseBody = await res.text().catch(() => "");
+      logger.warn({ status: res.status, responseBody }, "[notify] alien channel sendMessage non-OK");
+      return false;
+    }
+    return true;
+  } catch (err) {
+    logger.warn({ err }, "[notify] alien channel sendMessage failed");
     return false;
   }
 }

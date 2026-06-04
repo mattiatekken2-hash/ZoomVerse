@@ -229,4 +229,30 @@ router.post("/merchant/scrap", async (req, res) => {
   }
 });
 
+const NOTIFIED_KEY = "merchant.notified";
+
+export async function readNotifiedExpiresAtMs(): Promise<number | null> {
+  const [row] = await db
+    .select()
+    .from(appSettingsTable)
+    .where(eq(appSettingsTable.key, NOTIFIED_KEY))
+    .limit(1);
+  if (!row?.valueText) return null;
+  try {
+    const parsed = JSON.parse(row.valueText) as { expiresAtMs?: number | null };
+    return typeof parsed.expiresAtMs === "number" ? parsed.expiresAtMs : null;
+  } catch { return null; }
+}
+
+export async function writeNotifiedExpiresAtMs(expiresAtMs: number): Promise<void> {
+  const valueText = JSON.stringify({ expiresAtMs });
+  await db
+    .insert(appSettingsTable)
+    .values({ key: NOTIFIED_KEY, valueText, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: appSettingsTable.key,
+      set: { valueText, updatedAt: new Date() },
+    });
+}
+
 export default router;

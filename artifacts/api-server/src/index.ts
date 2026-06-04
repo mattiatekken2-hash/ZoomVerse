@@ -1,13 +1,14 @@
 import http from "node:http";
 import app from "./app";
 import { logger } from "./lib/logger";
-import { sendBotMessage } from "./lib/notify";
+import { sendBotMessage, sendAlienChannelMessage } from "./lib/notify";
 import { fetchPendingFarmNotifications, markFarmNotified } from "./routes/farm";
 import { runScheduledLotteryDrawTick } from "./routes/lottery";
 import { runScheduledLabSettlementTick } from "./routes/labRanking";
 import { purgeExpiredHistory } from "./lib/history";
 import { db, usersTable } from "@workspace/db";
 import { desc, eq, sql } from "drizzle-orm";
+import { readGlobal, readNotifiedExpiresAtMs, writeNotifiedExpiresAtMs } from "./routes/merchant";
 
 const FARM_FULL_MESSAGE = "⚡ Your Farm is full! Collect your TON and restart the engines to keep earning.";
 
@@ -52,6 +53,7 @@ server.listen(port, () => {
   startLabSettlementCron();
   startStarsReconcileCron();
   startHistoryCleanupCron();
+  startAlienMerchantCron();
 });
 
 /**
@@ -541,6 +543,99 @@ function gracefulShutdown(signal: string) {
     process.exit(0);
   });
   setTimeout(() => process.exit(1), 10_000).unref();
+}
+
+/**
+ * Alien Merchant (Space Scrapper) channel cron.
+ *
+ * Runs every 30 minutes. Sends TWO types of messages to the ALIEN chat:
+ *
+ * 1. RADAR COUNTDOWN (while merchant is NOT active):
+ *    Reads the global spawn state, computes time until nextAtMs, and sends
+ *    a stylised "radar" message so the community knows when the ship is
+ *    due. If the spawn has already happened (nextAtMs <= now) but the
+ *    visit hasn't started yet, the countdown just says "ARRIVING NOW".
+ *
+ * 2. LANDING FLASH (when merchant first lands):
+ *    When the merchant spawns (expiresAtMs becomes active) we check a
+ *    per-visit DB flag `merchant.notified` — if the current expiresAtMs
+ *    hasn't been posted yet, we send an urgent "LANDED" message to the
+ *    ALIEN chat and stamp the flag. This is idempotent (flag cleared
+ *    automatically when the visit ends because the key is never reused).
+ *
+ * Single-flight, no-drift: the cron itself advances the global state so
+ * it sees the same values as the client endpoints.
+ */
+function startAlienMerchantCron() {
+  const intervalMs = 30 * 60 * 1000; // 30 minutes
+  const BOT_TOKEN = process.env["BOT_TOKEN"] || "";
+  if (!BOT_TOKEN) {
+    logger.warn("[alien-cron] BOT_TOKEN not set — skipping alien merchant cron");
+    return;
+  }
+  let inFlight = false;
+
+  const tick = async () => {
+    if (inFlight) return;
+    inFlight = true;
+    try {
+      const now = Date.now();
+      const g = await readGlobal();
+
+      // CASE 2: Merchant is active RIGHT NOW — landing flash
+      if (g.expiresAtMs != null && g.expiresAtMs > now) {
+        const lastNotified = await readNotifiedExpiresAtMs();
+        if (lastNotified !== g.expiresAtMs) {
+          const remainingMin = Math.ceil((g.expiresAtMs - now) / 60000);
+          const text =
+            `🚀 <b>STARDUST SCRAPPER LANDED</b> 🚀\n\n` +
+            `The alien ship is now active in the LAB!\n` +
+            `Scrap your idle planets for Stardust before it departs.`;
+          await sendAlienChannelMessage(text);
+          await writeNotifiedExpiresAtMs(g.expiresAtMs);
+          logger.info({ expiresAtMs: g.expiresAtMs, remainingMin }, "[alien-cron] sent landing flash");
+        }
+        return;
+      }
+
+      // CASE 1: Merchant is NOT active — radar countdown
+      const nextAtMs = g.nextAtMs;
+      if (nextAtMs == null || nextAtMs <= now) {
+        // Either no spawn scheduled or it's already past — the next visit
+        // is being handled by the idle->active transition above, so just
+        // send a generic "radar scanning" heartbeat.
+        await sendAlienChannelMessage(
+          `📡 <b>SPACE RADAR</b>\n\n` +
+          `Scanning sector...\n` +
+          `No alien signals detected. The Stardust Scrapper is currently on patrol.`
+        );
+        return;
+      }
+
+      const remainingMs = nextAtMs - now;
+      const h = Math.floor(remainingMs / 3600000);
+      const m = Math.ceil((remainingMs % 3600000) / 60000);
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const countdown = h > 0 ? `${pad(h)}h ${pad(m)}m` : `${pad(m)}m`;
+
+      const text =
+        `📡 <b>SPACE RADAR — Alien Signal Detected</b> 📡\n\n` +
+        `Estimated time to arrival:\n` +
+        `<b>${countdown}</b>\n\n` +
+        `Prepare your idle planets — the Stardust Scrapper will exchange them for Stardust.`;
+
+      await sendAlienChannelMessage(text);
+      logger.info({ h, m, nextAtMs }, "[alien-cron] sent radar countdown");
+    } catch (err) {
+      logger.warn({ err }, "[alien-cron] tick failed");
+    } finally {
+      inFlight = false;
+    }
+  };
+
+  // First tick ~60s after boot so it doesn't collide with startup logs.
+  setTimeout(tick, 60_000).unref();
+  setInterval(tick, intervalMs).unref();
 }
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
