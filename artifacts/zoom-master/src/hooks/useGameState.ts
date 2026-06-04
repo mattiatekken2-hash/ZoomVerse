@@ -3224,9 +3224,9 @@ export function useGameState() {
       const config = PLANET_CONFIG[rarity];
       const craftCost = config.craftCost;
 
-      // 4% chance the planet shatters during construction. The player loses
+      // 15% chance the planet shatters during construction. The player loses
       // the Stardust cost, but no planet is added to the inventory.
-      const BREAK_CHANCE = 0.04;
+      const BREAK_CHANCE = 0.15;
       const isBroken = Math.random() < BREAK_CHANCE;
 
       if (isBroken) {
