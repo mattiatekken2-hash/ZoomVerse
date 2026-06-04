@@ -77,6 +77,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   const floatTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const [brokenFlash, setBrokenFlash] = useState<{ id: number; rarity: PlanetType } | null>(null);
   const brokenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingFloatRef = useRef<{ planet: Planet; equipmentDrop?: EquipmentDropResult } | null>(null);
 
   // Forge phase state machine: drives the visual sequence after the user
   // hits 100% — flash → 2s dramatic wait → planet reveal → claim button.
@@ -111,11 +112,35 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       // User claimed (or pendingPlanet cleared otherwise) — reset.
       setForgePhase("idle");
       setShowClaim(false);
+      pendingFloatRef.current = null;
       if (flashTimerRef.current) { clearTimeout(flashTimerRef.current); flashTimerRef.current = null; }
       if (revealTimerRef.current) { clearTimeout(revealTimerRef.current); revealTimerRef.current = null; }
       if (claimTimerRef.current) { clearTimeout(claimTimerRef.current); claimTimerRef.current = null; }
     }
   }, [pendingPlanet, forgePhase]);
+
+  // Show the planet float when the reveal phase fires (end of cinematic).
+  useEffect(() => {
+    if (forgePhase === "revealed" && pendingFloatRef.current) {
+      const p = pendingFloatRef.current.planet;
+      addFloat(`✦ ${PLANET_CONFIG[p.name].label}!`, p.color);
+      // Equipment drop float, delayed slightly so it doesn't overlap.
+      const drop = pendingFloatRef.current.equipmentDrop;
+      if (drop) {
+        setTimeout(() => {
+          if (drop.item) {
+            const cat = EQUIPMENT_CATEGORIES[drop.item.category];
+            const rar = EQUIPMENT_RARITY_INFO[drop.item.rarity];
+            addFloat(`🛠 ${rar.label} ${cat.label.replace(/s$/, "")}!`, rar.color);
+          } else {
+            const rar = EQUIPMENT_RARITY_INFO[drop.rarity];
+            addFloat(`+${drop.convertedToZoom} $ZOOM (cap raggiunto)`, rar.color);
+          }
+        }, 220);
+      }
+      pendingFloatRef.current = null;
+    }
+  }, [forgePhase, addFloat]);
 
   useEffect(() => () => {
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
@@ -189,25 +214,12 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       return;
     }
     if (result.completed && result.planet) {
-      const p = result.planet;
-      addFloat(`✦ ${PLANET_CONFIG[p.name].label}!`, p.color);
-    }
-    // Equipment drop — surface it as a second float so the user sees the
-    // gear (or the consolation $ZOOM bonus when they already own the cap
-    // of 2 per model). Delay slightly so it doesn't overlap the planet
-    // float vertically.
-    if (result.completed && result.equipmentDrop) {
-      const drop = result.equipmentDrop;
-      setTimeout(() => {
-        if (drop.item) {
-          const cat = EQUIPMENT_CATEGORIES[drop.item.category];
-          const rar = EQUIPMENT_RARITY_INFO[drop.item.rarity];
-          addFloat(`🛠 ${rar.label} ${cat.label.replace(/s$/, "")}!`, rar.color);
-        } else {
-          const rar = EQUIPMENT_RARITY_INFO[drop.rarity];
-          addFloat(`+${drop.convertedToZoom} $ZOOM (cap raggiunto)`, rar.color);
-        }
-      }, 220);
+      // Store the float so it appears only when the planet is revealed
+      // at the end of the cinematic (not immediately at tap time).
+      pendingFloatRef.current = {
+        planet: result.planet,
+        equipmentDrop: result.equipmentDrop || undefined,
+      };
     }
   }, [canCraft, onCraft, addFloat]);
 
