@@ -6,7 +6,7 @@
 import { memo, useEffect, useState, useRef, useCallback } from "react";
 import { fetchStakingStatus } from "../utils/api";
 import type { StakingStatusResponse } from "../utils/api";
-const TON_LOGO_URL = "/ton-logo.png?v=2";
+const TON_LOGO_URL = "/ton-logo.svg";
 
 const POLL_MS = 60_000;
 

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="tonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00C0FF"/>
+      <stop offset="100%" stop-color="#0088CC"/>
+    </linearGradient>
+  </defs>
+  <path d="M32 4 L60 56 Q60 60 54 60 L10 60 Q4 60 4 56 Z" fill="url(#tonGrad)" stroke="none"/>
+</svg>
