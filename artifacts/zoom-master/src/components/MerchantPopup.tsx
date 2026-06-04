@@ -101,8 +101,10 @@ export function MerchantPopup({
       return;
     }
 
-    // Burn locally so inventory updates immediately (credit stardust reward)
-    onBurnPlanet(selected.id, res.reward ?? 0);
+    // Burn locally so inventory updates immediately.
+    // NOTE: stardust is NOT credited here — the server already added it
+    // in the /merchant/scrap transaction, and we don't want double credit.
+    onBurnPlanet(selected.id);
 
     setResultReward(res.reward ?? null);
     setResultType(selected.name);
