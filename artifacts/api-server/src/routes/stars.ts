@@ -1521,9 +1521,9 @@ router.post("/stars/webhook", async (req, res) => {
             .set({ status: "paid", txHash: "pending", processedAt: new Date(), processedBy: String(chatId) })
             .where(and(eq(tonWithdrawalsTable.id, withdrawalId), eq(tonWithdrawalsTable.status, "pending")));
           void sendBotMessage(w.telegramId,
-            `✅ <b>Prelievo approvato!</b>\n` +
-            `Importo: ${Number(w.amountTon).toFixed(4)} TON\n` +
-            `Verrà inviato a breve al tuo wallet.`);
+            `✅ Withdrawal approved!\n` +
+            `Amount: ${Number(w.amountTon).toFixed(4)} TON\n` +
+            `Will be sent to your wallet shortly.`);
           await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1562,9 +1562,9 @@ router.post("/stars/webhook", async (req, res) => {
               .where(eq(usersTable.telegramId, w.telegramId));
           });
           void sendBotMessage(w.telegramId,
-            `❌ <b>Prelievo rifiutato</b>\n` +
-            `Importo: ${Number(w.amountTon).toFixed(4)} TON\n` +
-            `I fondi sono stati riaccreditati sul tuo saldo.`);
+            `❌ Withdrawal rejected\n` +
+            `Amount: ${Number(w.amountTon).toFixed(4)} TON\n` +
+            `Funds have been refunded to your balance.`);
           await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
