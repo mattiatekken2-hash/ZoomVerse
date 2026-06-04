@@ -103,10 +103,10 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       revealTimerRef.current = setTimeout(() => {
         setForgePhase("revealed");
       }, 220 + 2000);
-      // Claim button fades in shortly after the planet appears.
+      // Claim button appears after the planet has rotated on screen for ~3.5s.
       claimTimerRef.current = setTimeout(() => {
         setShowClaim(true);
-      }, 220 + 2000 + 400);
+      }, 220 + 2000 + 3500);
     } else if (!pendingPlanet && forgePhase !== "idle") {
       // User claimed (or pendingPlanet cleared otherwise) — reset.
       setForgePhase("idle");
