@@ -23,6 +23,7 @@ import { getWhitePlanetPendingTon, type Planet } from "../hooks/useGameState";
 
 const TON_RECEIVER_WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
 const POLL_MS = 60_000;
+const TON_LOGO_URL = "/ton-logo.jpeg";
 
 interface Props {
   // Earned TON balance (withdrawable). From staking, collection collects,
@@ -484,7 +485,18 @@ function TonWalletWidgetBase(props: Props) {
           whiteSpace: "nowrap",
         }}
       >
-        <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(0,242,180,0.7)", letterSpacing: 0.4 }}>TON</span>
+        <img
+          src={TON_LOGO_URL}
+          alt="TON"
+          draggable={false}
+          style={{
+            width: 16,
+            height: 16,
+            objectFit: "contain",
+            borderRadius: "50%",
+            filter: "drop-shadow(0 0 3px rgba(0,242,180,0.4))",
+          }}
+        />
         <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatTon(total, 2)}</span>
       </button>
 

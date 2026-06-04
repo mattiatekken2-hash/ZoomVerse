@@ -6,7 +6,7 @@
 import { memo, useEffect, useState, useRef, useCallback } from "react";
 import { fetchStakingStatus } from "../utils/api";
 import type { StakingStatusResponse } from "../utils/api";
-import tonLogo from "@assets/IMG_1128_1780611987059.jpeg";
+const TON_LOGO_URL = "/ton-logo.jpeg";
 
 const POLL_MS = 60_000;
 
@@ -274,7 +274,7 @@ function TonBalanceWidgetBase({ tonBalance, telegramId }: Props) {
           {formatTon(total)}
         </span>
         <img
-          src={tonLogo}
+          src={TON_LOGO_URL}
           alt="TON"
           draggable={false}
           style={{
