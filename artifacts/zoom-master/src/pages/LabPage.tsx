@@ -119,28 +119,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     }
   }, [pendingPlanet, forgePhase]);
 
-  // Show the planet float when the reveal phase fires (end of cinematic).
-  useEffect(() => {
-    if (forgePhase === "revealed" && pendingFloatRef.current) {
-      const p = pendingFloatRef.current.planet;
-      addFloat(`✦ ${PLANET_CONFIG[p.name].label}!`, p.color);
-      // Equipment drop float, delayed slightly so it doesn't overlap.
-      const drop = pendingFloatRef.current.equipmentDrop;
-      if (drop) {
-        setTimeout(() => {
-          if (drop.item) {
-            const cat = EQUIPMENT_CATEGORIES[drop.item.category];
-            const rar = EQUIPMENT_RARITY_INFO[drop.item.rarity];
-            addFloat(`🛠 ${rar.label} ${cat.label.replace(/s$/, "")}!`, rar.color);
-          } else {
-            const rar = EQUIPMENT_RARITY_INFO[drop.rarity];
-            addFloat(`+${drop.convertedToZoom} $ZOOM (cap raggiunto)`, rar.color);
-          }
-        }, 220);
-      }
-      pendingFloatRef.current = null;
-    }
-  }, [forgePhase, addFloat]);
+  // (moved below addFloat — see the effect at ~line 185)
 
   useEffect(() => () => {
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
@@ -194,6 +173,29 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     }, 1400);
     floatTimersRef.current.set(id, timer);
   }, [visible]);
+
+  // Show the planet float when the reveal phase fires (end of cinematic).
+  useEffect(() => {
+    if (forgePhase === "revealed" && pendingFloatRef.current) {
+      const p = pendingFloatRef.current.planet;
+      addFloat(`✦ ${PLANET_CONFIG[p.name].label}!`, p.color);
+      // Equipment drop float, delayed slightly so it doesn't overlap.
+      const drop = pendingFloatRef.current.equipmentDrop;
+      if (drop) {
+        setTimeout(() => {
+          if (drop.item) {
+            const cat = EQUIPMENT_CATEGORIES[drop.item.category];
+            const rar = EQUIPMENT_RARITY_INFO[drop.item.rarity];
+            addFloat(`🛠 ${rar.label} ${cat.label.replace(/s$/, "")}!`, rar.color);
+          } else {
+            const rar = EQUIPMENT_RARITY_INFO[drop.rarity];
+            addFloat(`+${drop.convertedToZoom} $ZOOM (cap raggiunto)`, rar.color);
+          }
+        }, 220);
+      }
+      pendingFloatRef.current = null;
+    }
+  }, [forgePhase, addFloat]);
 
   const handleCraft = useCallback(() => {
     if (!canCraft) return;
