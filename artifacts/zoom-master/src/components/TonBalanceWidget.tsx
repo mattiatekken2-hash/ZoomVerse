@@ -6,6 +6,7 @@
 import { memo, useEffect, useState, useRef, useCallback } from "react";
 import { fetchStakingStatus } from "../utils/api";
 import type { StakingStatusResponse } from "../utils/api";
+import tonLogo from "@assets/IMG_1128_1780611987059.jpeg";
 
 const POLL_MS = 60_000;
 
@@ -272,9 +273,18 @@ function TonBalanceWidgetBase({ tonBalance, telegramId }: Props) {
         >
           {formatTon(total)}
         </span>
-        <span style={{ fontSize: 7, fontWeight: 700, color: "rgba(0,255,140,0.55)", letterSpacing: 0.3 }}>
-          TON
-        </span>
+        <img
+          src={tonLogo}
+          alt="TON"
+          draggable={false}
+          style={{
+            width: 14,
+            height: 14,
+            objectFit: "contain",
+            borderRadius: "50%",
+            filter: "drop-shadow(0 0 3px rgba(0,255,140,0.4))",
+          }}
+        />
       </button>
 
       {open && (
