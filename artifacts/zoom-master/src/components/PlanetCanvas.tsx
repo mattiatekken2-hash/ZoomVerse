@@ -333,10 +333,9 @@ export function PlanetCanvas({
         }}
         data-testid="planet-wrap"
       >
-        {/* ─── FIXED LIGHT CORE ──────────────────────────────────────────
-            Stays a small intense pinpoint of light through the entire
-            tap-build phase. Brightness pulses subtly and grows MORE intense
-            (not bigger) as charge approaches 100%. */}
+        {/* ─── BLACK HOLE CORE ───────────────────────────────────────────
+            Dense black sphere at the center of the Lab. A dark anchor
+            that pulls energy in during the tap-build phase. */}
         {showCoreAndOrbits && (
           <div
             ref={coreRef}
@@ -350,16 +349,13 @@ export function PlanetCanvas({
               marginLeft: -coreSize / 2,
               marginTop: -coreSize / 2,
               borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(240,245,255,0.95) 35%, rgba(180,200,255,0.6) 70%, transparent 100%)",
+              background: "radial-gradient(circle, #000000 0%, #0a0a0a 45%, #1a1a1a 70%, transparent 100%)",
               transform: "translate(-50%, -50%) scale(1)",
-              // Inline baseline glow so the very first paint (before the rAF
-              // loop's first tick) already shows the bright halo.
               boxShadow:
-                `0 0 50px 22px ${displayColor}96, ` +
-                `0 0 100px rgba(255,255,255,0.55)`,
+                `inset 0 0 14px 4px rgba(0,0,0,0.9), ` +
+                `0 0 40px 10px rgba(20,20,30,0.6), ` +
+                `0 0 80px 24px rgba(10,10,15,0.3)`,
               willChange: "transform, box-shadow",
-              // Glow + scale are then mutated imperatively by the rAF loop
-              // so taps never trigger React re-renders or paint thrash.
             }}
             data-testid="forge-core"
           />
