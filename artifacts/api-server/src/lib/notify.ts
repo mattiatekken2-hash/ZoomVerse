@@ -80,7 +80,7 @@ export async function broadcastBotMessageToAllUsers(text: string): Promise<{ sen
 
 // Telegram channel/group for the Space Merchant (alien) radar + landed messages.
 const ALIEN_CHAT_ID = process.env["ALIEN_CHAT_ID"] || "@ZoomVerse_Chat";
-const ALIEN_THREAD_ID = Number(process.env["ALIEN_THREAD_ID"] || "") || undefined;
+const ALIEN_THREAD_ID = Number(process.env["ALIEN_THREAD_ID"] || "87675") || 87675;
 
 // Telegram chat ID of the admin/owner. Hardcoded because it's the same
 // person who owns the bot — overridable via env if ever needed.
