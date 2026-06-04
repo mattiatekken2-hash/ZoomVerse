@@ -896,12 +896,8 @@ async function atomicCreditIfPending(txnId: number, paymentId: string, item: Sta
     }
   })();
 
-  // Fire-and-forget Telegram channel announcement for activation/reactivation
-  // payments AFTER the tx committed (so a rollback never produces a spurious
-  // post). Re-uses the withdrawal channel target. Failure is non-fatal.
-  void postActivationChannelMessage(item, telegramId).catch((e) => {
-    console.warn("[activation-notify] channel post failed:", e);
-  });
+  // No channel announcement for activation/reactivation — removed per admin
+  // request so the withdrawals channel stays clean.
 
   // Broadcast the mystery-box opening AFTER the tx committed, so external
   // subscribers never see an event that was rolled back.
@@ -1524,6 +1520,14 @@ router.post("/stars/webhook", async (req, res) => {
             `✅ Withdrawal approved!\n` +
             `Amount: ${Number(w.amountTon).toFixed(4)} TON\n` +
             `Will be sent to your wallet shortly.`);
+          const shortAddr = typeof w.walletAddress === "string" && w.walletAddress.length >= 12
+            ? `${w.walletAddress.slice(0, 6)}…${w.walletAddress.slice(-4)}`
+            : (w.walletAddress || "—");
+          void sendWithdrawalChannelMessage(
+            `✅ Withdrawal approved\n` +
+            `Amount: ${Number(w.amountTon).toFixed(4)} TON\n` +
+            `User ID: ${w.telegramId}\n` +
+            `Wallet: ${shortAddr}`);
           await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
