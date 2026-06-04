@@ -1,9 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <defs>
-    <linearGradient id="tonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="tonCircleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00D0FF"/>
+      <stop offset="100%" stop-color="#007ACC"/>
+    </linearGradient>
+    <linearGradient id="tonCircleGradInner" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#00C0FF"/>
       <stop offset="100%" stop-color="#0088CC"/>
     </linearGradient>
   </defs>
-  <path d="M32 4 L60 56 Q60 60 54 60 L10 60 Q4 60 4 56 Z" fill="url(#tonGrad)" stroke="none"/>
+  <!-- outer circle -->
+  <circle cx="32" cy="32" r="30" fill="url(#tonCircleGrad)" stroke="none"/>
+  <!-- inner circle -->
+  <circle cx="32" cy="32" r="26" fill="url(#tonCircleGradInner)" stroke="none"/>
+  <!-- TON symbol (white triangle/V) -->
+  <path d="M20 22 L32 44 L44 22 L32 22 Z" fill="white" stroke="none" stroke-linejoin="round"/>
+  <path d="M32 44 L32 28" stroke="white" stroke-width="4" stroke-linecap="round"/>
 </svg>
