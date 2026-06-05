@@ -129,7 +129,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
   const isFull = planets.length >= maxSlots && !pendingPlanet;
   const effectiveStardust = stardustBalance;
-  const canCraft = !pendingPlanet && planets.length < maxSlots && (currentCraftRarity
+  const canCraft = !brokenFlash && !pendingPlanet && planets.length < maxSlots && (currentCraftRarity
     ? true
     : (effectiveStardust >= (PLANET_CONFIG["BASIC"].craftCost ?? 2)));
 
