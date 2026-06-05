@@ -197,7 +197,8 @@ router.get("/tasks/state/:telegramId", requireTelegramAuth({ bindField: "" }), a
         builtSum: sql<number>`(
           ${usersTable.totalCraftedBasic} + ${usersTable.totalCraftedRare} +
           ${usersTable.totalCraftedEpic}  + ${usersTable.totalCraftedMythic} +
-          ${usersTable.totalCraftedGold}  + ${usersTable.totalCraftedV1}
+          ${usersTable.totalCraftedPlasma} + ${usersTable.totalCraftedGold} +
+          ${usersTable.totalCraftedV1}
         )`,
         claimedTasks: usersTable.claimedTasks,
         firstName: usersTable.firstName,
@@ -301,7 +302,8 @@ router.post("/tasks/claim", async (req, res) => {
     const builtSumSql = sql<number>`(
       ${usersTable.totalCraftedBasic} + ${usersTable.totalCraftedRare} +
       ${usersTable.totalCraftedEpic}  + ${usersTable.totalCraftedMythic} +
-      ${usersTable.totalCraftedGold}  + ${usersTable.totalCraftedV1}
+      ${usersTable.totalCraftedPlasma} + ${usersTable.totalCraftedGold} +
+      ${usersTable.totalCraftedV1}
     )`;
 
     // Build the new claimed_tasks CSV in SQL: append `taskId` to the
