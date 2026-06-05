@@ -784,7 +784,7 @@
   0%, 100% { opacity: 0.7; }
   50% { opacity: 1; }
 }
-.broken-pop { animation: broken-pop 2.6s cubic-bezier(0.34,1.56,0.64,1) forwards; transform-origin: center; }
+.broken-pop { animation: broken-pop 4s cubic-bezier(0.34,1.56,0.64,1) forwards; transform-origin: center; }
 @keyframes broken-pop {
   0%   { transform: scale(0.4) rotate(-6deg); opacity: 0; }
   12%  { transform: scale(1.12) rotate(3deg); opacity: 1; }

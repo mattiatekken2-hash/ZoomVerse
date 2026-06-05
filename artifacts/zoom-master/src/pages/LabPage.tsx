@@ -212,7 +212,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       brokenTimerRef.current = setTimeout(() => {
         setBrokenFlash((curr) => (curr && curr.id === id ? null : curr));
         brokenTimerRef.current = null;
-      }, 3500);
+      }, 4000);
       return;
     }
     if (result.completed && result.planet) {
