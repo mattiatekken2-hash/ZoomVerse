@@ -9,7 +9,7 @@ import path from "node:path";
 import { logger } from "../lib/logger";
 import { recordHistoryAsync } from "../lib/history";
 import { EQUIPMENT_RATE_SERVER } from "./equipment";
-import { readGlobal as readMerchantGlobal, GLOBAL_KEY as MERCHANT_GLOBAL_KEY } from "./merchant";
+import { readGlobal as readMerchantGlobal, advanceGlobal as advanceMerchantGlobal, GLOBAL_KEY as MERCHANT_GLOBAL_KEY } from "./merchant";
 import { PLANET_TASKS } from "./tasks";
 
 const router = Router();
@@ -1866,8 +1866,8 @@ router.get("/admin/merchant-status", async (req, res) => {
   // is populated (or the request was already rejected 401).
   if (!req.tgUser || !isAdmin(req.tgUser.id)) return res.status(403).json({ error: "Forbidden" });
   try {
-    const g = await readMerchantGlobal();
     const now = Date.now();
+    const g = await advanceMerchantGlobal(now);
     if (g.expiresAtMs != null && g.expiresAtMs > now) {
       const remainingSec = Math.max(0, Math.ceil((g.expiresAtMs - now) / 1000));
       return res.json({ active: true, expiresAt: new Date(g.expiresAtMs).toISOString(), remainingSec });

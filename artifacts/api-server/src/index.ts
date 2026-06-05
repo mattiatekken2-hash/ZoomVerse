@@ -8,7 +8,7 @@ import { runScheduledLabSettlementTick } from "./routes/labRanking";
 import { purgeExpiredHistory } from "./lib/history";
 import { db, usersTable } from "@workspace/db";
 import { desc, eq, sql } from "drizzle-orm";
-import { readGlobal, readNotifiedExpiresAtMs, writeNotifiedExpiresAtMs } from "./routes/merchant";
+import { readGlobal, readNotifiedExpiresAtMs, writeNotifiedExpiresAtMs, advanceGlobal } from "./routes/merchant";
 
 const FARM_FULL_MESSAGE = "⚡ Your Farm is full! Collect your TON and restart the engines to keep earning.";
 
@@ -580,7 +580,7 @@ function startAlienMerchantCron() {
     inFlight = true;
     try {
       const now = Date.now();
-      const g = await readGlobal();
+      const g = await advanceGlobal(now);
 
       // CASE 2: Merchant is active RIGHT NOW — landing flash
       if (g.expiresAtMs != null && g.expiresAtMs > now) {

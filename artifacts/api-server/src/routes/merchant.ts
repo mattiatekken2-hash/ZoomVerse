@@ -80,7 +80,7 @@ async function writeGlobalIf(
   return updated.length > 0;
 }
 
-async function advanceGlobal(now: number): Promise<GlobalState> {
+export async function advanceGlobal(now: number): Promise<GlobalState> {
   let g = await readGlobal();
 
   if (g.expiresAtMs != null && g.expiresAtMs <= now) {
