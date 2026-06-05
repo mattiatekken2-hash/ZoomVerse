@@ -163,8 +163,9 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         }
         setRedeemStatus({ type: "success", message: msg });
         setRedeemInput("");
-        // Force the global store to re-pull balances (zoom / stardust / spins).
-        window.dispatchEvent(new Event("zoom-admin-refresh"));
+        // Trigger a full sync so stardust / spins / zoom balances refresh
+        // immediately from the server (not just zoom via zoom-admin-refresh).
+        window.dispatchEvent(new Event("zoom-data-refresh"));
         setTimeout(() => setRedeemStatus(null), 4000);
         return;
       }
