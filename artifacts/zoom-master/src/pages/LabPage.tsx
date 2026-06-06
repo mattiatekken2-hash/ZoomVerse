@@ -453,7 +453,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           <div className="flex justify-between text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
             <span>
               {currentCraftRarity
-                ? t("lab.tapsNeeded", { n: PLANET_CONFIG[currentCraftRarity].tapsNeeded })
+                ? t("lab.tapsNeeded", { n: goal })
                 : t("lab.perTap")}
             </span>
             <span>{t("lab.slotsFree", { n: Math.max(0, maxSlots - planets.length) })}</span>

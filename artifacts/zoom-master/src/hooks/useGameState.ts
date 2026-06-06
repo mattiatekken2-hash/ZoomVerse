@@ -327,7 +327,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     label: "Basic",
     craftCost: 2,
     activationTon: 0.05,
-    tapsNeeded: 2,
+    tapsNeeded: 100,
     reactivationFee: 25,
   },
   RARE: {
@@ -338,7 +338,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     label: "Rare",
     craftCost: 5,
     activationTon: 0.15,
-    tapsNeeded: 5,
+    tapsNeeded: 100,
     reactivationFee: 200,
   },
   EPIC: {
@@ -349,7 +349,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     label: "Epic",
     craftCost: 12,
     activationTon: 0.5,
-    tapsNeeded: 12,
+    tapsNeeded: 100,
     reactivationFee: 1000,
   },
   // MYTHIC — new tier between EPIC and GOLD. Drop rate is the midpoint
@@ -367,7 +367,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     // same 24h cycle as all other planets, after which it must be
     // reactivated with ZOOM (reactivationFee).
     activationTon: 0,
-    tapsNeeded: 50,
+    tapsNeeded: 100,
     reactivationFee: 1500,
   },
   // PLASMA — rarity between MYTHIC and GOLD. Neon-green styling.
@@ -382,7 +382,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     label: "Plasma",
     craftCost: 75,
     activationTon: 0,
-    tapsNeeded: 75,
+    tapsNeeded: 100,
     reactivationFee: 1750,
   },
   GOLD: {
@@ -393,7 +393,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     label: "Gold",
     craftCost: 25,
     activationTon: 1.0,
-    tapsNeeded: 25,
+    tapsNeeded: 100,
     reactivationFee: 2000,
   },
   // V1 — ultra-rare apex planet. ~10× rarer than Gold (1 in 20,000 forge).
@@ -702,7 +702,7 @@ const INITIAL_STATE: GameState = {
   version: STATE_VERSION,
   balance: 300,
   taps: 0,
-  goal: 50,
+  goal: 100,
   planets: [],
   maxSlots: 2,
   totalEarned: 0,
@@ -3216,8 +3216,8 @@ export function useGameState() {
       if (current.telegramId) {
         void deductCraftStardust(current.telegramId, config.craftCost);
       }
-      const baseTaps = config.tapsNeeded;
-      goal = baseTaps + Math.floor(Math.random() * 11);
+      // Random goal between 100 and 200 taps for all rarities
+      goal = 100 + Math.floor(Math.random() * 101);
     }
 
     const newTaps = current.taps + 1;
@@ -3237,7 +3237,7 @@ export function useGameState() {
           const next: GameState = {
             ...prev,
             taps: 0,
-            goal: 50,
+            goal: 100,
             currentCraftRarity: null,
             pendingPlanet: null,
             pendingPlanetCost: 0,
@@ -3284,7 +3284,7 @@ export function useGameState() {
             : prev),
           balance: prev.balance + zoomBonus,
           taps: 0,
-          goal: 50,
+          goal: 100,
           currentCraftRarity: null,
           pendingPlanet: planet,
           pendingPlanetCost: craftCost,
