@@ -125,6 +125,16 @@ function AppShellWithState() {
     return () => clearInterval(id);
   }, []);
 
+  // DEV FALLBACK: in browser dev (not inside Telegram), show a demo avatar
+  // so the AvatarXP widget is visible during development.
+  const isInTelegram = typeof (window as unknown as { Telegram?: { WebApp?: unknown } }).Telegram?.WebApp !== "undefined";
+  const devPhotoUrl = !isInTelegram ? "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Circle-icons-profile.svg/1024px-Circle-icons-profile.svg.png" : null;
+  const devName = !isInTelegram ? "Dev" : null;
+  const displayProfile = {
+    photoUrl: tgProfile.photoUrl ?? devPhotoUrl,
+    name: tgProfile.name ?? devName,
+  };
+
   // Centralized global data fetch — Season epoch, leaderboard, profile, daily, market.
   // Pages read from the global store so tab switches show pre-loaded data with no pop-in.
   useGlobalInit(state.telegramId);
@@ -630,8 +640,8 @@ function AppShellWithState() {
         <div className="flex items-center gap-2 min-w-0">
           <AvatarXP
             totalTaps={state.totalTaps || 0}
-            photoUrl={tgProfile.photoUrl}
-            name={tgProfile.name}
+            photoUrl={displayProfile.photoUrl}
+            name={displayProfile.name}
           />
           <BalanceCounter
             balance={state.balance}
