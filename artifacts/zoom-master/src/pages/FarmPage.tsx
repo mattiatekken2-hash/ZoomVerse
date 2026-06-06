@@ -1038,7 +1038,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                         : expired
                         ? `Cycle ended · Reactivate for ${reactivationFee.toLocaleString()} $ZOOM`
                         : isListed
-                        ? `Listed for ${planet.marketPrice?.toLocaleString()} $ZOOM`
+                        ? `Listed for ${planet.marketPrice?.toLocaleString()} TON`
                         : "Farming stopped"}
                     </div>
                     {isFloatablePlanet(planet) && (
