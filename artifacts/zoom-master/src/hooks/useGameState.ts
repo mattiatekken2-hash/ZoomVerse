@@ -670,13 +670,14 @@ function getStorageKey(telegramId: string | null): string {
   return telegramId ? `${STORAGE_KEY}:${telegramId}` : STORAGE_KEY;
 }
 
-function getTelegramContext(): { telegramId: string | null; startParam: string | null; firstName: string | null; username: string | null } {
+function getTelegramContext(): { telegramId: string | null; startParam: string | null; firstName: string | null; username: string | null; photoUrl: string | null } {
   try {
-    const webApp = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number; first_name?: string; username?: string }; start_param?: string }; initData?: string } } }).Telegram?.WebApp;
+    const webApp = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number; first_name?: string; username?: string; photo_url?: string }; start_param?: string }; initData?: string } } }).Telegram?.WebApp;
     const unsafe = webApp?.initDataUnsafe;
     const telegramId = unsafe?.user?.id ? String(unsafe.user.id) : null;
     const firstName = unsafe?.user?.first_name ?? null;
     const username = unsafe?.user?.username ?? null;
+    const photoUrl = unsafe?.user?.photo_url ?? null;
 
     let startParam: string | null = unsafe?.start_param || null;
 
@@ -691,9 +692,9 @@ function getTelegramContext(): { telegramId: string | null; startParam: string |
       startParam = localStorage.getItem("zoom-start-param");
     }
 
-    return { telegramId, startParam, firstName, username };
+    return { telegramId, startParam, firstName, username, photoUrl };
   } catch {
-    return { telegramId: null, startParam: null, firstName: null, username: null };
+    return { telegramId: null, startParam: null, firstName: null, username: null, photoUrl: null };
   }
 }
 
@@ -1116,17 +1117,18 @@ function immediateSyncToServer(state: GameState) {
   const ctx_ = getTelegramContext();
   const firstName = ctx_.firstName;
   const username = ctx_.username;
+  const photoUrl = ctx_.photoUrl;
   const sentEpoch = _currentBalanceEpoch;
   const sentTon = Math.max(0, state.tonBalance || 0);
   const sentStardust = Math.floor(state.stardustBalance || 0);
-  syncBalance({ telegramId, firstName, username, zoomBalance: balance, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
+  syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: balance, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
     .then((res) => {
       reconcileFromSyncResponse(balance, sentEpoch, res, sentTon, sentStardust);
       _syncInFlight = false;
       if (_pendingSyncBalance >= 0 && _pendingSyncBalance !== _lastSyncedBalance) {
         const nextBalance = _pendingSyncBalance;
         _pendingSyncBalance = -1;
-        const { telegramId: tid, firstName: fn, username: un } = getTelegramContext();
+        const { telegramId: tid, firstName: fn, username: un, photoUrl: pu } = getTelegramContext();
         if (tid) {
           _lastSyncedBalance = nextBalance;
           _syncInFlight = true;
@@ -1136,7 +1138,7 @@ function immediateSyncToServer(state: GameState) {
           // by setState callbacks and we don't have access to it here.
           const sentTon2 = sentTon;
           const sentStardust2 = sentStardust;
-          syncBalance({ telegramId: tid, firstName: fn, username: un, zoomBalance: nextBalance, tonBalance: sentTon2, stardustBalance: sentStardust2, clientEpoch: sentEpoch2 })
+          syncBalance({ telegramId: tid, firstName: fn, username: un, photoUrl: pu, zoomBalance: nextBalance, tonBalance: sentTon2, stardustBalance: sentStardust2, clientEpoch: sentEpoch2 })
             .then((r2) => { reconcileFromSyncResponse(nextBalance, sentEpoch2, r2, sentTon2, sentStardust2); _syncInFlight = false; })
             .catch(() => { _syncInFlight = false; });
         }
@@ -1764,7 +1766,7 @@ export function useGameState() {
   }, []);
 
   useEffect(() => {
-    const { telegramId, startParam, firstName, username } = getTelegramContext();
+    const { telegramId, startParam, firstName, username, photoUrl } = getTelegramContext();
 
     const webApp = (window as unknown as { Telegram?: { WebApp?: { initData?: string; initDataUnsafe?: unknown } } }).Telegram?.WebApp;
     const rawInitData = webApp?.initData ?? "";
@@ -1801,7 +1803,7 @@ export function useGameState() {
         }
       }
 
-      const result = await registerUser(telegramId, referrer ?? undefined, firstName, username);
+      const result = await registerUser(telegramId, referrer ?? undefined, firstName, username, photoUrl);
 
       if (result.isNew && referrer) {
         try { localStorage.removeItem("zoom-start-param"); } catch { /**/ }
@@ -1875,7 +1877,7 @@ export function useGameState() {
       const serverTonBalance = Math.max(0, grants.tonBalance ?? 0);
       const serverDepositBalance = Math.max(0, grants.depositBalance ?? 0);
       const sentTon = serverTonBalance;
-      const syncRes = await syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(finalBalance), tonBalance: sentTon, clientEpoch: serverEpoch });
+      const syncRes = await syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: Math.floor(finalBalance), tonBalance: sentTon, clientEpoch: serverEpoch });
       setCurrentBalanceEpoch(syncRes.balanceEpoch);
 
       setState((prev) => {
@@ -2335,7 +2337,7 @@ export function useGameState() {
           const sent = Math.floor(updated.balance);
           const sentTon = Math.max(0, updated.tonBalance || 0);
           const sentStardust = Math.floor(updated.stardustBalance || 0);
-          {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
+          {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: sent, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
             .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon, sentStardust));}
         }
         return updated;
@@ -2692,7 +2694,7 @@ export function useGameState() {
     };
 
     const doSync = async () => {
-      const { telegramId, firstName, username } = getTelegramContext();
+      const { telegramId, firstName, username, photoUrl } = getTelegramContext();
       if (!telegramId) return;
 
       // SEQUENTIAL ORDERING (race fix, May 2026): /farm/settle runs FIRST,
@@ -2748,7 +2750,7 @@ export function useGameState() {
       const sentTon = Math.max(0, stateRef.current.tonBalance || 0);
       const sentStardust = Math.floor(stateRef.current.stardustBalance || 0);
       const [syncRes, grants] = await Promise.all([
-        syncBalance({ telegramId, firstName, username, zoomBalance: localBalance, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch }),
+        syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: localBalance, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch }),
         fetchGrants(telegramId),
       ]);
       reconcileFromSyncResponse(localBalance, sentEpoch, syncRes, sentTon, sentStardust);
@@ -2801,14 +2803,14 @@ export function useGameState() {
       const detail = (e as CustomEvent<{ amount: number }>).detail;
       const amount = detail?.amount;
       if (!amount || amount <= 0) return;
-      const { telegramId, firstName, username } = getTelegramContext();
+      const { telegramId, firstName, username, photoUrl } = getTelegramContext();
       setState((prev) => {
         const newBal = prev.balance + amount;
         if (telegramId) {
           const sent = Math.floor(newBal);
           const sentTon = Math.max(0, prev.tonBalance || 0);
           const sentStardust = Math.floor(prev.stardustBalance || 0);
-          {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
+          {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: sent, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
             .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon, sentStardust));}
         }
         return { ...prev, balance: newBal, totalEarned: prev.totalEarned + amount };
@@ -2869,12 +2871,12 @@ export function useGameState() {
         // server's epoch was already bumped by /admin/remove-zoom, so
         // our send (clientEpoch < server) takes the server's authoritative
         // value via the CASE branch — and our local is already in sync.
-        const { telegramId, firstName, username } = getTelegramContext();
+        const { telegramId, firstName, username, photoUrl } = getTelegramContext();
         if (telegramId) {
           const sentEpoch = _currentBalanceEpoch;
           const sentTon = Math.max(0, stateRef.current.tonBalance || 0);
           const sentStardust = Math.floor(stateRef.current.stardustBalance || 0);
-          void syncBalance({ telegramId, firstName, username, zoomBalance: Math.floor(stateRef.current.balance), tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
+          void syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: Math.floor(stateRef.current.balance), tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
             .then((r) => reconcileFromSyncResponse(Math.floor(stateRef.current.balance), sentEpoch, r, sentTon, sentStardust));
         }
         return;
@@ -3060,7 +3062,7 @@ export function useGameState() {
       setState((prev) => settleFarmingState(prev, localNow));
       stateRef.current = settleFarmingState(stateRef.current, localNow);
 
-      const { telegramId, firstName, username } = getTelegramContext();
+      const { telegramId, firstName, username, photoUrl } = getTelegramContext();
 
       if (telegramId) {
         (async () => {
@@ -3071,7 +3073,7 @@ export function useGameState() {
               const sent = Math.floor(settled.balance);
               const sentTon = Math.max(0, settled.tonBalance || 0);
               const sentStardust = Math.floor(settled.stardustBalance || 0);
-              {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, zoomBalance: sent, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
+              {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: sent, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
                 .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon, sentStardust));}
             }
             return settled;
@@ -3111,7 +3113,7 @@ export function useGameState() {
       if (Date.now() - _lastSavedAt > 250) {
         saveState(settled);
       }
-      const { telegramId, firstName, username } = getTelegramContext();
+      const { telegramId, firstName, username, photoUrl } = getTelegramContext();
       if (telegramId) {
         const balance = Math.floor(settled.balance);
         const tonBalance = Math.max(0, settled.tonBalance || 0);
@@ -3740,7 +3742,7 @@ export function useGameState() {
       // re-activate farming.
       const prevIsFarmingActive = !!planet.isFarmingActive;
       const prevPausedAt = planet.pausedAt ?? 0;
-      const { telegramId, firstName, username } = getTelegramContext();
+      const { telegramId, firstName, username, photoUrl } = getTelegramContext();
       if (telegramId) {
         listOnMarket({
           sellerTelegramId: telegramId,

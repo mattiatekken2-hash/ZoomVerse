@@ -12,6 +12,7 @@ export const usersTable = pgTable("users", {
   balanceEpoch: integer("balance_epoch").notNull().default(0),
   firstName: text("first_name"),
   username: text("username"),
+  photoUrl: text("photo_url"),
   bonusSlots: integer("bonus_slots").notNull().default(0),
   bonusSun: boolean("bonus_sun").notNull().default(false),
   sunCount: integer("sun_count").notNull().default(0),

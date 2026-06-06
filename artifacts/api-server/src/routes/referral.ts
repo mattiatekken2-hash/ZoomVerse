@@ -71,6 +71,7 @@ const RegisterBody = z.object({
   referredBy: z.string().min(1).nullish(),
   firstName: z.string().nullish(),
   username: z.string().nullish(),
+  photoUrl: z.string().nullish(),
 });
 
 router.post("/referral/register", async (req, res) => {
@@ -80,7 +81,7 @@ router.post("/referral/register", async (req, res) => {
     return;
   }
 
-  const { telegramId, referredBy, firstName, username } = parsed.data;
+  const { telegramId, referredBy, firstName, username, photoUrl } = parsed.data;
   const normalizedUsername = username ? username.replace(/^@/, "").toLowerCase() : null;
 
   console.log(`[register] telegramId=${telegramId} username=${normalizedUsername ?? "none"} referredBy=${referredBy ?? "none"}`);
@@ -93,19 +94,20 @@ router.post("/referral/register", async (req, res) => {
     // re-credit the referrer (+20 ZOOM each time + double-count milestones).
     const inserted = await db
       .insert(usersTable)
-      .values({ telegramId, referredBy: referredBy ?? null, referralCount: 0, firstName: firstName ?? null, username: normalizedUsername })
+      .values({ telegramId, referredBy: referredBy ?? null, referralCount: 0, firstName: firstName ?? null, username: normalizedUsername, photoUrl: photoUrl ?? null })
       .onConflictDoNothing({ target: usersTable.telegramId })
       .returning({ telegramId: usersTable.telegramId });
 
     const isNew = inserted.length > 0;
 
-    // For existing users, refresh first_name/username separately so we keep
+    // For existing users, refresh first_name/username/photoUrl separately so we keep
     // those columns up to date without affecting the new/existing detection.
-    if (!isNew && (firstName || normalizedUsername)) {
+    if (!isNew && (firstName || normalizedUsername || photoUrl)) {
       await db.update(usersTable)
         .set({
           ...(firstName ? { firstName } : {}),
           ...(normalizedUsername ? { username: normalizedUsername } : {}),
+          ...(photoUrl ? { photoUrl } : {}),
         })
         .where(eq(usersTable.telegramId, telegramId));
     }

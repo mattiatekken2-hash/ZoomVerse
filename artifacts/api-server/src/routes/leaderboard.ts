@@ -10,8 +10,9 @@ const router: IRouter = Router();
 
 const SyncBody = z.object({
   telegramId: z.string().min(1),
-  firstName: z.string().optional(),
-  username: z.string().optional(),
+  firstName: z.string().nullish(),
+  username: z.string().nullish(),
+  photoUrl: z.string().nullish(),
   zoomBalance: z.number().min(0),
   tonBalance: z.number().min(0).optional(),
   stardustBalance: z.number().int().min(0).optional(),
@@ -25,7 +26,7 @@ router.post("/balance/sync", async (req, res) => {
     return;
   }
 
-  const { telegramId, firstName, username, zoomBalance, tonBalance, stardustBalance, clientEpoch } = parsed.data;
+  const { telegramId, firstName, username, photoUrl, zoomBalance, tonBalance, stardustBalance, clientEpoch } = parsed.data;
   const normalizedUsername = username ? username.replace(/^@/, "").toLowerCase() : null;
 
   try {
@@ -52,6 +53,7 @@ router.post("/balance/sync", async (req, res) => {
         tonBalance: tb,
         firstName: firstName ?? null,
         username: normalizedUsername,
+        photoUrl: photoUrl ?? null,
         referralCount: 0,
       })
       .onConflictDoUpdate({
@@ -89,6 +91,7 @@ router.post("/balance/sync", async (req, res) => {
             : {}),
           ...(firstName ? { firstName } : {}),
           ...(normalizedUsername ? { username: normalizedUsername } : {}),
+          ...(photoUrl ? { photoUrl } : {}),
         },
       })
       .returning({

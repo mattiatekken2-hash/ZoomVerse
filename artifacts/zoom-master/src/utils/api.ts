@@ -260,6 +260,7 @@ export async function registerUser(
   referredBy?: string | null,
   firstName?: string | null,
   username?: string | null,
+  photoUrl?: string | null,
 ): Promise<{ ok: boolean; isNew: boolean }> {
   try {
     const res = await fetch(`${API_BASE}/referral/register`, {
@@ -270,6 +271,7 @@ export async function registerUser(
         referredBy: referredBy ?? undefined,
         firstName: firstName ?? undefined,
         username: username ?? undefined,
+        photoUrl: photoUrl ?? undefined,
       }),
     });
     if (!res.ok) return { ok: false, isNew: false };
@@ -440,6 +442,7 @@ export async function syncBalance(params: {
   telegramId: string;
   firstName?: string | null;
   username?: string | null;
+  photoUrl?: string | null;
   zoomBalance: number;
   tonBalance?: number;
   stardustBalance?: number;
@@ -932,7 +935,7 @@ export interface LabRankState {
   prizes: LabRankPrize[];
   userPoints: number;
   userRank: number | null;
-  top100: Array<{ rank: number; telegramId: string; name: string; labPoints: number }>;
+  top100: Array<{ rank: number; telegramId: string; name: string; labPoints: number; photoUrl: string | null; tonPrize: number }>;
 }
 
 export async function fetchLabRankState(telegramId: string): Promise<LabRankState | null> {

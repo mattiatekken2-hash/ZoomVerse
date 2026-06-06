@@ -463,12 +463,15 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                 </div>
                 {state.top100.map((r) => {
                   const isMe = telegramId === r.telegramId;
+                  const rankEmoji = r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : `#${r.rank}`;
+                  const hasPrize = r.rank <= 30 && r.tonPrize > 0;
                   return (
                     <div
                       key={r.telegramId}
                       style={{
                         display: "flex",
-                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 8,
                         fontSize: 11,
                         padding: "5px 6px",
                         borderRadius: 6,
@@ -478,25 +481,67 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                         fontWeight: r.rank <= 30 ? 800 : 600,
                       }}
                     >
+                      <span style={{ minWidth: 24, textAlign: "center" }}>{rankEmoji}</span>
+                      {r.photoUrl ? (
+                        <img
+                          src={r.photoUrl}
+                          alt=""
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: "50%",
+                            objectFit: "cover",
+                            border: "2px solid rgba(255,255,255,0.25)",
+                            flexShrink: 0,
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: "50%",
+                            background: "rgba(255,255,255,0.12)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 12,
+                            fontWeight: 900,
+                            color: "rgba(255,255,255,0.6)",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {r.name.charAt(0).toUpperCase()}
+                        </div>
+                      )}
                       <span
                         style={{
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
-                          maxWidth: 240,
+                          flex: 1,
                         }}
                       >
-                        {r.rank === 1
-                          ? "🥇"
-                          : r.rank === 2
-                          ? "🥈"
-                          : r.rank === 3
-                          ? "🥉"
-                          : `#${r.rank}`}{" "}
                         {r.name}
                         {isMe ? " (you)" : ""}
                       </span>
-                      <span>{r.labPoints} pt</span>
+                      <span style={{ whiteSpace: "nowrap" }}>{r.labPoints} pt</span>
+                      {hasPrize && (
+                        <span
+                          style={{
+                            whiteSpace: "nowrap",
+                            fontSize: 10,
+                            fontWeight: 900,
+                            color: "#ffd700",
+                            background: "rgba(255,215,0,0.15)",
+                            border: "1px solid rgba(255,215,0,0.35)",
+                            borderRadius: 6,
+                            padding: "2px 6px",
+                          }}
+                        >
+                          {r.tonPrize} TON
+                        </span>
+                      )}
                     </div>
                   );
                 })}

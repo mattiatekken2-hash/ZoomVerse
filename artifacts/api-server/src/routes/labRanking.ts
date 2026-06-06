@@ -322,6 +322,7 @@ router.get("/lab-rank/state", async (req, res) => {
         labPoints: usersTable.labPoints,
         firstName: usersTable.firstName,
         username: usersTable.username,
+        photoUrl: usersTable.photoUrl,
       })
       .from(usersTable)
       .where(sql`${usersTable.labRoundId} = ${round.id} AND ${usersTable.labPoints} > 0`)
@@ -332,6 +333,8 @@ router.get("/lab-rank/state", async (req, res) => {
       telegramId: r.telegramId,
       name: r.firstName || (r.username ? `@${r.username}` : `User ${r.telegramId.slice(-4)}`),
       labPoints: Number(r.labPoints || 0),
+      photoUrl: r.photoUrl || null,
+      tonPrize: tonPrizeForRank(i + 1),
     }));
 
     let userRank: number | null = null;
