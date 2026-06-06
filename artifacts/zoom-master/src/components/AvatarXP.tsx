@@ -19,6 +19,7 @@ export function AvatarXP({ totalTaps, photoUrl, name }: Props) {
 
   const showPhoto = !!photoUrl && !imgFailed;
   const initial = (name?.trim()?.[0] || "★").toUpperCase();
+  const fallbackBg = isMax ? "#2a2000" : "#001a2a";
 
   const AVATAR = 34;
   const BAR_W = 5;
@@ -79,6 +80,7 @@ export function AvatarXP({ totalTaps, photoUrl, name }: Props) {
               width={AVATAR}
               height={AVATAR}
               referrerPolicy="no-referrer"
+              crossOrigin="anonymous"
               onError={() => setImgFailed(true)}
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
             />

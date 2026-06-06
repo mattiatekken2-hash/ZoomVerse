@@ -487,6 +487,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                           src={r.photoUrl}
                           alt=""
                           referrerPolicy="no-referrer"
+                          crossOrigin="anonymous"
                           onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                           style={{
                             width: 28,

@@ -28,6 +28,7 @@ router.post("/balance/sync", async (req, res) => {
 
   const { telegramId, firstName, username, photoUrl, zoomBalance, tonBalance, stardustBalance, clientEpoch } = parsed.data;
   const normalizedUsername = username ? username.replace(/^@/, "").toLowerCase() : null;
+  console.log(`[sync] telegramId=${telegramId} photoUrl=${photoUrl ? "present" : "MISSING"}`);
 
   try {
     // CLIENT-AUTHORITATIVE WITH EPOCH FENCING:

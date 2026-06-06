@@ -84,7 +84,7 @@ router.post("/referral/register", async (req, res) => {
   const { telegramId, referredBy, firstName, username, photoUrl } = parsed.data;
   const normalizedUsername = username ? username.replace(/^@/, "").toLowerCase() : null;
 
-  console.log(`[register] telegramId=${telegramId} username=${normalizedUsername ?? "none"} referredBy=${referredBy ?? "none"}`);
+  console.log(`[register] telegramId=${telegramId} username=${normalizedUsername ?? "none"} referredBy=${referredBy ?? "none"} photoUrl=${photoUrl ? "present" : "MISSING"}`);
 
   try {
     // Use ON CONFLICT DO NOTHING + RETURNING so we can reliably tell
