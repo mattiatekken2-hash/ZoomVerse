@@ -25,8 +25,8 @@ const REWARD_MAP: Record<string, number> = {
   V1: 50,
 };
 
-const GOLD_ACCENT = "#ffd700";
-const GOLD_ACCENT_RGB = "255,215,0";
+const GREEN_ACCENT = "#00ff88";
+const GREEN_ACCENT_RGB = "0,255,136";
 
 export function MerchantPopup({
   expiresAt,
@@ -137,15 +137,15 @@ export function MerchantPopup({
         style={{
           position: "fixed",
           left: 12,
-          top: 330,
+          top: 390,
           width: 60,
           height: 60,
           borderRadius: 14,
-          background: "rgba(32,28,4,0.88)",
-          border: `1.5px solid rgba(${GOLD_ACCENT_RGB},0.65)`,
+          background: "rgba(4,28,16,0.88)",
+          border: `1.5px solid rgba(${GREEN_ACCENT_RGB},0.65)`,
           padding: 0,
           cursor: "pointer",
-          zIndex: 40,
+          zIndex: 39,
           backdropFilter: "blur(8px)",
           WebkitBackdropFilter: "blur(8px)",
           WebkitTapHighlightColor: "transparent",
@@ -153,7 +153,7 @@ export function MerchantPopup({
           alignItems: "center",
           justifyContent: "center",
           lineHeight: 1,
-          boxShadow: `0 0 14px rgba(${GOLD_ACCENT_RGB},0.45)`,
+          boxShadow: `0 0 14px rgba(${GREEN_ACCENT_RGB},0.45)`,
           animation: "merchant-vibrate 1.2s ease-in-out infinite",
         }}
         data-testid="button-space-merchant"
@@ -168,7 +168,7 @@ export function MerchantPopup({
             height: 50,
             objectFit: "contain",
             imageRendering: "pixelated",
-            filter: `drop-shadow(0 0 6px rgba(${GOLD_ACCENT_RGB},0.7)) sepia(1) saturate(5) hue-rotate(-20deg) brightness(1.1)`,
+            filter: `drop-shadow(0 0 6px rgba(${GREEN_ACCENT_RGB},0.7)) hue-rotate(120deg) saturate(1.5) brightness(1.1)`,
             pointerEvents: "none",
           }}
         />
@@ -181,7 +181,7 @@ export function MerchantPopup({
           style={{
             position: "fixed",
             left: 78,
-            top: 350,
+            top: 410,
             zIndex: 41,
             minWidth: 22,
             padding: "2px 6px",
@@ -214,8 +214,8 @@ export function MerchantPopup({
             zIndex: 60,
             borderRadius: 16,
             background: "linear-gradient(180deg,#1a1708 0%,#0f0d04 100%)",
-            border: `1px solid rgba(${GOLD_ACCENT_RGB},0.55)`,
-            boxShadow: `0 0 28px rgba(${GOLD_ACCENT_RGB},0.35), inset 0 0 18px rgba(${GOLD_ACCENT_RGB},0.1)`,
+            border: `1px solid rgba(${GREEN_ACCENT_RGB},0.55)`,
+            boxShadow: `0 0 28px rgba(${GREEN_ACCENT_RGB},0.35), inset 0 0 18px rgba(${GREEN_ACCENT_RGB},0.1)`,
             padding: 12,
             color: "#fff8d6",
           }}
@@ -232,14 +232,14 @@ export function MerchantPopup({
                 height: 64,
                 objectFit: "contain",
                 imageRendering: "pixelated",
-                filter: `drop-shadow(0 0 8px rgba(${GOLD_ACCENT_RGB},0.6)) sepia(1) saturate(5) hue-rotate(-20deg) brightness(1.1)`,
+                filter: `drop-shadow(0 0 8px rgba(${GREEN_ACCENT_RGB},0.6)) hue-rotate(120deg) saturate(1.5) brightness(1.1)`,
                 animation: view === "scrapping" ? "merchant-shake 0.18s linear infinite" : "merchant-bob 2.4s ease-in-out infinite",
                 pointerEvents: "none",
               }}
             />
           </div>
 
-          <div style={{ textAlign: "center", fontWeight: 900, letterSpacing: "0.08em", fontSize: 11, color: GOLD_ACCENT }}>
+          <div style={{ textAlign: "center", fontWeight: 900, letterSpacing: "0.08em", fontSize: 11, color: GREEN_ACCENT }}>
             STARDUST SCRAPPER
           </div>
 
@@ -302,7 +302,7 @@ export function MerchantPopup({
                           style={{
                             fontSize: 10,
                             fontWeight: 900,
-                            color: GOLD_ACCENT,
+                            color: GREEN_ACCENT,
                             whiteSpace: "nowrap",
                           }}
                         >
@@ -322,7 +322,7 @@ export function MerchantPopup({
               <div style={{ textAlign: "center", fontSize: 11, color: "rgba(255,248,214,0.9)", marginBottom: 8 }}>
                 Scrap this {PLANET_CONFIG[selected.name]?.label ?? selected.name} planet?
               </div>
-              <div style={{ textAlign: "center", fontSize: 14, fontWeight: 900, color: GOLD_ACCENT, marginBottom: 12 }}>
+              <div style={{ textAlign: "center", fontSize: 14, fontWeight: 900, color: GREEN_ACCENT, marginBottom: 12 }}>
                 +{REWARD_MAP[selected.name] ?? 0} ✦ Stardust
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -334,14 +334,14 @@ export function MerchantPopup({
 
           {view === "scrapping" && (
             <div style={{ marginTop: 10, textAlign: "center" }}>
-              <div style={{ fontSize: 10, color: GOLD_ACCENT, letterSpacing: "0.1em", fontWeight: 800 }}>SCRAPPING...</div>
+              <div style={{ fontSize: 10, color: GREEN_ACCENT, letterSpacing: "0.1em", fontWeight: 800 }}>SCRAPPING...</div>
               <div style={{ fontSize: 9, marginTop: 4, color: "rgba(255,255,255,0.55)" }}>The scrapper feeds on planetary matter.</div>
             </div>
           )}
 
           {view === "result" && resultReward != null && resultType && (
             <div style={{ marginTop: 8, textAlign: "center" }}>
-              <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: "0.04em", color: GOLD_ACCENT }}>
+              <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: "0.04em", color: GREEN_ACCENT }}>
                 +{resultReward} ✦ Stardust!
               </div>
               <div style={{ fontSize: 9, marginTop: 4, color: "rgba(255,248,214,0.85)", lineHeight: 1.35 }}>
@@ -353,7 +353,7 @@ export function MerchantPopup({
 
           {view === "expired" && (
             <div style={{ marginTop: 8, textAlign: "center" }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: GOLD_ACCENT, letterSpacing: "0.04em" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: GREEN_ACCENT, letterSpacing: "0.04em" }}>
                 The scrapper left.
               </div>
               <div style={{ fontSize: 9, marginTop: 4, color: "rgba(255,248,214,0.8)", lineHeight: 1.35 }}>
@@ -401,12 +401,12 @@ const primaryBtnStyle: React.CSSProperties = {
   marginTop: 14,
   padding: "10px 22px",
   borderRadius: 10,
-  background: `linear-gradient(180deg, rgba(${GOLD_ACCENT_RGB},0.4), rgba(120,100,0,0.6))`,
-  border: `1px solid rgba(${GOLD_ACCENT_RGB},0.7)`,
+  background: `linear-gradient(180deg, rgba(${GREEN_ACCENT_RGB},0.4), rgba(0,60,30,0.6))`,
+  border: `1px solid rgba(${GREEN_ACCENT_RGB},0.7)`,
   color: "#fff",
   fontWeight: 800,
   fontSize: 12,
   letterSpacing: "0.08em",
   cursor: "pointer",
-  boxShadow: `0 0 18px rgba(${GOLD_ACCENT_RGB},0.45)`,
+  boxShadow: `0 0 18px rgba(${GREEN_ACCENT_RGB},0.45)`,
 };
