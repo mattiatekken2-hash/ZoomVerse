@@ -196,14 +196,14 @@ const STARS_CATALOG: StarsItem[] = [
   { id: "earth_react", title: "Earth Planet Reactivation", description: "Restart an expired earth-planet farming cycle", starsPrice: 10, tonPrice: 0.001, itemType: "earth_react" },
   // BLACK Collection — ultra-exclusive. Max 3 bundles globally. 4 black
   // planets per bundle with intense purple nebula glow. Combined output
-  // ~0.333 TON/day. starsPrice: 0 disables Stars button (TON only, like V1).
-  { id: "black_collection", title: "Black Collection Ultra", description: "Unlock 4 exclusive black planets. Speed: 0.333 TON/day. Ultra limited: only 3 ever.", starsPrice: 0, tonPrice: 40, itemType: "black_collection" },
+  // ~0.333 TON/day. Stars enabled at the catalog-wide 100 Stars = 1 TON ratio.
+  { id: "black_collection", title: "Black Collection Ultra", description: "Unlock 4 exclusive black planets. Speed: 0.333 TON/day. Ultra limited: only 3 ever.", starsPrice: 4000, tonPrice: 40, itemType: "black_collection" },
   // Reactivation fee for an expired black-planet farming cycle (0.01 TON).
   // Same payment-only pattern as white/earth — no server-side grant.
   { id: "black_react", title: "Black Planet Reactivation", description: "Restart an expired black-planet farming cycle", starsPrice: 0, tonPrice: 0.01, itemType: "black_react" },
   // SUPERNOVA Collection — 4 yellow pixel-art star planets per bundle.
   // Combined yield 1.5 TON / 30 days. Capped at 50 bundles globally.
-  { id: "supernova_collection", title: "Supernova Collection", description: "Unlock 4 exclusive supernova stars. Yield: 1.5 TON / 30 days. Limited: 50 bundles globally.", starsPrice: 0, tonPrice: 12, itemType: "supernova_collection" },
+  { id: "supernova_collection", title: "Supernova Collection", description: "Unlock 4 exclusive supernova stars. Yield: 1.5 TON / 30 days. Limited: 50 bundles globally.", starsPrice: 1200, tonPrice: 12, itemType: "supernova_collection" },
   // Reactivation fee for an expired supernova-planet farming cycle (0.005 TON).
   { id: "supernova_react", title: "Supernova Reactivation", description: "Restart an expired supernova-planet farming cycle", starsPrice: 0, tonPrice: 0.005, itemType: "supernova_react" },
   // LOTTO STELLARE — bundle di biglietti per la lotteria a probabilità

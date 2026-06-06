@@ -37,6 +37,20 @@ const STARDUST_BUNDLES: ShopItem[] = [
   { id: "stardust_500", title: "Stardust Pack — 500", desc: "Instant top-up · 500 stardust", starsPrice: 500, tonPrice: 5, zoomAmount: 500, color: "#ffd740", icon: "★", type: "stardust" },
 ];
 
+interface StockInfo { sold: number; remaining: number; max: number; }
+
+// Collection bundles — moved into the SHOP (BUNDLES tab). Paid in Stars or TON
+// via the same pay-mode toggle as the SUN, both routed through the shop's
+// Stars-invoice / TON-deposit flow. `id` matches the backend STARS_CATALOG
+// itemType so handleStarsBuy/handleTonBuy work unchanged. `priceStars` mirrors
+// the backend STARS_CATALOG (100 Stars = 1 TON ratio, with earth's override).
+const COLLECTIONS = [
+  { key: "white", id: "white_collection", titleKey: "whiteColl.title", color: "#39ff7e", color2: "#0fd9ff", priceTon: 20, priceStars: 2000, requiresSun: true, userCap: 10, stockEndpoint: "api/white-collection/stock", tags: ["4 exclusive slots", "3.3 TON/month", "Requires SUN", "Limited edition"] },
+  { key: "earth", id: "earth_collection", titleKey: "earthColl.title", color: "#3b82f6", color2: "#22c55e", priceTon: 5, priceStars: 700, requiresSun: true, userCap: 0, stockEndpoint: "api/earth-collection/stock", tags: ["4 earth slots", "~0.51 TON/mo", "Requires SUN", "Public TON payout"] },
+  { key: "black", id: "black_collection", titleKey: "blackColl.title", color: "#7b2fff", color2: "#c084fc", priceTon: 40, priceStars: 4000, requiresSun: false, userCap: 0, stockEndpoint: "api/black-collection/stock", tags: ["4 black slots", "10 TON/month", "On-chain payout", "No SUN required"] },
+  { key: "supernova", id: "supernova_collection", titleKey: "supernovaColl.title", color: "#ffd700", color2: "#fde047", priceTon: 12, priceStars: 1200, requiresSun: false, userCap: 0, stockEndpoint: "api/supernova-collection/stock", tags: ["4 yellow stars", "1.5 TON/30d", "Limited 50 bundles", "No SUN required"] },
+] as const;
+
 interface ShopPageProps {
   balance: number;
   // DEPOSIT TON balance. Shop TON-priced items are paid EXCLUSIVELY from this
@@ -45,9 +59,31 @@ interface ShopPageProps {
   depositBalance: number;
   hasSun: boolean;
   telegramId?: string | null;
+  sunCount: number;
+  whiteCollectionUnlocked: boolean;
+  whiteCollectionBundles: number;
+  earthCollectionUnlocked: boolean;
+  earthCollectionBundles: number;
+  blackCollectionUnlocked: boolean;
+  blackCollectionBundles: number;
+  supernovaCollectionUnlocked: boolean;
+  supernovaCollectionBundles: number;
 }
 
-export function ShopPage({ depositBalance, hasSun: _hasSun, telegramId }: ShopPageProps) {
+export function ShopPage({
+  depositBalance,
+  hasSun: _hasSun,
+  telegramId,
+  sunCount,
+  whiteCollectionUnlocked,
+  whiteCollectionBundles,
+  earthCollectionUnlocked,
+  earthCollectionBundles,
+  blackCollectionUnlocked,
+  blackCollectionBundles,
+  supernovaCollectionUnlocked,
+  supernovaCollectionBundles,
+}: ShopPageProps) {
   const { t } = useT();
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
@@ -60,7 +96,28 @@ export function ShopPage({ depositBalance, hasSun: _hasSun, telegramId }: ShopPa
   // - exclusive: SUN (e in futuro altri NFT/limited shop items)
   // - items: bundle pacchetti + extra slot (consumabili "in-game")
   // - resources: stardust top-ups + computer/plant (currency e item stardust)
-  const [shopTab, setShopTab] = useState<"exclusive" | "items" | "resources">("exclusive");
+  const [shopTab, setShopTab] = useState<"exclusive" | "bundles" | "items" | "resources">("exclusive");
+  // Live stock for each collection bundle (api/<key>-collection/stock).
+  const [collStocks, setCollStocks] = useState<Record<string, StockInfo | null>>({});
+  const refreshCollStocks = async () => {
+    const entries = await Promise.all(
+      COLLECTIONS.map(async (c) => {
+        try {
+          const r = await fetch(`${import.meta.env.BASE_URL}${c.stockEndpoint}`);
+          if (r.ok) return [c.key, (await r.json()) as StockInfo] as const;
+        } catch { /* ignore */ }
+        return [c.key, null] as const;
+      }),
+    );
+    setCollStocks(Object.fromEntries(entries));
+  };
+  // Ownership map for the BUNDLES tab badges and per-user caps.
+  const collOwned: Record<string, { unlocked: boolean; bundles: number }> = {
+    white: { unlocked: whiteCollectionUnlocked, bundles: whiteCollectionBundles },
+    earth: { unlocked: earthCollectionUnlocked, bundles: earthCollectionBundles },
+    black: { unlocked: blackCollectionUnlocked, bundles: blackCollectionBundles },
+    supernova: { unlocked: supernovaCollectionUnlocked, bundles: supernovaCollectionBundles },
+  };
   // Stardust shop section reads `/home/state` because that single endpoint
   // already returns both the live stardust balance AND whether the user
   // owns the COMPUTER (so we can hide the buy button after purchase). One
@@ -93,13 +150,15 @@ export function ShopPage({ depositBalance, hasSun: _hasSun, telegramId }: ShopPa
     refreshSunStock();
     refreshHome();
     refreshSlotPrice();
+    refreshCollStocks();
     const id = setInterval(() => {
       if (document.hidden) return;
       refreshSunStock();
       refreshHome();
       refreshSlotPrice();
+      refreshCollStocks();
     }, 20000);
-    const onRefresh = () => { refreshHome(); refreshSlotPrice(); };
+    const onRefresh = () => { refreshHome(); refreshSlotPrice(); refreshCollStocks(); };
     window.addEventListener("zoom-data-refresh", onRefresh);
     return () => {
       clearInterval(id);
@@ -353,6 +412,7 @@ export function ShopPage({ depositBalance, hasSun: _hasSun, telegramId }: ShopPa
         <div className="flex gap-1 p-0.5 rounded-lg" style={{ background: "rgba(255,255,255,0.04)" }}>
           {([
             { id: "exclusive", label: "EXCLUSIVE", color: "#ffb347" },
+            { id: "bundles", label: "BUNDLES", color: "#00f2fe" },
             { id: "items", label: "ITEMS", color: "#c471ed" },
             { id: "resources", label: "RESOURCES", color: "#ffd740" },
           ] as const).map(tab => {
@@ -429,6 +489,96 @@ export function ShopPage({ depositBalance, hasSun: _hasSun, telegramId }: ShopPa
               {sunSoldOut ? "Sold Out" : sunUserMaxed ? `Max ${sunStock?.maxPerUser ?? 5} Reached` : buying === "the_sun" ? "Processing..." : payMode === "stars" ? "BUY — ⭐ 1,000 Stars" : "BUY — 10 TON"}
             </button>
           </div>
+          </>)}
+
+          {shopTab === "bundles" && (<>
+          {/* Collection bundles — moved here from the old BUNDLES nav page.
+              Paid in Stars or TON via the shared pay-mode toggle (like the SUN):
+              Stars → createStarsInvoice; TON → in-game deposit balance. */}
+          {COLLECTIONS.map((col) => {
+            const stock = collStocks[col.key];
+            const owned = collOwned[col.key];
+            const c = col.color;
+            const c2 = col.color2;
+            const soldOut = !!stock && stock.remaining <= 0;
+            const sunLocked = col.requiresSun && sunCount < 1;
+            const atUserCap = col.userCap > 0 && owned.bundles >= col.userCap;
+            const disabled = soldOut || sunLocked || atUserCap || buying === col.id;
+            const onBuy = async () => {
+              if (disabled) return;
+              const shopItem: ShopItem = {
+                id: col.id,
+                title: t(col.titleKey as Parameters<typeof t>[0]),
+                desc: "",
+                starsPrice: col.priceStars,
+                tonPrice: col.priceTon,
+                color: c,
+                icon: "",
+                type: "bundle",
+              };
+              if (payMode === "stars") await handleStarsBuy(shopItem);
+              else await handleTonBuy(shopItem);
+              refreshCollStocks();
+            };
+            return (
+              <div
+                key={col.key}
+                className="rounded-2xl p-5 border relative overflow-hidden"
+                style={{
+                  borderColor: `${c}4d`,
+                  background: `linear-gradient(135deg, ${c}14 0%, ${c2}0a 100%)`,
+                  boxShadow: `0 0 32px ${c}1a`,
+                }}
+              >
+                <div className="absolute top-0 right-0 w-40 h-40 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${c}26 0%, transparent 70%)`, filter: "blur(20px)", transform: "translate(30%, -30%)" }} />
+                <div className="flex items-start justify-between mb-3 relative z-10">
+                  <div>
+                    <div className="font-black text-xl tracking-wide" style={{ color: c }}>
+                      {t(col.titleKey as Parameters<typeof t>[0])}
+                    </div>
+                    <div className="text-xs mt-1" style={{ color: `${c}99` }}>
+                      {stock ? `${stock.remaining}/${stock.max} left` : "Limited Edition"}
+                    </div>
+                  </div>
+                  <div className="px-3 py-1.5 rounded-full text-xs font-bold" style={{ background: `${c}26`, color: c, border: `1px solid ${c}4d` }}>
+                    {owned.unlocked ? `OWNED ${owned.bundles}${col.key === "white" ? "/10" : ""}` : "LOCKED"}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-4 relative z-10">
+                  {col.tags.map((tag) => (
+                    <span key={tag} className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${c}14`, color: `${c}b3`, border: `1px solid ${c}26` }}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <button
+                  onClick={onBuy}
+                  disabled={disabled}
+                  className="w-full py-4 rounded-xl font-black text-base tracking-wider text-center transition-all active:scale-95 relative z-10"
+                  style={{
+                    background: disabled ? "rgba(255,255,255,0.04)" : `linear-gradient(135deg, ${c}33, ${c2}26)`,
+                    color: disabled ? "rgba(255,255,255,0.2)" : c,
+                    boxShadow: disabled ? "none" : `0 0 20px ${c}33`,
+                    border: `1px solid ${disabled ? "rgba(255,255,255,0.06)" : `${c}4d`}`,
+                    cursor: disabled ? "not-allowed" : "pointer",
+                    opacity: buying === col.id ? 0.6 : 1,
+                  }}
+                >
+                  {soldOut
+                    ? "Sold Out"
+                    : atUserCap
+                    ? `MAX OWNED (${col.userCap}/${col.userCap})`
+                    : sunLocked
+                    ? "🔒 SUN REQUIRED"
+                    : buying === col.id
+                    ? "Processing..."
+                    : payMode === "stars"
+                    ? `BUY — ⭐ ${col.priceStars.toLocaleString()} Stars`
+                    : `BUY — ${col.priceTon} TON`}
+                </button>
+              </div>
+            );
+          })}
           </>)}
 
           {shopTab === "resources" && (<>
