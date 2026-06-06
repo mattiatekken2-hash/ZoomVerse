@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { TonWalletWidget } from "./components/TonWalletWidget";
+import { BalanceCounter } from "./components/BalanceCounter";
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
 import { BlackPlanetOrbStyles } from "./components/BlackPlanetOrb";
 import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/useGameState";
@@ -592,34 +593,12 @@ function AppShellWithState() {
         className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 relative z-20"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
       >
-        <div className="flex-shrink-0" style={{ width: 48 }} />
+        <BalanceCounter
+          balance={state.balance}
+          activeRate={totalRate}
+          onClick={() => setHistoryOpen(true)}
+        />
         <div className="flex items-center gap-1.5 min-w-0">
-          <div
-            className="glass-neon flex items-center gap-1 px-2.5 py-1.5 rounded-full font-black cursor-pointer active:scale-95 flex-shrink-0"
-            data-testid="balance-display"
-            aria-label="ZOOM balance — open history"
-            role="button"
-            tabIndex={0}
-            onClick={() => setHistoryOpen(true)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                setHistoryOpen(true);
-              }
-            }}
-            style={{ fontSize: 12 }}
-          >
-            <span style={{ fontSize: 12 }}>🪐</span>
-            <span className="neon-text" style={{ fontVariantNumeric: "tabular-nums" }}>
-              {(() => {
-                const n = Math.floor(state.balance);
-                if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + "B";
-                if (n >= 1_000_000)     return (n / 1_000_000).toFixed(1) + "M";
-                if (n >= 10_000)        return (n / 1_000).toFixed(1) + "K";
-                return n.toLocaleString();
-              })()}
-            </span>
-          </div>
           <TonWalletWidget
             tonBalance={state.tonBalance || 0}
             depositBalance={state.depositBalance || 0}
