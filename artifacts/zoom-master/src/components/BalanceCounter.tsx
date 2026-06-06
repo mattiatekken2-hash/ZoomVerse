@@ -10,14 +10,14 @@ function fmt(n: number): string {
   if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(2) + "B";
   if (n >= 1_000_000)     return (n / 1_000_000).toFixed(2) + "M";
   if (n >= 10_000)        return (n / 1_000).toFixed(2) + "K";
-  return n.toFixed(1);
+  return n.toFixed(2);
 }
 
 export function BalanceCounter({ balance, activeRate, onClick }: Props) {
   const textRef = useRef<HTMLSpanElement>(null);
   const targetRef = useRef(balance);
-  const currentRef = useRef(balance);
-  const lastUpdateRef = useRef(0);
+  const displayRef = useRef(balance);
+  const lastTimeRef = useRef(0);
 
   useEffect(() => {
     targetRef.current = balance;
@@ -27,21 +27,23 @@ export function BalanceCounter({ balance, activeRate, onClick }: Props) {
     let raf: number;
     const animate = () => {
       const now = performance.now();
-      const dt = Math.min((now - lastUpdateRef.current) / 1000, 0.5);
-      lastUpdateRef.current = now;
+      const dt = Math.min((now - lastTimeRef.current) / 1000, 0.2);
+      lastTimeRef.current = now;
+
       const target = targetRef.current;
-      const diff = target - currentRef.current;
-      if (Math.abs(diff) < 0.05) {
-        currentRef.current = target;
+      const diff = target - displayRef.current;
+      if (Math.abs(diff) < 0.02) {
+        displayRef.current = target;
       } else {
-        currentRef.current += diff * 0.5;
+        displayRef.current += diff * 0.85;
       }
+
       if (textRef.current) {
-        textRef.current.textContent = fmt(currentRef.current);
+        textRef.current.textContent = fmt(displayRef.current);
       }
       raf = requestAnimationFrame(animate);
     };
-    lastUpdateRef.current = performance.now();
+    lastTimeRef.current = performance.now();
     raf = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(raf);
   }, []);
