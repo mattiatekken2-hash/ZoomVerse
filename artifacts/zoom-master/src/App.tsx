@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { TonWalletWidget } from "./components/TonWalletWidget";
 import { BalanceCounter } from "./components/BalanceCounter";
+import { AvatarXP } from "./components/AvatarXP";
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
 import { BlackPlanetOrbStyles } from "./components/BlackPlanetOrb";
 import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/useGameState";
@@ -99,6 +100,19 @@ function AppShellWithState() {
   // *interacted with* in the lab even though it can *appear* anywhere.
   const merchant = useMerchant(state.telegramId);
   const scrapEligiblePlanets = state.planets.filter((p) => !p.isFarmingActive && !p.isListedInMarket);
+
+  // Telegram profile photo + name for the header avatar/XP widget. Read once
+  // from the WebApp launch data; it's static for the session.
+  const tgProfile = useMemo(() => {
+    try {
+      const u = (window as unknown as {
+        Telegram?: { WebApp?: { initDataUnsafe?: { user?: { first_name?: string; username?: string; photo_url?: string } } } };
+      }).Telegram?.WebApp?.initDataUnsafe?.user;
+      return { photoUrl: u?.photo_url ?? null, name: u?.first_name ?? u?.username ?? null };
+    } catch {
+      return { photoUrl: null, name: null };
+    }
+  }, []);
 
   // Centralized global data fetch — Season epoch, leaderboard, profile, daily, market.
   // Pages read from the global store so tab switches show pre-loaded data with no pop-in.
@@ -593,11 +607,18 @@ function AppShellWithState() {
         className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 relative z-20"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
       >
-        <BalanceCounter
-          balance={state.balance}
-          activeRate={totalRate}
-          onClick={() => setHistoryOpen(true)}
-        />
+        <div className="flex items-center gap-2 min-w-0">
+          <AvatarXP
+            totalTaps={state.totalTaps || 0}
+            photoUrl={tgProfile.photoUrl}
+            name={tgProfile.name}
+          />
+          <BalanceCounter
+            balance={state.balance}
+            activeRate={totalRate}
+            onClick={() => setHistoryOpen(true)}
+          />
+        </div>
         <div className="flex items-center gap-1.5 min-w-0">
           <TonWalletWidget
             tonBalance={state.tonBalance || 0}

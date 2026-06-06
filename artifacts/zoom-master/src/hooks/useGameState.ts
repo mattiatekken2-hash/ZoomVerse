@@ -220,6 +220,9 @@ export interface GameState {
   totalEarned: number;
   seasonPoolEarned: number;
   craftsCompleted: number;
+  /** Cumulative lifetime LAB taps. Drives the profile XP/level bar. Never
+   *  resets (unlike the per-craft `taps`). Grow-only. */
+  totalTaps: number;
   totalTonSpent: number;
   referralCode: string;
   referralCount: number;
@@ -708,6 +711,7 @@ const INITIAL_STATE: GameState = {
   totalEarned: 0,
   seasonPoolEarned: 0,
   craftsCompleted: 0,
+  totalTaps: 0,
   totalTonSpent: 0,
   referralCode: makeReferralCode(),
   referralCount: 0,
@@ -3238,6 +3242,7 @@ export function useGameState() {
             ...prev,
             taps: 0,
             goal: 100,
+            totalTaps: (prev.totalTaps || 0) + 1,
             currentCraftRarity: null,
             pendingPlanet: null,
             pendingPlanetCost: 0,
@@ -3285,6 +3290,7 @@ export function useGameState() {
           balance: prev.balance + zoomBonus,
           taps: 0,
           goal: 100,
+          totalTaps: (prev.totalTaps || 0) + 1,
           currentCraftRarity: null,
           pendingPlanet: planet,
           pendingPlanetCost: craftCost,
@@ -3314,6 +3320,7 @@ export function useGameState() {
           ...prev,
           taps: newTaps,
           goal,
+          totalTaps: (prev.totalTaps || 0) + 1,
           currentCraftRarity: rarity,
         };
         schedulePersist(next);
