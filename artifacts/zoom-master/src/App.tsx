@@ -592,16 +592,7 @@ function AppShellWithState() {
         className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 relative z-20"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
       >
-        <div
-          className="font-black text-lg tracking-widest cursor-pointer flex-shrink-0"
-          style={{
-            color: "#ffd700",
-            textShadow: "0 0 8px rgba(255,215,0,0.8), 0 0 16px rgba(251,191,36,0.4)",
-          }}
-          onClick={() => switchTab("lab")}
-        >
-          ZOOM
-        </div>
+        <div className="flex-shrink-0" style={{ width: 48 }} />
         <div className="flex items-center gap-1.5 min-w-0">
           <div
             className="glass-neon flex items-center gap-1 px-2.5 py-1.5 rounded-full font-black cursor-pointer active:scale-95 flex-shrink-0"
