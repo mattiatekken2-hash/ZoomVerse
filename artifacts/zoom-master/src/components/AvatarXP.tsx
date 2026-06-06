@@ -80,7 +80,6 @@ export function AvatarXP({ totalTaps, photoUrl, name }: Props) {
               width={AVATAR}
               height={AVATAR}
               referrerPolicy="no-referrer"
-              crossOrigin="anonymous"
               onError={() => setImgFailed(true)}
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
             />
