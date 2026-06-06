@@ -14,6 +14,14 @@ function formatNumber(n: number): string {
   return v.toLocaleString();
 }
 
+function formatLiveNumber(n: number): string {
+  if (n >= 1_000_000_000) return (n / 1_000_000_000).toFixed(2) + "B";
+  if (n >= 1_000_000)     return (n / 1_000_000).toFixed(2) + "M";
+  if (n >= 10_000)        return (n / 1_000).toFixed(1) + "K";
+  if (n >= 1_000)         return Math.floor(n).toLocaleString();
+  return n.toFixed(1);
+}
+
 export function BalanceCounter({ balance, activeRate, onClick }: Props) {
   const textRef = useRef<HTMLSpanElement>(null);
   const targetRef = useRef(balance);
@@ -36,7 +44,7 @@ export function BalanceCounter({ balance, activeRate, onClick }: Props) {
         currentRef.current += diff * 0.15;
       }
       if (textRef.current) {
-        textRef.current.textContent = formatNumber(currentRef.current);
+        textRef.current.textContent = formatLiveNumber(currentRef.current);
       }
       raf = requestAnimationFrame(animate);
     };
@@ -62,7 +70,7 @@ export function BalanceCounter({ balance, activeRate, onClick }: Props) {
         background: "rgba(0, 242, 254, 0.05)",
         border: `1.5px solid ${isProducing ? "rgba(0, 242, 254, 0.55)" : "rgba(0, 242, 254, 0.15)"}`,
         borderRadius: 50,
-        padding: "6px 12px",
+        padding: "4px 8px",
         boxShadow: isProducing
           ? "0 0 18px rgba(0, 242, 254, 0.35), inset 0 0 8px rgba(0, 242, 254, 0.12)"
           : "0 0 4px rgba(0, 242, 254, 0.05)",
@@ -71,7 +79,7 @@ export function BalanceCounter({ balance, activeRate, onClick }: Props) {
     >
       <span
         style={{
-          fontSize: 18,
+          fontSize: 12,
           filter: isProducing ? "drop-shadow(0 0 4px rgba(0,242,254,0.8))" : "none",
           transition: "filter 0.4s ease",
         }}
@@ -81,7 +89,7 @@ export function BalanceCounter({ balance, activeRate, onClick }: Props) {
       <span
         ref={textRef}
         style={{
-          fontSize: 18,
+          fontSize: 12,
           color: "#00f2fe",
           fontVariantNumeric: "tabular-nums",
           letterSpacing: "-0.02em",
