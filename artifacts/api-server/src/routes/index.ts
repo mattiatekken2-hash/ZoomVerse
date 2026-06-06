@@ -33,6 +33,7 @@ import economyRouter from "./economy";
 import stakingRouter from "./staking";
 import labRankingRouter from "./labRanking";
 import historyRouter from "./history";
+import pvpRouter from "./pvp";
 
 const router: IRouter = Router();
 
@@ -115,6 +116,10 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/home/computer/claim",
       "/home/computer/zoom-bonus",
       "/home/v1-nft/claim-stardust",
+      "/pvp/queue",
+      "/pvp/leave-queue",
+      "/pvp/confirm",
+      "/pvp/decline",
       "/home/plant/buy",
       "/home/plant/water",
       "/home/plant/claim",
@@ -331,5 +336,6 @@ router.use(stakingRouter);
 router.use(obtainedRouter);
 router.use(labRankingRouter);
 router.use(historyRouter);
+router.use(pvpRouter);
 
 export default router;

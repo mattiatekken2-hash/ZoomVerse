@@ -3084,6 +3084,132 @@ export function clearHomeSlot(telegramId: string, slot: "A" | "B" | "C"): Promis
   return homePost("/home/slot/clear", { telegramId, slot });
 }
 
+// ─── PvP Battle — Planet-to-Planet Duels ──────────────────────────────
+
+export interface PvPQueueResult {
+  ok: boolean;
+  status?: "queue" | "match";
+  battleId?: string;
+  message?: string;
+  error?: string;
+  player?: { telegramId: string; planet: unknown };
+  opponent?: { telegramId: string; planet: unknown };
+  confirmDeadline?: number;
+  winProbability?: number;
+}
+
+export async function pvpQueue(
+  telegramId: string,
+  planetId: string,
+  planetName: string,
+  planetRarity: string,
+  planetRate: number,
+  planetFloat?: number | null,
+): Promise<PvPQueueResult> {
+  try {
+    const res = await fetch(`${API_BASE}/pvp/queue`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({
+        telegramId,
+        planetId,
+        planetName,
+        planetRarity,
+        planetRate,
+        planetFloat,
+      }),
+    });
+    const j = await res.json().catch(() => ({}));
+    return j as PvPQueueResult;
+  } catch {
+    return { ok: false, error: "NETWORK" };
+  }
+}
+
+export async function pvpLeaveQueue(telegramId: string): Promise<{ ok: boolean }> {
+  try {
+    const res = await fetch(`${API_BASE}/pvp/leave-queue`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId }),
+    });
+    const j = await res.json().catch(() => ({}));
+    return { ok: !!j.ok };
+  } catch {
+    return { ok: false };
+  }
+}
+
+export interface PvPStatus {
+  ok: boolean;
+  inBattle?: boolean;
+  inQueue?: boolean;
+  battleId?: string;
+  status?: string;
+  player?: { telegramId: string; planet: unknown; confirmed: boolean };
+  opponent?: { telegramId: string; planet: unknown; confirmed: boolean };
+  confirmDeadline?: number;
+  winProbability?: number;
+  winnerTelegramId?: string;
+  loserTelegramId?: string;
+  resultTimestamp?: number;
+  joinedAt?: number;
+}
+
+export async function fetchPvPStatus(telegramId: string): Promise<PvPStatus> {
+  try {
+    const res = await fetch(`${API_BASE}/pvp/status/${encodeURIComponent(telegramId)}?t=${Date.now()}`, {
+      headers: apiHeaders(),
+      cache: "no-store",
+    });
+    const j = await res.json().catch(() => ({}));
+    return j as PvPStatus;
+  } catch {
+    return { ok: false };
+  }
+}
+
+export async function fetchPvPBattle(battleId: string): Promise<PvPStatus> {
+  try {
+    const res = await fetch(`${API_BASE}/pvp/battle/${encodeURIComponent(battleId)}?t=${Date.now()}`, {
+      headers: apiHeaders(),
+      cache: "no-store",
+    });
+    const j = await res.json().catch(() => ({}));
+    return j as PvPStatus;
+  } catch {
+    return { ok: false };
+  }
+}
+
+export async function pvpConfirm(telegramId: string, battleId: string): Promise<{ ok: boolean; error?: string; battle?: unknown }> {
+  try {
+    const res = await fetch(`${API_BASE}/pvp/confirm`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, battleId }),
+    });
+    const j = await res.json().catch(() => ({}));
+    return { ok: !!j.ok, error: j.error, battle: j.battle };
+  } catch {
+    return { ok: false, error: "NETWORK" };
+  }
+}
+
+export async function pvpDecline(telegramId: string, battleId: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/pvp/decline`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, battleId }),
+    });
+    const j = await res.json().catch(() => ({}));
+    return { ok: !!j.ok, error: j.error };
+  } catch {
+    return { ok: false, error: "NETWORK" };
+  }
+}
+
 // ─── HOME — Global Chat (Phase 5b) ────────────────────────────────────
 export interface ChatMessage {
   id: number;

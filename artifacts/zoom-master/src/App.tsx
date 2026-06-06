@@ -5,6 +5,7 @@ import { AvatarXP } from "./components/AvatarXP";
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
 import { BlackPlanetOrbStyles } from "./components/BlackPlanetOrb";
 import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/useGameState";
+import { fetchRegularPlanets } from "./utils/api";
 import { useGlobalInit } from "./store/globalStore";
 import { NebulaBackground } from "./components/NebulaBackground";
 import { LabPage } from "./pages/LabPage";
@@ -197,13 +198,19 @@ function AppShellWithState() {
       }
     };
     const onStardustRefresh = () => { void stardust.refresh(); };
+    const onPlanetsRefresh = () => {
+      const tid = state.telegramId;
+      if (tid) void fetchRegularPlanets(tid);
+    };
     window.addEventListener("zoom-admin-self-increment", onInc);
     window.addEventListener("zoom-admin-self-decrement", onDec);
     window.addEventListener("stardust-refresh", onStardustRefresh);
+    window.addEventListener("planets-refresh", onPlanetsRefresh);
     return () => {
       window.removeEventListener("zoom-admin-self-increment", onInc);
       window.removeEventListener("zoom-admin-self-decrement", onDec);
       window.removeEventListener("stardust-refresh", onStardustRefresh);
+      window.removeEventListener("planets-refresh", onPlanetsRefresh);
     };
   }, [stardust]);
 

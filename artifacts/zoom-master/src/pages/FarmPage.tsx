@@ -5,6 +5,7 @@ import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, is
 import { WalletPopup } from "../components/WalletPopup";
 import { useT } from "../i18n/LanguageContext";
 import { PlanetRenameModal } from "../components/PlanetRenameModal";
+import PvPModal from "../components/PvPModal";
 import { getPlanetDisplayName } from "../utils/planetNames";
 import { PlanetFloatBar } from "../components/PlanetFloatBar";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
@@ -449,6 +450,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
   // taps reset the auto-dismiss timer instead of firing stale clears.
   const comingSoonTimeoutRef = useRef<number | null>(null);
   const [renamePlanet, setRenamePlanet] = useState<Planet | null>(null);
+  const [pvpPlanet, setPvPPlanet] = useState<Planet | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   // Inventory tab — the FarmPage hosts the player's full inventory, split
   // between "Planets" (existing planet/SUN/staking grid) and "Equipment"
@@ -994,6 +996,33 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                       >
                         {cfg.label.toUpperCase()}
                       </span>
+                      {/* PvP button — active only for never-farmed planets */}
+                      {(() => {
+                        const pvpEligible = !planet.isFarmingActive && !planet.isListedInMarket && planet.slotIndex == null && !planet.farmStartedAt;
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (pvpEligible && telegramId) setPvPPlanet(planet);
+                            }}
+                            disabled={!pvpEligible || !telegramId}
+                            title={pvpEligible ? "Battle this planet!" : "Planet must be new (never farmed)"}
+                            className="px-2 py-0.5 rounded-full font-black text-[9px] tracking-wider"
+                            style={{
+                              background: pvpEligible
+                                ? "rgba(255,50,50,0.15)"
+                                : "rgba(255,255,255,0.04)",
+                              color: pvpEligible ? "#ff6666" : "rgba(255,255,255,0.2)",
+                              border: `1px solid ${pvpEligible ? "rgba(255,50,50,0.45)" : "rgba(255,255,255,0.1)"}`,
+                              cursor: pvpEligible && telegramId ? "pointer" : "not-allowed",
+                              boxShadow: pvpEligible ? "0 0 8px rgba(255,50,50,0.2)" : "none",
+                              opacity: expired ? 0.4 : 1,
+                            }}
+                          >
+                            PvP
+                          </button>
+                        );
+                      })()}
                       {expired && (
                         <span
                           className="text-xs font-black px-2 py-0.5 rounded-full"
@@ -1239,6 +1268,17 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
           onClose={() => setRenamePlanet(null)}
           onRenamed={(planetId, displayName, newStardustBalance) => {
             onRename(planetId, displayName, newStardustBalance);
+          }}
+        />
+      )}
+      {pvpPlanet && telegramId && (
+        <PvPModal
+          open={!!pvpPlanet}
+          onClose={() => setPvPPlanet(null)}
+          telegramId={telegramId}
+          planet={pvpPlanet}
+          onPlanetTransferred={() => {
+            window.dispatchEvent(new Event("planets-refresh"));
           }}
         />
       )}

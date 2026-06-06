@@ -6,3 +6,4 @@ export * from "./chat";
 export * from "./roomInvites";
 export * from "./redeemCodes";
 export * from "./history";
+export * from "./pvp";
