@@ -248,6 +248,12 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
 
   useEffect(() => { void reloadTasks(); }, [reloadTasks]);
 
+  useEffect(() => {
+    const handler = () => { void reloadTasks(); };
+    window.addEventListener("zoom-data-refresh", handler);
+    return () => { window.removeEventListener("zoom-data-refresh", handler); };
+  }, [reloadTasks]);
+
   const handleClaimTask = async (taskId: string) => {
     if (!telegramId || claimingTaskId) return;
     setClaimingTaskId(taskId);
