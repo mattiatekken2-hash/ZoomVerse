@@ -1625,6 +1625,7 @@ export interface LeaderboardEntry {
   rank: number;
   telegramId: string;
   firstName: string;
+  photoUrl: string | null;
   zoomBalance: number;
 }
 

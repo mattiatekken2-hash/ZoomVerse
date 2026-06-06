@@ -120,6 +120,7 @@ router.get("/leaderboard", async (_req, res) => {
       .select({
         telegramId: usersTable.telegramId,
         firstName: usersTable.firstName,
+        photoUrl: usersTable.photoUrl,
         zoomBalance: usersTable.zoomBalance,
       })
       .from(usersTable)
@@ -131,6 +132,7 @@ router.get("/leaderboard", async (_req, res) => {
       rank: index + 1,
       telegramId: row.telegramId,
       firstName: row.firstName || "Player",
+      photoUrl: row.photoUrl || null,
       zoomBalance: row.zoomBalance,
     }));
 

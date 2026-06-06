@@ -206,6 +206,21 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                     <div className="font-black text-sm w-7 text-center flex-shrink-0" style={{ color: isUser ? "#00f2fe" : "rgba(255,255,255,0.28)" }}>
                       {medal ?? `#${entry.rank}`}
                     </div>
+                    {entry.photoUrl ? (
+                      <img
+                        src={entry.photoUrl}
+                        alt=""
+                        className="rounded-full object-cover flex-shrink-0"
+                        style={{ width: 32, height: 32, border: "2px solid rgba(255,255,255,0.2)" }}
+                      />
+                    ) : (
+                      <div
+                        className="rounded-full flex items-center justify-center flex-shrink-0 font-black text-xs"
+                        style={{ width: 32, height: 32, background: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.6)" }}
+                      >
+                        {entry.firstName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     <div className={isUser ? "flex-1 font-black text-sm neon-text" : "flex-1 font-bold text-sm"} style={{ color: isUser ? undefined : "rgba(255,255,255,0.58)" }}>
                       {entry.firstName}
                       {isUser && <span className="text-xs opacity-40 ml-1">(you)</span>}
