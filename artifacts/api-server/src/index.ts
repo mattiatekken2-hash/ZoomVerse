@@ -573,9 +573,25 @@ function startAlienMerchantCron() {
     logger.warn("[alien-cron] BOT_TOKEN not set — skipping alien merchant cron");
     return;
   }
+  // The alien radar posts to a FIXED public channel (ALIEN_CHAT_ID), shared by
+  // every environment. If the dev workspace ran this cron too, dev + production
+  // would both post to the same channel — producing duplicate, off-cadence
+  // messages (the exact symptom: two near-identical radar pings ~12 min apart
+  // instead of one every 30 min). Same gate the Telegram webhook uses: only the
+  // production deployment is allowed to broadcast.
+  if (process.env["REPLIT_DEPLOYMENT"] !== "1") {
+    logger.info("[alien-cron] not a deployment — skipping alien merchant cron (dev never posts to the live channel)");
+    return;
+  }
   let inFlight = false;
 
-  const tick = async () => {
+  // `isBoot` is true only for the one-shot tick fired shortly after the server
+  // starts. On boot we still want to catch a LANDING that happened during
+  // downtime (time-critical + idempotent), but we must NOT emit a radar
+  // countdown: every restart/redeploy would otherwise fire an off-schedule
+  // message and break the clean 30-minute cadence. Radar countdowns are sent
+  // exclusively by the 30-minute interval.
+  const tick = async (isBoot = false) => {
     if (inFlight) return;
     inFlight = true;
     try {
@@ -597,6 +613,11 @@ function startAlienMerchantCron() {
         }
         return;
       }
+
+      // Radar countdowns (CASE 1) are periodic, not time-critical. Skip them on
+      // the boot tick so a restart/redeploy never injects an off-schedule ping —
+      // the next one arrives on the regular 30-minute interval.
+      if (isBoot) return;
 
       // CASE 1: Merchant is NOT active — radar countdown
       const nextAtMs = g.nextAtMs;
@@ -633,9 +654,11 @@ function startAlienMerchantCron() {
     }
   };
 
-  // First tick ~60s after boot so it doesn't collide with startup logs.
-  setTimeout(tick, 60_000).unref();
-  setInterval(tick, intervalMs).unref();
+  // First tick ~60s after boot so it doesn't collide with startup logs. Boot
+  // tick only handles a missed landing flash; the radar countdown is emitted
+  // solely by the 30-minute interval to keep the cadence exact.
+  setTimeout(() => tick(true), 60_000).unref();
+  setInterval(() => tick(false), intervalMs).unref();
 }
 
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
