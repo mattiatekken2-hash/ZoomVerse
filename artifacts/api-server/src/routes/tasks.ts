@@ -194,7 +194,8 @@ router.get("/tasks/state/:telegramId", requireTelegramAuth({ bindField: "" }), a
     // so we compute the value live from the per-tier counters here.
     const rows = await db
       .select({
-        builtSum: sql<number>`(
+        builtSum: sql<number>`GREATEST(
+          ${usersTable.totalPlanetsBuilt},
           ${usersTable.totalCraftedBasic} + ${usersTable.totalCraftedRare} +
           ${usersTable.totalCraftedEpic}  + ${usersTable.totalCraftedMythic} +
           ${usersTable.totalCraftedPlasma} + ${usersTable.totalCraftedGold} +
@@ -299,7 +300,8 @@ router.post("/tasks/claim", async (req, res) => {
 
     // Same per-tier sum used by GET /tasks/state — keeps the threshold
     // guard consistent with the value the client actually sees.
-    const builtSumSql = sql<number>`(
+    const builtSumSql = sql<number>`GREATEST(
+      ${usersTable.totalPlanetsBuilt},
       ${usersTable.totalCraftedBasic} + ${usersTable.totalCraftedRare} +
       ${usersTable.totalCraftedEpic}  + ${usersTable.totalCraftedMythic} +
       ${usersTable.totalCraftedPlasma} + ${usersTable.totalCraftedGold} +
