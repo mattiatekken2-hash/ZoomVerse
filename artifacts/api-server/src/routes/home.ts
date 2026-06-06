@@ -32,6 +32,12 @@ const COMPUTER_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const COMPUTER_ZOOM_BONUS_REWARD = 200;
 const COMPUTER_ZOOM_BONUS_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
+// V1 NFT Platinum passive stardust: owning the V1 NFT planet
+// (bonus_v1_nft_platinum > 0) unlocks a 24h cycle producing 25 stardust
+// per claim. NULL last-claim = first claim available immediately.
+const V1_NFT_STARDUST_REWARD = 25;          // stardust per claim
+const V1_NFT_STARDUST_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
 // PLANT — virtual pixel-art plant that the user grows by watering.
 // 10 levels, +10 XP per watering, 100 XP per level → 10 waterings per
 // level → 90 waterings total to reach level 10 (~45 days at 1/12h).
@@ -483,6 +489,132 @@ router.post("/home/computer/zoom-bonus", async (req, res) => {
     });
   } catch (err) {
     console.error("[home/computer/zoom-bonus] error:", err);
+    res.status(500).json({ ok: false, error: "INTERNAL" });
+  }
+});
+
+// ─── GET /home/v1-nft/stardust-status/:telegramId ───────────────────────
+// Read-only: tells the V1 NFT widget whether the user owns the V1 NFT
+// planet and when the next 25-stardust claim is ready. NULL last-claim
+// → claimable now.
+router.get("/home/v1-nft/stardust-status/:telegramId", async (req, res) => {
+  const telegramId = String(req.params.telegramId || "").trim();
+  if (!telegramId) {
+    res.status(400).json({ ok: false, error: "telegramId required" });
+    return;
+  }
+  try {
+    const rows = await db
+      .select({
+        bonusV1NftPlatinum: usersTable.bonusV1NftPlatinum,
+        v1NftStardustLastClaimAt: usersTable.v1NftStardustLastClaimAt,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, telegramId))
+      .limit(1);
+    const row = rows[0];
+    if (!row) {
+      res.status(404).json({ ok: false, error: "USER_NOT_FOUND" });
+      return;
+    }
+    const owned = (row.bonusV1NftPlatinum ?? 0) > 0;
+    const now = Date.now();
+    const last = row.v1NftStardustLastClaimAt
+      ? new Date(row.v1NftStardustLastClaimAt).getTime()
+      : 0;
+    const nextReadyAt = last === 0 ? now : last + V1_NFT_STARDUST_COOLDOWN_MS;
+    const secondsToReady = owned ? Math.max(0, Math.ceil((nextReadyAt - now) / 1000)) : 0;
+    res.json({
+      ok: true,
+      owned,
+      lastClaimAt: row.v1NftStardustLastClaimAt,
+      nextReadyAt: owned ? nextReadyAt : 0,
+      secondsToReady,
+      claimable: owned && secondsToReady === 0,
+      rewardPerClaim: V1_NFT_STARDUST_REWARD,
+      cooldownMs: V1_NFT_STARDUST_COOLDOWN_MS,
+    });
+  } catch (err) {
+    console.error("[home/v1-nft/stardust-status] error:", err);
+    res.status(500).json({ ok: false, error: "INTERNAL" });
+  }
+});
+
+// ─── POST /home/v1-nft/claim-stardust ───────────────────────────────────
+// Atomic: only lands if the user owns the V1 NFT planet
+// (bonus_v1_nft_platinum > 0) AND the 24h cooldown has elapsed (or it was
+// never claimed). Same UPDATE credits +25 stardust and resets the anchor.
+router.post("/home/v1-nft/claim-stardust", async (req, res) => {
+  const parsed = TgIdBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ ok: false, error: "BAD_REQUEST" });
+    return;
+  }
+  const { telegramId } = parsed.data;
+  try {
+    const updated = await db
+      .update(usersTable)
+      .set({
+        stardustBalance: sql`${usersTable.stardustBalance} + ${V1_NFT_STARDUST_REWARD}`,
+        v1NftStardustLastClaimAt: sql`NOW()`,
+      })
+      .where(
+        sql`
+          ${usersTable.telegramId} = ${telegramId}
+          AND ${usersTable.bonusV1NftPlatinum} > 0
+          AND (
+            ${usersTable.v1NftStardustLastClaimAt} IS NULL
+            OR (EXTRACT(EPOCH FROM (NOW() - ${usersTable.v1NftStardustLastClaimAt})) * 1000)
+                >= ${V1_NFT_STARDUST_COOLDOWN_MS}
+          )
+        `,
+      )
+      .returning({
+        stardustBalance: usersTable.stardustBalance,
+        v1NftStardustLastClaimAt: usersTable.v1NftStardustLastClaimAt,
+      });
+    if (updated.length === 0) {
+      const existing = await db
+        .select({
+          bonusV1NftPlatinum: usersTable.bonusV1NftPlatinum,
+          v1NftStardustLastClaimAt: usersTable.v1NftStardustLastClaimAt,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.telegramId, telegramId))
+        .limit(1);
+      if (existing.length === 0) {
+        res.status(404).json({ ok: false, error: "USER_NOT_FOUND" });
+        return;
+      }
+      if ((existing[0]!.bonusV1NftPlatinum ?? 0) <= 0) {
+        res.status(409).json({ ok: false, error: "NOT_OWNED" });
+        return;
+      }
+      const last = existing[0]!.v1NftStardustLastClaimAt
+        ? new Date(existing[0]!.v1NftStardustLastClaimAt).getTime()
+        : 0;
+      const secondsToReady = Math.max(
+        0,
+        Math.ceil((last + V1_NFT_STARDUST_COOLDOWN_MS - Date.now()) / 1000),
+      );
+      res.status(409).json({ ok: false, error: "NOT_READY", secondsToReady });
+      return;
+    }
+    console.log(`[home/v1-nft/claim-stardust] ${telegramId} claimed +${V1_NFT_STARDUST_REWARD} stardust`);
+    res.json({
+      ok: true,
+      reward: V1_NFT_STARDUST_REWARD,
+      stardustBalance: updated[0]!.stardustBalance,
+      v1NftStardustLastClaimAt: updated[0]!.v1NftStardustLastClaimAt,
+    });
+    recordHistoryAsync({
+      telegramId,
+      kind: "v1_nft_stardust_claim",
+      delta: V1_NFT_STARDUST_REWARD,
+      currency: "stardust",
+    });
+  } catch (err) {
+    console.error("[home/v1-nft/claim-stardust] error:", err);
     res.status(500).json({ ok: false, error: "INTERNAL" });
   }
 });

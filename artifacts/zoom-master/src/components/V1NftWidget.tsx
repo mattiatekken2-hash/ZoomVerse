@@ -1,6 +1,23 @@
 import { useEffect, useState, memo, useRef } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
-import { fetchV1NftPlatinumStock, confirmTonPurchase, pollTxnUntilFinal, type V1NftPlatinumStock } from "../utils/api";
+import {
+  fetchV1NftPlatinumStock,
+  confirmTonPurchase,
+  pollTxnUntilFinal,
+  fetchV1NftStardustStatus,
+  claimV1NftStardust,
+  type V1NftPlatinumStock,
+  type V1NftStardustStatus,
+} from "../utils/api";
+
+// Format a seconds-to-ready countdown as "Xh Ym" (or "Ym" under an hour).
+function fmtCountdown(secs: number): string {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m`;
+  return `${secs}s`;
+}
 
 // V1 NFT Platinum Edition — widget quadrato sul LAB (right:12, top:410),
 // sotto il trofeo Hall of Fame (top:340 + h:60 = 400). Stesso stile pixel
@@ -25,7 +42,15 @@ function V1NftWidgetBase({ telegramId }: Props) {
   const [stock, setStock] = useState<V1NftPlatinumStock | null>(null);
   const [buying, setBuying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [sdStatus, setSdStatus] = useState<V1NftStardustStatus | null>(null);
+  const [claiming, setClaiming] = useState(false);
   const aliveRef = useRef(true);
+
+  const refreshSdStatus = async () => {
+    if (!telegramId) return;
+    const s = await fetchV1NftStardustStatus(telegramId);
+    if (aliveRef.current) setSdStatus(s);
+  };
 
   useEffect(() => {
     aliveRef.current = true;
@@ -34,20 +59,43 @@ function V1NftWidgetBase({ telegramId }: Props) {
       if (aliveRef.current) setStock(s);
     };
     refresh();
+    refreshSdStatus();
     const id = setInterval(() => {
       if (document.hidden) return;
       refresh();
+      refreshSdStatus();
     }, 20000);
     return () => {
       aliveRef.current = false;
       clearInterval(id);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [telegramId]);
+
+  const handleClaimStardust = async () => {
+    if (!telegramId || claiming) return;
+    setClaiming(true);
+    const r = await claimV1NftStardust(telegramId);
+    if (r.ok) {
+      setMessage(`+${r.reward ?? 25} Stardust claimed!`);
+      window.dispatchEvent(new Event("stardust-refresh"));
+    } else if (r.error === "NOT_READY") {
+      setMessage(`Next claim in ${fmtCountdown(r.secondsToReady ?? 0)}`);
+    } else if (r.error === "NOT_OWNED") {
+      setMessage("You don't own the V1 NFT planet");
+    } else {
+      setMessage("Claim failed, try again");
+    }
+    await refreshSdStatus();
+    if (aliveRef.current) setClaiming(false);
+  };
 
   // Refresh stock anche quando si apre il modal (utente vuole il dato fresco).
   useEffect(() => {
     if (!open) return;
     void fetchV1NftPlatinumStock().then(s => { if (aliveRef.current) setStock(s); });
+    void refreshSdStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
@@ -243,6 +291,41 @@ function V1NftWidgetBase({ telegramId }: Props) {
                 marginBottom: 10,
               }}>
                 {message}
+              </div>
+            )}
+
+            {/* Owners: passive stardust claim — 25 stardust every 24h. */}
+            {sdStatus?.owned && (
+              <div style={{
+                marginBottom: 12,
+                padding: "12px 14px",
+                borderRadius: 14,
+                background: "linear-gradient(135deg, rgba(255,215,64,0.10), rgba(255,184,77,0.06))",
+                border: "1px solid rgba(255,215,64,0.35)",
+              }}>
+                <div style={{ color: "rgba(255,235,150,0.85)", fontSize: 11, fontWeight: 700, marginBottom: 8, letterSpacing: 0.4 }}>
+                  ⭐ PASSIVE STARDUST · +{sdStatus.rewardPerClaim} / 24h
+                </div>
+                <button
+                  onClick={handleClaimStardust}
+                  disabled={claiming || !sdStatus.claimable}
+                  className="w-full py-3 rounded-xl font-black text-sm tracking-wider active:scale-95"
+                  style={{
+                    background: (claiming || !sdStatus.claimable)
+                      ? "rgba(255,255,255,0.04)"
+                      : "linear-gradient(135deg, rgba(255,215,64,0.28), rgba(255,184,77,0.20))",
+                    color: (claiming || !sdStatus.claimable) ? "rgba(255,255,255,0.30)" : "#ffe98a",
+                    border: `1px solid ${(claiming || !sdStatus.claimable) ? "rgba(255,255,255,0.10)" : "rgba(255,215,64,0.5)"}`,
+                    cursor: (claiming || !sdStatus.claimable) ? "not-allowed" : "pointer",
+                  }}
+                  data-testid="button-v1-nft-claim-stardust"
+                >
+                  {claiming
+                    ? "CLAIMING…"
+                    : sdStatus.claimable
+                    ? `CLAIM ${sdStatus.rewardPerClaim} STARDUST`
+                    : `NEXT IN ${fmtCountdown(sdStatus.secondsToReady)}`}
+                </button>
               </div>
             )}
 

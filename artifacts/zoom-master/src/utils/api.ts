@@ -3031,6 +3031,43 @@ export function claimComputer(telegramId: string): Promise<HomeActionResult> {
 export function claimComputerZoomBonus(telegramId: string): Promise<HomeActionResult> {
   return homePost("/home/computer/zoom-bonus", { telegramId });
 }
+
+export interface V1NftStardustStatus {
+  ok: boolean;
+  owned: boolean;
+  secondsToReady: number;
+  claimable: boolean;
+  rewardPerClaim: number;
+  cooldownMs: number;
+}
+
+export async function fetchV1NftStardustStatus(telegramId: string): Promise<V1NftStardustStatus> {
+  const fallback: V1NftStardustStatus = {
+    ok: false, owned: false, secondsToReady: 0, claimable: false, rewardPerClaim: 25, cooldownMs: 86_400_000,
+  };
+  try {
+    const res = await fetch(`${API_BASE}/home/v1-nft/stardust-status/${encodeURIComponent(telegramId)}?t=${Date.now()}`, {
+      headers: apiHeaders(),
+      cache: "no-store",
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || !j.ok) return fallback;
+    return {
+      ok: true,
+      owned: !!j.owned,
+      secondsToReady: Number(j.secondsToReady) || 0,
+      claimable: !!j.claimable,
+      rewardPerClaim: Number(j.rewardPerClaim) || 25,
+      cooldownMs: Number(j.cooldownMs) || 86_400_000,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+export function claimV1NftStardust(telegramId: string): Promise<HomeActionResult> {
+  return homePost("/home/v1-nft/claim-stardust", { telegramId });
+}
 export function buyPlantSeed(telegramId: string): Promise<HomeActionResult> {
   return homePost("/home/plant/buy", { telegramId });
 }

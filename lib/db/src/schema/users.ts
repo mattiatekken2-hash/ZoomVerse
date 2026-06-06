@@ -156,6 +156,10 @@ export const usersTable = pgTable("users", {
   claimedBonusPlasma: integer("claimed_bonus_plasma").notNull().default(0),
   claimedBonusV1: integer("claimed_bonus_v1").notNull().default(0),
   claimedBonusV1NftPlatinum: integer("claimed_bonus_v1_nft_platinum").notNull().default(0),
+  // V1 NFT Platinum passive stardust: owning the V1 NFT planet unlocks a
+  // 24h cycle that produces 25 stardust per claim. NULL = never claimed
+  // → first claim is available immediately; reset to NOW() on each claim.
+  v1NftStardustLastClaimAt: timestamp("v1_nft_stardust_last_claim_at"),
   // ─────────────────────────────────────────────────────────────────────
   // HOME — pixel-art Comfort Zone (Phase 1: server foundations).
   //

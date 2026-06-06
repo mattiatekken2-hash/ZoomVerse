@@ -196,11 +196,14 @@ function AppShellWithState() {
         setState((prev) => ({ ...prev, tonBalance: Math.max(0, (prev.tonBalance || 0) - n) }));
       }
     };
+    const onStardustRefresh = () => { void stardust.refresh(); };
     window.addEventListener("zoom-admin-self-increment", onInc);
     window.addEventListener("zoom-admin-self-decrement", onDec);
+    window.addEventListener("stardust-refresh", onStardustRefresh);
     return () => {
       window.removeEventListener("zoom-admin-self-increment", onInc);
       window.removeEventListener("zoom-admin-self-decrement", onDec);
+      window.removeEventListener("stardust-refresh", onStardustRefresh);
     };
   }, [stardust]);
 
