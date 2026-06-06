@@ -100,17 +100,29 @@ function AppShellWithState() {
   const merchant = useMerchant(state.telegramId);
   const scrapEligiblePlanets = state.planets.filter((p) => !p.isFarmingActive && !p.isListedInMarket);
 
-  // Telegram profile photo + name for the header avatar/XP widget. Read once
-  // from the WebApp launch data; it's static for the session.
-  const tgProfile = useMemo(() => {
-    try {
-      const u = (window as unknown as {
-        Telegram?: { WebApp?: { initDataUnsafe?: { user?: { first_name?: string; username?: string; photo_url?: string } } } };
-      }).Telegram?.WebApp?.initDataUnsafe?.user;
-      return { photoUrl: u?.photo_url ?? null, name: u?.first_name ?? u?.username ?? null };
-    } catch {
-      return { photoUrl: null, name: null };
-    }
+  // Telegram profile photo + name for the header avatar/XP widget.
+  // We poll once because Telegram WebApp populates initDataUnsafe
+  // slightly after the initial render, so a single read can miss it.
+  const [tgProfile, setTgProfile] = useState<{ photoUrl: string | null; name: string | null }>({ photoUrl: null, name: null });
+  useEffect(() => {
+    let attempts = 0;
+    const id = setInterval(() => {
+      attempts++;
+      try {
+        const u = (window as unknown as {
+          Telegram?: { WebApp?: { initDataUnsafe?: { user?: { first_name?: string; username?: string; photo_url?: string } } } };
+        }).Telegram?.WebApp?.initDataUnsafe?.user;
+        const next = { photoUrl: u?.photo_url ?? null, name: u?.first_name ?? u?.username ?? null };
+        if (next.photoUrl || next.name || attempts >= 6) {
+          setTgProfile(next);
+          clearInterval(id);
+        }
+      } catch {
+        setTgProfile({ photoUrl: null, name: null });
+        clearInterval(id);
+      }
+    }, 300);
+    return () => clearInterval(id);
   }, []);
 
   // Centralized global data fetch — Season epoch, leaderboard, profile, daily, market.

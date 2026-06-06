@@ -212,6 +212,8 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                         alt=""
                         className="rounded-full object-cover flex-shrink-0"
                         style={{ width: 32, height: 32, border: "2px solid rgba(255,255,255,0.2)" }}
+                        referrerPolicy="no-referrer"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                       />
                     ) : (
                       <div
