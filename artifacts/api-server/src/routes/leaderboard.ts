@@ -304,7 +304,10 @@ router.post("/craft/record", async (req, res) => {
   const obtainedField = obtainedFieldMap[planetType];
 
   try {
-    const setClauses: Record<string, unknown> = { [field]: sql`${usersTable[field]} + 1` };
+    const setClauses: Record<string, unknown> = {
+      [field]: sql`${usersTable[field]} + 1`,
+      totalPlanetsBuilt: sql`${usersTable.totalPlanetsBuilt} + 1`,
+    };
     if (obtainedField) {
       setClauses[obtainedField] = sql`${usersTable[obtainedField]} + 1`;
     }
