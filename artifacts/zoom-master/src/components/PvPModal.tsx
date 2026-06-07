@@ -215,6 +215,23 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
     }
   };
 
+  // SKIP: reject the currently matched opponent and go back to searching for a
+  // new one, without leaving the PvP modal. Only meaningful before the local
+  // player has confirmed (after confirming you're committed to the duel).
+  const handleSkip = async () => {
+    if (!telegramId) return;
+    if (pollRef.current) {
+      window.clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    if (battle?.battleId && (battle.status === "pending" || battle.status === "confirming")) {
+      await pvpDecline(telegramId, battle.battleId);
+    }
+    if (!aliveRef.current) return;
+    // Re-enter the queue; startQueue resets resolvedRef/state and starts polling.
+    startQueue();
+  };
+
   // Init on open
   useEffect(() => {
     if (!open) {
@@ -412,6 +429,22 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
             <div className="text-center text-xs font-bold mb-3" style={{ color: opponentConfirmed ? "#00e676" : "rgba(255,255,255,0.3)" }}>
               {opponentConfirmed ? "Opponent confirmed ✓" : "Waiting for opponent..."}
             </div>
+
+            {/* SKIP — reject this opponent and keep searching. Hidden once you've
+                confirmed (you're then committed to the duel). */}
+            {!playerConfirmed && (
+              <button
+                onClick={handleSkip}
+                className="w-full py-3 rounded-xl text-sm font-black tracking-wider active:scale-95 mb-3"
+                style={{
+                  background: "rgba(80,130,255,0.15)",
+                  color: "#7aa2ff",
+                  border: "1px solid rgba(80,130,255,0.4)",
+                }}
+              >
+                SKIP OPPONENT
+              </button>
+            )}
 
             <button
               onClick={handleCancel}
