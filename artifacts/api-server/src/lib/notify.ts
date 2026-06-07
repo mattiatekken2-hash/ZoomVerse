@@ -181,6 +181,60 @@ export async function notifyAdminWithdrawalRequest(params: {
   }
 }
 
+// Telegram group/channel where players share marketplace listings.
+// Defaults to the public ZoomVerse community chat; overridable via env so we
+// can retarget (or point at a specific forum topic) without redeploying.
+const MARKET_SHARE_CHAT_ID = process.env["MARKET_SHARE_CHAT_ID"] || "@ZoomVerse_Chat";
+const MARKET_SHARE_THREAD_ID = Number(process.env["MARKET_SHARE_THREAD_ID"] || "0") || undefined;
+
+/**
+ * Post a marketplace listing to the community group: a looping animation of the
+ * rotating planet (sendAnimation autoplays muted mp4/gif on loop), the planet
+ * data as an HTML caption, and an inline URL button carrying the deep link back
+ * into the Mini App's market view.
+ *
+ * Returns false (and logs) on any failure so the caller can surface a friendly
+ * error instead of throwing. The bot must be a member of the target chat with
+ * permission to send media.
+ */
+export async function sendMarketShareToGroup(params: {
+  animationUrl: string;
+  caption: string;
+  buttonText: string;
+  buttonUrl: string;
+}): Promise<boolean> {
+  if (!BOT_TOKEN) {
+    logger.warn("[notify] BOT_TOKEN not set — skipping market share");
+    return false;
+  }
+  try {
+    const body: Record<string, unknown> = {
+      chat_id: MARKET_SHARE_CHAT_ID,
+      animation: params.animationUrl,
+      caption: params.caption,
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [[{ text: params.buttonText, url: params.buttonUrl }]],
+      },
+    };
+    if (MARKET_SHARE_THREAD_ID) body["message_thread_id"] = MARKET_SHARE_THREAD_ID;
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendAnimation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const responseBody = await res.text().catch(() => "");
+      logger.warn({ status: res.status, responseBody }, "[notify] market share sendAnimation non-OK");
+      return false;
+    }
+    return true;
+  } catch (err) {
+    logger.warn({ err }, "[notify] market share sendAnimation failed");
+    return false;
+  }
+}
+
 /**
  * Send a message to the Alien chat channel (community updates).
  * Used for radar countdown and landing alerts for the Space Merchant.

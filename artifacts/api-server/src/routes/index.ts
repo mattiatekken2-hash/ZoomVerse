@@ -152,6 +152,13 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
     paths: ["/market/buy"],
     bindField: "buyerTelegramId",
   },
+  // Marketplace — sharing a listing to the community group. Bind to telegramId
+  // so only a verified caller can make the bot post (anti-spam / anti-spoof).
+  {
+    methods: ["POST"],
+    paths: ["/market/share"],
+    bindField: "telegramId",
+  },
   // GET endpoints that need to KNOW the caller's verified Telegram id to
   // filter the response (e.g. "show MY tickets in the active round"). They
   // don't bind to a body field — the handler simply reads `req.tgUser?.id`.

@@ -57,6 +57,26 @@ function AppShellWithState() {
   const [tab, setTab] = useState<Tab>("lab");
   const { t } = useT();
 
+  // Deep-link focus (Feature 2 — Planet Sharing). When the mini app is opened
+  // via a `mkt_<listingId>` start_param, jump straight to the Market tab and
+  // pass the listing's server id down so MarketPage scrolls to + highlights it.
+  const [marketFocusId, setMarketFocusId] = useState<number | null>(null);
+  useEffect(() => {
+    try {
+      let sp = (window as unknown as {
+        Telegram?: { WebApp?: { initDataUnsafe?: { start_param?: string } } };
+      }).Telegram?.WebApp?.initDataUnsafe?.start_param ?? null;
+      if (!sp) { try { sp = localStorage.getItem("n"); } catch { sp = null; } }
+      if (sp && /^mkt_\d+$/.test(sp)) {
+        const id = parseInt(sp.slice(4), 10);
+        if (Number.isFinite(id)) {
+          setMarketFocusId(id);
+          setTab("market");
+        }
+      }
+    } catch { /* noop */ }
+  }, []);
+
   // Global toast — listens for window 'zoom-toast' CustomEvents and shows a
   // brief banner. Used by useGameState (e.g. claimCraft when slots are full).
   const [globalToast, setGlobalToast] = useState<{ text: string; ok: boolean } | null>(null);
@@ -869,6 +889,8 @@ function AppShellWithState() {
                   onServerBuyComplete={serverBuyComplete}
                   onBuyEquipment={buyEquipmentFromMarket}
                   onUnlistEquipment={unlistEquipment}
+                  focusListingId={marketFocusId}
+                  onFocusConsumed={() => setMarketFocusId(null)}
                 />
               )}
               {t === "earn" && (

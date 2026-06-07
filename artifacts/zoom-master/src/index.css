@@ -1356,6 +1356,17 @@
 }
 .perfect-card-glow > * { position: relative; z-index: 1; }
 
+/* Deep-link focus pulse — applied to a Market listing card when the app is
+   opened via a `mkt_<id>` share link, drawing the eye to the shared planet. */
+@keyframes deeplink-focus-pulse {
+  0%   { box-shadow: 0 0 18px rgba(0,230,255,0.35); }
+  50%  { box-shadow: 0 0 32px rgba(0,230,255,0.75); }
+  100% { box-shadow: 0 0 18px rgba(0,230,255,0.35); }
+}
+.deeplink-focus-glow {
+  animation: deeplink-focus-pulse 1.1s ease-in-out infinite;
+}
+
 /* ─── Platinum/chrome NAME for V1_NFT ─────────────────────────────────
    Silver-chrome gradient text used in Farm + Marketplace for the planet
    name when the planet is V1_NFT. Pairs with the .nft-card-glow border

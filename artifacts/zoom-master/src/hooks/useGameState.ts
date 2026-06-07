@@ -695,6 +695,13 @@ function getTelegramContext(): { telegramId: string | null; startParam: string |
       startParam = localStorage.getItem("zoom-start-param");
     }
 
+    // Market-share deep links (`mkt_<listingId>`) are NOT referral codes — they
+    // route the user to a listing (handled in App.tsx). Never let them be
+    // consumed as a referrer, or sharers would accidentally "refer" everyone.
+    if (startParam && /^mkt_/.test(startParam)) {
+      startParam = null;
+    }
+
     return { telegramId, startParam, firstName, username, photoUrl };
   } catch {
     return { telegramId: null, startParam: null, firstName: null, username: null, photoUrl: null };

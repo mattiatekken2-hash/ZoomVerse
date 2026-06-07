@@ -2341,6 +2341,26 @@ export async function buyFromMarket(buyerTelegramId: string, listingId: number):
   }
 }
 
+// Ask the server to post a listing to the community group (looping planet
+// animation + stats + deep-link button). Returns ok plus the generated deep
+// link, or an error string the UI surfaces in a toast.
+export async function shareListing(telegramId: string, listingId: number): Promise<{
+  ok: boolean;
+  deepLink?: string;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(`${API_BASE}/market/share`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, listingId }),
+    });
+    return res.json();
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
 export async function delistFromMarket(sellerTelegramId: string, listingId: number): Promise<{ ok: boolean }> {
   try {
     const res = await fetch(`${API_BASE}/market/delist`, {

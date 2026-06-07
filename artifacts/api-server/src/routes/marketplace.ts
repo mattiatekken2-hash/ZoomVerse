@@ -4,7 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { addClient, removeClient, broadcastSale } from "../lib/activityBus";
-import { sendBotMessage } from "../lib/notify";
+import { sendBotMessage, sendMarketShareToGroup } from "../lib/notify";
 import { bumpZoomPriceFireAndForget } from "../lib/zoomPrice";
 import { recordHistoryAsync } from "../lib/history";
 import {
@@ -931,6 +931,139 @@ router.post("/market/delist", async (req, res) => {
   } finally {
     client.release();
   }
+});
+
+// ---------------------------------------------------------------------------
+// Planet sharing — POST /market/share
+//
+// Lets a player broadcast an active listing to the community group. The bot
+// posts a looping rotating-planet animation (one mp4 per visual family, served
+// from the web artifact's /planets/ dir) with the planet stats as a caption and
+// an inline button carrying a deep link that reopens the Mini App focused on the
+// listing (start_param `mkt_<listingId>`).
+// ---------------------------------------------------------------------------
+
+// Telegram start_param accepts only A-Za-z0-9_- (max 64). `mkt_<id>` is safe.
+const BOT_USERNAME = (process.env["BOT_USERNAME"] || "ZoomVerse_bot").replace(/^@/, "");
+
+// Public HTTPS base where the web artifact (and its /planets/*.mp4 assets) is
+// reachable by Telegram's servers. In deployments REPLIT_DOMAINS holds the
+// public domain(s); overridable via env.
+function publicAssetBaseUrl(): string | null {
+  const explicit = process.env["PUBLIC_ASSET_BASE_URL"];
+  if (explicit) return explicit.replace(/\/+$/, "");
+  const domains = process.env["REPLIT_DOMAINS"];
+  if (domains) {
+    const first = domains.split(",")[0]?.trim();
+    if (first) return `https://${first}`;
+  }
+  return null;
+}
+
+// Map every concrete planet type to one of the 12 generated family videos.
+function planetVideoFamily(planetType: string): string {
+  const t = planetType.toUpperCase();
+  if (t.startsWith("WHITE")) return "WHITE";
+  if (t.startsWith("EARTH")) return "EARTH";
+  if (t.startsWith("BLACK")) return "BLACK";
+  if (t.startsWith("SUPERNOVA")) return "SUPERNOVA";
+  const core = new Set(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1", "V1_NFT"]);
+  if (core.has(t)) return t;
+  return "BASIC";
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// In-memory per-user cooldown to keep the group from being spammed. Resets on
+// server restart — adequate for an anti-flood guard (not a security boundary).
+const SHARE_COOLDOWN_MS = 20_000;
+const lastShareAtByUser = new Map<string, number>();
+
+const ShareBody = z.object({
+  telegramId: z.string().min(1),
+  listingId: z.number().int().positive(),
+});
+
+router.post("/market/share", async (req, res) => {
+  const parsed = ShareBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body" });
+    return;
+  }
+  const { listingId } = parsed.data;
+
+  // Key the cooldown off the cryptographically verified Telegram id, never the
+  // public body `telegramId` (which an attacker could spoof). Fall back to the
+  // body id only in soft/dev mode where req.tgUser may be absent.
+  const cooldownKey = req.tgUser?.id ? String(req.tgUser.id) : parsed.data.telegramId;
+
+  // Reserve the cooldown slot atomically BEFORE the first await so two
+  // near-simultaneous requests can't both pass the check and double-post.
+  const now = Date.now();
+  const last = lastShareAtByUser.get(cooldownKey) || 0;
+  if (now - last < SHARE_COOLDOWN_MS) {
+    res.status(429).json({ error: "Too many shares, slow down" });
+    return;
+  }
+  lastShareAtByUser.set(cooldownKey, now);
+
+  const [listing] = await db
+    .select()
+    .from(marketListingsTable)
+    .where(and(eq(marketListingsTable.id, listingId), eq(marketListingsTable.status, "active")))
+    .limit(1);
+
+  // Accept planet listings; legacy rows may have a null `kind` but a valid
+  // planetType, so only reject explicit equipment listings.
+  if (!listing || listing.kind === "equipment" || !listing.planetType) {
+    lastShareAtByUser.delete(cooldownKey);
+    res.status(404).json({ error: "Listing not found" });
+    return;
+  }
+
+  const base = publicAssetBaseUrl();
+  if (!base) {
+    lastShareAtByUser.delete(cooldownKey);
+    req.log.warn("[market/share] no public base url — cannot build animation url");
+    res.status(503).json({ error: "Sharing unavailable" });
+    return;
+  }
+
+  const family = planetVideoFamily(listing.planetType);
+  const animationUrl = `${base}/planets/${family}.mp4`;
+  const deepLink = `https://t.me/${BOT_USERNAME}?startapp=mkt_${listing.id}`;
+
+  const displayName = listing.planetDisplayName || `${listing.planetType} Planet`;
+  const rate = listing.planetRate != null ? Number(listing.planetRate) : null;
+  const floatVal = typeof listing.planetFloat === "number" ? listing.planetFloat : null;
+
+  const lines: string[] = [];
+  lines.push(`🪐 <b>${escapeHtml(displayName)}</b>`);
+  lines.push(`✨ Rarità: <b>${escapeHtml(listing.planetType)}</b>`);
+  if (rate != null) lines.push(`⚡ +${rate.toLocaleString("en-US")} $ZOOM/hr`);
+  if (floatVal != null) lines.push(`🎚 Float: <b>${floatVal.toFixed(4)}</b>`);
+  lines.push(`💎 Prezzo: <b>${Number(listing.price).toLocaleString("en-US")} TON</b>`);
+  lines.push("");
+  lines.push("👇 Aprilo nel Mercato per acquistarlo");
+  const caption = lines.join("\n");
+
+  const sent = await sendMarketShareToGroup({
+    animationUrl,
+    caption,
+    buttonText: "🛒 Apri nel Mercato",
+    buttonUrl: deepLink,
+  });
+
+  if (!sent) {
+    // Roll back the reserved cooldown slot so the user can retry immediately.
+    lastShareAtByUser.delete(cooldownKey);
+    res.status(502).json({ error: "Could not post to group" });
+    return;
+  }
+
+  res.json({ ok: true, deepLink });
 });
 
 export default router;

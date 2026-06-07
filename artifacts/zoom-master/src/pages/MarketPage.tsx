@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
-import { buyFromMarket, openMarketActivityStream, type ServerMarketListing } from "../utils/api";
+import { buyFromMarket, shareListing, openMarketActivityStream, type ServerMarketListing } from "../utils/api";
 import { useGlobalStore, pushMarketSale, refreshMarketListings } from "../store/globalStore";
 import { PlanetFloatBar } from "../components/PlanetFloatBar";
 import { getListingDisplayFloat, FLOAT_PLANET_TYPES } from "../utils/planetFloat";
@@ -47,11 +47,16 @@ interface MarketPageProps {
   // whose `kind === 'equipment'`. Wired from useGameState.
   onBuyEquipment: (listing: ServerMarketListing) => Promise<{ success: boolean; reason?: string }>;
   onUnlistEquipment: (equipmentId: string) => void;
+  // When the app is opened via a `mkt_<id>` deep link, the listing's server id
+  // is passed here so the page scrolls to and highlights that card on mount.
+  focusListingId?: number | null;
+  // Called once the focus has been consumed so it isn't re-applied on re-render.
+  onFocusConsumed?: () => void;
 }
 
 interface Toast { text: string; ok: boolean }
 
-export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete, onBuyEquipment, onUnlistEquipment }: MarketPageProps) {
+export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete, onBuyEquipment, onUnlistEquipment, focusListingId, onFocusConsumed }: MarketPageProps) {
   const { t } = useT();
   const [filter, setFilter] = useState<MarketFilter>("ALL");
   // Float sort widget for the marketplace (▲ = low→high, ▼ = high→low,
@@ -72,6 +77,52 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
     setToast({ text, ok });
     setTimeout(() => setToast(null), 2500);
   };
+
+  // Listings currently being shared (server id) — disables the 🔗 button and
+  // shows a spinner-ish state while the bot posts to the group.
+  const [sharingId, setSharingId] = useState<number | null>(null);
+  // Server id of the listing to visually highlight (deep-link focus).
+  const [highlightId, setHighlightId] = useState<number | null>(null);
+
+  const handleShare = async (serverId: number) => {
+    if (!telegramId || sharingId != null) return;
+    setSharingId(serverId);
+    try {
+      const res = await shareListing(telegramId, serverId);
+      if (res.ok) {
+        showToast(t("market.shareSuccess"), true);
+      } else {
+        showToast(t("market.shareFailed"), false);
+      }
+    } finally {
+      setSharingId(null);
+    }
+  };
+
+  // Deep-link focus: when opened via `mkt_<id>`, ensure the listings tab is
+  // active, scroll the card into view, and pulse a highlight ring on it.
+  useEffect(() => {
+    if (focusListingId == null) return;
+    setTab("listings");
+    setFilter("ALL");
+    setHighlightId(focusListingId);
+    let cancelled = false;
+    const tryScroll = (attempt: number) => {
+      if (cancelled) return;
+      const el = document.getElementById(`listing-card-${focusListingId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else if (attempt < 10) {
+        setTimeout(() => tryScroll(attempt + 1), 300);
+      }
+    };
+    tryScroll(0);
+    // Clear the highlight (and tell the parent to drop the focus id) only after
+    // the scroll/pulse has run, so nulling the prop doesn't cancel it mid-flight.
+    const clearTimer = setTimeout(() => { setHighlightId(null); onFocusConsumed?.(); }, 3200);
+    return () => { cancelled = true; clearTimeout(clearTimer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusListingId]);
 
   useEffect(() => {
     const close = openMarketActivityStream((sale) => {
@@ -488,12 +539,17 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
               : undefined;
             const isPerfectFloat = typeof listingFloat === "number" && listingFloat >= 1;
 
+            const isFocused = listing.serverId != null && highlightId === listing.serverId;
+
             return (
               <div
                 key={listing.id}
-                className={`rounded-2xl border overflow-hidden ${isPlatinumNft ? "nft-card-glow" : isPerfectFloat ? "perfect-card-glow" : ""}`}
+                id={`listing-card-${listing.serverId ?? listing.id}`}
+                className={`rounded-2xl border overflow-hidden ${isFocused ? "deeplink-focus-glow" : ""} ${isPlatinumNft ? "nft-card-glow" : isPerfectFloat ? "perfect-card-glow" : ""}`}
                 style={{
-                  borderColor: isPlatinumNft
+                  borderColor: isFocused
+                    ? "rgba(0,230,255,0.7)"
+                    : isPlatinumNft
                     ? "rgba(220,232,255,0.10)"
                     : isPerfectFloat
                     ? "rgba(255,215,0,0.10)"
@@ -501,7 +557,9 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                   background: isPerfectFloat
                     ? "linear-gradient(135deg, rgba(255,215,0,0.18) 0%, rgba(255,170,40,0.10) 45%, rgba(20,12,4,0.85) 100%)"
                     : `linear-gradient(135deg, ${rarityColor}07 0%, rgba(6,8,16,0.65) 100%)`,
-                  boxShadow: isPerfectFloat ? "0 0 22px rgba(255,215,0,0.35)" : undefined,
+                  boxShadow: isFocused
+                    ? "0 0 26px rgba(0,230,255,0.55)"
+                    : isPerfectFloat ? "0 0 22px rgba(255,215,0,0.35)" : undefined,
                 }}
                 data-testid={`listing-${listing.id}`}
               >
@@ -569,10 +627,29 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                   </div>
                 </div>
                 <div className="px-4 pb-3" style={{ borderTop: `1px solid ${rarityColor}12` }}>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
                       P2P TON
                     </div>
+                    <div className="flex items-center gap-2">
+                    {listing.serverId != null && (
+                      <button
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95"
+                        disabled={sharingId === listing.serverId}
+                        style={{
+                          borderColor: "rgba(0,180,255,0.3)",
+                          background: "rgba(0,180,255,0.08)",
+                          color: "#36c5ff",
+                          opacity: sharingId === listing.serverId ? 0.5 : 1,
+                          cursor: sharingId === listing.serverId ? "wait" : "pointer",
+                        }}
+                        onClick={() => handleShare(listing.serverId as number)}
+                        data-testid={`btn-share-${listing.id}`}
+                        title={t("market.share")}
+                      >
+                        {sharingId === listing.serverId ? "…" : "🔗"}
+                      </button>
+                    )}
                     {isOwn ? (
                       <button
                         className="px-4 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95"
@@ -604,6 +681,7 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                         Buy
                       </button>
                     )}
+                    </div>
                   </div>
                 </div>
               </div>
