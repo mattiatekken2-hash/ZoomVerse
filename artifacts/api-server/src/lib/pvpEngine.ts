@@ -85,7 +85,6 @@ const ACTIVE_STATUSES: BattleStatus[] = ["pending", "confirming", "roulette"];
 function isActive(b: Battle): boolean {
   return ACTIVE_STATUSES.includes(b.status);
 }
-const MATCH_RARITY_TOLERANCE = 1; // ±1 tier
 
 // ─── Queue ───────────────────────────────────────────────────────────
 
@@ -155,14 +154,12 @@ export function getBattle(battleId: string): Battle | undefined {
 
 // ─── Matchmaking ─────────────────────────────────────────────────────
 
-function findMatch(planet: PlanetEntry): QueueEntry | null {
-  const rarityWeight = getRarityWeight(planet.rarity);
+function findMatch(_planet: PlanetEntry): QueueEntry | null {
+  // Any rarity can battle any other rarity — match the first waiting opponent.
+  // Rarity only affects the win probability (calcWinProbability), never whether
+  // a match is found. (Previously a ±1-tier tolerance blocked e.g. V1 vs MYTHIC.)
   for (const entry of queue.values()) {
-    const otherWeight = getRarityWeight(entry.planet.rarity);
-    const diff = Math.abs(rarityWeight - otherWeight);
-    if (diff <= MATCH_RARITY_TOLERANCE) {
-      return entry;
-    }
+    return entry;
   }
   return null;
 }

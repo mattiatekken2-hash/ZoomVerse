@@ -61,6 +61,14 @@ confirmer gets the wheel directly from `handleConfirm`'s fetch.
   spins ("parte la ruota ma a lui no"). Same unstable-dep family as the init-effect
   re-queue bug.
 
+## Matchmaking ignores rarity
+`findMatch` pairs the first waiting opponent regardless of rarity — any rarity vs
+any rarity (V1 vs MYTHIC, V1 vs RARE, etc.). Rarity affects ONLY the win
+probability (`calcWinProbability`), never whether a match is found.
+- **Why:** a previous ±1-tier tolerance silently blocked cross-tier matches
+  (MYTHIC vs MYTHIC worked, V1 vs MYTHIC never matched). Do not reintroduce a
+  rarity gate in matchmaking.
+
 ## Confirm flow
 - Resolve the wheel + result exactly once via a `resolvedRef` guard + a single
   `maybeResolve(battle)` helper keyed on `winnerTelegramId` — the server resolves the
