@@ -46,6 +46,21 @@ re-renders with a new `planet` reference.
   out of an active match back into "searching" ("trova l'amico ma torna subito in
   ricerca").
 
+## Match-phase poll must not depend on `battle`/`maybeResolve`
+The match-phase `setInterval(1500)` poll is what lets the player who confirmed
+FIRST (and is now waiting) pick up the resolution and spin the wheel. The 2nd
+confirmer gets the wheel directly from `handleConfirm`'s fetch.
+- **Rule:** that effect must depend ONLY on `[phase, telegramId]`. Read `battle`
+  and `maybeResolve` through refs (`battleRef`/`maybeResolveRef`) inside the
+  interval, never as effect deps.
+- **Why:** FarmPage renders PvPModal with an inline `onPlanetTransferred` and
+  re-renders ~1×/sec (farming/balance ticks). That rebuilds `maybeResolve`
+  (handleResult→runRouletteAnimation→maybeResolve chain) and `setBattle` churns
+  `battle`. If either is an effect dep, the interval is torn down and recreated
+  faster than its 1.5s period and never fires → the waiting player's wheel never
+  spins ("parte la ruota ma a lui no"). Same unstable-dep family as the init-effect
+  re-queue bug.
+
 ## Confirm flow
 - Resolve the wheel + result exactly once via a `resolvedRef` guard + a single
   `maybeResolve(battle)` helper keyed on `winnerTelegramId` — the server resolves the

@@ -281,11 +281,27 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
     return () => clearInterval(id);
   }, [phase, battle, playerConfirmed]);
 
-  // Poll battle status during match phase
+  // Poll battle status during match phase.
+  // CRITICAL: depend only on [phase, telegramId] — NOT on `battle` or
+  // `maybeResolve`. Those change identity on nearly every parent re-render
+  // (FarmPage passes an inline `onPlanetTransferred` and re-renders ~1×/sec for
+  // farming/balance ticks, which rebuilds maybeResolve; setBattle churns `battle`).
+  // If they were deps, this effect would tear down and recreate its 1.5s interval
+  // faster than it can ever fire — so the player who confirmed FIRST (and is
+  // waiting) never polls the resolution and their wheel never spins, while the
+  // second confirmer gets it directly via handleConfirm. Refs keep the latest
+  // values without resetting the interval.
+  const battleRef = useRef(battle);
+  battleRef.current = battle;
+  const maybeResolveRef = useRef(maybeResolve);
+  maybeResolveRef.current = maybeResolve;
+
   useEffect(() => {
-    if (phase !== "match" || !battle?.battleId) return;
+    if (phase !== "match") return;
     const id = setInterval(async () => {
-      const b = await fetchPvPBattle(battle.battleId!, telegramId ?? undefined);
+      const bId = battleRef.current?.battleId;
+      if (!bId) return;
+      const b = await fetchPvPBattle(bId, telegramId ?? undefined);
       if (!aliveRef.current) return;
       if (!b.ok) return;
       if (b.status === "cancelled") {
@@ -294,16 +310,17 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
         setError("BATTLE_CANCELLED");
         return;
       }
-      if (maybeResolve(b)) {
+      if (maybeResolveRef.current(b)) {
         clearInterval(id);
         return;
       }
-      if (b.status !== battle.status || b.opponent?.confirmed !== battle.opponent?.confirmed || b.player?.confirmed !== battle.player?.confirmed) {
+      const cur = battleRef.current;
+      if (b.status !== cur?.status || b.opponent?.confirmed !== cur?.opponent?.confirmed || b.player?.confirmed !== cur?.player?.confirmed) {
         setBattle(b);
       }
     }, 1500);
     return () => clearInterval(id);
-  }, [phase, battle, maybeResolve]);
+  }, [phase, telegramId]);
 
   if (!open) return null;
 
