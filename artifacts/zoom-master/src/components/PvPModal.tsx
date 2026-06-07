@@ -233,6 +233,15 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
   };
 
   // Init on open
+  // Keep a ref to the latest startQueue so the init effect can call it WITHOUT
+  // depending on it. startQueue's identity changes whenever `planet` changes
+  // reference (the game state re-renders the parent ~every second for farming /
+  // balance ticks). If this effect depended on startQueue it would re-fire on
+  // those ticks and call startQueue() again — yanking the user out of an active
+  // match straight back into "searching". The init must run ONLY on open toggle.
+  const startQueueRef = useRef(startQueue);
+  startQueueRef.current = startQueue;
+
   useEffect(() => {
     if (!open) {
       if (pollRef.current) {
@@ -243,7 +252,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
       return;
     }
     aliveRef.current = true;
-    startQueue();
+    startQueueRef.current();
     return () => {
       aliveRef.current = false;
       if (pollRef.current) {
@@ -251,7 +260,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
         pollRef.current = null;
       }
     };
-  }, [open, startQueue]);
+  }, [open]);
 
   // Countdown timer for match confirmation
   useEffect(() => {
