@@ -4826,8 +4826,46 @@ export function useGameState() {
     return { success: true };
   }, []);
 
+  // ─── PvP local inventory mutations ─────────────────────────────────
+  // After a PvP battle resolves the server has already moved the planet
+  // (atomic transfer in pvpEngine.transferPlanet). The client is
+  // authoritative for the planets array, so we MUST mirror that change
+  // locally — otherwise the debounced /regular-planets/save re-uploads the
+  // loser's stale planet (loser keeps it) or strips the winner's new planet
+  // (winner never receives it). These two helpers keep client + server in
+  // sync; the debounced save then persists them.
+  const pvpAddPlanet = useCallback((raw: { id: string; name: string; rate?: number; float?: number | null }) => {
+    setState((prev) => {
+      if (prev.planets.some((p) => p.id === raw.id)) return prev; // already have it
+      const type = raw.name as PlanetType;
+      const cfg = PLANET_CONFIG[type] ?? PLANET_CONFIG.BASIC;
+      const now = Date.now();
+      const newPlanet: Planet = {
+        id: raw.id,
+        name: type,
+        rate: typeof raw.rate === "number" ? raw.rate : cfg.rate,
+        color: cfg.color,
+        glowColor: cfg.glowColor,
+        createdAt: now,
+        farmStartedAt: 0,
+        lastCollectedAt: 0,
+        isListedInMarket: false,
+        isFarmingActive: false,
+        marketPrice: null,
+        craftCost: cfg.craftCost,
+        slotIndex: null,
+        ...(typeof raw.float === "number" ? { float: raw.float } : {}),
+      };
+      return { ...prev, planets: [...prev.planets, newPlanet] };
+    });
+  }, []);
+  const pvpRemovePlanet = useCallback((planetId: string) => {
+    setState((prev) => ({ ...prev, planets: prev.planets.filter((p) => p.id !== planetId) }));
+  }, []);
+
   return {
     state, setState, craft, claimCraft, redeemCode,
+    pvpAddPlanet, pvpRemovePlanet,
     collectPlanet, burnPlanet, renamePlanetLocal,
     startFarming, stopFarming,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,

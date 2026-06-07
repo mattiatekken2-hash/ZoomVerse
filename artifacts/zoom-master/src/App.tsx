@@ -81,6 +81,7 @@ function AppShellWithState() {
   }, [t]);
   const {
     state, setState, craft, claimCraft, redeemCode,
+    pvpAddPlanet, pvpRemovePlanet,
     collectPlanet, burnPlanet, renamePlanetLocal,
     startFarming, stopFarming,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
@@ -224,17 +225,33 @@ function AppShellWithState() {
       const tid = state.telegramId;
       if (tid) void fetchRegularPlanets(tid);
     };
+    // PvP transfer: the server has already atomically moved the planet. We must
+    // mirror it in the client-authoritative planets array immediately, before
+    // the debounced /regular-planets/save fires — otherwise that save would undo
+    // the server transfer (winner loses the prize / loser keeps their planet).
+    const onPvpWon = (e: Event) => {
+      const raw = (e as CustomEvent<{ id: string; name: string; rate?: number; float?: number | null }>).detail;
+      if (raw && raw.id && raw.name) pvpAddPlanet(raw);
+    };
+    const onPvpLost = (e: Event) => {
+      const id = (e as CustomEvent<{ planetId: string }>).detail?.planetId;
+      if (id) pvpRemovePlanet(id);
+    };
     window.addEventListener("zoom-admin-self-increment", onInc);
     window.addEventListener("zoom-admin-self-decrement", onDec);
     window.addEventListener("stardust-refresh", onStardustRefresh);
     window.addEventListener("planets-refresh", onPlanetsRefresh);
+    window.addEventListener("pvp-planet-won", onPvpWon);
+    window.addEventListener("pvp-planet-lost", onPvpLost);
     return () => {
       window.removeEventListener("zoom-admin-self-increment", onInc);
       window.removeEventListener("zoom-admin-self-decrement", onDec);
       window.removeEventListener("stardust-refresh", onStardustRefresh);
       window.removeEventListener("planets-refresh", onPlanetsRefresh);
+      window.removeEventListener("pvp-planet-won", onPvpWon);
+      window.removeEventListener("pvp-planet-lost", onPvpLost);
     };
-  }, [stardust]);
+  }, [stardust, pvpAddPlanet, pvpRemovePlanet]);
 
   // Maintenance mode: poll status, show fullscreen overlay for non-admins.
   // We cache the last known status in localStorage so a repeat visit during

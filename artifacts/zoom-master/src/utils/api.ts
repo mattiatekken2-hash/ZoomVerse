@@ -3092,8 +3092,8 @@ export interface PvPQueueResult {
   battleId?: string;
   message?: string;
   error?: string;
-  player?: { telegramId: string; planet: unknown };
-  opponent?: { telegramId: string; planet: unknown };
+  player?: { telegramId: string; planet: unknown; username?: string };
+  opponent?: { telegramId: string; planet: unknown; username?: string };
   confirmDeadline?: number;
   winProbability?: number;
 }
@@ -3146,8 +3146,8 @@ export interface PvPStatus {
   inQueue?: boolean;
   battleId?: string;
   status?: string;
-  player?: { telegramId: string; planet: unknown; confirmed: boolean };
-  opponent?: { telegramId: string; planet: unknown; confirmed: boolean };
+  player?: { telegramId: string; planet: unknown; confirmed: boolean; username?: string };
+  opponent?: { telegramId: string; planet: unknown; confirmed: boolean; username?: string };
   confirmDeadline?: number;
   winProbability?: number;
   winnerTelegramId?: string;
@@ -3169,9 +3169,14 @@ export async function fetchPvPStatus(telegramId: string): Promise<PvPStatus> {
   }
 }
 
-export async function fetchPvPBattle(battleId: string): Promise<PvPStatus> {
+export async function fetchPvPBattle(battleId: string, telegramId?: string): Promise<PvPStatus> {
   try {
-    const res = await fetch(`${API_BASE}/pvp/battle/${encodeURIComponent(battleId)}?t=${Date.now()}`, {
+    // telegramId is required for the server to compute caller-relative
+    // player/opponent and the perspective-adjusted winProbability. Without it
+    // the server defaults to player2's perspective for everyone, which inverts
+    // player1's win odds and desyncs the roulette landing.
+    const tid = telegramId ? `&telegramId=${encodeURIComponent(telegramId)}` : "";
+    const res = await fetch(`${API_BASE}/pvp/battle/${encodeURIComponent(battleId)}?t=${Date.now()}${tid}`, {
       headers: apiHeaders(),
       cache: "no-store",
     });

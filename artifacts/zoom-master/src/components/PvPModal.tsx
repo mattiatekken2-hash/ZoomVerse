@@ -27,21 +27,117 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
   const [phase, setPhase] = useState<"queue" | "match" | "roulette" | "result" | "error">("queue");
   const [error, setError] = useState<string | null>(null);
   const [battle, setBattle] = useState<PvPStatus | null>(null);
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(20);
   const [rouletteAngle, setRouletteAngle] = useState(0);
   const [winner, setWinner] = useState<"player" | "opponent" | null>(null);
   const [isWinner, setIsWinner] = useState(false);
   const pollRef = useRef<number | null>(null);
   const aliveRef = useRef(true);
+  // Guards the one-time transition into wheel + result. The server resolves the
+  // roulette synchronously inside the second player's confirm request, so the
+  // status poll, the match poll and the confirm response can all observe the
+  // finished battle at once. Without this guard the wheel restarts or the result
+  // fires twice (and double-dispatches the planet transfer events).
+  const resolvedRef = useRef(false);
 
   const isPlayerP1 = battle?.player?.telegramId === telegramId;
   const player = isPlayerP1 ? battle?.player : battle?.opponent;
   const opponent = isPlayerP1 ? battle?.opponent : battle?.player;
   const playerConfirmed = player?.confirmed ?? false;
   const opponentConfirmed = opponent?.confirmed ?? false;
+  const opponentPlanet = (opponent?.planet ?? null) as
+    | { id?: string; name?: string; rarity?: string; rate?: number; float?: number | null }
+    | null;
+  const opponentRarity = opponentPlanet?.rarity || opponentPlanet?.name || "BASIC";
+  const opponentName = opponent?.username || "Opponent";
+
+  const handleResult = useCallback((b: PvPStatus) => {
+    const won = b.winnerTelegramId === telegramId;
+    setIsWinner(won);
+    setWinner(won ? "player" : "opponent");
+    setPhase("result");
+    // Mirror the server's atomic transfer into client-authoritative state via
+    // window events handled in App.tsx. This must run so the debounced
+    // /regular-planets/save persists the correct post-transfer inventory.
+    if (won) {
+      const oppSide = b.player?.telegramId === telegramId ? b.opponent : b.player;
+      const op = (oppSide?.planet ?? null) as
+        | { id?: string; name?: string; rarity?: string; rate?: number; float?: number | null }
+        | null;
+      if (op?.id) {
+        window.dispatchEvent(new CustomEvent("pvp-planet-won", {
+          detail: { id: op.id, name: op.rarity || op.name || "BASIC", rate: op.rate, float: op.float ?? null },
+        }));
+      }
+    } else {
+      window.dispatchEvent(new CustomEvent("pvp-planet-lost", { detail: { planetId: planet.id } }));
+    }
+    onPlanetTransferred?.();
+  }, [telegramId, planet.id, onPlanetTransferred]);
+
+  const runRouletteAnimation = useCallback((b: PvPStatus) => {
+    const winProb = b.winProbability ?? 0.5;
+    const winAngle = winProb * 360;
+    // Adjust so it lands on the winning segment
+    const actualWin = b.winnerTelegramId === telegramId;
+    const targetAngle = actualWin ? winAngle / 2 : winAngle + (360 - winAngle) / 2;
+    const adjustedFinal = 360 * 5 + targetAngle + Math.random() * 30 - 15;
+
+    const duration = 4000;
+    const startTime = Date.now();
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      const ease = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      setRouletteAngle(ease * adjustedFinal);
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        // Animation done, show result
+        setTimeout(() => { if (aliveRef.current) handleResult(b); }, 500);
+      }
+    };
+    requestAnimationFrame(animate);
+  }, [telegramId, handleResult]);
+
+  // Unified resolution: the moment a winner is known (from any poll / confirm
+  // response), play the wheel exactly once and then reveal the result. Returns
+  // true if the battle has been (or already was) resolved.
+  const maybeResolve = useCallback((b: PvPStatus): boolean => {
+    if (resolvedRef.current) return true;
+    if (!b.winnerTelegramId) return false;
+    resolvedRef.current = true;
+    if (pollRef.current) {
+      window.clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    setBattle(b);
+    setPhase("roulette");
+    runRouletteAnimation(b);
+    return true;
+  }, [runRouletteAnimation]);
+
+  const startPolling = useCallback(() => {
+    if (pollRef.current) window.clearInterval(pollRef.current);
+    pollRef.current = window.setInterval(async () => {
+      if (!telegramId || !aliveRef.current) return;
+      const s = await fetchPvPStatus(telegramId);
+      if (!aliveRef.current || !s.ok) return;
+
+      if (s.inBattle && s.battleId) {
+        if (maybeResolve(s)) return;
+        window.clearInterval(pollRef.current!);
+        pollRef.current = null;
+        setBattle(s);
+        setPhase("match");
+        setCountdown(Math.max(0, Math.ceil(((s.confirmDeadline ?? 0) - Date.now()) / 1000)));
+      }
+    }, 2000);
+  }, [telegramId, maybeResolve]);
 
   const startQueue = useCallback(async () => {
     if (!telegramId || !open) return;
+    resolvedRef.current = false;
     setPhase("queue");
     setError(null);
     setBattle(null);
@@ -66,9 +162,10 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
 
     if (result.status === "match" && result.battleId) {
       // Immediate match found
-      const b = await fetchPvPBattle(result.battleId);
+      const b = await fetchPvPBattle(result.battleId, telegramId);
       if (!aliveRef.current) return;
       if (b.ok && b.battleId) {
+        if (maybeResolve(b)) return;
         setBattle(b);
         setPhase("match");
         setCountdown(Math.max(0, Math.ceil(((b.confirmDeadline ?? 0) - Date.now()) / 1000)));
@@ -80,91 +177,20 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
       // In queue, start polling
       startPolling();
     }
-  }, [telegramId, open, planet]);
-
-  const startPolling = useCallback(() => {
-    if (pollRef.current) window.clearInterval(pollRef.current);
-    pollRef.current = window.setInterval(async () => {
-      if (!telegramId || !aliveRef.current) return;
-      const s = await fetchPvPStatus(telegramId);
-      if (!aliveRef.current) return;
-      if (!s.ok) return;
-
-      if (s.inBattle && s.battleId) {
-        // Battle found!
-        window.clearInterval(pollRef.current!);
-        pollRef.current = null;
-        setBattle(s);
-        if (s.status === "roulette" || s.status === "completed") {
-          // Already confirmed or roulette running
-          if (s.status === "roulette") {
-            setPhase("roulette");
-            runRouletteAnimation(s);
-          } else if (s.status === "completed") {
-            handleResult(s);
-          }
-        } else {
-          setPhase("match");
-          setCountdown(Math.max(0, Math.ceil(((s.confirmDeadline ?? 0) - Date.now()) / 1000)));
-        }
-      }
-    }, 2000);
-  }, [telegramId]);
-
-  const runRouletteAnimation = useCallback((b: PvPStatus) => {
-    const winProb = b.winProbability ?? 0.5;
-    const winAngle = winProb * 360;
-    const finalAngle = 360 * 5 + Math.random() * 360; // 5 full spins + random
-    // Adjust so it lands on the winning segment
-    const actualWin = b.winnerTelegramId === telegramId;
-    const targetAngle = actualWin ? winAngle / 2 : winAngle + (360 - winAngle) / 2;
-    const adjustedFinal = 360 * 5 + targetAngle + Math.random() * 30 - 15;
-
-    let start = 0;
-    const duration = 4000;
-    const startTime = Date.now();
-    const animate = () => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(1, elapsed / duration);
-      const ease = 1 - Math.pow(1 - progress, 3); // ease-out cubic
-      const angle = ease * adjustedFinal;
-      setRouletteAngle(angle);
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      } else {
-        // Animation done, show result
-        setTimeout(() => handleResult(b), 500);
-      }
-    };
-    requestAnimationFrame(animate);
-  }, [telegramId]);
-
-  const handleResult = useCallback((b: PvPStatus) => {
-    const won = b.winnerTelegramId === telegramId;
-    setIsWinner(won);
-    setWinner(won ? "player" : "opponent");
-    setPhase("result");
-    if (won) {
-      window.dispatchEvent(new Event("planets-refresh"));
-    } else {
-      onPlanetTransferred?.();
-    }
-  }, [telegramId, onPlanetTransferred]);
+  }, [telegramId, open, planet, maybeResolve, startPolling]);
 
   const handleConfirm = async () => {
     if (!telegramId || !battle?.battleId) return;
     const r = await pvpConfirm(telegramId, battle.battleId);
-    if (r.ok && r.battle) {
-      // Check if both confirmed
-      const b = await fetchPvPBattle(battle.battleId);
+    if (!aliveRef.current) return;
+    if (r.ok) {
+      const b = await fetchPvPBattle(battle.battleId, telegramId);
+      if (!aliveRef.current) return;
       if (b.ok) {
+        if (maybeResolve(b)) return;
+        // I've confirmed; stay in match and wait for the opponent. The match
+        // poll will pick up the resolution once both have confirmed.
         setBattle(b);
-        if (b.status === "roulette" || b.status === "completed") {
-          setPhase("roulette");
-          runRouletteAnimation(b);
-        } else {
-          setPhase("match");
-        }
       }
     }
   };
@@ -218,29 +244,40 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
       setCountdown(remaining);
       if (remaining === 0) {
         clearInterval(id);
-        // Auto-cancel
-        handleCancel();
+        // Only auto-decline if I have NOT confirmed. If I already confirmed I
+        // must keep waiting for the opponent / resolution — auto-declining here
+        // is what caused "both confirmed but it cancelled".
+        if (!playerConfirmed) {
+          handleCancel();
+        }
       }
     }, 1000);
     return () => clearInterval(id);
-  }, [phase, battle]);
+  }, [phase, battle, playerConfirmed]);
 
   // Poll battle status during match phase
   useEffect(() => {
     if (phase !== "match" || !battle?.battleId) return;
     const id = setInterval(async () => {
-      const b = await fetchPvPBattle(battle.battleId!);
+      const b = await fetchPvPBattle(battle.battleId!, telegramId ?? undefined);
       if (!aliveRef.current) return;
-      if (b.ok && b.status !== battle.status) {
+      if (!b.ok) return;
+      if (b.status === "cancelled") {
+        clearInterval(id);
+        setPhase("error");
+        setError("BATTLE_CANCELLED");
+        return;
+      }
+      if (maybeResolve(b)) {
+        clearInterval(id);
+        return;
+      }
+      if (b.status !== battle.status || b.opponent?.confirmed !== battle.opponent?.confirmed || b.player?.confirmed !== battle.player?.confirmed) {
         setBattle(b);
-        if (b.status === "roulette" || b.status === "completed") {
-          setPhase("roulette");
-          runRouletteAnimation(b);
-        }
       }
     }, 1500);
     return () => clearInterval(id);
-  }, [phase, battle, runRouletteAnimation]);
+  }, [phase, battle, maybeResolve]);
 
   if (!open) return null;
 
@@ -299,37 +336,59 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
         {/* MATCH PHASE */}
         {phase === "match" && battle && (
           <div>
-            {/* Opponent planet */}
-            <div className="flex items-center gap-3 mb-4 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.04)" }}>
-              <div>
+            {/* Versus: my planet (left) vs opponent planet (right) */}
+            <div className="flex items-center justify-between gap-2 mb-4">
+              {/* My planet */}
+              <div className="flex-1 flex flex-col items-center gap-1 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.04)" }}>
+                <PlanetOrb planet={planet} size={56} animate={false} />
+                <div className="text-xs font-black mt-1 text-center truncate w-full" style={{ color: "#fff" }}>
+                  You
+                </div>
+                <div className="text-[10px] text-center" style={{ color: "rgba(255,255,255,0.5)" }}>
+                  {getPlanetDisplayName(planet)} · {planet.name}
+                </div>
+              </div>
+
+              {/* VS divider */}
+              <div className="text-sm font-black px-1" style={{ color: "#ff4444" }}>VS</div>
+
+              {/* Opponent planet */}
+              <div className="flex-1 flex flex-col items-center gap-1 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.04)" }}>
                 <PlanetOrb
                   planet={{
                     ...planet,
-                    name: (opponent?.planet as any)?.rarity || "BASIC",
-                    color: (opponent?.planet as any)?.rarity === "BASIC" ? "#8892b0" : "#4facfe",
+                    id: opponentPlanet?.id || "opponent",
+                    name: opponentRarity as Planet["name"],
+                    color: opponentRarity === "BASIC" ? "#8892b0" : "#4facfe",
                   }}
                   size={56}
                   animate={false}
                 />
-              </div>
-              <div className="flex-1">
-                <div className="text-sm font-black" style={{ color: "#fff" }}>
-                  Opponent
+                <div className="text-xs font-black mt-1 text-center truncate w-full" style={{ color: "#fff" }}>
+                  {opponentName}
                 </div>
-                <div className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>
-                  {(opponent?.planet as any)?.rarity || "BASIC"}
+                <div className="text-[10px] text-center" style={{ color: "rgba(255,255,255,0.5)" }}>
+                  {opponentRarity}
                 </div>
               </div>
             </div>
 
-            {/* Countdown */}
+            {/* Countdown / waiting state */}
             <div className="text-center mb-4">
-              <div className="text-3xl font-black" style={{ color: "#ff4444" }}>
-                {countdown}s
-              </div>
-              <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-                Confirm before time runs out!
-              </div>
+              {playerConfirmed ? (
+                <div className="text-sm font-black" style={{ color: "#00e676" }}>
+                  Waiting for opponent...
+                </div>
+              ) : (
+                <>
+                  <div className="text-3xl font-black" style={{ color: "#ff4444" }}>
+                    {countdown}s
+                  </div>
+                  <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    Confirm before time runs out!
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Confirm button */}
@@ -424,8 +483,8 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
             </div>
             <div className="text-sm font-bold mb-4" style={{ color: "rgba(255,255,255,0.6)" }}>
               {isWinner
-                ? `You won the opponent's ${(opponent?.planet as any)?.rarity || "planet"}!`
-                : `You lost your ${getPlanetDisplayName(planet)}...`}
+                ? `You won ${opponentName}'s ${opponentRarity} planet!`
+                : `You lost your ${getPlanetDisplayName(planet)} to ${opponentName}...`}
             </div>
             {isWinner && (
               <div className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
@@ -458,7 +517,11 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
               ✗
             </div>
             <div className="text-sm font-bold mb-4" style={{ color: "rgba(255,255,255,0.6)" }}>
-              {error === "NOT_ELIGIBLE" ? "This planet is not eligible for PvP" : error}
+              {error === "NOT_ELIGIBLE"
+                ? "This planet is not eligible for PvP"
+                : error === "BATTLE_CANCELLED"
+                  ? "The battle was cancelled — the opponent didn't confirm in time."
+                  : error}
             </div>
             <button
               onClick={() => {

@@ -42,12 +42,14 @@ export interface QueueEntry {
   telegramId: string;
   planet: PlanetEntry;
   joinedAt: number;
+  username?: string;
 }
 
 export interface BattlePlayer {
   telegramId: string;
   planet: PlanetEntry;
   confirmed: boolean;
+  username?: string;
 }
 
 export type BattleStatus = "pending" | "confirming" | "roulette" | "completed" | "cancelled" | "transfer_failed";
@@ -70,19 +72,38 @@ const queue = new Map<string, QueueEntry>(); // telegramId -> QueueEntry
 const battles = new Map<string, Battle>(); // battleId -> Battle
 
 const QUEUE_TIMEOUT_MS = 5 * 60 * 1000; // 5 min auto-remove from queue
-const CONFIRM_TIMEOUT_MS = 10_000; // 10s confirmation window
+const CONFIRM_TIMEOUT_MS = 20_000; // 20s confirmation window — the second player
+// only learns of the match via 2s polling + human reaction time, so 10s was too
+// tight and caused "both confirmed but it cancelled" reports.
+
+// A battle is "active" while it still needs both players' attention. Terminal
+// battles (completed/cancelled/transfer_failed) must NOT be reported by
+// getQueueStatus — otherwise a finished battle lingers in the map for 5 min and
+// /pvp/status keeps returning the previous result, so starting a new battle
+// shows the old victory/defeat.
+const ACTIVE_STATUSES: BattleStatus[] = ["pending", "confirming", "roulette"];
+function isActive(b: Battle): boolean {
+  return ACTIVE_STATUSES.includes(b.status);
+}
 const MATCH_RARITY_TOLERANCE = 1; // ±1 tier
 
 // ─── Queue ───────────────────────────────────────────────────────────
 
-export function enterQueue(telegramId: string, planet: PlanetEntry): {
+export function enterQueue(telegramId: string, planet: PlanetEntry, username?: string): {
   ok: boolean;
   error?: string;
   battle?: Battle;
 } {
+  // Purge any terminal battles this user was part of, so a finished battle can
+  // never block or be reported when the user starts a fresh one.
+  for (const [id, b] of battles.entries()) {
+    if ((b.player1.telegramId === telegramId || b.player2.telegramId === telegramId) && !isActive(b)) {
+      battles.delete(id);
+    }
+  }
   // Block if already in an active battle or queue
   const existing = getQueueStatus(telegramId);
-  if (existing.battle && (existing.battle.status === "pending" || existing.battle.status === "confirming" || existing.battle.status === "roulette")) {
+  if (existing.battle && isActive(existing.battle)) {
     return { ok: false, error: "ALREADY_IN_BATTLE" };
   }
   if (existing.inQueue) {
@@ -94,11 +115,11 @@ export function enterQueue(telegramId: string, planet: PlanetEntry): {
   const match = findMatch(planet);
   if (match) {
     // Create battle immediately
-    const battle = createBattle(telegramId, planet, match.telegramId, match.planet);
+    const battle = createBattle(telegramId, planet, match.telegramId, match.planet, username, match.username);
     return { ok: true, battle };
   }
   // No match found — enter queue
-  queue.set(telegramId, { telegramId, planet, joinedAt: Date.now() });
+  queue.set(telegramId, { telegramId, planet, joinedAt: Date.now(), username });
   return { ok: true };
 }
 
@@ -112,8 +133,11 @@ export function getQueueStatus(telegramId: string): {
   joinedAt?: number;
   battle?: Battle;
 } {
-  // Check if in active battle
+  // Check if in active battle. Terminal battles (completed/cancelled/
+  // transfer_failed) are intentionally ignored — they're fetched by explicit
+  // battle id only — so a finished battle never lingers in /pvp/status.
   for (const b of battles.values()) {
+    if (!isActive(b)) continue;
     if (b.player1.telegramId === telegramId || b.player2.telegramId === telegramId) {
       return { inQueue: false, battle: b };
     }
@@ -150,12 +174,14 @@ function createBattle(
   p1Planet: PlanetEntry,
   p2Id: string,
   p2Planet: PlanetEntry,
+  p1Username?: string,
+  p2Username?: string,
 ): Battle {
   const id = `b_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const battle: Battle = {
     id,
-    player1: { telegramId: p1Id, planet: p1Planet, confirmed: false },
-    player2: { telegramId: p2Id, planet: p2Planet, confirmed: false },
+    player1: { telegramId: p1Id, planet: p1Planet, confirmed: false, username: p1Username },
+    player2: { telegramId: p2Id, planet: p2Planet, confirmed: false, username: p2Username },
     status: "pending",
     createdAt: Date.now(),
     confirmDeadline: Date.now() + CONFIRM_TIMEOUT_MS,

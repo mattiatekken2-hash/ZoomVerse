@@ -4,5 +4,6 @@
 - [Telegram forced update](telegram-forced-update.md) — Telegram webview caches the bundle (stale on reload, fresh in browser); BUILD_VERSION define + version.json drive a self-reload.
 - [Balance epoch cold-start seed](balance-epoch-seed.md) — module-scope _currentBalanceEpoch starts at 0; must be seeded from persisted lastBalanceEpoch on mount or first sync sends ce=0 and server force-snaps balance DOWN.
 - [EARN tasks vs season reset](earn-tasks-season-coupling.md) — season reset must strip seasonal planets_* claims with the counters; task repair must be orphan-aware (built<threshold) to avoid double-claim.
+- [PvP battle](pvp-battle.md) — transfer must mirror into client planets before debounced save (else save undoes it); fetchPvPBattle must pass telegramId (caller-relative); queue status = active battles only.
 - [Telegram channel-cron gating](telegram-channel-cron-gating.md) — fixed-channel broadcast crons (alien radar) must be REPLIT_DEPLOYMENT-gated + boot tick must not emit periodic msgs, or dev+prod double-post off-cadence.
 - [Telegram profile photos](telegram-profile-photos.md) — never add crossOrigin to t.me userpic imgs (no CORS=blocked); keep referrerPolicy=no-referrer; URLs are temporary; backfill is lazy on next sync.

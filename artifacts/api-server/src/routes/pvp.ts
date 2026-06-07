@@ -44,7 +44,11 @@ router.post("/pvp/queue", async (req, res) => {
   try {
     // Verify ownership and eligibility
     const [user] = await db
-      .select({ planetsJson: usersTable.planetsJson })
+      .select({
+        planetsJson: usersTable.planetsJson,
+        username: usersTable.username,
+        firstName: usersTable.firstName,
+      })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
       .limit(1);
@@ -85,13 +89,14 @@ router.post("/pvp/queue", async (req, res) => {
     const serverPlanetRarity = String(planet["name"] ?? "BASIC");
     const serverPlanetRate = Number(planet["rate"] ?? 0);
     const serverPlanetFloat = typeof planet["float"] === "number" ? planet["float"] : null;
+    const displayUsername = String(user.username || user.firstName || "Player");
     const entry = enterQueue(telegramId, {
       id: planetId,
       name: serverPlanetName,
       rarity: serverPlanetRarity,
       rate: serverPlanetRate,
       float: serverPlanetFloat,
-    });
+    }, displayUsername);
 
     if (entry.battle) {
       const b = entry.battle;
@@ -162,11 +167,13 @@ router.get("/pvp/status/:telegramId", async (req, res) => {
         telegramId: b.player1.telegramId,
         planet: b.player1.planet,
         confirmed: b.player1.confirmed,
+        username: b.player1.username,
       },
       opponent: {
         telegramId: b.player2.telegramId,
         planet: b.player2.planet,
         confirmed: b.player2.confirmed,
+        username: b.player2.username,
       },
       confirmDeadline: b.confirmDeadline,
       winProbability: b.winProbability,
@@ -211,11 +218,13 @@ router.get("/pvp/battle/:battleId", async (req, res) => {
       telegramId: player.telegramId,
       planet: player.planet,
       confirmed: player.confirmed,
+      username: player.username,
     },
     opponent: {
       telegramId: opponent.telegramId,
       planet: opponent.planet,
       confirmed: opponent.confirmed,
+      username: opponent.username,
     },
     confirmDeadline: b.confirmDeadline,
     winProbability: isPlayer1 ? b.winProbability : (1 - (b.winProbability ?? 0.5)),
