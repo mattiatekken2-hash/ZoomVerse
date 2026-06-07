@@ -121,9 +121,9 @@ function PvpRankWidgetBase({ telegramId }: Props) {
             backdropFilter: "blur(8px)",
             zIndex: 110,
             display: "flex",
-            alignItems: "flex-start",
+            alignItems: "center",
             justifyContent: "center",
-            padding: "120px 20px 20px",
+            padding: "20px",
             overflowY: "auto",
           }}
         >
