@@ -33,6 +33,19 @@ loser loses it). The client is authoritative for the `planets` array and a debou
 - **Why:** if terminal battles are returned, `/pvp/status` keeps reporting the last
   result, so starting a new battle shows the previous victory/defeat (stale state).
 
+## Modal init effect must depend only on `open`
+The PvPModal init effect kicks off `startQueue()`. `startQueue` is a useCallback
+that closes over the `planet` prop, so its identity changes whenever the parent
+re-renders with a new `planet` reference.
+- **Rule:** the open/init effect must depend on `[open]` only and call the latest
+  `startQueue` via a ref (`startQueueRef.current()`), never list `startQueue` in
+  its deps.
+- **Why:** the game state re-renders the parent ~every second (farming/balance
+  ticks) with a fresh `planet` object → `startQueue` identity changes → if the
+  effect depended on it, it re-fires every tick and re-queues, yanking the user
+  out of an active match back into "searching" ("trova l'amico ma torna subito in
+  ricerca").
+
 ## Confirm flow
 - Resolve the wheel + result exactly once via a `resolvedRef` guard + a single
   `maybeResolve(battle)` helper keyed on `winnerTelegramId` — the server resolves the
