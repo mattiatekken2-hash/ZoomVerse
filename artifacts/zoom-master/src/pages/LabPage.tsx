@@ -7,6 +7,7 @@ import { PixelAvatar } from "../components/PixelAvatar";
 import { LottoStellareWidget } from "../components/LottoStellareWidget";
 import { LabRankWidget } from "../components/LabRankWidget";
 import { V1NftWidget } from "../components/V1NftWidget";
+import { PvpRankWidget } from "../components/PvpRankWidget";
 import { ExchangeWidget } from "../components/ExchangeWidget";
 import { LabTicketWidget } from "../components/LabTicketWidget";
 
@@ -264,6 +265,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         onPurchase={onPurchase || (() => {})}
       />
       <V1NftWidget telegramId={telegramId} />
+      <PvpRankWidget telegramId={telegramId} />
       <ExchangeWidget balance={balance} sunCount={sunCount} />
 
       <div

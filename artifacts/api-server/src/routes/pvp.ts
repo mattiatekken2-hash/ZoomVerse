@@ -11,9 +11,19 @@ import {
   getRarityWeight,
 } from "../lib/pvpEngine";
 import { db, usersTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
+
+// PvP DAILY LEADERBOARD prize split (1st→10th), stardust.
+const PVP_PRIZES = [200, 100, 80, 40, 40, 20, 20, 20, 20, 20] as const;
+
+function pvpLeaderboardDayKey(now: Date = new Date()): string {
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(now.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // PvP Route — planet-to-planet duels.
@@ -278,6 +288,79 @@ router.post("/pvp/decline", async (req, res) => {
     return;
   }
   res.json({ ok: true });
+});
+
+// ─── GET /pvp/leaderboard ────────────────────────────────────────────
+// Public daily PvP leaderboard. Returns today's top 10 by win points with
+// Telegram avatars + stardust prize tiers. If a caller `telegramId` is
+// supplied and the caller is NOT in the top 10 but has points today, also
+// returns `me` with their current rank + points so the UI can pin a row.
+
+router.get("/pvp/leaderboard", async (req, res) => {
+  try {
+    const today = pvpLeaderboardDayKey();
+    const callerId = String(req.query["telegramId"] || "").trim();
+
+    const rows = await db
+      .select({
+        telegramId: usersTable.telegramId,
+        username: usersTable.username,
+        firstName: usersTable.firstName,
+        photoUrl: usersTable.photoUrl,
+        points: usersTable.pvpDailyPoints,
+      })
+      .from(usersTable)
+      .where(
+        sql`${usersTable.pvpDayKey} = ${today}
+            AND ${usersTable.pvpDailyPoints} > 0
+            AND ${usersTable.isDisabled} = false`,
+      )
+      .orderBy(desc(usersTable.pvpDailyPoints), usersTable.telegramId)
+      .limit(10);
+
+    const entries = rows.map((r, i) => ({
+      rank: i + 1,
+      telegramId: r.telegramId,
+      name: r.username || r.firstName || "Player",
+      photoUrl: r.photoUrl || null,
+      points: Number(r.points ?? 0),
+      prize: i < PVP_PRIZES.length ? PVP_PRIZES[i] : null,
+    }));
+
+    // Caller row (only when they exist, have points today, and aren't already
+    // visible in the top 10).
+    let me: { rank: number | null; points: number } | null = null;
+    if (callerId && !entries.some((e) => e.telegramId === callerId)) {
+      const [self] = await db
+        .select({ points: usersTable.pvpDailyPoints, dayKey: usersTable.pvpDayKey })
+        .from(usersTable)
+        .where(eq(usersTable.telegramId, callerId))
+        .limit(1);
+
+      if (self && self.dayKey === today && (self.points ?? 0) > 0) {
+        const selfPoints = Number(self.points ?? 0);
+        // Rank = (# of users strictly ahead) + 1, with telegramId tie-break
+        // matching the leaderboard ordering above.
+        const [ahead] = await db
+          .select({ n: sql<number>`count(*)` })
+          .from(usersTable)
+          .where(
+            sql`${usersTable.pvpDayKey} = ${today}
+                AND ${usersTable.isDisabled} = false
+                AND (
+                  ${usersTable.pvpDailyPoints} > ${selfPoints}
+                  OR (${usersTable.pvpDailyPoints} = ${selfPoints} AND ${usersTable.telegramId} < ${callerId})
+                )`,
+          );
+        me = { rank: Number(ahead?.n ?? 0) + 1, points: selfPoints };
+      }
+    }
+
+    res.json({ dayKey: today, prizes: PVP_PRIZES, entries, me });
+  } catch (err) {
+    console.error("[pvp/leaderboard] error:", err);
+    res.status(500).json({ ok: false, error: "Server error" });
+  }
 });
 
 export default router;

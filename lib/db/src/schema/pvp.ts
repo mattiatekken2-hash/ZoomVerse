@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, index, uniqueIndex } from "drizzle-orm/pg-core";
 
 /**
  * PvP BATTLES — Duelli planet-to-planet.
@@ -41,3 +41,31 @@ export const pvpBattlesTable = pgTable("pvp_battles", {
 
 export type PvpBattleRow = typeof pvpBattlesTable.$inferSelect;
 export type PvpBattleInsert = typeof pvpBattlesTable.$inferInsert;
+
+/**
+ * PvP DAILY PAIRS — anti-win-trading guard.
+ *
+ * Conta quante volte `winner` ha battuto lo stesso `opponent` nello stesso
+ * giorno UTC (`dayKey`). Il sistema assegna +1 punto in classifica solo per
+ * le prime N vittorie (MAX_POINTS_PER_OPPONENT) contro lo stesso avversario;
+ * le vittorie successive nello stesso giorno non danno punti (ma il pianeta
+ * viene comunque trasferito). Le righe stantie (dayKey < oggi) vengono
+ * eliminate dal cron di reset notturno insieme allo zeramento dei contatori.
+ */
+export const pvpDailyPairsTable = pgTable("pvp_daily_pairs", {
+  id: serial("id").primaryKey(),
+  winnerTelegramId: text("winner_telegram_id").notNull(),
+  opponentTelegramId: text("opponent_telegram_id").notNull(),
+  dayKey: text("day_key").notNull(),
+  winCount: integer("win_count").notNull().default(0),
+}, (table) => [
+  uniqueIndex("pvp_daily_pairs_uniq").on(
+    table.winnerTelegramId,
+    table.opponentTelegramId,
+    table.dayKey,
+  ),
+  index("idx_pvp_pairs_daykey").on(table.dayKey),
+]);
+
+export type PvpDailyPairRow = typeof pvpDailyPairsTable.$inferSelect;
+export type PvpDailyPairInsert = typeof pvpDailyPairsTable.$inferInsert;

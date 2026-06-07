@@ -113,6 +113,17 @@ export const usersTable = pgTable("users", {
   // is created by ALTER TABLE).
   dailyReferralCount: integer("daily_referral_count").notNull().default(0),
   dailyReferralDayKey: text("daily_referral_day_key"),
+  // PvP DAILY LEADERBOARD — wins this UTC day.
+  // `pvpDailyPoints` is the number of PvP matches this user has WON during
+  // the current UTC day (losers earn nothing). `pvpDayKey` is the YYYY-MM-DD
+  // UTC key the counter belongs to: when a win comes in and the stored key
+  // differs from today, the counter resets to 1 in the same atomic UPDATE
+  // (mirror of the daily-referrals day-key reset pattern). A nightly cron
+  // reads the top 10 by this counter at 00:00 UTC, credits stardust prizes
+  // (200/100/80/40/40/20/20/20/20/20), then zeros the counter for everyone.
+  // Anti-win-trading is enforced separately via `pvp_daily_pairs`.
+  pvpDailyPoints: integer("pvp_daily_points").notNull().default(0),
+  pvpDayKey: text("pvp_day_key"),
   // Space Merchant — random alien encounter on LAB. Server-driven so the
   // 20–50 min cadence and the 3-fusion cap can't be bypassed client-side.
   // `merchantNextAt` = earliest moment the next merchant may spawn.

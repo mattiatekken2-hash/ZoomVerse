@@ -6,7 +6,7 @@ import { fetchPendingFarmNotifications, markFarmNotified } from "./routes/farm";
 import { runScheduledLotteryDrawTick } from "./routes/lottery";
 import { runScheduledLabSettlementTick } from "./routes/labRanking";
 import { purgeExpiredHistory } from "./lib/history";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, pvpDailyPairsTable } from "@workspace/db";
 import { desc, eq, sql } from "drizzle-orm";
 import { readGlobal, readNotifiedExpiresAtMs, writeNotifiedExpiresAtMs, advanceGlobal } from "./routes/merchant";
 
@@ -49,6 +49,7 @@ server.listen(port, () => {
   registerTelegramWebhook();
   startFarmNotificationCron();
   startHallOfFameResetCron();
+  startPvpLeaderboardResetCron();
   startLotteryDrawCron();
   startLabSettlementCron();
   startStarsReconcileCron();
@@ -320,6 +321,101 @@ function startHallOfFameResetCron() {
   };
 
   setTimeout(tick, 7_000).unref();
+  setInterval(tick, intervalMs).unref();
+}
+
+function startPvpLeaderboardResetCron() {
+  // PvP DAILY LEADERBOARD — nightly settlement at 00:00 UTC.
+  //
+  // Identical stateless / self-healing design as startHallOfFameResetCron:
+  // every 60s we look for users whose stored pvp_day_key is older than today
+  // and still have a positive points count. Those are a finished day's
+  // leaderboard waiting to be settled — we credit stardust to the top 10,
+  // then zero every stale row in one all-or-nothing transaction. If nothing
+  // is stale, the tick is a cheap no-op.
+  //
+  // Prize split (1st→10th): 200/100/80/40/40/20/20/20/20/20 stardust.
+  // Deterministic tie-breaker (telegramId ASC) keeps prize ordering stable.
+  const PVP_PRIZES = [200, 100, 80, 40, 40, 20, 20, 20, 20, 20] as const;
+  const intervalMs = 60 * 1000;
+  let inFlight = false;
+
+  const tick = async () => {
+    if (inFlight) return;
+    inFlight = true;
+    try {
+      const today = utcDayKeyForCron();
+
+      const winnersInfo = await db.transaction(async (tx) => {
+        const winners = await tx
+          .select({
+            telegramId: usersTable.telegramId,
+            count: usersTable.pvpDailyPoints,
+            dayKey: usersTable.pvpDayKey,
+          })
+          .from(usersTable)
+          .where(
+            sql`${usersTable.pvpDayKey} IS NOT NULL
+                AND ${usersTable.pvpDayKey} < ${today}
+                AND ${usersTable.pvpDailyPoints} > 0`,
+          )
+          .orderBy(desc(usersTable.pvpDailyPoints), usersTable.telegramId)
+          .limit(PVP_PRIZES.length);
+
+        // Purge stale pair-counters regardless of whether anyone scored, so
+        // the anti-win-trading table doesn't grow unbounded across days.
+        await tx.delete(pvpDailyPairsTable).where(sql`${pvpDailyPairsTable.dayKey} < ${today}`);
+
+        if (winners.length === 0) return { winners: [] as typeof winners, settled: 0 };
+
+        for (let i = 0; i < winners.length; i++) {
+          const winner = winners[i]!;
+          const prize = PVP_PRIZES[i]!;
+          await tx
+            .update(usersTable)
+            .set({
+              stardustBalance: sql`${usersTable.stardustBalance} + ${prize}`,
+              balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+            })
+            .where(eq(usersTable.telegramId, winner.telegramId));
+        }
+
+        // Zero EVERY user whose key is stale (not just the top 10).
+        const settled = await tx
+          .update(usersTable)
+          .set({ pvpDailyPoints: 0, pvpDayKey: null })
+          .where(
+            sql`${usersTable.pvpDayKey} IS NOT NULL
+                AND ${usersTable.pvpDayKey} < ${today}`,
+          );
+
+        return {
+          winners,
+          settled: (settled as { rowCount?: number }).rowCount ?? winners.length,
+        };
+      });
+
+      if (winnersInfo.winners.length === 0) return;
+
+      for (let i = 0; i < winnersInfo.winners.length; i++) {
+        const w = winnersInfo.winners[i]!;
+        logger.info(
+          { telegramId: w.telegramId, rank: i + 1, prize: PVP_PRIZES[i], count: w.count, dayKey: w.dayKey },
+          "[pvp-cron] credited daily-pvp prize",
+        );
+      }
+      logger.info(
+        { winners: winnersInfo.winners.length, settled: winnersInfo.settled },
+        "[pvp-cron] daily reset complete",
+      );
+    } catch (err) {
+      logger.warn({ err }, "[pvp-cron] tick failed");
+    } finally {
+      inFlight = false;
+    }
+  };
+
+  setTimeout(tick, 9_000).unref();
   setInterval(tick, intervalMs).unref();
 }
 

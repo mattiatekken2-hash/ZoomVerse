@@ -795,6 +795,39 @@ export async function fetchHallOfFameDaily(): Promise<HallOfFameResponse> {
   }
 }
 
+// ─── PvP DAILY LEADERBOARD ────────────────────────────────────────────
+export type PvpLeaderboardEntry = {
+  rank: number;
+  telegramId: string;
+  name: string;
+  photoUrl: string | null;
+  points: number;
+  prize: number | null;
+};
+export type PvpLeaderboardMe = {
+  rank: number | null;
+  points: number;
+};
+export type PvpLeaderboardResponse = {
+  dayKey: string;
+  prizes: number[];
+  entries: PvpLeaderboardEntry[];
+  me: PvpLeaderboardMe | null;
+};
+const PVP_LB_PRIZES = [200, 100, 80, 40, 40, 20, 20, 20, 20, 20];
+const EMPTY_PVP_LB: PvpLeaderboardResponse = { dayKey: "", prizes: PVP_LB_PRIZES, entries: [], me: null };
+
+export async function fetchPvpLeaderboard(telegramId?: string | null): Promise<PvpLeaderboardResponse> {
+  try {
+    const q = telegramId ? `telegramId=${encodeURIComponent(telegramId)}&` : "";
+    const res = await fetch(`${API_BASE}/pvp/leaderboard?${q}t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return EMPTY_PVP_LB;
+    return await res.json();
+  } catch {
+    return EMPTY_PVP_LB;
+  }
+}
+
 export async function adminAddPlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "PLASMA" | "GOLD" | "SUN"): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/add-planets`, {

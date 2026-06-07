@@ -1,7 +1,84 @@
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, pvpDailyPairsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { recordHistory } from "./history";
+
+// ─── PvP daily leaderboard ───────────────────────────────────────────
+// A win awards +1 leaderboard point to the winner (losers get nothing).
+// Anti-win-trading: a user can only earn points beating the SAME opponent
+// up to MAX_POINTS_PER_OPPONENT times per UTC day; further wins vs that
+// opponent still transfer the planet but award no point.
+const MAX_POINTS_PER_OPPONENT = 2;
+
+function pvpUtcDayKey(now: Date = new Date()): string {
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(now.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+async function awardPvpPoint(winnerTelegramId: string, loserTelegramId: string): Promise<void> {
+  const today = pvpUtcDayKey();
+  try {
+    await db.transaction(async (tx) => {
+      // Upsert the (winner, opponent, day) pair counter and read its new
+      // value. The unique index makes this race-free under concurrency.
+      const [pair] = await tx
+        .insert(pvpDailyPairsTable)
+        .values({
+          winnerTelegramId,
+          opponentTelegramId: loserTelegramId,
+          dayKey: today,
+          winCount: 1,
+        })
+        .onConflictDoUpdate({
+          target: [
+            pvpDailyPairsTable.winnerTelegramId,
+            pvpDailyPairsTable.opponentTelegramId,
+            pvpDailyPairsTable.dayKey,
+          ],
+          set: { winCount: sql`${pvpDailyPairsTable.winCount} + 1` },
+        })
+        .returning({ winCount: pvpDailyPairsTable.winCount });
+
+      const winCount = pair?.winCount ?? 1;
+      // Beyond the cap: planet already transferred, but no leaderboard point.
+      if (winCount > MAX_POINTS_PER_OPPONENT) {
+        logger.info(
+          { winnerTelegramId, loserTelegramId, winCount },
+          "[pvp] win-trading cap reached — no leaderboard point",
+        );
+        return;
+      }
+
+      // Award the point with the day-key reset pattern (mirror of referrals).
+      //
+      // Midnight-race guard: only touch rows whose key is already today (or a
+      // settled NULL). We deliberately DO NOT match a STALE key (< today),
+      // because the nightly cron freezes yesterday's top-10 by selecting rows
+      // where pvpDayKey < today. If a yesterday-scorer wins in the ~60s window
+      // after 00:00 UTC before the cron tick, clobbering their key to today
+      // (the old `ELSE 1`) would erase their finished-day standing and cost
+      // them their prize. Skipping the award for that brief window (the planet
+      // still transferred) is the safe tradeoff: the cron settles & zeroes the
+      // stale row within 60s, after which fresh wins start today's count at 1.
+      await tx
+        .update(usersTable)
+        .set({
+          pvpDailyPoints: sql`CASE WHEN ${usersTable.pvpDayKey} = ${today} THEN ${usersTable.pvpDailyPoints} + 1 ELSE 1 END`,
+          pvpDayKey: today,
+        })
+        .where(
+          sql`${usersTable.telegramId} = ${winnerTelegramId}
+              AND (${usersTable.pvpDayKey} = ${today} OR ${usersTable.pvpDayKey} IS NULL)`,
+        );
+    });
+  } catch (err) {
+    // Never let leaderboard bookkeeping break the battle outcome — the
+    // planet transfer already committed in its own transaction.
+    logger.warn({ err, winnerTelegramId, loserTelegramId }, "[pvp] awardPvpPoint failed");
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // PvP MATCHMAKING ENGINE — in-memory state.
@@ -273,6 +350,10 @@ async function runRoulette(battle: Battle) {
 
   if (transferred) {
     battle.status = "completed";
+    // Award the winner +1 daily leaderboard point (anti-win-trading capped).
+    // Fire-and-forget: the planet transfer already committed, so leaderboard
+    // bookkeeping must never block or fail the battle result.
+    void awardPvpPoint(winner.telegramId, loser.telegramId);
   } else {
     battle.status = "transfer_failed";
   }
