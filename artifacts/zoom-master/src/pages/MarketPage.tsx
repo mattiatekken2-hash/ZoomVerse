@@ -34,6 +34,9 @@ const RARITY_COLORS: Record<string, string> = {
 
 interface MarketPageProps {
   depositBalance: number;
+  // Earned balance (tonBalance). Buyers pay marketplace listings 50% from
+  // deposit_balance and 50% from earned_balance, so both are needed to gate.
+  earnedBalance: number;
   myListings: Planet[];
   maxSlots: number;
   telegramId: string | null;
@@ -48,7 +51,7 @@ interface MarketPageProps {
 
 interface Toast { text: string; ok: boolean }
 
-export function MarketPage({ depositBalance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete, onBuyEquipment, onUnlistEquipment }: MarketPageProps) {
+export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete, onBuyEquipment, onUnlistEquipment }: MarketPageProps) {
   const { t } = useT();
   const [filter, setFilter] = useState<MarketFilter>("ALL");
   // Float sort widget for the marketplace (▲ = low→high, ▼ = high→low,
@@ -174,9 +177,10 @@ export function MarketPage({ depositBalance, myListings, maxSlots, telegramId, o
 
   const handleBuyServer = async (serverId: number, planetType: PlanetType, planetRate: number, price: number, planetFloat: number | null) => {
     if (!telegramId) return;
-    // P2P TON marketplace: buyer pays exact listing price from depositBalance.
-    if (depositBalance < price) {
-      showToast("TON deposit insufficient", false);
+    // P2P TON marketplace: buyer pays 50% from deposit_balance and 50% from
+    // earned_balance. Both wallets must cover their half.
+    if (depositBalance < price * 0.5 || earnedBalance < price * 0.5) {
+      showToast("Insufficient balance: need 50% deposit + 50% earned", false);
       return;
     }
     // Listed planets still occupy a slot (they remain in the farm grid as
@@ -476,8 +480,8 @@ export function MarketPage({ depositBalance, myListings, maxSlots, telegramId, o
             } as Planet;
 
             const isOwn = listing.isLocal;
-            // P2P TON marketplace: buyer pays exact listing price from depositBalance
-            const canBuy = !isOwn && depositBalance >= listing.price && myListings.filter((p) => !p.isListedInMarket).length < maxSlots;
+            // P2P TON marketplace: buyer pays 50% deposit + 50% earned
+            const canBuy = !isOwn && depositBalance >= listing.price * 0.5 && earnedBalance >= listing.price * 0.5 && myListings.filter((p) => !p.isListedInMarket).length < maxSlots;
             const isPlatinumNft = listing.name === "V1_NFT";
             const listingFloat = FLOAT_PLANET_TYPES.has(listing.name)
               ? getListingDisplayFloat({ id: listing.serverId ?? listing.id, planetFloat: listing.planetFloat })
@@ -626,7 +630,7 @@ export function MarketPage({ depositBalance, myListings, maxSlots, telegramId, o
                 const info = EQUIPMENT_CATEGORIES[cat];
                 const r = EQUIPMENT_RARITY_INFO[rar];
                 const isOwn = l.sellerTelegramId === telegramId;
-                const canBuy = !isOwn && depositBalance >= l.price;
+                const canBuy = !isOwn && depositBalance >= l.price * 0.5 && earnedBalance >= l.price * 0.5;
                 return (
                   <div
                     key={`eq-${l.id}`}

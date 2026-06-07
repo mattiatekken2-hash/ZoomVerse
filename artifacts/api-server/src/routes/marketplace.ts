@@ -582,9 +582,21 @@ router.post("/market/buy", async (req, res) => {
       return;
     }
 
-    // Split: 90% to seller earned balance, 10% admin commission.
-    const sellerShare = +((listing.price as number) * 0.9).toFixed(6);
-    const adminShare = +((listing.price as number) * 0.1).toFixed(6);
+    // Buyer pays the price 50/50 across both wallets:
+    //   - 50% from deposit_balance (depositBalance)
+    //   - 50% from earned_balance  (tonBalance — column kept as ton_balance)
+    // Seller receives the price minus a 10% fee, credited 100% to their
+    // deposit_balance (their earned_balance is never touched). The 10% fee
+    // goes to the admin wallet as before.
+    const buyerDepositShare = +((listing.price as number) * 0.5).toFixed(6);
+    const buyerEarnedShare = +((listing.price as number) * 0.5).toFixed(6);
+    // Total actually debited from the buyer (sum of both rounded halves).
+    // Conserve value exactly: admin takes 10% of the buyer's total and the
+    // seller gets the remainder, so seller + admin == buyer debit (no
+    // mint/burn drift from independent rounding).
+    const totalDebit = +(buyerDepositShare + buyerEarnedShare).toFixed(6);
+    const adminShare = +(totalDebit * 0.1).toFixed(6);
+    const sellerShare = +(totalDebit - adminShare).toFixed(6);
 
     const updated = await txDb.update(marketListingsTable)
       .set({ status: "sold", buyerTelegramId, soldAt: new Date() })
@@ -597,32 +609,36 @@ router.post("/market/buy", async (req, res) => {
       return;
     }
 
-    // Atomic, race-safe debit from buyer's deposit_balance.
-    // depositBalance is one-way (external deposits only), so a negative
-    // balance here is a real-money loss path.
+    // Atomic, race-safe debit from the buyer: 50% from deposit_balance AND
+    // 50% from earned_balance (tonBalance), in a single UPDATE. Both balance
+    // guards are in the WHERE clause, so if EITHER wallet is short the row
+    // doesn't match, nothing is debited and we roll back. depositBalance is
+    // one-way (external deposits only), so a negative balance is a real-money
+    // loss path — the guards prevent it.
     const debited = await txDb.update(usersTable)
       .set({
-        depositBalance: sql`${usersTable.depositBalance} - ${listing.price}`,
+        depositBalance: sql`${usersTable.depositBalance} - ${buyerDepositShare}`,
+        tonBalance: sql`${usersTable.tonBalance} - ${buyerEarnedShare}`,
       })
       .where(and(
         eq(usersTable.telegramId, buyerTelegramId),
-        sql`${usersTable.depositBalance} >= ${listing.price}`,
+        sql`${usersTable.depositBalance} >= ${buyerDepositShare}`,
+        sql`${usersTable.tonBalance} >= ${buyerEarnedShare}`,
         sql`${usersTable.isDisabled} = false`,
       ))
       .returning({ id: usersTable.telegramId });
 
     if (debited.length === 0) {
       await client.query("ROLLBACK");
-      res.status(400).json({ error: "TON deposit insufficient or account disabled" });
+      res.status(400).json({ error: "Insufficient balance: need 50% deposit + 50% earned, or account disabled" });
       return;
     }
 
-    // Credit seller's earned balance (tonBalance) directly.
-    // Unlike ZOOM, tonBalance is NOT reconciled via epoch/balanceEpoch
-    // so a direct UPDATE is race-safe under our row lock.
+    // Credit seller's deposit_balance with the full net (price - 10% fee).
+    // The seller's earned_balance (tonBalance) is intentionally NOT touched.
     const credited = await txDb.update(usersTable)
       .set({
-        tonBalance: sql`${usersTable.tonBalance} + ${sellerShare}`,
+        depositBalance: sql`${usersTable.depositBalance} + ${sellerShare}`,
       })
       .where(and(
         eq(usersTable.telegramId, listing.sellerTelegramId),

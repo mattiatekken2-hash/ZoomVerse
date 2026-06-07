@@ -3919,9 +3919,13 @@ export function useGameState() {
         : generateRandomFloat(),
     };
     setState((prev) => {
+      // 50/50 split: buyer pays half from deposit_balance and half from
+      // earned_balance (tonBalance), mirroring the server-side debit.
+      const half = +(pricePaid * 0.5).toFixed(6);
       const updated = {
         ...prev,
-        depositBalance: +(prev.depositBalance - pricePaid).toFixed(6),
+        depositBalance: +((prev.depositBalance || 0) - half).toFixed(6),
+        tonBalance: +(Math.max(0, (prev.tonBalance || 0) - half)).toFixed(6),
         planets: [...prev.planets, newPlanet],
       };
       stateRef.current = updated;
@@ -4792,9 +4796,11 @@ export function useGameState() {
     const tid = stateRef.current.telegramId;
     if (!tid) return { success: false, reason: "Not logged in" };
     if (listing.kind !== "equipment") return { success: false, reason: "Not an equipment listing" };
-    const totalCost = listing.price + Math.floor(listing.price * 0.25);
-    if (stateRef.current.balance < totalCost) {
-      return { success: false, reason: "Insufficient $ZOOM balance" };
+    // Equipment buys go through the same TON marketplace endpoint as planets:
+    // buyer pays 50% from deposit_balance and 50% from earned_balance (tonBalance).
+    const half = +(listing.price * 0.5).toFixed(6);
+    if ((stateRef.current.depositBalance || 0) < half || (stateRef.current.tonBalance || 0) < half) {
+      return { success: false, reason: "Insufficient balance: need 50% deposit + 50% earned" };
     }
     const result = await buyFromMarket(tid, listing.id);
     if (!result.ok) return { success: false, reason: result.error ?? "Purchase failed" };
@@ -4816,12 +4822,18 @@ export function useGameState() {
       lastCollectedAt: 0,
       isFarmingActive: false,
     };
-    setState((prev) => ({
-      ...prev,
-      balance: Math.max(0, prev.balance - (result.pricePaid ?? totalCost)),
-      lastBalanceEpoch: (prev.lastBalanceEpoch || 0) + 1,
-      equipment: [...(prev.equipment || []), newItem],
-    }));
+    setState((prev) => {
+      // 50/50 split: half from deposit_balance, half from earned_balance
+      // (tonBalance), mirroring the server-side debit. Use the price actually
+      // charged by the server when echoed back.
+      const paidHalf = +((result.pricePaid ?? listing.price) * 0.5).toFixed(6);
+      return {
+        ...prev,
+        depositBalance: +((prev.depositBalance || 0) - paidHalf).toFixed(6),
+        tonBalance: +(Math.max(0, (prev.tonBalance || 0) - paidHalf)).toFixed(6),
+        equipment: [...(prev.equipment || []), newItem],
+      };
+    });
     void refreshMarketListings();
     return { success: true };
   }, []);
