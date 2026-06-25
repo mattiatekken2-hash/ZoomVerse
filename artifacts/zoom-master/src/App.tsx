@@ -648,7 +648,7 @@ function AppShellWithState() {
   if (showSplash) {
     return (
       <div style={{
-        position: "fixed", inset: 0, background: "#060810",
+        position: "fixed", inset: 0, background: "#080109",
         display: "flex", alignItems: "center", justifyContent: "center",
         color: "rgba(255,255,255,0.35)", fontWeight: 800, letterSpacing: "0.2em", fontSize: 12,
       }}>
@@ -659,7 +659,7 @@ function AppShellWithState() {
 
   return (
     <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
-    <div className="flex flex-col overflow-hidden relative" style={{ height: "100dvh", background: "#060810", paddingTop: "calc(env(safe-area-inset-top, 0px) + 56px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+    <div className="flex flex-col overflow-hidden relative" style={{ height: "100dvh", background: "#080109", paddingTop: "calc(env(safe-area-inset-top, 0px) + 56px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
       <NebulaBackground />
       {isAdmin && maintenance.enabled && (
         <div
@@ -710,23 +710,23 @@ function AppShellWithState() {
               width: 38,
               height: 38,
               borderRadius: 10,
-              background: "linear-gradient(135deg, rgba(196,113,237,0.18), rgba(0,242,254,0.10))",
-              border: "1px solid rgba(196,113,237,0.55)",
-              boxShadow: "0 0 14px rgba(196,113,237,0.35), inset 0 0 8px rgba(0,242,254,0.10)",
+              background: "linear-gradient(135deg, rgba(220,30,50,0.22), rgba(160,10,20,0.14))",
+              border: "1px solid rgba(220,30,50,0.55)",
+              boxShadow: "0 0 14px rgba(220,30,50,0.35), inset 0 0 8px rgba(200,20,40,0.18)",
               cursor: "pointer",
               padding: 0,
               transition: "transform 0.12s",
             }}
           >
-            <svg width={16} height={16} viewBox="0 0 16 16" shapeRendering="crispEdges" style={{ filter: "drop-shadow(0 0 4px rgba(196,113,237,0.8))" }}>
-              <rect x="5" y="2" width="1" height="3" fill="#c471ed" />
-              <rect x="10" y="2" width="1" height="3" fill="#c471ed" />
-              <rect x="6" y="1" width="4" height="1" fill="#c471ed" />
-              <rect x="3" y="5" width="10" height="1" fill="#00f2fe" />
-              <rect x="3" y="6" width="1" height="8" fill="#00f2fe" />
-              <rect x="12" y="6" width="1" height="8" fill="#00f2fe" />
-              <rect x="3" y="13" width="10" height="1" fill="#00f2fe" />
-              <rect x="4" y="6" width="8" height="7" fill="rgba(196,113,237,0.18)" />
+            <svg width={16} height={16} viewBox="0 0 16 16" shapeRendering="crispEdges" style={{ filter: "drop-shadow(0 0 4px rgba(220,30,50,0.9))" }}>
+              <rect x="5" y="2" width="1" height="3" fill="#ff3355" />
+              <rect x="10" y="2" width="1" height="3" fill="#ff3355" />
+              <rect x="6" y="1" width="4" height="1" fill="#ff3355" />
+              <rect x="3" y="5" width="10" height="1" fill="#ff6677" />
+              <rect x="3" y="6" width="1" height="8" fill="#ff6677" />
+              <rect x="12" y="6" width="1" height="8" fill="#ff6677" />
+              <rect x="3" y="13" width="10" height="1" fill="#ff6677" />
+              <rect x="4" y="6" width="8" height="7" fill="rgba(220,30,50,0.18)" />
               <rect x="6" y="8" width="1" height="1" fill="#fff" />
               <rect x="9" y="8" width="1" height="1" fill="#fff" />
               <rect x="6" y="10" width="4" height="1" fill="#fff" />
@@ -735,8 +735,8 @@ function AppShellWithState() {
               fontSize: 6,
               fontWeight: 900,
               letterSpacing: 0.8,
-              color: "#c471ed",
-              textShadow: "0 0 4px rgba(196,113,237,0.7)",
+              color: "#ff3355",
+              textShadow: "0 0 4px rgba(220,30,50,0.8)",
               lineHeight: 1,
             }}>SHOP</span>
           </button>
@@ -1044,7 +1044,7 @@ function AppShellWithState() {
       {/* No-SUN modal — only reachable when clicking inside the LAB. */}
       {noSunPopup && (
         <div
-          style={{ position: "fixed", inset: 0, zIndex: 220, background: "rgba(6,8,16,0.65)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+          style={{ position: "fixed", inset: 0, zIndex: 220, background: "rgba(8,1,9,0.70)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
           onClick={() => setNoSunPopup(false)}
         >
           <div
@@ -1113,7 +1113,7 @@ function AppShellWithState() {
         className="flex-shrink-0 relative z-20"
         style={{
           height: 70,
-          background: "rgba(6,8,16,0.92)",
+          background: "rgba(8,1,9,0.92)",
           backdropFilter: "blur(24px)",
           WebkitBackdropFilter: "blur(24px)",
           borderTop: "1px solid rgba(255,255,255,0.05)",
@@ -1208,7 +1208,7 @@ function StardustInfoPopup({ balance, today, dailyCap, globalTotal, onClose }: {
       onClick={onClose}
       style={{
         position: "fixed", inset: 0, zIndex: 10000,
-        background: "rgba(6,8,16,0.72)",
+        background: "rgba(8,1,9,0.72)",
         backdropFilter: "blur(8px)",
         WebkitBackdropFilter: "blur(8px)",
         display: "flex", alignItems: "center", justifyContent: "center",
@@ -1367,7 +1367,7 @@ function MaintenanceScreen({ message }: { message: string }) {
   return (
     <div
       className="flex flex-col items-center justify-center text-center px-6"
-      style={{ height: "100dvh", background: "#060810", paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      style={{ height: "100dvh", background: "#080109", paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
       <NebulaBackground />
       <div className="relative z-10 max-w-sm">

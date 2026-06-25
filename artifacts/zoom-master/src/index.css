@@ -64,39 +64,39 @@
   --elevate-1: rgba(0,0,0,.03);
   --elevate-2: rgba(0,0,0,.08);
 
-  --background: 225 30% 3%;
+  --background: 350 45% 3%;
   --foreground: 0 0% 96%;
-  --border: 225 20% 12%;
-  --card: 225 25% 6%;
+  --border: 350 22% 12%;
+  --card: 350 30% 5%;
   --card-foreground: 0 0% 96%;
-  --card-border: 225 20% 12%;
-  --sidebar: 225 30% 4%;
+  --card-border: 350 22% 12%;
+  --sidebar: 350 35% 3%;
   --sidebar-foreground: 0 0% 96%;
-  --sidebar-border: 225 20% 10%;
-  --sidebar-primary: 191 100% 50%;
-  --sidebar-primary-foreground: 225 30% 3%;
-  --sidebar-accent: 225 20% 10%;
+  --sidebar-border: 350 22% 9%;
+  --sidebar-primary: 0 88% 58%;
+  --sidebar-primary-foreground: 350 45% 3%;
+  --sidebar-accent: 350 22% 9%;
   --sidebar-accent-foreground: 0 0% 96%;
-  --sidebar-ring: 191 100% 50%;
-  --popover: 225 25% 6%;
+  --sidebar-ring: 0 88% 58%;
+  --popover: 350 30% 5%;
   --popover-foreground: 0 0% 96%;
-  --popover-border: 225 20% 12%;
-  --primary: 191 100% 50%;
-  --primary-foreground: 225 30% 3%;
-  --secondary: 225 20% 10%;
+  --popover-border: 350 22% 12%;
+  --primary: 0 88% 58%;
+  --primary-foreground: 350 45% 3%;
+  --secondary: 350 22% 9%;
   --secondary-foreground: 0 0% 96%;
-  --muted: 225 20% 8%;
-  --muted-foreground: 225 15% 50%;
+  --muted: 350 20% 7%;
+  --muted-foreground: 350 12% 50%;
   --accent: 47 100% 50%;
-  --accent-foreground: 225 30% 3%;
+  --accent-foreground: 350 45% 3%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 96%;
-  --input: 225 20% 12%;
-  --ring: 191 100% 50%;
-  --chart-1: 191 100% 50%;
+  --input: 350 20% 11%;
+  --ring: 0 88% 58%;
+  --chart-1: 0 88% 58%;
   --chart-2: 47 100% 50%;
-  --chart-3: 270 70% 65%;
-  --chart-4: 210 100% 65%;
+  --chart-3: 340 70% 65%;
+  --chart-4: 10 90% 65%;
   --chart-5: 0 84% 60%;
 
   --app-font-sans: 'Inter', sans-serif;
@@ -104,14 +104,14 @@
   --app-font-mono: Menlo, monospace;
   --radius: .75rem;
 
-  --shadow-2xs: 0px 2px 8px 0px rgba(0,242,254,0.06);
-  --shadow-xs: 0px 2px 8px 0px rgba(0,242,254,0.08);
-  --shadow-sm: 0px 2px 8px 0px rgba(0,242,254,0.10), 0px 1px 2px -1px rgba(0,0,0,0.5);
-  --shadow: 0px 4px 16px 0px rgba(0,242,254,0.12), 0px 1px 2px -1px rgba(0,0,0,0.6);
-  --shadow-md: 0px 4px 20px 0px rgba(0,242,254,0.16), 0px 2px 4px -1px rgba(0,0,0,0.6);
-  --shadow-lg: 0px 8px 30px 0px rgba(0,242,254,0.20), 0px 4px 6px -1px rgba(0,0,0,0.7);
-  --shadow-xl: 0px 12px 40px 0px rgba(0,242,254,0.24), 0px 8px 10px -1px rgba(0,0,0,0.7);
-  --shadow-2xl: 0px 20px 60px 0px rgba(0,242,254,0.28);
+  --shadow-2xs: 0px 2px 8px 0px rgba(220,30,50,0.06);
+  --shadow-xs: 0px 2px 8px 0px rgba(220,30,50,0.08);
+  --shadow-sm: 0px 2px 8px 0px rgba(220,30,50,0.10), 0px 1px 2px -1px rgba(0,0,0,0.5);
+  --shadow: 0px 4px 16px 0px rgba(220,30,50,0.12), 0px 1px 2px -1px rgba(0,0,0,0.6);
+  --shadow-md: 0px 4px 20px 0px rgba(220,30,50,0.16), 0px 2px 4px -1px rgba(0,0,0,0.6);
+  --shadow-lg: 0px 8px 30px 0px rgba(220,30,50,0.20), 0px 4px 6px -1px rgba(0,0,0,0.7);
+  --shadow-xl: 0px 12px 40px 0px rgba(220,30,50,0.24), 0px 8px 10px -1px rgba(0,0,0,0.7);
+  --shadow-2xl: 0px 20px 60px 0px rgba(220,30,50,0.28);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
@@ -182,37 +182,37 @@
 
 .nebula-orb-1 {
   width: 600px; height: 600px;
-  background: radial-gradient(circle, rgba(0,242,254,0.11) 0%, rgba(0,242,254,0.04) 40%, transparent 70%);
+  background: radial-gradient(circle, rgba(220,30,50,0.13) 0%, rgba(180,10,30,0.05) 40%, transparent 70%);
   top: -200px; left: -180px;
   animation: nebula-drift-a 24s ease-in-out 4 alternate;
 }
 .nebula-orb-2 {
   width: 500px; height: 500px;
-  background: radial-gradient(circle, rgba(196,113,237,0.12) 0%, rgba(196,113,237,0.04) 40%, transparent 70%);
+  background: radial-gradient(circle, rgba(160,10,30,0.14) 0%, rgba(200,20,40,0.05) 40%, transparent 70%);
   bottom: 40px; right: -150px;
   animation: nebula-drift-b 19s ease-in-out 4 alternate;
 }
 .nebula-orb-3 {
   width: 380px; height: 380px;
-  background: radial-gradient(circle, rgba(255,215,0,0.08) 0%, rgba(255,179,71,0.03) 40%, transparent 70%);
+  background: radial-gradient(circle, rgba(255,60,20,0.09) 0%, rgba(200,30,10,0.03) 40%, transparent 70%);
   top: 28%; left: 15%;
   animation: nebula-drift-c 30s ease-in-out 3 alternate;
 }
 .nebula-orb-4 {
   width: 320px; height: 320px;
-  background: radial-gradient(circle, rgba(79,172,254,0.09) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255,80,40,0.08) 0%, transparent 70%);
   top: 50%; right: 10%;
   animation: nebula-drift-d 22s ease-in-out 3 alternate;
 }
 .nebula-orb-5 {
   width: 260px; height: 260px;
-  background: radial-gradient(circle, rgba(255,65,108,0.07) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255,30,60,0.10) 0%, transparent 70%);
   top: 70%; left: -60px;
   animation: nebula-drift-a 26s ease-in-out 3 alternate-reverse;
 }
 .nebula-orb-6 {
   width: 200px; height: 200px;
-  background: radial-gradient(circle, rgba(0,230,118,0.06) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(200,15,40,0.09) 0%, transparent 70%);
   top: 15%; right: 20%;
   animation: nebula-drift-b 34s ease-in-out 2 alternate-reverse;
 }
@@ -276,18 +276,18 @@
 }
 .star-field-b {
   background-image:
-    radial-gradient(0.8px 0.8px at 5% 35%, rgba(200,220,255,0.5) 0%, transparent 100%),
-    radial-gradient(0.8px 0.8px at 35% 18%, rgba(200,220,255,0.4) 0%, transparent 100%),
-    radial-gradient(0.8px 0.8px at 60% 48%, rgba(200,220,255,0.5) 0%, transparent 100%),
-    radial-gradient(0.8px 0.8px at 80% 32%, rgba(200,220,255,0.35) 0%, transparent 100%),
-    radial-gradient(0.8px 0.8px at 20% 75%, rgba(200,220,255,0.45) 0%, transparent 100%),
-    radial-gradient(0.8px 0.8px at 72% 90%, rgba(200,220,255,0.4) 0%, transparent 100%),
-    radial-gradient(0.8px 0.8px at 45% 55%, rgba(200,220,255,0.35) 0%, transparent 100%),
-    radial-gradient(0.8px 0.8px at 90% 20%, rgba(200,220,255,0.5) 0%, transparent 100%),
-    radial-gradient(0.8px 0.8px at 28% 92%, rgba(200,220,255,0.4) 0%, transparent 100%),
-    radial-gradient(0.8px 0.8px at 55% 72%, rgba(200,220,255,0.45) 0%, transparent 100%),
-    radial-gradient(0.8px 0.8px at 10% 55%, rgba(200,220,255,0.35) 0%, transparent 100%),
-    radial-gradient(0.8px 0.8px at 85% 68%, rgba(200,220,255,0.4) 0%, transparent 100%);
+    radial-gradient(0.8px 0.8px at 5% 35%, rgba(255,180,180,0.45) 0%, transparent 100%),
+    radial-gradient(0.8px 0.8px at 35% 18%, rgba(255,160,160,0.35) 0%, transparent 100%),
+    radial-gradient(0.8px 0.8px at 60% 48%, rgba(255,180,180,0.45) 0%, transparent 100%),
+    radial-gradient(0.8px 0.8px at 80% 32%, rgba(255,160,160,0.30) 0%, transparent 100%),
+    radial-gradient(0.8px 0.8px at 20% 75%, rgba(255,180,180,0.40) 0%, transparent 100%),
+    radial-gradient(0.8px 0.8px at 72% 90%, rgba(255,160,160,0.35) 0%, transparent 100%),
+    radial-gradient(0.8px 0.8px at 45% 55%, rgba(255,180,180,0.30) 0%, transparent 100%),
+    radial-gradient(0.8px 0.8px at 90% 20%, rgba(255,180,180,0.45) 0%, transparent 100%),
+    radial-gradient(0.8px 0.8px at 28% 92%, rgba(255,160,160,0.35) 0%, transparent 100%),
+    radial-gradient(0.8px 0.8px at 55% 72%, rgba(255,180,180,0.40) 0%, transparent 100%),
+    radial-gradient(0.8px 0.8px at 10% 55%, rgba(255,160,160,0.30) 0%, transparent 100%),
+    radial-gradient(0.8px 0.8px at 85% 68%, rgba(255,180,180,0.35) 0%, transparent 100%);
   animation: star-twinkle-b 13s ease-in-out 4 alternate;
 }
 .star-field-c {

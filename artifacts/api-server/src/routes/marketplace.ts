@@ -1031,6 +1031,19 @@ router.post("/market/share", async (req, res) => {
     return;
   }
 
+  // Fetch seller's display name for the caption (non-critical — skip silently on failure).
+  let sellerDisplay: string | null = null;
+  try {
+    const [sellerInfo] = await db
+      .select({ username: usersTable.username, firstName: usersTable.firstName })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, listing.sellerTelegramId))
+      .limit(1);
+    sellerDisplay = sellerInfo?.username
+      ? `@${sellerInfo.username}`
+      : (sellerInfo?.firstName || null);
+  } catch { /**/ }
+
   const family = planetVideoFamily(listing.planetType);
   const animationUrl = `${base}/planets/${family}.mp4`;
   const deepLink = `https://t.me/${BOT_USERNAME}?startapp=mkt_${listing.id}`;
@@ -1045,6 +1058,7 @@ router.post("/market/share", async (req, res) => {
   if (rate != null) lines.push(`⚡ +${rate.toLocaleString("en-US")} $ZOOM/hr`);
   if (floatVal != null) lines.push(`🎚 Float: <b>${floatVal.toFixed(4)}</b>`);
   lines.push(`💎 Prezzo: <b>${Number(listing.price).toLocaleString("en-US")} TON</b>`);
+  if (sellerDisplay) lines.push(`👤 Venditore: <b>${escapeHtml(sellerDisplay)}</b>`);
   lines.push("");
   lines.push("👇 Aprilo nel Mercato per acquistarlo");
   const caption = lines.join("\n");

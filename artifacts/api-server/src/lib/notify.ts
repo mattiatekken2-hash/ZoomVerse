@@ -185,7 +185,7 @@ export async function notifyAdminWithdrawalRequest(params: {
 // Defaults to the public ZoomVerse community chat; overridable via env so we
 // can retarget (or point at a specific forum topic) without redeploying.
 const MARKET_SHARE_CHAT_ID = process.env["MARKET_SHARE_CHAT_ID"] || "@ZoomVerse_Chat";
-const MARKET_SHARE_THREAD_ID = Number(process.env["MARKET_SHARE_THREAD_ID"] || "0") || undefined;
+const MARKET_SHARE_THREAD_ID = Number(process.env["MARKET_SHARE_THREAD_ID"] || "7406") || undefined;
 
 /**
  * Post a marketplace listing to the community group: a looping animation of the

@@ -15,7 +15,7 @@ interface PlanetCanvasProps {
   forgePhase: ForgePhase;
 }
 
-const DEFAULT_COLOR = "#4facfe";
+const DEFAULT_COLOR = "#ff3355";
 
 const RARITY_FROM_COLOR: Record<string, PlanetType> = {
   "#8892b0": "BASIC",
@@ -353,8 +353,8 @@ export function PlanetCanvas({
               transform: "translate(-50%, -50%) scale(1)",
               boxShadow:
                 `inset 0 0 14px 4px rgba(0,0,0,0.9), ` +
-                `0 0 40px 10px rgba(20,20,30,0.6), ` +
-                `0 0 80px 24px rgba(10,10,15,0.3)`,
+                `0 0 40px 10px rgba(30,8,10,0.7), ` +
+                `0 0 80px 24px rgba(20,4,6,0.4)`,
               willChange: "transform, box-shadow",
             }}
             data-testid="forge-core"

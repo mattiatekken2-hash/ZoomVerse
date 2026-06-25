@@ -3,15 +3,15 @@
 // pulsing in unison with the layered star fields.
 const TWINKLE_STARS: Array<{ top: string; left: string; size: number; dur: number; delay: number; tint: string }> = [
   { top: "8%",  left: "14%", size: 2.4, dur: 3.6, delay: 0.0,  tint: "rgba(255,255,255,0.95)" },
-  { top: "16%", left: "78%", size: 2.0, dur: 4.8, delay: 1.2,  tint: "rgba(220,235,255,0.9)"  },
+  { top: "16%", left: "78%", size: 2.0, dur: 4.8, delay: 1.2,  tint: "rgba(255,200,200,0.9)"  },
   { top: "27%", left: "42%", size: 1.8, dur: 5.4, delay: 2.6,  tint: "rgba(255,250,235,0.85)" },
   { top: "33%", left: "88%", size: 2.2, dur: 4.2, delay: 0.7,  tint: "rgba(255,255,255,0.9)"  },
-  { top: "44%", left: "9%",  size: 1.6, dur: 6.1, delay: 3.4,  tint: "rgba(200,220,255,0.85)" },
+  { top: "44%", left: "9%",  size: 1.6, dur: 6.1, delay: 3.4,  tint: "rgba(255,180,180,0.85)" },
   { top: "52%", left: "62%", size: 2.6, dur: 3.9, delay: 1.9,  tint: "rgba(255,255,255,0.95)" },
-  { top: "65%", left: "22%", size: 1.8, dur: 5.7, delay: 4.1,  tint: "rgba(220,235,255,0.85)" },
+  { top: "65%", left: "22%", size: 1.8, dur: 5.7, delay: 4.1,  tint: "rgba(255,200,200,0.85)" },
   { top: "72%", left: "84%", size: 2.0, dur: 4.5, delay: 2.2,  tint: "rgba(255,250,235,0.9)"  },
   { top: "82%", left: "48%", size: 2.2, dur: 5.0, delay: 0.4,  tint: "rgba(255,255,255,0.9)"  },
-  { top: "90%", left: "12%", size: 1.6, dur: 6.4, delay: 3.0,  tint: "rgba(200,220,255,0.8)"  },
+  { top: "90%", left: "12%", size: 1.6, dur: 6.4, delay: 3.0,  tint: "rgba(255,180,180,0.8)"  },
 ];
 
 export function NebulaBackground() {
