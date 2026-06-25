@@ -779,7 +779,7 @@ function AppShellWithState() {
             }}
             aria-label="RedStar balance"
           >
-            <span style={{ fontSize: 12, lineHeight: 1 }}>🔴</span>
+            <span style={{ fontSize: 12, lineHeight: 1 }}>★</span>
             <span style={{ fontVariantNumeric: "tabular-nums" }}>
               {(() => {
                 const n = state.redStarBalance || 0;
@@ -1128,12 +1128,12 @@ function AppShellWithState() {
                 className="flex-1 flex flex-col items-center justify-center gap-0.5 relative"
                 onClick={() => switchTab(item.id)}
                 data-testid={`nav-${item.id}`}
-                style={{ color: isActive ? "#00f2fe" : "rgba(255,255,255,0.2)" }}
+                style={{ color: isActive ? "#ff3355" : "rgba(255,255,255,0.2)" }}
               >
                 {isActive && (
                   <div
                     className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full"
-                    style={{ background: "#00f2fe", boxShadow: "0 0 10px rgba(0,242,254,0.9)" }}
+                    style={{ background: "#ff3355", boxShadow: "0 0 10px rgba(255,51,85,0.9)" }}
                   />
                 )}
                 <item.icon
@@ -1141,7 +1141,7 @@ function AppShellWithState() {
                   strokeWidth={isActive ? 2.5 : 1.5}
                   style={{
                     transform: isActive ? "scale(1.15)" : "scale(1)",
-                    filter: isActive ? "drop-shadow(0 0 8px rgba(0,242,254,0.8))" : "none",
+                    filter: isActive ? "drop-shadow(0 0 8px rgba(255,51,85,0.8))" : "none",
                     transition: "transform 150ms ease, filter 150ms ease",
                   }}
                 />
