@@ -58,7 +58,7 @@ export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted }: Sett
           strokeLinecap="round"
           strokeLinejoin="round"
           style={{
-            filter: "drop-shadow(0 0 4px rgba(0,242,254,0.45))",
+            filter: "drop-shadow(0 0 4px rgba(255,51,85,0.45))",
           }}
         >
           <circle cx="12" cy="12" r="3" />
@@ -86,7 +86,7 @@ export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted }: Sett
             data-testid="settings-modal"
             style={{
               background: "linear-gradient(180deg, rgba(14,18,36,0.98), rgba(8,10,22,0.98))",
-              border: "1px solid rgba(0,242,254,0.3)",
+              border: "1px solid rgba(255,51,85,0.3)",
               borderRadius: 16,
               padding: 18,
               width: "100%",
@@ -94,7 +94,7 @@ export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted }: Sett
               display: "flex",
               flexDirection: "column",
               gap: 14,
-              boxShadow: "0 0 30px rgba(0,242,254,0.15)",
+              boxShadow: "0 0 30px rgba(255,51,85,0.15)",
             }}
           >
             {/* Title */}
@@ -146,8 +146,8 @@ export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted }: Sett
                         gap: 8,
                         padding: "10px 12px",
                         borderRadius: 12,
-                        border: active ? "1.5px solid #00f2fe" : "1px solid rgba(255,255,255,0.08)",
-                        background: active ? "rgba(0,242,254,0.10)" : "rgba(255,255,255,0.03)",
+                        border: active ? "1.5px solid #ff3355" : "1px solid rgba(255,255,255,0.08)",
+                        background: active ? "rgba(255,51,85,0.10)" : "rgba(255,255,255,0.03)",
                         color: "#fff",
                         fontSize: 13,
                         fontWeight: 700,
@@ -219,9 +219,9 @@ export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted }: Sett
                     width: 38,
                     height: 22,
                     borderRadius: 999,
-                    background: muted ? "rgba(255,255,255,0.10)" : "#00f2fe",
+                    background: muted ? "rgba(255,255,255,0.10)" : "#ff3355",
                     transition: "background 160ms",
-                    boxShadow: muted ? "none" : "0 0 12px rgba(0,242,254,0.55)",
+                    boxShadow: muted ? "none" : "0 0 12px rgba(255,51,85,0.55)",
                   }}
                 >
                   <span

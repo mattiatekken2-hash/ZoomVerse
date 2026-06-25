@@ -550,10 +550,10 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
           disabled={!canUnlock || busy === "unlock"}
           className="mt-6 w-full max-w-xs py-3 rounded-xl font-black tracking-wider text-sm transition-all active:scale-95"
           style={{
-            background: canUnlock ? "linear-gradient(135deg, rgba(0,242,254,0.22), rgba(0,136,255,0.18))" : "rgba(255,255,255,0.04)",
-            color: canUnlock ? "#00f2fe" : "rgba(255,255,255,0.25)",
-            border: `1px solid ${canUnlock ? "rgba(0,242,254,0.45)" : "rgba(255,255,255,0.08)"}`,
-            boxShadow: canUnlock ? "0 0 24px rgba(0,242,254,0.18)" : "none",
+            background: canUnlock ? "linear-gradient(135deg, rgba(255,51,85,0.22), rgba(0,136,255,0.18))" : "rgba(255,255,255,0.04)",
+            color: canUnlock ? "#ff3355" : "rgba(255,255,255,0.25)",
+            border: `1px solid ${canUnlock ? "rgba(255,51,85,0.45)" : "rgba(255,255,255,0.08)"}`,
+            boxShadow: canUnlock ? "0 0 24px rgba(255,51,85,0.18)" : "none",
             cursor: canUnlock ? "pointer" : "not-allowed",
             opacity: busy === "unlock" ? 0.6 : 1,
           }}
@@ -941,9 +941,9 @@ function SlotPickerOption({ label, owned, disabled, onClick }: { label: string; 
       disabled={disabled}
       className="px-3 py-2 rounded-lg text-xs font-bold tracking-wider transition-all active:scale-95"
       style={{
-        background: owned ? "rgba(0,242,254,0.10)" : "rgba(255,255,255,0.04)",
-        color: owned ? "#00f2fe" : "rgba(255,255,255,0.3)",
-        border: `1px solid ${owned ? "rgba(0,242,254,0.3)" : "rgba(255,255,255,0.08)"}`,
+        background: owned ? "rgba(255,51,85,0.10)" : "rgba(255,255,255,0.04)",
+        color: owned ? "#ff3355" : "rgba(255,255,255,0.3)",
+        border: `1px solid ${owned ? "rgba(255,51,85,0.3)" : "rgba(255,255,255,0.08)"}`,
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.6 : 1,
       }}
@@ -956,13 +956,13 @@ function SlotPickerOption({ label, owned, disabled, onClick }: { label: string; 
 // Pixelated padlock for the lock screen. Pure SVG with integer
 // coordinates + image-rendering: pixelated → crisp at any size.
 function PixelLock() {
-  const px = "#00f2fe";
+  const px = "#ff3355";
   return (
     <svg
       viewBox="0 0 16 18"
       width={88}
       height={99}
-      style={{ imageRendering: "pixelated", filter: "drop-shadow(0 0 12px rgba(0,242,254,0.5))" }}
+      style={{ imageRendering: "pixelated", filter: "drop-shadow(0 0 12px rgba(255,51,85,0.5))" }}
     >
       {/* Shackle */}
       <rect x="4" y="1" width="8" height="2" fill={px} />

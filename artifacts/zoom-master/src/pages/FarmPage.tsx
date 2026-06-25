@@ -166,7 +166,7 @@ function EquipmentInventory({
                       key={item.id}
                       className="rounded-xl p-3 border slot-enter flex flex-col gap-2"
                       style={{
-                        borderColor: listed ? "rgba(0,242,254,0.45)" : `${r.color}55`,
+                        borderColor: listed ? "rgba(255,51,85,0.45)" : `${r.color}55`,
                         background: `linear-gradient(135deg, ${r.color}1a 0%, rgba(6,8,16,0.6) 100%)`,
                         boxShadow: `0 0 10px ${r.color}22`,
                         opacity: listed ? 0.85 : 1,
@@ -234,9 +234,9 @@ function EquipmentInventory({
                           onClick={() => onUnlist(item.id)}
                           className="text-[10px] font-black tracking-wider rounded-md py-1.5"
                           style={{
-                            background: "rgba(0,242,254,0.12)",
-                            border: "1px solid rgba(0,242,254,0.4)",
-                            color: "#00f2fe",
+                            background: "rgba(255,51,85,0.12)",
+                            border: "1px solid rgba(255,51,85,0.4)",
+                            color: "#ff3355",
                           }}
                           data-testid={`eq-unlist-${item.id}`}
                         >

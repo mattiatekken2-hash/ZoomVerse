@@ -75,7 +75,7 @@ export function getFloatTier(value: number): FloatTier {
   // (≈ 1 in 1001 craft, ~0.10%). Everything below — even 0.999 — is
   // Pristine. This makes the gold card a true "lottery" rarity.
   if (value >= 1)    return { label: "Perfect",        short: "PFCT", color: "#ffd700" };
-  if (value >= 0.80) return { label: "Pristine",       short: "PRST", color: "#00f2fe" };
+  if (value >= 0.80) return { label: "Pristine",       short: "PRST", color: "#ff3355" };
   if (value >= 0.50) return { label: "Field-Tested",   short: "FT",   color: "#4facfe" };
   if (value >= 0.20) return { label: "Well-Worn",      short: "WW",   color: "#c471ed" };
   return                     { label: "Battle-Scarred", short: "BS",  color: "#ff5252" };

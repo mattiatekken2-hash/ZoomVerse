@@ -87,12 +87,12 @@ export function PlanetRenameModal({ planet, telegramId, onClose, onRenamed }: Pr
         className="w-full max-w-sm mx-4 rounded-2xl p-5"
         style={{
           background: "linear-gradient(180deg, #0c1432 0%, #060a1c 100%)",
-          border: "1px solid rgba(0,242,254,0.25)",
-          boxShadow: "0 0 40px rgba(0,242,254,0.15)",
+          border: "1px solid rgba(255,51,85,0.25)",
+          boxShadow: "0 0 40px rgba(255,51,85,0.15)",
         }}
       >
         <div className="flex items-center justify-between mb-3">
-          <div className="text-sm font-black tracking-wider" style={{ color: "#00f2fe" }}>
+          <div className="text-sm font-black tracking-wider" style={{ color: "#ff3355" }}>
             {t("rename.title")}
           </div>
           <button
@@ -113,9 +113,9 @@ export function PlanetRenameModal({ planet, telegramId, onClose, onRenamed }: Pr
             onClick={() => { setTab("random"); setError(null); }}
             className="flex-1 py-2 rounded-lg text-xs font-black tracking-wide"
             style={{
-              background: tab === "random" ? "rgba(0,242,254,0.2)" : "rgba(255,255,255,0.05)",
-              color: tab === "random" ? "#00f2fe" : "rgba(255,255,255,0.5)",
-              border: tab === "random" ? "1px solid rgba(0,242,254,0.5)" : "1px solid rgba(255,255,255,0.1)",
+              background: tab === "random" ? "rgba(255,51,85,0.2)" : "rgba(255,255,255,0.05)",
+              color: tab === "random" ? "#ff3355" : "rgba(255,255,255,0.5)",
+              border: tab === "random" ? "1px solid rgba(255,51,85,0.5)" : "1px solid rgba(255,255,255,0.1)",
             }}
           >
             {t("rename.tab.random")} · ★ {RENAME_RANDOM_COST}
@@ -140,7 +140,7 @@ export function PlanetRenameModal({ planet, telegramId, onClose, onRenamed }: Pr
             </div>
             <div
               className="rounded-lg p-3 text-center"
-              style={{ background: "rgba(0,242,254,0.08)", border: "1px solid rgba(0,242,254,0.2)" }}
+              style={{ background: "rgba(255,51,85,0.08)", border: "1px solid rgba(255,51,85,0.2)" }}
             >
               <div className="text-lg font-black" style={{ color: "#fff" }}>
                 {revealedName ?? "★ ? ? ?"}
@@ -191,7 +191,7 @@ export function PlanetRenameModal({ planet, telegramId, onClose, onRenamed }: Pr
           disabled={submitDisabled}
           className="w-full py-3 rounded-lg text-sm font-black tracking-wide"
           style={{
-            background: submitDisabled ? "rgba(255,255,255,0.08)" : "linear-gradient(135deg, #00f2fe, #4facfe)",
+            background: submitDisabled ? "rgba(255,255,255,0.08)" : "linear-gradient(135deg, #ff3355, #ff6677)",
             color: submitDisabled ? "rgba(255,255,255,0.3)" : "#03102e",
             opacity: busy ? 0.7 : 1,
           }}

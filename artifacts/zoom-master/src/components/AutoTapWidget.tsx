@@ -108,8 +108,8 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
     setBuying(false);
   };
 
-  const widgetColor = hasAutoTap ? "#00f2fe" : "rgba(255,255,255,0.35)";
-  const ringColor = hasAutoTap ? "rgba(0,242,254,0.6)" : "rgba(255,255,255,0.2)";
+  const widgetColor = hasAutoTap ? "#ff3355" : "rgba(255,255,255,0.35)";
+  const ringColor = hasAutoTap ? "rgba(255,51,85,0.6)" : "rgba(255,255,255,0.2)";
   const dim = !hasAutoTap || !canCraft;
 
   return (
@@ -137,11 +137,11 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
           height: 52,
           borderRadius: "50%",
           background: holding
-            ? "radial-gradient(circle, rgba(0,242,254,0.35), rgba(0,242,254,0.08))"
+            ? "radial-gradient(circle, rgba(255,51,85,0.35), rgba(255,51,85,0.08))"
             : "radial-gradient(circle, rgba(20,28,48,0.92), rgba(6,8,16,0.88))",
           border: `1.5px solid ${ringColor}`,
           boxShadow: holding
-            ? `0 0 24px ${widgetColor}, inset 0 0 12px rgba(0,242,254,0.25)`
+            ? `0 0 24px ${widgetColor}, inset 0 0 12px rgba(255,51,85,0.25)`
             : `0 0 12px ${ringColor}, inset 0 0 6px rgba(255,255,255,0.04)`,
           color: widgetColor,
           fontSize: 22,
@@ -184,17 +184,17 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
             onClick={(e) => e.stopPropagation()}
             style={{
               background: "linear-gradient(135deg, rgba(20,28,48,0.98), rgba(6,8,16,0.98))",
-              border: "1.5px solid rgba(0,242,254,0.4)",
+              border: "1.5px solid rgba(255,51,85,0.4)",
               borderRadius: 20,
               padding: 24,
               maxWidth: 340,
               width: "100%",
-              boxShadow: "0 0 48px rgba(0,242,254,0.3)",
+              boxShadow: "0 0 48px rgba(255,51,85,0.3)",
               textAlign: "center",
             }}
           >
             <div style={{ fontSize: 48, marginBottom: 8 }}>⚡</div>
-            <div className="font-black text-lg tracking-wider" style={{ color: "#00f2fe", marginBottom: 4 }}>
+            <div className="font-black text-lg tracking-wider" style={{ color: "#ff3355", marginBottom: 4 }}>
               {t("autoTap.title")}
             </div>
             <div className="text-xs" style={{ color: "rgba(255,255,255,0.6)", marginBottom: 18, lineHeight: 1.5 }}>
@@ -204,14 +204,14 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
               {PRICE_TON} TON
             </div>
             {message && (
-              <div className="text-xs" style={{ color: "#00f2fe", marginBottom: 12 }}>{message}</div>
+              <div className="text-xs" style={{ color: "#ff3355", marginBottom: 12 }}>{message}</div>
             )}
             <button
               onClick={handleBuy}
               disabled={buying}
               className="w-full py-3 rounded-xl font-black text-sm tracking-wider active:scale-95"
               style={{
-                background: buying ? "rgba(0,242,254,0.3)" : "linear-gradient(135deg, #00f2fe, #0088ff)",
+                background: buying ? "rgba(255,51,85,0.3)" : "linear-gradient(135deg, #ff3355, #0088ff)",
                 color: "#060810",
                 border: "none",
                 boxShadow: "0 4px 16px rgba(0,136,255,0.4)",

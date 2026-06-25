@@ -14,7 +14,7 @@ const C = {
   visorShine: "#7fdfff",
   suit: "#f3f4f6",
   suitShade: "#b9bcc4",
-  accent: "#00f2fe",
+  accent: "#ff3355",
   skinDark: "#3a2a1f",
   sheet: "#7da7d9",
   sheetShade: "#5e8bbd",

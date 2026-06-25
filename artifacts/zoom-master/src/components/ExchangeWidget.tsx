@@ -144,17 +144,17 @@ function ExchangeModal({
         style={{
           width: "min(440px, 100%)", borderRadius: 20, padding: 20,
           background: "linear-gradient(135deg, rgba(0,30,55,0.96), rgba(6,10,22,0.98))",
-          border: "1px solid rgba(0,242,254,0.45)",
-          boxShadow: "0 0 40px rgba(0,242,254,0.25)",
+          border: "1px solid rgba(255,51,85,0.45)",
+          boxShadow: "0 0 40px rgba(255,51,85,0.25)",
           position: "relative",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div>
-            <div style={{ color: "rgba(0,242,254,0.85)", fontSize: 11, fontWeight: 900, letterSpacing: 1.4 }}>
+            <div style={{ color: "rgba(255,51,85,0.85)", fontSize: 11, fontWeight: 900, letterSpacing: 1.4 }}>
               EXCHANGE
             </div>
-            <div style={{ color: "#fff", fontSize: 18, fontWeight: 900, letterSpacing: 1, textShadow: "0 0 10px rgba(0,242,254,0.5)" }}>
+            <div style={{ color: "#fff", fontSize: 18, fontWeight: 900, letterSpacing: 1, textShadow: "0 0 10px rgba(255,51,85,0.5)" }}>
               ZOOM ~ TON
             </div>
           </div>
@@ -174,7 +174,7 @@ function ExchangeModal({
         <div
           style={{
             borderRadius: 14, padding: 12, marginBottom: 12,
-            background: "rgba(0,242,254,0.07)", border: "1px solid rgba(0,242,254,0.25)",
+            background: "rgba(255,51,85,0.07)", border: "1px solid rgba(255,51,85,0.25)",
           }}
         >
           <div style={{ color: "rgba(220,235,255,0.6)", fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>
@@ -182,7 +182,7 @@ function ExchangeModal({
           </div>
           <div style={{ marginTop: 4, display: "flex", alignItems: "baseline", gap: 6 }}>
             <span style={{ color: "rgba(220,235,255,0.6)", fontSize: 12 }}>1 $ZOOM =</span>
-            <span style={{ color: "#00f2fe", fontSize: 18, fontWeight: 900, fontVariantNumeric: "tabular-nums", textShadow: "0 0 10px rgba(0,242,254,0.55)" }}>
+            <span style={{ color: "#ff3355", fontSize: 18, fontWeight: 900, fontVariantNumeric: "tabular-nums", textShadow: "0 0 10px rgba(255,51,85,0.55)" }}>
               {formatPrice(price)} TON
             </span>
           </div>
@@ -199,7 +199,7 @@ function ExchangeModal({
             <button
               onClick={() => setAmount(String(Math.floor(balance)))}
               style={{
-                fontSize: 10, fontWeight: 800, color: "#00f2fe", letterSpacing: 0.6,
+                fontSize: 10, fontWeight: 800, color: "#ff3355", letterSpacing: 0.6,
                 background: "transparent", border: "none", padding: 0, cursor: "pointer",
               }}
             >
@@ -215,7 +215,7 @@ function ExchangeModal({
             placeholder="0"
             style={{
               width: "100%", padding: "12px 14px", borderRadius: 12,
-              background: "rgba(0,0,0,0.4)", border: "1px solid rgba(0,242,254,0.35)",
+              background: "rgba(0,0,0,0.4)", border: "1px solid rgba(255,51,85,0.35)",
               color: "#fff", fontSize: 18, fontWeight: 800, fontVariantNumeric: "tabular-nums",
               outline: "none",
             }}
@@ -225,7 +225,7 @@ function ExchangeModal({
         <div
           style={{
             borderRadius: 14, padding: 14, marginBottom: 14,
-            background: "linear-gradient(135deg, rgba(0,255,140,0.06), rgba(0,242,254,0.06))",
+            background: "linear-gradient(135deg, rgba(0,255,140,0.06), rgba(255,51,85,0.06))",
             border: "1px solid rgba(0,255,140,0.3)",
           }}
         >
@@ -259,9 +259,9 @@ function ExchangeModal({
           onClick={onExchange}
           style={{
             width: "100%", padding: "14px 0", borderRadius: 14,
-            background: "linear-gradient(135deg, #00f2fe, #00aaff)",
+            background: "linear-gradient(135deg, #ff3355, #00aaff)",
             border: "none", color: "#001a2e", fontWeight: 900, letterSpacing: 1.4, fontSize: 14,
-            boxShadow: "0 6px 22px rgba(0,242,254,0.45)",
+            boxShadow: "0 6px 22px rgba(255,51,85,0.45)",
             cursor: "pointer",
           }}
         >
@@ -272,7 +272,7 @@ function ExchangeModal({
           <div
             style={{
               position: "absolute", left: "50%", bottom: 80, transform: "translateX(-50%)",
-              background: "rgba(0,242,254,0.95)", color: "#001a2e",
+              background: "rgba(255,51,85,0.95)", color: "#001a2e",
               padding: "8px 16px", borderRadius: 10, fontSize: 12, fontWeight: 900, letterSpacing: 0.5,
               boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
             }}
@@ -338,7 +338,7 @@ function ExchangeWidgetBase({ balance, sunCount }: ExchangeWidgetProps) {
         <span
           style={{
             fontSize: 9, fontWeight: 900, letterSpacing: 0.8,
-            color: "#fff", textShadow: "0 0 6px rgba(0,242,254,0.55)",
+            color: "#fff", textShadow: "0 0 6px rgba(255,51,85,0.55)",
           }}
         >
           ZOOM~TON
@@ -356,8 +356,8 @@ function ExchangeWidgetBase({ balance, sunCount }: ExchangeWidgetProps) {
       <div
         style={{
           display: "flex", alignItems: "baseline", gap: 2,
-          color: "#00f2fe", fontWeight: 900, fontSize: 10,
-          fontVariantNumeric: "tabular-nums", textShadow: "0 0 6px rgba(0,242,254,0.5)",
+          color: "#ff3355", fontWeight: 900, fontSize: 10,
+          fontVariantNumeric: "tabular-nums", textShadow: "0 0 6px rgba(255,51,85,0.5)",
         }}
       >
         {!seasonReady ? (
@@ -385,8 +385,8 @@ function ExchangeWidgetBase({ balance, sunCount }: ExchangeWidgetProps) {
     alignItems: "center",
     justifyContent: "center",
     background: "linear-gradient(135deg, rgba(0,40,60,0.75) 0%, rgba(0,16,32,0.9) 100%)",
-    border: "1px solid rgba(0,242,254,0.4)",
-    boxShadow: "0 0 12px rgba(0,242,254,0.25)",
+    border: "1px solid rgba(255,51,85,0.4)",
+    boxShadow: "0 0 12px rgba(255,51,85,0.25)",
     backdropFilter: "blur(6px)",
     WebkitBackdropFilter: "blur(6px)",
   };

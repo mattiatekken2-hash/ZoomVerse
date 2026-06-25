@@ -26,7 +26,7 @@ const SHOP_ITEMS: ShopItem[] = [
 // (escalates per slot already owned, capped at 3 TON).
 const EXTRA_SLOT_ITEM: ShopItem = {
   id: "extra_slot", title: "Extra Slot", desc: "Unlock 1 additional planet slot",
-  starsPrice: 0, tonPrice: 0.25, color: "#00f2fe", icon: "+", type: "slot",
+  starsPrice: 0, tonPrice: 0.25, color: "#ff3355", icon: "+", type: "slot",
 };
 
 // Stardust top-up bundles — paid in Stars or TON via the same shop pay-mode
@@ -351,7 +351,7 @@ export function ShopPage({
       {message && (
         <div
           className="absolute top-2 left-4 right-4 z-50 py-2 px-4 rounded-xl text-sm font-bold text-center"
-          style={{ background: "rgba(0,242,254,0.15)", color: "#00f2fe", border: "1px solid rgba(0,242,254,0.3)", backdropFilter: "blur(12px)" }}
+          style={{ background: "rgba(255,51,85,0.15)", color: "#ff3355", border: "1px solid rgba(255,51,85,0.3)", backdropFilter: "blur(12px)" }}
         >
           {message}
         </div>
@@ -412,7 +412,7 @@ export function ShopPage({
         <div className="flex gap-1 p-0.5 rounded-lg" style={{ background: "rgba(255,255,255,0.04)" }}>
           {([
             { id: "exclusive", label: "EXCLUSIVE", color: "#ffb347" },
-            { id: "bundles", label: "BUNDLES", color: "#00f2fe" },
+            { id: "bundles", label: "BUNDLES", color: "#ff3355" },
             { id: "items", label: "ITEMS", color: "#c471ed" },
             { id: "resources", label: "RESOURCES", color: "#ffd740" },
           ] as const).map(tab => {
@@ -770,7 +770,7 @@ export function ShopPage({
                     <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
                       {item.desc}
                     </div>
-                    <div className="text-[10px] mt-1 font-bold tracking-wider" style={{ color: "rgba(0,242,254,0.7)" }}>
+                    <div className="text-[10px] mt-1 font-bold tracking-wider" style={{ color: "rgba(255,51,85,0.7)" }}>
                       {owned > 0 ? `Extra slots owned: ${owned}` : "First extra slot"}
                       {atCap ? " · max price" : ""}
                     </div>

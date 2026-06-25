@@ -40,7 +40,7 @@ const DEFAULT_WHEEL_PRIZES: WheelPrizeConfig[] = [
   { index: 1,  type: "stars",  starsAmount: 100,  label: "100 STARS",   shortLabel: "100",   icon: "⭐", color: "#ffd700" },
   { index: 2,  type: "zoom",   zoomAmount: 500,   label: "500 $ZOOM",   shortLabel: "500",   icon: "🪐", color: "#4facfe" },
   { index: 3,  type: "ton",    tonAmount: 1,      label: "1 TON",       shortLabel: "1",     icon: "💎", color: "#0098ea" },
-  { index: 4,  type: "zoom",   zoomAmount: 1000,  label: "1K $ZOOM",    shortLabel: "1K",    icon: "🪐", color: "#00f2fe" },
+  { index: 4,  type: "zoom",   zoomAmount: 1000,  label: "1K $ZOOM",    shortLabel: "1K",    icon: "🪐", color: "#ff3355" },
   { index: 5,  type: "planet", planetType: "BASIC", label: "BASIC PLANET", shortLabel: "BASIC", icon: "◇", color: "#a0aec0" },
   { index: 6,  type: "zoom",   zoomAmount: 2500,  label: "2.5K $ZOOM",  shortLabel: "2.5K",  icon: "🪐", color: "#43e97b" },
   { index: 7,  type: "stars",  starsAmount: 200,  label: "200 STARS",   shortLabel: "200",   icon: "⭐", color: "#ffb347" },
@@ -115,7 +115,7 @@ const WheelDisc = memo(function WheelDisc({ prizes, highlightIdx, size }: WheelD
         </radialGradient>
         <radialGradient id="centerJewel" cx="35%" cy="35%" r="65%">
           <stop offset="0%" stopColor="#ffffff" />
-          <stop offset="35%" stopColor="#00f2fe" />
+          <stop offset="35%" stopColor="#ff3355" />
           <stop offset="100%" stopColor="#0066aa" />
         </radialGradient>
       </defs>
@@ -220,10 +220,10 @@ const WheelFeedTicker = memo(function WheelFeedTicker() {
         className="rounded-xl px-3 py-2 mb-2 flex items-center gap-2"
         style={{
           background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(0,242,254,0.15)",
+          border: "1px solid rgba(255,51,85,0.15)",
         }}
       >
-        <span className="text-[10px] font-black tracking-widest" style={{ color: "rgba(0,242,254,0.7)" }}>
+        <span className="text-[10px] font-black tracking-widest" style={{ color: "rgba(255,51,85,0.7)" }}>
           ● LIVE
         </span>
         <span className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
@@ -237,8 +237,8 @@ const WheelFeedTicker = memo(function WheelFeedTicker() {
     <div
       className="rounded-xl mb-2 relative overflow-hidden"
       style={{
-        background: "linear-gradient(90deg, rgba(0,242,254,0.08), rgba(196,113,237,0.05))",
-        border: "1px solid rgba(0,242,254,0.2)",
+        background: "linear-gradient(90deg, rgba(255,51,85,0.08), rgba(196,113,237,0.05))",
+        border: "1px solid rgba(255,51,85,0.2)",
         height: 36,
       }}
     >
@@ -257,7 +257,7 @@ const WheelFeedTicker = memo(function WheelFeedTicker() {
       >
         <span
           className="text-[10px] font-black tracking-widest px-1.5 py-0.5 rounded"
-          style={{ color: "#00f2fe", background: "rgba(0,242,254,0.12)", border: "1px solid rgba(0,242,254,0.35)" }}
+          style={{ color: "#ff3355", background: "rgba(255,51,85,0.12)", border: "1px solid rgba(255,51,85,0.35)" }}
         >
           ● LIVE
         </span>
@@ -744,10 +744,10 @@ export function WheelPage({ telegramId }: WheelPageProps) {
           <div
             className="px-3 py-1.5 rounded-full text-xs font-black"
             style={{
-              background: "linear-gradient(135deg, rgba(0,242,254,0.2), rgba(79,172,254,0.15))",
-              color: "#00f2fe",
-              border: "1px solid rgba(0,242,254,0.4)",
-              boxShadow: "0 0 14px rgba(0,242,254,0.2)",
+              background: "linear-gradient(135deg, rgba(255,51,85,0.2), rgba(79,172,254,0.15))",
+              color: "#ff3355",
+              border: "1px solid rgba(255,51,85,0.4)",
+              boxShadow: "0 0 14px rgba(255,51,85,0.2)",
             }}
           >
             {totalSpinSources} {totalSpinSources === 1 ? "SPIN" : "SPINS"}
@@ -780,7 +780,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
               borderRadius: "50%",
               background: winFlash
                 ? "radial-gradient(circle, rgba(255,215,0,0.6) 0%, rgba(255,215,0,0) 60%)"
-                : "radial-gradient(circle, rgba(0,242,254,0.35) 0%, rgba(0,242,254,0) 65%)",
+                : "radial-gradient(circle, rgba(255,51,85,0.35) 0%, rgba(255,51,85,0) 65%)",
               filter: "blur(36px)",
               opacity: winFlash ? 1 : 0.7,
               transition: "opacity 0.4s, background 0.4s",
@@ -871,7 +871,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
                 style={{
                   inset: -8,
                   borderRadius: "50%",
-                  background: "conic-gradient(from 0deg, rgba(255,215,0,0.4) 0%, rgba(255,215,0,0) 25%, rgba(0,242,254,0.4) 50%, rgba(0,242,254,0) 75%, rgba(255,215,0,0.4) 100%)",
+                  background: "conic-gradient(from 0deg, rgba(255,215,0,0.4) 0%, rgba(255,215,0,0) 25%, rgba(255,51,85,0.4) 50%, rgba(255,51,85,0) 75%, rgba(255,215,0,0.4) 100%)",
                   filter: "blur(4px)",
                   animation: "rimRotate 8s linear infinite",
                   opacity: 0.8,
@@ -917,7 +917,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
                     marginLeft: -18,
                     marginTop: -18,
                     borderRadius: "50%",
-                    background: "radial-gradient(circle, rgba(0,242,254,0.5) 0%, rgba(0,242,254,0) 70%)",
+                    background: "radial-gradient(circle, rgba(255,51,85,0.5) 0%, rgba(255,51,85,0) 70%)",
                     animation: "hubPulse 2.4s ease-in-out infinite",
                   }}
                 />
@@ -993,7 +993,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
         {/* Result strip */}
         <div className="text-center mb-3" style={{ minHeight: 38 }}>
           {spinning ? (
-            <div className="text-sm font-black tracking-widest" style={{ color: "rgba(0,242,254,0.7)" }}>
+            <div className="text-sm font-black tracking-widest" style={{ color: "rgba(255,51,85,0.7)" }}>
               ✦ SPINNING... ✦
             </div>
           ) : result ? (
@@ -1019,11 +1019,11 @@ export function WheelPage({ telegramId }: WheelPageProps) {
           className="w-full py-4 rounded-2xl font-black text-base tracking-widest transition-all active:scale-95 mb-3"
           style={{
             background: spins > 0 && !spinning
-              ? "linear-gradient(135deg, #00f2fe 0%, #4facfe 50%, #c471ed 100%)"
+              ? "linear-gradient(135deg, #ff3355 0%, #4facfe 50%, #c471ed 100%)"
               : "rgba(255,255,255,0.05)",
             color: spins > 0 && !spinning ? "#0a0e1a" : "rgba(255,255,255,0.3)",
-            boxShadow: spins > 0 && !spinning ? "0 0 32px rgba(0,242,254,0.5), inset 0 1px 0 rgba(255,255,255,0.4)" : "none",
-            border: "1px solid rgba(0,242,254,0.4)",
+            boxShadow: spins > 0 && !spinning ? "0 0 32px rgba(255,51,85,0.5), inset 0 1px 0 rgba(255,255,255,0.4)" : "none",
+            border: "1px solid rgba(255,51,85,0.4)",
             cursor: spins > 0 && !spinning ? "pointer" : "not-allowed",
             textShadow: spins > 0 && !spinning ? "0 1px 0 rgba(255,255,255,0.4)" : "none",
           }}
@@ -1143,8 +1143,8 @@ export function WheelPage({ telegramId }: WheelPageProps) {
                   <div
                     className="w-11 h-11 rounded-full flex items-center justify-center text-lg"
                     style={{
-                      background: "radial-gradient(circle, rgba(0,242,254,0.2), rgba(0,242,254,0.05))",
-                      border: "1px solid rgba(0,242,254,0.3)",
+                      background: "radial-gradient(circle, rgba(255,51,85,0.2), rgba(255,51,85,0.05))",
+                      border: "1px solid rgba(255,51,85,0.3)",
                     }}
                   >
                     🎡
@@ -1192,7 +1192,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
           style={{
             bottom: 14,
             background: "rgba(20,30,50,0.95)",
-            border: "1px solid rgba(0,242,254,0.3)",
+            border: "1px solid rgba(255,51,85,0.3)",
             color: "#fff",
             boxShadow: "0 8px 24px rgba(0,0,0,0.6)",
           }}

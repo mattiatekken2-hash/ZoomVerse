@@ -277,9 +277,9 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
             onClick={() => setTab("listings")}
             className="flex-1 py-2 rounded-xl text-xs font-black tracking-wider uppercase border transition-all"
             style={{
-              borderColor: tab === "listings" ? "rgba(0,242,254,0.4)" : "rgba(255,255,255,0.06)",
-              background: tab === "listings" ? "rgba(0,242,254,0.08)" : "transparent",
-              color: tab === "listings" ? "#00f2fe" : "rgba(255,255,255,0.35)",
+              borderColor: tab === "listings" ? "rgba(255,51,85,0.4)" : "rgba(255,255,255,0.06)",
+              background: tab === "listings" ? "rgba(255,51,85,0.08)" : "transparent",
+              color: tab === "listings" ? "#ff3355" : "rgba(255,255,255,0.35)",
             }}
             data-testid="tab-listings"
           >
@@ -421,7 +421,7 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
           >
             {RARITY_FILTERS.map((f) => {
               const accent = f === "ALL"
-                ? "#00f2fe"
+                ? "#ff3355"
                 : f === "EQUIPMENT"
                   ? EQUIPMENT_FILTER_COLOR
                   : RARITY_COLORS[f] ?? "#8892b0";
@@ -475,9 +475,9 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                 className="flex items-center justify-center"
                 style={{
                   width: 22, height: 22, borderRadius: 6,
-                  background: floatSort === "asc" ? "rgba(0,242,254,0.20)" : "transparent",
-                  border: floatSort === "asc" ? "1px solid rgba(0,242,254,0.55)" : "1px solid transparent",
-                  color: floatSort === "asc" ? "#00f2fe" : "rgba(255,255,255,0.45)",
+                  background: floatSort === "asc" ? "rgba(255,51,85,0.20)" : "transparent",
+                  border: floatSort === "asc" ? "1px solid rgba(255,51,85,0.55)" : "1px solid transparent",
+                  color: floatSort === "asc" ? "#ff3355" : "rgba(255,255,255,0.45)",
                   fontSize: 11, lineHeight: 1, fontWeight: 900,
                   transition: "background 0.15s, color 0.15s, border-color 0.15s",
                 }}
@@ -493,9 +493,9 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                 className="flex items-center justify-center"
                 style={{
                   width: 22, height: 22, borderRadius: 6,
-                  background: floatSort === "desc" ? "rgba(0,242,254,0.20)" : "transparent",
-                  border: floatSort === "desc" ? "1px solid rgba(0,242,254,0.55)" : "1px solid transparent",
-                  color: floatSort === "desc" ? "#00f2fe" : "rgba(255,255,255,0.45)",
+                  background: floatSort === "desc" ? "rgba(255,51,85,0.20)" : "transparent",
+                  border: floatSort === "desc" ? "1px solid rgba(255,51,85,0.55)" : "1px solid transparent",
+                  color: floatSort === "desc" ? "#ff3355" : "rgba(255,255,255,0.45)",
                   fontSize: 11, lineHeight: 1, fontWeight: 900,
                   transition: "background 0.15s, color 0.15s, border-color 0.15s",
                 }}
@@ -596,9 +596,9 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                       <span
                         className="text-xs px-2 py-0.5 rounded-full border font-bold"
                         style={{
-                          color: isOwn ? "#ffd700" : "#00f2fe",
-                          borderColor: isOwn ? "rgba(255,215,0,0.25)" : "rgba(0,242,254,0.25)",
-                          background: isOwn ? "rgba(255,215,0,0.06)" : "rgba(0,242,254,0.06)",
+                          color: isOwn ? "#ffd700" : "#ff3355",
+                          borderColor: isOwn ? "rgba(255,215,0,0.25)" : "rgba(255,51,85,0.25)",
+                          background: isOwn ? "rgba(255,215,0,0.06)" : "rgba(255,51,85,0.06)",
                           fontSize: 9,
                         }}
                       >
@@ -737,9 +737,9 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                           <span
                             className="text-[9px] font-black px-2 py-0.5 rounded-full border"
                             style={{
-                              color: isOwn ? "#ffd700" : "#00f2fe",
-                              borderColor: isOwn ? "rgba(255,215,0,0.25)" : "rgba(0,242,254,0.25)",
-                              background: isOwn ? "rgba(255,215,0,0.06)" : "rgba(0,242,254,0.06)",
+                              color: isOwn ? "#ffd700" : "#ff3355",
+                              borderColor: isOwn ? "rgba(255,215,0,0.25)" : "rgba(255,51,85,0.25)",
+                              background: isOwn ? "rgba(255,215,0,0.06)" : "rgba(255,51,85,0.06)",
                             }}
                           >
                             {isOwn ? "👤 you" : `👤 ${l.sellerName ?? `Player ${l.sellerTelegramId.slice(-4)}`}`}

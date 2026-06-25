@@ -123,7 +123,7 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
           <span className="font-black text-sm tracking-wide" style={{ color: meta.color }}>{meta.label} STAKING</span>
           <span
             className="text-[9px] font-black px-1.5 py-0.5 rounded"
-            style={{ background: "rgba(0,242,254,0.12)", color: "#00f2fe", border: "1px solid rgba(0,242,254,0.3)" }}
+            style={{ background: "rgba(255,51,85,0.12)", color: "#ff3355", border: "1px solid rgba(255,51,85,0.3)" }}
           >
             {reward} TON / 30d
           </span>
@@ -355,8 +355,8 @@ export function StakingWidget({ telegramId, planets, sunCountClient, sunFarmStar
     <div
       className="rounded-2xl p-3 border"
       style={{
-        borderColor: anyStaking ? "rgba(0,242,254,0.35)" : "rgba(255,255,255,0.08)",
-        background: "linear-gradient(135deg, rgba(0,136,255,0.06) 0%, rgba(0,242,254,0.03) 100%)",
+        borderColor: anyStaking ? "rgba(255,51,85,0.35)" : "rgba(255,255,255,0.08)",
+        background: "linear-gradient(135deg, rgba(0,136,255,0.06) 0%, rgba(255,51,85,0.03) 100%)",
       }}
     >
       <button
@@ -365,7 +365,7 @@ export function StakingWidget({ telegramId, planets, sunCountClient, sunFarmStar
         className="w-full flex items-center justify-between mb-2 px-1"
         aria-expanded={open}
       >
-        <span className="font-black text-xs tracking-widest" style={{ color: "#00f2fe" }}>
+        <span className="font-black text-xs tracking-widest" style={{ color: "#ff3355" }}>
           TON STAKING {anyEligible && !anyStaking ? "· READY" : ""}
         </span>
         <span className="flex items-center gap-2">
@@ -374,7 +374,7 @@ export function StakingWidget({ telegramId, planets, sunCountClient, sunFarmStar
               Total: {fmtTon(totalLive)} TON
             </span>
           )}
-          <span style={{ color: "rgba(0,242,254,0.7)", fontSize: 12 }}>{open ? "▾" : "▸"}</span>
+          <span style={{ color: "rgba(255,51,85,0.7)", fontSize: 12 }}>{open ? "▾" : "▸"}</span>
         </span>
       </button>
       {open && (

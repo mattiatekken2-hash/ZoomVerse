@@ -380,9 +380,9 @@ export function AdminPanel({ telegramId }: Props) {
                 maxHeight: "calc(100dvh - 80px)",
                 overflowY: "auto",
                 background: "rgba(10, 13, 28, 0.92)",
-                border: "1px solid rgba(0,242,254,0.2)",
+                border: "1px solid rgba(255,51,85,0.2)",
                 borderRadius: 20,
-                boxShadow: "0 12px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,242,254,0.07) inset",
+                boxShadow: "0 12px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,51,85,0.07) inset",
               }}
             >
               {/* Header */}
@@ -395,7 +395,7 @@ export function AdminPanel({ telegramId }: Props) {
                 userSelect: "none",
               }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: "0.12em", color: "#00f2fe", textShadow: "0 0 12px rgba(0,242,254,0.6)" }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: "0.12em", color: "#ff3355", textShadow: "0 0 12px rgba(255,51,85,0.6)" }}>
                     ⚙ ADMIN PANEL
                   </div>
                   <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginTop: 2 }}>Accesso riservato</div>
@@ -562,7 +562,7 @@ export function AdminPanel({ telegramId }: Props) {
                 {/* Action buttons */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   {([
-                    { type: "zoom" as ActionType,    label: "🪐 ZOOM",    color: "#00f2fe" },
+                    { type: "zoom" as ActionType,    label: "🪐 ZOOM",    color: "#ff3355" },
                     { type: "planets" as ActionType, label: "🌍 Pianeti", color: "#c471ed" },
                     { type: "slots" as ActionType,   label: "📦 Slot",    color: "#4facfe" },
                     { type: "spins" as ActionType,   label: "🎡 Spin",    color: "#ffd700" },
@@ -960,16 +960,16 @@ export function AdminPanel({ telegramId }: Props) {
                   style={{
                     padding: "11px",
                     borderRadius: 10,
-                    border: "1px solid rgba(0,242,254,0.4)",
-                    background: "rgba(0,242,254,0.1)",
-                    color: "#00f2fe",
+                    border: "1px solid rgba(255,51,85,0.4)",
+                    background: "rgba(255,51,85,0.1)",
+                    color: "#ff3355",
                     fontSize: 12,
                     fontWeight: 800,
                     letterSpacing: "0.06em",
                     cursor: "pointer",
                     opacity: loading !== null ? 0.5 : 1,
                     transition: "opacity 0.15s",
-                    boxShadow: "0 0 14px rgba(0,242,254,0.15)",
+                    boxShadow: "0 0 14px rgba(255,51,85,0.15)",
                   }}
                 >
                   {loading === "autotap" ? "..." : "⚡ GRANT AUTO-TAP"}
@@ -1779,9 +1779,9 @@ export function AdminPanel({ telegramId }: Props) {
                   style={{
                     padding: "11px",
                     borderRadius: 10,
-                    border: "1px solid rgba(0,242,254,0.25)",
-                    background: "rgba(0,242,254,0.08)",
-                    color: "#00f2fe",
+                    border: "1px solid rgba(255,51,85,0.25)",
+                    background: "rgba(255,51,85,0.08)",
+                    color: "#ff3355",
                     fontSize: 12,
                     fontWeight: 800,
                     letterSpacing: "0.06em",
@@ -2850,7 +2850,7 @@ function RedeemCodesAdminSection({ adminId, onFeedback }: RedeemCodesAdminSectio
   };
 
   const colorFor = (k: string): string => {
-    if (k === "zoom") return "#00f2fe";
+    if (k === "zoom") return "#ff3355";
     if (k === "stardust") return "#ffd23f";
     if (k === "spins") return "#ffd700";
     return "#ffffff";
@@ -2864,7 +2864,7 @@ function RedeemCodesAdminSection({ adminId, onFeedback }: RedeemCodesAdminSectio
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
         {([
-          { kind: "zoom" as RedeemKind,     label: "2.000 $ZOOM",  color: "#00f2fe" },
+          { kind: "zoom" as RedeemKind,     label: "2.000 $ZOOM",  color: "#ff3355" },
           { kind: "stardust" as RedeemKind, label: "10 ★ Stardust", color: "#ffd23f" },
           { kind: "spins" as RedeemKind,    label: "3 Spin",       color: "#ffd700" },
         ]).map(({ kind, label, color }) => (

@@ -184,8 +184,8 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, i
         className="w-full max-w-sm rounded-3xl flex flex-col"
         style={{
           background: "linear-gradient(180deg, rgba(4,18,32,0.98) 0%, rgba(0,8,18,0.98) 100%)",
-          border: "1px solid rgba(0,242,254,0.35)",
-          boxShadow: "0 -8px 40px rgba(0,242,254,0.18), 0 0 60px rgba(0,242,254,0.10)",
+          border: "1px solid rgba(255,51,85,0.35)",
+          boxShadow: "0 -8px 40px rgba(255,51,85,0.18), 0 0 60px rgba(255,51,85,0.10)",
           maxHeight: "min(92vh, 720px)",
           // Card allows internal vertical scroll so the content remains
           // reachable on very small screens (iPhone SE etc.). The overlay
@@ -200,12 +200,12 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, i
         onWheel={stop}
       >
         {/* Header */}
-        <div className="px-5 pt-4 pb-3 flex items-start justify-between border-b" style={{ borderColor: "rgba(0,242,254,0.14)" }}>
+        <div className="px-5 pt-4 pb-3 flex items-start justify-between border-b" style={{ borderColor: "rgba(255,51,85,0.14)" }}>
           <div>
             <div
               id="economy-modal-title"
               className="text-[10px] font-black tracking-widest"
-              style={{ color: "rgba(0,242,254,0.85)", letterSpacing: 1.4 }}
+              style={{ color: "rgba(255,51,85,0.85)", letterSpacing: 1.4 }}
             >
               ECONOMY
             </div>
@@ -214,8 +214,8 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, i
               <span
                 className="text-2xl font-black"
                 style={{
-                  color: "#00f2fe",
-                  textShadow: "0 0 14px rgba(0,242,254,0.7)",
+                  color: "#ff3355",
+                  textShadow: "0 0 14px rgba(255,51,85,0.7)",
                   fontVariantNumeric: "tabular-nums",
                 }}
               >
@@ -244,9 +244,9 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, i
             style={{
               width: 36,
               height: 36,
-              background: "rgba(0,242,254,0.14)",
-              border: "1px solid rgba(0,242,254,0.45)",
-              color: "#00f2fe",
+              background: "rgba(255,51,85,0.14)",
+              border: "1px solid rgba(255,51,85,0.45)",
+              color: "#ff3355",
               fontSize: 20,
               lineHeight: 1,
               cursor: "pointer",
@@ -278,11 +278,11 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, i
               <AreaChart data={chartData} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="zoomPriceFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#00f2fe" stopOpacity={0.55} />
-                    <stop offset="100%" stopColor="#00f2fe" stopOpacity={0.02} />
+                    <stop offset="0%" stopColor="#ff3355" stopOpacity={0.55} />
+                    <stop offset="100%" stopColor="#ff3355" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="rgba(0,242,254,0.08)" strokeDasharray="2 4" vertical={false} />
+                <CartesianGrid stroke="rgba(255,51,85,0.08)" strokeDasharray="2 4" vertical={false} />
                 <XAxis
                   dataKey="i"
                   hide
@@ -298,7 +298,7 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, i
                 <Tooltip
                   contentStyle={{
                     background: "rgba(0,12,24,0.95)",
-                    border: "1px solid rgba(0,242,254,0.35)",
+                    border: "1px solid rgba(255,51,85,0.35)",
                     borderRadius: 10,
                     color: "#e6f6ff",
                     fontSize: 11,
@@ -325,12 +325,12 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, i
                 <Area
                   type="monotone"
                   dataKey="price"
-                  stroke="#00f2fe"
+                  stroke="#ff3355"
                   strokeWidth={2}
                   fill="url(#zoomPriceFill)"
                   isAnimationActive={false}
                   dot={false}
-                  activeDot={{ r: 3, fill: "#00f2fe", stroke: "#001a2e", strokeWidth: 1 }}
+                  activeDot={{ r: 3, fill: "#ff3355", stroke: "#001a2e", strokeWidth: 1 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -350,11 +350,11 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, i
           className="mx-5 mb-4 rounded-xl px-3 py-2.5 text-[11px] leading-relaxed"
           style={{
             background: "rgba(0,28,48,0.45)",
-            border: "1px solid rgba(0,242,254,0.18)",
+            border: "1px solid rgba(255,51,85,0.18)",
             color: "rgba(220,235,255,0.7)",
           }}
         >
-          <span style={{ color: "#00f2fe", fontWeight: 800 }}>♪ How it works.</span>{" "}
+          <span style={{ color: "#ff3355", fontWeight: 800 }}>♪ How it works.</span>{" "}
           The $ZOOM price moves only on real player actions — market trades,
           farming cycles and crafts. Each tick is a small organic shift, with
           a +1% daily growth cap so the curve climbs slowly and steadily.
@@ -368,11 +368,11 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, i
 
 function Stat({ label, value, accent }: { label: string; value: string; accent: "cyan" | "green" | "dim" }) {
   const color =
-    accent === "cyan" ? "#00f2fe" :
+    accent === "cyan" ? "#ff3355" :
     accent === "green" ? "#00ff88" :
     "rgba(220,235,255,0.85)";
   const glow =
-    accent === "cyan" ? "0 0 8px rgba(0,242,254,0.45)" :
+    accent === "cyan" ? "0 0 8px rgba(255,51,85,0.45)" :
     accent === "green" ? "0 0 8px rgba(0,255,140,0.45)" :
     "none";
   return (
@@ -380,7 +380,7 @@ function Stat({ label, value, accent }: { label: string; value: string; accent: 
       className="rounded-xl px-3 py-2"
       style={{
         background: "linear-gradient(135deg, rgba(0,28,48,0.55) 0%, rgba(0,12,24,0.85) 100%)",
-        border: "1px solid rgba(0,242,254,0.20)",
+        border: "1px solid rgba(255,51,85,0.20)",
       }}
     >
       <div className="text-[10px] font-bold tracking-wide" style={{ color: "rgba(220,235,255,0.45)" }}>
