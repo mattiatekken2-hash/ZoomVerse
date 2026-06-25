@@ -95,6 +95,10 @@ export const usersTable = pgTable("users", {
   // per-UTC-day cap to defeat farming bots.
   stardustBalance: integer("stardust_balance").notNull().default(0),
   stardustToday: integer("stardust_today").notNull().default(0),
+  // REDSTAR — third in-game currency. Server-authoritative; currently credited
+  // by admin only. Future gameplay mechanics (crafting, trading, events) will
+  // define how it's earned and spent. Never decremented client-side.
+  redStarBalance: integer("red_star_balance").notNull().default(0),
   // UTC day key (YYYY-MM-DD) the today-counter belongs to. When the stored
   // key differs from today, today is reset to 0 before incrementing.
   stardustDayKey: text("stardust_day_key"),

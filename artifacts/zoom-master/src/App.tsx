@@ -766,6 +766,29 @@ function AppShellWithState() {
               })()}
             </span>
           </div>
+          <div
+            className="flex items-center gap-0.5 px-2 py-1.5 rounded-full font-black flex-shrink-0"
+            data-testid="redstar-display"
+            style={{
+              background: "rgba(255, 60, 60, 0.10)",
+              border: "1px solid rgba(255, 60, 60, 0.35)",
+              boxShadow: "0 0 12px rgba(255, 60, 60, 0.18) inset",
+              color: "#ff4444",
+              textShadow: "0 0 8px rgba(255, 60, 60, 0.55)",
+              fontSize: 12,
+            }}
+            aria-label="RedStar balance"
+          >
+            <span style={{ fontSize: 12, lineHeight: 1 }}>🔴</span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>
+              {(() => {
+                const n = state.redStarBalance || 0;
+                if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+                if (n >= 10_000)    return (n / 1_000).toFixed(1) + "K";
+                return n.toLocaleString();
+              })()}
+            </span>
+          </div>
           <SettingsMenu muted={muted} setMuted={setMuted} />
         </div>
       </header>

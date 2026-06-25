@@ -446,8 +446,9 @@ export async function syncBalance(params: {
   zoomBalance: number;
   tonBalance?: number;
   stardustBalance?: number;
+  redStarBalance?: number;
   clientEpoch?: number;
-}): Promise<{ zoomBalance: number; tonBalance: number; stardustBalance: number; balanceEpoch: number }> {
+}): Promise<{ zoomBalance: number; tonBalance: number; stardustBalance: number; redStarBalance: number; balanceEpoch: number }> {
   const fallbackTon = typeof params.tonBalance === "number" ? params.tonBalance : 0;
   try {
     const res = await fetch(`${API_BASE}/balance/sync`, {
@@ -455,16 +456,17 @@ export async function syncBalance(params: {
       headers: apiHeaders(),
       body: JSON.stringify(params),
     });
-    if (!res.ok) return { zoomBalance: params.zoomBalance, tonBalance: fallbackTon, stardustBalance: params.stardustBalance ?? 0, balanceEpoch: params.clientEpoch ?? 0 };
+    if (!res.ok) return { zoomBalance: params.zoomBalance, tonBalance: fallbackTon, stardustBalance: params.stardustBalance ?? 0, redStarBalance: params.redStarBalance ?? 0, balanceEpoch: params.clientEpoch ?? 0 };
     const data = await res.json();
     return {
       zoomBalance: typeof data.zoomBalance === "number" ? data.zoomBalance : params.zoomBalance,
       tonBalance: typeof data.tonBalance === "number" ? data.tonBalance : fallbackTon,
       stardustBalance: typeof data.stardustBalance === "number" ? data.stardustBalance : (params.stardustBalance ?? 0),
+      redStarBalance: typeof data.redStarBalance === "number" ? data.redStarBalance : (params.redStarBalance ?? 0),
       balanceEpoch: typeof data.balanceEpoch === "number" ? data.balanceEpoch : (params.clientEpoch ?? 0),
     };
   } catch {
-    return { zoomBalance: params.zoomBalance, tonBalance: fallbackTon, stardustBalance: params.stardustBalance ?? 0, balanceEpoch: params.clientEpoch ?? 0 };
+    return { zoomBalance: params.zoomBalance, tonBalance: fallbackTon, stardustBalance: params.stardustBalance ?? 0, redStarBalance: params.redStarBalance ?? 0, balanceEpoch: params.clientEpoch ?? 0 };
   }
 }
 

@@ -293,6 +293,9 @@ export interface GameState {
   // deposit → spend in-game).
   depositBalance: number;
   stardustBalance: number;
+  // REDSTAR — third in-game currency. Server-authoritative; credited by admin
+  // only until future gameplay mechanics are added. Never decremented client-side.
+  redStarBalance: number;
   lastFarmingSettledAt: number;
   claimedMilestones: number[];
   lastBalanceEpoch: number;
@@ -762,6 +765,7 @@ const INITIAL_STATE: GameState = {
   tonBalance: 0,
   depositBalance: 0,
   stardustBalance: 0,
+  redStarBalance: 0,
   // Default to 0 (not serverNow()) so a brand-new device / cleared cache is
   // recognized as "no prior local settle" — the server-side /farm/settle
   // endpoint will then use the per-planet timestamps as the floor and credit
@@ -890,6 +894,7 @@ function loadState(): GameState {
           tonBalance: parsed.tonBalance ?? 0,
           depositBalance: (parsed as unknown as Record<string, unknown>).depositBalance as number ?? 0,
           stardustBalance: (parsed as unknown as Record<string, unknown>).stardustBalance as number ?? 0,
+          redStarBalance: (parsed as unknown as Record<string, unknown>).redStarBalance as number ?? 0,
         };
         const resolvedTelegramId = telegramId || base.telegramId;
         // Only treat as "fresh load" when we did NOT find an entry keyed to the
@@ -1021,7 +1026,7 @@ export function _registerStateRef(ref: StateRefHolder): void {
 function reconcileFromSyncResponse(
   sentBalance: number,
   sentEpoch: number,
-  res: { zoomBalance: number; balanceEpoch: number; tonBalance?: number; stardustBalance?: number },
+  res: { zoomBalance: number; balanceEpoch: number; tonBalance?: number; stardustBalance?: number; redStarBalance?: number },
   sentTonBalance?: number,
   sentStardustBalance?: number,
 ): void {
@@ -1102,6 +1107,21 @@ function reconcileFromSyncResponse(
       }));
     } catch { /**/ }
   }
+  // REDSTAR: server-authoritative-up only. Snap local state whenever the
+  // server returns a value higher than what we currently hold (admin credits
+  // or future gameplay mechanics). Never decremented client-side.
+  if (
+    typeof res.redStarBalance === "number" &&
+    _stateRefHolder &&
+    res.redStarBalance > (_stateRefHolder.current.redStarBalance ?? 0)
+  ) {
+    _stateRefHolder.current = { ..._stateRefHolder.current, redStarBalance: res.redStarBalance };
+    try {
+      window.dispatchEvent(new CustomEvent("zoom-server-redstar-snap", {
+        detail: { redStarBalance: res.redStarBalance },
+      }));
+    } catch { /**/ }
+  }
   // Bump the epoch LAST so any sync that fires after this point already sees
   // the snapped balance/TON in stateRef + _lastSyncedBalance.
   setCurrentBalanceEpoch(res.balanceEpoch);
@@ -1132,7 +1152,8 @@ function immediateSyncToServer(state: GameState) {
   const sentEpoch = _currentBalanceEpoch;
   const sentTon = Math.max(0, state.tonBalance || 0);
   const sentStardust = Math.floor(state.stardustBalance || 0);
-  syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: balance, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
+  const sentRedStar = Math.floor(state.redStarBalance || 0);
+  syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: balance, tonBalance: sentTon, stardustBalance: sentStardust, redStarBalance: sentRedStar, clientEpoch: sentEpoch })
     .then((res) => {
       reconcileFromSyncResponse(balance, sentEpoch, res, sentTon, sentStardust);
       _syncInFlight = false;
@@ -1149,7 +1170,8 @@ function immediateSyncToServer(state: GameState) {
           // by setState callbacks and we don't have access to it here.
           const sentTon2 = sentTon;
           const sentStardust2 = sentStardust;
-          syncBalance({ telegramId: tid, firstName: fn, username: un, photoUrl: pu, zoomBalance: nextBalance, tonBalance: sentTon2, stardustBalance: sentStardust2, clientEpoch: sentEpoch2 })
+          const sentRedStar2 = sentRedStar;
+          syncBalance({ telegramId: tid, firstName: fn, username: un, photoUrl: pu, zoomBalance: nextBalance, tonBalance: sentTon2, stardustBalance: sentStardust2, redStarBalance: sentRedStar2, clientEpoch: sentEpoch2 })
             .then((r2) => { reconcileFromSyncResponse(nextBalance, sentEpoch2, r2, sentTon2, sentStardust2); _syncInFlight = false; })
             .catch(() => { _syncInFlight = false; });
         }
