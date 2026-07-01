@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { ZoomPlanetIcon } from "./icons/GameIcons";
 
 interface Props {
   balance: number;
@@ -77,12 +76,11 @@ export function BalanceCounter({ balance, activeRate, onClick }: Props) {
       <span
         style={{
           fontSize: 12,
-          filter: isProducing ? "drop-shadow(0 0 6px rgba(255,51,85,0.7))" : "none",
+          filter: isProducing ? "drop-shadow(0 0 4px rgba(255,51,85,0.8))" : "none",
           transition: "filter 0.4s ease",
-          display: "flex", alignItems: "center",
         }}
       >
-        <ZoomPlanetIcon size={18} />
+        🪐
       </span>
       <span
         ref={textRef}
