@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FeedEvent } from "../hooks/useGameState";
 import { useGlobalStore } from "../store/globalStore";
 import { useT } from "../i18n/LanguageContext";
+import { TrophyIcon } from "../components/icons/GameIcons";
 
 interface RankPageProps {
   balance: number;
@@ -72,7 +73,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
       <div className="px-5 pt-4 pb-2 flex-shrink-0">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-black text-lg tracking-tight flex items-center gap-2">
-            🏆 Season {currentSeason}
+            <TrophyIcon size={26} /> Season {currentSeason}
           </h2>
           <span className="text-xs font-bold px-3 py-1 rounded-full border" style={{ borderColor: "rgba(255,51,85,0.15)", color: "rgba(255,51,85,0.6)" }}>
             In progress

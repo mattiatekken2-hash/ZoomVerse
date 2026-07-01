@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { claimDailyReward, fetchTasksState, claimTask, type TasksState, redeemServerCode } from "../utils/api";
 import { useGlobalStore, refreshDailyStatus } from "../store/globalStore";
 import { useT } from "../i18n/LanguageContext";
+import { CosmicChestIcon, SpaceTicketIcon, OrbitLinkIcon, SpeedBoltIcon } from "../components/icons/GameIcons";
 
 
 interface EarnPageProps {
@@ -325,7 +326,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         >
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <div className="text-2xl">🎁</div>
+              <CosmicChestIcon size={26} />
               <div>
                 <div className="font-black text-base tracking-wide neon-text">{t("earn.dailyStreak")}</div>
                 <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.4)" }}>
@@ -418,7 +419,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           style={{ borderColor: "rgba(255,179,71,0.2)", background: "rgba(255,179,71,0.03)" }}
         >
           <div className="flex items-center gap-2 mb-2">
-            <div className="text-xl">🎟️</div>
+            <SpaceTicketIcon size={24} />
             <div className="font-black text-base" style={{ color: "#ffb347" }}>{t("earn.redeemCode")}</div>
           </div>
           <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.4)" }}>
@@ -470,7 +471,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         {/* Referral */}
         <div className="rounded-2xl p-5 border" style={{ borderColor: "rgba(255,215,0,0.15)", background: "rgba(255,215,0,0.03)" }}>
           <div className="flex items-center gap-2 mb-3">
-            <div className="text-xl">🔗</div>
+            <OrbitLinkIcon size={24} />
             <div className="font-black text-base gold-text">{t("earn.referralProgram")}</div>
           </div>
           <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
@@ -505,7 +506,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             className="rounded-2xl p-4 border flex items-center gap-3"
             style={{ borderColor: "rgba(0,230,118,0.25)", background: "rgba(0,230,118,0.06)" }}
           >
-            <div className="text-2xl">⚡</div>
+            <SpeedBoltIcon size={24} />
             <div className="flex-1">
               <div className="font-black text-sm" style={{ color: "#00e676" }}>
                 {t("earn.speedActive", { n: Math.round(referralSpeedBonus * 100) })}
