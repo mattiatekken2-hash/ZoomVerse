@@ -473,7 +473,7 @@ function TonWalletWidgetBase(props: Props) {
         type="button"
         aria-label="TON Wallet"
         onClick={() => setOpen(true)}
-        className="glass-neon flex items-center gap-1 px-2.5 py-1.5 rounded-full font-black cursor-pointer active:scale-95"
+        className="glass-neon flex items-center gap-1 px-2 py-1 rounded-full font-black cursor-pointer active:scale-95"
         style={{
           background: "linear-gradient(135deg, rgba(0,30,22,0.85), rgba(0,10,8,0.92))",
           border: "1px solid rgba(0,242,180,0.45)",

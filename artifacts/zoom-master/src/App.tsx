@@ -671,7 +671,7 @@ function AppShellWithState() {
       )}
 
       <header
-        className="flex items-center justify-between px-3 py-2.5 flex-shrink-0 relative z-20"
+        className="flex items-center justify-between px-2 py-2 flex-shrink-0 relative z-20"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
       >
         <div className="flex items-center gap-2 min-w-0">
@@ -686,7 +686,7 @@ function AppShellWithState() {
             onClick={() => setHistoryOpen(true)}
           />
         </div>
-        <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center gap-1 min-w-0">
           <TonWalletWidget
             tonBalance={state.tonBalance || 0}
             depositBalance={state.depositBalance || 0}
@@ -707,9 +707,9 @@ function AppShellWithState() {
             aria-label="Open shop"
             className="flex flex-col items-center justify-center gap-0.5 active:scale-95 flex-shrink-0"
             style={{
-              width: 38,
-              height: 38,
-              borderRadius: 10,
+              width: 34,
+              height: 34,
+              borderRadius: 9,
               background: "linear-gradient(135deg, rgba(220,30,50,0.22), rgba(160,10,20,0.14))",
               border: "1px solid rgba(220,30,50,0.55)",
               boxShadow: "0 0 14px rgba(220,30,50,0.35), inset 0 0 8px rgba(200,20,40,0.18)",
@@ -741,7 +741,7 @@ function AppShellWithState() {
             }}>SHOP</span>
           </button>
           <div
-            className="flex items-center gap-0.5 px-2 py-1.5 rounded-full font-black cursor-pointer flex-shrink-0"
+            className="flex items-center gap-0.5 px-1.5 py-1 rounded-full font-black cursor-pointer flex-shrink-0"
             onClick={() => setStardustPopupOpen(true)}
             data-testid="stardust-display"
             style={{
@@ -750,11 +750,11 @@ function AppShellWithState() {
               boxShadow: "0 0 12px rgba(255, 215, 64, 0.18) inset",
               color: "#ffd740",
               textShadow: "0 0 8px rgba(255, 215, 64, 0.55)",
-              fontSize: 12,
+              fontSize: 11,
             }}
             aria-label="Stardust balance"
           >
-            <span style={{ fontSize: 12, lineHeight: 1 }}>★</span>
+            <span style={{ fontSize: 11, lineHeight: 1 }}>★</span>
             <span style={{ fontVariantNumeric: "tabular-nums" }}>
               {(() => {
                 // Show whichever is highest: local tracks live crafting,
@@ -767,7 +767,7 @@ function AppShellWithState() {
             </span>
           </div>
           <div
-            className="flex items-center gap-0.5 px-2 py-1.5 rounded-full font-black flex-shrink-0"
+            className="flex items-center gap-0.5 px-1.5 py-1 rounded-full font-black flex-shrink-0"
             data-testid="redstar-display"
             style={{
               background: "rgba(255, 60, 60, 0.10)",
@@ -775,11 +775,11 @@ function AppShellWithState() {
               boxShadow: "0 0 12px rgba(255, 60, 60, 0.18) inset",
               color: "#ff4444",
               textShadow: "0 0 8px rgba(255, 60, 60, 0.55)",
-              fontSize: 12,
+              fontSize: 11,
             }}
             aria-label="RedStar balance"
           >
-            <span style={{ fontSize: 12, lineHeight: 1 }}>★</span>
+            <span style={{ fontSize: 11, lineHeight: 1 }}>★</span>
             <span style={{ fontVariantNumeric: "tabular-nums" }}>
               {(() => {
                 const n = state.redStarBalance || 0;

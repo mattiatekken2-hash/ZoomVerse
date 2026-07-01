@@ -66,7 +66,7 @@ export function BalanceCounter({ balance, activeRate, onClick }: Props) {
         background: "rgba(0, 242, 254, 0.05)",
         border: `1.5px solid ${isProducing ? "rgba(0, 242, 254, 0.55)" : "rgba(0, 242, 254, 0.15)"}`,
         borderRadius: 50,
-        padding: "4px 8px",
+        padding: "3px 6px",
         boxShadow: isProducing
           ? "0 0 18px rgba(0, 242, 254, 0.35), inset 0 0 8px rgba(0, 242, 254, 0.12)"
           : "0 0 4px rgba(0, 242, 254, 0.05)",
