@@ -182,56 +182,56 @@
 /* Orb 1: massive deep-crimson cloud, top-left anchor */
 .nebula-orb-1 {
   width: 800px; height: 800px;
-  background: radial-gradient(circle, rgba(200,20,40,0.18) 0%, rgba(160,10,25,0.08) 40%, transparent 68%);
+  background: radial-gradient(circle, rgba(200,20,40,0.07) 0%, rgba(160,10,25,0.03) 40%, transparent 68%);
   top: -280px; left: -220px;
   animation: nebula-drift-a 26s ease-in-out infinite alternate;
 }
 /* Orb 2: large deep-red cloud, bottom-right */
 .nebula-orb-2 {
   width: 700px; height: 700px;
-  background: radial-gradient(circle, rgba(180,15,35,0.20) 0%, rgba(140,8,22,0.08) 42%, transparent 68%);
+  background: radial-gradient(circle, rgba(180,15,35,0.08) 0%, rgba(140,8,22,0.03) 42%, transparent 68%);
   bottom: -180px; right: -200px;
   animation: nebula-drift-b 21s ease-in-out infinite alternate;
 }
 /* Orb 3: orange-red cloud, upper-center — key "hot gas" accent */
 .nebula-orb-3 {
   width: 550px; height: 550px;
-  background: radial-gradient(circle, rgba(255,70,20,0.14) 0%, rgba(220,40,10,0.06) 42%, transparent 68%);
+  background: radial-gradient(circle, rgba(255,70,20,0.05) 0%, rgba(220,40,10,0.02) 42%, transparent 68%);
   top: -60px; left: 20%;
   animation: nebula-drift-c 32s ease-in-out infinite alternate;
 }
 /* Orb 4: amber-orange cloud, mid-right depth layer */
 .nebula-orb-4 {
   width: 480px; height: 480px;
-  background: radial-gradient(circle, rgba(255,100,30,0.12) 0%, rgba(210,60,10,0.05) 44%, transparent 70%);
+  background: radial-gradient(circle, rgba(255,100,30,0.05) 0%, rgba(210,60,10,0.02) 44%, transparent 70%);
   top: 35%; right: -120px;
   animation: nebula-drift-d 24s ease-in-out infinite alternate;
 }
 /* Orb 5: bright crimson, lower-left — strong ground accent */
 .nebula-orb-5 {
   width: 440px; height: 440px;
-  background: radial-gradient(circle, rgba(240,25,55,0.16) 0%, rgba(190,10,35,0.06) 42%, transparent 68%);
+  background: radial-gradient(circle, rgba(240,25,55,0.06) 0%, rgba(190,10,35,0.02) 42%, transparent 68%);
   bottom: -80px; left: -100px;
   animation: nebula-drift-a 28s ease-in-out infinite alternate-reverse;
 }
 /* Orb 6: dusky maroon, upper-right — cool/dark accent */
 .nebula-orb-6 {
   width: 360px; height: 360px;
-  background: radial-gradient(circle, rgba(160,12,35,0.15) 0%, rgba(120,6,20,0.05) 45%, transparent 70%);
+  background: radial-gradient(circle, rgba(160,12,35,0.05) 0%, rgba(120,6,20,0.02) 45%, transparent 70%);
   top: 5%; right: 5%;
   animation: nebula-drift-b 38s ease-in-out infinite alternate-reverse;
 }
 /* Orb 7: wide orange-amber veil, center — ties the cloud masses together */
 .nebula-orb-7 {
   width: 700px; height: 500px;
-  background: radial-gradient(ellipse, rgba(220,55,15,0.10) 0%, rgba(180,30,10,0.04) 45%, transparent 68%);
+  background: radial-gradient(ellipse, rgba(220,55,15,0.04) 0%, rgba(180,30,10,0.01) 45%, transparent 68%);
   top: 30%; left: -10%;
   animation: nebula-drift-c 35s ease-in-out infinite alternate-reverse;
 }
 /* Orb 8: wide deep-red veil, lower-center — fills bottom density */
 .nebula-orb-8 {
   width: 600px; height: 400px;
-  background: radial-gradient(ellipse, rgba(190,15,30,0.12) 0%, rgba(150,8,20,0.04) 45%, transparent 70%);
+  background: radial-gradient(ellipse, rgba(190,15,30,0.04) 0%, rgba(150,8,20,0.01) 45%, transparent 70%);
   bottom: 5%; left: 15%;
   animation: nebula-drift-d 30s ease-in-out infinite alternate;
 }
@@ -243,7 +243,7 @@
   border-radius: 50%;
   top: 42%; left: 50%;
   transform: translate(-50%, -50%) translateZ(0);
-  background: radial-gradient(circle, rgba(255,140,60,0.08) 0%, rgba(255,80,20,0.04) 40%, transparent 70%);
+  background: radial-gradient(circle, rgba(255,140,60,0.03) 0%, rgba(255,80,20,0.015) 40%, transparent 70%);
   filter: blur(60px);
   animation: protostar-pulse 8s ease-in-out infinite alternate;
   will-change: opacity;
@@ -547,15 +547,15 @@
   border: 1px solid rgba(255,255,255,0.12);
 }
 .glass-neon {
-  background: rgba(255,51,85,0.05);
+  background: rgba(255,255,255,0.04);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,51,85,0.15);
-  box-shadow: 0 0 20px rgba(255,51,85,0.1), inset 0 0 20px rgba(255,51,85,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 0 14px rgba(0,0,0,0.3);
 }
 
 /* ======== NEON UTILITIES ======== */
-.neon-text { color: #ff3355; text-shadow: 0 0 12px rgba(255,51,85,0.8), 0 0 24px rgba(255,51,85,0.4); }
+.neon-text { color: #e8264a; text-shadow: 0 0 10px rgba(232,38,74,0.5), 0 0 20px rgba(232,38,74,0.22); }
 .gold-text { color: #ffd700; text-shadow: 0 0 12px rgba(255,215,0,0.8), 0 0 24px rgba(255,215,0,0.4); }
 .rare-text { color: #4facfe; text-shadow: 0 0 12px rgba(79,172,254,0.8); }
 .epic-text { color: #c471ed; text-shadow: 0 0 12px rgba(196,113,237,0.8); }
@@ -571,7 +571,7 @@
   text-shadow: 0 0 12px rgba(255,69,0,0.55);
 }
 
-.neon-glow { box-shadow: 0 0 12px rgba(255,51,85,0.5), 0 0 32px rgba(255,51,85,0.25); }
+.neon-glow { box-shadow: 0 0 8px rgba(212,40,72,0.35), 0 0 20px rgba(212,40,72,0.15); }
 .gold-glow { box-shadow: 0 0 12px rgba(255,215,0,0.6), 0 0 32px rgba(255,215,0,0.3); }
 
 /* ======== PLANET CSS ======== */

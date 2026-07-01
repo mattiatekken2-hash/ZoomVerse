@@ -8,6 +8,7 @@ import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/use
 import { fetchRegularPlanets } from "./utils/api";
 import { useGlobalInit } from "./store/globalStore";
 import { NebulaBackground } from "./components/NebulaBackground";
+import { MaintenanceAstronauts } from "./components/MaintenanceAstronauts";
 import { LabPage } from "./pages/LabPage";
 import { FarmPage } from "./pages/FarmPage";
 import { MarketPage } from "./pages/MarketPage";
@@ -1133,7 +1134,7 @@ function AppShellWithState() {
                 {isActive && (
                   <div
                     className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full"
-                    style={{ background: "#ff3355", boxShadow: "0 0 10px rgba(255,51,85,0.9)" }}
+                    style={{ background: "#d42848", boxShadow: "0 0 6px rgba(212,40,72,0.55)" }}
                   />
                 )}
                 <item.icon
@@ -1141,7 +1142,7 @@ function AppShellWithState() {
                   strokeWidth={isActive ? 2.5 : 1.5}
                   style={{
                     transform: isActive ? "scale(1.15)" : "scale(1)",
-                    filter: isActive ? "drop-shadow(0 0 8px rgba(255,51,85,0.8))" : "none",
+                    filter: isActive ? "drop-shadow(0 0 5px rgba(212,40,72,0.6))" : "none",
                     transition: "transform 150ms ease, filter 150ms ease",
                   }}
                 />
@@ -1367,11 +1368,11 @@ function MaintenanceScreen({ message }: { message: string }) {
   return (
     <div
       className="flex flex-col items-center justify-center text-center px-6"
-      style={{ height: "100dvh", background: "#080109", paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      style={{ height: "100dvh", background: "#06030e", paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)", position: "relative", overflow: "hidden" }}
     >
       <NebulaBackground />
-      <div className="relative z-10 max-w-sm">
-        <div style={{ fontSize: 64, marginBottom: 18 }}>🛠️</div>
+      <MaintenanceAstronauts />
+      <div className="relative z-10 max-w-sm" style={{ marginTop: "46%" }}>
         <div className="font-black text-2xl tracking-widest neon-text mb-3">{t("maint.title")}</div>
         <div className="text-sm" style={{ color: "rgba(255,255,255,0.65)", lineHeight: 1.55 }}>
           {message || t("maint.default")}

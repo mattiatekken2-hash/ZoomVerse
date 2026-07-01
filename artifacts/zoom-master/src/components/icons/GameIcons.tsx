@@ -120,6 +120,44 @@ export function OrbitLinkIcon({ size = 24 }: { size?: number }) {
   );
 }
 
+export function ZoomPlanetIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="zp-body" cx="38%" cy="32%" r="65%">
+          <stop offset="0%" stopColor="#ff8fa3"/>
+          <stop offset="45%" stopColor="#ff3355"/>
+          <stop offset="100%" stopColor="#6b0020"/>
+        </radialGradient>
+        <linearGradient id="zp-ring" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"   stopColor="rgba(255,215,0,0)"/>
+          <stop offset="25%"  stopColor="rgba(255,215,0,0.75)"/>
+          <stop offset="50%"  stopColor="rgba(255,165,0,0.9)"/>
+          <stop offset="75%"  stopColor="rgba(255,215,0,0.75)"/>
+          <stop offset="100%" stopColor="rgba(255,215,0,0)"/>
+        </linearGradient>
+        <clipPath id="zp-top-half"><rect x="0" y="0"  width="24" height="12.5"/></clipPath>
+        <clipPath id="zp-bot-half"><rect x="0" y="12" width="24" height="12"/></clipPath>
+        <filter id="zp-glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="0.6" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <g filter="url(#zp-glow)">
+        <ellipse cx="12" cy="14" rx="10.5" ry="3.2" fill="none"
+          stroke="url(#zp-ring)" strokeWidth="2" clipPath="url(#zp-bot-half)"/>
+        <circle cx="12" cy="12" r="7.5" fill="url(#zp-body)"/>
+        <ellipse cx="9.2" cy="9.5" rx="2.8" ry="1.8"
+          fill="rgba(255,255,255,0.18)" transform="rotate(-20,9.2,9.5)"/>
+        <ellipse cx="12" cy="14" rx="10.5" ry="3.2" fill="none"
+          stroke="url(#zp-ring)" strokeWidth="2" clipPath="url(#zp-top-half)"/>
+        <ellipse cx="15" cy="11" rx="1.5" ry="0.8"
+          fill="rgba(255,255,255,0.12)" transform="rotate(-10,15,11)"/>
+      </g>
+    </svg>
+  );
+}
+
 export function SpeedBoltIcon({ size = 24 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">

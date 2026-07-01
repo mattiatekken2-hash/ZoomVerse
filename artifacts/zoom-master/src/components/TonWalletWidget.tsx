@@ -490,12 +490,12 @@ function TonWalletWidgetBase(props: Props) {
           alt="TON"
           draggable={false}
           style={{
-            width: 16,
-            height: 16,
+            width: 20,
+            height: 20,
             display: "inline-block",
             objectFit: "contain",
             borderRadius: "0%",
-            filter: "drop-shadow(0 0 3px rgba(0,242,180,0.4))",
+            filter: "drop-shadow(0 0 4px rgba(0,200,255,0.5))",
           }}
         />
         <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatTon(total, 2)}</span>
