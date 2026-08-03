@@ -29,13 +29,14 @@ function fmtCountdown(secs: number): string {
 // Su acquisto riuscito triggera "zoom-data-refresh" così useGameState
 // ri-fetcha grants e materializza il pianeta V1_NFT in inventory.
 
-const WALLET = "UQAd_aYbSF4fBXiuldDGUaEjwIvhg1wQuR9nh2A1Wgc1ms9q";
+const WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 
 interface Props {
   telegramId: string | null;
+  shopMode?: boolean;
 }
 
-function V1NftWidgetBase({ telegramId }: Props) {
+function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
   const [open, setOpen] = useState(false);
@@ -177,43 +178,75 @@ function V1NftWidgetBase({ telegramId }: Props) {
         .v1nft-pixel { image-rendering: pixelated; }
       `}</style>
 
-      <button
-        onClick={() => setOpen(true)}
-        style={{
-          position: "fixed",
-          top: 90,
-          left: 218,
-          width: 60,
-          height: 60,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 4,
-          borderRadius: 14,
-          background: "rgba(8,12,28,0.78)",
-          border: "1.5px solid rgba(202,225,255,0.55)",
-          animation: "v1nft-glow 2.4s ease-in-out infinite",
-          color: "#fff",
-          zIndex: 35,
-          cursor: "pointer",
-          backdropFilter: "blur(8px)",
-          WebkitTapHighlightColor: "transparent",
-        }}
-        data-testid="button-v1-nft"
-        aria-label="V1 NFT Platinum Edition"
-      >
-        <div style={{ animation: "v1nft-float 2.4s ease-in-out infinite", position: "relative" }}>
-          <PixelDiamond size={40} />
-          <div style={{
-            position: "absolute", top: -8, right: -10,
-            background: "linear-gradient(135deg, #cfe4ff, #7ea8e0)",
-            color: "#0a1a3d",
-            fontSize: 8, fontWeight: 900, letterSpacing: 0.5,
-            padding: "1px 4px", borderRadius: 4,
-            border: "1px solid rgba(255,255,255,0.7)",
-          }}>NFT</div>
+      {shopMode ? (
+        /* Inline shop card */
+        <div
+          onClick={() => setOpen(true)}
+          style={{
+            borderRadius: 14,
+            background: "rgba(8,12,28,0.88)",
+            border: "1px solid rgba(202,225,255,0.44)",
+            overflow: "hidden",
+            cursor: "pointer",
+          }}
+          data-testid="button-v1-nft"
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px" }}>
+            <div style={{ width: 44, height: 44, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+              <PixelDiamond size={40} />
+              <div style={{ position: "absolute", top: -4, right: -8, background: "linear-gradient(135deg, #cfe4ff, #7ea8e0)", color: "#0a1a3d", fontSize: 7, fontWeight: 900, padding: "1px 3px", borderRadius: 3 }}>NFT</div>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 900, color: "#cfe4ff", fontSize: 14, letterSpacing: "0.04em" }}>V1 NFT PLATINUM</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>
+                {stock ? `${stock.remaining}/${stock.max} left · ` : ""}20 TON · 275 $ZOOM/h
+              </div>
+            </div>
+          </div>
+          <div style={{ borderTop: "1px solid rgba(202,225,255,0.22)", padding: "10px 16px", textAlign: "center", fontWeight: 900, color: "#cfe4ff", fontSize: 12, letterSpacing: "0.06em" }}>
+            BUY — 20 TON →
+          </div>
         </div>
-      </button>
+      ) : (
+        /* Fixed floating button on the LAB page */
+        <button
+          onClick={() => setOpen(true)}
+          style={{
+            position: "fixed",
+            top: 90,
+            left: 218,
+            width: 60,
+            height: 60,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 4,
+            borderRadius: 14,
+            background: "rgba(8,12,28,0.78)",
+            border: "1.5px solid rgba(202,225,255,0.55)",
+            animation: "v1nft-glow 2.4s ease-in-out infinite",
+            color: "#fff",
+            zIndex: 35,
+            cursor: "pointer",
+            backdropFilter: "blur(8px)",
+            WebkitTapHighlightColor: "transparent",
+          }}
+          data-testid="button-v1-nft"
+          aria-label="V1 NFT Platinum Edition"
+        >
+          <div style={{ animation: "v1nft-float 2.4s ease-in-out infinite", position: "relative" }}>
+            <PixelDiamond size={40} />
+            <div style={{
+              position: "absolute", top: -8, right: -10,
+              background: "linear-gradient(135deg, #cfe4ff, #7ea8e0)",
+              color: "#0a1a3d",
+              fontSize: 8, fontWeight: 900, letterSpacing: 0.5,
+              padding: "1px 4px", borderRadius: 4,
+              border: "1px solid rgba(255,255,255,0.7)",
+            }}>NFT</div>
+          </div>
+        </button>
+      )}
 
       {open && (
         <div

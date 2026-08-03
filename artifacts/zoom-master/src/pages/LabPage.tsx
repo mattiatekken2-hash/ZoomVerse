@@ -1,15 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { PlanetCanvas, type ForgePhase } from "../components/PlanetCanvas";
 import { AutoTapWidget } from "../components/AutoTapWidget";
-import { MysteryBoxWidget } from "../components/MysteryBoxWidget";
 import { HallOfFameWidget } from "../components/HallOfFameWidget";
 import { PixelAvatar } from "../components/PixelAvatar";
-import { LottoStellareWidget } from "../components/LottoStellareWidget";
 import { LabRankWidget } from "../components/LabRankWidget";
-import { V1NftWidget } from "../components/V1NftWidget";
 import { PvpRankWidget } from "../components/PvpRankWidget";
 import { ExchangeWidget } from "../components/ExchangeWidget";
-import { LabTicketWidget } from "../components/LabTicketWidget";
 import { StellaRossaCollectionWidget } from "../components/StellaRossaCollectionWidget";
 
 import type { Planet, PlanetType, EquipmentDropResult } from "../hooks/useGameState";
@@ -265,16 +261,8 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         telegramId={telegramId}
         onTap={handleCraft}
       />
-      <MysteryBoxWidget telegramId={telegramId} />
       <HallOfFameWidget telegramId={telegramId} />
-      <LottoStellareWidget telegramId={telegramId} />
       <LabRankWidget telegramId={telegramId} sunCount={sunCount} balance={balance} />
-      <LabTicketWidget
-        telegramId={telegramId}
-        depositBalance={depositBalance}
-        onPurchase={onPurchase || (() => {})}
-      />
-      <V1NftWidget telegramId={telegramId} />
       <PvpRankWidget telegramId={telegramId} />
       <ExchangeWidget balance={balance} sunCount={sunCount} />
       <StellaRossaCollectionWidget

@@ -3,7 +3,7 @@ import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { confirmTonPurchase, pollTxnUntilFinal, fetchLottoState, type LottoStateResponse } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 
-const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
+const WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 const NEON_GOLD = "#ffd84d";
 const NEON_RED = "#ff5577";
 const NEON_PURPLE = "#c471ed";
@@ -30,6 +30,7 @@ const BUNDLE_LABEL_KEY: Record<Bundle["id"], string> = {
 
 interface Props {
   telegramId: string | null;
+  shopMode?: boolean;
 }
 
 /**
@@ -92,7 +93,7 @@ function PixelTicket({ size = 48 }: { size?: number }) {
   );
 }
 
-function LottoStellareWidgetBase({ telegramId }: Props) {
+function LottoStellareWidgetBase({ telegramId, shopMode = false }: Props) {
   const { t } = useT();
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
@@ -230,58 +231,93 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
         .lotto-modal-card { animation: lottoModalIn 0.28s cubic-bezier(0.2,0.9,0.3,1.2); }
       `}</style>
 
-      <button
-        onClick={() => setOpen(true)}
-        aria-label={t("lotto.openAria")}
-        style={{
-          position: "fixed",
-          left: 14,
-          // Shop strip — riga orizzontale in cima al LAB
-          top: 90,
-          width: 60,
-          height: 60,
-          borderRadius: 14,
-          background: "rgba(28,16,4,0.78)",
-          border: `1.5px solid ${NEON_GOLD}88`,
-          padding: 4,
-          cursor: "pointer",
-          zIndex: 40,
-          backdropFilter: "blur(8px)",
-          WebkitTapHighlightColor: "transparent",
-        }}
-        className="lotto-tile-frame"
-        data-testid="button-lotto-stellare"
-      >
-        <div className="lotto-tile-img" style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", filter: `drop-shadow(0 0 6px ${NEON_GOLD}aa)` }}>
-          <PixelTicket size={48} />
+      {shopMode ? (
+        /* Inline shop card — rendered inside the Shop page */
+        <div
+          onClick={() => setOpen(true)}
+          style={{
+            borderRadius: 14,
+            background: "rgba(28,16,4,0.88)",
+            border: `1px solid ${NEON_GOLD}44`,
+            overflow: "hidden",
+            cursor: "pointer",
+          }}
+          data-testid="button-lotto-stellare"
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px" }}>
+            <div style={{ width: 44, height: 44, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <PixelTicket size={44} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 900, color: NEON_GOLD, fontSize: 14, letterSpacing: "0.04em" }}>LOTTO STELLARE</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>
+                Jackpot {jackpotTon} TON · {userTickets > 0 ? `${userTickets} ticket` : "No tickets yet"}
+              </div>
+            </div>
+            {userTickets > 0 && (
+              <span style={{ background: NEON_GOLD, color: "#1a0d00", fontWeight: 900, fontSize: 11, borderRadius: 10, padding: "2px 8px", flexShrink: 0 }}>
+                {userTickets > 99 ? "99+" : userTickets}
+              </span>
+            )}
+          </div>
+          <div style={{ borderTop: `1px solid ${NEON_GOLD}22`, padding: "10px 16px", textAlign: "center", fontWeight: 900, color: NEON_GOLD, fontSize: 12, letterSpacing: "0.06em" }}>
+            BUY TICKETS →
+          </div>
         </div>
-        {userTickets > 0 && (
-          <span
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              top: -6,
-              right: -6,
-              minWidth: 20,
-              height: 20,
-              padding: "0 5px",
-              borderRadius: 10,
-              background: NEON_GOLD,
-              color: "#1a0d00",
-              fontSize: 10,
-              fontWeight: 900,
-              border: "2px solid rgba(8,12,28,0.95)",
-              boxShadow: `0 0 8px ${NEON_GOLD}`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              lineHeight: 1,
-            }}
-          >
-            {userTickets > 99 ? "99+" : userTickets}
-          </span>
-        )}
-      </button>
+      ) : (
+        /* Fixed floating button on the LAB page */
+        <button
+          onClick={() => setOpen(true)}
+          aria-label={t("lotto.openAria")}
+          style={{
+            position: "fixed",
+            left: 14,
+            top: 90,
+            width: 60,
+            height: 60,
+            borderRadius: 14,
+            background: "rgba(28,16,4,0.78)",
+            border: `1.5px solid ${NEON_GOLD}88`,
+            padding: 4,
+            cursor: "pointer",
+            zIndex: 40,
+            backdropFilter: "blur(8px)",
+            WebkitTapHighlightColor: "transparent",
+          }}
+          className="lotto-tile-frame"
+          data-testid="button-lotto-stellare"
+        >
+          <div className="lotto-tile-img" style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", filter: `drop-shadow(0 0 6px ${NEON_GOLD}aa)` }}>
+            <PixelTicket size={48} />
+          </div>
+          {userTickets > 0 && (
+            <span
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                top: -6,
+                right: -6,
+                minWidth: 20,
+                height: 20,
+                padding: "0 5px",
+                borderRadius: 10,
+                background: NEON_GOLD,
+                color: "#1a0d00",
+                fontSize: 10,
+                fontWeight: 900,
+                border: "2px solid rgba(8,12,28,0.95)",
+                boxShadow: `0 0 8px ${NEON_GOLD}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                lineHeight: 1,
+              }}
+            >
+              {userTickets > 99 ? "99+" : userTickets}
+            </span>
+          )}
+        </button>
+      )}
 
       {open && (
         <div

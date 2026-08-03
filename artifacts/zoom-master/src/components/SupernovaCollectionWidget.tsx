@@ -4,7 +4,7 @@ import { confirmTonPurchase, pollTxnUntilFinal } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 import { SupernovaStarOrb } from "./SupernovaStarOrb";
 
-const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
+const WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 const PRICE_TON = 12;
 const SUPERNOVA_YELLOW = "#ffd700";
 const DEEP_AMBER = "#b8860b";

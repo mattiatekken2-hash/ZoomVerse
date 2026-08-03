@@ -13,7 +13,7 @@ import { PlanetOrb } from "./PlanetOrb";
 import type { Planet } from "../hooks/useGameState";
 import { useT } from "../i18n/LanguageContext";
 
-const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
+const WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 const PRICE_TON = 1.5;
 
 const RARITY_COLORS: Record<string, string> = {
@@ -51,11 +51,12 @@ function planetForOrb(name: string, color: string): Planet {
 
 interface MysteryBoxWidgetProps {
   telegramId: string | null;
+  shopMode?: boolean;
 }
 
 type Phase = "idle" | "buying" | "verifying" | "shaking" | "revealed";
 
-function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
+function MysteryBoxWidgetBase({ telegramId, shopMode = false }: MysteryBoxWidgetProps) {
   const { t } = useT();
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
@@ -223,63 +224,95 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
         }
       `}</style>
 
-      {/* Closed widget — shop strip, horizontal row at top of LAB */}
-      <button
-        onClick={handleOpenClick}
-        style={{
-          position: "fixed",
-          top: 90,
-          left: 150,
-          width: 60,
-          height: 60,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 4,
-          borderRadius: 14,
-          background: "rgba(8,12,28,0.78)",
-          border: "1.5px solid rgba(192,96,255,0.5)",
-          animation: "mb-glow 2.4s ease-in-out infinite",
-          color: "#fff",
-          zIndex: 35,
-          cursor: "pointer",
-          backdropFilter: "blur(8px)",
-          WebkitTapHighlightColor: "transparent",
-        }}
-        data-testid="button-mystery-box"
-        aria-label={t("mystery.openAria")}
-      >
-        <PixelCrate size={40} animate />
-      </button>
-
-      {/* Live ticker under the widget */}
-      {tickerEvent && (
+      {shopMode ? (
+        /* Inline shop card */
         <div
+          onClick={handleOpenClick}
           style={{
-            position: "fixed",
-            top: 320,
-            right: 12,
-            maxWidth: "60%",
-            padding: "3px 10px",
-            borderRadius: 10,
-            background: "rgba(6,8,16,0.7)",
-            border: `1px solid ${RARITY_GLOW[tickerEvent.award] || "rgba(255,255,255,0.15)"}`,
-            color: "rgba(255,255,255,0.85)",
-            fontSize: 10,
-            fontWeight: 600,
-            zIndex: 35,
-            whiteSpace: "nowrap",
+            borderRadius: 14,
+            background: "rgba(8,12,28,0.88)",
+            border: "1px solid rgba(192,96,255,0.44)",
             overflow: "hidden",
-            textOverflow: "ellipsis",
-            backdropFilter: "blur(6px)",
+            cursor: "pointer",
           }}
-          data-testid="mystery-box-ticker"
+          data-testid="button-mystery-box"
         >
-          <span style={{ color: RARITY_COLORS[tickerEvent.award] || "#fff", fontWeight: 800 }}>
-            {tickerEvent.userName}
-          </span>{" "}
-          {t("mystery.gotShort")} <span style={{ color: RARITY_COLORS[tickerEvent.award] || "#fff" }}>{tickerEvent.awardLabel}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px" }}>
+            <div style={{ width: 44, height: 44, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <PixelCrate size={40} animate />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 900, color: "#c060ff", fontSize: 14, letterSpacing: "0.04em" }}>MYSTERY BOX</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>
+                {stock ? `${stock.sunsRemaining} SUN left · ` : ""}1.5 TON · Win up to SUN
+              </div>
+            </div>
+          </div>
+          <div style={{ borderTop: "1px solid rgba(192,96,255,0.22)", padding: "10px 16px", textAlign: "center", fontWeight: 900, color: "#c060ff", fontSize: 12, letterSpacing: "0.06em" }}>
+            OPEN BOX — 1.5 TON →
+          </div>
         </div>
+      ) : (
+        /* Fixed floating button on the LAB page */
+        <>
+          <button
+            onClick={handleOpenClick}
+            style={{
+              position: "fixed",
+              top: 90,
+              left: 150,
+              width: 60,
+              height: 60,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 4,
+              borderRadius: 14,
+              background: "rgba(8,12,28,0.78)",
+              border: "1.5px solid rgba(192,96,255,0.5)",
+              animation: "mb-glow 2.4s ease-in-out infinite",
+              color: "#fff",
+              zIndex: 35,
+              cursor: "pointer",
+              backdropFilter: "blur(8px)",
+              WebkitTapHighlightColor: "transparent",
+            }}
+            data-testid="button-mystery-box"
+            aria-label={t("mystery.openAria")}
+          >
+            <PixelCrate size={40} animate />
+          </button>
+
+          {/* Live ticker under the widget */}
+          {tickerEvent && (
+            <div
+              style={{
+                position: "fixed",
+                top: 320,
+                right: 12,
+                maxWidth: "60%",
+                padding: "3px 10px",
+                borderRadius: 10,
+                background: "rgba(6,8,16,0.7)",
+                border: `1px solid ${RARITY_GLOW[tickerEvent.award] || "rgba(255,255,255,0.15)"}`,
+                color: "rgba(255,255,255,0.85)",
+                fontSize: 10,
+                fontWeight: 600,
+                zIndex: 35,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                backdropFilter: "blur(6px)",
+              }}
+              data-testid="mystery-box-ticker"
+            >
+              <span style={{ color: RARITY_COLORS[tickerEvent.award] || "#fff", fontWeight: 800 }}>
+                {tickerEvent.userName}
+              </span>{" "}
+              {t("mystery.gotShort")} <span style={{ color: RARITY_COLORS[tickerEvent.award] || "#fff" }}>{tickerEvent.awardLabel}</span>
+            </div>
+          )}
+        </>
       )}
 
       {/* Modal */}

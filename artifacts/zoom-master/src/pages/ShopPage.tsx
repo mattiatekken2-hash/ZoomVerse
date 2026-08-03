@@ -3,6 +3,10 @@ import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { createStarsInvoice, confirmStarsPurchase, buyShopItemFromDeposit, fetchSunStock, pollTxnUntilFinal, fetchHomeState, buyComputer, buyPlantSeed, fetchSlotPrice, type SunStock, type HomeState, type SlotPriceInfo } from "../utils/api";
 import { PixelPlant } from "../components/PixelPlant";
 import { useT } from "../i18n/LanguageContext";
+import { LottoStellareWidget } from "../components/LottoStellareWidget";
+import { LabTicketWidget } from "../components/LabTicketWidget";
+import { MysteryBoxWidget } from "../components/MysteryBoxWidget";
+import { V1NftWidget } from "../components/V1NftWidget";
 
 interface ShopItem {
   id: string;
@@ -96,7 +100,7 @@ export function ShopPage({
   // - exclusive: SUN (e in futuro altri NFT/limited shop items)
   // - items: bundle pacchetti + extra slot (consumabili "in-game")
   // - resources: stardust top-ups + computer/plant (currency e item stardust)
-  const [shopTab, setShopTab] = useState<"exclusive" | "bundles" | "items" | "resources">("exclusive");
+  const [shopTab, setShopTab] = useState<"exclusive" | "bundles" | "items" | "resources" | "lab">("exclusive");
   // Live stock for each collection bundle (api/<key>-collection/stock).
   const [collStocks, setCollStocks] = useState<Record<string, StockInfo | null>>({});
   const refreshCollStocks = async () => {
@@ -411,10 +415,11 @@ export function ShopPage({
       <div className="px-4 pb-3" style={{ background: "rgba(6,8,16,0.4)" }}>
         <div className="flex gap-1 p-0.5 rounded-lg" style={{ background: "rgba(255,255,255,0.04)" }}>
           {([
-            { id: "exclusive", label: "EXCLUSIVE", color: "#ffb347" },
+            { id: "exclusive", label: "EXCL.", color: "#ffb347" },
             { id: "bundles", label: "BUNDLES", color: "#ff3355" },
+            { id: "lab", label: "LAB", color: "#a855f7" },
             { id: "items", label: "ITEMS", color: "#c471ed" },
-            { id: "resources", label: "RESOURCES", color: "#ffd740" },
+            { id: "resources", label: "RES.", color: "#ffd740" },
           ] as const).map(tab => {
             const active = shopTab === tab.id;
             return (
@@ -579,6 +584,22 @@ export function ShopPage({
               </div>
             );
           })}
+          </>)}
+
+          {shopTab === "lab" && (<>
+          {/* LAB shop items — previously floating buttons on the LAB page,
+              now accessible here so players can buy them from the Shop. */}
+          <div className="font-black text-sm tracking-widest uppercase mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+            LAB Items
+          </div>
+          <LottoStellareWidget telegramId={telegramId ?? null} shopMode />
+          <LabTicketWidget
+            telegramId={telegramId ?? null}
+            depositBalance={depositBalance}
+            shopMode
+          />
+          <MysteryBoxWidget telegramId={telegramId ?? null} shopMode />
+          <V1NftWidget telegramId={telegramId ?? null} shopMode />
           </>)}
 
           {shopTab === "resources" && (<>

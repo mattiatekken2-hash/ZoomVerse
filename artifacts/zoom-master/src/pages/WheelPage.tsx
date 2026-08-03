@@ -18,7 +18,7 @@ import {
 import { useT } from "../i18n/LanguageContext";
 
 // Same wallet used in ShopPage / LottoStellare / MysteryBox.
-const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
+const WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 
 interface WheelPageProps {
   telegramId?: string | null;

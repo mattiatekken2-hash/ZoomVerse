@@ -2219,7 +2219,30 @@ export function useGameState() {
               ...updated,
               planets: (serverRegular.planets as unknown as Planet[])
                 .map(migrateLegacyNeverStartedPlanet)
-                .map((p) => applyDailyCollectMigration(p, nowMs)),
+                .map((p) => applyDailyCollectMigration(p, nowMs))
+                .map((serverP) => {
+                  // Race-condition guard: the debounced save (1.2s) may not
+                  // have reached the server yet when this sync fires.
+                  // Preserve client-side listing state so a listed planet
+                  // doesn't flash back into inventory on the next sync.
+                  const clientP = stateRef.current.planets.find(
+                    (cp) => cp.id === serverP.id,
+                  );
+                  if (
+                    clientP?.isListedInMarket &&
+                    clientP?.serverListingId != null
+                  ) {
+                    return {
+                      ...serverP,
+                      isListedInMarket: true,
+                      isFarmingActive: false,
+                      marketPrice: clientP.marketPrice,
+                      serverListingId: clientP.serverListingId,
+                      pausedAt: clientP.pausedAt,
+                    };
+                  }
+                  return serverP;
+                }),
             };
           }
           updated = {

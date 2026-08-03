@@ -29,7 +29,7 @@ import {
 } from "../utils/api";
 
 // Project TON receiver wallet — same constant used by ShopPage for SUN/etc.
-const TON_RECEIVER_WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
+const TON_RECEIVER_WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 
 const D = "#0a0a14";
 const H = "#e8ecff";

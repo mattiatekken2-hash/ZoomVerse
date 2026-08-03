@@ -4,7 +4,7 @@ import { confirmTonPurchase, pollTxnUntilFinal } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 import { BlackPlanetOrb } from "./BlackPlanetOrb";
 
-const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
+const WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 const PRICE_TON = 40;
 const VOID_PURPLE = "#7b2fff";
 const DEEP_PURPLE = "#4a0e8f";

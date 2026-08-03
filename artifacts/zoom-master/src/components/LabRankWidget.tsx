@@ -52,7 +52,13 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
   }, [telegramId]);
 
   useEffect(() => {
-    if (open) refresh();
+    if (!open) return;
+    refresh();
+    // Re-fetch at 2s and 4s to catch server updates that arrive after
+    // the 1.2s debounced craft save fires.
+    const t1 = setTimeout(() => refresh(), 2000);
+    const t2 = setTimeout(() => refresh(), 4000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 

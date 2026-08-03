@@ -9,10 +9,11 @@ const ACCENT = "#e0c3fc";
 interface Props {
   telegramId: string | null;
   depositBalance: number;
-  onPurchase: (labPointsDelta: number, stardustDelta: number) => void;
+  onPurchase?: (labPointsDelta: number, stardustDelta: number) => void;
+  shopMode?: boolean;
 }
 
-function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase }: Props) {
+function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode = false }: Props) {
   const [open, setOpen] = useState(false);
   const [buying, setBuying] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -38,7 +39,7 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase }: Props) 
       const r = await buyLabTicket(telegramId, 1);
       if (r.ok) {
         setMsg("+30 Lab Points & +300 Stardust!");
-        onPurchase(30, 300);
+        onPurchase?.(30, 300);
         window.dispatchEvent(new Event("zoom-data-refresh"));
       } else {
         setMsg(r.error || "Purchase failed");
@@ -61,50 +62,81 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase }: Props) 
         .lt-img { animation: ltFloat 3s ease-in-out infinite; }
       `}</style>
 
-      <button
-        onClick={() => setOpen(true)}
-        aria-label="Lab Ticket"
-        className="lt-tile"
-        style={{
-          position: "fixed",
-          left: 82,
-          top: 90,
-          width: 60,
-          height: 60,
-          borderRadius: 14,
-          background: "rgba(20,12,4,0.85)",
-          border: `1.5px solid ${PURPLE}88`,
-          padding: 4,
-          cursor: "pointer",
-          zIndex: 40,
-          backdropFilter: "blur(8px)",
-          WebkitTapHighlightColor: "transparent",
-        }}
-        data-testid="button-lab-ticket"
-      >
+      {shopMode ? (
+        /* Inline shop card */
         <div
-          className="lt-img"
+          onClick={() => setOpen(true)}
           style={{
-            width: "100%",
-            height: "100%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            filter: `drop-shadow(0 0 8px ${PURPLE}aa)`,
+            borderRadius: 14,
+            background: "rgba(20,12,4,0.88)",
+            border: `1px solid ${PURPLE}44`,
+            overflow: "hidden",
+            cursor: "pointer",
           }}
+          data-testid="button-lab-ticket"
         >
-          <img
-            src={ticketPx}
-            alt=""
-            style={{
-              width: "84%",
-              height: "84%",
-              objectFit: "contain",
-              imageRendering: "pixelated",
-            }}
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px" }}>
+            <div style={{ width: 44, height: 44, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", filter: `drop-shadow(0 0 6px ${PURPLE}88)` }}>
+              <img src={ticketPx} alt="" style={{ width: 40, height: 40, objectFit: "contain", imageRendering: "pixelated" }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 900, color: PURPLE, fontSize: 14, letterSpacing: "0.04em" }}>LAB TICKET</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>
+                +30 Lab Points · +300 Stardust · 1 TON
+              </div>
+            </div>
+          </div>
+          <div style={{ borderTop: `1px solid ${PURPLE}22`, padding: "10px 16px", textAlign: "center", fontWeight: 900, color: PURPLE, fontSize: 12, letterSpacing: "0.06em" }}>
+            BUY — 1 TON →
+          </div>
         </div>
-      </button>
+      ) : (
+        /* Fixed floating button */
+        <button
+          onClick={() => setOpen(true)}
+          aria-label="Lab Ticket"
+          className="lt-tile"
+          style={{
+            position: "fixed",
+            left: 82,
+            top: 90,
+            width: 60,
+            height: 60,
+            borderRadius: 14,
+            background: "rgba(20,12,4,0.85)",
+            border: `1.5px solid ${PURPLE}88`,
+            padding: 4,
+            cursor: "pointer",
+            zIndex: 40,
+            backdropFilter: "blur(8px)",
+            WebkitTapHighlightColor: "transparent",
+          }}
+          data-testid="button-lab-ticket"
+        >
+          <div
+            className="lt-img"
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              filter: `drop-shadow(0 0 8px ${PURPLE}aa)`,
+            }}
+          >
+            <img
+              src={ticketPx}
+              alt=""
+              style={{
+                width: "84%",
+                height: "84%",
+                objectFit: "contain",
+                imageRendering: "pixelated",
+              }}
+            />
+          </div>
+        </button>
+      )}
 
       {open && (
         <div

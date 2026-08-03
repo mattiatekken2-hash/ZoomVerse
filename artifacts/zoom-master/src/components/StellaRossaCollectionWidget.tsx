@@ -200,8 +200,8 @@ function StellaRossaCollectionWidgetBase({
               gap: 8, marginBottom: 16,
             }}>
               {[
-                { label: "PLANETS", value: `${ownedBundles * 4}` },
-                { label: "TON/h", value: `${(ownedBundles * 4 * 0.000521).toFixed(4)}` },
+                { label: "PIANETI", value: `${ownedBundles * 4}` },
+                { label: "TON/MESE", value: `${(ownedBundles * 4 * 0.000521 * 720).toFixed(2)}` },
               ].map(({ label, value }) => (
                 <div key={label} style={{
                   background: "rgba(80,0,15,0.55)", border: `1px solid ${STELLA_RED}33`,

@@ -3,7 +3,7 @@ import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { confirmTonPurchase, pollTxnUntilFinal } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 
-const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
+const WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 // Server-authoritative price (see STARS_CATALOG.white_collection.tonPrice in
 // artifacts/api-server/src/routes/stars.ts). The wallet must send EXACTLY
 // this many TON or the on-chain verification will reject the payment.

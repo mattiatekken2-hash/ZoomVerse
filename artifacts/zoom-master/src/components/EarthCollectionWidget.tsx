@@ -4,7 +4,7 @@ import { confirmTonPurchase, pollTxnUntilFinal } from "../utils/api";
 import { RealisticEarth } from "./RealisticEarth";
 import { useT } from "../i18n/LanguageContext";
 
-const WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
+const WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 const PRICE_TON = 5;
 const NEON_BLUE = "#3b82f6";
 const NEON_GREEN_E = "#22c55e";

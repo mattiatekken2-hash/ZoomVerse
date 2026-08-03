@@ -13,7 +13,7 @@ const router: IRouter = Router();
 
 const BOT_TOKEN = process.env["BOT_TOKEN"] || "";
 const TELEGRAM_WEBHOOK_SECRET = process.env["TELEGRAM_WEBHOOK_SECRET"] || "";
-const TON_WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
+const TON_WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 const TON_WALLET_RAW = Address.parse(TON_WALLET).toRawString().toLowerCase();
 const TONAPI_TOKEN = process.env["TONAPI_TOKEN"] || "";
 

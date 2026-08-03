@@ -21,7 +21,7 @@ import {
 } from "../utils/api";
 import { getWhitePlanetPendingTon, type Planet } from "../hooks/useGameState";
 
-const TON_RECEIVER_WALLET = "UQCbU2lE4-xTcX2cjX75Uq4LQskpL-Xm71yLrA58QxytkgzS";
+const TON_RECEIVER_WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 const POLL_MS = 60_000;
 const TON_LOGO_URL = "/ton-logo.svg";
 
