@@ -235,9 +235,9 @@ function LottoStellareWidgetBase({ telegramId }: Props) {
         aria-label={t("lotto.openAria")}
         style={{
           position: "fixed",
-          left: 12,
-          // Sinistra alta, di fronte al Mystery Box (right:12 top:180).
-          top: 180,
+          left: 14,
+          // Shop strip — riga orizzontale in cima al LAB
+          top: 90,
           width: 60,
           height: 60,
           borderRadius: 14,

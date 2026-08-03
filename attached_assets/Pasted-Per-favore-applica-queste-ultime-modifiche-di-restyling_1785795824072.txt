@@ -1,0 +1,26 @@
+Per favore applica queste ultime modifiche di restyling UI, colori e fix al Marketplace:
+
+--- 1. RESTYLING THE SUN (IL SOLE) ☀️ ---
+- Grafica Sole: Cambia il colore del pianeta/stella "THE SUN" per renderlo molto più splendente, luminoso ed energetico, con toni di giallo/arancio brillante e un bell'effetto glow/bagliore da vero sole.
+
+--- 2. RIORGANIZZAZIONE WIDGET LAB & SHOP ---
+- Spostamento Item nello Shop: Sposta i widget "Stellar Ticket", "Lab Ticket", "Mystery Box" e "V1 NFT Platinum Edition" nella sezione/tab Shop in alto dentro la schermata LAB.
+- Layout Lab Widgets (2x2): Organizza i 4 widget rimanenti nella schermata LAB su 2 colonne (2 a sinistra e 2 a destra), mantenendo la stessa altezza attuale.
+
+--- 3. REDSTAR COLLECTION & NFTSTAR ---
+- Redstar UI & I18n: Assicurati che testo e titolo della Stella Rossa siano in inglese. Cambia l'icona del widget e del claim daily in una Stella ROSSA in Pixel Art.
+- NFTSTAR Icon: Imposta l'icona di NFTSTAR come una STELLA GRIGIA (stesso stile/colore visivo della Stardust).
+
+--- 4. FIX MARKET LISTING (INVENTARIO -> MARKET) ---
+- Fix Bottone Sell & State: Risolvi il bug per cui cliccando "Sell" e inserendo il prezzo (es. 0.25 TON), il pianeta rimane nell'inventario e non va a listarsi nel Market.
+- Logica Listing: Quando un pianeta viene messo in vendita, deve impostarsi `isListed = true`, sparire dall'inventario e rimanere visibile nel Marketplace fino all'acquisto o alla rimozione manuale.
+
+--- 5. RESTYLING PIANETA NOVA & ADMIN PANEL FUNGO 🍄 ---
+- Pianeta NOVA Viola: Cambia il colore del pianeta NOVA per farlo diventare COMPLETAMENTE VIOLA.
+- Admin Panel Fungo 🍄: Aggiungi nell'Admin Panel il pulsante per aggiungere o rimuovere manualmente la nuova rarità "Fungo 🍄".
+
+--- 6. SALDO $ZOOM & OFFLINE FARMING ---
+- Fluidezza Saldo: Assicurati che il conteggio dei $ZOOM si aggiorni in modo fluido senza lag visivo.
+- Offline Farming: Verifica che il farming continui a maturare i $ZOOM anche quando l'utente è offline/app chiusa.
+
+Mantieni la modalità Economy attiva ed esegui le modifiche.

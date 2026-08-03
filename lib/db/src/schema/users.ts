@@ -23,6 +23,7 @@ export const usersTable = pgTable("users", {
   bonusMythic: integer("bonus_mythic").notNull().default(0),
   bonusPlasma: integer("bonus_plasma").notNull().default(0),
   bonusNova: integer("bonus_nova").notNull().default(0),
+  bonusMushroom: integer("bonus_mushroom").notNull().default(0),
   bonusV1: integer("bonus_v1").notNull().default(0),
   // V1 NFT Platinum Edition — esclusivo NFT, max 5 venduti globalmente
   // (cap atomico in creditUserTx via WHERE-guard sulla SOMMA della colonna).

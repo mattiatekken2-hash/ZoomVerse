@@ -57,7 +57,7 @@ function HallOfFameWidgetBase(_props: Props) {
         onClick={() => setOpen(true)}
         style={{
           position: "fixed",
-          top: 250,
+          top: 170,
           right: 12,
           width: 60,
           height: 60,

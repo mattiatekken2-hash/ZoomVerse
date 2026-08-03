@@ -87,7 +87,7 @@ function StellaRossaCollectionWidgetBase({
         .sr-btn-icon { animation: srFloat 3.2s ease-in-out infinite; }
       `}</style>
 
-      {/* Fixed floating button — directly below LabTicketWidget (top:322+60+10=392) */}
+      {/* Fixed floating button — 2x2 grid lower-left (below LabRank at top:170) */}
       <button
         onClick={() => setOpen(true)}
         aria-label="Stella Rossa Collection"
@@ -95,7 +95,7 @@ function StellaRossaCollectionWidgetBase({
         style={{
           position: "fixed",
           left: 12,
-          top: 392,
+          top: 250,
           width: 60,
           height: 60,
           borderRadius: 14,
@@ -250,10 +250,18 @@ function StellaRossaCollectionWidgetBase({
                     DAILY REDSTAR
                   </div>
                   <div style={{ fontSize: 9, color: "rgba(255,120,120,0.6)", marginTop: 2 }}>
-                    Claim 10 ⭐ every 24 hours
+                    Claim 10 ★ every 24 hours
                   </div>
                 </div>
-                <div style={{ fontSize: 22 }}>⭐</div>
+                <svg width={22} height={22} viewBox="0 0 12 12" shapeRendering="crispEdges" style={{ filter: "drop-shadow(0 0 5px #dc143ccc)" }}>
+                  <rect x="5" y="0" width="2" height="2" fill="#dc143c" />
+                  <rect x="3" y="2" width="6" height="2" fill="#dc143c" />
+                  <rect x="1" y="4" width="10" height="2" fill="#dc143c" />
+                  <rect x="0" y="5" width="12" height="2" fill="#ff2244" />
+                  <rect x="1" y="7" width="10" height="2" fill="#dc143c" />
+                  <rect x="3" y="9" width="6" height="2" fill="#dc143c" />
+                  <rect x="5" y="11" width="2" height="1" fill="#a00020" />
+                </svg>
               </div>
 
               <button
@@ -273,7 +281,7 @@ function StellaRossaCollectionWidgetBase({
                   opacity: claiming ? 0.6 : 1,
                 }}
               >
-                {claiming ? "CLAIMING..." : canClaim ? "CLAIM 10 ⭐ REDSTAR" : `Next in ${fmt(cooldownRemaining)}`}
+                {claiming ? "CLAIMING..." : canClaim ? "CLAIM 10 ★ REDSTAR" : `Next in ${fmt(cooldownRemaining)}`}
               </button>
             </div>
 

@@ -181,8 +181,8 @@ function V1NftWidgetBase({ telegramId }: Props) {
         onClick={() => setOpen(true)}
         style={{
           position: "fixed",
-          top: 320,
-          right: 12,
+          top: 90,
+          left: 218,
           width: 60,
           height: 60,
           display: "flex",

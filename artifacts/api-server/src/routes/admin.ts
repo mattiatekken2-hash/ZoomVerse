@@ -115,7 +115,7 @@ const AddPlanetsBody = z.object({
   adminId: z.string(),
   telegramId: z.string().min(1),
   count: z.number().int().positive(),
-  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "NOVA", "PLASMA", "GOLD", "SUN"]),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "NOVA", "PLASMA", "GOLD", "MUSHROOM", "SUN"]),
 });
 
 const UnlockSlotsBody = z.object({
@@ -182,7 +182,7 @@ const RemovePlanetsBody = z.object({
   adminId: z.string(),
   telegramId: z.string().min(1),
   count: z.number().int().positive(),
-  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "NOVA", "PLASMA", "GOLD", "SUN"]),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "NOVA", "PLASMA", "GOLD", "MUSHROOM", "SUN"]),
 });
 
 const RemoveSlotsBody = z.object({
@@ -310,6 +310,15 @@ router.post("/admin/add-planets", async (req, res) => {
     } else if (planetType === "GOLD") {
       await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusGold: count, totalObtainedGold: count })
         .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusGold: sql`${usersTable.bonusGold} + ${count}`, totalObtainedGold: sql`${usersTable.totalObtainedGold} + ${count}` } });
+    } else if (planetType === "MUSHROOM") {
+      // MUSHROOM is handled like other rarities — stored in planets_json
+      // (client-side grants flow). We bump balanceEpoch so the client
+      // re-syncs grants and the Mushroom planet materialises.
+      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusMushroom: count, balanceEpoch: 1 })
+        .onConflictDoUpdate({ target: usersTable.telegramId, set: {
+          bonusMushroom: sql`COALESCE(${usersTable.bonusMushroom}, 0) + ${count}`,
+          balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+        } });
     }
     scheduleAdminAssetSnapshot();
     res.json({ ok: true });
@@ -852,6 +861,8 @@ router.post("/admin/remove-planets", async (req, res) => {
       await db.update(usersTable).set({ bonusPlasma: sql`GREATEST(0, ${usersTable.bonusPlasma} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
     } else if (planetType === "GOLD") {
       await db.update(usersTable).set({ bonusGold: sql`GREATEST(0, ${usersTable.bonusGold} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
+    } else if (planetType === "MUSHROOM") {
+      await db.update(usersTable).set({ bonusMushroom: sql`GREATEST(0, COALESCE(${usersTable.bonusMushroom}, 0) - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
     }
     scheduleAdminAssetSnapshot();
     res.json({ ok: true });

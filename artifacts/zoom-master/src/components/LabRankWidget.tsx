@@ -96,7 +96,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
         style={{
           position: "fixed",
           left: 12,
-          top: 250,
+          top: 170,
           display: "flex",
           alignItems: "center",
           gap: 8,

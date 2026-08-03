@@ -223,14 +223,13 @@ function MysteryBoxWidgetBase({ telegramId }: MysteryBoxWidgetProps) {
         }
       `}</style>
 
-      {/* Closed widget — top right, just below the White Collection avatar
-          (which sits at right:12 / top:200 with height 60 → bottom 260). */}
+      {/* Closed widget — shop strip, horizontal row at top of LAB */}
       <button
         onClick={handleOpenClick}
         style={{
           position: "fixed",
-          top: 180,
-          right: 12,
+          top: 90,
+          left: 150,
           width: 60,
           height: 60,
           display: "flex",

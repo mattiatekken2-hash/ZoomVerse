@@ -59,7 +59,7 @@ const GLOW_BY_TYPE: Record<PlanetType, string> = {
   SUPERNOVA2: "rgba(252,211,77,0.75)",
   SUPERNOVA3: "rgba(250,204,21,0.75)",
   SUPERNOVA4: "rgba(251,191,36,0.75)",
-  NOVA: "rgba(40,0,90,0.90)",
+  NOVA: "rgba(100,0,255,0.85)",
   STELLA1: "rgba(220,20,60,0.75)",
   STELLA2: "rgba(200,0,50,0.75)",
   STELLA3: "rgba(180,0,60,0.75)",

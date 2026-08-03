@@ -67,8 +67,8 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase }: Props) 
         className="lt-tile"
         style={{
           position: "fixed",
-          left: 12,
-          top: 322,
+          left: 82,
+          top: 90,
           width: 60,
           height: 60,
           borderRadius: 14,

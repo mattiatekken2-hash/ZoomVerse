@@ -407,8 +407,8 @@ export const PLANET_CONFIG: Record<PlanetType, {
   // Only obtainable through Lab crafting (never from wheel / merchant).
   NOVA: {
     rate: 122,
-    color: "#000000",
-    glowColor: "rgba(40,0,90,0.90)",
+    color: "#7700ff",
+    glowColor: "rgba(100,0,255,0.85)",
     chance: 0.00200,
     label: "Nova",
     craftCost: 60,

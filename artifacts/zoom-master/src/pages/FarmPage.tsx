@@ -756,10 +756,10 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                       borderRadius: "50%",
                       position: "relative",
                       overflow: "hidden",
-                      background: "radial-gradient(circle at 40% 35%, #fff8e1 0%, #ffe082 12%, #ffb347 28%, #ff8c00 48%, #e65100 68%, #bf360c 85%, #4e1a00 100%)",
+                      background: "radial-gradient(circle at 38% 32%, #ffffff 0%, #fffde7 4%, #fff176 10%, #ffee58 18%, #ffca28 30%, #ffa726 48%, #fb8c00 65%, #ef6c00 82%, #e65100 100%)",
                       boxShadow: sunActive
-                        ? "0 0 50px rgba(255,160,0,0.8), 0 0 100px rgba(255,100,0,0.4), 0 0 150px rgba(255,60,0,0.15), inset -6px -4px 14px rgba(0,0,0,0.3)"
-                        : "0 0 25px rgba(255,160,0,0.35), 0 0 50px rgba(255,100,0,0.12), inset -6px -4px 14px rgba(0,0,0,0.3)",
+                        ? "0 0 30px rgba(255,230,0,1), 0 0 70px rgba(255,165,0,0.85), 0 0 120px rgba(255,100,0,0.55), 0 0 200px rgba(255,50,0,0.25), inset -4px -3px 10px rgba(0,0,0,0.2)"
+                        : "0 0 18px rgba(255,200,0,0.6), 0 0 45px rgba(255,140,0,0.3), 0 0 80px rgba(255,80,0,0.12), inset -4px -3px 10px rgba(0,0,0,0.2)",
                       flexShrink: 0,
                       animation: sunActive ? "planet-rotate 18s linear infinite" : "none",
                     }}
@@ -863,8 +863,9 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
           )}
 
           {/* REGULAR PLANETS — flat list in natural (insertion) order.
+              Listed planets are hidden here (they appear in the Market).
               The Float-sort widget lives in the Marketplace, not here. */}
-          {planets.map((planet) => {
+          {planets.filter((p) => !p.isListedInMarket).map((planet) => {
             const active = isFarmActive(planet);
             const remaining = getFarmTimeRemaining(planet);
             // Daily-collect removed: every rarity (including V1) now farms its

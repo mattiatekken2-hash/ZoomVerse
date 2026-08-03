@@ -1207,7 +1207,7 @@ function AppShellWithState() {
               {[
                 { label: "Stardust", value: state.stardustBalance || 0, color: "#ffd740", icon: "★" },
                 { label: "RedStar", value: state.redStarBalance || 0, color: "#ff4444", icon: "★" },
-                { label: "NFTSTAR", value: state.nftStarBalance || 0, color: "#c0c0c0", icon: "◆" },
+                { label: "NFTSTAR", value: state.nftStarBalance || 0, color: "#a0a0a8", icon: "★" },
               ].map(({ label, value, color, icon }) => (
                 <div
                   key={label}

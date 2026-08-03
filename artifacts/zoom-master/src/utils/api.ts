@@ -833,7 +833,7 @@ export async function fetchPvpLeaderboard(telegramId?: string | null): Promise<P
   }
 }
 
-export async function adminAddPlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "NOVA" | "PLASMA" | "GOLD" | "SUN"): Promise<boolean> {
+export async function adminAddPlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "NOVA" | "PLASMA" | "GOLD" | "MUSHROOM" | "SUN"): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/add-planets`, {
       method: "POST",
@@ -1356,7 +1356,7 @@ export async function adminRemoveZoom(adminId: string, telegramId: string, amoun
   } catch { return false; }
 }
 
-export async function adminRemovePlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "NOVA" | "PLASMA" | "GOLD" | "SUN"): Promise<boolean> {
+export async function adminRemovePlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "NOVA" | "PLASMA" | "GOLD" | "MUSHROOM" | "SUN"): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/remove-planets`, {
       method: "POST",

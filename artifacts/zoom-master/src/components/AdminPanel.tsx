@@ -74,7 +74,7 @@ import {
 
 const ADMIN_ID = "8144744644";
 
-type PlanetChoice = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "NOVA" | "PLASMA" | "GOLD" | "SUN";
+type PlanetChoice = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "NOVA" | "PLASMA" | "GOLD" | "MUSHROOM" | "SUN";
 type EqCategory = "HELMET" | "JETPACK" | "HAT" | "SCANNER";
 type EqRarity = "BASIC" | "RARE" | "EPIC" | "GOLD" | "PLASMA" | "MYTHIC";
 // Stardust supports both add (credit) and remove (subtract clamped at 0).
@@ -88,6 +88,7 @@ const PLANET_OPTIONS: { type: PlanetChoice; label: string; color: string }[] = [
   { type: "NOVA",    label: "Nova",    color: "#5000b4" },
   { type: "PLASMA",  label: "Plasma",  color: "#00e676" },
   { type: "GOLD",    label: "Gold",    color: "#ffd700" },
+  { type: "MUSHROOM", label: "Fungo 🍄", color: "#8b3a8b" },
   { type: "SUN",    label: "Sole ☀️", color: "#ffb347" },
 ];
 

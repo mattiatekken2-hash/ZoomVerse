@@ -85,7 +85,7 @@ function PvpRankWidgetBase({ telegramId }: Props) {
         onClick={() => setOpen(true)}
         style={{
           position: "fixed",
-          top: 390,
+          top: 250,
           right: 12,
           width: 60,
           height: 60,
