@@ -103,7 +103,7 @@ function AppShellWithState() {
     state, setState, craft, claimCraft, redeemCode,
     pvpAddPlanet, pvpRemovePlanet,
     collectPlanet, burnPlanet, renamePlanetLocal,
-    startFarming, stopFarming,
+    startFarming, stopFarming, repairPlanet,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     claimDaily, startSunFarming, stopSunFarming, burnSun,
     placeWhitePlanet, reactivateWhitePlanet, markWhitePlanetReactivated, collectWhitePlanet,
@@ -863,6 +863,10 @@ function AppShellWithState() {
                   stellaRossaCollectionUnlocked={!!state.stellaRossaCollectionUnlocked}
                   stellaRossaCollectionBundles={Number(state.stellaRossaCollectionBundles) || 0}
                   stellaPlanets={state.stellaPlanets || []}
+                  stellaLastClaimAt={Number(state.lastStellaClaimAt) || 0}
+                  onStellaClaimDaily={(newBal) => {
+                    setState((prev) => ({ ...prev, redStarBalance: newBal, lastStellaClaimAt: Date.now() }));
+                  }}
                   onPlaceStellaRossaPlanet={placeStellaRossaPlanet}
                   onCollectStellaRossaPlanet={collectStellaRossaPlanet}
                   onReactivateStellaRossaPlanet={reactivateStellaRossaPlanet}
@@ -888,6 +892,8 @@ function AppShellWithState() {
                   onBurnSun={burnSun}
                   onSell={listPlanet}
                   onUnlist={unlistPlanet}
+                  onRepair={repairPlanet}
+                  stardustBalance={stardust.balance}
                   equipment={state.equipment ?? []}
                   onActivateEquipment={activateEquipment}
                   onReactivateEquipment={reactivateEquipment}

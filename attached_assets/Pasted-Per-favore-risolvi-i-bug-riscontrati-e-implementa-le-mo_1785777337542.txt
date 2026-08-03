@@ -1,0 +1,34 @@
+Per favore risolvi i bug riscontrati e implementa le modifiche all'interfaccia, durabilità e logiche di gioco:
+
+--- 1. DURABILITÀ & ENERGIA PIANETI (BARRA VISIVA) ---
+- Barra Durabilità UI: Aggiungi visivamente su ciascuna card/scheda dei pianeti una barra percentuale di Durabilità/Energia (100% -> 0%).
+- Decadimento Staking & PvP: 
+  * Staking: -1% durabilità ogni 24 ore.
+  * PvP: -5% durabilità ad ogni scontro.
+- Stato Congelato (0%): Quando la durabilità arriva allo 0%, il pianeta viene congelato (smette di produrre $ZOOM nello Staking e non può accedere al PvP).
+- Riparazioni nel LAB: Permetti la riparazione al 100% spendendo Stardust oppure effettuando il "Burn" (distruzione) di un altro pianeta della stessa rarità.
+
+--- 2. UI LAB & COLLEZIONE STELLA ROSSA ---
+- Stile UI Riquadro: Il widget della collezione Stella Rossa deve utilizzare ESATTAMENTE lo stesso riquadro/card (stessa struttura visuale, bordo e stile UI) usato per le altre collezioni/widget presenti nella schermata LAB.
+- Posizionamento: Inserisci il widget nella sezione LAB, esattamente sotto il "LAB TICKET" a sinistra.
+- Lingua: Assicurati che tutto il testo del widget sia in inglese.
+- Claim Giornaliero: Abilita il claim di 10 Redstar ogni 24 ore direttamente dal widget per i possessori della collezione.
+
+--- 3. MARKETPLACE, VENDITE & SPLIT 50/50 ---
+- Fix Vendita: Risolvi il bug che blocca la messa in vendita dei pianeti nel Market.
+- Split Pagamento 50/50: Per gli acquisti nel Market online, scala il pagamento in TON dal portafoglio interno dell'utente diviso 50% dal "Earned Balance" e 50% dal "Deposit Balance".
+- Trasferimento Pianeti: A transazione avvenuta, rimuovi il pianeta dall'inventario del venditore e aggiungilo subito a quello dell'acquirente.
+- Deep Link P2P Telegram: Un utente può generare il link di vendita da condividere nel canale "MARKET P2P" SOLO ed ESCLUSIVAMENTE per i propri pianeti.
+- Blocco Acquisti Duplicati: Se un pianeta è già stato venduto via link P2P, eventuali altri utenti che cliccano lo stesso link in seguito ricevono l'errore "Pianeta già venduto".
+
+--- 4. PRELIEVI (WITHDRAWALS) & REFERRAL ---
+- Gestione Prelievi Admin: Ripristina la gestione di approvazione/rifiuto prelievi. Se l'admin rifiuta un prelievo, storna e riaccredita subito i fondi al wallet dell'utente.
+- Canale Telegram Withdrawals: Un prelievo appare sulla pagina/canale Telegram WITHDRAWALS solo dopo la conferma dell'Admin. Se non presente, mostra il link al canale Telegram.
+- Referrals: Verifica che il tracciamento dei referral continui a funzionare correttamente.
+
+--- 5. CLASSIFICHE (LEADERBOARD) & PREMI AUTOMATICI ---
+- Craft Leaderboard (TOP 30): Ogni costruzione/craft di un pianeta completato nel LAB usando Stardust assegna 1 punto all'utente.
+- PvP Leaderboard (TOP 10): Ogni vittoria nei combattimenti PvP posiziona l'utente nella classifica TOP 10 PvP.
+- Distribuzione Premi Automatici: Al reset/fine periodo, distribuisci automaticamente i premi in Stardust ai vincitori delle classifiche Craft, PvP e Hall of Fame (Referral).
+
+Mantieni la modalità Economy attiva.

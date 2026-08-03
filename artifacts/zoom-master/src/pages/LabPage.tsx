@@ -67,10 +67,12 @@ interface LabPageProps {
   stellaRossaCollectionUnlocked: boolean;
   stellaRossaCollectionBundles: number;
   stellaPlanets: Planet[];
+  stellaLastClaimAt?: number;
   onPlaceStellaRossaPlanet: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
   onCollectStellaRossaPlanet: (planetId: string) => void;
   onReactivateStellaRossaPlanet: (planetId: string) => { ok: boolean; reason?: string };
   onMarkStellaRossaPlanetReactivated: (planetId: string) => { ok: boolean; reason?: string };
+  onStellaClaimDaily?: (newRedStarBalance: number) => void;
   visible?: boolean;
 }
 
@@ -79,7 +81,7 @@ interface FloatMsg { id: number; text: string; color: string }
 const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, sunCount, tonBalance, depositBalance, stardustBalance, telegramId, onCraft, onPurchase, onClaim, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, blackCollectionUnlocked, blackCollectionBundles, blackPlanets, supernovaCollectionUnlocked, supernovaCollectionBundles, supernovaPlanets, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, onPlaceBlackPlanet, onCollectBlackPlanet, onReactivateBlackPlanet, onMarkBlackPlanetReactivated, onPlaceSupernovaPlanet, onCollectSupernovaPlanet, onReactivateSupernovaPlanet, onMarkSupernovaPlanetReactivated, stellaRossaCollectionUnlocked, stellaRossaCollectionBundles, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, sunCount, tonBalance, depositBalance, stardustBalance, telegramId, onCraft, onPurchase, onClaim, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, blackCollectionUnlocked, blackCollectionBundles, blackPlanets, supernovaCollectionUnlocked, supernovaCollectionBundles, supernovaPlanets, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, onPlaceBlackPlanet, onCollectBlackPlanet, onReactivateBlackPlanet, onMarkBlackPlanetReactivated, onPlaceSupernovaPlanet, onCollectSupernovaPlanet, onReactivateSupernovaPlanet, onMarkSupernovaPlanetReactivated, stellaRossaCollectionUnlocked, stellaRossaCollectionBundles, stellaLastClaimAt, onStellaClaimDaily, visible = true }: LabPageProps) {
   const { t } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
@@ -279,6 +281,8 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         telegramId={telegramId}
         unlocked={stellaRossaCollectionUnlocked}
         ownedBundles={stellaRossaCollectionBundles}
+        lastClaimAt={stellaLastClaimAt}
+        onClaim={onStellaClaimDaily}
       />
 
       <div

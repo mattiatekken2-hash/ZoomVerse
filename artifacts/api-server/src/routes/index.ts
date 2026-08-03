@@ -34,6 +34,7 @@ import stakingRouter from "./staking";
 import labRankingRouter from "./labRanking";
 import historyRouter from "./history";
 import pvpRouter from "./pvp";
+import stellaRossaRouter from "./stellaRossa";
 
 const router: IRouter = Router();
 
@@ -101,6 +102,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/sun/cycle",
       "/stardust/collect",
       "/stardust/deduct",
+      "/stella-rossa/claim-daily",
       "/merchant/scrap",
       "/wheel/claim-daily",
       "/wheel/spin",
@@ -344,5 +346,6 @@ router.use(obtainedRouter);
 router.use(labRankingRouter);
 router.use(historyRouter);
 router.use(pvpRouter);
+router.use(stellaRossaRouter);
 
 export default router;

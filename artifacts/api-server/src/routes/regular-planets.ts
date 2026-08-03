@@ -240,7 +240,15 @@ router.post("/regular-planets/save", async (req, res) => {
             ...(claimedBonusPlasma != null ? { claimedBonusPlasma: sql`GREATEST(${usersTable.claimedBonusPlasma}, ${claimedBonusPlasma})` } : {}),
             ...(claimedBonusV1    != null ? { claimedBonusV1:    sql`GREATEST(${usersTable.claimedBonusV1},    ${claimedBonusV1})`    } : {}),
             ...(claimedBonusV1NftPlatinum != null ? { claimedBonusV1NftPlatinum: sql`GREATEST(${usersTable.claimedBonusV1NftPlatinum}, ${claimedBonusV1NftPlatinum})` } : {}),
-            ...(craftsCompleted   != null ? { totalPlanetsBuilt: sql`GREATEST(${usersTable.totalPlanetsBuilt}, ${craftsCompleted})` } : {}),
+            ...(craftsCompleted != null ? {
+              totalPlanetsBuilt: sql`GREATEST(${usersTable.totalPlanetsBuilt}, ${craftsCompleted})`,
+              labPoints: sql`
+                CASE WHEN ${usersTable.labRoundId} = (SELECT id FROM lab_rounds WHERE status = 'active' LIMIT 1)
+                THEN ${usersTable.labPoints} + GREATEST(0, ${craftsCompleted} - COALESCE(${usersTable.totalPlanetsBuilt}, 0))
+                ELSE GREATEST(0, ${craftsCompleted} - COALESCE(${usersTable.totalPlanetsBuilt}, 0))
+                END`,
+              labRoundId: sql`COALESCE((SELECT id FROM lab_rounds WHERE status = 'active' LIMIT 1), ${usersTable.labRoundId})`,
+            } : {}),
           })
           .where(eq(usersTable.telegramId, telegramId));
         return { kind: "rejected" as const, count: existingPlanets.length };
@@ -352,7 +360,15 @@ router.post("/regular-planets/save", async (req, res) => {
           ...(claimedBonusPlasma != null ? { claimedBonusPlasma: sql`GREATEST(${usersTable.claimedBonusPlasma}, ${claimedBonusPlasma})` } : {}),
           ...(claimedBonusV1    != null ? { claimedBonusV1:    sql`GREATEST(${usersTable.claimedBonusV1},    ${claimedBonusV1})`    } : {}),
           ...(claimedBonusV1NftPlatinum != null ? { claimedBonusV1NftPlatinum: sql`GREATEST(${usersTable.claimedBonusV1NftPlatinum}, ${claimedBonusV1NftPlatinum})` } : {}),
-          ...(craftsCompleted   != null ? { totalPlanetsBuilt: sql`GREATEST(${usersTable.totalPlanetsBuilt}, ${craftsCompleted})` } : {}),
+          ...(craftsCompleted != null ? {
+            totalPlanetsBuilt: sql`GREATEST(${usersTable.totalPlanetsBuilt}, ${craftsCompleted})`,
+            labPoints: sql`
+              CASE WHEN ${usersTable.labRoundId} = (SELECT id FROM lab_rounds WHERE status = 'active' LIMIT 1)
+              THEN ${usersTable.labPoints} + GREATEST(0, ${craftsCompleted} - COALESCE(${usersTable.totalPlanetsBuilt}, 0))
+              ELSE GREATEST(0, ${craftsCompleted} - COALESCE(${usersTable.totalPlanetsBuilt}, 0))
+              END`,
+            labRoundId: sql`COALESCE((SELECT id FROM lab_rounds WHERE status = 'active' LIMIT 1), ${usersTable.labRoundId})`,
+          } : {}),
         })
         .where(eq(usersTable.telegramId, telegramId))
         .returning({

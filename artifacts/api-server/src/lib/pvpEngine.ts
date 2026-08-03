@@ -409,12 +409,18 @@ async function transferPlanet(
       const planet = fromPlanets[planetIdx];
       // Remove from loser
       const newFromPlanets = fromPlanets.filter((_, i) => i !== planetIdx);
+      // Apply -5% durability hit to the planet from PvP battle, then
+      // transfer it to the winner with farming state reset.
+      const currentDurability = typeof planet["durability"] === "number" ? planet["durability"] : 100;
+      const nextDurability = Math.max(0, currentDurability - 5);
       // Add to winner (reset farming state)
       const transferredPlanet = {
         ...planet,
         farmStartedAt: undefined,
         isFarmingActive: false,
         slotIndex: null,
+        durability: nextDurability,
+        durabilityUpdatedAt: Date.now(),
       };
       const newToPlanets = [...toPlanets, transferredPlanet];
 

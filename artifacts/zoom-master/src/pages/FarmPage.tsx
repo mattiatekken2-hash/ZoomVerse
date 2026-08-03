@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
 import type { Planet, SunState } from "../hooks/useGameState";
-import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getSunReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration } from "../hooks/useGameState";
+import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getSunReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, REPAIR_STARDUST_COST } from "../hooks/useGameState";
 import { WalletPopup } from "../components/WalletPopup";
 import { useT } from "../i18n/LanguageContext";
 import { PlanetRenameModal } from "../components/PlanetRenameModal";
@@ -45,6 +45,8 @@ interface FarmPageProps {
   onBurnSun: () => void;
   onSell: (id: string, price: number) => void;
   onUnlist: (id: string) => void;
+  onRepair?: (id: string) => { ok: boolean; reason?: string };
+  stardustBalance?: number;
   // Called after a successful rename so App can patch local state and
   // refresh the displayed stardust balance.
   onRename: (planetId: string, displayName: string, newStardustBalance: number) => void;
@@ -430,7 +432,7 @@ const RARITY_CLASS: Record<string, string> = {
 };
 
 
-export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRename, equipment, onActivateEquipment, onReactivateEquipment, onBurnEquipment, onSellEquipment, onUnlistEquipment }: FarmPageProps) {
+export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRepair, stardustBalance = 0, onRename, equipment, onActivateEquipment, onReactivateEquipment, onBurnEquipment, onSellEquipment, onUnlistEquipment }: FarmPageProps) {
   const { t } = useT();
   const sunMultiplier = Math.max(1, sunCount || (sun?.isOwned ? 1 : 0));
   const sunDisplayRate = SUN_CONFIG.rate * sunMultiplier;
@@ -1050,11 +1052,37 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                         <PlanetFloatBar value={getDisplayFloat(planet)} />
                       </div>
                     )}
+                    {/* Durability bar — shown only when degraded */}
+                    {(planet.durability ?? 100) < 100 && (() => {
+                      const dur = planet.durability ?? 100;
+                      const durColor = dur > 50 ? "#00e676" : dur > 20 ? "#ffb347" : "#ff5252";
+                      return (
+                        <div style={{ marginTop: 6 }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
+                            <span style={{ fontSize: 8, color: "rgba(255,255,255,0.4)", letterSpacing: "0.07em" }}>DURABILITY</span>
+                            <span style={{ fontSize: 8, fontWeight: 800, color: durColor }}>{dur}%</span>
+                          </div>
+                          <div style={{ height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 3 }}>
+                            <div style={{ height: "100%", width: `${dur}%`, background: durColor, borderRadius: 3, transition: "width 0.4s" }} />
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
-                <div className="flex gap-2">
-                  {active ? (
+                <div className="flex gap-2 flex-wrap">
+                  {(planet.durability ?? 100) <= 0 ? (
+                    // Frozen: durability depleted — cannot farm until repaired
+                    <div
+                      className="btn-widget"
+                      style={{ cursor: "not-allowed", opacity: 0.5, borderColor: "rgba(255,82,82,0.3)", color: "#ff5252", background: "rgba(255,82,82,0.07)" }}
+                      aria-disabled="true"
+                    >
+                      <span>❄ FROZEN</span>
+                      <span style={{ fontSize: 8, opacity: 0.8 }}>Repair first</span>
+                    </div>
+                  ) : active ? (
                     // Active farm cycle: non-interactive indicator. The cycle
                     // runs uninterrupted to completion — no manual pause/stop.
                     <div
@@ -1125,6 +1153,37 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                       <span style={{ fontSize: 8, opacity: 0.7 }}>{t("farm.marketLabel")}</span>
                     </button>
                   )}
+
+                  {/* REPAIR button — shown when durability is degraded */}
+                  {(planet.durability ?? 100) < 100 && !isListed && onRepair && (() => {
+                    const repairCost = REPAIR_STARDUST_COST[planet.name] ?? 500;
+                    const canRepair = stardustBalance >= repairCost;
+                    return (
+                      <button
+                        className="btn-widget"
+                        disabled={!canRepair}
+                        onClick={() => {
+                          const r = onRepair(planet.id);
+                          if (!r.ok) {
+                            setDefectMsg(r.reason ?? "Repair failed");
+                            setTimeout(() => setDefectMsg(null), 1800);
+                          }
+                        }}
+                        style={{
+                          background: canRepair
+                            ? "linear-gradient(135deg, rgba(255,183,77,0.22) 0%, rgba(255,152,0,0.12) 100%)"
+                            : "rgba(255,255,255,0.04)",
+                          border: `1px solid ${canRepair ? "rgba(255,183,77,0.5)" : "rgba(255,255,255,0.06)"}`,
+                          color: canRepair ? "#ffb347" : "rgba(255,255,255,0.2)",
+                          cursor: canRepair ? "pointer" : "not-allowed",
+                        }}
+                        data-testid={`btn-repair-${planet.id}`}
+                      >
+                        <span>REPAIR</span>
+                        <span style={{ fontSize: 8, opacity: 0.85 }}>{repairCost.toLocaleString()} ⭐</span>
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
             );

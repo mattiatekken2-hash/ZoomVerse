@@ -182,6 +182,14 @@ export interface Planet {
   // anchored to the resume moment, not the original start). Cleared
   // (set to 0) on every fresh / resumed start.
   pausedAt?: number;
+  // Planet durability (0–100). Starts at 100. Decrements -1% per 24h
+  // staking cycle on reactivation and -5% on a PvP defeat. At 0% the
+  // planet is frozen: it stops producing $ZOOM and cannot enter PvP.
+  // Repaired in the LAB by spending Stardust (per-rarity cost).
+  durability?: number;
+  // Server-time (ms) when durability was last computed/updated.
+  // Used to derive the staking-decay delta on the next reactivation.
+  durabilityUpdatedAt?: number;
 }
 
 export interface SunState {
@@ -308,6 +316,9 @@ export interface GameState {
   // REDSTAR — third in-game currency. Server-authoritative; credited by admin
   // only until future gameplay mechanics are added. Never decremented client-side.
   redStarBalance: number;
+  // Timestamp (ms) of the last Stella Rossa daily Redstar claim. Set locally
+  // immediately after a successful claim so the cooldown countdown is instant.
+  lastStellaClaimAt?: number;
   lastFarmingSettledAt: number;
   claimedMilestones: number[];
   lastBalanceEpoch: number;
@@ -890,12 +901,20 @@ function applyDailyCollectMigration<T extends Planet>(p: T, nowMs: number): T {
   return { ...p, farmStartedAt: nowMs, lastCollectedAt: 0 };
 }
 
+// Stardust cost to repair a planet to 100% durability, keyed by rarity.
+export const REPAIR_STARDUST_COST: Partial<Record<PlanetType, number>> = {
+  BASIC: 100, RARE: 300, EPIC: 800, GOLD: 1500, MYTHIC: 3000,
+  NOVA: 5000, PLASMA: 5000, V1: 10000, V1_NFT: 10000,
+};
+
 function migratePlanet(p: unknown): Planet {
   const raw = p as Partial<Planet>;
   return {
     isFarmingActive: false,
     marketPrice: null,
     slotIndex: null,
+    durability: 100,          // default: full health for legacy planets
+    durabilityUpdatedAt: 0,
     ...raw,
   } as Planet;
 }
@@ -1606,6 +1625,7 @@ export function effectiveFarmStart(planet: Planet): number {
 export function isFarmActive(planet: Planet): boolean {
   if (!planet.isFarmingActive) return false;
   if (planet.isListedInMarket) return false;
+  if ((planet.durability ?? 100) <= 0) return false;  // frozen — durability depleted
   const start = effectiveFarmStart(planet);
   if (start <= 0) return false;
   return serverNow() - start <= FARM_DURATION_MS;
@@ -3898,13 +3918,34 @@ export function useGameState() {
       const pauseShift = (!startsFreshCycle && planet.pausedAt && planet.pausedAt > 0)
         ? Math.max(0, now - planet.pausedAt)
         : 0;
+
+      // Apply staking decay on reactivation: -1% durability per 24h elapsed
+      // since durabilityUpdatedAt. Only applies when starting a fresh cycle
+      // (first start or reactivation — not a mid-cycle resume).
+      const currentDurability = planet.durability ?? 100;
+      let nextDurability = currentDurability;
+      let nextDurabilityUpdatedAt = planet.durabilityUpdatedAt ?? 0;
+      if (startsFreshCycle) {
+        if (wasStarted) {
+          // Reactivation: apply decay for every 24h that elapsed since
+          // durabilityUpdatedAt (or farmStartedAt as fallback).
+          const durRef = nextDurabilityUpdatedAt > 0 ? nextDurabilityUpdatedAt : (planet.farmStartedAt ?? now);
+          const elapsed24h = Math.floor((now - durRef) / (24 * 60 * 60 * 1000));
+          if (elapsed24h > 0) {
+            nextDurability = Math.max(0, currentDurability - elapsed24h);
+          }
+        }
+        nextDurabilityUpdatedAt = now;
+      }
+
       const updated: GameState = {
         ...prev,
         balance: prev.balance - fee,
         planets: prev.planets.map((p) =>
           p.id === id
             ? startsFreshCycle
-              ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now, pausedAt: 0 }
+              ? { ...p, isFarmingActive: true, farmStartedAt: now, lastCollectedAt: now, pausedAt: 0,
+                  durability: nextDurability, durabilityUpdatedAt: nextDurabilityUpdatedAt }
               : {
                   ...p,
                   isFarmingActive: true,
@@ -3951,7 +3992,25 @@ export function useGameState() {
       const prevPausedAt = planet.pausedAt ?? 0;
       const { telegramId, firstName, username, photoUrl } = getTelegramContext();
       if (telegramId) {
-        listOnMarket({
+        // Flush planets to the server BEFORE sending the listing request.
+        // This prevents a 400 "Planet not found in your inventory" when the
+        // planet was just crafted and the debounced save hasn't fired yet.
+        const claimedSnap = {
+          basic: prev.claimedBonusBasic ?? 0,
+          rare: prev.claimedBonusRare ?? 0,
+          epic: prev.claimedBonusEpic ?? 0,
+          gold: prev.claimedBonusGold ?? 0,
+          mythic: prev.claimedBonusMythic ?? 0,
+          plasma: prev.claimedBonusPlasma ?? 0,
+          v1: prev.claimedBonusV1 ?? 0,
+          v1NftPlatinum: prev.claimedBonusV1NftPlatinum ?? 0,
+        };
+        saveRegularPlanets(
+          telegramId,
+          prev.planets as unknown as Array<Record<string, unknown>>,
+          claimedSnap,
+          prev.craftsCompleted,
+        ).then(() => listOnMarket({
           sellerTelegramId: telegramId,
           sellerName: firstName ?? undefined,
           // Pass the local planet id so the server can verify ownership
@@ -3961,7 +4020,7 @@ export function useGameState() {
           planetType: planet.name,
           planetRate: planet.rate,
           price,
-        }).then((result) => {
+        })).then((result) => {
           if (result.ok && result.listing) {
             setState((s) => ({
               ...s,
@@ -4018,6 +4077,33 @@ export function useGameState() {
       saveState(updated);
       return updated;
     });
+  }, []);
+
+  // Repair a planet to 100% durability by spending Stardust.
+  const repairPlanet = useCallback((id: string): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: true };
+    setState((prev) => {
+      const planet = prev.planets.find((p) => p.id === id);
+      if (!planet) { outcome = { ok: false, reason: "Planet not found" }; return prev; }
+      const dur = planet.durability ?? 100;
+      if (dur >= 100) { outcome = { ok: false, reason: "Already at full durability" }; return prev; }
+      const cost = REPAIR_STARDUST_COST[planet.name] ?? 500;
+      if (prev.stardustBalance < cost) {
+        outcome = { ok: false, reason: `Need ${cost.toLocaleString()} ⭐ Stardust to repair` };
+        return prev;
+      }
+      const updated: GameState = {
+        ...prev,
+        stardustBalance: prev.stardustBalance - cost,
+        planets: prev.planets.map((p) =>
+          p.id === id ? { ...p, durability: 100, durabilityUpdatedAt: serverNow() } : p
+        ),
+      };
+      stateRef.current = updated;
+      saveState(updated);
+      return updated;
+    });
+    return outcome;
   }, []);
 
   const unlistPlanet = useCallback((id: string) => {
@@ -5162,7 +5248,7 @@ export function useGameState() {
     state, setState, craft, claimCraft, redeemCode,
     pvpAddPlanet, pvpRemovePlanet,
     collectPlanet, burnPlanet, renamePlanetLocal,
-    startFarming, stopFarming,
+    startFarming, stopFarming, repairPlanet,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     unlockSlot, claimDaily,
     activateSun, acquireSun, collectSun,

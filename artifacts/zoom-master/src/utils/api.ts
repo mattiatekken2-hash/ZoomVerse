@@ -3448,6 +3448,26 @@ export interface HistoryEntry {
   meta?: Record<string, unknown> | null;
 }
 
+export async function claimDailyStellaRedstar(telegramId: string): Promise<{
+  ok: boolean;
+  awarded?: number;
+  newRedStarBalance?: number;
+  nextClaimAt?: number;
+  cooldownRemainingMs?: number;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(`${API_BASE}/stella-rossa/claim-daily`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...apiHeaders() },
+      body: JSON.stringify({ telegramId }),
+    });
+    return await res.json();
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
 export async function fetchHistory(telegramId: string): Promise<HistoryEntry[]> {
   try {
     const res = await fetch(`${API_BASE}/history/list/${encodeURIComponent(telegramId)}`, {

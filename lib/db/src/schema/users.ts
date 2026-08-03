@@ -85,6 +85,8 @@ export const usersTable = pgTable("users", {
   // 4 deep-red TON-farming planets. Same kind pattern as other collections.
   stellaRossaCollectionUnlocked: boolean("stella_rossa_collection_unlocked").notNull().default(false),
   stellaRossaCollectionBundles: integer("stella_rossa_collection_bundles").notNull().default(0),
+  // Timestamp (ms) of the last Stella Rossa daily Redstar claim.
+  lastStellaClaimAt: bigint("last_stella_claim_at", { mode: "number" }).notNull().default(0),
   // Earned TON balance — credited by staking accrual, collection-planet
   // collections, admin /credit-ton, and withdrawal refunds. ONLY this balance
   // can be withdrawn. NEVER credited from external deposits.
