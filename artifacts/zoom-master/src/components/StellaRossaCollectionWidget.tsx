@@ -117,7 +117,18 @@ function StellaRossaCollectionWidgetBase({
             flexDirection: "column", gap: 0,
           }}
         >
-          <span style={{ fontSize: 24, filter: `drop-shadow(0 0 6px ${STELLA_RED}aa)` }}>🌺</span>
+          <svg width={24} height={24} viewBox="0 0 12 12" shapeRendering="crispEdges" style={{ filter: `drop-shadow(0 0 6px ${STELLA_RED}cc)` }}>
+            <rect x="5" y="0" width="2" height="2" fill="#ff2244" />
+            <rect x="3" y="2" width="6" height="2" fill="#ff2244" />
+            <rect x="1" y="4" width="10" height="2" fill="#ff3355" />
+            <rect x="0" y="6" width="12" height="2" fill="#ff2244" />
+            <rect x="1" y="8" width="10" height="2" fill="#cc1133" />
+            <rect x="2" y="10" width="8" height="1" fill="#aa0022" />
+            <rect x="4" y="11" width="4" height="1" fill="#880011" />
+            {/* Highlight */}
+            <rect x="5" y="1" width="1" height="1" fill="#ff88aa" />
+            <rect x="4" y="3" width="2" height="1" fill="#ff6688" />
+          </svg>
           {canClaim && (
             <span style={{
               fontSize: 7, fontWeight: 900, color: STELLA_GLOW,
@@ -161,7 +172,17 @@ function StellaRossaCollectionWidgetBase({
 
             {/* Header */}
             <div style={{ textAlign: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 36, marginBottom: 6 }}>🌺</div>
+              <svg width={36} height={36} viewBox="0 0 12 12" shapeRendering="crispEdges" style={{ marginBottom: 0, filter: `drop-shadow(0 0 8px #ff2244cc)` }}>
+                <rect x="5" y="0" width="2" height="2" fill="#ff2244" />
+                <rect x="3" y="2" width="6" height="2" fill="#ff2244" />
+                <rect x="1" y="4" width="10" height="2" fill="#ff3355" />
+                <rect x="0" y="6" width="12" height="2" fill="#ff2244" />
+                <rect x="1" y="8" width="10" height="2" fill="#cc1133" />
+                <rect x="2" y="10" width="8" height="1" fill="#aa0022" />
+                <rect x="4" y="11" width="4" height="1" fill="#880011" />
+                <rect x="5" y="1" width="1" height="1" fill="#ff88aa" />
+                <rect x="4" y="3" width="2" height="1" fill="#ff6688" />
+              </svg>
               <div style={{
                 fontFamily: "'Orbitron', 'Inter', sans-serif",
                 fontSize: 15, fontWeight: 900, letterSpacing: "0.18em",
@@ -200,7 +221,15 @@ function StellaRossaCollectionWidgetBase({
                   border: `1px solid ${STELLA_RED}40`,
                   padding: "8px 4px", textAlign: "center",
                 }}>
-                  <div style={{ fontSize: 18, marginBottom: 2 }}>🌺</div>
+                  <svg width={18} height={18} viewBox="0 0 12 12" shapeRendering="crispEdges" style={{ display: "block", margin: "0 auto 2px", filter: "drop-shadow(0 0 4px #ff2244aa)" }}>
+                     <rect x="5" y="0" width="2" height="2" fill="#ff2244" />
+                     <rect x="3" y="2" width="6" height="2" fill="#ff2244" />
+                     <rect x="1" y="4" width="10" height="2" fill="#ff3355" />
+                     <rect x="0" y="6" width="12" height="2" fill="#ff2244" />
+                     <rect x="1" y="8" width="10" height="2" fill="#cc1133" />
+                     <rect x="2" y="10" width="8" height="1" fill="#aa0022" />
+                     <rect x="4" y="11" width="4" height="1" fill="#880011" />
+                   </svg>
                   <div style={{ fontSize: 8, color: "rgba(255,100,100,0.75)", fontWeight: 700, letterSpacing: "0.05em" }}>{label}</div>
                   <div style={{ fontSize: 7, color: "rgba(255,80,80,0.45)", marginTop: 1 }}>TON/h</div>
                 </div>

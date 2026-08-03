@@ -112,7 +112,7 @@ async function refreshServerOffset(): Promise<void> {
   } catch { /* keep last known offset */ }
 }
 
-export type PlanetType = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "NOVA" | "PLASMA" | "GOLD" | "V1" | "V1_NFT" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4" | "BLACK1" | "BLACK2" | "BLACK3" | "BLACK4" | "SUPERNOVA1" | "SUPERNOVA2" | "SUPERNOVA3" | "SUPERNOVA4" | "STELLA1" | "STELLA2" | "STELLA3" | "STELLA4";
+export type PlanetType = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "NOVA" | "PLASMA" | "MUSHROOM" | "GOLD" | "V1" | "V1_NFT" | "WHITE1" | "WHITE2" | "WHITE3" | "WHITE4" | "EARTH1" | "EARTH2" | "EARTH3" | "EARTH4" | "BLACK1" | "BLACK2" | "BLACK3" | "BLACK4" | "SUPERNOVA1" | "SUPERNOVA2" | "SUPERNOVA3" | "SUPERNOVA4" | "STELLA1" | "STELLA2" | "STELLA3" | "STELLA4";
 
 export const WHITE_PLANET_TYPES: PlanetType[] = ["WHITE1", "WHITE2", "WHITE3", "WHITE4"];
 
@@ -316,6 +316,9 @@ export interface GameState {
   // REDSTAR — third in-game currency. Server-authoritative; credited by admin
   // only until future gameplay mechanics are added. Never decremented client-side.
   redStarBalance: number;
+  // NFTSTAR — fourth in-game currency. Earned passively by MUSHROOM NFT planets
+  // (5 NFTSTAR per planet per day). Displayed in the resource widget.
+  nftStarBalance: number;
   // Timestamp (ms) of the last Stella Rossa daily Redstar claim. Set locally
   // immediately after a successful claim so the cooldown countdown is instant.
   lastStellaClaimAt?: number;
@@ -399,13 +402,13 @@ export const PLANET_CONFIG: Record<PlanetType, {
     reactivationFee: 1500,
   },
   // NOVA — dark-theme rarity placed directly above MYTHIC.
-  // Deep cosmic-black appearance with a subtle dark-violet aura.
+  // Abyss Black appearance — total void with a barely-visible deep-violet corona.
   // Rate: 122 ZOOM/h. Drop: 0.20% (between MYTHIC 0.275% and PLASMA 0.15%).
   // Only obtainable through Lab crafting (never from wheel / merchant).
   NOVA: {
     rate: 122,
-    color: "#0a0018",
-    glowColor: "rgba(80,0,180,0.65)",
+    color: "#000000",
+    glowColor: "rgba(40,0,90,0.90)",
     chance: 0.00200,
     label: "Nova",
     craftCost: 60,
@@ -427,6 +430,21 @@ export const PLANET_CONFIG: Record<PlanetType, {
     activationTon: 0,
     tapsNeeded: 100,
     reactivationFee: 1750,
+  },
+  // MUSHROOM — NFT rarity between PLASMA and GOLD. Styled as a cosmic mushroom.
+  // Drop rate: 0.08% (between PLASMA 0.15% and GOLD 0.05%).
+  // Rate: 140 ZOOM/h. Also passively earns 5 NFTSTAR/day per planet.
+  // Tradeable on the P2P market (stile NFT V1).
+  MUSHROOM: {
+    rate: 140,
+    color: "#8b3a8b",
+    glowColor: "rgba(180,60,180,0.75)",
+    chance: 0.0008,
+    label: "Mushroom",
+    craftCost: 50,
+    activationTon: 0,
+    tapsNeeded: 100,
+    reactivationFee: 1850,
   },
   GOLD: {
     rate: 150,
@@ -860,6 +878,7 @@ const INITIAL_STATE: GameState = {
   depositBalance: 0,
   stardustBalance: 0,
   redStarBalance: 0,
+  nftStarBalance: 0,
   // Default to 0 (not serverNow()) so a brand-new device / cleared cache is
   // recognized as "no prior local settle" — the server-side /farm/settle
   // endpoint will then use the per-planet timestamps as the floor and credit
@@ -904,7 +923,7 @@ function applyDailyCollectMigration<T extends Planet>(p: T, nowMs: number): T {
 // Stardust cost to repair a planet to 100% durability, keyed by rarity.
 export const REPAIR_STARDUST_COST: Partial<Record<PlanetType, number>> = {
   BASIC: 100, RARE: 300, EPIC: 800, GOLD: 1500, MYTHIC: 3000,
-  NOVA: 5000, PLASMA: 5000, V1: 10000, V1_NFT: 10000,
+  NOVA: 5000, PLASMA: 5000, MUSHROOM: 4000, V1: 10000, V1_NFT: 10000,
 };
 
 function migratePlanet(p: unknown): Planet {
@@ -1001,6 +1020,7 @@ function loadState(): GameState {
           depositBalance: (parsed as unknown as Record<string, unknown>).depositBalance as number ?? 0,
           stardustBalance: (parsed as unknown as Record<string, unknown>).stardustBalance as number ?? 0,
           redStarBalance: (parsed as unknown as Record<string, unknown>).redStarBalance as number ?? 0,
+          nftStarBalance: (parsed as unknown as Record<string, unknown>).nftStarBalance as number ?? 0,
         };
         const resolvedTelegramId = telegramId || base.telegramId;
         // Only treat as "fresh load" when we did NOT find an entry keyed to the
@@ -4057,6 +4077,23 @@ export function useGameState() {
               variant: "destructive",
             });
           }
+        }).catch(() => {
+          // Network error or save failure — revert the optimistic listing
+          setState((s) => ({
+            ...s,
+            planets: s.planets.map((p) =>
+              p.id === id
+                ? {
+                    ...p,
+                    isListedInMarket: false,
+                    marketPrice: null,
+                    serverListingId: undefined,
+                    isFarmingActive: prevIsFarmingActive,
+                    pausedAt: prevPausedAt,
+                  }
+                : p
+            ),
+          }));
         });
       }
       // Snapshot the pause moment ONLY if the cycle was actually

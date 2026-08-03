@@ -36,18 +36,18 @@ interface WheelPageProps {
  * this constant is purely for visual rendering.
  */
 const DEFAULT_WHEEL_PRIZES: WheelPrizeConfig[] = [
-  { index: 0,  type: "zoom",   zoomAmount: 100,   label: "100 $ZOOM",   shortLabel: "100",   icon: "🪐", color: "#8892b0" },
-  { index: 1,  type: "stars",  starsAmount: 100,  label: "100 STARS",   shortLabel: "100",   icon: "⭐", color: "#ffd700" },
-  { index: 2,  type: "zoom",   zoomAmount: 500,   label: "500 $ZOOM",   shortLabel: "500",   icon: "🪐", color: "#4facfe" },
-  { index: 3,  type: "ton",    tonAmount: 1,      label: "1 TON",       shortLabel: "1",     icon: "💎", color: "#0098ea" },
-  { index: 4,  type: "zoom",   zoomAmount: 1000,  label: "1K $ZOOM",    shortLabel: "1K",    icon: "🪐", color: "#ff3355" },
-  { index: 5,  type: "planet", planetType: "BASIC", label: "BASIC PLANET", shortLabel: "BASIC", icon: "◇", color: "#a0aec0" },
-  { index: 6,  type: "zoom",   zoomAmount: 2500,  label: "2.5K $ZOOM",  shortLabel: "2.5K",  icon: "🪐", color: "#43e97b" },
-  { index: 7,  type: "stars",  starsAmount: 200,  label: "200 STARS",   shortLabel: "200",   icon: "⭐", color: "#ffb347" },
-  { index: 8,  type: "planet", planetType: "RARE",  label: "RARE PLANET",  shortLabel: "RARE",  icon: "◈", color: "#4facfe" },
-  { index: 9,  type: "ton",    tonAmount: 10,     label: "10 TON",      shortLabel: "10",    icon: "💎", color: "#00d4ff" },
-  { index: 10, type: "zoom",   zoomAmount: 5000,  label: "5K $ZOOM",    shortLabel: "5K",    icon: "🪐", color: "#f093fb" },
-  { index: 11, type: "planet", planetType: "EPIC",  label: "EPIC PLANET",  shortLabel: "EPIC",  icon: "⬡", color: "#c471ed" },
+  { index: 0,  type: "zoom",   zoomAmount: 100,   label: "100 $ZOOM",   shortLabel: "100",   icon: "🪐", color: "#1a1f2e" },
+  { index: 1,  type: "stars",  starsAmount: 100,  label: "100 STARS",   shortLabel: "100",   icon: "⭐", color: "#2a2000" },
+  { index: 2,  type: "zoom",   zoomAmount: 500,   label: "500 $ZOOM",   shortLabel: "500",   icon: "🪐", color: "#0d1a2e" },
+  { index: 3,  type: "ton",    tonAmount: 1,      label: "1 TON",       shortLabel: "1",     icon: "💎", color: "#001428" },
+  { index: 4,  type: "zoom",   zoomAmount: 1000,  label: "1K $ZOOM",    shortLabel: "1K",    icon: "🪐", color: "#200008" },
+  { index: 5,  type: "planet", planetType: "BASIC", label: "BASIC PLANET", shortLabel: "BASIC", icon: "◇", color: "#141820" },
+  { index: 6,  type: "zoom",   zoomAmount: 2500,  label: "2.5K $ZOOM",  shortLabel: "2.5K",  icon: "🪐", color: "#001a0e" },
+  { index: 7,  type: "stars",  starsAmount: 200,  label: "200 STARS",   shortLabel: "200",   icon: "⭐", color: "#1a1200" },
+  { index: 8,  type: "planet", planetType: "RARE",  label: "RARE PLANET",  shortLabel: "RARE",  icon: "◈", color: "#001428" },
+  { index: 9,  type: "ton",    tonAmount: 10,     label: "10 TON",      shortLabel: "10",    icon: "💎", color: "#00141e" },
+  { index: 10, type: "zoom",   zoomAmount: 5000,  label: "5K $ZOOM",    shortLabel: "5K",    icon: "🪐", color: "#14002a" },
+  { index: 11, type: "planet", planetType: "EPIC",  label: "EPIC PLANET",  shortLabel: "EPIC",  icon: "⬡", color: "#100020" },
 ];
 
 const SPIN_PACKS = [
@@ -104,14 +104,14 @@ const WheelDisc = memo(function WheelDisc({ prizes, highlightIdx, size }: WheelD
         ))}
         <radialGradient id="rimGrad" cx="50%" cy="50%" r="50%">
           <stop offset="92%" stopColor="rgba(0,0,0,0)" />
-          <stop offset="95%" stopColor="#fff5cc" />
-          <stop offset="97%" stopColor="#ffd700" />
-          <stop offset="100%" stopColor="#7a5a00" />
+          <stop offset="95%" stopColor="#220010" />
+          <stop offset="97%" stopColor="#440018" />
+          <stop offset="100%" stopColor="#1a0008" />
         </radialGradient>
         <radialGradient id="hubGrad" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#fffbe6" />
-          <stop offset="40%" stopColor="#ffd700" />
-          <stop offset="100%" stopColor="#a87b00" />
+          <stop offset="0%" stopColor="#1a0008" />
+          <stop offset="40%" stopColor="#330010" />
+          <stop offset="100%" stopColor="#0a0004" />
         </radialGradient>
         <radialGradient id="centerJewel" cx="35%" cy="35%" r="65%">
           <stop offset="0%" stopColor="#ffffff" />
@@ -153,11 +153,11 @@ const WheelDisc = memo(function WheelDisc({ prizes, highlightIdx, size }: WheelD
               y={lpText.y}
               textAnchor="middle"
               dominantBaseline="middle"
-              fill="white"
+              fill="#ff3355"
               fontSize={p.shortLabel.length > 3 ? 9 : 11}
               fontWeight={900}
               transform={`rotate(${mid} ${lpText.x} ${lpText.y})`}
-              style={{ textShadow: "0 1px 3px rgba(0,0,0,0.9)", letterSpacing: "0.04em" }}
+              style={{ textShadow: "0 1px 4px rgba(0,0,0,1)", letterSpacing: "0.04em", filter: "drop-shadow(0 0 3px rgba(255,51,85,0.7))" }}
             >
               {p.shortLabel}
             </text>

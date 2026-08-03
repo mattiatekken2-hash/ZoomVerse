@@ -162,7 +162,26 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
         data-testid="button-auto-tap"
         aria-label={hasAutoTap ? t("autoTap.holdAria") : t("autoTap.buyAria")}
       >
-        {hasAutoTap ? "⚡" : "🔒"}
+        {hasAutoTap ? (
+          <svg width={26} height={26} viewBox="0 0 10 16" shapeRendering="crispEdges" style={{ filter: `drop-shadow(0 0 6px ${widgetColor})` }}>
+            <rect x="5" y="0" width="4" height="1" fill={widgetColor} />
+            <rect x="4" y="1" width="4" height="1" fill={widgetColor} />
+            <rect x="3" y="2" width="4" height="1" fill={widgetColor} />
+            <rect x="2" y="3" width="5" height="1" fill={widgetColor} />
+            <rect x="1" y="4" width="6" height="1" fill={widgetColor} />
+            <rect x="0" y="5" width="7" height="1" fill={widgetColor} />
+            <rect x="3" y="6" width="5" height="1" fill={widgetColor} />
+            <rect x="3" y="7" width="4" height="1" fill={widgetColor} />
+            <rect x="3" y="8" width="4" height="1" fill={widgetColor} />
+            <rect x="2" y="9" width="4" height="1" fill={widgetColor} />
+            <rect x="1" y="10" width="4" height="1" fill={widgetColor} />
+            <rect x="0" y="11" width="4" height="1" fill={widgetColor} />
+            <rect x="1" y="12" width="3" height="1" fill={widgetColor} />
+            <rect x="2" y="13" width="2" height="1" fill={widgetColor} />
+            <rect x="2" y="14" width="2" height="1" fill={widgetColor} />
+            <rect x="3" y="15" width="1" height="1" fill={widgetColor} />
+          </svg>
+        ) : "🔒"}
       </button>
 
       {showBuy && (
@@ -193,7 +212,26 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
               textAlign: "center",
             }}
           >
-            <div style={{ fontSize: 48, marginBottom: 8 }}>⚡</div>
+            <div style={{ fontSize: 48, marginBottom: 8, lineHeight: 1 }}>
+              <svg width={48} height={48} viewBox="0 0 10 16" shapeRendering="crispEdges" style={{ filter: "drop-shadow(0 0 10px #ff3355dd)" }}>
+                <rect x="5" y="0" width="4" height="1" fill="#ff3355" />
+                <rect x="4" y="1" width="4" height="1" fill="#ff3355" />
+                <rect x="3" y="2" width="4" height="1" fill="#ff3355" />
+                <rect x="2" y="3" width="5" height="1" fill="#ff3355" />
+                <rect x="1" y="4" width="6" height="1" fill="#ff3355" />
+                <rect x="0" y="5" width="7" height="1" fill="#ff6677" />
+                <rect x="3" y="6" width="5" height="1" fill="#ff3355" />
+                <rect x="3" y="7" width="4" height="1" fill="#ff3355" />
+                <rect x="3" y="8" width="4" height="1" fill="#ff3355" />
+                <rect x="2" y="9" width="4" height="1" fill="#ff3355" />
+                <rect x="1" y="10" width="4" height="1" fill="#ff3355" />
+                <rect x="0" y="11" width="4" height="1" fill="#ff3355" />
+                <rect x="1" y="12" width="3" height="1" fill="#ff6677" />
+                <rect x="2" y="13" width="2" height="1" fill="#ff3355" />
+                <rect x="2" y="14" width="2" height="1" fill="#ff3355" />
+                <rect x="3" y="15" width="1" height="1" fill="#ff3355" />
+              </svg>
+            </div>
             <div className="font-black text-lg tracking-wider" style={{ color: "#ff3355", marginBottom: 4 }}>
               {t("autoTap.title")}
             </div>

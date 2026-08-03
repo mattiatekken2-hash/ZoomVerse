@@ -1,0 +1,42 @@
+Per favore risolvi i bug critici e implementa tutte le modifiche UI, grafiche, di collezioni, risorse e nuova rarità richieste:
+
+--- 1. AUTO TAP & RESTYLING FULMINE ⚡️ ---
+- Simbolo Auto Tap: Cambia l'icona/emoji attuale dell'AUTO TAP ⚡️ con un FULMINE in Pixel Art più definito, curato ed estetico.
+
+--- 2. RESTYLING NOVA & NUOVA RARITÀ MUSHROOM NFT 🍄 ---
+- Pianeta NOVA UI: Imposta la grafica del pianeta NOVA per essere completamente "Nero Abisso", oscuro e d'impatto visivo.
+- NOVA nei Rank: Aggiungi la rarità NOVA nella scheda dei Rank/Classifiche dove si trovano le rarità, aggiornandola con i dati reali se trovata/craftata nel LAB.
+- Nuova Rarità Fungo NFT 🍄: Aggiungi una nuova rarità NFT a forma di Fungo 🍄 (stile NFT V1, perfettamente vendibile nel mercato).
+  * Posizionamento Rarità: Mettila come grado di rarità compreso tra il pianeta PLASMA e GOLD.
+  * Produzione Resource: Questo NFT produce 5 "NFTSTAR" al giorno.
+- Icona NFTSTAR: Crea la UI/icona per la risorsa NFTSTAR come una "Stella Perlata Grigia" in stile NFT.
+
+--- 3. COMPATTAMENTO HEADER UPPER UI & RISORSE ---
+- Widget Risorse (Stella Emoji): Per risparmiare spazio nella barra in alto, aggiungi un'icona/emoji a forma di Stella. Cliccando su di essa si apre un widget/pop-up dedicato che mostra i bilanci di: Stardust, Redstar e NFTSTAR.
+- Tasto SHOP: Rimuovi l'emoji dal pulsante SHOP (deve esserci esclusivamente il testo "SHOP").
+- Icona Wallet TON/GRAM: Sostituisci la classica emoji TON nel wallet in alto con la nuova icona/emoji ufficiale del diamante GRAM (la moneta di Telegram).
+
+--- 4. COLLEZIONE REDSTAR & SLOT EQUIPAGGIAMENTO ---
+- Scheda Collezioni & Slot: Quando l'utente acquista la Redstar Collection, questa deve comparire nella scheda collezioni insieme alle altre (White, ecc.). Deve mostrare 4 Stelle Rosse equipaggiabili/inseribili negli slot delle collezioni nella schermata LAB (accessibile tramite l'icona/emoji del casco in basso a destra).
+- Icona Widget LAB: Cambia l'icona/UI del riquadro della Redstar nel LAB inserendo una Stella Rossa in Pixel Art (sostituendo la rosa).
+
+--- 5. MODIFICHE GRAFICHE BACKGROUND & RUOTA ---
+- Sfondo Nero: Cambia lo sfondo generale del gioco in nero puro.
+- Rimozione Elementi: Rimuovi l'UFO che passa sullo schermo e il pianeta rosso piccolino sullo sfondo a sinistra.
+- Stile Ruota: Imposta la Fortune Wheel con colori scuri e testo dei premi in colore rosso.
+
+--- 6. MODALE PROFILO PLAYER (PIXEL ART) ---
+- Trigger Profile Click: Cliccando sull'immagine profilo (in alto a sinistra, vicino al livello), apri un pop-up compatto al centro in stile Pixel Art con:
+  * Timer / Tempo trascorso dall'iscrizione
+  * Costruzioni totali (Total Crafts)
+  * TON totali guadagnati
+  * $ZOOM totali
+  * Redstar totali
+  * Stardust totali
+
+--- 7. FIX BUG CRITICI (MARKETPLACE & CRAFT LEADERBOARD) ---
+- Fix Market Sell Button: Risolvi il bug per cui premendo il tasto "Sell" sui pianeti il pulsante scompare senza mettere il pianeta in vendita.
+- Fix Craft Leaderboard Points: Risolvi il bug per cui il craft/costruzione di un pianeta nel LAB NON assegna +1 punto e non aggiorna la classifica Craft.
+- Rank Reset Season 2: Nella sezione Rank, fai in modo che il caricamento si resetti del tutto e ricominci da 0 per la Season 2.
+
+Mantieni la modalità Economy attiva ed esegui tutte le modifiche.

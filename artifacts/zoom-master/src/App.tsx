@@ -6,7 +6,7 @@ import { TonConnectUIProvider } from "@tonconnect/ui-react";
 import { BlackPlanetOrbStyles } from "./components/BlackPlanetOrb";
 import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/useGameState";
 import { fetchRegularPlanets } from "./utils/api";
-import { useGlobalInit } from "./store/globalStore";
+import { useGlobalInit, useGlobalStore } from "./store/globalStore";
 import { NebulaBackground } from "./components/NebulaBackground";
 import { MaintenanceAstronauts } from "./components/MaintenanceAstronauts";
 import { LabPage } from "./pages/LabPage";
@@ -166,6 +166,9 @@ function AppShellWithState() {
   const stardust = useStardust(state.telegramId);
   const [stardustPopupOpen, setStardustPopupOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [resourceWidgetOpen, setResourceWidgetOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const profile = useGlobalStore((s) => s.profile);
 
   // ─────── STARDUST spawn mechanic (lifted to App level) ──────────
   // The star spawns on ANY screen so the user doesn't need to camp the LAB,
@@ -649,7 +652,7 @@ function AppShellWithState() {
   if (showSplash) {
     return (
       <div style={{
-        position: "fixed", inset: 0, background: "#080109",
+        position: "fixed", inset: 0, background: "#000000",
         display: "flex", alignItems: "center", justifyContent: "center",
         color: "rgba(255,255,255,0.35)", fontWeight: 800, letterSpacing: "0.2em", fontSize: 12,
       }}>
@@ -660,7 +663,7 @@ function AppShellWithState() {
 
   return (
     <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
-    <div className="flex flex-col overflow-hidden relative" style={{ height: "100dvh", background: "#080109", paddingTop: "calc(env(safe-area-inset-top, 0px) + 56px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+    <div className="flex flex-col overflow-hidden relative" style={{ height: "100dvh", background: "#000000", paddingTop: "calc(env(safe-area-inset-top, 0px) + 56px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
       <NebulaBackground />
       {isAdmin && maintenance.enabled && (
         <div
@@ -676,11 +679,17 @@ function AppShellWithState() {
         style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
       >
         <div className="flex items-center gap-2 min-w-0">
-          <AvatarXP
-            totalTaps={state.totalTaps || 0}
-            photoUrl={displayProfile.photoUrl}
-            name={displayProfile.name}
-          />
+          <div
+            onClick={() => setProfileModalOpen(true)}
+            style={{ cursor: "pointer" }}
+            aria-label="View profile"
+          >
+            <AvatarXP
+              totalTaps={state.totalTaps || 0}
+              photoUrl={displayProfile.photoUrl}
+              name={displayProfile.name}
+            />
+          </div>
           <BalanceCounter
             balance={state.balance}
             activeRate={totalRate}
@@ -719,77 +728,43 @@ function AppShellWithState() {
               transition: "transform 0.12s",
             }}
           >
-            <svg width={16} height={16} viewBox="0 0 16 16" shapeRendering="crispEdges" style={{ filter: "drop-shadow(0 0 4px rgba(220,30,50,0.9))" }}>
-              <rect x="5" y="2" width="1" height="3" fill="#ff3355" />
-              <rect x="10" y="2" width="1" height="3" fill="#ff3355" />
-              <rect x="6" y="1" width="4" height="1" fill="#ff3355" />
-              <rect x="3" y="5" width="10" height="1" fill="#ff6677" />
-              <rect x="3" y="6" width="1" height="8" fill="#ff6677" />
-              <rect x="12" y="6" width="1" height="8" fill="#ff6677" />
-              <rect x="3" y="13" width="10" height="1" fill="#ff6677" />
-              <rect x="4" y="6" width="8" height="7" fill="rgba(220,30,50,0.18)" />
-              <rect x="6" y="8" width="1" height="1" fill="#fff" />
-              <rect x="9" y="8" width="1" height="1" fill="#fff" />
-              <rect x="6" y="10" width="4" height="1" fill="#fff" />
-            </svg>
             <span style={{
-              fontSize: 6,
+              fontSize: 9,
               fontWeight: 900,
-              letterSpacing: 0.8,
+              letterSpacing: 1.2,
               color: "#ff3355",
               textShadow: "0 0 4px rgba(220,30,50,0.8)",
               lineHeight: 1,
             }}>SHOP</span>
           </button>
-          <div
-            className="flex items-center gap-0.5 px-1.5 py-1 rounded-full font-black cursor-pointer flex-shrink-0"
-            onClick={() => setStardustPopupOpen(true)}
-            data-testid="stardust-display"
+          {/* Single ⭐ resource widget button — shows Stardust, Redstar, NFTSTAR */}
+          <button
+            onClick={() => setResourceWidgetOpen(true)}
+            data-testid="resource-widget-btn"
+            aria-label="Resources"
+            className="flex items-center justify-center active:scale-95 flex-shrink-0"
             style={{
-              background: "rgba(255, 215, 64, 0.10)",
-              border: "1px solid rgba(255, 215, 64, 0.35)",
-              boxShadow: "0 0 12px rgba(255, 215, 64, 0.18) inset",
-              color: "#ffd740",
-              textShadow: "0 0 8px rgba(255, 215, 64, 0.55)",
-              fontSize: 11,
+              width: 34,
+              height: 34,
+              borderRadius: 9,
+              background: "linear-gradient(135deg, rgba(255,215,64,0.18), rgba(255,100,40,0.10))",
+              border: "1px solid rgba(255,215,64,0.45)",
+              boxShadow: "0 0 10px rgba(255,215,64,0.22)",
+              cursor: "pointer",
+              padding: 0,
             }}
-            aria-label="Stardust balance"
           >
-            <span style={{ fontSize: 11, lineHeight: 1 }}>★</span>
-            <span style={{ fontVariantNumeric: "tabular-nums" }}>
-              {(() => {
-                // Show whichever is highest: local tracks live crafting,
-                // server catches admin grants / cross-device collections.
-                const n = state.stardustBalance || 0;
-                if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-                if (n >= 10_000)    return (n / 1_000).toFixed(1) + "K";
-                return n.toLocaleString();
-              })()}
-            </span>
-          </div>
-          <div
-            className="flex items-center gap-0.5 px-1.5 py-1 rounded-full font-black flex-shrink-0"
-            data-testid="redstar-display"
-            style={{
-              background: "rgba(255, 60, 60, 0.10)",
-              border: "1px solid rgba(255, 60, 60, 0.35)",
-              boxShadow: "0 0 12px rgba(255, 60, 60, 0.18) inset",
-              color: "#ff4444",
-              textShadow: "0 0 8px rgba(255, 60, 60, 0.55)",
-              fontSize: 11,
-            }}
-            aria-label="RedStar balance"
-          >
-            <span style={{ fontSize: 11, lineHeight: 1 }}>★</span>
-            <span style={{ fontVariantNumeric: "tabular-nums" }}>
-              {(() => {
-                const n = state.redStarBalance || 0;
-                if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-                if (n >= 10_000)    return (n / 1_000).toFixed(1) + "K";
-                return n.toLocaleString();
-              })()}
-            </span>
-          </div>
+            <svg width={18} height={18} viewBox="0 0 12 12" shapeRendering="crispEdges" style={{ filter: "drop-shadow(0 0 4px rgba(255,215,64,0.9))" }}>
+              <rect x="5" y="0" width="2" height="2" fill="#ffd740" />
+              <rect x="3" y="2" width="6" height="2" fill="#ffd740" />
+              <rect x="1" y="4" width="10" height="2" fill="#ffd740" />
+              <rect x="0" y="5" width="12" height="2" fill="#ffee88" />
+              <rect x="1" y="7" width="10" height="2" fill="#ffd740" />
+              <rect x="3" y="9" width="6" height="2" fill="#ffd740" />
+              <rect x="5" y="11" width="2" height="1" fill="#ffb300" />
+              <rect x="5" y="1" width="1" height="1" fill="#fff8c0" />
+            </svg>
+          </button>
           <SettingsMenu muted={muted} setMuted={setMuted} />
         </div>
       </header>
@@ -1192,6 +1167,178 @@ function AppShellWithState() {
           onClose={() => setStardustPopupOpen(false)}
         />
       )}
+
+      {/* ── RESOURCE WIDGET ── star icon → Stardust / Redstar / NFTSTAR */}
+      {resourceWidgetOpen && (
+        <div
+          onClick={() => setResourceWidgetOpen(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 10000,
+            background: "rgba(0,0,0,0.72)",
+            backdropFilter: "blur(8px)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: 24,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: 320, width: "100%",
+              background: "linear-gradient(160deg, rgba(18,10,6,0.98) 0%, rgba(8,4,2,0.99) 100%)",
+              border: "1px solid rgba(255,215,64,0.28)",
+              borderRadius: 18,
+              padding: "22px 20px 20px",
+              boxShadow: "0 0 40px rgba(255,215,64,0.12)",
+            }}
+          >
+            <div style={{ textAlign: "center", marginBottom: 18 }}>
+              <svg width={32} height={32} viewBox="0 0 12 12" shapeRendering="crispEdges" style={{ margin: "0 auto 6px", display: "block", filter: "drop-shadow(0 0 8px rgba(255,215,64,0.8))" }}>
+                <rect x="5" y="0" width="2" height="2" fill="#ffd740" />
+                <rect x="3" y="2" width="6" height="2" fill="#ffd740" />
+                <rect x="1" y="4" width="10" height="2" fill="#ffd740" />
+                <rect x="0" y="5" width="12" height="2" fill="#ffee88" />
+                <rect x="1" y="7" width="10" height="2" fill="#ffd740" />
+                <rect x="3" y="9" width="6" height="2" fill="#ffd740" />
+                <rect x="5" y="11" width="2" height="1" fill="#ffb300" />
+              </svg>
+              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: "0.2em", color: "#ffd740", textTransform: "uppercase" }}>Resources</div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {[
+                { label: "Stardust", value: state.stardustBalance || 0, color: "#ffd740", icon: "★" },
+                { label: "RedStar", value: state.redStarBalance || 0, color: "#ff4444", icon: "★" },
+                { label: "NFTSTAR", value: state.nftStarBalance || 0, color: "#c0c0c0", icon: "◆" },
+              ].map(({ label, value, color, icon }) => (
+                <div
+                  key={label}
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "10px 14px",
+                    borderRadius: 12,
+                    background: color + "0a",
+                    border: `1px solid ${color}22`,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ color, fontSize: 16, filter: `drop-shadow(0 0 4px ${color}aa)` }}>{icon}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.6)", letterSpacing: "0.08em", textTransform: "uppercase" }}>{label}</span>
+                  </div>
+                  <span style={{ fontSize: 14, fontWeight: 900, color, fontVariantNumeric: "tabular-nums" }}>
+                    {value >= 1_000_000 ? (value / 1_000_000).toFixed(1) + "M"
+                      : value >= 10_000 ? (value / 1_000).toFixed(1) + "K"
+                      : value.toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => setResourceWidgetOpen(false)}
+              style={{
+                display: "block", width: "100%", marginTop: 16,
+                padding: "10px", borderRadius: 10,
+                background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)",
+                color: "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: 700, cursor: "pointer",
+              }}
+            >Close</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── PROFILE MODAL ── click avatar → pixel art popup */}
+      {profileModalOpen && (() => {
+        const createdAt = Number(profile?.createdAt ?? 0);
+        const msElapsed = createdAt > 0 ? Date.now() - createdAt : 0;
+        const days = Math.floor(msElapsed / 86400000);
+        const hours = Math.floor((msElapsed % 86400000) / 3600000);
+        const timeStr = (createdAt as number) > 0
+          ? days > 0 ? `${days}d ${hours}h` : `${hours}h`
+          : "—";
+        return (
+          <div
+            onClick={() => setProfileModalOpen(false)}
+            style={{
+              position: "fixed", inset: 0, zIndex: 10000,
+              background: "rgba(0,0,0,0.82)",
+              backdropFilter: "blur(10px)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              padding: 20,
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                maxWidth: 340, width: "100%",
+                background: "linear-gradient(160deg, rgba(10,8,20,0.99) 0%, rgba(4,4,12,0.99) 100%)",
+                border: "1px solid rgba(255,51,85,0.3)",
+                borderRadius: 18,
+                padding: "22px 18px 18px",
+                boxShadow: "0 0 50px rgba(255,51,85,0.15), 0 0 100px rgba(0,0,0,0.5)",
+              }}
+            >
+              {/* Pixel art avatar header */}
+              <div style={{ textAlign: "center", marginBottom: 16 }}>
+                <div style={{
+                  width: 52, height: 52, borderRadius: "50%", margin: "0 auto 8px",
+                  overflow: "hidden",
+                  border: "2px solid rgba(255,51,85,0.5)",
+                  boxShadow: "0 0 16px rgba(255,51,85,0.35)",
+                  background: "rgba(255,51,85,0.08)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  {displayProfile.photoUrl ? (
+                    <img src={displayProfile.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} referrerPolicy="no-referrer" />
+                  ) : (
+                    <span style={{ color: "#ff3355", fontSize: 20, fontWeight: 900 }}>
+                      {(displayProfile.name?.trim()?.[0] || "★").toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 900, color: "rgba(255,255,255,0.85)", marginBottom: 2 }}>
+                  {displayProfile.name || "Player"}
+                </div>
+                <div style={{ fontSize: 9, color: "rgba(255,51,85,0.6)", letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                  Member for {timeStr}
+                </div>
+              </div>
+
+              {/* Stats grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {[
+                  { label: "Total Crafts", value: state.craftsCompleted?.toLocaleString() ?? "0", color: "#c471ed" },
+                  { label: "TON Earned", value: (state.tonBalance || 0).toFixed(2), color: "#00f2b4" },
+                  { label: "ZOOM Total", value: (() => { const n = state.totalEarned || 0; return n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toLocaleString(); })(), color: "#ffd740" },
+                  { label: "RedStar", value: (state.redStarBalance || 0).toLocaleString(), color: "#ff4444" },
+                  { label: "Stardust", value: (() => { const n = state.stardustBalance || 0; return n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toLocaleString(); })(), color: "#ffd740" },
+                  { label: "NFTSTAR", value: (state.nftStarBalance || 0).toLocaleString(), color: "#c0c0c0" },
+                ].map(({ label, value, color }) => (
+                  <div
+                    key={label}
+                    style={{
+                      padding: "10px 12px", borderRadius: 10,
+                      background: color + "08",
+                      border: `1px solid ${color}1a`,
+                      textAlign: "center",
+                    }}
+                  >
+                    <div style={{ fontSize: 15, fontWeight: 900, color, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+                    <div style={{ fontSize: 8, color: color + "77", letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 2 }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setProfileModalOpen(false)}
+                style={{
+                  display: "block", width: "100%", marginTop: 14,
+                  padding: "10px", borderRadius: 10,
+                  background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)",
+                  color: "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                }}
+              >Close</button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
     </TonConnectUIProvider>
   );

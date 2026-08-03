@@ -85,16 +85,9 @@ export function NebulaBackground() {
       {/* Central proto-star warm glow */}
       <div className="nebula-protostar" />
 
-      {/* Tiny red planet fixed deep in the background */}
-      <div className="red-planet" aria-hidden="true" />
-
       {/* Comets */}
       <div className="comet comet-1" />
       <div className="comet comet-2" />
-
-      {/* Easter-egg UFOs */}
-      <div className="ufo ufo-1" aria-hidden="true" />
-      <div className="ufo ufo-2" aria-hidden="true" />
     </div>
   );
 }

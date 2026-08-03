@@ -485,19 +485,33 @@ function TonWalletWidgetBase(props: Props) {
           whiteSpace: "nowrap",
         }}
       >
-        <img
-          src={TON_LOGO_URL}
-          alt="TON"
-          draggable={false}
-          style={{
-            width: 20,
-            height: 20,
-            display: "inline-block",
-            objectFit: "contain",
-            borderRadius: "0%",
-            filter: "drop-shadow(0 0 4px rgba(0,200,255,0.5))",
-          }}
-        />
+        {/* GRAM diamond icon */}
+        <svg width={18} height={18} viewBox="0 0 12 12" shapeRendering="crispEdges" style={{ filter: "drop-shadow(0 0 5px rgba(0,200,255,0.7))" }}>
+          {/* top bar */}
+          <rect x="2" y="1" width="8" height="1" fill="#55ddff" />
+          <rect x="1" y="2" width="2" height="2" fill="#44ccee" />
+          <rect x="3" y="2" width="3" height="2" fill="#aaeeff" />
+          <rect x="6" y="2" width="3" height="2" fill="#aaeeff" />
+          <rect x="9" y="2" width="2" height="2" fill="#44ccee" />
+          {/* main body */}
+          <rect x="0" y="4" width="2" height="1" fill="#33bbdd" />
+          <rect x="2" y="4" width="3" height="1" fill="#88ddff" />
+          <rect x="5" y="4" width="2" height="1" fill="#ffffff" />
+          <rect x="7" y="4" width="3" height="1" fill="#88ddff" />
+          <rect x="10" y="4" width="2" height="1" fill="#33bbdd" />
+          <rect x="1" y="5" width="2" height="2" fill="#22aacc" />
+          <rect x="3" y="5" width="3" height="2" fill="#66ccee" />
+          <rect x="6" y="5" width="3" height="2" fill="#66ccee" />
+          <rect x="9" y="5" width="2" height="2" fill="#22aacc" />
+          <rect x="2" y="7" width="2" height="2" fill="#1199bb" />
+          <rect x="4" y="7" width="4" height="2" fill="#44bbdd" />
+          <rect x="8" y="7" width="2" height="2" fill="#1199bb" />
+          <rect x="3" y="9" width="2" height="1" fill="#0088aa" />
+          <rect x="5" y="9" width="2" height="1" fill="#22aacc" />
+          <rect x="7" y="9" width="2" height="1" fill="#0088aa" />
+          <rect x="4" y="10" width="4" height="1" fill="#006688" />
+          <rect x="5" y="11" width="2" height="1" fill="#004455" />
+        </svg>
         <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatTon(total, 2)}</span>
       </button>
 
