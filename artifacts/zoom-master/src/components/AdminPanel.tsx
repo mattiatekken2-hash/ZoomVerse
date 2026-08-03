@@ -16,6 +16,8 @@ import {
   adminRevokeBlackCollection,
   adminUnlockSupernovaCollection,
   adminRevokeSupernovaCollection,
+  adminUnlockStellaRossaCollection,
+  adminRevokeStellaRossaCollection,
   adminRevokeWhiteCollection,
   adminRevokeEarthCollection,
   adminGrantV1,
@@ -72,7 +74,7 @@ import {
 
 const ADMIN_ID = "8144744644";
 
-type PlanetChoice = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "PLASMA" | "GOLD" | "SUN";
+type PlanetChoice = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "NOVA" | "PLASMA" | "GOLD" | "SUN";
 type EqCategory = "HELMET" | "JETPACK" | "HAT" | "SCANNER";
 type EqRarity = "BASIC" | "RARE" | "EPIC" | "GOLD" | "PLASMA" | "MYTHIC";
 // Stardust supports both add (credit) and remove (subtract clamped at 0).
@@ -83,6 +85,7 @@ const PLANET_OPTIONS: { type: PlanetChoice; label: string; color: string }[] = [
   { type: "RARE",   label: "Rare",   color: "#4facfe" },
   { type: "EPIC",   label: "Epic",   color: "#c471ed" },
   { type: "MYTHIC",  label: "Mythic",  color: "#dc143c" },
+  { type: "NOVA",    label: "Nova",    color: "#5000b4" },
   { type: "PLASMA",  label: "Plasma",  color: "#00e676" },
   { type: "GOLD",    label: "Gold",    color: "#ffd700" },
   { type: "SUN",    label: "Sole ☀️", color: "#ffb347" },
@@ -100,7 +103,7 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "black" | "revoke-white" | "revoke-earth" | "revoke-black" | "autotap" | "test-wd-chan" | "v1" | "v1nft" | "rec-stars" | "wh-info" | "grant-equipment" | "supernova" | "revoke-supernova" | "clear-planet-market" | "clear-equipment-market" | "force-merchant" | "labpoints" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "black" | "revoke-white" | "revoke-earth" | "revoke-black" | "autotap" | "test-wd-chan" | "v1" | "v1nft" | "rec-stars" | "wh-info" | "grant-equipment" | "supernova" | "revoke-supernova" | "stella-rossa" | "revoke-stella-rossa" | "clear-planet-market" | "clear-equipment-market" | "force-merchant" | "labpoints" | null>(null);
   const [eqCategory, setEqCategory] = useState<EqCategory>("HELMET");
   const [eqRarity, setEqRarity] = useState<EqRarity>("BASIC");
   const [confirmBulkNebo, setConfirmBulkNebo] = useState(false);
@@ -789,6 +792,68 @@ export function AdminPanel({ telegramId }: Props) {
                   }}
                 >
                   {loading === "revoke-supernova" ? "..." : "✗ REVOKE SUPERNOVA"}
+                </motion.button>
+
+                {/* Stella Rossa Collection unlock */}
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={async () => {
+                    haptic();
+                    const id = targetId.trim() || ADMIN_ID;
+                    setLoading("stella-rossa");
+                    const ok = await adminUnlockStellaRossaCollection(telegramId, id);
+                    setLoading(null);
+                    if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+                    showFeedback(ok ? `✓ Stella Rossa Collection sbloccata per ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(220,20,60,0.6)",
+                    background: "rgba(180,0,0,0.14)",
+                    color: "#ff6666",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "opacity 0.15s",
+                    boxShadow: "0 0 14px rgba(220,20,60,0.28)",
+                  }}
+                >
+                  {loading === "stella-rossa" ? "..." : "🔴 GRANT STELLA ROSSA COLLECTION (4 SR)"}
+                </motion.button>
+
+                {/* Revoke Stella Rossa */}
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={async () => {
+                    haptic();
+                    const id = targetId.trim() || ADMIN_ID;
+                    if (!confirm(`Rimuovere la STELLA ROSSA COLLECTION a ID ${id}?`)) return;
+                    setLoading("revoke-stella-rossa");
+                    const ok = await adminRevokeStellaRossaCollection(telegramId, id);
+                    setLoading(null);
+                    if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+                    showFeedback(ok ? `✓ Stella Rossa Collection rimossa a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "10px 4px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(255,85,85,0.45)",
+                    background: "rgba(255,85,85,0.10)",
+                    color: "#ff7a7a",
+                    fontSize: 11,
+                    fontWeight: 800,
+                    letterSpacing: "0.05em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "opacity 0.15s",
+                  }}
+                >
+                  {loading === "revoke-stella-rossa" ? "..." : "✗ REVOKE STELLA ROSSA"}
                 </motion.button>
 
                 {/* Revoke collections */}

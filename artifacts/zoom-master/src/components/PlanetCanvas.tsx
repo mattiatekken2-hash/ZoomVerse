@@ -26,11 +26,12 @@ const RARITY_FROM_COLOR: Record<string, PlanetType> = {
 };
 
 const RATE_BY_TYPE: Record<PlanetType, number> = {
-  BASIC: 2, RARE: 15, EPIC: 80, MYTHIC: 115, PLASMA: 130, GOLD: 150, V1: 400, V1_NFT: 275,
+  BASIC: 2, RARE: 15, EPIC: 80, MYTHIC: 115, NOVA: 122, PLASMA: 130, GOLD: 150, V1: 400, V1_NFT: 275,
   WHITE1: 0, WHITE2: 0, WHITE3: 0, WHITE4: 0,
   EARTH1: 0, EARTH2: 0, EARTH3: 0, EARTH4: 0,
   BLACK1: 0, BLACK2: 0, BLACK3: 0, BLACK4: 0,
   SUPERNOVA1: 0, SUPERNOVA2: 0, SUPERNOVA3: 0, SUPERNOVA4: 0,
+  STELLA1: 0, STELLA2: 0, STELLA3: 0, STELLA4: 0,
 };
 const GLOW_BY_TYPE: Record<PlanetType, string> = {
   BASIC: "rgba(136,146,176,0.5)",
@@ -57,6 +58,11 @@ const GLOW_BY_TYPE: Record<PlanetType, string> = {
   SUPERNOVA2: "rgba(252,211,77,0.75)",
   SUPERNOVA3: "rgba(250,204,21,0.75)",
   SUPERNOVA4: "rgba(251,191,36,0.75)",
+  NOVA: "rgba(80,0,180,0.65)",
+  STELLA1: "rgba(220,20,60,0.75)",
+  STELLA2: "rgba(200,0,50,0.75)",
+  STELLA3: "rgba(180,0,60,0.75)",
+  STELLA4: "rgba(192,0,26,0.75)",
 };
 
 // Number of particles in each orbit ring

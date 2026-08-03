@@ -1,0 +1,43 @@
+Per favore implementa tutti i fix al database, le verifiche sui pagamenti, le modifiche all'interfaccia e le nuove funzionalità di gioco in un unico task:
+
+--- 1. RISOLUZIONE BUG, DATABASE & DATI UTENTE ---
+- Prima di fare qualsiasi operazione sul database: verifica se è possibile recuperare e migrare i dati degli utenti esistenti (saldo $ZOOM, TON, collezioni che generano TON). Se NON è possibile recuperare i vecchi dati, chiedimi conferma prima di effettuare un reset pulito.
+- In caso di reset o mancanza dati: effettua un reset pulito per la sezione RANK, la LEADERBOARD TON e azzera la percentuale di progresso della Season 2 portandola allo 0% a partire da oggi.
+- Risolvi tutti gli errori 'Internal Error' e 'could not load task' (Daily Claim, Shop, Riscatto Codici e sezione Task) verificando connessioni DB, migrazioni e rotte in `server/routes.ts`.
+- Assegna esplicitamente il ruolo ADMIN all'ID Telegram: 8144744644. L'Admin Panel deve permettere l'accredito/rimozione di crediti e item per qualsiasi ID Telegram target senza errori.
+- Imposta il bilancio iniziale predefinito per i nuovi giocatori: 30 Stardust e 5 Redstar.
+- Navigazione: Rimuovi il tasto/tab 'HOME' dalla barra di navigazione principale.
+
+--- 2. VERIFICA WALLET & PAGAMENTI TELEGRAM (STARS / TON) ---
+- Controlla e testa l'integrazione del Wallet e dei pagamenti Telegram (Telegram Stars e TON).
+- Assicurati che ad OGNI transazione completata con successo avvenga l'accredito immediato del bene acquistato (nello Shop, nel Market e per le Collezioni).
+- Verifica nello specifico che l'acquisto dello slot aggiuntivo per i pianeti nello Shop sblocchi ed accrediti correttamente lo slot al giocatore.
+- Assicurati che tutti i premi vincenti (crediti, item, pianeti) ottenuti dalla Ruota della Fortuna vengano regolarmente accreditati nel profilo del giocatore.
+
+--- 3. NUOVA RARITÀ PIANETA: "NOVA" ---
+- Crea una nuova rarità di pianeta denominata "NOVA".
+- Posizionamento: Inseriscila subito sopra la rarità 'Mystic' (o bilanciata nella scala delle rarità superiori).
+- Produzione: Imposta il tasso di farming di $ZOOM coerentemente proporzionato rispetto alla scala delle rarità esistenti.
+- Design UI: Applica lo stile grafico esistente dei pianeti ma con una sfumatura e tema NERO / OSCURO ("pianeta oscuro").
+
+--- 4. SEZIONE RANK, LEADERBOARD & STAGIONE ---
+- Nella sezione Rank, aggiorna i nomi utente e le immagini profilo facendo in modo che vengano recuperati e visualizzati l'immagine di avatar e l'username reali di Telegram.
+- Sotto l'indicatore della Season 2 nella sezione Rank: aggiungi un elemento UI che mostri la legenda delle rarità dei pianeti in ordine di rango (Basic, Rare, Epic, Gold, ..., NOVA) e la data di inizio ufficiale dell'app.
+
+--- 5. NUOVA FEATURE: COLLEZIONE "STELLA ROSSA" ---
+- Widget nel Lab: Aggiungi un widget in pixel art di una Stella Rossa nel Lab. Costo d'acquisto: 60. Accessibile a tutti.
+- Sblocco Collezione: L'acquisto sblocca la collezione Stella Rossa e assegna 4 Stelle Rosse visibili nella sezione Collezioni TON.
+- Rendita TON: Genera 15 TON al mese, accumulati nel wallet "EARNED BALANCE".
+- Claim Giornaliero: Claim ogni 24 ore dal widget per riscuotere +10 Stelle Rosse (valuta di gioco).
+- Nuova UI Valuta: Aggiungi nel Lab il contatore visivo per il "Balance Stelle Rosse" di fianco a quello delle Stardust Gialle.
+
+--- 6. DURABILITÀ PIANETI & RIPARAZIONI (LAB) ---
+- Barra percentuale Durabilità/Energia (100% -> 0%) per ciascun pianeta.
+- Staking: -1% durabilità ogni 24 ore.
+- PvP: -5% durabilità ad ogni scontro.
+- Stato Congelato (0%): Il pianeta smette di produrre nello Staking e non può entrare in PvP.
+- Riparazioni nel LAB:
+  * Opzione A: Riparazione al 100% tramite un costo elevato di Stardust.
+  * Opzione B (Burn): Riparazione al 100% fondendo e distruggendo/bruciando un altro pianeta della stessa rarità/tipo.
+
+Si prega di implementare e testare accuratamente ogni componente mantenendo la stabilità del sistema.

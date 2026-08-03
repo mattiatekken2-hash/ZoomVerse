@@ -479,6 +479,7 @@ export interface Grants {
   bonusEpic: number;
   bonusGold: number;
   bonusMythic: number;
+  bonusNova: number;
   bonusPlasma: number;
   bonusV1: number;
   bonusV1NftPlatinum: number;
@@ -491,6 +492,8 @@ export interface Grants {
   blackCollectionBundles: number;
   supernovaCollectionUnlocked: boolean;
   supernovaCollectionBundles: number;
+  stellaRossaCollectionUnlocked: boolean;
+  stellaRossaCollectionBundles: number;
   // EARNED TON balance — credited by staking accrual, collection-planet
   // collections, admin /credit-ton, and withdrawal refunds. WITHDRAWABLE.
   tonBalance: number;
@@ -504,7 +507,7 @@ export interface Grants {
   sunCycleCount: number;
 }
 
-const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusNova: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, stellaRossaCollectionUnlocked: false, stellaRossaCollectionBundles: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
 
 /**
  * Buy a Shop item using the in-game DEPOSIT balance (not on-chain).
@@ -830,7 +833,7 @@ export async function fetchPvpLeaderboard(telegramId?: string | null): Promise<P
   }
 }
 
-export async function adminAddPlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "PLASMA" | "GOLD" | "SUN"): Promise<boolean> {
+export async function adminAddPlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "NOVA" | "PLASMA" | "GOLD" | "SUN"): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/add-planets`, {
       method: "POST",
@@ -1298,6 +1301,28 @@ export async function adminRevokeSupernovaCollection(adminId: string, telegramId
   } catch { return false; }
 }
 
+export async function adminUnlockStellaRossaCollection(adminId: string, telegramId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/unlock-stella-rossa-collection`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, telegramId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function adminRevokeStellaRossaCollection(adminId: string, telegramId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/revoke-stella-rossa-collection`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, telegramId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminGrantV1(adminId: string, telegramId: string): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/grant-v1`, {
@@ -1331,7 +1356,7 @@ export async function adminRemoveZoom(adminId: string, telegramId: string, amoun
   } catch { return false; }
 }
 
-export async function adminRemovePlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "PLASMA" | "GOLD" | "SUN"): Promise<boolean> {
+export async function adminRemovePlanets(adminId: string, telegramId: string, count: number, planetType: "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "NOVA" | "PLASMA" | "GOLD" | "SUN"): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/remove-planets`, {
       method: "POST",
@@ -1713,7 +1738,7 @@ export async function confirmStarsPurchase(txnId: number, telegramId: string): P
 }
 
 export interface TonConfirmReactMeta {
-  kind: "white" | "earth" | "black" | "supernova";
+  kind: "white" | "earth" | "black" | "supernova" | "stella";
   bundleIndex: number;
   subIndex: number;
   slotIndex?: number | null;

@@ -22,6 +22,7 @@ export const usersTable = pgTable("users", {
   bonusGold: integer("bonus_gold").notNull().default(0),
   bonusMythic: integer("bonus_mythic").notNull().default(0),
   bonusPlasma: integer("bonus_plasma").notNull().default(0),
+  bonusNova: integer("bonus_nova").notNull().default(0),
   bonusV1: integer("bonus_v1").notNull().default(0),
   // V1 NFT Platinum Edition — esclusivo NFT, max 5 venduti globalmente
   // (cap atomico in creditUserTx via WHERE-guard sulla SOMMA della colonna).
@@ -48,6 +49,7 @@ export const usersTable = pgTable("users", {
   totalCraftedGold: integer("total_crafted_gold").notNull().default(0),
   totalCraftedMythic: integer("total_crafted_mythic").notNull().default(0),
   totalCraftedPlasma: integer("total_crafted_plasma").notNull().default(0),
+  totalCraftedNova: integer("total_crafted_nova").notNull().default(0),
   totalCraftedV1: integer("total_crafted_v1").notNull().default(0),
   // Lifetime obtained counters — tracks planets acquired from ANY source:
   // Lab crafting, Wheel, Merchant fusion, marketplace buy, redeem codes,
@@ -59,6 +61,7 @@ export const usersTable = pgTable("users", {
   totalObtainedGold: integer("total_obtained_gold").notNull().default(0),
   totalObtainedMythic: integer("total_obtained_mythic").notNull().default(0),
   totalObtainedPlasma: integer("total_obtained_plasma").notNull().default(0),
+  totalObtainedNova: integer("total_obtained_nova").notNull().default(0),
   totalObtainedV1: integer("total_obtained_v1").notNull().default(0),
   wheelSpins: integer("wheel_spins").notNull().default(0),
   lastWheelDailyAt: timestamp("last_wheel_daily_at"),
@@ -78,6 +81,10 @@ export const usersTable = pgTable("users", {
   blackCollectionBundles: integer("black_collection_bundles").notNull().default(0),
   supernovaCollectionUnlocked: boolean("supernova_collection_unlocked").notNull().default(false),
   supernovaCollectionBundles: integer("supernova_collection_bundles").notNull().default(0),
+  // STELLA ROSSA Collection — unlockable via Lab widget (60 Stardust).
+  // 4 deep-red TON-farming planets. Same kind pattern as other collections.
+  stellaRossaCollectionUnlocked: boolean("stella_rossa_collection_unlocked").notNull().default(false),
+  stellaRossaCollectionBundles: integer("stella_rossa_collection_bundles").notNull().default(0),
   // Earned TON balance — credited by staking accrual, collection-planet
   // collections, admin /credit-ton, and withdrawal refunds. ONLY this balance
   // can be withdrawn. NEVER credited from external deposits.
@@ -169,6 +176,7 @@ export const usersTable = pgTable("users", {
   claimedBonusGold: integer("claimed_bonus_gold").notNull().default(0),
   claimedBonusMythic: integer("claimed_bonus_mythic").notNull().default(0),
   claimedBonusPlasma: integer("claimed_bonus_plasma").notNull().default(0),
+  claimedBonusNova: integer("claimed_bonus_nova").notNull().default(0),
   claimedBonusV1: integer("claimed_bonus_v1").notNull().default(0),
   claimedBonusV1NftPlatinum: integer("claimed_bonus_v1_nft_platinum").notNull().default(0),
   // V1 NFT Platinum passive stardust: owning the V1 NFT planet unlocks a

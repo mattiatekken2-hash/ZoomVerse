@@ -35,7 +35,6 @@ type Tab = "lab" | "home" | "farm" | "market" | "earn" | "wheel" | "rank" | "sho
 
 const NAV: { id: Tab; labelKey: string; icon: React.ElementType }[] = [
   { id: "lab", labelKey: "nav.lab", icon: FlaskConical },
-  { id: "home", labelKey: "nav.home", icon: Home },
   { id: "farm", labelKey: "nav.farm", icon: Sprout },
   { id: "market", labelKey: "nav.market", icon: ShoppingCart },
   { id: "wheel", labelKey: "nav.wheel", icon: CircleDot },
@@ -43,7 +42,7 @@ const NAV: { id: Tab; labelKey: string; icon: React.ElementType }[] = [
   { id: "rank", labelKey: "nav.rank", icon: Trophy },
 ];
 
-const ALL_TABS: Tab[] = ["lab", "home", "farm", "market", "earn", "wheel", "rank", "shop"];
+const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "wheel", "rank", "shop"];
 
 export default function App() {
   return (
@@ -111,6 +110,7 @@ function AppShellWithState() {
     placeEarthPlanet, reactivateEarthPlanet, markEarthPlanetReactivated, collectEarthPlanet,
     placeBlackPlanet, reactivateBlackPlanet, markBlackPlanetReactivated, collectBlackPlanet,
     placeSupernovaPlanet, reactivateSupernovaPlanet, markSupernovaPlanetReactivated, collectSupernovaPlanet,
+    placeStellaRossaPlanet, reactivateStellaRossaPlanet, markStellaRossaPlanetReactivated, collectStellaRossaPlanet,
     activateEquipment, reactivateEquipment, burnEquipment, listEquipment, unlistEquipment, buyEquipmentFromMarket,
   } = useGameState();
 
@@ -860,6 +860,13 @@ function AppShellWithState() {
                   onCollectSupernovaPlanet={collectSupernovaPlanet}
                   onReactivateSupernovaPlanet={reactivateSupernovaPlanet}
                   onMarkSupernovaPlanetReactivated={markSupernovaPlanetReactivated}
+                  stellaRossaCollectionUnlocked={!!state.stellaRossaCollectionUnlocked}
+                  stellaRossaCollectionBundles={Number(state.stellaRossaCollectionBundles) || 0}
+                  stellaPlanets={state.stellaPlanets || []}
+                  onPlaceStellaRossaPlanet={placeStellaRossaPlanet}
+                  onCollectStellaRossaPlanet={collectStellaRossaPlanet}
+                  onReactivateStellaRossaPlanet={reactivateStellaRossaPlanet}
+                  onMarkStellaRossaPlanetReactivated={markStellaRossaPlanetReactivated}
                   visible={tab === "lab"}
                 />
               )}

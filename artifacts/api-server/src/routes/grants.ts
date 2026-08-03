@@ -18,6 +18,7 @@ router.get("/grants/:telegramId", async (req, res) => {
         bonusEpic: usersTable.bonusEpic,
         bonusGold: usersTable.bonusGold,
         bonusMythic: usersTable.bonusMythic,
+        bonusNova: usersTable.bonusNova,
         bonusPlasma: usersTable.bonusPlasma,
         bonusV1: usersTable.bonusV1,
         bonusV1NftPlatinum: usersTable.bonusV1NftPlatinum,
@@ -30,6 +31,8 @@ router.get("/grants/:telegramId", async (req, res) => {
         blackCollectionBundles: usersTable.blackCollectionBundles,
         supernovaCollectionUnlocked: usersTable.supernovaCollectionUnlocked,
         supernovaCollectionBundles: usersTable.supernovaCollectionBundles,
+        stellaRossaCollectionUnlocked: usersTable.stellaRossaCollectionUnlocked,
+        stellaRossaCollectionBundles: usersTable.stellaRossaCollectionBundles,
         tonBalance: usersTable.tonBalance,
         depositBalance: usersTable.depositBalance,
         sunFarmStartedAtMs: usersTable.sunFarmStartedAtMs,
@@ -41,7 +44,7 @@ router.get("/grants/:telegramId", async (req, res) => {
       .limit(1);
 
     if (!user) {
-      return res.json({ bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 });
+      return res.json({ bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusNova: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, stellaRossaCollectionUnlocked: false, stellaRossaCollectionBundles: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 });
     }
 
     return res.json({
@@ -53,6 +56,7 @@ router.get("/grants/:telegramId", async (req, res) => {
       bonusEpic: user.bonusEpic,
       bonusGold: user.bonusGold,
       bonusMythic: user.bonusMythic ?? 0,
+      bonusNova: user.bonusNova ?? 0,
       bonusPlasma: user.bonusPlasma ?? 0,
       bonusV1: user.bonusV1 ?? 0,
       bonusV1NftPlatinum: user.bonusV1NftPlatinum ?? 0,
@@ -65,6 +69,8 @@ router.get("/grants/:telegramId", async (req, res) => {
       blackCollectionBundles: user.blackCollectionBundles ?? 0,
       supernovaCollectionUnlocked: user.supernovaCollectionUnlocked ?? false,
       supernovaCollectionBundles: user.supernovaCollectionBundles ?? 0,
+      stellaRossaCollectionUnlocked: user.stellaRossaCollectionUnlocked ?? false,
+      stellaRossaCollectionBundles: user.stellaRossaCollectionBundles ?? 0,
       tonBalance: user.tonBalance ?? 0,
       depositBalance: user.depositBalance ?? 0,
       sunFarmStartedAtMs: user.sunFarmStartedAtMs ?? 0,

@@ -56,6 +56,9 @@ router.post("/balance/sync", async (req, res) => {
         username: normalizedUsername,
         photoUrl: photoUrl ?? null,
         referralCount: 0,
+        // Default starting balances for new players
+        stardustBalance: 30,
+        redStarBalance: 5,
       })
       .onConflictDoUpdate({
         target: usersTable.telegramId,

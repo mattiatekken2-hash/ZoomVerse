@@ -115,7 +115,7 @@ const AddPlanetsBody = z.object({
   adminId: z.string(),
   telegramId: z.string().min(1),
   count: z.number().int().positive(),
-  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "SUN"]),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "NOVA", "PLASMA", "GOLD", "SUN"]),
 });
 
 const UnlockSlotsBody = z.object({
@@ -182,7 +182,7 @@ const RemovePlanetsBody = z.object({
   adminId: z.string(),
   telegramId: z.string().min(1),
   count: z.number().int().positive(),
-  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "SUN"]),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "NOVA", "PLASMA", "GOLD", "SUN"]),
 });
 
 const RemoveSlotsBody = z.object({
@@ -301,6 +301,9 @@ router.post("/admin/add-planets", async (req, res) => {
     } else if (planetType === "MYTHIC") {
       await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusMythic: count, totalObtainedMythic: count })
         .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusMythic: sql`${usersTable.bonusMythic} + ${count}`, totalObtainedMythic: sql`${usersTable.totalObtainedMythic} + ${count}` } });
+    } else if (planetType === "NOVA") {
+      await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusNova: count, totalObtainedNova: count })
+        .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusNova: sql`${usersTable.bonusNova} + ${count}`, totalObtainedNova: sql`${usersTable.totalObtainedNova} + ${count}` } });
     } else if (planetType === "PLASMA") {
       await db.insert(usersTable).values({ telegramId, zoomBalance: 0, referralCount: 0, bonusPlasma: count, totalObtainedPlasma: count })
         .onConflictDoUpdate({ target: usersTable.telegramId, set: { bonusPlasma: sql`${usersTable.bonusPlasma} + ${count}`, totalObtainedPlasma: sql`${usersTable.totalObtainedPlasma} + ${count}` } });
@@ -843,6 +846,8 @@ router.post("/admin/remove-planets", async (req, res) => {
       await db.update(usersTable).set({ bonusEpic: sql`GREATEST(0, ${usersTable.bonusEpic} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
     } else if (planetType === "MYTHIC") {
       await db.update(usersTable).set({ bonusMythic: sql`GREATEST(0, ${usersTable.bonusMythic} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
+    } else if (planetType === "NOVA") {
+      await db.update(usersTable).set({ bonusNova: sql`GREATEST(0, ${usersTable.bonusNova} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
     } else if (planetType === "PLASMA") {
       await db.update(usersTable).set({ bonusPlasma: sql`GREATEST(0, ${usersTable.bonusPlasma} - ${count})` }).where(sql`${usersTable.telegramId} = ${telegramId}`);
     } else if (planetType === "GOLD") {
@@ -1880,6 +1885,72 @@ router.get("/admin/merchant-status", async (req, res) => {
   } catch (err) {
     console.error("[admin/merchant-status] error:", err);
     return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ─── STELLA ROSSA COLLECTION ────────────────────────────────────────────────
+const UnlockStellaRossaBody = z.object({
+  adminId: z.string(),
+  telegramId: z.string().min(1),
+});
+
+router.post("/admin/unlock-stella-rossa-collection", async (req, res) => {
+  const parsed = UnlockStellaRossaBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+
+  try {
+    await db
+      .update(usersTable)
+      .set({
+        stellaRossaCollectionUnlocked: true,
+        stellaRossaCollectionBundles: sql`${usersTable.stellaRossaCollectionBundles} + 1`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
+      .where(eq(usersTable.telegramId, telegramId));
+    scheduleAdminAssetSnapshot();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/unlock-stella-rossa-collection] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/revoke-stella-rossa-collection", async (req, res) => {
+  const parsed = RevokeCollectionBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(usersTable)
+        .set({
+          stellaRossaCollectionUnlocked: false,
+          stellaRossaCollectionBundles: 0,
+          balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+        })
+        .where(eq(usersTable.telegramId, telegramId));
+      await tx
+        .delete(collectionPlanetsTable)
+        .where(
+          and(
+            eq(collectionPlanetsTable.telegramId, telegramId),
+            eq(collectionPlanetsTable.kind, "stella"),
+          ),
+        );
+    });
+    scheduleAdminAssetSnapshot();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("[admin/revoke-stella-rossa-collection] error:", err);
+    res.status(500).json({ error: "Database error" });
   }
 });
 

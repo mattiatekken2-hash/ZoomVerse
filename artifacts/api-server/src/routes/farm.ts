@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, farmCyclesTable, usersTable } from "@workspace/db";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { bumpZoomPriceFireAndForget } from "../lib/zoomPrice";
 
@@ -150,9 +150,13 @@ export async function fetchPendingFarmNotifications(limit = 100) {
   return await db
     .select()
     .from(farmCyclesTable)
-    .where(sql`${farmCyclesTable.expiresAt} <= NOW()
-        AND ${farmCyclesTable.notifiedAt} IS NULL
-        AND ${farmCyclesTable.collectedAt} IS NULL`)
+    .where(
+      and(
+        lte(farmCyclesTable.expiresAt, new Date()),
+        isNull(farmCyclesTable.notifiedAt),
+        isNull(farmCyclesTable.collectedAt),
+      ),
+    )
     .orderBy(farmCyclesTable.expiresAt, farmCyclesTable.id)
     .limit(limit);
 }
