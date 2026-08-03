@@ -14,7 +14,14 @@ async function buildAll() {
   const distDir = path.resolve(artifactDir, "dist");
   await rm(distDir, { recursive: true, force: true });
 
+  const workspaceRoot = path.resolve(artifactDir, "../..");
+
   await esbuild({
+    alias: {
+      "@workspace/db/schema": path.resolve(workspaceRoot, "lib/db/src/schema"),
+      "@workspace/db": path.resolve(workspaceRoot, "lib/db/src"),
+      "@workspace/api-zod": path.resolve(workspaceRoot, "lib/api-zod/src"),
+    },
     entryPoints: [path.resolve(artifactDir, "src/index.ts")],
     platform: "node",
     bundle: true,
