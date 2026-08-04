@@ -71,6 +71,12 @@ const PLANET_GRADIENTS: Record<string, { stops: string[]; glowAlpha: number }> =
     stops: ["#ffd2c2", "#ff7a55", "#ff4500", "#a01005", "#5a0000"],
     glowAlpha: 0.85,
   },
+  // NOVA — deep violet/purple, rarer than MYTHIC. Full purple palette with
+  // no grey — bright lavender highlight fades to near-black indigo core.
+  NOVA: {
+    stops: ["#e0b0ff", "#b060f0", "#7b2fff", "#4a00d4", "#1e0064"],
+    glowAlpha: 0.9,
+  },
   // PLASMA — neon green gradient, between MYTHIC and GOLD rarity.
   // Fully green palette that glows vivid and scales with float.
   PLASMA: {

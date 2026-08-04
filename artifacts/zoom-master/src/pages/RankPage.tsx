@@ -161,6 +161,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                     { key: "PLASMA", label: "Plasma", color: "#00e676" },
                     { key: "GOLD", label: "Gold", color: "#ffd700" },
                     { key: "V1", label: "V1", color: "#f5fbff" },
+                    { key: "MUSHROOM", label: "Fungo 🍄", color: "#b83fbf" },
                   ] as const).map(({ key, label, color }) => (
                     <div key={key} className="rounded-lg p-2 text-center" style={{ background: color + "10", border: `1px solid ${color}20` }}>
                       <div className="font-black text-base" style={{ color }}>{(profile.crafted as Record<string, number> | undefined)?.[key] ?? 0}</div>
