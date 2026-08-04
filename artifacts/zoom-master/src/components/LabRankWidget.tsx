@@ -204,6 +204,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
             padding:
               "calc(env(safe-area-inset-top, 0px) + 130px) 14px calc(env(safe-area-inset-bottom, 0px) + 80px)",
             overflowY: "auto",
+            WebkitOverflowScrolling: "touch",
           }}
           data-testid="modal-lab-rank"
         >
@@ -449,8 +450,6 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
                   display: "flex",
                   flexDirection: "column",
                   gap: 4,
-                  maxHeight: 280,
-                  overflowY: "auto",
                   padding: 8,
                   borderRadius: 10,
                   background: "rgba(255,255,255,0.02)",

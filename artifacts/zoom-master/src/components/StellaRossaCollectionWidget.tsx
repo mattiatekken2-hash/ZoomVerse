@@ -102,7 +102,7 @@ function StellaRossaCollectionWidgetBase({
         boc,
       );
       if (confirmResult.alreadyCredited || confirmResult.ok) {
-        setMsg("🔴 Stella Rossa Collection activated!");
+        setMsg("🔴 REDSTAR Collection activated!");
         onUnlocked?.();
         window.dispatchEvent(new Event("zoom-data-refresh"));
         setOpen(false);
@@ -110,7 +110,7 @@ function StellaRossaCollectionWidgetBase({
         setMsg("Verifying payment...");
         const final = await pollTxnUntilFinal(confirmResult.txnId);
         if (final?.status === "completed") {
-          setMsg("🔴 Stella Rossa Collection activated!");
+          setMsg("🔴 REDSTAR Collection activated!");
           onUnlocked?.();
           window.dispatchEvent(new Event("zoom-data-refresh"));
           setOpen(false);
@@ -151,7 +151,7 @@ function StellaRossaCollectionWidgetBase({
       {/* Fixed floating button — 2x2 grid lower-left */}
       <button
         onClick={() => setOpen(true)}
-        aria-label="Stella Rossa Collection"
+        aria-label="REDSTAR Collection"
         className="sr-btn-tile"
         style={{
           position: "fixed",
@@ -259,7 +259,7 @@ function StellaRossaCollectionWidgetBase({
                 fontSize: 15, fontWeight: 900, letterSpacing: "0.18em",
                 textTransform: "uppercase", color: STELLA_GLOW,
                 textShadow: `0 0 14px ${STELLA_RED}99`,
-              }}>STELLA ROSSA</div>
+              }}>REDSTAR</div>
               <div style={{ fontSize: 10, color: "rgba(255,100,100,0.65)", marginTop: 4, letterSpacing: "0.08em" }}>
                 EXCLUSIVE COLLECTION
               </div>

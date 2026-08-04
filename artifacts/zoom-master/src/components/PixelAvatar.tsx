@@ -90,6 +90,13 @@ interface PixelAvatarProps {
   onCollectSupernovaPlanet?: (planetId: string) => void;
   onReactivateSupernovaPlanet?: (planetId: string) => { ok: boolean; reason?: string };
   onMarkSupernovaPlanetReactivated?: (planetId: string) => { ok: boolean; reason?: string };
+  // REDSTAR Collection
+  stellaPlanets?: Planet[];
+  stellaRossaCollectionUnlocked?: boolean;
+  stellaRossaCollectionBundles?: number;
+  onPlaceStellaRossaPlanet?: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
+  onCollectStellaRossaPlanet?: (planetId: string) => void;
+  onMarkStellaRossaPlanetReactivated?: (planetId: string) => { ok: boolean; reason?: string };
 }
 
 function PixelAvatarBase({
@@ -125,6 +132,12 @@ function PixelAvatarBase({
   onCollectSupernovaPlanet,
   onReactivateSupernovaPlanet: _onReactivateSupernovaPlanet,
   onMarkSupernovaPlanetReactivated,
+  stellaPlanets = [],
+  stellaRossaCollectionUnlocked = false,
+  stellaRossaCollectionBundles = 0,
+  onPlaceStellaRossaPlanet,
+  onCollectStellaRossaPlanet,
+  onMarkStellaRossaPlanetReactivated,
 }: PixelAvatarProps) {
   // TonConnect — same wiring used by the Shop page (SUN, packs, etc.). The
   // REACT button on a white-planet slot opens the wallet, sends 0.005 TON to
@@ -150,8 +163,12 @@ function PixelAvatarBase({
     ? supernovaCollectionBundles
     : (supernovaCollectionUnlocked ? 1 : 0);
   const maxSupernovaSlots = effectiveSupernovaBundles * 4;
-  // Withdrawals are gated by: White Collection, OR Earth Collection, OR Black, OR Supernova.
-  const canWithdraw = whiteCollectionUnlocked || earthCollectionUnlocked || blackCollectionUnlocked || supernovaCollectionUnlocked;
+  const effectiveStellaBundles = stellaRossaCollectionBundles > 0
+    ? stellaRossaCollectionBundles
+    : (stellaRossaCollectionUnlocked ? 1 : 0);
+  const maxStellaSlots = effectiveStellaBundles * 4;
+  // Withdrawals are gated by: White Collection, OR Earth Collection, OR Black, OR Supernova, OR Redstar.
+  const canWithdraw = whiteCollectionUnlocked || earthCollectionUnlocked || blackCollectionUnlocked || supernovaCollectionUnlocked || stellaRossaCollectionUnlocked;
   const [tapped, setTapped] = useState(false);
   const [open, setOpen] = useState(false);
   const [depositMsg, setDepositMsg] = useState<string | null>(null);
@@ -196,6 +213,7 @@ function PixelAvatarBase({
     for (const p of earthPlanets) pending += getWhitePlanetPendingTon(p, now);
     for (const p of blackPlanets) pending += getWhitePlanetPendingTon(p, now);
     for (const p of supernovaPlanets) pending += getWhitePlanetPendingTon(p, now);
+    for (const p of stellaPlanets) pending += getWhitePlanetPendingTon(p, now);
     return tonBalance + pending;
   })();
 
@@ -282,6 +300,13 @@ function PixelAvatarBase({
   );
   const [selectedSupernovaInvId, setSelectedSupernovaInvId] = useState<string | null>(null);
 
+  // REDSTAR Collection — mirrors supernova collection.
+  const stellaInventory = stellaPlanets.filter((p) => p.slotIndex == null);
+  const stellaSlotOccupants: (Planet | null)[] = Array.from({ length: maxStellaSlots }, (_, i) =>
+    stellaPlanets.find((p) => p.slotIndex === i) || null
+  );
+  const [selectedStellaInvId, setSelectedStellaInvId] = useState<string | null>(null);
+
   const flashWhiteMsg = (msg: string) => {
     setWhiteMsg(msg);
     window.setTimeout(() => setWhiteMsg(null), 2200);
@@ -365,6 +390,23 @@ function PixelAvatarBase({
 
   const handleSupernovaInvClick = (id: string) => {
     setSelectedSupernovaInvId((cur) => (cur === id ? null : id));
+  };
+
+  const handleStellaSlotClick = (slotIndex: number) => {
+    if (slotIndex < 0 || slotIndex >= maxStellaSlots) return;
+    const occupant = stellaSlotOccupants[slotIndex];
+    if (occupant) return;
+    if (!selectedStellaInvId || !onPlaceStellaRossaPlanet) {
+      flashWhiteMsg("Select a REDSTAR planet from the inventory first");
+      return;
+    }
+    const res = onPlaceStellaRossaPlanet(selectedStellaInvId, slotIndex);
+    if (!res.ok) { flashWhiteMsg(res.reason || "Cannot place planet"); return; }
+    setSelectedStellaInvId(null);
+  };
+
+  const handleStellaInvClick = (id: string) => {
+    setSelectedStellaInvId((cur) => (cur === id ? null : id));
   };
 
   return (
@@ -1666,19 +1708,142 @@ function PixelAvatarBase({
               )}
 
               {supernovaCollectionUnlocked && maxSupernovaSlots > 0 && supernovaInventory.length === 0 && supernovaSlotOccupants.every((o) => o) && (
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: "#ffd700",
-                    textAlign: "center",
-                    fontStyle: "italic",
-                    opacity: 0.8,
-                  }}
-                >
+                <div style={{ fontSize: 11, color: "#ffd700", textAlign: "center", fontStyle: "italic", opacity: 0.8 }}>
                   All {maxSupernovaSlots} supernova stars have been placed
                 </div>
               )}
             </div>
+
+            {/* ───── REDSTAR COLLECTION FARM ───── */}
+            <div style={{ borderTop: "1px solid rgba(220,20,60,0.22)", paddingTop: 12, marginTop: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, gap: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.18em", color: "#ff2244", textTransform: "uppercase" }}>
+                  REDSTAR Collection Farm
+                </div>
+                {stellaRossaCollectionUnlocked && (
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "#ff2244", padding: "4px 9px", borderRadius: 8, background: "rgba(220,20,60,0.10)", border: "1px solid rgba(220,20,60,0.45)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }} title="Live TON balance including uncollected REDSTAR earnings">
+                    {liveTonBalance.toFixed(6)} TON
+                  </div>
+                )}
+              </div>
+
+              {stellaRossaCollectionUnlocked && maxStellaSlots > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 10 }}>
+                  {stellaSlotOccupants.map((_unused, i) => {
+                    const occupant = stellaSlotOccupants[i];
+                    const targetable = !occupant && !!selectedStellaInvId;
+                    return (
+                      <div
+                        key={`stella-slot-${i}`}
+                        className={`pixel-farm-slot ${occupant ? "filled locked-tag" : ""} ${targetable ? "targetable" : ""}`}
+                        style={{ position: "relative", padding: occupant ? 6 : 0, flexDirection: "column" }}
+                        onClick={() => handleStellaSlotClick(i)}
+                      >
+                        {occupant ? (
+                          <SlotContent
+                            planet={occupant}
+                            tonBalance={tonBalance}
+                            busy={reactingId === occupant.id}
+                            onCollect={onCollectStellaRossaPlanet}
+                            onReactivate={async (id, planet) => {
+                              if (!telegramId) { flashWhiteMsg("Session not ready"); return; }
+                              if (!connectedAddress) { tonConnectUI.openModal(); flashWhiteMsg("Connect your wallet"); return; }
+                              if (reactingId) return;
+                              setReactingId(id);
+                              try {
+                                const fee = getReactivationFee(planet);
+                                const nanotons = BigInt(Math.round(fee * 1e9)).toString();
+                                const txResult = await tonConnectUI.sendTransaction({
+                                  validUntil: Math.floor(Date.now() / 1000) + 300,
+                                  messages: [{ address: TON_RECEIVER_WALLET, amount: nanotons }],
+                                });
+                                const boc = txResult.boc || "";
+                                const reactKey = parseCollectionPlanetKey(planet.id);
+                                const reactMeta = reactKey ? { ...reactKey, slotIndex: planet.slotIndex ?? null } : undefined;
+                                const confirm = await confirmTonPurchase(telegramId, "stella_react", connectedAddress, fee, boc, reactMeta);
+                                let creditedOk = confirm.ok && !confirm.pending;
+                                if (confirm.pending && confirm.txnId) {
+                                  flashWhiteMsg("Verifying payment on-chain…");
+                                  const final = await pollTxnUntilFinal(confirm.txnId);
+                                  creditedOk = final?.status === "completed";
+                                  if (final?.status === "failed") { flashWhiteMsg("Payment not detected on-chain"); setReactingId(null); return; }
+                                } else if (!confirm.ok) {
+                                  flashWhiteMsg(confirm.error || "Payment failed"); setReactingId(null); return;
+                                }
+                                if (creditedOk) {
+                                  const res = onMarkStellaRossaPlanetReactivated?.(id);
+                                  if (res && !res.ok) flashWhiteMsg(res.reason || "Reactivation failed");
+                                  else flashWhiteMsg("Reactivated!");
+                                } else { flashWhiteMsg("Awaiting confirmation…"); }
+                              } catch (err: unknown) {
+                                const m = err instanceof Error ? err.message : String(err);
+                                if (m.includes("cancel") || m.includes("reject") || m.includes("Interrupted")) flashWhiteMsg("Payment cancelled");
+                                else { flashWhiteMsg("TON payment failed"); console.error("[stella-react] ton tx error:", err); }
+                              } finally { setReactingId(null); }
+                            }}
+                          />
+                        ) : (
+                          <div style={{ fontSize: 18, opacity: 0.3 }}>◌</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {stellaRossaCollectionUnlocked && stellaInventory.length > 0 && (
+                <>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", color: "rgba(255,255,255,0.6)", textTransform: "uppercase", marginBottom: 8 }}>
+                    Redstar Inventory · Tap to select, then tap a slot
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(4, stellaInventory.length)}, 1fr)`, gap: 8, marginBottom: 10 }}>
+                    {stellaInventory.map((p) => {
+                      const cfg = PLANET_CONFIG[p.name];
+                      return (
+                        <div
+                          key={p.id}
+                          className={`pixel-inv-item ${selectedStellaInvId === p.id ? "selected" : ""}`}
+                          onClick={() => handleStellaInvClick(p.id)}
+                        >
+                          <svg width={32} height={32} viewBox="0 0 12 12" shapeRendering="crispEdges" style={{ filter: "drop-shadow(0 0 5px #ff2244cc)" }}>
+                            <rect x="5" y="0" width="2" height="2" fill="#ff2244" />
+                            <rect x="3" y="2" width="6" height="2" fill="#ff2244" />
+                            <rect x="1" y="4" width="10" height="2" fill="#ff3355" />
+                            <rect x="0" y="6" width="12" height="2" fill="#ff2244" />
+                            <rect x="1" y="8" width="10" height="2" fill="#cc1133" />
+                            <rect x="2" y="10" width="8" height="1" fill="#aa0022" />
+                            <rect x="4" y="11" width="4" height="1" fill="#880011" />
+                          </svg>
+                          <div style={{ fontSize: 9, fontWeight: 800, opacity: 0.85, textAlign: "center", lineHeight: 1.1 }}>
+                            {cfg.label}
+                          </div>
+                          <div style={{ fontSize: 8, opacity: 0.6 }}>+{cfg.rate}/h</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {!stellaRossaCollectionUnlocked && (
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", textAlign: "center", fontStyle: "italic" }}>
+                  Unlock the REDSTAR Collection (60 TON) to receive 4 exclusive red star planets
+                </div>
+              )}
+
+              {stellaRossaCollectionUnlocked && effectiveStellaBundles > 1 && (
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", textAlign: "center", marginTop: 4, letterSpacing: "0.08em" }}>
+                  {effectiveStellaBundles}× bundles · {maxStellaSlots} slots
+                </div>
+              )}
+
+              {stellaRossaCollectionUnlocked && maxStellaSlots > 0 && stellaInventory.length === 0 && stellaSlotOccupants.every((o) => o) && (
+                <div style={{ fontSize: 11, color: "#ff2244", textAlign: "center", fontStyle: "italic", opacity: 0.8 }}>
+                  All {maxStellaSlots} REDSTAR planets have been placed
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
       )}
@@ -1711,9 +1876,21 @@ function SlotContent({ planet, busy = false, onReactivate }: SlotContentProps) {
   const isWhite = planet.name === "WHITE1" || planet.name === "WHITE2" || planet.name === "WHITE3" || planet.name === "WHITE4";
   const isBlack = planet.name === "BLACK1" || planet.name === "BLACK2" || planet.name === "BLACK3" || planet.name === "BLACK4";
   const isSupernova = planet.name === "SUPERNOVA1" || planet.name === "SUPERNOVA2" || planet.name === "SUPERNOVA3" || planet.name === "SUPERNOVA4";
+  const isStella = planet.name === "STELLA1" || planet.name === "STELLA2" || planet.name === "STELLA3" || planet.name === "STELLA4";
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-      {isEarth ? <RealisticEarth size={36} /> : isWhite ? <RealisticWhite size={36} /> : isBlack ? <BlackPlanetOrb size={36} nebula={false} spin={active} /> : isSupernova ? <SupernovaStarOrb size={36} color={cfg.color} /> : <PlanetOrb planet={planet} size={36} animate={active} />}
+      {isEarth ? <RealisticEarth size={36} /> : isWhite ? <RealisticWhite size={36} /> : isBlack ? <BlackPlanetOrb size={36} nebula={false} spin={active} /> : isSupernova ? <SupernovaStarOrb size={36} color={cfg.color} /> : isStella ? (
+        <svg width={36} height={36} viewBox="0 0 12 12" shapeRendering="crispEdges" style={{ filter: "drop-shadow(0 0 6px #ff2244cc)" }}>
+          <rect x="5" y="0" width="2" height="2" fill="#ff2244" />
+          <rect x="3" y="2" width="6" height="2" fill="#ff2244" />
+          <rect x="1" y="4" width="10" height="2" fill="#ff3355" />
+          <rect x="0" y="6" width="12" height="2" fill="#ff2244" />
+          <rect x="1" y="8" width="10" height="2" fill="#cc1133" />
+          <rect x="2" y="10" width="8" height="1" fill="#aa0022" />
+          <rect x="4" y="11" width="4" height="1" fill="#880011" />
+          <rect x="5" y="1" width="1" height="1" fill="#ff88aa" />
+        </svg>
+      ) : <PlanetOrb planet={planet} size={36} animate={active} />}
 
       <div style={{ fontSize: 8, fontWeight: 800, opacity: 0.95, lineHeight: 1.1, textAlign: "center" }}>
         {cfg.label.replace("White Planet ", "W")}
