@@ -1041,7 +1041,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                     </div>
                     <div className="text-xs font-bold" style={{ color: expired ? "rgba(255,82,82,0.75)" : "rgba(255,255,255,0.5)" }}>
                       {active
-                        ? `+${planet.rate.toLocaleString()} ${planet.name === "MUSHROOM" ? "★NFTSTAR/hr" : "$ZOOM/hr"} · ${formatDuration(remaining)} left`
+                        ? `${planet.name === "MUSHROOM" ? "+5 ★NFTSTAR/24h" : `+${planet.rate.toLocaleString()} $ZOOM/hr`} · ${formatDuration(remaining)} left`
                         : expired
                         ? `Cycle ended · Reactivate for ${reactivationFee.toLocaleString()} $ZOOM`
                         : isListed

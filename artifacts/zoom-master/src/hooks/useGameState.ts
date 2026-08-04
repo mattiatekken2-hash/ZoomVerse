@@ -433,10 +433,10 @@ export const PLANET_CONFIG: Record<PlanetType, {
   },
   // MUSHROOM — NFT rarity between PLASMA and GOLD. Styled as a cosmic mushroom.
   // Drop rate: 0.08% (between PLASMA 0.15% and GOLD 0.05%).
-  // Rate: 140 ZOOM/h. Also passively earns 5 NFTSTAR/day per planet.
+  // Earns 5 NFTSTAR/24h per planet (not ZOOM). Rate field = 5 (used as display value).
   // Tradeable on the P2P market (stile NFT V1).
   MUSHROOM: {
-    rate: 140,
+    rate: 5,
     color: "#8b3a8b",
     glowColor: "rgba(180,60,180,0.75)",
     chance: 0.0008,
@@ -1789,13 +1789,13 @@ function settleFarmingState(state: GameState, now: number): GameState {
       // Using the same `+ DYNAMIC_BONUS_AVG` constant on both sides keeps the
       // preview exactly equal to the credit, so the visible balance never
       // moves backwards on open.
-      const effectiveRate = planet.rate + DYNAMIC_BONUS_AVG;
-      const delta = (effectiveRate / 3_600_000) * (end - start) * speedMultiplier;
-      // MUSHROOM planets earn NFTSTAR (★) instead of ZOOM.
+      // MUSHROOM planets earn exactly 5 NFTSTAR per full 24h cycle (no DYNAMIC_BONUS).
       if (planet.name === "MUSHROOM") {
-        nftStarEarned += delta;
+        const MUSHROOM_NFTSTAR_PER_CYCLE = 5;
+        nftStarEarned += (MUSHROOM_NFTSTAR_PER_CYCLE / FARM_DURATION_MS) * (end - start) * speedMultiplier;
       } else {
-        earned += delta;
+        const effectiveRate = planet.rate + DYNAMIC_BONUS_AVG;
+        earned += (effectiveRate / 3_600_000) * (end - start) * speedMultiplier;
       }
     }
   }
@@ -4188,9 +4188,35 @@ export function useGameState() {
       }
       const updated = {
         ...prev,
-        planets: prev.planets.map((p) =>
-          p.id === id ? { ...p, isListedInMarket: false, marketPrice: null, serverListingId: undefined } : p
-        ),
+        planets: prev.planets.map((p) => {
+          if (p.id !== id) return p;
+          // If the planet was paused mid-cycle when listed (pausedAt > 0),
+          // shift both cycle timestamps forward by the pause duration so the
+          // remaining farm window is fully preserved — same math as the
+          // pause-preserving resume in startFarming (line ~3972).
+          const now = serverNow();
+          const pauseShift = (p.pausedAt && p.pausedAt > 0)
+            ? Math.max(0, now - p.pausedAt)
+            : 0;
+          const newFarmStartedAt = pauseShift > 0 ? (p.farmStartedAt || 0) + pauseShift : (p.farmStartedAt || 0);
+          const newLastCollectedAt = pauseShift > 0 && (p.lastCollectedAt || 0) > 0
+            ? (p.lastCollectedAt || 0) + pauseShift
+            : (p.lastCollectedAt || 0);
+          // Auto-resume only if a valid cycle still has time remaining.
+          const effStart = Math.max(newFarmStartedAt, newLastCollectedAt);
+          const cycleActive = effStart > 0 && (effStart + FARM_DURATION_MS) > now;
+          const wasActiveCycle = pauseShift > 0 && cycleActive;
+          return {
+            ...p,
+            isListedInMarket: false,
+            marketPrice: null,
+            serverListingId: undefined,
+            isFarmingActive: wasActiveCycle,
+            farmStartedAt: newFarmStartedAt,
+            lastCollectedAt: newLastCollectedAt,
+            pausedAt: wasActiveCycle ? undefined : p.pausedAt,
+          };
+        }),
       };
       stateRef.current = updated;
       saveState(updated);
