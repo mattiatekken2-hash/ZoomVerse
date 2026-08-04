@@ -1866,6 +1866,19 @@ router.post("/admin/test-withdrawal-channel", async (req, res) => {
   res.json({ ok, sent: ok });
 });
 
+// ----- Admin: broadcast Telegram message to all users -----
+router.post("/admin/broadcast", async (req, res) => {
+  const adminId = (req.body?.adminId as string) || "";
+  if (!isAdmin(adminId)) return res.status(403).json({ error: "Forbidden" });
+  const text = (req.body?.text as string || "").trim();
+  if (!text) return res.status(400).json({ error: "text is required" });
+  if (text.length > 4096) return res.status(400).json({ error: "Message too long (max 4096 chars)" });
+
+  const { broadcastBotMessageToAllUsers } = await import("../lib/notify");
+  const result = await broadcastBotMessageToAllUsers(text);
+  res.json({ ok: true, sent: result.sent, skipped: result.skipped });
+});
+
 // ----- PUBLIC: season epoch -----
 router.get("/season/epoch", async (_req, res) => {
   try {

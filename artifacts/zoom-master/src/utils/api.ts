@@ -1657,6 +1657,19 @@ export async function adminResetSeason(adminId: string): Promise<boolean> {
   } catch { return false; }
 }
 
+export async function adminBroadcast(adminId: string, text: string): Promise<{ ok: boolean; sent?: number; skipped?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/broadcast`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, text }),
+    });
+    const data = await res.json();
+    if (!res.ok) return { ok: false, error: data?.error ?? "Errore server" };
+    return { ok: true, sent: data.sent, skipped: data.skipped };
+  } catch { return { ok: false, error: "Network error" }; }
+}
+
 export async function fetchSeasonEpoch(): Promise<number> {
   try {
     const res = await fetch(`${API_BASE}/season/epoch?t=${Date.now()}`, { cache: "no-store" });

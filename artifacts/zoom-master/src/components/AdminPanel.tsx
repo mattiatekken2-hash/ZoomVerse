@@ -70,6 +70,7 @@ import {
   type RedeemKind,
   fetchLeaderboard,
   type LeaderboardEntry,
+  adminBroadcast,
 } from "../utils/api";
 
 const ADMIN_ID = "8144744644";
@@ -104,12 +105,14 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "black" | "revoke-white" | "revoke-earth" | "revoke-black" | "autotap" | "test-wd-chan" | "v1" | "v1nft" | "rec-stars" | "wh-info" | "grant-equipment" | "supernova" | "revoke-supernova" | "stella-rossa" | "revoke-stella-rossa" | "clear-planet-market" | "clear-equipment-market" | "force-merchant" | "labpoints" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "black" | "revoke-white" | "revoke-earth" | "revoke-black" | "autotap" | "test-wd-chan" | "v1" | "v1nft" | "rec-stars" | "wh-info" | "grant-equipment" | "supernova" | "revoke-supernova" | "stella-rossa" | "revoke-stella-rossa" | "clear-planet-market" | "clear-equipment-market" | "force-merchant" | "labpoints" | "broadcast" | null>(null);
   const [eqCategory, setEqCategory] = useState<EqCategory>("HELMET");
   const [eqRarity, setEqRarity] = useState<EqRarity>("BASIC");
   const [confirmBulkNebo, setConfirmBulkNebo] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [delistId, setDelistId] = useState("");
+  const [broadcastText, setBroadcastText] = useState("");
+  const [broadcastResult, setBroadcastResult] = useState<{ sent: number; skipped: number } | null>(null);
   const [disableId, setDisableId] = useState("");
   const [pendingWithdrawals, setPendingWithdrawals] = useState<TonWithdrawal[]>([]);
   const [withdrawalLoadingId, setWithdrawalLoadingId] = useState<number | null>(null);
@@ -1374,6 +1377,73 @@ export function AdminPanel({ telegramId }: Props) {
                   }}
                 >
                   {loading === "clear-equipment-market" ? "..." : "🧹 PULISCI MERCATO EQUIPMENT"}
+                </motion.button>
+
+                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+
+                {/* ── BROADCAST TELEGRAM ── */}
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
+                  📢 BROADCAST TELEGRAM
+                </div>
+                <textarea
+                  value={broadcastText}
+                  onChange={e => setBroadcastText(e.target.value)}
+                  placeholder="Scrivi il messaggio da inviare a tutti gli utenti…"
+                  maxLength={4096}
+                  rows={4}
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(0,0,0,0.3)",
+                    color: "#fff",
+                    fontSize: 12,
+                    fontFamily: "inherit",
+                    resize: "vertical",
+                    outline: "none",
+                  }}
+                />
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", textAlign: "right", marginTop: -4 }}>
+                  {broadcastText.length}/4096
+                </div>
+                {broadcastResult && (
+                  <div style={{ fontSize: 11, color: "#00e676", background: "rgba(0,230,118,0.08)", borderRadius: 8, padding: "6px 10px" }}>
+                    ✓ Inviato a <b>{broadcastResult.sent}</b> utenti · {broadcastResult.skipped} saltati
+                  </div>
+                )}
+                <motion.button
+                  onClick={async () => {
+                    if (!broadcastText.trim()) return;
+                    haptic();
+                    setBroadcastResult(null);
+                    setLoading("broadcast");
+                    const r = await adminBroadcast(telegramId, broadcastText.trim());
+                    setLoading(null);
+                    if (r.ok) {
+                      setBroadcastResult({ sent: r.sent ?? 0, skipped: r.skipped ?? 0 });
+                      setBroadcastText("");
+                    } else {
+                      showFeedback(`✗ ${r.error ?? "Errore broadcast"}`, false);
+                    }
+                  }}
+                  disabled={loading !== null || !broadcastText.trim()}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(33,150,243,0.35)",
+                    background: "rgba(33,150,243,0.12)",
+                    color: "#2196f3",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: loading !== null || !broadcastText.trim() ? "default" : "pointer",
+                    opacity: loading !== null || !broadcastText.trim() ? 0.45 : 1,
+                    transition: "opacity 0.15s",
+                  }}
+                >
+                  {loading === "broadcast" ? "⏳ Invio in corso…" : "📤 INVIA A TUTTI"}
                 </motion.button>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
