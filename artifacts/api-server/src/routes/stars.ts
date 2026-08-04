@@ -206,6 +206,10 @@ const STARS_CATALOG: StarsItem[] = [
   { id: "supernova_collection", title: "Supernova Collection", description: "Unlock 4 exclusive supernova stars. Yield: 1.5 TON / 30 days. Limited: 50 bundles globally.", starsPrice: 1200, tonPrice: 12, itemType: "supernova_collection" },
   // Reactivation fee for an expired supernova-planet farming cycle (0.005 TON).
   { id: "supernova_react", title: "Supernova Reactivation", description: "Restart an expired supernova-planet farming cycle", starsPrice: 0, tonPrice: 0.005, itemType: "supernova_react" },
+  // STELLA ROSSA Collection — 4 deep-red TON-farming planets. 60 TON per bundle,
+  // combined yield 15 TON/month (0.005208 TON/h each). No global cap.
+  { id: "stella_rossa_collection", title: "Stella Rossa Collection", description: "Unlock 4 exclusive red star planets. Yield: 15 TON/month. No cap.", starsPrice: 0, tonPrice: 60, itemType: "stella_rossa_collection" },
+  { id: "stella_react", title: "Stella Rossa Reactivation", description: "Restart an expired Stella Rossa planet farming cycle", starsPrice: 0, tonPrice: 0.005, itemType: "stella_react" },
   // LOTTO STELLARE — bundle di biglietti per la lotteria a probabilità
   // ponderate. zoomAmount qui rappresenta il numero di biglietti del bundle
   // (riusato come "count" per non aggiungere campi al catalogo). Lo
@@ -603,6 +607,14 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string,
       console.error(`[creditUserTx] SUPERNOVA_COLLECTION sold out at credit time for ${telegramId}`);
       throw new Error("SUPERNOVA_COLLECTION_SOLD_OUT");
     }
+  } else if (item.itemType === "stella_rossa_collection") {
+    // STELLA ROSSA — no global cap. Each bundle = 4 red planets @ 15 TON/month.
+    await tx.execute(sql`
+      UPDATE users
+      SET stella_rossa_collection_bundles = stella_rossa_collection_bundles + 1,
+          stella_rossa_collection_unlocked = true
+      WHERE telegram_id = ${telegramId}
+    `);
   }
   return {};
 }
@@ -778,6 +790,9 @@ async function postActivationChannelMessage(item: StarsItem, telegramId: string)
       break;
     case "black_collection":
       title = "⬛ <b>New Black Collection Activation!</b>";
+      break;
+    case "stella_rossa_collection":
+      title = "🔴 <b>New Stella Rossa Collection Activation!</b>";
       break;
     case "supernova_collection":
       title = "🌟 <b>New Supernova Collection Activation!</b>";

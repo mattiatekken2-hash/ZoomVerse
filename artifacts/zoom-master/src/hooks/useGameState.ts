@@ -694,11 +694,10 @@ export const PLANET_CONFIG: Record<PlanetType, {
     isTonFarming: true,
   },
   // STELLA ROSSA Collection — 4 deep-red TON-farming planets.
-  // Unlockable via Lab widget (60 Stardust). Farms TON, combined
-  // rate of all 4 ≈ 15 TON/month (0.000521 TON/h each = 0.002083 TON/h total).
-  // Reactivation fee paid in TON (same pattern as White/Supernova collections).
+  // Purchase via TonConnect: 60 TON → 4 planets. Combined yield: 15 TON/month
+  // (0.005208 TON/h each = 0.020833 TON/h total). Reactivation fee in TON.
   STELLA1: {
-    rate: 0.000521,
+    rate: 0.005208,
     color: "#8b0000",
     glowColor: "rgba(220,20,60,0.75)",
     chance: 0,
@@ -710,7 +709,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     isTonFarming: true,
   },
   STELLA2: {
-    rate: 0.000521,
+    rate: 0.005208,
     color: "#a10000",
     glowColor: "rgba(200,0,50,0.75)",
     chance: 0,
@@ -722,7 +721,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     isTonFarming: true,
   },
   STELLA3: {
-    rate: 0.000521,
+    rate: 0.005208,
     color: "#b30000",
     glowColor: "rgba(180,0,60,0.75)",
     chance: 0,
@@ -734,7 +733,7 @@ export const PLANET_CONFIG: Record<PlanetType, {
     isTonFarming: true,
   },
   STELLA4: {
-    rate: 0.000521,
+    rate: 0.005208,
     color: "#c0001a",
     glowColor: "rgba(192,0,26,0.75)",
     chance: 0,
@@ -2013,7 +2012,7 @@ export function useGameState() {
       // only as a placeholder for the few non-destructive read sites and
       // gate the entire grants-derived block on grantsOk.
       const grantsOk = grantsResult !== null;
-      const grants = grantsResult ?? { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusNova: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, stellaRossaCollectionUnlocked: false, stellaRossaCollectionBundles: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+      const grants = grantsResult ?? { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusNova: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, stellaRossaCollectionUnlocked: false, stellaRossaCollectionBundles: 0, totalPlanetsBuilt: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
       const serverCollectionByKey = indexServerCollectionPlanets(serverCollectionPlanets);
 
       // Prefer the post-credit balance returned by /farm/settle when the
@@ -2278,6 +2277,10 @@ export function useGameState() {
           supernovaCollectionBundles: serverSupernovaBundles,
           stellaRossaCollectionUnlocked: !!grants.stellaRossaCollectionUnlocked || serverStellaBundles > 0,
           stellaRossaCollectionBundles: serverStellaBundles,
+          // Seed craftsCompleted from server so the lab-leaderboard delta
+          // calc (craftsCompleted - totalPlanetsBuilt) is always correct
+          // after a page reload or fresh-storage load.
+          craftsCompleted: Math.max(updated.craftsCompleted ?? 0, grants.totalPlanetsBuilt ?? 0),
         };
 
         // White Collection: each owned bundle materializes 4 fresh white
