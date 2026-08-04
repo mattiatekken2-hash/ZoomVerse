@@ -1348,6 +1348,28 @@ export async function adminGrantV1Nft(adminId: string, telegramId: string): Prom
   } catch { return false; }
 }
 
+export async function adminCreditRedStar(adminId: string, telegramId: string, amount: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/credit-redstar`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, telegramId, amount }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function adminRemoveRedStar(adminId: string, telegramId: string, amount: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/remove-redstar`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, telegramId, amount }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminRemoveZoom(adminId: string, telegramId: string, amount: number): Promise<boolean> {
   try {
     const res = await fetch(`${API_BASE}/admin/remove-zoom`, {

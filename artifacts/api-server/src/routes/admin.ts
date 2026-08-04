@@ -178,6 +178,18 @@ const RemoveZoomBody = z.object({
   amount: z.number().positive(),
 });
 
+const CreditRedStarBody = z.object({
+  adminId: z.string(),
+  telegramId: z.string().min(1),
+  amount: z.number().positive(),
+});
+
+const RemoveRedStarBody = z.object({
+  adminId: z.string(),
+  telegramId: z.string().min(1),
+  amount: z.number().positive(),
+});
+
 const RemovePlanetsBody = z.object({
   adminId: z.string(),
   telegramId: z.string().min(1),
@@ -831,6 +843,51 @@ router.post("/admin/remove-zoom", async (req, res) => {
       currency: "zoom",
       meta: { adminId: parsed.data.adminId },
     });
+  } catch (err) {
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/credit-redstar", async (req, res) => {
+  const parsed = CreditRedStarBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  const { amount } = parsed.data;
+  try {
+    await db
+      .insert(usersTable)
+      .values({ telegramId, zoomBalance: 0, referralCount: 0, redStarBalance: amount })
+      .onConflictDoUpdate({
+        target: usersTable.telegramId,
+        set: {
+          redStarBalance: sql`${usersTable.redStarBalance} + ${amount}`,
+        },
+      });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/remove-redstar", async (req, res) => {
+  const parsed = RemoveRedStarBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+  const { amount } = parsed.data;
+  try {
+    await db
+      .update(usersTable)
+      .set({
+        redStarBalance: sql`GREATEST(0, ${usersTable.redStarBalance} - ${amount})`,
+      })
+      .where(sql`${usersTable.telegramId} = ${telegramId}`);
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
   }
