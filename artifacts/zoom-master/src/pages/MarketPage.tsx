@@ -161,11 +161,19 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
     (l) => l.sellerTelegramId !== telegramId
   );
 
+  // Build a quick lookup: planet.id → serverListingId so local listings
+  // carry their server-assigned id (needed for the share button + focus).
+  const localServerIdMap = Object.fromEntries(
+    myListings
+      .filter((p) => p.isListedInMarket && typeof p.serverListingId === "number")
+      .map((p) => [p.id, p.serverListingId as number])
+  );
+
   const allDisplayListings = [
     ...userListings.map((l) => ({
       ...l,
       isLocal: true as const,
-      serverId: undefined as number | undefined,
+      serverId: localServerIdMap[l.id],
       // userListings already carries planetFloat + displayName from the
       // seller's local Planet (built above), so nothing to re-fill here.
     })),
