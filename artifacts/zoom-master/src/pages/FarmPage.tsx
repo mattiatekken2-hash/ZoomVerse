@@ -60,6 +60,8 @@ interface FarmPageProps {
   onBurnEquipment: (id: string) => void;
   onSellEquipment: (id: string, price: number) => void;
   onUnlistEquipment: (id: string) => void;
+  /** Flush pending planet save before entering PvP queue. */
+  onFlushPlanets?: () => Promise<void>;
 }
 
 /**
@@ -432,7 +434,7 @@ const RARITY_CLASS: Record<string, string> = {
 };
 
 
-export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRepair, stardustBalance = 0, onRename, equipment, onActivateEquipment, onReactivateEquipment, onBurnEquipment, onSellEquipment, onUnlistEquipment }: FarmPageProps) {
+export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRepair, stardustBalance = 0, onRename, equipment, onActivateEquipment, onReactivateEquipment, onBurnEquipment, onSellEquipment, onUnlistEquipment, onFlushPlanets }: FarmPageProps) {
   const { t } = useT();
   const sunMultiplier = Math.max(1, sunCount || (sun?.isOwned ? 1 : 0));
   const sunDisplayRate = SUN_CONFIG.rate * sunMultiplier;
@@ -1344,6 +1346,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
           onPlanetTransferred={() => {
             window.dispatchEvent(new Event("planets-refresh"));
           }}
+          onBeforeQueue={onFlushPlanets}
         />
       )}
     </div>

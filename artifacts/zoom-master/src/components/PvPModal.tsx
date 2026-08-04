@@ -20,9 +20,14 @@ interface Props {
   telegramId: string | null;
   planet: Planet;
   onPlanetTransferred?: () => void;
+  /** Called before entering the matchmaking queue. The parent must flush
+   *  any pending planet save so the server can verify ownership in
+   *  planets_json — without this, a freshly-crafted planet returns
+   *  PLANET_NOT_FOUND because the debounced save hasn't fired yet. */
+  onBeforeQueue?: () => Promise<void>;
 }
 
-export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTransferred }: Props) {
+export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTransferred, onBeforeQueue }: Props) {
   const { t } = useT();
   const [phase, setPhase] = useState<"queue" | "match" | "roulette" | "result" | "error">("queue");
   const [error, setError] = useState<string | null>(null);
@@ -143,6 +148,10 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
     setBattle(null);
     setWinner(null);
     setIsWinner(false);
+
+    // Flush any pending planet save before queuing so the server can
+    // verify ownership in planets_json even for freshly-crafted planets.
+    try { await onBeforeQueue?.(); } catch { /* non-blocking */ }
 
     const result = await pvpQueue(
       telegramId,

@@ -5,7 +5,7 @@ import { AvatarXP } from "./components/AvatarXP";
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
 import { BlackPlanetOrbStyles } from "./components/BlackPlanetOrb";
 import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/useGameState";
-import { fetchRegularPlanets } from "./utils/api";
+import { fetchRegularPlanets, saveRegularPlanets } from "./utils/api";
 import { useGlobalInit, useGlobalStore } from "./store/globalStore";
 import { NebulaBackground } from "./components/NebulaBackground";
 import { MaintenanceAstronauts } from "./components/MaintenanceAstronauts";
@@ -875,6 +875,28 @@ function AppShellWithState() {
                   onBurnEquipment={burnEquipment}
                   onSellEquipment={listEquipment}
                   onUnlistEquipment={unlistEquipment}
+                  onFlushPlanets={async () => {
+                    // Flush planets to the server immediately so the PvP
+                    // queue route can verify ownership in planets_json even
+                    // for freshly-crafted planets whose debounced save
+                    // hasn't fired yet (mirrors the listing flow).
+                    if (!state.telegramId) return;
+                    await saveRegularPlanets(
+                      state.telegramId,
+                      state.planets as unknown as Array<Record<string, unknown>>,
+                      {
+                        basic: state.claimedBonusBasic ?? 0,
+                        rare: state.claimedBonusRare ?? 0,
+                        epic: state.claimedBonusEpic ?? 0,
+                        gold: state.claimedBonusGold ?? 0,
+                        mythic: state.claimedBonusMythic ?? 0,
+                        plasma: state.claimedBonusPlasma ?? 0,
+                        v1: state.claimedBonusV1 ?? 0,
+                        v1NftPlatinum: state.claimedBonusV1NftPlatinum ?? 0,
+                      },
+                      state.craftsCompleted ?? 0,
+                    );
+                  }}
                   onRename={(planetId, displayName, _newStardustBalance) => {
                     // Patch the planet in local state — the debounced
                     // /regular-planets/save will mirror it to the server.
