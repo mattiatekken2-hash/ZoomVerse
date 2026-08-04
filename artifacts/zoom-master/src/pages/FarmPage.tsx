@@ -1006,8 +1006,13 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                           slots (e.g. 6/6) the button stays greyed out; freeing a
                           slot turns it red again. */}
                       {(() => {
-                        const slotsFull = planets.length >= maxSlots;
-                        const pvpEligible = !planet.isFarmingActive && !planet.isListedInMarket && planet.slotIndex == null && !planet.farmStartedAt && !slotsFull;
+                        const slotsFull = planets.filter((p) => !p.isListedInMarket).length >= maxSlots;
+                        // PvP eligibility mirrors the server check: planet must not
+                        // be CURRENTLY farming, listed, or in a collection slot.
+                        // "Never farmed" (farmStartedAt) is NOT required — the
+                        // server only blocks actively-farming planets, not ones
+                        // that previously ran a cycle and are now idle.
+                        const pvpEligible = !planet.isFarmingActive && !planet.isListedInMarket && planet.slotIndex == null && !slotsFull;
                         return (
                           <button
                             type="button"
@@ -1015,7 +1020,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                               if (pvpEligible && telegramId) setPvPPlanet(planet);
                             }}
                             disabled={!pvpEligible || !telegramId}
-                            title={pvpEligible ? "Battle this planet!" : slotsFull ? "Free a slot to play PvP (no room for the won planet)" : "Planet must be new (never farmed)"}
+                            title={pvpEligible ? "Battle this planet!" : slotsFull ? "Free a slot to play PvP (no room for the won planet)" : planet.isFarmingActive ? "Stop farming to enter PvP" : "Planet is not eligible for PvP"}
                             className="px-2 py-0.5 rounded-full font-black text-[9px] tracking-wider"
                             style={{
                               background: pvpEligible
