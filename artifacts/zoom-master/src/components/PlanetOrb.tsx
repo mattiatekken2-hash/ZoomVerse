@@ -132,7 +132,58 @@ const PLANET_GRADIENTS: Record<string, { stops: string[]; glowAlpha: number }> =
 
 const DEFAULT_GRADIENT = PLANET_GRADIENTS.BASIC;
 
+/** Pixel-art mushroom rendered for MUSHROOM-rarity planets. Same crispEdges
+ *  style as the STELLA red-star in PixelAvatar; scales with `size`. */
+function MushroomOrb({ size, animate }: { size: number; animate: boolean }) {
+  return (
+    <div style={{ width: size, height: size, position: "relative", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      {/* ambient glow */}
+      <div style={{
+        position: "absolute",
+        width: size * 1.8, height: size * 1.8,
+        borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(180,60,220,0.38) 0%, rgba(140,30,180,0.18) 45%, transparent 70%)",
+        filter: `blur(${size * 0.22}px)`,
+        animation: animate ? "planet-breathe 3s ease-in-out infinite alternate" : "none",
+        pointerEvents: "none",
+      }} />
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 12 12"
+        shapeRendering="crispEdges"
+        style={{ filter: "drop-shadow(0 0 5px rgba(180,60,220,0.85))", position: "relative", zIndex: 1 }}
+      >
+        {/* Cap — purple */}
+        <rect x="4" y="0" width="4" height="1" fill="#c050cc" />
+        <rect x="2" y="1" width="8" height="1" fill="#b83fbf" />
+        <rect x="1" y="2" width="10" height="1" fill="#c855d8" />
+        <rect x="0" y="3" width="12" height="2" fill="#b83fbf" />
+        <rect x="1" y="5" width="10" height="1" fill="#a030b0" />
+        {/* Top highlight */}
+        <rect x="5" y="1" width="2" height="1" fill="#e080f0" />
+        {/* White spots */}
+        <rect x="2" y="2" width="2" height="2" fill="#ffffff" />
+        <rect x="8" y="2" width="2" height="2" fill="#ffffff" />
+        <rect x="5" y="4" width="2" height="1" fill="#eeeeee" />
+        {/* Underside (darker) */}
+        <rect x="1" y="6" width="10" height="1" fill="#6a1f72" />
+        {/* Stem */}
+        <rect x="4" y="7" width="4" height="2" fill="#d4a57a" />
+        {/* Stem highlight */}
+        <rect x="5" y="7" width="1" height="2" fill="#e8c090" />
+        {/* Base */}
+        <rect x="3" y="9" width="6" height="1" fill="#c49060" />
+        <rect x="2" y="10" width="8" height="1" fill="#b07840" />
+        <rect x="3" y="11" width="6" height="1" fill="#8a5a28" />
+      </svg>
+    </div>
+  );
+}
+
 function PlanetOrbImpl({ planet, size = 60, animate = true, displayFloat }: PlanetOrbProps) {
+  // MUSHROOM uses its own pixel-art render — bypass the sphere entirely.
+  if (planet.name === "MUSHROOM") return <MushroomOrb size={size} animate={animate} />;
   const c = planet.color;
   const grad = PLANET_GRADIENTS[planet.name] || DEFAULT_GRADIENT;
   const [s0, s1, s2, s3, s4] = grad.stops;

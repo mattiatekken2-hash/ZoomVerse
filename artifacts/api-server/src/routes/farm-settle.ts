@@ -168,6 +168,8 @@ router.post("/farm/settle", async (req, res) => {
         if (!p || typeof p !== "object") continue;
         if (!p.isFarmingActive) continue;
         if (p.isListedInMarket) continue;
+        // MUSHROOM planets earn NFTSTAR (client-side currency) — skip from ZOOM credit.
+        if (String((p as Record<string, unknown>)["name"] ?? "").toUpperCase() === "MUSHROOM") continue;
         const rate = num(p.rate);
         if (rate <= 0) continue;
         const farmStartedAt = num(p.farmStartedAt);

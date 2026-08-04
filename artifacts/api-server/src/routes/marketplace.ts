@@ -89,7 +89,7 @@ const ListBody = z.object({
   // in TON: Basic, Rare, Epic, Mythic, Plasma, Gold, V1, V1_NFT.
   // V1_NFT è l'esclusivo NFT (20 TON, max 5 globali) tradabile secondario.
   // V1 era precedentemente soulbound — ora è tradeable.
-  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1", "V1_NFT"]),
+  planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1", "V1_NFT", "MUSHROOM", "NOVA"]),
   planetRate: z.number().int().positive(),
   price: z.number().positive(),
 });

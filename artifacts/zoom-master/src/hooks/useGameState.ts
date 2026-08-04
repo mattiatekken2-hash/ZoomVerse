@@ -1766,6 +1766,7 @@ function settleFarmingState(state: GameState, now: number): GameState {
 
   const speedMultiplier = 1 + (state.referralSpeedBonus || 0);
   let earned = 0;
+  let nftStarEarned = 0;
 
   for (const planet of state.planets) {
     if (!planet.isFarmingActive || planet.isListedInMarket) continue;
@@ -1789,7 +1790,13 @@ function settleFarmingState(state: GameState, now: number): GameState {
       // preview exactly equal to the credit, so the visible balance never
       // moves backwards on open.
       const effectiveRate = planet.rate + DYNAMIC_BONUS_AVG;
-      earned += (effectiveRate / 3_600_000) * (end - start) * speedMultiplier;
+      const delta = (effectiveRate / 3_600_000) * (end - start) * speedMultiplier;
+      // MUSHROOM planets earn NFTSTAR (★) instead of ZOOM.
+      if (planet.name === "MUSHROOM") {
+        nftStarEarned += delta;
+      } else {
+        earned += delta;
+      }
     }
   }
 
@@ -1822,13 +1829,14 @@ function settleFarmingState(state: GameState, now: number): GameState {
     }
   }
 
-  if (earned <= 0) return { ...state, lastFarmingSettledAt: now };
+  if (earned <= 0 && nftStarEarned <= 0) return { ...state, lastFarmingSettledAt: now };
 
   return {
     ...state,
-    balance: state.balance + earned,
-    totalEarned: state.totalEarned + earned,
-    seasonPoolEarned: state.seasonPoolEarned + earned,
+    balance: earned > 0 ? state.balance + earned : state.balance,
+    totalEarned: earned > 0 ? state.totalEarned + earned : state.totalEarned,
+    seasonPoolEarned: earned > 0 ? state.seasonPoolEarned + earned : state.seasonPoolEarned,
+    nftStarBalance: nftStarEarned > 0 ? (state.nftStarBalance || 0) + nftStarEarned : (state.nftStarBalance || 0),
     lastFarmingSettledAt: now,
   };
 }
