@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { TonWalletWidget } from "./components/TonWalletWidget";
+import { OnlineIndicator } from "./components/OnlineIndicator";
 import { BalanceCounter } from "./components/BalanceCounter";
 import { AvatarXP } from "./components/AvatarXP";
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
@@ -697,6 +698,7 @@ function AppShellWithState() {
           />
         </div>
         <div className="flex items-center gap-1 min-w-0">
+          <OnlineIndicator />
           <TonWalletWidget
             tonBalance={state.tonBalance || 0}
             depositBalance={state.depositBalance || 0}

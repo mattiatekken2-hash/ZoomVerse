@@ -8,6 +8,31 @@ import { getOrCreateActiveLabRound } from "./labRanking";
 
 const router: IRouter = Router();
 
+// ─── In-memory online tracking ────────────────────────────────────────────────
+// Maps telegramId → last-seen timestamp (ms). No DB column needed.
+// Survives until server restart; approximate by design.
+const _onlineMap = new Map<string, number>();
+const ONLINE_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+function markOnline(telegramId: string) {
+  _onlineMap.set(telegramId, Date.now());
+}
+
+export function getOnlineCount(): number {
+  const cutoff = Date.now() - ONLINE_WINDOW_MS;
+  let count = 0;
+  for (const ts of _onlineMap.values()) {
+    if (ts >= cutoff) count++;
+  }
+  return count;
+}
+
+// Endpoint: GET /online-count
+router.get("/online-count", (_req, res) => {
+  res.json({ count: getOnlineCount() });
+});
+// ──────────────────────────────────────────────────────────────────────────────
+
 const SyncBody = z.object({
   telegramId: z.string().min(1),
   firstName: z.string().nullish(),
@@ -29,6 +54,9 @@ router.post("/balance/sync", async (req, res) => {
 
   const { telegramId, firstName, username, photoUrl, zoomBalance, tonBalance, stardustBalance, redStarBalance, clientEpoch } = parsed.data;
   const normalizedUsername = username ? username.replace(/^@/, "").toLowerCase() : null;
+
+  // Track this user as online (in-memory, best-effort).
+  markOnline(telegramId);
 
   try {
     // CLIENT-AUTHORITATIVE WITH EPOCH FENCING:
