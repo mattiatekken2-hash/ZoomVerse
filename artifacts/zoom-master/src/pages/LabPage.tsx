@@ -7,6 +7,7 @@ import { LabRankWidget } from "../components/LabRankWidget";
 import { PvpRankWidget } from "../components/PvpRankWidget";
 import { ExchangeWidget } from "../components/ExchangeWidget";
 import { StellaRossaCollectionWidget } from "../components/StellaRossaCollectionWidget";
+import { ZoomStoreWidget } from "../components/ZoomStoreWidget";
 
 import type { Planet, PlanetType, EquipmentDropResult } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
@@ -272,6 +273,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         lastClaimAt={stellaLastClaimAt}
         onClaim={onStellaClaimDaily}
       />
+      <ZoomStoreWidget />
 
       <div
         className="relative flex-1"
