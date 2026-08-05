@@ -232,7 +232,7 @@ function ZoomStoreWidgetBase() {
             {/* Hero banner */}
             <div style={{ position: "relative", width: "100%", aspectRatio: "2/1", overflow: "hidden" }}>
               <img
-                src="/zoom-master/zoom-merch.png"
+                src={`${import.meta.env.BASE_URL}zoom-merch.png`}
                 alt="ZOOM Merch"
                 style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
               />
