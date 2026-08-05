@@ -4153,6 +4153,7 @@ export function useGameState() {
   // Repair a planet to 100% durability by spending Stardust.
   const repairPlanet = useCallback((id: string): { ok: boolean; reason?: string } => {
     let outcome: { ok: boolean; reason?: string } = { ok: true };
+    let deductCost = 0;
     setState((prev) => {
       const planet = prev.planets.find((p) => p.id === id);
       if (!planet) { outcome = { ok: false, reason: "Planet not found" }; return prev; }
@@ -4163,6 +4164,7 @@ export function useGameState() {
         outcome = { ok: false, reason: `Need ${cost.toLocaleString()} ⭐ Stardust to repair` };
         return prev;
       }
+      deductCost = cost;
       const updated: GameState = {
         ...prev,
         stardustBalance: prev.stardustBalance - cost,
@@ -4174,6 +4176,26 @@ export function useGameState() {
       saveState(updated);
       return updated;
     });
+    // CRITICAL — deduct stardust on the server immediately after the local
+    // update. Without this call the next balance sync restores the pre-repair
+    // value from the DB and the player gets the stardust back for free.
+    if (outcome.ok && deductCost > 0) {
+      const { telegramId } = getTelegramContext();
+      if (telegramId) {
+        void deductCraftStardust(telegramId, deductCost).then((r) => {
+          if (r.ok && typeof r.newBalance === "number") {
+            // Reconcile with the server-confirmed balance so the UI stays
+            // accurate even if a concurrent stardust op raced ahead.
+            const confirmed = r.newBalance;
+            setState((prev) => {
+              const updated = { ...prev, stardustBalance: confirmed };
+              stateRef.current = updated;
+              return updated;
+            });
+          }
+        });
+      }
+    }
     return outcome;
   }, []);
 
