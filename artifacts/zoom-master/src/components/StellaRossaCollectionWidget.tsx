@@ -82,7 +82,7 @@ function StellaRossaCollectionWidgetBase({
     if (!telegramId) { setMsg("Telegram ID missing"); return; }
     if (!connectedAddress) {
       tonConnectUI.openModal();
-      setMsg("Connect your TON wallet first");
+      setMsg("Connect your GRAM wallet first");
       return;
     }
     haptic();
@@ -203,7 +203,7 @@ function StellaRossaCollectionWidgetBase({
                 <rect x="4" y="3" width="4" height="3" fill="none" stroke="#dc143c" strokeWidth="1.2" rx="2" />
                 <rect x="5" y="7" width="2" height="2" fill="#ff8899" />
               </svg>
-              <span style={{ fontSize: 6, fontWeight: 900, color: "rgba(220,20,60,0.8)", letterSpacing: "0.04em", marginTop: 1 }}>60 TON</span>
+              <span style={{ fontSize: 6, fontWeight: 900, color: "rgba(220,20,60,0.8)", letterSpacing: "0.04em", marginTop: 1 }}>60 GRAM</span>
             </>
           )}
         </div>
@@ -274,7 +274,7 @@ function StellaRossaCollectionWidgetBase({
                 }}>
                   {[
                     { label: "PLANETS", value: `${ownedBundles * 4}` },
-                    { label: "TON/MONTH", value: `${(ownedBundles * 4 * 0.005208 * 720).toFixed(1)}` },
+                    { label: "GRAM/MONTH", value: `${(ownedBundles * 4 * 0.005208 * 720).toFixed(1)}` },
                   ].map(({ label, value }) => (
                     <div key={label} style={{
                       background: "rgba(80,0,15,0.55)", border: `1px solid ${STELLA_RED}33`,
@@ -304,7 +304,7 @@ function StellaRossaCollectionWidgetBase({
                         <rect x="4" y="11" width="4" height="1" fill="#880011" />
                       </svg>
                       <div style={{ fontSize: 8, color: "rgba(255,100,100,0.75)", fontWeight: 700, letterSpacing: "0.05em" }}>{label}</div>
-                      <div style={{ fontSize: 7, color: "rgba(255,80,80,0.45)", marginTop: 1 }}>TON/h</div>
+                      <div style={{ fontSize: 7, color: "rgba(255,80,80,0.45)", marginTop: 1 }}>GRAM/h</div>
                     </div>
                   ))}
                 </div>
@@ -366,8 +366,8 @@ function StellaRossaCollectionWidgetBase({
               </div>
               <div style={{ fontSize: 9, color: "rgba(255,150,150,0.65)", marginBottom: 12, lineHeight: 1.5 }}>
                 {unlocked
-                  ? `Add 4 more red star planets (+${(4 * 0.005208 * 720).toFixed(1)} TON/month)`
-                  : "4 exclusive red star planets · 15 TON/month · farms automatically"
+                  ? `Add 4 more red star planets (+${(4 * 0.005208 * 720).toFixed(1)} GRAM/month)`
+                  : "4 exclusive red star planets · 15 GRAM/month · farms automatically"
                 }
               </div>
               <button

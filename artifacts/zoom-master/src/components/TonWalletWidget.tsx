@@ -152,7 +152,7 @@ function WalletModal({
     if (!telegramId) { setDErr("Session not ready"); return; }
     const n = parseFloat(dAmount);
     if (!Number.isFinite(n) || n < DEPOSIT_MIN_TON) {
-      setDErr(`Minimum deposit is ${DEPOSIT_MIN_TON} TON`); return;
+      setDErr(`Minimum deposit is ${DEPOSIT_MIN_TON} GRAM`); return;
     }
     if (!walletAddress) {
       // open TonConnect; user will reconnect and come back
@@ -179,9 +179,9 @@ function WalletModal({
           // earned tonBalance. Fire a refresh so the next /grants pull picks
           // up the new deposit balance authoritatively.
           window.dispatchEvent(new Event("zoom-data-refresh"));
-          setDMsg(`Deposit confirmed! +${n} TON aggiunti al saldo deposito (spendibile nello Shop).`);
+          setDMsg(`Deposit confirmed! +${n} GRAM aggiunti al saldo deposito (spendibile nello Shop).`);
         } else if (final?.status === "failed") {
-          setDErr("Deposit verification failed. Contact support if TON was deducted.");
+          setDErr("Deposit verification failed. Contact support if GRAM was deducted.");
         } else {
           setDMsg("Deposit is being verified on-chain. Balance will update shortly.");
         }
@@ -208,17 +208,17 @@ function WalletModal({
     if (!telegramId) { setWErr("Session not ready"); return; }
     const n = parseFloat(wAmount);
     if (!Number.isFinite(n) || n < WITHDRAWAL_MIN_TON) {
-      setWErr(`Minimum amount: ${WITHDRAWAL_MIN_TON} TON`); return;
+      setWErr(`Minimum amount: ${WITHDRAWAL_MIN_TON} GRAM`); return;
     }
-    // Withdrawals are paid out of EARNED TON only — depositBalance is
+    // Withdrawals are paid out of EARNED GRAM only — depositBalance is
     // intentionally excluded so external deposits stay one-way (in-only).
     if (liveEarnedTon < WITHDRAWAL_MIN_TON) {
-      setWErr(`Minimo ${WITHDRAWAL_MIN_TON} TON guadagnati per prelevare`); return;
+      setWErr(`Minimo ${WITHDRAWAL_MIN_TON} GRAM guadagnati per prelevare`); return;
     }
     if (liveEarnedTon < n + WITHDRAWAL_FEE_TON) {
-      setWErr(`Saldo TON guadagnato insufficiente. Servono ${(n + WITHDRAWAL_FEE_TON).toFixed(4)} TON (importo + ${WITHDRAWAL_FEE_TON} di fee)`); return;
+      setWErr(`Saldo GRAM guadagnato insufficiente. Servono ${(n + WITHDRAWAL_FEE_TON).toFixed(4)} GRAM (importo + ${WITHDRAWAL_FEE_TON} di fee)`); return;
     }
-    if (!wWallet.trim()) { setWErr("Enter your TON wallet address"); return; }
+    if (!wWallet.trim()) { setWErr("Enter your GRAM wallet address"); return; }
 
     setSubmitting(true);
     const res = await requestTonWithdrawal({ telegramId, amountTon: n, walletAddress: wWallet.trim() });
@@ -229,7 +229,7 @@ function WalletModal({
         detail: { tonBalance: res.newTonBalance, epoch: res.balanceEpoch },
       }));
     }
-    setWMsg(`Request submitted. You'll receive ${n.toFixed(4)} TON after admin approval.`);
+    setWMsg(`Request submitted. You'll receive ${n.toFixed(4)} GRAM after admin approval.`);
     setWAmount(""); void refreshWithdrawals();
   };
 
@@ -258,9 +258,9 @@ function WalletModal({
         {/* header */}
         <div style={{ padding: "16px 18px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <div style={{ color: `${NEON}bb`, fontSize: 10, fontWeight: 900, letterSpacing: 1.4 }}>TON WALLET</div>
+            <div style={{ color: `${NEON}bb`, fontSize: 10, fontWeight: 900, letterSpacing: 1.4 }}>GRAM WALLET</div>
             <div style={{ color: "#fff", fontSize: 22, fontWeight: 900, letterSpacing: 0.6, textShadow: `0 0 12px ${NEON}55` }}>
-              {formatTon(totalTon)} <span style={{ fontSize: 13, color: NEON, opacity: 0.8 }}>TON</span>
+              {formatTon(totalTon)} <span style={{ fontSize: 13, color: NEON, opacity: 0.8 }}>GRAM</span>
             </div>
             {accrued > 0 && (
               <div style={{ fontSize: 10, color: `${NEON}88`, marginTop: 2 }}>
@@ -281,15 +281,15 @@ function WalletModal({
           background: `${NEON}08`, border: `1px solid ${NEON}22`,
           display: "flex", flexDirection: "column", gap: 6 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ color: "rgba(180,220,240,0.6)", fontSize: 11, fontWeight: 700 }}>Earned TON</span>
+            <span style={{ color: "rgba(180,220,240,0.6)", fontSize: 11, fontWeight: 700 }}>Earned GRAM</span>
             <span style={{ color: "#fff", fontSize: 15, fontWeight: 900, fontVariantNumeric: "tabular-nums" }}>
-              {formatTon(liveEarnedTon)} TON
+              {formatTon(liveEarnedTon)} GRAM
             </span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ color: "rgba(180,220,240,0.45)", fontSize: 10, fontWeight: 700 }}>Deposit (Shop only)</span>
             <span style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
-              {formatTon(safeDeposit)} TON
+              {formatTon(safeDeposit)} GRAM
             </span>
           </div>
         </div>
@@ -313,7 +313,7 @@ function WalletModal({
           {tab === "deposit" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ fontSize: 11, color: "rgba(180,220,240,0.55)" }}>
-                Send TON to your in-game balance via TonConnect. Min {DEPOSIT_MIN_TON} TON.
+                Send GRAM to your in-game balance via TonConnect. Min {DEPOSIT_MIN_TON} GRAM.
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <input
@@ -349,7 +349,7 @@ function WalletModal({
               {canWithdraw ? (
                 <>
                   <div style={{ fontSize: 11, color: "rgba(180,220,240,0.55)" }}>
-                    Min {WITHDRAWAL_MIN_TON} TON · Fee {WITHDRAWAL_FEE_TON} TON
+                    Min {WITHDRAWAL_MIN_TON} GRAM · Fee {WITHDRAWAL_FEE_TON} GRAM
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <input
@@ -379,7 +379,7 @@ function WalletModal({
                   </div>
                   <input
                     type="text"
-                    placeholder="Your TON wallet address (UQ... / EQ...)"
+                    placeholder="Your GRAM wallet address (UQ... / EQ...)"
                     value={wWallet}
                     onChange={(e) => setWWallet(e.target.value)}
                     disabled={submitting}
@@ -401,7 +401,7 @@ function WalletModal({
                           return (
                             <div key={w.id} style={{ fontSize: 11, padding: "6px 10px", borderRadius: 8, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                               <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                                <span style={{ color: "#fff", fontWeight: 700 }}>{w.amountTon.toFixed(4)} TON</span>
+                                <span style={{ color: "#fff", fontWeight: 700 }}>{w.amountTon.toFixed(4)} GRAM</span>
                                 <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 10 }}>{new Date(w.createdAt).toLocaleString()}</span>
                                 {w.status === "paid" && w.txHash && (
                                   <a href={`https://tonscan.org/tx/${w.txHash}`} target="_blank" rel="noreferrer" style={{ color: NEON, fontSize: 10, textDecoration: "underline", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>View tx</a>
@@ -418,8 +418,8 @@ function WalletModal({
               ) : (
                 <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", padding: "12px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 10, border: "1px dashed rgba(255,255,255,0.12)" }}>
                   {earthCollectionUnlocked && sunCount <= 0
-                    ? "TON withdrawals require a SUN module (Earth Collection)."
-                    : "TON withdrawals are available to White or Earth Collection holders."}
+                    ? "GRAM withdrawals require a SUN module (Earth Collection)."
+                    : "GRAM withdrawals are available to White or Earth Collection holders."}
                 </div>
               )}
             </div>
@@ -471,7 +471,7 @@ function TonWalletWidgetBase(props: Props) {
     <>
       <button
         type="button"
-        aria-label="TON Wallet"
+        aria-label="GRAM Wallet"
         onClick={() => setOpen(true)}
         className="glass-neon flex items-center gap-1 px-2 py-1 rounded-full font-black cursor-pointer active:scale-95"
         style={{

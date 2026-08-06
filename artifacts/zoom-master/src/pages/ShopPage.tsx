@@ -49,10 +49,10 @@ interface StockInfo { sold: number; remaining: number; max: number; }
 // itemType so handleStarsBuy/handleTonBuy work unchanged. `priceStars` mirrors
 // the backend STARS_CATALOG (100 Stars = 1 TON ratio, with earth's override).
 const COLLECTIONS = [
-  { key: "white", id: "white_collection", titleKey: "whiteColl.title", color: "#39ff7e", color2: "#0fd9ff", priceTon: 20, priceStars: 2000, requiresSun: true, userCap: 10, stockEndpoint: "api/white-collection/stock", tags: ["4 exclusive slots", "3.3 TON/month", "Requires SUN", "Limited edition"] },
-  { key: "earth", id: "earth_collection", titleKey: "earthColl.title", color: "#3b82f6", color2: "#22c55e", priceTon: 5, priceStars: 700, requiresSun: true, userCap: 0, stockEndpoint: "api/earth-collection/stock", tags: ["4 earth slots", "~0.51 TON/mo", "Requires SUN", "Public TON payout"] },
-  { key: "black", id: "black_collection", titleKey: "blackColl.title", color: "#7b2fff", color2: "#c084fc", priceTon: 40, priceStars: 4000, requiresSun: false, userCap: 0, stockEndpoint: "api/black-collection/stock", tags: ["4 black slots", "10 TON/month", "On-chain payout", "No SUN required"] },
-  { key: "supernova", id: "supernova_collection", titleKey: "supernovaColl.title", color: "#ffd700", color2: "#fde047", priceTon: 12, priceStars: 1200, requiresSun: false, userCap: 0, stockEndpoint: "api/supernova-collection/stock", tags: ["4 yellow stars", "1.5 TON/30d", "Limited 50 bundles", "No SUN required"] },
+  { key: "white", id: "white_collection", titleKey: "whiteColl.title", color: "#39ff7e", color2: "#0fd9ff", priceTon: 20, priceStars: 2000, requiresSun: true, userCap: 10, stockEndpoint: "api/white-collection/stock", tags: ["4 exclusive slots", "3.3 GRAM/month", "Requires SUN", "Limited edition"] },
+  { key: "earth", id: "earth_collection", titleKey: "earthColl.title", color: "#3b82f6", color2: "#22c55e", priceTon: 5, priceStars: 700, requiresSun: true, userCap: 0, stockEndpoint: "api/earth-collection/stock", tags: ["4 earth slots", "~0.51 GRAM/mo", "Requires SUN", "Public GRAM payout"] },
+  { key: "black", id: "black_collection", titleKey: "blackColl.title", color: "#7b2fff", color2: "#c084fc", priceTon: 40, priceStars: 4000, requiresSun: false, userCap: 0, stockEndpoint: "api/black-collection/stock", tags: ["4 black slots", "10 GRAM/month", "On-chain payout", "No SUN required"] },
+  { key: "supernova", id: "supernova_collection", titleKey: "supernovaColl.title", color: "#ffd700", color2: "#fde047", priceTon: 12, priceStars: 1200, requiresSun: false, userCap: 0, stockEndpoint: "api/supernova-collection/stock", tags: ["4 yellow stars", "1.5 GRAM/30d", "Limited 50 bundles", "No SUN required"] },
 ] as const;
 
 interface ShopPageProps {
@@ -276,7 +276,7 @@ export function ShopPage({
       : item.tonPrice;
 
     if (depositBalance < effectiveTonPrice) {
-      setMessage(`Insufficient deposit balance (${effectiveTonPrice} TON). Deposit TON from your wallet to buy.`);
+      setMessage(`Insufficient deposit balance (${effectiveTonPrice} GRAM). Deposit GRAM from your wallet to buy.`);
       return;
     }
 
@@ -404,7 +404,7 @@ export function ShopPage({
               border: payMode === "ton" ? "1px solid rgba(0,136,255,0.25)" : "1px solid transparent",
             }}
           >
-            TON
+            GRAM
           </button>
         </div>
       </div>
@@ -491,7 +491,7 @@ export function ShopPage({
                 opacity: buying === "the_sun" ? 0.6 : 1,
               }}
             >
-              {sunSoldOut ? "Sold Out" : sunUserMaxed ? `Max ${sunStock?.maxPerUser ?? 5} Reached` : buying === "the_sun" ? "Processing..." : payMode === "stars" ? "BUY — ⭐ 1,000 Stars" : "BUY — 10 TON"}
+              {sunSoldOut ? "Sold Out" : sunUserMaxed ? `Max ${sunStock?.maxPerUser ?? 5} Reached` : buying === "the_sun" ? "Processing..." : payMode === "stars" ? "BUY — ⭐ 1,000 Stars" : "BUY — 10 GRAM"}
             </button>
           </div>
           </>)}
@@ -579,7 +579,7 @@ export function ShopPage({
                     ? "Processing..."
                     : payMode === "stars"
                     ? `BUY — ⭐ ${col.priceStars.toLocaleString()} Stars`
-                    : `BUY — ${col.priceTon} TON`}
+                    : `BUY — ${col.priceTon} GRAM`}
                 </button>
               </div>
             );
@@ -631,7 +631,7 @@ export function ShopPage({
                     {payMode === "stars" ? `⭐ ${item.starsPrice}` : `${item.tonPrice}`}
                   </div>
                   <div className="text-xs opacity-70" style={{ color: payMode === "stars" ? "#ffd700" : "#0088ff" }}>
-                    {payMode === "stars" ? "Stars" : "TON"}
+                    {payMode === "stars" ? "Stars" : "GRAM"}
                   </div>
                 </div>
               </div>
@@ -646,7 +646,7 @@ export function ShopPage({
                     opacity: buying === item.id ? 0.6 : 1,
                   }}
                 >
-                  {buying === item.id ? "Processing..." : payMode === "stars" ? `BUY — ⭐ ${item.starsPrice}` : `BUY — ${item.tonPrice} TON`}
+                  {buying === item.id ? "Processing..." : payMode === "stars" ? `BUY — ⭐ ${item.starsPrice}` : `BUY — ${item.tonPrice} GRAM`}
                 </button>
               </div>
             </div>
@@ -727,7 +727,7 @@ export function ShopPage({
               <div className="flex-1 min-w-0">
                 <div className="font-black text-sm" style={{ color: "#00e676" }}>{t("shop.plantSeed")}</div>
                 <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-                  Grow a plant in your HOME · 10 levels · matures into 10 TON every 30 days
+                  Grow a plant in your HOME · 10 levels · matures into 10 GRAM every 30 days
                 </div>
               </div>
               <div className="flex-shrink-0 text-right">
@@ -798,7 +798,7 @@ export function ShopPage({
                   </div>
                   <div className="flex-shrink-0 text-right">
                     <div className="font-black text-base" style={{ color: "#0088ff" }}>{price}</div>
-                    <div className="text-xs opacity-70" style={{ color: "#0088ff" }}>TON</div>
+                    <div className="text-xs opacity-70" style={{ color: "#0088ff" }}>GRAM</div>
                   </div>
                 </div>
                 <div style={{ borderTop: `1px solid ${item.color}15` }}>
@@ -812,7 +812,7 @@ export function ShopPage({
                       opacity: buying === item.id || !slotPrice ? 0.6 : 1,
                     }}
                   >
-                    {buying === item.id ? "Processing..." : !slotPrice ? "Loading..." : `BUY — ${price} TON`}
+                    {buying === item.id ? "Processing..." : !slotPrice ? "Loading..." : `BUY — ${price} GRAM`}
                   </button>
                 </div>
               </div>
@@ -841,7 +841,7 @@ export function ShopPage({
                     {payMode === "stars" ? `⭐ ${item.starsPrice}` : `${item.tonPrice}`}
                   </div>
                   <div className="text-xs opacity-70" style={{ color: payMode === "stars" ? "#ffd700" : "#0088ff" }}>
-                    {payMode === "stars" ? "Stars" : "TON"}
+                    {payMode === "stars" ? "Stars" : "GRAM"}
                   </div>
                 </div>
               </div>

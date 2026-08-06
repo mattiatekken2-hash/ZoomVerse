@@ -1245,7 +1245,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
           onRename={(p) => { setDetailPlanet(null); setRenamePlanet(p); }}
           onPvP={(p) => { setDetailPlanet(null); setPvPPlanet(p); }}
           onSell={(p) => { setDetailPlanet(null); openSellPopup(p); }}
-          onBurn={(id) => handleBurnClick(id)}
+          onBurn={onBurn}
           onUnlist={(id: string) => onUnlist(id)}
           onRepair={onRepair
             ? (id: string) => {
