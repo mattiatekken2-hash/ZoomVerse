@@ -35,6 +35,10 @@ import labRankingRouter from "./labRanking";
 import historyRouter from "./history";
 import pvpRouter from "./pvp";
 import stellaRossaRouter from "./stellaRossa";
+import comboRouter, { ensureComboClaims } from "./combo";
+
+// Boot-time DDL: ensure combo tracking column exists (idempotent).
+void ensureComboClaims();
 
 const router: IRouter = Router();
 
@@ -347,5 +351,6 @@ router.use(labRankingRouter);
 router.use(historyRouter);
 router.use(pvpRouter);
 router.use(stellaRossaRouter);
+router.use(comboRouter);
 
 export default router;

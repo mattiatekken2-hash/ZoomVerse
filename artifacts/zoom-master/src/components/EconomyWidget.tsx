@@ -146,7 +146,7 @@ function EconomyWidgetBase({ balance }: EconomyWidgetProps) {
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              {formatPrice(displayPrice)} TON
+              {formatPrice(displayPrice)} GRAM
             </span>
           </div>
         </div>
@@ -157,7 +157,7 @@ function EconomyWidgetBase({ balance }: EconomyWidgetProps) {
               className="text-[10px] font-bold"
               style={{ color: "rgba(220,235,255,0.7)", fontVariantNumeric: "tabular-nums" }}
             >
-              Portfolio {formatPrice(portfolio)} TON
+              Portfolio {formatPrice(portfolio)} GRAM
             </span>
           )}
         </div>

@@ -1,0 +1,50 @@
+Fai riferimento all'immagine allegata per il design visivo, le proporzioni e la disposizione dei componenti (layout griglia a 2 colonne e box Combo in alto). Applica esattamente la struttura e le funzionalità descritte di seguito:
+
+--- 1. FIX SFARFALLIO / FLASH DELLO SCHERMO DURANTE LO SCROLL ---
+- Previeni i re-render continui e non necessari dei componenti della pagina (ottimizza gli stati globali, il polling del framerate e usa React.memo / useCallback dove necessario).
+- Assicurati che lo scroll dell'interfaccia sia fluido e privo di flickering visivo durante il movimento.
+
+--- 2. SINCRONIZZAZIONE PROFILO REAL-TIME (MOBILE VS DESKTOP) ---
+- Risolvi la discrepanza degli item nell'inventario/profilo quando un utente accede da PC rispetto allo smartphone.
+- Forza le chiamate API a recuperare sempre lo stato aggiornato dal Database basandosi sull'User ID/Telegram ID, garantendo una perfetta sincronizzazione multipiattaforma degli item e dei bilanci.
+
+--- 3. FIX FLUSSO PRELIEVI (WITHDRAWAL SYSTEM & BOT NOTIFICATIONS) ---
+- Fix Callback Tasti Bot Admin: Risolvi il bug sui pulsanti "Approva" e "Rifiuta" inviati al bot Telegram Admin, facendoli rispondere ed eseguire correttamente l'azione al click.
+- Esito Approvazione: Se l'admin clicca "Approva", aggiorna lo stato e invia automaticamente il messaggio nel canale pubblico WITHDRAWALS (https://t.me/ZoomVerse_Chat/7207).
+- Esito Rifiuto & Refund: Se l'admin clicca "Rifiuta", invia una notifica al bot personale dell'utente e riaccredita automaticamente il saldo in GRAM nel portafoglio dell'utente.
+
+--- 4. RINOMINA GLOBALE TON -> GRAM ---
+- Aggiorna tutti i testi dell'interfaccia, dei menu e dei giochi cambiando il nome della valuta da "TON" a "GRAM" per coerenza con la valuta ufficiale di Telegram.
+
+--- 5. SEZIONE DAILY COMBO (IN ALTO NELL'INVENTARIO) ---
+- Posizionamento UI: Inserisci il box "COMBO" in alto nella schermata Inventario (subito sotto l'header e sopra le card, come da screenshot allegato).
+- Layout Box Combo:
+  * Titolo "COMBO" con icona regalo e contatore ricompensa (2 Redstar).
+  * Testo spiegazione: "Meet all 3 items in your inventory and start farming to claim your reward! The combo changes every 48 hours."
+  * 3 Slot Quadrati Visivi: Mostra 3 box affiancati contenenti le 3 rarità/pianeti casuali richiesti per la combo attiva.
+  * Tasto "CLAIM / CLAIM ALL": Pulsante centrale per riscattare il premio quando la combo è completata.
+- Logica Backend & Requisiti:
+  * Genera ogni 48 ore (2 giorni) una nuova combinazione casuale di 3 pianeti/rarità.
+  * Condizione di Attivazione: I 3 pianeti richiesti devono essere CONTEMPORANEAMENTE presenti nell'inventario E IN STATO DI FARMING ATTIVO ("START FARM" avviato). Mostra un indicatore/spunta verde sullo slot quando il rispettivo pianeta è attivo in farm.
+  * Ricompensa: Al completamento, il tap su "CLAIM" accredita 2 Redstar nel saldo dell'utente e disabilita il tasto fino al successivo reset dei 2 giorni.
+
+--- 6. REDESIGN INVENTARIO: VISTA A GRIGLIA PULITA (2 COLONNE) ---
+- Struttura Griglia: Modifica il container dell'inventario in una griglia a 2 colonne (2 card affiancate per riga).
+- Card Inventario Compatta:
+  * Immagine 3D/Pianeta animato al centro.
+  * Nome Pianeta e percentuale Durabilità in alto.
+  * Valori essenziali: Float e Produzione ($ZOOM/hr).
+  * TASTO UNICO IN BASSO: Mostra esclusivamente il pulsante principale "START FARM" (o il timer attivo se sta già farmando).
+- Interattività: Cliccando su qualsiasi punto della card (tranne il tasto START FARM se attivo), si apre la Modale Dettagli Pianeta.
+
+--- 7. MODALE DETTAGLI PIANETA & LOGICA REPAIR DINAMICA ---
+- Modale Popup Dettaglio: Al tap sulla card del pianeta, apri una schermata/popup in primo piano con il pianeta in grande, Nome, Rarità, Produzione, Float e Hash Blockchain.
+- Pulsanti Azione nella Modale:
+  * Bottone "Upgrade to PVP" (o interruttore PvP).
+  * Bottone "Sell" (Listing nel Market).
+  * Bottone "Burn".
+- LOGICA REPAIR CONDIZIONALE:
+  * NASCONDI il pulsante "REPAIR" sia dalla card sia dalla Modale finché la Durabilità è > 0%.
+  * MOSTRA il pulsante "REPAIR" (con il relativo costo in Stardust) SOLO ed ESCLUSIVAMENTE quando la Durabilità del pianeta raggiunge lo 0%.
+
+Mantieni attiva la modalità Economy ed esegui le modifiche.

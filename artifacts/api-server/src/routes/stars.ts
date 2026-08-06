@@ -1500,6 +1500,9 @@ router.post("/stars/webhook", async (req, res) => {
   }
 
   // --- Inline keyboard: withdrawal approve / reject ---
+  // IMPORTANT: Telegram requires a response within ~10s. We respond immediately
+  // then process asynchronously to avoid callback_query timeout (which makes
+  // the button spinner loop forever).
   if (update.callback_query) {
     const cq = update.callback_query;
     const data = cq.data || "";
@@ -1507,102 +1510,106 @@ router.post("/stars/webhook", async (req, res) => {
     if (data.startsWith("withdraw_approve:") || data.startsWith("withdraw_reject:")) {
       const [action, idStr] = data.split(":");
       const withdrawalId = parseInt(idStr || "", 10);
-      if (!Number.isFinite(withdrawalId) || !chatId) {
-        res.json({ ok: true });
-        return;
-      }
-      const ADMIN_NOTIFY_CHAT_ID = process.env["ADMIN_NOTIFY_CHAT_ID"] || "8144744644";
-      if (String(chatId) !== ADMIN_NOTIFY_CHAT_ID) {
-        res.json({ ok: true });
-        return;
-      }
-      try {
-        if (action === "withdraw_approve") {
-          const [w] = await db.select().from(tonWithdrawalsTable).where(eq(tonWithdrawalsTable.id, withdrawalId)).limit(1);
-          if (!w || w.status !== "pending") {
-            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ callback_query_id: cq.id, text: "Già processata o non trovata" }),
-            });
-            res.json({ ok: true });
-            return;
-          }
-          await db.update(tonWithdrawalsTable)
-            .set({ status: "paid", txHash: "pending", processedAt: new Date(), processedBy: String(chatId) })
-            .where(and(eq(tonWithdrawalsTable.id, withdrawalId), eq(tonWithdrawalsTable.status, "pending")));
-          void sendBotMessage(w.telegramId,
-            `✅ Withdrawal approved!\n` +
-            `Amount: ${Number(w.amountTon).toFixed(4)} TON\n` +
-            `Will be sent to your wallet shortly.`);
-          const shortAddr = typeof w.walletAddress === "string" && w.walletAddress.length >= 12
-            ? `${w.walletAddress.slice(0, 6)}…${w.walletAddress.slice(-4)}`
-            : (w.walletAddress || "—");
-          void sendWithdrawalChannelMessage(
-            `✅ Withdrawal approved\n` +
-            `Amount: ${Number(w.amountTon).toFixed(4)} TON\n` +
-            `User ID: ${w.telegramId}\n` +
-            `Wallet: ${shortAddr}`);
-          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ callback_query_id: cq.id, text: "Approvato ✅" }),
-          });
-          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageReplyMarkup`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              chat_id: chatId,
-              message_id: cq.message?.message_id,
-              reply_markup: { inline_keyboard: [[{ text: "✅ Approvato", callback_data: "done" }]] },
-            }),
-          });
-        } else {
-          const [w] = await db.select().from(tonWithdrawalsTable).where(eq(tonWithdrawalsTable.id, withdrawalId)).limit(1);
-          if (!w || w.status !== "pending") {
-            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ callback_query_id: cq.id, text: "Già processata o non trovata" }),
-            });
-            res.json({ ok: true });
-            return;
-          }
-          const refund = Number(w.amountTon) + Number(w.feeTon ?? 0);
-          await db.transaction(async (tx) => {
-            await tx.update(tonWithdrawalsTable)
-              .set({ status: "rejected", processedAt: new Date(), processedBy: String(chatId) })
-              .where(and(eq(tonWithdrawalsTable.id, withdrawalId), eq(tonWithdrawalsTable.status, "pending")));
-            await tx.update(usersTable)
-              .set({
-                tonBalance: sql`${usersTable.tonBalance} + ${refund}`,
-                balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
-              })
-              .where(eq(usersTable.telegramId, w.telegramId));
-          });
-          void sendBotMessage(w.telegramId,
-            `❌ Withdrawal rejected\n` +
-            `Amount: ${Number(w.amountTon).toFixed(4)} TON\n` +
-            `Funds have been refunded to your balance.`);
-          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ callback_query_id: cq.id, text: "Rifiutato ❌" }),
-          });
-          await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageReplyMarkup`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              chat_id: chatId,
-              message_id: cq.message?.message_id,
-              reply_markup: { inline_keyboard: [[{ text: "❌ Rifiutato", callback_data: "done" }]] },
-            }),
-          });
-        }
-      } catch (err) {
-        logger.error({ err, action, withdrawalId }, "[webhook] inline withdrawal action failed");
-      }
+
+      // Respond to Telegram immediately — must happen before any await.
       res.json({ ok: true });
+
+      if (!Number.isFinite(withdrawalId) || !chatId) return;
+
+      const ADMIN_NOTIFY_CHAT_ID = process.env["ADMIN_NOTIFY_CHAT_ID"] || "8144744644";
+      if (String(chatId) !== ADMIN_NOTIFY_CHAT_ID) return;
+
+      // Process asynchronously — response already sent above.
+      void (async () => {
+        try {
+          if (action === "withdraw_approve") {
+            const [w] = await db.select().from(tonWithdrawalsTable).where(eq(tonWithdrawalsTable.id, withdrawalId)).limit(1);
+            if (!w || w.status !== "pending") {
+              await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ callback_query_id: cq.id, text: "Già processata o non trovata" }),
+              });
+              return;
+            }
+            await db.update(tonWithdrawalsTable)
+              .set({ status: "paid", txHash: "pending", processedAt: new Date(), processedBy: String(chatId) })
+              .where(and(eq(tonWithdrawalsTable.id, withdrawalId), eq(tonWithdrawalsTable.status, "pending")));
+            void sendBotMessage(w.telegramId,
+              `✅ Withdrawal approved!\n` +
+              `Amount: ${Number(w.amountTon).toFixed(4)} GRAM\n` +
+              `Will be sent to your wallet shortly.`);
+            const shortAddr = typeof w.walletAddress === "string" && w.walletAddress.length >= 12
+              ? `${w.walletAddress.slice(0, 6)}…${w.walletAddress.slice(-4)}`
+              : (w.walletAddress || "—");
+            // Announce in the public withdrawals channel.
+            void sendWithdrawalChannelMessage(
+              `✅ <b>Withdrawal Paid</b>\n` +
+              `💎 <b>${Number(w.amountTon).toFixed(4)} GRAM</b>\n` +
+              `👤 User: <code>${w.telegramId}</code>\n` +
+              `📬 ${shortAddr}`);
+            // Answer the callback and update the admin message markup.
+            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ callback_query_id: cq.id, text: "Approvato ✅" }),
+            });
+            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageReplyMarkup`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id: chatId,
+                message_id: cq.message?.message_id,
+                reply_markup: { inline_keyboard: [[{ text: "✅ Approvato", callback_data: "done" }]] },
+              }),
+            });
+          } else {
+            // Reject: refund the user's balance.
+            const [w] = await db.select().from(tonWithdrawalsTable).where(eq(tonWithdrawalsTable.id, withdrawalId)).limit(1);
+            if (!w || w.status !== "pending") {
+              await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ callback_query_id: cq.id, text: "Già processata o non trovata" }),
+              });
+              return;
+            }
+            const refund = Number(w.amountTon) + Number(w.feeTon ?? 0);
+            await db.transaction(async (tx) => {
+              await tx.update(tonWithdrawalsTable)
+                .set({ status: "rejected", processedAt: new Date(), processedBy: String(chatId) })
+                .where(and(eq(tonWithdrawalsTable.id, withdrawalId), eq(tonWithdrawalsTable.status, "pending")));
+              await tx.update(usersTable)
+                .set({
+                  tonBalance: sql`${usersTable.tonBalance} + ${refund}`,
+                  balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+                })
+                .where(eq(usersTable.telegramId, w.telegramId));
+            });
+            // Notify the user and update admin message.
+            void sendBotMessage(w.telegramId,
+              `❌ Withdrawal rejected\n` +
+              `Amount: ${Number(w.amountTon).toFixed(4)} GRAM\n` +
+              `Funds have been refunded to your GRAM balance.`);
+            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ callback_query_id: cq.id, text: "Rifiutato ❌" }),
+            });
+            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageReplyMarkup`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id: chatId,
+                message_id: cq.message?.message_id,
+                reply_markup: { inline_keyboard: [[{ text: "❌ Rifiutato", callback_data: "done" }]] },
+              }),
+            });
+          }
+        } catch (err) {
+          logger.error({ err, action, withdrawalId }, "[webhook] inline withdrawal action failed");
+        }
+      })();
       return;
     }
   }

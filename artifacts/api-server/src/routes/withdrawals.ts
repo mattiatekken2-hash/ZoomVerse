@@ -263,7 +263,7 @@ router.post("/admin/withdrawals/approve", async (req, res) => {
     const shortAddr = addr.length >= 12 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : (addr || "—");
     const msg =
       `✅ <b>Withdrawal Paid</b>\n` +
-      `💎 <b>${amount} TON</b>\n` +
+      `💎 <b>${amount} GRAM</b>\n` +
       `👤 User ID: <code>${w.telegramId}</code>\n` +
       `📬 ${shortAddr}`;
     void sendWithdrawalChannelMessage(msg);

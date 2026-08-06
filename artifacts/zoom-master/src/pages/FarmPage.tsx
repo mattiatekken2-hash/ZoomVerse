@@ -1,5 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { PlanetOrb } from "../components/PlanetOrb";
+import { DailyComboBox } from "../components/DailyComboBox";
+import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
 import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getSunReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, REPAIR_STARDUST_COST } from "../hooks/useGameState";
 import { WalletPopup } from "../components/WalletPopup";
@@ -360,9 +362,9 @@ function EquipmentInventory({
               SELL EQUIPMENT
             </div>
             <div className="text-[11px]" style={{ color: "rgba(255,255,255,0.6)" }}>
-              Set a TON price. The buyer pays with deposited TON and receives a fresh 24h cycle.
+              Set a GRAM price. The buyer pays with deposited GRAM and receives a fresh 24h cycle.
               <br/>
-              Min 0.25 – Max 10.0 TON.
+              Min 0.25 – Max 10.0 GRAM.
             </div>
             <input
               type="number"
@@ -455,6 +457,10 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
   const comingSoonTimeoutRef = useRef<number | null>(null);
   const [renamePlanet, setRenamePlanet] = useState<Planet | null>(null);
   const [pvpPlanet, setPvPPlanet] = useState<Planet | null>(null);
+  const [detailPlanet, setDetailPlanet] = useState<Planet | null>(null);
+  const handleComboClaimed = useCallback((_newBal: number) => {
+    window.dispatchEvent(new Event("balance-refresh"));
+  }, []);
   const inputRef = useRef<HTMLInputElement>(null);
   // Inventory tab — the FarmPage hosts the player's full inventory, split
   // between "Planets" (existing planet/SUN/staking grid) and "Equipment"
@@ -864,9 +870,15 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
             </div>
           )}
 
-          {/* REGULAR PLANETS — flat list in natural (insertion) order.
-              Listed planets are hidden here (they appear in the Market).
-              The Float-sort widget lives in the Marketplace, not here. */}
+          {/* DAILY COMBO — shown at top of planets tab */}
+          <DailyComboBox
+            telegramId={telegramId}
+            planets={planets}
+            onClaimed={handleComboClaimed}
+          />
+
+          {/* REGULAR PLANETS — 2-column compact grid */}
+          <div className="grid grid-cols-2 gap-3">
           {planets.filter((p) => !p.isListedInMarket).map((planet) => {
             const active = isFarmActive(planet);
             const remaining = getFarmTimeRemaining(planet);
@@ -892,51 +904,43 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
             const isPlatinumNft = planet.name === "V1_NFT";
             const planetFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
             const isPerfectFloat = typeof planetFloat === "number" && planetFloat >= 1 && !expired;
+            const dur = planet.durability ?? 100;
             return (
               <div
                 key={planet.id}
-                className={`slot-enter rounded-2xl p-4 border ${isPlatinumNft ? "nft-card-glow" : isPerfectFloat ? "perfect-card-glow" : ""}`}
+                className={`slot-enter rounded-xl border ${isPlatinumNft ? "nft-card-glow" : isPerfectFloat ? "perfect-card-glow" : ""}`}
                 style={{
                   borderColor: isPlatinumNft
                     ? "rgba(220,232,255,0.10)"
                     : isPerfectFloat
                     ? "rgba(255,215,0,0.10)"
                     : isListed ? "rgba(255,215,0,0.3)" : expired ? "rgba(255,255,255,0.08)" : planet.color + "40",
-                  // Perfect-float (= 1.000 only): warm gold gradient so the whole
-                  // card reads as "premium" beyond just the rotating ring.
                   background: isPerfectFloat
                     ? "linear-gradient(135deg, rgba(255,215,0,0.18) 0%, rgba(255,170,40,0.10) 45%, rgba(20,12,4,0.85) 100%)"
                     : `linear-gradient(135deg, ${planet.color}0d 0%, rgba(6,8,16,0.6) 100%)`,
-                  // Single, smaller shadow. The previous double 60px halo was
-                  // a major cause of dropped repaints during scroll on Android
-                  // Telegram WebView (cards going visually "empty" mid-scroll).
                   boxShadow: isPerfectFloat
                     ? "0 0 22px rgba(255,215,0,0.35)"
                     : active ? `0 0 18px ${planet.color}26` : `0 0 10px ${planet.color}10`,
-                  // Promote each card to its own GPU layer so its painted
-                  // content is cached as a texture and survives fast scrolls
-                  // without being re-rasterised every frame. NOTE: no
-                  // persistent `will-change` — long-lived layer hints add GPU
-                  // memory pressure on low-end Android devices and can trade
-                  // one artifact for another.
                   transform: "translateZ(0)",
-                  // Per-card paint isolation only — we intentionally do NOT use
-                  // `content-visibility: auto` here. On Telegram's iOS WebView
-                  // it caused a visible flicker as cards entered the viewport
-                  // (placeholder height ≠ real height = layout jump + repaint).
                   contain: "layout style paint",
+                  cursor: "pointer",
+                  display: "flex",
+                  flexDirection: "column",
+                  overflow: "hidden",
                 } as React.CSSProperties}
+                onClick={() => setDetailPlanet(planet)}
                 data-testid={`planet-card-${planet.id}`}
               >
-                <div className="flex items-center gap-4 mb-4">
+                {/* ── Compact vertical 2-col card ── */}
+                <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 6px" }}>
                   <div
                     style={{
                       position: "relative",
                       filter: expired ? "grayscale(1) brightness(0.45)" : undefined,
-                      transition: "filter 0.4s ease",
+                      transition: "filter 0.3s",
                     }}
                   >
-                    <PlanetOrb planet={planet} size={72} animate={active} displayFloat={planetFloat} />
+                    <PlanetOrb planet={planet} size={60} animate={active} displayFloat={planetFloat} />
                     {isPlatinumNft && (
                       <span
                         className="nft-badge absolute"
@@ -971,231 +975,106 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                       />
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => { if (telegramId && !isListed) setRenamePlanet(planet); }}
-                        disabled={!telegramId || isListed}
-                        title={isListed ? "Unlist to rename" : "Rename this planet"}
-                        data-testid={`btn-rename-${planet.id}`}
-                        className={`font-black text-base tracking-wide text-left ${isPlatinumNft ? "nft-platinum-text" : RARITY_CLASS[planet.name]}`}
-                        style={{
-                          opacity: expired ? 0.55 : 1,
-                          // Don't override `background` for the NFT case —
-                          // `.nft-platinum-text` sets a gradient that the
-                          // -webkit-background-clip:text trick relies on,
-                          // so a `background: transparent` inline would
-                          // make the chrome name disappear.
-                          ...(isPlatinumNft ? {} : { background: "transparent" }),
-                          padding: 0,
-                          border: 0,
-                          cursor: telegramId && !isListed ? "pointer" : "default",
-                        }}
-                      >
-                        {getPlanetDisplayName(planet)}
-                      </button>
-                      <span
-                        className={`text-xs font-bold px-2 py-0.5 rounded-full border ${RARITY_CLASS[planet.name]}`}
-                        style={{ fontSize: 9, opacity: expired ? 0.55 : 1 }}
-                      >
-                        {cfg.label.toUpperCase()}
-                      </span>
-                      {/* PvP button — active only for never-farmed planets, and
-                          only when there's room for the won planet. With full
-                          slots (e.g. 6/6) the button stays greyed out; freeing a
-                          slot turns it red again. */}
-                      {(() => {
-                        const slotsFull = planets.filter((p) => !p.isListedInMarket).length >= maxSlots;
-                        // PvP eligibility mirrors the server check: planet must not
-                        // be CURRENTLY farming, listed, or in a collection slot.
-                        // "Never farmed" (farmStartedAt) is NOT required — the
-                        // server only blocks actively-farming planets, not ones
-                        // that previously ran a cycle and are now idle.
-                        const pvpEligible = !planet.isFarmingActive && !planet.isListedInMarket && planet.slotIndex == null && !slotsFull;
-                        return (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (pvpEligible && telegramId) setPvPPlanet(planet);
-                            }}
-                            disabled={!pvpEligible || !telegramId}
-                            title={pvpEligible ? "Battle this planet!" : slotsFull ? "Free a slot to play PvP (no room for the won planet)" : planet.isFarmingActive ? "Stop farming to enter PvP" : "Planet is not eligible for PvP"}
-                            className="px-2 py-0.5 rounded-full font-black text-[9px] tracking-wider"
-                            style={{
-                              background: pvpEligible
-                                ? "rgba(255,50,50,0.15)"
-                                : "rgba(255,255,255,0.04)",
-                              color: pvpEligible ? "#ff6666" : "rgba(255,255,255,0.2)",
-                              border: `1px solid ${pvpEligible ? "rgba(255,50,50,0.45)" : "rgba(255,255,255,0.1)"}`,
-                              cursor: pvpEligible && telegramId ? "pointer" : "not-allowed",
-                              boxShadow: pvpEligible ? "0 0 8px rgba(255,50,50,0.2)" : "none",
-                              opacity: expired ? 0.4 : 1,
-                            }}
-                          >
-                            PvP
-                          </button>
-                        );
-                      })()}
-                      {expired && (
-                        <span
-                          className="text-xs font-black px-2 py-0.5 rounded-full"
-                          style={{ fontSize: 9, background: "rgba(255,82,82,0.15)", color: "#ff5252", border: "1px solid rgba(255,82,82,0.35)" }}
-                        >
-                          EXPIRED
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs font-bold" style={{ color: expired ? "rgba(255,82,82,0.75)" : "rgba(255,255,255,0.5)" }}>
-                      {active
-                        ? `${planet.name === "MUSHROOM" ? "+5 ★NFTSTAR/24h" : `+${planet.rate.toLocaleString()} $ZOOM/hr`} · ${formatDuration(remaining)} left`
-                        : expired
-                        ? `Cycle ended · Reactivate for ${reactivationFee.toLocaleString()} $ZOOM`
-                        : isListed
-                        ? `Listed for ${planet.marketPrice?.toLocaleString()} TON`
-                        : "Farming stopped"}
-                    </div>
-                    {isFloatablePlanet(planet) && (
-                      <div className="mt-1.5" style={{ opacity: expired ? 0.55 : 1 }}>
-                        <PlanetFloatBar value={getDisplayFloat(planet)} />
-                      </div>
-                    )}
-                    {/* Durability bar — shown only when degraded */}
-                    {(planet.durability ?? 100) < 100 && (() => {
-                      const dur = planet.durability ?? 100;
-                      const durColor = dur > 50 ? "#00e676" : dur > 20 ? "#ffb347" : "#ff5252";
-                      return (
-                        <div style={{ marginTop: 6 }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
-                            <span style={{ fontSize: 8, color: "rgba(255,255,255,0.4)", letterSpacing: "0.07em" }}>DURABILITY</span>
-                            <span style={{ fontSize: 8, fontWeight: 800, color: durColor }}>{dur}%</span>
-                          </div>
-                          <div style={{ height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 3 }}>
-                            <div style={{ height: "100%", width: `${dur}%`, background: durColor, borderRadius: 3, transition: "width 0.4s" }} />
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                </div>
+                </div>{/* end orb row */}
 
-                <div className="flex gap-2 flex-wrap">
-                  {(planet.durability ?? 100) <= 0 ? (
-                    // Frozen: durability depleted — cannot farm until repaired
+                {/* Name + rarity — centered compact */}
+                <div style={{ padding: "0 8px 3px", textAlign: "center" }}>
+                  <div
+                    className={`font-black truncate ${isPlatinumNft ? "nft-platinum-text" : RARITY_CLASS[planet.name]}`}
+                    style={{ fontSize: 11, opacity: expired ? 0.65 : 1, ...(isPlatinumNft ? {} : { background: "transparent" }) }}
+                    onClick={(e) => { e.stopPropagation(); if (telegramId && !isListed) setRenamePlanet(planet); }}
+                  >
+                    {getPlanetDisplayName(planet)}
+                  </div>
+                  {/* Rate / status */}
+                  <div style={{ textAlign: "center", marginTop: 3, fontSize: 9, fontWeight: 700, color: active ? planet.color : expired ? "rgba(255,82,82,0.75)" : "rgba(255,255,255,0.4)" }}>
+                    {active
+                      ? (planet.name === "MUSHROOM" ? "+5 ★/24h" : `+${planet.rate.toLocaleString()}/hr`)
+                      : expired ? "EXPIRED"
+                      : isListed ? `${planet.marketPrice?.toLocaleString()} GRAM`
+                      : `+${planet.rate.toLocaleString()}/hr`}
+                  </div>
+                </div>{/* end name/info section */}
+
+                {/* Float bar compact */}
+                {isFloatablePlanet(planet) && (
+                  <div style={{ padding: "2px 10px", opacity: expired ? 0.55 : 1 }}>
+                    <PlanetFloatBar value={getDisplayFloat(planet)} />
+                  </div>
+                )}
+
+                {/* Durability bar — shown when below 100% */}
+                {dur < 100 && (() => {
+                  const durColor = dur > 50 ? "#00e676" : dur > 20 ? "#ffb347" : "#ff5252";
+                  return (
+                    <div style={{ padding: "3px 10px 1px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                        <span style={{ fontSize: 7, color: "rgba(255,255,255,0.35)" }}>DUR</span>
+                        <span style={{ fontSize: 7, fontWeight: 800, color: durColor }}>{dur}%</span>
+                      </div>
+                      <div style={{ height: 3, background: "rgba(255,255,255,0.08)", borderRadius: 2 }}>
+                        <div style={{ height: "100%", width: `${dur}%`, background: durColor, borderRadius: 2, transition: "width 0.4s" }} />
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Primary action button — full width at card bottom */}
+                <div style={{ padding: "6px 8px 10px", marginTop: "auto" }}>
+                  {dur <= 0 ? (
                     <div
-                      className="btn-widget"
-                      style={{ cursor: "not-allowed", opacity: 0.5, borderColor: "rgba(255,82,82,0.3)", color: "#ff5252", background: "rgba(255,82,82,0.07)" }}
+                      style={{ borderRadius: 10, padding: "7px 0", textAlign: "center", fontSize: 10, fontWeight: 900, background: "rgba(255,82,82,0.07)", border: "1px solid rgba(255,82,82,0.25)", color: "#ff5252", cursor: "not-allowed" }}
                       aria-disabled="true"
                     >
-                      <span>❄ FROZEN</span>
-                      <span style={{ fontSize: 8, opacity: 0.8 }}>Repair first</span>
+                      ❄ FROZEN
                     </div>
                   ) : active ? (
-                    // Active farm cycle: non-interactive indicator. The cycle
-                    // runs uninterrupted to completion — no manual pause/stop.
                     <div
-                      className="btn-widget btn-glass-farm-active"
-                      style={{ cursor: "default", pointerEvents: "none" }}
-                      aria-disabled="true"
+                      className="btn-glass-farm-active"
+                      style={{ borderRadius: 10, padding: "7px 4px", textAlign: "center", fontSize: 10, fontWeight: 900, cursor: "default", pointerEvents: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}
                       data-testid={`status-farming-${planet.id}`}
                     >
-                      <span>{t("farm.farming")}</span>
+                      <span>FARMING</span>
                       <span style={{ fontSize: 8, opacity: 0.7 }}>{formatDuration(remaining)}</span>
                     </div>
+                  ) : isListed ? (
+                    <button
+                      className="btn-glass-listed"
+                      style={{ width: "100%", borderRadius: 10, padding: "7px 0", fontSize: 10, fontWeight: 900, cursor: "pointer" }}
+                      onClick={(e) => { e.stopPropagation(); onUnlist(planet.id); }}
+                      data-testid={`btn-unlist-${planet.id}`}
+                    >
+                      DELIST
+                    </button>
                   ) : expired ? (
                     <button
-                      className="btn-widget"
                       style={{
-                        background: `linear-gradient(135deg, ${planet.color}33 0%, ${planet.color}1a 100%)`,
+                        width: "100%", borderRadius: 10, padding: "7px 0", fontSize: 10, fontWeight: 900,
                         border: `1px solid ${planet.color}66`,
-                        color: planet.color,
-                        boxShadow: `0 0 14px ${planet.color}33`,
+                        background: `linear-gradient(135deg, ${planet.color}33, ${planet.color}1a)`,
+                        color: planet.color, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
                       }}
-                      onClick={handleStartOrReactivate}
+                      onClick={(e) => { e.stopPropagation(); handleStartOrReactivate(); }}
                       data-testid={`btn-reactivate-${planet.id}`}
                     >
                       <span>REACTIVATE</span>
-                      <span style={{ fontSize: 8, opacity: 0.85 }}>{reactivationFee.toLocaleString()} $ZOOM</span>
+                      <span style={{ fontSize: 7, opacity: 0.85 }}>{reactivationFee.toLocaleString()} $ZOOM</span>
                     </button>
                   ) : (
                     <button
-                      className={`btn-widget ${isListed ? "" : "btn-glass-farm"}`}
-                      disabled={isListed}
-                      style={isListed ? { borderColor: "rgba(255,255,255,0.04)", background: "transparent", color: "rgba(255,255,255,0.15)", cursor: "not-allowed", opacity: 0.4 } : undefined}
-                      onClick={handleStartOrReactivate}
+                      className="btn-glass-farm"
+                      style={{ width: "100%", borderRadius: 10, padding: "7px 0", fontSize: 10, fontWeight: 900, cursor: "pointer" }}
+                      onClick={(e) => { e.stopPropagation(); handleStartOrReactivate(); }}
                       data-testid={`btn-farm-${planet.id}`}
                     >
-                      <span>{t("farm.startBig")}</span>
-                      <span style={{ fontSize: 8, opacity: 0.7 }}>{t("farm.farm")}</span>
+                      START FARM
                     </button>
                   )}
-
-                  <button
-                    className={`btn-widget ${isListed ? "" : confirmBurn === planet.id ? "btn-glass-burn-confirm" : "btn-glass-burn"}`}
-                    disabled={isListed}
-                    style={isListed ? { borderColor: "rgba(255,255,255,0.06)", background: "transparent", color: "rgba(255,255,255,0.12)", cursor: "not-allowed", opacity: 0.3 } : undefined}
-                    onClick={() => !isListed && handleBurnClick(planet.id)}
-                    data-testid={`btn-burn-${planet.id}`}
-                  >
-                    <span>{confirmBurn === planet.id ? t("farm.sure") : t("farm.burn")}</span>
-                    <span style={{ fontSize: 8, opacity: 0.7 }}>+{refund}</span>
-                  </button>
-
-                  {isListed ? (
-                    <button
-                      className="btn-widget btn-glass-listed"
-                      onClick={() => onUnlist(planet.id)}
-                      data-testid={`btn-unlist-${planet.id}`}
-                    >
-                      <span style={{ fontSize: 14 }}>✕</span>
-                      <span>{t("farm.listed")}</span>
-                      <span style={{ fontSize: 8, opacity: 0.7 }}>{t("farm.delist")}</span>
-                    </button>
-                  ) : (
-                    <button
-                      className="btn-widget btn-glass-sell"
-                      onClick={() => openSellPopup(planet)}
-                      data-testid={`btn-sell-${planet.id}`}
-                    >
-                      <span>{t("farm.sell")}</span>
-                      <span style={{ fontSize: 8, opacity: 0.7 }}>{t("farm.marketLabel")}</span>
-                    </button>
-                  )}
-
-                  {/* REPAIR button — shown when durability is degraded */}
-                  {(planet.durability ?? 100) < 100 && !isListed && onRepair && (() => {
-                    const repairCost = REPAIR_STARDUST_COST[planet.name] ?? 500;
-                    const canRepair = stardustBalance >= repairCost;
-                    return (
-                      <button
-                        className="btn-widget"
-                        disabled={!canRepair}
-                        onClick={() => {
-                          const r = onRepair(planet.id);
-                          if (!r.ok) {
-                            setDefectMsg(r.reason ?? "Repair failed");
-                            setTimeout(() => setDefectMsg(null), 1800);
-                          }
-                        }}
-                        style={{
-                          background: canRepair
-                            ? "linear-gradient(135deg, rgba(255,183,77,0.22) 0%, rgba(255,152,0,0.12) 100%)"
-                            : "rgba(255,255,255,0.04)",
-                          border: `1px solid ${canRepair ? "rgba(255,183,77,0.5)" : "rgba(255,255,255,0.06)"}`,
-                          color: canRepair ? "#ffb347" : "rgba(255,255,255,0.2)",
-                          cursor: canRepair ? "pointer" : "not-allowed",
-                        }}
-                        data-testid={`btn-repair-${planet.id}`}
-                      >
-                        <span>REPAIR</span>
-                        <span style={{ fontSize: 8, opacity: 0.85 }}>{repairCost.toLocaleString()} ⭐</span>
-                      </button>
-                    );
-                  })()}
                 </div>
               </div>
             );
           })}
+          </div>{/* end 2-col grid */}
 
           {Array.from({ length: Math.max(0, maxSlots - planets.length) }).map((_, i) => (
             <div
@@ -1220,7 +1099,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
             aria-disabled="true"
           >
             <div style={{ fontSize: 20, opacity: 0.45 }}>🔒</div>
-            <div className="font-bold text-xs tracking-widest uppercase" style={{ color: "rgba(255,215,0,0.45)" }}>0.25 TON</div>
+            <div className="font-bold text-xs tracking-widest uppercase" style={{ color: "rgba(255,215,0,0.45)" }}>0.25 GRAM</div>
             <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)" }}>to unlock slot</div>
           </div>
 
@@ -1264,7 +1143,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
               </div>
             </div>
             <div className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
-              Prezzo in TON (min 0.25 – max 10). Commissione 10% inclusa.
+              Prezzo in GRAM (min 0.25 – max 10). Commissione 10% inclusa.
             </div>
             <div className="relative mb-2">
               <input
@@ -1281,12 +1160,12 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                 inputMode="decimal"
               />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "rgba(255,255,255,0.35)" }}>
-                TON
+                GRAM
               </span>
             </div>
             {sellPrice && parseFloat(sellPrice) > 0 && (
               <div className="text-xs mb-4 px-1" style={{ color: "rgba(255,255,255,0.35)" }}>
-                Ricevi ~{((parseFloat(sellPrice) || 0) * 0.9).toFixed(3)} TON netto
+                Ricevi ~{((parseFloat(sellPrice) || 0) * 0.9).toFixed(3)} GRAM netto
               </div>
             )}
             <div className="flex gap-3 mt-4">
@@ -1308,7 +1187,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                 onClick={confirmSell}
                 data-testid="btn-confirm-sell"
               >
-                List for {sellPrice ? parseFloat(sellPrice).toFixed(3) : "—"} TON
+                List for {sellPrice ? parseFloat(sellPrice).toFixed(3) : "—"} GRAM
               </button>
             </div>
           </div>
@@ -1319,16 +1198,16 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
       {sun && (
         <WalletPopup
           isOpen={sunWalletOpen}
-          amount={`${sun.activationCost} TON`}
+          amount={`${sun.activationCost} GRAM`}
           purpose="Activate THE SUN"
           onClose={() => setSunWalletOpen(false)}
         />
       )}
       <WalletPopup
         isOpen={slotWalletOpen}
-        amount="0.25 TON"
+        amount="0.25 GRAM"
         purpose="Unlock Farm Slot"
-        instruction="Send TON to this address to unlock your slot."
+        instruction="Send GRAM to this address to unlock your slot."
         copyLabel="Copy Link"
         onClose={() => setSlotWalletOpen(false)}
       />
@@ -1352,6 +1231,29 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
             window.dispatchEvent(new Event("planets-refresh"));
           }}
           onBeforeQueue={onFlushPlanets}
+        />
+      )}
+      {detailPlanet && (
+        <PlanetDetailModal
+          planet={detailPlanet}
+          telegramId={telegramId}
+          stardustBalance={stardustBalance}
+          planets={planets}
+          maxSlots={maxSlots}
+          onClose={() => setDetailPlanet(null)}
+          onStartFarming={(id) => onStartFarming(id)}
+          onRename={(p) => { setDetailPlanet(null); setRenamePlanet(p); }}
+          onPvP={(p) => { setDetailPlanet(null); setPvPPlanet(p); }}
+          onSell={(p) => { setDetailPlanet(null); openSellPopup(p); }}
+          onBurn={(id) => handleBurnClick(id)}
+          onUnlist={(id: string) => onUnlist(id)}
+          onRepair={onRepair
+            ? (id: string) => {
+                const r = onRepair(id);
+                if (!r.ok) { setDefectMsg(r.reason ?? "Repair failed"); setTimeout(() => setDefectMsg(null), 1800); }
+                return r;
+              }
+            : undefined}
         />
       )}
     </div>

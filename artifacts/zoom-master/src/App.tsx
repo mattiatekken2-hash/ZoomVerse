@@ -1329,7 +1329,7 @@ function AppShellWithState() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {[
                   { label: "Total Crafts", value: state.craftsCompleted?.toLocaleString() ?? "0", color: "#c471ed" },
-                  { label: "TON Earned", value: (state.tonBalance || 0).toFixed(2), color: "#00f2b4" },
+                  { label: "GRAM Earned", value: (state.tonBalance || 0).toFixed(2), color: "#00f2b4" },
                   { label: "ZOOM Total", value: (() => { const n = state.totalEarned || 0; return n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toLocaleString(); })(), color: "#ffd740" },
                   { label: "RedStar", value: (state.redStarBalance || 0).toLocaleString(), color: "#ff4444" },
                   { label: "Stardust", value: (() => { const n = state.stardustBalance || 0; return n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toLocaleString(); })(), color: "#ffd740" },

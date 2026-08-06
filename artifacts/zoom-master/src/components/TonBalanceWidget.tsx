@@ -129,9 +129,9 @@ function TonModal({
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <PixelWallet size={24} />
             <div>
-              <div style={{ color: "rgba(0,255,140,0.75)", fontSize: 10, fontWeight: 900, letterSpacing: 1.4 }}>TON WALLET</div>
+              <div style={{ color: "rgba(0,255,140,0.75)", fontSize: 10, fontWeight: 900, letterSpacing: 1.4 }}>GRAM WALLET</div>
               <div style={{ color: "#fff", fontSize: 17, fontWeight: 900, letterSpacing: 0.8, textShadow: "0 0 10px rgba(0,255,140,0.5)" }}>
-                {formatTon(total)} TON
+                {formatTon(total)} GRAM
               </div>
             </div>
           </div>
@@ -158,7 +158,7 @@ function TonModal({
         >
           <span style={{ color: "rgba(0,255,140,0.8)", fontSize: 11, fontWeight: 800, letterSpacing: 0.5 }}>TOTAL BALANCE</span>
           <span style={{ color: "#00ff8c", fontSize: 18, fontWeight: 900, fontVariantNumeric: "tabular-nums", textShadow: "0 0 10px rgba(0,255,140,0.5)" }}>
-            {formatTon(total)} TON
+            {formatTon(total)} GRAM
           </span>
         </div>
 
@@ -183,7 +183,7 @@ function TonModal({
                   fontSize: 12, fontWeight: 900, fontVariantNumeric: "tabular-nums",
                 }}
               >
-                {formatTon(r.value)} TON
+                {formatTon(r.value)} GRAM
               </span>
             </div>
           ))}
