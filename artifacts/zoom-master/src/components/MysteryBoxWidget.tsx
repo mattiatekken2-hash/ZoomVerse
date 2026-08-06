@@ -244,12 +244,12 @@ function MysteryBoxWidgetBase({ telegramId, shopMode = false }: MysteryBoxWidget
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 900, color: "#c060ff", fontSize: 14, letterSpacing: "0.04em" }}>MYSTERY BOX</div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>
-                {stock ? `${stock.sunsRemaining} SUN left · ` : ""}1.5 TON · Win up to SUN
+                {stock ? `${stock.sunsRemaining} SUN left · ` : ""}1.5 GRAM · Win up to SUN
               </div>
             </div>
           </div>
           <div style={{ borderTop: "1px solid rgba(192,96,255,0.22)", padding: "10px 16px", textAlign: "center", fontWeight: 900, color: "#c060ff", fontSize: 12, letterSpacing: "0.06em" }}>
-            OPEN BOX — 1.5 TON →
+            OPEN BOX — 1.5 GRAM →
           </div>
         </div>
       ) : (
@@ -409,7 +409,7 @@ function MysteryBoxWidgetBase({ telegramId, shopMode = false }: MysteryBoxWidget
             </div>
 
             {phase !== "revealed" && (
-              <div className="font-black text-2xl" style={{ color: "#fff", marginBottom: 8 }}>{PRICE_TON} TON</div>
+              <div className="font-black text-2xl" style={{ color: "#fff", marginBottom: 8 }}>{PRICE_TON} GRAM</div>
             )}
 
             {/* Possible rewards (no probabilities shown) */}

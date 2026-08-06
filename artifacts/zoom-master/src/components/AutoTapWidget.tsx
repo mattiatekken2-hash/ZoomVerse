@@ -239,7 +239,7 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
               {t("autoTap.desc")}
             </div>
             <div className="font-black text-2xl" style={{ color: "#fff", marginBottom: 16 }}>
-              {PRICE_TON} TON
+              {PRICE_TON} GRAM
             </div>
             {message && (
               <div className="text-xs" style={{ color: "#ff3355", marginBottom: 12 }}>{message}</div>

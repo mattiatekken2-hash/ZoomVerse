@@ -110,7 +110,7 @@ function ExchangeModal({
             SUN PLANET REQUIRED
           </div>
           <div style={{ color: "rgba(220,235,255,0.7)", fontSize: 12, textAlign: "center", marginTop: 8, lineHeight: 1.5 }}>
-            You need to own at least one SUN planet in your inventory to access the ZOOM ~ TON exchange.
+            You need to own at least one SUN planet in your inventory to access the ZOOM ~ GRAM exchange.
           </div>
           <button
             onClick={onClose}
@@ -155,7 +155,7 @@ function ExchangeModal({
               EXCHANGE
             </div>
             <div style={{ color: "#fff", fontSize: 18, fontWeight: 900, letterSpacing: 1, textShadow: "0 0 10px rgba(255,51,85,0.5)" }}>
-              ZOOM ~ TON
+              ZOOM ~ GRAM
             </div>
           </div>
           <button
@@ -183,7 +183,7 @@ function ExchangeModal({
           <div style={{ marginTop: 4, display: "flex", alignItems: "baseline", gap: 6 }}>
             <span style={{ color: "rgba(220,235,255,0.6)", fontSize: 12 }}>1 $ZOOM =</span>
             <span style={{ color: "#ff3355", fontSize: 18, fontWeight: 900, fontVariantNumeric: "tabular-nums", textShadow: "0 0 10px rgba(255,51,85,0.55)" }}>
-              {formatPrice(price)} TON
+              {formatPrice(price)} GRAM
             </span>
           </div>
           <div style={{ color: "rgba(220,235,255,0.5)", fontSize: 10, marginTop: 4, lineHeight: 1.4 }}>
@@ -236,7 +236,7 @@ function ExchangeModal({
             <span style={{ color: "#00ff88", fontSize: 22, fontWeight: 900, fontVariantNumeric: "tabular-nums", textShadow: "0 0 12px rgba(0,255,140,0.45)" }}>
               {formatTon(tonOut)}
             </span>
-            <span style={{ color: "#00ff88", fontSize: 12, fontWeight: 800 }}>TON</span>
+            <span style={{ color: "#00ff88", fontSize: 12, fontWeight: 800 }}>GRAM</span>
           </div>
         </div>
 
@@ -251,7 +251,7 @@ function ExchangeModal({
             PORTFOLIO VALUE
           </span>
           <span style={{ color: "#fff", fontSize: 13, fontWeight: 900, fontVariantNumeric: "tabular-nums" }}>
-            {formatTon(portfolio)} TON
+            {formatTon(portfolio)} GRAM
           </span>
         </div>
 
@@ -341,7 +341,7 @@ function ExchangeWidgetBase({ balance, sunCount }: ExchangeWidgetProps) {
             color: "#fff", textShadow: "0 0 6px rgba(255,51,85,0.55)",
           }}
         >
-          ZOOM~TON
+          ZOOM~GRAM
         </span>
         <span
           style={{
@@ -397,7 +397,7 @@ function ExchangeWidgetBase({ balance, sunCount }: ExchangeWidgetProps) {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          aria-label="Apri Exchange ZOOM ~ TON"
+          aria-label="Apri Exchange ZOOM ~ GRAM"
           data-testid="btn-exchange-widget"
           style={{ ...baseStyle, cursor: "pointer" }}
         >
@@ -405,7 +405,7 @@ function ExchangeWidgetBase({ balance, sunCount }: ExchangeWidgetProps) {
         </button>
       ) : (
         <div
-          aria-label="Exchange ZOOM ~ TON (richiede SUN)"
+          aria-label="Exchange ZOOM ~ GRAM (richiede SUN)"
           title="Serve almeno 1 pianeta SUN per accedere"
           style={{ ...baseStyle, opacity: 0.85, cursor: "not-allowed" }}
         >

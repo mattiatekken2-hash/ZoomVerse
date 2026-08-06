@@ -22,7 +22,7 @@ function fmtCountdown(secs: number): string {
 // V1 NFT Platinum Edition — widget quadrato sul LAB (right:12, top:410),
 // sotto il trofeo Hall of Fame (top:340 + h:60 = 400). Stesso stile pixel
 // di MysteryBoxWidget/HallOfFameWidget: bottone 60×60 con glow animato.
-// Apre un modal informativo con stock live e CTA "BUY — 20 TON" che usa
+// Apre un modal informativo con stock live e CTA "BUY — 20 GRAM" che usa
 // lo stesso flusso TonConnect di ShopPage. SOLO TON (server rifiuta Stars).
 //
 // Stock: GET /api/v1-nft-platinum/stock ogni 20s + on-demand all'apertura.
@@ -136,7 +136,7 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
           setMessage("V1 NFT purchased!");
           window.dispatchEvent(new Event("zoom-data-refresh"));
         } else if (final?.status === "failed") {
-          setMessage("Payment not detected. Contact support if TON was sent.");
+          setMessage("Payment not detected. Contact support if GRAM was sent.");
         } else {
           setMessage("Awaiting confirmation. The NFT will appear once verified.");
           window.dispatchEvent(new Event("zoom-data-refresh"));
@@ -157,7 +157,7 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
       if (errMsg.includes("cancel") || errMsg.includes("reject") || errMsg.includes("Interrupted")) {
         setMessage("Payment cancelled");
       } else {
-        setMessage("TON payment failed");
+        setMessage("GRAM payment failed");
         console.error("[v1nft] sendTransaction error:", err);
       }
     }
@@ -199,12 +199,12 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 900, color: "#cfe4ff", fontSize: 14, letterSpacing: "0.04em" }}>V1 NFT PLATINUM</div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>
-                {stock ? `${stock.remaining}/${stock.max} left · ` : ""}20 TON · 275 $ZOOM/h
+                {stock ? `${stock.remaining}/${stock.max} left · ` : ""}20 GRAM · 275 $ZOOM/h
               </div>
             </div>
           </div>
           <div style={{ borderTop: "1px solid rgba(202,225,255,0.22)", padding: "10px 16px", textAlign: "center", fontWeight: 900, color: "#cfe4ff", fontSize: 12, letterSpacing: "0.06em" }}>
-            BUY — 20 TON →
+            BUY — 20 GRAM →
           </div>
         </div>
       ) : (
@@ -295,7 +295,7 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
             }}>
               {[
                 { label: "Yield", value: "275 $ZOOM/h" },
-                { label: "Price", value: "20 TON" },
+                { label: "Price", value: "20 GRAM" },
                 { label: "Global stock", value: stock ? `${stock.remaining}/${stock.max}` : "5/5" },
                 { label: "Per-user", value: "Unlimited" },
               ].map((row) => (
@@ -376,7 +376,7 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
               }}
               data-testid="button-v1-nft-buy"
             >
-              {soldOut ? "SOLD OUT" : buying ? "PROCESSING…" : "BUY — 20 TON"}
+              {soldOut ? "SOLD OUT" : buying ? "PROCESSING…" : "BUY — 20 GRAM"}
             </button>
 
             <button

@@ -47,7 +47,7 @@ function formatPrice(p: number): string {
 }
 
 function fmtTon(p: number): string {
-  return `${formatPrice(p)} TON`;
+  return `${formatPrice(p)} GRAM`;
 }
 
 function formatNumber(n: number): string {

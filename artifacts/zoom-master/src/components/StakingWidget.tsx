@@ -125,7 +125,7 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
             className="text-[9px] font-black px-1.5 py-0.5 rounded"
             style={{ background: "rgba(255,51,85,0.12)", color: "#ff3355", border: "1px solid rgba(255,51,85,0.3)" }}
           >
-            {reward} TON / 30d
+            {reward} GRAM / 30d
           </span>
         </div>
         {isStaking && (
@@ -142,10 +142,10 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
       {isStaking ? (
         <>
           <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.45)" }}>
-            TON generated
+            GRAM generated
           </div>
           <div className="font-black text-2xl" style={{ color: "#0088ff" }}>
-            {fmtTon(liveAccrued)} <span className="text-sm font-bold" style={{ color: "rgba(0,136,255,0.65)" }}>TON</span>
+            {fmtTon(liveAccrued)} <span className="text-sm font-bold" style={{ color: "rgba(0,136,255,0.65)" }}>GRAM</span>
           </div>
           {stalled ? (
             <div className="text-[10px] mt-1 font-bold" style={{ color: "rgba(255,140,0,0.95)" }}>
@@ -174,7 +174,7 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
               opacity: busy ? 0.6 : 1,
             }}
           >
-            {busy ? "Starting..." : `STAKING TON`}
+            {busy ? "Starting..." : `STAKING GRAM`}
           </button>
         </>
       ) : (
@@ -185,7 +185,7 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
             </div>
           ) : requiresSun && count >= getRequired(meta.kind) && activeCount < getRequired(meta.kind) ? (
             <div className="text-[11px] font-bold mb-1" style={{ color: "rgba(255,140,0,0.95)" }}>
-              Activate {getRequired(meta.kind)} {meta.label} farms ({activeCount}/{getRequired(meta.kind)} active) to unlock TON staking
+              Activate {getRequired(meta.kind)} {meta.label} farms ({activeCount}/{getRequired(meta.kind)} active) to unlock GRAM staking
             </div>
           ) : requiresSun && count < getRequired(meta.kind) ? (
             <div className="text-[11px] font-bold mb-1" style={{ color: "rgba(255,82,82,0.85)" }}>
@@ -193,7 +193,7 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
             </div>
           ) : (
             <div className="text-[11px] font-bold mb-1" style={{ color: "rgba(255,82,82,0.85)" }}>
-              Collect {getRequired(meta.kind)} {meta.label} Planets to unlock TON farming
+              Collect {getRequired(meta.kind)} {meta.label} Planets to unlock GRAM farming
             </div>
           )}
           <div className="flex items-center gap-2">
@@ -212,7 +212,7 @@ function SetCard({ meta, status, hasSun, liveAccrued, busy, onStart }: SetCardPr
             </span>
           </div>
           <button disabled className="btn-widget w-full text-xs font-black tracking-wider mt-2" style={{ opacity: 0.35, cursor: "not-allowed" }}>
-            STAKING TON
+            STAKING GRAM
           </button>
         </>
       )}
@@ -366,12 +366,12 @@ export function StakingWidget({ telegramId, planets, sunCountClient, sunFarmStar
         aria-expanded={open}
       >
         <span className="font-black text-xs tracking-widest" style={{ color: "#ff3355" }}>
-          TON STAKING {anyEligible && !anyStaking ? "· READY" : ""}
+          GRAM STAKING {anyEligible && !anyStaking ? "· READY" : ""}
         </span>
         <span className="flex items-center gap-2">
           {anyStaking && (
             <span className="text-[10px] font-black tabular-nums" style={{ color: "#0088ff" }}>
-              Total: {fmtTon(totalLive)} TON
+              Total: {fmtTon(totalLive)} GRAM
             </span>
           )}
           <span style={{ color: "rgba(255,51,85,0.7)", fontSize: 12 }}>{open ? "▾" : "▸"}</span>

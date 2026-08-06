@@ -266,7 +266,7 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
               fontSize: 12, color: "rgba(255,255,255,0.65)", textAlign: "center",
               lineHeight: 1.5, marginBottom: 18, padding: "0 6px",
             }}>
-              {t("earthColl.desc", { speed: "0.017 TON/day" })}
+              {t("earthColl.desc", { speed: "0.017 GRAM/day" })}
             </div>
 
             {unlocked ? (
@@ -314,7 +314,7 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
             }}>
               <div style={{ display: "flex", flexDirection: "column" }}>
                 <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{t("earthColl.price")}</span>
-                <span style={{ fontSize: 26, fontWeight: 900, color: "#fff" }}>{PRICE_TON} TON</span>
+                <span style={{ fontSize: 26, fontWeight: 900, color: "#fff" }}>{PRICE_TON} GRAM</span>
               </div>
               <button
                 className="ec-buy-btn"

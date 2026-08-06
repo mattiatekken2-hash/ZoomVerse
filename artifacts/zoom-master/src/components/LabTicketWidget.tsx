@@ -30,7 +30,7 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode 
       return;
     }
     if (depositBalance < 1) {
-      setMsg("Need 1 TON to buy");
+      setMsg("Need 1 GRAM to buy");
       return;
     }
     haptic();
@@ -82,12 +82,12 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode 
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 900, color: PURPLE, fontSize: 14, letterSpacing: "0.04em" }}>LAB TICKET</div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>
-                +30 Lab Points · +300 Stardust · 1 TON
+                +30 Lab Points · +300 Stardust · 1 GRAM
               </div>
             </div>
           </div>
           <div style={{ borderTop: `1px solid ${PURPLE}22`, padding: "10px 16px", textAlign: "center", fontWeight: 900, color: PURPLE, fontSize: 12, letterSpacing: "0.06em" }}>
-            BUY — 1 TON →
+            BUY — 1 GRAM →
           </div>
         </div>
       ) : (
@@ -232,7 +232,7 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode 
                 <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
                   Cost
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 900, color: ACCENT, marginTop: 2 }}>1 TON</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: ACCENT, marginTop: 2 }}>1 GRAM</div>
               </div>
               <div
                 style={{
@@ -244,7 +244,7 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode 
                 }}
               >
                 <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Your TON
+                  Your GRAM
                 </div>
                 <div style={{ fontSize: 20, fontWeight: 900, color: "#fff", marginTop: 2 }}>
                   {depositBalance.toFixed(2)}
@@ -296,7 +296,7 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode 
               }}
               data-testid="button-buy-lab-ticket"
             >
-              {buying ? "Processing..." : depositBalance < 1 ? "Not enough TON" : "Buy Lab Ticket (1 TON)"}
+              {buying ? "Processing..." : depositBalance < 1 ? "Not enough GRAM" : "Buy Lab Ticket (1 GRAM)"}
             </button>
 
             {msg && (

@@ -118,18 +118,18 @@ export function PlanetDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{ background: "rgba(2,4,12,0.88)", backdropFilter: "blur(6px)" }}
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(2,4,12,0.88)", backdropFilter: "blur(6px)", padding: "0 8px" }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
-        className="w-full rounded-t-3xl overflow-hidden"
+        className="w-full rounded-3xl overflow-hidden"
         style={{
           background: `linear-gradient(160deg, ${planet.color}18 0%, rgba(6,8,16,0.97) 40%)`,
           border: `1px solid ${planet.color}33`,
-          borderBottom: "none",
-          boxShadow: `0 -20px 60px ${planet.color}22`,
+          boxShadow: `0 0 60px ${planet.color}22, 0 20px 80px rgba(0,0,0,0.7)`,
           maxHeight: "88vh",
+          maxWidth: 420,
           overflowY: "auto",
         }}
         onClick={(e) => e.stopPropagation()}
@@ -186,11 +186,16 @@ export function PlanetDetailModal({
               </span>
             </div>
 
-            {/* Float */}
+            {/* Float — label+value on top row, bar below */}
             {typeof planetFloat === "number" && (
-              <div className="flex justify-between text-xs items-center">
-                <span style={{ color: "rgba(255,255,255,0.45)" }}>Float</span>
-                <PlanetFloatBar value={planetFloat} />
+              <div className="flex flex-col gap-1 text-xs">
+                <div className="flex justify-between">
+                  <span style={{ color: "rgba(255,255,255,0.45)" }}>Float</span>
+                  <span style={{ fontWeight: 800, color: "rgba(255,255,255,0.7)", fontVariantNumeric: "tabular-nums" }}>
+                    {planetFloat.toFixed(3)}
+                  </span>
+                </div>
+                <PlanetFloatBar value={planetFloat} compact />
               </div>
             )}
 

@@ -298,7 +298,7 @@ function BlackCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
             }}>
               <div style={{ display: "flex", flexDirection: "column" }}>
                 <span style={{ fontSize: 11, color: "rgba(192,132,252,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{t("blackColl.price")}</span>
-                <span style={{ fontSize: 26, fontWeight: 900, color: "#fff" }}>{PRICE_TON} TON</span>
+                <span style={{ fontSize: 26, fontWeight: 900, color: "#fff" }}>{PRICE_TON} GRAM</span>
               </div>
               <button
                 className="bc-buy-btn"

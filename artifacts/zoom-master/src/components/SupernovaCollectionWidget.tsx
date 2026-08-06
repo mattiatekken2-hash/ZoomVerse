@@ -298,7 +298,7 @@ function SupernovaCollectionWidgetBase({ telegramId, unlocked = false, ownedBund
             }}>
               <div style={{ display: "flex", flexDirection: "column" }}>
                 <span style={{ fontSize: 11, color: "rgba(253,224,71,0.6)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{t("supernovaColl.price")}</span>
-                <span style={{ fontSize: 26, fontWeight: 900, color: "#fff" }}>{PRICE_TON} TON</span>
+                <span style={{ fontSize: 26, fontWeight: 900, color: "#fff" }}>{PRICE_TON} GRAM</span>
               </div>
               <button
                 className="sc-buy-btn"

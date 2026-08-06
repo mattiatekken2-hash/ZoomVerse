@@ -251,7 +251,7 @@ function LottoStellareWidgetBase({ telegramId, shopMode = false }: Props) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 900, color: NEON_GOLD, fontSize: 14, letterSpacing: "0.04em" }}>LOTTO STELLARE</div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>
-                Jackpot {jackpotTon} TON · {userTickets > 0 ? `${userTickets} ticket` : "No tickets yet"}
+                Jackpot {jackpotTon} GRAM · {userTickets > 0 ? `${userTickets} ticket` : "No tickets yet"}
               </div>
             </div>
             {userTickets > 0 && (
@@ -421,7 +421,7 @@ function LottoStellareWidgetBase({ telegramId, shopMode = false }: Props) {
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{t("lotto.jackpot")}</div>
                 <div style={{ fontSize: 18, fontWeight: 900, color: NEON_GOLD, marginTop: 2 }}>{jackpotTon.toFixed(2)}</div>
-                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>TON</div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)" }}>GRAM</div>
               </div>
               <div style={{ textAlign: "center", borderLeft: "1px solid rgba(255,255,255,0.08)", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.1em", textTransform: "uppercase" }}>{t("lotto.yours")}</div>
@@ -454,7 +454,7 @@ function LottoStellareWidgetBase({ telegramId, shopMode = false }: Props) {
                         }}>{b.badge}</span>
                       )}
                     </div>
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{b.tonPrice} TON</span>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{b.tonPrice} GRAM</span>
                   </div>
                   <button
                     className="lotto-buy-btn"

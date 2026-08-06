@@ -242,17 +242,17 @@ function PixelAvatarBase({
     }
     const n = parseFloat(withdrawAmount);
     if (!Number.isFinite(n) || n < WITHDRAWAL_MIN_TON) {
-      setWithdrawErr(`Minimum amount: ${WITHDRAWAL_MIN_TON} TON`);
+      setWithdrawErr(`Minimum amount: ${WITHDRAWAL_MIN_TON} GRAM`);
       return;
     }
     const total = n + WITHDRAWAL_FEE_TON;
     if (liveTonBalance < total) {
-      setWithdrawErr(`Insufficient TON. Need ${total.toFixed(4)} TON (amount + ${WITHDRAWAL_FEE_TON} fee)`);
+      setWithdrawErr(`Insufficient GRAM. Need ${total.toFixed(4)} GRAM (amount + ${WITHDRAWAL_FEE_TON} fee)`);
       return;
     }
     const wallet = withdrawWallet.trim();
     if (!wallet) {
-      setWithdrawErr("Enter your TON wallet address");
+      setWithdrawErr("Enter your GRAM wallet address");
       return;
     }
     setSubmittingWithdraw(true);
@@ -268,7 +268,7 @@ function PixelAvatarBase({
         detail: { tonBalance: res.newTonBalance, epoch: res.balanceEpoch },
       }));
     }
-    setWithdrawMsg(`Request submitted. You will receive ${n.toFixed(4)} TON after admin approval.`);
+    setWithdrawMsg(`Request submitted. You will receive ${n.toFixed(4)} GRAM after admin approval.`);
     setWithdrawAmount("");
     refreshWithdrawals();
   };
@@ -701,7 +701,7 @@ function PixelAvatarBase({
               ✕
             </button>
 
-            {/* Wallet section removed — use the TON pill in the header */}
+            {/* Wallet section removed — use the GRAM pill in the header */}
             <div style={{ marginBottom: 22, display: "none" }}>
               <div
                 style={{
@@ -729,7 +729,7 @@ function PixelAvatarBase({
                 }}
               >
                 <span style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>Balance</span>
-                <span style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>{liveTonBalance.toFixed(4)} TON</span>
+                <span style={{ fontSize: 22, fontWeight: 900, color: "#fff" }}>{liveTonBalance.toFixed(4)} GRAM</span>
               </div>
 
               <button
@@ -737,7 +737,7 @@ function PixelAvatarBase({
                 style={{ width: "100%", marginBottom: 10 }}
                 onClick={handleDeposit}
               >
-                DEPOSIT TON
+                DEPOSIT GRAM
               </button>
 
               {depositMsg && (
@@ -784,7 +784,7 @@ function PixelAvatarBase({
                   <input
                     className="pixel-modal-input"
                     type="text"
-                    placeholder="Your TON wallet address (UQ... / EQ...)"
+                    placeholder="Your GRAM wallet address (UQ... / EQ...)"
                     value={withdrawWallet}
                     onChange={(e) => setWithdrawWallet(e.target.value)}
                     disabled={submittingWithdraw}
@@ -834,7 +834,7 @@ function PixelAvatarBase({
                           return (
                             <div key={w.id} style={{ fontSize: 11, padding: "6px 10px", borderRadius: 8, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
                               <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                                <span style={{ color: "#fff", fontWeight: 700 }}>{w.amountTon.toFixed(4)} TON</span>
+                                <span style={{ color: "#fff", fontWeight: 700 }}>{w.amountTon.toFixed(4)} GRAM</span>
                                 <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 10 }}>{new Date(w.createdAt).toLocaleString()}</span>
                                 {w.status === "paid" && w.txHash && (
                                   <a href={`https://tonscan.org/tx/${w.txHash}`} target="_blank" rel="noreferrer" style={{ color: NEON, fontSize: 10, textDecoration: "underline", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -856,8 +856,8 @@ function PixelAvatarBase({
               ) : (
                 <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", padding: "12px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 10, border: "1px dashed rgba(255,255,255,0.12)", marginTop: 4 }}>
                   {earthCollectionUnlocked && sunCount <= 0
-                    ? "TON withdrawals require a SUN module (Earth Collection)."
-                    : "TON withdrawals are available to White or Earth Collection holders."}
+                    ? "GRAM withdrawals require a SUN module (Earth Collection)."
+                    : "GRAM withdrawals are available to White or Earth Collection holders."}
                 </div>
               )}
             </div>
@@ -897,9 +897,9 @@ function PixelAvatarBase({
                       whiteSpace: "nowrap",
                       fontVariantNumeric: "tabular-nums",
                     }}
-                    title="Persisted TON balance + uncollected pending earnings (live)"
+                    title="Persisted GRAM balance + uncollected pending earnings (live)"
                   >
-                    {liveTonBalance.toFixed(6)} TON
+                    {liveTonBalance.toFixed(6)} GRAM
                   </div>
                 )}
               </div>
@@ -977,7 +977,7 @@ function PixelAvatarBase({
                             } catch (err: unknown) {
                               const m = err instanceof Error ? err.message : String(err);
                               if (m.includes("cancel") || m.includes("reject") || m.includes("Interrupted")) flashWhiteMsg("Payment cancelled");
-                              else { flashWhiteMsg("TON payment failed"); console.error("[react] ton tx error:", err); }
+                              else { flashWhiteMsg("GRAM payment failed"); console.error("[react] ton tx error:", err); }
                             } finally {
                               setReactingId(null);
                             }
@@ -1203,7 +1203,7 @@ function PixelAvatarBase({
                               } catch (err: unknown) {
                                 const m = err instanceof Error ? err.message : String(err);
                                 if (m.includes("cancel") || m.includes("reject") || m.includes("Interrupted")) flashWhiteMsg("Payment cancelled");
-                                else { flashWhiteMsg("TON payment failed"); console.error("[earth-react] ton tx error:", err); }
+                                else { flashWhiteMsg("GRAM payment failed"); console.error("[earth-react] ton tx error:", err); }
                               } finally {
                                 setReactingId(null);
                               }
@@ -1269,7 +1269,7 @@ function PixelAvatarBase({
                     fontStyle: "italic",
                   }}
                 >
-                  Unlock the Earth Collection (7 TON) to receive 4 earth planets · requires SUN to withdraw
+                  Unlock the Earth Collection (7 GRAM) to receive 4 earth planets · requires SUN to withdraw
                 </div>
               )}
 
@@ -1302,7 +1302,7 @@ function PixelAvatarBase({
               )}
             </div>
 
-            {/* Black Collection Farm — 40 TON/bundle, ~0.333 TON/day. */}
+            {/* Black Collection Farm — 40 GRAM/bundle, ~0.333 GRAM/day. */}
             <div style={{ marginTop: 18 }}>
               <div
                 style={{
@@ -1337,9 +1337,9 @@ function PixelAvatarBase({
                       whiteSpace: "nowrap",
                       fontVariantNumeric: "tabular-nums",
                     }}
-                    title="Live TON balance including uncollected black planet earnings"
+                    title="Live GRAM balance including uncollected black planet earnings"
                   >
-                    {liveTonBalance.toFixed(6)} TON
+                    {liveTonBalance.toFixed(6)} GRAM
                   </div>
                 )}
               </div>
@@ -1413,7 +1413,7 @@ function PixelAvatarBase({
                               } catch (err: unknown) {
                                 const m = err instanceof Error ? err.message : String(err);
                                 if (m.includes("cancel") || m.includes("reject") || m.includes("Interrupted")) flashWhiteMsg("Payment cancelled");
-                                else { flashWhiteMsg("TON payment failed"); console.error("[black-react] ton tx error:", err); }
+                                else { flashWhiteMsg("GRAM payment failed"); console.error("[black-react] ton tx error:", err); }
                               } finally {
                                 setReactingId(null);
                               }
@@ -1479,7 +1479,7 @@ function PixelAvatarBase({
                     fontStyle: "italic",
                   }}
                 >
-                  Unlock the Black Collection (40 TON) to receive 4 exclusive black planets
+                  Unlock the Black Collection (40 GRAM) to receive 4 exclusive black planets
                 </div>
               )}
 
@@ -1547,9 +1547,9 @@ function PixelAvatarBase({
                       whiteSpace: "nowrap",
                       fontVariantNumeric: "tabular-nums",
                     }}
-                    title="Live TON balance including uncollected supernova earnings"
+                    title="Live GRAM balance including uncollected supernova earnings"
                   >
-                    {liveTonBalance.toFixed(6)} TON
+                    {liveTonBalance.toFixed(6)} GRAM
                   </div>
                 )}
               </div>
@@ -1623,7 +1623,7 @@ function PixelAvatarBase({
                               } catch (err: unknown) {
                                 const m = err instanceof Error ? err.message : String(err);
                                 if (m.includes("cancel") || m.includes("reject") || m.includes("Interrupted")) flashWhiteMsg("Payment cancelled");
-                                else { flashWhiteMsg("TON payment failed"); console.error("[supernova-react] ton tx error:", err); }
+                                else { flashWhiteMsg("GRAM payment failed"); console.error("[supernova-react] ton tx error:", err); }
                               } finally {
                                 setReactingId(null);
                               }
@@ -1689,7 +1689,7 @@ function PixelAvatarBase({
                     fontStyle: "italic",
                   }}
                 >
-                  Unlock the Supernova Collection (12 TON) to receive 4 pixel-art stars
+                  Unlock the Supernova Collection (12 GRAM) to receive 4 pixel-art stars
                 </div>
               )}
 
@@ -1721,8 +1721,8 @@ function PixelAvatarBase({
                   REDSTAR Collection Farm
                 </div>
                 {stellaRossaCollectionUnlocked && (
-                  <div style={{ fontSize: 11, fontWeight: 800, color: "#ff2244", padding: "4px 9px", borderRadius: 8, background: "rgba(220,20,60,0.10)", border: "1px solid rgba(220,20,60,0.45)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }} title="Live TON balance including uncollected REDSTAR earnings">
-                    {liveTonBalance.toFixed(6)} TON
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "#ff2244", padding: "4px 9px", borderRadius: 8, background: "rgba(220,20,60,0.10)", border: "1px solid rgba(220,20,60,0.45)", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }} title="Live GRAM balance including uncollected REDSTAR earnings">
+                    {liveTonBalance.toFixed(6)} GRAM
                   </div>
                 )}
               </div>
@@ -1778,7 +1778,7 @@ function PixelAvatarBase({
                               } catch (err: unknown) {
                                 const m = err instanceof Error ? err.message : String(err);
                                 if (m.includes("cancel") || m.includes("reject") || m.includes("Interrupted")) flashWhiteMsg("Payment cancelled");
-                                else { flashWhiteMsg("TON payment failed"); console.error("[stella-react] ton tx error:", err); }
+                                else { flashWhiteMsg("GRAM payment failed"); console.error("[stella-react] ton tx error:", err); }
                               } finally { setReactingId(null); }
                             }}
                           />
@@ -1827,7 +1827,7 @@ function PixelAvatarBase({
 
               {!stellaRossaCollectionUnlocked && (
                 <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", textAlign: "center", fontStyle: "italic" }}>
-                  Unlock the REDSTAR Collection (60 TON) to receive 4 exclusive red star planets
+                  Unlock the REDSTAR Collection (60 GRAM) to receive 4 exclusive red star planets
                 </div>
               )}
 
@@ -1908,7 +1908,7 @@ function SlotContent({ planet, busy = false, onReactivate }: SlotContentProps) {
           disabled={!canPay}
           style={!canPay ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
           onClick={(e) => { e.stopPropagation(); onReactivate(planet.id, planet); }}
-          title={`${fee.toFixed(4)} TON`}
+          title={`${fee.toFixed(4)} GRAM`}
         >
           {busy ? "…" : `REACT · ${fee.toFixed(3)}`}
         </button>
