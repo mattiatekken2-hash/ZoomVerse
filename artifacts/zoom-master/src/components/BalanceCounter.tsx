@@ -14,38 +14,50 @@ function fmt(n: number): string {
 }
 
 export function BalanceCounter({ balance, activeRate, onClick }: Props) {
-  const textRef = useRef<HTMLSpanElement>(null);
-  const targetRef = useRef(balance);
+  const textRef    = useRef<HTMLSpanElement>(null);
+  const targetRef  = useRef(balance);
   const displayRef = useRef(balance);
-  const lastTimeRef = useRef(0);
+  const rafRef     = useRef(0);
+  const runningRef = useRef(false);
 
+  // Start the rAF loop only when there is visible work to do.
+  // The loop cancels itself the moment display === target so the GPU is
+  // completely idle between balance updates (instead of spinning at 60 fps).
+  const startLoop = () => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+
+    const animate = () => {
+      const diff = targetRef.current - displayRef.current;
+
+      if (Math.abs(diff) < 0.01) {
+        // Fully converged — snap and STOP. No more rAF until next balance change.
+        displayRef.current = targetRef.current;
+        if (textRef.current) textRef.current.textContent = fmt(displayRef.current);
+        runningRef.current = false;
+        return;
+      }
+
+      // Exponential ease-out smoothing
+      displayRef.current += diff * 0.12;
+      if (textRef.current) textRef.current.textContent = fmt(displayRef.current);
+      rafRef.current = requestAnimationFrame(animate);
+    };
+
+    rafRef.current = requestAnimationFrame(animate);
+  };
+
+  // Restart the loop whenever the server pushes a new balance value.
+  // Between pushes (which happen every ~30 s) the loop is fully stopped.
   useEffect(() => {
     targetRef.current = balance;
+    startLoop();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [balance]);
 
+  // Cleanup on unmount
   useEffect(() => {
-    let raf: number;
-    const animate = () => {
-      const now = performance.now();
-      const dt = Math.min((now - lastTimeRef.current) / 1000, 0.2);
-      lastTimeRef.current = now;
-
-      const target = targetRef.current;
-      const diff = target - displayRef.current;
-      if (Math.abs(diff) < 0.02) {
-        displayRef.current = target;
-      } else {
-        displayRef.current += diff * 0.85;
-      }
-
-      if (textRef.current) {
-        textRef.current.textContent = fmt(displayRef.current);
-      }
-      raf = requestAnimationFrame(animate);
-    };
-    lastTimeRef.current = performance.now();
-    raf = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(raf);
+    return () => cancelAnimationFrame(rafRef.current);
   }, []);
 
   const isProducing = activeRate > 0;

@@ -292,7 +292,7 @@ function ExchangeWidgetBase({ balance, sunCount }: ExchangeWidgetProps) {
   useEffect(() => {
     // Live countdown — tick every second so the seconds digit visibly
     // counts down in real time while the user is on the Lab page.
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    const id = window.setInterval(() => setNow(Date.now()), 10000);
     return () => window.clearInterval(id);
   }, []);
 

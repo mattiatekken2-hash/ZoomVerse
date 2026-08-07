@@ -61,7 +61,7 @@ function PvpRankWidgetBase({ telegramId }: Props) {
   useEffect(() => {
     if (!open) return;
     setRemaining(msUntilNextUtcMidnight());
-    const id = setInterval(() => setRemaining(msUntilNextUtcMidnight()), 1000);
+    const id = setInterval(() => setRemaining(msUntilNextUtcMidnight()), 5000);
     return () => clearInterval(id);
   }, [open]);
 

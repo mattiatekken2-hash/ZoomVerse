@@ -169,7 +169,9 @@
 .nebula-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(35px);
+  /* filter:blur removed — 500-800px blurred divs are the costliest GPU op.
+     The radial-gradient already falls off to transparent at 68%, so the
+     visual softness is preserved without any pixel-shader blur pass. */
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
   animation-direction: alternate;
@@ -243,8 +245,8 @@
   border-radius: 50%;
   top: 42%; left: 50%;
   transform: translate(-50%, -50%) translateZ(0);
-  background: radial-gradient(circle, rgba(255,140,60,0.03) 0%, rgba(255,80,20,0.015) 40%, transparent 70%);
-  filter: blur(25px);
+  background: radial-gradient(circle, rgba(255,140,60,0.035) 0%, rgba(255,80,20,0.018) 35%, transparent 65%);
+  /* filter:blur removed — replaced with a slightly wider gradient stop */
   animation: protostar-pulse 8s ease-in-out infinite alternate;
   will-change: opacity;
   pointer-events: none;

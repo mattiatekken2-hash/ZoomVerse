@@ -64,7 +64,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
 
   // Live 1s ticker for the countdown timer.
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
+    const t = setInterval(() => setNow(Date.now()), 5000);
     return () => clearInterval(t);
   }, []);
 
