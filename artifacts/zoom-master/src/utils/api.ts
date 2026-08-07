@@ -81,6 +81,26 @@ export function notifyFarmReactivate(telegramId: string, planetId: string, plane
  * Reactivate `count` collection-planet slots by spending `count` REDSTARs.
  * Validates and deducts server-side; returns the new redStarBalance on success.
  */
+/**
+ * Permanently upgrade the SUN's farm-cycle duration. Charges GRAM from the
+ * user's EARNED GRAM (ton_balance). Returns the new balance on success.
+ */
+export async function upgradeSunDuration(
+  telegramId: string,
+  durationHours: number,
+): Promise<{ ok: boolean; newTonBalance?: number; error?: string }> {
+  try {
+    const r = await fetch(`${API_BASE}/sun/upgrade-duration`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, durationHours }),
+    });
+    return await r.json() as { ok: boolean; newTonBalance?: number; error?: string };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
 export async function reactivateCollectionWithRedStar(
   telegramId: string,
   count: number,
@@ -563,9 +583,11 @@ export interface Grants {
   sunFarmStartedAtMs: number;
   sunLastCollectedAtMs: number;
   sunCycleCount: number;
+  // Permanent SUN farm-duration upgrade (hours). Defaults to 1 on server.
+  sunFarmDurationHours?: number;
 }
 
-const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusNova: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, stellaRossaCollectionUnlocked: false, stellaRossaCollectionBundles: 0, totalPlanetsBuilt: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusNova: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, stellaRossaCollectionUnlocked: false, stellaRossaCollectionBundles: 0, totalPlanetsBuilt: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0, sunFarmDurationHours: 1 };
 
 /**
  * Buy a Shop item using the in-game DEPOSIT balance (not on-chain).
@@ -2382,6 +2404,8 @@ export interface ServerMarketListing {
   // (paid action). Nullable for legacy listings and for planets that
   // were never renamed — UI then falls back to the rarity label.
   planetDisplayName?: string | null;
+  // Snapshotted farm-duration upgrade (hours). Null / missing = 1h (default).
+  planetFarmDurationHours?: number | null;
   price: number;
   status: string;
   createdAt: string;

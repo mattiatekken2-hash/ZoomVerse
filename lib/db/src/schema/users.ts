@@ -158,6 +158,9 @@ export const usersTable = pgTable("users", {
   sunFarmStartedAtMs: bigint("sun_farm_started_at_ms", { mode: "number" }).notNull().default(0),
   sunLastCollectedAtMs: bigint("sun_last_collected_at_ms", { mode: "number" }).notNull().default(0),
   sunCycleCount: integer("sun_cycle_count").notNull().default(0),
+  // Permanent per-user farm-duration upgrade for the SUN (mirrors planet
+  // farmDurationHours). Stored as integer hours; default 1h. Paid in GRAM.
+  sunFarmDurationHours: integer("sun_farm_duration_hours").notNull().default(1),
   // Server-side mirror of the client's regular planets array (everything
   // shown on the FarmPage main grid, including bonus, crafted, and bought
   // planets). Stored as JSONB so we can replace it atomically on every
@@ -468,6 +471,10 @@ export const marketListingsTable = pgTable("market_listings", {
   // listings AND for planets that were never renamed (UI then falls
   // back to the rarity label).
   planetDisplayName: text("planet_display_name"),
+  // Snapshotted farm-duration upgrade (hours) at listing time. Lets the
+  // marketplace card show "⏱ 4h" without joining back to planets_json.
+  // Nullable for legacy listings (UI treats null/1 as default 1h).
+  planetFarmDurationHours: integer("planet_farm_duration_hours"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   soldAt: timestamp("sold_at"),
   lastActivatedAt: timestamp("last_activated_at"),

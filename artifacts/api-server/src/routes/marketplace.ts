@@ -226,6 +226,15 @@ router.post("/market/list", async (req, res) => {
         ? rawDisplayName.trim().slice(0, 64)
         : null;
 
+    // Snapshot the farm-duration upgrade (hours). Only store when > 1 to
+    // keep legacy/default planets with a clean null. Buyers can then
+    // distinguish "no upgrade" from "explicitly 1h".
+    const rawFarmDuration = (planet as { farmDurationHours?: unknown }).farmDurationHours;
+    const planetFarmDurationHoursSnapshot: number | null =
+      typeof rawFarmDuration === "number" && rawFarmDuration > 1
+        ? rawFarmDuration
+        : null;
+
     let listing;
     try {
       const [inserted] = await txDb
@@ -238,6 +247,7 @@ router.post("/market/list", async (req, res) => {
           planetRate,
           planetFloat: planetFloatSnapshot,
           planetDisplayName: planetDisplayNameSnapshot,
+          planetFarmDurationHours: planetFarmDurationHoursSnapshot,
           price,
           status: "active",
         })

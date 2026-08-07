@@ -3,7 +3,7 @@ import { PlanetOrb } from "../components/PlanetOrb";
 import { DailyComboBox } from "../components/DailyComboBox";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
-import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, REPAIR_STARDUST_COST } from "../hooks/useGameState";
+import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, REPAIR_STARDUST_COST, FARM_UPGRADE_COSTS, FARM_UPGRADE_TIERS } from "../hooks/useGameState";
 import { WalletPopup } from "../components/WalletPopup";
 import { useT } from "../i18n/LanguageContext";
 import { PlanetRenameModal } from "../components/PlanetRenameModal";
@@ -68,6 +68,8 @@ interface FarmPageProps {
   tonBalance?: number;
   /** Permanently upgrade a planet's farm duration; charges GRAM from deposit. */
   onUpgradeDuration?: (planetId: string, durationHours: number) => Promise<{ ok: boolean; error?: string }>;
+  /** Permanently upgrade the SUN's farm-cycle duration; charges GRAM from EARNED GRAM. */
+  onUpgradeSunDuration?: (durationHours: number) => Promise<{ ok: boolean; error?: string }>;
 }
 
 /**
@@ -439,7 +441,7 @@ const RARITY_CLASS: Record<string, string> = {
 };
 
 
-export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRepair, stardustBalance = 0, onRename, equipment, onActivateEquipment, onReactivateEquipment, onBurnEquipment, onSellEquipment, onUnlistEquipment, onFlushPlanets, tonBalance = 0, onUpgradeDuration }: FarmPageProps) {
+export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRepair, stardustBalance = 0, onRename, equipment, onActivateEquipment, onReactivateEquipment, onBurnEquipment, onSellEquipment, onUnlistEquipment, onFlushPlanets, tonBalance = 0, onUpgradeDuration, onUpgradeSunDuration }: FarmPageProps) {
   const { t } = useT();
   const sunMultiplier = Math.max(1, sunCount || (sun?.isOwned ? 1 : 0));
   const sunDisplayRate = SUN_CONFIG.rate * sunMultiplier;
@@ -874,6 +876,49 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                   </button>
                 )}
               </div>
+
+              {/* SUN farm-duration upgrade — same tier system as regular planets */}
+              {sun && onUpgradeSunDuration && (
+                <div style={{ marginTop: 10, padding: "10px 12px", background: "rgba(255,179,71,0.07)", borderRadius: 10, border: "1px solid rgba(255,179,71,0.2)" }}>
+                  <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.08em", color: "rgba(255,179,71,0.7)", marginBottom: 8 }}>
+                    ⏱ CYCLE DURATION — {sun.farmDurationHours ?? 1}h · costs EARNED GRAM
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 5 }}>
+                    {FARM_UPGRADE_TIERS.map((h) => {
+                      const cost = FARM_UPGRADE_COSTS[h]!;
+                      const isCurrent = (sun.farmDurationHours ?? 1) === h;
+                      const canAfford = tonBalance >= cost;
+                      return (
+                        <button
+                          key={h}
+                          disabled={isCurrent || !canAfford}
+                          onClick={async () => {
+                            const result = await onUpgradeSunDuration(h);
+                            if (!result.ok) {
+                              setDefectMsg(result.error ?? "Upgrade failed");
+                              setTimeout(() => setDefectMsg(null), 2000);
+                            }
+                          }}
+                          style={{
+                            padding: "5px 2px", borderRadius: 7, fontSize: 9, fontWeight: 900,
+                            background: isCurrent
+                              ? "rgba(255,179,71,0.25)"
+                              : canAfford ? "rgba(255,179,71,0.10)" : "rgba(255,255,255,0.04)",
+                            border: isCurrent ? "1px solid rgba(255,179,71,0.7)" : "1px solid rgba(255,179,71,0.2)",
+                            color: isCurrent ? "#ffb347" : canAfford ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.25)",
+                            cursor: isCurrent || !canAfford ? "default" : "pointer",
+                            textAlign: "center", lineHeight: 1.3,
+                          }}
+                        >
+                          <div>{h}h</div>
+                          {!isCurrent && <div style={{ fontSize: 8, opacity: 0.75 }}>{cost} G</div>}
+                          {isCurrent && <div style={{ fontSize: 8, opacity: 0.7 }}>✓</div>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

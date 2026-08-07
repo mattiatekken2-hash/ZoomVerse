@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, reactivateCollectionWithRedStar, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, reactivateCollectionWithRedStar, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import { getEquipmentTotalRate, getEquipmentReactivationFee, EQUIPMENT_CYCLE_MS, makeEquipmentItem, getEquipmentRate, EQUIPMENT_CATEGORY_ORDER } from "../utils/equipmentConfig";
@@ -203,6 +203,8 @@ export interface SunState {
   cycleCount: number;
   farmStartedAt: number;
   lastCollectedAt: number;
+  /** Permanent farm-cycle duration in hours (default 1h). Paid via GRAM upgrade. */
+  farmDurationHours?: number;
 }
 
 export interface FeedEvent {
@@ -226,6 +228,8 @@ export interface MarketListing {
   // the paid /planets/rename endpoint). Optional — when absent the UI
   // falls back to the rarity label.
   displayName?: string | null;
+  // Farm-duration upgrade (hours). Null/absent = default 1h.
+  farmDurationHours?: number | null;
 }
 
 export interface GameState {
@@ -1701,10 +1705,15 @@ export function isFarmActive(planet: Planet): boolean {
   return serverNow() - start <= getPlanetFarmDurationMs(planet);
 }
 
+/** Returns the SUN's farm-cycle duration in ms (upgraded value, minimum 1h). */
+export function getSunFarmDurationMs(sun: SunState): number {
+  return Math.max(1, sun.farmDurationHours ?? 1) * 60 * 60 * 1000;
+}
+
 export function isSunActive(sun: SunState): boolean {
   if (!sun.isActive) return false;
   const now = serverNow();
-  if (now - sun.farmStartedAt > FARM_DURATION_MS) return false;
+  if (now - sun.farmStartedAt > getSunFarmDurationMs(sun)) return false;
   if (now - sun.lastCollectedAt > DAILY_COLLECT_MS) return false;
   return true;
 }
@@ -1757,7 +1766,7 @@ export function getWhitePlanetPendingTon(planet: Planet, now: number = serverNow
 export function isSunExpired(sun: SunState | null): boolean {
   if (!sun?.isOwned) return false;
   if (sun.farmStartedAt <= 0) return false;
-  return serverNow() - sun.farmStartedAt > FARM_DURATION_MS;
+  return serverNow() - sun.farmStartedAt > getSunFarmDurationMs(sun);
 }
 
 // Reactivation fee scales with how many SUNs the user owns: each SUN multiplies
@@ -1773,7 +1782,7 @@ export function getSunReactivationFee(sunCount: number = 1): number {
 
 export function getSunTimeRemaining(sun: SunState): number {
   if (!sun.isActive) return 0;
-  const expiry = sun.farmStartedAt + FARM_DURATION_MS;
+  const expiry = sun.farmStartedAt + getSunFarmDurationMs(sun);
   return Math.max(0, expiry - serverNow());
 }
 
@@ -1859,8 +1868,7 @@ function settleFarmingState(state: GameState, now: number): GameState {
 
   if (state.sun?.isActive) {
     const start = Math.max(from, state.sun.farmStartedAt, state.sun.lastCollectedAt);
-    // SUN uses the same 1h window (FARM_DURATION_MS) as regular planets.
-    const end = Math.min(now, state.sun.farmStartedAt + FARM_DURATION_MS, state.sun.lastCollectedAt + DAILY_COLLECT_MS);
+    const end = Math.min(now, state.sun.farmStartedAt + getSunFarmDurationMs(state.sun), state.sun.lastCollectedAt + DAILY_COLLECT_MS);
     if (end > start) {
       const sunMultiplier = Math.max(1, state.sunCount || 1);
       earned += (SUN_CONFIG.rate * sunMultiplier / 3_600_000) * (end - start) * speedMultiplier;
@@ -2222,6 +2230,11 @@ export function useGameState() {
               // (which also checks the 24h window), so this is just the
               // "user has activated at some point" flag.
               isActive: mergedStarted > 0 ? true : updated.sun.isActive,
+              // Server-authoritative duration upgrade (take max to avoid downgrades).
+              farmDurationHours: Math.max(
+                updated.sun.farmDurationHours ?? 1,
+                Number(grants.sunFarmDurationHours ?? 1),
+              ),
             },
           };
           // Self-heal: if the local SUN cycle is AHEAD of the server (start
@@ -3796,7 +3809,7 @@ export function useGameState() {
       // First start (right after purchase) is free; subsequent reactivations
       // after the cycle elapsed cost 1 ★ REDSTAR (flat, regardless of sunCount).
       const wasStarted = prev.sun.farmStartedAt > 0;
-      const expired = wasStarted && now - prev.sun.farmStartedAt > FARM_DURATION_MS;
+      const expired = wasStarted && now - prev.sun.farmStartedAt > getSunFarmDurationMs(prev.sun);
       if (expired && (prev.redStarBalance ?? 0) < 1) {
         outcome = { ok: false, reason: "Need 1 ★ Redstar to reactivate SUN" };
         return prev;
@@ -5472,12 +5485,29 @@ export function useGameState() {
     return result;
   }, [state.telegramId]);
 
+  /** Permanently upgrade the SUN's farm-cycle duration. Charges GRAM from EARNED GRAM. */
+  const upgradeSunFarmDuration = useCallback(async (
+    durationHours: number,
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const tid = state.telegramId;
+    if (!tid) return { ok: false, error: "Not logged in" };
+    const result = await upgradeSunDuration(tid, durationHours);
+    if (result.ok) {
+      setState((prev) => ({
+        ...prev,
+        tonBalance: typeof result.newTonBalance === "number" ? result.newTonBalance : prev.tonBalance,
+        sun: prev.sun ? { ...prev.sun, farmDurationHours: durationHours } : prev.sun,
+      }));
+    }
+    return result;
+  }, [state.telegramId]);
+
   return {
     state, setState, craft, claimCraft, redeemCode,
     pvpAddPlanet, pvpRemovePlanet,
     collectPlanet, burnPlanet, renamePlanetLocal,
     startFarming, stopFarming, repairPlanet,
-    upgradePlanetFarmDuration,
+    upgradePlanetFarmDuration, upgradeSunFarmDuration,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     unlockSlot, claimDaily,
     activateSun, acquireSun, collectSun,

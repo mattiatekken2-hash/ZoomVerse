@@ -4,7 +4,69 @@ import { usersTable } from "@workspace/db/schema";
 import { sql, eq } from "drizzle-orm";
 import { z } from "zod";
 
+// ─── SUN farm-duration upgrade (mirrors /farm/upgrade-duration for planets) ───
+const SUN_UPGRADE_COSTS: Record<number, number> = {
+  1: 1,
+  2: 1.5,
+  4: 2,
+  6: 2.5,
+  8: 3,
+  16: 3.5,
+  24: 5,
+};
+const SUN_VALID_DURATIONS = new Set(Object.keys(SUN_UPGRADE_COSTS).map(Number));
+
+const UpgradeSunDurationBody = z.object({
+  telegramId: z.string().min(1),
+  durationHours: z.number().int().positive(),
+});
+
 const router: IRouter = Router();
+
+/**
+ * Permanently upgrade the SUN's farm-cycle duration.
+ * Deducts GRAM (ton_balance) atomically; returns the new balance.
+ * Uses the same cost table as /farm/upgrade-duration for consistency.
+ */
+router.post("/sun/upgrade-duration", async (req, res) => {
+  const parsed = UpgradeSunDurationBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body" }); return; }
+  const { telegramId, durationHours } = parsed.data;
+
+  if (!SUN_VALID_DURATIONS.has(durationHours)) {
+    res.status(400).json({ error: "Invalid duration" }); return;
+  }
+  const cost = SUN_UPGRADE_COSTS[durationHours]!;
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const rows = await tx.execute(sql`
+        SELECT ton_balance FROM users WHERE telegram_id = ${telegramId} FOR UPDATE
+      `);
+      const row = (rows as unknown as { rows: Array<Record<string, unknown>> }).rows[0];
+      if (!row) return { ok: false as const, error: "User not found" };
+
+      const tonBalance = Number(row["ton_balance"] ?? 0);
+      if (tonBalance < cost) return { ok: false as const, error: "Insufficient GRAM balance" };
+
+      await tx.execute(sql`
+        UPDATE users
+           SET ton_balance             = ton_balance - ${cost},
+               balance_epoch           = balance_epoch + 1,
+               sun_farm_duration_hours = ${durationHours}
+         WHERE telegram_id = ${telegramId}
+           AND ton_balance  >= ${cost}
+      `);
+
+      return { ok: true as const, newTonBalance: tonBalance - cost };
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error("[sun/upgrade-duration] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
 
 const SyncBody = z.object({
   telegramId: z.string().min(1),

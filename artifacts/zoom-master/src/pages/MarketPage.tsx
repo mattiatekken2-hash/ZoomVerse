@@ -148,6 +148,7 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
       // inventory even when they never paid for a custom rename.
       displayName: getPlanetDisplayName(p),
       planetFloat: typeof p.float === "number" ? p.float : null,
+      farmDurationHours: (p.farmDurationHours ?? 1) > 1 ? p.farmDurationHours : null,
     }));
 
   // Equipment listings are rendered in their own section (different card
@@ -194,6 +195,7 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
       // a planetId fall back to the listing id as a stable seed.
       displayName: l.planetDisplayName
         ?? deterministicNameFromId(l.planetId || `listing-${l.id}`),
+      farmDurationHours: (l.planetFarmDurationHours ?? 1) > 1 ? l.planetFarmDurationHours : null,
     })),
   ];
 
@@ -601,6 +603,20 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                       >
                         {cfg.label.toUpperCase()}
                       </span>
+                      {listing.farmDurationHours && listing.farmDurationHours > 1 && (
+                        <span
+                          className="text-xs font-black px-2 py-0.5 rounded-full border"
+                          style={{
+                            color: "#ffb347",
+                            borderColor: "rgba(255,179,71,0.35)",
+                            background: "rgba(255,179,71,0.10)",
+                            fontSize: 9,
+                          }}
+                          title={`Farm duration upgraded: ${listing.farmDurationHours}h per cycle`}
+                        >
+                          ⏱ {listing.farmDurationHours}h
+                        </span>
+                      )}
                       <span
                         className="text-xs px-2 py-0.5 rounded-full border font-bold"
                         style={{
