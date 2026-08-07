@@ -782,14 +782,27 @@ function getStorageKey(telegramId: string | null): string {
   return telegramId ? `${STORAGE_KEY}:${telegramId}` : STORAGE_KEY;
 }
 
+/** Key used to persist a manually-entered Telegram ID for PC/dev access. */
+export const DEV_TG_ID_KEY = "zoom-dev-tg-id";
+
 function getTelegramContext(): { telegramId: string | null; startParam: string | null; firstName: string | null; username: string | null; photoUrl: string | null } {
   try {
     const webApp = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number; first_name?: string; username?: string; photo_url?: string }; start_param?: string }; initData?: string } } }).Telegram?.WebApp;
     const unsafe = webApp?.initDataUnsafe;
-    const telegramId = unsafe?.user?.id ? String(unsafe.user.id) : null;
+    let telegramId: string | null = unsafe?.user?.id ? String(unsafe.user.id) : null;
     const firstName = unsafe?.user?.first_name ?? null;
     const username = unsafe?.user?.username ?? null;
     const photoUrl = unsafe?.user?.photo_url ?? null;
+
+    // PC / browser fallback: if no Telegram WebApp context is present, use a
+    // manually-entered Telegram ID stored in localStorage. This lets users
+    // access their account on desktop without going through Telegram.
+    if (!telegramId) {
+      const stored = localStorage.getItem(DEV_TG_ID_KEY);
+      if (stored && /^\d+$/.test(stored.trim())) {
+        telegramId = stored.trim();
+      }
+    }
 
     let startParam: string | null = unsafe?.start_param || null;
 

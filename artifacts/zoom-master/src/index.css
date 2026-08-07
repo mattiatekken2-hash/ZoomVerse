@@ -588,10 +588,12 @@
   border-radius: 50%;
   animation: planet-breathe 3s ease-in-out infinite alternate;
   pointer-events: none;
+  will-change: opacity;
 }
 @keyframes planet-breathe {
-  0% { transform: scale(1); opacity: 0.6; }
-  100% { transform: scale(1.06); opacity: 1; }
+  /* opacity-only: avoids layout/repaint every frame, GPU-composited on mobile */
+  0% { opacity: 0.5; }
+  100% { opacity: 1; }
 }
 .planet-ring {
   position: absolute;
@@ -712,11 +714,13 @@
     inset 0 1px 0 rgba(0, 255, 136, 0.25),
     inset 0 0 20px rgba(0, 255, 136, 0.08);
   text-shadow: 0 0 10px rgba(0, 255, 136, 0.8);
-  animation: btn-farm-pulse 2s ease-in-out infinite alternate;
+  animation: btn-farm-pulse 3s ease-in-out infinite alternate;
+  will-change: opacity;
 }
 @keyframes btn-farm-pulse {
-  from { box-shadow: 0 0 14px rgba(0, 255, 136, 0.25), inset 0 1px 0 rgba(0, 255, 136, 0.2), inset 0 0 16px rgba(0, 255, 136, 0.06); }
-  to   { box-shadow: 0 0 26px rgba(0, 255, 136, 0.42), inset 0 1px 0 rgba(0, 255, 136, 0.3), inset 0 0 24px rgba(0, 255, 136, 0.1); }
+  /* opacity pulse instead of box-shadow — GPU-composited, no repaint per frame */
+  from { opacity: 0.82; }
+  to   { opacity: 1; }
 }
 
 .btn-glass-burn {
@@ -775,11 +779,12 @@
     inset 0 1px 0 rgba(255, 165, 0, 0.18),
     inset 0 0 16px rgba(255, 165, 0, 0.06);
   text-shadow: 0 0 8px rgba(255, 165, 0, 0.7);
-  animation: btn-collect-pulse 1.5s ease-in-out infinite alternate;
+  animation: btn-collect-pulse 2.5s ease-in-out infinite alternate;
+  will-change: opacity;
 }
 @keyframes btn-collect-pulse {
-  from { box-shadow: 0 0 10px rgba(255,165,0,0.2), inset 0 0 12px rgba(255,165,0,0.05); }
-  to   { box-shadow: 0 0 22px rgba(255,165,0,0.4), inset 0 0 20px rgba(255,165,0,0.1); }
+  from { opacity: 0.8; }
+  to   { opacity: 1; }
 }
 
 .btn-glass-listed {

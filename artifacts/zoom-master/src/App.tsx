@@ -5,7 +5,7 @@ import { BalanceCounter } from "./components/BalanceCounter";
 import { AvatarXP } from "./components/AvatarXP";
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
 import { BlackPlanetOrbStyles } from "./components/BlackPlanetOrb";
-import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/useGameState";
+import { useGameState, isFarmActive, isSunActive, SUN_CONFIG, DEV_TG_ID_KEY } from "./hooks/useGameState";
 import { fetchRegularPlanets, saveRegularPlanets } from "./utils/api";
 import { useGlobalInit, useGlobalStore } from "./store/globalStore";
 import { NebulaBackground } from "./components/NebulaBackground";
@@ -151,6 +151,11 @@ function AppShellWithState() {
   // DEV FALLBACK: in browser dev (not inside Telegram), show a demo avatar
   // so the AvatarXP widget is visible during development.
   const isInTelegram = typeof (window as unknown as { Telegram?: { WebApp?: unknown } }).Telegram?.WebApp !== "undefined";
+  // PC login: track whether a dev Telegram ID has been stored so we can show
+  // the login gate when needed and clear it when the user logs out.
+  const [devTgId, setDevTgId] = useState<string | null>(() => {
+    try { return localStorage.getItem(DEV_TG_ID_KEY); } catch { return null; }
+  });
   const devPhotoUrl = !isInTelegram ? "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Circle-icons-profile.svg/1024px-Circle-icons-profile.svg.png" : null;
   const devName = !isInTelegram ? "Dev" : null;
   const displayProfile = {
@@ -662,6 +667,12 @@ function AppShellWithState() {
     );
   }
 
+  // PC / browser gate: when there is no Telegram WebApp context and no stored
+  // Telegram ID, ask the user to enter their ID so their account loads.
+  if (!isInTelegram && !devTgId) {
+    return <PcLoginScreen onConnect={(id) => setDevTgId(id)} />;
+  }
+
   return (
     <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
     <div className="flex flex-col overflow-hidden relative" style={{ height: "100dvh", background: "#000000", paddingTop: "calc(env(safe-area-inset-top, 0px) + 56px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
@@ -698,6 +709,26 @@ function AppShellWithState() {
           />
         </div>
         <div className="flex items-center gap-1 min-w-0">
+          {/* PC-only: switch account button — lets the user clear the stored
+              Telegram ID and go back to the login screen without touching devtools. */}
+          {!isInTelegram && (
+            <button
+              onClick={() => {
+                try { localStorage.removeItem(DEV_TG_ID_KEY); } catch { /**/ }
+                setDevTgId(null);
+                window.location.reload();
+              }}
+              title="Switch Telegram account"
+              style={{
+                background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 8, padding: "4px 8px", color: "rgba(255,255,255,0.4)",
+                fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              ⇄ ID
+            </button>
+          )}
           <OnlineIndicator />
           <TonWalletWidget
             tonBalance={state.tonBalance || 0}
@@ -1542,6 +1573,82 @@ function StardustInfoPopup({ balance, today, dailyCap, globalTotal, onClose }: {
         >
           CLOSE
         </button>
+      </div>
+    </div>
+  );
+}
+
+/** Shown on PC/browser when there's no Telegram WebApp context and no stored ID. */
+function PcLoginScreen({ onConnect }: { onConnect: (id: string) => void }) {
+  const [input, setInput] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+
+  const handleConnect = () => {
+    const id = input.trim();
+    if (!/^\d{5,12}$/.test(id)) {
+      setErr("Enter a valid Telegram numeric ID (5-12 digits)");
+      return;
+    }
+    try { localStorage.setItem(DEV_TG_ID_KEY, id); } catch { /**/ }
+    onConnect(id);
+    // Reload so useGameState initialises fresh with the stored ID.
+    window.location.reload();
+  };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "#06030e",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      padding: "0 32px",
+    }}>
+      <NebulaBackground />
+      <div style={{ position: "relative", zIndex: 10, width: "100%", maxWidth: 360, textAlign: "center" }}>
+        <div style={{ fontSize: 36, marginBottom: 8, filter: "drop-shadow(0 0 20px rgba(15,217,255,0.6))" }}>🚀</div>
+        <div style={{ fontWeight: 900, fontSize: 22, letterSpacing: "0.18em", color: "#0fd9ff", marginBottom: 4, textShadow: "0 0 20px rgba(15,217,255,0.5)" }}>
+          ZOOM MASTER
+        </div>
+        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 28, letterSpacing: "0.06em" }}>
+          Enter your Telegram ID to access your account
+        </div>
+
+        <input
+          type="text"
+          inputMode="numeric"
+          placeholder="e.g. 123456789"
+          value={input}
+          onChange={(e) => { setInput(e.target.value); setErr(null); }}
+          onKeyDown={(e) => { if (e.key === "Enter") handleConnect(); }}
+          style={{
+            width: "100%", padding: "12px 16px", borderRadius: 12,
+            background: "rgba(255,255,255,0.06)", border: "1px solid rgba(15,217,255,0.3)",
+            color: "#fff", fontSize: 16, fontWeight: 700, textAlign: "center",
+            outline: "none", marginBottom: 12, letterSpacing: "0.1em",
+            boxSizing: "border-box",
+          }}
+          autoFocus
+        />
+
+        {err && (
+          <div style={{ fontSize: 11, color: "#ff6b6b", marginBottom: 10, fontWeight: 700 }}>{err}</div>
+        )}
+
+        <button
+          onClick={handleConnect}
+          style={{
+            width: "100%", padding: "13px 0", borderRadius: 12, border: "none",
+            background: "linear-gradient(135deg, rgba(15,217,255,0.3), rgba(0,150,200,0.2))",
+            color: "#0fd9ff", fontWeight: 900, fontSize: 14, letterSpacing: "0.08em",
+            cursor: "pointer", marginBottom: 20,
+            boxShadow: "0 0 24px rgba(15,217,255,0.2)",
+          }}
+        >
+          CONNECT
+        </button>
+
+        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", lineHeight: 1.6 }}>
+          Your Telegram ID is stored locally in this browser.
+          You can find it via <span style={{ color: "rgba(15,217,255,0.5)" }}>@userinfobot</span> on Telegram.
+        </div>
       </div>
     </div>
   );
