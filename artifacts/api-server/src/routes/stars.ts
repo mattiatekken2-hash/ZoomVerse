@@ -1511,54 +1511,65 @@ router.post("/stars/webhook", async (req, res) => {
       const [action, idStr] = data.split(":");
       const withdrawalId = parseInt(idStr || "", 10);
 
-      // Respond to Telegram immediately — must happen before any await.
+      // ── Step 1: HTTP 200 to Telegram (acknowledges webhook receipt) ──────────
       res.json({ ok: true });
 
-      if (!Number.isFinite(withdrawalId) || !chatId) return;
+      // ── Step 2: answerCallbackQuery — FIRE AND FORGET, immediately ───────────
+      // This is the ONLY call that clears the inline button loading spinner.
+      // It MUST be sent before any DB work. Calling it inside the async IIFE
+      // risks it being delayed or skipped if the IIFE throws. We fire it here,
+      // outside the IIFE, and log the Telegram response so failures are visible.
+      void fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          callback_query_id: cq.id,
+          text: action === "withdraw_approve" ? "⏳ Approvazione in corso…" : "⏳ Rifiuto in corso…",
+        }),
+      }).then(async r => {
+        const b = await r.json().catch(() => ({})) as { ok?: boolean; description?: string };
+        if (!b.ok) {
+          logger.warn({ status: r.status, desc: b.description }, "[webhook] answerCallbackQuery non-OK");
+        } else {
+          logger.info({ withdrawalId, action }, "[webhook] answerCallbackQuery OK — spinner cleared");
+        }
+      }).catch(e => logger.warn({ e }, "[webhook] answerCallbackQuery fetch error"));
 
+      // ── Step 3: guard checks (after response is already sent) ────────────────
+      if (!Number.isFinite(withdrawalId) || !chatId) return;
       const ADMIN_NOTIFY_CHAT_ID = process.env["ADMIN_NOTIFY_CHAT_ID"] || "8144744644";
       if (String(chatId) !== ADMIN_NOTIFY_CHAT_ID) return;
 
-      // Process asynchronously — response already sent above.
+      // The message's own chat id — for private bot chats this equals chatId;
+      // cast through unknown because the TS type omits the `chat` sub-field.
+      const msgChatId =
+        (cq.message as unknown as { chat?: { id: number } })?.chat?.id ?? chatId;
+
+      // ── Step 4: DB processing — fully async ──────────────────────────────────
       void (async () => {
-        // CRITICAL: answer the callback query FIRST (before any DB ops) so the
-        // Telegram button loading spinner resolves immediately. Telegram requires
-        // answerCallbackQuery within ~10s; slow DB can exceed that window and
-        // leave the button stuck forever. We answer with a brief "processing"
-        // toast and update the message markup after the DB work completes.
-        const answerCQ = async (text: string) => {
-          try {
-            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ callback_query_id: cq.id, text }),
-            });
-          } catch (e) {
-            logger.warn({ e }, "[webhook] answerCallbackQuery failed");
-          }
-        };
+        /** Replace the Approve/Reject buttons with a single status label. */
         const editMarkup = async (text: string) => {
           try {
-            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageReplyMarkup`, {
+            const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageReplyMarkup`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                chat_id: chatId,
+                chat_id: msgChatId,
                 message_id: cq.message?.message_id,
                 reply_markup: { inline_keyboard: [[{ text, callback_data: "done" }]] },
               }),
             });
+            const b = await r.json().catch(() => ({})) as { ok?: boolean; description?: string };
+            if (!b.ok) logger.warn({ desc: b.description }, "[webhook] editMessageReplyMarkup non-OK");
           } catch (e) {
-            logger.warn({ e }, "[webhook] editMessageReplyMarkup failed");
+            logger.warn({ e }, "[webhook] editMessageReplyMarkup error");
           }
         };
 
         try {
           if (action === "withdraw_approve") {
-            // Answer immediately — clears button loading state in Telegram UI.
-            await answerCQ("⏳ Approvazione in corso…");
-
-            const [w] = await db.select().from(tonWithdrawalsTable).where(eq(tonWithdrawalsTable.id, withdrawalId)).limit(1);
+            const [w] = await db.select().from(tonWithdrawalsTable)
+              .where(eq(tonWithdrawalsTable.id, withdrawalId)).limit(1);
             if (!w || w.status !== "pending") {
               await editMarkup("⚠️ Già processata");
               return;
@@ -1584,14 +1595,11 @@ router.post("/stars/webhook", async (req, res) => {
               `📬 ${shortAddr}`);
             logger.info({ withdrawalId, channelOk }, "[webhook] withdrawal channel notification sent");
 
-            // Update admin message button.
             await editMarkup("✅ Approvato");
 
           } else {
-            // Reject: answer immediately, then refund the user's balance.
-            await answerCQ("⏳ Rifiuto in corso…");
-
-            const [w] = await db.select().from(tonWithdrawalsTable).where(eq(tonWithdrawalsTable.id, withdrawalId)).limit(1);
+            const [w] = await db.select().from(tonWithdrawalsTable)
+              .where(eq(tonWithdrawalsTable.id, withdrawalId)).limit(1);
             if (!w || w.status !== "pending") {
               await editMarkup("⚠️ Già processata");
               return;
@@ -1609,7 +1617,6 @@ router.post("/stars/webhook", async (req, res) => {
                 .where(eq(usersTable.telegramId, w.telegramId));
             });
 
-            // Notify user and update admin message.
             void sendBotMessage(w.telegramId,
               `❌ Withdrawal rejected\n` +
               `Amount: ${Number(w.amountTon).toFixed(4)} GRAM\n` +
@@ -1622,6 +1629,16 @@ router.post("/stars/webhook", async (req, res) => {
       })();
       return;
     }
+
+    // Any other callback_query (e.g. "done" from already-processed buttons):
+    // answer immediately so the spinner clears, then ignore.
+    void fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback_query_id: cq.id }),
+    }).catch(() => { /* best-effort */ });
+    res.json({ ok: true });
+    return;
   }
 
   if (update.message?.successful_payment) {

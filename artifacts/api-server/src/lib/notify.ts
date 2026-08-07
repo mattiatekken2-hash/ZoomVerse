@@ -272,35 +272,50 @@ export async function sendAlienChannelMessage(text: string): Promise<boolean> {
 /**
  * Post a message to the withdrawals announcement chat / forum topic.
  * Used after a withdrawal is approved so the community sees the payout.
- * The bot must be a member of the chat with permission to send messages.
+ *
+ * If posting to the specific topic fails (e.g. the topic is closed / locked),
+ * automatically retries by posting to the main group without the thread ID so
+ * the announcement is never silently lost.
  */
 export async function sendWithdrawalChannelMessage(text: string): Promise<boolean> {
   if (!BOT_TOKEN) {
     logger.warn("[notify] BOT_TOKEN not set — skipping channel send");
     return false;
   }
-  try {
+
+  const send = async (withThread: boolean): Promise<{ ok: boolean; desc?: string }> => {
     const body: Record<string, unknown> = {
       chat_id: WITHDRAWALS_CHAT_ID,
       text,
       parse_mode: "HTML",
       disable_web_page_preview: true,
     };
-    if (WITHDRAWALS_THREAD_ID) body["message_thread_id"] = WITHDRAWALS_THREAD_ID;
-
-    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const responseBody = await res.text().catch(() => "");
-      logger.warn({ status: res.status, responseBody }, "[notify] channel sendMessage non-OK");
-      return false;
+    if (withThread && WITHDRAWALS_THREAD_ID) body["message_thread_id"] = WITHDRAWALS_THREAD_ID;
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({})) as { ok?: boolean; description?: string };
+      return { ok: !!data.ok, desc: data.description };
+    } catch (err) {
+      return { ok: false, desc: String(err) };
     }
-    return true;
-  } catch (err) {
-    logger.warn({ err }, "[notify] channel sendMessage failed");
-    return false;
-  }
+  };
+
+  // First attempt: post to the configured topic thread.
+  const first = await send(true);
+  if (first.ok) return true;
+
+  logger.warn({ desc: first.desc }, "[notify] channel sendMessage to topic failed — retrying without thread_id");
+
+  // Fallback: post to the main group (no thread), so the announcement is
+  // never silently dropped even if the topic is closed or the bot lacks
+  // permission to post in it.
+  const fallback = await send(false);
+  if (fallback.ok) return true;
+
+  logger.warn({ desc: fallback.desc }, "[notify] channel sendMessage fallback also failed");
+  return false;
 }
