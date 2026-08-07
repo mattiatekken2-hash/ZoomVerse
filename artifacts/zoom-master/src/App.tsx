@@ -890,6 +890,8 @@ function AppShellWithState() {
                   onCollectStellaRossaPlanet={collectStellaRossaPlanet}
                   onReactivateStellaRossaPlanet={reactivateStellaRossaPlanet}
                   onMarkStellaRossaPlanetReactivated={markStellaRossaPlanetReactivated}
+                  redStarBalance={state.redStarBalance || 0}
+                  onRedStarBalanceUpdate={(newBal) => setState((prev) => ({ ...prev, redStarBalance: newBal }))}
                   visible={tab === "lab"}
                 />
               )}

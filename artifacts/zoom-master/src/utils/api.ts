@@ -77,6 +77,26 @@ export function notifyFarmReactivate(telegramId: string, planetId: string, plane
  * Permanently upgrade a planet's farm duration (stored in planetsJson).
  * Costs the listed GRAM amount from the user's ton_balance deposit.
  */
+/**
+ * Reactivate `count` collection-planet slots by spending `count` REDSTARs.
+ * Validates and deducts server-side; returns the new redStarBalance on success.
+ */
+export async function reactivateCollectionWithRedStar(
+  telegramId: string,
+  count: number,
+): Promise<{ ok: boolean; newRedStarBalance?: number; error?: string }> {
+  try {
+    const r = await fetch(`${API_BASE}/collection/reactivate`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, count }),
+    });
+    return await r.json() as { ok: boolean; newRedStarBalance?: number; error?: string };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
 export async function upgradeFarmDuration(
   telegramId: string,
   planetId: string,

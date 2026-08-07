@@ -222,6 +222,42 @@ router.post("/farm/upgrade-duration", async (req, res) => {
   }
 });
 
+const CollectionReactivateBody = z.object({
+  telegramId: z.string().min(1),
+  // How many collection-planet slots are being reactivated. Each costs 1 REDSTAR.
+  count: z.number().int().positive().max(100),
+});
+
+/**
+ * Reactivate `count` collection-planet slots by deducting `count` REDSTARs
+ * from the user's balance. Collection planets (White, Earth, Black, Supernova,
+ * REDSTAR/Stella Rossa) previously required a TonConnect on-chain payment;
+ * they now use REDSTAR from the user's in-game balance.
+ */
+router.post("/collection/reactivate", async (req, res) => {
+  const parsed = CollectionReactivateBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body" }); return; }
+  const { telegramId, count } = parsed.data;
+  try {
+    const rows = await db.execute(sql`
+      UPDATE users
+         SET red_star_balance = red_star_balance - ${count}
+       WHERE telegram_id = ${telegramId}
+         AND red_star_balance >= ${count}
+      RETURNING red_star_balance
+    `);
+    const updated = (rows as unknown as { rows: Array<{ red_star_balance: number }> }).rows;
+    if (!updated || updated.length === 0) {
+      res.status(400).json({ ok: false, error: "Insufficient ★ Redstar balance" });
+      return;
+    }
+    res.json({ ok: true, newRedStarBalance: updated[0]!.red_star_balance });
+  } catch (err) {
+    console.error("[collection/reactivate] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 const CollectBody = z.object({
   telegramId: z.string().min(1),
   planetId: z.string().min(1),

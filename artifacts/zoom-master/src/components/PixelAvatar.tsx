@@ -10,26 +10,21 @@ import {
   isFarmActive,
   isFarmExpired,
   getFarmTimeRemaining,
-  getReactivationFee,
   needsCollect,
   formatDuration,
   getWhitePlanetPendingTon,
-  parseCollectionPlanetKey,
   type Planet,
 } from "../hooks/useGameState";
 import {
   requestTonWithdrawal,
   fetchMyWithdrawals,
-  confirmTonPurchase,
-  pollTxnUntilFinal,
+  reactivateCollectionWithRedStar,
   WITHDRAWAL_MIN_TON,
   WITHDRAWAL_FEE_TON,
   WITHDRAWAL_COOLDOWN_HOURS,
   type TonWithdrawal,
 } from "../utils/api";
 
-// Project TON receiver wallet — same constant used by ShopPage for SUN/etc.
-const TON_RECEIVER_WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 
 const D = "#0a0a14";
 const H = "#e8ecff";
@@ -97,6 +92,10 @@ interface PixelAvatarProps {
   onPlaceStellaRossaPlanet?: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
   onCollectStellaRossaPlanet?: (planetId: string) => void;
   onMarkStellaRossaPlanetReactivated?: (planetId: string) => { ok: boolean; reason?: string };
+  /** Current REDSTAR balance — shown on REACT ALL buttons. */
+  redStarBalance?: number;
+  /** Called after a successful REDSTAR deduction so the parent can update its state. */
+  onRedStarBalanceUpdate?: (newBalance: number) => void;
 }
 
 function PixelAvatarBase({
@@ -138,12 +137,12 @@ function PixelAvatarBase({
   onPlaceStellaRossaPlanet,
   onCollectStellaRossaPlanet,
   onMarkStellaRossaPlanetReactivated,
+  redStarBalance = 0,
+  onRedStarBalanceUpdate,
 }: PixelAvatarProps) {
-  // TonConnect — same wiring used by the Shop page (SUN, packs, etc.). The
-  // REACT button on a white-planet slot opens the wallet, sends 0.005 TON to
-  // the project receiver, then asks the server to verify and credit the txn.
+  // TonConnect still wired for potential future use (collection unlock purchases share this component)
   const [tonConnectUI] = useTonConnectUI();
-  const connectedAddress = useTonAddress();
+  void tonConnectUI; // suppress unused-variable lint
   const [reactingId, setReactingId] = useState<string | null>(null);
   const [reactingAll, setReactingAll] = useState(false);
   // Each bundle unlocks 4 slots. Backwards-compat: if the legacy unlocked flag
@@ -315,39 +314,41 @@ function PixelAvatarBase({
 
   // Batch REACT: one TonConnect transaction covers all expired planets in a collection.
   // After the on-chain payment succeeds, each planet is marked reactivated locally.
-  const handleReactAll = useCallback(async (
+  /**
+   * Batch-reactivate `expiredPlanets` by spending 1 ★ REDSTAR per planet.
+   * Server validates and deducts atomically; on success marks each planet
+   * locally and notifies the parent of the new redStarBalance.
+   */
+  const handleReactAllRedStar = useCallback(async (
     expiredPlanets: Planet[],
-    totalFee: number,
     markOne?: (id: string) => { ok: boolean; reason?: string },
   ) => {
     if (expiredPlanets.length === 0) return;
     if (!telegramId) { flashWhiteMsg("Session not ready"); return; }
-    if (!connectedAddress) { tonConnectUI.openModal(); flashWhiteMsg("Connect your wallet"); return; }
     if (reactingAll || reactingId) return;
     setReactingAll(true);
     try {
-      const nanotons = BigInt(Math.round(totalFee * 1e9)).toString();
-      const txResult = await tonConnectUI.sendTransaction({
-        validUntil: Math.floor(Date.now() / 1000) + 300,
-        messages: [{ address: TON_RECEIVER_WALLET, amount: nanotons }],
-      });
-      if (!txResult?.boc) { flashWhiteMsg("Transaction failed"); return; }
-      // Mark each expired planet reactivated. Payment is already on-chain.
+      const result = await reactivateCollectionWithRedStar(telegramId, expiredPlanets.length);
+      if (!result.ok) {
+        flashWhiteMsg(result.error ?? "Insufficient ★ Redstar balance");
+        return;
+      }
       let ok = 0;
       for (const planet of expiredPlanets) {
         const res = markOne?.(planet.id);
         if (!res || res.ok) ok++;
       }
+      if (typeof result.newRedStarBalance === "number") {
+        onRedStarBalanceUpdate?.(result.newRedStarBalance);
+      }
       flashWhiteMsg(`✅ ${ok}/${expiredPlanets.length} planets reactivated!`);
-    } catch (err: unknown) {
-      const m = err instanceof Error ? err.message : String(err);
-      if (m.includes("cancel") || m.includes("reject") || m.includes("Interrupted")) flashWhiteMsg("Cancelled");
-      else flashWhiteMsg("GRAM payment failed");
+    } catch {
+      flashWhiteMsg("Reactivation failed");
     } finally {
       setReactingAll(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [telegramId, connectedAddress, tonConnectUI, reactingAll, reactingId]);
+  }, [telegramId, reactingAll, reactingId, onRedStarBalanceUpdate]);
 
   const handleSlotClick = (slotIndex: number) => {
     if (slotIndex < 0 || slotIndex >= maxWhiteSlots) return;
@@ -939,25 +940,25 @@ function PixelAvatarBase({
                 )}
               </div>
 
-              {/* REACT ALL — batch reactivate all expired white slots in one TX */}
+              {/* REACT ALL — batch reactivate all expired white slots · 1 ★ REDSTAR each */}
               {(() => {
                 const exp = slotOccupants.filter((p): p is Planet => !!p && isFarmExpired(p));
                 if (exp.length === 0) return null;
-                const total = exp.reduce((s, p) => s + getReactivationFee(p), 0);
+                const canAfford = redStarBalance >= exp.length;
                 return (
                   <button
-                    disabled={reactingAll || !!reactingId}
-                    onClick={() => void handleReactAll(exp, total, onMarkWhitePlanetReactivated)}
+                    disabled={reactingAll || !!reactingId || !canAfford}
+                    onClick={() => void handleReactAllRedStar(exp, onMarkWhitePlanetReactivated)}
                     style={{
                       width: "100%", marginBottom: 8, padding: "8px 0", borderRadius: 8,
                       background: "linear-gradient(135deg, rgba(0,217,255,0.18), rgba(0,150,200,0.10))",
                       border: "1px solid rgba(0,217,255,0.4)",
                       color: "#0fd9ff", fontWeight: 900, fontSize: 11, letterSpacing: "0.08em",
-                      cursor: reactingAll || !!reactingId ? "not-allowed" : "pointer",
-                      opacity: reactingAll || !!reactingId ? 0.5 : 1,
+                      cursor: reactingAll || !!reactingId || !canAfford ? "not-allowed" : "pointer",
+                      opacity: reactingAll || !!reactingId || !canAfford ? 0.5 : 1,
                     }}
                   >
-                    {reactingAll ? "REACTING ALL…" : `⚡ REACT ALL ${exp.length} · ${total.toFixed(3)} GRAM`}
+                    {reactingAll ? "REACTING ALL…" : `⚡ REACT ALL ${exp.length} · ${exp.length} ★ Redstar`}
                   </button>
                 );
               })()}
@@ -990,55 +991,21 @@ function PixelAvatarBase({
                           tonBalance={tonBalance}
                           busy={reactingId === occupant.id}
                           onCollect={onCollectWhitePlanet}
-                          onReactivate={async (id, planet) => {
-                            // Pay the reactivation fee on-chain via TonConnect,
-                            // then ask the server to verify the BOC. On success,
-                            // flip the planet to active client-side. Same flow
-                            // we use for SUN / shop TON purchases.
+                                                    onReactivate={async (id, _planet) => {
                             if (!telegramId) { flashWhiteMsg("Session not ready"); return; }
-                            if (!connectedAddress) { tonConnectUI.openModal(); flashWhiteMsg("Connect your wallet"); return; }
                             if (reactingId) return;
                             setReactingId(id);
                             try {
-                              const fee = getReactivationFee(planet);
-                              const nanotons = BigInt(Math.round(fee * 1e9)).toString();
-                              const txResult = await tonConnectUI.sendTransaction({
-                                validUntil: Math.floor(Date.now() / 1000) + 300,
-                                messages: [{ address: TON_RECEIVER_WALLET, amount: nanotons }],
-                              });
-                              const boc = txResult.boc || "";
-                              const reactKey = parseCollectionPlanetKey(planet.id);
-                              const reactMeta = reactKey ? { ...reactKey, slotIndex: planet.slotIndex ?? null } : undefined;
-                              const confirm = await confirmTonPurchase(telegramId, "white_react", connectedAddress, fee, boc, reactMeta);
-                              let creditedOk = confirm.ok && !confirm.pending;
-                              if (confirm.pending && confirm.txnId) {
-                                flashWhiteMsg("Verifying payment on-chain…");
-                                const final = await pollTxnUntilFinal(confirm.txnId);
-                                creditedOk = final?.status === "completed";
-                                if (final?.status === "failed") {
-                                  flashWhiteMsg("Payment not detected on-chain");
-                                  setReactingId(null);
-                                  return;
-                                }
-                              } else if (!confirm.ok) {
-                                flashWhiteMsg(confirm.error || "Payment failed");
-                                setReactingId(null);
-                                return;
+                              const result = await reactivateCollectionWithRedStar(telegramId, 1);
+                              if (!result.ok) { flashWhiteMsg(result.error ?? "Insufficient ★ Redstar"); return; }
+                              const res = onMarkWhitePlanetReactivated?.(id);
+                              if (res && !res.ok) flashWhiteMsg(res.reason || "Reactivation failed");
+                              else {
+                                flashWhiteMsg("Reactivated!");
+                                if (typeof result.newRedStarBalance === "number") onRedStarBalanceUpdate?.(result.newRedStarBalance);
                               }
-                              if (creditedOk) {
-                                const res = onMarkWhitePlanetReactivated?.(id);
-                                if (res && !res.ok) flashWhiteMsg(res.reason || "Reactivation failed");
-                                else flashWhiteMsg("Reactivated!");
-                              } else {
-                                flashWhiteMsg("Awaiting confirmation…");
-                              }
-                            } catch (err: unknown) {
-                              const m = err instanceof Error ? err.message : String(err);
-                              if (m.includes("cancel") || m.includes("reject") || m.includes("Interrupted")) flashWhiteMsg("Payment cancelled");
-                              else { flashWhiteMsg("GRAM payment failed"); console.error("[react] ton tx error:", err); }
-                            } finally {
-                              setReactingId(null);
-                            }
+                            } catch { flashWhiteMsg("Reactivation failed"); }
+                            finally { setReactingId(null); }
                           }}
                         />
                       ) : (
@@ -1192,25 +1159,25 @@ function PixelAvatarBase({
                 )}
               </div>
 
-              {/* REACT ALL — batch reactivate all expired earth slots */}
+              {/* REACT ALL — batch reactivate all expired earth slots · 1 ★ REDSTAR each */}
               {earthCollectionUnlocked && (() => {
                 const exp = earthSlotOccupants.filter((p): p is Planet => !!p && isFarmExpired(p));
                 if (exp.length === 0) return null;
-                const total = exp.reduce((s, p) => s + getReactivationFee(p), 0);
+                const canAfford = redStarBalance >= exp.length;
                 return (
                   <button
-                    disabled={reactingAll || !!reactingId}
-                    onClick={() => void handleReactAll(exp, total, onMarkEarthPlanetReactivated)}
+                    disabled={reactingAll || !!reactingId || !canAfford}
+                    onClick={() => void handleReactAllRedStar(exp, onMarkEarthPlanetReactivated)}
                     style={{
                       width: "100%", marginBottom: 8, padding: "8px 0", borderRadius: 8,
                       background: "linear-gradient(135deg, rgba(59,130,246,0.18), rgba(34,197,94,0.10))",
                       border: "1px solid rgba(59,130,246,0.4)",
                       color: "#3b82f6", fontWeight: 900, fontSize: 11, letterSpacing: "0.08em",
-                      cursor: reactingAll || !!reactingId ? "not-allowed" : "pointer",
-                      opacity: reactingAll || !!reactingId ? 0.5 : 1,
+                      cursor: reactingAll || !!reactingId || !canAfford ? "not-allowed" : "pointer",
+                      opacity: reactingAll || !!reactingId || !canAfford ? 0.5 : 1,
                     }}
                   >
-                    {reactingAll ? "REACTING ALL…" : `⚡ REACT ALL ${exp.length} · ${total.toFixed(3)} GRAM`}
+                    {reactingAll ? "REACTING ALL…" : `⚡ REACT ALL ${exp.length} · ${exp.length} ★ Redstar`}
                   </button>
                 );
               })()}
@@ -1243,51 +1210,21 @@ function PixelAvatarBase({
                             tonBalance={tonBalance}
                             busy={reactingId === occupant.id}
                             onCollect={onCollectEarthPlanet}
-                            onReactivate={async (id, planet) => {
+                                                        onReactivate={async (id, _planet) => {
                               if (!telegramId) { flashWhiteMsg("Session not ready"); return; }
-                              if (!connectedAddress) { tonConnectUI.openModal(); flashWhiteMsg("Connect your wallet"); return; }
                               if (reactingId) return;
                               setReactingId(id);
                               try {
-                                const fee = getReactivationFee(planet);
-                                const nanotons = BigInt(Math.round(fee * 1e9)).toString();
-                                const txResult = await tonConnectUI.sendTransaction({
-                                  validUntil: Math.floor(Date.now() / 1000) + 300,
-                                  messages: [{ address: TON_RECEIVER_WALLET, amount: nanotons }],
-                                });
-                                const boc = txResult.boc || "";
-                                const reactKey = parseCollectionPlanetKey(planet.id);
-                                const reactMeta = reactKey ? { ...reactKey, slotIndex: planet.slotIndex ?? null } : undefined;
-                                const confirm = await confirmTonPurchase(telegramId, "earth_react", connectedAddress, fee, boc, reactMeta);
-                                let creditedOk = confirm.ok && !confirm.pending;
-                                if (confirm.pending && confirm.txnId) {
-                                  flashWhiteMsg("Verifying payment on-chain…");
-                                  const final = await pollTxnUntilFinal(confirm.txnId);
-                                  creditedOk = final?.status === "completed";
-                                  if (final?.status === "failed") {
-                                    flashWhiteMsg("Payment not detected on-chain");
-                                    setReactingId(null);
-                                    return;
-                                  }
-                                } else if (!confirm.ok) {
-                                  flashWhiteMsg(confirm.error || "Payment failed");
-                                  setReactingId(null);
-                                  return;
+                                const result = await reactivateCollectionWithRedStar(telegramId, 1);
+                                if (!result.ok) { flashWhiteMsg(result.error ?? "Insufficient ★ Redstar"); return; }
+                                const res = onMarkEarthPlanetReactivated?.(id);
+                                if (res && !res.ok) flashWhiteMsg(res.reason || "Reactivation failed");
+                                else {
+                                  flashWhiteMsg("Reactivated!");
+                                  if (typeof result.newRedStarBalance === "number") onRedStarBalanceUpdate?.(result.newRedStarBalance);
                                 }
-                                if (creditedOk) {
-                                  const res = onMarkEarthPlanetReactivated?.(id);
-                                  if (res && !res.ok) flashWhiteMsg(res.reason || "Reactivation failed");
-                                  else flashWhiteMsg("Reactivated!");
-                                } else {
-                                  flashWhiteMsg("Awaiting confirmation…");
-                                }
-                              } catch (err: unknown) {
-                                const m = err instanceof Error ? err.message : String(err);
-                                if (m.includes("cancel") || m.includes("reject") || m.includes("Interrupted")) flashWhiteMsg("Payment cancelled");
-                                else { flashWhiteMsg("GRAM payment failed"); console.error("[earth-react] ton tx error:", err); }
-                              } finally {
-                                setReactingId(null);
-                              }
+                              } catch { flashWhiteMsg("Reactivation failed"); }
+                              finally { setReactingId(null); }
                             }}
                           />
                         ) : (
@@ -1425,25 +1362,25 @@ function PixelAvatarBase({
                 )}
               </div>
 
-              {/* REACT ALL — batch reactivate all expired black slots */}
+              {/* REACT ALL — batch reactivate all expired black slots · 1 ★ REDSTAR each */}
               {blackCollectionUnlocked && (() => {
                 const exp = blackSlotOccupants.filter((p): p is Planet => !!p && isFarmExpired(p));
                 if (exp.length === 0) return null;
-                const total = exp.reduce((s, p) => s + getReactivationFee(p), 0);
+                const canAfford = redStarBalance >= exp.length;
                 return (
                   <button
-                    disabled={reactingAll || !!reactingId}
-                    onClick={() => void handleReactAll(exp, total, onMarkBlackPlanetReactivated)}
+                    disabled={reactingAll || !!reactingId || !canAfford}
+                    onClick={() => void handleReactAllRedStar(exp, onMarkBlackPlanetReactivated)}
                     style={{
                       width: "100%", marginBottom: 8, padding: "8px 0", borderRadius: 8,
                       background: "linear-gradient(135deg, rgba(123,47,255,0.18), rgba(192,132,252,0.10))",
                       border: "1px solid rgba(123,47,255,0.4)",
                       color: "#c084fc", fontWeight: 900, fontSize: 11, letterSpacing: "0.08em",
-                      cursor: reactingAll || !!reactingId ? "not-allowed" : "pointer",
-                      opacity: reactingAll || !!reactingId ? 0.5 : 1,
+                      cursor: reactingAll || !!reactingId || !canAfford ? "not-allowed" : "pointer",
+                      opacity: reactingAll || !!reactingId || !canAfford ? 0.5 : 1,
                     }}
                   >
-                    {reactingAll ? "REACTING ALL…" : `⚡ REACT ALL ${exp.length} · ${total.toFixed(3)} GRAM`}
+                    {reactingAll ? "REACTING ALL…" : `⚡ REACT ALL ${exp.length} · ${exp.length} ★ Redstar`}
                   </button>
                 );
               })()}
@@ -1476,51 +1413,21 @@ function PixelAvatarBase({
                             tonBalance={tonBalance}
                             busy={reactingId === occupant.id}
                             onCollect={onCollectBlackPlanet}
-                            onReactivate={async (id, planet) => {
+                                                        onReactivate={async (id, _planet) => {
                               if (!telegramId) { flashWhiteMsg("Session not ready"); return; }
-                              if (!connectedAddress) { tonConnectUI.openModal(); flashWhiteMsg("Connect your wallet"); return; }
                               if (reactingId) return;
                               setReactingId(id);
                               try {
-                                const fee = getReactivationFee(planet);
-                                const nanotons = BigInt(Math.round(fee * 1e9)).toString();
-                                const txResult = await tonConnectUI.sendTransaction({
-                                  validUntil: Math.floor(Date.now() / 1000) + 300,
-                                  messages: [{ address: TON_RECEIVER_WALLET, amount: nanotons }],
-                                });
-                                const boc = txResult.boc || "";
-                                const reactKey = parseCollectionPlanetKey(planet.id);
-                                const reactMeta = reactKey ? { ...reactKey, slotIndex: planet.slotIndex ?? null } : undefined;
-                                const confirm = await confirmTonPurchase(telegramId, "black_react", connectedAddress, fee, boc, reactMeta);
-                                let creditedOk = confirm.ok && !confirm.pending;
-                                if (confirm.pending && confirm.txnId) {
-                                  flashWhiteMsg("Verifying payment on-chain…");
-                                  const final = await pollTxnUntilFinal(confirm.txnId);
-                                  creditedOk = final?.status === "completed";
-                                  if (final?.status === "failed") {
-                                    flashWhiteMsg("Payment not detected on-chain");
-                                    setReactingId(null);
-                                    return;
-                                  }
-                                } else if (!confirm.ok) {
-                                  flashWhiteMsg(confirm.error || "Payment failed");
-                                  setReactingId(null);
-                                  return;
+                                const result = await reactivateCollectionWithRedStar(telegramId, 1);
+                                if (!result.ok) { flashWhiteMsg(result.error ?? "Insufficient ★ Redstar"); return; }
+                                const res = onMarkBlackPlanetReactivated?.(id);
+                                if (res && !res.ok) flashWhiteMsg(res.reason || "Reactivation failed");
+                                else {
+                                  flashWhiteMsg("Reactivated!");
+                                  if (typeof result.newRedStarBalance === "number") onRedStarBalanceUpdate?.(result.newRedStarBalance);
                                 }
-                                if (creditedOk) {
-                                  const res = onMarkBlackPlanetReactivated?.(id);
-                                  if (res && !res.ok) flashWhiteMsg(res.reason || "Reactivation failed");
-                                  else flashWhiteMsg("Reactivated!");
-                                } else {
-                                  flashWhiteMsg("Awaiting confirmation…");
-                                }
-                              } catch (err: unknown) {
-                                const m = err instanceof Error ? err.message : String(err);
-                                if (m.includes("cancel") || m.includes("reject") || m.includes("Interrupted")) flashWhiteMsg("Payment cancelled");
-                                else { flashWhiteMsg("GRAM payment failed"); console.error("[black-react] ton tx error:", err); }
-                              } finally {
-                                setReactingId(null);
-                              }
+                              } catch { flashWhiteMsg("Reactivation failed"); }
+                              finally { setReactingId(null); }
                             }}
                           />
                         ) : (
@@ -1658,25 +1565,25 @@ function PixelAvatarBase({
                 )}
               </div>
 
-              {/* REACT ALL — batch reactivate all expired supernova slots */}
+              {/* REACT ALL — batch reactivate all expired supernova slots · 1 ★ REDSTAR each */}
               {supernovaCollectionUnlocked && (() => {
                 const exp = supernovaSlotOccupants.filter((p): p is Planet => !!p && isFarmExpired(p));
                 if (exp.length === 0) return null;
-                const total = exp.reduce((s, p) => s + getReactivationFee(p), 0);
+                const canAfford = redStarBalance >= exp.length;
                 return (
                   <button
-                    disabled={reactingAll || !!reactingId}
-                    onClick={() => void handleReactAll(exp, total, onMarkSupernovaPlanetReactivated)}
+                    disabled={reactingAll || !!reactingId || !canAfford}
+                    onClick={() => void handleReactAllRedStar(exp, onMarkSupernovaPlanetReactivated)}
                     style={{
                       width: "100%", marginBottom: 8, padding: "8px 0", borderRadius: 8,
                       background: "linear-gradient(135deg, rgba(255,215,0,0.18), rgba(253,224,71,0.10))",
                       border: "1px solid rgba(255,215,0,0.4)",
                       color: "#ffd700", fontWeight: 900, fontSize: 11, letterSpacing: "0.08em",
-                      cursor: reactingAll || !!reactingId ? "not-allowed" : "pointer",
-                      opacity: reactingAll || !!reactingId ? 0.5 : 1,
+                      cursor: reactingAll || !!reactingId || !canAfford ? "not-allowed" : "pointer",
+                      opacity: reactingAll || !!reactingId || !canAfford ? 0.5 : 1,
                     }}
                   >
-                    {reactingAll ? "REACTING ALL…" : `⚡ REACT ALL ${exp.length} · ${total.toFixed(3)} GRAM`}
+                    {reactingAll ? "REACTING ALL…" : `⚡ REACT ALL ${exp.length} · ${exp.length} ★ Redstar`}
                   </button>
                 );
               })()}
@@ -1709,51 +1616,21 @@ function PixelAvatarBase({
                             tonBalance={tonBalance}
                             busy={reactingId === occupant.id}
                             onCollect={onCollectSupernovaPlanet}
-                            onReactivate={async (id, planet) => {
+                                                        onReactivate={async (id, _planet) => {
                               if (!telegramId) { flashWhiteMsg("Session not ready"); return; }
-                              if (!connectedAddress) { tonConnectUI.openModal(); flashWhiteMsg("Connect your wallet"); return; }
                               if (reactingId) return;
                               setReactingId(id);
                               try {
-                                const fee = getReactivationFee(planet);
-                                const nanotons = BigInt(Math.round(fee * 1e9)).toString();
-                                const txResult = await tonConnectUI.sendTransaction({
-                                  validUntil: Math.floor(Date.now() / 1000) + 300,
-                                  messages: [{ address: TON_RECEIVER_WALLET, amount: nanotons }],
-                                });
-                                const boc = txResult.boc || "";
-                                const reactKey = parseCollectionPlanetKey(planet.id);
-                                const reactMeta = reactKey ? { ...reactKey, slotIndex: planet.slotIndex ?? null } : undefined;
-                                const confirm = await confirmTonPurchase(telegramId, "supernova_react", connectedAddress, fee, boc, reactMeta);
-                                let creditedOk = confirm.ok && !confirm.pending;
-                                if (confirm.pending && confirm.txnId) {
-                                  flashWhiteMsg("Verifying payment on-chain…");
-                                  const final = await pollTxnUntilFinal(confirm.txnId);
-                                  creditedOk = final?.status === "completed";
-                                  if (final?.status === "failed") {
-                                    flashWhiteMsg("Payment not detected on-chain");
-                                    setReactingId(null);
-                                    return;
-                                  }
-                                } else if (!confirm.ok) {
-                                  flashWhiteMsg(confirm.error || "Payment failed");
-                                  setReactingId(null);
-                                  return;
+                                const result = await reactivateCollectionWithRedStar(telegramId, 1);
+                                if (!result.ok) { flashWhiteMsg(result.error ?? "Insufficient ★ Redstar"); return; }
+                                const res = onMarkSupernovaPlanetReactivated?.(id);
+                                if (res && !res.ok) flashWhiteMsg(res.reason || "Reactivation failed");
+                                else {
+                                  flashWhiteMsg("Reactivated!");
+                                  if (typeof result.newRedStarBalance === "number") onRedStarBalanceUpdate?.(result.newRedStarBalance);
                                 }
-                                if (creditedOk) {
-                                  const res = onMarkSupernovaPlanetReactivated?.(id);
-                                  if (res && !res.ok) flashWhiteMsg(res.reason || "Reactivation failed");
-                                  else flashWhiteMsg("Reactivated!");
-                                } else {
-                                  flashWhiteMsg("Awaiting confirmation…");
-                                }
-                              } catch (err: unknown) {
-                                const m = err instanceof Error ? err.message : String(err);
-                                if (m.includes("cancel") || m.includes("reject") || m.includes("Interrupted")) flashWhiteMsg("Payment cancelled");
-                                else { flashWhiteMsg("GRAM payment failed"); console.error("[supernova-react] ton tx error:", err); }
-                              } finally {
-                                setReactingId(null);
-                              }
+                              } catch { flashWhiteMsg("Reactivation failed"); }
+                              finally { setReactingId(null); }
                             }}
                           />
                         ) : (
@@ -1854,25 +1731,25 @@ function PixelAvatarBase({
                 )}
               </div>
 
-              {/* REACT ALL — batch reactivate all expired REDSTAR slots */}
+              {/* REACT ALL — batch reactivate all expired REDSTAR slots · 1 ★ REDSTAR each */}
               {stellaRossaCollectionUnlocked && (() => {
                 const exp = stellaSlotOccupants.filter((p): p is Planet => !!p && isFarmExpired(p));
                 if (exp.length === 0) return null;
-                const total = exp.reduce((s, p) => s + getReactivationFee(p), 0);
+                const canAfford = redStarBalance >= exp.length;
                 return (
                   <button
-                    disabled={reactingAll || !!reactingId}
-                    onClick={() => void handleReactAll(exp, total, onMarkStellaRossaPlanetReactivated)}
+                    disabled={reactingAll || !!reactingId || !canAfford}
+                    onClick={() => void handleReactAllRedStar(exp, onMarkStellaRossaPlanetReactivated)}
                     style={{
                       width: "100%", marginBottom: 8, padding: "8px 0", borderRadius: 8,
                       background: "linear-gradient(135deg, rgba(220,20,60,0.18), rgba(255,34,68,0.10))",
                       border: "1px solid rgba(220,20,60,0.4)",
                       color: "#ff2244", fontWeight: 900, fontSize: 11, letterSpacing: "0.08em",
-                      cursor: reactingAll || !!reactingId ? "not-allowed" : "pointer",
-                      opacity: reactingAll || !!reactingId ? 0.5 : 1,
+                      cursor: reactingAll || !!reactingId || !canAfford ? "not-allowed" : "pointer",
+                      opacity: reactingAll || !!reactingId || !canAfford ? 0.5 : 1,
                     }}
                   >
-                    {reactingAll ? "REACTING ALL…" : `⚡ REACT ALL ${exp.length} · ${total.toFixed(3)} GRAM`}
+                    {reactingAll ? "REACTING ALL…" : `⚡ REACT ALL ${exp.length} · ${exp.length} ★ Redstar`}
                   </button>
                 );
               })()}
@@ -1895,41 +1772,21 @@ function PixelAvatarBase({
                             tonBalance={tonBalance}
                             busy={reactingId === occupant.id}
                             onCollect={onCollectStellaRossaPlanet}
-                            onReactivate={async (id, planet) => {
+                                                        onReactivate={async (id, _planet) => {
                               if (!telegramId) { flashWhiteMsg("Session not ready"); return; }
-                              if (!connectedAddress) { tonConnectUI.openModal(); flashWhiteMsg("Connect your wallet"); return; }
                               if (reactingId) return;
                               setReactingId(id);
                               try {
-                                const fee = getReactivationFee(planet);
-                                const nanotons = BigInt(Math.round(fee * 1e9)).toString();
-                                const txResult = await tonConnectUI.sendTransaction({
-                                  validUntil: Math.floor(Date.now() / 1000) + 300,
-                                  messages: [{ address: TON_RECEIVER_WALLET, amount: nanotons }],
-                                });
-                                const boc = txResult.boc || "";
-                                const reactKey = parseCollectionPlanetKey(planet.id);
-                                const reactMeta = reactKey ? { ...reactKey, slotIndex: planet.slotIndex ?? null } : undefined;
-                                const confirm = await confirmTonPurchase(telegramId, "stella_react", connectedAddress, fee, boc, reactMeta);
-                                let creditedOk = confirm.ok && !confirm.pending;
-                                if (confirm.pending && confirm.txnId) {
-                                  flashWhiteMsg("Verifying payment on-chain…");
-                                  const final = await pollTxnUntilFinal(confirm.txnId);
-                                  creditedOk = final?.status === "completed";
-                                  if (final?.status === "failed") { flashWhiteMsg("Payment not detected on-chain"); setReactingId(null); return; }
-                                } else if (!confirm.ok) {
-                                  flashWhiteMsg(confirm.error || "Payment failed"); setReactingId(null); return;
+                                const result = await reactivateCollectionWithRedStar(telegramId, 1);
+                                if (!result.ok) { flashWhiteMsg(result.error ?? "Insufficient ★ Redstar"); return; }
+                                const res = onMarkStellaRossaPlanetReactivated?.(id);
+                                if (res && !res.ok) flashWhiteMsg(res.reason || "Reactivation failed");
+                                else {
+                                  flashWhiteMsg("Reactivated!");
+                                  if (typeof result.newRedStarBalance === "number") onRedStarBalanceUpdate?.(result.newRedStarBalance);
                                 }
-                                if (creditedOk) {
-                                  const res = onMarkStellaRossaPlanetReactivated?.(id);
-                                  if (res && !res.ok) flashWhiteMsg(res.reason || "Reactivation failed");
-                                  else flashWhiteMsg("Reactivated!");
-                                } else { flashWhiteMsg("Awaiting confirmation…"); }
-                              } catch (err: unknown) {
-                                const m = err instanceof Error ? err.message : String(err);
-                                if (m.includes("cancel") || m.includes("reject") || m.includes("Interrupted")) flashWhiteMsg("Payment cancelled");
-                                else { flashWhiteMsg("GRAM payment failed"); console.error("[stella-react] ton tx error:", err); }
-                              } finally { setReactingId(null); }
+                              } catch { flashWhiteMsg("Reactivation failed"); }
+                              finally { setReactingId(null); }
                             }}
                           />
                         ) : (
@@ -2013,13 +1870,8 @@ function SlotContent({ planet, busy = false, onReactivate }: SlotContentProps) {
   const active = isFarmActive(planet);
   const expired = isFarmExpired(planet);
   const remaining = getFarmTimeRemaining(planet);
-  const fee = getReactivationFee(planet);
-  // White-planet rule: NO collect step at all. TON earnings are auto-credited
-  // to tonBalance the moment the user pays the on-chain reactivation fee.
-  // The only action surface for white planets is REACT after expiry.
+  // Collection planets now reactivate with 1 ★ REDSTAR (not GRAM via TonConnect).
   const cfg = PLANET_CONFIG[planet.name];
-  // Reactivation is paid on-chain via TonConnect now (same as the SUN/shop
-  // flow). The button stays enabled as long as no payment is in-flight.
   const canPay = !busy;
 
   const isEarth = planet.name === "EARTH1" || planet.name === "EARTH2" || planet.name === "EARTH3" || planet.name === "EARTH4";
@@ -2058,9 +1910,9 @@ function SlotContent({ planet, busy = false, onReactivate }: SlotContentProps) {
           disabled={!canPay}
           style={!canPay ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
           onClick={(e) => { e.stopPropagation(); onReactivate(planet.id, planet); }}
-          title={`${fee.toFixed(4)} GRAM`}
+          title="1 ★ Redstar"
         >
-          {busy ? "…" : `REACT · ${fee.toFixed(3)}`}
+          {busy ? "…" : "REACT · 1 ★"}
         </button>
       )}
     </div>
