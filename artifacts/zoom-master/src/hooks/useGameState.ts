@@ -1114,6 +1114,10 @@ let _lastSyncedBalance = -1;
 let _lastSyncedTonBalance = -1;
 let _syncInFlight = false;
 let _pendingSyncBalance = -1;
+// After a repair deducts stardust locally, the next syncBalance response may
+// still carry the old (higher) server balance (before deductCraftStardust runs).
+// Suppress snap-up for a short window so the UI doesn't yo-yo back.
+let _stardustSnapSuppressUntil = 0;
 // Tracks the most recent server balanceEpoch we've observed. Sent on every
 // /balance/sync so the server can detect stale clients (e.g. after admin
 // mutations) and overwrite their balance instead of merging.
@@ -1221,7 +1225,8 @@ function reconcileFromSyncResponse(
   if (
     typeof res.stardustBalance === "number" &&
     typeof sentStardustBalance === "number" &&
-    (res.stardustBalance ?? 0) - (sentStardustBalance ?? 0) > 0
+    (res.stardustBalance ?? 0) - (sentStardustBalance ?? 0) > 0 &&
+    Date.now() >= _stardustSnapSuppressUntil
   ) {
     if (_stateRefHolder) {
       _stateRefHolder.current = { ..._stateRefHolder.current, stardustBalance: res.stardustBalance };
@@ -3124,6 +3129,16 @@ export function useGameState() {
         lastBalanceEpoch: Math.max(prev.lastBalanceEpoch ?? 0, detail.epoch ?? 0),
       }));
     };
+    // RedStar: server-authoritative snap. Dispatched when a sync response or
+    // an explicit claim (e.g. daily combo) returns a higher redStarBalance.
+    const handleServerRedstarSnap = (e: Event) => {
+      const detail = (e as CustomEvent<{ redStarBalance: number }>).detail;
+      if (!detail || typeof detail.redStarBalance !== "number") return;
+      setState((prev) => ({
+        ...prev,
+        redStarBalance: Math.max(prev.redStarBalance ?? 0, detail.redStarBalance),
+      }));
+    };
     // Admin self-remove: explicit local decrement that bypasses the
     // grow-only protections in applyGrants/handleAdminRefresh. This is
     // safe because it only fires when the admin button itself is the
@@ -3318,6 +3333,7 @@ export function useGameState() {
     window.addEventListener("zoom-server-balance-snap", handleServerSnap as EventListener);
     window.addEventListener("zoom-server-ton-snap", handleServerTonSnap as EventListener);
     window.addEventListener("zoom-server-stardust-snap", handleServerStardustSnap as EventListener);
+    window.addEventListener("zoom-server-redstar-snap", handleServerRedstarSnap as EventListener);
 
     return () => {
       clearInterval(interval);
@@ -3329,6 +3345,7 @@ export function useGameState() {
       window.removeEventListener("zoom-server-balance-snap", handleServerSnap as EventListener);
       window.removeEventListener("zoom-server-ton-snap", handleServerTonSnap as EventListener);
       window.removeEventListener("zoom-server-stardust-snap", handleServerStardustSnap as EventListener);
+      window.removeEventListener("zoom-server-redstar-snap", handleServerRedstarSnap as EventListener);
     };
   }, []);
 
@@ -4179,7 +4196,10 @@ export function useGameState() {
     // CRITICAL — deduct stardust on the server immediately after the local
     // update. Without this call the next balance sync restores the pre-repair
     // value from the DB and the player gets the stardust back for free.
+    // Suppress the snap-up window so a racing syncBalance response doesn't
+    // restore the old (pre-deduction) stardust before the server confirms.
     if (outcome.ok && deductCost > 0) {
+      _stardustSnapSuppressUntil = Date.now() + 6000;
       const { telegramId } = getTelegramContext();
       if (telegramId) {
         void deductCraftStardust(telegramId, deductCost).then((r) => {

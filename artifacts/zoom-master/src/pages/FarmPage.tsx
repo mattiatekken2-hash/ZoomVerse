@@ -458,8 +458,12 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
   const [renamePlanet, setRenamePlanet] = useState<Planet | null>(null);
   const [pvpPlanet, setPvPPlanet] = useState<Planet | null>(null);
   const [detailPlanet, setDetailPlanet] = useState<Planet | null>(null);
-  const handleComboClaimed = useCallback((_newBal: number) => {
-    window.dispatchEvent(new Event("balance-refresh"));
+  const handleComboClaimed = useCallback((newRedStarBalance: number) => {
+    // Snap the local redStar balance to the server-confirmed value immediately
+    // so the UI reflects the combo reward without waiting for the next sync.
+    window.dispatchEvent(new CustomEvent("zoom-server-redstar-snap", {
+      detail: { redStarBalance: newRedStarBalance },
+    }));
   }, []);
   const inputRef = useRef<HTMLInputElement>(null);
   // Inventory tab — the FarmPage hosts the player's full inventory, split

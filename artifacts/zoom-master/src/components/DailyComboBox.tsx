@@ -155,8 +155,8 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed }: Props) {
             <>✓ CLAIMED</>
           ) : (
             <>
-              <span style={{ fontSize: 13 }}>⭐</span>
-              2 / 2 Redstar
+              <span style={{ fontSize: 13, color: "#ff4444", textShadow: "0 0 6px rgba(255,68,68,0.7)" }}>★</span>
+              2 Redstar
             </>
           )}
         </div>
@@ -164,7 +164,7 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed }: Props) {
 
       {/* Description */}
       <p style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", margin: "0 0 10px", lineHeight: 1.5 }}>
-        Have all 3 planets <strong style={{ color: "rgba(255,255,255,0.7)" }}>actively farming</strong> and claim 2 ⭐ Redstar!
+        Have all 3 planets <strong style={{ color: "rgba(255,255,255,0.7)" }}>actively farming</strong> and claim 2 <span style={{ color: "#ff4444", fontWeight: 900 }}>★</span> Redstar!
         Changes every 48h.
       </p>
 
