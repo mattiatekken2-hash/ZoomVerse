@@ -168,16 +168,19 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed }: Props) {
         Changes every 48h.
       </p>
 
-      {/* 3 slots */}
+      {/* 3 slots — rarity is HIDDEN until the user actively farms that planet type.
+           Only when a matching planet is in farm does the slot reveal itself. */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
-        {slotStatuses.map((slot, i) => (
+        {slotStatuses.map((slot, i) => {
+          const revealed = slot.active || claimed;
+          return (
           <div
             key={i}
             style={{
-              background: slot.active
+              background: revealed
                 ? `linear-gradient(135deg, ${slot.color}22 0%, ${slot.color}0d 100%)`
                 : "rgba(255,255,255,0.04)",
-              border: `1.5px solid ${slot.active ? slot.color + "66" : "rgba(255,255,255,0.12)"}`,
+              border: `1.5px solid ${revealed ? slot.color + "66" : "rgba(255,255,255,0.12)"}`,
               borderRadius: 12,
               padding: "10px 6px 8px",
               display: "flex",
@@ -188,43 +191,54 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed }: Props) {
               transition: "border-color 0.3s, background 0.3s",
             }}
           >
-            {/* Status dot in top-right */}
-            <div
-              style={{
-                position: "absolute",
-                top: 6,
-                right: 6,
-                width: 7,
-                height: 7,
-                borderRadius: "50%",
-                background: slot.active ? "#00e676" : "rgba(255,255,255,0.15)",
-                boxShadow: slot.active ? "0 0 6px #00e676" : "none",
-              }}
-            />
-            {/* Planet icon as colored box / emoji */}
+            {/* Status dot — only shown when revealed */}
+            {revealed && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: 6,
+                  right: 6,
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  background: slot.active ? "#00e676" : "rgba(255,255,255,0.3)",
+                  boxShadow: slot.active ? "0 0 6px #00e676" : "none",
+                }}
+              />
+            )}
+            {/* Planet icon — "?" when hidden, planet emoji + color when revealed */}
             <div
               style={{
                 width: 36,
                 height: 36,
                 borderRadius: 10,
-                background: slot.active ? slot.color + "33" : "rgba(255,255,255,0.06)",
-                border: `1px solid ${slot.active ? slot.color + "55" : "rgba(255,255,255,0.1)"}`,
+                background: revealed ? slot.color + "33" : "rgba(255,255,255,0.06)",
+                border: `1px solid ${revealed ? slot.color + "55" : "rgba(255,255,255,0.1)"}`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: 18,
+                fontSize: revealed ? 18 : 20,
+                color: revealed ? undefined : "rgba(255,255,255,0.2)",
+                fontWeight: revealed ? undefined : 900,
               }}
             >
-              🪐
+              {revealed ? "🪐" : "?"}
             </div>
-            <span style={{ fontSize: 9, fontWeight: 800, color: slot.active ? slot.color : "rgba(255,255,255,0.35)", textAlign: "center", letterSpacing: "0.05em" }}>
-              {slot.label.toUpperCase()}
+            <span style={{
+              fontSize: 9,
+              fontWeight: 800,
+              color: revealed ? slot.color : "rgba(255,255,255,0.2)",
+              textAlign: "center",
+              letterSpacing: "0.05em",
+            }}>
+              {revealed ? slot.label.toUpperCase() : "???"}
             </span>
             {slot.active && (
               <span style={{ fontSize: 8, color: "#00e676", fontWeight: 900 }}>✓ ACTIVE</span>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Claim / status */}
