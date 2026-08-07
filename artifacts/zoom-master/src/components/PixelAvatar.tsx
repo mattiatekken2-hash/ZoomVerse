@@ -145,6 +145,7 @@ function PixelAvatarBase({
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
   const [reactingId, setReactingId] = useState<string | null>(null);
+  const [reactingAll, setReactingAll] = useState(false);
   // Each bundle unlocks 4 slots. Backwards-compat: if the legacy unlocked flag
   // is true but bundles is 0 (pre-migration cache), assume 1 bundle = 4 slots.
   const effectiveBundles = whiteCollectionBundles > 0
@@ -311,6 +312,42 @@ function PixelAvatarBase({
     setWhiteMsg(msg);
     window.setTimeout(() => setWhiteMsg(null), 2200);
   };
+
+  // Batch REACT: one TonConnect transaction covers all expired planets in a collection.
+  // After the on-chain payment succeeds, each planet is marked reactivated locally.
+  const handleReactAll = useCallback(async (
+    expiredPlanets: Planet[],
+    totalFee: number,
+    markOne?: (id: string) => { ok: boolean; reason?: string },
+  ) => {
+    if (expiredPlanets.length === 0) return;
+    if (!telegramId) { flashWhiteMsg("Session not ready"); return; }
+    if (!connectedAddress) { tonConnectUI.openModal(); flashWhiteMsg("Connect your wallet"); return; }
+    if (reactingAll || reactingId) return;
+    setReactingAll(true);
+    try {
+      const nanotons = BigInt(Math.round(totalFee * 1e9)).toString();
+      const txResult = await tonConnectUI.sendTransaction({
+        validUntil: Math.floor(Date.now() / 1000) + 300,
+        messages: [{ address: TON_RECEIVER_WALLET, amount: nanotons }],
+      });
+      if (!txResult?.boc) { flashWhiteMsg("Transaction failed"); return; }
+      // Mark each expired planet reactivated. Payment is already on-chain.
+      let ok = 0;
+      for (const planet of expiredPlanets) {
+        const res = markOne?.(planet.id);
+        if (!res || res.ok) ok++;
+      }
+      flashWhiteMsg(`✅ ${ok}/${expiredPlanets.length} planets reactivated!`);
+    } catch (err: unknown) {
+      const m = err instanceof Error ? err.message : String(err);
+      if (m.includes("cancel") || m.includes("reject") || m.includes("Interrupted")) flashWhiteMsg("Cancelled");
+      else flashWhiteMsg("GRAM payment failed");
+    } finally {
+      setReactingAll(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [telegramId, connectedAddress, tonConnectUI, reactingAll, reactingId]);
 
   const handleSlotClick = (slotIndex: number) => {
     if (slotIndex < 0 || slotIndex >= maxWhiteSlots) return;
@@ -904,6 +941,29 @@ function PixelAvatarBase({
                 )}
               </div>
 
+              {/* REACT ALL — batch reactivate all expired white slots in one TX */}
+              {(() => {
+                const exp = slotOccupants.filter((p): p is Planet => !!p && isFarmExpired(p));
+                if (exp.length === 0) return null;
+                const total = exp.reduce((s, p) => s + getReactivationFee(p), 0);
+                return (
+                  <button
+                    disabled={reactingAll || !!reactingId}
+                    onClick={() => void handleReactAll(exp, total, onMarkWhitePlanetReactivated)}
+                    style={{
+                      width: "100%", marginBottom: 8, padding: "8px 0", borderRadius: 8,
+                      background: "linear-gradient(135deg, rgba(0,217,255,0.18), rgba(0,150,200,0.10))",
+                      border: "1px solid rgba(0,217,255,0.4)",
+                      color: "#0fd9ff", fontWeight: 900, fontSize: 11, letterSpacing: "0.08em",
+                      cursor: reactingAll || !!reactingId ? "not-allowed" : "pointer",
+                      opacity: reactingAll || !!reactingId ? 0.5 : 1,
+                    }}
+                  >
+                    {reactingAll ? "REACTING ALL…" : `⚡ REACT ALL ${exp.length} · ${total.toFixed(3)} GRAM`}
+                  </button>
+                );
+              })()}
+
               {/* Slot grid: 4 columns, 1 row per bundle. Scrolls vertically when many bundles are owned. */}
               <div
                 style={{
@@ -1134,6 +1194,29 @@ function PixelAvatarBase({
                 )}
               </div>
 
+              {/* REACT ALL — batch reactivate all expired earth slots */}
+              {earthCollectionUnlocked && (() => {
+                const exp = earthSlotOccupants.filter((p): p is Planet => !!p && isFarmExpired(p));
+                if (exp.length === 0) return null;
+                const total = exp.reduce((s, p) => s + getReactivationFee(p), 0);
+                return (
+                  <button
+                    disabled={reactingAll || !!reactingId}
+                    onClick={() => void handleReactAll(exp, total, onMarkEarthPlanetReactivated)}
+                    style={{
+                      width: "100%", marginBottom: 8, padding: "8px 0", borderRadius: 8,
+                      background: "linear-gradient(135deg, rgba(59,130,246,0.18), rgba(34,197,94,0.10))",
+                      border: "1px solid rgba(59,130,246,0.4)",
+                      color: "#3b82f6", fontWeight: 900, fontSize: 11, letterSpacing: "0.08em",
+                      cursor: reactingAll || !!reactingId ? "not-allowed" : "pointer",
+                      opacity: reactingAll || !!reactingId ? 0.5 : 1,
+                    }}
+                  >
+                    {reactingAll ? "REACTING ALL…" : `⚡ REACT ALL ${exp.length} · ${total.toFixed(3)} GRAM`}
+                  </button>
+                );
+              })()}
+
               {earthCollectionUnlocked && maxEarthSlots > 0 && (
                 <div
                   style={{
@@ -1343,6 +1426,29 @@ function PixelAvatarBase({
                   </div>
                 )}
               </div>
+
+              {/* REACT ALL — batch reactivate all expired black slots */}
+              {blackCollectionUnlocked && (() => {
+                const exp = blackSlotOccupants.filter((p): p is Planet => !!p && isFarmExpired(p));
+                if (exp.length === 0) return null;
+                const total = exp.reduce((s, p) => s + getReactivationFee(p), 0);
+                return (
+                  <button
+                    disabled={reactingAll || !!reactingId}
+                    onClick={() => void handleReactAll(exp, total, onMarkBlackPlanetReactivated)}
+                    style={{
+                      width: "100%", marginBottom: 8, padding: "8px 0", borderRadius: 8,
+                      background: "linear-gradient(135deg, rgba(123,47,255,0.18), rgba(192,132,252,0.10))",
+                      border: "1px solid rgba(123,47,255,0.4)",
+                      color: "#c084fc", fontWeight: 900, fontSize: 11, letterSpacing: "0.08em",
+                      cursor: reactingAll || !!reactingId ? "not-allowed" : "pointer",
+                      opacity: reactingAll || !!reactingId ? 0.5 : 1,
+                    }}
+                  >
+                    {reactingAll ? "REACTING ALL…" : `⚡ REACT ALL ${exp.length} · ${total.toFixed(3)} GRAM`}
+                  </button>
+                );
+              })()}
 
               {blackCollectionUnlocked && maxBlackSlots > 0 && (
                 <div
@@ -1554,6 +1660,29 @@ function PixelAvatarBase({
                 )}
               </div>
 
+              {/* REACT ALL — batch reactivate all expired supernova slots */}
+              {supernovaCollectionUnlocked && (() => {
+                const exp = supernovaSlotOccupants.filter((p): p is Planet => !!p && isFarmExpired(p));
+                if (exp.length === 0) return null;
+                const total = exp.reduce((s, p) => s + getReactivationFee(p), 0);
+                return (
+                  <button
+                    disabled={reactingAll || !!reactingId}
+                    onClick={() => void handleReactAll(exp, total, onMarkSupernovaPlanetReactivated)}
+                    style={{
+                      width: "100%", marginBottom: 8, padding: "8px 0", borderRadius: 8,
+                      background: "linear-gradient(135deg, rgba(255,215,0,0.18), rgba(253,224,71,0.10))",
+                      border: "1px solid rgba(255,215,0,0.4)",
+                      color: "#ffd700", fontWeight: 900, fontSize: 11, letterSpacing: "0.08em",
+                      cursor: reactingAll || !!reactingId ? "not-allowed" : "pointer",
+                      opacity: reactingAll || !!reactingId ? 0.5 : 1,
+                    }}
+                  >
+                    {reactingAll ? "REACTING ALL…" : `⚡ REACT ALL ${exp.length} · ${total.toFixed(3)} GRAM`}
+                  </button>
+                );
+              })()}
+
               {supernovaCollectionUnlocked && maxSupernovaSlots > 0 && (
                 <div
                   style={{
@@ -1726,6 +1855,29 @@ function PixelAvatarBase({
                   </div>
                 )}
               </div>
+
+              {/* REACT ALL — batch reactivate all expired REDSTAR slots */}
+              {stellaRossaCollectionUnlocked && (() => {
+                const exp = stellaSlotOccupants.filter((p): p is Planet => !!p && isFarmExpired(p));
+                if (exp.length === 0) return null;
+                const total = exp.reduce((s, p) => s + getReactivationFee(p), 0);
+                return (
+                  <button
+                    disabled={reactingAll || !!reactingId}
+                    onClick={() => void handleReactAll(exp, total, onMarkStellaRossaPlanetReactivated)}
+                    style={{
+                      width: "100%", marginBottom: 8, padding: "8px 0", borderRadius: 8,
+                      background: "linear-gradient(135deg, rgba(220,20,60,0.18), rgba(255,34,68,0.10))",
+                      border: "1px solid rgba(220,20,60,0.4)",
+                      color: "#ff2244", fontWeight: 900, fontSize: 11, letterSpacing: "0.08em",
+                      cursor: reactingAll || !!reactingId ? "not-allowed" : "pointer",
+                      opacity: reactingAll || !!reactingId ? 0.5 : 1,
+                    }}
+                  >
+                    {reactingAll ? "REACTING ALL…" : `⚡ REACT ALL ${exp.length} · ${total.toFixed(3)} GRAM`}
+                  </button>
+                );
+              })()}
 
               {stellaRossaCollectionUnlocked && maxStellaSlots > 0 && (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 10 }}>

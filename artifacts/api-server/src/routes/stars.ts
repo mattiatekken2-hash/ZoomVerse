@@ -1521,57 +1521,79 @@ router.post("/stars/webhook", async (req, res) => {
 
       // Process asynchronously — response already sent above.
       void (async () => {
-        try {
-          if (action === "withdraw_approve") {
-            const [w] = await db.select().from(tonWithdrawalsTable).where(eq(tonWithdrawalsTable.id, withdrawalId)).limit(1);
-            if (!w || w.status !== "pending") {
-              await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ callback_query_id: cq.id, text: "Già processata o non trovata" }),
-              });
-              return;
-            }
-            await db.update(tonWithdrawalsTable)
-              .set({ status: "paid", txHash: "pending", processedAt: new Date(), processedBy: String(chatId) })
-              .where(and(eq(tonWithdrawalsTable.id, withdrawalId), eq(tonWithdrawalsTable.status, "pending")));
-            void sendBotMessage(w.telegramId,
-              `✅ Withdrawal approved!\n` +
-              `Amount: ${Number(w.amountTon).toFixed(4)} GRAM\n` +
-              `Will be sent to your wallet shortly.`);
-            const shortAddr = typeof w.walletAddress === "string" && w.walletAddress.length >= 12
-              ? `${w.walletAddress.slice(0, 6)}…${w.walletAddress.slice(-4)}`
-              : (w.walletAddress || "—");
-            // Announce in the public withdrawals channel.
-            void sendWithdrawalChannelMessage(
-              `✅ <b>Withdrawal Paid</b>\n` +
-              `💎 <b>${Number(w.amountTon).toFixed(4)} GRAM</b>\n` +
-              `👤 User: <code>${w.telegramId}</code>\n` +
-              `📬 ${shortAddr}`);
-            // Answer the callback and update the admin message markup.
+        // CRITICAL: answer the callback query FIRST (before any DB ops) so the
+        // Telegram button loading spinner resolves immediately. Telegram requires
+        // answerCallbackQuery within ~10s; slow DB can exceed that window and
+        // leave the button stuck forever. We answer with a brief "processing"
+        // toast and update the message markup after the DB work completes.
+        const answerCQ = async (text: string) => {
+          try {
             await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ callback_query_id: cq.id, text: "Approvato ✅" }),
+              body: JSON.stringify({ callback_query_id: cq.id, text }),
             });
+          } catch (e) {
+            logger.warn({ e }, "[webhook] answerCallbackQuery failed");
+          }
+        };
+        const editMarkup = async (text: string) => {
+          try {
             await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageReplyMarkup`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 chat_id: chatId,
                 message_id: cq.message?.message_id,
-                reply_markup: { inline_keyboard: [[{ text: "✅ Approvato", callback_data: "done" }]] },
+                reply_markup: { inline_keyboard: [[{ text, callback_data: "done" }]] },
               }),
             });
-          } else {
-            // Reject: refund the user's balance.
+          } catch (e) {
+            logger.warn({ e }, "[webhook] editMessageReplyMarkup failed");
+          }
+        };
+
+        try {
+          if (action === "withdraw_approve") {
+            // Answer immediately — clears button loading state in Telegram UI.
+            await answerCQ("⏳ Approvazione in corso…");
+
             const [w] = await db.select().from(tonWithdrawalsTable).where(eq(tonWithdrawalsTable.id, withdrawalId)).limit(1);
             if (!w || w.status !== "pending") {
-              await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ callback_query_id: cq.id, text: "Già processata o non trovata" }),
-              });
+              await editMarkup("⚠️ Già processata");
+              return;
+            }
+            await db.update(tonWithdrawalsTable)
+              .set({ status: "paid", txHash: "pending", processedAt: new Date(), processedBy: String(chatId) })
+              .where(and(eq(tonWithdrawalsTable.id, withdrawalId), eq(tonWithdrawalsTable.status, "pending")));
+
+            // Notify user.
+            void sendBotMessage(w.telegramId,
+              `✅ Withdrawal approved!\n` +
+              `Amount: ${Number(w.amountTon).toFixed(4)} GRAM\n` +
+              `Will be sent to your wallet shortly.`);
+
+            // Announce in the public withdrawals channel.
+            const shortAddr = typeof w.walletAddress === "string" && w.walletAddress.length >= 12
+              ? `${w.walletAddress.slice(0, 6)}…${w.walletAddress.slice(-4)}`
+              : (w.walletAddress || "—");
+            const channelOk = await sendWithdrawalChannelMessage(
+              `✅ <b>Withdrawal Paid</b>\n` +
+              `💎 <b>${Number(w.amountTon).toFixed(4)} GRAM</b>\n` +
+              `👤 User: <code>${w.telegramId}</code>\n` +
+              `📬 ${shortAddr}`);
+            logger.info({ withdrawalId, channelOk }, "[webhook] withdrawal channel notification sent");
+
+            // Update admin message button.
+            await editMarkup("✅ Approvato");
+
+          } else {
+            // Reject: answer immediately, then refund the user's balance.
+            await answerCQ("⏳ Rifiuto in corso…");
+
+            const [w] = await db.select().from(tonWithdrawalsTable).where(eq(tonWithdrawalsTable.id, withdrawalId)).limit(1);
+            if (!w || w.status !== "pending") {
+              await editMarkup("⚠️ Già processata");
               return;
             }
             const refund = Number(w.amountTon) + Number(w.feeTon ?? 0);
@@ -1586,25 +1608,13 @@ router.post("/stars/webhook", async (req, res) => {
                 })
                 .where(eq(usersTable.telegramId, w.telegramId));
             });
-            // Notify the user and update admin message.
+
+            // Notify user and update admin message.
             void sendBotMessage(w.telegramId,
               `❌ Withdrawal rejected\n` +
               `Amount: ${Number(w.amountTon).toFixed(4)} GRAM\n` +
               `Funds have been refunded to your GRAM balance.`);
-            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ callback_query_id: cq.id, text: "Rifiutato ❌" }),
-            });
-            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageReplyMarkup`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                chat_id: chatId,
-                message_id: cq.message?.message_id,
-                reply_markup: { inline_keyboard: [[{ text: "❌ Rifiutato", callback_data: "done" }]] },
-              }),
-            });
+            await editMarkup("❌ Rifiutato");
           }
         } catch (err) {
           logger.error({ err, action, withdrawalId }, "[webhook] inline withdrawal action failed");
