@@ -115,7 +115,7 @@ function AppShellWithState() {
     state, setState, craft, claimCraft, redeemCode,
     pvpAddPlanet, pvpRemovePlanet,
     collectPlanet, burnPlanet, renamePlanetLocal,
-    startFarming, stopFarming, repairPlanet,
+    startFarming, stopFarming, repairPlanet, upgradePlanetFarmDuration,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     claimDaily, startSunFarming, stopSunFarming, burnSun,
     placeWhitePlanet, reactivateWhitePlanet, markWhitePlanetReactivated, collectWhitePlanet,
@@ -913,6 +913,8 @@ function AppShellWithState() {
                   onUnlist={unlistPlanet}
                   onRepair={repairPlanet}
                   stardustBalance={stardust.balance}
+                  tonBalance={state.tonBalance || 0}
+                  onUpgradeDuration={upgradePlanetFarmDuration}
                   equipment={state.equipment ?? []}
                   onActivateEquipment={activateEquipment}
                   onReactivateEquipment={reactivateEquipment}

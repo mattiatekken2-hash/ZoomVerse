@@ -13,7 +13,7 @@
 
 import type { Planet } from "../hooks/useGameState";
 
-export const FLOAT_PLANET_TYPES = new Set(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1"]);
+export const FLOAT_PLANET_TYPES = new Set(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "NOVA", "MUSHROOM", "GOLD", "V1"]);
 
 export function isFloatablePlanet(p: { name: string }): boolean {
   return FLOAT_PLANET_TYPES.has(String(p.name).toUpperCase());

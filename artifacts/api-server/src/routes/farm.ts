@@ -6,13 +6,30 @@ import { bumpZoomPriceFireAndForget } from "../lib/zoomPrice";
 
 const router: IRouter = Router();
 
-const FARM_DURATION_MS = 24 * 60 * 60 * 1000;
+// Default farm cycle = 1 hour. Users can upgrade per-planet up to 24h.
+const BASE_FARM_DURATION_MS = 1 * 60 * 60 * 1000;
+
+// Cost table (GRAM / TON) for permanent per-planet farm-duration upgrades.
+const UPGRADE_COSTS: Record<number, number> = {
+  1: 1,
+  2: 1.5,
+  4: 2,
+  6: 2.5,
+  8: 3,
+  16: 3.5,
+  24: 5,
+};
+
+const VALID_DURATIONS = new Set(Object.keys(UPGRADE_COSTS).map(Number));
 
 const StartBody = z.object({
   telegramId: z.string().min(1),
   planetId: z.string().min(1),
   planetType: z.string().min(1),
   isWhite: z.boolean().optional(),
+  // Farm duration in hours (default 1). Stored in farm_cycles.expires_at so
+  // notification crons fire at the correct time for upgraded planets.
+  farmDurationHours: z.number().int().positive().max(24).optional(),
 });
 
 /**
@@ -20,7 +37,7 @@ const StartBody = z.object({
  * Called by the client every time a planet is activated/reactivated. We
  * upsert by (telegramId, planetId): one row per planet per user, always
  * holding the CURRENT cycle. Old notification/collect timestamps are wiped
- * so the next 24h-elapsed scan can re-notify on the new cycle.
+ * so the next elapsed scan can re-notify on the new cycle.
  */
 router.post("/farm/start", async (req, res) => {
   const parsed = StartBody.safeParse(req.body);
@@ -28,13 +45,11 @@ router.post("/farm/start", async (req, res) => {
     res.status(400).json({ error: "Invalid body" });
     return;
   }
-  const { telegramId, planetId, planetType, isWhite } = parsed.data;
+  const { telegramId, planetId, planetType, isWhite, farmDurationHours } = parsed.data;
+  const durationMs = (farmDurationHours ?? 1) * 60 * 60 * 1000;
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + FARM_DURATION_MS);
+  const expiresAt = new Date(now.getTime() + durationMs);
   try {
-    // Atomic upsert keyed on the unique (telegram_id, planet_id) index. On
-    // re-activation we wipe collected_at + notified_at so the fresh 24h cycle
-    // is once again eligible for the "Farm full" reminder.
     await db
       .insert(farmCyclesTable)
       .values({
@@ -56,13 +71,6 @@ router.post("/farm/start", async (req, res) => {
           notifiedAt: null,
         },
       });
-    // Bump the global $ZOOM price — but only if the user actually OWNS
-    // the planet they claim to be activating. Without this check anyone
-    // could spam /farm/start with arbitrary planet ids and pump the
-    // public price index. The per-user cooldown inside bumpZoomPrice is
-    // a second layer (max 1 bump per minute per user). We do the
-    // ownership lookup AFTER the upsert so the user's own cycle insert
-    // path stays unaffected if the lookup fails for any reason.
     void (async () => {
       try {
         const [u] = await db
@@ -83,15 +91,142 @@ router.post("/farm/start", async (req, res) => {
   }
 });
 
+const ReactivateBody = z.object({
+  telegramId: z.string().min(1),
+  planetId: z.string().min(1),
+  planetType: z.string().min(1),
+  farmDurationHours: z.number().int().positive().max(24).optional(),
+});
+
+/**
+ * Reactivate an expired planet's farm cycle by spending 1 REDSTAR.
+ * Atomically validates balance, deducts 1 red_star_balance, and upserts
+ * the farm cycle. Returns the new redStarBalance so the client can snap.
+ */
+router.post("/farm/reactivate", async (req, res) => {
+  const parsed = ReactivateBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body" });
+    return;
+  }
+  const { telegramId, planetId, planetType, farmDurationHours } = parsed.data;
+  const durationMs = (farmDurationHours ?? 1) * 60 * 60 * 1000;
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + durationMs);
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      // Atomically deduct 1 redstar — only succeeds if balance >= 1.
+      const rows = await tx.execute(sql`
+        UPDATE users
+           SET red_star_balance = red_star_balance - 1
+         WHERE telegram_id = ${telegramId}
+           AND red_star_balance >= 1
+        RETURNING red_star_balance
+      `);
+      const updated = (rows as unknown as { rows: Array<{ red_star_balance: number }> }).rows;
+      if (!updated || updated.length === 0) {
+        return null; // insufficient REDSTAR
+      }
+      const newRedStarBalance = updated[0]!.red_star_balance;
+
+      // Upsert farm cycle with the (possibly upgraded) duration.
+      await tx
+        .insert(farmCyclesTable)
+        .values({ telegramId, planetId, planetType, isWhite: false, activatedAt: now, expiresAt })
+        .onConflictDoUpdate({
+          target: [farmCyclesTable.telegramId, farmCyclesTable.planetId],
+          set: {
+            planetType,
+            isWhite: false,
+            activatedAt: now,
+            expiresAt,
+            collectedAt: null,
+            notifiedAt: null,
+          },
+        });
+
+      return newRedStarBalance;
+    });
+
+    if (result === null) {
+      res.status(400).json({ ok: false, error: "Insufficient REDSTAR balance" });
+      return;
+    }
+    res.json({ ok: true, newRedStarBalance: result });
+  } catch (err) {
+    console.error("[farm/reactivate] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+const UpgradeDurationBody = z.object({
+  telegramId: z.string().min(1),
+  planetId: z.string().min(1),
+  durationHours: z.number().int().positive().max(24),
+});
+
+/**
+ * Permanently upgrade a planet's farm duration (stored in planetsJson).
+ * Charges the GRAM cost from the user's ton_balance deposit balance.
+ * The upgrade persists even when the planet is listed/sold on the market.
+ */
+router.post("/farm/upgrade-duration", async (req, res) => {
+  const parsed = UpgradeDurationBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body" });
+    return;
+  }
+  const { telegramId, planetId, durationHours } = parsed.data;
+
+  if (!VALID_DURATIONS.has(durationHours)) {
+    res.status(400).json({ error: "Invalid duration" });
+    return;
+  }
+  const cost = UPGRADE_COSTS[durationHours]!;
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const rows = await tx.execute(sql`
+        SELECT ton_balance, planets_json FROM users WHERE telegram_id = ${telegramId} FOR UPDATE
+      `);
+      const row = (rows as unknown as { rows: Array<Record<string, unknown>> }).rows[0];
+      if (!row) return { ok: false, error: "User not found" };
+
+      const tonBalance = Number(row["ton_balance"] ?? 0);
+      if (tonBalance < cost) return { ok: false, error: "Insufficient GRAM balance" };
+
+      const rawPlanets = row["planets_json"];
+      const planets: Array<Record<string, unknown>> = Array.isArray(rawPlanets) ? rawPlanets as Array<Record<string, unknown>> : [];
+      const idx = planets.findIndex((p) => String(p["id"] ?? "") === planetId);
+      if (idx < 0) return { ok: false, error: "Planet not found" };
+
+      planets[idx] = { ...planets[idx], farmDurationHours: durationHours };
+
+      await tx.execute(sql`
+        UPDATE users
+           SET ton_balance    = ton_balance - ${cost},
+               balance_epoch  = balance_epoch + 1,
+               planets_json   = ${JSON.stringify(planets)}::jsonb
+         WHERE telegram_id = ${telegramId}
+           AND ton_balance  >= ${cost}
+      `);
+
+      return { ok: true, newTonBalance: tonBalance - cost };
+    });
+
+    res.json(result);
+  } catch (err) {
+    console.error("[farm/upgrade-duration] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 const CollectBody = z.object({
   telegramId: z.string().min(1),
   planetId: z.string().min(1),
 });
 
-/**
- * Stamp the cycle as collected so the cron job knows the user has already
- * acted and there's no need to send the "Farm full" reminder.
- */
 router.post("/farm/collect", async (req, res) => {
   const parsed = CollectBody.safeParse(req.body);
   if (!parsed.success) {
@@ -116,10 +251,6 @@ const StopBody = z.object({
   planetId: z.string().min(1),
 });
 
-/**
- * Cancel the cycle (planet sold/burned/stop-farmed). Removes the row so
- * we don't fire a notification for a planet the user no longer owns/farms.
- */
 router.post("/farm/stop", async (req, res) => {
   const parsed = StopBody.safeParse(req.body);
   if (!parsed.success) {
@@ -139,13 +270,8 @@ router.post("/farm/stop", async (req, res) => {
 });
 
 export default router;
-export { FARM_DURATION_MS };
+export { BASE_FARM_DURATION_MS as FARM_DURATION_MS };
 
-/**
- * Cron scan: returns expired-but-not-yet-notified cycles where the user
- * hasn't already collected during this cycle. Caller iterates and sends
- * the Telegram notification.
- */
 export async function fetchPendingFarmNotifications(limit = 100) {
   return await db
     .select()
@@ -161,13 +287,6 @@ export async function fetchPendingFarmNotifications(limit = 100) {
     .limit(limit);
 }
 
-/**
- * Mark a cycle as notified, but only if it is STILL pending. We match the
- * exact `expiresAt` snapshot the cron read so that if the user reactivated
- * the planet between fetch and mark (which resets `notifiedAt`/`collectedAt`
- * AND advances `expiresAt`), we do not stamp the brand-new cycle as already
- * notified — that brand-new cycle deserves its own future notification.
- */
 export async function markFarmNotified(id: number, expectedExpiresAt: Date) {
   await db
     .update(farmCyclesTable)

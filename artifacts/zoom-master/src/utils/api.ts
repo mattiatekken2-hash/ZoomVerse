@@ -49,14 +49,49 @@ export function withInitData<T extends Record<string, unknown>>(body: T): T & { 
  * schedule the "Farm full" Telegram notification 24h later. Fire-and-forget
  * — failures are silently ignored so a network blip never blocks gameplay.
  */
-export function notifyFarmStart(telegramId: string, planetId: string, planetType: string, isWhite = false): void {
+export function notifyFarmStart(telegramId: string, planetId: string, planetType: string, isWhite = false, farmDurationHours = 1): void {
   if (!telegramId || !planetId) return;
   fetch(`${API_BASE}/farm/start`, {
     method: "POST",
     headers: apiHeaders(),
-    body: JSON.stringify({ telegramId, planetId, planetType, isWhite }),
+    body: JSON.stringify({ telegramId, planetId, planetType, isWhite, farmDurationHours }),
     keepalive: true,
   }).catch(() => { /* ignore */ });
+}
+
+/**
+ * Reactivate an expired planet's farm cycle by spending 1 REDSTAR.
+ * Server validates the REDSTAR balance, deducts it, and resets the cycle.
+ */
+export function notifyFarmReactivate(telegramId: string, planetId: string, planetType: string, farmDurationHours = 1): void {
+  if (!telegramId || !planetId) return;
+  fetch(`${API_BASE}/farm/reactivate`, {
+    method: "POST",
+    headers: apiHeaders(),
+    body: JSON.stringify({ telegramId, planetId, planetType, farmDurationHours }),
+    keepalive: true,
+  }).catch(() => { /* ignore */ });
+}
+
+/**
+ * Permanently upgrade a planet's farm duration (stored in planetsJson).
+ * Costs the listed GRAM amount from the user's ton_balance deposit.
+ */
+export async function upgradeFarmDuration(
+  telegramId: string,
+  planetId: string,
+  durationHours: number,
+): Promise<{ ok: boolean; newTonBalance?: number; error?: string }> {
+  try {
+    const r = await fetch(`${API_BASE}/farm/upgrade-duration`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, planetId, durationHours }),
+    });
+    return await r.json() as { ok: boolean; newTonBalance?: number; error?: string };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
 }
 
 /**

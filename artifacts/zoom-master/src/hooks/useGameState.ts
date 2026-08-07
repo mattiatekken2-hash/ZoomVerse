@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, deductCraftStardust, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import { getEquipmentTotalRate, getEquipmentReactivationFee, EQUIPMENT_CYCLE_MS, makeEquipmentItem, getEquipmentRate, EQUIPMENT_CATEGORY_ORDER } from "../utils/equipmentConfig";
@@ -190,6 +190,10 @@ export interface Planet {
   // Server-time (ms) when durability was last computed/updated.
   // Used to derive the staking-decay delta on the next reactivation.
   durabilityUpdatedAt?: number;
+  // Purchased farm-duration tier in hours (1 / 2 / 4 / 6 / 8 / 16 / 24).
+  // Defaults to 1h when absent. Persists in planetsJson and survives
+  // market listing/sale — the buyer inherits the upgraded duration.
+  farmDurationHours?: number;
 }
 
 export interface SunState {
@@ -771,8 +775,37 @@ const LIVE_EVENT_KEY = "zoom-master-live-activity-event";
 const LIVE_EVENT_CHANNEL = "zoom-master-live-activity";
 const MAX_FEED_EVENTS = 50;
 const PLAYER_NAME = "Username";
-const FARM_DURATION_MS = 24 * 60 * 60 * 1000;
+// Default planet farm cycle = 1 hour. Users can upgrade per-planet up to 24h.
+const FARM_DURATION_MS = 1 * 60 * 60 * 1000;
+// Equipment stays on the legacy 24h window (not affected by the 1h change).
+const EQUIPMENT_FARM_DURATION_MS = 24 * 60 * 60 * 1000;
+// Used only in the old daily-collect migration guard — must stay 24h so
+// pre-deploy planets with lastCollectedAt set don't trigger the migration
+// every load under the new 1h window.
+const LEGACY_COLLECT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const DAILY_COLLECT_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Returns the farm-cycle duration in ms for a given planet.
+ * Reads planet.farmDurationHours (1–24, defaults to 1).
+ * All farm timing functions MUST use this instead of FARM_DURATION_MS
+ * so that per-planet upgrades are respected.
+ */
+export function getPlanetFarmDurationMs(planet: Planet): number {
+  return Math.max(1, planet.farmDurationHours ?? 1) * 60 * 60 * 1000;
+}
+
+// Cost table (GRAM) for farm-duration upgrades — mirrors the server table.
+export const FARM_UPGRADE_COSTS: Record<number, number> = {
+  1: 1,
+  2: 1.5,
+  4: 2,
+  6: 2.5,
+  8: 3,
+  16: 3.5,
+  24: 5,
+};
+export const FARM_UPGRADE_TIERS = [1, 2, 4, 6, 8, 16, 24] as const;
 
 function makeReferralCode(): string {
   return "ZOOM-" + Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -928,7 +961,7 @@ const INITIAL_STATE: GameState = {
 function applyDailyCollectMigration<T extends Planet>(p: T, nowMs: number): T {
   if (!p.isFarmingActive) return p;
   if (!(p.lastCollectedAt > p.farmStartedAt)) return p;
-  if (nowMs - p.lastCollectedAt <= FARM_DURATION_MS) return p;
+  if (nowMs - p.lastCollectedAt <= LEGACY_COLLECT_WINDOW_MS) return p;
   return { ...p, farmStartedAt: nowMs, lastCollectedAt: 0 };
 }
 
@@ -1665,7 +1698,7 @@ export function isFarmActive(planet: Planet): boolean {
   if ((planet.durability ?? 100) <= 0) return false;  // frozen — durability depleted
   const start = effectiveFarmStart(planet);
   if (start <= 0) return false;
-  return serverNow() - start <= FARM_DURATION_MS;
+  return serverNow() - start <= getPlanetFarmDurationMs(planet);
 }
 
 export function isSunActive(sun: SunState): boolean {
@@ -1679,7 +1712,7 @@ export function isSunActive(sun: SunState): boolean {
 export function getFarmTimeRemaining(planet: Planet): number {
   const start = effectiveFarmStart(planet);
   if (start <= 0) return 0;
-  return Math.max(0, start + FARM_DURATION_MS - serverNow());
+  return Math.max(0, start + getPlanetFarmDurationMs(planet) - serverNow());
 }
 
 /**
@@ -1690,7 +1723,7 @@ export function isFarmExpired(planet: Planet): boolean {
   if (planet.isListedInMarket) return false;
   const start = effectiveFarmStart(planet);
   if (start <= 0) return false;
-  return serverNow() - start > FARM_DURATION_MS;
+  return serverNow() - start > getPlanetFarmDurationMs(planet);
 }
 
 export function getReactivationFee(planet: Planet): number {
@@ -1794,8 +1827,9 @@ function settleFarmingState(state: GameState, now: number): GameState {
     // collect — see effectiveFarmStart() docstring).
     const eff = effectiveFarmStart(planet);
     if (eff <= 0) continue;
+    const planetFarmMs = getPlanetFarmDurationMs(planet);
     const start = Math.max(from, eff);
-    const end = Math.min(now, eff + FARM_DURATION_MS);
+    const end = Math.min(now, eff + planetFarmMs);
     if (end > start) {
       // IMPORTANT: must stay deterministic and EXACTLY match the server formula
       // in artifacts/api-server/src/routes/farm-settle.ts (line 188:
@@ -1807,10 +1841,10 @@ function settleFarmingState(state: GameState, now: number): GameState {
       // Using the same `+ DYNAMIC_BONUS_AVG` constant on both sides keeps the
       // preview exactly equal to the credit, so the visible balance never
       // moves backwards on open.
-      // MUSHROOM planets earn exactly 5 NFTSTAR per full 24h cycle (no DYNAMIC_BONUS).
+      // MUSHROOM planets earn exactly 5 NFTSTAR per full cycle (no DYNAMIC_BONUS).
       if (planet.name === "MUSHROOM") {
         const MUSHROOM_NFTSTAR_PER_CYCLE = 5;
-        nftStarEarned += (MUSHROOM_NFTSTAR_PER_CYCLE / FARM_DURATION_MS) * (end - start) * speedMultiplier;
+        nftStarEarned += (MUSHROOM_NFTSTAR_PER_CYCLE / planetFarmMs) * (end - start) * speedMultiplier;
       } else {
         const effectiveRate = planet.rate + DYNAMIC_BONUS_AVG;
         earned += (effectiveRate / 3_600_000) * (end - start) * speedMultiplier;
@@ -1825,6 +1859,7 @@ function settleFarmingState(state: GameState, now: number): GameState {
 
   if (state.sun?.isActive) {
     const start = Math.max(from, state.sun.farmStartedAt, state.sun.lastCollectedAt);
+    // SUN uses the same 1h window (FARM_DURATION_MS) as regular planets.
     const end = Math.min(now, state.sun.farmStartedAt + FARM_DURATION_MS, state.sun.lastCollectedAt + DAILY_COLLECT_MS);
     if (end > start) {
       const sunMultiplier = Math.max(1, state.sunCount || 1);
@@ -1841,7 +1876,7 @@ function settleFarmingState(state: GameState, now: number): GameState {
     const eff = Math.max(item.farmStartedAt || 0, item.lastCollectedAt || 0);
     if (eff <= 0) continue;
     const start = Math.max(from, eff);
-    const end = Math.min(now, eff + FARM_DURATION_MS);
+    const end = Math.min(now, eff + EQUIPMENT_FARM_DURATION_MS);
     if (end > start && item.rate > 0) {
       earned += (item.rate / 3_600_000) * (end - start) * speedMultiplier;
     }
@@ -3970,10 +4005,12 @@ export function useGameState() {
       // active for another full window.
       const eff = effectiveFarmStart(planet);
       const wasStarted = eff > 0;
-      const expired = wasStarted && now - eff > FARM_DURATION_MS;
-      const fee = expired ? PLANET_CONFIG[planet.name].reactivationFee : 0;
-      if (fee > 0 && prev.balance < fee) {
-        outcome = { ok: false, reason: `Need ${fee.toLocaleString()} $ZOOM to reactivate` };
+      const expired = wasStarted && now - eff > getPlanetFarmDurationMs(planet);
+      const isReactivation = wasStarted && expired;
+      // Reactivation now costs 1 REDSTAR (not $ZOOM). First-time start is free.
+      const redStarCost = isReactivation ? 1 : 0;
+      if (redStarCost > 0 && (prev.redStarBalance ?? 0) < redStarCost) {
+        outcome = { ok: false, reason: "Need 1 ★ Redstar to reactivate" };
         return prev;
       }
       // Cooldown-reset exploit guard:
@@ -4024,7 +4061,11 @@ export function useGameState() {
 
       const updated: GameState = {
         ...prev,
-        balance: prev.balance - fee,
+        // Reactivation deducts 1 REDSTAR; first-time start and mid-cycle
+        // resumes (from market delisting) cost nothing.
+        redStarBalance: isReactivation
+          ? Math.max(0, (prev.redStarBalance ?? 0) - redStarCost)
+          : (prev.redStarBalance ?? 0),
         planets: prev.planets.map((p) =>
           p.id === id
             ? startsFreshCycle
@@ -4041,7 +4082,13 @@ export function useGameState() {
         ),
       };
       saveState(updated);
-      if (prev.telegramId) notifyFarmStart(prev.telegramId, id, planet.name, false);
+      if (prev.telegramId) {
+        if (isReactivation) {
+          notifyFarmReactivate(prev.telegramId, id, planet.name, planet.farmDurationHours ?? 1);
+        } else {
+          notifyFarmStart(prev.telegramId, id, planet.name, false, planet.farmDurationHours ?? 1);
+        }
+      }
       return updated;
     });
     return outcome;
@@ -5396,11 +5443,35 @@ export function useGameState() {
     setState((prev) => ({ ...prev, planets: prev.planets.filter((p) => p.id !== planetId) }));
   }, []);
 
+  /**
+   * Permanently upgrade a planet's farm-duration tier by paying GRAM from
+   * the user's deposit balance. Updates local state immediately on success.
+   */
+  const upgradePlanetFarmDuration = useCallback(async (
+    planetId: string,
+    durationHours: number,
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const tid = state.telegramId;
+    if (!tid) return { ok: false, error: "Not logged in" };
+    const result = await upgradeFarmDuration(tid, planetId, durationHours);
+    if (result.ok) {
+      setState((prev) => ({
+        ...prev,
+        tonBalance: typeof result.newTonBalance === "number" ? result.newTonBalance : prev.tonBalance,
+        planets: prev.planets.map((p) =>
+          p.id === planetId ? { ...p, farmDurationHours: durationHours } : p,
+        ),
+      }));
+    }
+    return result;
+  }, [state.telegramId]);
+
   return {
     state, setState, craft, claimCraft, redeemCode,
     pvpAddPlanet, pvpRemovePlanet,
     collectPlanet, burnPlanet, renamePlanetLocal,
     startFarming, stopFarming, repairPlanet,
+    upgradePlanetFarmDuration,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     unlockSlot, claimDaily,
     activateSun, acquireSun, collectSun,

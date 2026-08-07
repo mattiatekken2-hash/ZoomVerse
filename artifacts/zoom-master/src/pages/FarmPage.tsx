@@ -64,6 +64,10 @@ interface FarmPageProps {
   onUnlistEquipment: (id: string) => void;
   /** Flush pending planet save before entering PvP queue. */
   onFlushPlanets?: () => Promise<void>;
+  /** User's current GRAM deposit balance (shown in upgrade UI). */
+  tonBalance?: number;
+  /** Permanently upgrade a planet's farm duration; charges GRAM from deposit. */
+  onUpgradeDuration?: (planetId: string, durationHours: number) => Promise<{ ok: boolean; error?: string }>;
 }
 
 /**
@@ -435,7 +439,7 @@ const RARITY_CLASS: Record<string, string> = {
 };
 
 
-export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRepair, stardustBalance = 0, onRename, equipment, onActivateEquipment, onReactivateEquipment, onBurnEquipment, onSellEquipment, onUnlistEquipment, onFlushPlanets }: FarmPageProps) {
+export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRepair, stardustBalance = 0, onRename, equipment, onActivateEquipment, onReactivateEquipment, onBurnEquipment, onSellEquipment, onUnlistEquipment, onFlushPlanets, tonBalance = 0, onUpgradeDuration }: FarmPageProps) {
   const { t } = useT();
   const sunMultiplier = Math.max(1, sunCount || (sun?.isOwned ? 1 : 0));
   const sunDisplayRate = SUN_CONFIG.rate * sunMultiplier;
@@ -1064,7 +1068,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                       data-testid={`btn-reactivate-${planet.id}`}
                     >
                       <span>REACTIVATE</span>
-                      <span style={{ fontSize: 7, opacity: 0.85 }}>{reactivationFee.toLocaleString()} $ZOOM</span>
+                      <span style={{ fontSize: 7, opacity: 0.85 }}>1 ★ Redstar</span>
                     </button>
                   ) : (
                     <button
@@ -1100,13 +1104,13 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
 
           <div
             className="rounded-2xl border border-dashed flex flex-col items-center justify-center py-8 gap-2"
-            style={{ borderColor: "rgba(255,215,0,0.22)", background: "rgba(255,215,0,0.025)", cursor: "default", minHeight: 100, pointerEvents: "none", userSelect: "none" }}
+            style={{ borderColor: "rgba(255,215,0,0.22)", background: "rgba(255,215,0,0.025)", cursor: "pointer", minHeight: 100, userSelect: "none" }}
             data-testid="slot-locked"
-            aria-disabled="true"
+            onClick={() => setSlotWalletOpen(true)}
           >
-            <div style={{ fontSize: 20, opacity: 0.45 }}>🔒</div>
-            <div className="font-bold text-xs tracking-widest uppercase" style={{ color: "rgba(255,215,0,0.45)" }}>0.25 GRAM</div>
-            <div className="text-xs" style={{ color: "rgba(255,255,255,0.18)" }}>to unlock slot</div>
+            <div style={{ fontSize: 20, opacity: 0.6 }}>🔒</div>
+            <div className="font-bold text-xs tracking-widest uppercase" style={{ color: "rgba(255,215,0,0.65)" }}>0.25 GRAM</div>
+            <div className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>to unlock slot</div>
           </div>
 
         {planets.length === 0 && !sun?.isOwned && (
@@ -1244,6 +1248,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
           planet={detailPlanet}
           telegramId={telegramId}
           stardustBalance={stardustBalance}
+          tonBalance={tonBalance}
           planets={planets}
           maxSlots={maxSlots}
           onClose={() => setDetailPlanet(null)}
@@ -1260,6 +1265,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                 return r;
               }
             : undefined}
+          onUpgradeDuration={onUpgradeDuration}
         />
       )}
     </div>

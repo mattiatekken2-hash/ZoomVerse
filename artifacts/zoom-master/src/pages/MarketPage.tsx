@@ -405,7 +405,7 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                     <div className="text-xs font-black" style={{ color: rarityColor }}>
                       {s.price.toLocaleString()}
                     </div>
-                    <div className="text-[9px] font-bold" style={{ color: "rgba(255,255,255,0.3)" }}>$ZOOM</div>
+                    <div className="text-[9px] font-bold" style={{ color: "rgba(255,255,255,0.3)" }}>GRAM</div>
                   </div>
                 </div>
               );
@@ -614,7 +614,9 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                       </span>
                     </div>
                     <div className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.45)" }}>
-                      +{listing.rate.toLocaleString()} $ZOOM/hr
+                      {listing.name === "MUSHROOM"
+                        ? `+${listing.rate.toLocaleString()} ★ NFTSTAR/cycle`
+                        : `+${listing.rate.toLocaleString()} $ZOOM/hr`}
                     </div>
                     {FLOAT_PLANET_TYPES.has(listing.name) && (
                       <div className="mt-1.5">

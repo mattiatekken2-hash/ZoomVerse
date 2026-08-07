@@ -10,9 +10,11 @@ import {
   REPAIR_STARDUST_COST,
   isFarmActive,
   isFarmExpired,
-  getReactivationFee,
   formatDuration,
   getFarmTimeRemaining,
+  getPlanetFarmDurationMs,
+  FARM_UPGRADE_COSTS,
+  FARM_UPGRADE_TIERS,
 } from "../hooks/useGameState";
 import { PlanetOrb } from "./PlanetOrb";
 import { getPlanetDisplayName } from "../utils/planetNames";
@@ -36,6 +38,7 @@ interface Props {
   planet: Planet;
   telegramId: string | null;
   stardustBalance?: number;
+  tonBalance?: number;
   maxSlots: number;
   planets: Planet[];
   onClose: () => void;
@@ -46,12 +49,14 @@ interface Props {
   onRepair?: (id: string) => { ok: boolean; reason?: string };
   onPvP?: (planet: Planet) => void;
   onRename?: (planet: Planet) => void;
+  onUpgradeDuration?: (planetId: string, durationHours: number) => Promise<{ ok: boolean; error?: string }>;
 }
 
 export function PlanetDetailModal({
   planet,
   telegramId,
   stardustBalance = 0,
+  tonBalance = 0,
   maxSlots,
   planets,
   onClose,
@@ -62,15 +67,19 @@ export function PlanetDetailModal({
   onRepair,
   onPvP,
   onRename,
+  onUpgradeDuration,
 }: Props) {
   const [confirmBurn, setConfirmBurn] = useState(false);
   const [defectMsg, setDefectMsg] = useState<string | null>(null);
+  const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null);
+  const [upgrading, setUpgrading] = useState(false);
 
   const cfg = PLANET_CONFIG[planet.name];
   const active = isFarmActive(planet);
   const expired = isFarmExpired(planet);
   const remaining = getFarmTimeRemaining(planet);
-  const reactivationFee = getReactivationFee(planet);
+  const currentDurationHours = planet.farmDurationHours ?? 1;
+  const currentDurationMs = getPlanetFarmDurationMs(planet);
   const planetFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
   const durability = planet.durability ?? 100;
   const dur = durability;
@@ -206,8 +215,8 @@ export function PlanetDetailModal({
               </span>
             </div>
 
-            {/* Durability */}
-            {dur < 100 && (
+            {/* Durability — always shown for NOVA/MUSHROOM, otherwise only when below 100% */}
+            {(dur < 100 || planet.name === "NOVA" || planet.name === "MUSHROOM") && (
               <div className="flex flex-col gap-1">
                 <div className="flex justify-between text-xs">
                   <span style={{ color: "rgba(255,255,255,0.45)" }}>Durability</span>
@@ -263,7 +272,7 @@ export function PlanetDetailModal({
               }}
               onClick={handleStart}
             >
-              REACTIVATE · {reactivationFee.toLocaleString()} $ZOOM
+              REACTIVATE · 1 ★ Redstar
             </button>
           ) : !isListed ? (
             <button
@@ -359,6 +368,67 @@ export function PlanetDetailModal({
               >
                 {confirmBurn ? "SURE?" : "🔥 Burn"}
               </button>
+            </div>
+          )}
+
+          {/* ─── Farm Duration Upgrade ─── */}
+          {onUpgradeDuration && !isListed && planet.name !== "MUSHROOM" && (
+            <div style={{
+              marginTop: 8,
+              borderRadius: 12,
+              border: "1px solid rgba(255,215,0,0.18)",
+              background: "rgba(255,215,0,0.04)",
+              padding: "10px 12px",
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 900, color: "rgba(255,215,0,0.7)", letterSpacing: "0.07em", marginBottom: 8 }}>
+                ⏱ FARM DURATION UPGRADE
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4, marginBottom: 6 }}>
+                {FARM_UPGRADE_TIERS.map((hrs) => {
+                  const cost = FARM_UPGRADE_COSTS[hrs]!;
+                  const isCurrent = hrs === currentDurationHours;
+                  const canAfford = tonBalance >= cost;
+                  return (
+                    <button
+                      key={hrs}
+                      disabled={upgrading || isCurrent || !canAfford}
+                      onClick={async () => {
+                        if (isCurrent || upgrading) return;
+                        setUpgrading(true);
+                        setUpgradeMsg(null);
+                        const r = await onUpgradeDuration(planet.id, hrs);
+                        setUpgrading(false);
+                        setUpgradeMsg(r.ok ? `✓ Upgraded to ${hrs}h` : (r.error ?? "Failed"));
+                      }}
+                      style={{
+                        padding: "5px 2px",
+                        borderRadius: 8,
+                        border: `1px solid ${isCurrent ? "rgba(0,230,118,0.5)" : canAfford ? "rgba(255,215,0,0.3)" : "rgba(255,255,255,0.07)"}`,
+                        background: isCurrent ? "rgba(0,230,118,0.12)" : canAfford ? "rgba(255,215,0,0.07)" : "rgba(255,255,255,0.03)",
+                        color: isCurrent ? "#00e676" : canAfford ? "#ffd700" : "rgba(255,255,255,0.2)",
+                        fontSize: 9,
+                        fontWeight: 900,
+                        cursor: isCurrent || !canAfford ? "default" : "pointer",
+                        textAlign: "center",
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      <div>{hrs}h</div>
+                      <div style={{ fontWeight: 700, fontSize: 8, opacity: 0.8 }}>{isCurrent ? "●" : `${cost}G`}</div>
+                    </button>
+                  );
+                })}
+              </div>
+              {upgradeMsg && (
+                <div style={{ fontSize: 9, fontWeight: 700, color: upgradeMsg.startsWith("✓") ? "#00e676" : "#ff5252", textAlign: "center" }}>
+                  {upgradeMsg}
+                </div>
+              )}
+              {!upgradeMsg && (
+                <div style={{ fontSize: 8, color: "rgba(255,255,255,0.3)", textAlign: "center" }}>
+                  Current: {currentDurationHours}h · Balance: {tonBalance.toFixed(2)} GRAM
+                </div>
+              )}
             </div>
           )}
 

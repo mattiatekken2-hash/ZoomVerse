@@ -7,9 +7,11 @@ import { EQUIPMENT_RATE_SERVER } from "./equipment";
 const router: IRouter = Router();
 
 // Mirrors client constants (artifacts/zoom-master/src/hooks/useGameState.ts).
-// Both windows are 24h: a planet's farming cycle expires 24h after its
-// activation OR 24h after its last collect, whichever happens first.
-const FARM_DURATION_MS = 24 * 60 * 60 * 1000;
+// Base planet farm cycle = 1h (upgradeable per-planet via farmDurationHours).
+// SUN farm window also 1h. Equipment stays on the legacy 24h window.
+const BASE_FARM_DURATION_MS = 1 * 60 * 60 * 1000;   // regular planets (default)
+const SUN_FARM_DURATION_MS  = 1 * 60 * 60 * 1000;   // SUN cycle
+const EQUIPMENT_FARM_DURATION_MS = 24 * 60 * 60 * 1000; // equipment stays 24h
 const DAILY_COLLECT_MS = 24 * 60 * 60 * 1000;
 // SUN_CONFIG.rate on the client is 1000 ZOOM/hour (per SUN owned).
 const SUN_RATE_PER_HOUR = 1000;
@@ -185,8 +187,12 @@ router.post("/farm/settle", async (req, res) => {
         const effectiveStart = Math.max(farmStartedAt, lastCollectedAt);
         // Never-started planet (both timestamps still at 0) — skip.
         if (effectiveStart <= 0) continue;
+        // Per-planet farm duration: use farmDurationHours if present (upgrade
+        // system), otherwise default to 1h.
+        const farmDurationHours = Number((p as Record<string, unknown>)["farmDurationHours"] ?? 1);
+        const planetFarmDurationMs = Math.max(1, farmDurationHours) * 60 * 60 * 1000;
         const start = Math.max(watermark, effectiveStart);
-        const end = Math.min(now, effectiveStart + FARM_DURATION_MS);
+        const end = Math.min(now, effectiveStart + planetFarmDurationMs);
         if (end > start) {
           // Dynamic bonus average — see DYNAMIC_BONUS_AVG comment above.
           const effectiveRate = rate + DYNAMIC_BONUS_AVG;
@@ -219,7 +225,7 @@ router.post("/farm/settle", async (req, res) => {
         const effectiveStart = Math.max(farmStartedAt, lastCollectedAt);
         if (effectiveStart <= 0) continue;
         const start = Math.max(watermark, effectiveStart);
-        const end = Math.min(now, effectiveStart + FARM_DURATION_MS);
+        const end = Math.min(now, effectiveStart + EQUIPMENT_FARM_DURATION_MS);
         if (end > start) {
           earned += (rate / 3_600_000) * (end - start) * speedMultiplier;
         }
@@ -227,13 +233,14 @@ router.post("/farm/settle", async (req, res) => {
 
       // ─── SUN ───
       // SUN earns iff the user owns at least one SUN AND the cycle has been
-      // activated (sunStarted > 0). The 24h farm/collect windows apply just
-      // like for regular planets.
+      // activated (sunStarted > 0). SUN now uses the same 1h farm window as
+      // regular planets. The collect window keeps the old DAILY_COLLECT_MS
+      // as a secondary cap (SUN still requires a manual collect).
       if (sunCount > 0 && sunStarted > 0) {
         const start = Math.max(watermark, sunStarted, sunCollected);
         const end = Math.min(
           now,
-          sunStarted + FARM_DURATION_MS,
+          sunStarted + SUN_FARM_DURATION_MS,
           sunCollected > 0 ? sunCollected + DAILY_COLLECT_MS : now,
         );
         if (end > start) {
