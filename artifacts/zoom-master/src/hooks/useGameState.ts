@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, reactivateCollectionWithRedStar, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import { getEquipmentTotalRate, getEquipmentReactivationFee, EQUIPMENT_CYCLE_MS, makeEquipmentItem, getEquipmentRate, EQUIPMENT_CATEGORY_ORDER } from "../utils/equipmentConfig";
@@ -3786,6 +3786,7 @@ export function useGameState() {
     let pushTelegramId: string | null = null;
     let pushNow = 0;
     let pushCycleCount = 0;
+    let isReactivation = false;
     setState((prev) => {
       if (!prev.sun?.isOwned) {
         outcome = { ok: false, reason: "SUN not owned" };
@@ -3793,19 +3794,20 @@ export function useGameState() {
       }
       const now = serverNow();
       // First start (right after purchase) is free; subsequent reactivations
-      // after the 24h cycle elapsed cost a $ZOOM fee.
+      // after the cycle elapsed cost 1 ★ REDSTAR (flat, regardless of sunCount).
       const wasStarted = prev.sun.farmStartedAt > 0;
       const expired = wasStarted && now - prev.sun.farmStartedAt > FARM_DURATION_MS;
-      // Fee scales with how many SUNs are owned (each SUN multiplies the
-      // per-cycle yield, so each SUN must also pay its share).
-      const fee = expired ? getSunReactivationFee(prev.sunCount) : 0;
-      if (fee > 0 && prev.balance < fee) {
-        outcome = { ok: false, reason: `Need ${fee.toLocaleString()} $ZOOM to reactivate SUN` };
+      if (expired && (prev.redStarBalance ?? 0) < 1) {
+        outcome = { ok: false, reason: "Need 1 ★ Redstar to reactivate SUN" };
         return prev;
       }
+      isReactivation = expired;
       const updated: GameState = {
         ...prev,
-        balance: prev.balance - fee,
+        // Deduct 1 REDSTAR optimistically on reactivation; first start is free.
+        redStarBalance: expired
+          ? Math.max(0, (prev.redStarBalance ?? 0) - 1)
+          : (prev.redStarBalance ?? 0),
         sun: {
           ...prev.sun,
           isActive: true,
@@ -3829,6 +3831,10 @@ export function useGameState() {
         sunLastCollectedAtMs: Math.round(pushNow),
         sunCycleCount: pushCycleCount,
       });
+      // Server-side REDSTAR deduction on reactivations (optimistically mirrored above).
+      if (isReactivation) {
+        void reactivateCollectionWithRedStar(pushTelegramId, 1);
+      }
     }
     return outcome;
   }, []);

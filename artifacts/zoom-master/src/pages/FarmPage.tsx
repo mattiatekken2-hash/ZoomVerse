@@ -3,7 +3,7 @@ import { PlanetOrb } from "../components/PlanetOrb";
 import { DailyComboBox } from "../components/DailyComboBox";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
-import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getSunReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, REPAIR_STARDUST_COST } from "../hooks/useGameState";
+import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, REPAIR_STARDUST_COST } from "../hooks/useGameState";
 import { WalletPopup } from "../components/WalletPopup";
 import { useT } from "../i18n/LanguageContext";
 import { PlanetRenameModal } from "../components/PlanetRenameModal";
@@ -529,7 +529,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
 
   const sunActive = sun ? isSunActive(sun) : false;
   const sunExpired = isSunExpired(sun);
-  const sunReactivationFee = getSunReactivationFee(sunCount);
+  // SUN reactivation now costs 1 ★ REDSTAR (flat) instead of a ZOOM fee.
   const sunRemaining = sun && sun.isActive ? getSunTimeRemaining(sun) : 0;
 
   const handleSunStartOrReactivate = () => {
@@ -830,7 +830,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                     {sunActive
                       ? `+${SUN_CONFIG.rate.toLocaleString()} $ZOOM/hr · ${formatDuration(sunRemaining)} left`
                       : sunExpired
-                      ? `Cycle ended · Reactivate for ${sunReactivationFee.toLocaleString()} $ZOOM`
+                      ? `Cycle ended · Reactivate · 1 ★ Redstar`
                       : "Farming paused"}
                   </div>
                 </div>
@@ -850,7 +850,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                     data-testid="btn-reactivate-sun"
                   >
                     <span>REACTIVATE</span>
-                    <span style={{ fontSize: 8, opacity: 0.85 }}>{sunReactivationFee.toLocaleString()} $ZOOM</span>
+                    <span style={{ fontSize: 8, opacity: 0.85 }}>1 ★ Redstar</span>
                   </button>
                 ) : sunActive ? (
                   // Active SUN cycle: show a non-interactive FARMING indicator.
