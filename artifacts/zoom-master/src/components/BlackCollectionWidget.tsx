@@ -151,7 +151,6 @@ function BlackCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
           padding: 4,
           cursor: "pointer",
           zIndex: 40,
-          backdropFilter: "blur(8px)",
           WebkitTapHighlightColor: "transparent",
         }}
         className="bc-tile-frame"
@@ -187,7 +186,6 @@ function BlackCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
             inset: 0,
             zIndex: 1000,
             background: "rgba(2,0,8,0.82)",
-            backdropFilter: "blur(6px)",
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",

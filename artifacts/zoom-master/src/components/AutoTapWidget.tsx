@@ -157,7 +157,6 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
           opacity: dim ? 0.7 : 1,
           transition: "opacity 0.2s, box-shadow 0.15s",
           zIndex: 40,
-          backdropFilter: "blur(8px)",
         }}
         data-testid="button-auto-tap"
         aria-label={hasAutoTap ? t("autoTap.holdAria") : t("autoTap.buyAria")}
@@ -191,7 +190,6 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
             position: "fixed",
             inset: 0,
             background: "rgba(6,8,16,0.85)",
-            backdropFilter: "blur(8px)",
             zIndex: 100,
             display: "flex",
             alignItems: "center",

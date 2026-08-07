@@ -46,7 +46,6 @@ function ComingSoonOverlay({ onClose }: { onClose: () => void }) {
       onClick={onClose}
       style={{
         position: "fixed", inset: 0, zIndex: 2100,
-        background: "rgba(0,0,0,0.85)", backdropFilter: "blur(12px)",
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "center",
         padding: 24,
@@ -175,7 +174,6 @@ function ZoomStoreWidgetBase() {
           padding: 4,
           cursor: "pointer",
           zIndex: 40,
-          backdropFilter: "blur(8px)",
           WebkitTapHighlightColor: "transparent",
         }}
         data-testid="button-zoom-store"
@@ -231,7 +229,6 @@ function ZoomStoreWidgetBase() {
           onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
           style={{
             position: "fixed", inset: 0, zIndex: 1000,
-            background: "rgba(4,3,0,0.92)", backdropFilter: "blur(8px)",
             overflowY: "auto",
             WebkitOverflowScrolling: "touch",
             padding: "calc(env(safe-area-inset-top, 0px) + 56px) 14px calc(env(safe-area-inset-bottom, 0px) + 24px)",

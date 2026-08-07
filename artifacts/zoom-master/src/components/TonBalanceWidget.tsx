@@ -109,7 +109,6 @@ function TonModal({
       onClick={onClose}
       style={{
         position: "fixed", inset: 0, zIndex: 1000,
-        background: "rgba(2,8,18,0.82)", backdropFilter: "blur(7px)",
         display: "flex", alignItems: "center", justifyContent: "center",
         padding: 20,
       }}
@@ -253,8 +252,6 @@ function TonBalanceWidgetBase({ tonBalance, telegramId }: Props) {
           background: "linear-gradient(135deg, rgba(0,50,38,0.82), rgba(0,18,12,0.94))",
           border: "1px solid rgba(0,255,140,0.32)",
           boxShadow: "0 0 10px rgba(0,255,140,0.15)",
-          backdropFilter: "blur(6px)",
-          WebkitBackdropFilter: "blur(6px)",
           cursor: "pointer",
           lineHeight: 1,
         }}

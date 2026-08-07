@@ -91,7 +91,6 @@ function ExchangeModal({
         onClick={onClose}
         style={{
           position: "fixed", inset: 0, zIndex: 1000,
-          background: "rgba(2,4,10,0.78)", backdropFilter: "blur(6px)",
           display: "flex", alignItems: "center", justifyContent: "center",
           padding: 20,
         }}
@@ -134,7 +133,6 @@ function ExchangeModal({
       onClick={onClose}
       style={{
         position: "fixed", inset: 0, zIndex: 1000,
-        background: "rgba(2,4,10,0.78)", backdropFilter: "blur(6px)",
         display: "flex", alignItems: "center", justifyContent: "center",
         padding: 16,
       }}
@@ -387,8 +385,6 @@ function ExchangeWidgetBase({ balance, sunCount }: ExchangeWidgetProps) {
     background: "linear-gradient(135deg, rgba(0,40,60,0.75) 0%, rgba(0,16,32,0.9) 100%)",
     border: "1px solid rgba(255,51,85,0.4)",
     boxShadow: "0 0 12px rgba(255,51,85,0.25)",
-    backdropFilter: "blur(6px)",
-    WebkitBackdropFilter: "blur(6px)",
   };
 
   return (

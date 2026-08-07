@@ -151,7 +151,6 @@ function SupernovaCollectionWidgetBase({ telegramId, unlocked = false, ownedBund
           padding: 4,
           cursor: "pointer",
           zIndex: 40,
-          backdropFilter: "blur(8px)",
           WebkitTapHighlightColor: "transparent",
         }}
         className="sc-tile-frame"
@@ -187,7 +186,6 @@ function SupernovaCollectionWidgetBase({ telegramId, unlocked = false, ownedBund
             inset: 0,
             zIndex: 1000,
             background: "rgba(8,6,0,0.82)",
-            backdropFilter: "blur(6px)",
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",

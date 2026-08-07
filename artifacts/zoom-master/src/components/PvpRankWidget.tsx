@@ -100,7 +100,6 @@ function PvpRankWidgetBase({ telegramId }: Props) {
           color: "#fff",
           zIndex: 35,
           cursor: "pointer",
-          backdropFilter: "blur(8px)",
           WebkitTapHighlightColor: "transparent",
         }}
         data-testid="button-pvp-rank"
@@ -118,7 +117,6 @@ function PvpRankWidgetBase({ telegramId }: Props) {
             position: "fixed",
             inset: 0,
             background: "rgba(6,8,16,0.88)",
-            backdropFilter: "blur(8px)",
             zIndex: 110,
             display: "flex",
             alignItems: "center",

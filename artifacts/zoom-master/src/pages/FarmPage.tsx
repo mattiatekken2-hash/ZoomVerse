@@ -346,7 +346,6 @@ function EquipmentInventory({
       {sellFor && (
         <div
           className="fixed inset-0 flex items-center justify-center z-50 px-6"
-          style={{ background: "rgba(2,4,10,0.78)", backdropFilter: "blur(4px)" }}
           onClick={() => setSellFor(null)}
         >
           <div
@@ -944,7 +943,10 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                       transition: "filter 0.3s",
                     }}
                   >
-                    <PlanetOrb planet={planet} size={60} animate={active} displayFloat={planetFloat} />
+                    {/* Animations disabled on small cards — at 60px the sphere
+                        rotation and ring spin are invisible but keep the GPU
+                        busy. animate={true} only in the full-size detail view. */}
+                    <PlanetOrb planet={planet} size={60} animate={false} displayFloat={planetFloat} />
                     {isPlatinumNft && (
                       <span
                         className="nft-badge absolute"

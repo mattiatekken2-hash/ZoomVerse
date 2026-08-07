@@ -78,6 +78,17 @@ function AppShellWithState() {
     } catch { /* noop */ }
   }, []);
 
+  // Pause ALL CSS animations when the page is hidden (user switches apps /
+  // minimises Telegram). Eliminates GPU/CPU work while backgrounded — the
+  // single biggest cause of phone heating on long sessions.
+  useEffect(() => {
+    const onVisibility = () => {
+      document.body.classList.toggle("animations-paused", document.visibilityState === "hidden");
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
   // Global toast — listens for window 'zoom-toast' CustomEvents and shows a
   // brief banner. Used by useGameState (e.g. claimCraft when slots are full).
   const [globalToast, setGlobalToast] = useState<{ text: string; ok: boolean } | null>(null);
@@ -1076,8 +1087,6 @@ function AppShellWithState() {
             fontWeight: 700,
             letterSpacing: "0.04em",
             boxShadow: "0 0 18px rgba(255,215,64,0.25)",
-            backdropFilter: "blur(10px)",
-            WebkitBackdropFilter: "blur(10px)",
             textShadow: "0 0 6px rgba(255,215,64,0.4)",
           }}
         >
@@ -1088,7 +1097,6 @@ function AppShellWithState() {
       {/* No-SUN modal — only reachable when clicking inside the LAB. */}
       {noSunPopup && (
         <div
-          style={{ position: "fixed", inset: 0, zIndex: 220, background: "rgba(8,1,9,0.70)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
           onClick={() => setNoSunPopup(false)}
         >
           <div
@@ -1158,8 +1166,6 @@ function AppShellWithState() {
         style={{
           height: 70,
           background: "rgba(8,1,9,0.92)",
-          backdropFilter: "blur(24px)",
-          WebkitBackdropFilter: "blur(24px)",
           borderTop: "1px solid rgba(255,255,255,0.05)",
         }}
       >
@@ -1206,8 +1212,6 @@ function AppShellWithState() {
             background: globalToast.ok ? "rgba(0,230,118,0.15)" : "rgba(255,65,108,0.15)",
             border: `1px solid ${globalToast.ok ? "rgba(0,230,118,0.3)" : "rgba(255,65,108,0.3)"}`,
             color: globalToast.ok ? "#00e676" : "#ff416c",
-            backdropFilter: "blur(8px)",
-            WebkitBackdropFilter: "blur(8px)",
           }}
         >
           {globalToast.text}
@@ -1230,7 +1234,6 @@ function AppShellWithState() {
           style={{
             position: "fixed", inset: 0, zIndex: 10000,
             background: "rgba(0,0,0,0.72)",
-            backdropFilter: "blur(8px)",
             display: "flex", alignItems: "center", justifyContent: "center",
             padding: 24,
           }}
@@ -1314,7 +1317,6 @@ function AppShellWithState() {
             style={{
               position: "fixed", inset: 0, zIndex: 10000,
               background: "rgba(0,0,0,0.82)",
-              backdropFilter: "blur(10px)",
               display: "flex", alignItems: "center", justifyContent: "center",
               padding: 20,
             }}
@@ -1425,8 +1427,6 @@ function StardustInfoPopup({ balance, today, dailyCap, globalTotal, onClose }: {
       style={{
         position: "fixed", inset: 0, zIndex: 10000,
         background: "rgba(8,1,9,0.72)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
         display: "flex", alignItems: "center", justifyContent: "center",
         padding: 24,
       }}

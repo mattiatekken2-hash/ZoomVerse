@@ -165,7 +165,6 @@ function StellaRossaCollectionWidgetBase({
           padding: 4,
           cursor: "pointer",
           zIndex: 40,
-          backdropFilter: "blur(8px)",
           WebkitTapHighlightColor: "transparent",
         }}
         data-testid="button-stella-rossa"
@@ -214,7 +213,6 @@ function StellaRossaCollectionWidgetBase({
           onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
           style={{
             position: "fixed", inset: 0, zIndex: 1000,
-            background: "rgba(4,0,2,0.88)", backdropFilter: "blur(6px)",
             display: "flex", alignItems: "flex-start", justifyContent: "center",
             padding: "calc(env(safe-area-inset-top, 0px) + 130px) 14px calc(env(safe-area-inset-bottom, 0px) + 80px)",
             overflowY: "auto",

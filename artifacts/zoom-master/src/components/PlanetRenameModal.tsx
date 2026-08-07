@@ -79,7 +79,6 @@ export function PlanetRenameModal({ planet, telegramId, onClose, onRenamed }: Pr
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)" }}
       onClick={() => { if (!busy) onClose(); }}
     >
       <div

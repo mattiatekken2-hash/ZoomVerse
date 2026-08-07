@@ -108,7 +108,6 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode 
             padding: 4,
             cursor: "pointer",
             zIndex: 40,
-            backdropFilter: "blur(8px)",
             WebkitTapHighlightColor: "transparent",
           }}
           data-testid="button-lab-ticket"
@@ -148,7 +147,6 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode 
             inset: 0,
             zIndex: 1000,
             background: "rgba(4,2,8,0.85)",
-            backdropFilter: "blur(6px)",
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",

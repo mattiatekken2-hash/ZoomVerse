@@ -274,7 +274,6 @@ function MysteryBoxWidgetBase({ telegramId, shopMode = false }: MysteryBoxWidget
               color: "#fff",
               zIndex: 35,
               cursor: "pointer",
-              backdropFilter: "blur(8px)",
               WebkitTapHighlightColor: "transparent",
             }}
             data-testid="button-mystery-box"
@@ -302,7 +301,6 @@ function MysteryBoxWidgetBase({ telegramId, shopMode = false }: MysteryBoxWidget
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
-                backdropFilter: "blur(6px)",
               }}
               data-testid="mystery-box-ticker"
             >
@@ -322,7 +320,6 @@ function MysteryBoxWidgetBase({ telegramId, shopMode = false }: MysteryBoxWidget
           style={{
             position: "fixed", inset: 0,
             background: "rgba(6,8,16,0.88)",
-            backdropFilter: "blur(8px)",
             zIndex: 110, display: "flex",
             alignItems: "flex-start", justifyContent: "center",
             padding: "140px 20px 20px",

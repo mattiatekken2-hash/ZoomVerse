@@ -169,7 +169,7 @@
 .nebula-orb {
   position: absolute;
   border-radius: 50%;
-  filter: blur(90px);
+  filter: blur(35px);
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
   animation-direction: alternate;
@@ -244,7 +244,7 @@
   top: 42%; left: 50%;
   transform: translate(-50%, -50%) translateZ(0);
   background: radial-gradient(circle, rgba(255,140,60,0.03) 0%, rgba(255,80,20,0.015) 40%, transparent 70%);
-  filter: blur(60px);
+  filter: blur(25px);
   animation: protostar-pulse 8s ease-in-out infinite alternate;
   will-change: opacity;
   pointer-events: none;
@@ -259,22 +259,38 @@
   position: absolute;
   border-radius: 50%;
   pointer-events: none;
-  will-change: opacity, box-shadow;
+  /* only transform+opacity — both GPU-composited, no repaint */
+  will-change: transform, opacity;
   animation-name: distant-planet-pulse;
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
   animation-direction: alternate;
 }
 @keyframes distant-planet-pulse {
-  0%, 100% { opacity: 0.55; transform: scale(0.88); }
-  50%       { opacity: 1.00; transform: scale(1.15); }
+  0%   { opacity: 0.5; }
+  100% { opacity: 0.9; }
 }
 
-/* Battery-saver */
+/* ── Battery / heat savers ──────────────────────────────────────────────────
+   1. When the OS accessibility "Reduce Motion" setting is on, kill all
+      decorative infinite animations.
+   2. When the page is hidden (user switched apps), the JS visibility handler
+      in App.tsx adds .animations-paused to <body> — stops all animations so
+      the GPU/CPU idle completely while backgrounded.
+   ───────────────────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .nebula-orb, .nebula-protostar, .distant-planet {
+  .nebula-orb, .nebula-protostar, .distant-planet, .twinkle-star,
+  .star-field, .comet, .planet-outer-glow, .planet-ring, .planet-sphere,
+  .btn-farm-pulse, .btn-collect-pulse, .pulse-soft, .forge-core,
+  .lab-stars-a, .lab-stars-b, .lab-stars-c {
     animation: none !important;
+    transition: none !important;
   }
+}
+
+/* Global pause when page is hidden — set by App.tsx visibilitychange handler */
+body.animations-paused * {
+  animation-play-state: paused !important;
 }
 
 @keyframes nebula-drift-a {
@@ -536,20 +552,14 @@
 /* ======== GLASSMORPHISM ======== */
 .glass {
   background: rgba(255,255,255,0.04);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(255,255,255,0.07);
 }
 .glass-strong {
   background: rgba(255,255,255,0.07);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
   border: 1px solid rgba(255,255,255,0.12);
 }
 .glass-neon {
   background: rgba(255,255,255,0.04);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255,255,255,0.08);
   box-shadow: 0 0 14px rgba(0,0,0,0.3);
 }
@@ -625,7 +635,7 @@
   height: 35%;
   border-radius: 50%;
   background: rgba(255,255,255,0.18);
-  filter: blur(8px);
+  filter: blur(4px);
   pointer-events: none;
 }
 .planet-surface-lines {
@@ -650,10 +660,9 @@
   overflow: hidden;
   transition: transform 0.1s, box-shadow 0.2s;
   background: linear-gradient(135deg, #ffd93d, #ff9f43, #ffd93d);
-  background-size: 200% 100%;
+  /* static gradient — background-position animation forces CPU repaint every frame */
   color: #1a1200;
   box-shadow: 0 0 30px rgba(255,159,67,0.5), 0 6px 24px rgba(0,0,0,0.5);
-  animation: gradient-shift 3s linear infinite;
 }
 .btn-craft:active { transform: scale(0.96); }
 .btn-craft:disabled {
@@ -661,11 +670,6 @@
   color: rgba(255,255,255,0.2);
   box-shadow: none;
   cursor: not-allowed;
-  animation: none;
-}
-@keyframes gradient-shift {
-  0% { background-position: 0% 50%; }
-  100% { background-position: 200% 50%; }
 }
 
 .btn-widget {

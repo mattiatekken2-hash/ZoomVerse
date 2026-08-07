@@ -241,7 +241,6 @@ function WalletModal({
       onClick={onClose}
       style={{
         position: "fixed", inset: 0, zIndex: 1000,
-        background: "rgba(2,6,16,0.84)", backdropFilter: "blur(8px)",
         display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
       }}
     >
@@ -480,7 +479,6 @@ function TonWalletWidgetBase(props: Props) {
           boxShadow: "0 0 10px rgba(0,242,180,0.18)",
           color: "#00f2b4",
           textShadow: "0 0 6px rgba(0,242,180,0.55)",
-          backdropFilter: "blur(6px)",
           fontSize: 12,
           whiteSpace: "nowrap",
         }}

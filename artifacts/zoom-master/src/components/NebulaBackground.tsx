@@ -1,31 +1,23 @@
-// Distant planet micro-dots scattered through the crimson nebula.
-// Each has its own pulsing glow on independent timing so the sky
-// feels alive without any JS animation cost.
+// Distant planet micro-dots — trimmed to 3 (was 6) to cut animated DOM nodes.
+// Each pulsing dot was an independent GPU layer; half as many = half the work.
 const DISTANT_PLANETS: Array<{
   top: string; left: string; size: number;
   color: string; glow: string; dur: number; delay: number;
 }> = [
-  { top: "12%", left: "71%", size: 4.0, color: "#ff7733", glow: "rgba(255,100,40,0.85)", dur: 3.2, delay: 0.0 },
-  { top: "31%", left: "85%", size: 2.8, color: "#cc2244", glow: "rgba(200,25,55,0.80)",  dur: 4.7, delay: 1.4 },
-  { top: "55%", left: "8%",  size: 4.5, color: "#ff5522", glow: "rgba(255,70,25,0.80)",  dur: 3.8, delay: 2.7 },
-  { top: "73%", left: "58%", size: 2.2, color: "#991133", glow: "rgba(140,15,40,0.70)",  dur: 5.5, delay: 0.8 },
-  { top: "20%", left: "20%", size: 3.0, color: "#ff6633", glow: "rgba(255,85,35,0.75)",  dur: 4.2, delay: 3.1 },
-  { top: "86%", left: "30%", size: 2.5, color: "#dd3311", glow: "rgba(210,45,15,0.72)",  dur: 6.1, delay: 1.9 },
+  { top: "12%", left: "71%", size: 4.0, color: "#ff7733", glow: "rgba(255,100,40,0.85)", dur: 5.5, delay: 0.0 },
+  { top: "55%", left: "8%",  size: 4.5, color: "#ff5522", glow: "rgba(255,70,25,0.80)",  dur: 6.2, delay: 2.0 },
+  { top: "20%", left: "20%", size: 3.0, color: "#ff6633", glow: "rgba(255,85,35,0.75)",  dur: 7.0, delay: 1.5 },
 ];
 
-// Brighter "hero" stars with warm crimson-nebula tints.
+// Hero stars — trimmed to 5 (was 10). Finite animation (stops after N cycles)
+// so the GPU fully idles on these elements once animation completes.
 const TWINKLE_STARS: Array<{
   top: string; left: string; size: number; dur: number; delay: number; tint: string;
 }> = [
   { top: "8%",  left: "14%", size: 2.4, dur: 3.6, delay: 0.0, tint: "rgba(255,255,255,0.95)" },
-  { top: "16%", left: "78%", size: 2.0, dur: 4.8, delay: 1.2, tint: "rgba(255,200,180,0.90)" },
   { top: "27%", left: "42%", size: 1.8, dur: 5.4, delay: 2.6, tint: "rgba(255,240,220,0.85)" },
-  { top: "33%", left: "88%", size: 2.2, dur: 4.2, delay: 0.7, tint: "rgba(255,255,255,0.90)" },
-  { top: "44%", left: "9%",  size: 1.6, dur: 6.1, delay: 3.4, tint: "rgba(255,170,150,0.85)" },
   { top: "52%", left: "62%", size: 2.6, dur: 3.9, delay: 1.9, tint: "rgba(255,255,255,0.95)" },
-  { top: "65%", left: "22%", size: 1.8, dur: 5.7, delay: 4.1, tint: "rgba(255,200,170,0.85)" },
   { top: "72%", left: "84%", size: 2.0, dur: 4.5, delay: 2.2, tint: "rgba(255,235,210,0.90)" },
-  { top: "82%", left: "48%", size: 2.2, dur: 5.0, delay: 0.4, tint: "rgba(255,255,255,0.90)" },
   { top: "90%", left: "12%", size: 1.6, dur: 6.4, delay: 3.0, tint: "rgba(255,170,150,0.80)" },
 ];
 
@@ -72,22 +64,17 @@ export function NebulaBackground() {
         />
       ))}
 
-      {/* Dense crimson nebula gas cloud orbs */}
+      {/* Nebula gas cloud orbs — reduced from 8 to 4 to halve GPU layer count.
+          These are the heaviest elements: large blurred divs on animated layers. */}
       <div className="nebula-orb nebula-orb-1" />
-      <div className="nebula-orb nebula-orb-2" />
       <div className="nebula-orb nebula-orb-3" />
-      <div className="nebula-orb nebula-orb-4" />
       <div className="nebula-orb nebula-orb-5" />
-      <div className="nebula-orb nebula-orb-6" />
       <div className="nebula-orb nebula-orb-7" />
-      <div className="nebula-orb nebula-orb-8" />
 
       {/* Central proto-star warm glow */}
       <div className="nebula-protostar" />
 
-      {/* Comets */}
-      <div className="comet comet-1" />
-      <div className="comet comet-2" />
+      {/* Comets removed — off-screen most of the cycle but still consume GPU */}
     </div>
   );
 }

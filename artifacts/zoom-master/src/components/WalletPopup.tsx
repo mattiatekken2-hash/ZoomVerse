@@ -30,7 +30,6 @@ export function WalletPopup({ isOpen, amount, purpose, instruction, copyLabel, o
   return (
     <div
       className="absolute inset-0 flex items-end justify-center z-50"
-      style={{ background: "rgba(6,8,16,0.88)", backdropFilter: "blur(16px)" }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div

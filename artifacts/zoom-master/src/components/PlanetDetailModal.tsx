@@ -119,7 +119,6 @@ export function PlanetDetailModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(2,4,12,0.88)", backdropFilter: "blur(6px)", padding: "0 8px" }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div

@@ -355,7 +355,6 @@ export function ShopPage({
       {message && (
         <div
           className="absolute top-2 left-4 right-4 z-50 py-2 px-4 rounded-xl text-sm font-bold text-center"
-          style={{ background: "rgba(255,51,85,0.15)", color: "#ff3355", border: "1px solid rgba(255,51,85,0.3)", backdropFilter: "blur(12px)" }}
         >
           {message}
         </div>

@@ -655,8 +655,6 @@ function PixelAvatarBase({
             inset: 0,
             zIndex: 1000,
             background: "rgba(4,6,16,0.72)",
-            backdropFilter: "blur(6px)",
-            WebkitBackdropFilter: "blur(6px)",
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",

@@ -318,8 +318,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
                 background: "rgba(20, 6, 8, 0.92)",
                 border: "1.5px solid rgba(255, 80, 80, 0.55)",
                 boxShadow: "0 0 28px rgba(255, 60, 60, 0.45), 0 0 0 1px rgba(255,80,80,0.12) inset",
-                backdropFilter: "blur(10px)",
-                WebkitBackdropFilter: "blur(10px)",
                 maxWidth: "min(82vw, 320px)",
               }}
             >
@@ -343,7 +341,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         {isFull && (
           <div
             className="absolute inset-0 flex items-center justify-center"
-            style={{ background: "rgba(6,8,16,0.5)", backdropFilter: "blur(4px)", zIndex: 20 }}
           >
             <div className="glass rounded-2xl px-6 py-4 text-center">
               <div className="text-amber-400 font-black text-base tracking-widest mb-1">{t("lab.farmFull")}</div>
@@ -369,7 +366,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
               style={{
                 borderColor: pendingPlanet.color + "55",
                 background: "rgba(6,8,16,0.65)",
-                backdropFilter: "blur(8px)",
                 boxShadow: `0 0 20px ${pendingPlanet.color}33`,
                 pointerEvents: "auto",
               }}

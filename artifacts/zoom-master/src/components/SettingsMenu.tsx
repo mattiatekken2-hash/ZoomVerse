@@ -74,8 +74,6 @@ export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted }: Sett
             inset: 0,
             zIndex: 1000,
             background: "rgba(0,0,0,0.6)",
-            backdropFilter: "blur(6px)",
-            WebkitBackdropFilter: "blur(6px)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",

@@ -121,7 +121,6 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
             border: `1.5px solid ${CYAN}88`,
             padding: 4,
             cursor: "pointer",
-            backdropFilter: "blur(8px)",
             WebkitTapHighlightColor: "transparent",
           }}
           data-testid="button-lab-rank"
@@ -197,7 +196,6 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
             inset: 0,
             zIndex: 1000,
             background: "rgba(4,2,8,0.85)",
-            backdropFilter: "blur(6px)",
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",

@@ -829,7 +829,6 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
             background: toast.ok ? "rgba(0,230,118,0.15)" : "rgba(255,65,108,0.15)",
             border: `1px solid ${toast.ok ? "rgba(0,230,118,0.3)" : "rgba(255,65,108,0.3)"}`,
             color: toast.ok ? "#00e676" : "#ff416c",
-            backdropFilter: "blur(12px)",
           }}
           data-testid="market-toast"
         >

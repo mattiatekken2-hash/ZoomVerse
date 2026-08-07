@@ -162,7 +162,6 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
           padding: 4,
           cursor: "pointer",
           zIndex: 40,
-          backdropFilter: "blur(8px)",
           WebkitTapHighlightColor: "transparent",
         }}
         className="ec-tile-frame"
@@ -198,7 +197,6 @@ function EarthCollectionWidgetBase({ telegramId, unlocked = false, ownedBundles 
             inset: 0,
             zIndex: 1000,
             background: "rgba(4,6,16,0.74)",
-            backdropFilter: "blur(6px)",
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",

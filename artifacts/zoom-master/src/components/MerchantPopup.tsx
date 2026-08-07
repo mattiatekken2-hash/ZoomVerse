@@ -146,8 +146,6 @@ export function MerchantPopup({
           padding: 0,
           cursor: "pointer",
           zIndex: 39,
-          backdropFilter: "blur(8px)",
-          WebkitBackdropFilter: "blur(8px)",
           WebkitTapHighlightColor: "transparent",
           display: "flex",
           alignItems: "center",

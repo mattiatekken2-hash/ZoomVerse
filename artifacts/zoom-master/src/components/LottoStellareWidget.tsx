@@ -281,7 +281,6 @@ function LottoStellareWidgetBase({ telegramId, shopMode = false }: Props) {
             padding: 4,
             cursor: "pointer",
             zIndex: 40,
-            backdropFilter: "blur(8px)",
             WebkitTapHighlightColor: "transparent",
           }}
           className="lotto-tile-frame"
@@ -327,7 +326,6 @@ function LottoStellareWidgetBase({ telegramId, shopMode = false }: Props) {
             inset: 0,
             zIndex: 1000,
             background: "rgba(4,6,16,0.85)",
-            backdropFilter: "blur(6px)",
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",

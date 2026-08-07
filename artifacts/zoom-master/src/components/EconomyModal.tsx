@@ -164,8 +164,6 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, i
       className="fixed inset-0 z-[1000] flex items-center justify-center"
       style={{
         background: "rgba(0,4,12,0.82)",
-        backdropFilter: "blur(8px)",
-        WebkitBackdropFilter: "blur(8px)",
         // Belt-and-braces: prevent the overlay itself from being scrolled
         // by the user's panning gesture.
         overscrollBehavior: "contain",
