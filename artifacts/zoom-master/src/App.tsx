@@ -892,7 +892,6 @@ function AppShellWithState() {
                   onMarkStellaRossaPlanetReactivated={markStellaRossaPlanetReactivated}
                   redStarBalance={state.redStarBalance || 0}
                   onRedStarBalanceUpdate={(newBal) => setState((prev) => ({ ...prev, redStarBalance: newBal }))}
-                  collectionFarmDurationHours={state.planets.find(p => /^(WHITE|EARTH|BLACK|SUPERNOVA|STELLA)\d/.test(p.id))?.farmDurationHours ?? 1}
                   onUpgradeCollectionDuration={upgradeCollectionFarmDuration}
                   visible={tab === "lab"}
                 />

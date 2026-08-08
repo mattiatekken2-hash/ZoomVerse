@@ -164,6 +164,11 @@ export const usersTable = pgTable("users", {
   // Same upgrade for ALL collection planets (White/Earth/Black/Supernova/Stella).
   // One shared setting keeps the UI simple; default 1h.
   collectionFarmDurationHours: integer("collection_farm_duration_hours").notNull().default(1),
+  whiteFarmDurationHours: integer("white_farm_duration_hours").notNull().default(1),
+  earthFarmDurationHours: integer("earth_farm_duration_hours").notNull().default(1),
+  blackFarmDurationHours: integer("black_farm_duration_hours").notNull().default(1),
+  supernovaFarmDurationHours: integer("supernova_farm_duration_hours").notNull().default(1),
+  stellaRossaFarmDurationHours: integer("stella_rossa_farm_duration_hours").notNull().default(1),
   // Server-side mirror of the client's regular planets array (everything
   // shown on the FarmPage main grid, including bonus, crafted, and bought
   // planets). Stored as JSONB so we can replace it atomically on every

@@ -87,13 +87,14 @@ export function notifyFarmReactivate(telegramId: string, planetId: string, plane
  */
 export async function upgradeCollectionDuration(
   telegramId: string,
+  collectionType: "white" | "earth" | "black" | "supernova" | "stella_rossa",
   durationHours: number,
 ): Promise<{ ok: boolean; newTonBalance?: number; error?: string }> {
   try {
     const r = await fetch(`${API_BASE}/collection/upgrade-duration`, {
       method: "POST",
       headers: apiHeaders(),
-      body: JSON.stringify({ telegramId, durationHours }),
+      body: JSON.stringify({ telegramId, collectionType, durationHours }),
     });
     return await r.json() as { ok: boolean; newTonBalance?: number; error?: string };
   } catch {
@@ -605,11 +606,17 @@ export interface Grants {
   sunCycleCount: number;
   // Permanent SUN farm-duration upgrade (hours). Defaults to 1 on server.
   sunFarmDurationHours?: number;
-  // Shared farm-duration upgrade for ALL collection planets (hours).
+  // Shared farm-duration upgrade for ALL collection planets (hours, legacy).
   collectionFarmDurationHours?: number;
+  // Per-collection farm-duration upgrades (hours, each independent).
+  whiteFarmDurationHours?: number;
+  earthFarmDurationHours?: number;
+  blackFarmDurationHours?: number;
+  supernovaFarmDurationHours?: number;
+  stellaRossaFarmDurationHours?: number;
 }
 
-const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusNova: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, stellaRossaCollectionUnlocked: false, stellaRossaCollectionBundles: 0, totalPlanetsBuilt: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0, sunFarmDurationHours: 1, collectionFarmDurationHours: 1 };
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusNova: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, stellaRossaCollectionUnlocked: false, stellaRossaCollectionBundles: 0, totalPlanetsBuilt: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0, sunFarmDurationHours: 1, collectionFarmDurationHours: 1, whiteFarmDurationHours: 1, earthFarmDurationHours: 1, blackFarmDurationHours: 1, supernovaFarmDurationHours: 1, stellaRossaFarmDurationHours: 1 };
 
 /**
  * Buy a Shop item using the in-game DEPOSIT balance (not on-chain).

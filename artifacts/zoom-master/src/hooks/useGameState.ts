@@ -2236,11 +2236,15 @@ export function useGameState() {
                 Number(grants.sunFarmDurationHours ?? 1),
               ),
             },
-            // Apply shared collection farm-duration upgrade to all collection planets.
+            // Apply per-collection farm-duration upgrades from grants.
             planets: updated.planets.map((p) => {
-              const isCollectionPlanet = /^(WHITE|EARTH|BLACK|SUPERNOVA|STELLA)\d/.test(p.id);
-              if (!isCollectionPlanet) return p;
-              const grantedHours = Number(grants.collectionFarmDurationHours ?? 1);
+              let grantedHours = 1;
+              if (/^WHITE\d/.test(p.id))     grantedHours = Number(grants.whiteFarmDurationHours ?? 1);
+              else if (/^EARTH\d/.test(p.id))     grantedHours = Number(grants.earthFarmDurationHours ?? 1);
+              else if (/^BLACK\d/.test(p.id))     grantedHours = Number(grants.blackFarmDurationHours ?? 1);
+              else if (/^SUPERNOVA\d/.test(p.id)) grantedHours = Number(grants.supernovaFarmDurationHours ?? 1);
+              else if (/^STELLA\d/.test(p.id))    grantedHours = Number(grants.stellaRossaFarmDurationHours ?? 1);
+              else return p; // not a collection planet
               if ((p.farmDurationHours ?? 1) >= grantedHours) return p;
               return { ...p, farmDurationHours: grantedHours };
             }),
@@ -5493,21 +5497,28 @@ export function useGameState() {
     return result;
   }, [state.telegramId]);
 
-  /** Permanently upgrade farm-cycle duration for ALL collection planets. Charges GRAM from EARNED GRAM. */
+  /** Permanently upgrade farm-cycle duration for ONE specific collection. Charges GRAM from EARNED GRAM. */
   const upgradeCollectionFarmDuration = useCallback(async (
+    collectionType: "white" | "earth" | "black" | "supernova" | "stella_rossa",
     durationHours: number,
   ): Promise<{ ok: boolean; error?: string }> => {
     const tid = state.telegramId;
     if (!tid) return { ok: false, error: "Not logged in" };
-    const result = await upgradeCollectionDuration(tid, durationHours);
+    const result = await upgradeCollectionDuration(tid, collectionType, durationHours);
     if (result.ok) {
+      const prefixMap: Record<string, RegExp> = {
+        white:        /^WHITE\d/,
+        earth:        /^EARTH\d/,
+        black:        /^BLACK\d/,
+        supernova:    /^SUPERNOVA\d/,
+        stella_rossa: /^STELLA\d/,
+      };
+      const re = prefixMap[collectionType]!;
       setState((prev) => ({
         ...prev,
         tonBalance: typeof result.newTonBalance === "number" ? result.newTonBalance : prev.tonBalance,
         planets: prev.planets.map((p) =>
-          /^(WHITE|EARTH|BLACK|SUPERNOVA|STELLA)\d/.test(p.id)
-            ? { ...p, farmDurationHours: durationHours }
-            : p,
+          re.test(p.id) ? { ...p, farmDurationHours: durationHours } : p,
         ),
       }));
     }

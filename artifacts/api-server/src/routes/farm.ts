@@ -234,24 +234,51 @@ const CollectionReactivateBody = z.object({
  * REDSTAR/Stella Rossa) previously required a TonConnect on-chain payment;
  * they now use REDSTAR from the user's in-game balance.
  */
+const COLLECTION_TYPE_TO_COLUMN: Record<string, string> = {
+  white:        "white_farm_duration_hours",
+  earth:        "earth_farm_duration_hours",
+  black:        "black_farm_duration_hours",
+  supernova:    "supernova_farm_duration_hours",
+  stella_rossa: "stella_rossa_farm_duration_hours",
+};
+
 const CollectionUpgradeDurationBody = z.object({
-  telegramId: z.string().min(1),
-  durationHours: z.number().int().positive(),
+  telegramId:     z.string().min(1),
+  durationHours:  z.number().int().positive(),
+  collectionType: z.enum(["white", "earth", "black", "supernova", "stella_rossa"]),
 });
 
 /**
- * Permanently upgrade the farm-cycle duration for ALL collection planets.
+ * Permanently upgrade the farm-cycle duration for ONE specific collection.
  * Uses the same cost table as regular planet / SUN upgrades. Charges GRAM.
  */
 router.post("/collection/upgrade-duration", async (req, res) => {
   const parsed = CollectionUpgradeDurationBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid body" }); return; }
-  const { telegramId, durationHours } = parsed.data;
+  const { telegramId, durationHours, collectionType } = parsed.data;
 
   if (!VALID_DURATIONS.has(durationHours)) {
     res.status(400).json({ error: "Invalid duration" }); return;
   }
   const cost = UPGRADE_COSTS[durationHours]!;
+
+  // Map collection type to a parameterised update using a typed helper.
+  // We never interpolate user input into SQL — the column is chosen from a
+  // compile-time whitelist and expressed as a separate tagged-template clause.
+  const updateCollectionColumn = (tx: typeof db, tid: string, hours: number) => {
+    switch (collectionType) {
+      case "white":
+        return tx.execute(sql`UPDATE users SET ton_balance = ton_balance - ${cost}, balance_epoch = balance_epoch + 1, white_farm_duration_hours = ${hours} WHERE telegram_id = ${tid} AND ton_balance >= ${cost}`);
+      case "earth":
+        return tx.execute(sql`UPDATE users SET ton_balance = ton_balance - ${cost}, balance_epoch = balance_epoch + 1, earth_farm_duration_hours = ${hours} WHERE telegram_id = ${tid} AND ton_balance >= ${cost}`);
+      case "black":
+        return tx.execute(sql`UPDATE users SET ton_balance = ton_balance - ${cost}, balance_epoch = balance_epoch + 1, black_farm_duration_hours = ${hours} WHERE telegram_id = ${tid} AND ton_balance >= ${cost}`);
+      case "supernova":
+        return tx.execute(sql`UPDATE users SET ton_balance = ton_balance - ${cost}, balance_epoch = balance_epoch + 1, supernova_farm_duration_hours = ${hours} WHERE telegram_id = ${tid} AND ton_balance >= ${cost}`);
+      case "stella_rossa":
+        return tx.execute(sql`UPDATE users SET ton_balance = ton_balance - ${cost}, balance_epoch = balance_epoch + 1, stella_rossa_farm_duration_hours = ${hours} WHERE telegram_id = ${tid} AND ton_balance >= ${cost}`);
+    }
+  };
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -262,14 +289,7 @@ router.post("/collection/upgrade-duration", async (req, res) => {
       if (!row) return { ok: false as const, error: "User not found" };
       const tonBalance = Number(row["ton_balance"] ?? 0);
       if (tonBalance < cost) return { ok: false as const, error: "Insufficient GRAM balance" };
-      await tx.execute(sql`
-        UPDATE users
-           SET ton_balance                  = ton_balance - ${cost},
-               balance_epoch               = balance_epoch + 1,
-               collection_farm_duration_hours = ${durationHours}
-         WHERE telegram_id = ${telegramId}
-           AND ton_balance  >= ${cost}
-      `);
+      await updateCollectionColumn(tx as unknown as typeof db, telegramId, durationHours);
       return { ok: true as const, newTonBalance: tonBalance - cost };
     });
     res.json(result);

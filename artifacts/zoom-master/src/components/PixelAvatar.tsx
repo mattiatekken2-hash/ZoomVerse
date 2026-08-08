@@ -98,10 +98,8 @@ interface PixelAvatarProps {
   redStarBalance?: number;
   /** Called after a successful REDSTAR deduction so the parent can update its state. */
   onRedStarBalanceUpdate?: (newBalance: number) => void;
-  /** Current collection farm-duration (hours). Used to highlight the active tier. */
-  collectionFarmDurationHours?: number;
-  /** Permanently upgrade farm-cycle duration for ALL collection planets. Charges GRAM. */
-  onUpgradeCollectionDuration?: (hours: number) => Promise<{ ok: boolean; error?: string }>;
+  /** Permanently upgrade farm-cycle duration for a specific collection. Charges GRAM. */
+  onUpgradeCollectionDuration?: (collectionType: "white" | "earth" | "black" | "supernova" | "stella_rossa", hours: number) => Promise<{ ok: boolean; error?: string }>;
 }
 
 function PixelAvatarBase({
@@ -145,7 +143,6 @@ function PixelAvatarBase({
   onMarkStellaRossaPlanetReactivated,
   redStarBalance = 0,
   onRedStarBalanceUpdate,
-  collectionFarmDurationHours = 1,
   onUpgradeCollectionDuration,
 }: PixelAvatarProps) {
   // TonConnect still wired for potential future use (collection unlock purchases share this component)
@@ -906,44 +903,6 @@ function PixelAvatarBase({
               )}
             </div>
 
-            {/* ── Collection farm-duration upgrade (shared across all collections) ── */}
-            {onUpgradeCollectionDuration && (whiteCollectionUnlocked || earthCollectionUnlocked || blackCollectionUnlocked || supernovaCollectionUnlocked || stellaRossaCollectionUnlocked) && (
-              <div style={{ marginBottom: 14, padding: "10px 12px", background: "rgba(255,179,71,0.07)", borderRadius: 10, border: "1px solid rgba(255,179,71,0.2)" }}>
-                <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.08em", color: "rgba(255,179,71,0.7)", marginBottom: 8 }}>
-                  ⏱ CYCLE DURATION — ALL COLLECTIONS · {collectionFarmDurationHours}h · costs EARNED GRAM
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 5 }}>
-                  {FARM_UPGRADE_TIERS.map((h) => {
-                    const cost = FARM_UPGRADE_COSTS[h]!;
-                    const isCurrent = collectionFarmDurationHours === h;
-                    const canAfford = tonBalance >= cost;
-                    return (
-                      <button
-                        key={h}
-                        disabled={isCurrent || !canAfford}
-                        onClick={async () => {
-                          const result = await onUpgradeCollectionDuration(h);
-                          if (!result.ok) flashWhiteMsg(result.error ?? "Upgrade failed");
-                        }}
-                        style={{
-                          padding: "5px 2px", borderRadius: 7, fontSize: 9, fontWeight: 900,
-                          background: isCurrent ? "rgba(255,179,71,0.25)" : canAfford ? "rgba(255,179,71,0.10)" : "rgba(255,255,255,0.04)",
-                          border: isCurrent ? "1px solid rgba(255,179,71,0.7)" : "1px solid rgba(255,179,71,0.2)",
-                          color: isCurrent ? "#ffb347" : canAfford ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.25)",
-                          cursor: isCurrent || !canAfford ? "default" : "pointer",
-                          textAlign: "center", lineHeight: 1.3,
-                        }}
-                      >
-                        <div>{h}h</div>
-                        {!isCurrent && <div style={{ fontSize: 8, opacity: 0.75 }}>{cost} G</div>}
-                        {isCurrent && <div style={{ fontSize: 8, opacity: 0.7 }}>✓</div>}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
             {/* White Collection Farm */}
             <div>
               <div
@@ -985,6 +944,34 @@ function PixelAvatarBase({
                   </div>
                 )}
               </div>
+
+              {/* ⏱ White Collection — per-cycle duration upgrade */}
+              {whiteCollectionUnlocked && onUpgradeCollectionDuration && (() => {
+                const cur = whitePlanets?.[0]?.farmDurationHours ?? 1;
+                return (
+                  <div style={{ marginBottom: 10, padding: "8px 10px", background: "rgba(0,217,255,0.06)", borderRadius: 9, border: "1px solid rgba(0,217,255,0.18)" }}>
+                    <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.08em", color: "rgba(0,217,255,0.6)", marginBottom: 6 }}>⏱ CYCLE DURATION · {cur}h · EARNED GRAM</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
+                      {FARM_UPGRADE_TIERS.map((h) => {
+                        const cost = FARM_UPGRADE_COSTS[h]!;
+                        const isCurrent = cur === h;
+                        const canAfford = (tonBalance ?? 0) >= cost;
+                        return (
+                          <button key={h} disabled={isCurrent || !canAfford}
+                            onClick={async () => { const r = await onUpgradeCollectionDuration("white", h); if (!r.ok) flashWhiteMsg(r.error ?? "Upgrade failed"); }}
+                            style={{ padding: "4px 2px", borderRadius: 6, fontSize: 9, fontWeight: 900, textAlign: "center", lineHeight: 1.3, cursor: isCurrent || !canAfford ? "default" : "pointer",
+                              background: isCurrent ? "rgba(0,217,255,0.22)" : canAfford ? "rgba(0,217,255,0.08)" : "rgba(255,255,255,0.03)",
+                              border: isCurrent ? "1px solid rgba(0,217,255,0.6)" : "1px solid rgba(0,217,255,0.18)",
+                              color: isCurrent ? "#0fd9ff" : canAfford ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.22)" }}>
+                            <div>{h}h</div>
+                            {!isCurrent ? <div style={{ fontSize: 8, opacity: 0.7 }}>{cost}G</div> : <div style={{ fontSize: 8, opacity: 0.7 }}>✓</div>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* REACT ALL — batch reactivate all expired white slots · 1 ★ REDSTAR each */}
               {(() => {
@@ -1164,7 +1151,7 @@ function PixelAvatarBase({
               )}
             </div>
 
-            {/* Earth Collection Farm — mirrors the white panel above. */}
+            {/* ───── EARTH COLLECTION FARM ───── */}
             <div style={{ marginTop: 18 }}>
               <div
                 style={{
@@ -1204,6 +1191,34 @@ function PixelAvatarBase({
                   </div>
                 )}
               </div>
+
+              {/* ⏱ Earth Collection — per-cycle duration upgrade */}
+              {earthCollectionUnlocked && onUpgradeCollectionDuration && (() => {
+                const cur = earthPlanets?.[0]?.farmDurationHours ?? 1;
+                return (
+                  <div style={{ marginBottom: 10, padding: "8px 10px", background: "rgba(61,220,151,0.06)", borderRadius: 9, border: "1px solid rgba(61,220,151,0.18)" }}>
+                    <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.08em", color: "rgba(61,220,151,0.65)", marginBottom: 6 }}>⏱ CYCLE DURATION · {cur}h · EARNED GRAM</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
+                      {FARM_UPGRADE_TIERS.map((h) => {
+                        const cost = FARM_UPGRADE_COSTS[h]!;
+                        const isCurrent = cur === h;
+                        const canAfford = (tonBalance ?? 0) >= cost;
+                        return (
+                          <button key={h} disabled={isCurrent || !canAfford}
+                            onClick={async () => { const r = await onUpgradeCollectionDuration("earth", h); if (!r.ok) flashWhiteMsg(r.error ?? "Upgrade failed"); }}
+                            style={{ padding: "4px 2px", borderRadius: 6, fontSize: 9, fontWeight: 900, textAlign: "center", lineHeight: 1.3, cursor: isCurrent || !canAfford ? "default" : "pointer",
+                              background: isCurrent ? "rgba(61,220,151,0.22)" : canAfford ? "rgba(61,220,151,0.08)" : "rgba(255,255,255,0.03)",
+                              border: isCurrent ? "1px solid rgba(61,220,151,0.6)" : "1px solid rgba(61,220,151,0.18)",
+                              color: isCurrent ? "#3ddc97" : canAfford ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.22)" }}>
+                            <div>{h}h</div>
+                            {!isCurrent ? <div style={{ fontSize: 8, opacity: 0.7 }}>{cost}G</div> : <div style={{ fontSize: 8, opacity: 0.7 }}>✓</div>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* REACT ALL — batch reactivate all expired earth slots · 1 ★ REDSTAR each */}
               {earthCollectionUnlocked && (() => {
@@ -1408,6 +1423,34 @@ function PixelAvatarBase({
                 )}
               </div>
 
+              {/* ⏱ Black Collection — per-cycle duration upgrade */}
+              {blackCollectionUnlocked && onUpgradeCollectionDuration && (() => {
+                const cur = blackPlanets?.[0]?.farmDurationHours ?? 1;
+                return (
+                  <div style={{ marginBottom: 10, padding: "8px 10px", background: "rgba(123,47,255,0.06)", borderRadius: 9, border: "1px solid rgba(123,47,255,0.22)" }}>
+                    <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.08em", color: "rgba(180,120,255,0.7)", marginBottom: 6 }}>⏱ CYCLE DURATION · {cur}h · EARNED GRAM</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
+                      {FARM_UPGRADE_TIERS.map((h) => {
+                        const cost = FARM_UPGRADE_COSTS[h]!;
+                        const isCurrent = cur === h;
+                        const canAfford = (tonBalance ?? 0) >= cost;
+                        return (
+                          <button key={h} disabled={isCurrent || !canAfford}
+                            onClick={async () => { const r = await onUpgradeCollectionDuration("black", h); if (!r.ok) flashWhiteMsg(r.error ?? "Upgrade failed"); }}
+                            style={{ padding: "4px 2px", borderRadius: 6, fontSize: 9, fontWeight: 900, textAlign: "center", lineHeight: 1.3, cursor: isCurrent || !canAfford ? "default" : "pointer",
+                              background: isCurrent ? "rgba(123,47,255,0.25)" : canAfford ? "rgba(123,47,255,0.09)" : "rgba(255,255,255,0.03)",
+                              border: isCurrent ? "1px solid rgba(180,120,255,0.65)" : "1px solid rgba(123,47,255,0.22)",
+                              color: isCurrent ? "#b47fff" : canAfford ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.22)" }}>
+                            <div>{h}h</div>
+                            {!isCurrent ? <div style={{ fontSize: 8, opacity: 0.7 }}>{cost}G</div> : <div style={{ fontSize: 8, opacity: 0.7 }}>✓</div>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* REACT ALL — batch reactivate all expired black slots · 1 ★ REDSTAR each */}
               {blackCollectionUnlocked && (() => {
                 const exp = blackSlotOccupants.filter((p): p is Planet => !!p && isFarmExpired(p));
@@ -1611,6 +1654,34 @@ function PixelAvatarBase({
                 )}
               </div>
 
+              {/* ⏱ Supernova Collection — per-cycle duration upgrade */}
+              {supernovaCollectionUnlocked && onUpgradeCollectionDuration && (() => {
+                const cur = supernovaPlanets?.[0]?.farmDurationHours ?? 1;
+                return (
+                  <div style={{ marginBottom: 10, padding: "8px 10px", background: "rgba(255,215,0,0.06)", borderRadius: 9, border: "1px solid rgba(255,215,0,0.20)" }}>
+                    <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.08em", color: "rgba(255,215,0,0.7)", marginBottom: 6 }}>⏱ CYCLE DURATION · {cur}h · EARNED GRAM</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
+                      {FARM_UPGRADE_TIERS.map((h) => {
+                        const cost = FARM_UPGRADE_COSTS[h]!;
+                        const isCurrent = cur === h;
+                        const canAfford = (tonBalance ?? 0) >= cost;
+                        return (
+                          <button key={h} disabled={isCurrent || !canAfford}
+                            onClick={async () => { const r = await onUpgradeCollectionDuration("supernova", h); if (!r.ok) flashWhiteMsg(r.error ?? "Upgrade failed"); }}
+                            style={{ padding: "4px 2px", borderRadius: 6, fontSize: 9, fontWeight: 900, textAlign: "center", lineHeight: 1.3, cursor: isCurrent || !canAfford ? "default" : "pointer",
+                              background: isCurrent ? "rgba(255,215,0,0.22)" : canAfford ? "rgba(255,215,0,0.08)" : "rgba(255,255,255,0.03)",
+                              border: isCurrent ? "1px solid rgba(255,215,0,0.65)" : "1px solid rgba(255,215,0,0.20)",
+                              color: isCurrent ? "#ffd700" : canAfford ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.22)" }}>
+                            <div>{h}h</div>
+                            {!isCurrent ? <div style={{ fontSize: 8, opacity: 0.7 }}>{cost}G</div> : <div style={{ fontSize: 8, opacity: 0.7 }}>✓</div>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* REACT ALL — batch reactivate all expired supernova slots · 1 ★ REDSTAR each */}
               {supernovaCollectionUnlocked && (() => {
                 const exp = supernovaSlotOccupants.filter((p): p is Planet => !!p && isFarmExpired(p));
@@ -1776,6 +1847,34 @@ function PixelAvatarBase({
                   </div>
                 )}
               </div>
+
+              {/* ⏱ Stella Rossa — per-cycle duration upgrade */}
+              {stellaRossaCollectionUnlocked && onUpgradeCollectionDuration && (() => {
+                const cur = stellaPlanets?.[0]?.farmDurationHours ?? 1;
+                return (
+                  <div style={{ marginBottom: 10, padding: "8px 10px", background: "rgba(220,20,60,0.06)", borderRadius: 9, border: "1px solid rgba(220,20,60,0.22)" }}>
+                    <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.08em", color: "rgba(255,50,80,0.7)", marginBottom: 6 }}>⏱ CYCLE DURATION · {cur}h · EARNED GRAM</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 4 }}>
+                      {FARM_UPGRADE_TIERS.map((h) => {
+                        const cost = FARM_UPGRADE_COSTS[h]!;
+                        const isCurrent = cur === h;
+                        const canAfford = (tonBalance ?? 0) >= cost;
+                        return (
+                          <button key={h} disabled={isCurrent || !canAfford}
+                            onClick={async () => { const r = await onUpgradeCollectionDuration("stella_rossa", h); if (!r.ok) flashWhiteMsg(r.error ?? "Upgrade failed"); }}
+                            style={{ padding: "4px 2px", borderRadius: 6, fontSize: 9, fontWeight: 900, textAlign: "center", lineHeight: 1.3, cursor: isCurrent || !canAfford ? "default" : "pointer",
+                              background: isCurrent ? "rgba(220,20,60,0.24)" : canAfford ? "rgba(220,20,60,0.09)" : "rgba(255,255,255,0.03)",
+                              border: isCurrent ? "1px solid rgba(255,50,80,0.65)" : "1px solid rgba(220,20,60,0.22)",
+                              color: isCurrent ? "#ff2244" : canAfford ? "rgba(255,255,255,0.7)" : "rgba(255,255,255,0.22)" }}>
+                            <div>{h}h</div>
+                            {!isCurrent ? <div style={{ fontSize: 8, opacity: 0.7 }}>{cost}G</div> : <div style={{ fontSize: 8, opacity: 0.7 }}>✓</div>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* REACT ALL — batch reactivate all expired REDSTAR slots · 1 ★ REDSTAR each */}
               {stellaRossaCollectionUnlocked && (() => {
