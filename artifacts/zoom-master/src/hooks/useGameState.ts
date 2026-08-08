@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, reactivateCollectionWithRedStar, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import { getEquipmentTotalRate, getEquipmentReactivationFee, EQUIPMENT_CYCLE_MS, makeEquipmentItem, getEquipmentRate, EQUIPMENT_CATEGORY_ORDER } from "../utils/equipmentConfig";
@@ -2236,6 +2236,14 @@ export function useGameState() {
                 Number(grants.sunFarmDurationHours ?? 1),
               ),
             },
+            // Apply shared collection farm-duration upgrade to all collection planets.
+            planets: updated.planets.map((p) => {
+              const isCollectionPlanet = /^(WHITE|EARTH|BLACK|SUPERNOVA|STELLA)\d/.test(p.id);
+              if (!isCollectionPlanet) return p;
+              const grantedHours = Number(grants.collectionFarmDurationHours ?? 1);
+              if ((p.farmDurationHours ?? 1) >= grantedHours) return p;
+              return { ...p, farmDurationHours: grantedHours };
+            }),
           };
           // Self-heal: if the local SUN cycle is AHEAD of the server (start
           // or collect timestamp), the original /sun/cycle write must have
@@ -5485,6 +5493,27 @@ export function useGameState() {
     return result;
   }, [state.telegramId]);
 
+  /** Permanently upgrade farm-cycle duration for ALL collection planets. Charges GRAM from EARNED GRAM. */
+  const upgradeCollectionFarmDuration = useCallback(async (
+    durationHours: number,
+  ): Promise<{ ok: boolean; error?: string }> => {
+    const tid = state.telegramId;
+    if (!tid) return { ok: false, error: "Not logged in" };
+    const result = await upgradeCollectionDuration(tid, durationHours);
+    if (result.ok) {
+      setState((prev) => ({
+        ...prev,
+        tonBalance: typeof result.newTonBalance === "number" ? result.newTonBalance : prev.tonBalance,
+        planets: prev.planets.map((p) =>
+          /^(WHITE|EARTH|BLACK|SUPERNOVA|STELLA)\d/.test(p.id)
+            ? { ...p, farmDurationHours: durationHours }
+            : p,
+        ),
+      }));
+    }
+    return result;
+  }, [state.telegramId]);
+
   /** Permanently upgrade the SUN's farm-cycle duration. Charges GRAM from EARNED GRAM. */
   const upgradeSunFarmDuration = useCallback(async (
     durationHours: number,
@@ -5507,7 +5536,7 @@ export function useGameState() {
     pvpAddPlanet, pvpRemovePlanet,
     collectPlanet, burnPlanet, renamePlanetLocal,
     startFarming, stopFarming, repairPlanet,
-    upgradePlanetFarmDuration, upgradeSunFarmDuration,
+    upgradePlanetFarmDuration, upgradeSunFarmDuration, upgradeCollectionFarmDuration,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     unlockSlot, claimDaily,
     activateSun, acquireSun, collectSun,

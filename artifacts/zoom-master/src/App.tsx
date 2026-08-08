@@ -115,7 +115,7 @@ function AppShellWithState() {
     state, setState, craft, claimCraft, redeemCode,
     pvpAddPlanet, pvpRemovePlanet,
     collectPlanet, burnPlanet, renamePlanetLocal,
-    startFarming, stopFarming, repairPlanet, upgradePlanetFarmDuration, upgradeSunFarmDuration,
+    startFarming, stopFarming, repairPlanet, upgradePlanetFarmDuration, upgradeSunFarmDuration, upgradeCollectionFarmDuration,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     claimDaily, startSunFarming, stopSunFarming, burnSun,
     placeWhitePlanet, reactivateWhitePlanet, markWhitePlanetReactivated, collectWhitePlanet,
@@ -892,6 +892,8 @@ function AppShellWithState() {
                   onMarkStellaRossaPlanetReactivated={markStellaRossaPlanetReactivated}
                   redStarBalance={state.redStarBalance || 0}
                   onRedStarBalanceUpdate={(newBal) => setState((prev) => ({ ...prev, redStarBalance: newBal }))}
+                  collectionFarmDurationHours={state.planets.find(p => /^(WHITE|EARTH|BLACK|SUPERNOVA|STELLA)\d/.test(p.id))?.farmDurationHours ?? 1}
+                  onUpgradeCollectionDuration={upgradeCollectionFarmDuration}
                   visible={tab === "lab"}
                 />
               )}

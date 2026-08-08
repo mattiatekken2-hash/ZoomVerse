@@ -7,6 +7,8 @@ import { BlackPlanetOrb } from "./BlackPlanetOrb";
 import { SupernovaStarOrb } from "./SupernovaStarOrb";
 import {
   PLANET_CONFIG,
+  FARM_UPGRADE_COSTS,
+  FARM_UPGRADE_TIERS,
   isFarmActive,
   isFarmExpired,
   getFarmTimeRemaining,
@@ -96,6 +98,10 @@ interface PixelAvatarProps {
   redStarBalance?: number;
   /** Called after a successful REDSTAR deduction so the parent can update its state. */
   onRedStarBalanceUpdate?: (newBalance: number) => void;
+  /** Current collection farm-duration (hours). Used to highlight the active tier. */
+  collectionFarmDurationHours?: number;
+  /** Permanently upgrade farm-cycle duration for ALL collection planets. Charges GRAM. */
+  onUpgradeCollectionDuration?: (hours: number) => Promise<{ ok: boolean; error?: string }>;
 }
 
 function PixelAvatarBase({
@@ -139,6 +145,8 @@ function PixelAvatarBase({
   onMarkStellaRossaPlanetReactivated,
   redStarBalance = 0,
   onRedStarBalanceUpdate,
+  collectionFarmDurationHours = 1,
+  onUpgradeCollectionDuration,
 }: PixelAvatarProps) {
   // TonConnect still wired for potential future use (collection unlock purchases share this component)
   const [tonConnectUI] = useTonConnectUI();
@@ -897,6 +905,44 @@ function PixelAvatarBase({
                 </div>
               )}
             </div>
+
+            {/* ── Collection farm-duration upgrade (shared across all collections) ── */}
+            {onUpgradeCollectionDuration && (whiteCollectionUnlocked || earthCollectionUnlocked || blackCollectionUnlocked || supernovaCollectionUnlocked || stellaRossaCollectionUnlocked) && (
+              <div style={{ marginBottom: 14, padding: "10px 12px", background: "rgba(255,179,71,0.07)", borderRadius: 10, border: "1px solid rgba(255,179,71,0.2)" }}>
+                <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.08em", color: "rgba(255,179,71,0.7)", marginBottom: 8 }}>
+                  ⏱ CYCLE DURATION — ALL COLLECTIONS · {collectionFarmDurationHours}h · costs EARNED GRAM
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 5 }}>
+                  {FARM_UPGRADE_TIERS.map((h) => {
+                    const cost = FARM_UPGRADE_COSTS[h]!;
+                    const isCurrent = collectionFarmDurationHours === h;
+                    const canAfford = tonBalance >= cost;
+                    return (
+                      <button
+                        key={h}
+                        disabled={isCurrent || !canAfford}
+                        onClick={async () => {
+                          const result = await onUpgradeCollectionDuration(h);
+                          if (!result.ok) flashWhiteMsg(result.error ?? "Upgrade failed");
+                        }}
+                        style={{
+                          padding: "5px 2px", borderRadius: 7, fontSize: 9, fontWeight: 900,
+                          background: isCurrent ? "rgba(255,179,71,0.25)" : canAfford ? "rgba(255,179,71,0.10)" : "rgba(255,255,255,0.04)",
+                          border: isCurrent ? "1px solid rgba(255,179,71,0.7)" : "1px solid rgba(255,179,71,0.2)",
+                          color: isCurrent ? "#ffb347" : canAfford ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.25)",
+                          cursor: isCurrent || !canAfford ? "default" : "pointer",
+                          textAlign: "center", lineHeight: 1.3,
+                        }}
+                      >
+                        <div>{h}h</div>
+                        {!isCurrent && <div style={{ fontSize: 8, opacity: 0.75 }}>{cost} G</div>}
+                        {isCurrent && <div style={{ fontSize: 8, opacity: 0.7 }}>✓</div>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* White Collection Farm */}
             <div>

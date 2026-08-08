@@ -161,6 +161,9 @@ export const usersTable = pgTable("users", {
   // Permanent per-user farm-duration upgrade for the SUN (mirrors planet
   // farmDurationHours). Stored as integer hours; default 1h. Paid in GRAM.
   sunFarmDurationHours: integer("sun_farm_duration_hours").notNull().default(1),
+  // Same upgrade for ALL collection planets (White/Earth/Black/Supernova/Stella).
+  // One shared setting keeps the UI simple; default 1h.
+  collectionFarmDurationHours: integer("collection_farm_duration_hours").notNull().default(1),
   // Server-side mirror of the client's regular planets array (everything
   // shown on the FarmPage main grid, including bonus, crafted, and bought
   // planets). Stored as JSONB so we can replace it atomically on every

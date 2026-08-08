@@ -18,6 +18,21 @@ const FLUCTUATION_MIN_MS = 5_000;
 const FLUCTUATION_MAX_MS = 15_000;
 const DELTAS = [-1, -1, +1, +1, +2]; // weighted pool: equal chance of -1, +1, more rarely +2
 
+/**
+ * Time-of-day floor — feels organic: busier during day, quieter at night.
+ * Hour is UTC. Range 20–70, shifts every hour so the number changes naturally.
+ */
+function getOnlineFloor(): number {
+  const h = new Date().getUTCHours(); // 0-23
+  // Peak 10–22 UTC → floor 38–70, off-peak → floor 20–37
+  const base = h >= 10 && h <= 22
+    ? 38 + Math.floor(((h - 10) / 12) * 32)  // ramps 38→70 across the day
+    : 20 + Math.floor((Math.abs(h - 4) / 6) * 17); // 20–37 at night
+  // Add a small session-stable jitter (seeded by minute so it doesn't jump)
+  const jitter = new Date().getUTCMinutes() % 7;
+  return Math.min(70, Math.max(20, base + jitter));
+}
+
 function randomDelay() {
   return FLUCTUATION_MIN_MS + Math.random() * (FLUCTUATION_MAX_MS - FLUCTUATION_MIN_MS);
 }
@@ -49,9 +64,10 @@ function OnlineIndicatorBase() {
     fluctTimerRef.current = setTimeout(() => {
       setDisplay((prev) => {
         if (prev === null) return prev;
-        const base = realRef.current ?? prev;
+        const floor = getOnlineFloor();
+        const base = Math.max(floor, realRef.current ?? prev);
         const delta = pickDelta();
-        const next = Math.max(1, Math.min(base + 4, prev + delta));
+        const next = Math.max(floor, Math.min(base + 4, prev + delta));
         return next;
       });
       scheduleFluctuation();
@@ -61,13 +77,15 @@ function OnlineIndicatorBase() {
   // Fetch real count from server
   const doFetch = async () => {
     const count = await fetchCount();
-    if (count !== null && count >= 0) {
-      realRef.current = count;
-      setRealCount(count);
+    const floor = getOnlineFloor();
+    const effective = count !== null ? Math.max(floor, count) : null;
+    if (effective !== null) {
+      realRef.current = effective;
+      setRealCount(effective);
       setDisplay((prev) => {
-        // If current display is reasonable, keep it; otherwise snap to real.
-        if (prev !== null && Math.abs(prev - count) <= 4) return prev;
-        return count;
+        // If current display is within ±4 of effective, keep it; otherwise snap.
+        if (prev !== null && Math.abs(prev - effective) <= 4) return prev;
+        return effective;
       });
     }
   };

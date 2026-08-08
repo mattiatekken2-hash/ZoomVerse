@@ -234,6 +234,51 @@ const CollectionReactivateBody = z.object({
  * REDSTAR/Stella Rossa) previously required a TonConnect on-chain payment;
  * they now use REDSTAR from the user's in-game balance.
  */
+const CollectionUpgradeDurationBody = z.object({
+  telegramId: z.string().min(1),
+  durationHours: z.number().int().positive(),
+});
+
+/**
+ * Permanently upgrade the farm-cycle duration for ALL collection planets.
+ * Uses the same cost table as regular planet / SUN upgrades. Charges GRAM.
+ */
+router.post("/collection/upgrade-duration", async (req, res) => {
+  const parsed = CollectionUpgradeDurationBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body" }); return; }
+  const { telegramId, durationHours } = parsed.data;
+
+  if (!VALID_DURATIONS.has(durationHours)) {
+    res.status(400).json({ error: "Invalid duration" }); return;
+  }
+  const cost = UPGRADE_COSTS[durationHours]!;
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const rows = await tx.execute(sql`
+        SELECT ton_balance FROM users WHERE telegram_id = ${telegramId} FOR UPDATE
+      `);
+      const row = (rows as unknown as { rows: Array<Record<string, unknown>> }).rows[0];
+      if (!row) return { ok: false as const, error: "User not found" };
+      const tonBalance = Number(row["ton_balance"] ?? 0);
+      if (tonBalance < cost) return { ok: false as const, error: "Insufficient GRAM balance" };
+      await tx.execute(sql`
+        UPDATE users
+           SET ton_balance                  = ton_balance - ${cost},
+               balance_epoch               = balance_epoch + 1,
+               collection_farm_duration_hours = ${durationHours}
+         WHERE telegram_id = ${telegramId}
+           AND ton_balance  >= ${cost}
+      `);
+      return { ok: true as const, newTonBalance: tonBalance - cost };
+    });
+    res.json(result);
+  } catch (err) {
+    console.error("[collection/upgrade-duration] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 router.post("/collection/reactivate", async (req, res) => {
   const parsed = CollectionReactivateBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid body" }); return; }
