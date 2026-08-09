@@ -1,6 +1,36 @@
 {
-  "updatedAt": "2026-08-07T21:46:07.168Z",
+  "updatedAt": "2026-08-09T09:35:31.256Z",
   "users": [
+    {
+      "telegramId": "5145904635",
+      "zoomBalance": 6020,
+      "bonusSlots": 0,
+      "bonusSun": false,
+      "bonusBasic": 0,
+      "bonusRare": 0,
+      "bonusEpic": 0,
+      "bonusGold": 0
+    },
+    {
+      "telegramId": "2112945353",
+      "zoomBalance": 0,
+      "bonusSlots": 0,
+      "bonusSun": false,
+      "bonusBasic": 0,
+      "bonusRare": 0,
+      "bonusEpic": 0,
+      "bonusGold": 0
+    },
+    {
+      "telegramId": "432959852",
+      "zoomBalance": 1050,
+      "bonusSlots": 0,
+      "bonusSun": false,
+      "bonusBasic": 0,
+      "bonusRare": 0,
+      "bonusEpic": 0,
+      "bonusGold": 0
+    },
     {
       "telegramId": "8218891040",
       "zoomBalance": 6300,
@@ -12,11 +42,21 @@
       "bonusGold": 0
     },
     {
-      "telegramId": "5407006271",
-      "zoomBalance": 30123,
-      "bonusSlots": 32,
-      "bonusSun": true,
-      "bonusBasic": 2,
+      "telegramId": "413799538",
+      "zoomBalance": 25464,
+      "bonusSlots": 0,
+      "bonusSun": false,
+      "bonusBasic": 1,
+      "bonusRare": 1,
+      "bonusEpic": 0,
+      "bonusGold": 0
+    },
+    {
+      "telegramId": "6740242361",
+      "zoomBalance": 300,
+      "bonusSlots": 0,
+      "bonusSun": false,
+      "bonusBasic": 0,
       "bonusRare": 0,
       "bonusEpic": 0,
       "bonusGold": 0
@@ -32,14 +72,14 @@
       "bonusGold": 0
     },
     {
-      "telegramId": "8144744644",
-      "zoomBalance": 7413,
-      "bonusSlots": 24,
+      "telegramId": "283597884",
+      "zoomBalance": 6000,
+      "bonusSlots": 8,
       "bonusSun": true,
-      "bonusBasic": 1,
+      "bonusBasic": 0,
       "bonusRare": 0,
-      "bonusEpic": 1,
-      "bonusGold": 1
+      "bonusEpic": 0,
+      "bonusGold": 0
     },
     {
       "telegramId": "7931866049",
@@ -52,14 +92,14 @@
       "bonusGold": 0
     },
     {
-      "telegramId": "283597884",
-      "zoomBalance": 6000,
-      "bonusSlots": 0,
-      "bonusSun": false,
-      "bonusBasic": 0,
+      "telegramId": "8144744644",
+      "zoomBalance": 29806,
+      "bonusSlots": 24,
+      "bonusSun": true,
+      "bonusBasic": 1,
       "bonusRare": 0,
-      "bonusEpic": 0,
-      "bonusGold": 0
+      "bonusEpic": 1,
+      "bonusGold": 1
     },
     {
       "telegramId": "6407290694",
@@ -112,8 +152,8 @@
       "bonusGold": 0
     },
     {
-      "telegramId": "5145904635",
-      "zoomBalance": 6020,
+      "telegramId": "528048502",
+      "zoomBalance": 0,
       "bonusSlots": 0,
       "bonusSun": false,
       "bonusBasic": 0,
@@ -172,10 +212,10 @@
       "bonusGold": 0
     },
     {
-      "telegramId": "5140382376",
-      "zoomBalance": 40306,
-      "bonusSlots": 23,
-      "bonusSun": true,
+      "telegramId": "5208938807",
+      "zoomBalance": 0,
+      "bonusSlots": 0,
+      "bonusSun": false,
       "bonusBasic": 0,
       "bonusRare": 0,
       "bonusEpic": 0,
@@ -183,7 +223,7 @@
     },
     {
       "telegramId": "450386652",
-      "zoomBalance": 6000,
+      "zoomBalance": 6020,
       "bonusSlots": 0,
       "bonusSun": false,
       "bonusBasic": 0,
@@ -192,11 +232,11 @@
       "bonusGold": 0
     },
     {
-      "telegramId": "7213014999",
-      "zoomBalance": 35253,
-      "bonusSlots": 0,
+      "telegramId": "1306149977",
+      "zoomBalance": 18108,
+      "bonusSlots": 10,
       "bonusSun": false,
-      "bonusBasic": 0,
+      "bonusBasic": 2,
       "bonusRare": 0,
       "bonusEpic": 0,
       "bonusGold": 0
@@ -222,6 +262,16 @@
       "bonusGold": 0
     },
     {
+      "telegramId": "5163804972",
+      "zoomBalance": 6550,
+      "bonusSlots": 5,
+      "bonusSun": false,
+      "bonusBasic": 0,
+      "bonusRare": 0,
+      "bonusEpic": 0,
+      "bonusGold": 0
+    },
+    {
       "telegramId": "1831140083",
       "zoomBalance": 7892,
       "bonusSlots": 0,
@@ -232,8 +282,8 @@
       "bonusGold": 0
     },
     {
-      "telegramId": "1166016355",
-      "zoomBalance": 8500,
+      "telegramId": "7636705182",
+      "zoomBalance": 6050,
       "bonusSlots": 0,
       "bonusSun": false,
       "bonusBasic": 0,
@@ -242,9 +292,9 @@
       "bonusGold": 0
     },
     {
-      "telegramId": "7636705182",
-      "zoomBalance": 6050,
-      "bonusSlots": 0,
+      "telegramId": "1166016355",
+      "zoomBalance": 8500,
+      "bonusSlots": 10,
       "bonusSun": false,
       "bonusBasic": 0,
       "bonusRare": 0,
@@ -282,7 +332,7 @@
       "bonusGold": 0
     },
     {
-      "telegramId": "5163804972",
+      "telegramId": "8508339713",
       "zoomBalance": 6000,
       "bonusSlots": 0,
       "bonusSun": false,
@@ -292,10 +342,10 @@
       "bonusGold": 0
     },
     {
-      "telegramId": "8508339713",
-      "zoomBalance": 6000,
-      "bonusSlots": 0,
-      "bonusSun": false,
+      "telegramId": "5140382376",
+      "zoomBalance": 45842,
+      "bonusSlots": 23,
+      "bonusSun": true,
       "bonusBasic": 0,
       "bonusRare": 0,
       "bonusEpic": 0,
@@ -308,26 +358,6 @@
       "bonusSun": false,
       "bonusBasic": 0,
       "bonusRare": 0,
-      "bonusEpic": 0,
-      "bonusGold": 0
-    },
-    {
-      "telegramId": "456178807",
-      "zoomBalance": 6050,
-      "bonusSlots": 0,
-      "bonusSun": false,
-      "bonusBasic": 0,
-      "bonusRare": 0,
-      "bonusEpic": 0,
-      "bonusGold": 0
-    },
-    {
-      "telegramId": "413799538",
-      "zoomBalance": 25137,
-      "bonusSlots": 0,
-      "bonusSun": false,
-      "bonusBasic": 1,
-      "bonusRare": 1,
       "bonusEpic": 0,
       "bonusGold": 0
     },
@@ -352,6 +382,46 @@
       "bonusGold": 0
     },
     {
+      "telegramId": "7213014999",
+      "zoomBalance": 35469,
+      "bonusSlots": 0,
+      "bonusSun": false,
+      "bonusBasic": 0,
+      "bonusRare": 0,
+      "bonusEpic": 0,
+      "bonusGold": 0
+    },
+    {
+      "telegramId": "456178807",
+      "zoomBalance": 6050,
+      "bonusSlots": 0,
+      "bonusSun": false,
+      "bonusBasic": 1,
+      "bonusRare": 0,
+      "bonusEpic": 0,
+      "bonusGold": 0
+    },
+    {
+      "telegramId": "1476970960",
+      "zoomBalance": 0,
+      "bonusSlots": 0,
+      "bonusSun": false,
+      "bonusBasic": 0,
+      "bonusRare": 0,
+      "bonusEpic": 0,
+      "bonusGold": 0
+    },
+    {
+      "telegramId": "5407006271",
+      "zoomBalance": 30366,
+      "bonusSlots": 32,
+      "bonusSun": true,
+      "bonusBasic": 2,
+      "bonusRare": 0,
+      "bonusEpic": 0,
+      "bonusGold": 0
+    },
+    {
       "telegramId": "2116964806",
       "zoomBalance": 74214,
       "bonusSlots": 34,
@@ -359,16 +429,6 @@
       "bonusBasic": 0,
       "bonusRare": 1,
       "bonusEpic": 1,
-      "bonusGold": 0
-    },
-    {
-      "telegramId": "1306149977",
-      "zoomBalance": 18058,
-      "bonusSlots": 10,
-      "bonusSun": false,
-      "bonusBasic": 2,
-      "bonusRare": 0,
-      "bonusEpic": 0,
       "bonusGold": 0
     }
   ]

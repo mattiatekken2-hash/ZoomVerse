@@ -614,9 +614,30 @@ export interface Grants {
   blackFarmDurationHours?: number;
   supernovaFarmDurationHours?: number;
   stellaRossaFarmDurationHours?: number;
+  // Daily ad-watch count (reset at midnight UTC). 0-5.
+  dailyAdsWatched?: number;
 }
 
-const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusNova: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, stellaRossaCollectionUnlocked: false, stellaRossaCollectionBundles: 0, totalPlanetsBuilt: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0, sunFarmDurationHours: 1, collectionFarmDurationHours: 1, whiteFarmDurationHours: 1, earthFarmDurationHours: 1, blackFarmDurationHours: 1, supernovaFarmDurationHours: 1, stellaRossaFarmDurationHours: 1 };
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusNova: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, stellaRossaCollectionUnlocked: false, stellaRossaCollectionBundles: 0, totalPlanetsBuilt: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0, sunFarmDurationHours: 1, collectionFarmDurationHours: 1, whiteFarmDurationHours: 1, earthFarmDurationHours: 1, blackFarmDurationHours: 1, supernovaFarmDurationHours: 1, stellaRossaFarmDurationHours: 1, dailyAdsWatched: 0 };
+
+/**
+ * Record a successfully watched Adsgram ad. Credits 1 REDSTAR and increments
+ * the daily counter (max 5/day, resets at midnight UTC).
+ */
+export async function recordAdWatched(
+  telegramId: string,
+): Promise<{ ok: boolean; newCount?: number; newRedStarBalance?: number; error?: string }> {
+  try {
+    const r = await fetch(`${API_BASE}/ads/watched`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId }),
+    });
+    return await r.json() as { ok: boolean; newCount?: number; newRedStarBalance?: number; error?: string };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
 
 /**
  * Buy a Shop item using the in-game DEPOSIT balance (not on-chain).

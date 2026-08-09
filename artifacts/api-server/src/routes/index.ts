@@ -36,6 +36,7 @@ import historyRouter from "./history";
 import pvpRouter from "./pvp";
 import stellaRossaRouter from "./stellaRossa";
 import comboRouter, { ensureComboClaims } from "./combo";
+import adsRouter from "./ads";
 
 // Boot-time DDL: ensure combo tracking column exists (idempotent).
 void ensureComboClaims();
@@ -143,6 +144,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/staking/start",
       "/ton/deposit/confirm",
       "/obtained/record",
+      "/ads/watched",
     ],
     bindField: "telegramId",
   },
@@ -352,5 +354,6 @@ router.use(historyRouter);
 router.use(pvpRouter);
 router.use(stellaRossaRouter);
 router.use(comboRouter);
+router.use(adsRouter);
 
 export default router;

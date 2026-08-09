@@ -988,6 +988,8 @@ function AppShellWithState() {
                   onClaimDaily={claimDaily}
                   onRedeemCode={redeemCode}
                   telegramId={state.telegramId}
+                  dailyAdsWatched={state.dailyAdsWatched ?? 0}
+                  onRedStarUpdate={(n) => setState((prev) => ({ ...prev, redStarBalance: n }))}
                 />
               )}
               {t === "rank" && (

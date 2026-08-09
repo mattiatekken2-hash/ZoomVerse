@@ -169,6 +169,8 @@ export const usersTable = pgTable("users", {
   blackFarmDurationHours: integer("black_farm_duration_hours").notNull().default(1),
   supernovaFarmDurationHours: integer("supernova_farm_duration_hours").notNull().default(1),
   stellaRossaFarmDurationHours: integer("stella_rossa_farm_duration_hours").notNull().default(1),
+  dailyAdsWatched: integer("daily_ads_watched").notNull().default(0),
+  dailyAdsDate: text("daily_ads_date").notNull().default(""),
   // Server-side mirror of the client's regular planets array (everything
   // shown on the FarmPage main grid, including bonus, crafted, and bought
   // planets). Stored as JSONB so we can replace it atomically on every

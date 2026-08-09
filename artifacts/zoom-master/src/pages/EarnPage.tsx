@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { claimDailyReward, fetchTasksState, claimTask, type TasksState, redeemServerCode } from "../utils/api";
+import { claimDailyReward, fetchTasksState, claimTask, type TasksState, redeemServerCode, recordAdWatched } from "../utils/api";
 import { useGlobalStore, refreshDailyStatus } from "../store/globalStore";
 import { useT } from "../i18n/LanguageContext";
 import { CosmicChestIcon, SpaceTicketIcon, OrbitLinkIcon, SpeedBoltIcon } from "../components/icons/GameIcons";
@@ -15,7 +15,13 @@ interface EarnPageProps {
   telegramId: string | null;
   onClaimDaily: () => void;
   onRedeemCode: (code: string) => { success: boolean; amount?: number; isSun?: boolean; error?: string };
+  /** Adsgram: number of ads already watched today (0-5). */
+  dailyAdsWatched?: number;
+  /** Called after a successful ad-watch so the parent can update redStarBalance. */
+  onRedStarUpdate?: (newBalance: number) => void;
 }
+
+const ADS_DAILY_LIMIT = 5;
 
 const DAILY_REWARDS_BASE = [50, 100, 200, 400, 800, 1500, 3000];
 
@@ -72,7 +78,7 @@ const SPONSOR_REQ_KEY: Record<string, string> = {
   sponsor_yt_miketamago: "earn.reqMiketamago",
 };
 
-export function EarnPage({ referralCode, referralCount, referralSpeedBonus, referredBy, claimedMilestones, telegramId, onRedeemCode }: EarnPageProps) {
+export function EarnPage({ referralCode, referralCount, referralSpeedBonus, referredBy, claimedMilestones, telegramId, onRedeemCode, dailyAdsWatched = 0, onRedStarUpdate }: EarnPageProps) {
   const { t } = useT();
   const firstName = (() => {
     try { return (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.first_name ?? null; } catch { return null; }
@@ -215,6 +221,43 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
   const [tasksError, setTasksError] = useState<string | null>(null);
   const [taskMsg, setTaskMsg] = useState<string | null>(null);
   const [claimingTaskId, setClaimingTaskId] = useState<string | null>(null);
+
+  // ── Adsgram daily ad task ──
+  const [adsCount, setAdsCount] = useState(dailyAdsWatched);
+  const [watchingAd, setWatchingAd] = useState(false);
+  const [adsMsg, setAdsMsg] = useState<string | null>(null);
+
+  const handleWatchAd = async () => {
+    if (!telegramId || watchingAd || adsCount >= ADS_DAILY_LIMIT) return;
+    const adsgram = (window as unknown as { Adsgram?: { init: (o: { blockId: string }) => { show: () => Promise<unknown> } } }).Adsgram;
+    if (!adsgram) {
+      setAdsMsg("Adsgram not available");
+      setTimeout(() => setAdsMsg(null), 3000);
+      return;
+    }
+    setWatchingAd(true);
+    try {
+      const controller = adsgram.init({ blockId: "42027" });
+      await controller.show();
+      // Video watched — record on server
+      const res = await recordAdWatched(telegramId);
+      if (res.ok && typeof res.newCount === "number") {
+        setAdsCount(res.newCount);
+        if (typeof res.newRedStarBalance === "number") {
+          onRedStarUpdate?.(res.newRedStarBalance);
+        }
+        setAdsMsg(`+1 ★ REDSTAR credited! (${res.newCount}/${ADS_DAILY_LIMIT})`);
+      } else {
+        setAdsMsg(res.error === "Daily limit reached" ? "Daily limit reached (5/5)" : (res.error ?? "Failed to credit reward"));
+      }
+    } catch {
+      // User skipped or closed the ad — no reward
+      setAdsMsg("Video not completed");
+    } finally {
+      setWatchingAd(false);
+      setTimeout(() => setAdsMsg(null), 4000);
+    }
+  };
   // Per-task "channel opened at" timestamps. Persisted per (user, taskId)
   // so the 10s countdown survives a reload AND opening one sponsor task
   // doesn't accidentally unlock the Claim button on every other sponsor
@@ -319,6 +362,87 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
       </div>
 
       <div className="px-4 pb-4 flex flex-col gap-4">
+        {/* ── Adsgram Watch-Ad Task ── */}
+        <div
+          className="rounded-2xl p-4 border"
+          style={{ borderColor: "rgba(220,20,60,0.25)", background: "rgba(220,20,60,0.04)" }}
+        >
+          <div className="flex items-center gap-3 mb-3">
+            <div style={{ fontSize: 28, lineHeight: 1 }}>📺</div>
+            <div className="flex-1">
+              <div className="font-black text-base tracking-wide" style={{ color: "#ff2244" }}>
+                Watch &amp; Earn
+              </div>
+              <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.4)" }}>
+                Watch a short video · get 1 ★ REDSTAR · up to {ADS_DAILY_LIMIT}/day
+              </div>
+            </div>
+            {/* Counter badge */}
+            <div
+              className="flex flex-col items-center justify-center rounded-xl px-3 py-1.5 border font-black tabular-nums"
+              style={{
+                background: adsCount >= ADS_DAILY_LIMIT ? "rgba(0,230,118,0.08)" : "rgba(220,20,60,0.10)",
+                borderColor: adsCount >= ADS_DAILY_LIMIT ? "rgba(0,230,118,0.3)" : "rgba(220,20,60,0.35)",
+                color: adsCount >= ADS_DAILY_LIMIT ? "#00e676" : "#ff2244",
+                minWidth: 52,
+              }}
+            >
+              <div style={{ fontSize: 16 }}>{adsCount}/{ADS_DAILY_LIMIT}</div>
+              <div style={{ fontSize: 8, opacity: 0.7, fontWeight: 700 }}>today</div>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div className="w-full h-1.5 rounded-full overflow-hidden mb-3" style={{ background: "rgba(255,255,255,0.06)" }}>
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${Math.min(100, (adsCount / ADS_DAILY_LIMIT) * 100)}%`,
+                background: adsCount >= ADS_DAILY_LIMIT
+                  ? "linear-gradient(90deg, #00e676, #00c853)"
+                  : "linear-gradient(90deg, #ff2244, #ff6b6b)",
+                boxShadow: adsCount >= ADS_DAILY_LIMIT ? "0 0 8px rgba(0,230,118,0.5)" : "0 0 8px rgba(255,34,68,0.5)",
+              }}
+            />
+          </div>
+
+          <button
+            onClick={() => void handleWatchAd()}
+            disabled={watchingAd || adsCount >= ADS_DAILY_LIMIT || !telegramId}
+            className="w-full py-3 rounded-xl font-black text-sm tracking-wider uppercase transition-all active:scale-95 border"
+            style={{
+              background: adsCount >= ADS_DAILY_LIMIT
+                ? "rgba(255,255,255,0.04)"
+                : watchingAd
+                  ? "rgba(220,20,60,0.15)"
+                  : "linear-gradient(135deg, #ff2244, #ff6b6b)",
+              color: adsCount >= ADS_DAILY_LIMIT ? "rgba(255,255,255,0.25)" : watchingAd ? "#ff2244" : "#fff",
+              borderColor: adsCount >= ADS_DAILY_LIMIT ? "rgba(255,255,255,0.06)" : "transparent",
+              cursor: adsCount >= ADS_DAILY_LIMIT || watchingAd || !telegramId ? "not-allowed" : "pointer",
+              boxShadow: adsCount >= ADS_DAILY_LIMIT || watchingAd ? "none" : "0 0 20px rgba(255,34,68,0.35)",
+            }}
+          >
+            {adsCount >= ADS_DAILY_LIMIT
+              ? "✓ Completed for today"
+              : watchingAd
+                ? "Loading ad…"
+                : `▶ Watch · +1 ★ REDSTAR`}
+          </button>
+
+          {adsMsg && (
+            <div
+              className="mt-2 text-center text-xs font-bold py-2 rounded-lg"
+              style={{
+                color: adsMsg.startsWith("+") ? "#00e676" : adsMsg.includes("limit") || adsMsg.includes("Completed") ? "#ffb347" : "#ff5252",
+                background: adsMsg.startsWith("+") ? "rgba(0,230,118,0.08)" : "rgba(255,82,82,0.08)",
+                border: `1px solid ${adsMsg.startsWith("+") ? "rgba(0,230,118,0.2)" : "rgba(255,82,82,0.18)"}`,
+              }}
+            >
+              {adsMsg}
+            </div>
+          )}
+        </div>
+
         {/* 7-Day Streak Daily Reward */}
         <div
           className="rounded-2xl p-4 border"

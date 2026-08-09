@@ -339,6 +339,8 @@ export interface GameState {
   // and is summed into the live rate alongside planets and the SUN.
   // Server-side: jsonb `equipment_json` column on `users`.
   equipment: EquipmentItem[];
+  /** Number of Adsgram ads watched today (0-5). Reset at midnight UTC. */
+  dailyAdsWatched: number;
 }
 
 export const PLANET_CONFIG: Record<PlanetType, {
@@ -939,6 +941,7 @@ const INITIAL_STATE: GameState = {
   defectPlanets: [],
   lastBalanceEpoch: 0,
   equipment: [],
+  dailyAdsWatched: 0,
 };
 
 /**
@@ -2169,6 +2172,9 @@ export function useGameState() {
           // otherwise (network failure) keep the local copy so we don't
           // wipe inventory on a transient blip.
           equipment: serverEquipment.ok ? serverEquipment.equipment : (prev.equipment ?? []),
+          // Adsgram daily ad counter — server is authoritative (already
+          // reset to 0 by the server when the date has changed).
+          dailyAdsWatched: Math.max(0, Number(grants.dailyAdsWatched ?? 0)),
         };
 
         // ─── GRANTS-DERIVED HYDRATION (gated on a successful /grants fetch) ───
