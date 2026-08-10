@@ -1,16 +1,6 @@
 {
-  "updatedAt": "2026-08-10T11:11:42.159Z",
+  "updatedAt": "2026-08-10T11:42:56.681Z",
   "users": [
-    {
-      "telegramId": "5145904635",
-      "zoomBalance": 6020,
-      "bonusSlots": 0,
-      "bonusSun": false,
-      "bonusBasic": 0,
-      "bonusRare": 0,
-      "bonusEpic": 0,
-      "bonusGold": 0
-    },
     {
       "telegramId": "2112945353",
       "zoomBalance": 0,
@@ -20,6 +10,16 @@
       "bonusRare": 0,
       "bonusEpic": 0,
       "bonusGold": 0
+    },
+    {
+      "telegramId": "8144744644",
+      "zoomBalance": 5355,
+      "bonusSlots": 24,
+      "bonusSun": true,
+      "bonusBasic": 1,
+      "bonusRare": 0,
+      "bonusEpic": 1,
+      "bonusGold": 1
     },
     {
       "telegramId": "432959852",
@@ -52,6 +52,16 @@
       "bonusGold": 0
     },
     {
+      "telegramId": "5770790001",
+      "zoomBalance": 6000,
+      "bonusSlots": 0,
+      "bonusSun": false,
+      "bonusBasic": 0,
+      "bonusRare": 0,
+      "bonusEpic": 0,
+      "bonusGold": 0
+    },
+    {
       "telegramId": "8204806716",
       "zoomBalance": 0,
       "bonusSlots": 0,
@@ -62,8 +72,28 @@
       "bonusGold": 0
     },
     {
+      "telegramId": "1306149977",
+      "zoomBalance": 18208,
+      "bonusSlots": 10,
+      "bonusSun": false,
+      "bonusBasic": 2,
+      "bonusRare": 0,
+      "bonusEpic": 0,
+      "bonusGold": 0
+    },
+    {
       "telegramId": "644413477",
       "zoomBalance": 6000,
+      "bonusSlots": 0,
+      "bonusSun": false,
+      "bonusBasic": 0,
+      "bonusRare": 0,
+      "bonusEpic": 0,
+      "bonusGold": 0
+    },
+    {
+      "telegramId": "1218161083",
+      "zoomBalance": 6556,
       "bonusSlots": 0,
       "bonusSun": false,
       "bonusBasic": 0,
@@ -82,8 +112,8 @@
       "bonusGold": 0
     },
     {
-      "telegramId": "7931866049",
-      "zoomBalance": 6064,
+      "telegramId": "916005085",
+      "zoomBalance": 20,
       "bonusSlots": 0,
       "bonusSun": false,
       "bonusBasic": 0,
@@ -92,8 +122,8 @@
       "bonusGold": 0
     },
     {
-      "telegramId": "916005085",
-      "zoomBalance": 20,
+      "telegramId": "7931866049",
+      "zoomBalance": 6064,
       "bonusSlots": 0,
       "bonusSun": false,
       "bonusBasic": 0,
@@ -136,6 +166,16 @@
       "zoomBalance": 6000,
       "bonusSlots": 0,
       "bonusSun": false,
+      "bonusBasic": 0,
+      "bonusRare": 0,
+      "bonusEpic": 0,
+      "bonusGold": 0
+    },
+    {
+      "telegramId": "5145904635",
+      "zoomBalance": 6020,
+      "bonusSlots": 26,
+      "bonusSun": true,
       "bonusBasic": 0,
       "bonusRare": 0,
       "bonusEpic": 0,
@@ -212,16 +252,6 @@
       "bonusGold": 0
     },
     {
-      "telegramId": "8144744644",
-      "zoomBalance": 5116,
-      "bonusSlots": 24,
-      "bonusSun": true,
-      "bonusBasic": 1,
-      "bonusRare": 0,
-      "bonusEpic": 1,
-      "bonusGold": 1
-    },
-    {
       "telegramId": "5647906635",
       "zoomBalance": 0,
       "bonusSlots": 0,
@@ -252,16 +282,6 @@
       "bonusGold": 0
     },
     {
-      "telegramId": "1306149977",
-      "zoomBalance": 18108,
-      "bonusSlots": 10,
-      "bonusSun": false,
-      "bonusBasic": 2,
-      "bonusRare": 0,
-      "bonusEpic": 0,
-      "bonusGold": 0
-    },
-    {
       "telegramId": "450386652",
       "zoomBalance": 6020,
       "bonusSlots": 0,
@@ -283,16 +303,6 @@
     },
     {
       "telegramId": "912442612",
-      "zoomBalance": 6000,
-      "bonusSlots": 0,
-      "bonusSun": false,
-      "bonusBasic": 0,
-      "bonusRare": 0,
-      "bonusEpic": 0,
-      "bonusGold": 0
-    },
-    {
-      "telegramId": "5770790001",
       "zoomBalance": 6000,
       "bonusSlots": 0,
       "bonusSun": false,
@@ -349,16 +359,6 @@
       "bonusBasic": 0,
       "bonusRare": 0,
       "bonusEpic": 1,
-      "bonusGold": 0
-    },
-    {
-      "telegramId": "1218161083",
-      "zoomBalance": 6550,
-      "bonusSlots": 0,
-      "bonusSun": false,
-      "bonusBasic": 0,
-      "bonusRare": 0,
-      "bonusEpic": 0,
       "bonusGold": 0
     },
     {

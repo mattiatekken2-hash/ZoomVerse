@@ -1276,6 +1276,40 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
           }}
         />
       )}
+      {/* ⚔️ COMBATTENTE ON badge — visible whenever PvP modal is active */}
+      {pvpPlanet && (
+        <div
+          style={{
+            position: "fixed",
+            top: 14,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "6px 16px",
+            borderRadius: 20,
+            background: "linear-gradient(90deg, rgba(180,0,0,0.92), rgba(220,40,40,0.92))",
+            border: "1px solid rgba(255,100,100,0.5)",
+            boxShadow: "0 0 18px rgba(255,50,50,0.5)",
+            animation: "pvp-fighter-pulse 1.4s ease-in-out infinite",
+            pointerEvents: "none",
+          }}
+        >
+          <span style={{ fontSize: 14 }}>⚔️</span>
+          <span style={{ fontSize: 11, fontWeight: 900, color: "#fff", letterSpacing: 1.5, textTransform: "uppercase" }}>
+            Combattente ON
+          </span>
+          <span style={{ fontSize: 14 }}>⚔️</span>
+          <style>{`
+            @keyframes pvp-fighter-pulse {
+              0%,100% { box-shadow: 0 0 14px rgba(255,50,50,0.5); }
+              50%      { box-shadow: 0 0 28px rgba(255,80,80,0.85); }
+            }
+          `}</style>
+        </div>
+      )}
       {pvpPlanet && telegramId && (
         <PvPModal
           open={!!pvpPlanet}

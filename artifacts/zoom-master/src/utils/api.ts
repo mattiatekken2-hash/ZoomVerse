@@ -960,7 +960,7 @@ export type PvpLeaderboardResponse = {
   entries: PvpLeaderboardEntry[];
   me: PvpLeaderboardMe | null;
 };
-const PVP_LB_PRIZES = [200, 100, 80, 40, 40, 20, 20, 20, 20, 20];
+const PVP_LB_PRIZES = [10, 7, 5, 4, 3, 2, 2, 1, 1, 1];
 const EMPTY_PVP_LB: PvpLeaderboardResponse = { dayKey: "", prizes: PVP_LB_PRIZES, entries: [], me: null };
 
 export async function fetchPvpLeaderboard(telegramId?: string | null): Promise<PvpLeaderboardResponse> {

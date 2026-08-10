@@ -18,7 +18,7 @@ interface Props {
   telegramId?: string | null;
 }
 
-const PVP_PRIZES = [200, 100, 80, 40, 40, 20, 20, 20, 20, 20];
+const PVP_PRIZES = [10, 7, 5, 4, 3, 2, 2, 1, 1, 1];
 
 function msUntilNextUtcMidnight(now = Date.now()): number {
   const d = new Date(now);
@@ -237,7 +237,7 @@ function PvpRankWidgetBase({ telegramId }: Props) {
                               whiteSpace: "nowrap",
                             }}
                           >
-                            +{e.prize} ⭐
+                            +{e.prize} ★
                           </div>
                         )}
                       </div>
@@ -261,7 +261,7 @@ function PvpRankWidgetBase({ telegramId }: Props) {
                     textAlign: "center",
                   }}>
                     <div style={{ color: "#ff9ba4", fontWeight: 800 }}>#{i + 1}</div>
-                    <div style={{ color: "rgba(255,255,255,0.7)" }}>+{p}⭐</div>
+                    <div style={{ color: "rgba(255,255,255,0.7)" }}>+{p}★</div>
                   </div>
                 ))}
               </div>

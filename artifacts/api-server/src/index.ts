@@ -334,9 +334,9 @@ function startPvpLeaderboardResetCron() {
   // then zero every stale row in one all-or-nothing transaction. If nothing
   // is stale, the tick is a cheap no-op.
   //
-  // Prize split (1st→10th): 200/100/80/40/40/20/20/20/20/20 stardust.
+  // Prize split (1st→10th): 10/7/5/4/3/2/2/1/1/1 redstar.
   // Deterministic tie-breaker (telegramId ASC) keeps prize ordering stable.
-  const PVP_PRIZES = [200, 100, 80, 40, 40, 20, 20, 20, 20, 20] as const;
+  const PVP_PRIZES = [10, 7, 5, 4, 3, 2, 2, 1, 1, 1] as const;
   const intervalMs = 60 * 1000;
   let inFlight = false;
 
@@ -374,7 +374,7 @@ function startPvpLeaderboardResetCron() {
           await tx
             .update(usersTable)
             .set({
-              stardustBalance: sql`${usersTable.stardustBalance} + ${prize}`,
+              redStarBalance: sql`${usersTable.redStarBalance} + ${prize}`,
               balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
             })
             .where(eq(usersTable.telegramId, winner.telegramId));

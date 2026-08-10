@@ -15,8 +15,8 @@ import { eq, desc, sql } from "drizzle-orm";
 
 const router: IRouter = Router();
 
-// PvP DAILY LEADERBOARD prize split (1st→10th), stardust.
-const PVP_PRIZES = [200, 100, 80, 40, 40, 20, 20, 20, 20, 20] as const;
+// PvP DAILY LEADERBOARD prize split (1st→10th), redstar.
+const PVP_PRIZES = [10, 7, 5, 4, 3, 2, 2, 1, 1, 1] as const;
 
 function pvpLeaderboardDayKey(now: Date = new Date()): string {
   const y = now.getUTCFullYear();
