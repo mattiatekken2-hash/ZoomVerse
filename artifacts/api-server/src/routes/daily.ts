@@ -6,23 +6,20 @@ import { recordHistoryAsync } from "../lib/history";
 const router: IRouter = Router();
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const BASE_REWARDS = [50, 100, 200, 400, 800, 1500, 3000];
-const CYCLE_INCREMENT = 0.01;
+// Rewards in STARDUST, one per day (D1–D7). No cycle multiplier.
+const BASE_REWARDS = [1, 2, 3, 4, 5, 6, 7];
 
-function rewardForDay(dayIndex: number, cycle: number): number {
-  const base = BASE_REWARDS[Math.max(0, Math.min(6, dayIndex))];
-  const mult = 1 + cycle * CYCLE_INCREMENT;
-  return Math.round(base * mult * 100) / 100;
+function rewardForDay(dayIndex: number): number {
+  return BASE_REWARDS[Math.max(0, Math.min(6, dayIndex))] ?? 1;
 }
 
-function computeStatus(lastClaimAt: Date | null, streakDay: number, cycle: number) {
+function computeStatus(lastClaimAt: Date | null, streakDay: number) {
   const now = Date.now();
   const lastMs = lastClaimAt ? lastClaimAt.getTime() : 0;
   const nextAvailable = lastMs ? lastMs + DAY_MS : now;
   const hardResetAt = nextAvailable + DAY_MS;
 
   let effectiveDay = streakDay;
-  let effectiveCycle = cycle;
   let canClaim = false;
   let willHardReset = false;
 
@@ -33,7 +30,6 @@ function computeStatus(lastClaimAt: Date | null, streakDay: number, cycle: numbe
     willHardReset = true;
     canClaim = true;
     effectiveDay = 0;
-    effectiveCycle = 0;
   } else if (now >= nextAvailable) {
     canClaim = true;
   }
@@ -42,11 +38,11 @@ function computeStatus(lastClaimAt: Date | null, streakDay: number, cycle: numbe
     ? (effectiveDay >= 7 ? 0 : effectiveDay)
     : (streakDay >= 7 ? 0 : streakDay);
 
-  const upcomingReward = rewardForDay(nextDayIdx, effectiveCycle);
+  const upcomingReward = rewardForDay(nextDayIdx);
 
   return {
     streakDay,
-    streakCycle: cycle,
+    streakCycle: 0,
     lastClaimAt: lastMs,
     nextAvailableAt: nextAvailable,
     hardResetAt,
@@ -54,8 +50,8 @@ function computeStatus(lastClaimAt: Date | null, streakDay: number, cycle: numbe
     willHardReset,
     upcomingDay: nextDayIdx + 1,
     upcomingReward,
-    cycleMultiplier: 1 + effectiveCycle * CYCLE_INCREMENT,
-    rewardsPreview: BASE_REWARDS.map((_, i) => rewardForDay(i, effectiveCycle)),
+    cycleMultiplier: 1,
+    rewardsPreview: BASE_REWARDS.map((_, i) => rewardForDay(i)),
   };
 }
 
@@ -66,13 +62,12 @@ router.get("/daily/status/:telegramId", async (req, res) => {
       .select({
         last: usersTable.lastDailyClaimAt,
         day: usersTable.dailyStreakDay,
-        cycle: usersTable.dailyStreakCycle,
       })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
       .limit(1);
 
-    res.json(computeStatus(u?.last ?? null, u?.day ?? 0, u?.cycle ?? 0));
+    res.json(computeStatus(u?.last ?? null, u?.day ?? 0));
   } catch (err) {
     console.error("[daily/status] error:", err);
     res.status(500).json({ error: "Internal error" });
@@ -96,7 +91,6 @@ router.post("/daily/claim", async (req, res) => {
       .select({
         last: usersTable.lastDailyClaimAt,
         day: usersTable.dailyStreakDay,
-        cycle: usersTable.dailyStreakCycle,
       })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
@@ -118,40 +112,35 @@ router.post("/daily/claim", async (req, res) => {
     }
 
     let newDay: number;
-    let newCycle: number;
 
     if (!lastMs || now >= hardResetAt) {
       newDay = 1;
-      newCycle = 0;
     } else if (u.day >= 7) {
       newDay = 1;
-      newCycle = u.cycle + 1;
     } else {
       newDay = u.day + 1;
-      newCycle = u.cycle;
     }
 
-    const reward = rewardForDay(newDay - 1, newCycle);
+    const reward = rewardForDay(newDay - 1);
 
     await db
       .update(usersTable)
       .set({
         dailyStreakDay: newDay,
-        dailyStreakCycle: newCycle,
+        dailyStreakCycle: 0,
         lastDailyClaimAt: new Date(now),
-        zoomBalance: sql`${usersTable.zoomBalance} + ${reward}`,
-        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+        stardustBalance: sql`${usersTable.stardustBalance} + ${reward}`,
       })
       .where(eq(usersTable.telegramId, telegramId));
 
-    const status = computeStatus(new Date(now), newDay, newCycle);
-    res.json({ ok: true, reward, day: newDay, cycle: newCycle, ...status });
+    const status = computeStatus(new Date(now), newDay);
+    res.json({ ok: true, reward, day: newDay, cycle: 0, ...status });
     recordHistoryAsync({
       telegramId,
       kind: "daily_claim",
       delta: reward,
-      currency: "zoom",
-      meta: { day: newDay, cycle: newCycle },
+      currency: "stardust",
+      meta: { day: newDay },
     });
   } catch (err) {
     console.error("[daily/claim] error:", err);

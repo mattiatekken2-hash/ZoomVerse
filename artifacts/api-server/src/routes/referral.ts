@@ -5,7 +5,9 @@ import { z } from "zod";
 
 const router: IRouter = Router();
 
-const REFERRAL_BONUS = 20;
+// Per-invite reward: 10 stardust + 0.1 TON deposit (no ZOOM)
+const REFERRAL_STARDUST = 10;
+const REFERRAL_TON_DEPOSIT = 0.1;
 
 // HALL OF FAME helper: same UTC day-key convention as stardust.
 // Inlined here (instead of imported) to avoid coupling the referral route
@@ -128,28 +130,23 @@ router.post("/referral/register", async (req, res) => {
 
     if (shouldCreditReferrer && referredBy) {
       // Single UPSERT bumps:
-      //   • referral_count     — lifetime counter (+ 1)
-      //   • zoom_balance       — bonus credit (+ REFERRAL_BONUS)
-      //   • balance_epoch      — invalidate client cache so the credited
-      //                          ZOOM appears immediately on next sync
+      //   • referral_count       — lifetime counter (+ 1)
+      //   • stardust_balance     — +10 stardust per invite
+      //   • deposit_balance      — +0.1 TON deposited to wallet
       //   • daily_referral_count — Hall of Fame counter, reset-on-rollover
       //   • daily_referral_day_key — UTC day this counter belongs to
       //
       // The HOF reset uses the same atomic CASE pattern as stardust:
       // if the stored day_key matches today, increment; otherwise reset
-      // to 1 and stamp today's key. This is safe under concurrent
-      // referrals (the SQL is atomic per row) and makes the cron's
-      // job to "zero everyone at 00:00 UTC" purely clean-up — even if
-      // the cron is briefly delayed, a referral arriving in the new
-      // UTC day correctly starts a fresh counter.
+      // to 1 and stamp today's key.
       const today = utcDayKey();
       await db
         .insert(usersTable)
         .values({
           telegramId: referredBy,
           referralCount: 1,
-          zoomBalance: REFERRAL_BONUS,
-          balanceEpoch: 1,
+          stardustBalance: REFERRAL_STARDUST,
+          depositBalance: REFERRAL_TON_DEPOSIT,
           dailyReferralCount: 1,
           dailyReferralDayKey: today,
         })
@@ -157,14 +154,14 @@ router.post("/referral/register", async (req, res) => {
           target: usersTable.telegramId,
           set: {
             referralCount: sql`${usersTable.referralCount} + 1`,
-            zoomBalance: sql`${usersTable.zoomBalance} + ${REFERRAL_BONUS}`,
-            balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+            stardustBalance: sql`${usersTable.stardustBalance} + ${REFERRAL_STARDUST}`,
+            depositBalance: sql`${usersTable.depositBalance} + ${REFERRAL_TON_DEPOSIT}`,
             dailyReferralCount: sql`CASE WHEN ${usersTable.dailyReferralDayKey} = ${today} THEN ${usersTable.dailyReferralCount} + 1 ELSE 1 END`,
             dailyReferralDayKey: today,
           },
         });
 
-      console.log(`[referral] +${REFERRAL_BONUS} ZOOM credited to referrer ${referredBy} for user ${telegramId}`);
+      console.log(`[referral] +${REFERRAL_STARDUST} stardust +${REFERRAL_TON_DEPOSIT} TON deposit credited to referrer ${referredBy} for user ${telegramId}`);
 
       await checkAndCreditMilestones(referredBy);
     }

@@ -23,7 +23,7 @@ interface EarnPageProps {
 
 const ADS_DAILY_LIMIT = 5;
 
-const DAILY_REWARDS_BASE = [50, 100, 200, 400, 800, 1500, 3000];
+const DAILY_REWARDS_BASE = [1, 2, 3, 4, 5, 6, 7];
 
 const MILESTONES = [
   { count: 5, reward: 500 },
@@ -117,8 +117,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
     const res = await claimDailyReward(telegramId, firstName ?? undefined);
     setClaiming(false);
     if (res.ok && res.reward) {
-      setClaimMsg(t("earn.zoomDay", { n: res.reward.toLocaleString(), d: res.day ?? 0 }));
-      window.dispatchEvent(new CustomEvent("zoom-credit-local", { detail: { amount: res.reward } }));
+      setClaimMsg(t("earn.stardustDay", { n: res.reward.toLocaleString(), d: res.day ?? 0 }));
       window.dispatchEvent(new Event("zoom-data-refresh"));
       await refreshDailyStatus();
       setTimeout(() => setClaimMsg(null), 3500);
@@ -454,13 +453,13 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
               <div>
                 <div className="font-black text-base tracking-wide neon-text">{t("earn.dailyStreak")}</div>
                 <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.4)" }}>
-                  {t("earn.streakLoop", { n: cycle + 1, pct: cyclePct.toFixed(0) })}
+                  {t("earn.streakLoop7")}
                 </div>
               </div>
             </div>
             <div className="text-right">
               <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.35)" }}>{t("earn.next")}</div>
-              <div className="text-sm font-black neon-text">+{Math.round(upcomingReward).toLocaleString()}</div>
+              <div className="text-sm font-black neon-text">+{Math.round(upcomingReward)} ★</div>
             </div>
           </div>
 
@@ -498,7 +497,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                     D{dayNum}
                   </div>
                   <div className="text-[10px] font-black leading-tight mt-0.5" style={{ color: isClaimed ? "#00e676" : isNext ? "#fff" : isMega ? "#ffd700" : "rgba(255,255,255,0.55)" }}>
-                    {amt >= 1000 ? `${(amt / 1000).toFixed(amt % 1000 === 0 ? 0 : 1)}K` : Math.round(amt)}
+                    {Math.round(amt)}★
                   </div>
                   {isClaimed && <div className="text-[8px]" style={{ color: "#00e676" }}>✓</div>}
                 </div>
@@ -522,7 +521,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             {claiming
               ? t("earn.claiming")
               : canClaim
-                ? t("earn.claimDayBtn", { n: upcomingDay, r: Math.round(upcomingReward).toLocaleString() })
+                ? t("earn.claimDayStardust", { n: upcomingDay, r: Math.round(upcomingReward).toLocaleString() })
                 : t("earn.nextIn", { h: hLeft, m: mLeft, s: sLeft })}
           </button>
 
@@ -599,7 +598,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             <div className="font-black text-base gold-text">{t("earn.referralProgram")}</div>
           </div>
           <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
-            {t("earn.referralProgramHint")}
+            {t("earn.referralProgramHintNew")}
           </div>
           <button
             onClick={() => {
