@@ -204,6 +204,16 @@ export function leaveQueue(telegramId: string): { ok: boolean } {
   return { ok: true };
 }
 
+/** Return a snapshot of all players currently waiting in queue (for the lobby). */
+export function getLobbyEntries(): Array<{ telegramId: string; username?: string; planet: PlanetEntry; joinedAt: number }> {
+  return Array.from(queue.values()).map((e) => ({
+    telegramId: e.telegramId,
+    username: e.username,
+    planet: e.planet,
+    joinedAt: e.joinedAt,
+  }));
+}
+
 export function getQueueStatus(telegramId: string): {
   inQueue: boolean;
   joinedAt?: number;

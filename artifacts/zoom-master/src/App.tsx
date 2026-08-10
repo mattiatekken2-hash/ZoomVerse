@@ -16,7 +16,7 @@ import { MarketPage } from "./pages/MarketPage";
 import { EarnPage } from "./pages/EarnPage";
 import { RankPage } from "./pages/RankPage";
 import { ShopPage } from "./pages/ShopPage";
-import { WheelPage } from "./pages/WheelPage";
+import { PvpLobbyPage } from "./pages/PvpLobbyPage";
 import { HomePage } from "./pages/HomePage";
 import { AdminPanel } from "./components/AdminPanel";
 import { SettingsMenu } from "./components/SettingsMenu";
@@ -26,26 +26,26 @@ import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, merc
 import { useStardust } from "./hooks/useStardust";
 import { useMerchant } from "./hooks/useMerchant";
 import { MerchantPopup } from "./components/MerchantPopup";
-import { FlaskConical, Home, Sprout, ShoppingCart, CircleDot, Gem, Trophy, Wallet } from "lucide-react";
+import { FlaskConical, Home, Sprout, ShoppingCart, Zap, Gem, Trophy, Wallet } from "lucide-react";
 import { WalletPage } from "./pages/WalletPage";
 
 const MAINTENANCE_ADMIN_ID = "8144744644";
 
 const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
-type Tab = "lab" | "home" | "farm" | "market" | "earn" | "wheel" | "rank" | "shop" | "wallet";
+type Tab = "lab" | "home" | "farm" | "market" | "earn" | "pvp" | "rank" | "shop" | "wallet";
 
 const NAV: { id: Tab; labelKey: string; icon: React.ElementType }[] = [
   { id: "lab", labelKey: "nav.lab", icon: FlaskConical },
   { id: "farm", labelKey: "nav.farm", icon: Sprout },
   { id: "market", labelKey: "nav.market", icon: ShoppingCart },
-  { id: "wheel", labelKey: "nav.wheel", icon: CircleDot },
+  { id: "pvp", labelKey: "nav.pvp", icon: Zap },
   { id: "earn", labelKey: "nav.earn", icon: Gem },
   { id: "rank", labelKey: "nav.rank", icon: Trophy },
   { id: "wallet", labelKey: "nav.wallet", icon: Wallet },
 ];
 
-const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "wheel", "rank", "shop", "wallet"];
+const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "pvp", "rank", "shop", "wallet"];
 
 export default function App() {
   return (
@@ -1022,8 +1022,31 @@ function AppShellWithState() {
                   supernovaCollectionBundles={Number(state.supernovaCollectionBundles) || 0}
                 />
               )}
-              {t === "wheel" && (
-                <WheelPage telegramId={state.telegramId} />
+              {t === "pvp" && (
+                <PvpLobbyPage
+                  telegramId={state.telegramId}
+                  planets={state.planets}
+                  visible={tab === "pvp"}
+                  onFlushPlanets={async () => {
+                    if (!state.telegramId) return;
+                    await saveRegularPlanets(
+                      state.telegramId,
+                      state.planets as unknown as Array<Record<string, unknown>>,
+                      {
+                        basic: state.claimedBonusBasic ?? 0,
+                        rare: state.claimedBonusRare ?? 0,
+                        epic: state.claimedBonusEpic ?? 0,
+                        gold: state.claimedBonusGold ?? 0,
+                        mythic: state.claimedBonusMythic ?? 0,
+                        plasma: state.claimedBonusPlasma ?? 0,
+                        v1: state.claimedBonusV1 ?? 0,
+                        v1NftPlatinum: state.claimedBonusV1NftPlatinum ?? 0,
+                      },
+                      state.craftsCompleted ?? 0,
+                    );
+                  }}
+                  onPlanetTransferred={() => window.dispatchEvent(new Event("planets-refresh"))}
+                />
               )}
               {t === "home" && (
                 <HomePage telegramId={state.telegramId} referralCode={state.referralCode} visible={tab === "home"} />

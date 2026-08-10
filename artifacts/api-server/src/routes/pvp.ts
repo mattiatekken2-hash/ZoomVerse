@@ -4,6 +4,7 @@ import {
   enterQueue,
   leaveQueue,
   getQueueStatus,
+  getLobbyEntries,
   getBattle,
   confirmBattle,
   declineBattle,
@@ -154,6 +155,20 @@ router.post("/pvp/leave-queue", async (req, res) => {
   const { telegramId } = parsed.data;
   const result = leaveQueue(telegramId);
   res.json({ ok: result.ok });
+});
+
+// ─── GET /pvp/lobby ──────────────────────────────────────────────────
+// Returns all players currently waiting in the matchmaking queue.
+// Public endpoint — no auth needed.
+
+router.get("/pvp/lobby", (_req, res) => {
+  try {
+    const entries = getLobbyEntries();
+    res.json({ ok: true, count: entries.length, entries });
+  } catch (err) {
+    console.error("[pvp/lobby] error:", err);
+    res.status(500).json({ ok: false, error: "Internal error" });
+  }
 });
 
 // ─── GET /pvp/status/:telegramId ─────────────────────────────────────

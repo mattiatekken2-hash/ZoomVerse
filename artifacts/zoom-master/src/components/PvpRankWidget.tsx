@@ -229,9 +229,9 @@ function PvpRankWidgetBase({ telegramId }: Props) {
                             style={{
                               padding: "4px 8px",
                               borderRadius: 8,
-                              background: "rgba(255,210,63,0.15)",
-                              border: "1px solid rgba(255,210,63,0.45)",
-                              color: "#ffd23f",
+                              background: "rgba(220,30,60,0.15)",
+                              border: "1px solid rgba(220,30,60,0.45)",
+                              color: "#ff4466",
                               fontSize: 11,
                               fontWeight: 800,
                               whiteSpace: "nowrap",
@@ -261,7 +261,7 @@ function PvpRankWidgetBase({ telegramId }: Props) {
                     textAlign: "center",
                   }}>
                     <div style={{ color: "#ff9ba4", fontWeight: 800 }}>#{i + 1}</div>
-                    <div style={{ color: "rgba(255,255,255,0.7)" }}>+{p}★</div>
+                    <div style={{ color: "#ff4466", fontWeight: 800 }}>+{p}★</div>
                   </div>
                 ))}
               </div>

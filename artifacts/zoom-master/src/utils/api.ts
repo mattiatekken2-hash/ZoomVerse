@@ -963,6 +963,28 @@ export type PvpLeaderboardResponse = {
 const PVP_LB_PRIZES = [10, 7, 5, 4, 3, 2, 2, 1, 1, 1];
 const EMPTY_PVP_LB: PvpLeaderboardResponse = { dayKey: "", prizes: PVP_LB_PRIZES, entries: [], me: null };
 
+export interface PvpLobbyEntry {
+  telegramId: string;
+  username?: string;
+  planet: { id: string; name: string; rarity: string; rate: number; float?: number | null };
+  joinedAt: number;
+}
+export interface PvpLobbyResponse {
+  ok: boolean;
+  count: number;
+  entries: PvpLobbyEntry[];
+}
+
+export async function fetchPvpLobby(): Promise<PvpLobbyResponse> {
+  try {
+    const res = await fetch(`${API_BASE}/pvp/lobby?t=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return { ok: false, count: 0, entries: [] };
+    return await res.json();
+  } catch {
+    return { ok: false, count: 0, entries: [] };
+  }
+}
+
 export async function fetchPvpLeaderboard(telegramId?: string | null): Promise<PvpLeaderboardResponse> {
   try {
     const q = telegramId ? `telegramId=${encodeURIComponent(telegramId)}&` : "";
