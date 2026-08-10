@@ -459,7 +459,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             </div>
             <div className="text-right">
               <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.35)" }}>{t("earn.next")}</div>
-              <div className="text-sm font-black neon-text">+{Math.round(upcomingReward)} ★</div>
+              <div className="text-sm font-black neon-text">+{Math.round(upcomingReward)} <span style={{ color: "#ffd700" }}>★</span></div>
             </div>
           </div>
 
@@ -497,7 +497,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                     D{dayNum}
                   </div>
                   <div className="text-[10px] font-black leading-tight mt-0.5" style={{ color: isClaimed ? "#00e676" : isNext ? "#fff" : isMega ? "#ffd700" : "rgba(255,255,255,0.55)" }}>
-                    {Math.round(amt)}★
+                    {Math.round(amt)}<span style={{ color: "#ffd700" }}>★</span>
                   </div>
                   {isClaimed && <div className="text-[8px]" style={{ color: "#00e676" }}>✓</div>}
                 </div>
