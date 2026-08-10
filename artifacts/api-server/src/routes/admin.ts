@@ -755,7 +755,7 @@ router.post("/admin/global-redstar", async (req, res) => {
     await db
       .update(usersTable)
       .set({
-        redStar: sql`${usersTable.redStar} + ${amount}`,
+        redStarBalance: sql`${usersTable.redStarBalance} + ${amount}`,
       });
     scheduleAdminAssetSnapshot();
     res.json({ ok: true });
