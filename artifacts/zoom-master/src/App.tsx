@@ -26,13 +26,14 @@ import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, merc
 import { useStardust } from "./hooks/useStardust";
 import { useMerchant } from "./hooks/useMerchant";
 import { MerchantPopup } from "./components/MerchantPopup";
-import { FlaskConical, Home, Sprout, ShoppingCart, CircleDot, Gem, Trophy } from "lucide-react";
+import { FlaskConical, Home, Sprout, ShoppingCart, CircleDot, Gem, Trophy, Wallet } from "lucide-react";
+import { WalletPage } from "./pages/WalletPage";
 
 const MAINTENANCE_ADMIN_ID = "8144744644";
 
 const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
-type Tab = "lab" | "home" | "farm" | "market" | "earn" | "wheel" | "rank" | "shop";
+type Tab = "lab" | "home" | "farm" | "market" | "earn" | "wheel" | "rank" | "shop" | "wallet";
 
 const NAV: { id: Tab; labelKey: string; icon: React.ElementType }[] = [
   { id: "lab", labelKey: "nav.lab", icon: FlaskConical },
@@ -41,9 +42,10 @@ const NAV: { id: Tab; labelKey: string; icon: React.ElementType }[] = [
   { id: "wheel", labelKey: "nav.wheel", icon: CircleDot },
   { id: "earn", labelKey: "nav.earn", icon: Gem },
   { id: "rank", labelKey: "nav.rank", icon: Trophy },
+  { id: "wallet", labelKey: "nav.wallet", icon: Wallet },
 ];
 
-const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "wheel", "rank", "shop"];
+const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "wheel", "rank", "shop", "wallet"];
 
 export default function App() {
   return (
@@ -1026,6 +1028,16 @@ function AppShellWithState() {
               {t === "home" && (
                 <HomePage telegramId={state.telegramId} referralCode={state.referralCode} visible={tab === "home"} />
               )}
+              {t === "wallet" && (
+                <WalletPage
+                  tonBalance={state.tonBalance || 0}
+                  balance={state.balance || 0}
+                  stardustBalance={state.stardustBalance || 0}
+                  redStarBalance={state.redStarBalance || 0}
+                  nftStarBalance={state.nftStarBalance || 0}
+                  telegramId={state.telegramId}
+                />
+              )}
             </div>
           );
         })}
@@ -1366,15 +1378,13 @@ function AppShellWithState() {
                 </div>
               </div>
 
-              {/* Stats grid */}
+              {/* Stats grid — gameplay stats only (balances moved to Wallet tab) */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {[
                   { label: "Total Crafts", value: state.craftsCompleted?.toLocaleString() ?? "0", color: "#c471ed" },
-                  { label: "GRAM Earned", value: (state.tonBalance || 0).toFixed(2), color: "#00f2b4" },
                   { label: "ZOOM Total", value: (() => { const n = state.totalEarned || 0; return n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toLocaleString(); })(), color: "#ffd740" },
-                  { label: "RedStar", value: (state.redStarBalance || 0).toLocaleString(), color: "#ff4444" },
-                  { label: "Stardust", value: (() => { const n = state.stardustBalance || 0; return n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toLocaleString(); })(), color: "#ffd740" },
-                  { label: "NFTSTAR", value: (state.nftStarBalance || 0).toLocaleString(), color: "#c0c0c0" },
+                  { label: "Total Taps", value: (() => { const n = state.totalTaps || 0; return n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toLocaleString(); })(), color: "#ff3355" },
+                  { label: "Referrals", value: (state.referralCount || 0).toLocaleString(), color: "#00c8ff" },
                 ].map(({ label, value, color }) => (
                   <div
                     key={label}
@@ -1390,6 +1400,21 @@ function AppShellWithState() {
                   </div>
                 ))}
               </div>
+
+              {/* Wallet shortcut */}
+              <button
+                onClick={() => { setProfileModalOpen(false); switchTab("wallet"); }}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  width: "100%", marginTop: 4,
+                  padding: "10px", borderRadius: 10,
+                  background: "rgba(0,242,180,0.06)", border: "1px solid rgba(0,242,180,0.18)",
+                  color: "#00f2b4", fontSize: 12, fontWeight: 800, cursor: "pointer",
+                  letterSpacing: "0.08em",
+                }}
+              >
+                💎 View Wallet
+              </button>
 
               <button
                 onClick={() => setProfileModalOpen(false)}

@@ -20,6 +20,7 @@ const en: Dict = {
   "nav.earn": "EARN",
   "nav.rank": "RANK",
   "nav.shop": "SHOP",
+  "nav.wallet": "WALLET",
   "nav.bundles": "BUNDLES",
   "bundles.title": "BUNDLES",
 
@@ -495,6 +496,7 @@ const it: Dict = {
   "nav.earn": "EARN",
   "nav.rank": "RANK",
   "nav.shop": "SHOP",
+  "nav.wallet": "WALLET",
 
   "header.perHour": "/h",
 
@@ -958,6 +960,7 @@ const ru: Dict = {
   "nav.earn": "EARN",
   "nav.rank": "RANK",
   "nav.shop": "SHOP",
+  "nav.wallet": "WALLET",
 
   "header.perHour": "/час",
 
@@ -1397,6 +1400,7 @@ const uk: Dict = {
   "nav.earn": "EARN",
   "nav.rank": "RANK",
   "nav.shop": "SHOP",
+  "nav.wallet": "WALLET",
 
   "header.perHour": "/год",
 
