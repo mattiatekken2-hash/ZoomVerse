@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { Lock } from "lucide-react";
 
 interface WalletPageProps {
@@ -12,9 +12,6 @@ interface WalletPageProps {
   /** Used to seed a stable per-user Vault amount */
   telegramId: string | null;
 }
-
-/** Fixed GRAM → USDT rate (display only). Update when listing occurs. */
-const GRAM_USDT_RATE = 5.5;
 
 /** Seed a stable pseudo-random between min..max from a string. */
 function seededRange(seed: string, min: number, max: number): number {
@@ -32,6 +29,21 @@ function formatZoom(n: number): string {
   return n.toLocaleString();
 }
 
+/** Fetch live TON/USD price from CoinGecko. Returns null on failure. */
+async function fetchTonPrice(): Promise<number | null> {
+  try {
+    const res = await fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd",
+      { signal: AbortSignal.timeout(6000) }
+    );
+    if (!res.ok) return null;
+    const data = await res.json() as { "the-open-network"?: { usd?: number } };
+    return data["the-open-network"]?.usd ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function WalletPage({
   tonBalance,
   balance,
@@ -40,7 +52,25 @@ export function WalletPage({
   nftStarBalance,
   telegramId,
 }: WalletPageProps) {
-  const usdtValue = (tonBalance * GRAM_USDT_RATE).toFixed(2);
+  const [tonPrice, setTonPrice] = useState<number | null>(null);
+  const [priceLoading, setPriceLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setPriceLoading(true);
+    fetchTonPrice().then((price) => {
+      if (!cancelled) {
+        setTonPrice(price);
+        setPriceLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const usdtValue = tonPrice !== null ? (tonBalance * tonPrice).toFixed(2) : null;
+  const priceLabel = tonPrice !== null
+    ? `1 GRAM ≈ $${tonPrice.toFixed(2)} · live rate`
+    : "Loading live rate…";
 
   // Stable vault amount between 5 000 000 and 18 000 000
   const vaultZoom = useMemo(() => {
@@ -51,17 +81,17 @@ export function WalletPage({
   return (
     <div
       className="flex flex-col overflow-y-auto"
-      style={{ height: "100%", padding: "20px 16px 32px", gap: 20 }}
+      style={{ height: "100%", padding: "12px 14px 28px", gap: 14 }}
     >
       {/* ── PAGE TITLE ── */}
-      <div className="text-center" style={{ marginBottom: 2 }}>
+      <div className="text-center">
         <div
           style={{
-            fontSize: 11,
+            fontSize: 10,
             fontWeight: 800,
             letterSpacing: "0.22em",
             textTransform: "uppercase",
-            color: "rgba(255,255,255,0.3)",
+            color: "rgba(255,255,255,0.28)",
           }}
         >
           MY WALLET
@@ -70,99 +100,107 @@ export function WalletPage({
 
       {/* ── MAIN BALANCE: GRAM ── */}
       <div
-        className="rounded-3xl overflow-hidden"
+        className="rounded-2xl"
         style={{
-          background: "linear-gradient(135deg, rgba(0,242,180,0.08) 0%, rgba(0,180,130,0.04) 100%)",
-          border: "1px solid rgba(0,242,180,0.18)",
-          boxShadow: "0 0 40px rgba(0,242,180,0.06)",
-          padding: "24px 20px 20px",
-          textAlign: "center",
+          background: "linear-gradient(135deg, rgba(0,242,180,0.09) 0%, rgba(0,180,130,0.05) 100%)",
+          border: "1px solid rgba(0,242,180,0.20)",
+          boxShadow: "0 0 32px rgba(0,242,180,0.07)",
+          padding: "16px 18px",
         }}
       >
+        {/* Label row */}
         <div
           style={{
-            fontSize: 10,
+            fontSize: 9,
             fontWeight: 800,
             letterSpacing: "0.28em",
             textTransform: "uppercase",
-            color: "rgba(0,242,180,0.55)",
-            marginBottom: 10,
+            color: "rgba(0,242,180,0.50)",
+            marginBottom: 8,
           }}
         >
           GRAM BALANCE
         </div>
 
-        {/* Main GRAM amount */}
-        <div
-          style={{
-            fontSize: 48,
-            fontWeight: 900,
-            color: "#00f2b4",
-            lineHeight: 1,
-            fontVariantNumeric: "tabular-nums",
-            textShadow: "0 0 32px rgba(0,242,180,0.45)",
-            letterSpacing: "-0.02em",
-            marginBottom: 8,
-          }}
-        >
-          {tonBalance.toFixed(4)}
+        {/* Amount row */}
+        <div className="flex items-end justify-between" style={{ gap: 8 }}>
+          <div>
+            <div
+              style={{
+                fontSize: 38,
+                fontWeight: 900,
+                color: "#00f2b4",
+                lineHeight: 1,
+                fontVariantNumeric: "tabular-nums",
+                textShadow: "0 0 24px rgba(0,242,180,0.50)",
+                letterSpacing: "-0.02em",
+              }}
+            >
+              {tonBalance.toFixed(4)}
+            </div>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: "0.14em",
+                color: "rgba(0,242,180,0.55)",
+                marginTop: 2,
+              }}
+            >
+              GRAM
+            </div>
+          </div>
+
+          {/* USDT estimate */}
+          <div style={{ textAlign: "right", flexShrink: 0 }}>
+            <div
+              style={{
+                fontSize: 9,
+                fontWeight: 700,
+                color: "rgba(255,255,255,0.22)",
+                textTransform: "uppercase",
+                letterSpacing: "0.16em",
+                marginBottom: 2,
+              }}
+            >
+              ≈ USDT
+            </div>
+            <div
+              style={{
+                fontSize: 22,
+                fontWeight: 900,
+                color: priceLoading ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.65)",
+                fontVariantNumeric: "tabular-nums",
+                letterSpacing: "-0.01em",
+                minWidth: 70,
+                textAlign: "right",
+              }}
+            >
+              {priceLoading
+                ? "···"
+                : usdtValue !== null
+                  ? `$${usdtValue}`
+                  : "—"}
+            </div>
+          </div>
         </div>
 
-        {/* Token label */}
-        <div
-          style={{
-            fontSize: 13,
-            fontWeight: 800,
-            letterSpacing: "0.18em",
-            color: "rgba(0,242,180,0.6)",
-            marginBottom: 14,
-          }}
-        >
-          GRAM
-        </div>
-
-        {/* Divider */}
+        {/* Divider + price note */}
         <div
           style={{
             height: 1,
-            background: "rgba(0,242,180,0.1)",
-            margin: "0 0 14px",
+            background: "rgba(0,242,180,0.08)",
+            margin: "10px 0 8px",
           }}
         />
-
-        {/* USDT estimate */}
-        <div className="flex items-center justify-center gap-2">
-          <div
-            style={{
-              fontSize: 9,
-              fontWeight: 800,
-              letterSpacing: "0.2em",
-              color: "rgba(255,255,255,0.25)",
-              textTransform: "uppercase",
-            }}
-          >
-            ≈ USDT
-          </div>
-          <div
-            style={{
-              fontSize: 20,
-              fontWeight: 900,
-              color: "rgba(255,255,255,0.55)",
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            ${usdtValue}
-          </div>
-        </div>
         <div
           style={{
-            fontSize: 8,
-            color: "rgba(255,255,255,0.18)",
-            marginTop: 4,
-            letterSpacing: "0.08em",
+            fontSize: 9,
+            color: "rgba(255,255,255,0.22)",
+            letterSpacing: "0.06em",
           }}
         >
-          Estimated at listing price · subject to change
+          {priceLabel}
         </div>
       </div>
 
@@ -172,47 +210,50 @@ export function WalletPage({
           style={{
             fontSize: 9,
             fontWeight: 800,
-            letterSpacing: "0.24em",
+            letterSpacing: "0.22em",
             textTransform: "uppercase",
-            color: "rgba(255,255,255,0.25)",
-            marginBottom: 10,
+            color: "rgba(255,255,255,0.22)",
+            marginBottom: 8,
           }}
         >
           Active Balances — Season 2
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {/* ZOOM S2 */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+          {/* ZOOM S2 — planet emoji, matches top bar */}
           <BalanceRow
-            icon="⚡"
+            icon="🪐"
             label="ZOOM S2"
             value={formatZoom(balance)}
             color="#ffd740"
             glow="rgba(255,215,64,0.4)"
           />
-          {/* STARDUST */}
+          {/* STARDUST — star (★), yellow like resource widget */}
           <BalanceRow
-            icon="✦"
+            icon="★"
             label="STARDUST"
             value={formatZoom(stardustBalance)}
-            color="#e0a0ff"
-            glow="rgba(200,100,255,0.35)"
+            color="#ffd740"
+            glow="rgba(255,215,64,0.35)"
+            iconColor="#ffd740"
           />
-          {/* REDSTAR */}
+          {/* REDSTAR — star (★), red */}
           <BalanceRow
             icon="★"
             label="REDSTAR"
             value={redStarBalance.toLocaleString()}
-            color="#ff4455"
-            glow="rgba(255,68,85,0.4)"
+            color="#ff4444"
+            glow="rgba(255,68,68,0.4)"
+            iconColor="#ff4444"
           />
-          {/* NFTSTAR */}
+          {/* NFTSTAR — star (★), silver */}
           <BalanceRow
-            icon="◈"
+            icon="★"
             label="NFTSTAR"
             value={nftStarBalance.toLocaleString()}
-            color="#c0c0c0"
+            color="#a0a0a8"
             glow="rgba(192,192,192,0.3)"
+            iconColor="#a0a0a8"
           />
         </div>
       </div>
@@ -223,10 +264,10 @@ export function WalletPage({
           style={{
             fontSize: 9,
             fontWeight: 800,
-            letterSpacing: "0.24em",
+            letterSpacing: "0.22em",
             textTransform: "uppercase",
-            color: "rgba(255,255,255,0.25)",
-            marginBottom: 10,
+            color: "rgba(255,255,255,0.22)",
+            marginBottom: 8,
           }}
         >
           Vault — Legacy &amp; Airdrop
@@ -237,49 +278,32 @@ export function WalletPage({
           style={{
             background: "rgba(255,165,0,0.04)",
             border: "1px solid rgba(255,165,0,0.18)",
-            boxShadow: "0 0 24px rgba(255,165,0,0.04)",
           }}
         >
           {/* Vault row */}
           <div
             className="flex items-center justify-between"
-            style={{ padding: "14px 16px", borderBottom: "1px solid rgba(255,165,0,0.10)" }}
+            style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,165,0,0.09)" }}
           >
-            {/* Left: lock + label */}
+            {/* Left: lock icon + label */}
             <div className="flex items-center gap-3">
               <div
                 className="flex items-center justify-center rounded-xl"
                 style={{
-                  width: 36,
-                  height: 36,
+                  width: 34,
+                  height: 34,
                   background: "rgba(255,165,0,0.10)",
                   border: "1px solid rgba(255,165,0,0.25)",
                   flexShrink: 0,
                 }}
               >
-                <Lock size={16} style={{ color: "#ffaa00", opacity: 0.85 }} strokeWidth={2.5} />
+                <Lock size={15} style={{ color: "#ffaa00", opacity: 0.85 }} strokeWidth={2.5} />
               </div>
               <div>
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 900,
-                    color: "#ffaa00",
-                    letterSpacing: "0.06em",
-                  }}
-                >
+                <div style={{ fontSize: 11, fontWeight: 900, color: "#ffaa00", letterSpacing: "0.05em" }}>
                   Season 1 Vault
                 </div>
-                <div
-                  style={{
-                    fontSize: 8,
-                    fontWeight: 700,
-                    color: "rgba(255,170,0,0.45)",
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    marginTop: 1,
-                  }}
-                >
+                <div style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,170,0,0.45)", letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 1 }}>
                   ZOOM S1 · Locked
                 </div>
               </div>
@@ -293,35 +317,21 @@ export function WalletPage({
                   fontWeight: 900,
                   color: "#ffaa00",
                   fontVariantNumeric: "tabular-nums",
-                  textShadow: "0 0 12px rgba(255,170,0,0.4)",
+                  textShadow: "0 0 10px rgba(255,170,0,0.4)",
                   letterSpacing: "-0.01em",
                 }}
               >
                 {formatZoom(vaultZoom)}
               </div>
-              <div
-                style={{
-                  fontSize: 8,
-                  color: "rgba(255,170,0,0.4)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.1em",
-                }}
-              >
+              <div style={{ fontSize: 8, color: "rgba(255,170,0,0.4)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
                 ZOOM
               </div>
             </div>
           </div>
 
           {/* Info note */}
-          <div style={{ padding: "12px 16px" }}>
-            <div
-              style={{
-                fontSize: 10,
-                lineHeight: 1.6,
-                color: "rgba(255,255,255,0.35)",
-                fontWeight: 600,
-              }}
-            >
+          <div style={{ padding: "10px 14px" }}>
+            <div style={{ fontSize: 10, lineHeight: 1.55, color: "rgba(255,255,255,0.32)", fontWeight: 600 }}>
               🔒 Season 1 rewards are safely stored in the Vault and will be converted into
               On-Chain Tokens at the time of Listing &amp; Airdrop.
             </div>
@@ -332,7 +342,7 @@ export function WalletPage({
   );
 }
 
-/* ─────────── helpers ─────────── */
+/* ─────────── BalanceRow ─────────── */
 
 function BalanceRow({
   icon,
@@ -340,21 +350,20 @@ function BalanceRow({
   value,
   color,
   glow,
+  iconColor,
 }: {
   icon: string;
   label: string;
   value: string;
   color: string;
   glow: string;
+  iconColor?: string;
 }) {
+  const ic = iconColor ?? color;
   return (
     <div
       className="flex items-center justify-between rounded-2xl"
-      style={{
-        padding: "12px 14px",
-        background: color + "08",
-        border: `1px solid ${color}22`,
-      }}
+      style={{ padding: "11px 14px", background: color + "08", border: `1px solid ${color}22` }}
     >
       <div className="flex items-center gap-3">
         <div
@@ -362,13 +371,14 @@ function BalanceRow({
             width: 34,
             height: 34,
             borderRadius: 10,
-            background: color + "12",
-            border: `1px solid ${color}30`,
+            background: ic + "12",
+            border: `1px solid ${ic}30`,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 16,
-            filter: `drop-shadow(0 0 4px ${glow})`,
+            fontSize: 18,
+            color: ic,
+            filter: `drop-shadow(0 0 5px ${glow})`,
             flexShrink: 0,
           }}
         >
@@ -378,7 +388,7 @@ function BalanceRow({
           style={{
             fontSize: 11,
             fontWeight: 800,
-            color: "rgba(255,255,255,0.55)",
+            color: "rgba(255,255,255,0.52)",
             letterSpacing: "0.12em",
             textTransform: "uppercase",
           }}
@@ -388,11 +398,11 @@ function BalanceRow({
       </div>
       <div
         style={{
-          fontSize: 16,
+          fontSize: 17,
           fontWeight: 900,
           color,
           fontVariantNumeric: "tabular-nums",
-          textShadow: `0 0 10px ${glow}`,
+          textShadow: `0 0 8px ${glow}`,
         }}
       >
         {value}
