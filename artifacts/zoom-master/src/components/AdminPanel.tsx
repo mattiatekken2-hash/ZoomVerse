@@ -35,6 +35,7 @@ import {
   adminGlobalRemove,
   adminGlobalStardust,
   adminGlobalTon,
+  adminGlobalRedStar,
   adminRepairTasks,
   adminRemoveZoom,
   adminRemovePlanets,
@@ -304,6 +305,20 @@ export function AdminPanel({ telegramId }: Props) {
     setLoading(null);
     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
     showFeedback(ok ? "✓ TON accreditato a tutti!" : "✗ Errore", ok);
+  }, [globalAmount, telegramId]);
+
+  const handleGlobalRedStar = useCallback(async () => {
+    haptic();
+    const val = parseInt(globalAmount, 10);
+    if (isNaN(val) || val <= 0) {
+      showFeedback("Valore non valido (intero positivo)", false);
+      return;
+    }
+    setLoading("global");
+    const ok = await adminGlobalRedStar(telegramId, val);
+    setLoading(null);
+    if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+    showFeedback(ok ? `✓ ${val} ★ REDSTAR accreditati a tutti!` : "✗ Errore", ok);
   }, [globalAmount, telegramId]);
 
   const handleRepairTasks = useCallback(async () => {
@@ -1308,6 +1323,26 @@ export function AdminPanel({ telegramId }: Props) {
                   }}
                 >
                   {loading === "global" ? "..." : "💎 ACCREDITA TON GLOBALE"}
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={handleGlobalRedStar}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(255,34,68,0.35)",
+                    background: "rgba(255,34,68,0.12)",
+                    color: "#ff2244",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "opacity 0.15s",
+                  }}
+                >
+                  {loading === "global" ? "..." : "★ REDSTAR A TUTTI"}
                 </motion.button>
                 <motion.button
                   whileTap={{ scale: 0.93 }}

@@ -212,6 +212,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/admin/global-remove",
       "/admin/global-stardust",
       "/admin/global-ton",
+      "/admin/global-redstar",
       "/admin/repair-tasks",
       "/admin/remove-zoom",
       "/admin/remove-planets",

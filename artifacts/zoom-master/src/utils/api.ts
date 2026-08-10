@@ -1574,6 +1574,17 @@ export async function adminGlobalTon(adminId: string, amount: number): Promise<b
   } catch { return false; }
 }
 
+export async function adminGlobalRedStar(adminId: string, amount: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/global-redstar`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, amount }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminRepairTasks(adminId: string): Promise<number | null> {
   try {
     const res = await fetch(`${API_BASE}/admin/repair-tasks`, {
