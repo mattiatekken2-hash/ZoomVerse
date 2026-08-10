@@ -1297,7 +1297,7 @@ export async function depositTonConfirm(params: {
 }
 
 // === TON Withdrawals (manual processing by admin) ===
-export const WITHDRAWAL_MIN_TON = 1;
+export const WITHDRAWAL_MIN_TON = 0.1;
 export const WITHDRAWAL_FEE_TON = 0.02;
 export const WITHDRAWAL_COOLDOWN_HOURS = 24;
 
