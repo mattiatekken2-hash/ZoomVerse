@@ -570,21 +570,43 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                   boxShadow: isFocused
                     ? "0 0 26px rgba(0,230,255,0.55)"
                     : isPerfectFloat ? "0 0 22px rgba(255,215,0,0.35)" : undefined,
+                  backdropFilter: "blur(10px)",
+                  WebkitBackdropFilter: "blur(10px)",
                 }}
                 data-testid={`listing-${listing.id}`}
               >
                 <div className="flex items-center gap-3 px-4 py-3">
+                  {/* Planet orb with bokeh glow */}
                   <div style={{ position: "relative", flexShrink: 0 }}>
-                    <PlanetOrb planet={fakePlanet} size={56} animate={isPlatinumNft || isPerfectFloat} displayFloat={listingFloat} />
-                    {isPlatinumNft && (
-                      <span
-                        className="nft-badge absolute"
-                        style={{ top: -4, left: -4 }}
-                        aria-label="NFT"
-                      >
-                        NFT
-                      </span>
-                    )}
+                    {/* Bokeh blob behind orb */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        width: 80,
+                        height: 80,
+                        borderRadius: "50%",
+                        background: `radial-gradient(circle, ${rarityColor}55 0%, transparent 70%)`,
+                        filter: "blur(18px)",
+                        pointerEvents: "none",
+                        top: "50%",
+                        left: "50%",
+                        transform: "translate(-50%,-50%)",
+                        zIndex: 0,
+                        opacity: 0.7,
+                      }}
+                    />
+                    <div className="planet-float-anim-slow" style={{ position: "relative", zIndex: 1 }}>
+                      <PlanetOrb planet={fakePlanet} size={56} animate={isPlatinumNft || isPerfectFloat} displayFloat={listingFloat} />
+                      {isPlatinumNft && (
+                        <span
+                          className="nft-badge absolute"
+                          style={{ top: -4, left: -4 }}
+                          aria-label="NFT"
+                        >
+                          NFT
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex-1 min-w-0">
                     {listing.displayName && (

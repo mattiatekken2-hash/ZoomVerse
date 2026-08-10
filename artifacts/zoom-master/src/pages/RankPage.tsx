@@ -80,7 +80,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
           </span>
         </div>
 
-        <div className="rounded-xl p-3 border mb-3" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}>
+        <div className="rounded-xl p-3 border mb-3" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
           <div className="flex justify-between text-xs mb-2" style={{ color: "rgba(255,255,255,0.4)" }}>
             <span className="font-bold">Season {currentSeason} of {TOTAL_SEASONS}</span>
             <span className="font-bold neon-text">{seasonProgressPercent.toFixed(2)}%</span>
@@ -141,7 +141,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
       >
         {profile?.exists && (
           <div className="px-4 mb-3">
-            <div className="rounded-2xl border p-3" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}>
+            <div className="rounded-2xl border p-3" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
               <div className="flex items-center gap-2 mb-2">
                 <span className="font-black text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>{t("rank.myProfile")}</span>
                 {profile.createdAt && (
@@ -178,7 +178,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
         <div className="px-4 mb-3">
           <div
             className="rounded-2xl border p-3"
-            style={{ borderColor: "rgba(255,51,85,0.16)", background: "rgba(255,51,85,0.035)" }}
+            style={{ borderColor: "rgba(255,51,85,0.16)", background: "rgba(255,51,85,0.035)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">

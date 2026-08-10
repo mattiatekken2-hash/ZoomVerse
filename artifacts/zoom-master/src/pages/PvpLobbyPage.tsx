@@ -181,7 +181,7 @@ function PvpLobbyPageBase({ telegramId, planets, onFlushPlanets, onPlanetTransfe
                       borderRadius: 14,
                       background: isSelected
                         ? `linear-gradient(135deg, rgba(255,40,80,0.18), rgba(180,0,40,0.12))`
-                        : "rgba(255,255,255,0.04)",
+                        : "rgba(6,8,16,0.55)",
                       border: isSelected
                         ? "1.5px solid rgba(255,40,80,0.6)"
                         : "1px solid rgba(255,255,255,0.08)",
@@ -189,10 +189,31 @@ function PvpLobbyPageBase({ telegramId, planets, onFlushPlanets, onPlanetTransfe
                       textAlign: "center",
                       transition: "all 150ms",
                       boxShadow: isSelected ? "0 0 12px rgba(255,40,80,0.25)" : "none",
+                      backdropFilter: "blur(10px)",
+                      WebkitBackdropFilter: "blur(10px)",
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}>
-                      <PlanetOrb planet={p} size={40} />
+                    <div style={{ display: "flex", justifyContent: "center", marginBottom: 6, position: "relative" }}>
+                      {/* Bokeh glow */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          width: 58,
+                          height: 58,
+                          borderRadius: "50%",
+                          background: `radial-gradient(circle, ${rCol}55 0%, transparent 70%)`,
+                          filter: "blur(12px)",
+                          pointerEvents: "none",
+                          top: "50%",
+                          left: "50%",
+                          transform: "translate(-50%,-50%)",
+                          zIndex: 0,
+                          opacity: 0.65,
+                        }}
+                      />
+                      <div className="planet-float-anim-slow" style={{ position: "relative", zIndex: 1 }}>
+                        <PlanetOrb planet={p} size={40} />
+                      </div>
                     </div>
                     <div style={{ fontSize: 9, fontWeight: 800, color: rCol, letterSpacing: 0.5 }}>
                       {cfg?.label ?? p.name}

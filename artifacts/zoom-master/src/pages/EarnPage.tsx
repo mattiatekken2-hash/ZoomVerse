@@ -364,7 +364,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         {/* ── Adsgram Watch-Ad Task ── */}
         <div
           className="rounded-2xl p-4 border"
-          style={{ borderColor: "rgba(220,20,60,0.25)", background: "rgba(220,20,60,0.04)" }}
+          style={{ borderColor: "rgba(220,20,60,0.25)", background: "rgba(220,20,60,0.04)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}
         >
           <div className="flex items-center gap-3 mb-3">
             <div style={{ fontSize: 28, lineHeight: 1 }}>📺</div>
@@ -445,7 +445,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         {/* 7-Day Streak Daily Reward */}
         <div
           className="rounded-2xl p-4 border"
-          style={{ borderColor: "rgba(255,51,85,0.15)", background: "rgba(255,51,85,0.04)" }}
+          style={{ borderColor: "rgba(255,51,85,0.15)", background: "rgba(255,51,85,0.04)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}
         >
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -539,7 +539,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         {/* Redeem Code */}
         <div
           className="rounded-2xl p-5 border"
-          style={{ borderColor: "rgba(255,179,71,0.2)", background: "rgba(255,179,71,0.03)" }}
+          style={{ borderColor: "rgba(255,179,71,0.2)", background: "rgba(255,179,71,0.03)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}
         >
           <div className="flex items-center gap-2 mb-2">
             <SpaceTicketIcon size={24} />
@@ -592,7 +592,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         </div>
 
         {/* Referral */}
-        <div className="rounded-2xl p-5 border" style={{ borderColor: "rgba(255,215,0,0.15)", background: "rgba(255,215,0,0.03)" }}>
+        <div className="rounded-2xl p-5 border" style={{ borderColor: "rgba(255,215,0,0.15)", background: "rgba(255,215,0,0.03)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
           <div className="flex items-center gap-2 mb-3">
             <OrbitLinkIcon size={24} />
             <div className="font-black text-base gold-text">{t("earn.referralProgram")}</div>
@@ -642,7 +642,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         )}
 
         {/* Milestones */}
-        <div className="rounded-2xl p-4 border" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}>
+        <div className="rounded-2xl p-4 border" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
           <div className="font-black text-sm tracking-wide mb-3" style={{ color: "rgba(255,255,255,0.7)" }}>
             {t("earn.referralMilestones")}
           </div>
@@ -703,7 +703,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         {/* ───────────── Long-term Tasks ───────────── */}
         <div
           className="rounded-2xl p-4 border"
-          style={{ borderColor: "rgba(124,77,255,0.18)", background: "rgba(124,77,255,0.04)" }}
+          style={{ borderColor: "rgba(124,77,255,0.18)", background: "rgba(124,77,255,0.04)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}
         >
           <div className="flex items-center justify-between mb-3">
             <div>

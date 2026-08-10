@@ -128,13 +128,15 @@ function PvpRankWidgetBase({ telegramId }: Props) {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: "linear-gradient(135deg, rgba(46,10,14,0.98), rgba(14,6,8,0.98))",
+              background: "linear-gradient(135deg, rgba(46,10,14,0.88), rgba(14,6,8,0.90))",
               border: "1.5px solid rgba(255,70,86,0.5)",
               borderRadius: 20,
               padding: 22,
               maxWidth: 380,
               width: "100%",
               boxShadow: "0 0 48px rgba(255,70,86,0.25)",
+              backdropFilter: "blur(14px)",
+              WebkitBackdropFilter: "blur(14px)",
               textAlign: "center",
               maxHeight: "82vh",
               display: "flex",

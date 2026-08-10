@@ -551,7 +551,27 @@ body.animations-paused * {
   .ufo { animation: none !important; opacity: 0 !important; }
 }
 
-/* ======== GLASSMORPHISM ======== */
+/* ======== GLASSMORPHISM + BOKEH SYSTEM ======== */
+@keyframes item-float {
+  0%,  100% { transform: translateY(0px);   }
+  50%        { transform: translateY(-5px); }
+}
+@keyframes item-float-slow {
+  0%,  100% { transform: translateY(0px);   }
+  50%        { transform: translateY(-4px); }
+}
+
+/* Float animation wrapper — applied to planet orb containers */
+.planet-float-anim {
+  animation: item-float 3.4s ease-in-out infinite;
+  will-change: transform;
+}
+.planet-float-anim-slow {
+  animation: item-float-slow 4.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Base glass card — backdrop-blur dark glass */
 .glass {
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.07);
@@ -565,6 +585,47 @@ body.animations-paused * {
   border: 1px solid rgba(255,255,255,0.08);
   box-shadow: 0 0 14px rgba(0,0,0,0.3);
 }
+
+/* Backdrop-blur helpers applied via inline style to not fight with
+   the card's existing border/background inline overrides */
+.glass-blur {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Bokeh radial blob — positioned absolutely behind planet orbs.
+   Set --bokeh-color on the parent element.                       */
+.bokeh-blob {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(22px);
+  opacity: 0.65;
+  width: 100px;
+  height: 100px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 0;
+  background: radial-gradient(circle, var(--bokeh-color, rgba(255,255,255,0.25)) 0%, transparent 70%);
+}
+.bokeh-blob-sm {
+  width: 72px;
+  height: 72px;
+  filter: blur(16px);
+  opacity: 0.55;
+}
+
+/* Per-rarity bokeh colors (set as --bokeh-color via class) */
+.rarity-bokeh-BASIC   { --bokeh-color: rgba(136,146,176,0.5);  }
+.rarity-bokeh-RARE    { --bokeh-color: rgba( 79,172,254,0.5);  }
+.rarity-bokeh-EPIC    { --bokeh-color: rgba(196,113,237,0.5);  }
+.rarity-bokeh-MYTHIC  { --bokeh-color: rgba(220, 20, 60,0.55); }
+.rarity-bokeh-NOVA    { --bokeh-color: rgba(144, 64,255,0.5);  }
+.rarity-bokeh-PLASMA  { --bokeh-color: rgba(  0,230,118,0.5);  }
+.rarity-bokeh-MUSHROOM{ --bokeh-color: rgba(184, 63,191,0.5);  }
+.rarity-bokeh-GOLD    { --bokeh-color: rgba(255,215,  0,0.55); }
+.rarity-bokeh-V1      { --bokeh-color: rgba(220,232,255,0.45); }
 
 /* ======== NEON UTILITIES ======== */
 .neon-text { color: #e8264a; text-shadow: 0 0 10px rgba(232,38,74,0.5), 0 0 20px rgba(232,38,74,0.22); }

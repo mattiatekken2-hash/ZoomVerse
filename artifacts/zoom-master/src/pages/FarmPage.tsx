@@ -973,6 +973,8 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                   boxShadow: isPerfectFloat
                     ? "0 0 22px rgba(255,215,0,0.35)"
                     : active ? `0 0 18px ${planet.color}26` : `0 0 10px ${planet.color}10`,
+                  backdropFilter: "blur(10px)",
+                  WebkitBackdropFilter: "blur(10px)",
                   transform: "translateZ(0)",
                   contain: "layout style paint",
                   cursor: "pointer",
@@ -984,10 +986,29 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                 data-testid={`planet-card-${planet.id}`}
               >
                 {/* ── Compact vertical 2-col card ── */}
-                <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 6px" }}>
+                <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 6px", position: "relative" }}>
+                  {/* Bokeh glow blob behind the planet */}
                   <div
                     style={{
+                      position: "absolute",
+                      width: 90,
+                      height: 90,
+                      borderRadius: "50%",
+                      background: `radial-gradient(circle, ${planet.color}55 0%, transparent 70%)`,
+                      filter: "blur(20px)",
+                      pointerEvents: "none",
+                      top: "50%",
+                      left: "50%",
+                      transform: "translate(-50%,-50%)",
+                      zIndex: 0,
+                      opacity: 0.7,
+                    }}
+                  />
+                  <div
+                    className="planet-float-anim"
+                    style={{
                       position: "relative",
+                      zIndex: 1,
                       filter: expired ? "grayscale(1) brightness(0.45)" : undefined,
                       transition: "filter 0.3s",
                     }}
