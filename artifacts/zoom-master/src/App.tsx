@@ -1221,7 +1221,7 @@ function AppShellWithState() {
                 className="flex-1 flex flex-col items-center justify-center gap-0.5 relative"
                 onClick={() => switchTab(item.id)}
                 data-testid={`nav-${item.id}`}
-                style={{ color: isActive ? "#ff3355" : "rgba(255,255,255,0.2)" }}
+                style={{ color: isActive ? "#ff3355" : "rgba(255,255,255,0.6)" }}
               >
                 {isActive && (
                   <div

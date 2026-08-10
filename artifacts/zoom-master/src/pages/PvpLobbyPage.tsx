@@ -189,7 +189,7 @@ function PvpLobbyPageBase({ telegramId, planets, onFlushPlanets, onPlanetTransfe
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "center", marginBottom: 6 }}>
-                      <PlanetOrb color={p.color} size={40} />
+                      <PlanetOrb planet={p} size={40} />
                     </div>
                     <div style={{ fontSize: 9, fontWeight: 800, color: rCol, letterSpacing: 0.5 }}>
                       {cfg?.label ?? p.name}
