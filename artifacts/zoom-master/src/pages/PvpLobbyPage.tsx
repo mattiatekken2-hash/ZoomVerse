@@ -22,7 +22,10 @@ function PvpLobbyPageBase({ telegramId, planets, onFlushPlanets, onPlanetTransfe
   const [loadingLobby, setLoadingLobby] = useState(false);
 
   // Available planets: not listed in market, not burning
-  const availablePlanets = planets.filter((p) => !p.isListedInMarket);
+  // Only planets eligible for PVP: not listed, not farming, not in a collection slot
+  const availablePlanets = planets.filter(
+    (p) => !p.isListedInMarket && !p.isFarmingActive && p.slotIndex == null,
+  );
 
   const refreshLobby = useCallback(async () => {
     setLoadingLobby(true);
