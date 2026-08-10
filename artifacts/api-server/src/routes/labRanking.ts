@@ -483,6 +483,35 @@ router.post("/admin/lab-rank/reset-points", async (req, res) => {
 });
 
 /**
+ * POST /admin/lab-rank/remove-points
+ * Rimuove punti lab da un utente specifico (admin-only). Clampato a 0.
+ */
+router.post("/admin/lab-rank/remove-points", async (req, res) => {
+  try {
+    const adminId = (req.body?.adminId as string) || "";
+    if (!isAdmin(adminId)) {
+      res.status(403).json({ ok: false, error: "Forbidden" });
+      return;
+    }
+    const telegramId = await resolveTargetTelegramId(req.body?.telegramId as string);
+    const points = Number(req.body?.points);
+    if (!telegramId || !Number.isFinite(points) || points <= 0 || points > 10000) {
+      res.status(400).json({ ok: false, error: "Invalid body" });
+      return;
+    }
+    await db.execute(sql`
+      UPDATE users
+      SET lab_points = GREATEST(0, lab_points - ${points})
+      WHERE telegram_id = ${telegramId}
+    `);
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "[admin/lab-rank/remove-points] error");
+    res.status(500).json({ ok: false, error: "Internal error" });
+  }
+});
+
+/**
  * POST /admin/lab-rank/credit-points
  * Accredita punti lab a un utente specifico (admin-only).
  * Aggiorna lab_points e lab_round_id se necessario.

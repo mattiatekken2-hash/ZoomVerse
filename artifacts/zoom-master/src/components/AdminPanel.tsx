@@ -6,6 +6,7 @@ import {
   adminCreditStardust,
   adminCreditTon,
   adminCreditLabPoints,
+  adminRemoveLabPoints,
   adminRemoveStardust,
   adminRemoveTon,
   adminAddPlanets,
@@ -220,6 +221,7 @@ export function AdminPanel({ telegramId }: Props) {
       else if (type === "spins") ok = await adminRemoveSpins(telegramId, id, Math.floor(val));
       else if (type === "stardust") ok = await adminRemoveStardust(telegramId, id, Math.floor(val));
       else if (type === "ton") ok = await adminRemoveTon(telegramId, id, val);
+      else if (type === "labpoints") ok = await adminRemoveLabPoints(telegramId, id, Math.floor(val));
       else if (type === "redstar") ok = await adminRemoveRedStar(telegramId, id, Math.floor(val));
     }
     setLoading(null);
