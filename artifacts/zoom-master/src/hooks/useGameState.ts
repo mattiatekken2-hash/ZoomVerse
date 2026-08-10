@@ -3193,10 +3193,17 @@ export function useGameState() {
     const handleServerTonSnap = (e: Event) => {
       const detail = (e as CustomEvent<{ tonBalance: number; epoch: number }>).detail;
       if (!detail || typeof detail.tonBalance !== "number") return;
+      const newTon = Math.max(0, detail.tonBalance);
+      const newEpoch = Math.max(stateRef.current.lastBalanceEpoch ?? 0, detail.epoch ?? 0);
+      // Update stateRef synchronously so the next syncBalance sends the correct
+      // value, and immediately persist to localStorage so a snap-down (e.g. after
+      // a withdrawal) survives an app close before the async React re-render.
+      stateRef.current = { ...stateRef.current, tonBalance: newTon, lastBalanceEpoch: newEpoch };
+      saveState(stateRef.current);
       setState((prev) => ({
         ...prev,
-        tonBalance: Math.max(0, detail.tonBalance),
-        lastBalanceEpoch: Math.max(prev.lastBalanceEpoch ?? 0, detail.epoch ?? 0),
+        tonBalance: newTon,
+        lastBalanceEpoch: newEpoch,
       }));
     };
     const handleServerStardustSnap = (e: Event) => {
