@@ -103,6 +103,7 @@ router.post("/farm/settle", async (req, res) => {
                last_farming_settled_at_ms,
                planets_json,
                equipment_json,
+               items_json,
                sun_count,
                sun_farm_started_at_ms,
                sun_last_collected_at_ms,
@@ -226,6 +227,38 @@ router.post("/farm/settle", async (req, res) => {
         if (effectiveStart <= 0) continue;
         const start = Math.max(watermark, effectiveStart);
         const end = Math.min(now, effectiveStart + EQUIPMENT_FARM_DURATION_MS);
+        if (end > start) {
+          earned += (rate / 3_600_000) * (end - start) * speedMultiplier;
+        }
+      }
+
+      // ─── Collectible items ───
+      // Items are always-on passive earners with no farm cycle: they earn
+      // from max(watermark, createdAt) to now without any 24h cap.
+      // Server-canonical rate is re-derived from ITEM_CFG[type] to prevent
+      // any client-forged rate from influencing the settlement.
+      const ITEM_RATE_SERVER: Record<string, number> = {
+        SANDWICH: 1, PIZZA: 1.5,
+        SKATEBOARD: 10, PLUNGER: 8,
+        DVD: 45, GAMEBOY: 55,
+        GUITAR: 90, ARTIFACT: 105, ROBOT: 115,
+        CRYSTAL: 160, TROPHY: 175, BOOK: 200,
+      };
+      const itemsField = row["items_json"];
+      const items: Array<Record<string, unknown>> = Array.isArray(itemsField)
+        ? (itemsField as Array<Record<string, unknown>>)
+        : [];
+      for (const item of items) {
+        if (!item || typeof item !== "object") continue;
+        if (item["isListedInMarket"]) continue;
+        const itemType = String(item["type"] || "");
+        const canon = ITEM_RATE_SERVER[itemType];
+        const rate = typeof canon === "number" ? canon : num(item["rate"]);
+        if (rate <= 0) continue;
+        const createdAt = num(item["createdAt"]);
+        if (createdAt <= 0) continue;
+        const start = Math.max(watermark, createdAt);
+        const end = now;
         if (end > start) {
           earned += (rate / 3_600_000) * (end - start) * speedMultiplier;
         }

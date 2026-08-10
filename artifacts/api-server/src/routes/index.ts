@@ -37,6 +37,7 @@ import pvpRouter from "./pvp";
 import stellaRossaRouter from "./stellaRossa";
 import comboRouter, { ensureComboClaims } from "./combo";
 import adsRouter from "./ads";
+import itemsRouter from "./items";
 
 // Boot-time DDL: ensure combo tracking column exists (idempotent).
 void ensureComboClaims();
@@ -101,6 +102,8 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/equipment/start",
       "/equipment/collect",
       "/equipment/burn",
+      "/items/save",
+      "/items/craft",
       "/planets/rename",
       "/collection-planets/upsert",
       "/collection-planets/bulk-seed",
@@ -151,7 +154,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
   // Marketplace — seller-initiated actions bind to sellerTelegramId
   {
     methods: ["POST"],
-    paths: ["/market/list", "/market/list-equipment", "/market/delist"],
+    paths: ["/market/list", "/market/list-equipment", "/market/list-item", "/market/delist"],
     bindField: "sellerTelegramId",
   },
   // Marketplace — buyer-initiated actions bind to buyerTelegramId
@@ -357,5 +360,6 @@ router.use(pvpRouter);
 router.use(stellaRossaRouter);
 router.use(comboRouter);
 router.use(adsRouter);
+router.use(itemsRouter);
 
 export default router;

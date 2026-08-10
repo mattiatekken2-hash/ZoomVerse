@@ -679,11 +679,41 @@ router.post("/market/buy", async (req, res) => {
     // in the JSON blob. Skip for legacy listings that pre-date the
     // planet_id column (planetId === null) since there's no anchor.
     const isEquipmentListing = listing.kind === "equipment";
+    const isItemListing = listing.kind === "item";
     // Identify the new buyer-side item id BEFORE the transaction commits
     // so we can echo it back in the response. The buyer's equipment_json
     // gets a fresh row appended; the seller's matching row is removed.
     let buyerEquipmentId: string | null = null;
-    if (isEquipmentListing && listing.equipmentId) {
+    if (isItemListing && listing.equipmentId) {
+      // Collectible item: mirror from seller's items_json → buyer's items_json
+      const nowMs = Date.now();
+      await client.query(
+        `UPDATE users
+         SET items_json = COALESCE(
+           (SELECT jsonb_agg(e) FROM jsonb_array_elements(items_json) e WHERE e->>'id' != $2),
+           '[]'::jsonb
+         ),
+         items_updated_at_ms = GREATEST(items_updated_at_ms, $3::bigint)
+         WHERE telegram_id = $1`,
+        [listing.sellerTelegramId, listing.equipmentId, nowMs],
+      );
+      buyerEquipmentId = `item-mkt-${listing.id}-${nowMs}`;
+      const newItem = {
+        id: buyerEquipmentId,
+        type: listing.equipmentCategory,
+        rarity: listing.equipmentRarity,
+        rate: listing.equipmentRate,
+        createdAt: nowMs,
+        isListedInMarket: false,
+      };
+      await client.query(
+        `UPDATE users
+         SET items_json = COALESCE(items_json, '[]'::jsonb) || $2::jsonb,
+             items_updated_at_ms = GREATEST(items_updated_at_ms, $3::bigint)
+         WHERE telegram_id = $1`,
+        [buyerTelegramId, JSON.stringify([newItem]), nowMs],
+      );
+    } else if (isEquipmentListing && listing.equipmentId) {
       const nowMs = Date.now();
       // Remove from seller's equipment_json.
       await client.query(
@@ -894,7 +924,25 @@ router.post("/market/delist", async (req, res) => {
     // back in the inventory on next refresh. Same best-effort caveat
     // as in /market/list. Skipped for legacy listings (planetId null).
     const delisted = result[0]!;
-    if (delisted.kind === "equipment" && delisted.equipmentId) {
+    if (delisted.kind === "item" && delisted.equipmentId) {
+      const nowMs = Date.now();
+      await client.query(
+        `UPDATE users
+         SET items_json = COALESCE(
+           (SELECT jsonb_agg(
+              CASE WHEN e->>'id' = $2
+                THEN (e - 'serverListingId' - 'marketPrice') || jsonb_build_object('isListedInMarket', false)
+                ELSE e
+              END
+            )
+            FROM jsonb_array_elements(items_json) e),
+           '[]'::jsonb
+         ),
+         items_updated_at_ms = GREATEST(items_updated_at_ms, $3::bigint)
+         WHERE telegram_id = $1`,
+        [sellerTelegramId, delisted.equipmentId, nowMs],
+      );
+    } else if (delisted.kind === "equipment" && delisted.equipmentId) {
       const nowMs = Date.now();
       await client.query(
         `UPDATE users

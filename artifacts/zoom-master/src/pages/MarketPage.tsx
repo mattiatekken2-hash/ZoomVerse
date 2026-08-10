@@ -1,4 +1,10 @@
 import { useState, useEffect } from "react";
+import {
+  ITEM_CONFIG,
+  ITEM_RARITY_COLOR,
+  ITEM_RARITY_LABEL,
+  type ItemType,
+} from "../utils/collectibleConfig";
 import { PlanetOrb } from "../components/PlanetOrb";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
@@ -17,9 +23,10 @@ import {
 } from "../utils/equipmentConfig";
 
 
-type MarketFilter = PlanetType | "ALL" | "EQUIPMENT";
-const RARITY_FILTERS: MarketFilter[] = ["ALL", "EQUIPMENT", "BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1", "V1_NFT"];
+type MarketFilter = PlanetType | "ALL" | "EQUIPMENT" | "ITEMS";
+const RARITY_FILTERS: MarketFilter[] = ["ALL", "ITEMS", "EQUIPMENT", "BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1", "V1_NFT"];
 const EQUIPMENT_FILTER_COLOR = "#7fd4ff";
+const ITEMS_FILTER_COLOR = "#c471ed";
 
 const RARITY_COLORS: Record<string, string> = {
   BASIC: "#8892b0",
@@ -47,6 +54,9 @@ interface MarketPageProps {
   // whose `kind === 'equipment'`. Wired from useGameState.
   onBuyEquipment: (listing: ServerMarketListing) => Promise<{ success: boolean; reason?: string }>;
   onUnlistEquipment: (equipmentId: string) => void;
+  // Collectible items marketplace.
+  onBuyItem: (listing: ServerMarketListing) => Promise<{ success: boolean; reason?: string }>;
+  onUnlistItem: (itemId: string) => void;
   // When the app is opened via a `mkt_<id>` deep link, the listing's server id
   // is passed here so the page scrolls to and highlights that card on mount.
   focusListingId?: number | null;
@@ -56,7 +66,7 @@ interface MarketPageProps {
 
 interface Toast { text: string; ok: boolean }
 
-export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete, onBuyEquipment, onUnlistEquipment, focusListingId, onFocusConsumed }: MarketPageProps) {
+export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete, onBuyEquipment, onUnlistEquipment, onBuyItem, onUnlistItem, focusListingId, onFocusConsumed }: MarketPageProps) {
   const { t } = useT();
   const [filter, setFilter] = useState<MarketFilter>("ALL");
   // Float sort widget for the marketplace (▲ = low→high, ▼ = high→low,
@@ -156,7 +166,8 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
   // excluded from the planet-grid pipeline below. Legacy rows have
   // `kind === null` and are treated as planets for backwards compat.
   const equipmentListings = serverListings.filter((l) => l.kind === "equipment");
-  const planetServerListings = serverListings.filter((l) => l.kind !== "equipment");
+  const itemListings = serverListings.filter((l) => l.kind === "item");
+  const planetServerListings = serverListings.filter((l) => l.kind !== "equipment" && l.kind !== "item");
 
   const otherListings = planetServerListings.filter(
     (l) => l.sellerTelegramId !== telegramId
@@ -199,12 +210,11 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
     })),
   ];
 
-  // When the EQUIPMENT filter is active, hide every planet listing — the
-  // user is explicitly narrowing to gear. ALL shows planets + equipment;
-  // any rarity filter shows only matching planets.
+  // When the EQUIPMENT or ITEMS filter is active, hide every planet listing.
+  // ALL shows planets + equipment + items; any rarity filter shows only matching planets.
   const filteredBase = filter === "ALL"
     ? allDisplayListings
-    : filter === "EQUIPMENT"
+    : filter === "EQUIPMENT" || filter === "ITEMS"
       ? []
       : allDisplayListings.filter((l) => l.name === filter);
 
@@ -434,14 +444,18 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                 ? "#ff3355"
                 : f === "EQUIPMENT"
                   ? EQUIPMENT_FILTER_COLOR
-                  : RARITY_COLORS[f] ?? "#8892b0";
+                  : f === "ITEMS"
+                    ? ITEMS_FILTER_COLOR
+                    : RARITY_COLORS[f] ?? "#8892b0";
               const label = f === "ALL"
                 ? "All"
                 : f === "EQUIPMENT"
                   ? "Equipment"
-                  : f === "V1_NFT"
-                    ? "V1 NFT"
-                    : PLANET_CONFIG[f].label;
+                  : f === "ITEMS"
+                    ? "Items"
+                    : f === "V1_NFT"
+                      ? "V1 NFT"
+                      : PLANET_CONFIG[f].label;
               const isActive = filter === f;
               return (
                 <button
@@ -736,6 +750,121 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
             );
           })}
 
+          {/* Collectible item listings — shown when filter is ALL or ITEMS. */}
+          {(filter === "ALL" || filter === "ITEMS") && itemListings.length > 0 && (
+            <div className="flex flex-col gap-2 mt-2">
+              <div className="text-[10px] font-black tracking-widest px-1" style={{ color: "rgba(220,235,255,0.5)" }}>
+                ITEMS
+              </div>
+              {itemListings.map((l) => {
+                const itemType = l.equipmentCategory as ItemType | null;
+                const cfg = itemType ? ITEM_CONFIG[itemType] : null;
+                if (!cfg) return null;
+                const rarityColor = cfg.rarity ? ITEM_RARITY_COLOR[cfg.rarity as keyof typeof ITEM_RARITY_COLOR] : "#8892b0";
+                const rarityLabel = cfg.rarity ? ITEM_RARITY_LABEL[cfg.rarity as keyof typeof ITEM_RARITY_LABEL] : cfg.rarity;
+                const isOwn = l.sellerTelegramId === telegramId;
+                const canBuy = !isOwn && depositBalance >= l.price * 0.5 && earnedBalance >= l.price * 0.5;
+                const bokehColor = cfg.glowColor ?? `rgba(180,140,255,0.5)`;
+                return (
+                  <div
+                    key={`item-${l.id}`}
+                    className="rounded-2xl border overflow-hidden"
+                    style={{
+                      borderColor: `${rarityColor}33`,
+                      background: `linear-gradient(135deg, ${rarityColor}10 0%, rgba(6,8,16,0.65) 100%)`,
+                    }}
+                    data-testid={`item-listing-${l.id}`}
+                  >
+                    <div className="flex items-center gap-3 px-4 py-3">
+                      {/* Emoji orb with bokeh glow */}
+                      <div
+                        className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 relative"
+                        style={{
+                          background: `radial-gradient(circle at 40% 35%, ${rarityColor}44 0%, ${rarityColor}18 60%, rgba(6,8,16,0.8) 100%)`,
+                          boxShadow: `0 0 16px ${bokehColor}`,
+                          fontSize: 28,
+                        }}
+                      >
+                        {cfg.emoji}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-black text-sm tracking-wide" style={{ color: rarityColor }}>
+                          {cfg.label}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span
+                            className="text-[9px] font-black px-2 py-0.5 rounded-full border"
+                            style={{
+                              color: rarityColor, borderColor: `${rarityColor}33`,
+                              background: `${rarityColor}10`,
+                            }}
+                          >
+                            {rarityLabel}
+                          </span>
+                          <span
+                            className="text-[9px] font-black px-2 py-0.5 rounded-full border"
+                            style={{
+                              color: isOwn ? "#ffd700" : "#ff3355",
+                              borderColor: isOwn ? "rgba(255,215,0,0.25)" : "rgba(255,51,85,0.25)",
+                              background: isOwn ? "rgba(255,215,0,0.06)" : "rgba(255,51,85,0.06)",
+                            }}
+                          >
+                            {isOwn ? "👤 you" : `👤 ${l.sellerName ?? `Player ${l.sellerTelegramId.slice(-4)}`}`}
+                          </span>
+                        </div>
+                        <div className="text-xs font-bold mt-1" style={{ color: "rgba(255,255,255,0.45)" }}>
+                          +{(l.equipmentRate ?? cfg.rate ?? 0).toLocaleString()} $ZOOM/hr · always active
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                        <div className="font-black text-sm" style={{ color: rarityColor }}>
+                          {l.price.toLocaleString()} TON
+                        </div>
+                      </div>
+                    </div>
+                    <div className="px-4 pb-3" style={{ borderTop: `1px solid ${rarityColor}12` }}>
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>P2P TON</div>
+                        {isOwn ? (
+                          <button
+                            className="px-4 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95"
+                            style={{ borderColor: "rgba(255,215,0,0.3)", background: "rgba(255,215,0,0.07)", color: "#ffd700" }}
+                            onClick={() => { if (l.equipmentId) onUnlistItem(l.equipmentId); }}
+                            data-testid={`btn-item-unlist-${l.id}`}
+                          >
+                            Delist
+                          </button>
+                        ) : (
+                          <button
+                            className="px-4 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95"
+                            disabled={!canBuy}
+                            style={{
+                              borderColor: canBuy ? "rgba(0,230,118,0.3)" : "rgba(255,255,255,0.06)",
+                              background: canBuy ? "rgba(0,230,118,0.08)" : "transparent",
+                              color: canBuy ? "#00e676" : "rgba(255,255,255,0.15)",
+                              cursor: canBuy ? "pointer" : "not-allowed",
+                            }}
+                            onClick={async () => {
+                              const res = await onBuyItem(l);
+                              if (res.success) {
+                                showToast(`${cfg.emoji} ${cfg.label} added to your inventory!`, true);
+                              } else {
+                                showToast(res.reason ?? "Purchase failed", false);
+                              }
+                            }}
+                            data-testid={`btn-item-buy-${l.id}`}
+                          >
+                            Buy
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           {/* Equipment listings — same listings tab, distinct card. Shown
               when the filter is ALL (planets + equipment) or EQUIPMENT
               (gear only). Any planet-rarity filter hides this block. */}
@@ -850,7 +979,7 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
             </div>
           )}
 
-          {!loading && filtered.length === 0 && equipmentListings.length === 0 && (
+          {!loading && filtered.length === 0 && equipmentListings.length === 0 && itemListings.length === 0 && (
             <div className="text-center py-10 flex flex-col items-center gap-2">
               <div style={{ fontSize: 32, opacity: 0.15 }}>◌</div>
               <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>

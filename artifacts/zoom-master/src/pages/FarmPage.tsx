@@ -1,4 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import {
+  ITEM_CONFIG,
+  ITEM_TYPES_ORDERED,
+  ITEM_RARITY_COLOR,
+  ITEM_RARITY_LABEL,
+  type CollectibleItem,
+  type ItemType,
+} from "../utils/collectibleConfig";
 import { PlanetOrb } from "../components/PlanetOrb";
 import { DailyComboBox } from "../components/DailyComboBox";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
@@ -62,6 +70,10 @@ interface FarmPageProps {
   onBurnEquipment: (id: string) => void;
   onSellEquipment: (id: string, price: number) => void;
   onUnlistEquipment: (id: string) => void;
+  // Collectible items inventory.
+  items?: CollectibleItem[];
+  onSellItem?: (itemId: string, price: number) => void;
+  onUnlistItem?: (itemId: string) => void;
   /** Flush pending planet save before entering PvP queue. */
   onFlushPlanets?: () => Promise<void>;
   /** User's current GRAM deposit balance (shown in upgrade UI). */
@@ -70,6 +82,205 @@ interface FarmPageProps {
   onUpgradeDuration?: (planetId: string, durationHours: number) => Promise<{ ok: boolean; error?: string }>;
   /** Permanently upgrade the SUN's farm-cycle duration; charges GRAM from EARNED GRAM. */
   onUpgradeSunDuration?: (durationHours: number) => Promise<{ ok: boolean; error?: string }>;
+}
+
+/**
+ * CollectibleItemInventory — all-time passive ZOOM earners (no farm cycle).
+ * Shows a 2-col grid of item cards, each with emoji orb, rarity badge, rate,
+ * and List/Delist controls.
+ */
+function CollectibleItemInventory({
+  items,
+  onSell,
+  onUnlist,
+}: {
+  items: CollectibleItem[];
+  onSell?: (id: string, price: number) => void;
+  onUnlist?: (id: string) => void;
+}) {
+  const [listFor, setListFor] = useState<{ id: string; cfg: typeof ITEM_CONFIG[ItemType] } | null>(null);
+  const [listPrice, setListPrice] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2600);
+  };
+
+  // Sort: rarest first (GOLD → BASIC)
+  const RARITY_RANK = { GOLD: 4, MYTHIC: 3, EPIC: 2, RARE: 1, BASIC: 0 };
+  const sorted = [...items].sort((a, b) =>
+    (RARITY_RANK[b.rarity as keyof typeof RARITY_RANK] ?? 0) - (RARITY_RANK[a.rarity as keyof typeof RARITY_RANK] ?? 0)
+  );
+
+  if (sorted.length === 0) {
+    return (
+      <div
+        className="rounded-2xl border border-dashed flex flex-col items-center justify-center py-10 gap-3"
+        style={{ borderColor: "rgba(120,160,220,0.22)", minHeight: 200 }}
+        data-testid="items-empty"
+      >
+        <div style={{ fontSize: 36, opacity: 0.45 }}>⚗️</div>
+        <div className="text-sm font-bold" style={{ color: "rgba(220,235,255,0.7)" }}>
+          No collectibles yet
+        </div>
+        <div className="text-xs px-6 text-center" style={{ color: "rgba(220,235,255,0.35)" }}>
+          Forge items in the Lab to start collecting passive ZOOM earners.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3" data-testid="items-inventory">
+      {toast && (
+        <div className="rounded-xl px-4 py-2 text-xs font-bold text-center slot-enter"
+          style={{ background: "rgba(196,113,237,0.12)", color: "#c471ed", border: "1px solid rgba(196,113,237,0.25)" }}>
+          {toast}
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        {sorted.map((item) => {
+          const type = item.type as ItemType;
+          const cfg = ITEM_CONFIG[type];
+          if (!cfg) return null;
+          const rarityColor = ITEM_RARITY_COLOR[item.rarity];
+          const listed = !!item.isListedInMarket;
+          const bokeh = cfg.glowColor ?? "rgba(180,140,255,0.5)";
+          return (
+            <div
+              key={item.id}
+              className="rounded-xl border flex flex-col gap-2 p-3 slot-enter"
+              style={{
+                borderColor: `${rarityColor}30`,
+                background: `linear-gradient(135deg, ${rarityColor}10 0%, rgba(10,14,30,0.7) 100%)`,
+                backdropFilter: "blur(10px)",
+              }}
+              data-testid={`item-card-${item.id}`}
+            >
+              {/* Emoji orb with bokeh glow */}
+              <div className="relative flex justify-center">
+                <div
+                  className="w-14 h-14 rounded-xl flex items-center justify-center text-3xl planet-float-anim"
+                  style={{
+                    background: `radial-gradient(circle at 40% 35%, ${rarityColor}44 0%, ${rarityColor}18 70%, rgba(6,8,16,0.8) 100%)`,
+                    boxShadow: `0 0 18px ${bokeh}`,
+                  }}
+                >
+                  {cfg.emoji}
+                </div>
+                <div
+                  className="bokeh-blob absolute"
+                  style={{ width: 40, height: 40, top: 4, left: "50%", transform: "translateX(-50%)", background: bokeh }}
+                />
+                {listed && (
+                  <div
+                    className="absolute -top-1 -right-1 text-[8px] font-black px-1.5 py-0.5 rounded-full"
+                    style={{ background: "rgba(255,215,0,0.15)", color: "#ffd700", border: "1px solid rgba(255,215,0,0.3)" }}
+                  >
+                    LISTED
+                  </div>
+                )}
+              </div>
+              {/* Info */}
+              <div className="text-center">
+                <div className="text-[9px] font-black tracking-wide" style={{ color: rarityColor }}>
+                  {ITEM_RARITY_LABEL[item.rarity] ?? item.rarity} · {cfg.rate}/hr
+                </div>
+                <div className="text-xs font-bold truncate mt-0.5" style={{ color: "rgba(220,235,255,0.85)" }}>
+                  {cfg.label}
+                </div>
+              </div>
+              {/* Actions */}
+              {listed ? (
+                <button
+                  className="w-full py-1.5 rounded-lg text-[10px] font-black border transition-all active:scale-95"
+                  style={{ borderColor: "rgba(255,215,0,0.3)", background: "rgba(255,215,0,0.07)", color: "#ffd700" }}
+                  onClick={() => { if (onUnlist) onUnlist(item.id); }}
+                >
+                  Delist
+                </button>
+              ) : (
+                <button
+                  className="w-full py-1.5 rounded-lg text-[10px] font-black border transition-all active:scale-95"
+                  style={{ borderColor: `${rarityColor}33`, background: `${rarityColor}0d`, color: rarityColor }}
+                  onClick={() => {
+                    setListFor({ id: item.id, cfg });
+                    setListPrice("");
+                    setTimeout(() => inputRef.current?.focus(), 80);
+                  }}
+                >
+                  List
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* List-price modal */}
+      {listFor && (
+        <div
+          className="fixed inset-0 flex items-end justify-center z-50"
+          style={{ background: "rgba(6,8,16,0.92)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setListFor(null); }}
+        >
+          <div className="w-full rounded-t-3xl px-5 pt-6 pb-8 glass-strong">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="text-3xl">{listFor.cfg.emoji}</div>
+              <div className="font-black text-base" style={{ color: ITEM_RARITY_COLOR[listFor.cfg.rarity] }}>
+                List {listFor.cfg.label}
+              </div>
+            </div>
+            <div className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Price in GRAM (0.25 – 10). 10% marketplace fee included.
+            </div>
+            <div className="relative mb-4">
+              <input
+                ref={inputRef}
+                type="number"
+                min={0.25}
+                max={10.0}
+                step={0.01}
+                value={listPrice}
+                onChange={(e) => setListPrice(e.target.value)}
+                className="w-full rounded-xl px-4 py-4 text-xl font-black pr-20 outline-none"
+                style={{ background: "rgba(255,255,255,0.06)", color: "white", border: `1px solid ${ITEM_RARITY_COLOR[listFor.cfg.rarity]}44`, caretColor: ITEM_RARITY_COLOR[listFor.cfg.rarity] }}
+                placeholder="0.00"
+                inputMode="decimal"
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "rgba(255,255,255,0.35)" }}>GRAM</span>
+            </div>
+            <div className="flex gap-3">
+              <button
+                className="flex-1 py-3.5 rounded-2xl font-black text-sm border"
+                style={{ borderColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }}
+                onClick={() => setListFor(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="flex-1 py-3.5 rounded-2xl font-black text-sm border transition-all active:scale-95"
+                style={{ borderColor: `${ITEM_RARITY_COLOR[listFor.cfg.rarity]}44`, background: `${ITEM_RARITY_COLOR[listFor.cfg.rarity]}14`, color: ITEM_RARITY_COLOR[listFor.cfg.rarity] }}
+                onClick={() => {
+                  const p = parseFloat(listPrice);
+                  if (isNaN(p) || p < 0.25 || p > 10) {
+                    showToast("Price must be 0.25 – 10 GRAM");
+                    return;
+                  }
+                  if (onSell) onSell(listFor.id, p);
+                  setListFor(null);
+                }}
+              >
+                List for Sale
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -441,7 +652,7 @@ const RARITY_CLASS: Record<string, string> = {
 };
 
 
-export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRepair, stardustBalance = 0, onRename, equipment, onActivateEquipment, onReactivateEquipment, onBurnEquipment, onSellEquipment, onUnlistEquipment, onFlushPlanets, tonBalance = 0, onUpgradeDuration, onUpgradeSunDuration }: FarmPageProps) {
+export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRepair, stardustBalance = 0, onRename, equipment, onActivateEquipment, onReactivateEquipment, onBurnEquipment, onSellEquipment, onUnlistEquipment, items = [], onSellItem, onUnlistItem, onFlushPlanets, tonBalance = 0, onUpgradeDuration, onUpgradeSunDuration }: FarmPageProps) {
   const { t } = useT();
   const sunMultiplier = Math.max(1, sunCount || (sun?.isOwned ? 1 : 0));
   const sunDisplayRate = SUN_CONFIG.rate * sunMultiplier;
@@ -474,7 +685,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
   // Inventory tab — the FarmPage hosts the player's full inventory, split
   // between "Planets" (existing planet/SUN/staking grid) and "Equipment"
   // (new space gear: Helmets / Jetpacks / Hats / Scanners).
-  const [inventoryTab, setInventoryTab] = useState<"planets" | "equipment">("planets");
+  const [inventoryTab, setInventoryTab] = useState<"planets" | "equipment" | "items">("planets");
   const equipmentRate = getEquipmentTotalRate(equipment);
 
   // Daily-collect removed — planets now farm autonomously for the full 24h
@@ -611,6 +822,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
           {([
             { id: "planets", label: "Planets", count: planets.length },
             { id: "equipment", label: "Equipment", count: equipment.length },
+            { id: "items", label: "Items", count: items.length },
           ] as const).map((tab) => {
             const active = inventoryTab === tab.id;
             return (
@@ -1196,6 +1408,14 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
               onSell={onSellEquipment}
               onUnlist={onUnlistEquipment}
               balance={balance}
+            />
+          )}
+
+          {inventoryTab === "items" && (
+            <CollectibleItemInventory
+              items={items}
+              onSell={onSellItem}
+              onUnlist={onUnlistItem}
             />
           )}
         </div>

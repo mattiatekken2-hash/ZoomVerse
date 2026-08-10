@@ -407,6 +407,22 @@ export const usersTable = pgTable("users", {
   // ─────────────────────────────────────────────────────────────────────
   labPoints: integer("lab_points").notNull().default(0),
   labRoundId: integer("lab_round_id").notNull().default(0),
+
+  // ─────────────────────────────────────────────────────────────────────
+  // COLLECTIBLE ITEMS — always-on passive ZOOM earners.
+  //
+  // Items are crafted in the Lab (stardust cost, random roll) and can be
+  // listed / bought on the marketplace (kind = "item"). Unlike equipment
+  // they have NO 24h farm cycle — they accrue ZOOM/h continuously just by
+  // existing in the user's inventory. Stored as a JSONB array mirroring
+  // the CollectibleItem interface in collectibleConfig.ts.
+  //
+  // `items_updated_at_ms` is a monotonic write-fence (same pattern as
+  // equipment_updated_at_ms): saves are rejected when the incoming
+  // clientWriteAtMs <= the stored value, preventing stale overwrites.
+  // ─────────────────────────────────────────────────────────────────────
+  itemsJson: jsonb("items_json").default(sql`'[]'::jsonb`),
+  itemsUpdatedAtMs: bigint("items_updated_at_ms", { mode: "number" }).notNull().default(0),
 }, (table) => [
   index("idx_users_zoom_balance").on(table.zoomBalance),
   index("idx_users_referred_by").on(table.referredBy),

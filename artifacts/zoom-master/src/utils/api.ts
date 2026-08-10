@@ -2473,9 +2473,9 @@ export interface ServerMarketListing {
   id: number;
   sellerTelegramId: string;
   sellerName: string | null;
-  // 'planet' (default for legacy rows) or 'equipment'. Discriminates
+  // 'planet' (default for legacy rows), 'equipment', or 'item'. Discriminates
   // which set of typed fields below is populated.
-  kind?: "planet" | "equipment" | null;
+  kind?: "planet" | "equipment" | "item" | null;
   // Planet-listing fields. Null on equipment listings.
   planetType: string | null;
   planetRate: number | null;
@@ -2555,10 +2555,10 @@ export async function buyFromMarket(buyerTelegramId: string, listingId: number):
   // Distinguishes planet vs equipment so the client knows which local
   // state slice to mint into. Older server builds omit this; treat
   // missing as 'planet' for backwards compatibility.
-  kind?: "planet" | "equipment";
+  kind?: "planet" | "equipment" | "item";
   planetType?: string | null;
   planetRate?: number | null;
-  // For kind='equipment' responses, the server-side minted item details.
+  // For kind='equipment'/'item' responses, the server-side minted item details.
   equipmentId?: string | null;
   equipmentCategory?: string | null;
   equipmentRarity?: string | null;
@@ -3689,5 +3689,102 @@ export async function fetchHistory(telegramId: string): Promise<HistoryEntry[]> 
     return Array.isArray(j.entries) ? j.entries : [];
   } catch {
     return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  COLLECTIBLE ITEMS
+// ─────────────────────────────────────────────────────────────────
+
+export interface CollectibleItemApiShape {
+  id: string;
+  type: string;
+  rarity: string;
+  rate: number;
+  emoji: string;
+  color: string;
+  glowColor: string;
+  createdAt: number;
+  isListedInMarket: boolean;
+  serverListingId?: number;
+  marketPrice?: number | null;
+}
+
+/** GET /items/:telegramId — fetch the user's collectible items. */
+export async function fetchItems(telegramId: string): Promise<{ ok: boolean; exists: boolean; items: CollectibleItemApiShape[] }> {
+  const failure = { ok: false, exists: false, items: [] };
+  if (!telegramId) return failure;
+  try {
+    const res = await fetch(
+      `${API_BASE}/items/${encodeURIComponent(telegramId)}?t=${Date.now()}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return failure;
+    const j = await res.json();
+    if (!j?.ok) return failure;
+    return { ok: true, exists: !!j.exists, items: Array.isArray(j.items) ? (j.items as CollectibleItemApiShape[]) : [] };
+  } catch {
+    return failure;
+  }
+}
+
+/** POST /items/save — persist the user's items array. */
+export async function saveItems(
+  telegramId: string,
+  items: ReadonlyArray<CollectibleItemApiShape>,
+): Promise<{ ok: boolean; stale?: boolean }> {
+  if (!telegramId) return { ok: false };
+  try {
+    const res = await fetch(`${API_BASE}/items/save`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, items, clientWriteAtMs: Date.now() }),
+      keepalive: true,
+    });
+    if (!res.ok) return { ok: false };
+    const j = await res.json().catch(() => ({}));
+    return { ok: !!j?.ok, stale: !!j?.stale };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/** POST /items/craft — spend stardust and roll a random item of the requested type. */
+export async function craftItemApi(
+  telegramId: string,
+  itemType: string,
+): Promise<{ ok: boolean; won: boolean; item?: CollectibleItemApiShape; newStardustBalance?: number; message?: string; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/items/craft`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, itemType }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, won: false, error: typeof j?.error === "string" ? j.error : `HTTP ${res.status}` };
+    return { ok: true, won: !!j?.won, item: j?.item, newStardustBalance: j?.newStardustBalance, message: j?.message };
+  } catch {
+    return { ok: false, won: false, error: "Network error" };
+  }
+}
+
+/** POST /market/list-item — list a collectible item on the marketplace. */
+export async function listItemOnMarket(params: {
+  sellerTelegramId: string;
+  sellerName?: string;
+  itemId: string;
+  price: number;
+}): Promise<{ ok: boolean; listing?: ServerMarketListing; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/market/list-item`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(params),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: typeof data?.error === "string" ? data.error : `HTTP ${res.status}` };
+    return data;
+  } catch {
+    return { ok: false, error: "Network error" };
   }
 }

@@ -126,6 +126,7 @@ function AppShellWithState() {
     placeSupernovaPlanet, reactivateSupernovaPlanet, markSupernovaPlanetReactivated, collectSupernovaPlanet,
     placeStellaRossaPlanet, reactivateStellaRossaPlanet, markStellaRossaPlanetReactivated, collectStellaRossaPlanet,
     activateEquipment, reactivateEquipment, burnEquipment, listEquipment, unlistEquipment, buyEquipmentFromMarket,
+    items, craftItem, listItem, unlistItem, buyItemFromMarket,
   } = useGameState();
 
   // Space Merchant — wire once at App level so the radar LED in LAB and the
@@ -895,6 +896,7 @@ function AppShellWithState() {
                   redStarBalance={state.redStarBalance || 0}
                   onRedStarBalanceUpdate={(newBal) => setState((prev) => ({ ...prev, redStarBalance: newBal }))}
                   onUpgradeCollectionDuration={upgradeCollectionFarmDuration}
+                  onCraftItem={craftItem}
                   visible={tab === "lab"}
                 />
               )}
@@ -927,6 +929,9 @@ function AppShellWithState() {
                   onBurnEquipment={burnEquipment}
                   onSellEquipment={listEquipment}
                   onUnlistEquipment={unlistEquipment}
+                  items={items}
+                  onSellItem={listItem}
+                  onUnlistItem={unlistItem}
                   onFlushPlanets={async () => {
                     // Flush planets to the server immediately so the PvP
                     // queue route can verify ownership in planets_json even
@@ -975,6 +980,8 @@ function AppShellWithState() {
                   onServerBuyComplete={serverBuyComplete}
                   onBuyEquipment={buyEquipmentFromMarket}
                   onUnlistEquipment={unlistEquipment}
+                  onBuyItem={buyItemFromMarket}
+                  onUnlistItem={unlistItem}
                   focusListingId={marketFocusId}
                   onFocusConsumed={() => setMarketFocusId(null)}
                 />

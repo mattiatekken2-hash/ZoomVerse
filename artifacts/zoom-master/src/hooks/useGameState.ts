@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
+import type { CollectibleItem } from "../utils/collectibleConfig";
 import { getEquipmentTotalRate, getEquipmentReactivationFee, EQUIPMENT_CYCLE_MS, makeEquipmentItem, getEquipmentRate, EQUIPMENT_CATEGORY_ORDER } from "../utils/equipmentConfig";
 
 // ─── LAB equipment drop tuning ───────────────────────────────────────
@@ -339,6 +340,9 @@ export interface GameState {
   // and is summed into the live rate alongside planets and the SUN.
   // Server-side: jsonb `equipment_json` column on `users`.
   equipment: EquipmentItem[];
+  // Collectible items (Sandwich, Pizza, Skateboard, …). Always-on passive
+  // ZOOM earners with no farm cycle. Stored in `users.items_json` jsonb.
+  items: CollectibleItem[];
   /** Number of Adsgram ads watched today (0-5). Reset at midnight UTC. */
   dailyAdsWatched: number;
 }
@@ -941,6 +945,7 @@ const INITIAL_STATE: GameState = {
   defectPlanets: [],
   lastBalanceEpoch: 0,
   equipment: [],
+  items: [],
   dailyAdsWatched: 0,
 };
 
@@ -1929,6 +1934,8 @@ export function useGameState() {
   // fetchEquipment has succeeded so the debounced save effect cannot push
   // an empty local default over a populated server array on cold start.
   const equipmentHydratedRef = useRef(false);
+  // Same gate for collectible items.
+  const itemsHydratedRef = useRef(false);
   // Monotonic counter bumped from inside applyGrants whenever a bonus
   // planet is materialized. The debounced save effect compares this to
   // `lastImmediateBonusSaveTickRef` and, if they differ, fires
@@ -2068,7 +2075,7 @@ export function useGameState() {
       // protected from a one-off double-credit on the very first
       // server-side settle. See settleOfflineFarming() doc for details.
       const _initClientFloor = Math.floor(stateRef.current.lastFarmingSettledAt || 0);
-      const [refData, grantsResult, balanceRecord, serverCollectionPlanets, serverRegular, settleRes, serverEquipment] = await Promise.all([
+      const [refData, grantsResult, balanceRecord, serverCollectionPlanets, serverRegular, settleRes, serverEquipment, serverItems] = await Promise.all([
         fetchReferralData(telegramId),
         fetchGrants(telegramId),
         fetchBalanceRecord(telegramId),
@@ -2076,6 +2083,7 @@ export function useGameState() {
         fetchRegularPlanets(telegramId),
         settleOfflineFarming({ telegramId, clientLastSettledAtMs: _initClientFloor }),
         fetchEquipment(telegramId),
+        fetchItems(telegramId),
       ]);
       // grantsResult is `null` when /grants failed (network/HTTP). We must
       // NOT treat that as "user has nothing": doing so would trip the
@@ -2172,6 +2180,8 @@ export function useGameState() {
           // otherwise (network failure) keep the local copy so we don't
           // wipe inventory on a transient blip.
           equipment: serverEquipment.ok ? serverEquipment.equipment : (prev.equipment ?? []),
+          // Collectible items: same pattern as equipment.
+          items: serverItems.ok ? (serverItems.items as CollectibleItem[]) : (prev.items ?? []),
           // Adsgram daily ad counter — server is authoritative (already
           // reset to 0 by the server when the date has changed).
           dailyAdsWatched: Math.max(0, Number(grants.dailyAdsWatched ?? 0)),
@@ -2692,6 +2702,9 @@ export function useGameState() {
       if (serverEquipment.ok) {
         equipmentHydratedRef.current = true;
       }
+      if (serverItems.ok) {
+        itemsHydratedRef.current = true;
+      }
     })();
   }, []);
 
@@ -2709,6 +2722,20 @@ export function useGameState() {
     }, 1200);
     return () => clearTimeout(t);
   }, [state.telegramId, state.equipment]);
+
+  // ─── Debounced server save for collectible items ───
+  // Same coalescing pattern as equipment: 1.2s window, gated on
+  // successful hydration. /items/save has its own stale-write fence.
+  useEffect(() => {
+    if (!itemsHydratedRef.current) return;
+    const tid = state.telegramId;
+    if (!tid) return;
+    const snapshot = state.items ?? [];
+    const t = setTimeout(() => {
+      void saveItems(tid, snapshot as never);
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [state.telegramId, state.items]);
 
   // ─── Debounced server save for regular planets ───
   // Watches state.planets and the per-rarity claimed-bonus counters; when
@@ -5538,6 +5565,136 @@ export function useGameState() {
     return result;
   }, [state.telegramId]);
 
+  // ─── Collectible item actions ─────────────────────────────────────────
+
+  /** Craft a collectible item: spend stardust, roll chance, maybe receive item. */
+  const craftItem = useCallback(async (
+    itemType: string,
+  ): Promise<{ won: boolean; message?: string; error?: string }> => {
+    const tid = stateRef.current.telegramId;
+    if (!tid) return { won: false, error: "Not logged in" };
+    const result = await craftItemApi(tid, itemType);
+    if (!result.ok) return { won: false, error: result.error ?? "Craft failed" };
+    // Update state: deduct stardust + add item if won
+    setState((prev) => {
+      const next: Partial<typeof prev> = {};
+      if (typeof result.newStardustBalance === "number") {
+        next.stardustBalance = result.newStardustBalance;
+      }
+      if (result.won && result.item) {
+        next.items = [...(prev.items ?? []), result.item as CollectibleItem];
+      }
+      return { ...prev, ...next };
+    });
+    return { won: !!result.won, message: result.message };
+  }, []);
+
+  /** List a collectible item on the marketplace. Optimistic with rollback. */
+  const listItemAction = useCallback((itemId: string, price: number) => {
+    const tid = stateRef.current.telegramId;
+    if (!tid) return;
+    const { firstName } = getTelegramContext();
+    setState((prev) => {
+      const next = (prev.items ?? []).map((i) =>
+        i.id === itemId
+          ? { ...i, isListedInMarket: true, marketPrice: price }
+          : i
+      );
+      return { ...prev, items: next };
+    });
+    listItemOnMarket({
+      sellerTelegramId: tid,
+      sellerName: firstName ?? undefined,
+      itemId,
+      price,
+    }).then((res) => {
+      if (res.ok && res.listing) {
+        setState((s) => ({
+          ...s,
+          items: (s.items ?? []).map((i) =>
+            i.id === itemId ? { ...i, serverListingId: res.listing!.id } : i,
+          ),
+        }));
+        void refreshMarketListings();
+      } else {
+        // Rollback on failure
+        setState((s) => ({
+          ...s,
+          items: (s.items ?? []).map((i) =>
+            i.id === itemId
+              ? { ...i, isListedInMarket: false, marketPrice: undefined, serverListingId: undefined }
+              : i,
+          ),
+        }));
+      }
+    }).catch(() => {
+      setState((s) => ({
+        ...s,
+        items: (s.items ?? []).map((i) =>
+          i.id === itemId
+            ? { ...i, isListedInMarket: false, marketPrice: undefined, serverListingId: undefined }
+            : i,
+        ),
+      }));
+    });
+  }, []);
+
+  /** Delist a collectible item from the marketplace. */
+  const unlistItemAction = useCallback((itemId: string) => {
+    const tid = stateRef.current.telegramId;
+    if (!tid) return;
+    const item = (stateRef.current.items ?? []).find((i) => i.id === itemId);
+    if (item?.serverListingId) {
+      void delistFromMarket(tid, item.serverListingId).then(() => {
+        void refreshMarketListings();
+      });
+    }
+    setState((prev) => ({
+      ...prev,
+      items: (prev.items ?? []).map((i) =>
+        i.id === itemId
+          ? { ...i, isListedInMarket: false, marketPrice: undefined, serverListingId: undefined }
+          : i,
+      ),
+    }));
+  }, []);
+
+  /** Buy a collectible item from the marketplace. */
+  const buyItemFromMarket = useCallback(async (listing: ServerMarketListing): Promise<{ success: boolean; reason?: string }> => {
+    const tid = stateRef.current.telegramId;
+    if (!tid) return { success: false, reason: "Not logged in" };
+    if (listing.kind !== "item") return { success: false, reason: "Not an item listing" };
+    const half = +(listing.price * 0.5).toFixed(6);
+    if ((stateRef.current.depositBalance || 0) < half || (stateRef.current.tonBalance || 0) < half) {
+      return { success: false, reason: "Insufficient balance: need 50% deposit + 50% earned" };
+    }
+    const result = await buyFromMarket(tid, listing.id);
+    if (!result.ok) return { success: false, reason: result.error ?? "Purchase failed" };
+    // Mint the item locally
+    const paidHalf = +((result.pricePaid ?? listing.price) * 0.5).toFixed(6);
+    setState((prev) => ({
+      ...prev,
+      depositBalance: +((prev.depositBalance || 0) - paidHalf).toFixed(6),
+      tonBalance: +(Math.max(0, (prev.tonBalance || 0) - paidHalf)).toFixed(6),
+      items: [
+        ...(prev.items ?? []),
+        {
+          id: result.equipmentId ?? `item-mkt-${listing.id}-${Date.now()}`,
+          type: (listing.equipmentCategory ?? result.equipmentCategory ?? "SANDWICH") as CollectibleItem["type"],
+          rarity: (listing.equipmentRarity ?? result.equipmentRarity ?? "BASIC") as CollectibleItem["rarity"],
+          rate: result.equipmentRate ?? listing.equipmentRate ?? 1,
+          emoji: "",       // will be re-stamped by server on next save
+          color: "",
+          glowColor: "",
+          createdAt: Date.now(),
+          isListedInMarket: false,
+        },
+      ],
+    }));
+    void refreshMarketListings();
+    return { success: true };
+  }, []);
+
   /** Permanently upgrade the SUN's farm-cycle duration. Charges GRAM from EARNED GRAM. */
   const upgradeSunFarmDuration = useCallback(async (
     durationHours: number,
@@ -5578,5 +5735,11 @@ export function useGameState() {
     listEquipment: listEquipmentAction,
     unlistEquipment: unlistEquipmentAction,
     buyEquipmentFromMarket,
+    // Collectible items
+    items: state.items ?? [],
+    craftItem,
+    listItem: listItemAction,
+    unlistItem: unlistItemAction,
+    buyItemFromMarket,
   };
 }
