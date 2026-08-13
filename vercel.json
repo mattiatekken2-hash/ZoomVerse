@@ -5,6 +5,10 @@
   "outputDirectory": "artifacts/zoom-master/dist/public",
   "rewrites": [
     {
+      "source": "/api/:path*",
+      "destination": "https://zoomverse-api.onrender.com/api/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
