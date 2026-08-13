@@ -157,9 +157,6 @@ importers:
 
   .:
     devDependencies:
-      '@esbuild/win32-x64':
-        specifier: 0.27.3
-        version: 0.27.3
       prettier:
         specifier: ^3.8.1
         version: 3.8.1
@@ -792,12 +789,6 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [linux]
-
-  '@esbuild/win32-x64@0.27.3':
-    resolution: {integrity: sha512-4uJGhsxuptu3OcpVAzli+/gWusVGwZZHTlS63hh++ehExkVT8SgiEf7/uC/PclrPPkLhZqGgCTjd0VWLo6xMqA==}
-    engines: {node: '>=18'}
-    cpu: [x64]
-    os: [win32]
 
   '@floating-ui/core@1.7.5':
     resolution: {integrity: sha512-1Ih4WTWyw0+lKyFMcBHGbb5U5FtuHJuujoyyr5zTaWS5EYMeT6Jb2AuDeftsCsEuchO+mM2ij5+q9crhydzLhQ==}
@@ -3731,8 +3722,6 @@ snapshots:
 
   '@esbuild/linux-x64@0.27.3':
     optional: true
-
-  '@esbuild/win32-x64@0.27.3': {}
 
   '@floating-ui/core@1.7.5':
     dependencies:
