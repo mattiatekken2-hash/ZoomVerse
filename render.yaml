@@ -11,7 +11,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: TG_AUTH_MODE
-        value: strict
+        value: soft
       - key: REPLIT_DEPLOYMENT
         value: "1"
       - key: DATABASE_URL

@@ -96,7 +96,16 @@ router.post("/referral/register", async (req, res) => {
     // re-credit the referrer (+20 ZOOM each time + double-count milestones).
     const inserted = await db
       .insert(usersTable)
-      .values({ telegramId, referredBy: referredBy ?? null, referralCount: 0, firstName: firstName ?? null, username: normalizedUsername, photoUrl: photoUrl ?? null })
+      .values({
+        telegramId,
+        referredBy: referredBy ?? null,
+        referralCount: 0,
+        firstName: firstName ?? null,
+        username: normalizedUsername,
+        photoUrl: photoUrl ?? null,
+        stardustBalance: 30,
+        redStarBalance: 5,
+      })
       .onConflictDoNothing({ target: usersTable.telegramId })
       .returning({ telegramId: usersTable.telegramId });
 
