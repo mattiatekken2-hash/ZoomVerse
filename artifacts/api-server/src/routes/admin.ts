@@ -7,6 +7,7 @@ import { z } from "zod";
 import fs from "node:fs";
 import path from "node:path";
 import { logger } from "../lib/logger";
+import { DEFAULT_SEASON_EPOCH_MS } from "../lib/ensure-db";
 import { recordHistoryAsync } from "../lib/history";
 import { EQUIPMENT_RATE_SERVER } from "./equipment";
 import { readGlobal as readMerchantGlobal, advanceGlobal as advanceMerchantGlobal, GLOBAL_KEY as MERCHANT_GLOBAL_KEY } from "./merchant";
@@ -1960,9 +1961,10 @@ router.post("/admin/broadcast", async (req, res) => {
 router.get("/season/epoch", async (_req, res) => {
   try {
     const [row] = await db.select().from(appSettingsTable).where(eq(appSettingsTable.key, "season_epoch")).limit(1);
-    res.json({ epoch: row?.valueNum ?? 0 });
+    const epoch = row?.valueNum ?? 0;
+    res.json({ epoch: epoch > 0 ? epoch : DEFAULT_SEASON_EPOCH_MS });
   } catch {
-    res.json({ epoch: 0 });
+    res.json({ epoch: DEFAULT_SEASON_EPOCH_MS });
   }
 });
 

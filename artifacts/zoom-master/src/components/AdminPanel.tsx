@@ -215,8 +215,13 @@ export function AdminPanel({ telegramId }: Props) {
     }
     setLoading(type);
     let ok = false;
+    let apiError: string | undefined;
     if (mode === "add") {
-      if (type === "zoom") ok = await adminCreditZoom(telegramId, id, val);
+      if (type === "zoom") {
+        const r = await adminCreditZoom(telegramId, id, val);
+        ok = r.ok;
+        apiError = r.error;
+      }
       else if (type === "planets") ok = await adminAddPlanets(telegramId, id, Math.floor(val), planetType);
       else if (type === "slots") ok = await adminUnlockSlots(telegramId, id, Math.floor(val));
       else if (type === "spins") ok = await adminCreditSpins(telegramId, id, Math.floor(val));
@@ -260,7 +265,7 @@ export function AdminPanel({ telegramId }: Props) {
       : type === "labpoints" ? `${Math.floor(val)} punti classifica 🏆`
       : type === "redstar" ? `${Math.floor(val)} ★ REDSTAR`
       : `${Math.floor(val)} ${planetType === "SUN" ? "Sole" : `pianeti ${planetType}`}`;
-    showFeedback(ok ? `✓ ${item} ${direction} a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+    showFeedback(ok ? `✓ ${item} ${direction} a ID ${id}` : `✗ ${apiError || `Errore per ID ${id}`}`, ok);
   }, [targetId, amount, planetType, mode, telegramId]);
 
   const handleGlobalBonus = useCallback(async () => {

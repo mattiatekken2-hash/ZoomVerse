@@ -73,7 +73,10 @@ async function refreshAll(telegramId: string | null) {
   inflight = true;
   try {
     const tasks: Promise<void>[] = [
-      fetchSeasonEpoch().then((e) => { if (e && e > 0) set({ seasonEpoch: e }); }).catch(() => {}),
+      fetchSeasonEpoch().then((e) => {
+        const fallback = new Date("2026-04-14T00:00:00.000Z").getTime();
+        set({ seasonEpoch: e && e > 0 ? e : fallback });
+      }).catch(() => {}),
       fetchLeaderboard().then((lb) => set({ leaderboard: lb })).catch(() => {}),
       fetchGlobalPool().then((p) => set({ globalPool: p })).catch(() => {}),
       fetchMarketListings().then((m) => set({ marketListings: m })).catch(() => {}),

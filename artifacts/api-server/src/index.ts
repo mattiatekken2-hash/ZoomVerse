@@ -9,6 +9,7 @@ import { purgeExpiredHistory } from "./lib/history";
 import { db, usersTable, pvpDailyPairsTable } from "@workspace/db";
 import { desc, eq, sql } from "drizzle-orm";
 import { readGlobal, readNotifiedExpiresAtMs, writeNotifiedExpiresAtMs, advanceGlobal } from "./routes/merchant";
+import { ensureDatabaseReady } from "./lib/ensure-db";
 
 const FARM_FULL_MESSAGE = "⚡ Your Farm is full! Collect your TON and restart the engines to keep earning.";
 
@@ -62,7 +63,7 @@ async function runBootMigrations() {
 
 server.listen(port, () => {
   logger.info({ port }, "Server listening");
-  void runBootMigrations();
+  void ensureDatabaseReady().then(() => runBootMigrations());
   startKeepAlive();
   registerTelegramWebhook();
   startFarmNotificationCron();

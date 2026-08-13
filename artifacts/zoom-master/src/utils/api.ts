@@ -803,15 +803,17 @@ export async function fetchGrants(telegramId: string): Promise<Grants | null> {
   }
 }
 
-export async function adminCreditZoom(adminId: string, telegramId: string, amount: number): Promise<boolean> {
+export async function adminCreditZoom(adminId: string, telegramId: string, amount: number): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(`${API_BASE}/admin/credit-zoom`, {
       method: "POST",
       headers: apiHeaders(),
-      body: JSON.stringify({ adminId, telegramId, amount }),
+      body: JSON.stringify(withInitData({ adminId, telegramId, amount })),
     });
-    return res.ok;
-  } catch { return false; }
+    const json = await res.json().catch(() => ({} as { error?: string; reason?: string }));
+    if (!res.ok) return { ok: false, error: json.error || json.reason || `HTTP ${res.status}` };
+    return { ok: true };
+  } catch { return { ok: false, error: "Network error" }; }
 }
 
 export async function adminDisableUser(adminId: string, telegramId: string): Promise<boolean> {

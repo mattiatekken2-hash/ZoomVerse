@@ -12,6 +12,7 @@ router.get("/healthz", (_req, res) => {
 router.get("/ping", async (_req, res) => {
   try {
     await pool.query("select 1");
+    await pool.query("select 1 from users limit 1");
     res.status(200).send("pong");
   } catch {
     res.status(503).send("db_unavailable");
