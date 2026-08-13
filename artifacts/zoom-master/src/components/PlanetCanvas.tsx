@@ -1,29 +1,43 @@
 import { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
-import { LabPlanet3D } from "./LabPlanet3D";
-import type { Planet, PlanetType } from "../hooks/useGameState";
+import { MysteryModel3D } from "./MysteryModel3D";
+import { LabGridBackground } from "./LabGridBackground";
+import { getModelById, type ModelVoxel } from "@workspace/game-models";
+import type { ZoomModel } from "../hooks/useGameState";
 import { useT } from "../i18n/LanguageContext";
 
 export type ForgePhase = "idle" | "flash" | "waiting" | "revealed";
+
+/** Neutral wireframe blocks shown before the server roll / reveal. */
+const MYSTERY_PLACEHOLDER: ModelVoxel[] = [
+  { x: -1, y: 0, z: -1, color: "#444" },
+  { x: 0, y: 0, z: -1, color: "#444" },
+  { x: -1, y: 0, z: 0, color: "#444" },
+  { x: 0, y: 0, z: 0, color: "#444" },
+  { x: -1, y: 1, z: -1, color: "#666" },
+  { x: 0, y: 1, z: 0, color: "#666" },
+  { x: 0, y: 2, z: 0, color: "#888" },
+];
 
 interface PlanetCanvasProps {
   onPunch?: () => void;
   progress: number;
   goal: number;
-  planetColor?: string;
-  pendingPlanet?: Planet | null;
-  currentCraftRarity?: PlanetType | null;
+  accentColor?: string;
+  pendingModel?: ZoomModel | null;
   forgePhase: ForgePhase;
+  forgeRolling?: boolean;
 }
 
-const DEFAULT_COLOR = "#8892b0";
+const DEFAULT_ACCENT = "#8892b0";
 
 export function PlanetCanvas({
   onPunch,
   progress,
   goal,
-  planetColor,
-  pendingPlanet,
+  accentColor,
+  pendingModel,
   forgePhase,
+  forgeRolling = false,
 }: PlanetCanvasProps) {
   const { t } = useT();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -33,9 +47,13 @@ export function PlanetCanvas({
   const fragIdRef = useRef(0);
   const lastProgressRef = useRef(progress);
 
-  const color = planetColor || DEFAULT_COLOR;
   const pct = goal > 0 ? Math.min(progress / goal, 1) : 0;
-  const displayColor = pendingPlanet?.color || color;
+  const revealed = forgePhase === "revealed";
+  const displayAccent = pendingModel?.accentColor || accentColor || DEFAULT_ACCENT;
+  const displayPrimary = pendingModel?.primaryColor || displayAccent;
+
+  const modelDef = pendingModel ? getModelById(pendingModel.modelId) : undefined;
+  const voxels = modelDef?.voxels ?? MYSTERY_PLACEHOLDER;
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -80,8 +98,8 @@ export function PlanetCanvas({
       s.width = `${dotSize}px`;
       s.height = `${dotSize}px`;
       s.borderRadius = "50%";
-      s.background = displayColor;
-      s.boxShadow = `0 0 10px ${displayColor}, 0 0 22px ${displayColor}88`;
+      s.background = displayAccent;
+      s.boxShadow = `0 0 10px ${displayAccent}, 0 0 22px ${displayAccent}88`;
       s.pointerEvents = "none";
       s.willChange = "transform, opacity";
       s.setProperty("--fx", `${fx}px`);
@@ -91,7 +109,7 @@ export function PlanetCanvas({
       dot.addEventListener("animationend", cleanup, { once: true });
       window.setTimeout(cleanup, 900);
     }
-  }, [progress, displayColor, forgePhase]);
+  }, [progress, displayAccent, forgePhase]);
 
   const convergeKey = forgePhase === "waiting" ? "w" : "i";
   const convergeParticles = useMemo(() => {
@@ -105,35 +123,36 @@ export function PlanetCanvas({
     }));
   }, [size]);
 
-  const showPlanet3D = forgePhase === "idle" || forgePhase === "revealed";
+  const showModel3D = forgePhase === "idle" || forgePhase === "revealed" || forgeRolling;
   const showFlash = forgePhase === "flash";
   const showConverge = forgePhase === "waiting";
-  const planetCanvasSize = forgePhase === "revealed" ? size * 0.92 : size * 0.88;
+  const modelCanvasSize = forgePhase === "revealed" ? size * 0.92 : size * 0.88;
+  const buildProgress = revealed ? 1 : pct;
 
   return (
     <div ref={containerRef} className="relative w-full h-full flex flex-col items-center justify-center overflow-hidden">
-      <div className="absolute inset-0 pointer-events-none" style={{ opacity: 0.45 }}>
-        <div className="lab-stars-a" />
-        <div className="lab-stars-b" />
-      </div>
+      <LabGridBackground />
 
       <div
         className={`flex items-center justify-center ${showConverge ? "forge-shake" : ""}`}
         style={{
           width: size,
           height: size,
-          cursor: onPunch && forgePhase === "idle" ? "pointer" : "default",
+          cursor: onPunch && forgePhase === "idle" && !forgeRolling ? "pointer" : "default",
           touchAction: "manipulation",
           position: "relative",
         }}
         data-testid="planet-wrap"
       >
-        {showPlanet3D && (
-          <LabPlanet3D
-            color={displayColor}
-            size={planetCanvasSize}
-            progress={pct}
-            onTap={forgePhase === "idle" ? onPunch : undefined}
+        {showModel3D && (
+          <MysteryModel3D
+            voxels={voxels}
+            primaryColor={displayPrimary}
+            accentColor={displayAccent}
+            progress={buildProgress}
+            revealed={revealed}
+            size={modelCanvasSize}
+            onTap={forgePhase === "idle" && !forgeRolling ? onPunch : undefined}
             autoSpin
           />
         )}
@@ -184,8 +203,8 @@ export function PlanetCanvas({
                     marginLeft: -dotSize / 2,
                     marginTop: -dotSize / 2,
                     borderRadius: "50%",
-                    background: displayColor,
-                    boxShadow: `0 0 10px ${displayColor}, 0 0 24px ${displayColor}aa`,
+                    background: displayAccent,
+                    boxShadow: `0 0 10px ${displayAccent}, 0 0 24px ${displayAccent}aa`,
                     ["--angle" as string]: `${p.angle}deg`,
                     ["--r" as string]: `${p.r}px`,
                     animationDelay: `${p.delay}ms`,
@@ -206,9 +225,13 @@ export function PlanetCanvas({
         <div className="absolute bottom-0 left-0 right-0 px-6 pb-2 pt-4 z-10">
           <div className="flex justify-between text-xs mb-1.5">
             <span className="font-semibold tracking-wider uppercase" style={{ color: "rgba(255,255,255,0.4)" }}>
-              {pct < 0.04 ? t("planetCanvas.primordial") : t("planetCanvas.forgingMass")}
+              {forgeRolling
+                ? t("planetCanvas.forgingMass")
+                : pct < 0.04
+                  ? t("planetCanvas.primordial")
+                  : "MYSTERY BUILD"}
             </span>
-            <span className="font-bold" style={{ color: displayColor }}>
+            <span className="font-bold" style={{ color: displayAccent }}>
               {progress}/{goal}
             </span>
           </div>
@@ -217,8 +240,8 @@ export function PlanetCanvas({
               className="progress-bar-fill"
               style={{
                 width: `${pct * 100}%`,
-                background: `linear-gradient(90deg, ${displayColor}, ${displayColor}cc)`,
-                boxShadow: `0 0 10px ${displayColor}`,
+                background: `linear-gradient(90deg, ${displayAccent}, ${displayAccent}cc)`,
+                boxShadow: `0 0 10px ${displayAccent}`,
                 transition: "width 0.18s ease-out",
               }}
             />

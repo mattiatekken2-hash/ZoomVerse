@@ -3802,3 +3802,102 @@ export async function listItemOnMarket(params: {
     return { ok: false, error: "Network error" };
   }
 }
+
+// ─────────────────────────────────────────────────────────────────
+//  LAB MYSTERY MODELS (100-model catalog)
+// ─────────────────────────────────────────────────────────────────
+
+export interface ZoomModelApiShape {
+  id: string;
+  modelId: string;
+  name: string;
+  category: string;
+  rarity: string;
+  rate: number;
+  float: number;
+  primaryColor: string;
+  accentColor: string;
+  createdAt: number;
+  isListedInMarket: boolean;
+  serverListingId?: number | null;
+  marketPrice?: number | null;
+}
+
+/** GET /models/:telegramId */
+export async function fetchModels(telegramId: string): Promise<{ ok: boolean; exists: boolean; models: ZoomModelApiShape[] }> {
+  const failure = { ok: false, exists: false, models: [] };
+  if (!telegramId) return failure;
+  try {
+    const res = await fetch(
+      `${API_BASE}/models/${encodeURIComponent(telegramId)}?t=${Date.now()}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return failure;
+    const j = await res.json();
+    if (!j?.ok) return failure;
+    return { ok: true, exists: !!j.exists, models: Array.isArray(j.models) ? (j.models as ZoomModelApiShape[]) : [] };
+  } catch {
+    return failure;
+  }
+}
+
+/** POST /forge/mystery-model — server roll from 100-model pool. */
+export async function forgeMysteryModel(
+  telegramId: string,
+): Promise<{ ok: boolean; model?: ZoomModelApiShape; error?: string }> {
+  if (!telegramId) return { ok: false, error: "Missing telegramId" };
+  try {
+    const res = await fetch(`${API_BASE}/forge/mystery-model`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: typeof j?.error === "string" ? j.error : `HTTP ${res.status}` };
+    return { ok: true, model: j?.model as ZoomModelApiShape | undefined };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+/** POST /models/claim — persist a forged model to inventory. */
+export async function claimModelApi(
+  telegramId: string,
+  model: ZoomModelApiShape,
+): Promise<{ ok: boolean; duplicate?: boolean; model?: ZoomModelApiShape }> {
+  if (!telegramId) return { ok: false };
+  try {
+    const res = await fetch(`${API_BASE}/models/claim`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, model }),
+      keepalive: true,
+    });
+    if (!res.ok) return { ok: false };
+    const j = await res.json().catch(() => ({}));
+    return { ok: !!j?.ok, duplicate: !!j?.duplicate, model: j?.model as ZoomModelApiShape | undefined };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/** POST /models/save — mutable marketplace fields only. */
+export async function saveModels(
+  telegramId: string,
+  models: ReadonlyArray<Pick<ZoomModelApiShape, "id" | "isListedInMarket" | "serverListingId" | "marketPrice">>,
+): Promise<{ ok: boolean; stale?: boolean }> {
+  if (!telegramId) return { ok: false };
+  try {
+    const res = await fetch(`${API_BASE}/models/save`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, models, clientWriteAtMs: Date.now() }),
+      keepalive: true,
+    });
+    if (!res.ok) return { ok: false };
+    const j = await res.json().catch(() => ({}));
+    return { ok: !!j?.ok, stale: !!j?.stale };
+  } catch {
+    return { ok: false };
+  }
+}

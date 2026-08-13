@@ -21,6 +21,7 @@ async function buildAll() {
       "@workspace/db/schema": path.resolve(workspaceRoot, "lib/db/src/schema"),
       "@workspace/db": path.resolve(workspaceRoot, "lib/db/src"),
       "@workspace/api-zod": path.resolve(workspaceRoot, "lib/api-zod/src"),
+      "@workspace/game-models": path.resolve(workspaceRoot, "lib/game-models/src"),
     },
     entryPoints: [path.resolve(artifactDir, "src/index.ts")],
     platform: "node",

@@ -423,6 +423,9 @@ export const usersTable = pgTable("users", {
   // ─────────────────────────────────────────────────────────────────────
   itemsJson: jsonb("items_json").default(sql`'[]'::jsonb`),
   itemsUpdatedAtMs: bigint("items_updated_at_ms", { mode: "number" }).notNull().default(0),
+  // Lab mystery-build 3D collectibles (100-model catalog).
+  modelsJson: jsonb("models_json").default(sql`'[]'::jsonb`),
+  modelsUpdatedAtMs: bigint("models_updated_at_ms", { mode: "number" }).notNull().default(0),
 }, (table) => [
   index("idx_users_zoom_balance").on(table.zoomBalance),
   index("idx_users_referred_by").on(table.referredBy),

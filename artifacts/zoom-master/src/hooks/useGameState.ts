@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
+import { makeModelInstance, rollModelDefinition } from "@workspace/game-models";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import type { CollectibleItem } from "../utils/collectibleConfig";
@@ -47,6 +48,8 @@ function countOwnedModel(equipment: ReadonlyArray<EquipmentItem>, category: Equi
 export type EquipmentDropResult =
   | { item: EquipmentItem; convertedToZoom?: undefined }
   | { item?: undefined; convertedToZoom: number; category: EquipmentCategory; rarity: EquipmentRarity };
+
+export type ZoomModel = ZoomModelApiShape;
 
 // Roll an equipment drop given the current inventory snapshot.
 // - With prob LAB_EQUIPMENT_DROP_CHANCE, picks a (category, rarity).
@@ -255,6 +258,13 @@ export interface GameState {
   /** ZOOM tap-cost spent on the planet currently waiting to be claimed
    *  (= goal at completion). Used purely for the personal history log. */
   pendingPlanetCost: number;
+  /** Lab mystery-build model waiting to be claimed (replaces planet forge outcome). */
+  pendingModel: ZoomModel | null;
+  pendingModelCost: number;
+  /** True while awaiting server roll after forge completes. */
+  forgeRolling: boolean;
+  /** 3D collectible models forged in the Lab (100-model catalog). */
+  models: ZoomModel[];
   currentCraftRarity: PlanetType | null;
   usedRedeemCodes: string[];
   sun: SunState | null;
@@ -891,6 +901,10 @@ const INITIAL_STATE: GameState = {
   feedEvents: [],
   pendingPlanet: null,
   pendingPlanetCost: 0,
+  pendingModel: null,
+  pendingModelCost: 0,
+  forgeRolling: false,
+  models: [],
   currentCraftRarity: null,
   usedRedeemCodes: [],
   sun: null,
@@ -1043,6 +1057,10 @@ function loadState(): GameState {
           planets: migratedPlanets,
           pendingPlanet: parsed.pendingPlanet ? migratePlanet(parsed.pendingPlanet) : null,
           pendingPlanetCost: typeof parsed.pendingPlanetCost === "number" ? parsed.pendingPlanetCost : 0,
+          pendingModel: parsed.pendingModel ?? null,
+          pendingModelCost: typeof parsed.pendingModelCost === "number" ? parsed.pendingModelCost : 0,
+          forgeRolling: false,
+          models: Array.isArray(parsed.models) ? parsed.models : [],
           usedRedeemCodes: parsed.usedRedeemCodes || [],
           sun: parsed.sun || null,
           referralSpeedBonus: parsed.referralSpeedBonus ?? 0,
@@ -2075,7 +2093,7 @@ export function useGameState() {
       // protected from a one-off double-credit on the very first
       // server-side settle. See settleOfflineFarming() doc for details.
       const _initClientFloor = Math.floor(stateRef.current.lastFarmingSettledAt || 0);
-      const [refData, grantsResult, balanceRecord, serverCollectionPlanets, serverRegular, settleRes, serverEquipment, serverItems] = await Promise.all([
+      const [refData, grantsResult, balanceRecord, serverCollectionPlanets, serverRegular, settleRes, serverEquipment, serverItems, serverModels] = await Promise.all([
         fetchReferralData(telegramId),
         fetchGrants(telegramId),
         fetchBalanceRecord(telegramId),
@@ -2084,6 +2102,7 @@ export function useGameState() {
         settleOfflineFarming({ telegramId, clientLastSettledAtMs: _initClientFloor }),
         fetchEquipment(telegramId),
         fetchItems(telegramId),
+        fetchModels(telegramId),
       ]);
       // grantsResult is `null` when /grants failed (network/HTTP). We must
       // NOT treat that as "user has nothing": doing so would trip the
@@ -2182,6 +2201,7 @@ export function useGameState() {
           equipment: serverEquipment.ok ? serverEquipment.equipment : (prev.equipment ?? []),
           // Collectible items: same pattern as equipment.
           items: serverItems.ok ? (serverItems.items as CollectibleItem[]) : (prev.items ?? []),
+          models: serverModels.ok ? (serverModels.models as ZoomModel[]) : (prev.models ?? []),
           // Adsgram daily ad counter — server is authoritative (already
           // reset to 0 by the server when the date has changed).
           dailyAdsWatched: Math.max(0, Number(grants.dailyAdsWatched ?? 0)),
@@ -3598,10 +3618,9 @@ export function useGameState() {
     };
   }, []);
 
-  const craft = useCallback((availableStardust?: number): { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType; equipmentDrop?: EquipmentDropResult } => {
+  const craft = useCallback((availableStardust?: number): { completed: boolean; model?: ZoomModel; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType; equipmentDrop?: EquipmentDropResult } => {
     const current = stateRef.current;
-    if (current.pendingPlanet) return { completed: false };
-    if (current.planets.length >= current.maxSlots) return { completed: false };
+    if (current.pendingModel || current.pendingPlanet || current.forgeRolling) return { completed: false };
 
     let rarity = current.currentCraftRarity;
     let goal = current.goal;
@@ -3610,21 +3629,16 @@ export function useGameState() {
       rarity = rollRarity();
       const config = PLANET_CONFIG[rarity];
       const stardustBalance = availableStardust ?? current.stardustBalance;
-      // Stardust cost check at forge start — block if insufficient.
       if (stardustBalance < config.craftCost) {
         return { completed: false };
       }
-      // Deduct Stardust immediately so the balance counter updates live.
       setState((prev) => ({
         ...prev,
         stardustBalance: prev.stardustBalance - config.craftCost,
       }));
-      // Also deduct on the server (fire-and-forget). The local state is
-      // authoritative for the UI; the server sync corrects on next refresh.
       if (current.telegramId) {
         void deductCraftStardust(current.telegramId, config.craftCost);
       }
-      // Random goal between 100 and 200 taps for all rarities
       goal = 100 + Math.floor(Math.random() * 101);
     }
 
@@ -3634,8 +3648,6 @@ export function useGameState() {
       const config = PLANET_CONFIG[rarity];
       const craftCost = config.craftCost;
 
-      // 15% chance the planet shatters during construction. The player loses
-      // the Stardust cost, but no planet is added to the inventory.
       const BREAK_CHANCE = 0.15;
       const isBroken = Math.random() < BREAK_CHANCE;
 
@@ -3650,6 +3662,9 @@ export function useGameState() {
             currentCraftRarity: null,
             pendingPlanet: null,
             pendingPlanetCost: 0,
+            pendingModel: null,
+            pendingModelCost: 0,
+            forgeRolling: false,
           };
           schedulePersist(next);
           return next;
@@ -3657,13 +3672,6 @@ export function useGameState() {
         return { completed: true, broken: true, brokenRarity };
       }
 
-      const planet = makePlanet(rarity);
-      // Pre-roll OUTSIDE setState: all randomness (Math.random,
-      // makeEquipmentItem's id+timestamp) must happen exactly once per
-      // craft, even under React strict-mode dev double-invocation.
-      // The cap COMPARISON is done atomically inside the updater against
-      // `prev.equipment` so concurrent /equipment writes can't allow a
-      // 3rd item to slip in past the 2-per-model cap.
       const willDrop = Math.random() < LAB_EQUIPMENT_DROP_CHANCE;
       const dropCategory = willDrop ? rollEquipmentCategory() : null;
       const dropRarity = willDrop ? rollEquipmentRarity() : null;
@@ -3674,6 +3682,8 @@ export function useGameState() {
         ? Math.max(50, Math.round(getEquipmentRate(dropCategory, dropRarity) * 5))
         : 0;
       let equipmentDrop: EquipmentDropResult | null = null;
+      const tid = current.telegramId;
+
       setState((prev) => {
         let droppedItem: EquipmentItem | undefined;
         let zoomBonus = 0;
@@ -3688,36 +3698,42 @@ export function useGameState() {
           }
         }
         const next: GameState = {
-          ...(planet.name === "GOLD"
-            ? withFeedEvent(prev, `${PLAYER_NAME} just forged a GOLD planet!`)
-            : prev),
+          ...prev,
           balance: prev.balance + zoomBonus,
           taps: 0,
           goal: 100,
           totalTaps: (prev.totalTaps || 0) + 1,
           currentCraftRarity: null,
-          pendingPlanet: planet,
-          pendingPlanetCost: craftCost,
+          forgeRolling: true,
           craftsCompleted: prev.craftsCompleted + 1,
           equipment: droppedItem ? [...(prev.equipment || []), droppedItem] : (prev.equipment || []),
-          // Bump the balance epoch when a duplicate-equipment ZOOM bonus is
-          // credited so /balance/sync's CASE-branch picks up the new local
-          // value instead of overwriting it with the older server snapshot.
           lastBalanceEpoch: zoomBonus > 0 ? (prev.lastBalanceEpoch || 0) + 1 : (prev.lastBalanceEpoch || 0),
         };
-        // Persist in idle time so the tap stays at 60fps. Page-hide and unload
-        // listeners flush this synchronously to guarantee durability.
         schedulePersist(next);
-        // Immediate, non-debounced save of the equipment array when a real
-        // item dropped — the 1.2s debounce can lose the drop if the user
-        // closes the app right after crafting, and on next hydration the
-        // server snapshot would silently overwrite the unsaved local item.
         if (droppedItem && next.telegramId) {
           void saveEquipment(next.telegramId, next.equipment ?? []);
         }
         return next;
       });
-      return { completed: true, planet, ...(equipmentDrop ? { equipmentDrop } : {}) };
+
+      void (async () => {
+        let model: ZoomModel | null = null;
+        if (tid) {
+          const res = await forgeMysteryModel(tid);
+          if (res.ok && res.model) model = res.model;
+        }
+        if (!model) {
+          model = makeModelInstance(rollModelDefinition()) as ZoomModel;
+        }
+        setState((prev) => ({
+          ...prev,
+          pendingModel: model,
+          pendingModelCost: craftCost,
+          forgeRolling: false,
+        }));
+      })();
+
+      return { completed: true, ...(equipmentDrop ? { equipmentDrop } : {}) };
     } else {
       setState((prev) => {
         const next: GameState = {
@@ -3736,14 +3752,23 @@ export function useGameState() {
 
   const claimCraft = useCallback((): { ok: boolean; reason?: string } => {
     let outcome: { ok: boolean; reason?: string } = { ok: true };
+    let claimedModel: ZoomModel | null = null;
+    let claimedModelCost = 0;
     let claimedName: PlanetType | null = null;
     let claimedCost = 0;
+
     setState((prev) => {
-      if (!prev.pendingPlanet) { outcome = { ok: false, reason: "No planet to claim" }; return prev; }
-      // Hard slot guard: between the moment the planet finished forging and
-      // the moment the user taps "claim", they may have received planets from
-      // other sources (mystery box, market buy, bonus). Refuse and keep the
-      // pendingPlanet so the user can free a slot and try again.
+      if (prev.pendingModel) {
+        claimedModel = prev.pendingModel;
+        claimedModelCost = prev.pendingModelCost || 0;
+        return {
+          ...prev,
+          models: [...(prev.models ?? []), prev.pendingModel],
+          pendingModel: null,
+          pendingModelCost: 0,
+        };
+      }
+      if (!prev.pendingPlanet) { outcome = { ok: false, reason: "Nothing to claim" }; return prev; }
       if (prev.planets.length >= prev.maxSlots) {
         outcome = { ok: false, reason: "Slots full" };
         try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: "Slots full", ok: false } })); } catch { /**/ }
@@ -3758,17 +3783,18 @@ export function useGameState() {
         pendingPlanetCost: 0,
       };
     });
-    // Increment the leaderboard counter ONLY after the planet is committed
-    // to inventory (fire-and-forget). Previously this was called at forge
-    // time, which inflated total_crafted_X when users closed the app before
-    // claiming (pendingPlanet is local-only and didn't survive reload).
+
+    if (outcome.ok && claimedModel) {
+      const { telegramId: tid } = getTelegramContext();
+      if (tid) {
+        void claimModelApi(tid, claimedModel);
+      }
+      return outcome;
+    }
+
     if (outcome.ok && claimedName) {
       const { telegramId: tid } = getTelegramContext();
       if (tid) {
-        // Fire the server counter update, then immediately refresh the
-        // global profile so that the "My Profile" panel in RankPage
-        // reflects the new craft in real-time (otherwise the user would
-        // have to wait up to 15s for the next periodic poll).
         void recordCraft(tid, claimedName, claimedCost).then(() => {
           try { window.dispatchEvent(new Event("zoom-data-refresh")); } catch { /**/ }
         });

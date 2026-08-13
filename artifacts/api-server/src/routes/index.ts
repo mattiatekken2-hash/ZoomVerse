@@ -38,6 +38,7 @@ import stellaRossaRouter from "./stellaRossa";
 import comboRouter, { ensureComboClaims } from "./combo";
 import adsRouter from "./ads";
 import itemsRouter from "./items";
+import modelsRouter from "./models";
 
 // Boot-time DDL: ensure combo tracking column exists (idempotent).
 void ensureComboClaims();
@@ -104,6 +105,9 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/equipment/burn",
       "/items/save",
       "/items/craft",
+      "/models/save",
+      "/models/claim",
+      "/forge/mystery-model",
       "/planets/rename",
       "/collection-planets/upsert",
       "/collection-planets/bulk-seed",
@@ -361,5 +365,6 @@ router.use(stellaRossaRouter);
 router.use(comboRouter);
 router.use(adsRouter);
 router.use(itemsRouter);
+router.use(modelsRouter);
 
 export default router;

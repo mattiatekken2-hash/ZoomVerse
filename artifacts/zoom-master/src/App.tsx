@@ -865,6 +865,8 @@ function AppShellWithState() {
                   maxSlots={state.maxSlots}
                   currentCraftRarity={state.currentCraftRarity}
                   pendingPlanet={state.pendingPlanet}
+                  pendingModel={state.pendingModel}
+                  forgeRolling={state.forgeRolling}
                   hasAutoTap={!!state.hasAutoTap}
                   whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
                   whiteCollectionBundles={Number(state.whiteCollectionBundles) || 0}

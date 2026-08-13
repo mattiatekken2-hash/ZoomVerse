@@ -53,9 +53,11 @@ async function runBootMigrations() {
     await db.execute(sql`
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS items_json         jsonb         NOT NULL DEFAULT '[]'::jsonb,
-        ADD COLUMN IF NOT EXISTS items_updated_at_ms bigint        NOT NULL DEFAULT 0
+        ADD COLUMN IF NOT EXISTS items_updated_at_ms bigint        NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS models_json         jsonb         NOT NULL DEFAULT '[]'::jsonb,
+        ADD COLUMN IF NOT EXISTS models_updated_at_ms bigint        NOT NULL DEFAULT 0
     `);
-    logger.info("[boot-migration] items_json / items_updated_at_ms columns OK");
+    logger.info("[boot-migration] items_json / models_json columns OK");
   } catch (err) {
     logger.error({ err }, "[boot-migration] failed to add items columns — items routes may error");
   }

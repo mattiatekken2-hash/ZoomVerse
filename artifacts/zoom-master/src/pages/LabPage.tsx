@@ -16,7 +16,7 @@ import { ExchangeWidget } from "../components/ExchangeWidget";
 import { StellaRossaCollectionWidget } from "../components/StellaRossaCollectionWidget";
 import { ZoomStoreWidget } from "../components/ZoomStoreWidget";
 
-import type { Planet, PlanetType, EquipmentDropResult } from "../hooks/useGameState";
+import type { Planet, PlanetType, EquipmentDropResult, ZoomModel } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import { EQUIPMENT_RARITY_INFO, EQUIPMENT_CATEGORIES } from "../utils/equipmentConfig";
 import { hapticLight } from "../utils/haptic";
@@ -31,13 +31,15 @@ interface LabPageProps {
   maxSlots: number;
   currentCraftRarity: PlanetType | null;
   pendingPlanet: Planet | null;
+  pendingModel: ZoomModel | null;
+  forgeRolling?: boolean;
   hasAutoTap: boolean;
   sunCount: number;
   tonBalance: number;
   depositBalance: number;
   stardustBalance: number;
   telegramId: string | null;
-  onCraft: (availableStardust?: number) => { completed: boolean; planet?: Planet; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType; equipmentDrop?: EquipmentDropResult };
+  onCraft: (availableStardust?: number) => { completed: boolean; model?: ZoomModel; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType; equipmentDrop?: EquipmentDropResult };
   onPurchase?: (labPointsDelta: number, stardustDelta: number) => void;
   onClaim: () => void;
   whiteCollectionUnlocked: boolean;
@@ -93,20 +95,18 @@ interface FloatMsg { id: number; text: string; color: string }
 const GREY = "#8892b0";
 const REVEAL_THRESHOLD = 0.90;
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, hasAutoTap, sunCount, tonBalance, depositBalance, stardustBalance, telegramId, onCraft, onPurchase, onClaim, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, blackCollectionUnlocked, blackCollectionBundles, blackPlanets, supernovaCollectionUnlocked, supernovaCollectionBundles, supernovaPlanets, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, onPlaceBlackPlanet, onCollectBlackPlanet, onReactivateBlackPlanet, onMarkBlackPlanetReactivated, onPlaceSupernovaPlanet, onCollectSupernovaPlanet, onReactivateSupernovaPlanet, onMarkSupernovaPlanetReactivated, stellaRossaCollectionUnlocked, stellaRossaCollectionBundles, stellaPlanets, stellaLastClaimAt, onStellaClaimDaily, onPlaceStellaRossaPlanet, onCollectStellaRossaPlanet, onReactivateStellaRossaPlanet, onMarkStellaRossaPlanetReactivated, redStarBalance = 0, onRedStarBalanceUpdate, onUpgradeCollectionDuration, onCraftItem, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, pendingModel, forgeRolling = false, hasAutoTap, sunCount, tonBalance, depositBalance, stardustBalance, telegramId, onCraft, onPurchase, onClaim, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, blackCollectionUnlocked, blackCollectionBundles, blackPlanets, supernovaCollectionUnlocked, supernovaCollectionBundles, supernovaPlanets, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, onPlaceBlackPlanet, onCollectBlackPlanet, onReactivateBlackPlanet, onMarkBlackPlanetReactivated, onPlaceSupernovaPlanet, onCollectSupernovaPlanet, onReactivateSupernovaPlanet, onMarkSupernovaPlanetReactivated, stellaRossaCollectionUnlocked, stellaRossaCollectionBundles, stellaPlanets, stellaLastClaimAt, onStellaClaimDaily, onPlaceStellaRossaPlanet, onCollectStellaRossaPlanet, onReactivateStellaRossaPlanet, onMarkStellaRossaPlanetReactivated, redStarBalance = 0, onRedStarBalanceUpdate, onUpgradeCollectionDuration, onCraftItem, visible = true }: LabPageProps) {
   const { t } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
   const floatTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const [brokenFlash, setBrokenFlash] = useState<{ id: number; rarity: PlanetType } | null>(null);
   const brokenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingFloatRef = useRef<{ planet: Planet; equipmentDrop?: EquipmentDropResult } | null>(null);
+  const pendingEquipmentDropRef = useRef<EquipmentDropResult | undefined>(undefined);
+  const pendingFloatRef = useRef<{ model: ZoomModel; equipmentDrop?: EquipmentDropResult } | null>(null);
 
   // Forge phase state machine: drives the visual sequence after the user
-  // hits 100% — flash → 2s dramatic wait → planet reveal → claim button.
-  // The pendingPlanet from the parent already exists from the moment craft
-  // completes; we just gate when the user *sees* the planet so the moment
-  // feels earned.
+  // hits 100% — flash → 2s dramatic wait → model reveal → claim button.
   const [forgePhase, setForgePhase] = useState<ForgePhase>("idle");
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -114,8 +114,17 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   const [showClaim, setShowClaim] = useState(false);
 
   useEffect(() => {
-    if (pendingPlanet && forgePhase === "idle") {
-      // Just completed a craft — kick off the cinematic.
+    if (pendingModel && forgePhase === "idle" && !pendingFloatRef.current) {
+      pendingFloatRef.current = {
+        model: pendingModel,
+        equipmentDrop: pendingEquipmentDropRef.current,
+      };
+      pendingEquipmentDropRef.current = undefined;
+    }
+  }, [pendingModel, forgePhase]);
+
+  useEffect(() => {
+    if (pendingModel && forgePhase === "idle") {
       setForgePhase("flash");
       setShowClaim(false);
       if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
@@ -127,12 +136,10 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       revealTimerRef.current = setTimeout(() => {
         setForgePhase("revealed");
       }, 220 + 2000);
-      // Claim button appears after the planet has rotated on screen for ~3.5s.
       claimTimerRef.current = setTimeout(() => {
         setShowClaim(true);
       }, 220 + 2000 + 3500);
-    } else if (!pendingPlanet && forgePhase !== "idle") {
-      // User claimed (or pendingPlanet cleared otherwise) — reset.
+    } else if (!pendingModel && !pendingPlanet && forgePhase !== "idle") {
       setForgePhase("idle");
       setShowClaim(false);
       pendingFloatRef.current = null;
@@ -140,7 +147,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       if (revealTimerRef.current) { clearTimeout(revealTimerRef.current); revealTimerRef.current = null; }
       if (claimTimerRef.current) { clearTimeout(claimTimerRef.current); claimTimerRef.current = null; }
     }
-  }, [pendingPlanet, forgePhase]);
+  }, [pendingModel, pendingPlanet, forgePhase]);
 
   // (moved below addFloat — see the effect at ~line 185)
 
@@ -150,15 +157,17 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     if (claimTimerRef.current) clearTimeout(claimTimerRef.current);
   }, []);
 
-  const isFull = planets.length >= maxSlots && !pendingPlanet;
+  const isFull = planets.length >= maxSlots && !pendingPlanet && !pendingModel;
   const effectiveStardust = stardustBalance;
-  const canCraft = !brokenFlash && !pendingPlanet && planets.length < maxSlots && (currentCraftRarity
+  const canCraft = !brokenFlash && !pendingModel && !pendingPlanet && !forgeRolling && (currentCraftRarity
     ? true
     : (effectiveStardust >= (PLANET_CONFIG["BASIC"].craftCost ?? 2)));
 
   const progress = goal > 0 ? taps / goal : 0;
 
-  const dynamicColor = pendingPlanet
+  const dynamicColor = pendingModel
+    ? pendingModel.accentColor
+    : pendingPlanet
     ? pendingPlanet.color
     : currentCraftRarity && progress >= REVEAL_THRESHOLD
     ? PLANET_CONFIG[currentCraftRarity].color
@@ -200,9 +209,8 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   // Show the planet float when the reveal phase fires (end of cinematic).
   useEffect(() => {
     if (forgePhase === "revealed" && pendingFloatRef.current) {
-      const p = pendingFloatRef.current.planet;
-      addFloat(`✦ ${PLANET_CONFIG[p.name].label}!`, p.color);
-      // Equipment drop float, delayed slightly so it doesn't overlap.
+      const m = pendingFloatRef.current.model;
+      addFloat(`✦ ${m.name}!`, m.primaryColor);
       const drop = pendingFloatRef.current.equipmentDrop;
       if (drop) {
         setTimeout(() => {
@@ -238,15 +246,10 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       }, 4000);
       return;
     }
-    if (result.completed && result.planet) {
-      // Store the float so it appears only when the planet is revealed
-      // at the end of the cinematic (not immediately at tap time).
-      pendingFloatRef.current = {
-        planet: result.planet,
-        equipmentDrop: result.equipmentDrop || undefined,
-      };
+    if (result.completed && !result.broken) {
+      pendingEquipmentDropRef.current = result.equipmentDrop || undefined;
     }
-  }, [canCraft, onCraft, addFloat]);
+  }, [canCraft, onCraft]);
 
   useEffect(() => () => {
     if (brokenTimerRef.current) clearTimeout(brokenTimerRef.current);
@@ -322,10 +325,10 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           onPunch={canCraft && forgePhase === "idle" ? handleCraft : undefined}
           progress={taps}
           goal={goal}
-          planetColor={dynamicColor}
-          pendingPlanet={pendingPlanet}
-          currentCraftRarity={progress >= REVEAL_THRESHOLD ? currentCraftRarity : null}
+          accentColor={dynamicColor}
+          pendingModel={pendingModel}
           forgePhase={forgePhase}
+          forgeRolling={forgeRolling}
         />
 
         {floats.map(f => (
@@ -389,7 +392,54 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
         {/* CLAIM button — only shown after the planet reveal animation
             completes so the moment feels earned. Fades in via CSS. */}
-        {pendingPlanet && showClaim && (
+        {pendingModel && showClaim && (
+          <div
+            className="absolute left-1/2 flex flex-col items-center gap-3 forge-claim-fade-in"
+            style={{
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              zIndex: 30,
+              pointerEvents: "none",
+            }}
+          >
+            <div
+              className="rounded-full px-4 py-1.5 flex items-center gap-2 border"
+              style={{
+                borderColor: pendingModel.primaryColor + "55",
+                background: "rgba(6,8,16,0.65)",
+                boxShadow: `0 0 20px ${pendingModel.primaryColor}33`,
+                pointerEvents: "auto",
+              }}
+            >
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{ background: pendingModel.primaryColor, boxShadow: `0 0 6px ${pendingModel.primaryColor}` }}
+              />
+              <span className={`font-black text-xs tracking-wider ${rarityClass[pendingModel.rarity] ?? ""}`}>
+                {pendingModel.name.toUpperCase()}
+              </span>
+              <span className="text-[10px] font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>
+                {pendingModel.category} · {pendingModel.float.toFixed(1)}%
+              </span>
+            </div>
+            <button
+              className="px-8 py-3.5 rounded-xl font-black text-sm tracking-wider uppercase active:scale-95 border whitespace-nowrap"
+              onClick={handleClaim}
+              style={{
+                background: `linear-gradient(135deg, ${pendingModel.primaryColor}, ${pendingModel.accentColor})`,
+                color: "#060810",
+                boxShadow: `0 0 32px ${pendingModel.primaryColor}88, 0 4px 16px rgba(0,0,0,0.4)`,
+                borderColor: "transparent",
+                pointerEvents: "auto",
+              }}
+              data-testid="button-claim-model"
+            >
+              COLLECT
+            </button>
+          </div>
+        )}
+
+        {pendingPlanet && showClaim && !pendingModel && (
           <div
             className="absolute left-1/2 flex flex-col items-center gap-3 forge-claim-fade-in"
             style={{
