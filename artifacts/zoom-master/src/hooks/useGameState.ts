@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, unifiedForgeApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, type Grants, type CollectionPlanetState, type ServerMarketListing } from "../utils/api";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import type { CollectibleItem } from "../utils/collectibleConfig";
-import { ITEM_CONFIG } from "../utils/collectibleConfig";
-import { UNIFIED_FORGE_COST } from "../utils/season3Forge";
 import { getEquipmentTotalRate, getEquipmentReactivationFee, EQUIPMENT_CYCLE_MS, makeEquipmentItem, getEquipmentRate, EQUIPMENT_CATEGORY_ORDER } from "../utils/equipmentConfig";
 
 // ─── LAB equipment drop tuning ───────────────────────────────────────
@@ -198,20 +196,6 @@ export interface Planet {
   // market listing/sale — the buyer inherits the upgraded duration.
   farmDurationHours?: number;
 }
-
-export type UnifiedForgeResult = {
-  ok: boolean;
-  error?: string;
-  resultKind?: "planet" | "item" | "dust";
-  planet?: Planet;
-  planetType?: string;
-  item?: CollectibleItem;
-  itemType?: string;
-  label?: string;
-  rarity?: string;
-  rate?: number;
-  meshShape?: string;
-};
 
 export interface SunState {
   isOwned: boolean;
@@ -3750,79 +3734,6 @@ export function useGameState() {
     }
   }, []);
 
-  /** Season 3 unified forge — 1★ server roll for planet OR item. */
-  const unifiedForge = useCallback(async (): Promise<UnifiedForgeResult> => {
-    const current = stateRef.current;
-    if (current.pendingPlanet) return { ok: false, error: "Pending planet" };
-    if (current.planets.length >= current.maxSlots) return { ok: false, error: "Slots full" };
-    const tid = current.telegramId;
-    if (!tid) return { ok: false, error: "Not logged in" };
-    if ((current.stardustBalance ?? 0) < UNIFIED_FORGE_COST) {
-      return { ok: false, error: "NOT_ENOUGH_STARDUST" };
-    }
-
-    const result = await unifiedForgeApi(tid);
-    if (!result.ok) return { ok: false, error: result.error ?? "Forge failed" };
-
-    if (typeof result.newStardustBalance === "number") {
-      setState((prev) => ({ ...prev, stardustBalance: result.newStardustBalance! }));
-    } else {
-      setState((prev) => ({
-        ...prev,
-        stardustBalance: Math.max(0, (prev.stardustBalance ?? 0) - UNIFIED_FORGE_COST),
-      }));
-    }
-
-    if (result.resultKind === "planet" && result.planetType) {
-      const planetType = result.planetType as PlanetType;
-      const planet = makePlanet(planetType);
-      setState((prev) => {
-        const next: GameState = {
-          ...prev,
-          pendingPlanet: planet,
-          pendingPlanetCost: UNIFIED_FORGE_COST,
-          craftsCompleted: prev.craftsCompleted + 1,
-          taps: 0,
-          goal: 100,
-          currentCraftRarity: null,
-        };
-        schedulePersist(next);
-        return next;
-      });
-      const cfg = PLANET_CONFIG[planetType];
-      return {
-        ok: true,
-        resultKind: "planet",
-        planet,
-        planetType: result.planetType,
-        label: cfg?.label ?? result.planetType,
-        rarity: planetType,
-        rate: planet.rate,
-      };
-    }
-
-    if (result.resultKind === "item" && result.item) {
-      const item = result.item as CollectibleItem;
-      setState((prev) => ({
-        ...prev,
-        items: [...(prev.items ?? []), item],
-      }));
-      const cfg = ITEM_CONFIG[item.type as keyof typeof ITEM_CONFIG];
-      return {
-        ok: true,
-        resultKind: "item",
-        item,
-        label: cfg?.label ?? result.label,
-        rarity: item.rarity,
-        rate: item.rate,
-        meshShape: item.meshShape ?? cfg?.meshShape,
-        itemType: item.type,
-      };
-    }
-
-    return { ok: true, resultKind: "dust", label: "Stardust scattered" };
-  }, []);
-
   const claimCraft = useCallback((): { ok: boolean; reason?: string } => {
     let outcome: { ok: boolean; reason?: string } = { ok: true };
     let claimedName: PlanetType | null = null;
@@ -5802,7 +5713,7 @@ export function useGameState() {
   }, [state.telegramId]);
 
   return {
-    state, setState, craft, unifiedForge, claimCraft, redeemCode,
+    state, setState, craft, claimCraft, redeemCode,
     pvpAddPlanet, pvpRemovePlanet,
     collectPlanet, burnPlanet, renamePlanetLocal,
     startFarming, stopFarming, repairPlanet,

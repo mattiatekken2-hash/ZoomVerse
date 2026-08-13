@@ -6,7 +6,6 @@ import {
   type ItemType,
 } from "../utils/collectibleConfig";
 import { PlanetOrb } from "../components/PlanetOrb";
-import { Mesh3DPreview } from "../spatial3d/components/Mesh3DPreview";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
 import { buyFromMarket, shareListing, openMarketActivityStream, type ServerMarketListing } from "../utils/api";
@@ -777,14 +776,17 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                     data-testid={`item-listing-${l.id}`}
                   >
                     <div className="flex items-center gap-3 px-4 py-3">
-                      <Mesh3DPreview
-                        kind="item"
-                        itemType={cfg.type}
-                        meshShape={cfg.meshShape}
-                        rarity={cfg.rarity}
-                        size={48}
-                        animate
-                      />
+                      {/* Emoji orb with bokeh glow */}
+                      <div
+                        className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 relative"
+                        style={{
+                          background: `radial-gradient(circle at 40% 35%, ${rarityColor}44 0%, ${rarityColor}18 60%, rgba(6,8,16,0.8) 100%)`,
+                          boxShadow: `0 0 16px ${bokehColor}`,
+                          fontSize: 28,
+                        }}
+                      >
+                        {cfg.emoji}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="font-black text-sm tracking-wide" style={{ color: rarityColor }}>
                           {cfg.label}
@@ -845,7 +847,7 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                             onClick={async () => {
                               const res = await onBuyItem(l);
                               if (res.success) {
-                                showToast(`${cfg.label} added to your inventory!`, true);
+                                showToast(`${cfg.emoji} ${cfg.label} added to your inventory!`, true);
                               } else {
                                 showToast(res.reason ?? "Purchase failed", false);
                               }

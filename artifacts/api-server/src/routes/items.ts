@@ -26,7 +26,6 @@ const VALID_ITEM_TYPES = [
   "DVD", "GAMEBOY",
   "GUITAR", "ARTIFACT", "ROBOT",
   "CRYSTAL", "TROPHY", "BOOK",
-  "PRISM_SHARD", "VOID_RELIC",
 ] as const;
 type ItemType = typeof VALID_ITEM_TYPES[number];
 
@@ -39,24 +38,21 @@ interface ItemCfg {
   color: string;
   glowColor: string;
   label: string;
-  meshShape: string;
 }
 
 const ITEM_CFG: Record<ItemType, ItemCfg> = {
-  SANDWICH:   { rate: 1,   rarity: "BASIC",  craftCost: 5,  chance: 0.35,   emoji: "", color: "#888888", glowColor: "rgba(136,136,136,0.55)",  label: "Cosmic Sandwich",  meshShape: "box" },
-  PIZZA:      { rate: 1.5, rarity: "BASIC",  craftCost: 5,  chance: 0.30,   emoji: "", color: "#999999", glowColor: "rgba(153,153,153,0.55)",  label: "Space Pizza",      meshShape: "cylinder" },
-  SKATEBOARD: { rate: 10,  rarity: "RARE",   craftCost: 10, chance: 0.15,   emoji: "", color: "#aaaaaa", glowColor: "rgba(170,170,170,0.6)",   label: "Gravity Board",    meshShape: "board" },
-  PLUNGER:    { rate: 8,   rarity: "RARE",   craftCost: 10, chance: 0.10,   emoji: "", color: "#bbbbbb", glowColor: "rgba(187,187,187,0.6)",   label: "Void Tool",        meshShape: "cone" },
-  DVD:        { rate: 45,  rarity: "EPIC",   craftCost: 20, chance: 0.05,   emoji: "", color: "#cccccc", glowColor: "rgba(204,204,204,0.65)", label: "Quantum Disc",     meshShape: "disc" },
-  GAMEBOY:    { rate: 55,  rarity: "EPIC",   craftCost: 20, chance: 0.035,  emoji: "", color: "#dddddd", glowColor: "rgba(221,221,221,0.65)", label: "Retro Console",    meshShape: "box" },
-  GUITAR:     { rate: 90,  rarity: "MYTHIC", craftCost: 50, chance: 0.008,  emoji: "", color: "#eeeeee", glowColor: "rgba(238,238,238,0.7)",    label: "Star Guitar",      meshShape: "torus" },
-  ARTIFACT:   { rate: 105, rarity: "MYTHIC", craftCost: 50, chance: 0.005,  emoji: "", color: "#f0f0f0", glowColor: "rgba(240,240,240,0.7)",     label: "Ancient Artifact", meshShape: "octahedron" },
-  ROBOT:      { rate: 115, rarity: "MYTHIC", craftCost: 50, chance: 0.003,  emoji: "", color: "#f5f5f5", glowColor: "rgba(245,245,245,0.68)",   label: "Proto Robot",      meshShape: "box" },
-  CRYSTAL:    { rate: 160, rarity: "GOLD",   craftCost: 80, chance: 0.001,  emoji: "", color: "#ffffff", glowColor: "rgba(255,255,255,0.72)",   label: "Stellar Crystal",  meshShape: "octahedron" },
-  TROPHY:     { rate: 175, rarity: "GOLD",   craftCost: 80, chance: 0.0008, emoji: "", color: "#ffffff", glowColor: "rgba(255,255,255,0.72)",   label: "Cosmic Trophy",    meshShape: "cone" },
-  BOOK:       { rate: 200, rarity: "GOLD",   craftCost: 80, chance: 0.0002, emoji: "", color: "#ffffff", glowColor: "rgba(255,255,255,0.68)",   label: "Ancient Tome",     meshShape: "box" },
-  PRISM_SHARD:{ rate: 130, rarity: "PRISM",  craftCost: 50, chance: 0.006,  emoji: "", color: "#ffffff", glowColor: "rgba(255,255,255,0.8)",    label: "Prism Shard",      meshShape: "octahedron" },
-  VOID_RELIC: { rate: 220, rarity: "VOID",   craftCost: 80, chance: 0.0005, emoji: "", color: "#ffffff", glowColor: "rgba(255,255,255,0.85)",   label: "Void Relic",       meshShape: "torus" },
+  SANDWICH:   { rate: 1,   rarity: "BASIC",  craftCost: 5,  chance: 0.35,   emoji: "🥪", color: "#f5c842", glowColor: "rgba(245,200,66,0.55)",  label: "Cosmic Sandwich"  },
+  PIZZA:      { rate: 1.5, rarity: "BASIC",  craftCost: 5,  chance: 0.30,   emoji: "🍕", color: "#e8734a", glowColor: "rgba(232,115,74,0.55)",  label: "Space Pizza"      },
+  SKATEBOARD: { rate: 10,  rarity: "RARE",   craftCost: 10, chance: 0.15,   emoji: "🛹", color: "#4facfe", glowColor: "rgba(79,172,254,0.6)",   label: "Gravity Board"    },
+  PLUNGER:    { rate: 8,   rarity: "RARE",   craftCost: 10, chance: 0.10,   emoji: "🪠", color: "#5bc8f5", glowColor: "rgba(91,200,245,0.6)",   label: "Void Tool"        },
+  DVD:        { rate: 45,  rarity: "EPIC",   craftCost: 20, chance: 0.05,   emoji: "📀", color: "#c471ed", glowColor: "rgba(196,113,237,0.65)", label: "Quantum Disc"     },
+  GAMEBOY:    { rate: 55,  rarity: "EPIC",   craftCost: 20, chance: 0.035,  emoji: "🕹️", color: "#b06ef5", glowColor: "rgba(176,110,245,0.65)", label: "Retro Console"    },
+  GUITAR:     { rate: 90,  rarity: "MYTHIC", craftCost: 50, chance: 0.008,  emoji: "🎸", color: "#dc143c", glowColor: "rgba(220,20,60,0.7)",    label: "Star Guitar"      },
+  ARTIFACT:   { rate: 105, rarity: "MYTHIC", craftCost: 50, chance: 0.005,  emoji: "🏺", color: "#ff4500", glowColor: "rgba(255,69,0,0.7)",     label: "Ancient Artifact" },
+  ROBOT:      { rate: 115, rarity: "MYTHIC", craftCost: 50, chance: 0.003,  emoji: "🤖", color: "#ff6030", glowColor: "rgba(255,96,48,0.68)",   label: "Proto Robot"      },
+  CRYSTAL:    { rate: 160, rarity: "GOLD",   craftCost: 80, chance: 0.001,  emoji: "💎", color: "#ffd700", glowColor: "rgba(255,215,0,0.72)",   label: "Stellar Crystal"  },
+  TROPHY:     { rate: 175, rarity: "GOLD",   craftCost: 80, chance: 0.0008, emoji: "🏆", color: "#ffcc00", glowColor: "rgba(255,200,0,0.72)",   label: "Cosmic Trophy"    },
+  BOOK:       { rate: 200, rarity: "GOLD",   craftCost: 80, chance: 0.0002, emoji: "📚", color: "#f0d060", glowColor: "rgba(240,208,96,0.68)",  label: "Ancient Tome"     },
 };
 
 // ─── GET /items/:telegramId ───────────────────────────────────────

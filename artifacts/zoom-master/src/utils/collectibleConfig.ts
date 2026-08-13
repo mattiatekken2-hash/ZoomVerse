@@ -1,145 +1,133 @@
 // ─────────────────────────────────────────────────────────────────
-//  COLLECTIBLE ITEMS CONFIG — Season 3 (3D meshes, expanded rarities)
+//  COLLECTIBLE ITEMS CONFIG
+//  12 unique items across 5 rarities. Items are always-on passive
+//  ZOOM earners — no farming cycle, no reactivation needed.
 // ─────────────────────────────────────────────────────────────────
 
 export type ItemType =
-  | "SANDWICH"   | "PIZZA"
-  | "SKATEBOARD" | "PLUNGER"
-  | "DVD"        | "GAMEBOY"
-  | "GUITAR"     | "ARTIFACT"   | "ROBOT"
-  | "CRYSTAL"    | "TROPHY"     | "BOOK"
-  | "PRISM_SHARD" | "VOID_RELIC";
+  | "SANDWICH"   | "PIZZA"      // BASIC
+  | "SKATEBOARD" | "PLUNGER"    // RARE
+  | "DVD"        | "GAMEBOY"    // EPIC
+  | "GUITAR"     | "ARTIFACT"   | "ROBOT"   // MYTHIC
+  | "CRYSTAL"    | "TROPHY"     | "BOOK";   // GOLD
 
-export type ItemRarity = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "GOLD" | "PRISM" | "VOID";
+export type ItemRarity = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "GOLD";
 
-export type MeshShape =
-  | "box" | "cylinder" | "cone" | "disc" | "torus" | "octahedron" | "board";
-
+// ─── Runtime item (stored in items_json) ─────────────────────────
 export interface CollectibleItem {
   id: string;
   type: ItemType;
   rarity: ItemRarity;
-  rate: number;
+  rate: number;         // ZOOM/h — server-canonical, re-stamped on save
   emoji: string;
-  meshShape?: MeshShape | string;
   color: string;
   glowColor: string;
-  createdAt: number;
+  createdAt: number;   // epoch ms
   isListedInMarket: boolean;
   serverListingId?: number;
   marketPrice?: number | null;
 }
 
+// ─── Static catalog entry ─────────────────────────────────────────
 export interface ItemConfig {
   type: ItemType;
   label: string;
   emoji: string;
-  meshShape: MeshShape;
   rarity: ItemRarity;
-  rate: number;
-  chance: number;
-  color: string;
-  glowColor: string;
-  craftCost: number;
+  rate: number;       // ZOOM/h
+  chance: number;     // craft success probability (0-1)
+  color: string;      // hex accent
+  glowColor: string;  // rgba for bokeh
+  craftCost: number;  // stardust cost per attempt
 }
 
 export const ITEM_CONFIG: Record<ItemType, ItemConfig> = {
+  // ─── BASIC ──────────────────────────────────────────────────
   SANDWICH: {
-    type: "SANDWICH", label: "Cosmic Sandwich", emoji: "", meshShape: "box",
+    type: "SANDWICH", label: "Cosmic Sandwich", emoji: "🥪",
     rarity: "BASIC", rate: 1, chance: 0.35,
-    color: "#888888", glowColor: "rgba(136,136,136,0.55)", craftCost: 1,
+    color: "#f5c842", glowColor: "rgba(245,200,66,0.55)", craftCost: 5,
   },
   PIZZA: {
-    type: "PIZZA", label: "Space Pizza", emoji: "", meshShape: "cylinder",
+    type: "PIZZA", label: "Space Pizza", emoji: "🍕",
     rarity: "BASIC", rate: 1.5, chance: 0.30,
-    color: "#999999", glowColor: "rgba(153,153,153,0.55)", craftCost: 1,
+    color: "#e8734a", glowColor: "rgba(232,115,74,0.55)", craftCost: 5,
   },
+  // ─── RARE ───────────────────────────────────────────────────
   SKATEBOARD: {
-    type: "SKATEBOARD", label: "Gravity Board", emoji: "", meshShape: "board",
+    type: "SKATEBOARD", label: "Gravity Board", emoji: "🛹",
     rarity: "RARE", rate: 10, chance: 0.15,
-    color: "#aaaaaa", glowColor: "rgba(170,170,170,0.6)", craftCost: 1,
+    color: "#4facfe", glowColor: "rgba(79,172,254,0.6)", craftCost: 10,
   },
   PLUNGER: {
-    type: "PLUNGER", label: "Void Tool", emoji: "", meshShape: "cone",
+    type: "PLUNGER", label: "Void Tool", emoji: "🪠",
     rarity: "RARE", rate: 8, chance: 0.10,
-    color: "#bbbbbb", glowColor: "rgba(187,187,187,0.6)", craftCost: 1,
+    color: "#5bc8f5", glowColor: "rgba(91,200,245,0.6)", craftCost: 10,
   },
+  // ─── EPIC ───────────────────────────────────────────────────
   DVD: {
-    type: "DVD", label: "Quantum Disc", emoji: "", meshShape: "disc",
+    type: "DVD", label: "Quantum Disc", emoji: "📀",
     rarity: "EPIC", rate: 45, chance: 0.05,
-    color: "#cccccc", glowColor: "rgba(204,204,204,0.65)", craftCost: 1,
+    color: "#c471ed", glowColor: "rgba(196,113,237,0.65)", craftCost: 20,
   },
   GAMEBOY: {
-    type: "GAMEBOY", label: "Retro Console", emoji: "", meshShape: "box",
+    type: "GAMEBOY", label: "Retro Console", emoji: "🕹️",
     rarity: "EPIC", rate: 55, chance: 0.035,
-    color: "#dddddd", glowColor: "rgba(221,221,221,0.65)", craftCost: 1,
+    color: "#b06ef5", glowColor: "rgba(176,110,245,0.65)", craftCost: 20,
   },
+  // ─── MYTHIC ─────────────────────────────────────────────────
   GUITAR: {
-    type: "GUITAR", label: "Star Guitar", emoji: "", meshShape: "torus",
+    type: "GUITAR", label: "Star Guitar", emoji: "🎸",
     rarity: "MYTHIC", rate: 90, chance: 0.008,
-    color: "#eeeeee", glowColor: "rgba(238,238,238,0.7)", craftCost: 1,
+    color: "#dc143c", glowColor: "rgba(220,20,60,0.7)", craftCost: 50,
   },
   ARTIFACT: {
-    type: "ARTIFACT", label: "Ancient Artifact", emoji: "", meshShape: "octahedron",
+    type: "ARTIFACT", label: "Ancient Artifact", emoji: "🏺",
     rarity: "MYTHIC", rate: 105, chance: 0.005,
-    color: "#f0f0f0", glowColor: "rgba(240,240,240,0.7)", craftCost: 1,
+    color: "#ff4500", glowColor: "rgba(255,69,0,0.7)", craftCost: 50,
   },
   ROBOT: {
-    type: "ROBOT", label: "Proto Robot", emoji: "", meshShape: "box",
+    type: "ROBOT", label: "Proto Robot", emoji: "🤖",
     rarity: "MYTHIC", rate: 115, chance: 0.003,
-    color: "#f5f5f5", glowColor: "rgba(245,245,245,0.68)", craftCost: 1,
+    color: "#ff6030", glowColor: "rgba(255,96,48,0.68)", craftCost: 50,
   },
+  // ─── GOLD ───────────────────────────────────────────────────
   CRYSTAL: {
-    type: "CRYSTAL", label: "Stellar Crystal", emoji: "", meshShape: "octahedron",
+    type: "CRYSTAL", label: "Stellar Crystal", emoji: "💎",
     rarity: "GOLD", rate: 160, chance: 0.001,
-    color: "#ffffff", glowColor: "rgba(255,255,255,0.72)", craftCost: 1,
+    color: "#ffd700", glowColor: "rgba(255,215,0,0.72)", craftCost: 80,
   },
   TROPHY: {
-    type: "TROPHY", label: "Cosmic Trophy", emoji: "", meshShape: "cone",
+    type: "TROPHY", label: "Cosmic Trophy", emoji: "🏆",
     rarity: "GOLD", rate: 175, chance: 0.0008,
-    color: "#ffffff", glowColor: "rgba(255,255,255,0.72)", craftCost: 1,
+    color: "#ffcc00", glowColor: "rgba(255,200,0,0.72)", craftCost: 80,
   },
   BOOK: {
-    type: "BOOK", label: "Ancient Tome", emoji: "", meshShape: "box",
+    type: "BOOK", label: "Ancient Tome", emoji: "📚",
     rarity: "GOLD", rate: 200, chance: 0.0002,
-    color: "#ffffff", glowColor: "rgba(255,255,255,0.68)", craftCost: 1,
-  },
-  PRISM_SHARD: {
-    type: "PRISM_SHARD", label: "Prism Shard", emoji: "", meshShape: "octahedron",
-    rarity: "PRISM", rate: 130, chance: 0.006,
-    color: "#ffffff", glowColor: "rgba(255,255,255,0.8)", craftCost: 1,
-  },
-  VOID_RELIC: {
-    type: "VOID_RELIC", label: "Void Relic", emoji: "", meshShape: "torus",
-    rarity: "VOID", rate: 220, chance: 0.0005,
-    color: "#ffffff", glowColor: "rgba(255,255,255,0.85)", craftCost: 1,
+    color: "#f0d060", glowColor: "rgba(240,208,96,0.68)", craftCost: 80,
   },
 };
 
+// Display order for the forge grid (rarity → rate ascending)
 export const ITEM_TYPES_ORDERED: ItemType[] = [
   "SANDWICH", "PIZZA",
   "SKATEBOARD", "PLUNGER",
   "DVD", "GAMEBOY",
   "GUITAR", "ARTIFACT", "ROBOT",
   "CRYSTAL", "TROPHY", "BOOK",
-  "PRISM_SHARD", "VOID_RELIC",
 ];
 
 export const ITEM_RARITY_LABEL: Record<ItemRarity, string> = {
   BASIC: "Basic", RARE: "Rare", EPIC: "Epic", MYTHIC: "Mythic", GOLD: "Gold",
-  PRISM: "Prism", VOID: "Void",
 };
 
 export const ITEM_RARITY_COLOR: Record<ItemRarity, string> = {
-  BASIC:  "#888888",
-  RARE:   "#aaaaaa",
-  EPIC:   "#cccccc",
-  MYTHIC: "#eeeeee",
-  GOLD:   "#ffffff",
-  PRISM:  "#ffffff",
-  VOID:   "#ffffff",
+  BASIC:  "#8892b0",
+  RARE:   "#4facfe",
+  EPIC:   "#c471ed",
+  MYTHIC: "#dc143c",
+  GOLD:   "#ffd700",
 };
 
-export const ITEM_RARITY_ORDER: ItemRarity[] = [
-  "BASIC", "RARE", "EPIC", "MYTHIC", "GOLD", "PRISM", "VOID",
-];
+export const ITEM_RARITY_ORDER: ItemRarity[] = ["BASIC", "RARE", "EPIC", "MYTHIC", "GOLD"];

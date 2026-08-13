@@ -3763,49 +3763,6 @@ export async function saveItems(
   }
 }
 
-/** POST /forge/unified — Season 3: 1★ random planet OR item. */
-export async function unifiedForgeApi(
-  telegramId: string,
-): Promise<{
-  ok: boolean;
-  resultKind?: "planet" | "item" | "dust";
-  planetType?: string;
-  item?: CollectibleItemApiShape;
-  itemType?: string;
-  label?: string;
-  rarity?: string;
-  rate?: number;
-  meshShape?: string;
-  newStardustBalance?: number;
-  error?: string;
-}> {
-  try {
-    const res = await fetch(`${API_BASE}/forge/unified`, {
-      method: "POST",
-      headers: apiHeaders(),
-      body: JSON.stringify({ telegramId }),
-    });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      return { ok: false, error: typeof j?.error === "string" ? j.error : `HTTP ${res.status}` };
-    }
-    return {
-      ok: true,
-      resultKind: j.resultKind,
-      planetType: j.planetType,
-      item: j.item,
-      itemType: j.itemType,
-      label: j.label,
-      rarity: j.rarity,
-      rate: j.rate,
-      meshShape: j.meshShape,
-      newStardustBalance: j.newStardustBalance,
-    };
-  } catch {
-    return { ok: false, error: "Network error" };
-  }
-}
-
 /** POST /items/craft — spend stardust and roll a random item of the requested type. */
 export async function craftItemApi(
   telegramId: string,

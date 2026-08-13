@@ -23,8 +23,6 @@ export const RARITY_GRAY: Record<string, number> = {
   V1: 0.95,
   V1_NFT: 1,
   SUN: 1,
-  PRISM: 0.92,
-  VOID: 0.98,
   default: 0.4,
 };
 

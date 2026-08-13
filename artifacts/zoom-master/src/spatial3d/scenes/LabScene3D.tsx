@@ -11,21 +11,19 @@ export interface LabSceneProps {
   pendingPlanet: Planet | null;
   onCraft: () => void;
   onClaim: () => void;
-  forging?: boolean;
 }
 
-export function LabScene3D({ taps, goal, balance, pendingPlanet, onCraft, onClaim, forging = false }: LabSceneProps) {
+export function LabScene3D({ taps, goal, balance, pendingPlanet, onCraft, onClaim }: LabSceneProps) {
   const progress = goal > 0 ? Math.min(1, taps / goal) : 0;
-  const canForge = !pendingPlanet && !forging;
 
   return (
     <group>
-      <BlackHole onTap={canForge ? onCraft : undefined} progress={canForge ? 0.35 : progress} active={canForge} />
+      <BlackHole onTap={onCraft} progress={progress} active={!pendingPlanet} />
       <Text position={[0, 2.4, 0]} fontSize={0.22} color={MONO.white} anchorX="center">
         {`${Math.floor(balance).toLocaleString()} $ZOOM`}
       </Text>
       <Text position={[0, -2.2, 0]} fontSize={0.14} color={MONO.mid} anchorX="center">
-        {forging ? "FORGING..." : pendingPlanet ? "PLANET READY" : "TAP SINGULARITY · 1★"}
+        {pendingPlanet ? "PLANET READY" : `${taps} / ${goal} TAPS`}
       </Text>
       {pendingPlanet && (
         <SpatialPanel
@@ -36,7 +34,7 @@ export function LabScene3D({ taps, goal, balance, pendingPlanet, onCraft, onClai
         />
       )}
       {/* Floating craft panels — curved in space */}
-      <SpatialPanel position={[-2.8, 0.5, 0.2]} rotation={[0, 0.35, 0]} title="FORGE" subtitle="1★ · planet or item" width={1.8} />
+      <SpatialPanel position={[-2.8, 0.5, 0.2]} rotation={[0, 0.35, 0]} title="FORGE" subtitle="Tap singularity" width={1.8} />
       <SpatialPanel position={[2.8, 0.5, 0.2]} rotation={[0, -0.35, 0]} title="EXCHANGE" subtitle="ZOOM ~ GRAM" width={1.8} />
     </group>
   );
