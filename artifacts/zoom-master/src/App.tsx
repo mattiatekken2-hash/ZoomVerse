@@ -26,13 +26,9 @@ import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, merc
 import { useStardust } from "./hooks/useStardust";
 import { useMerchant } from "./hooks/useMerchant";
 import { MerchantPopup } from "./components/MerchantPopup";
-import { FlaskConical, Home, Sprout, ShoppingCart, Zap, Gem, Trophy, Wallet, type LucideIcon } from "lucide-react";
+import { FlaskConical, Home, Sprout, ShoppingCart, Zap, Gem, Trophy, Wallet } from "lucide-react";
 import { WalletPage } from "./pages/WalletPage";
 import { getVerifiedTelegramUserId, isBrowserDevSession } from "./utils/telegram";
-import { SpatialExperience } from "./spatial3d/SpatialExperience";
-import "./spatial3d/spatial.css";
-
-const SPATIAL_UI = import.meta.env.VITE_SPATIAL_UI !== "0";
 
 const MAINTENANCE_ADMIN_IDS = ["8144744644", "@zoom0100", "zoom0100"];
 
@@ -46,7 +42,7 @@ const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
 type Tab = "lab" | "home" | "farm" | "market" | "earn" | "pvp" | "rank" | "shop" | "wallet";
 
-const NAV: { id: Tab; labelKey: string; icon: LucideIcon }[] = [
+const NAV: { id: Tab; labelKey: string; icon: React.ElementType }[] = [
   { id: "lab", labelKey: "nav.lab", icon: FlaskConical },
   { id: "farm", labelKey: "nav.farm", icon: Sprout },
   { id: "market", labelKey: "nav.market", icon: ShoppingCart },
@@ -719,25 +715,8 @@ function AppShellWithState() {
 
   return (
     <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
-    <div className={`flex flex-col overflow-hidden relative${SPATIAL_UI ? " spatial-ui" : ""}`} style={{ height: "100dvh", background: "#000000", paddingTop: "calc(env(safe-area-inset-top, 0px) + 56px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
-      {!SPATIAL_UI && <NebulaBackground />}
-      {SPATIAL_UI && (
-        <SpatialExperience
-          tab={tab}
-          lab={{
-            taps: state.taps,
-            goal: state.goal,
-            balance: state.balance,
-            pendingPlanet: state.pendingPlanet,
-            onCraft: () => { craft(); },
-            onClaim: claimCraft,
-          }}
-          farm={{
-            planets: state.planets,
-            maxSlots: state.maxSlots,
-          }}
-        />
-      )}
+    <div className="flex flex-col overflow-hidden relative" style={{ height: "100dvh", background: "#000000", paddingTop: "calc(env(safe-area-inset-top, 0px) + 56px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+      <NebulaBackground />
       {isAdmin && maintenance.enabled && (
         <div
           className="flex-shrink-0 text-center text-xs font-black tracking-widest py-1.5 relative z-30"
@@ -863,24 +842,21 @@ function AppShellWithState() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden relative z-10" style={{ minHeight: 0, pointerEvents: SPATIAL_UI ? "none" : undefined }}>
+      <main className="flex-1 overflow-hidden relative z-10" style={{ minHeight: 0 }}>
         {ALL_TABS.map((t) => {
           const isActive = tab === t;
           if (!visitedTabs.has(t)) return null;
-          const hideInSpatial = SPATIAL_UI && t === "lab";
           return (
             <div
               key={t}
-              className={SPATIAL_UI && !hideInSpatial ? "spatial-page-overlay" : undefined}
               style={{
                 height: "100%",
-                display: isActive && !hideInSpatial ? "flex" : "none",
+                display: isActive ? "flex" : "none",
                 flexDirection: "column",
                 overflow: "hidden",
-                pointerEvents: SPATIAL_UI && isActive && !hideInSpatial ? "auto" : undefined,
               }}
             >
-              {t === "lab" && !SPATIAL_UI && (
+              {t === "lab" && (
                 <LabPage
                   balance={state.balance}
                   taps={state.taps}
@@ -1262,46 +1238,36 @@ function AppShellWithState() {
       )}
 
       <nav
-        className={`flex-shrink-0 relative z-20${SPATIAL_UI ? " spatial-nav" : ""}`}
+        className="flex-shrink-0 relative z-20"
         style={{
           height: 70,
-          background: SPATIAL_UI ? undefined : "rgba(8,1,9,0.92)",
-          borderTop: SPATIAL_UI ? undefined : "1px solid rgba(255,255,255,0.05)",
+          background: "rgba(8,1,9,0.92)",
+          borderTop: "1px solid rgba(255,255,255,0.05)",
         }}
       >
         <div className="flex h-full">
           {NAV.map((item) => {
             const isActive = tab === item.id;
-            const NavIcon = item.icon;
             return (
               <button
                 key={item.id}
                 className="flex-1 flex flex-col items-center justify-center gap-0.5 relative"
                 onClick={() => switchTab(item.id)}
                 data-testid={`nav-${item.id}`}
-                data-active={isActive ? "true" : "false"}
-                style={{ color: isActive ? (SPATIAL_UI ? "#ffffff" : "#ff3355") : "rgba(255,255,255,0.6)" }}
+                style={{ color: isActive ? "#ff3355" : "rgba(255,255,255,0.6)" }}
               >
-                {isActive && !SPATIAL_UI && (
+                {isActive && (
                   <div
                     className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full"
                     style={{ background: "#d42848", boxShadow: "0 0 6px rgba(212,40,72,0.55)" }}
                   />
                 )}
-                {isActive && SPATIAL_UI && (
-                  <div
-                    className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-6 rounded-full"
-                    style={{ background: "#ffffff", boxShadow: "0 0 6px rgba(255,255,255,0.45)" }}
-                  />
-                )}
-                <NavIcon
+                <item.icon
                   size={20}
                   strokeWidth={isActive ? 2.5 : 1.5}
                   style={{
                     transform: isActive ? "scale(1.15)" : "scale(1)",
-                    filter: isActive
-                      ? (SPATIAL_UI ? "drop-shadow(0 0 5px rgba(255,255,255,0.5))" : "drop-shadow(0 0 5px rgba(212,40,72,0.6))")
-                      : "none",
+                    filter: isActive ? "drop-shadow(0 0 5px rgba(212,40,72,0.6))" : "none",
                     transition: "transform 150ms ease, filter 150ms ease",
                   }}
                 />
