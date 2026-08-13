@@ -28,8 +28,15 @@ import { useMerchant } from "./hooks/useMerchant";
 import { MerchantPopup } from "./components/MerchantPopup";
 import { FlaskConical, Home, Sprout, ShoppingCart, Zap, Gem, Trophy, Wallet } from "lucide-react";
 import { WalletPage } from "./pages/WalletPage";
+import { getVerifiedTelegramUserId, isBrowserDevSession } from "./utils/telegram";
 
-const MAINTENANCE_ADMIN_ID = "8144744644";
+const MAINTENANCE_ADMIN_IDS = ["8144744644", "@zoom0100", "zoom0100"];
+
+function isMaintenanceAdmin(telegramId: string | null | undefined): boolean {
+  if (!telegramId) return false;
+  const normalized = telegramId.trim().toLowerCase();
+  return MAINTENANCE_ADMIN_IDS.some((value) => value.toLowerCase() === normalized);
+}
 
 const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
@@ -162,16 +169,17 @@ function AppShellWithState() {
     return () => clearInterval(id);
   }, []);
 
-  // DEV FALLBACK: in browser dev (not inside Telegram), show a demo avatar
-  // so the AvatarXP widget is visible during development.
-  const isInTelegram = typeof (window as unknown as { Telegram?: { WebApp?: unknown } }).Telegram?.WebApp !== "undefined";
+  // Browser dev: Cursor and other embeds load telegram-web-app.js but have no
+  // real initData user — treat that as PC dev, not a Telegram Mini App session.
+  const verifiedTgUserId = getVerifiedTelegramUserId();
+  const isBrowserDev = isBrowserDevSession();
   // PC login: track whether a dev Telegram ID has been stored so we can show
   // the login gate when needed and clear it when the user logs out.
   const [devTgId, setDevTgId] = useState<string | null>(() => {
     try { return localStorage.getItem(DEV_TG_ID_KEY); } catch { return null; }
   });
-  const devPhotoUrl = !isInTelegram ? "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Circle-icons-profile.svg/1024px-Circle-icons-profile.svg.png" : null;
-  const devName = !isInTelegram ? "Dev" : null;
+  const devPhotoUrl = isBrowserDev ? "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Circle-icons-profile.svg/1024px-Circle-icons-profile.svg.png" : null;
+  const devName = isBrowserDev ? "Dev" : null;
   const displayProfile = {
     photoUrl: tgProfile.photoUrl ?? devPhotoUrl,
     name: tgProfile.name ?? devName,
@@ -317,23 +325,41 @@ function AppShellWithState() {
   });
   useEffect(() => {
     let alive = true;
-    const load = async () => {
-      const s = await fetchMaintenanceStatus();
+    let fallbackTimer: number | undefined;
+
+    const finish = (next: { enabled: boolean; message: string }) => {
       if (!alive) return;
-      const next = { enabled: !!s.enabled, message: s.message || "" };
       setMaintenance(next);
       setMaintLoaded(true);
       try { localStorage.setItem("zoom-maint-cached", JSON.stringify(next)); } catch { /**/ }
     };
-    load();
-    const id = setInterval(() => { if (!document.hidden) load(); }, 20000);
-    const onVis = () => { if (document.visibilityState === "visible") load(); };
-    const onAdmin = () => { load(); };
+
+    const load = async () => {
+      const s = await fetchMaintenanceStatus();
+      if (!alive) return;
+      finish({ enabled: !!s.enabled, message: s.message || "" });
+    };
+
+    fallbackTimer = window.setTimeout(() => {
+      if (!alive) return;
+      finish({ enabled: false, message: "" });
+    }, 2500);
+
+    void load();
+    const id = setInterval(() => { if (!document.hidden) void load(); }, 20000);
+    const onVis = () => { if (document.visibilityState === "visible") void load(); };
+    const onAdmin = () => { void load(); };
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("zoom-admin-refresh", onAdmin);
-    return () => { alive = false; clearInterval(id); document.removeEventListener("visibilitychange", onVis); window.removeEventListener("zoom-admin-refresh", onAdmin); };
+    return () => {
+      alive = false;
+      if (fallbackTimer) window.clearTimeout(fallbackTimer);
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("zoom-admin-refresh", onAdmin);
+    };
   }, []);
-  const isAdmin = state.telegramId === MAINTENANCE_ADMIN_ID;
+  const isAdmin = isMaintenanceAdmin(state.telegramId);
   const showMaintenance = maintenance.enabled && !isAdmin;
   const showSplash = !maintLoaded && !isAdmin;
 
@@ -681,9 +707,9 @@ function AppShellWithState() {
     );
   }
 
-  // PC / browser gate: when there is no Telegram WebApp context and no stored
-  // Telegram ID, ask the user to enter their ID so their account loads.
-  if (!isInTelegram && !devTgId) {
+  // PC / browser gate: when there is no verified Telegram user and no stored
+  // dev ID, ask the user to enter their numeric Telegram ID.
+  if (!verifiedTgUserId && !devTgId) {
     return <PcLoginScreen onConnect={(id) => setDevTgId(id)} />;
   }
 
@@ -725,7 +751,7 @@ function AppShellWithState() {
         <div className="flex items-center gap-1 min-w-0">
           {/* PC-only: switch account button — lets the user clear the stored
               Telegram ID and go back to the login screen without touching devtools. */}
-          {!isInTelegram && (
+          {isBrowserDev && (
             <button
               onClick={() => {
                 try { localStorage.removeItem(DEV_TG_ID_KEY); } catch { /**/ }
@@ -1671,13 +1697,13 @@ function PcLoginScreen({ onConnect }: { onConnect: (id: string) => void }) {
           ZOOM MASTER
         </div>
         <div style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", marginBottom: 28, letterSpacing: "0.06em" }}>
-          Enter your Telegram ID to access your account
+          Enter your Telegram numeric ID to access your account
         </div>
 
         <input
           type="text"
           inputMode="numeric"
-          placeholder="e.g. 123456789"
+          placeholder="e.g. 8144744644"
           value={input}
           onChange={(e) => { setInput(e.target.value); setErr(null); }}
           onKeyDown={(e) => { if (e.key === "Enter") handleConnect(); }}

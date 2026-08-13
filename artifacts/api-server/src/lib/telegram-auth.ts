@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import type { Request, Response, NextFunction, RequestHandler } from "express";
+import { isAdmin } from "./admin-ids";
 import { logger } from "./logger";
 
 const BOT_TOKEN = process.env["BOT_TOKEN"] || "";
@@ -228,11 +229,22 @@ export interface RequireTgAuthOptions {
  * `req.tgAuthReason` to the reason code, so individual handlers can make
  * fine-grained policy decisions even in soft mode.
  */
+function devAdminFromRequest(req: Request): VerifiedTgUser | null {
+  const fromQuery = typeof req.query.adminId === "string" ? req.query.adminId.trim() : "";
+  const fromBody = (req.body && typeof req.body === "object")
+    ? (req.body as Record<string, unknown>).adminId
+    : undefined;
+  const candidate = fromQuery || (typeof fromBody === "string" ? fromBody.trim() : "");
+  if (!candidate || !isAdmin(candidate)) return null;
+  return { id: candidate, authDate: Math.floor(Date.now() / 1000) };
+}
+
 export function requireTelegramAuth(opts: RequireTgAuthOptions = {}): RequestHandler {
   return (req: Request, res: Response, next: NextFunction): void => {
-    // `off` disables auth entirely.
+    // `off` disables initData verification. In local dev we still synthesize
+    // req.tgUser when a valid adminId is supplied so admin GET routes work.
     if (MODE === "off") {
-      req.tgUser = null;
+      req.tgUser = devAdminFromRequest(req);
       next();
       return;
     }

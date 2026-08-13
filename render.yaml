@@ -1,0 +1,20 @@
+# Free API hosting: https://render.com → New → Blueprint → connect this repo
+services:
+  - type: web
+    name: zoomverse-api
+    runtime: node
+    plan: free
+    buildCommand: pnpm install && pnpm --filter @workspace/api-server run build
+    startCommand: node --enable-source-maps artifacts/api-server/dist/index.mjs
+    healthCheckPath: /api/healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TG_AUTH_MODE
+        value: strict
+      - key: REPLIT_DEPLOYMENT
+        value: "1"
+      - key: DATABASE_URL
+        sync: false
+      - key: BOT_TOKEN
+        sync: false

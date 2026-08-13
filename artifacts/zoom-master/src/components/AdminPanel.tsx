@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { haptic } from "../utils/haptic";
+import { isBrowserDevSession } from "../utils/telegram";
 import {
   adminCreditZoom,
   adminCreditStardust,
@@ -78,6 +79,14 @@ import {
 } from "../utils/api";
 
 const ADMIN_ID = "8144744644";
+const ADMIN_ALIASES = [ADMIN_ID, "@zoom0100", "zoom0100"];
+
+function isAdminId(telegramId: string | null | undefined): boolean {
+  if (!telegramId) return false;
+  const normalized = telegramId.trim().toLowerCase();
+  if (!normalized) return false;
+  return ADMIN_ALIASES.some((value) => value.toLowerCase() === normalized);
+}
 
 type PlanetChoice = "BASIC" | "RARE" | "EPIC" | "MYTHIC" | "NOVA" | "PLASMA" | "GOLD" | "MUSHROOM" | "SUN";
 type EqCategory = "HELMET" | "JETPACK" | "HAT" | "SCANNER";
@@ -103,6 +112,7 @@ interface Props {
 
 export function AdminPanel({ telegramId }: Props) {
   const [open, setOpen] = useState(false);
+  const browserDev = isBrowserDevSession();
   const [mode, setMode] = useState<"add" | "remove">("add");
   const [targetId, setTargetId] = useState("");
   const [amount, setAmount] = useState("");
@@ -155,7 +165,7 @@ export function AdminPanel({ telegramId }: Props) {
   }, []);
 
   useEffect(() => {
-    if (open && telegramId === ADMIN_ID) {
+    if (open && isAdminId(telegramId)) {
       refreshPendingWithdrawals();
       refreshMaintenance();
       refreshTopPlayers();
@@ -164,7 +174,7 @@ export function AdminPanel({ telegramId }: Props) {
   }, [open, telegramId, refreshPendingWithdrawals, refreshMaintenance, refreshTopPlayers, refreshMerchantStatus]);
 
   useEffect(() => {
-    if (!open || telegramId !== ADMIN_ID) return;
+    if (!open || !isAdminId(telegramId)) return;
     const id = setInterval(() => refreshMerchantStatus(), 5000);
     return () => clearInterval(id);
   }, [open, telegramId, refreshMerchantStatus]);
@@ -335,7 +345,7 @@ export function AdminPanel({ telegramId }: Props) {
     );
   }, [telegramId]);
 
-  if (telegramId !== ADMIN_ID) return null;
+  if (!isAdminId(telegramId)) return null;
 
   const inputStyle: React.CSSProperties = {
     background: "rgba(255,255,255,0.05)",
@@ -353,25 +363,29 @@ export function AdminPanel({ telegramId }: Props) {
     <>
       <motion.button
         onClick={() => { haptic(); setOpen(true); }}
+        title="Admin Panel"
         style={{
           position: "fixed",
-          bottom: 88,
+          bottom: browserDev ? 96 : 88,
           right: 16,
-          width: 28,
-          height: 28,
-          borderRadius: "50%",
-          background: "rgba(255,255,255,0.06)",
-          border: "1px solid rgba(255,255,255,0.1)",
+          width: browserDev ? 44 : 28,
+          height: browserDev ? 44 : 28,
+          borderRadius: browserDev ? 12 : "50%",
+          background: browserDev ? "rgba(255,51,85,0.22)" : "rgba(255,255,255,0.06)",
+          border: browserDev ? "1px solid rgba(255,51,85,0.55)" : "1px solid rgba(255,255,255,0.1)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           zIndex: 40,
           cursor: "pointer",
-          fontSize: 13,
-          color: "rgba(255,255,255,0.4)",
+          fontSize: browserDev ? 10 : 13,
+          fontWeight: browserDev ? 900 : 400,
+          letterSpacing: browserDev ? "0.08em" : undefined,
+          color: browserDev ? "#ff6b8a" : "rgba(255,255,255,0.4)",
+          boxShadow: browserDev ? "0 0 16px rgba(255,51,85,0.35)" : undefined,
         }}
       >
-        ⚙
+        {browserDev ? "ADM" : "⚙"}
       </motion.button>
 
       <AnimatePresence>

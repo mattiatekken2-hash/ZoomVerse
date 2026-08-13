@@ -29,12 +29,9 @@ const planetIdsArr = () =>
     sql`, `,
   )}]::text[]`;
 
-const ADMIN_ID = "8144744644";
-const ADMIN_ASSET_SNAPSHOT = path.resolve(process.cwd(), "data", "admin-assets.json");
+import { isAdmin } from "../lib/admin-ids";
 
-function isAdmin(adminId: string): boolean {
-  return adminId === ADMIN_ID;
-}
+const ADMIN_ASSET_SNAPSHOT = path.resolve(process.cwd(), "data", "admin-assets.json");
 
 /**
  * Resolves an admin-provided target identifier into a numeric Telegram ID.

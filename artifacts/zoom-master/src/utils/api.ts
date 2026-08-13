@@ -1,4 +1,6 @@
-const API_BASE = `${window.location.origin}/api`;
+const API_BASE =
+  (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") ||
+  `${window.location.origin}/api`;
 
 /**
  * Read the raw Telegram WebApp `initData` query string, which the server
@@ -2296,11 +2298,21 @@ export interface MaintenanceStatus {
 }
 
 export async function fetchMaintenanceStatus(): Promise<MaintenanceStatus> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 3000);
+
   try {
-    const res = await fetch(`${API_BASE}/maintenance/status?t=${Date.now()}`, { cache: "no-store" });
+    const res = await fetch(`${API_BASE}/maintenance/status?t=${Date.now()}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
     if (!res.ok) return { enabled: false, message: "", updatedAt: 0 };
     return res.json();
-  } catch { return { enabled: false, message: "", updatedAt: 0 }; }
+  } catch {
+    return { enabled: false, message: "", updatedAt: 0 };
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 export async function adminSetMaintenance(adminId: string, enabled: boolean, message?: string): Promise<{ ok: boolean; enabled?: boolean; message?: string; error?: string }> {
