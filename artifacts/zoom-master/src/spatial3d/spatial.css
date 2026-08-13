@@ -1,0 +1,58 @@
+/* Monochrome spatial UI — 3D layer + transparent HTML overlays */
+
+.spatial-ui .nebula-bg,
+.spatial-ui [class*="Nebula"] {
+  display: none !important;
+}
+
+.spatial-ui main {
+  background: transparent !important;
+}
+
+.spatial-ui main > div {
+  background: transparent !important;
+}
+
+.spatial-ui .spatial-page-overlay {
+  background: transparent !important;
+  pointer-events: auto;
+}
+
+.spatial-ui .spatial-page-overlay > * {
+  filter: grayscale(1) contrast(1.15);
+}
+
+.spatial-ui header {
+  background: rgba(0, 0, 0, 0.72) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.12) !important;
+  backdrop-filter: blur(8px);
+}
+
+.spatial-ui header * {
+  filter: grayscale(1) contrast(1.1);
+}
+
+.spatial-ui nav.spatial-nav {
+  background: rgba(0, 0, 0, 0.85) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.12) !important;
+  backdrop-filter: blur(10px);
+}
+
+.spatial-ui nav.spatial-nav button {
+  filter: grayscale(1) contrast(1.15);
+}
+
+.spatial-ui nav.spatial-nav button[data-active="true"] {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.15) !important;
+}
+
+.spatial-ui nav.spatial-nav button[data-active="true"] span,
+.spatial-ui nav.spatial-nav button[data-active="true"] svg {
+  color: #fff !important;
+}
+
+.spatial-canvas-root canvas {
+  display: block;
+}
