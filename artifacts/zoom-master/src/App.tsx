@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { TonWalletWidget } from "./components/TonWalletWidget";
 import { OnlineIndicator } from "./components/OnlineIndicator";
 import { BalanceCounter } from "./components/BalanceCounter";
@@ -30,6 +30,8 @@ import { FlaskConical, Home, Sprout, ShoppingCart, Zap, Gem, Trophy, Wallet, typ
 import { WalletPage } from "./pages/WalletPage";
 import { getVerifiedTelegramUserId, isBrowserDevSession } from "./utils/telegram";
 import { SpatialExperience } from "./spatial3d/SpatialExperience";
+import { ForgeAnimationOverlay, type ForgeRevealData } from "./spatial3d/components/ForgeAnimationOverlay";
+import { UNIFIED_FORGE_COST } from "./utils/season3Forge";
 import "./spatial3d/spatial.css";
 
 const SPATIAL_UI = import.meta.env.VITE_SPATIAL_UI !== "0";
@@ -125,7 +127,7 @@ function AppShellWithState() {
     };
   }, [t]);
   const {
-    state, setState, craft, claimCraft, redeemCode,
+    state, setState, craft, unifiedForge, claimCraft, redeemCode,
     pvpAddPlanet, pvpRemovePlanet,
     collectPlanet, burnPlanet, renamePlanetLocal,
     startFarming, stopFarming, repairPlanet, upgradePlanetFarmDuration, upgradeSunFarmDuration, upgradeCollectionFarmDuration,
@@ -217,6 +219,44 @@ function AppShellWithState() {
   const stardustToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stardustIdRef = useRef(0);
   const stardustInFlightRef = useRef(false);
+
+  const [forgeActive, setForgeActive] = useState(false);
+  const [forgeReveal, setForgeReveal] = useState<ForgeRevealData | null>(null);
+  const forgeBusyRef = useRef(false);
+
+  const handleUnifiedForge = useCallback(async () => {
+    if (forgeBusyRef.current || state.pendingPlanet) return;
+    if (state.planets.length >= state.maxSlots) return;
+    if ((state.stardustBalance ?? 0) < UNIFIED_FORGE_COST) return;
+    forgeBusyRef.current = true;
+    setForgeActive(true);
+    setForgeReveal(null);
+    const result = await unifiedForge();
+    forgeBusyRef.current = false;
+    if (!result.ok) {
+      setForgeActive(false);
+      try {
+        window.dispatchEvent(new CustomEvent("zoom-toast", {
+          detail: { text: result.error === "NOT_ENOUGH_STARDUST" ? "Need 1★ stardust" : (result.error ?? "Forge failed"), ok: false },
+        }));
+      } catch { /**/ }
+      return;
+    }
+    setForgeReveal({
+      kind: result.resultKind ?? "dust",
+      planetType: result.planetType,
+      itemType: result.itemType,
+      meshShape: result.meshShape,
+      label: result.label,
+      rarity: result.rarity,
+      rate: result.rate,
+    });
+  }, [unifiedForge, state.pendingPlanet, state.planets.length, state.maxSlots, state.stardustBalance]);
+
+  const onForgeAnimComplete = useCallback(() => {
+    setForgeActive(false);
+    setForgeReveal(null);
+  }, []);
   const stardustCapReached = stardust.today >= stardust.dailyCap;
   // Stable ref so the spawn loop can read the latest cap state without
   // re-running its cleanup (which would also kill an active despawn timer).
@@ -719,8 +759,9 @@ function AppShellWithState() {
 
   return (
     <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
-    <div className={`flex flex-col overflow-hidden relative${SPATIAL_UI ? " spatial-ui" : ""}`} style={{ height: "100dvh", background: "#000000", paddingTop: "calc(env(safe-area-inset-top, 0px) + 56px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+    <div className={`flex flex-col overflow-hidden relative${SPATIAL_UI ? " spatial-ui s3-bw-ui" : " s3-bw-ui"}`} style={{ height: "100dvh", background: "#000000", paddingTop: "calc(env(safe-area-inset-top, 0px) + 56px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
       {!SPATIAL_UI && <NebulaBackground />}
+      <ForgeAnimationOverlay active={forgeActive} reveal={forgeReveal} onComplete={onForgeAnimComplete} />
       {SPATIAL_UI && (
         <SpatialExperience
           tab={tab}
@@ -729,8 +770,9 @@ function AppShellWithState() {
             goal: state.goal,
             balance: state.balance,
             pendingPlanet: state.pendingPlanet,
-            onCraft: () => { craft(); },
+            onCraft: () => { void handleUnifiedForge(); },
             onClaim: claimCraft,
+            forging: forgeActive,
           }}
           farm={{
             planets: state.planets,
@@ -901,7 +943,7 @@ function AppShellWithState() {
                   depositBalance={state.depositBalance || 0}
                   stardustBalance={state.stardustBalance || 0}
                   telegramId={state.telegramId}
-                  onCraft={craft}
+                  onUnifiedForge={handleUnifiedForge}
                   onPurchase={(labPointsDelta, stardustDelta) => {
                     setState((prev) => ({
                       ...prev,
@@ -946,9 +988,21 @@ function AppShellWithState() {
                   redStarBalance={state.redStarBalance || 0}
                   onRedStarBalanceUpdate={(newBal) => setState((prev) => ({ ...prev, redStarBalance: newBal }))}
                   onUpgradeCollectionDuration={upgradeCollectionFarmDuration}
-                  onCraftItem={craftItem}
                   visible={tab === "lab"}
                 />
+              )}
+              {t === "lab" && SPATIAL_UI && (
+                <div className="spatial-lab-chrome" style={{ pointerEvents: "auto", position: "absolute", bottom: 24, left: 16, right: 16, zIndex: 15 }}>
+                  <button
+                    type="button"
+                    className="btn-craft s3-bw-btn"
+                    disabled={forgeActive || !!state.pendingPlanet || state.planets.length >= state.maxSlots || (state.stardustBalance ?? 0) < UNIFIED_FORGE_COST}
+                    onClick={() => { void handleUnifiedForge(); }}
+                    data-testid="button-craft-spatial"
+                  >
+                    {state.planets.length >= state.maxSlots ? "FARM FULL" : (state.stardustBalance ?? 0) < UNIFIED_FORGE_COST ? "NO STARDUST" : `FORGE · ${UNIFIED_FORGE_COST}★`}
+                  </button>
+                </div>
               )}
               {t === "farm" && (
                 <FarmPage

@@ -8,6 +8,7 @@ import {
   type ItemType,
 } from "../utils/collectibleConfig";
 import { PlanetOrb } from "../components/PlanetOrb";
+import { Mesh3DPreview } from "../spatial3d/components/Mesh3DPreview";
 import { DailyComboBox } from "../components/DailyComboBox";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
@@ -109,7 +110,7 @@ function CollectibleItemInventory({
   };
 
   // Sort: rarest first (GOLD → BASIC)
-  const RARITY_RANK = { GOLD: 4, MYTHIC: 3, EPIC: 2, RARE: 1, BASIC: 0 };
+  const RARITY_RANK: Record<string, number> = { VOID: 6, PRISM: 5, GOLD: 4, MYTHIC: 3, EPIC: 2, RARE: 1, BASIC: 0 };
   const sorted = [...items].sort((a, b) =>
     (RARITY_RANK[b.rarity as keyof typeof RARITY_RANK] ?? 0) - (RARITY_RANK[a.rarity as keyof typeof RARITY_RANK] ?? 0)
   );
@@ -122,11 +123,11 @@ function CollectibleItemInventory({
         data-testid="items-empty"
       >
         <div style={{ fontSize: 36, opacity: 0.45 }}>⚗️</div>
-        <div className="text-sm font-bold" style={{ color: "rgba(220,235,255,0.7)" }}>
-          No collectibles yet
+        <div style={{ fontSize: 14, fontWeight: 800, color: "rgba(220,235,255,0.55)", letterSpacing: "0.12em" }}>
+          NO COLLECTIBLES
         </div>
         <div className="text-xs px-6 text-center" style={{ color: "rgba(220,235,255,0.35)" }}>
-          Forge items in the Lab to start collecting passive ZOOM earners.
+          Forge in the Lab (1★) for a chance at 3D collectibles.
         </div>
       </div>
     );
@@ -161,15 +162,14 @@ function CollectibleItemInventory({
             >
               {/* Emoji orb with bokeh glow */}
               <div className="relative flex justify-center">
-                <div
-                  className="w-14 h-14 rounded-xl flex items-center justify-center text-3xl planet-float-anim"
-                  style={{
-                    background: `radial-gradient(circle at 40% 35%, ${rarityColor}44 0%, ${rarityColor}18 70%, rgba(6,8,16,0.8) 100%)`,
-                    boxShadow: `0 0 18px ${bokeh}`,
-                  }}
-                >
-                  {cfg.emoji}
-                </div>
+                <Mesh3DPreview
+                  kind="item"
+                  itemType={type}
+                  meshShape={item.meshShape ?? cfg.meshShape}
+                  rarity={item.rarity}
+                  size={56}
+                  animate
+                />
                 <div
                   className="bokeh-blob absolute"
                   style={{ width: 40, height: 40, top: 4, left: "50%", transform: "translateX(-50%)", background: bokeh }}
@@ -228,7 +228,7 @@ function CollectibleItemInventory({
         >
           <div className="w-full rounded-t-3xl px-5 pt-6 pb-8 glass-strong">
             <div className="flex items-center gap-3 mb-5">
-              <div className="text-3xl">{listFor.cfg.emoji}</div>
+              <Mesh3DPreview kind="item" itemType={listFor.cfg.type} meshShape={listFor.cfg.meshShape} rarity={listFor.cfg.rarity} size={48} />
               <div className="font-black text-base" style={{ color: ITEM_RARITY_COLOR[listFor.cfg.rarity] }}>
                 List {listFor.cfg.label}
               </div>
