@@ -1,6 +1,3 @@
-import { spawnSync } from "node:child_process";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { db } from "@workspace/db";
 import { appSettingsTable } from "@workspace/db/schema";
 import { sql } from "drizzle-orm";
@@ -9,10 +6,6 @@ import { logger } from "./logger";
 /** Matches RankPage / ExchangeWidget fallback season anchor. */
 export const DEFAULT_SEASON_EPOCH_MS = Date.UTC(2026, 3, 14);
 
-function repoRoot(): string {
-  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-}
-
 async function usersTableReady(): Promise<boolean> {
   try {
     await db.execute(sql`SELECT 1 FROM users LIMIT 1`);
@@ -20,34 +13,6 @@ async function usersTableReady(): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-function runDrizzlePush(): boolean {
-  const root = repoRoot();
-  logger.warn({ root }, "[ensure-db] users table missing — running drizzle push");
-  const result = spawnSync(
-    process.platform === "win32" ? "pnpm.cmd" : "pnpm",
-    ["--filter", "@workspace/db", "run", "push"],
-    {
-      cwd: root,
-      env: process.env,
-      encoding: "utf8",
-      shell: process.platform === "win32",
-    },
-  );
-  if (result.status !== 0) {
-    logger.error(
-      {
-        status: result.status,
-        stderr: result.stderr?.slice(0, 2000),
-        stdout: result.stdout?.slice(0, 2000),
-      },
-      "[ensure-db] drizzle push failed",
-    );
-    return false;
-  }
-  logger.info("[ensure-db] drizzle push completed");
-  return true;
 }
 
 async function seedDefaults(): Promise<void> {
@@ -62,21 +27,17 @@ async function seedDefaults(): Promise<void> {
 }
 
 /**
- * Fresh Neon/Render deploys often ship before anyone runs `pnpm db push`
- * locally. Without the `users` table every gameplay route 500s while
- * `/healthz` still looks fine. Run push once at boot when the table is
- * missing, then seed the season epoch so exchange/rank timers render.
+ * Boot-time DB sanity check. Schema is created via `pnpm --filter @workspace/db
+ * run push` (locally or CI) — NOT during Render build, because production
+ * NODE_ENV skips devDependencies (drizzle-kit) and pnpm is unavailable at
+ * runtime in the Node start container.
  */
 export async function ensureDatabaseReady(): Promise<void> {
   if (!(await usersTableReady())) {
-    if (!runDrizzlePush()) {
-      logger.error("[ensure-db] database schema still missing — API routes will fail until drizzle push succeeds");
-      return;
-    }
-    if (!(await usersTableReady())) {
-      logger.error("[ensure-db] users table still missing after drizzle push");
-      return;
-    }
+    logger.error(
+      "[ensure-db] users table missing — run `pnpm --filter @workspace/db run push` against DATABASE_URL",
+    );
+    return;
   }
   await seedDefaults();
 }
