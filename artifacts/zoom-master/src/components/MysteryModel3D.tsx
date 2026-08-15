@@ -169,6 +169,7 @@ export function ObjectMesh3D({
 
     let frameId = 0;
     let paintT = 0;
+    const smoothProgressRef = { current: progress };
     const clayDark = new THREE.Color("#6a6a6a");
     const clayLight = new THREE.Color("#c8c8c8");
     const painted = new THREE.Color();
@@ -180,40 +181,62 @@ export function ObjectMesh3D({
       const list = partsRef.current;
       const n = Math.max(list.length, 1);
 
+      const targetP = st.revealed ? 1 : Math.min(1, Math.max(0, st.progress));
+      smoothProgressRef.current += (targetP - smoothProgressRef.current) * 0.11;
+      const assembly = smoothProgressRef.current;
+
       if (st.revealed) paintT = Math.min(1, paintT + 0.042);
       else paintT = 0;
+
+      const scaledParts = assembly * n;
+      const partsDone = Math.floor(scaledParts);
+      const activePartFrac = scaledParts - partsDone;
 
       group.children.forEach((child, i) => {
         const mesh = child as THREE.Mesh;
         const part = mesh.userData["part"] as MeshPart;
         const dir = mesh.userData["dir"] as THREE.Vector3;
         const mat = mesh.material as THREE.MeshStandardMaterial;
-        const stagger = (i / n) * 0.18;
-        const lock = st.revealed ? 1 : Math.min(1, Math.max(0, (st.progress - stagger) / 0.82));
-        mesh.visible = true;
 
-        const scatter = (1 - lock) * 1.15;
+        let lock = 0;
+        if (st.revealed) {
+          lock = 1;
+        } else if (i < partsDone) {
+          lock = 1;
+        } else if (i === partsDone) {
+          lock = activePartFrac;
+        }
+
+        mesh.visible = lock > 0.008;
+        if (!mesh.visible) return;
+
+        const eased = lock * lock * (3 - 2 * lock);
+        const scatter = (1 - eased) * 2.2;
         mesh.position.set(
           part.x + dir.x * scatter,
-          part.y + dir.y * scatter * 0.7,
+          part.y + dir.y * scatter * 0.75 + (1 - eased) * 0.35,
           part.z + dir.z * scatter,
         );
         mesh.rotation.set(
-          (part.rx ?? 0) + (1 - lock) * dir.y * 0.6,
-          (part.ry ?? 0) + (1 - lock) * dir.x * 0.8,
-          part.rz ?? 0,
+          (part.rx ?? 0) + (1 - eased) * dir.y * 0.85,
+          (part.ry ?? 0) + (1 - eased) * dir.x * 1.05,
+          (part.rz ?? 0) + (1 - eased) * dir.z * 0.4,
         );
+        const clayBlend = Math.min(1, eased * 1.15);
+        mesh.scale.setScalar(0.35 + clayBlend * 0.65);
 
         painted.set(resolveColor(part.color, st.primaryColor, st.accentColor));
-        mixed.copy(lock < 0.62 ? clayDark : clayLight).lerp(painted, paintT);
+        mixed.copy(clayDark).lerp(clayLight, clayBlend);
+        if (paintT > 0) mixed.lerp(painted, paintT);
         mat.color.copy(mixed);
         mat.emissive.copy(painted);
-        mat.emissiveIntensity = Math.sin(paintT * Math.PI) * (opaqueBackground ? 0.72 : 0.55);
+        const snapGlow = lock > 0.92 && lock < 1 && !st.revealed ? 0.35 : 0;
+        mat.emissiveIntensity = Math.sin(paintT * Math.PI) * (opaqueBackground ? 0.72 : 0.55) + snapGlow;
         mat.wireframe = false;
-        mat.transparent = false;
-        mat.opacity = 1;
-        mat.metalness = paintT > 0.5 ? (part.metal ?? (opaqueBackground ? 0.42 : 0.35)) : 0.08;
-        mat.roughness = paintT > 0.5 ? (part.rough ?? (opaqueBackground ? 0.38 : 0.45)) : 0.82;
+        mat.transparent = clayBlend < 0.98 && !st.revealed;
+        mat.opacity = st.revealed ? 1 : 0.55 + clayBlend * 0.45;
+        mat.metalness = paintT > 0.5 ? (part.metal ?? (opaqueBackground ? 0.42 : 0.35)) : 0.06 + clayBlend * 0.12;
+        mat.roughness = paintT > 0.5 ? (part.rough ?? (opaqueBackground ? 0.38 : 0.45)) : 0.88 - clayBlend * 0.2;
       });
 
       if (autoSpin && !dragging) group.rotation.y += 0.008;

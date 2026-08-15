@@ -32,6 +32,7 @@ export function PlanetCanvas({
 }: PlanetCanvasProps) {
   const { t } = useT();
   const containerRef = useRef<HTMLDivElement>(null);
+  const planetWrapRef = useRef<HTMLDivElement>(null);
   const fragmentLayerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(280);
   const sizeRef = useRef(280);
@@ -83,18 +84,27 @@ export function PlanetCanvas({
     if (delta <= 0 || forgePhase !== "idle") return;
 
     const layer = fragmentLayerRef.current;
+    const wrap = planetWrapRef.current;
     if (!layer || sizeRef.current <= 0) return;
+
+    wrap?.classList.remove("forge-tap-pulse");
+    void wrap?.offsetWidth;
+    wrap?.classList.add("forge-tap-pulse");
+
     const half = sizeRef.current / 2;
-    const dotSize = Math.max(5, sizeRef.current * 0.022);
-    for (let i = 0; i < 2; i++) {
+    const clayColors = ["#9a9a9a", "#bdbdbd", "#d4d4d4", "#888888", "#e0e0e0"];
+    const count = 4 + Math.min(4, Math.floor(delta));
+    for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const dist = 0.4 + Math.random() * 0.45;
+      const dist = 0.52 + Math.random() * 0.42;
       const fx = Math.cos(angle) * dist * half;
       const fy = Math.sin(angle) * dist * half;
       const dot = document.createElement("div");
-      dot.className = "lab-fragment";
+      dot.className = i === 0 ? "lab-fragment lab-fragment--lead" : "lab-fragment";
       const id = `f-${fragIdRef.current++}`;
       dot.dataset["fid"] = id;
+      const clay = clayColors[i % clayColors.length] ?? "#b0b0b0";
+      const dotSize = Math.max(5, sizeRef.current * (0.016 + Math.random() * 0.024));
       const s = dot.style;
       s.position = "absolute";
       s.left = "50%";
@@ -102,18 +112,21 @@ export function PlanetCanvas({
       s.width = `${dotSize}px`;
       s.height = `${dotSize}px`;
       s.borderRadius = "50%";
-      s.background = displayAccent;
-      s.boxShadow = `0 0 10px ${displayAccent}, 0 0 22px ${displayAccent}88`;
+      s.background = revealed ? displayAccent : clay;
+      s.boxShadow = revealed
+        ? `0 0 10px ${displayAccent}, 0 0 22px ${displayAccent}88`
+        : `0 0 10px ${clay}cc, 0 0 18px #ffffff55`;
       s.pointerEvents = "none";
       s.willChange = "transform, opacity";
       s.setProperty("--fx", `${fx}px`);
       s.setProperty("--fy", `${fy}px`);
+      s.setProperty("--delay", `${i * 45}ms`);
       layer.appendChild(dot);
       const cleanup = () => { dot.remove(); };
       dot.addEventListener("animationend", cleanup, { once: true });
-      window.setTimeout(cleanup, 900);
+      window.setTimeout(cleanup, 1200);
     }
-  }, [progress, displayAccent, forgePhase]);
+  }, [progress, displayAccent, forgePhase, revealed]);
 
   const convergeKey = forgePhase === "waiting" ? "w" : "i";
   const convergeParticles = useMemo(() => {
@@ -135,6 +148,7 @@ export function PlanetCanvas({
   return (
     <div ref={containerRef} className="relative w-full h-full flex flex-col items-center justify-center">
       <div
+        ref={planetWrapRef}
         className={`flex items-center justify-center ${showConverge ? "forge-shake" : ""}`}
         style={{
           width: size,
