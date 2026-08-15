@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback, memo } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { confirmTonPurchase, pollTxnUntilFinal } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
+import { LightningBoltIcon } from "./LightningBoltIcon";
 
 const WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 const PRICE_TON = 3;
@@ -120,9 +121,12 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
     setBuying(false);
   };
 
-  const widgetColor = hasAutoTap ? "#ff3355" : "rgba(255,255,255,0.35)";
-  const ringColor = hasAutoTap ? "rgba(255,51,85,0.6)" : "rgba(255,255,255,0.2)";
-  const dim = !hasAutoTap || !canCraft;
+  const ringColor = hasAutoTap
+    ? (holding ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.38)")
+    : "rgba(255,255,255,0.22)";
+  const dim = !canCraft;
+  const boltGlow = hasAutoTap ? (holding ? 1 : 0.75) : 0.35;
+  const boltOpacity = hasAutoTap ? 1 : 0.72;
 
   return (
     <>
@@ -165,15 +169,12 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
           height: 52,
           borderRadius: "50%",
           background: holding
-            ? "radial-gradient(circle, rgba(255,51,85,0.35), rgba(255,51,85,0.08))"
+            ? "radial-gradient(circle, rgba(200,220,255,0.28), rgba(120,150,200,0.08))"
             : "radial-gradient(circle, rgba(20,28,48,0.92), rgba(6,8,16,0.88))",
           border: `1.5px solid ${ringColor}`,
           boxShadow: holding
-            ? `0 0 24px ${widgetColor}, inset 0 0 12px rgba(255,51,85,0.25)`
+            ? "0 0 24px rgba(200,220,255,0.45), inset 0 0 12px rgba(255,255,255,0.12)"
             : `0 0 12px ${ringColor}, inset 0 0 6px rgba(255,255,255,0.04)`,
-          color: widgetColor,
-          fontSize: 22,
-          fontWeight: 900,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -182,33 +183,14 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
           userSelect: "none",
           WebkitUserSelect: "none",
           WebkitTouchCallout: "none",
-          opacity: dim ? 0.7 : 1,
+          opacity: dim ? 0.55 : 1,
           transition: "opacity 0.2s, box-shadow 0.15s",
           zIndex: 40,
         }}
         data-testid="button-auto-tap"
         aria-label={hasAutoTap ? t("autoTap.holdAria") : t("autoTap.buyAria")}
       >
-        {hasAutoTap ? (
-          <svg width={26} height={26} viewBox="0 0 10 16" shapeRendering="crispEdges" style={{ filter: `drop-shadow(0 0 6px ${widgetColor})` }}>
-            <rect x="5" y="0" width="4" height="1" fill={widgetColor} />
-            <rect x="4" y="1" width="4" height="1" fill={widgetColor} />
-            <rect x="3" y="2" width="4" height="1" fill={widgetColor} />
-            <rect x="2" y="3" width="5" height="1" fill={widgetColor} />
-            <rect x="1" y="4" width="6" height="1" fill={widgetColor} />
-            <rect x="0" y="5" width="7" height="1" fill={widgetColor} />
-            <rect x="3" y="6" width="5" height="1" fill={widgetColor} />
-            <rect x="3" y="7" width="4" height="1" fill={widgetColor} />
-            <rect x="3" y="8" width="4" height="1" fill={widgetColor} />
-            <rect x="2" y="9" width="4" height="1" fill={widgetColor} />
-            <rect x="1" y="10" width="4" height="1" fill={widgetColor} />
-            <rect x="0" y="11" width="4" height="1" fill={widgetColor} />
-            <rect x="1" y="12" width="3" height="1" fill={widgetColor} />
-            <rect x="2" y="13" width="2" height="1" fill={widgetColor} />
-            <rect x="2" y="14" width="2" height="1" fill={widgetColor} />
-            <rect x="3" y="15" width="1" height="1" fill={widgetColor} />
-          </svg>
-        ) : "🔒"}
+        <LightningBoltIcon size={28} glow={boltGlow} opacity={boltOpacity} />
       </button>
 
       {showBuy && (
@@ -229,36 +211,19 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
             onClick={(e) => e.stopPropagation()}
             style={{
               background: "linear-gradient(135deg, rgba(20,28,48,0.98), rgba(6,8,16,0.98))",
-              border: "1.5px solid rgba(255,51,85,0.4)",
+              border: "1.5px solid rgba(255,255,255,0.18)",
               borderRadius: 20,
               padding: 24,
               maxWidth: 340,
               width: "100%",
-              boxShadow: "0 0 48px rgba(255,51,85,0.3)",
+              boxShadow: "0 0 48px rgba(0, 8, 20, 0.55)",
               textAlign: "center",
             }}
           >
-            <div style={{ fontSize: 48, marginBottom: 8, lineHeight: 1 }}>
-              <svg width={48} height={48} viewBox="0 0 10 16" shapeRendering="crispEdges" style={{ filter: "drop-shadow(0 0 10px #ff3355dd)" }}>
-                <rect x="5" y="0" width="4" height="1" fill="#ff3355" />
-                <rect x="4" y="1" width="4" height="1" fill="#ff3355" />
-                <rect x="3" y="2" width="4" height="1" fill="#ff3355" />
-                <rect x="2" y="3" width="5" height="1" fill="#ff3355" />
-                <rect x="1" y="4" width="6" height="1" fill="#ff3355" />
-                <rect x="0" y="5" width="7" height="1" fill="#ff6677" />
-                <rect x="3" y="6" width="5" height="1" fill="#ff3355" />
-                <rect x="3" y="7" width="4" height="1" fill="#ff3355" />
-                <rect x="3" y="8" width="4" height="1" fill="#ff3355" />
-                <rect x="2" y="9" width="4" height="1" fill="#ff3355" />
-                <rect x="1" y="10" width="4" height="1" fill="#ff3355" />
-                <rect x="0" y="11" width="4" height="1" fill="#ff3355" />
-                <rect x="1" y="12" width="3" height="1" fill="#ff6677" />
-                <rect x="2" y="13" width="2" height="1" fill="#ff3355" />
-                <rect x="2" y="14" width="2" height="1" fill="#ff3355" />
-                <rect x="3" y="15" width="1" height="1" fill="#ff3355" />
-              </svg>
+            <div style={{ marginBottom: 8, lineHeight: 1, display: "flex", justifyContent: "center" }}>
+              <LightningBoltIcon size={52} glow={0.9} />
             </div>
-            <div className="font-black text-lg tracking-wider" style={{ color: "#ff3355", marginBottom: 4 }}>
+            <div className="font-black text-lg tracking-wider" style={{ color: "#E8ECF4", marginBottom: 4 }}>
               {t("autoTap.title")}
             </div>
             <div className="text-xs" style={{ color: "rgba(255,255,255,0.6)", marginBottom: 18, lineHeight: 1.5 }}>
@@ -268,17 +233,17 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
               {PRICE_TON} GRAM
             </div>
             {message && (
-              <div className="text-xs" style={{ color: "#ff3355", marginBottom: 12 }}>{message}</div>
+              <div className="text-xs" style={{ color: "rgba(200,220,255,0.85)", marginBottom: 12 }}>{message}</div>
             )}
             <button
               onClick={handleBuy}
               disabled={buying}
               className="w-full py-3 rounded-xl font-black text-sm tracking-wider active:scale-95"
               style={{
-                background: buying ? "rgba(255,51,85,0.3)" : "linear-gradient(135deg, #ff3355, #0088ff)",
-                color: "#060810",
-                border: "none",
-                boxShadow: "0 4px 16px rgba(0,136,255,0.4)",
+                background: buying ? "rgba(255,255,255,0.12)" : "hsl(210 22% 90%)",
+                color: "hsl(222 28% 10%)",
+                border: "1px solid rgba(255,255,255,0.18)",
+                boxShadow: "0 4px 16px rgba(0, 8, 20, 0.35)",
                 marginBottom: 8,
                 opacity: buying ? 0.6 : 1,
               }}

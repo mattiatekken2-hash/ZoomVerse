@@ -75,7 +75,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
           <h2 className="font-black text-lg tracking-tight flex items-center gap-2">
             <TrophyIcon size={26} /> Season {currentSeason}
           </h2>
-          <span className="text-xs font-bold px-3 py-1 rounded-full border" style={{ borderColor: "rgba(255,51,85,0.15)", color: "rgba(255,51,85,0.6)" }}>
+          <span className="text-xs font-bold px-3 py-1 rounded-full border" style={{ borderColor: "rgba(158,197,232,0.18)", color: "#9EC5E8" }}>
             In progress
           </span>
         </div>
@@ -90,8 +90,8 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
               className="h-full rounded-full"
               style={{
                 width: `${seasonProgressPercent}%`,
-                background: "linear-gradient(90deg, #c471ed, #ff3355, #ffd700)",
-                boxShadow: "0 0 10px rgba(255,51,85,0.6)",
+                background: "linear-gradient(90deg, #7a9ec8, #9EC5E8, #C9D6E8)",
+                boxShadow: "0 0 10px rgba(158,197,232,0.45)",
                 transition: "width 1s linear",
               }}
             />
@@ -106,15 +106,15 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                   <div
                     className="w-6 h-6 rounded-full flex items-center justify-center font-black text-xs border"
                     style={{
-                      background: isActive ? "linear-gradient(135deg, #ff3355, #4facfe)" : isDone ? "rgba(255,51,85,0.15)" : "rgba(255,255,255,0.05)",
-                      borderColor: isActive ? "#ff3355" : isDone ? "rgba(255,51,85,0.3)" : "rgba(255,255,255,0.08)",
-                      color: isActive ? "#060810" : isDone ? "#ff3355" : "rgba(255,255,255,0.2)",
-                      boxShadow: isActive ? "0 0 8px rgba(255,51,85,0.6)" : "none",
+                      background: isActive ? "hsl(210 22% 90%)" : isDone ? "rgba(158,197,232,0.15)" : "rgba(255,255,255,0.05)",
+                      borderColor: isActive ? "rgba(255,255,255,0.35)" : isDone ? "rgba(158,197,232,0.28)" : "rgba(255,255,255,0.08)",
+                      color: isActive ? "hsl(222 28% 10%)" : isDone ? "#9EC5E8" : "rgba(255,255,255,0.2)",
+                      boxShadow: isActive ? "0 0 8px rgba(200,220,255,0.35)" : "none",
                     }}
                   >
                     {isDone ? "✓" : sNum}
                   </div>
-                  <div className="font-bold" style={{ color: isActive ? "#ff3355" : "rgba(255,255,255,0.2)", fontSize: 8 }}>
+                  <div className="font-bold" style={{ color: isActive ? "#E8ECF4" : "rgba(255,255,255,0.2)", fontSize: 8 }}>
                     S{sNum}
                   </div>
                 </div>
@@ -145,7 +145,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
               <div className="flex items-center gap-2 mb-2">
                 <span className="font-black text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>{t("rank.myProfile")}</span>
                 {profile.createdAt && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(255,51,85,0.08)", color: "rgba(255,51,85,0.6)", border: "1px solid rgba(255,51,85,0.15)" }}>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(158,197,232,0.08)", color: "rgba(232,236,244,0.75)", border: "1px solid rgba(158,197,232,0.15)" }}>
                     {t("rank.joined", { date: new Date(profile.createdAt).toLocaleDateString("it-IT") })}
                   </span>
                 )}
@@ -178,14 +178,14 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
         <div className="px-4 mb-3">
           <div
             className="rounded-2xl border p-3"
-            style={{ borderColor: "rgba(255,51,85,0.16)", background: "rgba(255,51,85,0.035)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}
+            style={{ borderColor: "rgba(158,197,232,0.16)", background: "rgba(158,197,232,0.035)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full" style={{ background: "#ff3355", boxShadow: "0 0 6px #ff3355" }} />
-                <span className="font-black text-sm neon-text tracking-wide">LIVE SEASON RANK</span>
+                <div className="w-2 h-2 rounded-full" style={{ background: "#9EC5E8", boxShadow: "0 0 6px rgba(158,197,232,0.75)" }} />
+                <span className="font-black text-sm tracking-wide" style={{ color: "#E8ECF4" }}>LIVE SEASON RANK</span>
               </div>
-              <span className="text-[10px] font-bold uppercase" style={{ color: "rgba(255,51,85,0.45)" }}>wallet sync</span>
+              <span className="text-[10px] font-bold uppercase" style={{ color: "rgba(255,255,255,0.35)" }}>wallet sync</span>
             </div>
             <div className="flex flex-col gap-1.5">
               {loadingLb && leaderboard.length === 0 && (
@@ -202,11 +202,11 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                     key={entry.telegramId}
                     className="rounded-xl border flex items-center gap-3 px-3 py-2 transition-all"
                     style={{
-                      borderColor: isUser ? "rgba(255,51,85,0.28)" : "rgba(255,255,255,0.05)",
-                      background: isUser ? "rgba(255,51,85,0.08)" : "rgba(255,255,255,0.02)",
+                      borderColor: isUser ? "rgba(158,197,232,0.28)" : "rgba(255,255,255,0.05)",
+                      background: isUser ? "rgba(158,197,232,0.08)" : "rgba(255,255,255,0.02)",
                     }}
                   >
-                    <div className="font-black text-sm w-7 text-center flex-shrink-0" style={{ color: isUser ? "#ff3355" : "rgba(255,255,255,0.28)" }}>
+                    <div className="font-black text-sm w-7 text-center flex-shrink-0" style={{ color: isUser ? "#E8ECF4" : "rgba(255,255,255,0.28)" }}>
                       {medal ?? `#${entry.rank}`}
                     </div>
                     {entry.photoUrl ? (
@@ -226,11 +226,11 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                         {entry.firstName.charAt(0).toUpperCase()}
                       </div>
                     )}
-                    <div className={isUser ? "flex-1 font-black text-sm neon-text" : "flex-1 font-bold text-sm"} style={{ color: isUser ? undefined : "rgba(255,255,255,0.58)" }}>
+                    <div className={isUser ? "flex-1 font-black text-sm" : "flex-1 font-bold text-sm"} style={{ color: isUser ? "#E8ECF4" : "rgba(255,255,255,0.58)" }}>
                       {entry.firstName}
                       {isUser && <span className="text-xs opacity-40 ml-1">(you)</span>}
                     </div>
-                    <div className="text-xs font-black tabular-nums" style={{ color: isUser ? "#ff3355" : "rgba(255,255,255,0.42)" }}>
+                    <div className="text-xs font-black tabular-nums" style={{ color: isUser ? "#9EC5E8" : "rgba(255,255,255,0.42)" }}>
                       {formatZoom(entry.zoomBalance)} $ZOOM
                     </div>
                   </div>
@@ -239,11 +239,11 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
               {telegramId && leaderboard.length > 0 && !leaderboard.some(e => e.telegramId === telegramId) && (
                 <div
                   className="rounded-xl border flex items-center gap-3 px-3 py-2 mt-1"
-                  style={{ borderColor: "rgba(255,51,85,0.15)", background: "rgba(255,51,85,0.04)" }}
+                  style={{ borderColor: "rgba(158,197,232,0.15)", background: "rgba(158,197,232,0.04)" }}
                 >
-                  <div className="font-black text-sm w-7 text-center flex-shrink-0" style={{ color: "rgba(255,51,85,0.5)" }}>—</div>
-                  <div className="flex-1 font-black text-sm neon-text opacity-60">YOU</div>
-                  <div className="text-xs font-black tabular-nums" style={{ color: "rgba(255,51,85,0.5)" }}>
+                  <div className="font-black text-sm w-7 text-center flex-shrink-0" style={{ color: "rgba(232,236,244,0.5)" }}>—</div>
+                  <div className="flex-1 font-black text-sm opacity-60" style={{ color: "#E8ECF4" }}>YOU</div>
+                  <div className="text-xs font-black tabular-nums" style={{ color: "rgba(158,197,232,0.65)" }}>
                     {formatZoom(balance)} $ZOOM
                   </div>
                 </div>
@@ -274,7 +274,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                 className="feed-item rounded-xl px-3 py-2 border flex items-center gap-2"
                 style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.02)" }}
               >
-                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#ff3355", boxShadow: "0 0 4px #ff3355" }} />
+                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#9EC5E8", boxShadow: "0 0 4px rgba(158,197,232,0.65)" }} />
                 <div className="flex-1 text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>{ev.text}</div>
                 <div className="text-xs flex-shrink-0" style={{ color: "rgba(255,255,255,0.2)" }}>{timeAgo(ev.timestamp)}</div>
               </div>

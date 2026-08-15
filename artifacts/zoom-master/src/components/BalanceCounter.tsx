@@ -88,7 +88,7 @@ export function BalanceCounter({ balance, activeRate, onClick }: Props) {
       <span
         style={{
           fontSize: 12,
-          filter: isProducing ? "drop-shadow(0 0 4px rgba(255,51,85,0.8))" : "none",
+          filter: isProducing ? "drop-shadow(0 0 4px rgba(200,220,255,0.55))" : "none",
           transition: "filter 0.4s ease",
         }}
       >
@@ -98,10 +98,10 @@ export function BalanceCounter({ balance, activeRate, onClick }: Props) {
         ref={textRef}
         style={{
           fontSize: 12,
-          color: "#ff3355",
+          color: "#E8ECF4",
           fontVariantNumeric: "tabular-nums",
           letterSpacing: "-0.02em",
-          textShadow: isProducing ? "0 0 10px rgba(255, 51, 85, 0.6)" : "0 0 4px rgba(255, 51, 85, 0.3)",
+          textShadow: isProducing ? "0 0 10px rgba(200, 220, 255, 0.45)" : "0 0 4px rgba(255, 255, 255, 0.12)",
           transition: "text-shadow 0.4s ease",
         }}
       >

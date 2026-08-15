@@ -1,16 +1,13 @@
 import { useMemo, useEffect, useState } from "react";
 import { Lock } from "lucide-react";
+import { GramWalletPanel, GramWalletIcon, type TonWalletProps } from "../components/TonWalletWidget";
 
-interface WalletPageProps {
-  /** GRAM (TON) earned balance */
-  tonBalance: number;
+interface WalletPageProps extends Omit<TonWalletProps, "onOpenWalletTab" | "labVariant"> {
   /** ZOOM Season 2 balance */
   balance: number;
   stardustBalance: number;
   redStarBalance: number;
   nftStarBalance: number;
-  /** Used to seed a stable per-user Vault amount */
-  telegramId: string | null;
 }
 
 /** Seed a stable pseudo-random between min..max from a string. */
@@ -46,11 +43,21 @@ async function fetchTonPrice(): Promise<number | null> {
 
 export function WalletPage({
   tonBalance,
+  depositBalance,
+  telegramId,
+  whiteCollectionUnlocked,
+  earthCollectionUnlocked,
+  blackCollectionUnlocked,
+  supernovaCollectionUnlocked,
+  sunCount,
+  whitePlanets,
+  earthPlanets,
+  blackPlanets,
+  supernovaPlanets,
   balance,
   stardustBalance,
   redStarBalance,
   nftStarBalance,
-  telegramId,
 }: WalletPageProps) {
   const [tonPrice, setTonPrice] = useState<number | null>(null);
   const [priceLoading, setPriceLoading] = useState(true);
@@ -98,6 +105,36 @@ export function WalletPage({
         </div>
       </div>
 
+      {/* ── DEPOSIT / WITHDRAW (first — visible immediately) ── */}
+      <div>
+        <div
+          style={{
+            fontSize: 9,
+            fontWeight: 800,
+            letterSpacing: "0.22em",
+            textTransform: "uppercase",
+            color: "rgba(255,255,255,0.28)",
+            marginBottom: 8,
+          }}
+        >
+          Deposit &amp; Withdraw
+        </div>
+        <GramWalletPanel
+          tonBalance={tonBalance}
+          depositBalance={depositBalance}
+          telegramId={telegramId}
+          whiteCollectionUnlocked={whiteCollectionUnlocked}
+          earthCollectionUnlocked={earthCollectionUnlocked}
+          blackCollectionUnlocked={blackCollectionUnlocked}
+          supernovaCollectionUnlocked={supernovaCollectionUnlocked}
+          sunCount={sunCount}
+          whitePlanets={whitePlanets}
+          earthPlanets={earthPlanets}
+          blackPlanets={blackPlanets}
+          supernovaPlanets={supernovaPlanets}
+        />
+      </div>
+
       {/* ── MAIN BALANCE: GRAM ── */}
       <div
         className="rounded-2xl"
@@ -134,20 +171,13 @@ export function WalletPage({
                 fontVariantNumeric: "tabular-nums",
                 textShadow: "0 0 24px rgba(0,242,180,0.50)",
                 letterSpacing: "-0.02em",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
               }}
             >
+              <GramWalletIcon size={34} />
               {tonBalance.toFixed(4)}
-            </div>
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 800,
-                letterSpacing: "0.14em",
-                color: "rgba(0,242,180,0.55)",
-                marginTop: 2,
-              }}
-            >
-              GRAM
             </div>
           </div>
 

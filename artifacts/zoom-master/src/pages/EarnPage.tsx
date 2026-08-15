@@ -372,12 +372,12 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         {/* ── Weekly REDSTAR bonus ── */}
         <div
           className="rounded-2xl p-4 border"
-          style={{ borderColor: "rgba(220,20,60,0.25)", background: "rgba(220,20,60,0.06)" }}
+          style={{ borderColor: "rgba(158,197,232,0.18)", background: "rgba(158,197,232,0.04)" }}
         >
           <div className="flex items-center gap-3 mb-3">
-            <div style={{ fontSize: 28, lineHeight: 1 }}>★</div>
+            <div style={{ fontSize: 28, lineHeight: 1, color: "#9EC5E8" }}>★</div>
             <div className="flex-1">
-              <div className="font-black text-base tracking-wide" style={{ color: "#ff2244" }}>
+              <div className="font-black text-base tracking-wide" style={{ color: "#E8ECF4" }}>
                 Watch &amp; Earn
               </div>
               <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.45)" }}>
@@ -387,9 +387,9 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             <div
               className="flex flex-col items-center justify-center rounded-xl px-3 py-1.5 border font-black tabular-nums"
               style={{
-                background: claimedToday ? "rgba(0,230,118,0.08)" : "rgba(220,20,60,0.10)",
-                borderColor: claimedToday ? "rgba(0,230,118,0.3)" : "rgba(220,20,60,0.35)",
-                color: claimedToday ? "#00e676" : "#ff2244",
+                background: claimedToday ? "rgba(0,230,118,0.08)" : "rgba(158,197,232,0.10)",
+                borderColor: claimedToday ? "rgba(0,230,118,0.3)" : "rgba(158,197,232,0.28)",
+                color: claimedToday ? "#00e676" : "#E8ECF4",
                 minWidth: 52,
               }}
             >
@@ -409,11 +409,11 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                   className="flex-1 h-2 rounded-full"
                   style={{
                     background: done
-                      ? "linear-gradient(90deg, #ff2244, #ff6b6b)"
+                      ? "linear-gradient(90deg, #7a9ec8, #9EC5E8)"
                       : active
-                        ? "linear-gradient(90deg, #ffd700, #ff2244)"
+                        ? "linear-gradient(90deg, #C9D6E8, #9EC5E8)"
                         : "rgba(255,255,255,0.08)",
-                    boxShadow: active ? "0 0 8px rgba(255,34,68,0.45)" : "none",
+                    boxShadow: active ? "0 0 8px rgba(158,197,232,0.45)" : "none",
                   }}
                 />
               );
@@ -428,12 +428,12 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
               background: claimedToday
                 ? "rgba(255,255,255,0.04)"
                 : claimingRedStar
-                  ? "rgba(220,20,60,0.15)"
-                  : "linear-gradient(135deg, #ff2244, #ff6b6b)",
-              color: claimedToday ? "rgba(255,255,255,0.25)" : claimingRedStar ? "#ff2244" : "#fff",
-              borderColor: claimedToday ? "rgba(255,255,255,0.06)" : "transparent",
+                  ? "rgba(158,197,232,0.12)"
+                  : "hsl(210 22% 90%)",
+              color: claimedToday ? "rgba(255,255,255,0.25)" : claimingRedStar ? "#9EC5E8" : "hsl(222 28% 10%)",
+              borderColor: claimedToday ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.18)",
               cursor: claimedToday || claimingRedStar || !telegramId ? "not-allowed" : "pointer",
-              boxShadow: claimedToday || claimingRedStar ? "none" : "0 0 20px rgba(255,34,68,0.35)",
+              boxShadow: claimedToday || claimingRedStar ? "none" : "0 4px 16px rgba(0, 8, 20, 0.35)",
             }}
           >
             {claimedToday
@@ -460,7 +460,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         {/* 7-Day Streak Daily Reward */}
         <div
           className="rounded-2xl p-4 border"
-          style={{ borderColor: "rgba(255,51,85,0.15)", background: "rgba(255,51,85,0.04)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}
+          style={{ borderColor: "rgba(158,197,232,0.15)", background: "rgba(158,197,232,0.04)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}
         >
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -493,22 +493,22 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                     borderColor: isClaimed
                       ? "rgba(0,230,118,0.4)"
                       : isNext
-                        ? "#ff3355"
+                        ? "#9EC5E8"
                         : isMega
                           ? "rgba(255,215,0,0.25)"
                           : "rgba(255,255,255,0.06)",
                     background: isClaimed
                       ? "rgba(0,230,118,0.1)"
                       : isNext
-                        ? "rgba(255,51,85,0.12)"
+                        ? "rgba(158,197,232,0.12)"
                         : isMega
                           ? "rgba(255,215,0,0.05)"
                           : "rgba(255,255,255,0.02)",
-                    boxShadow: isNext ? "0 0 12px rgba(255,51,85,0.5)" : "none",
+                    boxShadow: isNext ? "0 0 12px rgba(158,197,232,0.45)" : "none",
                   }}
                   data-testid={`day-${dayNum}`}
                 >
-                  <div className="text-[8px] font-bold tracking-wider" style={{ color: isClaimed ? "#00e676" : isNext ? "#ff3355" : isMega ? "#ffd700" : "rgba(255,255,255,0.4)" }}>
+                  <div className="text-[8px] font-bold tracking-wider" style={{ color: isClaimed ? "#00e676" : isNext ? "#9EC5E8" : isMega ? "#C9D6E8" : "rgba(255,255,255,0.4)" }}>
                     D{dayNum}
                   </div>
                   <div className="text-[10px] font-black leading-tight mt-0.5" style={{ color: isClaimed ? "#00e676" : isNext ? "#fff" : isMega ? "#ffd700" : "rgba(255,255,255,0.55)" }}>
@@ -525,10 +525,10 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             onClick={handleClaimStreak}
             disabled={!canClaim || claiming}
             style={{
-              background: canClaim && !claiming ? "linear-gradient(135deg, #ff3355, #4facfe)" : "rgba(255,255,255,0.04)",
-              color: canClaim && !claiming ? "#060810" : "rgba(255,255,255,0.2)",
-              boxShadow: canClaim && !claiming ? "0 0 24px rgba(255,51,85,0.4)" : "none",
-              borderColor: canClaim && !claiming ? "transparent" : "rgba(255,255,255,0.06)",
+              background: canClaim && !claiming ? "hsl(210 22% 90%)" : "rgba(255,255,255,0.04)",
+              color: canClaim && !claiming ? "hsl(222 28% 10%)" : "rgba(255,255,255,0.2)",
+              boxShadow: canClaim && !claiming ? "0 4px 16px rgba(0, 8, 20, 0.35)" : "none",
+              borderColor: canClaim && !claiming ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.06)",
               cursor: canClaim && !claiming ? "pointer" : "not-allowed",
             }}
             data-testid="button-claim-daily"
@@ -674,8 +674,8 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                   className="h-full rounded-full"
                   style={{
                     width: `${Math.min((referralCount / nextMilestone.count) * 100, 100)}%`,
-                    background: "linear-gradient(90deg, #ff3355, #4facfe)",
-                    boxShadow: "0 0 8px rgba(255,51,85,0.6)",
+                    background: "linear-gradient(90deg, #7a9ec8, #9EC5E8)",
+                    boxShadow: "0 0 8px rgba(158,197,232,0.45)",
                   }}
                 />
               </div>
@@ -691,13 +691,13 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                   key={m.count}
                   className="flex items-center justify-between py-2 px-3 rounded-xl border"
                   style={{
-                    borderColor: claimed ? "rgba(0,230,118,0.2)" : isCurrent ? "rgba(255,51,85,0.15)" : "rgba(255,255,255,0.05)",
+                    borderColor: claimed ? "rgba(0,230,118,0.2)" : isCurrent ? "rgba(158,197,232,0.18)" : "rgba(255,255,255,0.05)",
                     background: claimed ? "rgba(0,230,118,0.05)" : "transparent",
                   }}
                 >
                   <div className="flex items-center gap-2">
                     <div style={{ fontSize: 14 }}>{claimed ? "✅" : reached ? "🎉" : isCurrent ? "⏳" : "○"}</div>
-                    <span className="text-xs font-bold" style={{ color: claimed ? "#00e676" : reached ? "#ffd700" : isCurrent ? "#ff3355" : "rgba(255,255,255,0.3)" }}>
+                    <span className="text-xs font-bold" style={{ color: claimed ? "#00e676" : reached ? "#C9D6E8" : isCurrent ? "#9EC5E8" : "rgba(255,255,255,0.3)" }}>
                       {t("earn.invites", { n: m.count })}
                     </span>
                   </div>
@@ -877,19 +877,19 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                         ? "rgba(0,230,118,0.22)"
                         : isLocked
                           ? "rgba(255,255,255,0.08)"
-                          : "rgba(255,51,85,0.2)",
+                          : "rgba(158,197,232,0.2)",
                       background: task.claimed
                         ? "rgba(0,230,118,0.05)"
                         : isLocked
                           ? "rgba(255,255,255,0.02)"
-                          : "rgba(255,51,85,0.04)",
+                          : "rgba(158,197,232,0.04)",
                     }}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex flex-col min-w-0 pr-2">
                         <span
                           className="text-xs font-black tracking-wide truncate"
-                          style={{ color: task.claimed ? "#00e676" : isLocked ? "rgba(255,255,255,0.45)" : "#ff3355" }}
+                          style={{ color: task.claimed ? "#00e676" : isLocked ? "rgba(255,255,255,0.45)" : "#E8ECF4" }}
                         >
                           {title}
                         </span>
@@ -931,9 +931,9 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                           onClick={() => handleOpenSponsor(task.id, task.url)}
                           className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase transition-all active:scale-95"
                           style={{
-                            background: "linear-gradient(135deg, #ff3355, #4facfe)",
-                            color: "#060810",
-                            border: "1px solid transparent",
+                            background: "hsl(210 22% 90%)",
+                            color: "hsl(222 28% 10%)",
+                            border: "1px solid rgba(255,255,255,0.18)",
                             minWidth: 88,
                           }}
                           data-testid={`button-task-${task.id}-open`}

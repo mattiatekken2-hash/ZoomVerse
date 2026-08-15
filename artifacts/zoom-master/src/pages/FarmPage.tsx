@@ -13,8 +13,7 @@ import { getModelById } from "@workspace/game-models";
 import { DailyComboBox } from "../components/DailyComboBox";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
-import { getPlanetDisplayColors } from "../hooks/useGameState";
-import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, REPAIR_STARDUST_COST, FARM_UPGRADE_COSTS, FARM_UPGRADE_TIERS } from "../hooks/useGameState";
+import { getPlanetDisplayColors, PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, REPAIR_STARDUST_COST, FARM_UPGRADE_COSTS, FARM_UPGRADE_TIERS } from "../hooks/useGameState";
 import { WalletPopup } from "../components/WalletPopup";
 import { useT } from "../i18n/LanguageContext";
 import { PlanetRenameModal } from "../components/PlanetRenameModal";
@@ -26,6 +25,168 @@ import { EconomyWidget } from "../components/EconomyWidget";
 import { StakingWidget } from "../components/StakingWidget";
 import { PixelAvatar } from "../components/PixelAvatar";
 
+/** 3D model preview size on Farm grid cards (planets stay smaller). */
+const FARM_MODEL_THUMB = 92;
+const FARM_ORB_THUMB = 60;
+
+/** Lightweight CSS stand-in while the detail modal owns the WebGL context. */
+function ModelPreviewPlaceholder({
+  size,
+  color,
+  accent,
+}: {
+  size: number;
+  color: string;
+  accent: string;
+}) {
+  return (
+    <div style={{ width: size, height: size, position: "relative", flexShrink: 0 }}>
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          width: size * 0.92,
+          height: size * 0.92,
+          transform: "translate(-50%, -50%)",
+          borderRadius: "50%",
+          background: `radial-gradient(circle at 50% 42%, ${accent}55 0%, ${color}30 45%, transparent 72%)`,
+          pointerEvents: "none",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          transform: "translate(-50%, -50%) rotate(18deg)",
+          width: size * 0.38,
+          height: size * 0.48,
+          borderRadius: 6,
+          background: `linear-gradient(145deg, ${color}aa, ${accent}77)`,
+          boxShadow: `0 0 14px ${accent}44`,
+        }}
+      />
+    </div>
+  );
+}
+
+/** Max live WebGL previews in the Farm grid (browser context limit). */
+const FARM_THUMB_GL_MAX = 12;
+let farmThumbGlActive = 0;
+const farmThumbWaiters: Array<() => void> = [];
+
+function acquireFarmThumbGl(): boolean {
+  if (farmThumbGlActive >= FARM_THUMB_GL_MAX) return false;
+  farmThumbGlActive++;
+  return true;
+}
+
+function releaseFarmThumbGl() {
+  farmThumbGlActive = Math.max(0, farmThumbGlActive - 1);
+  while (farmThumbGlActive < FARM_THUMB_GL_MAX && farmThumbWaiters.length > 0) {
+    const before = farmThumbGlActive;
+    farmThumbWaiters.shift()?.();
+    if (farmThumbGlActive > before) break;
+  }
+}
+
+function FarmModelThumb({
+  planetId,
+  shapeId,
+  primaryColor,
+  accentColor,
+  size,
+  suspendGl,
+}: {
+  planetId: string;
+  shapeId: string;
+  primaryColor: string;
+  accentColor: string;
+  size: number;
+  suspendGl: boolean;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const hasSlotRef = useRef(false);
+  const [inView, setInView] = useState(false);
+  const [hasSlot, setHasSlot] = useState(false);
+  const [glGen, setGlGen] = useState(0);
+
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => setInView(entry?.isIntersecting ?? false),
+      { rootMargin: "140px 0px", threshold: 0.08 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  const releaseSlot = useCallback(() => {
+    if (!hasSlotRef.current) return;
+    hasSlotRef.current = false;
+    setHasSlot(false);
+    releaseFarmThumbGl();
+  }, []);
+
+  useEffect(() => {
+    if (suspendGl || !inView) {
+      releaseSlot();
+      return;
+    }
+    if (hasSlotRef.current) return;
+
+    if (acquireFarmThumbGl()) {
+      hasSlotRef.current = true;
+      setHasSlot(true);
+      return () => releaseSlot();
+    }
+
+    let cancelled = false;
+    const retry = () => {
+      if (cancelled || hasSlotRef.current || suspendGl || !inView) return;
+      if (acquireFarmThumbGl()) {
+        hasSlotRef.current = true;
+        setHasSlot(true);
+      }
+    };
+    farmThumbWaiters.push(retry);
+
+    return () => {
+      cancelled = true;
+      const idx = farmThumbWaiters.indexOf(retry);
+      if (idx >= 0) farmThumbWaiters.splice(idx, 1);
+      releaseSlot();
+    };
+  }, [suspendGl, inView, releaseSlot]);
+
+  const handleGlError = useCallback(() => {
+    releaseSlot();
+    setGlGen((g) => g + 1);
+  }, [releaseSlot]);
+
+  const showGl = !suspendGl && inView && hasSlot;
+
+  return (
+    <div ref={rootRef} style={{ width: size, height: size, flexShrink: 0 }}>
+      {showGl ? (
+        <ObjectThumb
+          key={`${planetId}-${glGen}`}
+          shapeId={shapeId}
+          primaryColor={primaryColor}
+          accentColor={accentColor}
+          size={size}
+          performanceMode
+          onGlFailed={handleGlError}
+          onGlContextLost={handleGlError}
+        />
+      ) : (
+        <ModelPreviewPlaceholder size={size} color={primaryColor} accent={accentColor} />
+      )}
+    </div>
+  );
+}
 
 interface FarmPageProps {
   planets: Planet[];
@@ -176,21 +337,18 @@ function CollectibleItemInventory({
               }}
               data-testid={`item-card-${item.id}`}
             >
-              {/* Emoji orb with bokeh glow */}
+              {/* Emoji orb with bokeh glow — no dark box */}
               <div className="relative flex justify-center">
                 <div
-                  className="w-14 h-14 rounded-xl flex items-center justify-center text-3xl planet-float-anim"
-                  style={{
-                    background: `radial-gradient(circle at 40% 35%, ${rarityColor}44 0%, ${rarityColor}18 70%, rgba(6,8,16,0.8) 100%)`,
-                    boxShadow: `0 0 18px ${bokeh}`,
-                  }}
+                  className="bokeh-blob absolute"
+                  style={{ width: 56, height: 56, top: 0, left: "50%", transform: "translateX(-50%)", background: bokeh, opacity: 0.85 }}
+                />
+                <div
+                  className="relative w-14 h-14 flex items-center justify-center text-3xl planet-float-anim"
+                  style={{ filter: `drop-shadow(0 0 14px ${bokeh})` }}
                 >
                   {cfg.emoji}
                 </div>
-                <div
-                  className="bokeh-blob absolute"
-                  style={{ width: 40, height: 40, top: 4, left: "50%", transform: "translateX(-50%)", background: bokeh }}
-                />
                 {listed && (
                   <div
                     className="absolute -top-1 -right-1 text-[8px] font-black px-1.5 py-0.5 rounded-full"
@@ -924,10 +1082,12 @@ export function FarmPage({
             const dur = planet.durability ?? 100;
             const displayColors = getPlanetDisplayColors(planet);
             const cardColor = displayColors.color;
+            const isModel = !!planet.modelId;
+            const farmHours = planet.farmDurationHours ?? 1;
             return (
               <div
                 key={planet.id}
-                className={`slot-enter rounded-xl border ${isPlatinumNft ? "nft-card-glow" : isPerfectFloat ? "perfect-card-glow" : ""}`}
+                className={`slot-enter rounded-xl border ${isPlatinumNft ? "nft-card-glow" : isPerfectFloat ? "perfect-card-glow" : ""} ${isModel ? (RARITY_CLASS[planet.name] ?? "") : ""}`}
                 style={{
                   borderColor: isPlatinumNft
                     ? "rgba(220,232,255,0.10)"
@@ -953,13 +1113,13 @@ export function FarmPage({
                 data-testid={`planet-card-${planet.id}`}
               >
                 {/* ── Compact vertical 2-col card ── */}
-                <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 6px", position: "relative" }}>
-                  {/* Bokeh glow blob behind the planet */}
+                <div style={{ display: "flex", justifyContent: "center", padding: isModel ? "14px 0 8px" : "12px 0 6px", position: "relative" }}>
+                  {/* Bokeh glow blob behind the planet / model */}
                   <div
                     style={{
                       position: "absolute",
-                      width: 90,
-                      height: 90,
+                      width: isModel ? 118 : 90,
+                      height: isModel ? 118 : 90,
                       borderRadius: "50%",
                       background: `radial-gradient(circle, ${cardColor}55 0%, transparent 70%)`,
                       filter: "blur(20px)",
@@ -980,18 +1140,17 @@ export function FarmPage({
                       transition: "filter 0.3s",
                     }}
                   >
-                    {/* Animations disabled on small cards — at 60px the sphere
-                        rotation and ring spin are invisible but keep the GPU
-                        busy. animate={true} only in the full-size detail view. */}
                     {planet.modelId ? (
-                      <ObjectThumb
+                      <FarmModelThumb
+                        planetId={planet.id}
                         shapeId={planet.shapeId || getModelById(planet.modelId)?.shapeId || "minifig"}
                         primaryColor={displayColors.color}
                         accentColor={displayColors.accentHex}
-                        size={60}
+                        size={FARM_MODEL_THUMB}
+                        suspendGl={!!detailPlanet}
                       />
                     ) : (
-                      <PlanetOrb planet={planet} size={60} animate={false} displayFloat={planetFloat} />
+                      <PlanetOrb planet={planet} size={FARM_ORB_THUMB} animate={false} displayFloat={planetFloat} />
                     )}
                     {isPlatinumNft && (
                       <span
@@ -1004,8 +1163,8 @@ export function FarmPage({
                     )}
                     {expired && (
                       <div
-                        className="absolute inset-0 rounded-full pointer-events-none"
-                        style={{ background: "radial-gradient(circle, rgba(0,0,0,0.55) 30%, rgba(0,0,0,0.85) 100%)" }}
+                        className="absolute inset-0 pointer-events-none"
+                        style={{ background: "rgba(0,0,0,0.38)" }}
                       />
                     )}
                     {active && (
@@ -1031,6 +1190,14 @@ export function FarmPage({
 
                 {/* Name + rarity — centered compact */}
                 <div style={{ padding: "0 8px 3px", textAlign: "center" }}>
+                  {isModel && cfg && (
+                    <div
+                      className={`inline-block text-[8px] font-black tracking-[0.14em] px-2 py-0.5 rounded-full border mb-1 ${RARITY_CLASS[planet.name] ?? ""}`}
+                      style={{ borderColor: `${cardColor}55`, background: `${cardColor}14` }}
+                    >
+                      {cfg.label.toUpperCase()}
+                    </div>
+                  )}
                   <div
                     className={`font-black truncate ${isPlatinumNft ? "nft-platinum-text" : RARITY_CLASS[planet.name]}`}
                     style={{ fontSize: 11, opacity: expired ? 0.65 : 1, ...(isPlatinumNft ? {} : { background: "transparent" }) }}
@@ -1039,12 +1206,15 @@ export function FarmPage({
                     {getPlanetDisplayName(planet)}
                   </div>
                   {/* Rate / status */}
-                  <div style={{ textAlign: "center", marginTop: 3, fontSize: 9, fontWeight: 700, color: active ? planet.color : expired ? "rgba(255,82,82,0.75)" : "rgba(255,255,255,0.4)" }}>
+                  <div style={{ textAlign: "center", marginTop: 3, fontSize: 9, fontWeight: 700, color: active ? cardColor : expired ? "rgba(255,82,82,0.75)" : "rgba(255,255,255,0.4)" }}>
                     {active
                       ? (planet.name === "MUSHROOM" ? "+5 ★/24h" : `+${planet.rate.toLocaleString()}/hr`)
                       : expired ? "EXPIRED"
                       : isListed ? `${planet.marketPrice?.toLocaleString()} GRAM`
                       : `+${planet.rate.toLocaleString()}/hr`}
+                    {farmHours > 1 && (
+                      <span style={{ marginLeft: 4, color: "rgba(255,215,0,0.75)" }}>· ⏱ {farmHours}h</span>
+                    )}
                   </div>
                 </div>{/* end name/info section */}
 
@@ -1055,8 +1225,8 @@ export function FarmPage({
                   </div>
                 )}
 
-                {/* Durability bar — shown when below 100% */}
-                {dur < 100 && (() => {
+                {/* Durability bar — models always; planets when below 100% */}
+                {(isModel || dur < 100) && (() => {
                   const durColor = dur > 50 ? "#00e676" : dur > 20 ? "#ffb347" : "#ff5252";
                   return (
                     <div style={{ padding: "3px 10px 1px" }}>
@@ -1102,9 +1272,9 @@ export function FarmPage({
                     <button
                       style={{
                         width: "100%", borderRadius: 10, padding: "7px 0", fontSize: 10, fontWeight: 900,
-                        border: `1px solid ${planet.color}66`,
-                        background: `linear-gradient(135deg, ${planet.color}33, ${planet.color}1a)`,
-                        color: planet.color, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
+                        border: `1px solid ${cardColor}66`,
+                        background: `linear-gradient(135deg, ${cardColor}33, ${cardColor}1a)`,
+                        color: cardColor, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
                       }}
                       onClick={(e) => { e.stopPropagation(); handleStartOrReactivate(); }}
                       data-testid={`btn-reactivate-${planet.id}`}

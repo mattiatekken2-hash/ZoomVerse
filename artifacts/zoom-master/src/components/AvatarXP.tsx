@@ -14,12 +14,12 @@ export function AvatarXP({ totalTaps, photoUrl, name }: Props) {
   const info = useMemo(() => levelFromTaps(totalTaps), [totalTaps]);
   const isMax = info.isMax;
 
-  const accent = isMax ? "#ffd24a" : "#ff3355";
-  const accentSoft = isMax ? "rgba(255,210,74," : "rgba(255,51,85,";
+  const accent = isMax ? "#ffd24a" : "#E8ECF4";
+  const accentSoft = isMax ? "rgba(255,210,74," : "rgba(232,236,244,";
 
   const showPhoto = !!photoUrl && !imgFailed;
   const initial = (name?.trim()?.[0] || "★").toUpperCase();
-  const fallbackBg = isMax ? "#2a2000" : "#1a0008";
+  const fallbackBg = isMax ? "#2a2000" : "#141a28";
 
   const AVATAR = 34;
   const BAR_W = 5;
@@ -48,7 +48,7 @@ export function AvatarXP({ totalTaps, photoUrl, name }: Props) {
             height: `${Math.round(info.progress * 100)}%`,
             background: isMax
               ? "linear-gradient(180deg, #fff2c2, #ffd24a)"
-              : "linear-gradient(180deg, #ff8899, #ff3355)",
+              : "linear-gradient(180deg, #eef4ff, #9eb8e0)",
             boxShadow: `0 0 8px ${accentSoft}0.7)`,
             transition: "height 0.35s ease",
           }}
@@ -67,7 +67,7 @@ export function AvatarXP({ totalTaps, photoUrl, name }: Props) {
             boxShadow: isMax
               ? "0 0 14px rgba(255,210,74,0.6), inset 0 0 6px rgba(255,210,74,0.25)"
               : `0 0 8px ${accentSoft}0.3)`,
-            background: "rgba(255,51,85,0.06)",
+            background: "rgba(255,255,255,0.04)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -109,7 +109,7 @@ export function AvatarXP({ totalTaps, photoUrl, name }: Props) {
             borderRadius: 7,
             background: isMax
               ? "linear-gradient(135deg, #ffe28a, #ffb347)"
-              : "linear-gradient(135deg, #1a0008, #0a0004)",
+              : "linear-gradient(135deg, #1a2230, #0d1220)",
             border: `1px solid ${accentSoft}${isMax ? "0.9" : "0.6"})`,
             boxShadow: `0 0 6px ${accentSoft}0.5)`,
             display: "flex",
@@ -122,7 +122,7 @@ export function AvatarXP({ totalTaps, photoUrl, name }: Props) {
               fontSize: 9,
               fontWeight: 900,
               lineHeight: 1,
-              color: isMax ? "#3a2400" : accent,
+              color: isMax ? "#3a2400" : "#E8ECF4",
               fontVariantNumeric: "tabular-nums",
               letterSpacing: "-0.02em",
             }}

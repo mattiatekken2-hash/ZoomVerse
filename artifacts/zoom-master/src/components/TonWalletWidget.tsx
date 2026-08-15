@@ -5,7 +5,7 @@
  *   - Deposit via TonConnect (min 0.25 TON)
  *   - Withdrawal (min 10 TON) — moved here from PixelAvatar
  */
-import { memo, useState, useEffect, useRef, useCallback } from "react";
+import { memo, useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import {
   fetchStakingStatus,
@@ -61,8 +61,8 @@ interface Props {
   supernovaPlanets?: Planet[];
   /** Slightly larger pill for the Lab viewport header. */
   labVariant?: boolean;
-  /** Icon + balance only (Telegram wallet chip). */
-  iconOnly?: boolean;
+  /** Tap header pill → open Wallet tab instead of inline modal. */
+  onOpenWalletTab?: () => void;
 }
 
 function formatTon(v: number, decimals = 3): string {
@@ -87,11 +87,10 @@ function sumAccrued(s: StakingStatusResponse): number {
   );
 }
 
-/* ─── MODAL ─────────────────────────────────────────────────────────────── */
-function WalletModal({
-  onClose,
+/* ─── WALLET PANEL (embedded in Wallet tab) ─────────────────────────────── */
+export function GramWalletPanel({
   tonBalance,
-  depositBalance,
+  depositBalance: _depositBalance,
   telegramId,
   whiteCollectionUnlocked,
   earthCollectionUnlocked,
@@ -102,7 +101,7 @@ function WalletModal({
   blackPlanets,
   supernovaCollectionUnlocked = false,
   supernovaPlanets = [],
-}: Props & { onClose: () => void }) {
+}: Props) {
   const [tonConnectUI] = useTonConnectUI();
   const walletAddress   = useTonAddress();
   const canWithdraw = whiteCollectionUnlocked || (earthCollectionUnlocked && sunCount > 0) || blackCollectionUnlocked || supernovaCollectionUnlocked;
@@ -120,21 +119,6 @@ function WalletModal({
     for (const p of supernovaPlanets) pending += getWhitePlanetPendingTon(p, now);
     return Math.max(0, tonBalance) + pending;
   })();
-  const safeDeposit = Math.max(0, depositBalance);
-
-  // ── staking accrued (poll once on open) ────────────────────────────────
-  const [accrued, setAccrued] = useState(0);
-  useEffect(() => {
-    if (!telegramId) return;
-    let cancelled = false;
-    fetchStakingStatus(telegramId).then((s) => {
-      if (!cancelled && s) setAccrued(sumAccrued(s));
-    });
-    return () => { cancelled = true; };
-  }, [telegramId]);
-
-  // Total at the top = EARNED (settled + pending) + DEPOSIT + staking accrued.
-  const totalTon = liveEarnedTon + safeDeposit + Math.max(0, accrued);
 
   // ── withdraw state ──────────────────────────────────────────────────────
   const [wAmount,        setWAmount]    = useState("");
@@ -256,161 +240,122 @@ function WalletModal({
   };
 
   const NEON = "#0fd9ff";
+  const inputStyle: CSSProperties = {
+    width: "100%",
+    minHeight: 46,
+    padding: "12px 14px",
+    borderRadius: 12,
+    background: "rgba(0,0,0,0.45)",
+    border: `1px solid ${NEON}33`,
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: 800,
+    fontVariantNumeric: "tabular-nums",
+    outline: "none",
+    boxSizing: "border-box",
+  };
+  const btnPrimary: CSSProperties = {
+    width: "100%",
+    minHeight: 46,
+    padding: "12px 16px",
+    borderRadius: 12,
+    fontWeight: 900,
+    fontSize: 13,
+    letterSpacing: 0.8,
+    cursor: "pointer",
+    border: "none",
+    whiteSpace: "nowrap",
+  };
 
   return (
     <div
-      role="dialog" aria-modal="true"
-      onClick={onClose}
       style={{
-        position: "fixed", inset: 0, zIndex: 1000,
-        display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+        borderRadius: 16,
+        background: "linear-gradient(160deg, rgba(6,14,32,0.98), rgba(2,8,18,0.99))",
+        border: `1px solid ${NEON}44`,
+        boxShadow: `0 0 24px ${NEON}12`,
+        overflow: "hidden",
+        width: "100%",
       }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "min(420px,100%)", borderRadius: 20,
-          background: "linear-gradient(160deg, rgba(6,14,32,0.98), rgba(2,8,18,0.99))",
-          border: `1px solid ${NEON}44`,
-          boxShadow: `0 0 40px ${NEON}18`,
-          overflow: "hidden",
-        }}
-      >
-        {/* header */}
-        <div style={{ padding: "16px 18px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ color: `${NEON}bb`, fontSize: 10, fontWeight: 900, letterSpacing: 1.4 }}>GRAM WALLET</div>
-            <div style={{ color: "#fff", fontSize: 22, fontWeight: 900, letterSpacing: 0.6, textShadow: `0 0 12px ${NEON}55` }}>
-              {formatTon(totalTon)} <span style={{ fontSize: 13, color: NEON, opacity: 0.8 }}>GRAM</span>
-            </div>
-            {accrued > 0 && (
-              <div style={{ fontSize: 10, color: `${NEON}88`, marginTop: 2 }}>
-                +{formatTon(accrued)} accruing from staking
-              </div>
-            )}
-          </div>
-          <button onClick={onClose} style={{
-            width: 30, height: 30, borderRadius: 8,
-            background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)",
-            color: "rgba(220,235,255,0.8)", cursor: "pointer", fontSize: 14,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>✕</button>
-        </div>
-
-        {/* balance rows — earned (withdrawable) + deposit (shop-only) */}
-        <div style={{ margin: "12px 18px 0", padding: "10px 14px", borderRadius: 12,
-          background: `${NEON}08`, border: `1px solid ${NEON}22`,
-          display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ color: "rgba(180,220,240,0.6)", fontSize: 11, fontWeight: 700 }}>Earned GRAM</span>
-            <span style={{ color: "#fff", fontSize: 15, fontWeight: 900, fontVariantNumeric: "tabular-nums" }}>
-              {formatTon(liveEarnedTon)} GRAM
-            </span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ color: "rgba(180,220,240,0.45)", fontSize: 10, fontWeight: 700 }}>Deposit (Shop only)</span>
-            <span style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
-              {formatTon(safeDeposit)} GRAM
-            </span>
-          </div>
-        </div>
-
-        {/* tabs */}
-        <div style={{ display: "flex", margin: "14px 18px 0", gap: 6 }}>
+      <div style={{ display: "flex", margin: "12px 14px 0", gap: 8 }}>
           {(["deposit", "withdraw"] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)} style={{
-              flex: 1, padding: "8px 0", borderRadius: 10, fontWeight: 900, fontSize: 11,
+              flex: 1, padding: "10px 0", borderRadius: 10, fontWeight: 900, fontSize: 12,
               letterSpacing: 0.8, textTransform: "uppercase", cursor: "pointer",
               border: tab === t ? `1px solid ${NEON}66` : "1px solid rgba(255,255,255,0.1)",
               background: tab === t ? `${NEON}18` : "rgba(255,255,255,0.03)",
               color: tab === t ? NEON : "rgba(180,220,240,0.55)",
               transition: "all 0.15s",
+              minHeight: 40,
             }}>{t === "deposit" ? "Deposit" : "Withdraw"}</button>
           ))}
         </div>
 
-        {/* content */}
-        <div style={{ padding: "14px 18px 20px" }}>
+      <div style={{ padding: "12px 14px 16px" }}>
           {tab === "deposit" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <div style={{ fontSize: 11, color: "rgba(180,220,240,0.55)" }}>
+              <div style={{ fontSize: 12, lineHeight: 1.45, color: "rgba(180,220,240,0.6)" }}>
                 Send GRAM to your in-game balance via TonConnect. Min {DEPOSIT_MIN_TON} GRAM.
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <input
-                  type="number" inputMode="decimal"
-                  value={dAmount}
-                  onChange={(e) => setDAmount(e.target.value)}
-                  placeholder={`Min ${DEPOSIT_MIN_TON}`}
-                  disabled={depositing}
-                  style={{
-                    flex: 1, padding: "10px 12px", borderRadius: 10,
-                    background: "rgba(0,0,0,0.4)", border: `1px solid ${NEON}33`,
-                    color: "#fff", fontSize: 15, fontWeight: 800,
-                    fontVariantNumeric: "tabular-nums", outline: "none",
-                  }}
-                />
-                <button
-                  onClick={() => void handleDeposit()}
-                  disabled={depositing}
-                  style={{
-                    padding: "10px 16px", borderRadius: 10, fontWeight: 900, fontSize: 12,
-                    letterSpacing: 0.8, cursor: depositing ? "not-allowed" : "pointer",
-                    background: `linear-gradient(135deg, ${NEON}, #00aaff)`,
-                    border: "none", color: "#001a2e",
-                    opacity: depositing ? 0.6 : 1, whiteSpace: "nowrap",
-                  }}
-                >{depositing ? "..." : !walletAddress ? "Connect" : "DEPOSIT"}</button>
-              </div>
-              {dErr && <div style={{ fontSize: 11, color: "#ff7a7a", padding: "7px 11px", borderRadius: 8, background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.25)" }}>{dErr}</div>}
-              {dMsg && <div style={{ fontSize: 11, color: NEON, padding: "7px 11px", borderRadius: 8, background: `${NEON}0d`, border: `1px solid ${NEON}33` }}>{dMsg}</div>}
+              <input
+                type="number"
+                inputMode="decimal"
+                value={dAmount}
+                onChange={(e) => setDAmount(e.target.value)}
+                placeholder={`Min ${DEPOSIT_MIN_TON} GRAM`}
+                disabled={depositing}
+                style={inputStyle}
+              />
+              <button
+                onClick={() => void handleDeposit()}
+                disabled={depositing}
+                style={{
+                  ...btnPrimary,
+                  background: `linear-gradient(135deg, ${NEON}, #00aaff)`,
+                  color: "#001a2e",
+                  opacity: depositing ? 0.6 : 1,
+                  cursor: depositing ? "not-allowed" : "pointer",
+                }}
+              >{depositing ? "..." : !walletAddress ? "Connect Wallet" : "DEPOSIT GRAM"}</button>
+              {dErr && <div style={{ fontSize: 11, color: "#ff7a7a", padding: "8px 12px", borderRadius: 8, background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.25)" }}>{dErr}</div>}
+              {dMsg && <div style={{ fontSize: 11, color: NEON, padding: "8px 12px", borderRadius: 8, background: `${NEON}0d`, border: `1px solid ${NEON}33` }}>{dMsg}</div>}
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {canWithdraw ? (
                 <>
-                  <div style={{ fontSize: 11, color: "rgba(180,220,240,0.55)" }}>
+                  <div style={{ fontSize: 12, lineHeight: 1.45, color: "rgba(180,220,240,0.6)" }}>
                     Min {WITHDRAWAL_MIN_TON} GRAM · Fee {WITHDRAWAL_FEE_TON} GRAM
                   </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <input
-                      type="number" inputMode="decimal"
-                      placeholder={`Amount (min ${WITHDRAWAL_MIN_TON})`}
-                      value={wAmount}
-                      onChange={(e) => setWAmount(e.target.value)}
-                      disabled={submitting}
-                      style={{
-                        flex: 1, padding: "10px 12px", borderRadius: 10,
-                        background: "rgba(0,0,0,0.4)", border: "1px solid rgba(0,242,254,0.25)",
-                        color: "#fff", fontSize: 14, fontWeight: 800,
-                        fontVariantNumeric: "tabular-nums", outline: "none",
-                      }}
-                    />
-                    <button
-                      onClick={() => void handleWithdraw()}
-                      disabled={submitting}
-                      style={{
-                        padding: "10px 14px", borderRadius: 10, fontWeight: 900, fontSize: 11,
-                        letterSpacing: 0.6, cursor: submitting ? "not-allowed" : "pointer",
-                        background: "linear-gradient(135deg, #c471ed, #7b2fff)",
-                        border: "none", color: "#fff",
-                        opacity: submitting ? 0.6 : 1, whiteSpace: "nowrap",
-                      }}
-                    >{submitting ? "..." : "WITHDRAW"}</button>
-                  </div>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder={`Amount (min ${WITHDRAWAL_MIN_TON})`}
+                    value={wAmount}
+                    onChange={(e) => setWAmount(e.target.value)}
+                    disabled={submitting}
+                    style={inputStyle}
+                  />
                   <input
                     type="text"
-                    placeholder="Your GRAM wallet address (UQ... / EQ...)"
+                    placeholder="GRAM wallet address (UQ... / EQ...)"
                     value={wWallet}
                     onChange={(e) => setWWallet(e.target.value)}
                     disabled={submitting}
-                    style={{
-                      width: "100%", padding: "10px 12px", borderRadius: 10,
-                      background: "rgba(0,0,0,0.4)", border: "1px solid rgba(0,242,254,0.25)",
-                      color: "#fff", fontSize: 13, outline: "none",
-                      boxSizing: "border-box",
-                    }}
+                    style={{ ...inputStyle, fontSize: 14, fontWeight: 600 }}
                   />
+                  <button
+                    onClick={() => void handleWithdraw()}
+                    disabled={submitting}
+                    style={{
+                      ...btnPrimary,
+                      background: "linear-gradient(135deg, #c471ed, #7b2fff)",
+                      color: "#fff",
+                      opacity: submitting ? 0.6 : 1,
+                      cursor: submitting ? "not-allowed" : "pointer",
+                    }}
+                  >{submitting ? "..." : "WITHDRAW GRAM"}</button>
                   {wErr && <div style={{ fontSize: 11, color: "#ff7a7a", padding: "7px 11px", borderRadius: 8, background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.25)" }}>{wErr}</div>}
                   {wMsg && <div style={{ fontSize: 11, color: "#c471ed", padding: "7px 11px", borderRadius: 8, background: "rgba(192,96,255,0.08)", border: "1px solid rgba(192,96,255,0.3)" }}>{wMsg}</div>}
                   {withdrawals.length > 0 && (
@@ -445,7 +390,6 @@ function WalletModal({
               )}
             </div>
           )}
-        </div>
       </div>
     </div>
   );
@@ -453,8 +397,10 @@ function WalletModal({
 
 /* ─── HEADER PILL BUTTON ─────────────────────────────────────────────────── */
 function TonWalletWidgetBase(props: Props) {
-  const { tonBalance, telegramId, whitePlanets, earthPlanets, blackPlanets, supernovaPlanets = [], labVariant = false, iconOnly = false } = props;
-  const [open, setOpen] = useState(false);
+  const {
+    tonBalance, telegramId, whitePlanets, earthPlanets, blackPlanets,
+    supernovaPlanets = [], labVariant = false, onOpenWalletTab,
+  } = props;
   const [accrued, setAccrued] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -489,39 +435,29 @@ function TonWalletWidgetBase(props: Props) {
   const total = Math.max(0, tonBalance) + pendingTon + Math.max(0, accrued);
 
   return (
-    <>
-      <button
-        type="button"
-        aria-label="GRAM Wallet"
-        onClick={() => setOpen(true)}
-        className="glass-neon flex items-center gap-1.5 rounded-full font-black cursor-pointer active:scale-95"
-        style={{
-          background: "linear-gradient(135deg, rgba(0,30,22,0.85), rgba(0,10,8,0.92))",
-          border: "1px solid rgba(0,242,180,0.45)",
-          boxShadow: "0 0 10px rgba(0,242,180,0.18)",
-          color: "#00f2b4",
-          textShadow: "0 0 6px rgba(0,242,180,0.55)",
-          fontSize: labVariant ? 14 : 12,
-          whiteSpace: "nowrap",
-          padding: iconOnly ? "6px 10px" : labVariant ? "8px 16px" : "4px 8px",
-          gap: iconOnly ? 6 : undefined,
-        }}
-      >
-        <GramWalletIcon size={iconOnly ? 20 : labVariant ? 22 : 18} />
-        <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatTon(total, 2)}</span>
-        {!iconOnly && (
-          <span style={{ fontSize: labVariant ? 11 : 10, letterSpacing: "0.08em", opacity: 0.82 }}>GRAM</span>
-        )}
-      </button>
-
-      {open && (
-        <WalletModal
-          {...props}
-          onClose={() => setOpen(false)}
-        />
-      )}
-    </>
+    <button
+      type="button"
+      aria-label="GRAM Wallet"
+      onClick={() => onOpenWalletTab?.()}
+      className="glass-neon flex items-center gap-1.5 rounded-full font-black cursor-pointer active:scale-95"
+      style={{
+        background: "linear-gradient(135deg, rgba(0,30,22,0.85), rgba(0,10,8,0.92))",
+        border: "1px solid rgba(0,242,180,0.45)",
+        boxShadow: "0 0 10px rgba(0,242,180,0.18)",
+        color: "#00f2b4",
+        textShadow: "0 0 6px rgba(0,242,180,0.55)",
+        fontSize: labVariant ? 14 : 12,
+        whiteSpace: "nowrap",
+        padding: labVariant ? "8px 14px" : "5px 10px",
+        gap: 6,
+      }}
+    >
+      <GramWalletIcon size={labVariant ? 22 : 20} />
+      <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatTon(total, 2)}</span>
+    </button>
   );
 }
+
+export type TonWalletProps = Props;
 
 export const TonWalletWidget = memo(TonWalletWidgetBase);

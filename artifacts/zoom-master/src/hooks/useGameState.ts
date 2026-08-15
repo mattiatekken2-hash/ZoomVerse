@@ -9,6 +9,7 @@ import { getEquipmentTotalRate, getEquipmentReactivationFee, EQUIPMENT_CYCLE_MS 
 export type ZoomModel = ZoomModelApiShape;
 
 import { generateRandomFloat } from "../utils/planetFloat";
+import { getBrowserDevTelegramId, DEV_TG_ID_STORAGE_KEY } from "../utils/telegram";
 import { toast } from "./use-toast";
 
 // Server-authoritative clock: every farming/idle-income time check is computed
@@ -782,27 +783,20 @@ function getStorageKey(telegramId: string | null): string {
   return telegramId ? `${STORAGE_KEY}:${telegramId}` : STORAGE_KEY;
 }
 
-/** Key used to persist a manually-entered Telegram ID for PC/dev access. */
-export const DEV_TG_ID_KEY = "zoom-dev-tg-id";
-
 function getTelegramContext(): { telegramId: string | null; startParam: string | null; firstName: string | null; username: string | null; photoUrl: string | null } {
   try {
     const webApp = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number; first_name?: string; username?: string; photo_url?: string }; start_param?: string }; initData?: string } } }).Telegram?.WebApp;
     const unsafe = webApp?.initDataUnsafe;
     let telegramId: string | null = unsafe?.user?.id ? String(unsafe.user.id) : null;
-    const firstName = unsafe?.user?.first_name ?? null;
-    const username = unsafe?.user?.username ?? null;
-    const photoUrl = unsafe?.user?.photo_url ?? null;
-
-    // PC / browser fallback: if no Telegram WebApp context is present, use a
-    // manually-entered Telegram ID stored in localStorage. This lets users
-    // access their account on desktop without going through Telegram.
     if (!telegramId) {
-      const stored = localStorage.getItem(DEV_TG_ID_KEY);
-      if (stored && /^\d+$/.test(stored.trim())) {
-        telegramId = stored.trim();
+      telegramId = getBrowserDevTelegramId();
+      if (telegramId) {
+        try { localStorage.setItem(DEV_TG_ID_STORAGE_KEY, telegramId); } catch { /**/ }
       }
     }
+    const firstName = unsafe?.user?.first_name ?? (telegramId && !unsafe?.user?.id ? "Dev" : null);
+    const username = unsafe?.user?.username ?? null;
+    const photoUrl = unsafe?.user?.photo_url ?? null;
 
     let startParam: string | null = unsafe?.start_param || null;
 
@@ -2584,6 +2578,23 @@ export function useGameState() {
             stellaPlanets: (updated.stellaPlanets || []).filter(keepStella),
           };
         }
+
+        // Per-collection farm cycle duration — UI reads whitePlanets[0].farmDurationHours.
+        const mergeCollectionFarmDuration = (arr: Planet[], hours: number) => {
+          const h = Math.max(1, Number(hours) || 1);
+          if (h <= 1 || arr.length === 0) return arr;
+          return arr.map((p) =>
+            (p.farmDurationHours ?? 1) >= h ? p : { ...p, farmDurationHours: h },
+          );
+        };
+        updated = {
+          ...updated,
+          whitePlanets: mergeCollectionFarmDuration(updated.whitePlanets || [], Number(grants.whiteFarmDurationHours ?? 1)),
+          earthPlanets: mergeCollectionFarmDuration(updated.earthPlanets || [], Number(grants.earthFarmDurationHours ?? 1)),
+          blackPlanets: mergeCollectionFarmDuration(updated.blackPlanets || [], Number(grants.blackFarmDurationHours ?? 1)),
+          supernovaPlanets: mergeCollectionFarmDuration(updated.supernovaPlanets || [], Number(grants.supernovaFarmDurationHours ?? 1)),
+          stellaPlanets: mergeCollectionFarmDuration(updated.stellaPlanets || [], Number(grants.stellaRossaFarmDurationHours ?? 1)),
+        };
         } // end of `if (grantsOk)` — grants-derived hydration block
 
         // ─── SERVER COLLECTION-PLANET STATE — single source of truth ───
@@ -5603,13 +5614,31 @@ export function useGameState() {
         stella_rossa: /^STELLA\d/,
       };
       const re = prefixMap[collectionType]!;
-      setState((prev) => ({
-        ...prev,
-        tonBalance: typeof result.newTonBalance === "number" ? result.newTonBalance : prev.tonBalance,
-        planets: prev.planets.map((p) =>
-          re.test(p.id) ? { ...p, farmDurationHours: durationHours } : p,
-        ),
-      }));
+      const applyDuration = (planets: Planet[]) =>
+        planets.map((p) => ({ ...p, farmDurationHours: durationHours }));
+      setState((prev) => {
+        const next = {
+          ...prev,
+          tonBalance: typeof result.newTonBalance === "number" ? result.newTonBalance : prev.tonBalance,
+          planets: prev.planets.map((p) =>
+            re.test(p.id) ? { ...p, farmDurationHours: durationHours } : p,
+          ),
+        };
+        switch (collectionType) {
+          case "white":
+            return { ...next, whitePlanets: applyDuration(prev.whitePlanets || []) };
+          case "earth":
+            return { ...next, earthPlanets: applyDuration(prev.earthPlanets || []) };
+          case "black":
+            return { ...next, blackPlanets: applyDuration(prev.blackPlanets || []) };
+          case "supernova":
+            return { ...next, supernovaPlanets: applyDuration(prev.supernovaPlanets || []) };
+          case "stella_rossa":
+            return { ...next, stellaPlanets: applyDuration(prev.stellaPlanets || []) };
+          default:
+            return next;
+        }
+      });
     }
     return result;
   }, [state.telegramId]);

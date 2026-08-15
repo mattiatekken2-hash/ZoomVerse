@@ -36,7 +36,7 @@ function MiniSpark({ points }: { points: EconomyChartPoint[] }) {
   if (!points || points.length < 2) {
     return (
       <svg width={48} height={16} viewBox="0 0 48 16" aria-hidden="true">
-        <line x1={0} y1={8} x2={48} y2={8} stroke="rgba(255,51,85,0.4)" strokeWidth={1} />
+        <line x1={0} y1={8} x2={48} y2={8} stroke="rgba(158,197,232,0.4)" strokeWidth={1} />
       </svg>
     );
   }
@@ -56,7 +56,7 @@ function MiniSpark({ points }: { points: EconomyChartPoint[] }) {
     .join(" ");
   return (
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
-      <path d={path} fill="none" stroke="#ff3355" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <path d={path} fill="none" stroke="#9EC5E8" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -112,8 +112,8 @@ function EconomyWidgetBase({ balance }: EconomyWidgetProps) {
         className="w-full rounded-2xl px-4 py-3 mt-3 flex items-center justify-between gap-3"
         style={{
           background: "linear-gradient(135deg, rgba(0,40,60,0.55) 0%, rgba(0,16,32,0.85) 100%)",
-          border: "1px solid rgba(255,51,85,0.35)",
-          boxShadow: "0 0 18px rgba(255,51,85,0.18), inset 0 0 12px rgba(255,51,85,0.08)",
+          border: "1px solid rgba(158,197,232,0.28)",
+          boxShadow: "0 0 18px rgba(0,8,20,0.28), inset 0 0 12px rgba(158,197,232,0.06)",
           cursor: "pointer",
         }}
       >
@@ -121,7 +121,7 @@ function EconomyWidgetBase({ balance }: EconomyWidgetProps) {
           <div className="flex items-center gap-2">
             <span
               className="text-[10px] font-black tracking-widest"
-              style={{ color: "rgba(255,51,85,0.85)", letterSpacing: 1.2 }}
+              style={{ color: "#E8ECF4", letterSpacing: 1.2 }}
             >
               ECONOMY
             </span>
@@ -141,8 +141,8 @@ function EconomyWidgetBase({ balance }: EconomyWidgetProps) {
             <span
               className="text-base font-black"
               style={{
-                color: "#ff3355",
-                textShadow: "0 0 10px rgba(255,51,85,0.65)",
+                color: "#E8ECF4",
+                textShadow: "0 0 10px rgba(200,220,255,0.35)",
                 fontVariantNumeric: "tabular-nums",
               }}
             >

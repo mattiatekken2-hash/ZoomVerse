@@ -52,6 +52,8 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   // Forge phase state machine: drives the visual sequence after the user
   // hits 100% — flash → 2s dramatic wait → model reveal → claim button.
   const [forgePhase, setForgePhase] = useState<ForgePhase>("idle");
+  const [tapSignal, setTapSignal] = useState(0);
+  const [tapRelaxed, setTapRelaxed] = useState(true);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const claimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -147,7 +149,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     }
   }, [forgePhase, addFloat]);
 
-  const handleCraft = useCallback(() => {
+  const handleCraft = useCallback((opts?: { particles?: boolean; relaxed?: boolean }) => {
     if (!canCraft) return;
     hapticLight();
     const result = onCraft(stardustBalance);
@@ -164,6 +166,10 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         brokenTimerRef.current = null;
       }, 4000);
       return;
+    }
+    if (opts?.particles !== false) {
+      setTapRelaxed(opts?.relaxed !== false);
+      setTapSignal((n) => n + 1);
     }
   }, [canCraft, onCraft, stardustBalance]);
 
@@ -191,13 +197,13 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         hasAutoTap={hasAutoTap}
         canCraft={canCraft}
         telegramId={telegramId}
-        onTap={handleCraft}
+        onTap={() => handleCraft({ relaxed: true })}
       />
 
       <div
         className="relative flex-1"
         style={{ minHeight: 0 }}
-        onClick={canCraft && forgePhase === "idle" ? handleCraft : undefined}
+        onClick={canCraft && forgePhase === "idle" ? () => handleCraft({ relaxed: true }) : undefined}
       >
         <div className="absolute top-3 left-0 right-0 z-30 flex items-start justify-center px-3 pointer-events-none">
           <div
@@ -220,7 +226,9 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         </div>
 
         <PlanetCanvas
-          onPunch={canCraft && forgePhase === "idle" ? handleCraft : undefined}
+          onPunch={canCraft && forgePhase === "idle" ? () => handleCraft({ relaxed: true }) : undefined}
+          tapSignal={tapSignal}
+          tapRelaxed={tapRelaxed}
           progress={taps}
           goal={goal}
           accentColor={dynamicColor}
@@ -386,7 +394,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           {!pendingPlanet && (
             <button
               className="btn-craft"
-              onClick={handleCraft}
+              onClick={() => handleCraft({ relaxed: true })}
               disabled={!canCraft}
               data-testid="button-craft"
               style={{ width: "100%" }}
