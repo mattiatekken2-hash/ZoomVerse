@@ -23,7 +23,24 @@ import { getWhitePlanetPendingTon, type Planet } from "../hooks/useGameState";
 
 const TON_RECEIVER_WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 const POLL_MS = 60_000;
-const TON_LOGO_URL = "/ton-logo.svg";
+const GRAM_LOGO_URL = "/gram-logo.svg";
+
+export function GramWalletIcon({ size = 18 }: { size?: number }) {
+  return (
+    <img
+      src={GRAM_LOGO_URL}
+      alt=""
+      width={size}
+      height={size}
+      draggable={false}
+      style={{
+        display: "block",
+        flexShrink: 0,
+        filter: "drop-shadow(0 0 5px rgba(0,152,234,0.55))",
+      }}
+    />
+  );
+}
 
 interface Props {
   // Earned TON balance (withdrawable). From staking, collection collects,
@@ -41,6 +58,8 @@ interface Props {
   earthPlanets: Planet[];
   blackPlanets: Planet[];
   supernovaPlanets?: Planet[];
+  /** Slightly larger pill for the Lab viewport header. */
+  labVariant?: boolean;
 }
 
 function formatTon(v: number, decimals = 3): string {
@@ -431,7 +450,7 @@ function WalletModal({
 
 /* ─── HEADER PILL BUTTON ─────────────────────────────────────────────────── */
 function TonWalletWidgetBase(props: Props) {
-  const { tonBalance, telegramId, whitePlanets, earthPlanets, blackPlanets, supernovaPlanets = [] } = props;
+  const { tonBalance, telegramId, whitePlanets, earthPlanets, blackPlanets, supernovaPlanets = [], labVariant = false } = props;
   const [open, setOpen] = useState(false);
   const [accrued, setAccrued] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -472,45 +491,21 @@ function TonWalletWidgetBase(props: Props) {
         type="button"
         aria-label="GRAM Wallet"
         onClick={() => setOpen(true)}
-        className="glass-neon flex items-center gap-1 px-2 py-1 rounded-full font-black cursor-pointer active:scale-95"
+        className="glass-neon flex items-center gap-1.5 rounded-full font-black cursor-pointer active:scale-95"
         style={{
           background: "linear-gradient(135deg, rgba(0,30,22,0.85), rgba(0,10,8,0.92))",
           border: "1px solid rgba(0,242,180,0.45)",
           boxShadow: "0 0 10px rgba(0,242,180,0.18)",
           color: "#00f2b4",
           textShadow: "0 0 6px rgba(0,242,180,0.55)",
-          fontSize: 12,
+          fontSize: labVariant ? 14 : 12,
           whiteSpace: "nowrap",
+          padding: labVariant ? "8px 16px" : "4px 8px",
         }}
       >
-        {/* GRAM diamond icon */}
-        <svg width={18} height={18} viewBox="0 0 12 12" shapeRendering="crispEdges" style={{ filter: "drop-shadow(0 0 5px rgba(0,200,255,0.7))" }}>
-          {/* top bar */}
-          <rect x="2" y="1" width="8" height="1" fill="#55ddff" />
-          <rect x="1" y="2" width="2" height="2" fill="#44ccee" />
-          <rect x="3" y="2" width="3" height="2" fill="#aaeeff" />
-          <rect x="6" y="2" width="3" height="2" fill="#aaeeff" />
-          <rect x="9" y="2" width="2" height="2" fill="#44ccee" />
-          {/* main body */}
-          <rect x="0" y="4" width="2" height="1" fill="#33bbdd" />
-          <rect x="2" y="4" width="3" height="1" fill="#88ddff" />
-          <rect x="5" y="4" width="2" height="1" fill="#ffffff" />
-          <rect x="7" y="4" width="3" height="1" fill="#88ddff" />
-          <rect x="10" y="4" width="2" height="1" fill="#33bbdd" />
-          <rect x="1" y="5" width="2" height="2" fill="#22aacc" />
-          <rect x="3" y="5" width="3" height="2" fill="#66ccee" />
-          <rect x="6" y="5" width="3" height="2" fill="#66ccee" />
-          <rect x="9" y="5" width="2" height="2" fill="#22aacc" />
-          <rect x="2" y="7" width="2" height="2" fill="#1199bb" />
-          <rect x="4" y="7" width="4" height="2" fill="#44bbdd" />
-          <rect x="8" y="7" width="2" height="2" fill="#1199bb" />
-          <rect x="3" y="9" width="2" height="1" fill="#0088aa" />
-          <rect x="5" y="9" width="2" height="1" fill="#22aacc" />
-          <rect x="7" y="9" width="2" height="1" fill="#0088aa" />
-          <rect x="4" y="10" width="4" height="1" fill="#006688" />
-          <rect x="5" y="11" width="2" height="1" fill="#004455" />
-        </svg>
+        <GramWalletIcon size={labVariant ? 22 : 18} />
         <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatTon(total, 2)}</span>
+        <span style={{ fontSize: labVariant ? 11 : 10, letterSpacing: "0.08em", opacity: 0.82 }}>GRAM</span>
       </button>
 
       {open && (

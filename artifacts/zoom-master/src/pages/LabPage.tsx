@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { PlanetCanvas, type ForgePhase } from "../components/PlanetCanvas";
 import { AutoTapWidget } from "../components/AutoTapWidget";
+import { TonWalletWidget } from "../components/TonWalletWidget";
 
 import type { Planet, PlanetType, EquipmentDropResult, ZoomModel } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
@@ -22,6 +23,17 @@ interface LabPageProps {
   hasAutoTap: boolean;
   stardustBalance: number;
   telegramId: string | null;
+  tonBalance: number;
+  depositBalance: number;
+  whiteCollectionUnlocked: boolean;
+  earthCollectionUnlocked: boolean;
+  blackCollectionUnlocked: boolean;
+  supernovaCollectionUnlocked: boolean;
+  sunCount: number;
+  whitePlanets: Planet[];
+  earthPlanets: Planet[];
+  blackPlanets: Planet[];
+  supernovaPlanets: Planet[];
   onCraft: (availableStardust?: number) => { completed: boolean; model?: ZoomModel; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType; equipmentDrop?: EquipmentDropResult };
   onClaim: () => void;
   visible?: boolean;
@@ -40,7 +52,7 @@ const RARITY_PAINT: Record<string, string> = {
   LEGEND: "#fff4b0",
 };
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, pendingModel, forgingModel = null, forgeRolling = false, hasAutoTap, stardustBalance, telegramId, onCraft, onClaim, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, pendingModel, forgingModel = null, forgeRolling = false, hasAutoTap, stardustBalance, telegramId, tonBalance, depositBalance, whiteCollectionUnlocked, earthCollectionUnlocked, blackCollectionUnlocked, supernovaCollectionUnlocked, sunCount, whitePlanets, earthPlanets, blackPlanets, supernovaPlanets, onCraft, onClaim, visible = true }: LabPageProps) {
   const { t } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
@@ -225,27 +237,26 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         style={{ minHeight: 0 }}
         onClick={canCraft && forgePhase === "idle" ? handleCraft : undefined}
       >
-        {/* Fixed $ZOOM balance — Lab viewport only */}
+        {/* GRAM wallet — same Telegram-style pill as the app header */}
         <div
-          className="absolute top-3 left-0 right-0 z-30 flex justify-center pointer-events-none"
-          data-testid="lab-zoom-balance"
+          className="absolute top-3 left-0 right-0 z-30 flex justify-center"
+          data-testid="lab-gram-wallet"
         >
-          <div
-            className="px-5 py-2 rounded-full"
-            style={{
-              background: "rgba(0, 0, 0, 0.62)",
-              border: "1px solid rgba(255, 255, 255, 0.14)",
-              backdropFilter: "blur(10px)",
-              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.35)",
-            }}
-          >
-            <span
-              className="font-black text-base tracking-wide"
-              style={{ color: "#ffffff", letterSpacing: "0.06em" }}
-            >
-              {Math.floor(balance).toLocaleString()} $ZOOM
-            </span>
-          </div>
+          <TonWalletWidget
+            tonBalance={tonBalance}
+            depositBalance={depositBalance}
+            telegramId={telegramId}
+            whiteCollectionUnlocked={whiteCollectionUnlocked}
+            earthCollectionUnlocked={earthCollectionUnlocked}
+            blackCollectionUnlocked={blackCollectionUnlocked}
+            supernovaCollectionUnlocked={supernovaCollectionUnlocked}
+            sunCount={sunCount}
+            whitePlanets={whitePlanets}
+            earthPlanets={earthPlanets}
+            blackPlanets={blackPlanets}
+            supernovaPlanets={supernovaPlanets}
+            labVariant
+          />
         </div>
 
         <PlanetCanvas
