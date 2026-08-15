@@ -126,7 +126,7 @@ function spawnForgeParticles(
     const my = fy * (relaxed ? 0.5 : 0.35) + ty * (relaxed ? 0.5 : 0.65);
 
     const isSpark = !relaxed && Math.random() > 0.92;
-    const isChip = !relaxed && !isSpark && Math.random() > 0.55;
+    const isChip = !relaxed && !isSpark && (Math.random() > 0.35);
     const clay = relaxed
       ? (CALM_COLORS[spawned % CALM_COLORS.length] ?? "#b0c8e0")
       : (CLAY_COLORS[spawned % CLAY_COLORS.length] ?? "#b0b0b0");
@@ -150,7 +150,7 @@ function spawnForgeParticles(
     s.top = "50%";
     s.width = isChip ? `${dotSize * 1.25}px` : `${dotSize}px`;
     s.height = isChip ? `${dotSize * 0.65}px` : `${dotSize}px`;
-    s.borderRadius = isChip ? "2px" : "50%";
+    s.borderRadius = isChip ? "1px" : "50%";
     s.background = isSpark ? (SPARK_COLORS[spawned % SPARK_COLORS.length] ?? "#fff") : clay;
     s.pointerEvents = "none";
     s.contain = "strict";

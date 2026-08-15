@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
-import { makeModelInstance, rollModelDefinition, getModelById } from "@workspace/game-models";
+import { getForgeTapGoal, getMeshParts, makeModelInstance, rollModelDefinition, getModelById } from "@workspace/game-models";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import type { CollectibleItem } from "../utils/collectibleConfig";
@@ -3688,15 +3688,18 @@ export function useGameState() {
         return { completed: false };
       }
       forging = makeModelInstance(rollModelDefinition()) as ZoomModel;
+      const forgeShapeId = forging.shapeId || getModelById(forging.modelId)?.shapeId || "minifig";
+      const forgeParts = getMeshParts(forgeShapeId, forging.primaryColor, forging.accentColor);
+      goal = getForgeTapGoal(forgeParts);
       setState((prev) => ({
         ...prev,
         stardustBalance: prev.stardustBalance - config.craftCost,
         forgingModel: forging,
+        goal,
       }));
       if (current.telegramId) {
         void deductCraftStardust(current.telegramId, config.craftCost);
       }
-      goal = 100 + Math.floor(Math.random() * 101);
     }
 
     const newTaps = current.taps + 1;

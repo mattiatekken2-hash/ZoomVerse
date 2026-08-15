@@ -4,7 +4,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
-import { getMeshParts, getShapeGlbUrl, mysteryKitParts, type MaterialProfile, type MeshPart } from "@workspace/game-models";
+import { FORGE_VOXEL_SIZE, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
 
 const DEFAULT_PARTS = mysteryKitParts();
 
@@ -506,6 +506,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
   onGlContextLostRef.current = onGlContextLost;
   const groupRef = useRef<THREE.Group | null>(null);
   const partsRef = useRef<MeshPart[]>([]);
+  const voxelsRef = useRef<VoxelCell[]>([]);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const assemblyRef = useRef(progress);
@@ -520,7 +521,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const camera = cameraRef.current;
       const renderer = rendererRef.current;
       const group = groupRef.current;
-      const list = partsRef.current;
+      const list = voxelsRef.current.length > 0 ? voxelsRef.current : partsRef.current;
       if (!camera || !renderer || !group || list.length === 0) return [];
 
       const n = list.length;
@@ -540,10 +541,16 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
       for (let k = 0; k < indices.length && out.length < maxCount; k++) {
         const idx = indices[k]!;
-        const part = list[idx];
+        const part = list[idx]!;
         if (!part) continue;
 
-        const dir = scatterDir(part.id);
+        const dir = voxelsRef.current.length > 0
+          ? new THREE.Vector3(
+            ((idx * 17) % 10 - 5) * 0.08,
+            0.6 + ((idx * 7) % 5) * 0.05,
+            ((idx * 13) % 10 - 5) * 0.08,
+          )
+          : scatterDir((part as MeshPart).id);
         let lock = 0;
         if (idx < partsDone) {
           continue;
@@ -721,6 +728,35 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     groupRef.current = group;
     partsRef.current = meshParts;
 
+    const forgeVoxels = interactive ? meshPartsToVoxels(meshParts) : [];
+    voxelsRef.current = forgeVoxels;
+    const voxelDummy = new THREE.Object3D();
+    let voxelInst: THREE.InstancedMesh | null = null;
+    if (forgeVoxels.length > 0) {
+      const vGeo = new THREE.BoxGeometry(
+        FORGE_VOXEL_SIZE * 0.92,
+        FORGE_VOXEL_SIZE * 0.92,
+        FORGE_VOXEL_SIZE * 0.92,
+      );
+      const vMat = new THREE.MeshStandardMaterial({
+        roughness: 0.84,
+        metalness: 0.05,
+        flatShading: true,
+      });
+      voxelInst = new THREE.InstancedMesh(vGeo, vMat, forgeVoxels.length);
+      voxelInst.castShadow = showcase;
+      for (let vi = 0; vi < forgeVoxels.length; vi++) {
+        voxelDummy.position.set(0, -999, 0);
+        voxelDummy.scale.set(0, 0, 0);
+        voxelDummy.updateMatrix();
+        voxelInst.setMatrixAt(vi, voxelDummy.matrix);
+        voxelInst.setColorAt(vi, new THREE.Color("#c8c8c8"));
+      }
+      voxelInst.instanceMatrix.needsUpdate = true;
+      if (voxelInst.instanceColor) voxelInst.instanceColor.needsUpdate = true;
+      group.add(voxelInst);
+    }
+
     const geos: THREE.BufferGeometry[] = [];
     for (const part of meshParts) {
       const geo = makeGeometry(part, geoDetail);
@@ -735,6 +771,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       mesh.userData["lastLock"] = -1;
       mesh.userData["assembled"] = false;
       mesh.userData["lockedIn"] = false;
+      mesh.visible = forgeVoxels.length === 0;
       group.add(mesh);
     }
 
@@ -844,8 +881,11 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const dt = Math.min(32, now - lastFrame);
       lastFrame = now;
       const st = stateRef.current;
+      const liveForge = interactive && !st.revealed;
       const list = partsRef.current;
-      const n = Math.max(list.length, 1);
+      const n = Math.max(liveForge && voxelsRef.current.length > 0
+        ? voxelsRef.current.length
+        : list.length, 1);
 
       const targetP = st.revealed ? 1 : Math.min(1, Math.max(0, st.progress));
       const lerpK = 1 - Math.pow(0.001, dt / 16.67);
@@ -867,10 +907,51 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const activePartFrac = scaledParts - partsDone;
       let touchedMesh = false;
 
-      group.children.forEach((child, i) => {
+      const useVoxelForge = liveForge && voxelInst && forgeVoxels.length > 0;
+
+      if (useVoxelForge && voxelInst) {
+        const voxMesh = voxelInst;
+        voxMesh.visible = true;
+        for (let i = 0; i < forgeVoxels.length; i++) {
+          const v = forgeVoxels[i]!;
+          let lock = 0;
+          if (i < partsDone) lock = 1;
+          else if (i === partsDone) lock = activePartFrac;
+
+          if (lock <= 0) {
+            voxelDummy.position.set(0, -999, 0);
+            voxelDummy.scale.set(0, 0, 0);
+          } else {
+            const eased = lock * lock * (3 - 2 * lock);
+            const drop = (1 - eased) * 1.75;
+            voxelDummy.position.set(v.x, v.y + drop, v.z);
+            voxelDummy.scale.setScalar(0.38 + eased * 0.62);
+            voxelDummy.rotation.set(0, 0, 0);
+            mixed.copy(clayDark).lerp(clayLight, eased);
+            voxMesh.setColorAt(i, mixed);
+          }
+          voxelDummy.updateMatrix();
+          voxMesh.setMatrixAt(i, voxelDummy.matrix);
+        }
+        voxMesh.instanceMatrix.needsUpdate = true;
+        if (voxMesh.instanceColor) voxMesh.instanceColor.needsUpdate = true;
+        touchedMesh = true;
+
+        group.children.forEach((child) => {
+          if (child === voxMesh) return;
+          const mesh = child as THREE.Mesh;
+          if (mesh.isMesh && mesh.userData["part"]) mesh.visible = false;
+        });
+      } else {
+        if (voxelInst) voxelInst.visible = false;
+
+      let partIndex = 0;
+      group.children.forEach((child) => {
+        if (child === voxelInst) return;
         const mesh = child as THREE.Mesh;
         const part = mesh.userData["part"] as MeshPart | undefined;
         if (!part) return;
+        const i = partIndex++;
         const dir = mesh.userData["dir"] as THREE.Vector3;
         const mat = mesh.material as PartMaterial;
 
@@ -957,10 +1038,11 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         }
       });
 
+      } // end voxel vs part forge branch
+
       if (autoSpin && !dragging) group.rotation.y += (dt / 16.67) * (showcase ? 0.0028 : 0.0035);
       if (dragging) controls.update();
       const stillMoving = Math.abs(targetP - assembly) > 0.0008 || (paintT > 0 && paintT < 1);
-      const liveForge = interactive && !st.revealed;
       if (liveForge || autoSpin || stillMoving || touchedMesh || dragging || st.revealed) {
         draw(camera);
       }
@@ -985,6 +1067,10 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
       controls.dispose();
       geos.forEach((g) => g.dispose());
+      if (voxelInst) {
+        voxelInst.geometry.dispose();
+        (voxelInst.material as THREE.Material).dispose();
+      }
       group.children.forEach((c) => {
         const m = c as THREE.Mesh;
         (m.material as THREE.Material).dispose();
