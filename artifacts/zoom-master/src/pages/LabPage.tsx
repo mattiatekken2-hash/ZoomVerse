@@ -26,6 +26,7 @@ interface LabPageProps {
   currentCraftRarity: PlanetType | null;
   pendingPlanet: Planet | null;
   pendingModel: ZoomModel | null;
+  forgingModel?: ZoomModel | null;
   forgeRolling?: boolean;
   hasAutoTap: boolean;
   sunCount: number;
@@ -87,9 +88,17 @@ interface LabPageProps {
 interface FloatMsg { id: number; text: string; color: string }
 
 const GREY = "#8892b0";
-const REVEAL_THRESHOLD = 0.90;
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, pendingModel, forgeRolling = false, hasAutoTap, sunCount, tonBalance, depositBalance, stardustBalance, telegramId, onCraft, onPurchase, onClaim, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, blackCollectionUnlocked, blackCollectionBundles, blackPlanets, supernovaCollectionUnlocked, supernovaCollectionBundles, supernovaPlanets, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, onPlaceBlackPlanet, onCollectBlackPlanet, onReactivateBlackPlanet, onMarkBlackPlanetReactivated, onPlaceSupernovaPlanet, onCollectSupernovaPlanet, onReactivateSupernovaPlanet, onMarkSupernovaPlanetReactivated, stellaRossaCollectionUnlocked, stellaRossaCollectionBundles, stellaPlanets, stellaLastClaimAt, onStellaClaimDaily, onPlaceStellaRossaPlanet, onCollectStellaRossaPlanet, onReactivateStellaRossaPlanet, onMarkStellaRossaPlanetReactivated, redStarBalance = 0, onRedStarBalanceUpdate, onUpgradeCollectionDuration, onCraftItem, visible = true }: LabPageProps) {
+const RARITY_PAINT: Record<string, string> = {
+  BASIC: "#9aa3b8",
+  RARE: "#4facfe",
+  EPIC: "#c471ed",
+  MYTHIC: "#ff3355",
+  GOLD: "#ffd700",
+  LEGEND: "#fff4b0",
+};
+
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, pendingModel, forgingModel = null, forgeRolling = false, hasAutoTap, sunCount, tonBalance, depositBalance, stardustBalance, telegramId, onCraft, onPurchase, onClaim, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, blackCollectionUnlocked, blackCollectionBundles, blackPlanets, supernovaCollectionUnlocked, supernovaCollectionBundles, supernovaPlanets, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, onPlaceBlackPlanet, onCollectBlackPlanet, onReactivateBlackPlanet, onMarkBlackPlanetReactivated, onPlaceSupernovaPlanet, onCollectSupernovaPlanet, onReactivateSupernovaPlanet, onMarkSupernovaPlanetReactivated, stellaRossaCollectionUnlocked, stellaRossaCollectionBundles, stellaPlanets, stellaLastClaimAt, onStellaClaimDaily, onPlaceStellaRossaPlanet, onCollectStellaRossaPlanet, onReactivateStellaRossaPlanet, onMarkStellaRossaPlanetReactivated, redStarBalance = 0, onRedStarBalanceUpdate, onUpgradeCollectionDuration, onCraftItem, visible = true }: LabPageProps) {
   const { t } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
@@ -159,13 +168,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
   const progress = goal > 0 ? taps / goal : 0;
 
-  const dynamicColor = pendingModel
-    ? pendingModel.accentColor
-    : pendingPlanet
-    ? pendingPlanet.color
-    : currentCraftRarity && progress >= REVEAL_THRESHOLD
-    ? PLANET_CONFIG[currentCraftRarity].color
-    : GREY;
+  const dynamicColor = GREY;
 
   const clearAllFloats = useCallback(() => {
     floatTimersRef.current.forEach(t => clearTimeout(t));
@@ -204,7 +207,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   useEffect(() => {
     if (forgePhase === "revealed" && pendingFloatRef.current) {
       const m = pendingFloatRef.current.model;
-      addFloat(`✦ ${m.name}!`, m.primaryColor);
+      addFloat(`✦ ${m.name}!`, RARITY_PAINT[m.rarity] || m.primaryColor);
       const drop = pendingFloatRef.current.equipmentDrop;
       if (drop) {
         setTimeout(() => {
@@ -310,6 +313,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           goal={goal}
           accentColor={dynamicColor}
           pendingModel={pendingModel}
+          forgingModel={forgingModel}
           forgePhase={forgePhase}
           forgeRolling={forgeRolling}
         />
@@ -388,9 +392,9 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             <div
               className="rounded-2xl px-5 py-3 flex flex-col items-center gap-1 border"
               style={{
-                borderColor: pendingModel.primaryColor + "55",
+                borderColor: (RARITY_PAINT[pendingModel.rarity] || pendingModel.primaryColor) + "55",
                 background: "rgba(6,8,16,0.78)",
-                boxShadow: `0 0 20px ${pendingModel.primaryColor}33`,
+                boxShadow: `0 0 20px ${(RARITY_PAINT[pendingModel.rarity] || pendingModel.primaryColor)}33`,
                 pointerEvents: "auto",
               }}
             >
@@ -408,9 +412,9 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
               className="px-8 py-3.5 rounded-xl font-black text-sm tracking-wider uppercase active:scale-95 border whitespace-nowrap"
               onClick={handleClaim}
               style={{
-                background: `linear-gradient(135deg, ${pendingModel.primaryColor}, ${pendingModel.accentColor})`,
+                background: `linear-gradient(135deg, ${RARITY_PAINT[pendingModel.rarity] || pendingModel.primaryColor}, ${pendingModel.accentColor})`,
                 color: "#060810",
-                boxShadow: `0 0 32px ${pendingModel.primaryColor}88, 0 4px 16px rgba(0,0,0,0.4)`,
+                boxShadow: `0 0 32px ${(RARITY_PAINT[pendingModel.rarity] || pendingModel.primaryColor)}88, 0 4px 16px rgba(0,0,0,0.4)`,
                 borderColor: "transparent",
                 pointerEvents: "auto",
               }}

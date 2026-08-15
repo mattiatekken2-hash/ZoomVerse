@@ -265,6 +265,8 @@ export interface GameState {
   /** Lab mystery-build model waiting to be claimed (replaces planet forge outcome). */
   pendingModel: ZoomModel | null;
   pendingModelCost: number;
+  /** Object being assembled in the Lab — rolled on the first tap so the final shape is visible while forging. */
+  forgingModel: ZoomModel | null;
   /** True while awaiting server roll after forge completes. */
   forgeRolling: boolean;
   /** 3D collectible models forged in the Lab (100-model catalog). */
@@ -907,6 +909,7 @@ const INITIAL_STATE: GameState = {
   pendingPlanetCost: 0,
   pendingModel: null,
   pendingModelCost: 0,
+  forgingModel: null,
   forgeRolling: false,
   models: [],
   currentCraftRarity: null,
@@ -1063,6 +1066,7 @@ function loadState(): GameState {
           pendingPlanetCost: typeof parsed.pendingPlanetCost === "number" ? parsed.pendingPlanetCost : 0,
           pendingModel: parsed.pendingModel ?? null,
           pendingModelCost: typeof parsed.pendingModelCost === "number" ? parsed.pendingModelCost : 0,
+          forgingModel: parsed.forgingModel ?? null,
           forgeRolling: false,
           models: Array.isArray(parsed.models) ? parsed.models : [],
           usedRedeemCodes: parsed.usedRedeemCodes || [],
@@ -3667,6 +3671,7 @@ export function useGameState() {
 
     let rarity = current.currentCraftRarity;
     let goal = current.goal;
+    let forging: ZoomModel | null = current.forgingModel;
 
     if (rarity === null) {
       rarity = rollRarity();
@@ -3675,9 +3680,11 @@ export function useGameState() {
       if (stardustBalance < config.craftCost) {
         return { completed: false };
       }
+      forging = makeModelInstance(rollModelDefinition()) as ZoomModel;
       setState((prev) => ({
         ...prev,
         stardustBalance: prev.stardustBalance - config.craftCost,
+        forgingModel: forging,
       }));
       if (current.telegramId) {
         void deductCraftStardust(current.telegramId, config.craftCost);
@@ -3707,6 +3714,7 @@ export function useGameState() {
             pendingPlanetCost: 0,
             pendingModel: null,
             pendingModelCost: 0,
+            forgingModel: null,
             forgeRolling: false,
           };
           schedulePersist(next);
@@ -3725,7 +3733,6 @@ export function useGameState() {
         ? Math.max(50, Math.round(getEquipmentRate(dropCategory, dropRarity) * 5))
         : 0;
       let equipmentDrop: EquipmentDropResult | null = null;
-      const tid = current.telegramId;
 
       setState((prev) => {
         let droppedItem: EquipmentItem | undefined;
@@ -3740,6 +3747,7 @@ export function useGameState() {
             equipmentDrop = { item: droppedItem };
           }
         }
+        const finished = prev.forgingModel ?? forging ?? makeModelInstance(rollModelDefinition()) as ZoomModel;
         const next: GameState = {
           ...prev,
           balance: prev.balance + zoomBonus,
@@ -3747,7 +3755,10 @@ export function useGameState() {
           goal: 100,
           totalTaps: (prev.totalTaps || 0) + 1,
           currentCraftRarity: null,
-          forgeRolling: true,
+          forgingModel: null,
+          pendingModel: finished,
+          pendingModelCost: craftCost,
+          forgeRolling: false,
           craftsCompleted: prev.craftsCompleted + 1,
           equipment: droppedItem ? [...(prev.equipment || []), droppedItem] : (prev.equipment || []),
           lastBalanceEpoch: zoomBonus > 0 ? (prev.lastBalanceEpoch || 0) + 1 : (prev.lastBalanceEpoch || 0),
@@ -3759,23 +3770,6 @@ export function useGameState() {
         return next;
       });
 
-      void (async () => {
-        let model: ZoomModel | null = null;
-        if (tid) {
-          const res = await forgeMysteryModel(tid);
-          if (res.ok && res.model) model = res.model;
-        }
-        if (!model) {
-          model = makeModelInstance(rollModelDefinition()) as ZoomModel;
-        }
-        setState((prev) => ({
-          ...prev,
-          pendingModel: model,
-          pendingModelCost: craftCost,
-          forgeRolling: false,
-        }));
-      })();
-
       return { completed: true, ...(equipmentDrop ? { equipmentDrop } : {}) };
     } else {
       setState((prev) => {
@@ -3785,6 +3779,7 @@ export function useGameState() {
           goal,
           totalTaps: (prev.totalTaps || 0) + 1,
           currentCraftRarity: rarity,
+          forgingModel: prev.forgingModel ?? forging,
         };
         schedulePersist(next);
         return next;
@@ -3816,6 +3811,7 @@ export function useGameState() {
           models: [...(prev.models ?? []), prev.pendingModel],
           pendingModel: null,
           pendingModelCost: 0,
+          forgingModel: null,
         };
       }
       if (!prev.pendingPlanet) { outcome = { ok: false, reason: "Nothing to claim" }; return prev; }

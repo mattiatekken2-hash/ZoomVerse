@@ -13,11 +13,21 @@ interface PlanetCanvasProps {
   goal: number;
   accentColor?: string;
   pendingModel?: ZoomModel | null;
+  forgingModel?: ZoomModel | null;
   forgePhase: ForgePhase;
   forgeRolling?: boolean;
 }
 
 const DEFAULT_ACCENT = "#8892b0";
+
+const RARITY_PAINT: Record<string, { primary: string; accent: string }> = {
+  BASIC: { primary: "#9aa3b8", accent: "#5c6478" },
+  RARE: { primary: "#4facfe", accent: "#1a5a9e" },
+  EPIC: { primary: "#c471ed", accent: "#5a2d82" },
+  MYTHIC: { primary: "#ff3355", accent: "#8b1020" },
+  GOLD: { primary: "#ffd700", accent: "#b8860b" },
+  LEGEND: { primary: "#fff4b0", accent: "#ffd700" },
+};
 
 export function PlanetCanvas({
   onPunch,
@@ -25,6 +35,7 @@ export function PlanetCanvas({
   goal,
   accentColor,
   pendingModel,
+  forgingModel = null,
   forgePhase,
   forgeRolling = false,
 }: PlanetCanvasProps) {
@@ -36,19 +47,26 @@ export function PlanetCanvas({
   const fragIdRef = useRef(0);
   const lastProgressRef = useRef(progress);
 
+  const liveModel = pendingModel || forgingModel;
   const pct = goal > 0 ? Math.min(progress / goal, 1) : 0;
   const revealed = forgePhase === "revealed";
-  const buildProgress = pendingModel || forgePhase === "waiting" ? 1 : pct;
-  const displayAccent = pendingModel?.accentColor || accentColor || DEFAULT_ACCENT;
-  const displayPrimary = pendingModel?.primaryColor || displayAccent;
+  const buildProgress = forgePhase === "idle" ? pct : 1;
+  const rarityPaint = liveModel ? RARITY_PAINT[liveModel.rarity] : undefined;
+  const displayAccent = revealed
+    ? (rarityPaint?.accent || liveModel?.accentColor || accentColor || DEFAULT_ACCENT)
+    : DEFAULT_ACCENT;
+  const displayPrimary = revealed
+    ? (rarityPaint?.primary || liveModel?.primaryColor || displayAccent)
+    : "#c5c5c5";
 
-  const modelDef = pendingModel ? getModelById(pendingModel.modelId) : undefined;
+  const modelDef = liveModel ? getModelById(liveModel.modelId) : undefined;
   const objectParts = useMemo(() => {
-    if (!pendingModel) return undefined;
-    const shapeId = pendingModel.shapeId || modelDef?.shapeId;
+    if (!liveModel) return undefined;
+    const shapeId = liveModel.shapeId || modelDef?.shapeId;
     if (!shapeId) return undefined;
-    return getMeshParts(shapeId, pendingModel.primaryColor, pendingModel.accentColor);
-  }, [pendingModel, modelDef?.shapeId]);
+    // Keep "p"/"a" tokens so rarity paint can recolor the silhouette on reveal.
+    return getMeshParts(shapeId, "p", "a");
+  }, [liveModel?.modelId, liveModel?.shapeId, modelDef?.shapeId]);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -138,8 +156,9 @@ export function PlanetCanvas({
         }}
         data-testid="planet-wrap"
       >
-        {showModel3D && (
+        {showModel3D && liveModel && objectParts && (
           <MysteryModel3D
+            key={liveModel.modelId}
             parts={objectParts}
             primaryColor={displayPrimary}
             accentColor={displayAccent}
@@ -148,6 +167,20 @@ export function PlanetCanvas({
             size={modelCanvasSize}
             onTap={forgePhase === "idle" && !forgeRolling ? onPunch : undefined}
             autoSpin
+          />
+        )}
+
+        {revealed && rarityPaint && (
+          <div
+            className="pointer-events-none"
+            style={{
+              position: "absolute",
+              inset: "-8%",
+              borderRadius: "50%",
+              background: `radial-gradient(circle, ${rarityPaint.primary}55 0%, ${rarityPaint.primary}18 42%, transparent 70%)`,
+              boxShadow: `0 0 48px ${rarityPaint.primary}44`,
+              zIndex: 1,
+            }}
           />
         )}
 
@@ -223,7 +256,9 @@ export function PlanetCanvas({
                 ? t("planetCanvas.forgingMass")
                 : pct < 0.04
                   ? t("planetCanvas.primordial")
-                  : "ASSEMBLING"}
+                  : liveModel
+                    ? "FORMING"
+                    : "ASSEMBLING"}
             </span>
             <span className="font-bold" style={{ color: displayAccent }}>
               {progress}/{goal}

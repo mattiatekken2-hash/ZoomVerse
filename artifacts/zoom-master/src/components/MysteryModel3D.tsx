@@ -47,7 +47,7 @@ function scatterDir(id: string): THREE.Vector3 {
   return new THREE.Vector3(Math.cos(a), 0.4 + b, Math.sin(a)).normalize();
 }
 
-/** Recognizable 3D object — parts assemble as you tap, then lock on reveal. */
+/** Clay silhouette assembles while tapping, then paints with rarity colors. */
 export function ObjectMesh3D({
   parts,
   primaryColor,
@@ -152,46 +152,52 @@ export function ObjectMesh3D({
     renderer.domElement.addEventListener("pointermove", onPointerMove);
 
     let frameId = 0;
+    let paintT = 0;
+    const clayDark = new THREE.Color("#6a6a6a");
+    const clayLight = new THREE.Color("#c8c8c8");
+    const painted = new THREE.Color();
+    const mixed = new THREE.Color();
+
     const animate = () => {
       frameId = requestAnimationFrame(animate);
       const st = stateRef.current;
       const list = partsRef.current;
       const n = Math.max(list.length, 1);
 
+      if (st.revealed) paintT = Math.min(1, paintT + 0.042);
+      else paintT = 0;
+
       group.children.forEach((child, i) => {
         const mesh = child as THREE.Mesh;
         const part = mesh.userData["part"] as MeshPart;
         const dir = mesh.userData["dir"] as THREE.Vector3;
         const mat = mesh.material as THREE.MeshStandardMaterial;
-        const appearAt = i / n;
-        const visible = st.revealed || st.progress >= appearAt * 0.92;
-        mesh.visible = visible;
-        if (!visible) return;
+        const stagger = (i / n) * 0.18;
+        const lock = st.revealed ? 1 : Math.min(1, Math.max(0, (st.progress - stagger) / 0.82));
+        mesh.visible = true;
 
-        const lock = st.revealed ? 1 : Math.min(1, Math.max(0, (st.progress - appearAt) / 0.18));
-        const scatter = 1 - lock;
+        const scatter = (1 - lock) * 1.15;
         mesh.position.set(
-          part.x + dir.x * scatter * 1.15,
-          part.y + dir.y * scatter * 0.9,
-          part.z + dir.z * scatter * 1.15,
+          part.x + dir.x * scatter,
+          part.y + dir.y * scatter * 0.7,
+          part.z + dir.z * scatter,
         );
-        mesh.rotation.set(part.rx ?? 0, (part.ry ?? 0) + scatter * 0.8, part.rz ?? 0);
+        mesh.rotation.set(
+          (part.rx ?? 0) + (1 - lock) * dir.y * 0.6,
+          (part.ry ?? 0) + (1 - lock) * dir.x * 0.8,
+          part.rz ?? 0,
+        );
 
-        if (st.revealed) {
-          mat.color.set(resolveColor(part.color, st.primaryColor, st.accentColor));
-          mat.wireframe = false;
-          mat.transparent = false;
-          mat.opacity = 1;
-          mat.metalness = part.metal ?? 0.35;
-          mat.roughness = part.rough ?? 0.45;
-        } else {
-          mat.color.set(i % 2 === 0 ? "#5a5a5a" : "#8a8a8a");
-          mat.wireframe = lock < 0.85;
-          mat.transparent = true;
-          mat.opacity = 0.45 + lock * 0.5;
-          mat.metalness = 0.15;
-          mat.roughness = 0.75;
-        }
+        painted.set(resolveColor(part.color, st.primaryColor, st.accentColor));
+        mixed.copy(lock < 0.62 ? clayDark : clayLight).lerp(painted, paintT);
+        mat.color.copy(mixed);
+        mat.emissive.copy(painted);
+        mat.emissiveIntensity = Math.sin(paintT * Math.PI) * 0.55;
+        mat.wireframe = false;
+        mat.transparent = false;
+        mat.opacity = 1;
+        mat.metalness = paintT > 0.5 ? (part.metal ?? 0.35) : 0.08;
+        mat.roughness = paintT > 0.5 ? (part.rough ?? 0.45) : 0.82;
       });
 
       if (autoSpin && !dragging) group.rotation.y += 0.008;

@@ -866,6 +866,7 @@ function AppShellWithState() {
                   currentCraftRarity={state.currentCraftRarity}
                   pendingPlanet={state.pendingPlanet}
                   pendingModel={state.pendingModel}
+                  forgingModel={state.forgingModel}
                   forgeRolling={state.forgeRolling}
                   hasAutoTap={!!state.hasAutoTap}
                   whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
