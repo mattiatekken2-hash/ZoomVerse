@@ -23,8 +23,9 @@ import { getWhitePlanetPendingTon, type Planet } from "../hooks/useGameState";
 
 const TON_RECEIVER_WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 const POLL_MS = 60_000;
-const GRAM_LOGO_URL = "/gram-logo.svg";
+const GRAM_LOGO_URL = "/ton-logo.svg";
 
+/** Official Telegram Wallet / TON diamond mark used in @wallet. */
 export function GramWalletIcon({ size = 18 }: { size?: number }) {
   return (
     <img
@@ -60,6 +61,8 @@ interface Props {
   supernovaPlanets?: Planet[];
   /** Slightly larger pill for the Lab viewport header. */
   labVariant?: boolean;
+  /** Icon + balance only (Telegram wallet chip). */
+  iconOnly?: boolean;
 }
 
 function formatTon(v: number, decimals = 3): string {
@@ -450,7 +453,7 @@ function WalletModal({
 
 /* ─── HEADER PILL BUTTON ─────────────────────────────────────────────────── */
 function TonWalletWidgetBase(props: Props) {
-  const { tonBalance, telegramId, whitePlanets, earthPlanets, blackPlanets, supernovaPlanets = [], labVariant = false } = props;
+  const { tonBalance, telegramId, whitePlanets, earthPlanets, blackPlanets, supernovaPlanets = [], labVariant = false, iconOnly = false } = props;
   const [open, setOpen] = useState(false);
   const [accrued, setAccrued] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -500,12 +503,15 @@ function TonWalletWidgetBase(props: Props) {
           textShadow: "0 0 6px rgba(0,242,180,0.55)",
           fontSize: labVariant ? 14 : 12,
           whiteSpace: "nowrap",
-          padding: labVariant ? "8px 16px" : "4px 8px",
+          padding: iconOnly ? "6px 10px" : labVariant ? "8px 16px" : "4px 8px",
+          gap: iconOnly ? 6 : undefined,
         }}
       >
-        <GramWalletIcon size={labVariant ? 22 : 18} />
+        <GramWalletIcon size={iconOnly ? 20 : labVariant ? 22 : 18} />
         <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatTon(total, 2)}</span>
-        <span style={{ fontSize: labVariant ? 11 : 10, letterSpacing: "0.08em", opacity: 0.82 }}>GRAM</span>
+        {!iconOnly && (
+          <span style={{ fontSize: labVariant ? 11 : 10, letterSpacing: "0.08em", opacity: 0.82 }}>GRAM</span>
+        )}
       </button>
 
       {open && (

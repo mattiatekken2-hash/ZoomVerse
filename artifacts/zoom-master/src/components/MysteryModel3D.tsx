@@ -250,7 +250,7 @@ export function ObjectMesh3D({
           lock = activePartFrac;
         }
 
-        if (lock <= 0.008) {
+        if (lock <= 0.04) {
           if (mesh.visible) mesh.visible = false;
           mesh.userData["assembled"] = false;
           mesh.userData["lastLock"] = -1;
@@ -274,7 +274,7 @@ export function ObjectMesh3D({
         mesh.visible = true;
 
         const eased = lock * lock * (3 - 2 * lock);
-        const scatter = (1 - eased) * 1.35;
+        const scatter = (1 - eased) * 1.65;
         mesh.position.set(
           part.x + dir.x * scatter,
           part.y + dir.y * scatter * 0.55,

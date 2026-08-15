@@ -237,26 +237,43 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         style={{ minHeight: 0 }}
         onClick={canCraft && forgePhase === "idle" ? handleCraft : undefined}
       >
-        {/* GRAM wallet — same Telegram-style pill as the app header */}
-        <div
-          className="absolute top-3 left-0 right-0 z-30 flex justify-center"
-          data-testid="lab-gram-wallet"
-        >
-          <TonWalletWidget
-            tonBalance={tonBalance}
-            depositBalance={depositBalance}
-            telegramId={telegramId}
-            whiteCollectionUnlocked={whiteCollectionUnlocked}
-            earthCollectionUnlocked={earthCollectionUnlocked}
-            blackCollectionUnlocked={blackCollectionUnlocked}
-            supernovaCollectionUnlocked={supernovaCollectionUnlocked}
-            sunCount={sunCount}
-            whitePlanets={whitePlanets}
-            earthPlanets={earthPlanets}
-            blackPlanets={blackPlanets}
-            supernovaPlanets={supernovaPlanets}
-            labVariant
-          />
+        {/* Top bar: $ZOOM center, Telegram GRAM wallet top-right */}
+        <div className="absolute top-3 left-0 right-0 z-30 flex items-start justify-between px-3 pointer-events-none">
+          <div className="w-16" />
+          <div
+            className="px-5 py-2 rounded-full pointer-events-none"
+            data-testid="lab-zoom-balance"
+            style={{
+              background: "rgba(0, 0, 0, 0.62)",
+              border: "1px solid rgba(255, 255, 255, 0.14)",
+              backdropFilter: "blur(10px)",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.35)",
+            }}
+          >
+            <span
+              className="font-black text-base tracking-wide"
+              style={{ color: "#ffffff", letterSpacing: "0.06em" }}
+            >
+              {Math.floor(balance).toLocaleString()} $ZOOM
+            </span>
+          </div>
+          <div className="pointer-events-auto">
+            <TonWalletWidget
+              tonBalance={tonBalance}
+              depositBalance={depositBalance}
+              telegramId={telegramId}
+              whiteCollectionUnlocked={whiteCollectionUnlocked}
+              earthCollectionUnlocked={earthCollectionUnlocked}
+              blackCollectionUnlocked={blackCollectionUnlocked}
+              supernovaCollectionUnlocked={supernovaCollectionUnlocked}
+              sunCount={sunCount}
+              whitePlanets={whitePlanets}
+              earthPlanets={earthPlanets}
+              blackPlanets={blackPlanets}
+              supernovaPlanets={supernovaPlanets}
+              iconOnly
+            />
+          </div>
         </div>
 
         <PlanetCanvas
