@@ -23,6 +23,7 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
   const [message, setMessage] = useState<string | null>(null);
   const [holding, setHolding] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activePointerRef = useRef<number | null>(null);
   const onTapRef = useRef(onTap);
   const canCraftRef = useRef(canCraft);
   onTapRef.current = onTap;
@@ -34,7 +35,11 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
     return () => clearTimeout(t);
   }, [message]);
 
-  const stopHold = useCallback(() => {
+  const stopHold = useCallback((pointerId?: number) => {
+    if (pointerId != null && activePointerRef.current != null && activePointerRef.current !== pointerId) {
+      return;
+    }
+    activePointerRef.current = null;
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -42,8 +47,9 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
     setHolding(false);
   }, []);
 
-  const startHold = useCallback(() => {
+  const startHold = useCallback((pointerId: number) => {
     if (intervalRef.current) return;
+    activePointerRef.current = pointerId;
     setHolding(true);
     // Fire one tap immediately, then continue at TAPS_PER_SECOND.
     if (canCraftRef.current) onTapRef.current();
@@ -54,6 +60,12 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
   }, []);
 
   useEffect(() => () => stopHold(), [stopHold]);
+
+  useEffect(() => {
+    const onVis = () => { if (document.hidden) stopHold(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [stopHold]);
 
   const handleClick = () => {
     if (!hasAutoTap) {
@@ -117,14 +129,30 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
       <button
         onClick={handleClick}
         onPointerDown={(e) => {
-          if (!hasAutoTap) return;
+          if (!hasAutoTap || e.button !== 0) return;
           e.preventDefault();
-          (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-          startHold();
+          try {
+            e.currentTarget.setPointerCapture(e.pointerId);
+          } catch { /**/ }
+          startHold(e.pointerId);
         }}
-        onPointerUp={() => { if (hasAutoTap) stopHold(); }}
-        onPointerCancel={() => { if (hasAutoTap) stopHold(); }}
-        onPointerLeave={() => { if (hasAutoTap) stopHold(); }}
+        onPointerUp={(e) => {
+          if (!hasAutoTap) return;
+          stopHold(e.pointerId);
+          try {
+            if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+              e.currentTarget.releasePointerCapture(e.pointerId);
+            }
+          } catch { /**/ }
+        }}
+        onPointerCancel={(e) => {
+          if (!hasAutoTap) return;
+          stopHold(e.pointerId);
+        }}
+        onLostPointerCapture={(e) => {
+          if (!hasAutoTap) return;
+          stopHold(e.pointerId);
+        }}
         onContextMenu={(e) => e.preventDefault()}
         className="active:scale-95"
         style={{
