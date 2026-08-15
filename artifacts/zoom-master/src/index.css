@@ -995,31 +995,20 @@ body.animations-paused * {
 
 @keyframes labFragmentFly {
   0% {
-    transform: translate(calc(-50% + var(--fx, 0px)), calc(-50% + var(--fy, 0px))) scale(1.2);
-    opacity: 0.85;
+    transform: translate(calc(-50% + var(--fx, 0px)), calc(-50% + var(--fy, 0px))) scale(1);
+    opacity: 0.88;
   }
-  12% { opacity: 1; }
-  75% { opacity: 0.9; }
+  18% { opacity: 1; }
   100% {
-    transform: translate(-50%, -50%) scale(0.06);
+    transform: translate(calc(-50% + var(--tx, 0px)), calc(-50% + var(--ty, 0px))) scale(0.12);
     opacity: 0;
   }
 }
 .lab-fragment {
-  animation: labFragmentFly 1.05s cubic-bezier(.42,.02,.18,1) forwards;
+  animation: labFragmentFly 0.9s cubic-bezier(.35,.05,.2,1) forwards;
   animation-delay: var(--delay, 0ms);
-}
-.lab-fragment--lead {
-  filter: brightness(1.12);
-}
-
-@keyframes forgeTapPulse {
-  0% { transform: scale(1); }
-  35% { transform: scale(1.035); }
-  100% { transform: scale(1); }
-}
-.forge-tap-pulse {
-  animation: forgeTapPulse 0.38s ease-out;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
 }
 
 /* ─── Forge cinematic animations ───────────────────────────────────

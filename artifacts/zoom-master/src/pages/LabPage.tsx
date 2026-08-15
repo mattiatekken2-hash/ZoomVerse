@@ -5,7 +5,6 @@ import { AutoTapWidget } from "../components/AutoTapWidget";
 import type { Planet, PlanetType, EquipmentDropResult, ZoomModel } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import { EQUIPMENT_RARITY_INFO, EQUIPMENT_CATEGORIES } from "../utils/equipmentConfig";
-import { hapticLight } from "../utils/haptic";
 import { useT } from "../i18n/LanguageContext";
 
 
@@ -170,7 +169,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
   const handleCraft = useCallback(() => {
     if (!canCraft) return;
-    hapticLight();
     const result = onCraft(stardustBalance);
     if (result.completed && result.broken && result.brokenRarity) {
       try {

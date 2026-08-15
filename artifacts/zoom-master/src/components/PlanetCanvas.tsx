@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { MysteryModel3D } from "./MysteryModel3D";
 import { getMeshParts, getModelById } from "@workspace/game-models";
 import type { ZoomModel } from "../hooks/useGameState";
@@ -19,6 +19,91 @@ interface PlanetCanvasProps {
 }
 
 const DEFAULT_ACCENT = "#8892b0";
+const CLAY_COLORS = ["#9a9a9a", "#bdbdbd", "#d4d4d4", "#888888"];
+const MAX_FRAGMENTS = 18;
+
+const ForgeProgressBar = memo(function ForgeProgressBar({
+  progress,
+  goal,
+  pct,
+  displayAccent,
+  label,
+}: {
+  progress: number;
+  goal: number;
+  pct: number;
+  displayAccent: string;
+  label: string;
+}) {
+  return (
+    <div className="absolute bottom-0 left-0 right-0 px-6 pb-2 pt-4 z-10">
+      <div className="flex justify-between text-xs mb-1.5">
+        <span className="font-semibold tracking-wider uppercase" style={{ color: "rgba(255,255,255,0.4)" }}>
+          {label}
+        </span>
+        <span className="font-bold" style={{ color: displayAccent }}>
+          {progress}/{goal}
+        </span>
+      </div>
+      <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+        <div
+          className="progress-bar-fill"
+          style={{
+            width: `${pct * 100}%`,
+            background: displayAccent,
+            transform: "translateZ(0)",
+          }}
+        />
+      </div>
+    </div>
+  );
+});
+
+function spawnClayFragments(
+  layer: HTMLDivElement,
+  half: number,
+  target: { x: number; y: number },
+  fragIdRef: { current: number },
+) {
+  while (layer.childElementCount >= MAX_FRAGMENTS) {
+    layer.firstElementChild?.remove();
+  }
+
+  const tx = target.x;
+  const ty = target.y;
+  const count = 3;
+  for (let i = 0; i < count; i++) {
+    const spread = (i - (count - 1) / 2) * 0.35;
+    const baseAngle = Math.atan2(ty, tx) + Math.PI;
+    const angle = baseAngle + spread + (Math.random() - 0.5) * 0.25;
+    const dist = 0.58 + Math.random() * 0.28;
+    const fx = Math.cos(angle) * dist * half;
+    const fy = Math.sin(angle) * dist * half;
+    const dot = document.createElement("div");
+    dot.className = "lab-fragment";
+    dot.dataset["fid"] = `f-${fragIdRef.current++}`;
+    const clay = CLAY_COLORS[i % CLAY_COLORS.length] ?? "#b0b0b0";
+    const dotSize = Math.max(4, half * 0.028 + Math.random() * 4);
+    const jitter = 6 + Math.random() * 10;
+    const s = dot.style;
+    s.position = "absolute";
+    s.left = "50%";
+    s.top = "50%";
+    s.width = `${dotSize}px`;
+    s.height = `${dotSize}px`;
+    s.borderRadius = "50%";
+    s.background = clay;
+    s.pointerEvents = "none";
+    s.contain = "strict";
+    s.setProperty("--fx", `${fx}px`);
+    s.setProperty("--fy", `${fy}px`);
+    s.setProperty("--tx", `${tx + (Math.random() - 0.5) * jitter}px`);
+    s.setProperty("--ty", `${ty + (Math.random() - 0.5) * jitter}px`);
+    s.setProperty("--delay", `${i * 50}ms`);
+    layer.appendChild(dot);
+    dot.addEventListener("animationend", () => dot.remove(), { once: true });
+  }
+}
 
 export function PlanetCanvas({
   onPunch,
@@ -37,12 +122,15 @@ export function PlanetCanvas({
   const [size, setSize] = useState(280);
   const sizeRef = useRef(280);
   const fragIdRef = useRef(0);
+  const lastTapTargetRef = useRef<{ x: number; y: number } | null>(null);
   const lastProgressRef = useRef(progress);
+  const skipNextProgressSpawnRef = useRef(false);
 
   const liveModel = pendingModel || forgingModel;
   const pct = goal > 0 ? Math.min(progress / goal, 1) : 0;
   const revealed = forgePhase === "revealed";
   const buildProgress = forgePhase === "idle" ? pct : 1;
+  const isForging = forgePhase === "idle";
   const rarityPaint = liveModel ? getRarityColorsForModel(liveModel.rarity) : undefined;
   const displayAccent = revealed
     ? (rarityPaint?.accentHex || liveModel?.accentColor || accentColor || DEFAULT_ACCENT)
@@ -56,7 +144,6 @@ export function PlanetCanvas({
     if (!liveModel) return undefined;
     const shapeId = liveModel.shapeId || modelDef?.shapeId;
     if (!shapeId) return undefined;
-    // Keep "p"/"a" tokens so rarity paint can recolor the silhouette on reveal.
     return getMeshParts(shapeId, "p", "a");
   }, [liveModel?.modelId, liveModel?.shapeId, modelDef?.shapeId]);
 
@@ -67,8 +154,8 @@ export function PlanetCanvas({
       const h = el.clientHeight;
       const w = el.clientWidth;
       if (w <= 1 || h <= 1) return;
-      const next = Math.min(w * 0.88, h * 0.82, 380);
-      if (Math.abs(next - sizeRef.current) < 0.5) return;
+      const next = Math.round(Math.min(w * 0.88, h * 0.82, 380));
+      if (Math.abs(next - sizeRef.current) < 1) return;
       sizeRef.current = next;
       setSize(next);
     };
@@ -78,55 +165,40 @@ export function PlanetCanvas({
     return () => ro.disconnect();
   }, []);
 
+  const handleModelTap = useCallback((point?: { x: number; y: number }) => {
+    const layer = fragmentLayerRef.current;
+    const half = sizeRef.current / 2;
+    const target = point ?? lastTapTargetRef.current ?? {
+      x: (Math.random() - 0.5) * half * 0.25,
+      y: (Math.random() - 0.5) * half * 0.25,
+    };
+    if (point) lastTapTargetRef.current = point;
+    if (layer && half > 0 && forgePhase === "idle") {
+      spawnClayFragments(layer, half, target, fragIdRef);
+      skipNextProgressSpawnRef.current = true;
+    }
+    onPunch?.();
+  }, [onPunch, forgePhase]);
+
   useEffect(() => {
     const delta = progress - lastProgressRef.current;
     lastProgressRef.current = progress;
     if (delta <= 0 || forgePhase !== "idle") return;
+    if (skipNextProgressSpawnRef.current) {
+      skipNextProgressSpawnRef.current = false;
+      return;
+    }
 
     const layer = fragmentLayerRef.current;
-    const wrap = planetWrapRef.current;
-    if (!layer || sizeRef.current <= 0) return;
-
-    wrap?.classList.remove("forge-tap-pulse");
-    void wrap?.offsetWidth;
-    wrap?.classList.add("forge-tap-pulse");
-
     const half = sizeRef.current / 2;
-    const clayColors = ["#9a9a9a", "#bdbdbd", "#d4d4d4", "#888888", "#e0e0e0"];
-    const count = 4 + Math.min(4, Math.floor(delta));
-    for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const dist = 0.52 + Math.random() * 0.42;
-      const fx = Math.cos(angle) * dist * half;
-      const fy = Math.sin(angle) * dist * half;
-      const dot = document.createElement("div");
-      dot.className = i === 0 ? "lab-fragment lab-fragment--lead" : "lab-fragment";
-      const id = `f-${fragIdRef.current++}`;
-      dot.dataset["fid"] = id;
-      const clay = clayColors[i % clayColors.length] ?? "#b0b0b0";
-      const dotSize = Math.max(5, sizeRef.current * (0.016 + Math.random() * 0.024));
-      const s = dot.style;
-      s.position = "absolute";
-      s.left = "50%";
-      s.top = "50%";
-      s.width = `${dotSize}px`;
-      s.height = `${dotSize}px`;
-      s.borderRadius = "50%";
-      s.background = revealed ? displayAccent : clay;
-      s.boxShadow = revealed
-        ? `0 0 10px ${displayAccent}, 0 0 22px ${displayAccent}88`
-        : `0 0 10px ${clay}cc, 0 0 18px #ffffff55`;
-      s.pointerEvents = "none";
-      s.willChange = "transform, opacity";
-      s.setProperty("--fx", `${fx}px`);
-      s.setProperty("--fy", `${fy}px`);
-      s.setProperty("--delay", `${i * 45}ms`);
-      layer.appendChild(dot);
-      const cleanup = () => { dot.remove(); };
-      dot.addEventListener("animationend", cleanup, { once: true });
-      window.setTimeout(cleanup, 1200);
-    }
-  }, [progress, displayAccent, forgePhase, revealed]);
+    if (!layer || half <= 0) return;
+
+    const target = lastTapTargetRef.current ?? {
+      x: (Math.random() - 0.5) * half * 0.25,
+      y: (Math.random() - 0.5) * half * 0.25,
+    };
+    spawnClayFragments(layer, half, target, fragIdRef);
+  }, [progress, forgePhase]);
 
   const convergeKey = forgePhase === "waiting" ? "w" : "i";
   const convergeParticles = useMemo(() => {
@@ -143,21 +215,30 @@ export function PlanetCanvas({
   const showModel3D = forgePhase !== "flash";
   const showFlash = forgePhase === "flash";
   const showConverge = forgePhase === "waiting";
-  const modelCanvasSize = forgePhase === "revealed" ? size * 0.92 : size * 0.88;
+  const modelCanvasSize = Math.round(size * 0.88);
+
+  const progressLabel = forgeRolling
+    ? t("planetCanvas.forgingMass")
+    : pct < 0.04
+      ? t("planetCanvas.primordial")
+      : liveModel
+        ? "FORMING"
+        : "ASSEMBLING";
 
   return (
     <div ref={containerRef} className="relative w-full h-full flex flex-col items-center justify-center">
       <div
         ref={planetWrapRef}
-        className={`flex items-center justify-center ${showConverge ? "forge-shake" : ""}`}
+        className="flex items-center justify-center"
         style={{
           width: size,
           height: size,
-          cursor: onPunch && forgePhase === "idle" && !forgeRolling ? "pointer" : "default",
+          cursor: onPunch && isForging && !forgeRolling ? "pointer" : "default",
           touchAction: "manipulation",
           position: "relative",
           background: "transparent",
           overflow: "visible",
+          contain: "layout style",
         }}
         data-testid="planet-wrap"
       >
@@ -170,8 +251,9 @@ export function PlanetCanvas({
             progress={buildProgress}
             revealed={revealed}
             size={modelCanvasSize}
-            onTap={forgePhase === "idle" && !forgeRolling ? onPunch : undefined}
+            onTap={isForging && !forgeRolling ? handleModelTap : undefined}
             autoSpin
+            performanceMode={forgePhase !== "revealed"}
           />
         )}
 
@@ -249,38 +331,18 @@ export function PlanetCanvas({
 
         <div
           ref={fragmentLayerRef}
-          style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 10 }}
+          style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 10, contain: "strict" }}
         />
       </div>
 
-      {forgePhase === "idle" && (
-        <div className="absolute bottom-0 left-0 right-0 px-6 pb-2 pt-4 z-10">
-          <div className="flex justify-between text-xs mb-1.5">
-            <span className="font-semibold tracking-wider uppercase" style={{ color: "rgba(255,255,255,0.4)" }}>
-              {forgeRolling
-                ? t("planetCanvas.forgingMass")
-                : pct < 0.04
-                  ? t("planetCanvas.primordial")
-                  : liveModel
-                    ? "FORMING"
-                    : "ASSEMBLING"}
-            </span>
-            <span className="font-bold" style={{ color: displayAccent }}>
-              {progress}/{goal}
-            </span>
-          </div>
-          <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-            <div
-              className="progress-bar-fill"
-              style={{
-                width: `${pct * 100}%`,
-                background: `linear-gradient(90deg, ${displayAccent}, ${displayAccent}cc)`,
-                boxShadow: `0 0 10px ${displayAccent}`,
-                transition: "width 0.18s ease-out",
-              }}
-            />
-          </div>
-        </div>
+      {isForging && (
+        <ForgeProgressBar
+          progress={progress}
+          goal={goal}
+          pct={pct}
+          displayAccent={displayAccent}
+          label={progressLabel}
+        />
       )}
     </div>
   );
