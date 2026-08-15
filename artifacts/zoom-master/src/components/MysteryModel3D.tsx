@@ -79,6 +79,8 @@ export function ObjectMesh3D({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, size > 90 ? 1.75 : 1.25));
     renderer.setSize(size, size);
     renderer.setClearColor(0x000000, 0);
+    renderer.domElement.style.background = "transparent";
+    renderer.domElement.style.display = "block";
     mount.appendChild(renderer.domElement);
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.45));
@@ -107,6 +109,8 @@ export function ObjectMesh3D({
         roughness: part.rough ?? 0.55,
       });
       const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(part.x, part.y, part.z);
+      mesh.rotation.set(part.rx ?? 0, part.ry ?? 0, part.rz ?? 0);
       mesh.userData["part"] = part;
       mesh.userData["dir"] = scatterDir(part.id);
       group.add(mesh);
@@ -226,7 +230,7 @@ export function ObjectMesh3D({
   return (
     <div
       ref={mountRef}
-      style={{ width: size, height: size, touchAction: "manipulation" }}
+      style={{ width: size, height: size, touchAction: "manipulation", background: "transparent" }}
       data-testid="object-mesh-3d"
     />
   );

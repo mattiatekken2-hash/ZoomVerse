@@ -2514,6 +2514,9 @@ export interface ServerMarketListing {
   planetDisplayName?: string | null;
   // Snapshotted farm-duration upgrade (hours). Null / missing = 1h (default).
   planetFarmDurationHours?: number | null;
+  // Lab-forged 3D object. Present when the listed planet was crafted in the Lab.
+  modelId?: string | null;
+  shapeId?: string | null;
   price: number;
   status: string;
   createdAt: string;
@@ -2579,6 +2582,9 @@ export async function buyFromMarket(buyerTelegramId: string, listingId: number):
   equipmentRate?: number | null;
   pricePaid?: number;
   planetFloat?: number | null;
+  modelId?: string | null;
+  shapeId?: string | null;
+  modelName?: string | null;
   error?: string;
 }> {
   try {

@@ -6,6 +6,8 @@ import {
   type ItemType,
 } from "../utils/collectibleConfig";
 import { PlanetOrb } from "../components/PlanetOrb";
+import { ObjectThumb } from "../components/MysteryModel3D";
+import { getModelById } from "@workspace/game-models";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
 import { buyFromMarket, shareListing, openMarketActivityStream, type ServerMarketListing } from "../utils/api";
@@ -49,7 +51,13 @@ interface MarketPageProps {
   telegramId: string | null;
   onBuy: (listing: MarketListing) => { success: boolean; reason?: string };
   onUnlist: (id: string) => void;
-  onServerBuyComplete: (planetType: PlanetType, planetRate: number, pricePaid: number, planetFloat?: number | null) => void;
+  onServerBuyComplete: (
+    planetType: PlanetType,
+    planetRate: number,
+    pricePaid: number,
+    planetFloat?: number | null,
+    model?: { modelId?: string | null; shapeId?: string | null; modelName?: string | null } | null,
+  ) => void;
   // Equipment marketplace — buy/unlist for ServerMarketListing rows
   // whose `kind === 'equipment'`. Wired from useGameState.
   onBuyEquipment: (listing: ServerMarketListing) => Promise<{ success: boolean; reason?: string }>;
@@ -159,6 +167,8 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
       displayName: getPlanetDisplayName(p),
       planetFloat: typeof p.float === "number" ? p.float : null,
       farmDurationHours: (p.farmDurationHours ?? 1) > 1 ? p.farmDurationHours : null,
+      modelId: p.modelId ?? null,
+      shapeId: p.shapeId ?? null,
     }));
 
   // Equipment listings are rendered in their own section (different card
@@ -207,6 +217,8 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
       displayName: l.planetDisplayName
         ?? deterministicNameFromId(l.planetId || `listing-${l.id}`),
       farmDurationHours: (l.planetFarmDurationHours ?? 1) > 1 ? l.planetFarmDurationHours : null,
+      modelId: l.modelId ?? null,
+      shapeId: l.shapeId ?? null,
     })),
   ];
 
@@ -246,7 +258,14 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
     return withKey.map((x) => x.l);
   })();
 
-  const handleBuyServer = async (serverId: number, planetType: PlanetType, planetRate: number, price: number, planetFloat: number | null) => {
+  const handleBuyServer = async (
+    serverId: number,
+    planetType: PlanetType,
+    planetRate: number,
+    price: number,
+    planetFloat: number | null,
+    model?: { modelId?: string | null; shapeId?: string | null; modelName?: string | null } | null,
+  ) => {
     if (!telegramId) return;
     // P2P TON marketplace: buyer pays 50% from deposit_balance and 50% from
     // earned_balance. Both wallets must cover their half.
@@ -268,9 +287,15 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
       // the listing carried); fall back to the listing snapshot we
       // sent in (matches the marketplace card the buyer just clicked).
       const finalFloat = typeof result.planetFloat === "number" ? result.planetFloat : planetFloat;
-      onServerBuyComplete(planetType, planetRate, price, finalFloat);
+      const modelMeta = {
+        modelId: result.modelId ?? model?.modelId,
+        shapeId: result.shapeId ?? model?.shapeId,
+        modelName: result.modelName ?? model?.modelName,
+      };
+      onServerBuyComplete(planetType, planetRate, price, finalFloat, modelMeta);
       void refreshMarketListings();
-      showToast(`${PLANET_CONFIG[planetType].label} planet added to your farm!`, true);
+      const label = modelMeta.modelName || PLANET_CONFIG[planetType].label;
+      showToast(`${label} added to your farm!`, true);
     } else {
       showToast(result.error ?? "Purchase failed", false);
     }
@@ -610,7 +635,16 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                       }}
                     />
                     <div className="planet-float-anim-slow" style={{ position: "relative", zIndex: 1 }}>
-                      <PlanetOrb planet={fakePlanet} size={56} animate={isPlatinumNft || isPerfectFloat} displayFloat={listingFloat} />
+                      {listing.modelId ? (
+                        <ObjectThumb
+                          shapeId={listing.shapeId || getModelById(listing.modelId)?.shapeId || "minifig"}
+                          primaryColor={getModelById(listing.modelId)?.primaryColor || cfg.color}
+                          accentColor={getModelById(listing.modelId)?.accentColor || cfg.glowColor}
+                          size={56}
+                        />
+                      ) : (
+                        <PlanetOrb planet={fakePlanet} size={56} animate={isPlatinumNft || isPerfectFloat} displayFloat={listingFloat} />
+                      )}
                       {isPlatinumNft && (
                         <span
                           className="nft-badge absolute"
@@ -733,7 +767,18 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                         }}
                         onClick={() => {
                           if (listing.serverId) {
-                            handleBuyServer(listing.serverId, listing.name, listing.rate, listing.price, listing.planetFloat);
+                            handleBuyServer(
+                              listing.serverId,
+                              listing.name,
+                              listing.rate,
+                              listing.price,
+                              listing.planetFloat ?? null,
+                              {
+                                modelId: listing.modelId,
+                                shapeId: listing.shapeId,
+                                modelName: listing.displayName,
+                              },
+                            );
                           } else {
                             handleBuyLocal(listing as MarketListing);
                           }

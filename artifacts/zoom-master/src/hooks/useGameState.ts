@@ -238,6 +238,8 @@ export interface MarketListing {
   displayName?: string | null;
   // Farm-duration upgrade (hours). Null/absent = default 1h.
   farmDurationHours?: number | null;
+  modelId?: string | null;
+  shapeId?: string | null;
 }
 
 export interface GameState {
@@ -4520,15 +4522,23 @@ export function useGameState() {
     return { success: true };
   }, []);
 
-  const serverBuyComplete = useCallback((planetType: PlanetType, planetRate: number, pricePaid: number, planetFloat?: number | null) => {
+  const serverBuyComplete = useCallback((
+    planetType: PlanetType,
+    planetRate: number,
+    pricePaid: number,
+    planetFloat?: number | null,
+    model?: { modelId?: string | null; shapeId?: string | null; modelName?: string | null } | null,
+  ) => {
     const cfg = PLANET_CONFIG[planetType];
     const now = serverNow();
+    const modelId = model?.modelId || undefined;
+    const def = modelId ? getModelById(modelId) : undefined;
     const newPlanet: Planet = {
       id: `bought-${Date.now()}-${Math.random().toString(36).substring(2)}`,
       name: planetType,
       rate: planetRate,
-      color: cfg.color,
-      glowColor: cfg.glowColor,
+      color: def?.primaryColor || cfg.color,
+      glowColor: def?.accentColor || cfg.glowColor,
       createdAt: now,
       // Same as buyPlanet — never-started until first user-triggered START.
       farmStartedAt: 0,
@@ -4544,6 +4554,9 @@ export function useGameState() {
       float: typeof planetFloat === "number" && Number.isFinite(planetFloat)
         ? planetFloat
         : generateRandomFloat(),
+      modelId,
+      modelName: model?.modelName || def?.name,
+      shapeId: model?.shapeId || def?.shapeId,
     };
     setState((prev) => {
       // 50/50 split: buyer pays half from deposit_balance and half from
@@ -5660,11 +5673,12 @@ export function useGameState() {
     return { won: !!result.won, message: result.message };
   }, []);
 
-  /** List a collectible item on the marketplace. Optimistic with rollback. */
+  /** List a collectible item on the marketplace. Flush inventory first (same as planets), then optimistic with rollback. */
   const listItemAction = useCallback((itemId: string, price: number) => {
     const tid = stateRef.current.telegramId;
     if (!tid) return;
     const { firstName } = getTelegramContext();
+    const snapshot = stateRef.current.items ?? [];
     setState((prev) => {
       const next = (prev.items ?? []).map((i) =>
         i.id === itemId
@@ -5673,12 +5687,12 @@ export function useGameState() {
       );
       return { ...prev, items: next };
     });
-    listItemOnMarket({
+    saveItems(tid, snapshot as never).then(() => listItemOnMarket({
       sellerTelegramId: tid,
       sellerName: firstName ?? undefined,
       itemId,
       price,
-    }).then((res) => {
+    })).then((res) => {
       if (res.ok && res.listing) {
         setState((s) => ({
           ...s,
@@ -5688,7 +5702,6 @@ export function useGameState() {
         }));
         void refreshMarketListings();
       } else {
-        // Rollback on failure
         setState((s) => ({
           ...s,
           items: (s.items ?? []).map((i) =>
@@ -5697,6 +5710,11 @@ export function useGameState() {
               : i,
           ),
         }));
+        toast({
+          title: "Listing rejected",
+          description: res.error ?? "The server refused to list this item.",
+          variant: "destructive",
+        });
       }
     }).catch(() => {
       setState((s) => ({

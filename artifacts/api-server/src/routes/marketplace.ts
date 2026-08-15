@@ -37,7 +37,7 @@ router.get("/market/sales", async (_req, res) => {
         : (rawFloat != null && Number.isFinite(Number(rawFloat)) ? Number(rawFloat) : null);
       return {
         id: Number(r.id),
-        kind: (r.kind === "equipment" ? "equipment" : "planet") as "planet" | "equipment",
+        kind: (r.kind === "equipment" ? "equipment" : r.kind === "item" ? "item" : "planet") as "planet" | "equipment" | "item",
         planetType: r.planet_type == null ? null : String(r.planet_type),
         planetRate: r.planet_rate == null ? null : Number(r.planet_rate),
         equipmentCategory: r.equipment_category == null ? null : String(r.equipment_category),
@@ -218,12 +218,27 @@ router.post("/market/list", async (req, res) => {
 
     // Snapshot the seller's user-chosen displayName (set via the paid
     // /planets/rename endpoint) so the marketplace card can show
-    // "Eos-Prime" instead of the bare rarity. Truncate defensively to
-    // the same 64-char bound used elsewhere; null if never renamed.
+    // "Eos-Prime" instead of the bare rarity. Lab-forged 3D objects use
+    // `modelName` the same way. Truncate defensively to the same 64-char
+    // bound used elsewhere; null if never renamed / not a model.
     const rawDisplayName = (planet as { displayName?: unknown }).displayName;
+    const rawModelName = (planet as { modelName?: unknown }).modelName;
     const planetDisplayNameSnapshot: string | null =
       typeof rawDisplayName === "string" && rawDisplayName.trim().length > 0
         ? rawDisplayName.trim().slice(0, 64)
+        : (typeof rawModelName === "string" && rawModelName.trim().length > 0
+          ? rawModelName.trim().slice(0, 64)
+          : null);
+
+    const rawModelId = (planet as { modelId?: unknown }).modelId;
+    const modelIdSnapshot: string | null =
+      typeof rawModelId === "string" && rawModelId.trim().length > 0
+        ? rawModelId.trim().slice(0, 32)
+        : null;
+    const rawShapeId = (planet as { shapeId?: unknown }).shapeId;
+    const shapeIdSnapshot: string | null =
+      typeof rawShapeId === "string" && rawShapeId.trim().length > 0
+        ? rawShapeId.trim().slice(0, 32)
         : null;
 
     // Snapshot the farm-duration upgrade (hours). Only store when > 1 to
@@ -248,6 +263,8 @@ router.post("/market/list", async (req, res) => {
           planetFloat: planetFloatSnapshot,
           planetDisplayName: planetDisplayNameSnapshot,
           planetFarmDurationHours: planetFarmDurationHoursSnapshot,
+          modelId: modelIdSnapshot,
+          shapeId: shapeIdSnapshot,
           price,
           status: "active",
         })
@@ -790,7 +807,7 @@ router.post("/market/buy", async (req, res) => {
       const [buyerInfo] = await db.select({ name: usersTable.firstName }).from(usersTable).where(eq(usersTable.telegramId, buyerTelegramId)).limit(1);
       broadcastSale({
         id: listing.id,
-        kind: isEquipmentListing ? "equipment" : "planet",
+        kind: isItemListing ? "item" : isEquipmentListing ? "equipment" : "planet",
         planetType: listing.planetType,
         planetRate: listing.planetRate,
         equipmentCategory: listing.equipmentCategory,
@@ -863,7 +880,7 @@ router.post("/market/buy", async (req, res) => {
       : null;
     res.json({
       ok: true,
-      kind: isEquipmentListing ? "equipment" : "planet",
+      kind: isItemListing ? "item" : isEquipmentListing ? "equipment" : "planet",
       planetType: listing.planetType,
       planetRate: listing.planetRate,
       equipmentId: buyerEquipmentId,
@@ -873,6 +890,9 @@ router.post("/market/buy", async (req, res) => {
       pricePaid: listing.price,
       sellerReceived: sellerShare,
       planetFloat: buyerFloat,
+      modelId: listing.modelId ?? null,
+      shapeId: listing.shapeId ?? null,
+      modelName: listing.planetDisplayName ?? null,
     });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});

@@ -504,6 +504,10 @@ export const marketListingsTable = pgTable("market_listings", {
   // marketplace card show "⏱ 4h" without joining back to planets_json.
   // Nullable for legacy listings (UI treats null/1 as default 1h).
   planetFarmDurationHours: integer("planet_farm_duration_hours"),
+  // Lab-forged 3D object identity. Null on regular planets. Lets the
+  // marketplace render ObjectThumb and the buyer inherit the same mesh.
+  modelId: text("model_id"),
+  shapeId: text("shape_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   soldAt: timestamp("sold_at"),
   lastActivatedAt: timestamp("last_activated_at"),

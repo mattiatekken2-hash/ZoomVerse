@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { MysteryModel3D } from "./MysteryModel3D";
-import { LabGridBackground } from "./LabGridBackground";
 import { getMeshParts, getModelById } from "@workspace/game-models";
 import type { ZoomModel } from "../hooks/useGameState";
 import { useT } from "../i18n/LanguageContext";
@@ -142,9 +141,7 @@ export function PlanetCanvas({
   const modelCanvasSize = forgePhase === "revealed" ? size * 0.92 : size * 0.88;
 
   return (
-    <div ref={containerRef} className="relative w-full h-full flex flex-col items-center justify-center overflow-hidden">
-      <LabGridBackground />
-
+    <div ref={containerRef} className="relative w-full h-full flex flex-col items-center justify-center">
       <div
         className={`flex items-center justify-center ${showConverge ? "forge-shake" : ""}`}
         style={{
@@ -153,6 +150,8 @@ export function PlanetCanvas({
           cursor: onPunch && forgePhase === "idle" && !forgeRolling ? "pointer" : "default",
           touchAction: "manipulation",
           position: "relative",
+          background: "transparent",
+          overflow: "visible",
         }}
         data-testid="planet-wrap"
       >

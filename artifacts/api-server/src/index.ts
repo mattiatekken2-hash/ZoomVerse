@@ -57,7 +57,12 @@ async function runBootMigrations() {
         ADD COLUMN IF NOT EXISTS models_json         jsonb         NOT NULL DEFAULT '[]'::jsonb,
         ADD COLUMN IF NOT EXISTS models_updated_at_ms bigint        NOT NULL DEFAULT 0
     `);
-    logger.info("[boot-migration] items_json / models_json columns OK");
+    await db.execute(sql`
+      ALTER TABLE market_listings
+        ADD COLUMN IF NOT EXISTS model_id text,
+        ADD COLUMN IF NOT EXISTS shape_id text
+    `);
+    logger.info("[boot-migration] items_json / models_json / market model columns OK");
   } catch (err) {
     logger.error({ err }, "[boot-migration] failed to add items columns — items routes may error");
   }
