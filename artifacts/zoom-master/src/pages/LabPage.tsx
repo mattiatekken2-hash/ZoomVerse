@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { PlanetCanvas, type ForgePhase } from "../components/PlanetCanvas";
 import { AutoTapWidget } from "../components/AutoTapWidget";
-import { TonWalletWidget } from "../components/TonWalletWidget";
 
 import type { Planet, PlanetType, EquipmentDropResult, ZoomModel } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import { EQUIPMENT_RARITY_INFO, EQUIPMENT_CATEGORIES } from "../utils/equipmentConfig";
+import { hapticLight } from "../utils/haptic";
 import { useT } from "../i18n/LanguageContext";
 
 
@@ -23,17 +23,6 @@ interface LabPageProps {
   hasAutoTap: boolean;
   stardustBalance: number;
   telegramId: string | null;
-  tonBalance: number;
-  depositBalance: number;
-  whiteCollectionUnlocked: boolean;
-  earthCollectionUnlocked: boolean;
-  blackCollectionUnlocked: boolean;
-  supernovaCollectionUnlocked: boolean;
-  sunCount: number;
-  whitePlanets: Planet[];
-  earthPlanets: Planet[];
-  blackPlanets: Planet[];
-  supernovaPlanets: Planet[];
   onCraft: (availableStardust?: number) => { completed: boolean; model?: ZoomModel; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType; equipmentDrop?: EquipmentDropResult };
   onClaim: () => void;
   visible?: boolean;
@@ -52,7 +41,7 @@ const RARITY_PAINT: Record<string, string> = {
   LEGEND: "#fff4b0",
 };
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, pendingModel, forgingModel = null, forgeRolling = false, hasAutoTap, stardustBalance, telegramId, tonBalance, depositBalance, whiteCollectionUnlocked, earthCollectionUnlocked, blackCollectionUnlocked, supernovaCollectionUnlocked, sunCount, whitePlanets, earthPlanets, blackPlanets, supernovaPlanets, onCraft, onClaim, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, pendingModel, forgingModel = null, forgeRolling = false, hasAutoTap, stardustBalance, telegramId, onCraft, onClaim, visible = true }: LabPageProps) {
   const { t } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
@@ -181,6 +170,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
   const handleCraft = useCallback(() => {
     if (!canCraft) return;
+    hapticLight();
     const result = onCraft(stardustBalance);
     if (result.completed && result.broken && result.brokenRarity) {
       try {
@@ -237,9 +227,8 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         style={{ minHeight: 0 }}
         onClick={canCraft && forgePhase === "idle" ? handleCraft : undefined}
       >
-        {/* Top bar: $ZOOM center, Telegram GRAM wallet top-right */}
-        <div className="absolute top-3 left-0 right-0 z-30 flex items-start justify-between px-3 pointer-events-none">
-          <div className="w-16" />
+        {/* Top bar: $ZOOM center (GRAM wallet stays in app header) */}
+        <div className="absolute top-3 left-0 right-0 z-30 flex items-start justify-center px-3 pointer-events-none">
           <div
             className="px-5 py-2 rounded-full pointer-events-none"
             data-testid="lab-zoom-balance"
@@ -256,23 +245,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             >
               {Math.floor(balance).toLocaleString()} $ZOOM
             </span>
-          </div>
-          <div className="pointer-events-auto">
-            <TonWalletWidget
-              tonBalance={tonBalance}
-              depositBalance={depositBalance}
-              telegramId={telegramId}
-              whiteCollectionUnlocked={whiteCollectionUnlocked}
-              earthCollectionUnlocked={earthCollectionUnlocked}
-              blackCollectionUnlocked={blackCollectionUnlocked}
-              supernovaCollectionUnlocked={supernovaCollectionUnlocked}
-              sunCount={sunCount}
-              whitePlanets={whitePlanets}
-              earthPlanets={earthPlanets}
-              blackPlanets={blackPlanets}
-              supernovaPlanets={supernovaPlanets}
-              iconOnly
-            />
           </div>
         </div>
 

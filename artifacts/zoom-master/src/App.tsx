@@ -869,17 +869,6 @@ function AppShellWithState() {
                   hasAutoTap={!!state.hasAutoTap}
                   stardustBalance={state.stardustBalance || 0}
                   telegramId={state.telegramId}
-                  tonBalance={state.tonBalance || 0}
-                  depositBalance={state.depositBalance || 0}
-                  whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
-                  earthCollectionUnlocked={!!state.earthCollectionUnlocked}
-                  blackCollectionUnlocked={!!state.blackCollectionUnlocked}
-                  supernovaCollectionUnlocked={!!state.supernovaCollectionUnlocked}
-                  sunCount={state.sunCount || 0}
-                  whitePlanets={state.whitePlanets || []}
-                  earthPlanets={state.earthPlanets || []}
-                  blackPlanets={state.blackPlanets || []}
-                  supernovaPlanets={state.supernovaPlanets || []}
                   onCraft={craft}
                   onClaim={claimCraft}
                   visible={tab === "lab"}

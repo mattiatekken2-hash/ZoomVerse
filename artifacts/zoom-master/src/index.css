@@ -996,16 +996,16 @@ body.animations-paused * {
 @keyframes labFragmentFly {
   0% {
     transform: translate(calc(-50% + var(--fx, 0px)), calc(-50% + var(--fy, 0px))) scale(1);
-    opacity: 0.88;
+    opacity: 0.92;
   }
-  18% { opacity: 1; }
+  14% { opacity: 1; }
   100% {
-    transform: translate(calc(-50% + var(--tx, 0px)), calc(-50% + var(--ty, 0px))) scale(0);
+    transform: translate(calc(-50% + var(--mx, 0px)), calc(-50% + var(--my, 0px))) scale(0.18);
     opacity: 0;
   }
 }
 .lab-fragment {
-  animation: labFragmentFly 0.9s cubic-bezier(.35,.05,.2,1) forwards;
+  animation: labFragmentFly 0.72s cubic-bezier(.4,.05,.22,1) forwards;
   animation-delay: var(--delay, 0ms);
   will-change: transform, opacity;
   backface-visibility: hidden;
