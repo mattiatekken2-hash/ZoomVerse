@@ -59,22 +59,47 @@ const ForgeProgressBar = memo(function ForgeProgressBar({
   );
 });
 
+function modelSurfacePoint(
+  half: number,
+  tapHint: { x: number; y: number } | null,
+  seed: number,
+): { x: number; y: number } {
+  const rand = (n: number) => {
+    const v = Math.sin(n * 12.9898 + seed * 78.233) * 43758.5453;
+    return v - Math.floor(v);
+  };
+  const hasHint = tapHint && Math.hypot(tapHint.x, tapHint.y) > 4;
+  if (hasHint) {
+    const spread = half * 0.24;
+    return {
+      x: tapHint.x + (rand(1) - 0.5) * spread,
+      y: tapHint.y + (rand(2) - 0.5) * spread * 0.88,
+    };
+  }
+  const angle = rand(3) * Math.PI * 2;
+  const radius = half * (0.18 + rand(4) * 0.22);
+  return {
+    x: Math.cos(angle) * radius,
+    y: Math.sin(angle) * radius * 0.84,
+  };
+}
+
 function spawnClayFragments(
   layer: HTMLDivElement,
   half: number,
-  target: { x: number; y: number },
+  tapHint: { x: number; y: number } | null,
   fragIdRef: { current: number },
 ) {
   while (layer.childElementCount >= MAX_FRAGMENTS) {
     layer.firstElementChild?.remove();
   }
 
-  const tx = target.x;
-  const ty = target.y;
   const count = 3;
   for (let i = 0; i < count; i++) {
+    const seed = fragIdRef.current + i;
+    const target = modelSurfacePoint(half, tapHint, seed);
     const spread = (i - (count - 1) / 2) * 0.35;
-    const baseAngle = Math.atan2(ty, tx) + Math.PI;
+    const baseAngle = Math.atan2(target.y, target.x) + Math.PI;
     const angle = baseAngle + spread + (Math.random() - 0.5) * 0.25;
     const dist = 0.58 + Math.random() * 0.28;
     const fx = Math.cos(angle) * dist * half;
@@ -84,7 +109,6 @@ function spawnClayFragments(
     dot.dataset["fid"] = `f-${fragIdRef.current++}`;
     const clay = CLAY_COLORS[i % CLAY_COLORS.length] ?? "#b0b0b0";
     const dotSize = Math.max(4, half * 0.028 + Math.random() * 4);
-    const jitter = 6 + Math.random() * 10;
     const s = dot.style;
     s.position = "absolute";
     s.left = "50%";
@@ -97,8 +121,8 @@ function spawnClayFragments(
     s.contain = "strict";
     s.setProperty("--fx", `${fx}px`);
     s.setProperty("--fy", `${fy}px`);
-    s.setProperty("--tx", `${tx + (Math.random() - 0.5) * jitter}px`);
-    s.setProperty("--ty", `${ty + (Math.random() - 0.5) * jitter}px`);
+    s.setProperty("--tx", `${target.x}px`);
+    s.setProperty("--ty", `${target.y}px`);
     s.setProperty("--delay", `${i * 50}ms`);
     layer.appendChild(dot);
     dot.addEventListener("animationend", () => dot.remove(), { once: true });
@@ -168,13 +192,9 @@ export function PlanetCanvas({
   const handleModelTap = useCallback((point?: { x: number; y: number }) => {
     const layer = fragmentLayerRef.current;
     const half = sizeRef.current / 2;
-    const target = point ?? lastTapTargetRef.current ?? {
-      x: (Math.random() - 0.5) * half * 0.25,
-      y: (Math.random() - 0.5) * half * 0.25,
-    };
     if (point) lastTapTargetRef.current = point;
     if (layer && half > 0 && forgePhase === "idle") {
-      spawnClayFragments(layer, half, target, fragIdRef);
+      spawnClayFragments(layer, half, point ?? lastTapTargetRef.current, fragIdRef);
       skipNextProgressSpawnRef.current = true;
     }
     onPunch?.();
@@ -193,11 +213,7 @@ export function PlanetCanvas({
     const half = sizeRef.current / 2;
     if (!layer || half <= 0) return;
 
-    const target = lastTapTargetRef.current ?? {
-      x: (Math.random() - 0.5) * half * 0.25,
-      y: (Math.random() - 0.5) * half * 0.25,
-    };
-    spawnClayFragments(layer, half, target, fragIdRef);
+    spawnClayFragments(layer, half, lastTapTargetRef.current, fragIdRef);
   }, [progress, forgePhase]);
 
   const convergeKey = forgePhase === "waiting" ? "w" : "i";

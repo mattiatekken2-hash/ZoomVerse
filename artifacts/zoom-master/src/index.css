@@ -1000,7 +1000,7 @@ body.animations-paused * {
   }
   18% { opacity: 1; }
   100% {
-    transform: translate(calc(-50% + var(--tx, 0px)), calc(-50% + var(--ty, 0px))) scale(0.12);
+    transform: translate(calc(-50% + var(--tx, 0px)), calc(-50% + var(--ty, 0px))) scale(0);
     opacity: 0;
   }
 }
