@@ -15,7 +15,7 @@ interface RankPageProps {
 }
 
 const SEASON_DURATION_MS = 90 * 24 * 60 * 60 * 1000;
-const DEFAULT_SEASON_START = new Date("2026-04-14T00:00:00.000Z").getTime();
+const DEFAULT_SEASON_START = new Date("2026-08-15T00:00:00.000Z").getTime();
 const TOTAL_SEASONS = 6;
 
 function timeAgo(ts: number): string {
@@ -53,7 +53,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
   const loadingLb = !initialized && leaderboard.length === 0;
 
   const seasonProgress = getSeasonProgress(currentTime, seasonStart);
-  const currentSeason = 2;
+  const currentSeason = 3;
   const seasonProgressPercent = seasonProgress * 100;
 
   useEffect(() => {
@@ -122,7 +122,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
             })}
           </div>
           <div className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.2)" }}>
-            Exchange activates when Season 2 concludes
+            Exchange activates when Season 3 concludes
           </div>
         </div>
       </div>

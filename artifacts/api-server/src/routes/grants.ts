@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
+import { computeWeeklyRedStarStatus, WEEKLY_REDSTAR_REWARD } from "./ads";
 
 const router = Router();
 
@@ -48,13 +49,15 @@ router.get("/grants/:telegramId", async (req, res) => {
         stellaRossaFarmDurationHours: usersTable.stellaRossaFarmDurationHours,
         dailyAdsWatched: usersTable.dailyAdsWatched,
         dailyAdsDate: usersTable.dailyAdsDate,
+        weeklyRedstarDay: usersTable.weeklyRedstarDay,
+        lastWeeklyRedstarClaimDate: usersTable.lastWeeklyRedstarClaimDate,
       })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
       .limit(1);
 
     if (!user) {
-      return res.json({ bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusNova: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, stellaRossaCollectionUnlocked: false, stellaRossaCollectionBundles: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0, sunFarmDurationHours: 1, collectionFarmDurationHours: 1, whiteFarmDurationHours: 1, earthFarmDurationHours: 1, blackFarmDurationHours: 1, supernovaFarmDurationHours: 1, stellaRossaFarmDurationHours: 1, dailyAdsWatched: 0 });
+      return res.json({ bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusNova: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, stellaRossaCollectionUnlocked: false, stellaRossaCollectionBundles: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0, sunFarmDurationHours: 1, collectionFarmDurationHours: 1, whiteFarmDurationHours: 1, earthFarmDurationHours: 1, blackFarmDurationHours: 1, supernovaFarmDurationHours: 1, stellaRossaFarmDurationHours: 1, weeklyRedStarDay: 1, weeklyRedStarClaimedToday: false, weeklyRedStarReward: WEEKLY_REDSTAR_REWARD });
     }
 
     return res.json({
@@ -98,6 +101,15 @@ router.get("/grants/:telegramId", async (req, res) => {
         const today = new Date().toISOString().slice(0, 10);
         return (user.dailyAdsDate ?? "") === today ? (user.dailyAdsWatched ?? 0) : 0;
       })(),
+      weeklyRedStarDay: computeWeeklyRedStarStatus(
+        user.lastWeeklyRedstarClaimDate ?? "",
+        user.weeklyRedstarDay ?? 0,
+      ).cycleDay,
+      weeklyRedStarClaimedToday: computeWeeklyRedStarStatus(
+        user.lastWeeklyRedstarClaimDate ?? "",
+        user.weeklyRedstarDay ?? 0,
+      ).claimedToday,
+      weeklyRedStarReward: WEEKLY_REDSTAR_REWARD,
     });
   } catch (err) {
     res.status(500).json({ error: "Internal server error" });

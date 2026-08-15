@@ -8,7 +8,7 @@ import {
 import { PlanetOrb } from "../components/PlanetOrb";
 import { ObjectThumb } from "../components/MysteryModel3D";
 import { getModelById } from "@workspace/game-models";
-import { PLANET_CONFIG } from "../hooks/useGameState";
+import { PLANET_CONFIG, getRarityColorsForModel } from "../hooks/useGameState";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
 import { buyFromMarket, shareListing, openMarketActivityStream, type ServerMarketListing } from "../utils/api";
 import { useGlobalStore, pushMarketSale, refreshMarketListings } from "../store/globalStore";
@@ -562,6 +562,7 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
 
           {filtered.map((listing) => {
             const cfg = PLANET_CONFIG[listing.name];
+            const modelColors = listing.modelId ? getRarityColorsForModel(listing.name) : null;
             if (!cfg) return null;
             const rarityColor = RARITY_COLORS[listing.name];
             const fakePlanet = {
@@ -638,8 +639,8 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                       {listing.modelId ? (
                         <ObjectThumb
                           shapeId={listing.shapeId || getModelById(listing.modelId)?.shapeId || "minifig"}
-                          primaryColor={getModelById(listing.modelId)?.primaryColor || cfg.color}
-                          accentColor={getModelById(listing.modelId)?.accentColor || cfg.glowColor}
+                          primaryColor={modelColors!.color}
+                          accentColor={modelColors!.accentHex}
                           size={56}
                         />
                       ) : (

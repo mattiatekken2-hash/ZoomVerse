@@ -16,7 +16,6 @@ import { MarketPage } from "./pages/MarketPage";
 import { EarnPage } from "./pages/EarnPage";
 import { RankPage } from "./pages/RankPage";
 import { ShopPage } from "./pages/ShopPage";
-import { PvpLobbyPage } from "./pages/PvpLobbyPage";
 import { HomePage } from "./pages/HomePage";
 import { AdminPanel } from "./components/AdminPanel";
 import { SettingsMenu } from "./components/SettingsMenu";
@@ -26,7 +25,7 @@ import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, merc
 import { useStardust } from "./hooks/useStardust";
 import { useMerchant } from "./hooks/useMerchant";
 import { MerchantPopup } from "./components/MerchantPopup";
-import { FlaskConical, Home, Sprout, ShoppingCart, Zap, Gem, Trophy, Wallet } from "lucide-react";
+import { FlaskConical, Home, Sprout, ShoppingCart, Gem, Trophy, Wallet } from "lucide-react";
 import { WalletPage } from "./pages/WalletPage";
 import { getVerifiedTelegramUserId, isBrowserDevSession } from "./utils/telegram";
 
@@ -40,19 +39,18 @@ function isMaintenanceAdmin(telegramId: string | null | undefined): boolean {
 
 const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
-type Tab = "lab" | "home" | "farm" | "market" | "earn" | "pvp" | "rank" | "shop" | "wallet";
+type Tab = "lab" | "home" | "farm" | "market" | "earn" | "rank" | "shop" | "wallet";
 
 const NAV: { id: Tab; labelKey: string; icon: React.ElementType }[] = [
   { id: "lab", labelKey: "nav.lab", icon: FlaskConical },
   { id: "farm", labelKey: "nav.farm", icon: Sprout },
   { id: "market", labelKey: "nav.market", icon: ShoppingCart },
-  { id: "pvp", labelKey: "nav.pvp", icon: Zap },
   { id: "earn", labelKey: "nav.earn", icon: Gem },
   { id: "rank", labelKey: "nav.rank", icon: Trophy },
   { id: "wallet", labelKey: "nav.wallet", icon: Wallet },
 ];
 
-const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "pvp", "rank", "shop", "wallet"];
+const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "rank", "shop", "wallet"];
 
 export default function App() {
   return (
@@ -133,7 +131,7 @@ function AppShellWithState() {
     placeSupernovaPlanet, reactivateSupernovaPlanet, markSupernovaPlanetReactivated, collectSupernovaPlanet,
     placeStellaRossaPlanet, reactivateStellaRossaPlanet, markStellaRossaPlanetReactivated, collectStellaRossaPlanet,
     activateEquipment, reactivateEquipment, burnEquipment, listEquipment, unlistEquipment, buyEquipmentFromMarket,
-    items, craftItem, listItem, unlistItem, buyItemFromMarket,
+    items, listItem, unlistItem, buyItemFromMarket,
   } = useGameState();
 
   // Space Merchant — wire once at App level so the radar LED in LAB and the
@@ -869,63 +867,10 @@ function AppShellWithState() {
                   forgingModel={state.forgingModel}
                   forgeRolling={state.forgeRolling}
                   hasAutoTap={!!state.hasAutoTap}
-                  whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
-                  whiteCollectionBundles={Number(state.whiteCollectionBundles) || 0}
-                  whitePlanets={state.whitePlanets || []}
-                  earthCollectionUnlocked={!!state.earthCollectionUnlocked}
-                  earthCollectionBundles={Number(state.earthCollectionBundles) || 0}
-                  earthPlanets={state.earthPlanets || []}
-                  sunCount={state.sunCount || 0}
-                  tonBalance={state.tonBalance || 0}
-                  depositBalance={state.depositBalance || 0}
                   stardustBalance={state.stardustBalance || 0}
                   telegramId={state.telegramId}
                   onCraft={craft}
-                  onPurchase={(labPointsDelta, stardustDelta) => {
-                    setState((prev) => ({
-                      ...prev,
-                      depositBalance: Math.max(0, (prev.depositBalance || 0) - 1),
-                      stardustBalance: (prev.stardustBalance || 0) + stardustDelta,
-                    }));
-                  }}
                   onClaim={claimCraft}
-                  onPlaceWhitePlanet={placeWhitePlanet}
-                  onCollectWhitePlanet={collectWhitePlanet}
-                  onReactivateWhitePlanet={reactivateWhitePlanet}
-                  onMarkWhitePlanetReactivated={markWhitePlanetReactivated}
-                  onPlaceEarthPlanet={placeEarthPlanet}
-                  onCollectEarthPlanet={collectEarthPlanet}
-                  onReactivateEarthPlanet={reactivateEarthPlanet}
-                  onMarkEarthPlanetReactivated={markEarthPlanetReactivated}
-                  blackCollectionUnlocked={!!state.blackCollectionUnlocked}
-                  blackCollectionBundles={Number(state.blackCollectionBundles) || 0}
-                  blackPlanets={state.blackPlanets || []}
-                  onPlaceBlackPlanet={placeBlackPlanet}
-                  onCollectBlackPlanet={collectBlackPlanet}
-                  onReactivateBlackPlanet={reactivateBlackPlanet}
-                  onMarkBlackPlanetReactivated={markBlackPlanetReactivated}
-                  supernovaCollectionUnlocked={!!state.supernovaCollectionUnlocked}
-                  supernovaCollectionBundles={Number(state.supernovaCollectionBundles) || 0}
-                  supernovaPlanets={state.supernovaPlanets || []}
-                  onPlaceSupernovaPlanet={placeSupernovaPlanet}
-                  onCollectSupernovaPlanet={collectSupernovaPlanet}
-                  onReactivateSupernovaPlanet={reactivateSupernovaPlanet}
-                  onMarkSupernovaPlanetReactivated={markSupernovaPlanetReactivated}
-                  stellaRossaCollectionUnlocked={!!state.stellaRossaCollectionUnlocked}
-                  stellaRossaCollectionBundles={Number(state.stellaRossaCollectionBundles) || 0}
-                  stellaPlanets={state.stellaPlanets || []}
-                  stellaLastClaimAt={Number(state.lastStellaClaimAt) || 0}
-                  onStellaClaimDaily={(newBal) => {
-                    setState((prev) => ({ ...prev, redStarBalance: newBal, lastStellaClaimAt: Date.now() }));
-                  }}
-                  onPlaceStellaRossaPlanet={placeStellaRossaPlanet}
-                  onCollectStellaRossaPlanet={collectStellaRossaPlanet}
-                  onReactivateStellaRossaPlanet={reactivateStellaRossaPlanet}
-                  onMarkStellaRossaPlanetReactivated={markStellaRossaPlanetReactivated}
-                  redStarBalance={state.redStarBalance || 0}
-                  onRedStarBalanceUpdate={(newBal) => setState((prev) => ({ ...prev, redStarBalance: newBal }))}
-                  onUpgradeCollectionDuration={upgradeCollectionFarmDuration}
-                  onCraftItem={craftItem}
                   visible={tab === "lab"}
                 />
               )}
@@ -952,6 +897,43 @@ function AppShellWithState() {
                   tonBalance={state.tonBalance || 0}
                   onUpgradeDuration={upgradePlanetFarmDuration}
                   onUpgradeSunDuration={upgradeSunFarmDuration}
+                  whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
+                  whiteCollectionBundles={Number(state.whiteCollectionBundles) || 0}
+                  whitePlanets={state.whitePlanets || []}
+                  earthCollectionUnlocked={!!state.earthCollectionUnlocked}
+                  earthCollectionBundles={Number(state.earthCollectionBundles) || 0}
+                  earthPlanets={state.earthPlanets || []}
+                  blackCollectionUnlocked={!!state.blackCollectionUnlocked}
+                  blackCollectionBundles={Number(state.blackCollectionBundles) || 0}
+                  blackPlanets={state.blackPlanets || []}
+                  supernovaCollectionUnlocked={!!state.supernovaCollectionUnlocked}
+                  supernovaCollectionBundles={Number(state.supernovaCollectionBundles) || 0}
+                  supernovaPlanets={state.supernovaPlanets || []}
+                  stellaRossaCollectionUnlocked={!!state.stellaRossaCollectionUnlocked}
+                  stellaRossaCollectionBundles={Number(state.stellaRossaCollectionBundles) || 0}
+                  stellaPlanets={state.stellaPlanets || []}
+                  redStarBalance={state.redStarBalance || 0}
+                  onRedStarBalanceUpdate={(newBal) => setState((prev) => ({ ...prev, redStarBalance: newBal }))}
+                  onPlaceWhitePlanet={placeWhitePlanet}
+                  onCollectWhitePlanet={collectWhitePlanet}
+                  onReactivateWhitePlanet={reactivateWhitePlanet}
+                  onMarkWhitePlanetReactivated={markWhitePlanetReactivated}
+                  onPlaceEarthPlanet={placeEarthPlanet}
+                  onCollectEarthPlanet={collectEarthPlanet}
+                  onReactivateEarthPlanet={reactivateEarthPlanet}
+                  onMarkEarthPlanetReactivated={markEarthPlanetReactivated}
+                  onPlaceBlackPlanet={placeBlackPlanet}
+                  onCollectBlackPlanet={collectBlackPlanet}
+                  onReactivateBlackPlanet={reactivateBlackPlanet}
+                  onMarkBlackPlanetReactivated={markBlackPlanetReactivated}
+                  onPlaceSupernovaPlanet={placeSupernovaPlanet}
+                  onCollectSupernovaPlanet={collectSupernovaPlanet}
+                  onReactivateSupernovaPlanet={reactivateSupernovaPlanet}
+                  onMarkSupernovaPlanetReactivated={markSupernovaPlanetReactivated}
+                  onPlaceStellaRossaPlanet={placeStellaRossaPlanet}
+                  onCollectStellaRossaPlanet={collectStellaRossaPlanet}
+                  onMarkStellaRossaPlanetReactivated={markStellaRossaPlanetReactivated}
+                  onUpgradeCollectionDuration={upgradeCollectionFarmDuration}
                   equipment={state.equipment ?? []}
                   onActivateEquipment={activateEquipment}
                   onReactivateEquipment={reactivateEquipment}
@@ -1026,7 +1008,8 @@ function AppShellWithState() {
                   onClaimDaily={claimDaily}
                   onRedeemCode={redeemCode}
                   telegramId={state.telegramId}
-                  dailyAdsWatched={state.dailyAdsWatched ?? 0}
+                  weeklyRedStarDay={state.weeklyRedStarDay ?? 1}
+                  weeklyRedStarClaimedToday={state.weeklyRedStarClaimedToday ?? false}
                   onRedStarUpdate={(n) => setState((prev) => ({ ...prev, redStarBalance: n }))}
                 />
               )}
@@ -1062,32 +1045,6 @@ function AppShellWithState() {
                   onStellaClaimDaily={(newBal) => {
                     setState((prev) => ({ ...prev, redStarBalance: newBal, lastStellaClaimAt: Date.now() }));
                   }}
-                />
-              )}
-              {t === "pvp" && (
-                <PvpLobbyPage
-                  telegramId={state.telegramId}
-                  planets={state.planets}
-                  visible={tab === "pvp"}
-                  onFlushPlanets={async () => {
-                    if (!state.telegramId) return;
-                    await saveRegularPlanets(
-                      state.telegramId,
-                      state.planets as unknown as Array<Record<string, unknown>>,
-                      {
-                        basic: state.claimedBonusBasic ?? 0,
-                        rare: state.claimedBonusRare ?? 0,
-                        epic: state.claimedBonusEpic ?? 0,
-                        gold: state.claimedBonusGold ?? 0,
-                        mythic: state.claimedBonusMythic ?? 0,
-                        plasma: state.claimedBonusPlasma ?? 0,
-                        v1: state.claimedBonusV1 ?? 0,
-                        v1NftPlatinum: state.claimedBonusV1NftPlatinum ?? 0,
-                      },
-                      state.craftsCompleted ?? 0,
-                    );
-                  }}
-                  onPlanetTransferred={() => window.dispatchEvent(new Event("planets-refresh"))}
                 />
               )}
               {t === "home" && (

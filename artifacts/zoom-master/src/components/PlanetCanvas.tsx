@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { MysteryModel3D } from "./MysteryModel3D";
 import { getMeshParts, getModelById } from "@workspace/game-models";
 import type { ZoomModel } from "../hooks/useGameState";
+import { getRarityColorsForModel } from "../hooks/useGameState";
 import { useT } from "../i18n/LanguageContext";
 
 export type ForgePhase = "idle" | "flash" | "waiting" | "revealed";
@@ -18,15 +19,6 @@ interface PlanetCanvasProps {
 }
 
 const DEFAULT_ACCENT = "#8892b0";
-
-const RARITY_PAINT: Record<string, { primary: string; accent: string }> = {
-  BASIC: { primary: "#9aa3b8", accent: "#5c6478" },
-  RARE: { primary: "#4facfe", accent: "#1a5a9e" },
-  EPIC: { primary: "#c471ed", accent: "#5a2d82" },
-  MYTHIC: { primary: "#ff3355", accent: "#8b1020" },
-  GOLD: { primary: "#ffd700", accent: "#b8860b" },
-  LEGEND: { primary: "#fff4b0", accent: "#ffd700" },
-};
 
 export function PlanetCanvas({
   onPunch,
@@ -50,12 +42,12 @@ export function PlanetCanvas({
   const pct = goal > 0 ? Math.min(progress / goal, 1) : 0;
   const revealed = forgePhase === "revealed";
   const buildProgress = forgePhase === "idle" ? pct : 1;
-  const rarityPaint = liveModel ? RARITY_PAINT[liveModel.rarity] : undefined;
+  const rarityPaint = liveModel ? getRarityColorsForModel(liveModel.rarity) : undefined;
   const displayAccent = revealed
-    ? (rarityPaint?.accent || liveModel?.accentColor || accentColor || DEFAULT_ACCENT)
+    ? (rarityPaint?.accentHex || liveModel?.accentColor || accentColor || DEFAULT_ACCENT)
     : DEFAULT_ACCENT;
   const displayPrimary = revealed
-    ? (rarityPaint?.primary || liveModel?.primaryColor || displayAccent)
+    ? (rarityPaint?.color || liveModel?.primaryColor || displayAccent)
     : "#c5c5c5";
 
   const modelDef = liveModel ? getModelById(liveModel.modelId) : undefined;
@@ -176,8 +168,8 @@ export function PlanetCanvas({
               position: "absolute",
               inset: "-8%",
               borderRadius: "50%",
-              background: `radial-gradient(circle, ${rarityPaint.primary}55 0%, ${rarityPaint.primary}18 42%, transparent 70%)`,
-              boxShadow: `0 0 48px ${rarityPaint.primary}44`,
+              background: `radial-gradient(circle, ${rarityPaint.color}55 0%, ${rarityPaint.color}18 42%, transparent 70%)`,
+              boxShadow: `0 0 48px ${rarityPaint.color}44`,
               zIndex: 1,
             }}
           />

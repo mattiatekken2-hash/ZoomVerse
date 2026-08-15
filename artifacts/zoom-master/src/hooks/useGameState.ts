@@ -361,8 +361,9 @@ export interface GameState {
   // Collectible items (Sandwich, Pizza, Skateboard, …). Always-on passive
   // ZOOM earners with no farm cycle. Stored in `users.items_json` jsonb.
   items: CollectibleItem[];
-  /** Number of Adsgram ads watched today (0-5). Reset at midnight UTC. */
-  dailyAdsWatched: number;
+  /** Weekly REDSTAR bonus day (1–7) and today's claim flag. */
+  weeklyRedStarDay: number;
+  weeklyRedStarClaimedToday: boolean;
 }
 
 export const PLANET_CONFIG: Record<PlanetType, {
@@ -969,7 +970,8 @@ const INITIAL_STATE: GameState = {
   lastBalanceEpoch: 0,
   equipment: [],
   items: [],
-  dailyAdsWatched: 0,
+  weeklyRedStarDay: 1,
+  weeklyRedStarClaimedToday: false,
 };
 
 /**
@@ -1059,7 +1061,8 @@ function loadState(): GameState {
         const nowMs = serverNow();
         const migratedPlanets = (parsed.planets || [])
           .map(migratePlanet)
-          .map((p) => applyDailyCollectMigration(p, nowMs));
+          .map((p) => applyDailyCollectMigration(p, nowMs))
+          .map(applyModelRarityColors);
         const base: GameState = {
           ...INITIAL_STATE,
           ...parsed,
@@ -1660,15 +1663,68 @@ const MODEL_RARITY_TO_PLANET: Record<string, PlanetType> = {
   LEGEND: "GOLD",
 };
 
+/** Dark companion tint for 3D mesh accent parts (matches Lab forge reveal). */
+const RARITY_ACCENT_HEX: Partial<Record<PlanetType, string>> = {
+  BASIC: "#5c6478",
+  RARE: "#1a5a9e",
+  EPIC: "#5a2d82",
+  MYTHIC: "#8b1020",
+  NOVA: "#3a0080",
+  PLASMA: "#008844",
+  MUSHROOM: "#5a205a",
+  GOLD: "#b8860b",
+  V1: "#b8860b",
+  V1_NFT: "#c0d8e8",
+};
+
+export function getRarityColorsForModel(rarityOrPlanetType: string): {
+  color: string;
+  glowColor: string;
+  accentHex: string;
+} {
+  const planetType = (MODEL_RARITY_TO_PLANET[rarityOrPlanetType] ?? rarityOrPlanetType) as PlanetType;
+  const cfg = PLANET_CONFIG[planetType];
+  if (!cfg) {
+    return {
+      color: PLANET_CONFIG.BASIC.color,
+      glowColor: PLANET_CONFIG.BASIC.glowColor,
+      accentHex: RARITY_ACCENT_HEX.BASIC ?? PLANET_CONFIG.BASIC.color,
+    };
+  }
+  return {
+    color: cfg.color,
+    glowColor: cfg.glowColor,
+    accentHex: RARITY_ACCENT_HEX[planetType] ?? cfg.color,
+  };
+}
+
+/** Lab 3D objects always use rarity palette (EPIC = purple, etc.). */
+export function getPlanetDisplayColors(planet: Pick<Planet, "name" | "color" | "glowColor" | "modelId">): {
+  color: string;
+  glowColor: string;
+  accentHex: string;
+} {
+  if (planet.modelId) return getRarityColorsForModel(planet.name);
+  return { color: planet.color, glowColor: planet.glowColor, accentHex: planet.color };
+}
+
+function applyModelRarityColors(planet: Planet): Planet {
+  if (!planet.modelId) return planet;
+  const { color, glowColor } = getRarityColorsForModel(planet.name);
+  if (planet.color === color && planet.glowColor === glowColor) return planet;
+  return { ...planet, color, glowColor };
+}
+
 function makePlanetFromModel(model: ZoomModel, craftCost: number): Planet {
   const rarity = MODEL_RARITY_TO_PLANET[model.rarity] ?? "BASIC";
+  const { color, glowColor } = getRarityColorsForModel(rarity);
   const now = serverNow();
   return {
     id: model.id,
     name: rarity,
     rate: model.rate,
-    color: model.primaryColor,
-    glowColor: model.accentColor,
+    color,
+    glowColor,
     createdAt: now,
     farmStartedAt: 0,
     lastCollectedAt: 0,
@@ -2250,9 +2306,8 @@ export function useGameState() {
           // Collectible items: same pattern as equipment.
           items: serverItems.ok ? (serverItems.items as CollectibleItem[]) : (prev.items ?? []),
           models: serverModels.ok ? (serverModels.models as ZoomModel[]) : (prev.models ?? []),
-          // Adsgram daily ad counter — server is authoritative (already
-          // reset to 0 by the server when the date has changed).
-          dailyAdsWatched: Math.max(0, Number(grants.dailyAdsWatched ?? 0)),
+          weeklyRedStarDay: Math.min(7, Math.max(1, Number(grants.weeklyRedStarDay ?? 1))),
+          weeklyRedStarClaimedToday: !!grants.weeklyRedStarClaimedToday,
         };
 
         // ─── GRANTS-DERIVED HYDRATION (gated on a successful /grants fetch) ───
@@ -2389,6 +2444,7 @@ export function useGameState() {
               planets: (serverRegular.planets as unknown as Planet[])
                 .map(migrateLegacyNeverStartedPlanet)
                 .map((p) => applyDailyCollectMigration(p, nowMs))
+                .map(applyModelRarityColors)
                 .map((serverP) => {
                   // Race-condition guard: the debounced save (1.2s) may not
                   // have reached the server yet when this sync fires.
@@ -4537,8 +4593,8 @@ export function useGameState() {
       id: `bought-${Date.now()}-${Math.random().toString(36).substring(2)}`,
       name: planetType,
       rate: planetRate,
-      color: def?.primaryColor || cfg.color,
-      glowColor: def?.accentColor || cfg.glowColor,
+      color: cfg.color,
+      glowColor: cfg.glowColor,
       createdAt: now,
       // Same as buyPlanet — never-started until first user-triggered START.
       farmStartedAt: 0,

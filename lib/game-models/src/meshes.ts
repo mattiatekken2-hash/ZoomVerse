@@ -415,7 +415,7 @@ export const SHAPE_LIBRARY: readonly {
   { id: "globe", name: "Mini Globe", category: "planet", build: globe },
 ];
 
-const VARIANTS = ["", " Prime", " Mk2", " Lite"] as const;
+const VARIANTS = ["", " Prime", " Mk2", " Lite", " Neo", " Ultra", " Pro", " X"] as const;
 
 export function shapeForIndex(index: number) {
   return SHAPE_LIBRARY[index % SHAPE_LIBRARY.length]!;

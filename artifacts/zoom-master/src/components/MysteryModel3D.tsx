@@ -16,6 +16,8 @@ interface ObjectMesh3DProps {
   onTap?: () => void;
   autoSpin?: boolean;
   interactive?: boolean;
+  /** Solid dark backdrop instead of transparent canvas (Farm detail view). */
+  opaqueBackground?: boolean;
 }
 
 function resolveColor(c: MeshPart["color"], primary: string, accent: string): string {
@@ -58,6 +60,7 @@ export function ObjectMesh3D({
   onTap,
   autoSpin = true,
   interactive = true,
+  opaqueBackground = false,
 }: ObjectMesh3DProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const onTapRef = useRef(onTap);
@@ -75,24 +78,33 @@ export function ObjectMesh3D({
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-    const renderer = new THREE.WebGLRenderer({ antialias: size > 90, alpha: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: size > 90, alpha: !opaqueBackground });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, size > 90 ? 1.75 : 1.25));
     renderer.setSize(size, size);
-    renderer.setClearColor(0x000000, 0);
-    renderer.domElement.style.background = "transparent";
+    if (opaqueBackground) {
+      renderer.setClearColor(0x060810, 1);
+      renderer.domElement.style.background = "#060810";
+    } else {
+      renderer.setClearColor(0x000000, 0);
+      renderer.domElement.style.background = "transparent";
+    }
     renderer.domElement.style.display = "block";
     mount.appendChild(renderer.domElement);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.45));
-    const key = new THREE.DirectionalLight(0xffffff, 1.05);
+    scene.add(new THREE.AmbientLight(0xffffff, opaqueBackground ? 0.55 : 0.45));
+    scene.add(new THREE.HemisphereLight(0xaaccff, 0x221122, opaqueBackground ? 0.45 : 0.25));
+    const key = new THREE.DirectionalLight(0xffffff, opaqueBackground ? 1.35 : 1.05);
     key.position.set(4, 7, 5);
     scene.add(key);
-    const fill = new THREE.DirectionalLight(0x8899aa, 0.35);
+    const fill = new THREE.DirectionalLight(0x8899cc, opaqueBackground ? 0.5 : 0.35);
     fill.position.set(-4, -1, -3);
     scene.add(fill);
-    const rim = new THREE.DirectionalLight(0xffffff, 0.2);
+    const rim = new THREE.DirectionalLight(0xffffff, opaqueBackground ? 0.45 : 0.2);
     rim.position.set(0, 2, -5);
     scene.add(rim);
+    const accentLight = new THREE.PointLight(new THREE.Color(accentColor), opaqueBackground ? 0.85 : 0.35, 12);
+    accentLight.position.set(-2, 3, 4);
+    scene.add(accentLight);
 
     const group = new THREE.Group();
     scene.add(group);
@@ -196,12 +208,12 @@ export function ObjectMesh3D({
         mixed.copy(lock < 0.62 ? clayDark : clayLight).lerp(painted, paintT);
         mat.color.copy(mixed);
         mat.emissive.copy(painted);
-        mat.emissiveIntensity = Math.sin(paintT * Math.PI) * 0.55;
+        mat.emissiveIntensity = Math.sin(paintT * Math.PI) * (opaqueBackground ? 0.72 : 0.55);
         mat.wireframe = false;
         mat.transparent = false;
         mat.opacity = 1;
-        mat.metalness = paintT > 0.5 ? (part.metal ?? 0.35) : 0.08;
-        mat.roughness = paintT > 0.5 ? (part.rough ?? 0.45) : 0.82;
+        mat.metalness = paintT > 0.5 ? (part.metal ?? (opaqueBackground ? 0.42 : 0.35)) : 0.08;
+        mat.roughness = paintT > 0.5 ? (part.rough ?? (opaqueBackground ? 0.38 : 0.45)) : 0.82;
       });
 
       if (autoSpin && !dragging) group.rotation.y += 0.008;
@@ -225,7 +237,7 @@ export function ObjectMesh3D({
       if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
       groupRef.current = null;
     };
-  }, [size, meshParts, autoSpin, interactive]);
+  }, [size, meshParts, autoSpin, interactive, opaqueBackground, accentColor]);
 
   return (
     <div
@@ -242,12 +254,14 @@ export function ObjectThumb({
   accentColor,
   size,
   autoSpin = true,
+  opaqueBackground = false,
 }: {
   shapeId: string;
   primaryColor: string;
   accentColor: string;
   size: number;
   autoSpin?: boolean;
+  opaqueBackground?: boolean;
 }) {
   const parts = useMemo(
     () => getMeshParts(shapeId, primaryColor, accentColor),
@@ -263,6 +277,7 @@ export function ObjectThumb({
       size={size}
       autoSpin={autoSpin}
       interactive={false}
+      opaqueBackground={opaqueBackground}
     />
   );
 }

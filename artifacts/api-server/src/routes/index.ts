@@ -151,7 +151,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/staking/start",
       "/ton/deposit/confirm",
       "/obtained/record",
-      "/ads/watched",
+      "/earn/weekly-redstar/claim",
     ],
     bindField: "telegramId",
   },

@@ -62,6 +62,11 @@ async function runBootMigrations() {
         ADD COLUMN IF NOT EXISTS model_id text,
         ADD COLUMN IF NOT EXISTS shape_id text
     `);
+    await db.execute(sql`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS weekly_redstar_day integer NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS last_weekly_redstar_claim_date text NOT NULL DEFAULT ''
+    `);
     logger.info("[boot-migration] items_json / models_json / market model columns OK");
   } catch (err) {
     logger.error({ err }, "[boot-migration] failed to add items columns — items routes may error");

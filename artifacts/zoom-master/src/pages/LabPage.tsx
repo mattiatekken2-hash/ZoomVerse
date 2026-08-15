@@ -1,14 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import {
-  ITEM_CONFIG,
-  ITEM_TYPES_ORDERED,
-  ITEM_RARITY_COLOR,
-  ITEM_RARITY_LABEL,
-  type ItemType,
-} from "../utils/collectibleConfig";
 import { PlanetCanvas, type ForgePhase } from "../components/PlanetCanvas";
 import { AutoTapWidget } from "../components/AutoTapWidget";
-import { PixelAvatar } from "../components/PixelAvatar";
 
 import type { Planet, PlanetType, EquipmentDropResult, ZoomModel } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
@@ -29,59 +21,10 @@ interface LabPageProps {
   forgingModel?: ZoomModel | null;
   forgeRolling?: boolean;
   hasAutoTap: boolean;
-  sunCount: number;
-  tonBalance: number;
-  depositBalance: number;
   stardustBalance: number;
   telegramId: string | null;
   onCraft: (availableStardust?: number) => { completed: boolean; model?: ZoomModel; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType; equipmentDrop?: EquipmentDropResult };
-  onPurchase?: (labPointsDelta: number, stardustDelta: number) => void;
   onClaim: () => void;
-  whiteCollectionUnlocked: boolean;
-  whiteCollectionBundles: number;
-  whitePlanets: Planet[];
-  earthCollectionUnlocked: boolean;
-  earthCollectionBundles: number;
-  earthPlanets: Planet[];
-  blackCollectionUnlocked: boolean;
-  blackCollectionBundles: number;
-  blackPlanets: Planet[];
-  supernovaCollectionUnlocked: boolean;
-  supernovaCollectionBundles: number;
-  supernovaPlanets: Planet[];
-  onPlaceWhitePlanet: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
-  onCollectWhitePlanet: (planetId: string) => void;
-  onReactivateWhitePlanet: (planetId: string) => { ok: boolean; reason?: string };
-  onMarkWhitePlanetReactivated: (planetId: string) => { ok: boolean; reason?: string };
-  onPlaceEarthPlanet: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
-  onCollectEarthPlanet: (planetId: string) => void;
-  onReactivateEarthPlanet: (planetId: string) => { ok: boolean; reason?: string };
-  onMarkEarthPlanetReactivated: (planetId: string) => { ok: boolean; reason?: string };
-  onPlaceBlackPlanet: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
-  onCollectBlackPlanet: (planetId: string) => void;
-  onReactivateBlackPlanet: (planetId: string) => { ok: boolean; reason?: string };
-  onMarkBlackPlanetReactivated: (planetId: string) => { ok: boolean; reason?: string };
-  onPlaceSupernovaPlanet: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
-  onCollectSupernovaPlanet: (planetId: string) => void;
-  onReactivateSupernovaPlanet: (planetId: string) => { ok: boolean; reason?: string };
-  onMarkSupernovaPlanetReactivated: (planetId: string) => { ok: boolean; reason?: string };
-  stellaRossaCollectionUnlocked: boolean;
-  stellaRossaCollectionBundles: number;
-  stellaPlanets: Planet[];
-  stellaLastClaimAt?: number;
-  onPlaceStellaRossaPlanet: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
-  onCollectStellaRossaPlanet: (planetId: string) => void;
-  onReactivateStellaRossaPlanet: (planetId: string) => { ok: boolean; reason?: string };
-  onMarkStellaRossaPlanetReactivated: (planetId: string) => { ok: boolean; reason?: string };
-  onStellaClaimDaily?: (newRedStarBalance: number) => void;
-  redStarBalance?: number;
-  onRedStarBalanceUpdate?: (newBalance: number) => void;
-  /** Current collection farm-duration (hours) — shows active tier in upgrade panel. */
-
-  /** Upgrade farm-cycle duration for ALL collection planets. Charges GRAM. */
-  onUpgradeCollectionDuration?: (collectionType: "white" | "earth" | "black" | "supernova" | "stella_rossa", hours: number) => Promise<{ ok: boolean; error?: string }>;
-  /** Craft a collectible item in the Lab forge. Deducts stardust, rolls chance. */
-  onCraftItem?: (itemType: string) => Promise<{ won: boolean; message?: string; error?: string }>;
   visible?: boolean;
 }
 
@@ -98,7 +41,7 @@ const RARITY_PAINT: Record<string, string> = {
   LEGEND: "#fff4b0",
 };
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, pendingModel, forgingModel = null, forgeRolling = false, hasAutoTap, sunCount, tonBalance, depositBalance, stardustBalance, telegramId, onCraft, onPurchase, onClaim, whiteCollectionUnlocked, whiteCollectionBundles, whitePlanets, earthCollectionUnlocked, earthCollectionBundles, earthPlanets, blackCollectionUnlocked, blackCollectionBundles, blackPlanets, supernovaCollectionUnlocked, supernovaCollectionBundles, supernovaPlanets, onPlaceWhitePlanet, onCollectWhitePlanet, onReactivateWhitePlanet, onMarkWhitePlanetReactivated, onPlaceEarthPlanet, onCollectEarthPlanet, onReactivateEarthPlanet, onMarkEarthPlanetReactivated, onPlaceBlackPlanet, onCollectBlackPlanet, onReactivateBlackPlanet, onMarkBlackPlanetReactivated, onPlaceSupernovaPlanet, onCollectSupernovaPlanet, onReactivateSupernovaPlanet, onMarkSupernovaPlanetReactivated, stellaRossaCollectionUnlocked, stellaRossaCollectionBundles, stellaPlanets, stellaLastClaimAt, onStellaClaimDaily, onPlaceStellaRossaPlanet, onCollectStellaRossaPlanet, onReactivateStellaRossaPlanet, onMarkStellaRossaPlanetReactivated, redStarBalance = 0, onRedStarBalanceUpdate, onUpgradeCollectionDuration, onCraftItem, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, pendingModel, forgingModel = null, forgeRolling = false, hasAutoTap, stardustBalance, telegramId, onCraft, onClaim, visible = true }: LabPageProps) {
   const { t } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
@@ -478,63 +421,18 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             avatar's bob/glow animations don't restart on every craft cycle.
             The CRAFT button is hidden during the planet-reveal cinematic but
             the avatar (and its modal state) are preserved. */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {pendingPlanet ? (
-            <div style={{ flex: 1 }} aria-hidden="true" />
-          ) : (
+        <div style={{ display: "flex", alignItems: "center" }}>
+          {!pendingPlanet && (
             <button
               className="btn-craft"
               onClick={handleCraft}
               disabled={!canCraft}
               data-testid="button-craft"
-              style={{ flex: 1 }}
+              style={{ width: "100%" }}
             >
               {isFull ? t("lab.farmFull") : !canCraft ? t("lab.noStardust") : t("lab.forgePlanet")}
             </button>
           )}
-          <PixelAvatar
-            size={60}
-            whitePlanets={whitePlanets}
-            whiteCollectionUnlocked={whiteCollectionUnlocked}
-            whiteCollectionBundles={whiteCollectionBundles}
-            earthPlanets={earthPlanets}
-            earthCollectionUnlocked={earthCollectionUnlocked}
-            earthCollectionBundles={earthCollectionBundles}
-            blackPlanets={blackPlanets}
-            blackCollectionUnlocked={blackCollectionUnlocked}
-            blackCollectionBundles={blackCollectionBundles}
-            supernovaPlanets={supernovaPlanets}
-            supernovaCollectionUnlocked={supernovaCollectionUnlocked}
-            supernovaCollectionBundles={supernovaCollectionBundles}
-            sunCount={sunCount}
-            tonBalance={tonBalance}
-            telegramId={telegramId}
-            onPlaceWhitePlanet={onPlaceWhitePlanet}
-            onCollectWhitePlanet={onCollectWhitePlanet}
-            onReactivateWhitePlanet={onReactivateWhitePlanet}
-            onMarkWhitePlanetReactivated={onMarkWhitePlanetReactivated}
-            onPlaceEarthPlanet={onPlaceEarthPlanet}
-            onCollectEarthPlanet={onCollectEarthPlanet}
-            onReactivateEarthPlanet={onReactivateEarthPlanet}
-            onMarkEarthPlanetReactivated={onMarkEarthPlanetReactivated}
-            onPlaceBlackPlanet={onPlaceBlackPlanet}
-            onCollectBlackPlanet={onCollectBlackPlanet}
-            onReactivateBlackPlanet={onReactivateBlackPlanet}
-            onMarkBlackPlanetReactivated={onMarkBlackPlanetReactivated}
-            onPlaceSupernovaPlanet={onPlaceSupernovaPlanet}
-            onCollectSupernovaPlanet={onCollectSupernovaPlanet}
-            onReactivateSupernovaPlanet={onReactivateSupernovaPlanet}
-            onMarkSupernovaPlanetReactivated={onMarkSupernovaPlanetReactivated}
-            stellaPlanets={stellaPlanets}
-            stellaRossaCollectionUnlocked={stellaRossaCollectionUnlocked}
-            stellaRossaCollectionBundles={stellaRossaCollectionBundles}
-            onPlaceStellaRossaPlanet={onPlaceStellaRossaPlanet}
-            onCollectStellaRossaPlanet={onCollectStellaRossaPlanet}
-            onMarkStellaRossaPlanetReactivated={onMarkStellaRossaPlanetReactivated}
-            redStarBalance={redStarBalance}
-            onRedStarBalanceUpdate={onRedStarBalanceUpdate}
-            onUpgradeCollectionDuration={onUpgradeCollectionDuration}
-          />
         </div>
 
         {!pendingPlanet && (
@@ -547,137 +445,8 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             <span>{t("lab.slotsFree", { n: Math.max(0, maxSlots - planets.length) })}</span>
           </div>
         )}
-
-        {/* ─── ITEM FORGE PANEL ─────────────────────────────────────────
-            Collapsible catalog of all 12 collectible items. Each item
-            shows its emoji, rarity, passive rate, and stardust cost.
-            Tapping FORGE calls onCraftItem and shows a result toast. */}
-        {onCraftItem && <ItemForgePanel stardustBalance={stardustBalance} onCraftItem={onCraftItem} />}
       </div>
 
-    </div>
-  );
-}
-
-/** ItemForgePanel — shown below the planet-forge area in the Lab. */
-function ItemForgePanel({
-  stardustBalance,
-  onCraftItem,
-}: {
-  stardustBalance: number;
-  onCraftItem: (itemType: string) => Promise<{ won: boolean; message?: string; error?: string }>;
-}) {
-  const [open, setOpen] = useState(false);
-  const [crafting, setCrafting] = useState<string | null>(null);
-  const [resultToast, setResultToast] = useState<{ won: boolean; msg: string } | null>(null);
-
-  const showResult = (won: boolean, msg: string) => {
-    setResultToast({ won, msg });
-    setTimeout(() => setResultToast(null), 3200);
-  };
-
-  const handleForge = async (type: string, cost: number) => {
-    if (stardustBalance < cost) {
-      showResult(false, `Need ${cost}★ stardust`);
-      return;
-    }
-    setCrafting(type);
-    const res = await onCraftItem(type);
-    setCrafting(null);
-    if (res.error) {
-      showResult(false, res.error);
-    } else {
-      showResult(!!res.won, res.message ?? (res.won ? "Item forged!" : "No luck this time!"));
-    }
-  };
-
-  return (
-    <div className="flex flex-col gap-0 mt-1">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center justify-between w-full px-4 py-3 rounded-xl transition-all"
-        style={{
-          background: open ? "rgba(196,113,237,0.10)" : "rgba(30,20,50,0.5)",
-          border: "1px solid rgba(196,113,237,0.22)",
-          color: "#c471ed",
-        }}
-      >
-        <div className="flex items-center gap-2">
-          <span style={{ fontSize: 18 }}>⚗️</span>
-          <span className="font-black text-xs tracking-widest">FORGE ITEM</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold opacity-60">{stardustBalance.toLocaleString()}★</span>
-          <span className="text-xs" style={{ opacity: 0.6 }}>{open ? "▲" : "▼"}</span>
-        </div>
-      </button>
-
-      {resultToast && (
-        <div
-          className="mt-2 rounded-xl px-4 py-2 text-xs font-bold text-center slot-enter"
-          style={{
-            background: resultToast.won ? "rgba(0,230,118,0.10)" : "rgba(196,113,237,0.10)",
-            color: resultToast.won ? "#00e676" : "#c471ed",
-            border: `1px solid ${resultToast.won ? "rgba(0,230,118,0.25)" : "rgba(196,113,237,0.25)"}`,
-          }}
-        >
-          {resultToast.msg}
-        </div>
-      )}
-
-      {open && (
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          {ITEM_TYPES_ORDERED.map((type) => {
-            const cfg = ITEM_CONFIG[type];
-            const rarityColor = ITEM_RARITY_COLOR[cfg.rarity];
-            const canAfford = stardustBalance >= cfg.craftCost;
-            const isCrafting = crafting === type;
-            return (
-              <div
-                key={type}
-                className="rounded-xl flex flex-col items-center gap-1.5 p-2 border slot-enter"
-                style={{
-                  background: `${rarityColor}0d`,
-                  borderColor: `${rarityColor}28`,
-                }}
-              >
-                {/* Emoji with glow */}
-                <div
-                  className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
-                  style={{
-                    background: `radial-gradient(circle at 40% 35%, ${rarityColor}44 0%, ${rarityColor}18 70%, rgba(6,8,16,0.8) 100%)`,
-                    boxShadow: `0 0 14px ${cfg.glowColor}`,
-                  }}
-                >
-                  {cfg.emoji}
-                </div>
-                <div className="text-center" style={{ lineHeight: 1.3 }}>
-                  <div className="text-[9px] font-black" style={{ color: rarityColor }}>
-                    {cfg.rarity}
-                  </div>
-                  <div className="text-[8px]" style={{ color: "rgba(220,235,255,0.55)" }}>
-                    +{cfg.rate}/hr
-                  </div>
-                </div>
-                <button
-                  onClick={() => { if (!isCrafting) void handleForge(type, cfg.craftCost); }}
-                  disabled={!canAfford || !!crafting}
-                  className="w-full py-1 rounded-lg text-[9px] font-black border transition-all active:scale-95"
-                  style={{
-                    borderColor: canAfford ? `${rarityColor}44` : "rgba(255,255,255,0.07)",
-                    background: canAfford ? `${rarityColor}12` : "transparent",
-                    color: canAfford ? rarityColor : "rgba(255,255,255,0.2)",
-                    cursor: canAfford && !crafting ? "pointer" : "not-allowed",
-                  }}
-                >
-                  {isCrafting ? "…" : `${cfg.craftCost}★`}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }

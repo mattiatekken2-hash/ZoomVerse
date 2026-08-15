@@ -9,7 +9,6 @@ import { MysteryBoxWidget } from "../components/MysteryBoxWidget";
 import { V1NftWidget } from "../components/V1NftWidget";
 import { HallOfFameWidget } from "../components/HallOfFameWidget";
 import { LabRankWidget } from "../components/LabRankWidget";
-import { PvpRankWidget } from "../components/PvpRankWidget";
 import { ExchangeWidget } from "../components/ExchangeWidget";
 import { StellaRossaCollectionWidget } from "../components/StellaRossaCollectionWidget";
 import { ZoomStoreWidget } from "../components/ZoomStoreWidget";
@@ -631,7 +630,6 @@ export function ShopPage({
           <ExchangeWidget balance={balance} sunCount={sunCount} shopMode />
           <LabRankWidget telegramId={telegramId ?? null} sunCount={sunCount} balance={balance} shopMode />
           <HallOfFameWidget telegramId={telegramId ?? null} shopMode />
-          <PvpRankWidget telegramId={telegramId ?? null} shopMode />
           </>)}
 
           {shopTab === "resources" && (<>

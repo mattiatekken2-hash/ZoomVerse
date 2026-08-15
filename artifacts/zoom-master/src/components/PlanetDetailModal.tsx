@@ -15,6 +15,7 @@ import {
   getPlanetFarmDurationMs,
   FARM_UPGRADE_COSTS,
   FARM_UPGRADE_TIERS,
+  getPlanetDisplayColors,
 } from "../hooks/useGameState";
 import { PlanetOrb } from "./PlanetOrb";
 import { ObjectThumb } from "./MysteryModel3D";
@@ -77,6 +78,8 @@ export function PlanetDetailModal({
   const [upgrading, setUpgrading] = useState(false);
 
   const cfg = PLANET_CONFIG[planet.name];
+  const displayColors = getPlanetDisplayColors(planet);
+  const displayColor = displayColors.color;
   const active = isFarmActive(planet);
   const expired = isFarmExpired(planet);
   const remaining = getFarmTimeRemaining(planet);
@@ -127,6 +130,110 @@ export function PlanetDetailModal({
     }
   };
 
+  if (planet.modelId) {
+    return (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center"
+        style={{ background: "#060810" }}
+        onClick={(e) => e.target === e.currentTarget && onClose()}
+      >
+        <div
+          className="flex flex-col items-center gap-4 px-6 py-8 w-full max-w-xs"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ObjectThumb
+            shapeId={planet.shapeId || getModelById(planet.modelId)?.shapeId || "minifig"}
+            primaryColor={displayColors.color}
+            accentColor={displayColors.accentHex}
+            size={76}
+            opaqueBackground
+          />
+
+          <div className="font-black text-lg text-center tracking-wide" style={{ color: "#fff" }}>
+            {getPlanetDisplayName(planet)}
+          </div>
+
+          <div className="text-xs font-bold" style={{ color: displayColor }}>
+            +{planet.rate.toLocaleString()} $ZOOM/hr
+          </div>
+
+          {defectMsg && (
+            <div className="w-full px-3 py-2 rounded-lg text-xs font-bold text-center" style={{ background: "rgba(255,82,82,0.15)", color: "#ff5252" }}>
+              {defectMsg}
+            </div>
+          )}
+
+          {dur <= 0 ? (
+            <div className="w-full py-2.5 rounded-xl text-xs font-black text-center" style={{ color: "#ff5252", border: "1px solid rgba(255,82,82,0.3)" }}>
+              FROZEN — repair from full view
+            </div>
+          ) : active ? (
+            <div className="w-full py-2.5 rounded-xl text-xs font-black text-center" style={{ color: "#00e676", border: "1px solid rgba(0,230,118,0.3)" }}>
+              FARMING · {formatDuration(remaining)}
+            </div>
+          ) : expired && !isListed ? (
+            <button
+              className="w-full py-2.5 rounded-xl text-xs font-black"
+              style={{ background: `${displayColor}22`, border: `1px solid ${displayColor}55`, color: displayColor }}
+              onClick={handleStart}
+            >
+              REACTIVATE
+            </button>
+          ) : !isListed ? (
+            <button
+              className="w-full py-2.5 rounded-xl text-xs font-black"
+              style={{ background: `${displayColor}22`, border: `1px solid ${displayColor}55`, color: displayColor }}
+              onClick={handleStart}
+            >
+              START FARM
+            </button>
+          ) : null}
+
+          {!isListed && (
+            <div className="flex gap-2 w-full">
+              <button
+                onClick={() => onSell(planet)}
+                className="flex-1 py-2 rounded-xl text-xs font-black"
+                style={{ background: "rgba(255,215,0,0.1)", border: "1px solid rgba(255,215,0,0.35)", color: "#ffd700" }}
+              >
+                Sell
+              </button>
+              <button
+                onClick={handleBurn}
+                className="flex-1 py-2 rounded-xl text-xs font-black"
+                style={{
+                  background: confirmBurn ? "rgba(255,82,82,0.2)" : "rgba(255,82,82,0.08)",
+                  border: `1px solid ${confirmBurn ? "rgba(255,82,82,0.6)" : "rgba(255,82,82,0.25)"}`,
+                  color: confirmBurn ? "#ff5252" : "rgba(255,82,82,0.8)",
+                }}
+              >
+                {confirmBurn ? "SURE?" : "Burn"}
+              </button>
+            </div>
+          )}
+
+          {isListed && onUnlist && (
+            <button
+              onClick={() => { onUnlist(planet.id); onClose(); }}
+              className="w-full py-2 rounded-xl text-xs font-black"
+              style={{ background: "rgba(255,215,0,0.08)", border: "1px solid rgba(255,215,0,0.35)", color: "#ffd700" }}
+            >
+              Delist
+            </button>
+          )}
+
+          <button
+            onClick={onClose}
+            className="w-full py-2 rounded-xl text-xs font-black mt-1"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center"
@@ -155,8 +262,8 @@ export function PlanetDetailModal({
             {planet.modelId ? (
               <ObjectThumb
                 shapeId={planet.shapeId || getModelById(planet.modelId)?.shapeId || "minifig"}
-                primaryColor={planet.color}
-                accentColor={planet.glowColor}
+                primaryColor={displayColors.color}
+                accentColor={displayColors.accentHex}
                 size={108}
               />
             ) : (

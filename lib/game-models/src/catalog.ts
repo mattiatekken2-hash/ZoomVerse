@@ -93,7 +93,7 @@ export function generateCatalog(count = 100): ModelDefinition[] {
   return models;
 }
 
-export const MODEL_CATALOG: ModelDefinition[] = generateCatalog(100);
+export const MODEL_CATALOG: ModelDefinition[] = generateCatalog(200);
 
 export function getModelById(modelId: string): ModelDefinition | undefined {
   return MODEL_CATALOG.find((m) => m.id === modelId);

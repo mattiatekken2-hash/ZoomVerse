@@ -100,6 +100,12 @@ interface PixelAvatarProps {
   onRedStarBalanceUpdate?: (newBalance: number) => void;
   /** Permanently upgrade farm-cycle duration for a specific collection. Charges GRAM. */
   onUpgradeCollectionDuration?: (collectionType: "white" | "earth" | "black" | "supernova" | "stella_rossa", hours: number) => Promise<{ ok: boolean; error?: string }>;
+  /** Hide pixel avatar trigger; embed collection UI elsewhere (e.g. Farm tab). */
+  headless?: boolean;
+  /** Render collection panel inline instead of a fullscreen overlay. */
+  inline?: boolean;
+  /** Called when the user closes the collection panel (inline / headless). */
+  onClose?: () => void;
 }
 
 function PixelAvatarBase({
@@ -144,6 +150,9 @@ function PixelAvatarBase({
   redStarBalance = 0,
   onRedStarBalanceUpdate,
   onUpgradeCollectionDuration,
+  headless = false,
+  inline = false,
+  onClose,
 }: PixelAvatarProps) {
   // TonConnect still wired for potential future use (collection unlock purchases share this component)
   const [tonConnectUI] = useTonConnectUI();
@@ -176,6 +185,11 @@ function PixelAvatarBase({
   const canWithdraw = whiteCollectionUnlocked || earthCollectionUnlocked || blackCollectionUnlocked || supernovaCollectionUnlocked || stellaRossaCollectionUnlocked;
   const [tapped, setTapped] = useState(false);
   const [open, setOpen] = useState(false);
+  const panelVisible = inline || open;
+  const closePanel = () => {
+    setOpen(false);
+    onClose?.();
+  };
   const [depositMsg, setDepositMsg] = useState<string | null>(null);
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawWallet, setWithdrawWallet] = useState("");
@@ -191,10 +205,10 @@ function PixelAvatarBase({
   }, [telegramId]);
 
   useEffect(() => {
-    if (open && whiteCollectionUnlocked && telegramId) {
+    if (panelVisible && whiteCollectionUnlocked && telegramId) {
       refreshWithdrawals();
     }
-  }, [open, whiteCollectionUnlocked, telegramId, refreshWithdrawals]);
+  }, [panelVisible, whiteCollectionUnlocked, telegramId, refreshWithdrawals]);
   // Currently selected unplaced planet (in inventory). Tap a slot to assign.
   const [selectedInvId, setSelectedInvId] = useState<string | null>(null);
   const [whiteMsg, setWhiteMsg] = useState<string | null>(null);
@@ -202,11 +216,11 @@ function PixelAvatarBase({
   const [, setTick] = useState(0);
 
   useEffect(() => {
-    if (!open) return;
+    if (!panelVisible) return;
     // Battery-saver: tick every 5s is enough for minute-level timer labels.
     const t = window.setInterval(() => setTick((n) => n + 1), 5000);
     return () => window.clearInterval(t);
-  }, [open]);
+  }, [panelVisible]);
 
   // Real-time TON balance shown in the modal: persisted balance + uncollected
   // pending earnings from each placed white AND earth planet (capped at 24h
@@ -225,6 +239,7 @@ function PixelAvatarBase({
   const cell = size / 12;
 
   const handleTap = () => {
+    if (headless) return;
     setTapped(true);
     window.setTimeout(() => setTapped(false), 220);
     setOpen(true);
@@ -612,6 +627,7 @@ function PixelAvatarBase({
         }
       `}</style>
 
+      {!headless && (
       <div
         className="pixel-avatar-wrap"
         style={{
@@ -652,11 +668,20 @@ function PixelAvatarBase({
           )}
         </div>
       </div>
+      )}
 
-      {open && (
+      {panelVisible && (
         <div
           className="pixel-modal-backdrop"
-          style={{
+          style={inline ? {
+            position: "relative",
+            inset: "unset",
+            zIndex: "auto",
+            background: "transparent",
+            display: "block",
+            padding: 0,
+            overflowY: "visible",
+          } : {
             position: "fixed",
             inset: 0,
             zIndex: 1000,
@@ -667,9 +692,9 @@ function PixelAvatarBase({
             padding: "210px 18px 24px",
             overflowY: "auto",
           }}
-          onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
+          onClick={inline ? undefined : (e) => { if (e.target === e.currentTarget) closePanel(); }}
         >
-          {/* Bobbing avatar peeking behind the modal */}
+          {!inline && (
           <div
             style={{
               position: "absolute",
@@ -705,23 +730,26 @@ function PixelAvatarBase({
               </div>
             </div>
           </div>
+          )}
 
           <div
             className="pixel-modal-card"
             style={{
               position: "relative",
               width: "100%",
-              maxWidth: 420,
+              maxWidth: inline ? "100%" : 420,
               background: "linear-gradient(180deg, rgba(12,14,28,0.96), rgba(8,10,22,0.98))",
               border: `1px solid ${NEON}55`,
-              boxShadow: `0 0 32px ${NEON}33, 0 0 64px rgba(192,96,255,0.18), inset 0 0 0 1px rgba(255,255,255,0.04)`,
+              boxShadow: inline
+                ? `0 0 24px ${NEON}22, inset 0 0 0 1px rgba(255,255,255,0.04)`
+                : `0 0 32px ${NEON}33, 0 0 64px rgba(192,96,255,0.18), inset 0 0 0 1px rgba(255,255,255,0.04)`,
               borderRadius: 18,
               padding: 22,
               color: "#fff",
             }}
           >
             <button
-              onClick={() => setOpen(false)}
+              onClick={closePanel}
               aria-label="Close"
               style={{
                 position: "absolute",

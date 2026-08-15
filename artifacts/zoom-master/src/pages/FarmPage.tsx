@@ -13,6 +13,7 @@ import { getModelById } from "@workspace/game-models";
 import { DailyComboBox } from "../components/DailyComboBox";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
+import { getPlanetDisplayColors } from "../hooks/useGameState";
 import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, REPAIR_STARDUST_COST, FARM_UPGRADE_COSTS, FARM_UPGRADE_TIERS } from "../hooks/useGameState";
 import { WalletPopup } from "../components/WalletPopup";
 import { useT } from "../i18n/LanguageContext";
@@ -23,6 +24,7 @@ import { PlanetFloatBar } from "../components/PlanetFloatBar";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { EconomyWidget } from "../components/EconomyWidget";
 import { StakingWidget } from "../components/StakingWidget";
+import { PixelAvatar } from "../components/PixelAvatar";
 import {
   EQUIPMENT_CATEGORIES,
   EQUIPMENT_CATEGORY_ORDER,
@@ -84,6 +86,44 @@ interface FarmPageProps {
   onUpgradeDuration?: (planetId: string, durationHours: number) => Promise<{ ok: boolean; error?: string }>;
   /** Permanently upgrade the SUN's farm-cycle duration; charges GRAM from EARNED GRAM. */
   onUpgradeSunDuration?: (durationHours: number) => Promise<{ ok: boolean; error?: string }>;
+  /** GRAM-farming collections (White, Earth, Black, Supernova, REDSTAR). */
+  whiteCollectionUnlocked?: boolean;
+  whiteCollectionBundles?: number;
+  whitePlanets?: Planet[];
+  earthCollectionUnlocked?: boolean;
+  earthCollectionBundles?: number;
+  earthPlanets?: Planet[];
+  blackCollectionUnlocked?: boolean;
+  blackCollectionBundles?: number;
+  blackPlanets?: Planet[];
+  supernovaCollectionUnlocked?: boolean;
+  supernovaCollectionBundles?: number;
+  supernovaPlanets?: Planet[];
+  stellaRossaCollectionUnlocked?: boolean;
+  stellaRossaCollectionBundles?: number;
+  stellaPlanets?: Planet[];
+  redStarBalance?: number;
+  onRedStarBalanceUpdate?: (newBalance: number) => void;
+  onPlaceWhitePlanet?: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
+  onCollectWhitePlanet?: (planetId: string) => void;
+  onReactivateWhitePlanet?: (planetId: string) => { ok: boolean; reason?: string };
+  onMarkWhitePlanetReactivated?: (planetId: string) => { ok: boolean; reason?: string };
+  onPlaceEarthPlanet?: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
+  onCollectEarthPlanet?: (planetId: string) => void;
+  onReactivateEarthPlanet?: (planetId: string) => { ok: boolean; reason?: string };
+  onMarkEarthPlanetReactivated?: (planetId: string) => { ok: boolean; reason?: string };
+  onPlaceBlackPlanet?: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
+  onCollectBlackPlanet?: (planetId: string) => void;
+  onReactivateBlackPlanet?: (planetId: string) => { ok: boolean; reason?: string };
+  onMarkBlackPlanetReactivated?: (planetId: string) => { ok: boolean; reason?: string };
+  onPlaceSupernovaPlanet?: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
+  onCollectSupernovaPlanet?: (planetId: string) => void;
+  onReactivateSupernovaPlanet?: (planetId: string) => { ok: boolean; reason?: string };
+  onMarkSupernovaPlanetReactivated?: (planetId: string) => { ok: boolean; reason?: string };
+  onPlaceStellaRossaPlanet?: (planetId: string, slotIndex: number) => { ok: boolean; reason?: string };
+  onCollectStellaRossaPlanet?: (planetId: string) => void;
+  onMarkStellaRossaPlanetReactivated?: (planetId: string) => { ok: boolean; reason?: string };
+  onUpgradeCollectionDuration?: (collectionType: "white" | "earth" | "black" | "supernova" | "stella_rossa", hours: number) => Promise<{ ok: boolean; error?: string }>;
 }
 
 /**
@@ -654,7 +694,51 @@ const RARITY_CLASS: Record<string, string> = {
 };
 
 
-export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId, onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun, onSell, onUnlist, onRepair, stardustBalance = 0, onRename, equipment, onActivateEquipment, onReactivateEquipment, onBurnEquipment, onSellEquipment, onUnlistEquipment, items = [], onSellItem, onUnlistItem, onFlushPlanets, tonBalance = 0, onUpgradeDuration, onUpgradeSunDuration }: FarmPageProps) {
+export function FarmPage({
+  planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId,
+  onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun,
+  onSell, onUnlist, onRepair, stardustBalance = 0, onRename, equipment,
+  onActivateEquipment, onReactivateEquipment, onBurnEquipment, onSellEquipment, onUnlistEquipment,
+  items = [], onSellItem, onUnlistItem, onFlushPlanets, tonBalance = 0,
+  onUpgradeDuration, onUpgradeSunDuration,
+  whiteCollectionUnlocked = false,
+  whiteCollectionBundles = 0,
+  whitePlanets = [],
+  earthCollectionUnlocked = false,
+  earthCollectionBundles = 0,
+  earthPlanets = [],
+  blackCollectionUnlocked = false,
+  blackCollectionBundles = 0,
+  blackPlanets = [],
+  supernovaCollectionUnlocked = false,
+  supernovaCollectionBundles = 0,
+  supernovaPlanets = [],
+  stellaRossaCollectionUnlocked = false,
+  stellaRossaCollectionBundles = 0,
+  stellaPlanets = [],
+  redStarBalance = 0,
+  onRedStarBalanceUpdate,
+  onPlaceWhitePlanet,
+  onCollectWhitePlanet,
+  onReactivateWhitePlanet,
+  onMarkWhitePlanetReactivated,
+  onPlaceEarthPlanet,
+  onCollectEarthPlanet,
+  onReactivateEarthPlanet,
+  onMarkEarthPlanetReactivated,
+  onPlaceBlackPlanet,
+  onCollectBlackPlanet,
+  onReactivateBlackPlanet,
+  onMarkBlackPlanetReactivated,
+  onPlaceSupernovaPlanet,
+  onCollectSupernovaPlanet,
+  onReactivateSupernovaPlanet,
+  onMarkSupernovaPlanetReactivated,
+  onPlaceStellaRossaPlanet,
+  onCollectStellaRossaPlanet,
+  onMarkStellaRossaPlanetReactivated,
+  onUpgradeCollectionDuration,
+}: FarmPageProps) {
   const { t } = useT();
   const sunMultiplier = Math.max(1, sunCount || (sun?.isOwned ? 1 : 0));
   const sunDisplayRate = SUN_CONFIG.rate * sunMultiplier;
@@ -670,6 +754,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
   // visible we vertically offset this toast (see render) so they never
   // visually collide.
   const [comingSoonMsg, setComingSoonMsg] = useState<string | null>(null);
+  const [collectionOpen, setCollectionOpen] = useState(false);
   // Timeout id for the COLLECTION toast — kept in a ref so repeated
   // taps reset the auto-dismiss timer instead of firing stale clears.
   const comingSoonTimeoutRef = useRef<number | null>(null);
@@ -889,27 +974,22 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
               mutates state. Brand-safe English copy. */}
           <button
             type="button"
-            onClick={() => {
-              setComingSoonMsg("Feature coming soon: Collect planet sets for exclusive bonuses!");
-              if (comingSoonTimeoutRef.current !== null) {
-                window.clearTimeout(comingSoonTimeoutRef.current);
-              }
-              comingSoonTimeoutRef.current = window.setTimeout(() => {
-                setComingSoonMsg(null);
-                comingSoonTimeoutRef.current = null;
-              }, 2400);
-            }}
-            aria-label="Collection — coming soon"
-            data-testid="btn-collection-coming-soon"
+            onClick={() => setCollectionOpen((v) => !v)}
+            aria-label="Collection farms"
+            aria-pressed={collectionOpen}
+            data-testid="btn-collection"
             className="px-3 py-1.5 rounded-full text-xs font-black tracking-wide"
             style={{
-              background: "linear-gradient(135deg, rgba(120,140,180,0.18) 0%, rgba(60,72,96,0.14) 100%)",
-              border: "1px solid rgba(180,200,230,0.22)",
-              color: "rgba(220,230,245,0.85)",
-              filter: "grayscale(1)",
-              opacity: 0.55,
+              background: collectionOpen
+                ? "linear-gradient(135deg, rgba(15,217,255,0.22) 0%, rgba(192,96,255,0.18) 100%)"
+                : "linear-gradient(135deg, rgba(120,140,180,0.18) 0%, rgba(60,72,96,0.14) 100%)",
+              border: collectionOpen ? "1px solid rgba(15,217,255,0.45)" : "1px solid rgba(180,200,230,0.22)",
+              color: collectionOpen ? "#0fd9ff" : "rgba(220,230,245,0.85)",
+              filter: collectionOpen ? "none" : "grayscale(0.35)",
+              opacity: collectionOpen ? 1 : 0.85,
               cursor: "pointer",
               letterSpacing: 0.5,
+              boxShadow: collectionOpen ? "0 0 14px rgba(15,217,255,0.22)" : "none",
             }}
           >
             COLLECTION
@@ -940,6 +1020,54 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
               Tappable card; opens the full chart modal. Polls /economy
               every 12s while mounted. Read-only, no mutations. */}
           <EconomyWidget balance={balance} />
+
+          {collectionOpen && (
+            <PixelAvatar
+              headless
+              inline
+              onClose={() => setCollectionOpen(false)}
+              whitePlanets={whitePlanets}
+              whiteCollectionUnlocked={whiteCollectionUnlocked}
+              whiteCollectionBundles={whiteCollectionBundles}
+              earthPlanets={earthPlanets}
+              earthCollectionUnlocked={earthCollectionUnlocked}
+              earthCollectionBundles={earthCollectionBundles}
+              blackPlanets={blackPlanets}
+              blackCollectionUnlocked={blackCollectionUnlocked}
+              blackCollectionBundles={blackCollectionBundles}
+              supernovaPlanets={supernovaPlanets}
+              supernovaCollectionUnlocked={supernovaCollectionUnlocked}
+              supernovaCollectionBundles={supernovaCollectionBundles}
+              stellaPlanets={stellaPlanets}
+              stellaRossaCollectionUnlocked={stellaRossaCollectionUnlocked}
+              stellaRossaCollectionBundles={stellaRossaCollectionBundles}
+              sunCount={sunCount ?? 0}
+              tonBalance={tonBalance}
+              telegramId={telegramId}
+              onPlaceWhitePlanet={onPlaceWhitePlanet}
+              onCollectWhitePlanet={onCollectWhitePlanet}
+              onReactivateWhitePlanet={onReactivateWhitePlanet}
+              onMarkWhitePlanetReactivated={onMarkWhitePlanetReactivated}
+              onPlaceEarthPlanet={onPlaceEarthPlanet}
+              onCollectEarthPlanet={onCollectEarthPlanet}
+              onReactivateEarthPlanet={onReactivateEarthPlanet}
+              onMarkEarthPlanetReactivated={onMarkEarthPlanetReactivated}
+              onPlaceBlackPlanet={onPlaceBlackPlanet}
+              onCollectBlackPlanet={onCollectBlackPlanet}
+              onReactivateBlackPlanet={onReactivateBlackPlanet}
+              onMarkBlackPlanetReactivated={onMarkBlackPlanetReactivated}
+              onPlaceSupernovaPlanet={onPlaceSupernovaPlanet}
+              onCollectSupernovaPlanet={onCollectSupernovaPlanet}
+              onReactivateSupernovaPlanet={onReactivateSupernovaPlanet}
+              onMarkSupernovaPlanetReactivated={onMarkSupernovaPlanetReactivated}
+              onPlaceStellaRossaPlanet={onPlaceStellaRossaPlanet}
+              onCollectStellaRossaPlanet={onCollectStellaRossaPlanet}
+              onMarkStellaRossaPlanetReactivated={onMarkStellaRossaPlanetReactivated}
+              redStarBalance={redStarBalance}
+              onRedStarBalanceUpdate={onRedStarBalanceUpdate}
+              onUpgradeCollectionDuration={onUpgradeCollectionDuration}
+            />
+          )}
 
           {/* TON STAKING — locks 4 V1 or 4 SUN for 0.5 TON / 30 days each.
               Server is the source of truth (re-validates count on start);
@@ -1171,6 +1299,8 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
             const planetFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
             const isPerfectFloat = typeof planetFloat === "number" && planetFloat >= 1 && !expired;
             const dur = planet.durability ?? 100;
+            const displayColors = getPlanetDisplayColors(planet);
+            const cardColor = displayColors.color;
             return (
               <div
                 key={planet.id}
@@ -1180,13 +1310,13 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                     ? "rgba(220,232,255,0.10)"
                     : isPerfectFloat
                     ? "rgba(255,215,0,0.10)"
-                    : isListed ? "rgba(255,215,0,0.3)" : expired ? "rgba(255,255,255,0.08)" : planet.color + "40",
+                    : isListed ? "rgba(255,215,0,0.3)" : expired ? "rgba(255,255,255,0.08)" : cardColor + "40",
                   background: isPerfectFloat
                     ? "linear-gradient(135deg, rgba(255,215,0,0.18) 0%, rgba(255,170,40,0.10) 45%, rgba(20,12,4,0.85) 100%)"
-                    : `linear-gradient(135deg, ${planet.color}0d 0%, rgba(6,8,16,0.6) 100%)`,
+                    : `linear-gradient(135deg, ${cardColor}0d 0%, rgba(6,8,16,0.6) 100%)`,
                   boxShadow: isPerfectFloat
                     ? "0 0 22px rgba(255,215,0,0.35)"
-                    : active ? `0 0 18px ${planet.color}26` : `0 0 10px ${planet.color}10`,
+                    : active ? `0 0 18px ${cardColor}26` : `0 0 10px ${cardColor}10`,
                   backdropFilter: "blur(10px)",
                   WebkitBackdropFilter: "blur(10px)",
                   transform: "translateZ(0)",
@@ -1208,7 +1338,7 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                       width: 90,
                       height: 90,
                       borderRadius: "50%",
-                      background: `radial-gradient(circle, ${planet.color}55 0%, transparent 70%)`,
+                      background: `radial-gradient(circle, ${cardColor}55 0%, transparent 70%)`,
                       filter: "blur(20px)",
                       pointerEvents: "none",
                       top: "50%",
@@ -1233,8 +1363,8 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                     {planet.modelId ? (
                       <ObjectThumb
                         shapeId={planet.shapeId || getModelById(planet.modelId)?.shapeId || "minifig"}
-                        primaryColor={planet.color}
-                        accentColor={planet.glowColor}
+                        primaryColor={displayColors.color}
+                        accentColor={displayColors.accentHex}
                         size={60}
                       />
                     ) : (
