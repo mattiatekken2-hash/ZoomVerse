@@ -728,7 +728,14 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     groupRef.current = group;
     partsRef.current = meshParts;
 
-    const forgeVoxels = interactive ? meshPartsToVoxels(meshParts) : [];
+    let forgeVoxels: VoxelCell[] = [];
+    if (interactive) {
+      try {
+        forgeVoxels = meshPartsToVoxels(meshParts);
+      } catch (err) {
+        console.warn("[ObjectMesh3D] voxelize failed, falling back to part assembly", err);
+      }
+    }
     voxelsRef.current = forgeVoxels;
     const voxelDummy = new THREE.Object3D();
     let voxelInst: THREE.InstancedMesh | null = null;
@@ -881,9 +888,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const dt = Math.min(32, now - lastFrame);
       lastFrame = now;
       const st = stateRef.current;
-      const liveForge = interactive && !st.revealed;
+      const isLiveForge = interactive && !st.revealed;
       const list = partsRef.current;
-      const n = Math.max(liveForge && voxelsRef.current.length > 0
+      const n = Math.max(isLiveForge && voxelsRef.current.length > 0
         ? voxelsRef.current.length
         : list.length, 1);
 
@@ -907,7 +914,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const activePartFrac = scaledParts - partsDone;
       let touchedMesh = false;
 
-      const useVoxelForge = liveForge && voxelInst && forgeVoxels.length > 0;
+      const useVoxelForge = isLiveForge && voxelInst && forgeVoxels.length > 0;
 
       if (useVoxelForge && voxelInst) {
         const voxMesh = voxelInst;
@@ -1043,7 +1050,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       if (autoSpin && !dragging) group.rotation.y += (dt / 16.67) * (showcase ? 0.0028 : 0.0035);
       if (dragging) controls.update();
       const stillMoving = Math.abs(targetP - assembly) > 0.0008 || (paintT > 0 && paintT < 1);
-      if (liveForge || autoSpin || stillMoving || touchedMesh || dragging || st.revealed) {
+      if (isLiveForge || autoSpin || stillMoving || touchedMesh || dragging || st.revealed) {
         draw(camera);
       }
     };
