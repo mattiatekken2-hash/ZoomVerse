@@ -9,6 +9,7 @@ interface Props {
   telegramId: string | null;
   sunCount: number;
   balance: number;
+  shopMode?: boolean;
 }
 
 function formatCountdown(ms: number): { d: number; h: number; m: number; s: number } {
@@ -25,7 +26,7 @@ function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
+function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: Props) {
   // sunCount/balance kept for prop compatibility — craft leaderboard is now free.
   void sunCount;
   void balance;
@@ -99,7 +100,17 @@ function LabRankWidgetBase({ telegramId, sunCount, balance }: Props) {
       `}</style>
 
       <div
-        style={{
+        style={shopMode ? {
+          position: "relative",
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          padding: "10px 14px",
+          borderRadius: 14,
+          background: "rgba(12,24,32,0.88)",
+          border: `1px solid ${CYAN}44`,
+        } : {
           position: "fixed",
           left: 12,
           top: 170,

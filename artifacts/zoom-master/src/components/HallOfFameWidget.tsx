@@ -16,13 +16,11 @@ import { useT } from "../i18n/LanguageContext";
 // when opened so the user always sees the current standings.
 
 interface Props {
-  // No props needed for read-only leaderboard, but keep a placeholder so
-  // mounting from LabPage stays consistent with other widgets if we ever
-  // need to scope by user.
   telegramId?: string | null;
+  shopMode?: boolean;
 }
 
-function HallOfFameWidgetBase(_props: Props) {
+function HallOfFameWidgetBase({ telegramId: _telegramId, shopMode = false }: Props) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<HallOfFameResponse | null>(null);
@@ -53,6 +51,33 @@ function HallOfFameWidgetBase(_props: Props) {
         .hof-pixel { image-rendering: pixelated; }
       `}</style>
 
+      {shopMode ? (
+        <button
+          onClick={() => setOpen(true)}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            padding: "14px 16px",
+            borderRadius: 14,
+            background: "rgba(28,20,4,0.88)",
+            border: "1px solid rgba(255,210,63,0.4)",
+            color: "#fff",
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+          data-testid="button-hall-of-fame"
+        >
+          <div style={{ width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <PixelTrophy size={40} />
+          </div>
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 13, letterSpacing: "0.08em", color: "#ffd23f" }}>HALL OF FAME</div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>Daily referrals leaderboard</div>
+          </div>
+        </button>
+      ) : (
       <button
         onClick={() => setOpen(true)}
         style={{
@@ -81,6 +106,7 @@ function HallOfFameWidgetBase(_props: Props) {
           <PixelTrophy size={40} />
         </div>
       </button>
+      )}
 
       {open && (
         <div

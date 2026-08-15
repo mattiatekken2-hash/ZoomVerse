@@ -16,6 +16,7 @@ import { useT } from "../i18n/LanguageContext";
 
 interface Props {
   telegramId?: string | null;
+  shopMode?: boolean;
 }
 
 const PVP_PRIZES = [10, 7, 5, 4, 3, 2, 2, 1, 1, 1];
@@ -39,7 +40,7 @@ function formatCountdown(ms: number): string {
   return `${String(h).padStart(2, "0")}h ${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s`;
 }
 
-function PvpRankWidgetBase({ telegramId }: Props) {
+function PvpRankWidgetBase({ telegramId, shopMode = false }: Props) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<PvpLeaderboardResponse | null>(null);
@@ -83,7 +84,19 @@ function PvpRankWidgetBase({ telegramId }: Props) {
 
       <button
         onClick={() => setOpen(true)}
-        style={{
+        style={shopMode ? {
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          padding: "14px 16px",
+          borderRadius: 14,
+          background: "rgba(28,8,12,0.88)",
+          border: "1px solid rgba(255,70,86,0.4)",
+          color: "#fff",
+          cursor: "pointer",
+          textAlign: "left" as const,
+        } : {
           position: "fixed",
           top: 250,
           right: 12,
@@ -105,9 +118,15 @@ function PvpRankWidgetBase({ telegramId }: Props) {
         data-testid="button-pvp-rank"
         aria-label={t("pvp.openAria")}
       >
-        <div style={{ animation: "pvp-float 2.4s ease-in-out infinite" }}>
-          <PixelPvp size={46} />
+        <div style={{ animation: shopMode ? undefined : "pvp-float 2.4s ease-in-out infinite" }}>
+          <PixelPvp size={shopMode ? 40 : 46} />
         </div>
+        {shopMode && (
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 13, letterSpacing: "0.08em", color: "#ff4656" }}>PVP RANK</div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>Daily wins leaderboard</div>
+          </div>
+        )}
       </button>
 
       {open && (

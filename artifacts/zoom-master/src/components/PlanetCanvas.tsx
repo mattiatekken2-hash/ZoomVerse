@@ -1,22 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { MysteryModel3D } from "./MysteryModel3D";
 import { LabGridBackground } from "./LabGridBackground";
-import { getModelById, type ModelVoxel } from "@workspace/game-models";
+import { getMeshParts, getModelById } from "@workspace/game-models";
 import type { ZoomModel } from "../hooks/useGameState";
 import { useT } from "../i18n/LanguageContext";
 
 export type ForgePhase = "idle" | "flash" | "waiting" | "revealed";
-
-/** Neutral wireframe blocks shown before the server roll / reveal. */
-const MYSTERY_PLACEHOLDER: ModelVoxel[] = [
-  { x: -1, y: 0, z: -1, color: "#444" },
-  { x: 0, y: 0, z: -1, color: "#444" },
-  { x: -1, y: 0, z: 0, color: "#444" },
-  { x: 0, y: 0, z: 0, color: "#444" },
-  { x: -1, y: 1, z: -1, color: "#666" },
-  { x: 0, y: 1, z: 0, color: "#666" },
-  { x: 0, y: 2, z: 0, color: "#888" },
-];
 
 interface PlanetCanvasProps {
   onPunch?: () => void;
@@ -49,11 +38,17 @@ export function PlanetCanvas({
 
   const pct = goal > 0 ? Math.min(progress / goal, 1) : 0;
   const revealed = forgePhase === "revealed";
+  const buildProgress = pendingModel || forgePhase === "waiting" ? 1 : pct;
   const displayAccent = pendingModel?.accentColor || accentColor || DEFAULT_ACCENT;
   const displayPrimary = pendingModel?.primaryColor || displayAccent;
 
   const modelDef = pendingModel ? getModelById(pendingModel.modelId) : undefined;
-  const voxels = modelDef?.voxels ?? MYSTERY_PLACEHOLDER;
+  const objectParts = useMemo(() => {
+    if (!pendingModel) return undefined;
+    const shapeId = pendingModel.shapeId || modelDef?.shapeId;
+    if (!shapeId) return undefined;
+    return getMeshParts(shapeId, pendingModel.primaryColor, pendingModel.accentColor);
+  }, [pendingModel, modelDef?.shapeId]);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -123,11 +118,10 @@ export function PlanetCanvas({
     }));
   }, [size]);
 
-  const showModel3D = forgePhase === "idle" || forgePhase === "revealed" || forgeRolling;
+  const showModel3D = forgePhase !== "flash";
   const showFlash = forgePhase === "flash";
   const showConverge = forgePhase === "waiting";
   const modelCanvasSize = forgePhase === "revealed" ? size * 0.92 : size * 0.88;
-  const buildProgress = revealed ? 1 : pct;
 
   return (
     <div ref={containerRef} className="relative w-full h-full flex flex-col items-center justify-center overflow-hidden">
@@ -146,7 +140,7 @@ export function PlanetCanvas({
       >
         {showModel3D && (
           <MysteryModel3D
-            voxels={voxels}
+            parts={objectParts}
             primaryColor={displayPrimary}
             accentColor={displayAccent}
             progress={buildProgress}
@@ -229,7 +223,7 @@ export function PlanetCanvas({
                 ? t("planetCanvas.forgingMass")
                 : pct < 0.04
                   ? t("planetCanvas.primordial")
-                  : "MYSTERY BUILD"}
+                  : "ASSEMBLING"}
             </span>
             <span className="font-bold" style={{ color: displayAccent }}>
               {progress}/{goal}

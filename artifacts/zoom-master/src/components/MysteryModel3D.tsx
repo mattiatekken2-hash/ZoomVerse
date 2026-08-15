@@ -1,27 +1,55 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import type { ModelVoxel } from "@workspace/game-models";
+import { getMeshParts, mysteryKitParts, type MeshPart } from "@workspace/game-models";
 
-interface MysteryModel3DProps {
-  voxels: ModelVoxel[];
+const DEFAULT_PARTS = mysteryKitParts();
+
+interface ObjectMesh3DProps {
+  parts?: MeshPart[];
   primaryColor: string;
   accentColor: string;
-  /** 0–1 build progress during forge */
+  /** 0–1 assembly progress */
   progress?: number;
-  /** When false, identity is hidden (wireframe / grey blocks) */
   revealed?: boolean;
   size: number;
   onTap?: () => void;
   autoSpin?: boolean;
+  interactive?: boolean;
 }
 
-const VOXEL_SIZE = 0.22;
-const MYSTERY_COLOR = "#3a3a3a";
+function resolveColor(c: MeshPart["color"], primary: string, accent: string): string {
+  if (c === "p") return primary;
+  if (c === "a") return accent;
+  return c;
+}
 
-/** Progressive pixel-voxel build — mystery until revealed. */
-export function MysteryModel3D({
-  voxels,
+function makeGeometry(part: MeshPart): THREE.BufferGeometry {
+  switch (part.prim) {
+    case "sphere":
+      return new THREE.SphereGeometry(part.sx, 18, 14);
+    case "cyl":
+      return new THREE.CylinderGeometry(part.sx, part.sz, part.sy, 14);
+    case "cone":
+      return new THREE.ConeGeometry(part.sx, part.sy, 14);
+    case "torus":
+      return new THREE.TorusGeometry(part.sx, part.sy, 10, 18);
+    default:
+      return new THREE.BoxGeometry(part.sx, part.sy, part.sz);
+  }
+}
+
+function scatterDir(id: string): THREE.Vector3 {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  const a = ((h >>> 0) % 628) / 100;
+  const b = (((h >>> 8) % 314) / 100) - 0.5;
+  return new THREE.Vector3(Math.cos(a), 0.4 + b, Math.sin(a)).normalize();
+}
+
+/** Recognizable 3D object — parts assemble as you tap, then lock on reveal. */
+export function ObjectMesh3D({
+  parts,
   primaryColor,
   accentColor,
   progress = 0,
@@ -29,11 +57,17 @@ export function MysteryModel3D({
   size,
   onTap,
   autoSpin = true,
-}: MysteryModel3DProps) {
+  interactive = true,
+}: ObjectMesh3DProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const onTapRef = useRef(onTap);
   const groupRef = useRef<THREE.Group | null>(null);
+  const partsRef = useRef<MeshPart[]>([]);
+  const stateRef = useRef({ progress, revealed, primaryColor, accentColor });
   onTapRef.current = onTap;
+  stateRef.current = { progress, revealed, primaryColor, accentColor };
+
+  const meshParts = parts && parts.length > 0 ? parts : DEFAULT_PARTS;
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -41,63 +75,63 @@ export function MysteryModel3D({
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
-    camera.position.set(1.8, 1.4, 2.8);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    const renderer = new THREE.WebGLRenderer({ antialias: size > 90, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, size > 90 ? 1.75 : 1.25));
     renderer.setSize(size, size);
     renderer.setClearColor(0x000000, 0);
     mount.appendChild(renderer.domElement);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.38));
-    const key = new THREE.DirectionalLight(0xffffff, 1.1);
-    key.position.set(4, 6, 5);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+    const key = new THREE.DirectionalLight(0xffffff, 1.05);
+    key.position.set(4, 7, 5);
     scene.add(key);
-    const fill = new THREE.DirectionalLight(0x888888, 0.3);
-    fill.position.set(-3, -2, -4);
+    const fill = new THREE.DirectionalLight(0x8899aa, 0.35);
+    fill.position.set(-4, -1, -3);
     scene.add(fill);
+    const rim = new THREE.DirectionalLight(0xffffff, 0.2);
+    rim.position.set(0, 2, -5);
+    scene.add(rim);
 
     const group = new THREE.Group();
     scene.add(group);
     groupRef.current = group;
+    partsRef.current = meshParts;
 
-    const geo = new THREE.BoxGeometry(VOXEL_SIZE, VOXEL_SIZE, VOXEL_SIZE);
-    const meshes: THREE.Mesh[] = [];
-
-    for (const v of voxels) {
+    const geos: THREE.BufferGeometry[] = [];
+    for (const part of meshParts) {
+      const geo = makeGeometry(part);
+      geos.push(geo);
       const mat = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(MYSTERY_COLOR),
-        metalness: revealed ? 0.35 : 0.1,
-        roughness: revealed ? 0.45 : 0.85,
-        wireframe: !revealed,
-        transparent: !revealed,
-        opacity: revealed ? 1 : 0.55,
+        color: "#3a3a3a",
+        metalness: part.metal ?? 0.25,
+        roughness: part.rough ?? 0.55,
       });
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(v.x * VOXEL_SIZE, v.y * VOXEL_SIZE, v.z * VOXEL_SIZE);
-      mesh.userData["targetColor"] = v.color;
+      mesh.userData["part"] = part;
+      mesh.userData["dir"] = scatterDir(part.id);
       group.add(mesh);
-      meshes.push(mesh);
     }
 
-    if (meshes.length === 0) {
-      const fallback = new THREE.Mesh(
-        new THREE.BoxGeometry(0.6, 0.6, 0.6),
-        new THREE.MeshStandardMaterial({ color: MYSTERY_COLOR, wireframe: true }),
-      );
-      group.add(fallback);
-      meshes.push(fallback);
-    }
+    const box = new THREE.Box3().setFromObject(group);
+    const center = box.getCenter(new THREE.Vector3());
+    const dim = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(dim.x, dim.y, dim.z, 0.8);
+    group.position.sub(center);
+    camera.position.set(maxDim * 1.35, maxDim * 0.95, maxDim * 1.7);
+    camera.lookAt(0, 0, 0);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enablePan = false;
-    controls.minDistance = 1.6;
-    controls.maxDistance = 5.5;
-    controls.rotateSpeed = 0.65;
-    controls.zoomSpeed = 0.85;
+    controls.enableZoom = interactive;
+    controls.enableRotate = interactive;
+    controls.minDistance = maxDim * 1.1;
+    controls.maxDistance = maxDim * 4;
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
-    controls.target.set(0, 0.2, 0);
+    controls.target.set(0, 0, 0);
+    if (!interactive) {
+      renderer.domElement.style.pointerEvents = "none";
+    }
 
     let dragging = false;
     let downX = 0;
@@ -108,9 +142,7 @@ export function MysteryModel3D({
       downY = e.clientY;
     };
     const onPointerUp = (e: PointerEvent) => {
-      const dx = e.clientX - downX;
-      const dy = e.clientY - downY;
-      if (Math.hypot(dx, dy) < 8 && onTapRef.current) onTapRef.current();
+      if (Math.hypot(e.clientX - downX, e.clientY - downY) < 8 && onTapRef.current) onTapRef.current();
     };
     const onPointerMove = (e: PointerEvent) => {
       if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) dragging = true;
@@ -122,7 +154,47 @@ export function MysteryModel3D({
     let frameId = 0;
     const animate = () => {
       frameId = requestAnimationFrame(animate);
-      if (autoSpin && !dragging) group.rotation.y += 0.004;
+      const st = stateRef.current;
+      const list = partsRef.current;
+      const n = Math.max(list.length, 1);
+
+      group.children.forEach((child, i) => {
+        const mesh = child as THREE.Mesh;
+        const part = mesh.userData["part"] as MeshPart;
+        const dir = mesh.userData["dir"] as THREE.Vector3;
+        const mat = mesh.material as THREE.MeshStandardMaterial;
+        const appearAt = i / n;
+        const visible = st.revealed || st.progress >= appearAt * 0.92;
+        mesh.visible = visible;
+        if (!visible) return;
+
+        const lock = st.revealed ? 1 : Math.min(1, Math.max(0, (st.progress - appearAt) / 0.18));
+        const scatter = 1 - lock;
+        mesh.position.set(
+          part.x + dir.x * scatter * 1.15,
+          part.y + dir.y * scatter * 0.9,
+          part.z + dir.z * scatter * 1.15,
+        );
+        mesh.rotation.set(part.rx ?? 0, (part.ry ?? 0) + scatter * 0.8, part.rz ?? 0);
+
+        if (st.revealed) {
+          mat.color.set(resolveColor(part.color, st.primaryColor, st.accentColor));
+          mat.wireframe = false;
+          mat.transparent = false;
+          mat.opacity = 1;
+          mat.metalness = part.metal ?? 0.35;
+          mat.roughness = part.rough ?? 0.45;
+        } else {
+          mat.color.set(i % 2 === 0 ? "#5a5a5a" : "#8a8a8a");
+          mat.wireframe = lock < 0.85;
+          mat.transparent = true;
+          mat.opacity = 0.45 + lock * 0.5;
+          mat.metalness = 0.15;
+          mat.roughness = 0.75;
+        }
+      });
+
+      if (autoSpin && !dragging) group.rotation.y += 0.008;
       controls.update();
       renderer.render(scene, camera);
     };
@@ -134,56 +206,55 @@ export function MysteryModel3D({
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
       controls.dispose();
-      geo.dispose();
-      meshes.forEach((m) => {
+      geos.forEach((g) => g.dispose());
+      group.children.forEach((c) => {
+        const m = c as THREE.Mesh;
         (m.material as THREE.Material).dispose();
-        m.removeFromParent();
       });
       renderer.dispose();
-      mount.removeChild(renderer.domElement);
+      if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
       groupRef.current = null;
     };
-  }, [size, voxels, autoSpin]);
-
-  useEffect(() => {
-    const group = groupRef.current;
-    if (!group) return;
-
-    const visibleCount = Math.max(
-      1,
-      Math.floor(voxels.length * Math.min(Math.max(progress, 0.02), 1)),
-    );
-
-    group.children.forEach((child, i) => {
-      const mesh = child as THREE.Mesh;
-      const mat = mesh.material as THREE.MeshStandardMaterial;
-      const show = i < visibleCount;
-      mesh.visible = show;
-      if (!show) return;
-
-      if (revealed) {
-        const target = (mesh.userData["targetColor"] as string) || primaryColor;
-        mat.color.set(target);
-        mat.wireframe = false;
-        mat.transparent = false;
-        mat.opacity = 1;
-        mat.metalness = 0.35;
-        mat.roughness = 0.45;
-      } else {
-        mat.color.set(i % 3 === 0 ? accentColor : MYSTERY_COLOR);
-        mat.wireframe = true;
-        mat.transparent = true;
-        mat.opacity = 0.5 + progress * 0.35;
-      }
-      mat.needsUpdate = true;
-    });
-  }, [progress, revealed, voxels.length, primaryColor, accentColor]);
+  }, [size, meshParts, autoSpin, interactive]);
 
   return (
     <div
       ref={mountRef}
       style={{ width: size, height: size, touchAction: "manipulation" }}
-      data-testid="mystery-model-3d"
+      data-testid="object-mesh-3d"
     />
   );
 }
+
+export function ObjectThumb({
+  shapeId,
+  primaryColor,
+  accentColor,
+  size,
+  autoSpin = true,
+}: {
+  shapeId: string;
+  primaryColor: string;
+  accentColor: string;
+  size: number;
+  autoSpin?: boolean;
+}) {
+  const parts = useMemo(
+    () => getMeshParts(shapeId, primaryColor, accentColor),
+    [shapeId, primaryColor, accentColor],
+  );
+  return (
+    <ObjectMesh3D
+      parts={parts}
+      primaryColor={primaryColor}
+      accentColor={accentColor}
+      progress={1}
+      revealed
+      size={size}
+      autoSpin={autoSpin}
+      interactive={false}
+    />
+  );
+}
+
+export const MysteryModel3D = ObjectMesh3D;

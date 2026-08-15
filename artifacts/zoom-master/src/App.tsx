@@ -1055,6 +1055,12 @@ function AppShellWithState() {
                   blackCollectionBundles={Number(state.blackCollectionBundles) || 0}
                   supernovaCollectionUnlocked={!!state.supernovaCollectionUnlocked}
                   supernovaCollectionBundles={Number(state.supernovaCollectionBundles) || 0}
+                  stellaRossaCollectionUnlocked={!!state.stellaRossaCollectionUnlocked}
+                  stellaRossaCollectionBundles={Number(state.stellaRossaCollectionBundles) || 0}
+                  stellaLastClaimAt={Number(state.lastStellaClaimAt) || 0}
+                  onStellaClaimDaily={(newBal) => {
+                    setState((prev) => ({ ...prev, redStarBalance: newBal, lastStellaClaimAt: Date.now() }));
+                  }}
                 />
               )}
               {t === "pvp" && (

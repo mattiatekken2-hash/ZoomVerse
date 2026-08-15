@@ -3817,6 +3817,7 @@ export interface ZoomModelApiShape {
   float: number;
   primaryColor: string;
   accentColor: string;
+  shapeId?: string;
   createdAt: number;
   isListedInMarket: boolean;
   serverListingId?: number | null;

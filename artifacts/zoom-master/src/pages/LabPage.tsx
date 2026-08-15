@@ -8,13 +8,7 @@ import {
 } from "../utils/collectibleConfig";
 import { PlanetCanvas, type ForgePhase } from "../components/PlanetCanvas";
 import { AutoTapWidget } from "../components/AutoTapWidget";
-import { HallOfFameWidget } from "../components/HallOfFameWidget";
 import { PixelAvatar } from "../components/PixelAvatar";
-import { LabRankWidget } from "../components/LabRankWidget";
-import { PvpRankWidget } from "../components/PvpRankWidget";
-import { ExchangeWidget } from "../components/ExchangeWidget";
-import { StellaRossaCollectionWidget } from "../components/StellaRossaCollectionWidget";
-import { ZoomStoreWidget } from "../components/ZoomStoreWidget";
 
 import type { Planet, PlanetType, EquipmentDropResult, ZoomModel } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
@@ -159,7 +153,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
   const isFull = planets.length >= maxSlots && !pendingPlanet && !pendingModel;
   const effectiveStardust = stardustBalance;
-  const canCraft = !brokenFlash && !pendingModel && !pendingPlanet && !forgeRolling && (currentCraftRarity
+  const canCraft = !brokenFlash && !pendingModel && !pendingPlanet && !forgeRolling && planets.length < maxSlots && (currentCraftRarity
     ? true
     : (effectiveStardust >= (PLANET_CONFIG["BASIC"].craftCost ?? 2)));
 
@@ -265,6 +259,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     EPIC: "epic-text",
     MYTHIC: "mythic-text",
     GOLD: "gold-text",
+    LEGEND: "gold-text",
     V1: "gold-text",
   };
 
@@ -280,18 +275,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         telegramId={telegramId}
         onTap={handleCraft}
       />
-      <HallOfFameWidget telegramId={telegramId} />
-      <LabRankWidget telegramId={telegramId} sunCount={sunCount} balance={balance} />
-      <PvpRankWidget telegramId={telegramId} />
-      <ExchangeWidget balance={balance} sunCount={sunCount} />
-      <StellaRossaCollectionWidget
-        telegramId={telegramId}
-        unlocked={stellaRossaCollectionUnlocked}
-        ownedBundles={stellaRossaCollectionBundles}
-        lastClaimAt={stellaLastClaimAt}
-        onClaim={onStellaClaimDaily}
-      />
-      <ZoomStoreWidget />
 
       <div
         className="relative flex-1"
@@ -403,23 +386,22 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             }}
           >
             <div
-              className="rounded-full px-4 py-1.5 flex items-center gap-2 border"
+              className="rounded-2xl px-5 py-3 flex flex-col items-center gap-1 border"
               style={{
                 borderColor: pendingModel.primaryColor + "55",
-                background: "rgba(6,8,16,0.65)",
+                background: "rgba(6,8,16,0.78)",
                 boxShadow: `0 0 20px ${pendingModel.primaryColor}33`,
                 pointerEvents: "auto",
               }}
             >
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ background: pendingModel.primaryColor, boxShadow: `0 0 6px ${pendingModel.primaryColor}` }}
-              />
-              <span className={`font-black text-xs tracking-wider ${rarityClass[pendingModel.rarity] ?? ""}`}>
-                {pendingModel.name.toUpperCase()}
+              <span className={`font-black text-[11px] tracking-[0.22em] ${rarityClass[pendingModel.rarity] ?? ""}`}>
+                {pendingModel.rarity}
+              </span>
+              <span className="font-black text-sm tracking-wider" style={{ color: "#fff" }}>
+                {pendingModel.name}
               </span>
               <span className="text-[10px] font-bold" style={{ color: "rgba(255,255,255,0.5)" }}>
-                {pendingModel.category} · {pendingModel.float.toFixed(1)}%
+                +{pendingModel.rate.toLocaleString()}/hr · float {(pendingModel.float / 100).toFixed(3)}
               </span>
             </div>
             <button
@@ -434,7 +416,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
               }}
               data-testid="button-claim-model"
             >
-              COLLECT
+              SEND TO FARM
             </button>
           </div>
         )}

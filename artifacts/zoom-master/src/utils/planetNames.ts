@@ -96,9 +96,11 @@ export function generateRandomPlanetName(): string {
 
 // What the UI should show. Custom rename wins; otherwise the stable
 // id-derived fallback.
-export function getPlanetDisplayName(planet: Pick<Planet, "id" | "displayName">): string {
+export function getPlanetDisplayName(planet: Pick<Planet, "id" | "displayName" | "modelName">): string {
   const explicit = (planet.displayName ?? "").trim();
   if (explicit.length > 0) return explicit;
+  const modelName = (planet.modelName ?? "").trim();
+  if (modelName.length > 0) return modelName;
   return deterministicNameFromId(planet.id);
 }
 

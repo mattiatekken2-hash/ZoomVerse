@@ -7,6 +7,12 @@ import { LottoStellareWidget } from "../components/LottoStellareWidget";
 import { LabTicketWidget } from "../components/LabTicketWidget";
 import { MysteryBoxWidget } from "../components/MysteryBoxWidget";
 import { V1NftWidget } from "../components/V1NftWidget";
+import { HallOfFameWidget } from "../components/HallOfFameWidget";
+import { LabRankWidget } from "../components/LabRankWidget";
+import { PvpRankWidget } from "../components/PvpRankWidget";
+import { ExchangeWidget } from "../components/ExchangeWidget";
+import { StellaRossaCollectionWidget } from "../components/StellaRossaCollectionWidget";
+import { ZoomStoreWidget } from "../components/ZoomStoreWidget";
 
 interface ShopItem {
   id: string;
@@ -72,9 +78,14 @@ interface ShopPageProps {
   blackCollectionBundles: number;
   supernovaCollectionUnlocked: boolean;
   supernovaCollectionBundles: number;
+  stellaRossaCollectionUnlocked?: boolean;
+  stellaRossaCollectionBundles?: number;
+  stellaLastClaimAt?: number;
+  onStellaClaimDaily?: (newRedStarBalance: number) => void;
 }
 
 export function ShopPage({
+  balance,
   depositBalance,
   hasSun: _hasSun,
   telegramId,
@@ -87,6 +98,10 @@ export function ShopPage({
   blackCollectionBundles,
   supernovaCollectionUnlocked,
   supernovaCollectionBundles,
+  stellaRossaCollectionUnlocked = false,
+  stellaRossaCollectionBundles = 0,
+  stellaLastClaimAt = 0,
+  onStellaClaimDaily,
 }: ShopPageProps) {
   const { t } = useT();
   const [tonConnectUI] = useTonConnectUI();
@@ -100,7 +115,7 @@ export function ShopPage({
   // - exclusive: SUN (e in futuro altri NFT/limited shop items)
   // - items: bundle pacchetti + extra slot (consumabili "in-game")
   // - resources: stardust top-ups + computer/plant (currency e item stardust)
-  const [shopTab, setShopTab] = useState<"exclusive" | "bundles" | "items" | "resources" | "lab">("exclusive");
+  const [shopTab, setShopTab] = useState<"exclusive" | "bundles" | "items" | "resources" | "lab" | "hub">("exclusive");
   // Live stock for each collection bundle (api/<key>-collection/stock).
   const [collStocks, setCollStocks] = useState<Record<string, StockInfo | null>>({});
   const refreshCollStocks = async () => {
@@ -417,6 +432,7 @@ export function ShopPage({
             { id: "exclusive", label: "EXCL.", color: "#ffb347" },
             { id: "bundles", label: "BUNDLES", color: "#ff3355" },
             { id: "lab", label: "LAB", color: "#a855f7" },
+            { id: "hub", label: "HUB", color: "#00d4ff" },
             { id: "items", label: "ITEMS", color: "#c471ed" },
             { id: "resources", label: "RES.", color: "#ffd740" },
           ] as const).map(tab => {
@@ -586,10 +602,8 @@ export function ShopPage({
           </>)}
 
           {shopTab === "lab" && (<>
-          {/* LAB shop items — previously floating buttons on the LAB page,
-              now accessible here so players can buy them from the Shop. */}
           <div className="font-black text-sm tracking-widest uppercase mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-            LAB Items
+            Lab & merch
           </div>
           <LottoStellareWidget telegramId={telegramId ?? null} shopMode />
           <LabTicketWidget
@@ -599,6 +613,25 @@ export function ShopPage({
           />
           <MysteryBoxWidget telegramId={telegramId ?? null} shopMode />
           <V1NftWidget telegramId={telegramId ?? null} shopMode />
+          <StellaRossaCollectionWidget
+            telegramId={telegramId ?? null}
+            unlocked={stellaRossaCollectionUnlocked}
+            ownedBundles={stellaRossaCollectionBundles}
+            lastClaimAt={stellaLastClaimAt}
+            onClaim={onStellaClaimDaily}
+            shopMode
+          />
+          <ZoomStoreWidget shopMode />
+          </>)}
+
+          {shopTab === "hub" && (<>
+          <div className="font-black text-sm tracking-widest uppercase mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+            Rankings & exchange
+          </div>
+          <ExchangeWidget balance={balance} sunCount={sunCount} shopMode />
+          <LabRankWidget telegramId={telegramId ?? null} sunCount={sunCount} balance={balance} shopMode />
+          <HallOfFameWidget telegramId={telegramId ?? null} shopMode />
+          <PvpRankWidget telegramId={telegramId ?? null} shopMode />
           </>)}
 
           {shopTab === "resources" && (<>

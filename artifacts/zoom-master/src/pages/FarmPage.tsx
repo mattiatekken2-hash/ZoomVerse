@@ -8,6 +8,8 @@ import {
   type ItemType,
 } from "../utils/collectibleConfig";
 import { PlanetOrb } from "../components/PlanetOrb";
+import { ObjectThumb } from "../components/MysteryModel3D";
+import { getModelById } from "@workspace/game-models";
 import { DailyComboBox } from "../components/DailyComboBox";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
@@ -1228,7 +1230,16 @@ export function FarmPage({ planets, sun, sunCount, balance, maxSlots, defectPlan
                     {/* Animations disabled on small cards — at 60px the sphere
                         rotation and ring spin are invisible but keep the GPU
                         busy. animate={true} only in the full-size detail view. */}
-                    <PlanetOrb planet={planet} size={60} animate={false} displayFloat={planetFloat} />
+                    {planet.modelId ? (
+                      <ObjectThumb
+                        shapeId={planet.shapeId || getModelById(planet.modelId)?.shapeId || "minifig"}
+                        primaryColor={planet.color}
+                        accentColor={planet.glowColor}
+                        size={60}
+                      />
+                    ) : (
+                      <PlanetOrb planet={planet} size={60} animate={false} displayFloat={planetFloat} />
+                    )}
                     {isPlatinumNft && (
                       <span
                         className="nft-badge absolute"

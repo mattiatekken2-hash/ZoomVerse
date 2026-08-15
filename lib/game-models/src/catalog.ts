@@ -1,4 +1,5 @@
-import type { ModelCategory, ModelDefinition, ModelRarity, ModelVoxel } from "./types.js";
+import type { ModelCategory, ModelDefinition, ModelRarity } from "./types.js";
+import { modelDisplayName, shapeForIndex } from "./meshes.js";
 
 /** Deterministic PRNG — same seed ⇒ same catalog on client & server. */
 export function mulberry32(seed: number): () => number {
@@ -42,30 +43,6 @@ const RATE_RANGE: Record<ModelRarity, readonly [number, number]> = {
   LEGEND: [200, 320],
 };
 
-const NAME_PARTS: Record<ModelCategory, readonly string[]> = {
-  vehicle: ["Turbo", "Pixel", "Neo", "Retro", "Cosmic", "Shadow", "Blitz", "Nova"],
-  animal: ["Cub", "Fox", "Panda", "Owl", "Wolf", "Frog", "Bear", "Cat"],
-  food: ["Burger", "Taco", "Sushi", "Donut", "Pizza", "Cookie", "Mochi", "Ramen"],
-  daily: ["Mug", "Lamp", "Chair", "Phone", "Key", "Clock", "Plant", "Bag"],
-  character: ["Knight", "Pilot", "Bot", "Ninja", "Alien", "Hero", "Ghost", "Mage"],
-  military: ["Tank", "Jet", "Rocket", "Drone", "Cannon", "Sub", "Missile", "Fort"],
-  block: ["Brick", "Cube", "Stack", "Tower", "Gate", "Wall", "Pillar", "Arch"],
-  gadget: ["Cam", "Radio", "Chip", "Lens", "Drive", "Pod", "Core", "Link"],
-  planet: ["Orbit", "Nebula", "Comet", "Luna", "Terra", "Astra", "Void", "Sol"],
-};
-
-const NAME_SUFFIX: Record<ModelCategory, readonly string[]> = {
-  vehicle: ["Rider", "GT", "X", "Mk2", "Pro", "Lite", "Max", "One"],
-  animal: ["Pal", "Mini", "Prime", "Wild", "Zen", "Pop", "Byte", "Star"],
-  food: ["Bite", "Pop", "Deluxe", "Fresh", "Plus", "Box", "Roll", "Bar"],
-  daily: ["Home", "Desk", "Day", "Set", "Kit", "Pro", "Mini", "One"],
-  character: ["Unit", "X", "Prime", "Ace", "Zero", "One", "Max", "Go"],
-  military: ["Force", "Alpha", "Strike", "Guard", "Ops", "Core", "Max", "One"],
-  block: ["Set", "Build", "Pack", "Core", "Max", "One", "Pro", "X"],
-  gadget: ["Tech", "Link", "Hub", "Node", "Sync", "Wave", "Bit", "Go"],
-  planet: ["Sphere", "World", "Core", "Ring", "Drift", "Glow", "Prime", "One"],
-};
-
 function pickRarity(rng: () => number): ModelRarity {
   const entries = Object.entries(RARITY_WEIGHT) as [ModelRarity, number][];
   const total = entries.reduce((s, [, w]) => s + w, 0);
@@ -77,147 +54,25 @@ function pickRarity(rng: () => number): ModelRarity {
   return "BASIC";
 }
 
-function addBox(
-  out: ModelVoxel[],
-  x: number,
-  y: number,
-  z: number,
-  w: number,
-  h: number,
-  d: number,
-  color: string,
-): void {
-  for (let ix = 0; ix < w; ix++) {
-    for (let iy = 0; iy < h; iy++) {
-      for (let iz = 0; iz < d; iz++) {
-        out.push({ x: x + ix, y: y + iy, z: z + iz, color });
-      }
-    }
-  }
-}
-
-function buildVoxels(
-  category: ModelCategory,
-  variant: number,
-  primary: string,
-  accent: string,
-): ModelVoxel[] {
-  const v: ModelVoxel[] = [];
-  const vmod = variant % 8;
-
-  switch (category) {
-    case "vehicle": {
-      addBox(v, -2, 0, -1, 4, 1, 2, primary);
-      addBox(v, -1, 1, -1, 2, 1, 2, accent);
-      if (vmod % 2 === 0) addBox(v, -2, 0, -2, 1, 1, 1, accent);
-      if (vmod % 2 === 0) addBox(v, 1, 0, -2, 1, 1, 1, accent);
-      if (vmod % 2 === 1) addBox(v, -2, 0, 1, 1, 1, 1, accent);
-      if (vmod % 2 === 1) addBox(v, 1, 0, 1, 1, 1, 1, accent);
-      if (vmod >= 4) addBox(v, 2, 1, 0, 1, 1, 1, accent);
-      break;
-    }
-    case "animal": {
-      addBox(v, -1, 0, -1, 2, 1, 2, primary);
-      addBox(v, -1, 1, -2, 2, 1, 1, accent);
-      if (vmod % 2 === 0) addBox(v, -2, 0, 0, 1, 1, 1, primary);
-      if (vmod % 2 === 1) addBox(v, 1, 0, 0, 1, 1, 1, primary);
-      addBox(v, 0, 1, -2, 1, 1, 1, accent);
-      if (vmod >= 3) addBox(v, -2, 1, -1, 1, 1, 1, accent);
-      if (vmod >= 3) addBox(v, 1, 1, -1, 1, 1, 1, accent);
-      break;
-    }
-    case "food": {
-      addBox(v, -1, 0, -1, 2, 1, 2, primary);
-      addBox(v, -1, 1, -1, 2, 1, 2, accent);
-      if (vmod >= 2) addBox(v, 0, 2, 0, 1, 1, 1, accent);
-      if (vmod >= 4) addBox(v, -1, 2, -1, 2, 1, 1, primary);
-      break;
-    }
-    case "daily": {
-      addBox(v, -1, 0, -1, 2, 2, 2, primary);
-      addBox(v, 0, 2, 0, 1, 1, 1, accent);
-      if (vmod % 2 === 0) addBox(v, -2, 1, 0, 1, 2, 1, accent);
-      if (vmod % 2 === 1) addBox(v, 1, 1, 0, 1, 2, 1, accent);
-      break;
-    }
-    case "character": {
-      addBox(v, -1, 0, -1, 2, 2, 1, primary);
-      addBox(v, -1, 2, -1, 2, 1, 1, accent);
-      addBox(v, -1, 3, -1, 2, 1, 1, primary);
-      if (vmod >= 3) addBox(v, -2, 1, 0, 1, 1, 1, accent);
-      if (vmod >= 3) addBox(v, 1, 1, 0, 1, 1, 1, accent);
-      break;
-    }
-    case "military": {
-      addBox(v, -2, 0, -1, 4, 1, 2, primary);
-      addBox(v, -1, 1, -1, 2, 1, 2, accent);
-      addBox(v, 0, 2, 0, 1, 2, 1, accent);
-      if (vmod >= 2) addBox(v, -2, 1, 1, 1, 1, 1, accent);
-      if (vmod >= 4) addBox(v, 1, 1, 1, 1, 1, 1, accent);
-      break;
-    }
-    case "block": {
-      const h = 2 + (vmod % 3);
-      addBox(v, -1, 0, -1, 2, h, 2, primary);
-      addBox(v, -1, h, -1, 2, 1, 2, accent);
-      if (vmod >= 5) addBox(v, 0, h + 1, 0, 1, 1, 1, accent);
-      break;
-    }
-    case "gadget": {
-      addBox(v, -1, 0, -1, 2, 1, 2, primary);
-      addBox(v, -1, 1, 0, 2, 1, 1, accent);
-      addBox(v, 0, 2, 0, 1, 1, 1, primary);
-      if (vmod >= 3) addBox(v, -2, 0, 0, 1, 1, 1, accent);
-      if (vmod >= 3) addBox(v, 1, 0, 0, 1, 1, 1, accent);
-      break;
-    }
-    case "planet": {
-      addBox(v, -2, -1, -2, 4, 4, 4, primary);
-      addBox(v, -1, 1, -3, 2, 1, 1, accent);
-      if (vmod >= 2) addBox(v, 2, 0, 0, 1, 1, 1, accent);
-      if (vmod >= 4) addBox(v, -3, 0, 0, 1, 1, 1, accent);
-      if (vmod >= 6) addBox(v, 0, 2, 2, 1, 1, 1, accent);
-      break;
-    }
-  }
-
-  return v;
-}
-
-function categoryForIndex(i: number): ModelCategory {
-  const order: ModelCategory[] = [
-    "vehicle", "animal", "food", "daily", "character",
-    "military", "block", "gadget", "planet",
-  ];
-  return order[i % order.length]!;
-}
-
 function generateModel(index: number): ModelDefinition {
   const rng = mulberry32(0x7a00_0000 + index * 9973);
-  const category = categoryForIndex(index);
-  const rarity = category === "planet" && index % 20 !== 0
+  const shape = shapeForIndex(index);
+  const category = shape.category;
+  const rarity = category === "planet"
     ? pickRarity(() => Math.max(rng(), 0.55))
     : pickRarity(rng);
 
-  const parts = NAME_PARTS[category];
-  const suffixes = NAME_SUFFIX[category];
-  const name = `${parts[index % parts.length]} ${suffixes[(index * 3) % suffixes.length]}`;
-
   const palette = PALETTES[index % PALETTES.length]!;
   const [primaryColor, accentColor] = palette;
-
   const [rateMin, rateMax] = RATE_RANGE[rarity];
   const rate = Math.round(rateMin + rng() * (rateMax - rateMin));
-
   const poolWeight = category === "planet"
     ? RARITY_WEIGHT[rarity] * 0.35
     : RARITY_WEIGHT[rarity];
 
-  const voxels = buildVoxels(category, index, primaryColor, accentColor);
-
   return {
     id: `MODEL_${String(index + 1).padStart(3, "0")}`,
-    name,
+    name: modelDisplayName(index),
     category,
     rarity,
     rate,
@@ -225,7 +80,7 @@ function generateModel(index: number): ModelDefinition {
     hintPercent: 0,
     primaryColor,
     accentColor,
-    voxels,
+    shapeId: shape.id,
   };
 }
 
@@ -267,6 +122,7 @@ export function makeModelInstance(
   float: number;
   primaryColor: string;
   accentColor: string;
+  shapeId: string;
   createdAt: number;
   isListedInMarket: boolean;
 } {
@@ -282,6 +138,7 @@ export function makeModelInstance(
     float: Math.round(rng() * 10000) / 100,
     primaryColor: def.primaryColor,
     accentColor: def.accentColor,
+    shapeId: def.shapeId,
     createdAt: stamp,
     isListedInMarket: false,
   };

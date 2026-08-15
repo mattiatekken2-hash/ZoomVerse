@@ -102,7 +102,7 @@ function ComingSoonOverlay({ onClose }: { onClose: () => void }) {
 }
 
 /* ─── Main widget ────────────────────────────────────────────── */
-function ZoomStoreWidgetBase() {
+function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
   const [open, setOpen] = useState(false);
   const [comingSoon, setComingSoon] = useState(false);
   // qty per product id
@@ -162,7 +162,18 @@ function ZoomStoreWidgetBase() {
         onClick={() => { haptic(); setOpen(true); }}
         aria-label="ZOOM Store"
         className="zs-btn-tile"
-        style={{
+        style={shopMode ? {
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          padding: "14px 16px",
+          borderRadius: 14,
+          background: "rgba(18,14,0,0.88)",
+          border: `1px solid ${STORE_GOLD}55`,
+          cursor: "pointer",
+          textAlign: "left" as const,
+        } : {
           position: "fixed",
           left: 12,
           top: 320,
@@ -221,6 +232,12 @@ function ZoomStoreWidgetBase() {
             }}>{cartTotal > 9 ? "9+" : cartTotal}</div>
           )}
         </div>
+        {shopMode && (
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 13, letterSpacing: "0.08em", color: STORE_GOLD }}>ZOOM STORE</div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>Official merch · $ZOOM</div>
+          </div>
+        )}
       </button>
 
       {/* ── Store modal — outer overlay scrolls ── */}

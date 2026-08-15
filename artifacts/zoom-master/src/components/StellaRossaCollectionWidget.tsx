@@ -15,6 +15,7 @@ interface Props {
   lastClaimAt?: number;
   onClaim?: (newRedStarBalance: number) => void;
   onUnlocked?: () => void;
+  shopMode?: boolean;
 }
 
 function fmt(ms: number): string {
@@ -36,6 +37,7 @@ function StellaRossaCollectionWidgetBase({
   lastClaimAt = 0,
   onClaim,
   onUnlocked,
+  shopMode = false,
 }: Props) {
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
@@ -153,7 +155,18 @@ function StellaRossaCollectionWidgetBase({
         onClick={() => setOpen(true)}
         aria-label="REDSTAR Collection"
         className="sr-btn-tile"
-        style={{
+        style={shopMode ? {
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          padding: "14px 16px",
+          borderRadius: 14,
+          background: "rgba(20,0,4,0.88)",
+          border: `1px solid ${unlocked ? STELLA_RED + "66" : "rgba(255,255,255,0.18)"}`,
+          cursor: "pointer",
+          textAlign: "left" as const,
+        } : {
           position: "fixed",
           left: 12,
           top: 250,
@@ -206,6 +219,14 @@ function StellaRossaCollectionWidgetBase({
             </>
           )}
         </div>
+        {shopMode && (
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 13, letterSpacing: "0.08em", color: STELLA_RED }}>REDSTAR</div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>
+              {unlocked ? (canClaim ? "Daily claim ready" : "Collection owned") : "60 GRAM collection"}
+            </div>
+          </div>
+        )}
       </button>
 
       {open && (

@@ -23,13 +23,6 @@ export const MODEL_RARITIES = [
 
 export type ModelRarity = (typeof MODEL_RARITIES)[number];
 
-export interface ModelVoxel {
-  x: number;
-  y: number;
-  z: number;
-  color: string;
-}
-
 export interface ModelDefinition {
   id: string;
   name: string;
@@ -40,7 +33,7 @@ export interface ModelDefinition {
   hintPercent: number;
   primaryColor: string;
   accentColor: string;
-  voxels: ModelVoxel[];
+  shapeId: string;
 }
 
 export interface ZoomModelInstance {
@@ -53,6 +46,7 @@ export interface ZoomModelInstance {
   float: number;
   primaryColor: string;
   accentColor: string;
+  shapeId: string;
   createdAt: number;
   isListedInMarket: boolean;
   serverListingId?: number | null;

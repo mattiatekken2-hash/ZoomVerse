@@ -75,7 +75,7 @@ router.post("/forge/mystery-model", async (req, res) => {
     res.json({
       ok: true,
       model,
-      voxels: def.voxels,
+      shapeId: def.shapeId,
     });
   } catch (err) {
     console.error("[forge/mystery-model] error:", err);
@@ -96,6 +96,7 @@ const ClaimModelBody = z.object({
     float: z.number().min(0).max(100),
     primaryColor: z.string().min(1).max(16),
     accentColor: z.string().min(1).max(16),
+    shapeId: z.string().min(1).max(32).optional(),
     createdAt: z.number().int().min(0),
     isListedInMarket: z.boolean().optional(),
   }),
@@ -127,6 +128,7 @@ router.post("/models/claim", async (req, res) => {
     float: incoming.float,
     primaryColor: canonical.primaryColor,
     accentColor: canonical.accentColor,
+    shapeId: canonical.shapeId,
     createdAt: incoming.createdAt,
     isListedInMarket: false,
   };

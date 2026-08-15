@@ -17,6 +17,8 @@ import {
   FARM_UPGRADE_TIERS,
 } from "../hooks/useGameState";
 import { PlanetOrb } from "./PlanetOrb";
+import { ObjectThumb } from "./MysteryModel3D";
+import { getModelById } from "@workspace/game-models";
 import { getPlanetDisplayName } from "../utils/planetNames";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { PlanetFloatBar } from "./PlanetFloatBar";
@@ -150,7 +152,16 @@ export function PlanetDetailModal({
         {/* Hero: planet orb + core info */}
         <div className="flex flex-col items-center px-5 pt-2 pb-4">
           <div style={{ position: "relative" }}>
-            <PlanetOrb planet={planet} size={108} animate={active} displayFloat={planetFloat} />
+            {planet.modelId ? (
+              <ObjectThumb
+                shapeId={planet.shapeId || getModelById(planet.modelId)?.shapeId || "minifig"}
+                primaryColor={planet.color}
+                accentColor={planet.glowColor}
+                size={108}
+              />
+            ) : (
+              <PlanetOrb planet={planet} size={108} animate={active} displayFloat={planetFloat} />
+            )}
             {active && (
               <div
                 className="absolute -top-1 -right-1 w-3 h-3 rounded-full pulse-soft"

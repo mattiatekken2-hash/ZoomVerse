@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
-import { makeModelInstance, rollModelDefinition } from "@workspace/game-models";
+import { makeModelInstance, rollModelDefinition, getModelById } from "@workspace/game-models";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import type { CollectibleItem } from "../utils/collectibleConfig";
@@ -198,6 +198,10 @@ export interface Planet {
   // Defaults to 1h when absent. Persists in planetsJson and survives
   // market listing/sale — the buyer inherits the upgraded duration.
   farmDurationHours?: number;
+  /** Lab-forged 3D object from the 100-model catalog. */
+  modelId?: string;
+  modelName?: string;
+  shapeId?: string;
 }
 
 export interface SunState {
@@ -1635,6 +1639,44 @@ function makePlanet(rarity: PlanetType): Planet {
     // Cosmetic CS:GO-style perfection score, generated once at craft
     // and frozen forever (server preserves first-write via server-merge).
     float: generateRandomFloat(),
+    durability: 100,
+    durabilityUpdatedAt: 0,
+    farmDurationHours: 1,
+  };
+}
+
+const MODEL_RARITY_TO_PLANET: Record<string, PlanetType> = {
+  BASIC: "BASIC",
+  RARE: "RARE",
+  EPIC: "EPIC",
+  MYTHIC: "MYTHIC",
+  GOLD: "GOLD",
+  LEGEND: "GOLD",
+};
+
+function makePlanetFromModel(model: ZoomModel, craftCost: number): Planet {
+  const rarity = MODEL_RARITY_TO_PLANET[model.rarity] ?? "BASIC";
+  const now = serverNow();
+  return {
+    id: model.id,
+    name: rarity,
+    rate: model.rate,
+    color: model.primaryColor,
+    glowColor: model.accentColor,
+    createdAt: now,
+    farmStartedAt: 0,
+    lastCollectedAt: 0,
+    isListedInMarket: false,
+    isFarmingActive: false,
+    marketPrice: null,
+    craftCost,
+    float: generateRandomFloat(),
+    durability: 100,
+    durabilityUpdatedAt: 0,
+    farmDurationHours: 1,
+    modelId: model.modelId,
+    modelName: model.name,
+    shapeId: model.shapeId || getModelById(model.modelId)?.shapeId,
   };
 }
 
@@ -3621,6 +3663,7 @@ export function useGameState() {
   const craft = useCallback((availableStardust?: number): { completed: boolean; model?: ZoomModel; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType; equipmentDrop?: EquipmentDropResult } => {
     const current = stateRef.current;
     if (current.pendingModel || current.pendingPlanet || current.forgeRolling) return { completed: false };
+    if (current.planets.length >= current.maxSlots) return { completed: false };
 
     let rarity = current.currentCraftRarity;
     let goal = current.goal;
@@ -3753,16 +3796,23 @@ export function useGameState() {
   const claimCraft = useCallback((): { ok: boolean; reason?: string } => {
     let outcome: { ok: boolean; reason?: string } = { ok: true };
     let claimedModel: ZoomModel | null = null;
-    let claimedModelCost = 0;
     let claimedName: PlanetType | null = null;
     let claimedCost = 0;
 
     setState((prev) => {
       if (prev.pendingModel) {
+        if (prev.planets.length >= prev.maxSlots) {
+          outcome = { ok: false, reason: "Slots full" };
+          try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: "Slots full", ok: false } })); } catch { /**/ }
+          return prev;
+        }
+        const planet = makePlanetFromModel(prev.pendingModel, prev.pendingModelCost || 0);
         claimedModel = prev.pendingModel;
-        claimedModelCost = prev.pendingModelCost || 0;
+        claimedName = planet.name;
+        claimedCost = prev.pendingModelCost || 0;
         return {
           ...prev,
+          planets: [...prev.planets, planet],
           models: [...(prev.models ?? []), prev.pendingModel],
           pendingModel: null,
           pendingModelCost: 0,
@@ -3789,7 +3839,6 @@ export function useGameState() {
       if (tid) {
         void claimModelApi(tid, claimedModel);
       }
-      return outcome;
     }
 
     if (outcome.ok && claimedName) {

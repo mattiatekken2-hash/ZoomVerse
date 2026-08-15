@@ -31,6 +31,7 @@ const FALLBACK_LAUNCH_AT_MS = Date.UTC(2026, 8, 1, 0, 0, 0);
 interface ExchangeWidgetProps {
   balance: number;
   sunCount: number;
+  shopMode?: boolean;
 }
 
 function formatPrice(p: number): string {
@@ -283,7 +284,7 @@ function ExchangeModal({
   );
 }
 
-function ExchangeWidgetBase({ balance, sunCount }: ExchangeWidgetProps) {
+function ExchangeWidgetBase({ balance, sunCount, shopMode = false }: ExchangeWidgetProps) {
   const [now, setNow] = useState<number>(Date.now());
   const [price, setPrice] = useState<number>(0.000001);
   const [open, setOpen] = useState(false);
@@ -367,7 +368,18 @@ function ExchangeWidgetBase({ balance, sunCount }: ExchangeWidgetProps) {
     </div>
   );
 
-  const baseStyle: React.CSSProperties = {
+  const baseStyle: React.CSSProperties = shopMode ? {
+    position: "relative",
+    width: "100%",
+    borderRadius: 14,
+    padding: "12px 14px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "linear-gradient(135deg, rgba(0,40,60,0.75) 0%, rgba(0,16,32,0.9) 100%)",
+    border: "1px solid rgba(255,51,85,0.4)",
+    boxShadow: "0 0 12px rgba(255,51,85,0.25)",
+  } : {
     position: "absolute",
     top: 8,
     left: "50%",
