@@ -223,7 +223,8 @@ export function ObjectMesh3D({
 
       const targetP = st.revealed ? 1 : Math.min(1, Math.max(0, st.progress));
       const lerpK = 1 - Math.pow(0.001, dt / 16.67);
-      smoothProgressRef.current += (targetP - smoothProgressRef.current) * lerpK * 0.55;
+      const snap = performanceMode ? 0.95 : 0.55;
+      smoothProgressRef.current += (targetP - smoothProgressRef.current) * lerpK * snap;
       const assembly = smoothProgressRef.current;
 
       if (st.revealed) paintT = Math.min(1, paintT + (dt / 16.67) * 0.042);

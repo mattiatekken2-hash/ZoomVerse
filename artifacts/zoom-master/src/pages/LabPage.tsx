@@ -1,10 +1,9 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { PlanetCanvas, type ForgePhase } from "../components/PlanetCanvas";
 import { AutoTapWidget } from "../components/AutoTapWidget";
 
-import type { Planet, PlanetType, EquipmentDropResult, ZoomModel } from "../hooks/useGameState";
+import type { Planet, PlanetType, ZoomModel } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
-import { EQUIPMENT_RARITY_INFO, EQUIPMENT_CATEGORIES } from "../utils/equipmentConfig";
 import { hapticLight } from "../utils/haptic";
 import { useT } from "../i18n/LanguageContext";
 
@@ -23,7 +22,7 @@ interface LabPageProps {
   hasAutoTap: boolean;
   stardustBalance: number;
   telegramId: string | null;
-  onCraft: (availableStardust?: number) => { completed: boolean; model?: ZoomModel; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType; equipmentDrop?: EquipmentDropResult };
+  onCraft: (availableStardust?: number) => { completed: boolean; model?: ZoomModel; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType };
   onClaim: () => void;
   visible?: boolean;
 }
@@ -48,8 +47,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   const floatTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const [brokenFlash, setBrokenFlash] = useState<{ id: number; rarity: PlanetType } | null>(null);
   const brokenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingEquipmentDropRef = useRef<EquipmentDropResult | undefined>(undefined);
-  const pendingFloatRef = useRef<{ model: ZoomModel; equipmentDrop?: EquipmentDropResult } | null>(null);
+  const pendingFloatRef = useRef<{ model: ZoomModel } | null>(null);
 
   // Forge phase state machine: drives the visual sequence after the user
   // hits 100% — flash → 2s dramatic wait → model reveal → claim button.
@@ -61,11 +59,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
   useEffect(() => {
     if (pendingModel && forgePhase === "idle" && !pendingFloatRef.current) {
-      pendingFloatRef.current = {
-        model: pendingModel,
-        equipmentDrop: pendingEquipmentDropRef.current,
-      };
-      pendingEquipmentDropRef.current = undefined;
+      pendingFloatRef.current = { model: pendingModel };
     }
   }, [pendingModel, forgePhase]);
 
@@ -109,8 +103,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     ? true
     : (effectiveStardust >= (PLANET_CONFIG["BASIC"].craftCost ?? 2)));
 
-  const progress = goal > 0 ? taps / goal : 0;
-
   const dynamicColor = GREY;
 
   const clearAllFloats = useCallback(() => {
@@ -151,19 +143,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     if (forgePhase === "revealed" && pendingFloatRef.current) {
       const m = pendingFloatRef.current.model;
       addFloat(`✦ ${m.name}!`, RARITY_PAINT[m.rarity] || m.primaryColor);
-      const drop = pendingFloatRef.current.equipmentDrop;
-      if (drop) {
-        setTimeout(() => {
-          if (drop.item) {
-            const cat = EQUIPMENT_CATEGORIES[drop.item.category];
-            const rar = EQUIPMENT_RARITY_INFO[drop.item.rarity];
-            addFloat(`🛠 ${rar.label} ${cat.label.replace(/s$/, "")}!`, rar.color);
-          } else {
-            const rar = EQUIPMENT_RARITY_INFO[drop.rarity];
-            addFloat(`+${drop.convertedToZoom} $ZOOM (cap raggiunto)`, rar.color);
-          }
-        }, 220);
-      }
       pendingFloatRef.current = null;
     }
   }, [forgePhase, addFloat]);
@@ -186,10 +165,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       }, 4000);
       return;
     }
-    if (result.completed && !result.broken) {
-      pendingEquipmentDropRef.current = result.equipmentDrop || undefined;
-    }
-  }, [canCraft, onCraft]);
+  }, [canCraft, onCraft, stardustBalance]);
 
   useEffect(() => () => {
     if (brokenTimerRef.current) clearTimeout(brokenTimerRef.current);
@@ -211,10 +187,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
   return (
     <div className="flex flex-col h-full relative overflow-hidden">
-      {/* Widgets stay mounted across tab switches — the parent tab container
-          uses display:none when the LAB tab is inactive, which already hides
-          these fixed-position widgets. Unmounting them on every tab switch
-          caused visible flashes (re-fetch + animation restarts on remount). */}
       <AutoTapWidget
         hasAutoTap={hasAutoTap}
         canCraft={canCraft}
@@ -227,7 +199,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         style={{ minHeight: 0 }}
         onClick={canCraft && forgePhase === "idle" ? handleCraft : undefined}
       >
-        {/* Top bar: $ZOOM center (GRAM wallet stays in app header) */}
         <div className="absolute top-3 left-0 right-0 z-30 flex items-start justify-center px-3 pointer-events-none">
           <div
             className="px-5 py-2 rounded-full pointer-events-none"
@@ -308,9 +279,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         )}
 
         {isFull && (
-          <div
-            className="absolute inset-0 flex items-center justify-center"
-          >
+          <div className="absolute inset-0 flex items-center justify-center">
             <div className="glass rounded-2xl px-6 py-4 text-center">
               <div className="text-amber-400 font-black text-base tracking-widest mb-1">{t("lab.farmFull")}</div>
               <div className="text-xs text-muted-foreground">{t("lab.farmFullHint")}</div>
@@ -318,8 +287,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           </div>
         )}
 
-        {/* CLAIM button — only shown after the planet reveal animation
-            completes so the moment feels earned. Fades in via CSS. */}
         {pendingModel && showClaim && (
           <div
             className="absolute left-1/2 flex flex-col items-center gap-3 forge-claim-fade-in"
@@ -415,10 +382,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       </div>
 
       <div className="flex-shrink-0 px-5 pb-6 pt-2 flex flex-col gap-3">
-        {/* Bottom row stays mounted across pendingPlanet toggles so the
-            avatar's bob/glow animations don't restart on every craft cycle.
-            The CRAFT button is hidden during the planet-reveal cinematic but
-            the avatar (and its modal state) are preserved. */}
         <div style={{ display: "flex", alignItems: "center" }}>
           {!pendingPlanet && (
             <button
@@ -444,8 +407,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           </div>
         )}
       </div>
-
     </div>
   );
 }
-

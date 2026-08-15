@@ -934,12 +934,6 @@ function AppShellWithState() {
                   onCollectStellaRossaPlanet={collectStellaRossaPlanet}
                   onMarkStellaRossaPlanetReactivated={markStellaRossaPlanetReactivated}
                   onUpgradeCollectionDuration={upgradeCollectionFarmDuration}
-                  equipment={state.equipment ?? []}
-                  onActivateEquipment={activateEquipment}
-                  onReactivateEquipment={reactivateEquipment}
-                  onBurnEquipment={burnEquipment}
-                  onSellEquipment={listEquipment}
-                  onUnlistEquipment={unlistEquipment}
                   items={items}
                   onSellItem={listItem}
                   onUnlistItem={unlistItem}
