@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { MysteryModel3D, type ForgeMeshHandle } from "./MysteryModel3D";
-import { getMeshParts, getModelById, FORGE_CLAY_HEX } from "@workspace/game-models";
+import { getMeshParts, getModelById, FORGE_CLAY_HEX, FORGE_CLAY_TONES } from "@workspace/game-models";
 import type { ZoomModel } from "../hooks/useGameState";
 import { getRarityColorsForModel } from "../hooks/useGameState";
 import { useT } from "../i18n/LanguageContext";
@@ -25,7 +25,7 @@ interface PlanetCanvasProps {
 }
 
 const DEFAULT_ACCENT = "#8892b0";
-const CLAY_COLORS = ["#b8b8b8", "#d0d0d0", "#a0a0a0", "#c8c8c8", "#909090"];
+const CLAY_COLORS = [...FORGE_CLAY_TONES];
 const SPARK_COLORS = ["#ffffff", "#e8f4ff", "#fff8e0", "#d4e8ff"];
 const CALM_COLORS = ["#9ec5e8", "#b8d4f0", "#c4b8e8", "#d0e8f8", "#e4eef8", "#b0c8e0"];
 const MAX_FRAGMENTS = 36;
@@ -130,7 +130,7 @@ function spawnVoxelPixelParticle(
   s.width = `${ball}px`;
   s.height = `${ball}px`;
   s.borderRadius = "50%";
-  s.background = FORGE_CLAY_HEX;
+  s.background = target.color || FORGE_CLAY_HEX;
   s.boxShadow = "0 0 5px rgba(200,200,200,0.65), 0 0 1px rgba(220,220,220,0.8)";
   s.pointerEvents = "none";
   s.contain = "strict";
@@ -157,7 +157,7 @@ function spawnVoxelPixelParticle(
     ts.width = `${trailBall}px`;
     ts.height = `${trailBall}px`;
     ts.borderRadius = "50%";
-    ts.background = FORGE_CLAY_HEX;
+    ts.background = target.color || FORGE_CLAY_HEX;
     ts.opacity = "0";
     ts.pointerEvents = "none";
     ts.setProperty("--fx", `${fx * 0.9}px`);
@@ -290,6 +290,8 @@ export function PlanetCanvas({
   const revealed = forgePhase === "revealed";
   const buildProgress = isCrafting ? pct : liveModel ? 1 : 0;
   const isForging = isCrafting;
+  // Keep voxel sculpture through waiting + color reveal (not only while tapping).
+  const forgeVoxelBuild = !!liveModel && (isCrafting || forgePhase === "waiting" || revealed);
   const rarityPaint = liveModel ? getRarityColorsForModel(liveModel.rarity) : undefined;
   const displayAccent = revealed
     ? (rarityPaint?.accentHex || liveModel?.accentColor || accentColor || DEFAULT_ACCENT)
@@ -429,7 +431,7 @@ export function PlanetCanvas({
             size={modelCanvasSize}
             onTap={isForging && !forgeRolling ? handleModelTap : undefined}
             autoSpin
-            forgeVoxelBuild={isCrafting && !revealed}
+            forgeVoxelBuild={forgeVoxelBuild}
             forgeTapRelaxed={tapRelaxed}
             performanceMode={false}
           />
