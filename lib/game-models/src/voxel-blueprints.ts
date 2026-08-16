@@ -339,94 +339,50 @@ function carBp(_p: string, _a: string): VoxelCell[] {
 function koalaBp(_p: string, _a: string): VoxelCell[] {
   const m: BlockMap = new Map();
 
-  // Seated torso with soft back corners
+  // Seated torso — round back, rarity checkerboard fur
   boxTone(m, -5, 0, -4, 5, 8, 3);
   box(m, -4, 1, 3, 4, 7, 5, "w");
-  set(m, -5, 3, -4, "pd");
-  set(m, 5, 3, -4, "pd");
-  set(m, -5, 7, -4, "pd");
-  set(m, 5, 7, -4, "pd");
 
-  // Small fluffy tail
-  boxTone(m, -1, 3, -5, 1, 5, -4);
-  set(m, 0, 6, -5, "pd");
-  set(m, -1, 5, -6, "pd");
-
-  // Head — leaned slightly forward (+z) for a cuter pose
-  boxTone(m, -6, 8, -3, 6, 15, 6);
-  for (let y = 16; y <= 18; y++) {
-    const shrink = 19 - y;
-    boxTone(m, -6 + shrink, y, -2 + shrink, 6 - shrink, y, 6 - shrink);
+  // Large blocky head (reference: head dominates the silhouette)
+  boxTone(m, -6, 8, -4, 6, 15, 5);
+  for (let y = 16; y <= 17; y++) {
+    const shrink = 18 - y;
+    boxTone(m, -6 + shrink, y, -4 + shrink, 6 - shrink, y, 5 - shrink);
   }
-  // Round the front face and forehead
-  for (let y = 10; y <= 14; y++) {
-    set(m, -7, y, 5, "pd");
-    set(m, 7, y, 5, "pd");
-  }
-  boxTone(m, -4, 16, 4, 4, 17, 6);
-  set(m, -2, 18, 5, "pl");
-  set(m, 2, 18, 5, "pl");
-  set(m, 0, 18, 6, "pl");
 
-  // Fluffy ears — wide base, tapered tips
-  boxTone(m, -10, 13, -1, -5, 16, 2);
-  boxTone(m, -9, 17, -1, -6, 19, 2);
-  boxTone(m, -8, 20, 0, -7, 20, 1);
-  set(m, -7, 21, 0, "pl");
-  box(m, -9, 14, 0, -6, 18, 2, "w");
-  boxTone(m, 5, 13, -1, 10, 16, 2);
-  boxTone(m, 6, 17, -1, 9, 19, 2);
-  boxTone(m, 7, 20, 0, 8, 20, 1);
-  set(m, 7, 21, 0, "pl");
-  box(m, 6, 14, 0, 9, 18, 2, "w");
+  // Fluffy ears on top corners + white inner fur
+  boxTone(m, -9, 14, -2, -5, 19, 2);
+  boxTone(m, 5, 14, -2, 9, 19, 2);
+  box(m, -8, 15, 0, -6, 18, 2, "w");
+  box(m, 6, 15, 0, 8, 18, 2, "w");
 
-  // White muzzle + wider black nose
-  box(m, -3, 9, 5, 3, 11, 7, "w");
-  box(m, -2, 10, 7, 2, 14, 9, "k");
-  box(m, -1, 14, 9, 1, 15, 9, "k");
-  set(m, -2, 11, 9, "k");
-  set(m, 2, 11, 9, "k");
-  set(m, 0, 9, 8, "k");
+  // Prominent black nose (Minecraft-style muzzle block)
+  box(m, -2, 10, 6, 2, 14, 8, "k");
+  set(m, -1, 14, 8, "k");
+  set(m, 1, 14, 8, "k");
+  set(m, 0, 9, 7, "k");
 
-  // Eyes with white surround + highlight
-  box(m, -3, 11, 6, -2, 12, 7, "w");
-  box(m, 2, 11, 6, 3, 12, 7, "w");
-  box(m, -5, 12, 6, -4, 13, 7, "k");
-  box(m, 4, 12, 6, 5, 13, 7, "k");
-  set(m, -4, 13, 7, "w");
-  set(m, 4, 13, 7, "w");
+  // Eyes — 2×2 dark blocks so they read clearly at Farm/Lab size
+  box(m, -5, 12, 5, -4, 13, 6, "k");
+  box(m, 4, 12, 5, 5, 13, 6, "k");
+  set(m, -4, 13, 6, "w");
+  set(m, 4, 13, 6, "w");
 
   // Cheek fluff framing the face
-  set(m, -6, 11, 5, "pl");
-  set(m, 6, 11, 5, "pl");
-  set(m, -6, 12, 4, "pd");
-  set(m, 6, 12, 4, "pd");
-  set(m, -5, 10, 5, "pl");
-  set(m, 5, 10, 5, "pl");
+  set(m, -6, 11, 4, "pl");
+  set(m, 6, 11, 4, "pl");
+  set(m, -6, 12, 3, "pd");
+  set(m, 6, 12, 3, "pd");
 
-  // Arms hugging the belly tighter
-  boxTone(m, -7, 2, 0, -6, 7, 3);
-  boxTone(m, 6, 2, 0, 7, 7, 3);
-  for (const px of [-8, -7, -6] as const) {
-    set(m, px, 1, 5, "w");
-    set(m, px, 0, 4, "w");
-  }
-  for (const px of [6, 7, 8] as const) {
-    set(m, px, 1, 5, "w");
-    set(m, px, 0, 4, "w");
-  }
-  set(m, -7, 2, 4, "k");
-  set(m, 7, 2, 4, "k");
+  // Arms hugging the belly + white paws
+  boxTone(m, -8, 2, -1, -6, 7, 3);
+  boxTone(m, 6, 2, -1, 8, 7, 3);
+  box(m, -8, 1, 2, -6, 3, 5, "w");
+  box(m, 6, 1, 2, 8, 3, 5, "w");
 
-  // Front feet with separated toes
-  for (const px of [-4, -3, -2] as const) {
-    set(m, px, 0, 5, "w");
-    set(m, px, 0, 6, "w");
-  }
-  for (const px of [2, 3, 4] as const) {
-    set(m, px, 0, 5, "w");
-    set(m, px, 0, 6, "w");
-  }
+  // Seated feet at the front
+  box(m, -4, 0, 2, -2, 1, 5, "w");
+  box(m, 2, 0, 2, 4, 1, 5, "w");
   boxTone(m, -2, 0, -3, 2, 1, 1);
 
   return compile(m);
