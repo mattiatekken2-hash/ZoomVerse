@@ -75,6 +75,34 @@ function sphere(
   }
 }
 
+function pokeballBp(_p: string, _a: string): VoxelCell[] {
+  const m: BlockMap = new Map();
+  const R = 9;
+
+  const pokeTone = (x: number, y: number, z: number): VoxelColorToken | "k" | "w" => {
+    const band = Math.abs(y) <= 1 && x * x + z * z <= (R + 1) * (R + 1);
+    if (band) return "k";
+    if (y >= 2) return primaryTone(x, y, z);
+    if (y <= -2) return accentTone(x, y, z);
+    return y > 0 ? primaryTone(x, y, z) : accentTone(x, y, z);
+  };
+
+  sphere(m, 0, 0, 0, R, pokeTone);
+
+  for (let x = -3; x <= 3; x++) {
+    for (let y = -2; y <= 2; y++) {
+      const d = x * x + y * y;
+      if (d > 9) continue;
+      const ring = d >= 4;
+      set(m, x, y, R + 1, ring ? "k" : "w");
+      if (ring && d >= 6) set(m, x, y, R + 2, "k");
+    }
+  }
+  set(m, 0, 0, R + 2, "w");
+
+  return compile(m);
+}
+
 function bananaBp(_p: string, _a: string): VoxelCell[] {
   const m: BlockMap = new Map();
   const steps = 18;
@@ -106,31 +134,85 @@ function bananaBp(_p: string, _a: string): VoxelCell[] {
   return compile(m);
 }
 
-function pokeballBp(_p: string, _a: string): VoxelCell[] {
+/** Classic black/white pentagon pattern on a Minecraft-style sphere. */
+function soccerBallBp(_p: string, _a: string): VoxelCell[] {
   const m: BlockMap = new Map();
   const R = 9;
+  const pentagons: Array<[number, number, number]> = [
+    [0, 0, 1],
+    [0, 0.62, 0.78],
+    [0, -0.62, 0.78],
+    [0.58, 0.38, 0.73],
+    [-0.58, 0.38, 0.73],
+    [0.72, 0, 0.69],
+    [-0.72, 0, 0.69],
+    [0.38, -0.62, 0.69],
+    [-0.38, -0.62, 0.69],
+    [0, 0.92, -0.38],
+    [0.78, 0.52, -0.35],
+    [-0.78, 0.52, -0.35],
+    [0.45, -0.45, -0.77],
+    [-0.45, -0.45, -0.77],
+  ];
 
-  const pokeTone = (x: number, y: number, z: number): VoxelColorToken | "k" | "w" => {
-    const band = Math.abs(y) <= 1 && x * x + z * z <= (R + 1) * (R + 1);
-    if (band) return "k";
-    if (y >= 2) return primaryTone(x, y, z);
-    if (y <= -2) return accentTone(x, y, z);
-    return y > 0 ? primaryTone(x, y, z) : accentTone(x, y, z);
+  const isPentagon = (x: number, y: number, z: number): boolean => {
+    const len = Math.hypot(x, y, z);
+    if (len < 0.5) return false;
+    const nx = x / len;
+    const ny = y / len;
+    const nz = z / len;
+    for (const [px, py, pz] of pentagons) {
+      const dot = nx * px + ny * py + nz * pz;
+      if (dot > 0.955) return true;
+    }
+    return false;
   };
 
-  sphere(m, 0, 0, 0, R, pokeTone);
+  sphere(m, 0, 0, 0, R, (x, y, z) => (isPentagon(x, y, z) ? "k" : "w"));
+  return compile(m);
+}
 
-  for (let x = -3; x <= 3; x++) {
-    for (let y = -2; y <= 2; y++) {
-      const d = x * x + y * y;
-      if (d > 9) continue;
-      const ring = d >= 4;
-      set(m, x, y, R + 1, ring ? "k" : "w");
-      if (ring && d >= 6) set(m, x, y, R + 2, "k");
-    }
+/** Orange sphere with black seam curves — readable basketball silhouette. */
+function basketballBp(_p: string, _a: string): VoxelCell[] {
+  const m: BlockMap = new Map();
+  const R = 9;
+  const orange = "#e65100";
+
+  sphere(m, 0, 0, 0, R, (x, y, z) => {
+    const len = Math.hypot(x, y, z);
+    if (len < 0.5) return orange;
+    const nx = x / len;
+    const ny = y / len;
+    const nz = z / len;
+    const eq = Math.abs(ny) < 0.1;
+    const merX = Math.abs(nx) < 0.1;
+    const merZ = Math.abs(nz) < 0.1;
+    const arc = Math.abs((nx * nx - nz * nz) * 0.85 + ny * 0.35) < 0.14;
+    if (eq || merX || merZ || arc) return "k";
+    return orange;
+  });
+  return compile(m);
+}
+
+/** Minecraft-style pickaxe — stone head + wooden handle. */
+function pickaxeBp(_p: string, _a: string): VoxelCell[] {
+  const m: BlockMap = new Map();
+  const stone = "#78909c";
+  const dark = "#546e7a";
+  const wood = "#6d4c41";
+  const woodDark = "#4e342e";
+
+  for (let y = 0; y <= 14; y++) {
+    set(m, 0, y, 0, y % 2 === 0 ? wood : woodDark);
+    set(m, 1, y, 0, woodDark);
   }
-  set(m, 0, 0, R + 2, "w");
-
+  box(m, -1, 12, -1, 1, 13, 1, stone);
+  box(m, -5, 13, -1, -2, 14, 1, stone);
+  box(m, 2, 13, -1, 5, 14, 1, stone);
+  box(m, -6, 14, -1, 6, 15, 1, dark);
+  set(m, -7, 14, 0, dark);
+  set(m, 7, 14, 0, dark);
+  set(m, 0, 15, 0, stone);
   return compile(m);
 }
 
@@ -664,14 +746,9 @@ const BLUEPRINTS: Record<string, BlueprintFn> = {
     box(m, 2, 0, 0, 2, 2, 1, p || "#6d4c41");
     return compile(m);
   },
-  soccer_ball: (_p, _a) => {
-    const m: BlockMap = new Map();
-    for (let y = 0; y <= 5; y++) {
-      const r = Math.round(3 * Math.sin((y / 5) * Math.PI));
-      if (r > 0) disc(m, y, 0, 0, r, y % 2 === 0 ? "#fafafa" : "#1a1a1a");
-    }
-    return compile(m);
-  },
+  soccer_ball: soccerBallBp,
+  basketball: basketballBp,
+  pickaxe: pickaxeBp,
 };
 
 /** Hand-tuned block blueprints for readable Lego-style models; falls back to auto-voxelize. */
