@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
-import { getForgeTapGoal, getMeshParts, makeModelInstance, rollModelDefinition, getModelById } from "@workspace/game-models";
+import { getForgeTapGoalForShape, getMeshParts, makeModelInstance, rollModelDefinition, getModelById } from "@workspace/game-models";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import type { CollectibleItem } from "../utils/collectibleConfig";
@@ -1051,7 +1051,12 @@ function loadState(): GameState {
               base.forgingModel.primaryColor,
               base.forgingModel.accentColor,
             );
-            base.goal = getForgeTapGoal(forgeParts);
+            base.goal = getForgeTapGoalForShape(
+              forgeShapeId,
+              forgeParts,
+              base.forgingModel.primaryColor,
+              base.forgingModel.accentColor,
+            );
           }
         }
         const resolvedTelegramId = telegramId || base.telegramId;
@@ -3702,7 +3707,7 @@ export function useGameState() {
       forging = makeModelInstance(rollModelDefinition()) as ZoomModel;
       const forgeShapeId = forging.shapeId || getModelById(forging.modelId)?.shapeId || "minifig";
       const forgeParts = getMeshParts(forgeShapeId, forging.primaryColor, forging.accentColor);
-      goal = getForgeTapGoal(forgeParts);
+      goal = getForgeTapGoalForShape(forgeShapeId, forgeParts, forging.primaryColor, forging.accentColor);
       setState((prev) => ({
         ...prev,
         stardustBalance: prev.stardustBalance - config.craftCost,

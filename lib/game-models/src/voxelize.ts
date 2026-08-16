@@ -11,9 +11,17 @@ export interface VoxelCell {
   profile?: MaterialProfile;
 }
 
-const MIN_FORGE_VOXELS = 96;
-const MAX_FORGE_VOXELS = 280;
-const TARGET_FORGE_VOXELS = 180;
+const MIN_FORGE_VOXELS = 72;
+const MAX_FORGE_VOXELS = 420;
+
+function partVolume(part: MeshPart): number {
+  return part.sx * part.sy * part.sz;
+}
+
+/** Smallest parts last so eyes, seeds, stripes win overlaps. */
+function partsByDetailOrder(parts: MeshPart[]): MeshPart[] {
+  return [...parts].sort((a, b) => partVolume(b) - partVolume(a));
+}
 
 function snap(v: number, step: number): number {
   return Math.round(v / step) * step;
@@ -124,17 +132,17 @@ function partBounds(parts: MeshPart[]) {
 
 function collectVoxels(parts: MeshPart[], step: number): VoxelCell[] {
   const map = new Map<string, VoxelCell>();
+  const ordered = partsByDetailOrder(parts);
   const { minX, minY, minZ, maxX, maxY, maxZ } = partBounds(parts);
 
   for (let x = minX; x <= maxX; x += step) {
     for (let y = minY; y <= maxY; y += step) {
       for (let z = minZ; z <= maxZ; z += step) {
-        for (const part of parts) {
+        const key = cellKey(x, y, z, step);
+        for (const part of ordered) {
           if (!isInsidePart(x, y, z, part)) continue;
-          const key = cellKey(x, y, z, step);
-          if (map.has(key)) break;
           map.set(key, {
-            id: `v${map.size}`,
+            id: key,
             x: snap(x, step),
             y: snap(y, step),
             z: snap(z, step),
@@ -151,42 +159,56 @@ function collectVoxels(parts: MeshPart[], step: number): VoxelCell[] {
 
   const cells = Array.from(map.values());
   cells.sort((a, b) => a.y - b.y || a.x - b.x || a.z - b.z);
-  return cells;
+  return cells.map((v, i) => ({ ...v, id: `v${i}` }));
 }
 
 function trimVoxels(cells: VoxelCell[], max: number): VoxelCell[] {
   if (cells.length <= max) return cells;
-  const out: VoxelCell[] = [];
-  const stride = cells.length / max;
-  for (let i = 0; i < max; i++) {
-    out.push(cells[Math.min(cells.length - 1, Math.floor(i * stride))]!);
+
+  let cx = 0;
+  let cy = 0;
+  let cz = 0;
+  for (const v of cells) {
+    cx += v.x;
+    cy += v.y;
+    cz += v.z;
   }
-  return out.map((v, i) => ({ ...v, id: `v${i}` }));
+  cx /= cells.length;
+  cy /= cells.length;
+  cz /= cells.length;
+
+  const ranked = cells
+    .map((v, i) => ({
+      v,
+      score:
+        Math.hypot(v.x - cx, v.z - cz) * 1.4
+        + Math.abs(v.y - cy) * 0.6
+        + (i % 7) * 0.001,
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  return ranked.slice(0, max).map(({ v }, i) => ({ ...v, id: `v${i}` }));
 }
 
 /** Procedural mesh → Minecraft-style voxel blueprint for the Lab forge. */
 export function meshPartsToVoxels(parts: MeshPart[]): { voxels: VoxelCell[]; step: number } {
   if (parts.length === 0) return { voxels: [], step: FORGE_VOXEL_SIZE };
 
-  let step = 0.11;
+  let step = FORGE_VOXEL_SIZE;
   let best = collectVoxels(parts, step);
 
   for (let i = 0; i < 10; i++) {
     const count = best.length;
     if (count >= MIN_FORGE_VOXELS && count <= MAX_FORGE_VOXELS) break;
-    step *= count > MAX_FORGE_VOXELS ? 1.12 : 0.88;
+    step *= count > MAX_FORGE_VOXELS ? 1.06 : 0.92;
     best = collectVoxels(parts, step);
   }
 
   if (best.length > MAX_FORGE_VOXELS) {
     best = trimVoxels(best, MAX_FORGE_VOXELS);
   } else if (best.length < MIN_FORGE_VOXELS && best.length > 0) {
-    best = collectVoxels(parts, step * 0.82);
+    best = collectVoxels(parts, step * 0.88);
     if (best.length > MAX_FORGE_VOXELS) best = trimVoxels(best, MAX_FORGE_VOXELS);
-  }
-
-  if (best.length > TARGET_FORGE_VOXELS * 1.35) {
-    best = trimVoxels(best, TARGET_FORGE_VOXELS);
   }
 
   return { voxels: best, step };
