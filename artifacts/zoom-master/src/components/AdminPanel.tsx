@@ -150,6 +150,7 @@ export function AdminPanel({ telegramId }: Props) {
 
   const refreshMaintenance = useCallback(async () => {
     const s = await fetchMaintenanceStatus();
+    if (!s) return;
     setMaintEnabled(!!s.enabled);
     if (s.message) setMaintMessage(s.message);
   }, []);
@@ -187,6 +188,13 @@ export function AdminPanel({ telegramId }: Props) {
     if (res.ok) {
       setMaintEnabled(!!res.enabled);
       if (res.message) setMaintMessage(res.message);
+      try {
+        localStorage.setItem("zoom-maint-cached", JSON.stringify({
+          enabled: !!res.enabled,
+          message: res.message || "",
+          updatedAt: Date.now(),
+        }));
+      } catch { /**/ }
       window.dispatchEvent(new Event("zoom-admin-refresh"));
       showFeedback(next ? "✓ Maintenance ON — users locked out" : "✓ Maintenance OFF — game live", true);
     } else {

@@ -37,6 +37,17 @@ function isMaintenanceAdmin(telegramId: string | null | undefined): boolean {
   return MAINTENANCE_ADMIN_IDS.some((value) => value.toLowerCase() === normalized);
 }
 
+type MaintSnapshot = { enabled: boolean; message: string; updatedAt?: number };
+
+function readMaintCache(): MaintSnapshot | null {
+  try {
+    const raw = localStorage.getItem("zoom-maint-cached");
+    if (!raw) return null;
+    const c = JSON.parse(raw) as MaintSnapshot;
+    return { enabled: !!c.enabled, message: c.message || "", updatedAt: c.updatedAt };
+  } catch { return null; }
+}
+
 const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
 type Tab = "lab" | "home" | "farm" | "market" | "earn" | "rank" | "shop" | "wallet";
@@ -298,54 +309,47 @@ function AppShellWithState() {
   }, [stardust, pvpAddPlanet, pvpRemovePlanet]);
 
   // Maintenance mode: poll status, show fullscreen overlay for non-admins.
-  // We cache the last known status in localStorage so a repeat visit during
-  // maintenance shows the lock screen immediately (zero Lab flash). On a
-  // first-ever visit (no cache) we render a neutral splash until the first
-  // status fetch resolves, again to prevent the Lab from flashing.
-  const [maintenance, setMaintenance] = useState<{ enabled: boolean; message: string }>(() => {
-    try {
-      const raw = localStorage.getItem("zoom-maint-cached");
-      if (raw) {
-        const c = JSON.parse(raw) as { enabled?: boolean; message?: string };
-        return { enabled: !!c.enabled, message: c.message || "" };
-      }
-    } catch { /**/ }
+  // Cache is used ONLY when maintenance is ON (instant lock screen). A cached
+  // "off" is never trusted — we always wait for a fresh server check before
+  // showing the game, so users never flash the Lab and then get kicked out.
+  const initialMaintCache = readMaintCache();
+  const [maintenance, setMaintenance] = useState<MaintSnapshot>(() => {
+    if (initialMaintCache?.enabled) {
+      return { enabled: true, message: initialMaintCache.message };
+    }
     return { enabled: false, message: "" };
   });
-  const [maintLoaded, setMaintLoaded] = useState<boolean>(() => {
-    try { return localStorage.getItem("zoom-maint-cached") !== null; } catch { return false; }
-  });
+  const [maintChecked, setMaintChecked] = useState(() => !!initialMaintCache?.enabled);
   useEffect(() => {
     let alive = true;
-    let fallbackTimer: number | undefined;
+    let retryTimer: number | undefined;
 
-    const finish = (next: { enabled: boolean; message: string }) => {
+    const finish = (next: MaintSnapshot) => {
       if (!alive) return;
       setMaintenance(next);
-      setMaintLoaded(true);
+      setMaintChecked(true);
       try { localStorage.setItem("zoom-maint-cached", JSON.stringify(next)); } catch { /**/ }
     };
 
     const load = async () => {
       const s = await fetchMaintenanceStatus();
       if (!alive) return;
-      finish({ enabled: !!s.enabled, message: s.message || "" });
+      if (!s) {
+        retryTimer = window.setTimeout(() => { void load(); }, 2000);
+        return;
+      }
+      finish({ enabled: !!s.enabled, message: s.message || "", updatedAt: s.updatedAt });
     };
 
-    fallbackTimer = window.setTimeout(() => {
-      if (!alive) return;
-      finish({ enabled: false, message: "" });
-    }, 2500);
-
     void load();
-    const id = setInterval(() => { if (!document.hidden) void load(); }, 20000);
+    const id = setInterval(() => { if (!document.hidden) void load(); }, 5000);
     const onVis = () => { if (document.visibilityState === "visible") void load(); };
     const onAdmin = () => { void load(); };
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("zoom-admin-refresh", onAdmin);
     return () => {
       alive = false;
-      if (fallbackTimer) window.clearTimeout(fallbackTimer);
+      if (retryTimer) window.clearTimeout(retryTimer);
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("zoom-admin-refresh", onAdmin);
@@ -353,7 +357,7 @@ function AppShellWithState() {
   }, []);
   const isAdmin = isMaintenanceAdmin(state.telegramId);
   const showMaintenance = maintenance.enabled && !isAdmin;
-  const showSplash = !maintLoaded && !isAdmin;
+  const showSplash = !maintChecked && !isAdmin;
 
   const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
   const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate * Math.max(1, state.sunCount || 1) : 0;
@@ -684,9 +688,8 @@ function AppShellWithState() {
     );
   }
 
-  // First-ever visit (no cached status yet): hide the Lab behind a neutral
-  // splash until the maintenance check resolves, so users never see a flash
-  // of game UI before the lock screen appears.
+  // Wait for a confirmed server maintenance check before showing the game UI.
+  // (Cached "maintenance off" is never trusted — see maintChecked above.)
   if (showSplash) {
     return (
       <div style={{

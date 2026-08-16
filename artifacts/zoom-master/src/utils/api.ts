@@ -2329,19 +2329,24 @@ export interface MaintenanceStatus {
   updatedAt: number;
 }
 
-export async function fetchMaintenanceStatus(): Promise<MaintenanceStatus> {
+export async function fetchMaintenanceStatus(): Promise<MaintenanceStatus | null> {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 3000);
+  const timeout = window.setTimeout(() => controller.abort(), 5000);
 
   try {
     const res = await fetch(`${API_BASE}/maintenance/status?t=${Date.now()}`, {
       cache: "no-store",
       signal: controller.signal,
     });
-    if (!res.ok) return { enabled: false, message: "", updatedAt: 0 };
-    return res.json();
+    if (!res.ok) return null;
+    const data = await res.json() as MaintenanceStatus;
+    return {
+      enabled: !!data.enabled,
+      message: data.message || "",
+      updatedAt: Number(data.updatedAt) || 0,
+    };
   } catch {
-    return { enabled: false, message: "", updatedAt: 0 };
+    return null;
   } finally {
     window.clearTimeout(timeout);
   }

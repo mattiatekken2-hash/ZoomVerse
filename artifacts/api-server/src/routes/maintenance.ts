@@ -34,9 +34,12 @@ async function readSettings(): Promise<{ enabled: boolean; message: string; upda
 router.get("/maintenance/status", async (_req, res) => {
   try {
     const s = await readSettings();
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
     res.json(s);
   } catch (err) {
     console.error("[maintenance/status] error:", err);
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     res.json({ enabled: false, message: DEFAULT_MESSAGE, updatedAt: 0 });
   }
 });

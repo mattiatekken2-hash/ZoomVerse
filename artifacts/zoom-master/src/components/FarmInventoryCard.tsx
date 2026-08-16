@@ -333,22 +333,21 @@ export function FarmInventoryCard({
         ) : (
           <button
             type="button"
+            className="btn-widget"
             style={{
               width: "100%",
               borderRadius: 12,
-              padding: compact ? "9px 0" : "14px 0",
-              fontSize: compact ? 10 : 12,
+              padding: "13px 10px",
+              minHeight: 46,
+              fontSize: 12,
               fontWeight: 900,
-              letterSpacing: "0.1em",
-              background: "rgba(255,255,255,0.03)",
-              border: `1.5px solid ${rgba(cardColor, 0.72)}`,
-              color: "#fff",
+              letterSpacing: "0.07em",
               cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 7,
-              boxShadow: `0 0 12px ${rgba(cardColor, 0.12)}`,
+              touchAction: "manipulation",
+              background: "#ffffff",
+              color: "#0a0a0f",
+              border: "1px solid rgba(255,255,255,0.92)",
+              boxShadow: "0 4px 18px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.08) inset",
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -356,7 +355,6 @@ export function FarmInventoryCard({
             }}
             data-testid={`btn-farm-${planet.id}`}
           >
-            <FarmCubeIcon size={13} color={cardColor} />
             START FARM
           </button>
         )}
