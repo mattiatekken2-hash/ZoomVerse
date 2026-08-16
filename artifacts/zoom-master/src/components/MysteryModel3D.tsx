@@ -726,7 +726,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const isStaticShowcase = showcase && revealed && !interactive;
     const useForgeVoxels = forgeVoxelBuild;
     const forgeSpaceMode = useForgeVoxels && !revealed;
-    const pixelMode = showcase && revealed && !performanceMode;
+    // Voxel models are already blocky — skip the screen-space pixel pass (looks grainy).
+    const pixelMode = showcase && revealed && !performanceMode && !useForgeVoxels;
     const geoDetail: GeoDetail = performanceMode
       ? "low"
       : pixelMode || (isStaticShowcase && size >= 140)
@@ -884,14 +885,10 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     let voxelInst: THREE.InstancedMesh | null = null;
     const clayToneScratch = new THREE.Color();
     if (forgeVoxels.length > 0) {
-      const cube = voxelStep * 0.98;
+      const cube = voxelStep;
       const vGeo = new THREE.BoxGeometry(cube, cube, cube);
-      // Lit material so faces read as white / grey / darker grey blocks.
-      const vMat = new THREE.MeshStandardMaterial({
+      const vMat = new THREE.MeshLambertMaterial({
         color: 0xffffff,
-        roughness: 0.78,
-        metalness: 0.06,
-        toneMapped: false,
         flatShading: true,
       });
       voxelInst = new THREE.InstancedMesh(vGeo, vMat, forgeVoxels.length);
@@ -944,7 +941,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     camera.position.set(maxDim * (showcase ? 1.22 : 1.35), maxDim * (showcase ? 0.82 : 0.95), maxDim * (showcase ? 1.48 : 1.7));
     camera.lookAt(0, 0, 0);
 
-    const glbUrl = shapeId && isStaticShowcase && !pixelMode ? getShapeGlbUrl(shapeId) : null;
+    const glbUrl = shapeId && isStaticShowcase && !pixelMode && !useForgeVoxels ? getShapeGlbUrl(shapeId) : null;
     if (glbUrl) {
       const loader = new GLTFLoader();
       loader.load(
@@ -1339,6 +1336,7 @@ export function ObjectThumb({
           size={size}
           autoSpin={autoSpin}
           interactive={false}
+          forgeVoxelBuild
           performanceMode={performanceMode}
           onGlFailed={onGlFailed}
           onGlContextLost={onGlContextLost}
