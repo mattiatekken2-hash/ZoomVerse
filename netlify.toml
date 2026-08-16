@@ -1,0 +1,21 @@
+# Shared Netlify build for Zoom Verse frontend (pnpm monorepo).
+# Mirrors vercel.json so deploy previews do not fall back to npm.
+
+[build]
+  command = "pnpm install --frozen-lockfile && pnpm --filter @workspace/zoom-master run build"
+  publish = "artifacts/zoom-master/dist/public"
+
+[build.environment]
+  NODE_VERSION = "22"
+  PNPM_VERSION = "10"
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://zoomverse-api.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
