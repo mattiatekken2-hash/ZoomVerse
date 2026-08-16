@@ -37,8 +37,11 @@ function dome(m: BlockMap, y0: number, cx: number, cz: number, maxR: number, lay
   }
 }
 
+/** Finer cubes for hand-tuned blueprints — more collectible detail per model. */
+export const BLUEPRINT_VOXEL_STEP = FORGE_VOXEL_SIZE * 0.5;
+
 function compile(m: BlockMap): VoxelCell[] {
-  const step = FORGE_VOXEL_SIZE;
+  const step = BLUEPRINT_VOXEL_STEP;
   const raw = Array.from(m.values()).sort((a, b) => a.y - b.y || a.x - b.x || a.z - b.z);
   return raw.map((b, i) => ({
     id: `v${i}`,
@@ -124,18 +127,136 @@ function pizzaBp(p: string, a: string): VoxelCell[] {
 
 function carBp(p: string, a: string): VoxelCell[] {
   const m: BlockMap = new Map();
-  const body = p || "#e23b3b";
-  const glass = a || "#1a1a1a";
-  box(m, -6, 1, -2, 6, 2, 2, body);
-  box(m, -3, 3, -2, 2, 4, 2, body);
-  box(m, -2, 3, -1, 1, 4, 1, glass);
-  box(m, 5, 2, -1, 6, 3, 1, "#f5f5f5");
-  box(m, -6, 2, -1, -5, 3, 1, "#f5f5f5");
-  for (const [x, z] of [[4, -3], [4, 3], [-4, -3], [-4, 3]] as const) {
-    box(m, x, 0, z - 1, x, 1, z + 1, "#1e1e1e");
-    set(m, x, 1, z, "#888");
+  const body = p || "#e53935";
+  const glass = "#263238";
+  const chrome = "#f5f5f5";
+  const tire = "#1a1a1a";
+  const hub = "#bdbdbd";
+  const taxiSign = a || "#ffd600";
+
+  // Chassis
+  box(m, -14, 2, -5, 14, 5, 5, body);
+  // Hood (stepped)
+  for (let i = 0; i < 4; i++) {
+    box(m, 10 + i, 4 + i, -4, 12 + i, 5 + i, 4, body);
   }
-  set(m, 0, 5, 0, a || "#ffd700");
+  // Cabin + trunk
+  box(m, -10, 6, -4, 6, 10, 4, body);
+  box(m, -14, 5, -4, -10, 7, 4, body);
+  // Glass
+  box(m, -9, 7, -3, 5, 9, 3, glass);
+  box(m, 6, 7, -3, 8, 9, 3, glass);
+  // Headlights
+  set(m, 15, 5, -2, chrome);
+  set(m, 15, 5, 2, chrome);
+  set(m, 14, 4, -3, "#fff9c4");
+  set(m, 14, 4, 3, "#fff9c4");
+  // Taillights + plate
+  set(m, -15, 5, -2, "#d32f2f");
+  set(m, -15, 5, 2, "#d32f2f");
+  box(m, -15, 3, -1, -15, 4, 1, "#fafafa");
+  // Side mirrors
+  set(m, 7, 8, -6, body);
+  set(m, 7, 8, 6, body);
+  set(m, 7, 8, -7, "#1a1a1a");
+  set(m, 7, 8, 7, "#1a1a1a");
+  // Taxi sign on roof
+  box(m, -2, 11, -2, 2, 12, 2, taxiSign);
+  box(m, -1, 12, -1, 1, 13, 1, "#1a1a1a");
+  // Wheels + hubs
+  for (const [wx, wz] of [[10, -6], [10, 6], [-10, -6], [-10, 6]] as const) {
+    box(m, wx, 0, wz - 2, wx + 1, 1, wz + 2, tire);
+    set(m, wx, 1, wz, hub);
+  }
+  return compile(m);
+}
+
+function koalaBp(p: string, a: string): VoxelCell[] {
+  const m: BlockMap = new Map();
+  const grey = p || "#78909c";
+  const dark = a || "#546e7a";
+  const belly = "#eceff1";
+  box(m, -5, 0, -4, 5, 8, 4, grey);
+  box(m, -3, 1, 2, 3, 6, 5, belly);
+  box(m, -5, 8, -3, 5, 14, 5, grey);
+  box(m, -8, 12, -1, -5, 16, 3, dark);
+  box(m, 5, 12, -1, 8, 16, 3, dark);
+  set(m, -2, 11, 6, "#1a1a1a");
+  set(m, 2, 11, 6, "#1a1a1a");
+  box(m, -2, 9, 6, 2, 11, 7, "#1a1a1a");
+  box(m, -8, 2, 0, -6, 6, 2, grey);
+  box(m, 6, 2, 0, 8, 6, 2, grey);
+  return compile(m);
+}
+
+function pigBp(p: string, a: string): VoxelCell[] {
+  const m: BlockMap = new Map();
+  const pink = p || "#f48fb1";
+  const snout = a || "#f06292";
+  box(m, -6, 0, -5, 6, 8, 5, pink);
+  box(m, -3, 9, 2, 3, 12, 7, pink);
+  box(m, -2, 9, 8, 2, 11, 10, snout);
+  set(m, -1, 10, 11, "#1a1a1a");
+  set(m, 1, 10, 11, "#1a1a1a");
+  set(m, -3, 11, 7, "#1a1a1a");
+  set(m, 3, 11, 7, "#1a1a1a");
+  for (const [lx, lz] of [[-4, -3], [4, -3], [-4, 3], [4, 3]] as const) {
+    box(m, lx, 0, lz, lx + 1, 3, lz + 1, pink);
+  }
+  set(m, 0, 5, -6, pink);
+  set(m, 1, 6, -7, pink);
+  set(m, 2, 6, -6, pink);
+  set(m, 4, 4, 0, "#8d6e63");
+  return compile(m);
+}
+
+function dragonBp(p: string, a: string): VoxelCell[] {
+  const m: BlockMap = new Map();
+  const purple = p || "#7b1fa2";
+  const wing = a || "#ffd54f";
+  const horn = "#ffeb3b";
+  box(m, -5, 4, -3, 5, 8, 3, purple);
+  box(m, -3, 9, 2, 3, 13, 6, purple);
+  box(m, -4, 12, 5, 4, 15, 9, purple);
+  set(m, -2, 16, 7, horn);
+  set(m, 2, 16, 7, horn);
+  set(m, -2, 13, 10, "#1a1a1a");
+  set(m, 2, 13, 10, "#1a1a1a");
+  for (let i = 0; i < 5; i++) {
+    box(m, -8 - i, 8 + i, -2, -6 - i, 9 + i, 2, wing);
+    box(m, 6 + i, 8 + i, -2, 8 + i, 9 + i, 2, wing);
+  }
+  box(m, -4, 0, -2, -2, 4, 0, purple);
+  box(m, 2, 0, -2, 4, 4, 0, purple);
+  box(m, -4, 0, 2, -2, 4, 4, purple);
+  box(m, 2, 0, 2, 4, 4, 4, purple);
+  set(m, -3, 0, 0, "#e1bee7");
+  set(m, 3, 0, 0, "#e1bee7");
+  box(m, -2, 5, -6, 2, 6, -4, purple);
+  set(m, -1, 6, -8, purple);
+  return compile(m);
+}
+
+function ponyBp(p: string, a: string): VoxelCell[] {
+  const m: BlockMap = new Map();
+  const body = p || "#7b1fa2";
+  const wing = a || "#b3e5fc";
+  const mane = "#e1bee7";
+  box(m, -4, 4, -2, 4, 8, 2, body);
+  box(m, -3, 9, 1, 3, 13, 4, body);
+  box(m, -2, 13, 3, 2, 15, 5, body);
+  set(m, 0, 16, 4, mane);
+  set(m, -2, 14, 6, "#1a1a1a");
+  set(m, 2, 14, 6, "#1a1a1a");
+  for (let i = 0; i < 4; i++) {
+    box(m, -7 - i, 7 + i, 0, -5 - i, 8 + i, 2, wing);
+    box(m, 5 + i, 7 + i, 0, 7 + i, 8 + i, 2, wing);
+  }
+  box(m, -3, 0, -1, -2, 4, 0, body);
+  box(m, 2, 0, -1, 3, 4, 0, body);
+  box(m, -3, 0, 2, -2, 4, 3, body);
+  box(m, 2, 0, 2, 3, 4, 3, body);
+  set(m, 0, 15, 5, "#ffffff");
   return compile(m);
 }
 
@@ -343,6 +464,19 @@ const BLUEPRINTS: Record<string, BlueprintFn> = {
   lego_builder: legoWithHat("#ff9800", "#5d4037", (m) => {
     box(m, -2, 10, -2, 2, 10, 2, "#ff9800");
   }),
+  koala: koalaBp,
+  pig: pigBp,
+  dragon: dragonBp,
+  pony: ponyBp,
+  lion: dragonBp,
+  panda: koalaBp,
+  fox: dogBp,
+  rabbit: dogBp,
+  monkey: koalaBp,
+  giraffe: ponyBp,
+  zebra: ponyBp,
+  tiger: catBp,
+  eagle: dragonBp,
   penguin: (_p, _a) => {
     const m: BlockMap = new Map();
     box(m, -2, 0, -1, 2, 4, 2, "#1a1a1a");
@@ -498,7 +632,7 @@ export function resolveForgeVoxels(
 ): { voxels: VoxelCell[]; step: number } {
   const bp = BLUEPRINTS[shapeId];
   if (bp) {
-    return { voxels: bp(primary, accent), step: FORGE_VOXEL_SIZE };
+    return { voxels: bp(primary, accent), step: BLUEPRINT_VOXEL_STEP };
   }
   return meshPartsToVoxels(parts);
 }
