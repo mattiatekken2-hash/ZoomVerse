@@ -3,6 +3,7 @@ import type { VoxelCell } from "./voxelize.js";
 import { accentTone, primaryTone, type VoxelColorToken } from "./voxel-paint.js";
 import { FORGE_VOXEL_SIZE, meshPartsToVoxels } from "./voxelize.js";
 import { EXTENDED_BLUEPRINTS } from "./voxel-blueprints-extended.js";
+import { ANIMAL_BLUEPRINTS } from "./voxel-blueprints-animals.js";
 
 type Color = MeshPart["color"];
 type BlockMap = Map<string, { x: number; y: number; z: number; c: Color }>;
@@ -388,110 +389,6 @@ function koalaBp(_p: string, _a: string): VoxelCell[] {
   return compile(m);
 }
 
-function pigBp(_p: string, _a: string): VoxelCell[] {
-  const m: BlockMap = new Map();
-  boxTone(m, -6, 0, -5, 6, 8, 5);
-  boxTone(m, -3, 9, 2, 3, 12, 7);
-  boxTone(m, -2, 9, 8, 2, 11, 10, accentTone);
-  set(m, -1, 10, 11, "k");
-  set(m, 1, 10, 11, "k");
-  set(m, -3, 11, 7, "k");
-  set(m, 3, 11, 7, "k");
-  for (const [lx, lz] of [[-4, -3], [4, -3], [-4, 3], [4, 3]] as const) {
-    boxTone(m, lx, 0, lz, lx + 1, 3, lz + 1);
-  }
-  set(m, 0, 5, -6, "pd");
-  set(m, 1, 6, -7, "pd");
-  set(m, 2, 6, -6, "pd");
-  set(m, 4, 4, 0, "k");
-  return compile(m);
-}
-
-function dragonBp(_p: string, _a: string): VoxelCell[] {
-  const m: BlockMap = new Map();
-  boxTone(m, -5, 4, -3, 5, 8, 3);
-  boxTone(m, -3, 9, 2, 3, 13, 6);
-  boxTone(m, -4, 12, 5, 4, 15, 9);
-  set(m, -2, 16, 7, "pl");
-  set(m, 2, 16, 7, "pl");
-  set(m, -2, 13, 10, "k");
-  set(m, 2, 13, 10, "k");
-  for (let i = 0; i < 5; i++) {
-    boxTone(m, -8 - i, 8 + i, -2, -6 - i, 9 + i, 2, accentTone);
-    boxTone(m, 6 + i, 8 + i, -2, 8 + i, 9 + i, 2, accentTone);
-  }
-  boxTone(m, -4, 0, -2, -2, 4, 0);
-  boxTone(m, 2, 0, -2, 4, 4, 0);
-  boxTone(m, -4, 0, 2, -2, 4, 4);
-  boxTone(m, 2, 0, 2, 4, 4, 4);
-  set(m, -3, 0, 0, "al");
-  set(m, 3, 0, 0, "al");
-  boxTone(m, -2, 5, -6, 2, 6, -4);
-  set(m, -1, 6, -8, "pd");
-  return compile(m);
-}
-
-function ponyBp(p: string, a: string): VoxelCell[] {
-  const m: BlockMap = new Map();
-  const body = p || "#7b1fa2";
-  const wing = a || "#b3e5fc";
-  const mane = "#e1bee7";
-  box(m, -4, 4, -2, 4, 8, 2, body);
-  box(m, -3, 9, 1, 3, 13, 4, body);
-  box(m, -2, 13, 3, 2, 15, 5, body);
-  set(m, 0, 16, 4, mane);
-  set(m, -2, 14, 6, "#1a1a1a");
-  set(m, 2, 14, 6, "#1a1a1a");
-  for (let i = 0; i < 4; i++) {
-    box(m, -7 - i, 7 + i, 0, -5 - i, 8 + i, 2, wing);
-    box(m, 5 + i, 7 + i, 0, 7 + i, 8 + i, 2, wing);
-  }
-  box(m, -3, 0, -1, -2, 4, 0, body);
-  box(m, 2, 0, -1, 3, 4, 0, body);
-  box(m, -3, 0, 2, -2, 4, 3, body);
-  box(m, 2, 0, 2, 3, 4, 3, body);
-  set(m, 0, 15, 5, "#ffffff");
-  return compile(m);
-}
-
-function dogBp(p: string, a: string): VoxelCell[] {
-  const m: BlockMap = new Map();
-  const fur = p || "#c68642";
-  const dark = a || "#5a3820";
-  box(m, -2, 1, -1, 2, 3, 2, fur);
-  box(m, -1, 4, 2, 1, 6, 4, fur);
-  set(m, 0, 5, 5, dark);
-  set(m, -1, 6, 4, "#1a1a1a");
-  set(m, 1, 6, 4, "#1a1a1a");
-  box(m, -2, 0, -1, -2, 2, 0, fur);
-  box(m, 2, 0, -1, 2, 2, 0, fur);
-  box(m, -2, 0, 2, -2, 2, 3, fur);
-  box(m, 2, 0, 2, 2, 2, 3, fur);
-  set(m, 3, 2, 0, fur);
-  set(m, 4, 2, 0, dark);
-  return compile(m);
-}
-
-function catBp(p: string, a: string): VoxelCell[] {
-  const m: BlockMap = new Map();
-  const fur = p || "#9e9e9e";
-  const stripe = a || "#616161";
-  box(m, -2, 1, -1, 2, 3, 2, fur);
-  box(m, -1, 4, 1, 1, 6, 3, fur);
-  set(m, -2, 7, 2, fur);
-  set(m, 2, 7, 2, fur);
-  set(m, -1, 6, 4, "#1a1a1a");
-  set(m, 1, 6, 4, "#1a1a1a");
-  set(m, 0, 5, 4, stripe);
-  box(m, -2, 0, 0, -2, 2, 1, fur);
-  box(m, 2, 0, 0, 2, 2, 1, fur);
-  box(m, -2, 0, 2, -2, 2, 3, fur);
-  box(m, 2, 0, 2, 2, 2, 3, fur);
-  set(m, -3, 3, 3, fur);
-  set(m, 3, 3, 3, fur);
-  return compile(m);
-}
-
 function sodaCanBp(p: string, a: string): VoxelCell[] {
   const m: BlockMap = new Map();
   const can = p || "#c62828";
@@ -570,8 +467,6 @@ const BLUEPRINTS: Record<string, BlueprintFn> = {
   hotdog: hotdogBp,
   pizza: pizzaBp,
   supercar: carBp,
-  dog: dogBp,
-  cat: catBp,
   minifig: minifigBp,
   plumber: plumberBp,
   house: houseBp,
@@ -634,28 +529,7 @@ const BLUEPRINTS: Record<string, BlueprintFn> = {
     box(m, -2, 10, -2, 2, 10, 2, "#ff9800");
   }),
   koala: koalaBp,
-  pig: pigBp,
-  dragon: dragonBp,
-  pony: ponyBp,
-  lion: dragonBp,
-  panda: koalaBp,
-  fox: dogBp,
-  rabbit: dogBp,
-  monkey: koalaBp,
-  tiger: catBp,
-  eagle: dragonBp,
-  penguin: (_p, _a) => {
-    const m: BlockMap = new Map();
-    box(m, -2, 0, -1, 2, 4, 2, "#1a1a1a");
-    box(m, -1, 1, 1, 1, 3, 3, "#ffffff");
-    box(m, -1, 5, -1, 1, 7, 2, "#1a1a1a");
-    set(m, -1, 6, 3, "#ffffff");
-    set(m, 1, 6, 3, "#ffffff");
-    set(m, 0, 5, 3, "#ff9800");
-    box(m, -3, 1, 0, -3, 2, 1, "#1a1a1a");
-    box(m, 3, 1, 0, 3, 2, 1, "#1a1a1a");
-    return compile(m);
-  },
+  ...ANIMAL_BLUEPRINTS,
   tank: (p, a) => {
     const m: BlockMap = new Map();
     box(m, -5, 1, -2, 5, 2, 2, p || "#558b2f");
@@ -750,17 +624,6 @@ const BLUEPRINTS: Record<string, BlueprintFn> = {
     for (const [x, z] of [[-1, -1], [0, 0], [1, 1], [-1, 1], [1, -1]] as const) {
       box(m, x, 4, z, x, 8, z, "#ffd54f");
     }
-    return compile(m);
-  },
-  bear: (p, a) => {
-    const m: BlockMap = new Map();
-    box(m, -2, 1, -1, 2, 4, 2, p || "#6d4c41");
-    box(m, -1, 5, 1, 1, 7, 3, p || "#6d4c41");
-    set(m, -2, 7, 3, p || "#6d4c41");
-    set(m, 2, 7, 3, p || "#6d4c41");
-    set(m, 0, 6, 4, a || "#3e2723");
-    box(m, -2, 0, 0, -2, 2, 1, p || "#6d4c41");
-    box(m, 2, 0, 0, 2, 2, 1, p || "#6d4c41");
     return compile(m);
   },
   soccer_ball: soccerBallBp,

@@ -351,64 +351,6 @@ function guitarBp(_p: string, _a: string): VoxelCell[] {
   return compile(m);
 }
 
-function giraffeBp(_p: string, _a: string): VoxelCell[] {
-  const m: BlockMap = new Map();
-  boxTone(m, -4, 0, -2, 4, 6, 2);
-  boxTone(m, -2, 7, -1, 2, 18, 1);
-  boxTone(m, -3, 18, 0, 3, 21, 3);
-  set(m, -1, 22, 2, "k");
-  set(m, 1, 22, 2, "k");
-  set(m, -2, 14, 2, "#795548");
-  set(m, 3, 4, 2, "#795548");
-  for (const [lx, lz] of [[-3, -1], [3, -1], [-3, 1], [3, 1]] as const) {
-    box(m, lx, 0, lz, lx + 1, 5, lz + 1, "k");
-  }
-  return compile(m);
-}
-
-function zebraBp(_p: string, _a: string): VoxelCell[] {
-  const m: BlockMap = new Map();
-  box(m, -5, 4, -2, 5, 8, 2, "w");
-  for (let y = 4; y <= 8; y++) {
-    if (y % 2 === 0) box(m, -5, y, 3, 5, y, 3, "k");
-  }
-  boxTone(m, -3, 9, 1, 3, 13, 4);
-  set(m, -2, 13, 5, "k");
-  set(m, 2, 13, 5, "k");
-  for (const [lx, lz] of [[-3, -1], [3, -1], [-3, 1], [3, 1]] as const) {
-    box(m, lx, 0, lz, lx + 1, 4, lz + 1, "w");
-    set(m, lx, 2, lz, "k");
-  }
-  box(m, -4, 10, -2, -4, 12, 2, "k");
-  return compile(m);
-}
-
-function elephantBp(_p: string, _a: string): VoxelCell[] {
-  const m: BlockMap = new Map();
-  boxTone(m, -6, 0, -4, 6, 8, 4);
-  boxTone(m, 4, 4, -2, 8, 10, 3);
-  for (let i = 0; i < 6; i++) {
-    const x0 = 8 + i;
-    const y0 = 2 - i;
-    const z0 = 2 + i;
-    for (let x = x0; x <= 9 + i; x++) {
-      for (let y = y0; y <= 3 - i; y++) {
-        for (let z = z0; z <= 3 + i; z++) {
-          set(m, x, y, z, primaryTone(x, y, z));
-        }
-      }
-    }
-  }
-  boxTone(m, 2, 6, -5, 6, 10, -3, accentTone);
-  boxTone(m, 2, 6, 4, 6, 10, 6, accentTone);
-  set(m, 7, 8, 4, "w");
-  set(m, 7, 8, -3, "w");
-  for (const [lx, lz] of [[-4, -2], [4, -2], [-4, 2], [4, 2]] as const) {
-    box(m, lx, 0, lz, lx + 1, 4, lz + 1, "k");
-  }
-  return compile(m);
-}
-
 /** Blueprints for catalog shapes that previously fell back to auto-voxelize blobs. */
 export const EXTENDED_BLUEPRINTS: Record<string, BlueprintFn> = {
   apple: appleBp,
@@ -435,7 +377,4 @@ export const EXTENDED_BLUEPRINTS: Record<string, BlueprintFn> = {
   diamond: diamondBp,
   treasure_chest: treasureChestBp,
   guitar: guitarBp,
-  giraffe: giraffeBp,
-  zebra: zebraBp,
-  elephant: elephantBp,
 };
