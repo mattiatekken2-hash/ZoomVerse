@@ -2,6 +2,7 @@ import type { MeshPart } from "./meshes.js";
 import type { VoxelCell } from "./voxelize.js";
 import { accentTone, primaryTone, type VoxelColorToken } from "./voxel-paint.js";
 import { FORGE_VOXEL_SIZE, meshPartsToVoxels } from "./voxelize.js";
+import { EXTENDED_BLUEPRINTS } from "./voxel-blueprints-extended.js";
 
 type Color = MeshPart["color"];
 type BlockMap = Map<string, { x: number; y: number; z: number; c: Color }>;
@@ -543,8 +544,6 @@ const BLUEPRINTS: Record<string, BlueprintFn> = {
   fanta: (p, a) => sodaCanBp(p || "#ff9800", a),
   sprite: (p, a) => sodaCanBp(p || "#4caf50", a),
   energy_drink: (p, a) => sodaCanBp(p || "#212121", a || "#ffeb3b"),
-  apple: fruitSphereBp("#e53935", "#5d4037"),
-  orange: fruitSphereBp("#ff9800", "#33691e"),
   banana: bananaBp,
   donut: (p, a) => {
     const m: BlockMap = new Map();
@@ -606,8 +605,6 @@ const BLUEPRINTS: Record<string, BlueprintFn> = {
   fox: dogBp,
   rabbit: dogBp,
   monkey: koalaBp,
-  giraffe: ponyBp,
-  zebra: ponyBp,
   tiger: catBp,
   eagle: dragonBp,
   penguin: (_p, _a) => {
@@ -628,13 +625,6 @@ const BLUEPRINTS: Record<string, BlueprintFn> = {
     box(m, -2, 3, -1, 2, 4, 1, p || "#558b2f");
     box(m, 3, 3, 0, 7, 3, 0, a || "#33691e");
     for (const x of [-4, -2, 0, 2, 4]) box(m, x, 0, -2, x, 1, 2, "#1a1a1a");
-    return compile(m);
-  },
-  guitar: (p, a) => {
-    const m: BlockMap = new Map();
-    box(m, -1, 0, -3, 1, 1, 3, p || "#8d6e63");
-    box(m, -2, 2, -2, 2, 5, 2, a || "#e53935");
-    box(m, -1, 6, -1, 1, 10, 0, p || "#8d6e63");
     return compile(m);
   },
   crown: (_p, a) => {
@@ -725,16 +715,6 @@ const BLUEPRINTS: Record<string, BlueprintFn> = {
     }
     return compile(m);
   },
-  elephant: (p, _a) => {
-    const m: BlockMap = new Map();
-    box(m, -3, 2, -2, 3, 5, 3, p || "#9e9e9e");
-    box(m, 4, 3, 0, 7, 4, 1, p || "#9e9e9e");
-    box(m, -2, 0, -1, -2, 2, 0, p || "#9e9e9e");
-    box(m, 2, 0, -1, 2, 2, 0, p || "#9e9e9e");
-    box(m, -2, 0, 2, -2, 2, 3, p || "#9e9e9e");
-    box(m, 2, 0, 2, 2, 2, 3, p || "#9e9e9e");
-    return compile(m);
-  },
   bear: (p, a) => {
     const m: BlockMap = new Map();
     box(m, -2, 1, -1, 2, 4, 2, p || "#6d4c41");
@@ -749,6 +729,7 @@ const BLUEPRINTS: Record<string, BlueprintFn> = {
   soccer_ball: soccerBallBp,
   basketball: basketballBp,
   pickaxe: pickaxeBp,
+  ...EXTENDED_BLUEPRINTS,
 };
 
 /** Hand-tuned block blueprints for readable Lego-style models; falls back to auto-voxelize. */
