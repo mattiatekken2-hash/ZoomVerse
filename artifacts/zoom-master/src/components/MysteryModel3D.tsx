@@ -4,7 +4,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
-import { FORGE_VOXEL_SIZE, forgeClayToneHex, getMeshParts, getShapeGlbUrl, resolveForgeVoxels, mysteryKitParts, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
+import { FORGE_VOXEL_SIZE, forgeClayToneHex, getMeshParts, getShapeGlbUrl, resolveForgeVoxels, resolveVoxelPaintColor, mysteryKitParts, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
 
 const DEFAULT_PARTS = mysteryKitParts();
 
@@ -1112,7 +1112,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
           clayToneScratch.set(forgeClayToneHex(v.id || i));
           if (paintT > 0) {
-            painted.set(resolveColor(v.color, st.primaryColor, st.accentColor));
+            painted.set(resolveVoxelPaintColor(v.color, st.primaryColor, st.accentColor));
             clayToneScratch.lerp(painted, paintT);
           }
           voxMesh.setColorAt(visibleCount, clayToneScratch);

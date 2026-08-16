@@ -1,5 +1,6 @@
 import type { MeshPart } from "./meshes.js";
 import type { VoxelCell } from "./voxelize.js";
+import { accentTone, primaryTone, type VoxelColorToken } from "./voxel-paint.js";
 import { FORGE_VOXEL_SIZE, meshPartsToVoxels } from "./voxelize.js";
 
 type Color = MeshPart["color"];
@@ -22,6 +23,23 @@ function box(m: BlockMap, x0: number, y0: number, z0: number, x1: number, y1: nu
   }
 }
 
+function boxTone(
+  m: BlockMap,
+  x0: number,
+  y0: number,
+  z0: number,
+  x1: number,
+  y1: number,
+  z1: number,
+  toneFn: (x: number, y: number, z: number) => Color = primaryTone,
+) {
+  for (let x = x0; x <= x1; x++) {
+    for (let y = y0; y <= y1; y++) {
+      for (let z = z0; z <= z1; z++) set(m, x, y, z, toneFn(x, y, z));
+    }
+  }
+}
+
 function disc(m: BlockMap, y: number, cx: number, cz: number, r: number, c: Color) {
   for (let x = -r; x <= r; x++) {
     for (let z = -r; z <= r; z++) {
@@ -35,6 +53,85 @@ function dome(m: BlockMap, y0: number, cx: number, cz: number, maxR: number, lay
     const r = Math.max(1, Math.round(maxR * (1 - i / Math.max(1, layers))));
     disc(m, y0 + i, cx, cz, r, c);
   }
+}
+
+function sphere(
+  m: BlockMap,
+  cx: number,
+  cy: number,
+  cz: number,
+  r: number,
+  colorFn: (x: number, y: number, z: number) => Color,
+) {
+  const r2 = r * r + 0.35;
+  for (let x = -r; x <= r; x++) {
+    for (let y = -r; y <= r; y++) {
+      for (let z = -r; z <= r; z++) {
+        if (x * x + y * y + z * z <= r2) {
+          set(m, cx + x, cy + y, cz + z, colorFn(cx + x, cy + y, cz + z));
+        }
+      }
+    }
+  }
+}
+
+function bananaBp(_p: string, _a: string): VoxelCell[] {
+  const m: BlockMap = new Map();
+  const steps = 18;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const angle = -1.35 + t * 2.45;
+    const cx = Math.round(Math.cos(angle) * 9);
+    const cy = Math.round(Math.sin(angle) * 6 + 4);
+    const thick = Math.max(1, Math.round(2.6 - t * 1.5));
+    for (let dx = -thick; dx <= thick; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        set(m, cx + dx, cy, dz, primaryTone(cx + dx, cy, dz));
+      }
+    }
+  }
+  const stemAngle = -1.35;
+  const sx = Math.round(Math.cos(stemAngle) * 9);
+  const sy = Math.round(Math.sin(stemAngle) * 6 + 4);
+  box(m, sx - 1, sy - 2, -1, sx + 1, sy - 1, 1, "k");
+  box(m, sx - 1, sy - 3, 0, sx, sy - 2, 0, "k");
+  const tipAngle = -1.35 + 2.45;
+  const tx = Math.round(Math.cos(tipAngle) * 9);
+  const ty = Math.round(Math.sin(tipAngle) * 6 + 4);
+  box(m, tx, ty - 1, -1, tx + 1, ty, 1, "k");
+  set(m, tx + 2, ty - 1, 0, "k");
+  set(m, sx + 4, sy + 1, 1, "ad");
+  set(m, sx + 7, sy + 2, -1, "ad");
+  set(m, sx + 10, sy + 1, 0, "ad");
+  return compile(m);
+}
+
+function pokeballBp(_p: string, _a: string): VoxelCell[] {
+  const m: BlockMap = new Map();
+  const R = 9;
+
+  const pokeTone = (x: number, y: number, z: number): VoxelColorToken | "k" | "w" => {
+    const band = Math.abs(y) <= 1 && x * x + z * z <= (R + 1) * (R + 1);
+    if (band) return "k";
+    if (y >= 2) return primaryTone(x, y, z);
+    if (y <= -2) return accentTone(x, y, z);
+    return y > 0 ? primaryTone(x, y, z) : accentTone(x, y, z);
+  };
+
+  sphere(m, 0, 0, 0, R, pokeTone);
+
+  for (let x = -3; x <= 3; x++) {
+    for (let y = -2; y <= 2; y++) {
+      const d = x * x + y * y;
+      if (d > 9) continue;
+      const ring = d >= 4;
+      set(m, x, y, R + 1, ring ? "k" : "w");
+      if (ring && d >= 6) set(m, x, y, R + 2, "k");
+    }
+  }
+  set(m, 0, 0, R + 2, "w");
+
+  return compile(m);
 }
 
 /** Finer cubes for hand-tuned blueprints — more collectible detail per model. */
@@ -125,115 +222,92 @@ function pizzaBp(p: string, a: string): VoxelCell[] {
   return compile(m);
 }
 
-function carBp(p: string, a: string): VoxelCell[] {
+function carBp(_p: string, _a: string): VoxelCell[] {
   const m: BlockMap = new Map();
-  const body = p || "#e53935";
-  const glass = "#263238";
-  const chrome = "#f5f5f5";
-  const tire = "#1a1a1a";
-  const hub = "#bdbdbd";
-  const taxiSign = a || "#ffd600";
 
-  // Chassis
-  box(m, -14, 2, -5, 14, 5, 5, body);
-  // Hood (stepped)
+  boxTone(m, -14, 2, -5, 14, 5, 5);
   for (let i = 0; i < 4; i++) {
-    box(m, 10 + i, 4 + i, -4, 12 + i, 5 + i, 4, body);
+    boxTone(m, 10 + i, 4 + i, -4, 12 + i, 5 + i, 4);
   }
-  // Cabin + trunk
-  box(m, -10, 6, -4, 6, 10, 4, body);
-  box(m, -14, 5, -4, -10, 7, 4, body);
-  // Glass
-  box(m, -9, 7, -3, 5, 9, 3, glass);
-  box(m, 6, 7, -3, 8, 9, 3, glass);
-  // Headlights
-  set(m, 15, 5, -2, chrome);
-  set(m, 15, 5, 2, chrome);
-  set(m, 14, 4, -3, "#fff9c4");
-  set(m, 14, 4, 3, "#fff9c4");
-  // Taillights + plate
-  set(m, -15, 5, -2, "#d32f2f");
-  set(m, -15, 5, 2, "#d32f2f");
-  box(m, -15, 3, -1, -15, 4, 1, "#fafafa");
-  // Side mirrors
-  set(m, 7, 8, -6, body);
-  set(m, 7, 8, 6, body);
-  set(m, 7, 8, -7, "#1a1a1a");
-  set(m, 7, 8, 7, "#1a1a1a");
-  // Taxi sign on roof
-  box(m, -2, 11, -2, 2, 12, 2, taxiSign);
-  box(m, -1, 12, -1, 1, 13, 1, "#1a1a1a");
-  // Wheels + hubs
+  boxTone(m, -10, 6, -4, 6, 10, 4);
+  boxTone(m, -14, 5, -4, -10, 7, 4);
+  box(m, -9, 7, -3, 5, 9, 3, "k");
+  box(m, 6, 7, -3, 8, 9, 3, "k");
+  set(m, 15, 5, -2, "w");
+  set(m, 15, 5, 2, "w");
+  set(m, 14, 4, -3, "pl");
+  set(m, 14, 4, 3, "pl");
+  set(m, -15, 5, -2, "a");
+  set(m, -15, 5, 2, "a");
+  box(m, -15, 3, -1, -15, 4, 1, "w");
+  set(m, 7, 8, -6, "pd");
+  set(m, 7, 8, 6, "pd");
+  set(m, 7, 8, -7, "k");
+  set(m, 7, 8, 7, "k");
+  boxTone(m, -2, 11, -2, 2, 12, 2, accentTone);
+  box(m, -1, 12, -1, 1, 13, 1, "k");
   for (const [wx, wz] of [[10, -6], [10, 6], [-10, -6], [-10, 6]] as const) {
-    box(m, wx, 0, wz - 2, wx + 1, 1, wz + 2, tire);
-    set(m, wx, 1, wz, hub);
+    box(m, wx, 0, wz - 2, wx + 1, 1, wz + 2, "k");
+    set(m, wx, 1, wz, "w");
   }
   return compile(m);
 }
 
-function koalaBp(p: string, a: string): VoxelCell[] {
+function koalaBp(_p: string, _a: string): VoxelCell[] {
   const m: BlockMap = new Map();
-  const grey = p || "#78909c";
-  const dark = a || "#546e7a";
-  const belly = "#eceff1";
-  box(m, -5, 0, -4, 5, 8, 4, grey);
-  box(m, -3, 1, 2, 3, 6, 5, belly);
-  box(m, -5, 8, -3, 5, 14, 5, grey);
-  box(m, -8, 12, -1, -5, 16, 3, dark);
-  box(m, 5, 12, -1, 8, 16, 3, dark);
-  set(m, -2, 11, 6, "#1a1a1a");
-  set(m, 2, 11, 6, "#1a1a1a");
-  box(m, -2, 9, 6, 2, 11, 7, "#1a1a1a");
-  box(m, -8, 2, 0, -6, 6, 2, grey);
-  box(m, 6, 2, 0, 8, 6, 2, grey);
+  boxTone(m, -5, 0, -4, 5, 8, 4);
+  box(m, -3, 1, 2, 3, 6, 5, "w");
+  boxTone(m, -5, 8, -3, 5, 14, 5);
+  boxTone(m, -8, 12, -1, -5, 16, 3, accentTone);
+  boxTone(m, 5, 12, -1, 8, 16, 3, accentTone);
+  set(m, -2, 11, 6, "k");
+  set(m, 2, 11, 6, "k");
+  box(m, -2, 9, 6, 2, 11, 7, "k");
+  boxTone(m, -8, 2, 0, -6, 6, 2);
+  boxTone(m, 6, 2, 0, 8, 6, 2);
   return compile(m);
 }
 
-function pigBp(p: string, a: string): VoxelCell[] {
+function pigBp(_p: string, _a: string): VoxelCell[] {
   const m: BlockMap = new Map();
-  const pink = p || "#f48fb1";
-  const snout = a || "#f06292";
-  box(m, -6, 0, -5, 6, 8, 5, pink);
-  box(m, -3, 9, 2, 3, 12, 7, pink);
-  box(m, -2, 9, 8, 2, 11, 10, snout);
-  set(m, -1, 10, 11, "#1a1a1a");
-  set(m, 1, 10, 11, "#1a1a1a");
-  set(m, -3, 11, 7, "#1a1a1a");
-  set(m, 3, 11, 7, "#1a1a1a");
+  boxTone(m, -6, 0, -5, 6, 8, 5);
+  boxTone(m, -3, 9, 2, 3, 12, 7);
+  boxTone(m, -2, 9, 8, 2, 11, 10, accentTone);
+  set(m, -1, 10, 11, "k");
+  set(m, 1, 10, 11, "k");
+  set(m, -3, 11, 7, "k");
+  set(m, 3, 11, 7, "k");
   for (const [lx, lz] of [[-4, -3], [4, -3], [-4, 3], [4, 3]] as const) {
-    box(m, lx, 0, lz, lx + 1, 3, lz + 1, pink);
+    boxTone(m, lx, 0, lz, lx + 1, 3, lz + 1);
   }
-  set(m, 0, 5, -6, pink);
-  set(m, 1, 6, -7, pink);
-  set(m, 2, 6, -6, pink);
-  set(m, 4, 4, 0, "#8d6e63");
+  set(m, 0, 5, -6, "pd");
+  set(m, 1, 6, -7, "pd");
+  set(m, 2, 6, -6, "pd");
+  set(m, 4, 4, 0, "k");
   return compile(m);
 }
 
-function dragonBp(p: string, a: string): VoxelCell[] {
+function dragonBp(_p: string, _a: string): VoxelCell[] {
   const m: BlockMap = new Map();
-  const purple = p || "#7b1fa2";
-  const wing = a || "#ffd54f";
-  const horn = "#ffeb3b";
-  box(m, -5, 4, -3, 5, 8, 3, purple);
-  box(m, -3, 9, 2, 3, 13, 6, purple);
-  box(m, -4, 12, 5, 4, 15, 9, purple);
-  set(m, -2, 16, 7, horn);
-  set(m, 2, 16, 7, horn);
-  set(m, -2, 13, 10, "#1a1a1a");
-  set(m, 2, 13, 10, "#1a1a1a");
+  boxTone(m, -5, 4, -3, 5, 8, 3);
+  boxTone(m, -3, 9, 2, 3, 13, 6);
+  boxTone(m, -4, 12, 5, 4, 15, 9);
+  set(m, -2, 16, 7, "pl");
+  set(m, 2, 16, 7, "pl");
+  set(m, -2, 13, 10, "k");
+  set(m, 2, 13, 10, "k");
   for (let i = 0; i < 5; i++) {
-    box(m, -8 - i, 8 + i, -2, -6 - i, 9 + i, 2, wing);
-    box(m, 6 + i, 8 + i, -2, 8 + i, 9 + i, 2, wing);
+    boxTone(m, -8 - i, 8 + i, -2, -6 - i, 9 + i, 2, accentTone);
+    boxTone(m, 6 + i, 8 + i, -2, 8 + i, 9 + i, 2, accentTone);
   }
-  box(m, -4, 0, -2, -2, 4, 0, purple);
-  box(m, 2, 0, -2, 4, 4, 0, purple);
-  box(m, -4, 0, 2, -2, 4, 4, purple);
-  box(m, 2, 0, 2, 4, 4, 4, purple);
-  set(m, -3, 0, 0, "#e1bee7");
-  set(m, 3, 0, 0, "#e1bee7");
-  box(m, -2, 5, -6, 2, 6, -4, purple);
-  set(m, -1, 6, -8, purple);
+  boxTone(m, -4, 0, -2, -2, 4, 0);
+  boxTone(m, 2, 0, -2, 4, 4, 0);
+  boxTone(m, -4, 0, 2, -2, 4, 4);
+  boxTone(m, 2, 0, 2, 4, 4, 4);
+  set(m, -3, 0, 0, "al");
+  set(m, 3, 0, 0, "al");
+  boxTone(m, -2, 5, -6, 2, 6, -4);
+  set(m, -1, 6, -8, "pd");
   return compile(m);
 }
 
@@ -349,22 +423,6 @@ function plumberBp(p: string, a: string): VoxelCell[] {
   return compile(m);
 }
 
-function pokeballBp(_p: string, _a: string): VoxelCell[] {
-  const m: BlockMap = new Map();
-  for (let y = -3; y <= 3; y++) {
-    for (let x = -3; x <= 3; x++) {
-      for (let z = -3; z <= 3; z++) {
-        if (x * x + y * y + z * z <= 12) {
-          const c = y > 0 ? "#f44336" : "#fafafa";
-          set(m, x, y + 3, z, c);
-        }
-      }
-    }
-  }
-  box(m, -3, 3, -3, 3, 3, 3, "#1a1a1a");
-  disc(m, 4, 0, 0, 1, "#fafafa");
-  return compile(m);
-}
 
 function fruitSphereBp(color: string, stem: string): BlueprintFn {
   return (_p, _a) => {
@@ -405,14 +463,7 @@ const BLUEPRINTS: Record<string, BlueprintFn> = {
   energy_drink: (p, a) => sodaCanBp(p || "#212121", a || "#ffeb3b"),
   apple: fruitSphereBp("#e53935", "#5d4037"),
   orange: fruitSphereBp("#ff9800", "#33691e"),
-  banana: (_p, _a) => {
-    const m: BlockMap = new Map();
-    for (let i = 0; i <= 7; i++) {
-      box(m, i - 3, i, -1, i - 2, i + 1, 1, "#ffeb3b");
-    }
-    set(m, 4, 8, 0, "#5d4037");
-    return compile(m);
-  },
+  banana: bananaBp,
   donut: (p, a) => {
     const m: BlockMap = new Map();
     for (let y = 0; y <= 2; y++) {
