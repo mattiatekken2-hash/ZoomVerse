@@ -4,7 +4,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
-import { FORGE_CLAY, FORGE_CLAY_HEX, FORGE_VOXEL_SIZE, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
+import { FORGE_VOXEL_SIZE, forgeClayToneHex, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
 
 const DEFAULT_PARTS = mysteryKitParts();
 
@@ -643,7 +643,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       edge.project(camera);
       const sizePx = Math.max(7, Math.min(22, Math.hypot((edge.x - vec.x) * w, (edge.y - vec.y) * h) * 1.15));
 
-      return { x: sx, y: sy, color: FORGE_CLAY_HEX, sizePx };
+      return { x: sx, y: sy, color: forgeClayToneHex(v.id || idx), sizePx };
     },
     getPartScreenTargets(maxCount = 5) {
       const camera = cameraRef.current;
@@ -820,17 +820,17 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     }
 
     const isStaticThumb = revealed && !interactive && !performanceMode;
-    scene.add(new THREE.AmbientLight(0xffffff, forgeSpaceMode ? 0.85 : showcase ? 0.5 : opaqueBackground ? 0.55 : isStaticThumb ? 0.68 : 0.5));
+    scene.add(new THREE.AmbientLight(0xffffff, forgeSpaceMode ? 0.55 : showcase ? 0.5 : opaqueBackground ? 0.55 : isStaticThumb ? 0.68 : 0.5));
     if (!performanceMode) {
       scene.add(new THREE.HemisphereLight(
         0xc8e0ff,
         forgeSpaceMode ? 0x060810 : 0x141820,
-        showcase ? 0.55 : opaqueBackground ? 0.45 : isStaticThumb ? 0.38 : forgeSpaceMode ? 0.32 : 0.25,
+        showcase ? 0.55 : opaqueBackground ? 0.45 : isStaticThumb ? 0.38 : forgeSpaceMode ? 0.48 : 0.25,
       ));
     }
     const key = new THREE.DirectionalLight(
       0xfff8f0,
-      showcase ? 1.75 : opaqueBackground ? 1.35 : isStaticThumb ? 1.25 : useForgeVoxels ? 1.35 : (performanceMode ? 0.95 : 1.05),
+      showcase ? 1.75 : opaqueBackground ? 1.35 : isStaticThumb ? 1.25 : useForgeVoxels ? 1.55 : (performanceMode ? 0.95 : 1.05),
     );
     key.position.set(4, 8, 5);
     if (showcase) {
@@ -882,25 +882,34 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     voxelStepRef.current = voxelStep;
     const voxelDummy = new THREE.Object3D();
     let voxelInst: THREE.InstancedMesh | null = null;
+    const clayToneScratch = new THREE.Color();
     if (forgeVoxels.length > 0) {
       const cube = voxelStep * 0.98;
       const vGeo = new THREE.BoxGeometry(cube, cube, cube);
-      const vMat = new THREE.MeshBasicMaterial({
-        color: FORGE_CLAY,
+      // Lit material so faces read as white / grey / darker grey blocks.
+      const vMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.78,
+        metalness: 0.06,
         toneMapped: false,
+        flatShading: true,
       });
       voxelInst = new THREE.InstancedMesh(vGeo, vMat, forgeVoxels.length);
       voxelInst.frustumCulled = false;
       voxelInst.castShadow = false;
+      voxelInst.receiveShadow = false;
       for (let vi = 0; vi < forgeVoxels.length; vi++) {
         const v = forgeVoxels[vi]!;
         voxelDummy.position.set(0, -999, 0);
         voxelDummy.scale.set(0, 0, 0);
         voxelDummy.updateMatrix();
         voxelInst.setMatrixAt(vi, voxelDummy.matrix);
+        clayToneScratch.set(forgeClayToneHex(v.id || vi));
+        voxelInst.setColorAt(vi, clayToneScratch);
       }
       voxelInst.count = 0;
       voxelInst.instanceMatrix.needsUpdate = true;
+      if (voxelInst.instanceColor) voxelInst.instanceColor.needsUpdate = true;
       group.add(voxelInst);
     }
 
@@ -1046,7 +1055,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const targetP = st.revealed ? 1 : Math.min(1, Math.max(0, st.progress));
       const lerpK = 1 - Math.pow(0.001, dt / 16.67);
       const snap = performanceMode ? 0.95 : 0.55;
-      const useVoxelForge = isLiveForge && voxelInst && forgeVoxels.length > 0;
+      // Keep the Minecraft voxel sculpture through waiting + reveal paint.
+      const useVoxelForge = !!voxelInst && forgeVoxels.length > 0 && (isLiveForge || st.revealed || forgeVoxelBuild);
       if (useVoxelForge) {
         const placed = Math.min(forgeVoxels.length, Math.round(targetP * forgeVoxels.length));
         smoothProgressRef.current = placed / forgeVoxels.length;
@@ -1076,22 +1086,20 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       if (useVoxelForge && voxelInst) {
         const voxMesh = voxelInst;
         voxMesh.visible = true;
-        const placedCount = Math.min(forgeVoxels.length, Math.round(targetP * forgeVoxels.length));
+        const placedCount = st.revealed
+          ? forgeVoxels.length
+          : Math.min(forgeVoxels.length, Math.round(targetP * forgeVoxels.length));
         const sinceDrop = now - dropAnimStart;
-        const dropT = placedCount > 0
+        const dropT = !st.revealed && placedCount > 0
           ? Math.min(1, Math.max(0, (sinceDrop - particleLandMs()) / 200))
-          : 0;
+          : 1;
         const dropEase = dropT * dropT * (3 - 2 * dropT);
-        const voxMat = voxMesh.material as THREE.MeshBasicMaterial;
-        voxMat.color.set(FORGE_CLAY);
-        voxMat.toneMapped = false;
-        voxMat.needsUpdate = true;
 
         let visibleCount = 0;
         for (let i = 0; i < forgeVoxels.length; i++) {
           const v = forgeVoxels[i]!;
-          const settled = i < placedCount - 1;
-          const landing = i === placedCount - 1 && placedCount > 0 && sinceDrop >= particleLandMs();
+          const settled = st.revealed || i < placedCount - 1;
+          const landing = !st.revealed && i === placedCount - 1 && placedCount > 0 && sinceDrop >= particleLandMs();
 
           if (!settled && !landing) {
             continue;
@@ -1104,10 +1112,18 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           voxelDummy.rotation.set(0, 0, 0);
           voxelDummy.updateMatrix();
           voxMesh.setMatrixAt(visibleCount, voxelDummy.matrix);
+
+          clayToneScratch.set(forgeClayToneHex(v.id || i));
+          if (paintT > 0) {
+            painted.set(resolveColor(v.color, st.primaryColor, st.accentColor));
+            clayToneScratch.lerp(painted, paintT);
+          }
+          voxMesh.setColorAt(visibleCount, clayToneScratch);
           visibleCount++;
         }
         voxMesh.count = visibleCount;
         voxMesh.instanceMatrix.needsUpdate = true;
+        if (voxMesh.instanceColor) voxMesh.instanceColor.needsUpdate = true;
         touchedMesh = true;
 
         group.children.forEach((child) => {

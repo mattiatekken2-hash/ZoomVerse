@@ -11,9 +11,9 @@ export interface VoxelCell {
   profile?: MaterialProfile;
 }
 
-const MIN_FORGE_VOXELS = 72;
-const MAX_FORGE_VOXELS = 220;
-const TARGET_FORGE_VOXELS = 140;
+const MIN_FORGE_VOXELS = 96;
+const MAX_FORGE_VOXELS = 280;
+const TARGET_FORGE_VOXELS = 180;
 
 function snap(v: number, step: number): number {
   return Math.round(v / step) * step;
@@ -168,7 +168,7 @@ function trimVoxels(cells: VoxelCell[], max: number): VoxelCell[] {
 export function meshPartsToVoxels(parts: MeshPart[]): { voxels: VoxelCell[]; step: number } {
   if (parts.length === 0) return { voxels: [], step: FORGE_VOXEL_SIZE };
 
-  let step = 0.13;
+  let step = 0.11;
   let best = collectVoxels(parts, step);
 
   for (let i = 0; i < 10; i++) {
@@ -197,6 +197,34 @@ export const FORGE_VOXEL_SIZE = 0.11;
 /** Clay grey used while assembling voxels in the Lab forge. */
 export const FORGE_CLAY_HEX = "#b0b0b0";
 export const FORGE_CLAY = 0xb0b0b0;
+
+/** Multi-tone clay palette — white / light / mid / dark blocks while forging. */
+export const FORGE_CLAY_TONES = [
+  "#f4f4f4",
+  "#d8d8d8",
+  "#b0b0b0",
+  "#8a8a8a",
+  "#5e5e5e",
+] as const;
+
+function hashSeed(seed: number | string): number {
+  if (typeof seed === "number") return (seed * 2654435761) >>> 0;
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** Stable clay shade for a voxel index/id (Minecraft-style clay mix). */
+export function forgeClayToneHex(seed: number | string): string {
+  return FORGE_CLAY_TONES[hashSeed(seed) % FORGE_CLAY_TONES.length]!;
+}
+
+export function forgeClayToneColor(seed: number | string): number {
+  return Number.parseInt(forgeClayToneHex(seed).slice(1), 16);
+}
 
 /** One tap = one block — goal always matches voxel blueprint length. */
 export function getForgeTapGoal(parts: MeshPart[]): number {
