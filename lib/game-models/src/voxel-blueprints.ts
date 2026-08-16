@@ -339,46 +339,76 @@ function carBp(_p: string, _a: string): VoxelCell[] {
 function koalaBp(_p: string, _a: string): VoxelCell[] {
   const m: BlockMap = new Map();
 
-  // Seated torso with soft back corners
+  const fluffyEar = (
+    xOuter: number,
+    xInner: number,
+    y0: number,
+    height: number,
+    z0: number,
+    z1: number,
+  ) => {
+    const sign = xOuter > xInner ? 1 : -1;
+    for (let i = 0; i <= height; i++) {
+      const t = i / Math.max(1, height);
+      const y = y0 + i;
+      const xNear = xOuter - sign * Math.round(t * (Math.abs(xOuter - xInner) - 1));
+      const zLo = z0 + Math.round(t * 1.1);
+      const zHi = z1 - Math.round(t * 0.8);
+      for (let x = Math.min(xNear, xOuter); x <= Math.max(xNear, xOuter); x++) {
+        for (let z = zLo; z <= zHi; z++) {
+          const edge = x === xNear || x === xOuter || z === zLo || z === zHi;
+          set(m, x, y, z, edge ? "pd" : "pl");
+        }
+      }
+    }
+    const xLo = Math.min(xInner, xOuter);
+    const xHi = Math.max(xInner, xOuter);
+    box(m, xLo + 1, y0 + 2, 0, xHi - 1, y0 + height - 2, 2, "w");
+    set(m, xOuter - sign, y0 + height, 0, "pl");
+  };
+
+  // Seated torso with subtle shoulder lean (matches head tilt)
   boxTone(m, -5, 0, -4, 5, 8, 3);
   box(m, -4, 1, 3, 4, 7, 5, "w");
   set(m, -5, 3, -4, "pd");
   set(m, 5, 3, -4, "pd");
   set(m, -5, 7, -4, "pd");
   set(m, 5, 7, -4, "pd");
+  set(m, -4, 6, 4, "pl");
 
   // Small fluffy tail
   boxTone(m, -1, 3, -5, 1, 5, -4);
   set(m, 0, 6, -5, "pd");
-  set(m, -1, 5, -6, "pd");
+  set(m, 1, 5, -6, "pd");
 
-  // Head — leaned slightly forward (+z) for a cuter pose
+  // Head — forward lean
   boxTone(m, -6, 8, -3, 6, 15, 6);
-  for (let y = 16; y <= 18; y++) {
-    const shrink = 19 - y;
+  for (let y = 16; y <= 19; y++) {
+    const shrink = 20 - y;
     boxTone(m, -6 + shrink, y, -2 + shrink, 6 - shrink, y, 6 - shrink);
   }
-  // Round the front face and forehead
-  for (let y = 10; y <= 14; y++) {
-    set(m, -7, y, 5, "pd");
-    set(m, 7, y, 5, "pd");
-  }
-  boxTone(m, -4, 16, 4, 4, 17, 6);
-  set(m, -2, 18, 5, "pl");
-  set(m, 2, 18, 5, "pl");
-  set(m, 0, 18, 6, "pl");
 
-  // Fluffy ears — wide base, tapered tips
-  boxTone(m, -10, 13, -1, -5, 16, 2);
-  boxTone(m, -9, 17, -1, -6, 19, 2);
-  boxTone(m, -8, 20, 0, -7, 20, 1);
-  set(m, -7, 21, 0, "pl");
-  box(m, -9, 14, 0, -6, 18, 2, "w");
-  boxTone(m, 5, 13, -1, 10, 16, 2);
-  boxTone(m, 6, 17, -1, 9, 19, 2);
-  boxTone(m, 7, 20, 0, 8, 20, 1);
-  set(m, 7, 21, 0, "pl");
-  box(m, 6, 14, 0, 9, 18, 2, "w");
+  // Forehead / crown volume (less flat top)
+  box(m, -4, 17, 3, 4, 19, 7, "pl");
+  box(m, -3, 20, 4, 3, 21, 6, "pl");
+  set(m, -2, 21, 5, "pl");
+  set(m, 2, 21, 5, "pl");
+  set(m, 0, 22, 4, "p");
+  set(m, -1, 21, 6, "pl");
+  set(m, 2, 20, 6, "pl");
+  dome(m, 19, -1, 4, 4, 2, "pl");
+  set(m, -7, 15, 4, "pd");
+  set(m, 7, 14, 3, "pd");
+
+  // Solid face mask — clean tone around eyes (no checkerboard)
+  box(m, -5, 9, 4, 5, 18, 7, "pl");
+  // Head tilt: left cheek slightly forward
+  box(m, -6, 10, 5, -4, 14, 7, "pl");
+  set(m, -6, 12, 6, "p");
+
+  // Round fluffy ears — left taller for asymmetry
+  fluffyEar(-10, -5, 14, 8, -1, 2);
+  fluffyEar(10, 5, 13, 7, -1, 2);
 
   // White muzzle + wider black nose
   box(m, -3, 9, 5, 3, 11, 7, "w");
@@ -388,34 +418,34 @@ function koalaBp(_p: string, _a: string): VoxelCell[] {
   set(m, 2, 11, 9, "k");
   set(m, 0, 9, 8, "k");
 
-  // Eyes with white surround + highlight
+  // Eyes — left slightly higher (head tilt)
   box(m, -3, 11, 6, -2, 12, 7, "w");
   box(m, 2, 11, 6, 3, 12, 7, "w");
-  box(m, -5, 12, 6, -4, 13, 7, "k");
+  box(m, -5, 12, 6, -4, 14, 7, "k");
   box(m, 4, 12, 6, 5, 13, 7, "k");
   set(m, -4, 13, 7, "w");
   set(m, 4, 13, 7, "w");
 
-  // Cheek fluff framing the face
-  set(m, -6, 11, 5, "pl");
-  set(m, 6, 11, 5, "pl");
-  set(m, -6, 12, 4, "pd");
-  set(m, 6, 12, 4, "pd");
+  // Cheek fluff
+  set(m, -6, 11, 5, "p");
+  set(m, 6, 11, 5, "pd");
+  set(m, -6, 12, 4, "pl");
+  set(m, 6, 12, 4, "pl");
   set(m, -5, 10, 5, "pl");
   set(m, 5, 10, 5, "pl");
 
-  // Arms hugging the belly tighter
-  boxTone(m, -7, 2, 0, -6, 7, 3);
+  // Arms — left paw forward (matches tilt)
+  boxTone(m, -7, 2, 1, -6, 7, 4);
   boxTone(m, 6, 2, 0, 7, 7, 3);
   for (const px of [-8, -7, -6] as const) {
-    set(m, px, 1, 5, "w");
-    set(m, px, 0, 4, "w");
+    set(m, px, 1, 6, "w");
+    set(m, px, 0, 5, "w");
   }
   for (const px of [6, 7, 8] as const) {
     set(m, px, 1, 5, "w");
     set(m, px, 0, 4, "w");
   }
-  set(m, -7, 2, 4, "k");
+  set(m, -7, 2, 5, "k");
   set(m, 7, 2, 4, "k");
 
   // Front feet with separated toes
