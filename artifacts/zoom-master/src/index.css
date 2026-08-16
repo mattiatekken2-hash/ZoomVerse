@@ -997,6 +997,69 @@ body.animations-paused * {
   50% { opacity: 0.75; }
 }
 
+@keyframes labFragmentPixelIn {
+  0% {
+    transform: translate(calc(-50% + var(--fx, 0px)), calc(-50% + var(--fy, 0px))) scale(0.35);
+    opacity: 0;
+  }
+  14% { opacity: 1; }
+  78% {
+    transform: translate(calc(-50% + var(--tx, 0px)), calc(-50% + var(--ty, 0px))) scale(1);
+    opacity: 1;
+  }
+  92% {
+    transform: translate(calc(-50% + var(--tx, 0px)), calc(-50% + var(--ty, 0px))) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--tx, 0px)), calc(-50% + var(--ty, 0px))) scale(0.85);
+    opacity: 0;
+  }
+}
+@keyframes labFragmentPixelDrift {
+  0% {
+    transform: translate(calc(-50% + var(--fx, 0px)), calc(-50% + var(--fy, 0px))) scale(0.3);
+    opacity: 0;
+  }
+  20% { opacity: 0.85; }
+  82% {
+    transform: translate(calc(-50% + var(--tx, 0px)), calc(-50% + var(--ty, 0px))) scale(1);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate(calc(-50% + var(--tx, 0px)), calc(-50% + var(--ty, 0px))) scale(0.9);
+    opacity: 0;
+  }
+}
+.lab-fragment--pixel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  contain: strict;
+  animation: labFragmentPixelIn var(--dur, 520ms) cubic-bezier(0.22, 0.85, 0.28, 1) forwards;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+.lab-fragment--pixel-calm {
+  animation: labFragmentPixelDrift var(--dur, 900ms) cubic-bezier(0.38, 0.08, 0.22, 1) forwards;
+}
+.lab-fragment--pixel-trail {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  animation: labFragmentPixelIn var(--dur, 520ms) cubic-bezier(0.22, 0.85, 0.28, 1) forwards;
+  animation-delay: var(--delay, 40ms);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  box-shadow: 0 0 5px rgba(255,255,255,0.75);
+}
+
 @keyframes labFragmentFly {
   0% {
     transform: translate(calc(-50% + var(--fx, 0px)), calc(-50% + var(--fy, 0px))) rotate(var(--rot, 0deg)) scale(var(--fs, 1));

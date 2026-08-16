@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { MysteryModel3D, type ForgeMeshHandle } from "./MysteryModel3D";
-import { getMeshParts, getModelById } from "@workspace/game-models";
+import { getMeshParts, getModelById, FORGE_CLAY_HEX } from "@workspace/game-models";
 import type { ZoomModel } from "../hooks/useGameState";
 import { getRarityColorsForModel } from "../hooks/useGameState";
 import { useT } from "../i18n/LanguageContext";
@@ -20,6 +20,8 @@ interface PlanetCanvasProps {
   forgingModel?: ZoomModel | null;
   forgePhase: ForgePhase;
   forgeRolling?: boolean;
+  /** Full-bleed backdrop layer (Lab forge behind UI). */
+  backdrop?: boolean;
 }
 
 const DEFAULT_ACCENT = "#8892b0";
@@ -89,6 +91,86 @@ const ForgeProgressBar = memo(function ForgeProgressBar({
     </div>
   );
 });
+
+const VOXEL_PIXEL_MS = 520;
+
+interface VoxelPixelTarget {
+  x: number;
+  y: number;
+  color: string;
+  sizePx: number;
+}
+
+function spawnVoxelPixelParticle(
+  layer: HTMLDivElement,
+  half: number,
+  target: VoxelPixelTarget,
+  fragIdRef: { current: number },
+  relaxed = false,
+) {
+  while (layer.childElementCount >= MAX_FRAGMENTS) {
+    layer.firstElementChild?.remove();
+  }
+
+  const { x: tx, y: ty } = target;
+  const spawnAngle = Math.atan2(ty, tx) + Math.PI + (Math.random() - 0.5) * 0.45;
+  const spawnDist = half * (relaxed ? 0.92 : 1.02);
+  const fx = Math.cos(spawnAngle) * spawnDist;
+  const fy = Math.sin(spawnAngle) * spawnDist;
+  const ball = Math.max(4, Math.min(8, target.sizePx * 0.38 + (Math.random() * 1.5)));
+
+  const dot = document.createElement("div");
+  dot.className = relaxed ? "lab-fragment--pixel lab-fragment--pixel-calm" : "lab-fragment--pixel";
+  dot.dataset["fid"] = `p-${fragIdRef.current++}`;
+
+  const s = dot.style;
+  s.position = "absolute";
+  s.left = "50%";
+  s.top = "50%";
+  s.width = `${ball}px`;
+  s.height = `${ball}px`;
+  s.borderRadius = "50%";
+  s.background = FORGE_CLAY_HEX;
+  s.boxShadow = "0 0 5px rgba(200,200,200,0.65), 0 0 1px rgba(220,220,220,0.8)";
+  s.pointerEvents = "none";
+  s.contain = "strict";
+  s.setProperty("--fx", `${fx}px`);
+  s.setProperty("--fy", `${fy}px`);
+  s.setProperty("--tx", `${tx}px`);
+  s.setProperty("--ty", `${ty}px`);
+  s.setProperty("--dur", relaxed ? "900ms" : `${VOXEL_PIXEL_MS}ms`);
+  s.transform = `translate(calc(-50% + ${fx}px), calc(-50% + ${fy}px)) scale(0.4)`;
+  s.opacity = "0";
+
+  layer.appendChild(dot);
+  dot.addEventListener("animationend", () => dot.remove(), { once: true });
+
+  if (!relaxed && Math.random() > 0.5) {
+    const trail = document.createElement("div");
+    trail.className = "lab-fragment--pixel-trail";
+    trail.dataset["fid"] = `p-${fragIdRef.current++}`;
+    const trailBall = Math.max(3, ball * 0.65);
+    const ts = trail.style;
+    ts.position = "absolute";
+    ts.left = "50%";
+    ts.top = "50%";
+    ts.width = `${trailBall}px`;
+    ts.height = `${trailBall}px`;
+    ts.borderRadius = "50%";
+    ts.background = FORGE_CLAY_HEX;
+    ts.opacity = "0";
+    ts.pointerEvents = "none";
+    ts.setProperty("--fx", `${fx * 0.9}px`);
+    ts.setProperty("--fy", `${fy * 0.9}px`);
+    ts.setProperty("--tx", `${tx}px`);
+    ts.setProperty("--ty", `${ty}px`);
+    ts.setProperty("--dur", `${VOXEL_PIXEL_MS + 80}ms`);
+    ts.setProperty("--delay", "35ms");
+    ts.transform = `translate(calc(-50% + ${fx * 0.9}px), calc(-50% + ${fy * 0.9}px)) scale(0.35)`;
+    layer.appendChild(trail);
+    trail.addEventListener("animationend", () => trail.remove(), { once: true });
+  }
+}
 
 function spawnForgeParticles(
   layer: HTMLDivElement,
@@ -189,6 +271,7 @@ export function PlanetCanvas({
   forgingModel = null,
   forgePhase,
   forgeRolling = false,
+  backdrop = false,
 }: PlanetCanvasProps) {
   const { t } = useT();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -202,25 +285,32 @@ export function PlanetCanvas({
 
   const liveModel = pendingModel || forgingModel;
   const isActiveCraft = forgePhase === "idle" && !!forgingModel && !forgeRolling;
+  const isCrafting = forgePhase === "idle" && !!forgingModel && !forgeRolling;
   const pct = goal > 0 ? Math.min(progress / goal, 1) : 0;
   const revealed = forgePhase === "revealed";
-  const buildProgress = forgePhase === "idle" ? pct : 1;
-  const isForging = forgePhase === "idle";
+  const buildProgress = isCrafting ? pct : liveModel ? 1 : 0;
+  const isForging = isCrafting;
   const rarityPaint = liveModel ? getRarityColorsForModel(liveModel.rarity) : undefined;
   const displayAccent = revealed
     ? (rarityPaint?.accentHex || liveModel?.accentColor || accentColor || DEFAULT_ACCENT)
     : DEFAULT_ACCENT;
   const displayPrimary = revealed
     ? (rarityPaint?.color || liveModel?.primaryColor || displayAccent)
-    : "#c5c5c5";
+    : FORGE_CLAY_HEX;
 
   const modelDef = liveModel ? getModelById(liveModel.modelId) : undefined;
   const objectParts = useMemo(() => {
     if (!liveModel) return undefined;
     const shapeId = liveModel.shapeId || modelDef?.shapeId;
     if (!shapeId) return undefined;
-    return getMeshParts(shapeId, "p", "a");
-  }, [liveModel?.modelId, liveModel?.shapeId, modelDef?.shapeId]);
+    const primary = revealed
+      ? (liveModel.primaryColor || displayPrimary)
+      : liveModel.primaryColor || "#888888";
+    const accent = revealed
+      ? (liveModel.accentColor || displayAccent)
+      : liveModel.accentColor || "#666666";
+    return getMeshParts(shapeId, primary, accent);
+  }, [liveModel?.modelId, liveModel?.shapeId, liveModel?.primaryColor, liveModel?.accentColor, modelDef?.shapeId, displayPrimary, displayAccent, revealed]);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -230,7 +320,9 @@ export function PlanetCanvas({
       const h = el.clientHeight;
       const w = el.clientWidth;
       if (w <= 1 || h <= 1) return;
-      const next = Math.round(Math.min(w * 0.88, h * 0.82, 380));
+      const next = backdrop
+        ? Math.round(Math.min(w, h))
+        : Math.round(Math.min(w * 0.88, h * 0.82, 380));
       if (Math.abs(next - sizeRef.current) < 1) return;
       sizeRef.current = next;
       setSize(next);
@@ -239,7 +331,7 @@ export function PlanetCanvas({
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [backdrop]);
 
   useLayoutEffect(() => {
     if (isActiveCraft) {
@@ -252,13 +344,19 @@ export function PlanetCanvas({
   }, [isActiveCraft, forgingModel, forgePhase]);
 
   const layoutSize = craftSizeLockRef.current ?? size;
-  const modelCanvasSize = Math.round(layoutSize * 0.88);
+  const modelCanvasSize = backdrop ? layoutSize : Math.round(layoutSize * 0.88);
 
   const spawnParticles = useCallback((relaxed = tapRelaxed) => {
     if (!isActiveCraft) return;
     const layer = fragmentLayerRef.current;
     const half = modelCanvasSize / 2;
     if (!layer || half <= 0) return;
+
+    const incoming = meshRef.current?.getIncomingVoxelTarget?.() ?? null;
+    if (incoming) {
+      spawnVoxelPixelParticle(layer, half, incoming, fragIdRef, relaxed);
+      return;
+    }
 
     const fromMesh = (meshRef.current?.getPartScreenTargets(6) ?? [])
       .map((t) => awayFromCenter(t.x, t.y, half))
@@ -293,23 +391,34 @@ export function PlanetCanvas({
         : t("planetCanvas.assembling");
 
   return (
-    <div ref={containerRef} className="relative w-full h-full flex flex-col items-center justify-center">
+    <div
+      ref={containerRef}
+      className={backdrop ? "absolute inset-0" : "relative w-full h-full flex flex-col items-center justify-center"}
+    >
       <div
-        className="flex items-center justify-center"
+        className={backdrop ? "absolute inset-0 flex items-center justify-center" : "flex items-center justify-center"}
         style={{
-          width: size,
-          height: size,
+          width: backdrop ? "100%" : size,
+          height: backdrop ? "100%" : size,
           cursor: onPunch && isForging && !forgeRolling ? "pointer" : "default",
           touchAction: "manipulation",
           position: "relative",
           background: "transparent",
           overflow: "visible",
-          contain: "layout style",
+          contain: backdrop ? "none" : "layout style",
+          zIndex: backdrop ? 0 : undefined,
+          pointerEvents: backdrop ? "none" : undefined,
         }}
         data-testid="planet-wrap"
       >
         {showModel3D && liveModel && objectParts && (
-          <MysteryModel3D
+          <div
+            style={{
+              pointerEvents: isForging && !forgeRolling ? "auto" : "none",
+              lineHeight: 0,
+            }}
+          >
+            <MysteryModel3D
             ref={meshRef}
             key={liveModel.modelId}
             parts={objectParts}
@@ -320,8 +429,11 @@ export function PlanetCanvas({
             size={modelCanvasSize}
             onTap={isForging && !forgeRolling ? handleModelTap : undefined}
             autoSpin
-            performanceMode={forgePhase !== "revealed"}
+            forgeVoxelBuild={isCrafting && !revealed}
+            forgeTapRelaxed={tapRelaxed}
+            performanceMode={false}
           />
+          </div>
         )}
 
         {revealed && rarityPaint && (
@@ -377,13 +489,15 @@ export function PlanetCanvas({
       </div>
 
       {isForging && (
-        <ForgeProgressBar
-          progress={progress}
-          goal={goal}
-          pct={pct}
-          displayAccent={displayAccent}
-          label={progressLabel}
-        />
+        <div className="relative z-10 w-full">
+          <ForgeProgressBar
+            progress={progress}
+            goal={goal}
+            pct={pct}
+            displayAccent={displayAccent}
+            label={progressLabel}
+          />
+        </div>
       )}
     </div>
   );

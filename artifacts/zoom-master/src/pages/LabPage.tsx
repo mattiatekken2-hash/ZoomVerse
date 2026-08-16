@@ -226,6 +226,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         </div>
 
         <PlanetCanvas
+          backdrop
           onPunch={canCraft && forgePhase === "idle" ? () => handleCraft({ relaxed: true }) : undefined}
           tapSignal={tapSignal}
           tapRelaxed={tapRelaxed}

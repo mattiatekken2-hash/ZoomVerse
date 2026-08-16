@@ -165,8 +165,8 @@ function trimVoxels(cells: VoxelCell[], max: number): VoxelCell[] {
 }
 
 /** Procedural mesh → Minecraft-style voxel blueprint for the Lab forge. */
-export function meshPartsToVoxels(parts: MeshPart[]): VoxelCell[] {
-  if (parts.length === 0) return [];
+export function meshPartsToVoxels(parts: MeshPart[]): { voxels: VoxelCell[]; step: number } {
+  if (parts.length === 0) return { voxels: [], step: FORGE_VOXEL_SIZE };
 
   let step = 0.13;
   let best = collectVoxels(parts, step);
@@ -189,13 +189,23 @@ export function meshPartsToVoxels(parts: MeshPart[]): VoxelCell[] {
     best = trimVoxels(best, TARGET_FORGE_VOXELS);
   }
 
-  return best;
-}
-
-/** One tap = one block — used as forge goal. */
-export function getForgeTapGoal(parts: MeshPart[]): number {
-  const n = meshPartsToVoxels(parts).length;
-  return Math.max(MIN_FORGE_VOXELS, n);
+  return { voxels: best, step };
 }
 
 export const FORGE_VOXEL_SIZE = 0.11;
+
+/** Clay grey used while assembling voxels in the Lab forge. */
+export const FORGE_CLAY_HEX = "#b0b0b0";
+export const FORGE_CLAY = 0xb0b0b0;
+
+/** One tap = one block — goal always matches voxel blueprint length. */
+export function getForgeTapGoal(parts: MeshPart[]): number {
+  const { voxels } = meshPartsToVoxels(parts);
+  return Math.max(1, voxels.length);
+}
+
+/** Single voxelize pass for goal + renderer (same blueprint everywhere). */
+export function getForgeBlueprint(parts: MeshPart[]): { voxels: VoxelCell[]; step: number; goal: number } {
+  const { voxels, step } = meshPartsToVoxels(parts);
+  return { voxels, step, goal: Math.max(1, voxels.length) };
+}

@@ -4,7 +4,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
-import { FORGE_VOXEL_SIZE, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
+import { FORGE_CLAY, FORGE_CLAY_HEX, FORGE_VOXEL_SIZE, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
 
 const DEFAULT_PARTS = mysteryKitParts();
 
@@ -33,9 +33,12 @@ function isShowcaseView(
   interactive: boolean,
   opaqueBackground: boolean,
   revealed: boolean,
+  forgeVoxelBuild: boolean,
 ): boolean {
   if (performanceMode) return false;
-  return size >= 96 || interactive || opaqueBackground || (revealed && size >= 72);
+  if (forgeVoxelBuild && !revealed) return false;
+  if (interactive && !revealed) return false;
+  return size >= 96 || opaqueBackground || (revealed && size >= 72);
 }
 
 function isGlassPart(part: MeshPart): boolean {
@@ -144,6 +147,65 @@ function addShowcaseGround(
   accentGlow.renderOrder = -1;
   scene.add(accentGlow);
   extras.push(accentGlow);
+
+  return extras;
+}
+
+/** Infinite space grid for Lab voxel forge — no floor disc. */
+function addForgeSpaceGrid(scene: THREE.Scene, maxDim: number): THREE.Object3D[] {
+  const extras: THREE.Object3D[] = [];
+  const span = maxDim * 3.6;
+  const cells = 22;
+
+  const tuneGrid = (grid: THREE.GridHelper, opacity: number) => {
+    const mats = Array.isArray(grid.material) ? grid.material : [grid.material];
+    for (const m of mats) {
+      m.transparent = true;
+      m.opacity = opacity;
+      m.depthWrite = false;
+    }
+    grid.renderOrder = -10;
+  };
+
+  const floorGrid = new THREE.GridHelper(span, cells, 0x6a8cb8, 0x2a3548);
+  tuneGrid(floorGrid, 0.42);
+  floorGrid.position.y = -maxDim * 0.46;
+  scene.add(floorGrid);
+  extras.push(floorGrid);
+
+  const backGrid = new THREE.GridHelper(span, cells, 0x4a6080, 0x1a2230);
+  tuneGrid(backGrid, 0.22);
+  backGrid.rotation.x = Math.PI / 2;
+  backGrid.position.set(0, maxDim * 0.05, -maxDim * 1.05);
+  scene.add(backGrid);
+  extras.push(backGrid);
+
+  const starGeo = new THREE.BufferGeometry();
+  const starCount = 120;
+  const starPos = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount; i++) {
+    const r = maxDim * (1.8 + Math.random() * 2.4);
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    starPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+    starPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.55;
+    starPos[i * 3 + 2] = r * Math.cos(phi);
+  }
+  starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
+  const stars = new THREE.Points(
+    starGeo,
+    new THREE.PointsMaterial({
+      color: 0xc8d8f0,
+      size: maxDim * 0.028,
+      transparent: true,
+      opacity: 0.55,
+      depthWrite: false,
+      sizeAttenuation: true,
+    }),
+  );
+  stars.renderOrder = -12;
+  scene.add(stars);
+  extras.push(stars);
 
   return extras;
 }
@@ -350,6 +412,8 @@ function applyProfileToMaterial(
 export interface ForgeMeshHandle {
   /** Screen-space targets (canvas center origin) for parts currently assembling. */
   getPartScreenTargets: (maxCount?: number) => Array<{ x: number; y: number; strength?: number }>;
+  /** Next voxel landing slot — for pixel-in particle on the latest tap. */
+  getIncomingVoxelTarget: () => { x: number; y: number; color: string; sizePx: number } | null;
 }
 
 interface ObjectMesh3DProps {
@@ -363,6 +427,10 @@ interface ObjectMesh3DProps {
   size: number;
   onTap?: (point?: { x: number; y: number }) => void;
   autoSpin?: boolean;
+  /** Lab forge — block-by-block Minecraft build (not part fly-in). */
+  forgeVoxelBuild?: boolean;
+  /** Softer particle timing (auto-tap). */
+  forgeTapRelaxed?: boolean;
   interactive?: boolean;
   /** Solid dark backdrop instead of transparent canvas (Farm detail view). */
   opaqueBackground?: boolean;
@@ -481,6 +549,32 @@ function scatterDir(id: string): THREE.Vector3 {
   return new THREE.Vector3(Math.cos(a), 0.4 + b, Math.sin(a)).normalize();
 }
 
+/** Bounds from blueprint data — never from InstancedMesh parked at y=-999. */
+function computeForgeBounds(meshParts: MeshPart[], forgeVoxels: VoxelCell[], voxelStep: number): THREE.Box3 {
+  const box = new THREE.Box3();
+  const half = Math.max(voxelStep, FORGE_VOXEL_SIZE) * 0.55;
+
+  if (forgeVoxels.length > 0) {
+    for (const v of forgeVoxels) {
+      box.expandByPoint(new THREE.Vector3(v.x - half, v.y - half, v.z - half));
+      box.expandByPoint(new THREE.Vector3(v.x + half, v.y + half, v.z + half));
+    }
+  } else {
+    for (const part of meshParts) {
+      const hx = part.sx / 2;
+      const hy = part.sy / 2;
+      const hz = part.sz / 2;
+      box.expandByPoint(new THREE.Vector3(part.x - hx, part.y - hy, part.z - hz));
+      box.expandByPoint(new THREE.Vector3(part.x + hx, part.y + hy, part.z + hz));
+    }
+  }
+
+  if (box.isEmpty()) {
+    box.set(new THREE.Vector3(-0.5, -0.5, -0.5), new THREE.Vector3(0.5, 0.5, 0.5));
+  }
+  return box;
+}
+
 /** Clay silhouette assembles while tapping, then paints with rarity colors. */
 export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(function ObjectMesh3D({
   parts,
@@ -493,6 +587,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
   onTap,
   autoSpin = true,
   interactive = true,
+  forgeVoxelBuild = false,
+  forgeTapRelaxed = false,
   opaqueBackground = false,
   performanceMode = false,
   onGlFailed,
@@ -507,6 +603,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
   const groupRef = useRef<THREE.Group | null>(null);
   const partsRef = useRef<MeshPart[]>([]);
   const voxelsRef = useRef<VoxelCell[]>([]);
+  const voxelStepRef = useRef(FORGE_VOXEL_SIZE);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const assemblyRef = useRef(progress);
@@ -517,6 +614,37 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
   const meshParts = parts && parts.length > 0 ? parts : DEFAULT_PARTS;
 
   useImperativeHandle(ref, () => ({
+    getIncomingVoxelTarget() {
+      const camera = cameraRef.current;
+      const renderer = rendererRef.current;
+      const group = groupRef.current;
+      const list = voxelsRef.current;
+      if (!camera || !renderer || !group || list.length === 0) return null;
+
+      const st = stateRef.current;
+      const n = list.length;
+      const placedCount = Math.min(n, Math.round(Math.min(1, Math.max(0, st.progress)) * n));
+      if (placedCount <= 0) return null;
+
+      const idx = placedCount - 1;
+      const v = list[idx]!;
+      const w = renderer.domElement.clientWidth;
+      const h = renderer.domElement.clientHeight;
+      const vec = new THREE.Vector3(v.x, v.y, v.z);
+      group.localToWorld(vec);
+      vec.project(camera);
+      if (!Number.isFinite(vec.x) || vec.z > 1) return null;
+
+      const sx = vec.x * (w / 2);
+      const sy = -vec.y * (h / 2);
+      const half = voxelStepRef.current * 0.5;
+      const edge = new THREE.Vector3(v.x + half, v.y + half, v.z);
+      group.localToWorld(edge);
+      edge.project(camera);
+      const sizePx = Math.max(7, Math.min(22, Math.hypot((edge.x - vec.x) * w, (edge.y - vec.y) * h) * 1.15));
+
+      return { x: sx, y: sy, color: FORGE_CLAY_HEX, sizePx };
+    },
     getPartScreenTargets(maxCount = 5) {
       const camera = cameraRef.current;
       const renderer = rendererRef.current;
@@ -545,27 +673,26 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         if (!part) continue;
 
         const dir = voxelsRef.current.length > 0
-          ? new THREE.Vector3(
-            ((idx * 17) % 10 - 5) * 0.08,
-            0.6 + ((idx * 7) % 5) * 0.05,
-            ((idx * 13) % 10 - 5) * 0.08,
-          )
+          ? new THREE.Vector3(0, 0, 0)
           : scatterDir((part as MeshPart).id);
         let lock = 0;
         if (idx < partsDone) {
           continue;
         } else if (idx === partsDone) {
-          lock = Math.max(activePartFrac, 0.08);
+          lock = 1;
         } else {
           lock = 0.12 + (k % 3) * 0.05;
         }
 
         const eased = lock * lock * (3 - 2 * lock);
-        const scatter = (1 - eased) * 1.65;
+        const scatter = voxelsRef.current.length > 0 ? 0 : (1 - eased) * 1.65;
+        const px = voxelsRef.current.length > 0 ? (part as VoxelCell).x : (part as MeshPart).x;
+        const py = voxelsRef.current.length > 0 ? (part as VoxelCell).y : (part as MeshPart).y;
+        const pz = voxelsRef.current.length > 0 ? (part as VoxelCell).z : (part as MeshPart).z;
         vec.set(
-          part.x + dir.x * scatter,
-          part.y + dir.y * scatter * 0.55,
-          part.z + dir.z * scatter,
+          px + dir.x * scatter,
+          py + dir.y * scatter * 0.55,
+          pz + dir.z * scatter,
         );
         group.localToWorld(vec);
 
@@ -595,8 +722,10 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const mount = mountRef.current;
     if (!mount || size <= 0) return;
 
-    const showcase = isShowcaseView(performanceMode, size, interactive, opaqueBackground, revealed);
+    const showcase = isShowcaseView(performanceMode, size, interactive, opaqueBackground, revealed, forgeVoxelBuild);
     const isStaticShowcase = showcase && revealed && !interactive;
+    const useForgeVoxels = forgeVoxelBuild;
+    const forgeSpaceMode = useForgeVoxels && !revealed;
     const pixelMode = showcase && revealed && !performanceMode;
     const geoDetail: GeoDetail = performanceMode
       ? "low"
@@ -604,11 +733,14 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         ? "showcase"
         : showcase
           ? "showcase"
-          : "standard";
+          : useForgeVoxels
+            ? "standard"
+            : "standard";
     const usePhysicalMats = showcase && revealed;
 
     const scene = new THREE.Scene();
     if (showcase) scene.background = new THREE.Color(0x060810);
+    else if (forgeSpaceMode) scene.background = null;
     const camera = new THREE.PerspectiveCamera(showcase ? 38 : 42, 1, 0.1, 100);
     cameraRef.current = camera;
     const maxDpr = performanceMode
@@ -688,11 +820,18 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     }
 
     const isStaticThumb = revealed && !interactive && !performanceMode;
-    scene.add(new THREE.AmbientLight(0xffffff, showcase ? 0.5 : opaqueBackground ? 0.55 : isStaticThumb ? 0.68 : 0.5));
+    scene.add(new THREE.AmbientLight(0xffffff, forgeSpaceMode ? 0.85 : showcase ? 0.5 : opaqueBackground ? 0.55 : isStaticThumb ? 0.68 : 0.5));
     if (!performanceMode) {
-      scene.add(new THREE.HemisphereLight(0xc8e0ff, 0x141820, showcase ? 0.55 : opaqueBackground ? 0.45 : isStaticThumb ? 0.38 : 0.25));
+      scene.add(new THREE.HemisphereLight(
+        0xc8e0ff,
+        forgeSpaceMode ? 0x060810 : 0x141820,
+        showcase ? 0.55 : opaqueBackground ? 0.45 : isStaticThumb ? 0.38 : forgeSpaceMode ? 0.32 : 0.25,
+      ));
     }
-    const key = new THREE.DirectionalLight(0xfff8f0, showcase ? 1.75 : opaqueBackground ? 1.35 : isStaticThumb ? 1.25 : (performanceMode ? 0.95 : 1.05));
+    const key = new THREE.DirectionalLight(
+      0xfff8f0,
+      showcase ? 1.75 : opaqueBackground ? 1.35 : isStaticThumb ? 1.25 : useForgeVoxels ? 1.35 : (performanceMode ? 0.95 : 1.05),
+    );
     key.position.set(4, 8, 5);
     if (showcase) {
       key.castShadow = true;
@@ -729,38 +868,39 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     partsRef.current = meshParts;
 
     let forgeVoxels: VoxelCell[] = [];
-    if (interactive) {
+    let voxelStep = FORGE_VOXEL_SIZE;
+    if (useForgeVoxels) {
       try {
-        forgeVoxels = meshPartsToVoxels(meshParts);
+        const voxelized = meshPartsToVoxels(meshParts);
+        forgeVoxels = voxelized.voxels;
+        voxelStep = voxelized.step;
       } catch (err) {
         console.warn("[ObjectMesh3D] voxelize failed, falling back to part assembly", err);
       }
     }
     voxelsRef.current = forgeVoxels;
+    voxelStepRef.current = voxelStep;
     const voxelDummy = new THREE.Object3D();
     let voxelInst: THREE.InstancedMesh | null = null;
     if (forgeVoxels.length > 0) {
-      const vGeo = new THREE.BoxGeometry(
-        FORGE_VOXEL_SIZE * 0.92,
-        FORGE_VOXEL_SIZE * 0.92,
-        FORGE_VOXEL_SIZE * 0.92,
-      );
-      const vMat = new THREE.MeshStandardMaterial({
-        roughness: 0.84,
-        metalness: 0.05,
-        flatShading: true,
+      const cube = voxelStep * 0.98;
+      const vGeo = new THREE.BoxGeometry(cube, cube, cube);
+      const vMat = new THREE.MeshBasicMaterial({
+        color: FORGE_CLAY,
+        toneMapped: false,
       });
       voxelInst = new THREE.InstancedMesh(vGeo, vMat, forgeVoxels.length);
-      voxelInst.castShadow = showcase;
+      voxelInst.frustumCulled = false;
+      voxelInst.castShadow = false;
       for (let vi = 0; vi < forgeVoxels.length; vi++) {
+        const v = forgeVoxels[vi]!;
         voxelDummy.position.set(0, -999, 0);
         voxelDummy.scale.set(0, 0, 0);
         voxelDummy.updateMatrix();
         voxelInst.setMatrixAt(vi, voxelDummy.matrix);
-        voxelInst.setColorAt(vi, new THREE.Color("#c8c8c8"));
       }
+      voxelInst.count = 0;
       voxelInst.instanceMatrix.needsUpdate = true;
-      if (voxelInst.instanceColor) voxelInst.instanceColor.needsUpdate = true;
       group.add(voxelInst);
     }
 
@@ -782,13 +922,15 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       group.add(mesh);
     }
 
-    const box = new THREE.Box3().setFromObject(group);
+    const box = computeForgeBounds(meshParts, forgeVoxels, voxelStep);
     const center = box.getCenter(new THREE.Vector3());
     const dim = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(dim.x, dim.y, dim.z, 0.8);
     group.position.sub(center);
     if (showcase) {
       groundExtras = addShowcaseGround(scene, maxDim, accentColor);
+    } else if (forgeSpaceMode) {
+      groundExtras = addForgeSpaceGrid(scene, maxDim);
     }
     camera.position.set(maxDim * (showcase ? 1.22 : 1.35), maxDim * (showcase ? 0.82 : 0.95), maxDim * (showcase ? 1.48 : 1.7));
     camera.lookAt(0, 0, 0);
@@ -875,9 +1017,16 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     let frameId = 0;
     let paintT = revealed && !interactive ? 1 : 0;
     let lastFrame = performance.now();
+    let lastPlacedVoxels = Math.min(
+      forgeVoxels.length,
+      Math.round(Math.min(1, Math.max(0, progress)) * forgeVoxels.length),
+    );
+    let dropAnimStart = performance.now() - 300;
+    const VOXEL_PARTICLE_MS = 520;
+    const particleLandMs = () => (forgeTapRelaxed ? 900 : VOXEL_PARTICLE_MS) * 0.68;
     const smoothProgressRef = { current: progress };
     const clayDark = new THREE.Color("#6a6a6a");
-    const clayLight = new THREE.Color("#c8c8c8");
+    const clayLight = new THREE.Color(0xffffff);
     const painted = new THREE.Color();
     const mixed = new THREE.Color();
 
@@ -897,7 +1046,17 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const targetP = st.revealed ? 1 : Math.min(1, Math.max(0, st.progress));
       const lerpK = 1 - Math.pow(0.001, dt / 16.67);
       const snap = performanceMode ? 0.95 : 0.55;
-      smoothProgressRef.current += (targetP - smoothProgressRef.current) * lerpK * snap;
+      const useVoxelForge = isLiveForge && voxelInst && forgeVoxels.length > 0;
+      if (useVoxelForge) {
+        const placed = Math.min(forgeVoxels.length, Math.round(targetP * forgeVoxels.length));
+        smoothProgressRef.current = placed / forgeVoxels.length;
+        if (placed > lastPlacedVoxels) {
+          lastPlacedVoxels = placed;
+          dropAnimStart = now;
+        }
+      } else {
+        smoothProgressRef.current += (targetP - smoothProgressRef.current) * lerpK * snap;
+      }
       assemblyRef.current = smoothProgressRef.current;
       const assembly = smoothProgressRef.current;
 
@@ -910,38 +1069,45 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       }
 
       const scaledParts = assembly * n;
-      const partsDone = Math.floor(scaledParts);
+      const partsDone = Math.floor(scaledParts + 0.0001);
       const activePartFrac = scaledParts - partsDone;
       let touchedMesh = false;
-
-      const useVoxelForge = isLiveForge && voxelInst && forgeVoxels.length > 0;
 
       if (useVoxelForge && voxelInst) {
         const voxMesh = voxelInst;
         voxMesh.visible = true;
+        const placedCount = Math.min(forgeVoxels.length, Math.round(targetP * forgeVoxels.length));
+        const sinceDrop = now - dropAnimStart;
+        const dropT = placedCount > 0
+          ? Math.min(1, Math.max(0, (sinceDrop - particleLandMs()) / 200))
+          : 0;
+        const dropEase = dropT * dropT * (3 - 2 * dropT);
+        const voxMat = voxMesh.material as THREE.MeshBasicMaterial;
+        voxMat.color.set(FORGE_CLAY);
+        voxMat.toneMapped = false;
+        voxMat.needsUpdate = true;
+
+        let visibleCount = 0;
         for (let i = 0; i < forgeVoxels.length; i++) {
           const v = forgeVoxels[i]!;
-          let lock = 0;
-          if (i < partsDone) lock = 1;
-          else if (i === partsDone) lock = activePartFrac;
+          const settled = i < placedCount - 1;
+          const landing = i === placedCount - 1 && placedCount > 0 && sinceDrop >= particleLandMs();
 
-          if (lock <= 0) {
-            voxelDummy.position.set(0, -999, 0);
-            voxelDummy.scale.set(0, 0, 0);
-          } else {
-            const eased = lock * lock * (3 - 2 * lock);
-            const drop = (1 - eased) * 1.75;
-            voxelDummy.position.set(v.x, v.y + drop, v.z);
-            voxelDummy.scale.setScalar(0.38 + eased * 0.62);
-            voxelDummy.rotation.set(0, 0, 0);
-            mixed.copy(clayDark).lerp(clayLight, eased);
-            voxMesh.setColorAt(i, mixed);
+          if (!settled && !landing) {
+            continue;
           }
+
+          const lock = settled ? 1 : dropEase;
+          const drop = settled ? 0 : (1 - lock) * 0.35;
+          voxelDummy.position.set(v.x, v.y + drop, v.z);
+          voxelDummy.scale.setScalar(Math.max(0.04, lock));
+          voxelDummy.rotation.set(0, 0, 0);
           voxelDummy.updateMatrix();
-          voxMesh.setMatrixAt(i, voxelDummy.matrix);
+          voxMesh.setMatrixAt(visibleCount, voxelDummy.matrix);
+          visibleCount++;
         }
+        voxMesh.count = visibleCount;
         voxMesh.instanceMatrix.needsUpdate = true;
-        if (voxMesh.instanceColor) voxMesh.instanceColor.needsUpdate = true;
         touchedMesh = true;
 
         group.children.forEach((child) => {
@@ -1088,7 +1254,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       cameraRef.current = null;
       rendererRef.current = null;
     };
-  }, [size, meshParts, shapeId, autoSpin, interactive, opaqueBackground, accentColor, performanceMode, revealed]);
+  }, [size, meshParts, shapeId, autoSpin, interactive, forgeVoxelBuild, forgeTapRelaxed, opaqueBackground, accentColor, performanceMode, revealed]);
 
   return (
     <div

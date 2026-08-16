@@ -1042,6 +1042,18 @@ function loadState(): GameState {
           redStarBalance: (parsed as unknown as Record<string, unknown>).redStarBalance as number ?? 0,
           nftStarBalance: (parsed as unknown as Record<string, unknown>).nftStarBalance as number ?? 0,
         };
+        if (base.forgingModel) {
+          const forgeShapeId = base.forgingModel.shapeId
+            || getModelById(base.forgingModel.modelId)?.shapeId;
+          if (forgeShapeId) {
+            const forgeParts = getMeshParts(
+              forgeShapeId,
+              base.forgingModel.primaryColor,
+              base.forgingModel.accentColor,
+            );
+            base.goal = getForgeTapGoal(forgeParts);
+          }
+        }
         const resolvedTelegramId = telegramId || base.telegramId;
         // Only treat as "fresh load" when we did NOT find an entry keyed to the
         // current Telegram user. If matchingKey is null we fell back to a
