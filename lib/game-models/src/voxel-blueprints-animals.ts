@@ -78,21 +78,50 @@ function blockyHead(m: BlockMap, y0: number, y1: number, halfX: number, zBack: n
 
 function dogBp(_p: string, _a: string): VoxelCell[] {
   const m: BlockMap = new Map();
-  boxTone(m, -5, 0, -4, 5, 7, 3);
-  box(m, -3, 1, 3, 3, 6, 5, "w");
-  blockyHead(m, 7, 13, 5, -3, 5);
-  boxTone(m, -7, 9, -1, -5, 12, 2);
-  boxTone(m, 5, 9, -1, 7, 12, 2);
-  box(m, -2, 8, 6, 2, 10, 8, "w");
-  box(m, -1, 9, 8, 1, 10, 9, "k");
-  animalEyes(m, 11, 5);
-  animalCheeks(m, 10, 4);
-  boxTone(m, -6, 0, -2, -4, 3, 1);
-  boxTone(m, 4, 0, -2, 6, 3, 1);
-  box(m, -5, 0, 2, -3, 1, 4, "w");
-  box(m, 3, 0, 2, 5, 1, 4, "w");
-  boxTone(m, 4, 4, -5, 6, 5, -3, accentTone);
-  set(m, 6, 5, -4, "a");
+
+  // Seated puppy — same cute pose as the koala template
+  boxTone(m, -5, 0, -4, 5, 8, 3);
+  box(m, -4, 1, 3, 4, 7, 5, "w");
+
+  // Large blocky head
+  boxTone(m, -6, 8, -4, 6, 15, 5);
+  for (let y = 16; y <= 17; y++) {
+    const shrink = 18 - y;
+    boxTone(m, -6 + shrink, y, -4 + shrink, 6 - shrink, y, 5 - shrink);
+  }
+
+  // Floppy dog ears — hang down the sides (not on top like koala)
+  boxTone(m, -9, 9, -2, -6, 14, 2);
+  boxTone(m, 6, 9, -2, 9, 14, 2);
+  box(m, -8, 10, 0, -7, 13, 2, "w");
+  box(m, 7, 10, 0, 8, 13, 2, "w");
+
+  // Long snout — white muzzle + protruding black nose (reads as dog)
+  box(m, -3, 9, 5, 3, 11, 8, "w");
+  box(m, -2, 10, 8, 2, 13, 10, "k");
+  set(m, 0, 11, 10, "k");
+  set(m, -1, 13, 10, "k");
+  set(m, 1, 13, 10, "k");
+
+  animalEyes(m, 12, 5);
+  animalCheeks(m, 11, 4);
+
+  // Front paws hugging belly
+  boxTone(m, -8, 2, -1, -6, 7, 3);
+  boxTone(m, 6, 2, -1, 8, 7, 3);
+  box(m, -8, 1, 2, -6, 3, 5, "w");
+  box(m, 6, 1, 2, 8, 3, 5, "w");
+
+  box(m, -4, 0, 2, -2, 1, 5, "w");
+  box(m, 2, 0, 2, 4, 1, 5, "w");
+  boxTone(m, -2, 0, -3, 2, 1, 1);
+
+  // Tail curved up — key dog silhouette cue
+  boxTone(m, 3, 3, -4, 5, 4, -3);
+  boxTone(m, 4, 5, -5, 6, 8, -4);
+  boxTone(m, 5, 9, -5, 6, 11, -4, accentTone);
+  set(m, 6, 11, -4, "a");
+
   return compile(m);
 }
 
