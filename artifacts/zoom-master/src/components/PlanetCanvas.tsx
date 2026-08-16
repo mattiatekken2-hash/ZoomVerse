@@ -301,6 +301,7 @@ export function PlanetCanvas({
     : FORGE_CLAY_HEX;
 
   const modelDef = liveModel ? getModelById(liveModel.modelId) : undefined;
+  const forgeShapeId = liveModel?.shapeId || modelDef?.shapeId;
   const objectParts = useMemo(() => {
     if (!liveModel) return undefined;
     const shapeId = liveModel.shapeId || modelDef?.shapeId;
@@ -424,6 +425,7 @@ export function PlanetCanvas({
             ref={meshRef}
             key={liveModel.modelId}
             parts={objectParts}
+            shapeId={forgeShapeId}
             primaryColor={displayPrimary}
             accentColor={displayAccent}
             progress={buildProgress}

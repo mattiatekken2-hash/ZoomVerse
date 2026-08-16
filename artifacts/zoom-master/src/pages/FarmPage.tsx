@@ -177,7 +177,6 @@ function FarmModelThumb({
           primaryColor={primaryColor}
           accentColor={accentColor}
           size={size}
-          performanceMode
           onGlFailed={handleGlError}
           onGlContextLost={handleGlError}
         />

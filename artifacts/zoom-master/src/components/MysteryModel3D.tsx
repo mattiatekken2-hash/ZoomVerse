@@ -35,6 +35,10 @@ function isShowcaseView(
   revealed: boolean,
   forgeVoxelBuild: boolean,
 ): boolean {
+  // Farm/Market thumbs: finished voxel collectibles match Lab reveal quality.
+  if (forgeVoxelBuild && revealed) {
+    return size >= 72 || opaqueBackground;
+  }
   if (performanceMode) return false;
   if (forgeVoxelBuild && !revealed) return false;
   if (interactive && !revealed) return false;
