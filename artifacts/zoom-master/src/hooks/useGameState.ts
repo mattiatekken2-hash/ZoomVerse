@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
-import { getForgeTapGoalForShape, getMeshParts, makeModelInstance, rollModelDefinition, getModelById } from "@workspace/game-models";
+import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID } from "@workspace/game-models";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import type { CollectibleItem } from "../utils/collectibleConfig";
@@ -11,12 +11,6 @@ export type ZoomModel = ZoomModelApiShape;
 import { generateRandomFloat } from "../utils/planetFloat";
 import { getBrowserDevTelegramId, DEV_TG_ID_STORAGE_KEY } from "../utils/telegram";
 import { toast } from "./use-toast";
-
-/** Lab forge override — set null to restore random models. */
-const LAB_FORCE_SHAPE_ID: string | null = "duck";
-const LAB_FORCE_SHAPE_META: Record<string, { name: string; primaryColor: string; accentColor: string }> = {
-  duck: { name: "Voxel Duck", primaryColor: "#ffd54f", accentColor: "#ff9800" },
-};
 
 // Server-authoritative clock: every farming/idle-income time check is computed
 // against this value, NOT the device clock. Calibrated against /api/server-time
@@ -143,7 +137,7 @@ export interface Planet {
   // Defaults to 1h when absent. Persists in planetsJson and survives
   // market listing/sale — the buyer inherits the upgraded duration.
   farmDurationHours?: number;
-  /** Lab-forged 3D object from the 100-model catalog. */
+  /** @deprecated Legacy catalog model id — stripped on load; farm shows planets only. */
   modelId?: string;
   modelName?: string;
   shapeId?: string;
@@ -214,6 +208,8 @@ export interface GameState {
   pendingModelCost: number;
   /** Object being assembled in the Lab — rolled on the first tap so the final shape is visible while forging. */
   forgingModel: ZoomModel | null;
+  /** When true, the active Lab craft builds a voxel planet sphere (not a catalog model). */
+  forgePlanetBuild: boolean;
   /** True while awaiting server roll after forge completes. */
   forgeRolling: boolean;
   /** 3D collectible models forged in the Lab (100-model catalog). */
@@ -851,6 +847,7 @@ const INITIAL_STATE: GameState = {
   pendingModel: null,
   pendingModelCost: 0,
   forgingModel: null,
+  forgePlanetBuild: false,
   forgeRolling: false,
   models: [],
   currentCraftRarity: null,
@@ -948,14 +945,19 @@ export const REPAIR_STARDUST_COST: Partial<Record<PlanetType, number>> = {
 
 function migratePlanet(p: unknown): Planet {
   const raw = p as Partial<Planet>;
-  return {
+  const planet = {
     isFarmingActive: false,
     marketPrice: null,
     slotIndex: null,
-    durability: 100,          // default: full health for legacy planets
+    durability: 100,
     durabilityUpdatedAt: 0,
     ...raw,
   } as Planet;
+  if (planet.shapeId === FORGE_SPHERE_SHAPE_ID) {
+    const { shapeId: _drop, ...rest } = planet;
+    return rest as Planet;
+  }
+  return planet;
 }
 
 // True when loadState() did NOT find a matching localStorage entry for the
@@ -997,10 +999,12 @@ function loadState(): GameState {
         // the server-hydration path is safe and idempotent. See the
         // function's docstring for the invariant.
         const nowMs = serverNow();
-        const migratedPlanets = (parsed.planets || [])
-          .map(migratePlanet)
-          .map((p) => applyDailyCollectMigration(p, nowMs))
-          .map(applyModelRarityColors);
+        const migratedPlanets = stripLegacyCatalogModels(
+          (parsed.planets || [])
+            .map(migratePlanet)
+            .map((p) => applyDailyCollectMigration(p, nowMs))
+            .map(applyModelRarityColors),
+        );
         const base: GameState = {
           ...INITIAL_STATE,
           ...parsed,
@@ -1010,8 +1014,9 @@ function loadState(): GameState {
           pendingModel: parsed.pendingModel ?? null,
           pendingModelCost: typeof parsed.pendingModelCost === "number" ? parsed.pendingModelCost : 0,
           forgingModel: parsed.forgingModel ?? null,
+          forgePlanetBuild: !!parsed.forgePlanetBuild,
           forgeRolling: false,
-          models: Array.isArray(parsed.models) ? parsed.models : [],
+          models: [] as ZoomModel[],
           usedRedeemCodes: parsed.usedRedeemCodes || [],
           sun: parsed.sun || null,
           referralSpeedBonus: parsed.referralSpeedBonus ?? 0,
@@ -1048,22 +1053,17 @@ function loadState(): GameState {
           redStarBalance: (parsed as unknown as Record<string, unknown>).redStarBalance as number ?? 0,
           nftStarBalance: (parsed as unknown as Record<string, unknown>).nftStarBalance as number ?? 0,
         };
+        if (base.forgePlanetBuild && base.currentCraftRarity) {
+          base.goal = forgeSphereTapGoal();
+        } else if (base.currentCraftRarity) {
+          base.goal = PLANET_CONFIG[base.currentCraftRarity]?.tapsNeeded ?? 100;
+        }
         if (base.forgingModel) {
-          const forgeShapeId = base.forgingModel.shapeId
-            || getModelById(base.forgingModel.modelId)?.shapeId;
-          if (forgeShapeId) {
-            const forgeParts = getMeshParts(
-              forgeShapeId,
-              base.forgingModel.primaryColor,
-              base.forgingModel.accentColor,
-            );
-            base.goal = getForgeTapGoalForShape(
-              forgeShapeId,
-              forgeParts,
-              base.forgingModel.primaryColor,
-              base.forgingModel.accentColor,
-            );
-          }
+          base.forgingModel = null;
+        }
+        if (base.pendingModel) {
+          base.pendingModel = null;
+          base.pendingModelCost = 0;
         }
         const resolvedTelegramId = telegramId || base.telegramId;
         // Only treat as "fresh load" when we did NOT find an entry keyed to the
@@ -1579,6 +1579,11 @@ function persistCollectionPlanet(telegramId: string | null | undefined, planet: 
   void upsertCollectionPlanet(telegramId, snap);
 }
 
+/** Lab forge always builds a grey voxel sphere; claim stores a classic orb planet. */
+function forgeTapGoalForPlanet(_rarity: PlanetType): number {
+  return forgeSphereTapGoal();
+}
+
 function makePlanet(rarity: PlanetType): Planet {
   const cfg = PLANET_CONFIG[rarity];
   const now = serverNow();
@@ -1668,6 +1673,15 @@ function applyModelRarityColors(planet: Planet): Planet {
   const { color, glowColor } = getRarityColorsForModel(planet.name);
   if (planet.color === color && planet.glowColor === glowColor) return planet;
   return { ...planet, color, glowColor };
+}
+
+/** Legacy Lab catalog items (burger, minifig, etc.) — no longer shown in farm. */
+export function isLegacyCatalogModelPlanet(planet: Pick<Planet, "modelId">): boolean {
+  return !!planet.modelId;
+}
+
+function stripLegacyCatalogModels(planets: Planet[]): Planet[] {
+  return planets.filter((p) => !isLegacyCatalogModelPlanet(p));
 }
 
 function makePlanetFromModel(model: ZoomModel, craftCost: number): Planet {
@@ -2042,6 +2056,20 @@ export function useGameState() {
     if (state.lastBalanceEpoch) setCurrentBalanceEpoch(state.lastBalanceEpoch);
   }
 
+  const legacyModelsStrippedRef = useRef(false);
+  useEffect(() => {
+    if (legacyModelsStrippedRef.current) return;
+    legacyModelsStrippedRef.current = true;
+    setState((prev) => {
+      const planets = stripLegacyCatalogModels(prev.planets);
+      const hadLegacy = planets.length !== prev.planets.length || (prev.models?.length ?? 0) > 0;
+      if (!hadLegacy) return prev;
+      const updated = { ...prev, planets, models: [] as ZoomModel[] };
+      stateRef.current = updated;
+      return updated;
+    });
+  }, []);
+
   // Throttle save+sync: writes & network traffic are expensive on every state change.
   // Debounce 400ms so rapid taps coalesce into one save+sync. Always flush on hide/unload.
   useEffect(() => {
@@ -2260,7 +2288,7 @@ export function useGameState() {
           equipment: serverEquipment.ok ? serverEquipment.equipment : (prev.equipment ?? []),
           // Collectible items: same pattern as equipment.
           items: serverItems.ok ? (serverItems.items as CollectibleItem[]) : (prev.items ?? []),
-          models: serverModels.ok ? (serverModels.models as ZoomModel[]) : (prev.models ?? []),
+          models: [] as ZoomModel[],
           weeklyRedStarDay: Math.min(7, Math.max(1, Number(grants.weeklyRedStarDay ?? 1))),
           weeklyRedStarClaimedToday: !!grants.weeklyRedStarClaimedToday,
         };
@@ -2396,11 +2424,12 @@ export function useGameState() {
             const nowMs = serverNow();
             updated = {
               ...updated,
-              planets: (serverRegular.planets as unknown as Planet[])
-                .map(migrateLegacyNeverStartedPlanet)
-                .map((p) => applyDailyCollectMigration(p, nowMs))
-                .map(applyModelRarityColors)
-                .map((serverP) => {
+              planets: stripLegacyCatalogModels(
+                (serverRegular.planets as unknown as Planet[])
+                  .map(migrateLegacyNeverStartedPlanet)
+                  .map((p) => applyDailyCollectMigration(p, nowMs))
+                  .map(applyModelRarityColors)
+                  .map((serverP) => {
                   // Race-condition guard: the debounced save (1.2s) may not
                   // have reached the server yet when this sync fires.
                   // Preserve client-side listing state so a listed planet
@@ -2423,6 +2452,7 @@ export function useGameState() {
                   }
                   return serverP;
                 }),
+              ),
             };
           }
           updated = {
@@ -3694,14 +3724,13 @@ export function useGameState() {
     };
   }, []);
 
-  const craft = useCallback((availableStardust?: number): { completed: boolean; model?: ZoomModel; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType } => {
+  const craft = useCallback((availableStardust?: number): { completed: boolean; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType } => {
     const current = stateRef.current;
     if (current.pendingModel || current.pendingPlanet || current.forgeRolling) return { completed: false };
     if (current.planets.length >= current.maxSlots) return { completed: false };
 
     let rarity = current.currentCraftRarity;
     let goal = current.goal;
-    let forging: ZoomModel | null = current.forgingModel;
 
     if (rarity === null) {
       rarity = rollRarity();
@@ -3710,24 +3739,12 @@ export function useGameState() {
       if (stardustBalance < config.craftCost) {
         return { completed: false };
       }
-      forging = makeModelInstance(rollModelDefinition()) as ZoomModel;
-      if (LAB_FORCE_SHAPE_ID) {
-        const forced = LAB_FORCE_SHAPE_META[LAB_FORCE_SHAPE_ID];
-        forging = {
-          ...forging,
-          shapeId: LAB_FORCE_SHAPE_ID,
-          name: forced?.name ?? forging.name,
-          primaryColor: forced?.primaryColor ?? forging.primaryColor,
-          accentColor: forced?.accentColor ?? forging.accentColor,
-        };
-      }
-      const forgeShapeId = forging.shapeId || getModelById(forging.modelId)?.shapeId || "minifig";
-      const forgeParts = getMeshParts(forgeShapeId, forging.primaryColor, forging.accentColor);
-      goal = getForgeTapGoalForShape(forgeShapeId, forgeParts, forging.primaryColor, forging.accentColor);
+      goal = forgeTapGoalForPlanet(rarity);
       setState((prev) => ({
         ...prev,
         stardustBalance: prev.stardustBalance - config.craftCost,
-        forgingModel: forging,
+        forgingModel: null,
+        forgePlanetBuild: true,
         goal,
       }));
       if (current.telegramId) {
@@ -3758,6 +3775,7 @@ export function useGameState() {
             pendingModel: null,
             pendingModelCost: 0,
             forgingModel: null,
+            forgePlanetBuild: false,
             forgeRolling: false,
           };
           schedulePersist(next);
@@ -3767,7 +3785,8 @@ export function useGameState() {
       }
 
       setState((prev) => {
-        const finished = prev.forgingModel ?? forging ?? makeModelInstance(rollModelDefinition()) as ZoomModel;
+        const finishedPlanet = makePlanet(rarity);
+        finishedPlanet.craftCost = craftCost;
         const next: GameState = {
           ...prev,
           taps: 0,
@@ -3775,8 +3794,11 @@ export function useGameState() {
           totalTaps: (prev.totalTaps || 0) + 1,
           currentCraftRarity: null,
           forgingModel: null,
-          pendingModel: finished,
-          pendingModelCost: craftCost,
+          forgePlanetBuild: false,
+          pendingPlanet: finishedPlanet,
+          pendingPlanetCost: craftCost,
+          pendingModel: null,
+          pendingModelCost: 0,
           forgeRolling: false,
           craftsCompleted: prev.craftsCompleted + 1,
         };
@@ -3793,7 +3815,7 @@ export function useGameState() {
           goal,
           totalTaps: (prev.totalTaps || 0) + 1,
           currentCraftRarity: rarity,
-          forgingModel: prev.forgingModel ?? forging,
+          forgePlanetBuild: prev.forgePlanetBuild,
         };
         schedulePersist(next);
         return next;
@@ -3804,30 +3826,10 @@ export function useGameState() {
 
   const claimCraft = useCallback((): { ok: boolean; reason?: string } => {
     let outcome: { ok: boolean; reason?: string } = { ok: true };
-    let claimedModel: ZoomModel | null = null;
     let claimedName: PlanetType | null = null;
     let claimedCost = 0;
 
     setState((prev) => {
-      if (prev.pendingModel) {
-        if (prev.planets.length >= prev.maxSlots) {
-          outcome = { ok: false, reason: "Slots full" };
-          try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: "Slots full", ok: false } })); } catch { /**/ }
-          return prev;
-        }
-        const planet = makePlanetFromModel(prev.pendingModel, prev.pendingModelCost || 0);
-        claimedModel = prev.pendingModel;
-        claimedName = planet.name;
-        claimedCost = prev.pendingModelCost || 0;
-        return {
-          ...prev,
-          planets: [...prev.planets, planet],
-          models: [...(prev.models ?? []), prev.pendingModel],
-          pendingModel: null,
-          pendingModelCost: 0,
-          forgingModel: null,
-        };
-      }
       if (!prev.pendingPlanet) { outcome = { ok: false, reason: "Nothing to claim" }; return prev; }
       if (prev.planets.length >= prev.maxSlots) {
         outcome = { ok: false, reason: "Slots full" };
@@ -3843,13 +3845,6 @@ export function useGameState() {
         pendingPlanetCost: 0,
       };
     });
-
-    if (outcome.ok && claimedModel) {
-      const { telegramId: tid } = getTelegramContext();
-      if (tid) {
-        void claimModelApi(tid, claimedModel);
-      }
-    }
 
     if (outcome.ok && claimedName) {
       const { telegramId: tid } = getTelegramContext();

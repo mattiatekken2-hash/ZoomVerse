@@ -30,63 +30,6 @@ function koala(_p: string, _a: string) {
   ];
 }
 
-function pig(_p: string, _a: string) {
-  return [
-    pt("body", "box", 0, 0.32, 0, 0.42, 0.28, 0.34, "#f48fb1", { profile: "fur" }),
-    pt("head", "box", 0, 0.52, 0.22, 0.22, 0.2, 0.22, "#f48fb1", { profile: "fur" }),
-    pt("snout", "box", 0, 0.46, 0.38, 0.14, 0.12, 0.1, "#f06292", { profile: "fur" }),
-    pt("nostrilL", "sphere", -0.04, 0.46, 0.44, 0.02, 0.02, 0.02, C.DARK),
-    pt("nostrilR", "sphere", 0.04, 0.46, 0.44, 0.02, 0.02, 0.02, C.DARK),
-    pt("earL", "box", -0.12, 0.62, 0.2, 0.06, 0.08, 0.06, "#f48fb1", { profile: "fur" }),
-    pt("earR", "box", 0.12, 0.62, 0.2, 0.06, 0.08, 0.06, "#f48fb1", { profile: "fur" }),
-    pt("leg1", "cyl", 0.14, 0.12, 0.12, 0.06, 0.18, 0.06, "#f48fb1", { profile: "fur" }),
-    pt("leg2", "cyl", -0.14, 0.12, 0.12, 0.06, 0.18, 0.06, "#f48fb1", { profile: "fur" }),
-    pt("leg3", "cyl", 0.14, 0.12, -0.12, 0.06, 0.18, 0.06, "#f48fb1", { profile: "fur" }),
-    pt("leg4", "cyl", -0.14, 0.12, -0.12, 0.06, 0.18, 0.06, "#f48fb1", { profile: "fur" }),
-    pt("tail", "capsule", 0.22, 0.38, -0.18, 0.04, 0.16, 0.04, "#f48fb1", { rz: 0.8, profile: "fur" }),
-    pt("eyeL", "sphere", -0.08, 0.56, 0.34, 0.03, 0.03, 0.03, C.DARK),
-    pt("eyeR", "sphere", 0.08, 0.56, 0.34, 0.03, 0.03, 0.03, C.DARK),
-  ];
-}
-
-function dragon(_p: string, _a: string) {
-  return [
-    pt("body", "box", 0, 0.36, 0, 0.38, 0.28, 0.3, "#7b1fa2", { profile: "fur" }),
-    pt("head", "box", 0, 0.58, 0.18, 0.24, 0.22, 0.24, "#7b1fa2", { profile: "fur" }),
-    pt("snout", "box", 0, 0.52, 0.34, 0.14, 0.1, 0.12, "#7b1fa2", { profile: "fur" }),
-    pt("hornL", "cone", -0.08, 0.72, 0.28, 0.04, 0.1, 0.04, "#ffeb3b", { profile: "fur" }),
-    pt("hornR", "cone", 0.08, 0.72, 0.28, 0.04, 0.1, 0.04, "#ffeb3b", { profile: "fur" }),
-    pt("wingL", "box", -0.34, 0.42, 0, 0.08, 0.04, 0.32, "#ffd54f", { profile: "fur" }),
-    pt("wingR", "box", 0.34, 0.42, 0, 0.08, 0.04, 0.32, "#ffd54f", { profile: "fur" }),
-    pt("leg1", "cyl", 0.12, 0.12, 0.1, 0.06, 0.18, 0.06, "#7b1fa2", { profile: "fur" }),
-    pt("leg2", "cyl", -0.12, 0.12, 0.1, 0.06, 0.18, 0.06, "#7b1fa2", { profile: "fur" }),
-    pt("leg3", "cyl", 0.12, 0.12, -0.1, 0.06, 0.18, 0.06, "#7b1fa2", { profile: "fur" }),
-    pt("leg4", "cyl", -0.12, 0.12, -0.1, 0.06, 0.18, 0.06, "#7b1fa2", { profile: "fur" }),
-    pt("tail", "capsule", -0.28, 0.34, -0.08, 0.05, 0.28, 0.05, "#7b1fa2", { rz: 0.5, profile: "fur" }),
-    pt("eyeL", "sphere", -0.08, 0.6, 0.3, 0.03, 0.03, 0.03, C.DARK),
-    pt("eyeR", "sphere", 0.08, 0.6, 0.3, 0.03, 0.03, 0.03, C.DARK),
-  ];
-}
-
-function pony(_p: string, _a: string) {
-  return [
-    pt("body", "box", 0, 0.36, 0, 0.38, 0.26, 0.3, "#7b1fa2", { profile: "fur" }),
-    pt("head", "box", 0.18, 0.52, 0.12, 0.2, 0.2, 0.2, "#7b1fa2", { profile: "fur" }),
-    pt("snout", "box", 0.32, 0.46, 0.18, 0.1, 0.08, 0.1, "#e1bee7", { profile: "fur" }),
-    pt("mane", "box", 0.12, 0.62, 0.08, 0.06, 0.14, 0.08, "#e1bee7", { profile: "fur" }),
-    pt("horn", "cone", 0.18, 0.72, 0.14, 0.04, 0.12, 0.04, "#ffffff", { profile: "fur" }),
-    pt("wingL", "box", -0.32, 0.4, 0.04, 0.06, 0.04, 0.28, "#b3e5fc", { profile: "fur" }),
-    pt("wingR", "box", 0.32, 0.4, 0.04, 0.06, 0.04, 0.28, "#b3e5fc", { profile: "fur" }),
-    pt("leg1", "cyl", 0.14, 0.12, 0.1, 0.05, 0.2, 0.05, "#7b1fa2", { profile: "fur" }),
-    pt("leg2", "cyl", -0.14, 0.12, 0.1, 0.05, 0.2, 0.05, "#7b1fa2", { profile: "fur" }),
-    pt("leg3", "cyl", 0.14, 0.12, -0.1, 0.05, 0.2, 0.05, "#7b1fa2", { profile: "fur" }),
-    pt("leg4", "cyl", -0.14, 0.12, -0.1, 0.05, 0.2, 0.05, "#7b1fa2", { profile: "fur" }),
-    pt("tail", "capsule", -0.28, 0.36, 0, 0.04, 0.24, 0.04, "#e1bee7", { rz: 0.3, profile: "fur" }),
-    pt("eyeL", "sphere", 0.12, 0.56, 0.22, 0.03, 0.03, 0.03, C.DARK),
-    pt("eyeR", "sphere", 0.24, 0.56, 0.22, 0.03, 0.03, 0.03, C.DARK),
-  ];
-}
-
 function monkey(_p: string, _a: string) {
   return [
     pt("body", "sphere", 0, 0.36, 0, 0.28, 0.32, 0.26, "#8b5a2a", { profile: "fur" }),
@@ -316,27 +259,9 @@ function treasureChest(p: string, a: string) {
   ];
 }
 
-function duck(_p: string, a: string) {
-  return [
-    pt("body", "box", 0, 0.22, 0, 0.38, 0.28, 0.32, "#ffd54f", { profile: "fur" }),
-    pt("head", "box", 0, 0.48, 0.14, 0.22, 0.2, 0.2, "#ffeb3b", { profile: "fur" }),
-    pt("bill", "box", 0, 0.42, 0.32, 0.12, 0.07, 0.1, a || "#ff9800", { profile: "fur" }),
-    pt("wingL", "box", -0.22, 0.28, 0.02, 0.08, 0.04, 0.14, "#ffc107", { profile: "fur" }),
-    pt("wingR", "box", 0.22, 0.28, 0.02, 0.08, 0.04, 0.14, "#ffc107", { profile: "fur" }),
-    pt("tail", "box", 0, 0.34, -0.2, 0.08, 0.06, 0.06, "#ffc107", { profile: "fur" }),
-    pt("footL", "box", -0.12, 0.02, 0.08, 0.08, 0.04, 0.1, a || "#ff9800", { profile: "fur" }),
-    pt("footR", "box", 0.12, 0.02, 0.08, 0.08, 0.04, 0.1, a || "#ff9800", { profile: "fur" }),
-    pt("eyeL", "sphere", -0.08, 0.52, 0.26, 0.03, 0.03, 0.03, C.DARK),
-    pt("eyeR", "sphere", 0.08, 0.52, 0.26, 0.03, 0.03, 0.03, C.DARK),
-  ];
-}
-
 export const ANIMAL_MISC_SHAPES: ShapeEntry[] = [
   { id: "lion", name: "Lion", category: "animal", build: lion },
   { id: "koala", name: "Koala", category: "animal", build: koala },
-  { id: "pig", name: "Pig", category: "animal", build: pig },
-  { id: "dragon", name: "Dragon", category: "animal", build: dragon },
-  { id: "pony", name: "Pony", category: "animal", build: pony },
   { id: "monkey", name: "Monkey", category: "animal", build: monkey },
   { id: "bear", name: "Brown Bear", category: "animal", build: bear },
   { id: "giraffe", name: "Giraffe", category: "animal", build: giraffe },
@@ -347,7 +272,6 @@ export const ANIMAL_MISC_SHAPES: ShapeEntry[] = [
   { id: "fox", name: "Fox", category: "animal", build: fox },
   { id: "rabbit", name: "Rabbit", category: "animal", build: rabbit },
   { id: "eagle", name: "Eagle", category: "animal", build: eagle },
-  { id: "duck", name: "Voxel Duck", category: "animal", build: duck },
   { id: "pokeball", name: "Pokeball", category: "gadget", build: pokeball },
   { id: "soccer_ball", name: "Soccer Ball", category: "daily", build: soccerBall },
   { id: "basketball", name: "Basketball", category: "daily", build: basketball },

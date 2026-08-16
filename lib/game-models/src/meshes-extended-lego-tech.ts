@@ -171,16 +171,6 @@ function smartphone(p: string, a: string) {
   ];
 }
 
-function pickaxe(_p: string, _a: string) {
-  return [
-    pt("handle", "cyl", 0, 0.42, 0, 0.04, 0.72, 0.04, "#6d4c41", { rough: 0.65 }),
-    pt("head", "box", 0, 0.82, 0, 0.14, 0.08, 0.08, "#78909c", { metal: 0.5 }),
-    pt("bladeL", "box", -0.18, 0.86, 0, 0.2, 0.06, 0.06, "#78909c", { metal: 0.55 }),
-    pt("bladeR", "box", 0.18, 0.86, 0, 0.2, 0.06, 0.06, "#78909c", { metal: 0.55 }),
-    pt("tip", "box", 0, 0.9, 0, 0.06, 0.06, 0.06, "#546e7a", { metal: 0.6 }),
-  ];
-}
-
 export const LEGO_TECH_SHAPES: ShapeEntry[] = [
   { id: "lego_astronaut", name: "Lego Astronaut", category: "character", build: legoAstronaut },
   { id: "lego_pirate", name: "Lego Pirate", category: "character", build: legoPirate },
@@ -197,5 +187,4 @@ export const LEGO_TECH_SHAPES: ShapeEntry[] = [
   { id: "monitor", name: "Monitor", category: "gadget", build: monitor },
   { id: "headphones", name: "Headphones", category: "gadget", build: headphones },
   { id: "smartphone", name: "Smartphone", category: "gadget", build: smartphone },
-  { id: "pickaxe", name: "Pickaxe", category: "gadget", build: pickaxe },
 ];

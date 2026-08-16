@@ -14,7 +14,7 @@ const API = `${window.location.origin}/api`;
 
 interface ComboState {
   comboEpoch: number;
-  required: string[];   // 3 PlanetType strings
+  required: string[];
   claimed: boolean;
   nextResetMs: number;
 }
@@ -46,6 +46,90 @@ function formatTimeLeft(ms: number): string {
   return `${m}m`;
 }
 
+function ComboGiftIcon({ size = 28, opacity = 1 }: { size?: number; opacity?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden style={{ opacity }}>
+      {/* Lid — top face */}
+      <path
+        d="M6 12.5 L16 7 L26 12.5 L16 18 Z"
+        fill="rgba(255,255,255,0.14)"
+        stroke="rgba(255,255,255,0.82)"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+      {/* Lid — left face */}
+      <path
+        d="M6 12.5 L16 18 V24.5 L6 19 Z"
+        fill="rgba(255,255,255,0.06)"
+        stroke="rgba(255,255,255,0.55)"
+        strokeWidth="1.1"
+        strokeLinejoin="round"
+      />
+      {/* Lid — right face */}
+      <path
+        d="M26 12.5 L16 18 V24.5 L26 19 Z"
+        fill="rgba(255,255,255,0.09)"
+        stroke="rgba(255,255,255,0.65)"
+        strokeWidth="1.1"
+        strokeLinejoin="round"
+      />
+      {/* Box — front left */}
+      <path
+        d="M6 19 L16 24.5 V29 L6 23.5 Z"
+        fill="rgba(255,255,255,0.04)"
+        stroke="rgba(255,255,255,0.48)"
+        strokeWidth="1.1"
+        strokeLinejoin="round"
+      />
+      {/* Box — front right */}
+      <path
+        d="M26 19 L16 24.5 V29 L26 23.5 Z"
+        fill="rgba(255,255,255,0.07)"
+        stroke="rgba(255,255,255,0.58)"
+        strokeWidth="1.1"
+        strokeLinejoin="round"
+      />
+      {/* Ribbon vertical */}
+      <path d="M16 7 V29" stroke="rgba(255,255,255,0.75)" strokeWidth="1.6" strokeLinecap="round" />
+      {/* Ribbon horizontal on lid */}
+      <path d="M6 12.5 L26 12.5" stroke="rgba(255,255,255,0.55)" strokeWidth="1.2" strokeLinecap="round" />
+      {/* Bow left loop */}
+      <path
+        d="M16 6.5 C13.5 4.5 10.5 5.2 10.8 7.8 C11 9.5 13 10.2 16 8.8"
+        fill="rgba(255,255,255,0.1)"
+        stroke="rgba(255,255,255,0.78)"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+      />
+      {/* Bow right loop */}
+      <path
+        d="M16 6.5 C18.5 4.5 21.5 5.2 21.2 7.8 C21 9.5 19 10.2 16 8.8"
+        fill="rgba(255,255,255,0.12)"
+        stroke="rgba(255,255,255,0.85)"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+      />
+      {/* Bow knot */}
+      <circle cx="16" cy="8.2" r="1.1" fill="rgba(255,255,255,0.35)" stroke="rgba(255,255,255,0.9)" strokeWidth="0.8" />
+    </svg>
+  );
+}
+
+function ComboCubeIcon({ size = 28, opacity = 1 }: { size?: number; opacity?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden style={{ opacity }}>
+      <path
+        d="M16 4L28 11v10L16 28 4 21V11L16 4z"
+        stroke="rgba(255,255,255,0.88)"
+        strokeWidth="1.4"
+        fill="rgba(255,255,255,0.06)"
+      />
+      <path d="M16 4v24M4 11l12 7 12-7M4 21l12-7 12 7" stroke="rgba(255,255,255,0.42)" strokeWidth="1" />
+      <path d="M16 11l8 4.5v9L16 29 8 24.5v-9L16 11z" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.25)" strokeWidth="0.8" />
+    </svg>
+  );
+}
+
 interface Props {
   telegramId: string | null;
   planets: Planet[];
@@ -58,7 +142,6 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed }: Props) {
   const [justClaimed, setJustClaimed] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
 
-  // Fetch combo state from server
   useEffect(() => {
     if (!telegramId) return;
     void fetchCombo(telegramId).then((c) => {
@@ -75,7 +158,6 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed }: Props) {
     return () => clearInterval(interval);
   }, [telegramId]);
 
-  // Countdown timer
   useEffect(() => {
     if (!combo) return;
     const t = setInterval(() => {
@@ -84,10 +166,9 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed }: Props) {
     return () => clearInterval(t);
   }, [combo]);
 
-  // Determine which required types the user has ACTIVELY FARMING
   const activeFarmingTypes = useMemo(
     () => new Set(planets.filter((p) => isFarmActive(p)).map((p) => p.name)),
-    [planets]
+    [planets],
   );
 
   const slotStatuses = useMemo(() => {
@@ -100,6 +181,7 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed }: Props) {
     }));
   }, [combo, activeFarmingTypes]);
 
+  const activeCount = slotStatuses.filter((s) => s.active).length;
   const allActive = slotStatuses.length === 3 && slotStatuses.every((s) => s.active);
   const canClaim = allActive && !combo?.claimed && !justClaimed && !!telegramId;
 
@@ -120,158 +202,253 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed }: Props) {
   if (!combo || !telegramId) return null;
 
   const claimed = combo.claimed || justClaimed;
+  const progressPct = Math.round((activeCount / 3) * 100);
 
   return (
     <div
+      className="combo-box-relax"
       style={{
-        borderRadius: 18,
-        border: "1.5px dashed rgba(255,215,0,0.35)",
-        background: "linear-gradient(135deg, rgba(255,215,0,0.06) 0%, rgba(20,12,4,0.8) 100%)",
-        padding: "14px 14px 12px",
+        borderRadius: 20,
+        border: "1.5px dashed rgba(255,255,255,0.42)",
+        background: "linear-gradient(165deg, rgba(255,255,255,0.07) 0%, rgba(18,20,28,0.92) 38%, rgba(8,9,14,0.96) 100%)",
+        padding: "16px 16px 14px",
         contain: "layout style paint",
+        boxShadow: `
+          0 1px 0 rgba(255,255,255,0.12) inset,
+          0 -1px 0 rgba(0,0,0,0.35) inset,
+          0 12px 32px rgba(0,0,0,0.38),
+          0 0 0 1px rgba(255,255,255,0.04)
+        `,
       }}
     >
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 18 }}>🎁</span>
-          <span style={{ fontWeight: 900, fontSize: 14, letterSpacing: "0.07em", color: "#ffd700" }}>COMBO</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 10,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: "linear-gradient(145deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.04) 100%)",
+              border: "1px solid rgba(255,255,255,0.22)",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.25), 0 1px 0 rgba(255,255,255,0.18) inset",
+            }}
+          >
+            <ComboGiftIcon size={22} />
+          </div>
+          <span
+            style={{
+              fontWeight: 900,
+              fontSize: 15,
+              letterSpacing: "0.14em",
+              color: "#ffffff",
+              textShadow: "0 1px 0 rgba(255,255,255,0.35), 0 2px 8px rgba(0,0,0,0.45)",
+            }}
+          >
+            COMBO
+          </span>
         </div>
+
         <div
           style={{
-            background: claimed ? "rgba(0,230,118,0.15)" : "rgba(255,215,0,0.12)",
-            border: `1px solid ${claimed ? "rgba(0,230,118,0.4)" : "rgba(255,215,0,0.35)"}`,
-            borderRadius: 20,
-            padding: "2px 10px",
+            background: "linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.03) 100%)",
+            border: "1px solid rgba(255,255,255,0.28)",
+            borderRadius: 999,
+            padding: "4px 12px",
             display: "flex",
             alignItems: "center",
-            gap: 5,
+            gap: 6,
             fontSize: 11,
-            fontWeight: 900,
-            color: claimed ? "#00e676" : "#ffd700",
+            fontWeight: 800,
+            color: claimed ? "#a8f0c8" : "rgba(255,255,255,0.88)",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.2), 0 1px 0 rgba(255,255,255,0.12) inset",
           }}
         >
           {claimed ? (
             <>✓ CLAIMED</>
           ) : (
             <>
-              <span style={{ fontSize: 13, color: "#ff4444", textShadow: "0 0 6px rgba(255,68,68,0.7)" }}>★</span>
+              <span style={{ fontSize: 12, color: "#ff6b6b", textShadow: "0 0 8px rgba(255,80,80,0.45)" }}>★</span>
               2 Redstar
             </>
           )}
         </div>
       </div>
 
-      {/* Description */}
-      <p style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", margin: "0 0 10px", lineHeight: 1.5 }}>
-        Have all 3 planets <strong style={{ color: "rgba(255,255,255,0.7)" }}>actively farming</strong> and claim 2 <span style={{ color: "#ff4444", fontWeight: 900 }}>★</span> Redstar!
-        Changes every 48h.
+      {/* Progress bar — soft white 3D track */}
+      <div style={{ marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 10, fontWeight: 700 }}>
+          <span style={{ color: "rgba(255,255,255,0.45)" }}>Progress</span>
+          <span style={{ color: "rgba(255,255,255,0.82)", fontVariantNumeric: "tabular-nums" }}>
+            {activeCount} / 3
+            <span style={{ marginLeft: 6, color: "#ff6b6b" }}>★</span>
+          </span>
+        </div>
+        <div
+          style={{
+            height: 8,
+            borderRadius: 999,
+            background: "rgba(0,0,0,0.35)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.35) inset",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              height: "100%",
+              width: `${claimed ? 100 : progressPct}%`,
+              borderRadius: 999,
+              background: claimed
+                ? "linear-gradient(90deg, rgba(168,240,200,0.85), rgba(120,220,160,0.75))"
+                : "linear-gradient(90deg, rgba(255,255,255,0.92), rgba(210,215,225,0.75))",
+              boxShadow: "0 0 12px rgba(255,255,255,0.25)",
+              transition: "width 0.45s ease",
+            }}
+          />
+        </div>
+      </div>
+
+      <p style={{ fontSize: 10, color: "rgba(255,255,255,0.52)", margin: "0 0 12px", lineHeight: 1.55 }}>
+        Have all 3 planets <strong style={{ color: "rgba(255,255,255,0.82)", fontWeight: 800 }}>actively farming</strong> and claim 2{" "}
+        <span style={{ color: "#ff6b6b", fontWeight: 900 }}>★</span> Redstar. Changes every 48h.
       </p>
 
-      {/* 3 slots — rarity is HIDDEN until the user actively farms that planet type.
-           Only when a matching planet is in farm does the slot reveal itself. */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
+      {/* 3 mystery slots — white 3D cubes */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
         {slotStatuses.map((slot, i) => {
           const revealed = slot.active || claimed;
           return (
-          <div
-            key={i}
-            style={{
-              background: revealed
-                ? `linear-gradient(135deg, ${slot.color}22 0%, ${slot.color}0d 100%)`
-                : "rgba(255,255,255,0.04)",
-              border: `1.5px solid ${revealed ? slot.color + "66" : "rgba(255,255,255,0.12)"}`,
-              borderRadius: 12,
-              padding: "10px 6px 8px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 5,
-              position: "relative",
-              transition: "border-color 0.3s, background 0.3s",
-            }}
-          >
-            {/* Status dot — only shown when revealed */}
-            {revealed && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: 6,
-                  right: 6,
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: slot.active ? "#00e676" : "rgba(255,255,255,0.3)",
-                  boxShadow: slot.active ? "0 0 6px #00e676" : "none",
-                }}
-              />
-            )}
-            {/* Planet icon — "?" when hidden, planet emoji + color when revealed */}
             <div
+              key={i}
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
-                background: revealed ? slot.color + "33" : "rgba(255,255,255,0.06)",
-                border: `1px solid ${revealed ? slot.color + "55" : "rgba(255,255,255,0.1)"}`,
+                background: revealed
+                  ? `linear-gradient(160deg, rgba(255,255,255,0.1) 0%, ${slot.color}18 55%, rgba(0,0,0,0.35) 100%)`
+                  : "linear-gradient(160deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)",
+                border: `1.5px solid ${revealed ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.18)"}`,
+                borderRadius: 14,
+                padding: "12px 8px 10px",
                 display: "flex",
+                flexDirection: "column",
                 alignItems: "center",
-                justifyContent: "center",
-                fontSize: revealed ? 18 : 20,
-                color: revealed ? undefined : "rgba(255,255,255,0.2)",
-                fontWeight: revealed ? undefined : 900,
+                gap: 6,
+                position: "relative",
+                transition: "border-color 0.3s, background 0.3s, transform 0.25s",
+                boxShadow: revealed
+                  ? `0 6px 16px rgba(0,0,0,0.28), 0 1px 0 rgba(255,255,255,0.14) inset, 0 0 14px ${slot.color}22`
+                  : "0 4px 14px rgba(0,0,0,0.22), 0 1px 0 rgba(255,255,255,0.1) inset",
               }}
             >
-              {revealed ? "🪐" : "?"}
+              {revealed && slot.active && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 7,
+                    right: 7,
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: "#7dffb0",
+                    boxShadow: "0 0 8px rgba(125,255,176,0.75)",
+                  }}
+                />
+              )}
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: "linear-gradient(145deg, rgba(255,255,255,0.11) 0%, rgba(255,255,255,0.03) 100%)",
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 5px 14px rgba(0,0,0,0.28), 0 1px 0 rgba(255,255,255,0.15) inset",
+                }}
+              >
+                {revealed ? (
+                  <span style={{ fontSize: 22, filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.4))" }}>🪐</span>
+                ) : (
+                  <ComboCubeIcon size={30} opacity={0.75} />
+                )}
+              </div>
+              <span
+                style={{
+                  fontSize: 9,
+                  fontWeight: 800,
+                  color: revealed ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.35)",
+                  textAlign: "center",
+                  letterSpacing: "0.08em",
+                  textShadow: revealed ? "0 1px 4px rgba(0,0,0,0.35)" : undefined,
+                }}
+              >
+                {revealed ? slot.label.toUpperCase() : "???"}
+              </span>
+              {slot.active && (
+                <span style={{ fontSize: 8, color: "#a8f0c8", fontWeight: 900, letterSpacing: "0.06em" }}>✓ ACTIVE</span>
+              )}
             </div>
-            <span style={{
-              fontSize: 9,
-              fontWeight: 800,
-              color: revealed ? slot.color : "rgba(255,255,255,0.2)",
-              textAlign: "center",
-              letterSpacing: "0.05em",
-            }}>
-              {revealed ? slot.label.toUpperCase() : "???"}
-            </span>
-            {slot.active && (
-              <span style={{ fontSize: 8, color: "#00e676", fontWeight: 900 }}>✓ ACTIVE</span>
-            )}
-          </div>
           );
         })}
       </div>
 
-      {/* Claim / status */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      {/* Claim row */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <button
+          type="button"
           disabled={!canClaim || claiming}
           onClick={handleClaim}
           style={{
             flex: 1,
-            padding: "10px 0",
-            borderRadius: 12,
-            border: "none",
+            padding: "12px 0",
+            borderRadius: 14,
+            border: claimed
+              ? "1.5px solid rgba(168,240,200,0.45)"
+              : canClaim
+                ? "1.5px solid rgba(255,255,255,0.72)"
+                : "1.5px solid rgba(255,255,255,0.22)",
             fontWeight: 900,
-            fontSize: 13,
-            letterSpacing: "0.06em",
+            fontSize: 12,
+            letterSpacing: "0.12em",
             cursor: canClaim && !claiming ? "pointer" : "not-allowed",
             background: claimed
-              ? "rgba(0,230,118,0.12)"
+              ? "linear-gradient(180deg, rgba(168,240,200,0.12) 0%, rgba(0,0,0,0.2) 100%)"
               : canClaim
-              ? "linear-gradient(135deg, rgba(255,215,0,0.35) 0%, rgba(255,170,40,0.25) 100%)"
-              : "rgba(255,255,255,0.05)",
-            color: claimed ? "#00e676" : canClaim ? "#ffd700" : "rgba(255,255,255,0.2)",
-            boxShadow: canClaim && !claimed ? "0 0 20px rgba(255,215,0,0.2)" : "none",
-            transition: "all 0.2s",
+                ? "linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(0,0,0,0.28) 100%)"
+                : "linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(0,0,0,0.22) 100%)",
+            color: claimed ? "#a8f0c8" : canClaim ? "#ffffff" : "rgba(255,255,255,0.28)",
+            boxShadow: canClaim && !claimed
+              ? "0 6px 20px rgba(0,0,0,0.32), 0 1px 0 rgba(255,255,255,0.2) inset, 0 0 24px rgba(255,255,255,0.08)"
+              : "0 4px 12px rgba(0,0,0,0.22), 0 1px 0 rgba(255,255,255,0.08) inset",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            transition: "all 0.22s ease",
+            textShadow: canClaim ? "0 1px 3px rgba(0,0,0,0.35)" : undefined,
           }}
         >
-          {claiming ? "CLAIMING…" : claimed ? "✓ CLAIMED" : "🎁 CLAIM ALL"}
+          <ComboCubeIcon size={16} opacity={canClaim || claimed ? 1 : 0.45} />
+          {claiming ? "CLAIMING…" : claimed ? "✓ CLAIMED" : "CLAIM ALL"}
         </button>
-        {/* Countdown */}
+
         {timeLeft > 0 && (
-          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", fontWeight: 700, whiteSpace: "nowrap" }}>
-            resets in<br />
-            <span style={{ color: "rgba(255,255,255,0.5)" }}>{formatTimeLeft(timeLeft)}</span>
+          <div
+            style={{
+              fontSize: 10,
+              color: "rgba(255,255,255,0.38)",
+              fontWeight: 700,
+              whiteSpace: "nowrap",
+              textAlign: "right",
+              lineHeight: 1.35,
+            }}
+          >
+            resets in
+            <br />
+            <span style={{ color: "rgba(255,255,255,0.68)" }}>{formatTimeLeft(timeLeft)}</span>
           </div>
         )}
       </div>

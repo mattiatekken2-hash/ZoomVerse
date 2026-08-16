@@ -832,8 +832,7 @@ function AppShellWithState() {
                   maxSlots={state.maxSlots}
                   currentCraftRarity={state.currentCraftRarity}
                   pendingPlanet={state.pendingPlanet}
-                  pendingModel={state.pendingModel}
-                  forgingModel={state.forgingModel}
+                  forgePlanetBuild={state.forgePlanetBuild}
                   forgeRolling={state.forgeRolling}
                   hasAutoTap={!!state.hasAutoTap}
                   stardustBalance={state.stardustBalance || 0}
@@ -1615,7 +1614,7 @@ function MaintenanceScreen({ message }: { message: string }) {
     >
       <NebulaBackground />
       <MaintenanceAstronauts />
-      <div className="relative z-10 max-w-sm" style={{ marginTop: "46%" }}>
+      <div className="relative z-10 max-w-sm" style={{ marginTop: "58%" }}>
         <div className="font-black text-2xl tracking-widest neon-text mb-3">{t("maint.title")}</div>
         <div className="text-sm" style={{ color: "rgba(255,255,255,0.65)", lineHeight: 1.55 }}>
           {message || t("maint.default")}
