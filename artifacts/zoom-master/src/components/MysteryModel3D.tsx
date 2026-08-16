@@ -4,7 +4,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
-import { FORGE_VOXEL_SIZE, forgeClayToneHex, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
+import { FORGE_VOXEL_SIZE, forgeClayToneHex, getMeshParts, getShapeGlbUrl, resolveForgeVoxels, mysteryKitParts, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
 
 const DEFAULT_PARTS = mysteryKitParts();
 
@@ -872,7 +872,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     let voxelStep = FORGE_VOXEL_SIZE;
     if (useForgeVoxels) {
       try {
-        const voxelized = meshPartsToVoxels(meshParts);
+        const voxelized = resolveForgeVoxels(shapeId ?? "", meshParts, primaryColor, accentColor);
         forgeVoxels = voxelized.voxels;
         voxelStep = voxelized.step;
       } catch (err) {
