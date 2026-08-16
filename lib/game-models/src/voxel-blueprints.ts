@@ -338,16 +338,53 @@ function carBp(_p: string, _a: string): VoxelCell[] {
 
 function koalaBp(_p: string, _a: string): VoxelCell[] {
   const m: BlockMap = new Map();
-  boxTone(m, -5, 0, -4, 5, 8, 4);
-  box(m, -3, 1, 2, 3, 6, 5, "w");
-  boxTone(m, -5, 8, -3, 5, 14, 5);
-  boxTone(m, -8, 12, -1, -5, 16, 3, accentTone);
-  boxTone(m, 5, 12, -1, 8, 16, 3, accentTone);
-  set(m, -2, 11, 6, "k");
-  set(m, 2, 11, 6, "k");
-  box(m, -2, 9, 6, 2, 11, 7, "k");
-  boxTone(m, -8, 2, 0, -6, 6, 2);
-  boxTone(m, 6, 2, 0, 8, 6, 2);
+
+  // Seated torso — round back, rarity checkerboard fur
+  boxTone(m, -5, 0, -4, 5, 8, 3);
+  box(m, -4, 1, 3, 4, 7, 5, "w");
+
+  // Large blocky head (reference: head dominates the silhouette)
+  boxTone(m, -6, 8, -4, 6, 15, 5);
+  for (let y = 16; y <= 17; y++) {
+    const shrink = 18 - y;
+    boxTone(m, -6 + shrink, y, -4 + shrink, 6 - shrink, y, 5 - shrink);
+  }
+
+  // Fluffy ears on top corners + white inner fur
+  boxTone(m, -9, 14, -2, -5, 19, 2);
+  boxTone(m, 5, 14, -2, 9, 19, 2);
+  box(m, -8, 15, 0, -6, 18, 2, "w");
+  box(m, 6, 15, 0, 8, 18, 2, "w");
+
+  // Prominent black nose (Minecraft-style muzzle block)
+  box(m, -2, 10, 6, 2, 14, 8, "k");
+  set(m, -1, 14, 8, "k");
+  set(m, 1, 14, 8, "k");
+  set(m, 0, 9, 7, "k");
+
+  // Eyes — 2×2 dark blocks so they read clearly at Farm/Lab size
+  box(m, -5, 12, 5, -4, 13, 6, "k");
+  box(m, 4, 12, 5, 5, 13, 6, "k");
+  set(m, -4, 13, 6, "w");
+  set(m, 4, 13, 6, "w");
+
+  // Cheek fluff framing the face
+  set(m, -6, 11, 4, "pl");
+  set(m, 6, 11, 4, "pl");
+  set(m, -6, 12, 3, "pd");
+  set(m, 6, 12, 3, "pd");
+
+  // Arms hugging the belly + white paws
+  boxTone(m, -8, 2, -1, -6, 7, 3);
+  boxTone(m, 6, 2, -1, 8, 7, 3);
+  box(m, -8, 1, 2, -6, 3, 5, "w");
+  box(m, 6, 1, 2, 8, 3, 5, "w");
+
+  // Seated feet at the front
+  box(m, -4, 0, 2, -2, 1, 5, "w");
+  box(m, 2, 0, 2, 4, 1, 5, "w");
+  boxTone(m, -2, 0, -3, 2, 1, 1);
+
   return compile(m);
 }
 
