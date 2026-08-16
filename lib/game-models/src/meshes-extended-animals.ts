@@ -316,6 +316,21 @@ function treasureChest(p: string, a: string) {
   ];
 }
 
+function duck(_p: string, a: string) {
+  return [
+    pt("body", "box", 0, 0.22, 0, 0.38, 0.28, 0.32, "#ffd54f", { profile: "fur" }),
+    pt("head", "box", 0, 0.48, 0.14, 0.22, 0.2, 0.2, "#ffeb3b", { profile: "fur" }),
+    pt("bill", "box", 0, 0.42, 0.32, 0.12, 0.07, 0.1, a || "#ff9800", { profile: "fur" }),
+    pt("wingL", "box", -0.22, 0.28, 0.02, 0.08, 0.04, 0.14, "#ffc107", { profile: "fur" }),
+    pt("wingR", "box", 0.22, 0.28, 0.02, 0.08, 0.04, 0.14, "#ffc107", { profile: "fur" }),
+    pt("tail", "box", 0, 0.34, -0.2, 0.08, 0.06, 0.06, "#ffc107", { profile: "fur" }),
+    pt("footL", "box", -0.12, 0.02, 0.08, 0.08, 0.04, 0.1, a || "#ff9800", { profile: "fur" }),
+    pt("footR", "box", 0.12, 0.02, 0.08, 0.08, 0.04, 0.1, a || "#ff9800", { profile: "fur" }),
+    pt("eyeL", "sphere", -0.08, 0.52, 0.26, 0.03, 0.03, 0.03, C.DARK),
+    pt("eyeR", "sphere", 0.08, 0.52, 0.26, 0.03, 0.03, 0.03, C.DARK),
+  ];
+}
+
 export const ANIMAL_MISC_SHAPES: ShapeEntry[] = [
   { id: "lion", name: "Lion", category: "animal", build: lion },
   { id: "koala", name: "Koala", category: "animal", build: koala },
@@ -332,6 +347,7 @@ export const ANIMAL_MISC_SHAPES: ShapeEntry[] = [
   { id: "fox", name: "Fox", category: "animal", build: fox },
   { id: "rabbit", name: "Rabbit", category: "animal", build: rabbit },
   { id: "eagle", name: "Eagle", category: "animal", build: eagle },
+  { id: "duck", name: "Voxel Duck", category: "animal", build: duck },
   { id: "pokeball", name: "Pokeball", category: "gadget", build: pokeball },
   { id: "soccer_ball", name: "Soccer Ball", category: "daily", build: soccerBall },
   { id: "basketball", name: "Basketball", category: "daily", build: basketball },

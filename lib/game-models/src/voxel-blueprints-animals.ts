@@ -1,6 +1,7 @@
 import type { VoxelCell } from "./voxelize.js";
 import { FORGE_VOXEL_SIZE } from "./voxelize.js";
 import { accentTone, primaryTone } from "./voxel-paint.js";
+import { duckBp } from "./voxel-blueprints-duck.js";
 
 type BlockMap = Map<string, { x: number; y: number; z: number; c: string }>;
 type BlueprintFn = (primary: string, accent: string) => VoxelCell[];
@@ -494,4 +495,5 @@ export const ANIMAL_BLUEPRINTS: Record<string, BlueprintFn> = {
   giraffe: giraffeBp,
   zebra: zebraBp,
   elephant: elephantBp,
+  duck: duckBp,
 };

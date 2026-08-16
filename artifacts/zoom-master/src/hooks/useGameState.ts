@@ -12,6 +12,12 @@ import { generateRandomFloat } from "../utils/planetFloat";
 import { getBrowserDevTelegramId, DEV_TG_ID_STORAGE_KEY } from "../utils/telegram";
 import { toast } from "./use-toast";
 
+/** Lab forge override — set null to restore random models. */
+const LAB_FORCE_SHAPE_ID: string | null = "duck";
+const LAB_FORCE_SHAPE_META: Record<string, { name: string; primaryColor: string; accentColor: string }> = {
+  duck: { name: "Voxel Duck", primaryColor: "#ffd54f", accentColor: "#ff9800" },
+};
+
 // Server-authoritative clock: every farming/idle-income time check is computed
 // against this value, NOT the device clock. Calibrated against /api/server-time
 // so a tampered phone clock cannot accelerate ZOOM/TON accrual.
@@ -3705,6 +3711,16 @@ export function useGameState() {
         return { completed: false };
       }
       forging = makeModelInstance(rollModelDefinition()) as ZoomModel;
+      if (LAB_FORCE_SHAPE_ID) {
+        const forced = LAB_FORCE_SHAPE_META[LAB_FORCE_SHAPE_ID];
+        forging = {
+          ...forging,
+          shapeId: LAB_FORCE_SHAPE_ID,
+          name: forced?.name ?? forging.name,
+          primaryColor: forced?.primaryColor ?? forging.primaryColor,
+          accentColor: forced?.accentColor ?? forging.accentColor,
+        };
+      }
       const forgeShapeId = forging.shapeId || getModelById(forging.modelId)?.shapeId || "minifig";
       const forgeParts = getMeshParts(forgeShapeId, forging.primaryColor, forging.accentColor);
       goal = getForgeTapGoalForShape(forgeShapeId, forgeParts, forging.primaryColor, forging.accentColor);

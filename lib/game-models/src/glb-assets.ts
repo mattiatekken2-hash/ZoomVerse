@@ -7,6 +7,7 @@ export const SHAPE_GLB_ASSETS: Partial<Record<string, string>> = {
   cat: "/models/cat.glb",
   burger: "/models/burger.glb",
   dog: "/models/dog.glb",
+  duck: "/models/duck.glb",
   donut: "/models/donut.glb",
   mug: "/models/mug.glb",
   wine: "/models/wine.glb",
