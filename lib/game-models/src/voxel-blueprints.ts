@@ -4,6 +4,7 @@ import { accentTone, primaryTone, type VoxelColorToken } from "./voxel-paint.js"
 import { FORGE_VOXEL_SIZE, meshPartsToVoxels } from "./voxelize.js";
 import { EXTENDED_BLUEPRINTS } from "./voxel-blueprints-extended.js";
 import { ANIMAL_BLUEPRINTS } from "./voxel-blueprints-animals.js";
+import { LEGO_BLUEPRINTS } from "./voxel-blueprints-lego.js";
 
 type Color = MeshPart["color"];
 type BlockMap = Map<string, { x: number; y: number; z: number; c: Color }>;
@@ -233,21 +234,6 @@ function compile(m: BlockMap): VoxelCell[] {
   }));
 }
 
-function legoFig(m: BlockMap, torso: Color, legs: Color, head: Color = "#f5d031") {
-  box(m, -1, 0, -1, 0, 0, 1, "#1e1e1e");
-  box(m, 1, 0, -1, 2, 0, 1, "#1e1e1e");
-  box(m, -1, 1, -1, 0, 3, 0, legs);
-  box(m, 1, 1, -1, 2, 3, 0, legs);
-  box(m, -1, 4, -1, 2, 6, 1, torso);
-  box(m, -3, 4, 0, -2, 6, 0, head);
-  box(m, 3, 4, 0, 4, 6, 0, head);
-  box(m, -1, 7, -1, 1, 9, 1, head);
-  set(m, 0, 10, 0, head);
-  set(m, -1, 8, 2, "#1a1a1a");
-  set(m, 1, 8, 2, "#1a1a1a");
-  set(m, 0, 7, 2, "#1a1a1a");
-}
-
 function burgerBp(_p: string, a: string): VoxelCell[] {
   const m: BlockMap = new Map();
   const bread = "#e8b050";
@@ -426,21 +412,6 @@ function rocketBp(p: string, a: string): VoxelCell[] {
   return compile(m);
 }
 
-function minifigBp(p: string, a: string): VoxelCell[] {
-  const m: BlockMap = new Map();
-  legoFig(m, p || "#2b6cff", a || "#2b6cff");
-  return compile(m);
-}
-
-function plumberBp(p: string, a: string): VoxelCell[] {
-  const m: BlockMap = new Map();
-  legoFig(m, p || "#e23b3b", "#2b6cff");
-  box(m, -1, 7, 2, 1, 7, 3, "#1a1a1a");
-  set(m, 0, 10, 0, p || "#e23b3b");
-  return compile(m);
-}
-
-
 function fruitSphereBp(color: string, stem: string): BlueprintFn {
   return (_p, _a) => {
     const m: BlockMap = new Map();
@@ -453,22 +424,12 @@ function fruitSphereBp(color: string, stem: string): BlueprintFn {
   };
 }
 
-function legoWithHat(torso: Color, legs: Color, hatFn: (m: BlockMap) => void): BlueprintFn {
-  return (p, a) => {
-    const m: BlockMap = new Map();
-    legoFig(m, p || torso, a || legs);
-    hatFn(m);
-    return compile(m);
-  };
-}
-
 const BLUEPRINTS: Record<string, BlueprintFn> = {
   burger: burgerBp,
   hotdog: hotdogBp,
   pizza: pizzaBp,
   supercar: carBp,
-  minifig: minifigBp,
-  plumber: plumberBp,
+  ...LEGO_BLUEPRINTS,
   house: houseBp,
   rocket: rocketBp,
   pokeball: pokeballBp,
@@ -503,31 +464,6 @@ const BLUEPRINTS: Record<string, BlueprintFn> = {
     disc(m, 6, 0, 0, 2, a || "#4e342e");
     return compile(m);
   },
-  lego_astronaut: legoWithHat("#f5f5f5", "#f5f5f5", (m) => {
-    box(m, -2, 10, -2, 2, 11, 2, "#eceff1");
-    set(m, 0, 10, 3, "#87ceeb");
-  }),
-  lego_pirate: legoWithHat("#5d4037", "#1a1a1a", (m) => {
-    box(m, -2, 10, -1, 2, 10, 2, "#1a1a1a");
-    set(m, -2, 11, 0, "#1a1a1a");
-  }),
-  lego_chef: legoWithHat("#ffffff", "#1a1a1a", (m) => {
-    box(m, -2, 10, -2, 2, 12, 2, "#ffffff");
-  }),
-  lego_police: legoWithHat("#2b6cff", "#1a1a1a", (m) => {
-    box(m, -2, 10, -2, 2, 10, 2, "#1a1a1a");
-    set(m, 0, 11, 0, "#ffd700");
-  }),
-  lego_firefighter: legoWithHat("#e53935", "#1a1a1a", (m) => {
-    box(m, -2, 10, -2, 2, 11, 2, "#e53935");
-  }),
-  lego_wizard: legoWithHat("#6a1b9a", "#4a148c", (m) => {
-    box(m, -1, 10, -1, 1, 13, 1, "#6a1b9a");
-    set(m, 0, 14, 0, "#ffd700");
-  }),
-  lego_builder: legoWithHat("#ff9800", "#5d4037", (m) => {
-    box(m, -2, 10, -2, 2, 10, 2, "#ff9800");
-  }),
   koala: koalaBp,
   ...ANIMAL_BLUEPRINTS,
   tank: (p, a) => {
@@ -545,30 +481,6 @@ const BLUEPRINTS: Record<string, BlueprintFn> = {
       box(m, x, 1, -1, x, 3, 1, a || "#ffd700");
       set(m, x, 4, 0, "#e53935");
     }
-    return compile(m);
-  },
-  ninja: (p, a) => {
-    const m: BlockMap = new Map();
-    legoFig(m, p || "#1a1a1a", p || "#1a1a1a");
-    box(m, -1, 7, 2, 1, 8, 3, a || "#1a1a1a");
-    box(m, 4, 4, 0, 7, 4, 0, a || "#c8d4e8");
-    return compile(m);
-  },
-  robot: (p, a) => {
-    const m: BlockMap = new Map();
-    legoFig(m, p || "#78909c", p || "#546e7a");
-    box(m, -1, 7, 2, 1, 8, 3, a || "#37474f");
-    set(m, -1, 8, 3, "#00ff88");
-    set(m, 1, 8, 3, "#00ff88");
-    set(m, 3, 9, 0, a || "#ffeb3b");
-    return compile(m);
-  },
-  knight: (p, a) => {
-    const m: BlockMap = new Map();
-    legoFig(m, p || "#90a4ae", p || "#607d8b");
-    box(m, -1, 7, 2, 1, 8, 3, "#1a1a1a");
-    box(m, -4, 4, 1, -3, 7, 2, a || "#ffd700");
-    box(m, 4, 4, 0, 6, 7, 0, a || "#c8d4e8");
     return compile(m);
   },
   motorcycle: (p, a) => {
