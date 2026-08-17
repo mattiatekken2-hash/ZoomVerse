@@ -1255,11 +1255,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           group.add(glowInst);
         };
 
-        const glowOpacity = style === "SUN" ? 0.26 : 0.06 + 0.18 * effectiveFloat;
+        const glowOpacity = 0.06 + 0.18 * effectiveFloat;
         if (style === "RARE" && hotSpots.length > 0) {
           addPlanetGlowLayer(hotSpots, "#70d0ff", glowOpacity, true);
-        } else if (style === "SUN" && hotSpots.length > 0) {
-          addPlanetGlowLayer(hotSpots, "#ffee58", glowOpacity, true);
         } else if (glowSurface.length > 0) {
           addPlanetGlowLayer(glowSurface, primaryColor, glowOpacity * 0.85);
         }
@@ -1871,6 +1869,7 @@ export function ObjectThumb({
     : null;
   const haloMult = f !== null ? 0.35 + 1.05 * f : 1;
   const haloScale = isPlanetThumb ? 1.15 + (f !== null ? 0.07 * f : 0) : (f !== null ? 1.05 + 0.05 * f : 1);
+  const isSunThumb = isPlanetThumb && planetRarity === "SUN";
   const hiFi = isPlanetThumb || (!performanceMode && size >= 96);
   const innerAlpha = Math.round(Math.min(255, 0x44 * haloMult)).toString(16).padStart(2, "0");
   const midAlpha = Math.round(Math.min(255, 0x28 * haloMult)).toString(16).padStart(2, "0");
@@ -1879,6 +1878,7 @@ export function ObjectThumb({
       className="object-thumb"
       style={{ position: "relative", width: size, height: size, flexShrink: 0 }}
     >
+      {!isSunThumb && (
       <div
         aria-hidden
         className="object-thumb-glow"
@@ -1891,9 +1891,7 @@ export function ObjectThumb({
           transform: "translate(-50%, -50%)",
           borderRadius: "50%",
           background: isPlanetThumb
-            ? planetRarity === "SUN"
-              ? `radial-gradient(circle at 50% 44%, #ffee5888 0%, #ffa72655 35%, #ef6c0028 55%, transparent 75%)`
-            : planetRarity === "RARE"
+            ? planetRarity === "RARE"
               ? `radial-gradient(circle at 50% 44%, ${primaryColor}${innerAlpha} 0%, ${primaryColor}${midAlpha} 38%, transparent 72%)`
               : planetRarity === "BASIC"
               ? `radial-gradient(circle at 50% 42%, ${primaryColor}${innerAlpha} 0%, ${accentColor}${midAlpha} 40%, transparent 72%)`
@@ -1907,6 +1905,7 @@ export function ObjectThumb({
           pointerEvents: "none",
         }}
       />
+      )}
       <div style={{ position: "relative", zIndex: 1, width: size, height: size }}>
         <ObjectMesh3D
           parts={parts}
