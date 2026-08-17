@@ -81,6 +81,46 @@ function showcaseVoxelColor(
   out.set(hex);
 }
 
+/** Solid band colors — no instanceColor (broken on some mobile WebViews). */
+const RARE_SHOWCASE_BAND_HEX: Record<"p" | "a" | "h", string> = {
+  p: "#4facfe",
+  a: "#72c4ff",
+  h: "#d8f4ff",
+};
+
+function addRareBandVoxelMeshes(
+  group: THREE.Group,
+  forgeVoxels: VoxelCell[],
+  boxGeo: THREE.BoxGeometry,
+  voxelDummy: THREE.Object3D,
+): void {
+  const buckets: Record<"p" | "a" | "h", VoxelCell[]> = { p: [], a: [], h: [] };
+  for (const v of forgeVoxels) {
+    const band: "p" | "a" | "h" = v.color === "a" || v.color === "h" ? v.color : "p";
+    buckets[band].push(v);
+  }
+  for (const band of ["p", "a", "h"] as const) {
+    const cells = buckets[band];
+    if (cells.length === 0) continue;
+    const mat = new THREE.MeshBasicMaterial({
+      color: RARE_SHOWCASE_BAND_HEX[band],
+      toneMapped: false,
+    });
+    const mesh = new THREE.InstancedMesh(boxGeo, mat, cells.length);
+    mesh.frustumCulled = false;
+    for (let i = 0; i < cells.length; i++) {
+      const v = cells[i]!;
+      voxelDummy.position.set(v.x, v.y, v.z);
+      voxelDummy.scale.setScalar(1);
+      voxelDummy.updateMatrix();
+      mesh.setMatrixAt(i, voxelDummy.matrix);
+    }
+    mesh.count = cells.length;
+    mesh.instanceMatrix.needsUpdate = true;
+    group.add(mesh);
+  }
+}
+
 function isGlassPart(part: MeshPart): boolean {
   return typeof part.color === "string" && GLASS_COLORS.has(part.color.toLowerCase());
 }
@@ -971,6 +1011,71 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const n = forgeVoxels.length;
       const cube = voxelStep * FORGE_VOXEL_CUBE_FILL;
       const boxGeo = new THREE.BoxGeometry(cube, cube, cube);
+
+      if (planetShowcase && rarePlanetShowcase) {
+        const surfaceIndices: number[] = [];
+        for (let vi = 0; vi < n; vi++) {
+          const v = forgeVoxels[vi]!;
+          const ix = Math.round(v.x / voxelStep);
+          const iy = Math.round(v.y / voxelStep);
+          const iz = Math.round(v.z / voxelStep);
+          const dist = Math.sqrt(ix * ix + iy * iy + iz * iz) / Math.max(forgeSphereRadius, 1);
+          if (dist > 0.82) surfaceIndices.push(vi);
+        }
+        addRareBandVoxelMeshes(group, forgeVoxels, boxGeo, voxelDummy);
+
+        const gN = surfaceIndices.length;
+        if (gN > 0) {
+          const glowMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(primaryColor).lerp(new THREE.Color("#e8f8ff"), 0.55),
+            transparent: true,
+            opacity: 0.38,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            toneMapped: false,
+          });
+          const glowInst = new THREE.InstancedMesh(boxGeo, glowMat, gN);
+          glowInst.frustumCulled = false;
+          glowInst.renderOrder = 1;
+          for (let gi = 0; gi < gN; gi++) {
+            const v = forgeVoxels[surfaceIndices[gi]!]!;
+            voxelDummy.position.set(v.x, v.y, v.z);
+            voxelDummy.scale.setScalar(1.18);
+            voxelDummy.updateMatrix();
+            glowInst.setMatrixAt(gi, voxelDummy.matrix);
+          }
+          glowInst.count = gN;
+          glowInst.instanceMatrix.needsUpdate = true;
+          glowInst.userData["planetGlow"] = true;
+          glowInst.userData["rareGlow"] = true;
+          group.add(glowInst);
+        }
+
+        const coreMat = new THREE.MeshBasicMaterial({
+          color: new THREE.Color(primaryColor).lerp(new THREE.Color("#ffffff"), 0.35),
+          transparent: true,
+          opacity: 0.12,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          toneMapped: false,
+        });
+        const coreGlow = new THREE.InstancedMesh(boxGeo, coreMat, n);
+        coreGlow.frustumCulled = false;
+        coreGlow.renderOrder = 0;
+        for (let ci = 0; ci < n; ci++) {
+          const v = forgeVoxels[ci]!;
+          voxelDummy.position.set(v.x, v.y, v.z);
+          voxelDummy.scale.setScalar(1.06);
+          voxelDummy.updateMatrix();
+          coreGlow.setMatrixAt(ci, voxelDummy.matrix);
+        }
+        coreGlow.count = n;
+        coreGlow.instanceMatrix.needsUpdate = true;
+        coreGlow.userData["planetGlow"] = true;
+        coreGlow.userData["rareGlow"] = true;
+        coreGlow.userData["coreGlow"] = true;
+        group.add(coreGlow);
+      } else {
       const vMat = planetShowcase
         ? new THREE.MeshBasicMaterial({
             color: 0xffffff,
@@ -989,7 +1094,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const edgeBuf = new Float32Array(n * tpl.vertCount * 3);
       const edgeBufferGeo = new THREE.BufferGeometry();
       edgeBufferGeo.setAttribute("position", new THREE.BufferAttribute(edgeBuf, 3));
-      const edgeMat = planetShowcase && !rarePlanetShowcase
+      const edgeMat = planetShowcase
         ? new THREE.LineBasicMaterial({
             color: new THREE.Color(accentColor).lerp(new THREE.Color("#ffffff"), 0.35),
             transparent: true,
@@ -1001,7 +1106,6 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const edgeLines = new THREE.LineSegments(edgeBufferGeo, edgeMat);
       edgeLines.frustumCulled = false;
       edgeLines.renderOrder = 2;
-      if (rarePlanetShowcase) edgeLines.visible = false;
       forgeEdgeLinesRef.current = edgeLines;
       forgeEdgePositionsRef.current = edgeBuf;
 
@@ -1019,10 +1123,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           voxelDummy.scale.setScalar(1);
           voxelDummy.updateMatrix();
           voxelInst.setMatrixAt(vi, voxelDummy.matrix);
-          showcaseVoxelColor(v, voxelStep, forgeSphereRadius, primaryColor, accentColor, voxelColorScratch, rarePlanetShowcase);
+          showcaseVoxelColor(v, voxelStep, forgeSphereRadius, primaryColor, accentColor, voxelColorScratch, false);
           voxelInst.setColorAt(vi, voxelColorScratch);
 
-          if (!rarePlanetShowcase) {
           const base = vi * tpl.vertCount * 3;
           const cubeSize = voxelStep * FORGE_VOXEL_CUBE_FILL;
           for (let j = 0; j < tpl.vertCount; j++) {
@@ -1037,22 +1140,18 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
             edgeBuf[base + t + 1] = edgeScratch.y;
             edgeBuf[base + t + 2] = edgeScratch.z;
           }
-          }
         }
         voxelInst.count = n;
         voxelInst.instanceMatrix.needsUpdate = true;
         if (voxelInst.instanceColor) voxelInst.instanceColor.needsUpdate = true;
-        if (!rarePlanetShowcase) edgeLines.geometry.setDrawRange(0, n * tpl.vertCount);
+        edgeLines.geometry.setDrawRange(0, n * tpl.vertCount);
 
         const gN = surfaceIndices.length;
         if (gN > 0) {
-          const glowColor = rarePlanetShowcase
-            ? new THREE.Color(primaryColor).lerp(new THREE.Color("#e8f8ff"), 0.55)
-            : new THREE.Color(accentColor);
           const glowMat = new THREE.MeshBasicMaterial({
-            color: glowColor,
+            color: new THREE.Color(accentColor),
             transparent: true,
-            opacity: rarePlanetShowcase ? 0.38 : 0.14,
+            opacity: 0.14,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
             toneMapped: false,
@@ -1063,42 +1162,14 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           for (let gi = 0; gi < gN; gi++) {
             const v = forgeVoxels[surfaceIndices[gi]!]!;
             voxelDummy.position.set(v.x, v.y, v.z);
-            voxelDummy.scale.setScalar(rarePlanetShowcase ? 1.18 : 1.12);
+            voxelDummy.scale.setScalar(1.12);
             voxelDummy.updateMatrix();
             glowInst.setMatrixAt(gi, voxelDummy.matrix);
           }
           glowInst.count = gN;
           glowInst.instanceMatrix.needsUpdate = true;
           glowInst.userData["planetGlow"] = true;
-          glowInst.userData["rareGlow"] = rarePlanetShowcase;
           group.add(glowInst);
-        }
-
-        if (rarePlanetShowcase) {
-          const coreMat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(primaryColor).lerp(new THREE.Color("#ffffff"), 0.35),
-            transparent: true,
-            opacity: 0.12,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-            toneMapped: false,
-          });
-          const coreGlow = new THREE.InstancedMesh(boxGeo, coreMat, n);
-          coreGlow.frustumCulled = false;
-          coreGlow.renderOrder = 0;
-          for (let ci = 0; ci < n; ci++) {
-            const v = forgeVoxels[ci]!;
-            voxelDummy.position.set(v.x, v.y, v.z);
-            voxelDummy.scale.setScalar(1.06);
-            voxelDummy.updateMatrix();
-            coreGlow.setMatrixAt(ci, voxelDummy.matrix);
-          }
-          coreGlow.count = n;
-          coreGlow.instanceMatrix.needsUpdate = true;
-          coreGlow.userData["planetGlow"] = true;
-          coreGlow.userData["rareGlow"] = true;
-          coreGlow.userData["coreGlow"] = true;
-          group.add(coreGlow);
         }
       } else {
       for (let vi = 0; vi < n; vi++) {
@@ -1112,7 +1183,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       }
 
       group.add(voxelInst);
-      if (!rarePlanetShowcase) group.add(edgeLines);
+      group.add(edgeLines);
+      }
     }
 
     const geos: THREE.BufferGeometry[] = [];
@@ -1296,7 +1368,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const activePartFrac = scaledParts - partsDone;
       let touchedMesh = false;
 
-      if (planetShowcase && voxelInst) {
+      if (planetShowcase) {
         group.children.forEach((child) => {
           if (!(child as THREE.Object3D).userData?.["planetGlow"]) return;
           const glow = child as THREE.InstancedMesh;
