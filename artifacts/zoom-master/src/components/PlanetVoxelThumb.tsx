@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Planet } from "../hooks/useGameState";
 import { getPlanetDisplayColors } from "../hooks/useGameState";
 import { FORGE_SPHERE_SHAPE_ID } from "@workspace/game-models";
+import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { ObjectThumb } from "./MysteryModel3D";
 
 function VoxelPlanetPlaceholder({
@@ -104,6 +105,7 @@ export function PlanetVoxelThumb({
   const [glGen, setGlGen] = useState(0);
 
   const displayColors = getPlanetDisplayColors(planet);
+  const displayFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
 
   useEffect(() => {
     if (eager) return;
@@ -181,6 +183,8 @@ export function PlanetVoxelThumb({
           primaryColor={displayColors.color}
           accentColor={displayColors.accentHex}
           planetRarity={planet.name}
+          displayFloat={displayFloat}
+          planetId={planet.id}
           size={size}
           autoSpin={animate}
           performanceMode={false}
