@@ -22,6 +22,8 @@ const STUDIO_HDR = "/assets/env/studio_small_09_1k.hdr";
 /** Internal render scale — 3 ⇒ 156px canvas renders at ~52×52 then upscales blocky. */
 const PIXEL_SCALE = 3;
 const PIXEL_MIN_INTERNAL = 16;
+/** Internal supersampling for planet card thumbs. */
+const PLANET_THUMB_RENDER_SCALE = 1.75;
 /** Forge voxel — solid face + EdgesGeometry line per cube. */
 const FORGE_VOXEL_CUBE_FILL = 0.98;
 const FORGE_VOXEL_EDGE = 0x454545;
@@ -59,28 +61,6 @@ function isShowcaseView(
   if (forgeVoxelBuild && !revealed) return false;
   if (interactive && !revealed) return false;
   return size >= 96 || opaqueBackground || (revealed && size >= 72);
-}
-
-function addPlanetShowcaseLights(scene: THREE.Scene, accentColor: string): THREE.Object3D[] {
-  const extras: THREE.Object3D[] = [];
-  scene.add(new THREE.AmbientLight(0xffffff, 0.62));
-  const key = new THREE.DirectionalLight(0xffffff, 1.45);
-  key.position.set(4, 7, 5);
-  scene.add(key);
-  extras.push(key);
-  const fill = new THREE.DirectionalLight(0xa8c8ff, 0.55);
-  fill.position.set(-4, 1, 3);
-  scene.add(fill);
-  extras.push(fill);
-  const rim = new THREE.DirectionalLight(0xe8f4ff, 0.72);
-  rim.position.set(0, 2, -6);
-  scene.add(rim);
-  extras.push(rim);
-  const glow = new THREE.PointLight(new THREE.Color(accentColor), 1.05, 14);
-  glow.position.set(-2, 3, 4);
-  scene.add(glow);
-  extras.push(glow);
-  return extras;
 }
 
 function showcaseVoxelColor(
@@ -829,7 +809,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({
-        antialias: showcase || (!performanceMode && size > 90),
+        antialias: planetShowcase || showcase || (!performanceMode && size > 90),
         alpha: !opaqueBackground,
         premultipliedAlpha: false,
         powerPreference: "high-performance",
@@ -842,7 +822,12 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     }
     setupRenderer(renderer, showcase && !planetShowcase);
     renderer.setPixelRatio(maxDpr);
-    renderer.setSize(size, size);
+    const renderPx = planetShowcase ? Math.round(size * PLANET_THUMB_RENDER_SCALE) : size;
+    renderer.setSize(renderPx, renderPx);
+    if (planetShowcase) {
+      renderer.domElement.style.width = `${size}px`;
+      renderer.domElement.style.height = `${size}px`;
+    }
     if (opaqueBackground) {
       renderer.setClearColor(0x060810, 1);
       renderer.domElement.style.background = "#060810";
@@ -1012,8 +997,15 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       forgeEdgePositionsRef.current = edgeBuf;
 
       if (planetShowcase) {
+        const surfaceIndices: number[] = [];
         for (let vi = 0; vi < n; vi++) {
           const v = forgeVoxels[vi]!;
+          const ix = Math.round(v.x / voxelStep);
+          const iy = Math.round(v.y / voxelStep);
+          const iz = Math.round(v.z / voxelStep);
+          const dist = Math.sqrt(ix * ix + iy * iy + iz * iz) / Math.max(forgeSphereRadius, 1);
+          if (dist > 0.82) surfaceIndices.push(vi);
+
           voxelDummy.position.set(v.x, v.y, v.z);
           voxelDummy.scale.setScalar(1);
           voxelDummy.updateMatrix();
@@ -1040,6 +1032,32 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         voxelInst.instanceMatrix.needsUpdate = true;
         if (voxelInst.instanceColor) voxelInst.instanceColor.needsUpdate = true;
         edgeLines.geometry.setDrawRange(0, n * tpl.vertCount);
+
+        const gN = surfaceIndices.length;
+        if (gN > 0) {
+          const glowMat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color(accentColor),
+            transparent: true,
+            opacity: 0.14,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            toneMapped: false,
+          });
+          const glowInst = new THREE.InstancedMesh(boxGeo, glowMat, gN);
+          glowInst.frustumCulled = false;
+          glowInst.renderOrder = 1;
+          for (let gi = 0; gi < gN; gi++) {
+            const v = forgeVoxels[surfaceIndices[gi]!]!;
+            voxelDummy.position.set(v.x, v.y, v.z);
+            voxelDummy.scale.setScalar(1.12);
+            voxelDummy.updateMatrix();
+            glowInst.setMatrixAt(gi, voxelDummy.matrix);
+          }
+          glowInst.count = gN;
+          glowInst.instanceMatrix.needsUpdate = true;
+          glowInst.userData["planetGlow"] = true;
+          group.add(glowInst);
+        }
       } else {
       for (let vi = 0; vi < n; vi++) {
         voxelDummy.position.set(0, -999, 0);
@@ -1237,6 +1255,12 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       let touchedMesh = false;
 
       if (planetShowcase && voxelInst) {
+        group.children.forEach((child) => {
+          if (!(child as THREE.Object3D).userData?.["planetGlow"]) return;
+          const glow = child as THREE.InstancedMesh;
+          const mat = glow.material as THREE.MeshBasicMaterial;
+          mat.opacity = 0.11 + Math.sin(now * 0.0018) * 0.055;
+        });
         touchedMesh = true;
       } else if (useVoxelForge && voxelInst) {
         const voxMesh = voxelInst;
@@ -1437,7 +1461,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
       } // end voxel vs part forge branch
 
-      if (autoSpin && !dragging) group.rotation.y += (dt / 16.67) * (showcase ? 0.0028 : 0.0035);
+      if (autoSpin && !dragging) {
+        group.rotation.y += (dt / 16.67) * (planetShowcase ? 0.0024 : showcase ? 0.0028 : 0.0035);
+      }
       if (dragging) controls.update();
       const stillMoving = Math.abs(targetP - assembly) > 0.0008 || (paintT > 0 && paintT < 1);
       if (isLiveForge || autoSpin || stillMoving || touchedMesh || dragging || st.revealed) {
@@ -1538,7 +1564,7 @@ export function ObjectThumb({
           transform: "translate(-50%, -50%)",
           borderRadius: "50%",
           background: isPlanetThumb
-            ? `radial-gradient(circle at 50% 40%, ${accentColor}88 0%, ${primaryColor}44 38%, transparent 72%)`
+            ? `radial-gradient(circle at 50% 40%, ${accentColor}99 0%, ${primaryColor}55 32%, transparent 70%)`
             : hiFi
             ? `radial-gradient(circle at 50% 40%, ${accentColor}66 0%, ${primaryColor}33 38%, transparent 70%)`
             : `radial-gradient(circle at 50% 42%, ${accentColor}50 0%, ${primaryColor}28 40%, transparent 72%)`,

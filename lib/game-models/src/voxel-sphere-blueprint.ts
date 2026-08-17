@@ -7,11 +7,17 @@ export const FORGE_SPHERE_SHAPE_ID = "forge-sphere";
 /** Lab tap forge — one tap places one voxel (~250 cubes at r=4). */
 export const FORGE_SPHERE_RADIUS = 4;
 
-/** Farm/Market/Lab reveal — denser collectible sphere (~900 cubes at r=6). */
-export const FORGE_SPHERE_DISPLAY_RADIUS = 6;
+/** Farm/Market/Lab reveal — dense collectible sphere (~1300 cubes at r=7). */
+export const FORGE_SPHERE_DISPLAY_RADIUS = 7;
 
 const STEP = FORGE_VOXEL_SIZE;
-const DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.82;
+const DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.78;
+
+/** Key light direction for fake face shading on unlit thumbs. */
+const LIGHT_X = 0.42;
+const LIGHT_Y = 0.62;
+const LIGHT_Z = 0.58;
+const LIGHT_LEN = Math.sqrt(LIGHT_X * LIGHT_X + LIGHT_Y * LIGHT_Y + LIGHT_Z * LIGHT_Z);
 
 export type ForgeSphereBand = "p" | "a" | "h";
 
@@ -20,11 +26,11 @@ function sphereBandColor(x: number, y: number, z: number, radius: number, rich: 
   const ny = (y / radius + 1) * 0.5;
   const nxz = Math.sqrt(x * x + z * z) / Math.max(radius, 1);
 
-  if (rich && dist > radius * 0.84 && ny > 0.38) return "h";
-  if (ny > 0.78) return nxz > 0.5 ? "h" : "a";
-  if (ny > 0.55) return "p";
-  if (ny > 0.35) return "a";
-  if (ny > 0.15) return "p";
+  if (rich && dist > radius * 0.86 && ny > 0.32) return "h";
+  if (ny > 0.78) return nxz > 0.48 ? "h" : "a";
+  if (ny > 0.56) return "p";
+  if (ny > 0.34) return "a";
+  if (ny > 0.14) return "p";
   return "a";
 }
 
@@ -94,7 +100,28 @@ export function forgeSphereTapGoal(): number {
   return getForgeSphereBlueprint("#888888", "#666666").goal;
 }
 
-/** Bright emissive-style hex for showcase InstancedMesh colors. */
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const h = hex.replace("#", "").trim();
+  if (h.length !== 6) return null;
+  const n = parseInt(h, 16);
+  if (!Number.isFinite(n)) return null;
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+
+function clampByte(v: number): number {
+  return Math.max(0, Math.min(255, Math.round(v)));
+}
+
+function faceLightFactor(ix: number, iy: number, iz: number, radius: number): number {
+  const len = Math.sqrt(ix * ix + iy * iy + iz * iz) || 1;
+  const nx = ix / len;
+  const ny = iy / len;
+  const nz = iz / len;
+  const ndotl = (nx * LIGHT_X + ny * LIGHT_Y + nz * LIGHT_Z) / LIGHT_LEN;
+  return 0.42 + Math.max(0, ndotl) * 0.58;
+}
+
+/** Per-voxel color for Farm/Market/Lab reveal — rarity primary/accent + fake lighting + shell glow. */
 export function showcaseVoxelHex(
   band: MeshPartColor,
   primary: string,
@@ -106,8 +133,8 @@ export function showcaseVoxelHex(
 ): string {
   const dist = Math.sqrt(ix * ix + iy * iy + iz * iz) / Math.max(radius, 1);
   const ny = (iy / radius + 1) * 0.5;
-  const base = band === "p" ? primary : band === "a" ? accent : accent;
-  const rgb = hexToRgb(base);
+  const baseHex = band === "p" ? primary : band === "a" ? accent : accent;
+  const rgb = hexToRgb(baseHex);
   if (!rgb) return primary;
 
   let r = rgb.r;
@@ -115,43 +142,48 @@ export function showcaseVoxelHex(
   let b = rgb.b;
 
   const accentRgb = hexToRgb(accent);
-  if (accentRgb && (band === "h" || dist > 0.82)) {
-    const t = band === "h" ? 0.42 : 0.28;
+  if (accentRgb && band === "a") {
+    r = r * 0.55 + accentRgb.r * 0.45;
+    g = g * 0.55 + accentRgb.g * 0.45;
+    b = b * 0.55 + accentRgb.b * 0.45;
+  }
+
+  if (accentRgb && (band === "h" || dist > 0.84)) {
+    const t = band === "h" ? 0.52 : 0.34;
     r = r + (accentRgb.r - r) * t;
     g = g + (accentRgb.g - g) * t;
     b = b + (accentRgb.b - b) * t;
   }
 
-  if (band === "h" || ny > 0.72) {
-    r = r * 0.88 + 255 * 0.12;
-    g = g * 0.88 + 255 * 0.12;
-    b = b * 0.88 + 255 * 0.12;
+  if (band === "h" || ny > 0.7) {
+    r = r * 0.82 + 255 * 0.18;
+    g = g * 0.82 + 255 * 0.18;
+    b = b * 0.82 + 255 * 0.18;
   }
 
-  if (dist > 0.78) {
-    const boost = 1 + (dist - 0.78) * 0.85;
-    r = Math.min(255, r * boost);
-    g = Math.min(255, g * boost);
-    b = Math.min(255, b * boost);
+  if (dist > 0.8) {
+    const shell = 1 + (dist - 0.8) * 1.05;
+    r = Math.min(255, r * shell);
+    g = Math.min(255, g * shell);
+    b = Math.min(255, b * shell);
   }
 
-  // Unlit thumb path — push saturation/brightness so cubes read on mobile.
-  r = Math.min(255, r * 1.12);
-  g = Math.min(255, g * 1.12);
-  b = Math.min(255, b * 1.12);
+  if (dist < 0.55) {
+    const ao = 0.78 + dist * 0.4;
+    r *= ao;
+    g *= ao;
+    b *= ao;
+  }
 
-  const flick = 0.92 + ((ix * 3 + iy * 5 + iz * 7) & 7) * 0.012;
-  r = Math.min(255, r * flick);
-  g = Math.min(255, g * flick);
-  b = Math.min(255, b * flick);
+  const light = faceLightFactor(ix, iy, iz, radius);
+  r *= light;
+  g *= light;
+  b *= light;
 
-  return `#${[r, g, b].map((v) => Math.round(v).toString(16).padStart(2, "0")).join("")}`;
-}
+  const flick = 0.93 + ((ix * 3 + iy * 5 + iz * 7) & 7) * 0.011;
+  r = clampByte(r * flick);
+  g = clampByte(g * flick);
+  b = clampByte(b * flick);
 
-function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
-  const h = hex.replace("#", "");
-  if (h.length !== 6) return null;
-  const n = parseInt(h, 16);
-  if (!Number.isFinite(n)) return null;
-  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 }

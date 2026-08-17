@@ -1658,14 +1658,13 @@ export function getRarityColorsForModel(rarityOrPlanetType: string): {
   };
 }
 
-/** Lab 3D objects always use rarity palette (EPIC = purple, etc.). */
+/** Lab 3D + Farm cards — palette from final planet rarity (BASIC grey, RARE blue, …). */
 export function getPlanetDisplayColors(planet: Pick<Planet, "name" | "color" | "glowColor" | "modelId">): {
   color: string;
   glowColor: string;
   accentHex: string;
 } {
-  if (planet.modelId) return getRarityColorsForModel(planet.name);
-  return { color: planet.color, glowColor: planet.glowColor, accentHex: planet.color };
+  return getRarityColorsForModel(planet.name);
 }
 
 function applyModelRarityColors(planet: Planet): Planet {

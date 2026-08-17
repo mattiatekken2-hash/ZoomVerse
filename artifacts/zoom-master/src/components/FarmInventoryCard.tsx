@@ -141,7 +141,7 @@ export function FarmInventoryCard({
           <PlanetVoxelThumb
             planet={planet}
             size={orbThumb}
-            animate={false}
+            animate
             suspendGl={suspendGl}
           />
           {isPlatinumNft && (
