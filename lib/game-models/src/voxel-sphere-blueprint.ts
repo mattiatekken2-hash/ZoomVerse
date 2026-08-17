@@ -10,12 +10,12 @@ export const FORGE_SPHERE_RADIUS = 4;
 /** Farm/Market/Lab reveal — dense collectible sphere (~1400 cubes at r=7). */
 export const FORGE_SPHERE_DISPLAY_RADIUS = 7;
 
-/** RARE Farm thumb — ultra grid (~7200 cubes, smooth voxel sphere). */
-export const FORGE_SPHERE_RARE_DISPLAY_RADIUS = 12;
+/** RARE Farm thumb — ultra grid (~9200 cubes, smooth voxel envelope). */
+export const FORGE_SPHERE_RARE_DISPLAY_RADIUS = 13;
 
 const STEP = FORGE_VOXEL_SIZE;
 const DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.78;
-const RARE_DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.56;
+const RARE_DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.54;
 
 /** Key light direction for fake face shading on unlit thumbs. */
 const LIGHT_X = 0.42;

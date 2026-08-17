@@ -81,18 +81,61 @@ function showcaseVoxelColor(
   out.set(hex);
 }
 
-/** Exact grid position — round voxel sphere (no surface noise). */
+/** Snap shell cubes so outer faces sit on a perfect sphere envelope. */
 function rareVoxelWorldPos(
   v: VoxelCell,
-  _step: number,
-  _radius: number,
+  step: number,
+  radius: number,
+  cubeFill: number,
   out: THREE.Vector3,
 ): void {
+  const ix = Math.round(v.x / step);
+  const iy = Math.round(v.y / step);
+  const iz = Math.round(v.z / step);
+  const len = Math.sqrt(ix * ix + iy * iy + iz * iz);
+  if (len < 0.001) {
+    out.set(0, 0, 0);
+    return;
+  }
+  const dist = len / Math.max(radius, 1);
+  const nx = ix / len;
+  const ny = iy / len;
+  const nz = iz / len;
+  const half = step * cubeFill * 0.5;
+  const outerR = radius * step;
+
+  if (dist > 0.76) {
+    const centerR = Math.max(half, outerR - half);
+    out.set(nx * centerR, ny * centerR, nz * centerR);
+    return;
+  }
   out.set(v.x, v.y, v.z);
 }
 
 function rareVoxelScale(_v: VoxelCell, _step: number, _radius: number): number {
   return 1;
+}
+
+/** Drop isolated surface voxels that break the circular silhouette. */
+function filterRareOutlierVoxels(voxels: VoxelCell[], step: number, radius: number): VoxelCell[] {
+  const inSphere = (ix: number, iy: number, iz: number) =>
+    ix * ix + iy * iy + iz * iz <= radius * radius;
+  const dirs: Array<[number, number, number]> = [
+    [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+  ];
+  return voxels.filter((v) => {
+    const ix = Math.round(v.x / step);
+    const iy = Math.round(v.y / step);
+    const iz = Math.round(v.z / step);
+    const len = Math.sqrt(ix * ix + iy * iy + iz * iz);
+    const dist = len / Math.max(radius, 1);
+    if (dist < 0.9) return true;
+    let neighbors = 0;
+    for (const [dx, dy, dz] of dirs) {
+      if (inSphere(ix + dx, iy + dy, iz + dz)) neighbors++;
+    }
+    return neighbors >= 4;
+  });
 }
 
 function addRareBandVoxelMeshes(
@@ -103,7 +146,9 @@ function addRareBandVoxelMeshes(
   voxelStep: number,
   forgeSphereRadius: number,
   primaryColor: string,
+  cubeFill: number,
 ): { brightSurface: VoxelCell[]; hotSpots: VoxelCell[]; innerCore: VoxelCell[] } {
+  const voxels = filterRareOutlierVoxels(forgeVoxels, voxelStep, forgeSphereRadius);
   const coreBuckets = new Map<string, VoxelCell[]>();
   const shellBuckets = new Map<string, VoxelCell[]>();
   const posScratch = new THREE.Vector3();
@@ -116,7 +161,7 @@ function addRareBandVoxelMeshes(
     RARE_SHOWCASE_PALETTE[7],
   ]);
 
-  for (const v of forgeVoxels) {
+  for (const v of voxels) {
     const ix = Math.round(v.x / voxelStep);
     const iy = Math.round(v.y / voxelStep);
     const iz = Math.round(v.z / voxelStep);
@@ -145,7 +190,7 @@ function addRareBandVoxelMeshes(
     mesh.renderOrder = renderOrder;
     for (let i = 0; i < cells.length; i++) {
       const v = cells[i]!;
-      rareVoxelWorldPos(v, voxelStep, forgeSphereRadius, posScratch);
+      rareVoxelWorldPos(v, voxelStep, forgeSphereRadius, cubeFill, posScratch);
       voxelDummy.position.copy(posScratch);
       voxelDummy.scale.setScalar(rareVoxelScale(v, voxelStep, forgeSphereRadius));
       voxelDummy.updateMatrix();
@@ -1064,7 +1109,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
       if (planetShowcase && rarePlanetShowcase) {
         const posScratch = new THREE.Vector3();
-        const rareCubeFill = 0.97;
+        const rareCubeFill = 0.94;
         const rareBoxGeo = new THREE.BoxGeometry(
           voxelStep * rareCubeFill,
           voxelStep * rareCubeFill,
@@ -1078,13 +1123,13 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           voxelStep,
           forgeSphereRadius,
           primaryColor,
+          rareCubeFill,
         );
 
         const addRareGlowLayer = (
           cells: VoxelCell[],
           color: string,
           opacity: number,
-          scale: number,
           hot = false,
         ) => {
           if (cells.length === 0) return;
@@ -1101,9 +1146,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           glowInst.renderOrder = 1;
           for (let gi = 0; gi < cells.length; gi++) {
             const v = cells[gi]!;
-            rareVoxelWorldPos(v, voxelStep, forgeSphereRadius, posScratch);
+            rareVoxelWorldPos(v, voxelStep, forgeSphereRadius, rareCubeFill, posScratch);
             voxelDummy.position.copy(posScratch);
-            voxelDummy.scale.setScalar(rareVoxelScale(v, voxelStep, forgeSphereRadius) * scale);
+            voxelDummy.scale.setScalar(1);
             voxelDummy.updateMatrix();
             glowInst.setMatrixAt(gi, voxelDummy.matrix);
           }
@@ -1115,9 +1160,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           group.add(glowInst);
         };
 
-        addRareGlowLayer(innerCore, "#1868c8", 0.08, 1.03);
-        addRareGlowLayer(brightSurface, "#4facfe", 0.14, 1.08);
-        addRareGlowLayer(hotSpots, "#7ec8ff", 0.28, 1.18, true);
+        addRareGlowLayer(innerCore, "#1868c8", 0.08);
+        addRareGlowLayer(brightSurface, "#4facfe", 0.14);
+        addRareGlowLayer(hotSpots, "#7ec8ff", 0.26, true);
       } else {
       const vMat = planetShowcase
         ? new THREE.MeshBasicMaterial({
