@@ -194,7 +194,7 @@ export function PlanetDetailModal({
 
         className="flex flex-col items-center gap-3"
 
-        style={{ maxWidth: 280, width: "100%" }}
+        style={{ maxWidth: 292, width: "100%" }}
 
         onClick={(e) => e.stopPropagation()}
 

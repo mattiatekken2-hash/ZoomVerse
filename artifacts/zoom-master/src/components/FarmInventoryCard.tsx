@@ -74,7 +74,7 @@ export function FarmInventoryCard({
   const farmHours = planet.farmDurationHours ?? 1;
   const planetFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
   const isPlatinumNft = planet.name === "V1_NFT";
-  const orbThumb = compact ? 54 : 96;
+  const orbThumb = 96;
 
   const cycleTotal = planet.name === "MUSHROOM"
     ? 5
@@ -92,8 +92,8 @@ export function FarmInventoryCard({
         display: "flex",
         flexDirection: "column",
         cursor: onCardClick ? "pointer" : undefined,
-        width: compact ? 248 : "100%",
-        maxWidth: compact ? 248 : undefined,
+        width: compact ? 268 : "100%",
+        maxWidth: compact ? 268 : undefined,
         minHeight: compact ? undefined : 292,
       }}
       onClick={onCardClick}
@@ -104,12 +104,12 @@ export function FarmInventoryCard({
         style={{
           position: "relative",
           flex: compact ? undefined : "1 1 auto",
-          minHeight: compact ? 118 : 168,
+          minHeight: compact ? 158 : 168,
           background: `linear-gradient(180deg, ${rgba(cardColor, 0.98)} 0%, ${rgba(cardColor, 0.72)} 32%, ${rgba(cardColor, 0.28)} 68%, #08080c 100%)`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: compact ? "14px 10px 22px" : "18px 10px 28px",
+          padding: compact ? "16px 10px 26px" : "18px 10px 28px",
         }}
       >
         {dur < 100 && (
@@ -143,6 +143,7 @@ export function FarmInventoryCard({
             size={orbThumb}
             animate
             suspendGl={suspendGl}
+            eager={compact}
           />
           {isPlatinumNft && (
             <span className="nft-badge absolute" style={{ top: -4, left: -4 }} aria-label="NFT">
