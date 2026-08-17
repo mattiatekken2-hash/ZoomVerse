@@ -4,7 +4,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
-import { FORGE_CLAY, FORGE_CLAY_HEX, FORGE_VOXEL_SIZE, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, FORGE_SPHERE_SHAPE_ID, getForgeSphereBlueprint, showcaseVoxelHex, getShowcaseVoxelHex, getShowcasePaletteForRarity, getShowcaseRarityStyle, quantizeToShowcasePalette, isBattleScarVoxel, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
+import { FORGE_CLAY, FORGE_CLAY_HEX, FORGE_VOXEL_SIZE, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, FORGE_SPHERE_SHAPE_ID, getForgeSphereBlueprint, labForgeMorphT, showcaseVoxelHex, getShowcaseVoxelHex, getShowcasePaletteForRarity, getShowcaseRarityStyle, quantizeToShowcasePalette, isBattleScarVoxel, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
 import { FLOAT_PLANET_TYPES } from "../utils/planetFloat";
 
 const DEFAULT_PARTS = mysteryKitParts();
@@ -27,6 +27,25 @@ const PIXEL_MIN_INTERNAL = 16;
 const PLANET_THUMB_RENDER_SCALE = 1.75;
 /** Forge voxel — solid face + EdgesGeometry line per cube. */
 const FORGE_VOXEL_CUBE_FILL = 0.98;
+
+function resolveForgeVoxelPosition(v: VoxelCell, morphT: number, out: THREE.Vector3): void {
+  const mx = v.morphX;
+  const my = v.morphY;
+  const mz = v.morphZ;
+  if (mx === undefined || my === undefined || mz === undefined || morphT <= 0) {
+    out.set(v.x, v.y, v.z);
+    return;
+  }
+  if (morphT >= 1) {
+    out.set(mx, my, mz);
+    return;
+  }
+  out.set(
+    v.x + (mx - v.x) * morphT,
+    v.y + (my - v.y) * morphT,
+    v.z + (mz - v.z) * morphT,
+  );
+}
 const FORGE_VOXEL_EDGE = 0x454545;
 
 /** Unit 1×1×1 box edge vertices — scaled per voxel in the animate loop. */
@@ -899,9 +918,11 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
       const idx = placedCount - 1;
       const v = list[idx]!;
+      const morphT = labForgeMorphT(assemblyRef.current);
       const w = renderer.domElement.clientWidth;
       const h = renderer.domElement.clientHeight;
-      const vec = new THREE.Vector3(v.x, v.y, v.z);
+      const vec = new THREE.Vector3();
+      resolveForgeVoxelPosition(v, morphT, vec);
       group.localToWorld(vec);
       vec.project(camera);
       if (!Number.isFinite(vec.x) || vec.z > 1) return null;
@@ -909,7 +930,11 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const sx = vec.x * (w / 2);
       const sy = -vec.y * (h / 2);
       const half = voxelStepRef.current * 0.5;
-      const edge = new THREE.Vector3(v.x + half, v.y + half, v.z);
+      const edgeLocal = new THREE.Vector3();
+      resolveForgeVoxelPosition(v, morphT, edgeLocal);
+      edgeLocal.x += half;
+      edgeLocal.y += half;
+      const edge = edgeLocal.clone();
       group.localToWorld(edge);
       edge.project(camera);
       const sizePx = Math.max(7, Math.min(22, Math.hypot((edge.x - vec.x) * w, (edge.y - vec.y) * h) * 1.15));
@@ -1168,6 +1193,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           const bp = getForgeSphereBlueprint(primaryColor, accentColor, {
             display: planetShowcase,
             premiumDisplay: premiumPlanetShowcase,
+            labMorph: useForgeVoxels && !planetShowcase,
           });
           forgeVoxels = bp.voxels;
           voxelStep = bp.step;
@@ -1509,6 +1535,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const clayLight = new THREE.Color(0xffffff);
     const painted = new THREE.Color();
     const mixed = new THREE.Color();
+    const forgePosScratch = new THREE.Vector3();
 
     const animate = (now: number) => {
       frameId = requestAnimationFrame(animate);
@@ -1596,6 +1623,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         const dropEase = dropT * dropT * (3 - 2 * dropT);
         const paintBlend = st.revealed ? 1 : paintT;
         const useClayGrey = paintBlend <= 0 && !sealing;
+        const shapeMorphT = isForgeSphere && !planetShowcase && !st.revealed
+          ? (sealing ? 1 : labForgeMorphT(assembly))
+          : 0;
         const voxMat = voxMesh.material as THREE.MeshBasicMaterial;
         voxMat.toneMapped = false;
         if (useClayGrey) {
@@ -1609,6 +1639,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
         if (sealing) {
           group.scale.setScalar(1 + sealEase * 0.04);
+        } else if (shapeMorphT > 0) {
+          group.scale.setScalar(0.94 + shapeMorphT * 0.06);
         } else {
           group.scale.setScalar(1);
         }
@@ -1627,7 +1659,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
           const lock = settled ? 1 : dropEase;
           const drop = settled ? 0 : (1 - lock) * 0.35;
-          voxelDummy.position.set(v.x, v.y + drop, v.z);
+          resolveForgeVoxelPosition(v, shapeMorphT, forgePosScratch);
+          voxelDummy.position.set(forgePosScratch.x, forgePosScratch.y + drop, forgePosScratch.z);
           voxelDummy.scale.setScalar(Math.max(0.04, lock * cubeSeal));
           voxelDummy.rotation.set(0, 0, 0);
           voxelDummy.updateMatrix();

@@ -81,6 +81,101 @@ export function buildForgeSphereVoxels(_primary: string, _accent: string): Voxel
   return buildSphereCells(FORGE_SPHERE_RADIUS, STEP, false);
 }
 
+const LAB_FORGE_CUBE_FILL = 0.98;
+
+/** Snap surface voxels onto a round sphere envelope (same logic as Farm premium shell). */
+export function forgeVoxelEnvelopePos(
+  ix: number,
+  iy: number,
+  iz: number,
+  radius: number,
+  step: number,
+  cubeFill = LAB_FORGE_CUBE_FILL,
+): { x: number; y: number; z: number } {
+  const len = Math.sqrt(ix * ix + iy * iy + iz * iz);
+  if (len < 0.001) return { x: 0, y: 0, z: 0 };
+  const dist = len / Math.max(radius, 1);
+  const nx = ix / len;
+  const ny = iy / len;
+  const nz = iz / len;
+  const half = step * cubeFill * 0.5;
+  const outerR = radius * step;
+
+  if (dist > 0.76) {
+    const centerR = Math.max(half, outerR - half);
+    return { x: nx * centerR, y: ny * centerR, z: nz * centerR };
+  }
+  return { x: ix * step, y: iy * step, z: iz * step };
+}
+
+/** Ease 0→1 for Lab forge shape morph (starts early, finishes at 100%). */
+export function labForgeMorphT(progress: number): number {
+  const p = Math.min(1, Math.max(0, progress));
+  const t = Math.min(1, Math.max(0, (p - 0.08) / 0.92));
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * Lab tap sequence — subsample premium shell order into r=4 cells with morph targets
+ * so grey voxels gradually form a round planet silhouette during assembly.
+ */
+export function buildLabMorphForgeVoxels(_primary: string, _accent: string): VoxelCell[] {
+  void _primary;
+  void _accent;
+  const labRadius = FORGE_SPHERE_RADIUS;
+  const labStep = STEP;
+  const goal = buildForgeSphereVoxels("", "").length;
+  const premium = buildSphereCells(FORGE_SPHERE_PREMIUM_DISPLAY_RADIUS, PREMIUM_DISPLAY_STEP, true);
+  const scale = labRadius / FORGE_SPHERE_PREMIUM_DISPLAY_RADIUS;
+  const seen = new Set<string>();
+  const picked: Array<{ ix: number; iy: number; iz: number; dist: number }> = [];
+
+  for (const pv of premium) {
+    if (picked.length >= goal) break;
+    const pix = Math.round(pv.x / PREMIUM_DISPLAY_STEP);
+    const piy = Math.round(pv.y / PREMIUM_DISPLAY_STEP);
+    const piz = Math.round(pv.z / PREMIUM_DISPLAY_STEP);
+    const ix = Math.round(pix * scale);
+    const iy = Math.round(piy * scale);
+    const iz = Math.round(piz * scale);
+    const d2 = ix * ix + iy * iy + iz * iz;
+    if (d2 > labRadius * labRadius) continue;
+    const key = `${ix},${iy},${iz}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    picked.push({ ix, iy, iz, dist: d2 });
+  }
+
+  if (picked.length < goal) {
+    for (const sv of buildForgeSphereVoxels("", "")) {
+      if (picked.length >= goal) break;
+      const ix = Math.round(sv.x / labStep);
+      const iy = Math.round(sv.y / labStep);
+      const iz = Math.round(sv.z / labStep);
+      const key = `${ix},${iy},${iz}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      picked.push({ ix, iy, iz, dist: ix * ix + iy * iy + iz * iz });
+    }
+  }
+
+  picked.sort((a, b) => a.dist - b.dist);
+
+  return picked.slice(0, goal).map((c, i) => {
+    const env = forgeVoxelEnvelopePos(c.ix, c.iy, c.iz, labRadius, labStep);
+    return {
+      id: `lfm-${i}`,
+      x: c.ix * labStep,
+      y: c.iy * labStep,
+      z: c.iz * labStep,
+      color: sphereBandColor(c.ix, c.iy, c.iz, labRadius, false) as MeshPartColor,
+      morphX: env.x,
+      morphY: env.y,
+      morphZ: env.z,
+    };
+  });
+}
+
 /** Denser painted sphere for Farm/Market/Lab reveal cards. */
 export function buildForgeSphereDisplayVoxels(_primary: string, _accent: string): VoxelCell[] {
   void _primary;
@@ -93,6 +188,8 @@ export interface ForgeSphereBlueprintOptions {
   display?: boolean;
   /** Farm/Market premium thumb — dense sphere for all floatable rarities. */
   premiumDisplay?: boolean;
+  /** Lab tap forge — grey voxels morph toward spherical envelope during assembly. */
+  labMorph?: boolean;
   /** @deprecated Use premiumDisplay */
   rarePremium?: boolean;
   /** @deprecated Use premiumDisplay */
@@ -110,6 +207,7 @@ export function getForgeSphereBlueprint(
   radius: number;
 } {
   const display = options?.display === true;
+  const labMorph = options?.labMorph === true;
   const premiumDisplay = display && (
     options?.premiumDisplay === true
     || options?.rarePremium === true
@@ -119,7 +217,9 @@ export function getForgeSphereBlueprint(
     ? buildSphereCells(FORGE_SPHERE_PREMIUM_DISPLAY_RADIUS, PREMIUM_DISPLAY_STEP, true)
     : display
       ? buildForgeSphereDisplayVoxels(primary, accent)
-      : buildForgeSphereVoxels(primary, accent);
+      : labMorph
+        ? buildLabMorphForgeVoxels(primary, accent)
+        : buildForgeSphereVoxels(primary, accent);
   const step = premiumDisplay ? PREMIUM_DISPLAY_STEP : display ? DISPLAY_STEP : STEP;
   const radius = premiumDisplay
     ? FORGE_SPHERE_PREMIUM_DISPLAY_RADIUS
