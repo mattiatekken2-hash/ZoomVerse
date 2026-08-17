@@ -9,6 +9,10 @@ export interface VoxelCell {
   metal?: number;
   rough?: number;
   profile?: MaterialProfile;
+  /** Lab forge morph — spherical envelope target (world units). */
+  morphX?: number;
+  morphY?: number;
+  morphZ?: number;
 }
 
 const MIN_FORGE_VOXELS = 72;
