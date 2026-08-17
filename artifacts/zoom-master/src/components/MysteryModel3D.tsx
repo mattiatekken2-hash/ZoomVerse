@@ -147,14 +147,16 @@ function addRareBandVoxelMeshes(
     const iz = Math.round(v.z / voxelStep);
     const dist = Math.sqrt(ix * ix + iy * iy + iz * iz) / Math.max(forgeSphereRadius, 1);
     const hash = (ix * 17 + iy * 31 + iz * 13) & 255;
-    const hex = quantizeRareShowcaseHex(
-      showcaseRareVoxelHex(v.color, primaryColor, ix, iy, iz, forgeSphereRadius),
-    );
-    const buckets = dist > 0.78 ? shellBuckets : coreBuckets;
+    const hex = dist < 0.58
+      ? (hash % 2 === 0 ? RARE_SHOWCASE_PALETTE[0] : RARE_SHOWCASE_PALETTE[1])
+      : quantizeRareShowcaseHex(
+          showcaseRareVoxelHex(v.color, primaryColor, ix, iy, iz, forgeSphereRadius),
+        );
+    const buckets = dist > 0.82 ? shellBuckets : coreBuckets;
     if (!buckets.has(hex)) buckets.set(hex, []);
     buckets.get(hex)!.push(v);
     if (dist > 0.82 && brightSet.has(hex)) brightSurface.push(v);
-    if (dist > 0.84 && hash % 29 === 0) hotSpots.push(v);
+    if (dist > 0.84 && hash % 31 === 0) hotSpots.push(v);
     if (dist < 0.72) innerCore.push(v);
   }
 
@@ -183,13 +185,7 @@ function addRareBandVoxelMeshes(
     placeCells(cells, new THREE.MeshBasicMaterial({ color: hex, toneMapped: false }), 0);
   }
   for (const [hex, cells] of shellBuckets) {
-    placeCells(cells, new THREE.MeshBasicMaterial({
-      color: hex,
-      toneMapped: false,
-      transparent: true,
-      opacity: 0.84,
-      depthWrite: false,
-    }), 1);
+    placeCells(cells, new THREE.MeshBasicMaterial({ color: hex, toneMapped: false }), 1);
   }
 
   return { brightSurface, hotSpots, innerCore };
@@ -1093,7 +1089,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
       if (planetShowcase && rarePlanetShowcase) {
         const posScratch = new THREE.Vector3();
-        const rareCubeFill = 0.86;
+        const rareCubeFill = 0.82;
         const rareBoxGeo = new THREE.BoxGeometry(
           voxelStep * rareCubeFill,
           voxelStep * rareCubeFill,
@@ -1144,9 +1140,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           group.add(glowInst);
         };
 
-        addRareGlowLayer(innerCore, "#4facfe", 0.11, 1.04);
-        addRareGlowLayer(brightSurface, "#64b8ff", 0.22, 1.1);
-        addRareGlowLayer(hotSpots, "#98d8ff", 0.36, 1.24, true);
+        addRareGlowLayer(innerCore, "#1868c8", 0.08, 1.03);
+        addRareGlowLayer(brightSurface, "#4facfe", 0.14, 1.08);
+        addRareGlowLayer(hotSpots, "#7ec8ff", 0.28, 1.18, true);
       } else {
       const vMat = planetShowcase
         ? new THREE.MeshBasicMaterial({

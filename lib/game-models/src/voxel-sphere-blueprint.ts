@@ -10,12 +10,12 @@ export const FORGE_SPHERE_RADIUS = 4;
 /** Farm/Market/Lab reveal — dense collectible sphere (~1400 cubes at r=7). */
 export const FORGE_SPHERE_DISPLAY_RADIUS = 7;
 
-/** RARE Farm thumb — high grid resolution (~4200 cubes, mockup-aligned). */
-export const FORGE_SPHERE_RARE_DISPLAY_RADIUS = 10;
+/** RARE Farm thumb — ultra grid (~5700 cubes, mockup SERAPH density). */
+export const FORGE_SPHERE_RARE_DISPLAY_RADIUS = 11;
 
 const STEP = FORGE_VOXEL_SIZE;
 const DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.78;
-const RARE_DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.62;
+const RARE_DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.58;
 
 /** Key light direction for fake face shading on unlit thumbs. */
 const LIGHT_X = 0.42;
@@ -223,18 +223,20 @@ export function showcaseRareVoxelHex(
   let g: number;
   let b: number;
 
-  if (hash % 29 === 0 && dist > 0.86) {
-    r = 148; g = 210; b = 255;
-  } else if (hash % 5 === 0 || band === "h" || (ny > 0.68 && dist > 0.78)) {
-    r = 100; g = 186; b = 255;
-  } else if (hash % 3 === 0 || band === "a" || dist > 0.84) {
+  if (hash % 31 === 0 && dist > 0.88) {
+    r = 130; g = 200; b = 255;
+  } else if (hash % 5 === 0 || band === "h" || (ny > 0.7 && dist > 0.82)) {
+    r = 88; g = 178; b = 255;
+  } else if (hash % 3 === 0 || band === "a" || dist > 0.86) {
     r = primaryRgb.r;
     g = primaryRgb.g;
     b = primaryRgb.b;
-  } else if (dist < 0.55 || hash < 120) {
-    r = 14; g = 72; b = 178;
+  } else if (dist < 0.52) {
+    r = 6; g = 38; b = 132;
+  } else if (dist < 0.68 || hash < 130) {
+    r = 12; g = 58; b = 158;
   } else {
-    r = 36; g = 118; b = 212;
+    r = 28; g = 102; b = 198;
   }
 
   if (dist > 0.8) {
@@ -259,14 +261,14 @@ export function showcaseRareVoxelHex(
 
 /** Fixed palette for mobile-safe InstancedMesh buckets (no instanceColor). */
 export const RARE_SHOWCASE_PALETTE = [
-  "#0e48a0",
+  "#062868",
+  "#0a4898",
   "#1868c8",
   "#3a9ef0",
   "#4facfe",
   "#64b8ff",
   "#7ec8ff",
   "#98d8ff",
-  "#b0e4ff",
 ] as const;
 
 export function quantizeRareShowcaseHex(hex: string): string {
