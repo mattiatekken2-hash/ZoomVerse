@@ -180,26 +180,6 @@ function forgeClayTone(index: number): THREE.Color {
   return new THREE.Color(tones[index % tones.length]!);
 }
 
-/** Wireframe cube around the voxel sphere — blueprint frame from reference UI. */
-function createForgeBoundingCube(cubeSize: number): THREE.LineSegments {
-  const boxGeo = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
-  const edges = new THREE.EdgesGeometry(boxGeo);
-  boxGeo.dispose();
-  const lines = new THREE.LineSegments(
-    edges,
-    new THREE.LineBasicMaterial({
-      color: 0xd0d8e8,
-      transparent: true,
-      opacity: 0.42,
-      toneMapped: false,
-      depthWrite: false,
-    }),
-  );
-  lines.frustumCulled = false;
-  lines.renderOrder = 4;
-  return lines;
-}
-
 function addForgeSpaceGrid(scene: THREE.Scene, maxDim: number): THREE.Object3D[] {
   const extras: THREE.Object3D[] = [];
   const span = maxDim * 3.6;
@@ -656,7 +636,6 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
   const voxelStepRef = useRef(FORGE_VOXEL_SIZE);
   const forgeEdgeLinesRef = useRef<THREE.LineSegments | null>(null);
   const forgeEdgePositionsRef = useRef<Float32Array | null>(null);
-  const forgeBoundingCubeRef = useRef<THREE.LineSegments | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const assemblyRef = useRef(progress);
@@ -946,18 +925,14 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     let voxelInst: THREE.InstancedMesh | null = null;
     forgeEdgeLinesRef.current = null;
     forgeEdgePositionsRef.current = null;
-    forgeBoundingCubeRef.current = null;
     const voxelColorScratch = new THREE.Color();
     if (forgeVoxels.length > 0) {
       const n = forgeVoxels.length;
       const cube = voxelStep * FORGE_VOXEL_CUBE_FILL;
       const boxGeo = new THREE.BoxGeometry(cube, cube, cube);
-      const vMat = new THREE.MeshStandardMaterial({
+      const vMat = new THREE.MeshBasicMaterial({
         color: FORGE_CLAY,
         vertexColors: true,
-        roughness: 0.58,
-        metalness: 0.28,
-        flatShading: true,
         toneMapped: false,
       });
       voxelInst = new THREE.InstancedMesh(boxGeo, vMat, n);
@@ -1015,11 +990,6 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const dim = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(dim.x, dim.y, dim.z, 0.8);
     group.position.sub(center);
-    if (forgeVoxels.length > 0) {
-      const cubeFrame = createForgeBoundingCube(maxDim * 1.06);
-      group.add(cubeFrame);
-      forgeBoundingCubeRef.current = cubeFrame;
-    }
     if (showcase) {
       groundExtras = addShowcaseGround(scene, maxDim, accentColor);
     } else if (forgeSpaceMode) {
@@ -1177,14 +1147,12 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       if (useVoxelForge && voxelInst) {
         const voxMesh = voxelInst;
         const edgeLines = forgeEdgeLinesRef.current;
-        const boundingCube = forgeBoundingCubeRef.current;
         const edgePosBuf = forgeEdgePositionsRef.current;
         const edgeTpl = getUnitBoxEdgeTemplate();
         const edgeVertCount = edgeTpl.vertCount;
         const cubeSize = voxelStepRef.current * FORGE_VOXEL_CUBE_FILL;
         voxMesh.visible = true;
         if (edgeLines) edgeLines.visible = true;
-        if (boundingCube) boundingCube.visible = true;
         const sealEase = sealT * sealT * (3 - 2 * sealT);
         const placedCount = sealing || st.revealed
           ? forgeVoxels.length
@@ -1195,7 +1163,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           : 1;
         const dropEase = dropT * dropT * (3 - 2 * dropT);
         const paintBlend = st.revealed ? 1 : paintT;
-        const voxMat = voxMesh.material as THREE.MeshStandardMaterial;
+        const voxMat = voxMesh.material as THREE.MeshBasicMaterial;
         voxMat.toneMapped = false;
         voxMat.needsUpdate = true;
 
@@ -1260,33 +1228,20 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           edgeLines.geometry.computeBoundingSphere();
         }
 
-        if (paintBlend > 0.5) {
-          voxMat.metalness = 0.32 + paintBlend * 0.18;
-          voxMat.roughness = 0.62 - paintBlend * 0.18;
-          voxMat.emissive.set(st.accentColor);
-          voxMat.emissiveIntensity = Math.sin(paintBlend * Math.PI) * 0.22;
-        } else {
-          voxMat.metalness = 0.08;
-          voxMat.roughness = 0.82;
-          voxMat.emissive.set(0x000000);
-          voxMat.emissiveIntensity = 0;
-        }
-
         touchedMesh = true;
 
         group.children.forEach((child) => {
-          if (child === voxMesh || child === edgeLines || child === boundingCube) return;
+          if (child === voxMesh || child === edgeLines) return;
           const mesh = child as THREE.Mesh;
           if (mesh.isMesh && mesh.userData["part"]) mesh.visible = false;
         });
       } else {
         if (voxelInst) voxelInst.visible = false;
         if (forgeEdgeLinesRef.current) forgeEdgeLinesRef.current.visible = false;
-        if (forgeBoundingCubeRef.current) forgeBoundingCubeRef.current.visible = false;
 
       let partIndex = 0;
       group.children.forEach((child) => {
-        if (child === voxelInst || child === forgeEdgeLinesRef.current || child === forgeBoundingCubeRef.current) return;
+        if (child === voxelInst || child === forgeEdgeLinesRef.current) return;
         const mesh = child as THREE.Mesh;
         const part = mesh.userData["part"] as MeshPart | undefined;
         if (!part) return;
@@ -1415,14 +1370,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         edgeLinesCleanup.geometry.dispose();
         (edgeLinesCleanup.material as THREE.Material).dispose();
       }
-      const boundingCubeCleanup = forgeBoundingCubeRef.current;
-      if (boundingCubeCleanup) {
-        boundingCubeCleanup.geometry.dispose();
-        (boundingCubeCleanup.material as THREE.Material).dispose();
-      }
       forgeEdgeLinesRef.current = null;
       forgeEdgePositionsRef.current = null;
-      forgeBoundingCubeRef.current = null;
       group.children.forEach((c) => {
         const m = c as THREE.Mesh;
         (m.material as THREE.Material).dispose();
