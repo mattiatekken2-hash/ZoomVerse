@@ -10,16 +10,24 @@ export const FORGE_SPHERE_RADIUS = 4;
 /** Farm/Market/Lab reveal — dense collectible sphere (~1400 cubes at r=7). */
 export const FORGE_SPHERE_DISPLAY_RADIUS = 7;
 
-/** RARE Farm thumb — ultra grid (~9200 cubes, smooth voxel envelope). */
-export const FORGE_SPHERE_RARE_DISPLAY_RADIUS = 13;
+/** Premium Farm/Market thumb — ultra grid (~9200 cubes). */
+export const FORGE_SPHERE_PREMIUM_DISPLAY_RADIUS = 13;
 
-/** BASIC Farm thumb — same density as RARE, grey greeble surface. */
-export const FORGE_SPHERE_BASIC_DISPLAY_RADIUS = 13;
+/** @deprecated Use FORGE_SPHERE_PREMIUM_DISPLAY_RADIUS */
+export const FORGE_SPHERE_RARE_DISPLAY_RADIUS = FORGE_SPHERE_PREMIUM_DISPLAY_RADIUS;
+
+/** @deprecated Use FORGE_SPHERE_PREMIUM_DISPLAY_RADIUS */
+export const FORGE_SPHERE_BASIC_DISPLAY_RADIUS = FORGE_SPHERE_PREMIUM_DISPLAY_RADIUS;
 
 const STEP = FORGE_VOXEL_SIZE;
 const DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.78;
-const RARE_DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.54;
-const BASIC_DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.54;
+const PREMIUM_DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.54;
+
+/** @deprecated Use PREMIUM_DISPLAY_STEP */
+const RARE_DISPLAY_STEP = PREMIUM_DISPLAY_STEP;
+
+/** @deprecated Use PREMIUM_DISPLAY_STEP */
+const BASIC_DISPLAY_STEP = PREMIUM_DISPLAY_STEP;
 
 /** Key light direction for fake face shading on unlit thumbs. */
 const LIGHT_X = 0.42;
@@ -83,9 +91,11 @@ export function buildForgeSphereDisplayVoxels(_primary: string, _accent: string)
 export interface ForgeSphereBlueprintOptions {
   /** Use the high-density collectible mesh (cards + reveal). */
   display?: boolean;
-  /** RARE Farm/Market — ~2× voxel count, smaller cubes (mockup density). */
+  /** Farm/Market premium thumb — dense sphere for all floatable rarities. */
+  premiumDisplay?: boolean;
+  /** @deprecated Use premiumDisplay */
   rarePremium?: boolean;
-  /** BASIC Farm/Market — dense grey greeble sphere (SOLIS mockup). */
+  /** @deprecated Use premiumDisplay */
   basicPremium?: boolean;
 }
 
@@ -100,29 +110,22 @@ export function getForgeSphereBlueprint(
   radius: number;
 } {
   const display = options?.display === true;
-  const rarePremium = display && options?.rarePremium === true;
-  const basicPremium = display && options?.basicPremium === true && !rarePremium;
-  const voxels = rarePremium
-    ? buildSphereCells(FORGE_SPHERE_RARE_DISPLAY_RADIUS, RARE_DISPLAY_STEP, true)
-    : basicPremium
-      ? buildSphereCells(FORGE_SPHERE_BASIC_DISPLAY_RADIUS, BASIC_DISPLAY_STEP, true)
-      : display
-        ? buildForgeSphereDisplayVoxels(primary, accent)
-        : buildForgeSphereVoxels(primary, accent);
-  const step = rarePremium
-    ? RARE_DISPLAY_STEP
-    : basicPremium
-      ? BASIC_DISPLAY_STEP
-      : display
-        ? DISPLAY_STEP
-        : STEP;
-  const radius = rarePremium
-    ? FORGE_SPHERE_RARE_DISPLAY_RADIUS
-    : basicPremium
-      ? FORGE_SPHERE_BASIC_DISPLAY_RADIUS
-      : display
-        ? FORGE_SPHERE_DISPLAY_RADIUS
-        : FORGE_SPHERE_RADIUS;
+  const premiumDisplay = display && (
+    options?.premiumDisplay === true
+    || options?.rarePremium === true
+    || options?.basicPremium === true
+  );
+  const voxels = premiumDisplay
+    ? buildSphereCells(FORGE_SPHERE_PREMIUM_DISPLAY_RADIUS, PREMIUM_DISPLAY_STEP, true)
+    : display
+      ? buildForgeSphereDisplayVoxels(primary, accent)
+      : buildForgeSphereVoxels(primary, accent);
+  const step = premiumDisplay ? PREMIUM_DISPLAY_STEP : display ? DISPLAY_STEP : STEP;
+  const radius = premiumDisplay
+    ? FORGE_SPHERE_PREMIUM_DISPLAY_RADIUS
+    : display
+      ? FORGE_SPHERE_DISPLAY_RADIUS
+      : FORGE_SPHERE_RADIUS;
   return { voxels, step, goal: Math.max(1, buildForgeSphereVoxels(primary, accent).length), radius };
 }
 
@@ -149,6 +152,119 @@ function faceLightFactor(ix: number, iy: number, iz: number, radius: number): nu
   const nz = iz / len;
   const ndotl = (nx * LIGHT_X + ny * LIGHT_Y + nz * LIGHT_Z) / LIGHT_LEN;
   return 0.42 + Math.max(0, ndotl) * 0.58;
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return `#${[r, g, b].map((v) => clampByte(v).toString(16).padStart(2, "0")).join("")}`;
+}
+
+function mixRgb(
+  a: { r: number; g: number; b: number },
+  b: { r: number; g: number; b: number },
+  t: number,
+): { r: number; g: number; b: number } {
+  const u = Math.max(0, Math.min(1, t));
+  return {
+    r: a.r + (b.r - a.r) * u,
+    g: a.g + (b.g - a.g) * u,
+    b: a.b + (b.b - a.b) * u,
+  };
+}
+
+/** CS:GO-style cosmetic float grading for voxel thumbs (matches PlanetOrb curves). */
+export function applyVoxelFloatGrading(
+  r: number,
+  g: number,
+  b: number,
+  floatValue: number,
+): { r: number; g: number; b: number } {
+  const f = Math.max(0, Math.min(1, floatValue));
+  const sat = 0.55 + 0.65 * f;
+  const bright = 0.70 + 0.45 * f;
+  const contrast = 0.88 + 0.22 * f;
+  const grey = (r + g + b) / 3;
+  let nr = grey + (r - grey) * sat;
+  let ng = grey + (g - grey) * sat;
+  let nb = grey + (b - grey) * sat;
+  nr = (nr - 128) * contrast + 128;
+  ng = (ng - 128) * contrast + 128;
+  nb = (nb - 128) * contrast + 128;
+  nr *= bright;
+  ng *= bright;
+  nb *= bright;
+  if (f >= 1) {
+    nr = nr * 0.92 + 255 * 0.08;
+    ng = ng * 0.92 + 255 * 0.08;
+    nb = nb * 0.92 + 255 * 0.08;
+  }
+  return { r: clampByte(nr), g: clampByte(ng), b: clampByte(nb) };
+}
+
+function fnv1a(str: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+  }
+  return h >>> 0;
+}
+
+/** Low-float battle scars — deterministic per planet + voxel grid cell. */
+export function isBattleScarVoxel(
+  planetId: string,
+  ix: number,
+  iy: number,
+  iz: number,
+  floatValue: number,
+): boolean {
+  if (floatValue >= 0.25) return false;
+  const strength = (0.25 - floatValue) / 0.25;
+  const hash = fnv1a(`${planetId}:${ix},${iy},${iz}`) & 255;
+  return hash < strength * 90;
+}
+
+function mixToHex(
+  a: { r: number; g: number; b: number },
+  b: { r: number; g: number; b: number },
+  t: number,
+): string {
+  const m = mixRgb(a, b, t);
+  return rgbToHex(m.r, m.g, m.b);
+}
+
+export function buildShowcasePalette(primary: string, accent: string): string[] {
+  const p = hexToRgb(primary);
+  const a = hexToRgb(accent);
+  if (!p || !a) return [...BASIC_SHOWCASE_PALETTE];
+  const black = { r: 0, g: 0, b: 0 };
+  const white = { r: 255, g: 255, b: 255 };
+  return [
+    mixToHex(a, black, 0.62),
+    mixToHex(a, black, 0.28),
+    rgbToHex(a.r, a.g, a.b),
+    mixToHex(a, p, 0.35),
+    mixToHex(a, p, 0.65),
+    rgbToHex(p.r, p.g, p.b),
+    mixToHex(p, white, 0.14),
+    mixToHex(p, white, 0.3),
+  ];
+}
+
+export function quantizeToShowcasePalette(hex: string, palette: readonly string[]): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return palette[Math.floor(palette.length / 2)] ?? "#888888";
+  let best: string = palette[Math.floor(palette.length / 2)] ?? "#888888";
+  let bestDist = Infinity;
+  for (const candidate of palette) {
+    const c = hexToRgb(candidate);
+    if (!c) continue;
+    const d = (rgb.r - c.r) ** 2 + (rgb.g - c.g) ** 2 + (rgb.b - c.b) ** 2;
+    if (d < bestDist) {
+      bestDist = d;
+      best = candidate;
+    }
+  }
+  return best;
 }
 
 /** Per-voxel color for Farm/Market/Lab reveal — rarity primary/accent + fake lighting + shell glow. */
@@ -226,11 +342,14 @@ export function showcaseRareVoxelHex(
   iy: number,
   iz: number,
   radius: number,
+  floatValue = 1,
 ): string {
   const dist = Math.sqrt(ix * ix + iy * iy + iz * iz) / Math.max(radius, 1);
   const ny = (iy / radius + 1) * 0.5;
   const hash = (ix * 17 + iy * 31 + iz * 13) & 255;
   const flick = 0.86 + (hash % 29) * 0.008;
+  const f = Math.max(0, Math.min(1, floatValue));
+  const hotChance = f >= 1 ? 37 : f >= 0.8 ? 41 : f >= 0.5 ? 47 : 999;
 
   const primaryRgb = hexToRgb(primary);
   if (!primaryRgb) return primary;
@@ -240,7 +359,7 @@ export function showcaseRareVoxelHex(
   let g: number;
   let b: number;
 
-  if (hash % 37 === 0 && dist > 0.86) {
+  if (hash % hotChance === 0 && dist > 0.86) {
     r = 90; g = 215; b = 255;
   } else if (hash % 5 === 0 || band === "h" || (ny > 0.72 && dist > 0.84)) {
     r = 64; g = 168; b = 255;
@@ -273,7 +392,8 @@ export function showcaseRareVoxelHex(
   g = clampByte(g * flick);
   b = clampByte(b * flick);
 
-  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+  const graded = applyVoxelFloatGrading(r, g, b, f);
+  return rgbToHex(graded.r, graded.g, graded.b);
 }
 
 /** Fixed palette for mobile-safe InstancedMesh buckets (no instanceColor). */
@@ -289,20 +409,7 @@ export const RARE_SHOWCASE_PALETTE = [
 ] as const;
 
 export function quantizeRareShowcaseHex(hex: string): string {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return RARE_SHOWCASE_PALETTE[2];
-  let best: string = RARE_SHOWCASE_PALETTE[2];
-  let bestDist = Infinity;
-  for (const candidate of RARE_SHOWCASE_PALETTE) {
-    const c = hexToRgb(candidate);
-    if (!c) continue;
-    const d = (rgb.r - c.r) ** 2 + (rgb.g - c.g) ** 2 + (rgb.b - c.b) ** 2;
-    if (d < bestDist) {
-      bestDist = d;
-      best = candidate;
-    }
-  }
-  return best;
+  return quantizeToShowcasePalette(hex, RARE_SHOWCASE_PALETTE);
 }
 
 /** BASIC Farm/Market showcase — matte grey/metallic greeble (SOLIS mockup). */
@@ -314,6 +421,7 @@ export function showcaseBasicVoxelHex(
   iy: number,
   iz: number,
   radius: number,
+  floatValue = 1,
 ): string {
   const dist = Math.sqrt(ix * ix + iy * iy + iz * iz) / Math.max(radius, 1);
   const ny = (iy / radius + 1) * 0.5;
@@ -378,7 +486,119 @@ export function showcaseBasicVoxelHex(
   g = clampByte(g * flick);
   b = clampByte(b * flick);
 
-  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+  const f = Math.max(0, Math.min(1, floatValue));
+  const graded = applyVoxelFloatGrading(r, g, b, f);
+  return rgbToHex(graded.r, graded.g, graded.b);
+}
+
+/** EPIC+ Farm/Market — rarity-tinted dense sphere with shell depth. */
+export function showcasePremiumVoxelHex(
+  band: MeshPartColor,
+  primary: string,
+  accent: string,
+  ix: number,
+  iy: number,
+  iz: number,
+  radius: number,
+  floatValue = 1,
+): string {
+  const dist = Math.sqrt(ix * ix + iy * iy + iz * iz) / Math.max(radius, 1);
+  const ny = (iy / radius + 1) * 0.5;
+  const hash = (ix * 17 + iy * 31 + iz * 13) & 255;
+  const flick = 0.88 + (hash % 31) * 0.007;
+  const f = Math.max(0, Math.min(1, floatValue));
+
+  const primaryRgb = hexToRgb(primary);
+  const accentRgb = hexToRgb(accent);
+  if (!primaryRgb) return primary;
+
+  let r: number;
+  let g: number;
+  let b: number;
+
+  if (f >= 1 && hash % 43 === 0 && dist > 0.86) {
+    r = 255; g = 255; b = 255;
+  } else if (band === "h" || (ny > 0.7 && dist > 0.84)) {
+    r = primaryRgb.r * 1.06 + 16;
+    g = primaryRgb.g * 1.06 + 16;
+    b = primaryRgb.b * 1.06 + 16;
+  } else if (hash % 4 === 0 || band === "a" || dist > 0.88) {
+    r = accentRgb ? accentRgb.r : primaryRgb.r * 0.85;
+    g = accentRgb ? accentRgb.g : primaryRgb.g * 0.85;
+    b = accentRgb ? accentRgb.b : primaryRgb.b * 0.85;
+  } else if (dist < 0.52) {
+    r = (accentRgb?.r ?? primaryRgb.r) * 0.38;
+    g = (accentRgb?.g ?? primaryRgb.g) * 0.38;
+    b = (accentRgb?.b ?? primaryRgb.b) * 0.38;
+  } else if (dist < 0.72) {
+    r = primaryRgb.r * 0.68;
+    g = primaryRgb.g * 0.68;
+    b = primaryRgb.b * 0.68;
+  } else {
+    r = primaryRgb.r;
+    g = primaryRgb.g;
+    b = primaryRgb.b;
+  }
+
+  if (dist > 0.82) {
+    const shell = 1 + (dist - 0.82) * (0.45 + f * 0.35);
+    r = Math.min(255, r * shell);
+    g = Math.min(255, g * shell);
+    b = Math.min(255, b * shell);
+  }
+
+  const light = faceLightFactor(ix, iy, iz, radius);
+  r *= light;
+  g *= light;
+  b *= light;
+
+  r = clampByte(r * flick);
+  g = clampByte(g * flick);
+  b = clampByte(b * flick);
+
+  const graded = applyVoxelFloatGrading(r, g, b, f);
+  return rgbToHex(graded.r, graded.g, graded.b);
+}
+
+export type ShowcaseRarityStyle = "BASIC" | "RARE" | "STANDARD";
+
+export function getShowcaseRarityStyle(rarity: string): ShowcaseRarityStyle {
+  const r = rarity.toUpperCase();
+  if (r === "BASIC") return "BASIC";
+  if (r === "RARE") return "RARE";
+  return "STANDARD";
+}
+
+export function getShowcaseVoxelHex(
+  rarity: string,
+  band: MeshPartColor,
+  primary: string,
+  accent: string,
+  ix: number,
+  iy: number,
+  iz: number,
+  radius: number,
+  floatValue = 1,
+): string {
+  const style = getShowcaseRarityStyle(rarity);
+  if (style === "BASIC") {
+    return showcaseBasicVoxelHex(band, primary, accent, ix, iy, iz, radius, floatValue);
+  }
+  if (style === "RARE") {
+    return showcaseRareVoxelHex(band, primary, ix, iy, iz, radius, floatValue);
+  }
+  return showcasePremiumVoxelHex(band, primary, accent, ix, iy, iz, radius, floatValue);
+}
+
+export function getShowcasePaletteForRarity(
+  rarity: string,
+  primary: string,
+  accent: string,
+): readonly string[] {
+  const style = getShowcaseRarityStyle(rarity);
+  if (style === "BASIC") return BASIC_SHOWCASE_PALETTE;
+  if (style === "RARE") return RARE_SHOWCASE_PALETTE;
+  return buildShowcasePalette(primary, accent);
 }
 
 /** Fixed palette for mobile-safe InstancedMesh buckets (no instanceColor). */
@@ -394,18 +614,5 @@ export const BASIC_SHOWCASE_PALETTE = [
 ] as const;
 
 export function quantizeBasicShowcaseHex(hex: string): string {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return BASIC_SHOWCASE_PALETTE[4];
-  let best: string = BASIC_SHOWCASE_PALETTE[4];
-  let bestDist = Infinity;
-  for (const candidate of BASIC_SHOWCASE_PALETTE) {
-    const c = hexToRgb(candidate);
-    if (!c) continue;
-    const d = (rgb.r - c.r) ** 2 + (rgb.g - c.g) ** 2 + (rgb.b - c.b) ** 2;
-    if (d < bestDist) {
-      bestDist = d;
-      best = candidate;
-    }
-  }
-  return best;
+  return quantizeToShowcasePalette(hex, BASIC_SHOWCASE_PALETTE);
 }
