@@ -179,7 +179,7 @@ export function PlanetVoxelThumb({
           key={`${planet.id}-${glGen}`}
           shapeId={FORGE_SPHERE_SHAPE_ID}
           primaryColor={displayColors.color}
-          accentColor={displayColors.glowColor || displayColors.accentHex}
+          accentColor={displayColors.accentHex}
           size={size}
           autoSpin={animate}
           performanceMode={false}
