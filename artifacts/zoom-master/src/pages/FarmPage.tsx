@@ -23,6 +23,8 @@ import { EconomyWidget } from "../components/EconomyWidget";
 import { StakingWidget } from "../components/StakingWidget";
 import { PixelAvatar } from "../components/PixelAvatar";
 
+const SUN_THUMB_SIZE = 84;
+
 interface FarmPageProps {
   planets: Planet[];
   sun: SunState | null;
@@ -710,8 +712,8 @@ export function FarmPage({
                 <div
                   style={{
                     position: "relative",
-                    width: 72,
-                    height: 72,
+                    width: SUN_THUMB_SIZE,
+                    height: SUN_THUMB_SIZE,
                     flexShrink: 0,
                     filter: sunExpired ? "grayscale(1) brightness(0.45)" : undefined,
                     transition: "filter 0.4s ease",
@@ -723,7 +725,7 @@ export function FarmPage({
                     accentColor="#e65100"
                     planetRarity="SUN"
                     planetId="the-sun"
-                    size={72}
+                    size={SUN_THUMB_SIZE}
                     autoSpin={sunActive}
                   />
                   {sunExpired && (
