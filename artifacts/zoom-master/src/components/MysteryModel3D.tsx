@@ -4,7 +4,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
-import { FORGE_CLAY, FORGE_CLAY_HEX, FORGE_VOXEL_SIZE, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, FORGE_SPHERE_SHAPE_ID, getForgeSphereBlueprint, showcaseVoxelHex, showcaseRareVoxelHex, quantizeRareShowcaseHex, RARE_SHOWCASE_PALETTE, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
+import { FORGE_CLAY, FORGE_CLAY_HEX, FORGE_VOXEL_SIZE, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, FORGE_SPHERE_SHAPE_ID, getForgeSphereBlueprint, showcaseVoxelHex, showcaseRareVoxelHex, showcaseBasicVoxelHex, quantizeRareShowcaseHex, quantizeBasicShowcaseHex, RARE_SHOWCASE_PALETTE, BASIC_SHOWCASE_PALETTE, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
 
 const DEFAULT_PARTS = mysteryKitParts();
 
@@ -70,14 +70,16 @@ function showcaseVoxelColor(
   primary: string,
   accent: string,
   out: THREE.Color,
-  rareEmissive = false,
+  mode: "default" | "rare" | "basic" = "default",
 ): void {
   const ix = Math.round(v.x / step);
   const iy = Math.round(v.y / step);
   const iz = Math.round(v.z / step);
-  const hex = rareEmissive
+  const hex = mode === "rare"
     ? showcaseRareVoxelHex(v.color, primary, ix, iy, iz, radius)
-    : showcaseVoxelHex(v.color, primary, accent, ix, iy, iz, radius);
+    : mode === "basic"
+      ? showcaseBasicVoxelHex(v.color, primary, accent, ix, iy, iz, radius)
+      : showcaseVoxelHex(v.color, primary, accent, ix, iy, iz, radius);
   out.set(hex);
 }
 
@@ -209,6 +211,132 @@ function addRareBandVoxelMeshes(
   }
 
   return { brightSurface, hotSpots, innerCore };
+}
+
+function basicGreebleOffset(
+  ix: number,
+  iy: number,
+  iz: number,
+  radius: number,
+  step: number,
+): number {
+  const len = Math.sqrt(ix * ix + iy * iy + iz * iz);
+  const dist = len / Math.max(radius, 1);
+  if (dist < 0.78) return 0;
+  const hash = (ix * 17 + iy * 31 + iz * 13) & 255;
+  const panelHash = (Math.floor(ix / 2) * 7 + Math.floor(iy / 2) * 13 + Math.floor(iz / 2) * 11) & 255;
+  if (panelHash % 5 === 0) return -step * 0.34;
+  if (hash % 9 === 0) return step * 0.26;
+  if (hash % 13 === 0) return -step * 0.16;
+  if (hash % 17 === 0) return step * 0.14;
+  return 0;
+}
+
+/** Surface greeble — recessed panels + protruding blocks on a round envelope. */
+function basicVoxelWorldPos(
+  v: VoxelCell,
+  step: number,
+  radius: number,
+  cubeFill: number,
+  out: THREE.Vector3,
+): void {
+  const ix = Math.round(v.x / step);
+  const iy = Math.round(v.y / step);
+  const iz = Math.round(v.z / step);
+  const len = Math.sqrt(ix * ix + iy * iy + iz * iz);
+  if (len < 0.001) {
+    out.set(0, 0, 0);
+    return;
+  }
+  const dist = len / Math.max(radius, 1);
+  const nx = ix / len;
+  const ny = iy / len;
+  const nz = iz / len;
+  const half = step * cubeFill * 0.5;
+  const outerR = radius * step;
+
+  if (dist > 0.74) {
+    let centerR = Math.max(half, outerR - half);
+    centerR = Math.max(half, centerR + basicGreebleOffset(ix, iy, iz, radius, step));
+    out.set(nx * centerR, ny * centerR, nz * centerR);
+    return;
+  }
+  out.set(v.x, v.y, v.z);
+}
+
+function basicVoxelScale(v: VoxelCell, step: number, radius: number): number {
+  const ix = Math.round(v.x / step);
+  const iy = Math.round(v.y / step);
+  const iz = Math.round(v.z / step);
+  const len = Math.sqrt(ix * ix + iy * iy + iz * iz);
+  const dist = len / Math.max(radius, 1);
+  if (dist < 0.78) return 1;
+  const hash = (ix * 17 + iy * 31 + iz * 13) & 255;
+  const panelHash = (Math.floor(ix / 2) * 7 + Math.floor(iy / 2) * 13 + Math.floor(iz / 2) * 11) & 255;
+  if (hash % 9 === 0) return 1.06;
+  if (panelHash % 5 === 0) return 0.94;
+  return 1;
+}
+
+function addBasicBandVoxelMeshes(
+  group: THREE.Group,
+  forgeVoxels: VoxelCell[],
+  boxGeo: THREE.BoxGeometry,
+  voxelDummy: THREE.Object3D,
+  voxelStep: number,
+  forgeSphereRadius: number,
+  primaryColor: string,
+  accentColor: string,
+  cubeFill: number,
+): void {
+  const voxels = filterRareOutlierVoxels(forgeVoxels, voxelStep, forgeSphereRadius);
+  const coreBuckets = new Map<string, VoxelCell[]>();
+  const shellBuckets = new Map<string, VoxelCell[]>();
+  const posScratch = new THREE.Vector3();
+
+  for (const v of voxels) {
+    const ix = Math.round(v.x / voxelStep);
+    const iy = Math.round(v.y / voxelStep);
+    const iz = Math.round(v.z / voxelStep);
+    const dist = Math.sqrt(ix * ix + iy * iy + iz * iz) / Math.max(forgeSphereRadius, 1);
+    const hash = (ix * 17 + iy * 31 + iz * 13) & 255;
+    const hex = dist < 0.58
+      ? (hash % 2 === 0 ? BASIC_SHOWCASE_PALETTE[0] : BASIC_SHOWCASE_PALETTE[1])
+      : quantizeBasicShowcaseHex(
+          showcaseBasicVoxelHex(v.color, primaryColor, accentColor, ix, iy, iz, forgeSphereRadius),
+        );
+    const buckets = dist > 0.82 ? shellBuckets : coreBuckets;
+    if (!buckets.has(hex)) buckets.set(hex, []);
+    buckets.get(hex)!.push(v);
+  }
+
+  const placeCells = (
+    cells: VoxelCell[],
+    mat: THREE.MeshBasicMaterial,
+    renderOrder: number,
+  ) => {
+    const mesh = new THREE.InstancedMesh(boxGeo, mat, cells.length);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = renderOrder;
+    for (let i = 0; i < cells.length; i++) {
+      const v = cells[i]!;
+      basicVoxelWorldPos(v, voxelStep, forgeSphereRadius, cubeFill, posScratch);
+      voxelDummy.position.copy(posScratch);
+      voxelDummy.scale.setScalar(basicVoxelScale(v, voxelStep, forgeSphereRadius));
+      voxelDummy.updateMatrix();
+      mesh.setMatrixAt(i, voxelDummy.matrix);
+    }
+    mesh.count = cells.length;
+    mesh.instanceMatrix.needsUpdate = true;
+    group.add(mesh);
+  };
+
+  for (const [hex, cells] of coreBuckets) {
+    placeCells(cells, new THREE.MeshBasicMaterial({ color: hex, toneMapped: false }), 0);
+  }
+  for (const [hex, cells] of shellBuckets) {
+    placeCells(cells, new THREE.MeshBasicMaterial({ color: hex, toneMapped: false }), 1);
+  }
 }
 
 function isGlassPart(part: MeshPart): boolean {
@@ -916,6 +1044,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       && revealed
       && !interactive;
     const rarePlanetShowcase = planetShowcase && planetRarity === "RARE";
+    const basicPlanetShowcase = planetShowcase && planetRarity === "BASIC";
+    const premiumPlanetShowcase = rarePlanetShowcase || basicPlanetShowcase;
     const showcase = isShowcaseView(performanceMode, size, interactive, opaqueBackground, revealed, forgeVoxelBuild, planetShowcase);
     const isStaticShowcase = showcase && revealed && !interactive;
     const useForgeVoxels = forgeVoxelBuild;
@@ -961,7 +1091,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     setupRenderer(renderer, showcase && !planetShowcase);
     renderer.setPixelRatio(maxDpr);
     const renderPx = planetShowcase
-      ? Math.round(size * (rarePlanetShowcase ? 2 : PLANET_THUMB_RENDER_SCALE))
+      ? Math.round(size * (premiumPlanetShowcase ? 2 : PLANET_THUMB_RENDER_SCALE))
       : size;
     renderer.setSize(renderPx, renderPx);
     if (planetShowcase) {
@@ -1081,6 +1211,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           const bp = getForgeSphereBlueprint(primaryColor, accentColor, {
             display: planetShowcase,
             rarePremium: rarePlanetShowcase,
+            basicPremium: basicPlanetShowcase,
           });
           forgeVoxels = bp.voxels;
           voxelStep = bp.step;
@@ -1161,6 +1292,24 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         };
 
         addRareGlowLayer(hotSpots, "#70d0ff", 0.22, true);
+      } else if (planetShowcase && basicPlanetShowcase) {
+        const basicCubeFill = 0.94;
+        const basicBoxGeo = new THREE.BoxGeometry(
+          voxelStep * basicCubeFill,
+          voxelStep * basicCubeFill,
+          voxelStep * basicCubeFill,
+        );
+        addBasicBandVoxelMeshes(
+          group,
+          forgeVoxels,
+          basicBoxGeo,
+          voxelDummy,
+          voxelStep,
+          forgeSphereRadius,
+          primaryColor,
+          accentColor,
+          basicCubeFill,
+        );
       } else {
       const vMat = planetShowcase
         ? new THREE.MeshBasicMaterial({
@@ -1209,7 +1358,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           voxelDummy.scale.setScalar(1);
           voxelDummy.updateMatrix();
           voxelInst.setMatrixAt(vi, voxelDummy.matrix);
-          showcaseVoxelColor(v, voxelStep, forgeSphereRadius, primaryColor, accentColor, voxelColorScratch, false);
+          showcaseVoxelColor(v, voxelStep, forgeSphereRadius, primaryColor, accentColor, voxelColorScratch);
           voxelInst.setColorAt(vi, voxelColorScratch);
 
           const base = vi * tpl.vertCount * 3;
@@ -1757,6 +1906,8 @@ export function ObjectThumb({
   );
   const isPlanetThumb = shapeId === FORGE_SPHERE_SHAPE_ID;
   const rarePlanetThumb = isPlanetThumb && planetRarity === "RARE";
+  const basicPlanetThumb = isPlanetThumb && planetRarity === "BASIC";
+  const premiumPlanetThumb = rarePlanetThumb || basicPlanetThumb;
   const hiFi = isPlanetThumb || (!performanceMode && size >= 96);
   return (
     <div
@@ -1770,18 +1921,20 @@ export function ObjectThumb({
           position: "absolute",
           left: "50%",
           top: "50%",
-          width: size * (rarePlanetThumb ? 1.22 : isPlanetThumb ? 1.15 : hiFi ? 1.05 : 0.95),
-          height: size * (rarePlanetThumb ? 1.22 : isPlanetThumb ? 1.15 : hiFi ? 1.05 : 0.95),
+          width: size * (premiumPlanetThumb ? 1.22 : isPlanetThumb ? 1.15 : hiFi ? 1.05 : 0.95),
+          height: size * (premiumPlanetThumb ? 1.22 : isPlanetThumb ? 1.15 : hiFi ? 1.05 : 0.95),
           transform: "translate(-50%, -50%)",
           borderRadius: "50%",
           background: rarePlanetThumb
             ? `radial-gradient(circle at 50% 44%, ${primaryColor}77 0%, ${primaryColor}44 38%, transparent 72%)`
+            : basicPlanetThumb
+            ? `radial-gradient(circle at 50% 42%, ${primaryColor}55 0%, ${accentColor}33 40%, transparent 72%)`
             : isPlanetThumb
             ? `radial-gradient(circle at 50% 40%, ${accentColor}99 0%, ${primaryColor}55 32%, transparent 70%)`
             : hiFi
             ? `radial-gradient(circle at 50% 40%, ${accentColor}66 0%, ${primaryColor}33 38%, transparent 70%)`
             : `radial-gradient(circle at 50% 42%, ${accentColor}50 0%, ${primaryColor}28 40%, transparent 72%)`,
-          filter: rarePlanetThumb ? "blur(1.5px)" : isPlanetThumb ? "blur(1px)" : hiFi ? "blur(0.5px)" : undefined,
+          filter: premiumPlanetThumb ? "blur(1.5px)" : isPlanetThumb ? "blur(1px)" : hiFi ? "blur(0.5px)" : undefined,
           pointerEvents: "none",
         }}
       />
