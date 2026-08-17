@@ -721,8 +721,8 @@ export function FarmPage({
                 >
                   <ObjectThumb
                     shapeId={FORGE_SPHERE_SHAPE_ID}
-                    primaryColor="#ffca28"
-                    accentColor="#e65100"
+                    primaryColor="#ffee58"
+                    accentColor="#ef6c00"
                     planetRarity="SUN"
                     planetId="the-sun"
                     size={SUN_THUMB_SIZE}

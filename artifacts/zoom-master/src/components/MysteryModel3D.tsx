@@ -158,7 +158,7 @@ function addPremiumBandVoxelMeshes(
   const hotSpots: VoxelCell[] = [];
   const glowSurface: VoxelCell[] = [];
   const f = Math.max(0, Math.min(1, floatValue));
-  const hotChance = style === "SUN" ? 37 : f >= 1 ? 37 : f >= 0.8 ? 41 : f >= 0.5 ? 47 : 999;
+  const hotChance = style === "SUN" ? 29 : f >= 1 ? 37 : f >= 0.8 ? 41 : f >= 0.5 ? 47 : 999;
   const brightSet = new Set<string>(palette.slice(-2));
 
   for (const v of voxels) {
@@ -180,6 +180,7 @@ function addPremiumBandVoxelMeshes(
     if (!buckets.has(hex)) buckets.set(hex, []);
     buckets.get(hex)!.push(v);
     if ((style === "RARE" || style === "SUN") && dist > 0.84 && hash % hotChance === 0) hotSpots.push(v);
+    if (style === "SUN" && dist > 0.82 && brightSet.has(hex)) hotSpots.push(v);
     if (style === "STANDARD" && dist > 0.82 && brightSet.has(hex) && f >= 0.5) glowSurface.push(v);
     if (f >= 1 && dist > 0.86 && hash % 53 === 0) hotSpots.push(v);
   }
@@ -1258,6 +1259,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         const glowOpacity = 0.06 + 0.18 * effectiveFloat;
         if (style === "RARE" && hotSpots.length > 0) {
           addPlanetGlowLayer(hotSpots, "#70d0ff", glowOpacity, true);
+        } else if (style === "SUN" && hotSpots.length > 0) {
+          addPlanetGlowLayer(hotSpots, "#ffee58", 0.24, true);
         } else if (glowSurface.length > 0) {
           addPlanetGlowLayer(glowSurface, primaryColor, glowOpacity * 0.85);
         }
