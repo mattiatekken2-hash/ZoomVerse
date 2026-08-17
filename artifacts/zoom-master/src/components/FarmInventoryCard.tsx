@@ -75,6 +75,8 @@ export function FarmInventoryCard({
   const planetFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
   const isPlatinumNft = planet.name === "V1_NFT";
   const orbThumb = 96;
+  const heroHeight = compact ? 158 : 168;
+  const heroOrbTop = compact ? 18 : 22;
 
   const cycleTotal = planet.name === "MUSHROOM"
     ? 5
@@ -103,13 +105,10 @@ export function FarmInventoryCard({
       <div
         style={{
           position: "relative",
-          flex: compact ? undefined : "1 1 auto",
-          minHeight: compact ? 158 : 168,
+          flex: "0 0 auto",
+          height: heroHeight,
           background: `linear-gradient(180deg, ${rgba(cardColor, 0.98)} 0%, ${rgba(cardColor, 0.72)} 32%, ${rgba(cardColor, 0.28)} 68%, #08080c 100%)`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: compact ? "16px 10px 26px" : "18px 10px 28px",
+          padding: compact ? "0 10px" : "0 10px",
         }}
       >
         {dur < 100 && (
@@ -133,7 +132,12 @@ export function FarmInventoryCard({
 
         <div
           style={{
-            position: "relative",
+            position: "absolute",
+            top: heroOrbTop,
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: orbThumb,
+            height: orbThumb,
             filter: expired ? "grayscale(1) brightness(0.5)" : undefined,
             transition: "filter 0.3s",
           }}
