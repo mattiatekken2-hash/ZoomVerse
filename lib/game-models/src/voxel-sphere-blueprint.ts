@@ -560,12 +560,13 @@ export function showcasePremiumVoxelHex(
   return rgbToHex(graded.r, graded.g, graded.b);
 }
 
-export type ShowcaseRarityStyle = "BASIC" | "RARE" | "STANDARD";
+export type ShowcaseRarityStyle = "BASIC" | "RARE" | "SUN" | "STANDARD";
 
 export function getShowcaseRarityStyle(rarity: string): ShowcaseRarityStyle {
   const r = rarity.toUpperCase();
   if (r === "BASIC") return "BASIC";
   if (r === "RARE") return "RARE";
+  if (r === "SUN") return "SUN";
   return "STANDARD";
 }
 
@@ -587,7 +588,89 @@ export function getShowcaseVoxelHex(
   if (style === "RARE") {
     return showcaseRareVoxelHex(band, primary, ix, iy, iz, radius, floatValue);
   }
+  if (style === "SUN") {
+    return showcaseSunVoxelHex(band, primary, accent, ix, iy, iz, radius);
+  }
   return showcasePremiumVoxelHex(band, primary, accent, ix, iy, iz, radius, floatValue);
+}
+
+/** THE SUN — emissive yellow/orange corona (exclusive, always pristine). */
+export function showcaseSunVoxelHex(
+  band: MeshPartColor,
+  primary: string,
+  accent: string,
+  ix: number,
+  iy: number,
+  iz: number,
+  radius: number,
+): string {
+  const dist = Math.sqrt(ix * ix + iy * iy + iz * iz) / Math.max(radius, 1);
+  const ny = (iy / radius + 1) * 0.5;
+  const hash = (ix * 17 + iy * 31 + iz * 13) & 255;
+  const flick = 0.88 + (hash % 27) * 0.008;
+
+  const primaryRgb = hexToRgb(primary);
+  const accentRgb = hexToRgb(accent);
+  if (!primaryRgb) return primary;
+
+  let r: number;
+  let g: number;
+  let b: number;
+
+  if (hash % 31 === 0 && dist > 0.86) {
+    r = 255; g = 250; b = 210;
+  } else if (hash % 5 === 0 || band === "h" || (ny > 0.72 && dist > 0.84)) {
+    r = 255; g = 238; b = 88;
+  } else if (hash % 3 === 0 || band === "a" || dist > 0.88) {
+    r = primaryRgb.r;
+    g = primaryRgb.g;
+    b = primaryRgb.b;
+  } else if (dist < 0.52) {
+    r = accentRgb ? accentRgb.r * 0.82 : 180;
+    g = accentRgb ? accentRgb.g * 0.82 : 50;
+    b = accentRgb ? accentRgb.b * 0.82 : 0;
+  } else if (dist < 0.68 || hash < 120) {
+    r = accentRgb ? accentRgb.r : 239;
+    g = accentRgb ? accentRgb.g : 108;
+    b = accentRgb ? accentRgb.b : 0;
+  } else {
+    r = 251; g = 140; b = 0;
+  }
+
+  if (dist > 0.8) {
+    const shell = 1.08 + (dist - 0.8) * 0.55;
+    r = Math.min(255, r * shell);
+    g = Math.min(255, g * shell);
+    b = Math.min(255, b * shell);
+  }
+
+  const light = faceLightFactor(ix, iy, iz, radius);
+  const lit = 0.82 + Math.max(0, light - 0.42) * 0.42;
+  r *= lit;
+  g *= lit;
+  b *= lit;
+
+  r = clampByte(r * flick);
+  g = clampByte(g * flick);
+  b = clampByte(b * flick);
+
+  return rgbToHex(r, g, b);
+}
+
+/** Fixed palette for THE SUN InstancedMesh buckets. */
+export const SUN_SHOWCASE_PALETTE = [
+  "#8b2500",
+  "#bf360c",
+  "#e65100",
+  "#ef6c00",
+  "#fb8c00",
+  "#ffa726",
+  "#ffca28",
+  "#fff176",
+] as const;
+
+export function quantizeSunShowcaseHex(hex: string): string {
+  return quantizeToShowcasePalette(hex, SUN_SHOWCASE_PALETTE);
 }
 
 export function getShowcasePaletteForRarity(
@@ -598,6 +681,7 @@ export function getShowcasePaletteForRarity(
   const style = getShowcaseRarityStyle(rarity);
   if (style === "BASIC") return BASIC_SHOWCASE_PALETTE;
   if (style === "RARE") return RARE_SHOWCASE_PALETTE;
+  if (style === "SUN") return SUN_SHOWCASE_PALETTE;
   return buildShowcasePalette(primary, accent);
 }
 
