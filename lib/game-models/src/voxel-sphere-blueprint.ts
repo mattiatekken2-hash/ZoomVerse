@@ -594,7 +594,7 @@ export function getShowcaseVoxelHex(
   return showcasePremiumVoxelHex(band, primary, accent, ix, iy, iz, radius, floatValue);
 }
 
-/** THE SUN — emissive yellow/orange corona (exclusive, always pristine). */
+/** THE SUN — emissive yellow/orange corona (exclusive, always perfect-float vivid). */
 export function showcaseSunVoxelHex(
   band: MeshPartColor,
   primary: string,
@@ -607,7 +607,7 @@ export function showcaseSunVoxelHex(
   const dist = Math.sqrt(ix * ix + iy * iy + iz * iz) / Math.max(radius, 1);
   const ny = (iy / radius + 1) * 0.5;
   const hash = (ix * 17 + iy * 31 + iz * 13) & 255;
-  const flick = 0.88 + (hash % 27) * 0.008;
+  const flick = 0.92 + (hash % 23) * 0.007;
 
   const primaryRgb = hexToRgb(primary);
   const accentRgb = hexToRgb(accent);
@@ -617,35 +617,37 @@ export function showcaseSunVoxelHex(
   let g: number;
   let b: number;
 
-  if (hash % 31 === 0 && dist > 0.86) {
-    r = 255; g = 250; b = 210;
+  if (hash % 23 === 0 && dist > 0.84) {
+    r = 255; g = 255; b = 235;
+  } else if (hash % 31 === 0 && dist > 0.86) {
+    r = 255; g = 252; b = 200;
   } else if (hash % 5 === 0 || band === "h" || (ny > 0.72 && dist > 0.84)) {
-    r = 255; g = 238; b = 88;
+    r = 255; g = 244; b = 120;
   } else if (hash % 3 === 0 || band === "a" || dist > 0.88) {
-    r = primaryRgb.r;
-    g = primaryRgb.g;
-    b = primaryRgb.b;
+    r = Math.min(255, primaryRgb.r * 1.08 + 12);
+    g = Math.min(255, primaryRgb.g * 1.08 + 12);
+    b = Math.min(255, primaryRgb.b * 1.06 + 8);
   } else if (dist < 0.52) {
-    r = accentRgb ? accentRgb.r * 0.82 : 180;
-    g = accentRgb ? accentRgb.g * 0.82 : 50;
-    b = accentRgb ? accentRgb.b * 0.82 : 0;
+    r = accentRgb ? accentRgb.r * 0.95 : 230;
+    g = accentRgb ? accentRgb.g * 0.95 : 100;
+    b = accentRgb ? accentRgb.b * 0.85 : 10;
   } else if (dist < 0.68 || hash < 120) {
-    r = accentRgb ? accentRgb.r : 239;
-    g = accentRgb ? accentRgb.g : 108;
-    b = accentRgb ? accentRgb.b : 0;
+    r = accentRgb ? accentRgb.r * 1.05 : 255;
+    g = accentRgb ? accentRgb.g * 1.02 : 160;
+    b = accentRgb ? accentRgb.b * 0.95 : 20;
   } else {
-    r = 251; g = 140; b = 0;
+    r = 255; g = 183; b = 40;
   }
 
-  if (dist > 0.8) {
-    const shell = 1.08 + (dist - 0.8) * 0.55;
+  if (dist > 0.78) {
+    const shell = 1.12 + (dist - 0.78) * 0.62;
     r = Math.min(255, r * shell);
     g = Math.min(255, g * shell);
     b = Math.min(255, b * shell);
   }
 
   const light = faceLightFactor(ix, iy, iz, radius);
-  const lit = 0.82 + Math.max(0, light - 0.42) * 0.42;
+  const lit = 0.9 + Math.max(0, light - 0.42) * 0.48;
   r *= lit;
   g *= lit;
   b *= lit;
@@ -654,19 +656,20 @@ export function showcaseSunVoxelHex(
   g = clampByte(g * flick);
   b = clampByte(b * flick);
 
-  return rgbToHex(r, g, b);
+  const graded = applyVoxelFloatGrading(r, g, b, 1);
+  return rgbToHex(graded.r, graded.g, graded.b);
 }
 
 /** Fixed palette for THE SUN InstancedMesh buckets. */
 export const SUN_SHOWCASE_PALETTE = [
-  "#8b2500",
-  "#bf360c",
+  "#d84315",
   "#e65100",
   "#ef6c00",
   "#fb8c00",
   "#ffa726",
   "#ffca28",
-  "#fff176",
+  "#ffee58",
+  "#fff9c4",
 ] as const;
 
 export function quantizeSunShowcaseHex(hex: string): string {
