@@ -176,7 +176,7 @@ function addRareBandVoxelMeshes(
     if (!buckets.has(hex)) buckets.set(hex, []);
     buckets.get(hex)!.push(v);
     if (dist > 0.82 && brightSet.has(hex)) brightSurface.push(v);
-    if (dist > 0.84 && hash % 31 === 0) hotSpots.push(v);
+    if (dist > 0.84 && hash % 37 === 0) hotSpots.push(v);
     if (dist < 0.72) innerCore.push(v);
   }
 
@@ -1115,7 +1115,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           voxelStep * rareCubeFill,
           voxelStep * rareCubeFill,
         );
-        const { brightSurface, hotSpots, innerCore } = addRareBandVoxelMeshes(
+        const { hotSpots } = addRareBandVoxelMeshes(
           group,
           forgeVoxels,
           rareBoxGeo,
@@ -1160,9 +1160,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           group.add(glowInst);
         };
 
-        addRareGlowLayer(innerCore, "#1868c8", 0.08);
-        addRareGlowLayer(brightSurface, "#4facfe", 0.14);
-        addRareGlowLayer(hotSpots, "#7ec8ff", 0.26, true);
+        addRareGlowLayer(hotSpots, "#70d0ff", 0.22, true);
       } else {
       const vMat = planetShowcase
         ? new THREE.MeshBasicMaterial({
@@ -1772,18 +1770,18 @@ export function ObjectThumb({
           position: "absolute",
           left: "50%",
           top: "50%",
-          width: size * (rarePlanetThumb ? 1.35 : isPlanetThumb ? 1.15 : hiFi ? 1.05 : 0.95),
-          height: size * (rarePlanetThumb ? 1.35 : isPlanetThumb ? 1.15 : hiFi ? 1.05 : 0.95),
+          width: size * (rarePlanetThumb ? 1.22 : isPlanetThumb ? 1.15 : hiFi ? 1.05 : 0.95),
+          height: size * (rarePlanetThumb ? 1.22 : isPlanetThumb ? 1.15 : hiFi ? 1.05 : 0.95),
           transform: "translate(-50%, -50%)",
           borderRadius: "50%",
           background: rarePlanetThumb
-            ? `radial-gradient(circle at 50% 44%, ${primaryColor}cc 0%, ${primaryColor}88 30%, ${primaryColor}44 55%, transparent 80%)`
+            ? `radial-gradient(circle at 50% 44%, ${primaryColor}77 0%, ${primaryColor}44 38%, transparent 72%)`
             : isPlanetThumb
             ? `radial-gradient(circle at 50% 40%, ${accentColor}99 0%, ${primaryColor}55 32%, transparent 70%)`
             : hiFi
             ? `radial-gradient(circle at 50% 40%, ${accentColor}66 0%, ${primaryColor}33 38%, transparent 70%)`
             : `radial-gradient(circle at 50% 42%, ${accentColor}50 0%, ${primaryColor}28 40%, transparent 72%)`,
-          filter: rarePlanetThumb ? "blur(2.5px)" : isPlanetThumb ? "blur(1px)" : hiFi ? "blur(0.5px)" : undefined,
+          filter: rarePlanetThumb ? "blur(1.5px)" : isPlanetThumb ? "blur(1px)" : hiFi ? "blur(0.5px)" : undefined,
           pointerEvents: "none",
         }}
       />

@@ -223,31 +223,31 @@ export function showcaseRareVoxelHex(
   let g: number;
   let b: number;
 
-  if (hash % 31 === 0 && dist > 0.88) {
-    r = 130; g = 200; b = 255;
-  } else if (hash % 5 === 0 || band === "h" || (ny > 0.7 && dist > 0.82)) {
-    r = 88; g = 178; b = 255;
-  } else if (hash % 3 === 0 || band === "a" || dist > 0.86) {
+  if (hash % 37 === 0 && dist > 0.86) {
+    r = 90; g = 215; b = 255;
+  } else if (hash % 5 === 0 || band === "h" || (ny > 0.72 && dist > 0.84)) {
+    r = 64; g = 168; b = 255;
+  } else if (hash % 3 === 0 || band === "a" || dist > 0.88) {
     r = primaryRgb.r;
     g = primaryRgb.g;
     b = primaryRgb.b;
   } else if (dist < 0.52) {
-    r = 6; g = 38; b = 132;
+    r = 3; g = 24; b = 102;
   } else if (dist < 0.68 || hash < 130) {
-    r = 12; g = 58; b = 158;
+    r = 8; g = 48; b = 138;
   } else {
-    r = 28; g = 102; b = 198;
+    r = 22; g = 92; b = 190;
   }
 
   if (dist > 0.8) {
-    const shell = 1.04 + (dist - 0.8) * 0.55;
+    const shell = 1.06 + (dist - 0.8) * 0.62;
     r = Math.min(255, r * shell);
     g = Math.min(255, g * shell);
     b = Math.min(255, b * shell);
   }
 
   const light = faceLightFactor(ix, iy, iz, radius);
-  const lit = 0.82 + Math.max(0, light - 0.42) * 0.38;
+  const lit = 0.78 + Math.max(0, light - 0.42) * 0.48;
   r *= lit;
   g *= lit;
   b *= lit;
@@ -261,14 +261,14 @@ export function showcaseRareVoxelHex(
 
 /** Fixed palette for mobile-safe InstancedMesh buckets (no instanceColor). */
 export const RARE_SHOWCASE_PALETTE = [
-  "#062868",
-  "#0a4898",
-  "#1868c8",
-  "#3a9ef0",
+  "#041e50",
+  "#083878",
+  "#1458b0",
+  "#2d90e8",
   "#4facfe",
-  "#64b8ff",
-  "#7ec8ff",
-  "#98d8ff",
+  "#50c0ff",
+  "#70d0ff",
+  "#90e0ff",
 ] as const;
 
 export function quantizeRareShowcaseHex(hex: string): string {
