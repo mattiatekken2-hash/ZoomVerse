@@ -54,7 +54,7 @@ function isShowcaseView(
   forgeVoxelBuild: boolean,
   planetShowcase: boolean,
 ): boolean {
-  if (planetShowcase) return true;
+  if (planetShowcase) return false;
   if (performanceMode) return false;
   if (forgeVoxelBuild && !revealed) return false;
   if (interactive && !revealed) return false;
@@ -802,7 +802,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const isStaticShowcase = showcase && revealed && !interactive;
     const useForgeVoxels = forgeVoxelBuild;
     const forgeSpaceMode = useForgeVoxels && !revealed && !planetShowcase;
-    const pixelMode = showcase && revealed && !performanceMode;
+    const pixelMode = showcase && revealed && !performanceMode && !planetShowcase;
     const geoDetail: GeoDetail = performanceMode
       ? "low"
       : pixelMode || (isStaticShowcase && size >= 140)
@@ -840,7 +840,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       onGlFailedRef.current?.();
       return;
     }
-    setupRenderer(renderer, showcase);
+    setupRenderer(renderer, showcase && !planetShowcase);
     renderer.setPixelRatio(maxDpr);
     renderer.setSize(size, size);
     if (opaqueBackground) {
@@ -898,9 +898,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     }
 
     const isStaticThumb = revealed && !interactive && !performanceMode;
-    if (planetShowcase) {
-      groundExtras = addPlanetShowcaseLights(scene, accentColor);
-    } else {
+    if (!planetShowcase) {
     scene.add(new THREE.AmbientLight(0xffffff, forgeSpaceMode ? 1.05 : showcase ? 0.5 : opaqueBackground ? 0.55 : isStaticThumb ? 0.68 : 0.5));
     if (!performanceMode) {
       scene.add(new THREE.HemisphereLight(
@@ -981,14 +979,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const cube = voxelStep * FORGE_VOXEL_CUBE_FILL;
       const boxGeo = new THREE.BoxGeometry(cube, cube, cube);
       const vMat = planetShowcase
-        ? new THREE.MeshStandardMaterial({
+        ? new THREE.MeshBasicMaterial({
             color: 0xffffff,
             vertexColors: true,
-            roughness: 0.32,
-            metalness: 0.26,
-            flatShading: true,
-            emissive: new THREE.Color(accentColor),
-            emissiveIntensity: 0.16,
             toneMapped: false,
           })
         : new THREE.MeshBasicMaterial({
@@ -999,21 +992,24 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       voxelInst.frustumCulled = false;
       voxelInst.castShadow = false;
 
-      let edgeLines: THREE.LineSegments | null = null;
-      if (!planetShowcase) {
       const tpl = getUnitBoxEdgeTemplate();
       const edgeBuf = new Float32Array(n * tpl.vertCount * 3);
       const edgeBufferGeo = new THREE.BufferGeometry();
       edgeBufferGeo.setAttribute("position", new THREE.BufferAttribute(edgeBuf, 3));
-      edgeLines = new THREE.LineSegments(
-        edgeBufferGeo,
-        new THREE.LineBasicMaterial({ color: FORGE_VOXEL_EDGE, toneMapped: false }),
-      );
+      const edgeMat = planetShowcase
+        ? new THREE.LineBasicMaterial({
+            color: new THREE.Color(accentColor).lerp(new THREE.Color("#ffffff"), 0.35),
+            transparent: true,
+            opacity: 0.28,
+            toneMapped: false,
+            depthWrite: false,
+          })
+        : new THREE.LineBasicMaterial({ color: FORGE_VOXEL_EDGE, toneMapped: false });
+      const edgeLines = new THREE.LineSegments(edgeBufferGeo, edgeMat);
       edgeLines.frustumCulled = false;
       edgeLines.renderOrder = 2;
       forgeEdgeLinesRef.current = edgeLines;
       forgeEdgePositionsRef.current = edgeBuf;
-      }
 
       if (planetShowcase) {
         for (let vi = 0; vi < n; vi++) {
@@ -1024,10 +1020,26 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           voxelInst.setMatrixAt(vi, voxelDummy.matrix);
           showcaseVoxelColor(v, voxelStep, forgeSphereRadius, primaryColor, accentColor, voxelColorScratch);
           voxelInst.setColorAt(vi, voxelColorScratch);
+
+          const base = vi * tpl.vertCount * 3;
+          const cubeSize = voxelStep * FORGE_VOXEL_CUBE_FILL;
+          for (let j = 0; j < tpl.vertCount; j++) {
+            const t = j * 3;
+            edgeScratch.set(
+              tpl.positions[t]! * cubeSize,
+              tpl.positions[t + 1]! * cubeSize,
+              tpl.positions[t + 2]! * cubeSize,
+            );
+            edgeScratch.applyMatrix4(voxelDummy.matrix);
+            edgeBuf[base + t] = edgeScratch.x;
+            edgeBuf[base + t + 1] = edgeScratch.y;
+            edgeBuf[base + t + 2] = edgeScratch.z;
+          }
         }
         voxelInst.count = n;
         voxelInst.instanceMatrix.needsUpdate = true;
         if (voxelInst.instanceColor) voxelInst.instanceColor.needsUpdate = true;
+        edgeLines.geometry.setDrawRange(0, n * tpl.vertCount);
       } else {
       for (let vi = 0; vi < n; vi++) {
         voxelDummy.position.set(0, -999, 0);
@@ -1040,7 +1052,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       }
 
       group.add(voxelInst);
-      if (edgeLines) group.add(edgeLines);
+      group.add(edgeLines);
     }
 
     const geos: THREE.BufferGeometry[] = [];
@@ -1066,12 +1078,16 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const dim = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(dim.x, dim.y, dim.z, 0.8);
     group.position.sub(center);
-    if (showcase) {
+    if (showcase && !planetShowcase) {
       groundExtras = addShowcaseGround(scene, maxDim, accentColor);
     } else if (forgeSpaceMode) {
       groundExtras = addForgeSpaceGrid(scene, maxDim);
     }
-    camera.position.set(maxDim * (showcase ? 1.22 : 1.35), maxDim * (showcase ? 0.82 : 0.95), maxDim * (showcase ? 1.48 : 1.7));
+    camera.position.set(
+      maxDim * (planetShowcase ? 1.28 : showcase ? 1.22 : 1.35),
+      maxDim * (planetShowcase ? 0.75 : showcase ? 0.82 : 0.95),
+      maxDim * (planetShowcase ? 1.55 : showcase ? 1.48 : 1.7),
+    );
     camera.lookAt(0, 0, 0);
 
     const glbUrl = shapeId && isStaticShowcase && !pixelMode ? getShapeGlbUrl(shapeId) : null;
@@ -1221,9 +1237,6 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       let touchedMesh = false;
 
       if (planetShowcase && voxelInst) {
-        const voxMat = voxelInst.material as THREE.MeshStandardMaterial;
-        voxMat.emissive.set(st.accentColor);
-        voxMat.emissiveIntensity = 0.15 + Math.sin(now * 0.0016) * 0.055;
         touchedMesh = true;
       } else if (useVoxelForge && voxelInst) {
         const voxMesh = voxelInst;

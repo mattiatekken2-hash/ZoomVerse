@@ -7,11 +7,11 @@ export const FORGE_SPHERE_SHAPE_ID = "forge-sphere";
 /** Lab tap forge — one tap places one voxel (~250 cubes at r=4). */
 export const FORGE_SPHERE_RADIUS = 4;
 
-/** Farm/Market/Lab reveal — denser collectible sphere (~520 cubes at r=5). */
-export const FORGE_SPHERE_DISPLAY_RADIUS = 5;
+/** Farm/Market/Lab reveal — denser collectible sphere (~900 cubes at r=6). */
+export const FORGE_SPHERE_DISPLAY_RADIUS = 6;
 
 const STEP = FORGE_VOXEL_SIZE;
-const DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.88;
+const DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.82;
 
 export type ForgeSphereBand = "p" | "a" | "h";
 
@@ -129,13 +129,18 @@ export function showcaseVoxelHex(
   }
 
   if (dist > 0.78) {
-    const boost = 1 + (dist - 0.78) * 0.55;
+    const boost = 1 + (dist - 0.78) * 0.85;
     r = Math.min(255, r * boost);
     g = Math.min(255, g * boost);
     b = Math.min(255, b * boost);
   }
 
-  const flick = 0.9 + ((ix * 3 + iy * 5 + iz * 7) & 7) * 0.014;
+  // Unlit thumb path — push saturation/brightness so cubes read on mobile.
+  r = Math.min(255, r * 1.12);
+  g = Math.min(255, g * 1.12);
+  b = Math.min(255, b * 1.12);
+
+  const flick = 0.92 + ((ix * 3 + iy * 5 + iz * 7) & 7) * 0.012;
   r = Math.min(255, r * flick);
   g = Math.min(255, g * flick);
   b = Math.min(255, b * flick);
