@@ -4,7 +4,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
-import { FORGE_CLAY, FORGE_CLAY_HEX, FORGE_VOXEL_SIZE, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, FORGE_SPHERE_SHAPE_ID, getForgeSphereBlueprint, showcaseVoxelHex, showcaseRareVoxelHex, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
+import { FORGE_CLAY, FORGE_CLAY_HEX, FORGE_VOXEL_SIZE, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, FORGE_SPHERE_SHAPE_ID, getForgeSphereBlueprint, showcaseVoxelHex, showcaseRareVoxelHex, quantizeRareShowcaseHex, RARE_SHOWCASE_PALETTE, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
 
 const DEFAULT_PARTS = mysteryKitParts();
 
@@ -81,36 +81,66 @@ function showcaseVoxelColor(
   out.set(hex);
 }
 
-/** Solid band colors — no instanceColor (broken on some mobile WebViews). */
-const RARE_SHOWCASE_BAND_HEX: Record<"p" | "a" | "h", string> = {
-  p: "#4facfe",
-  a: "#72c4ff",
-  h: "#d8f4ff",
-};
+/** Surface noise — mockup holographic protrusions/recesses. */
+function rareVoxelWorldPos(
+  v: VoxelCell,
+  step: number,
+  radius: number,
+  out: THREE.Vector3,
+): void {
+  const ix = Math.round(v.x / step);
+  const iy = Math.round(v.y / step);
+  const iz = Math.round(v.z / step);
+  const len = Math.sqrt(ix * ix + iy * iy + iz * iz) || 1;
+  const dist = len / Math.max(radius, 1);
+  const nx = ix / len;
+  const ny = iy / len;
+  const nz = iz / len;
+  const hash = (ix * 17 + iy * 31 + iz * 13) & 255;
+  const noise = hash / 255;
+  const shell = dist > 0.76 ? (noise - 0.42) * step * 0.62 : (noise - 0.5) * step * 0.08;
+  out.set(v.x + nx * shell, v.y + ny * shell, v.z + nz * shell);
+}
 
 function addRareBandVoxelMeshes(
   group: THREE.Group,
   forgeVoxels: VoxelCell[],
   boxGeo: THREE.BoxGeometry,
   voxelDummy: THREE.Object3D,
-): void {
-  const buckets: Record<"p" | "a" | "h", VoxelCell[]> = { p: [], a: [], h: [] };
+  voxelStep: number,
+  forgeSphereRadius: number,
+  primaryColor: string,
+): { brightSurface: VoxelCell[] } {
+  const buckets = new Map<string, VoxelCell[]>();
+  const posScratch = new THREE.Vector3();
+  const brightSurface: VoxelCell[] = [];
+  const brightSet = new Set<string>([
+    RARE_SHOWCASE_PALETTE[5],
+    RARE_SHOWCASE_PALETTE[6],
+    RARE_SHOWCASE_PALETTE[7],
+  ]);
+
   for (const v of forgeVoxels) {
-    const band: "p" | "a" | "h" = v.color === "a" || v.color === "h" ? v.color : "p";
-    buckets[band].push(v);
+    const ix = Math.round(v.x / voxelStep);
+    const iy = Math.round(v.y / voxelStep);
+    const iz = Math.round(v.z / voxelStep);
+    const dist = Math.sqrt(ix * ix + iy * iy + iz * iz) / Math.max(forgeSphereRadius, 1);
+    const hex = quantizeRareShowcaseHex(
+      showcaseRareVoxelHex(v.color, primaryColor, ix, iy, iz, forgeSphereRadius),
+    );
+    if (!buckets.has(hex)) buckets.set(hex, []);
+    buckets.get(hex)!.push(v);
+    if (dist > 0.82 && brightSet.has(hex)) brightSurface.push(v);
   }
-  for (const band of ["p", "a", "h"] as const) {
-    const cells = buckets[band];
-    if (cells.length === 0) continue;
-    const mat = new THREE.MeshBasicMaterial({
-      color: RARE_SHOWCASE_BAND_HEX[band],
-      toneMapped: false,
-    });
+
+  for (const [hex, cells] of buckets) {
+    const mat = new THREE.MeshBasicMaterial({ color: hex, toneMapped: false });
     const mesh = new THREE.InstancedMesh(boxGeo, mat, cells.length);
     mesh.frustumCulled = false;
     for (let i = 0; i < cells.length; i++) {
       const v = cells[i]!;
-      voxelDummy.position.set(v.x, v.y, v.z);
+      rareVoxelWorldPos(v, voxelStep, forgeSphereRadius, posScratch);
+      voxelDummy.position.copy(posScratch);
       voxelDummy.scale.setScalar(1);
       voxelDummy.updateMatrix();
       mesh.setMatrixAt(i, voxelDummy.matrix);
@@ -119,6 +149,8 @@ function addRareBandVoxelMeshes(
     mesh.instanceMatrix.needsUpdate = true;
     group.add(mesh);
   }
+
+  return { brightSurface };
 }
 
 function isGlassPart(part: MeshPart): boolean {
@@ -1013,23 +1045,23 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const boxGeo = new THREE.BoxGeometry(cube, cube, cube);
 
       if (planetShowcase && rarePlanetShowcase) {
-        const surfaceIndices: number[] = [];
-        for (let vi = 0; vi < n; vi++) {
-          const v = forgeVoxels[vi]!;
-          const ix = Math.round(v.x / voxelStep);
-          const iy = Math.round(v.y / voxelStep);
-          const iz = Math.round(v.z / voxelStep);
-          const dist = Math.sqrt(ix * ix + iy * iy + iz * iz) / Math.max(forgeSphereRadius, 1);
-          if (dist > 0.82) surfaceIndices.push(vi);
-        }
-        addRareBandVoxelMeshes(group, forgeVoxels, boxGeo, voxelDummy);
+        const posScratch = new THREE.Vector3();
+        const { brightSurface } = addRareBandVoxelMeshes(
+          group,
+          forgeVoxels,
+          boxGeo,
+          voxelDummy,
+          voxelStep,
+          forgeSphereRadius,
+          primaryColor,
+        );
 
-        const gN = surfaceIndices.length;
+        const gN = brightSurface.length;
         if (gN > 0) {
           const glowMat = new THREE.MeshBasicMaterial({
-            color: new THREE.Color(primaryColor).lerp(new THREE.Color("#e8f8ff"), 0.55),
+            color: "#8fd4ff",
             transparent: true,
-            opacity: 0.38,
+            opacity: 0.2,
             blending: THREE.AdditiveBlending,
             depthWrite: false,
             toneMapped: false,
@@ -1038,9 +1070,10 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           glowInst.frustumCulled = false;
           glowInst.renderOrder = 1;
           for (let gi = 0; gi < gN; gi++) {
-            const v = forgeVoxels[surfaceIndices[gi]!]!;
-            voxelDummy.position.set(v.x, v.y, v.z);
-            voxelDummy.scale.setScalar(1.18);
+            const v = brightSurface[gi]!;
+            rareVoxelWorldPos(v, voxelStep, forgeSphereRadius, posScratch);
+            voxelDummy.position.copy(posScratch);
+            voxelDummy.scale.setScalar(1.1);
             voxelDummy.updateMatrix();
             glowInst.setMatrixAt(gi, voxelDummy.matrix);
           }
@@ -1050,31 +1083,6 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           glowInst.userData["rareGlow"] = true;
           group.add(glowInst);
         }
-
-        const coreMat = new THREE.MeshBasicMaterial({
-          color: new THREE.Color(primaryColor).lerp(new THREE.Color("#ffffff"), 0.35),
-          transparent: true,
-          opacity: 0.12,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-          toneMapped: false,
-        });
-        const coreGlow = new THREE.InstancedMesh(boxGeo, coreMat, n);
-        coreGlow.frustumCulled = false;
-        coreGlow.renderOrder = 0;
-        for (let ci = 0; ci < n; ci++) {
-          const v = forgeVoxels[ci]!;
-          voxelDummy.position.set(v.x, v.y, v.z);
-          voxelDummy.scale.setScalar(1.06);
-          voxelDummy.updateMatrix();
-          coreGlow.setMatrixAt(ci, voxelDummy.matrix);
-        }
-        coreGlow.count = n;
-        coreGlow.instanceMatrix.needsUpdate = true;
-        coreGlow.userData["planetGlow"] = true;
-        coreGlow.userData["rareGlow"] = true;
-        coreGlow.userData["coreGlow"] = true;
-        group.add(coreGlow);
       } else {
       const vMat = planetShowcase
         ? new THREE.MeshBasicMaterial({
@@ -1374,11 +1382,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           const glow = child as THREE.InstancedMesh;
           const mat = glow.material as THREE.MeshBasicMaterial;
           const isRare = !!(child as THREE.Object3D).userData?.["rareGlow"];
-          const isCore = !!(child as THREE.Object3D).userData?.["coreGlow"];
           if (isRare) {
-            mat.opacity = isCore
-              ? 0.1 + Math.sin(now * 0.0014) * 0.04
-              : 0.34 + Math.sin(now * 0.0018) * 0.08;
+            mat.opacity = 0.16 + Math.sin(now * 0.0018) * 0.06;
           } else {
             mat.opacity = 0.11 + Math.sin(now * 0.0018) * 0.055;
           }
@@ -1689,7 +1694,7 @@ export function ObjectThumb({
           transform: "translate(-50%, -50%)",
           borderRadius: "50%",
           background: rarePlanetThumb
-            ? `radial-gradient(circle at 50% 38%, #e8f8ffcc 0%, ${primaryColor}aa 28%, ${primaryColor}55 48%, transparent 72%)`
+            ? `radial-gradient(circle at 50% 42%, ${primaryColor}99 0%, ${primaryColor}66 35%, ${primaryColor}33 58%, transparent 78%)`
             : isPlanetThumb
             ? `radial-gradient(circle at 50% 40%, ${accentColor}99 0%, ${primaryColor}55 32%, transparent 70%)`
             : hiFi

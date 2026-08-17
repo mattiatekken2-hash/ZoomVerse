@@ -188,7 +188,7 @@ export function showcaseVoxelHex(
   return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 }
 
-/** RARE Farm/Market showcase — bright emissive cyan cubes (mockup-aligned). */
+/** RARE Farm/Market showcase — holographic cyan/blue energy (mockup-aligned). */
 export function showcaseRareVoxelHex(
   band: MeshPartColor,
   primary: string,
@@ -199,45 +199,76 @@ export function showcaseRareVoxelHex(
 ): string {
   const dist = Math.sqrt(ix * ix + iy * iy + iz * iz) / Math.max(radius, 1);
   const ny = (iy / radius + 1) * 0.5;
+  const hash = (ix * 17 + iy * 31 + iz * 13) & 255;
+  const flick = 0.86 + (hash % 29) * 0.008;
 
   const primaryRgb = hexToRgb(primary);
   if (!primaryRgb) return primary;
 
-  // Mockup palette: electric cyan → white highlights (no navy/black bands).
-  let r = primaryRgb.r;
-  let g = primaryRgb.g;
-  let b = primaryRgb.b;
+  // Mockup: mix deep blue, electric cyan, and sparse white-hot highlights.
+  let r: number;
+  let g: number;
+  let b: number;
 
-  if (band === "a") {
-    r = r * 0.72 + 107 * 0.28;
-    g = g * 0.72 + 191 * 0.28;
-    b = b * 0.72 + 255 * 0.28;
+  if (hash % 11 === 0 || (band === "h" && hash > 210)) {
+    r = 224; g = 246; b = 255;
+  } else if (hash % 7 === 0 || band === "h" || ny > 0.74) {
+    r = 143; g = 214; b = 255;
+  } else if (hash % 5 === 0 || band === "a" || dist > 0.88) {
+    r = primaryRgb.r;
+    g = primaryRgb.g;
+    b = primaryRgb.b;
+  } else if (dist < 0.62 || hash < 96) {
+    r = 26; g = 98; b = 196;
+  } else {
+    r = 58; g = 148; b = 228;
   }
 
-  if (band === "h" || ny > 0.68 || dist > 0.86) {
-    const hot = dist > 0.9 || band === "h" ? 0.62 : 0.38;
-    r = r + (255 - r) * hot;
-    g = g + (248 - g) * hot;
-    b = b + (255 - b) * hot;
-  }
-
-  if (dist > 0.78) {
-    const shell = 1.08 + (dist - 0.78) * 0.95;
+  if (dist > 0.8) {
+    const shell = 1.04 + (dist - 0.8) * 0.55;
     r = Math.min(255, r * shell);
     g = Math.min(255, g * shell);
     b = Math.min(255, b * shell);
   }
 
   const light = faceLightFactor(ix, iy, iz, radius);
-  const lit = 0.78 + Math.max(0, light - 0.42) * 0.72;
+  const lit = 0.82 + Math.max(0, light - 0.42) * 0.38;
   r *= lit;
   g *= lit;
   b *= lit;
 
-  const shimmer = 0.9 + ((ix * 5 + iy * 7 + iz * 11) & 15) * 0.014;
-  r = clampByte(r * shimmer);
-  g = clampByte(g * shimmer);
-  b = clampByte(b * shimmer);
+  r = clampByte(r * flick);
+  g = clampByte(g * flick);
+  b = clampByte(b * flick);
 
   return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** Fixed palette for mobile-safe InstancedMesh buckets (no instanceColor). */
+export const RARE_SHOWCASE_PALETTE = [
+  "#1a62c4",
+  "#2580dc",
+  "#4facfe",
+  "#6bbfff",
+  "#8fd4ff",
+  "#b8e8ff",
+  "#d8f4ff",
+  "#e0f8ff",
+] as const;
+
+export function quantizeRareShowcaseHex(hex: string): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return RARE_SHOWCASE_PALETTE[2];
+  let best = RARE_SHOWCASE_PALETTE[2];
+  let bestDist = Infinity;
+  for (const candidate of RARE_SHOWCASE_PALETTE) {
+    const c = hexToRgb(candidate);
+    if (!c) continue;
+    const d = (rgb.r - c.r) ** 2 + (rgb.g - c.g) ** 2 + (rgb.b - c.b) ** 2;
+    if (d < bestDist) {
+      bestDist = d;
+      best = candidate;
+    }
+  }
+  return best;
 }
