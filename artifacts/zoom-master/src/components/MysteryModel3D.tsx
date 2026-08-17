@@ -81,43 +81,18 @@ function showcaseVoxelColor(
   out.set(hex);
 }
 
-/** Surface noise — mockup holographic protrusions/recesses. */
+/** Exact grid position — round voxel sphere (no surface noise). */
 function rareVoxelWorldPos(
   v: VoxelCell,
-  step: number,
-  radius: number,
+  _step: number,
+  _radius: number,
   out: THREE.Vector3,
 ): void {
-  const ix = Math.round(v.x / step);
-  const iy = Math.round(v.y / step);
-  const iz = Math.round(v.z / step);
-  const len = Math.sqrt(ix * ix + iy * iy + iz * iz) || 1;
-  const dist = len / Math.max(radius, 1);
-  const nx = ix / len;
-  const ny = iy / len;
-  const nz = iz / len;
-  const hash = (ix * 17 + iy * 31 + iz * 13) & 255;
-  const hash2 = (ix * 7 + iy * 11 + iz * 19) & 255;
-  const noise = hash / 255;
-  const shell = dist > 0.74
-    ? (noise - 0.38) * step * 0.92
-    : (hash2 / 255 - 0.5) * step * 0.12;
-  out.set(v.x + nx * shell, v.y + ny * shell, v.z + nz * shell);
+  out.set(v.x, v.y, v.z);
 }
 
-function rareVoxelScale(
-  v: VoxelCell,
-  step: number,
-  radius: number,
-): number {
-  const ix = Math.round(v.x / step);
-  const iy = Math.round(v.y / step);
-  const iz = Math.round(v.z / step);
-  const len = Math.sqrt(ix * ix + iy * iy + iz * iz) || 1;
-  const dist = len / Math.max(radius, 1);
-  const hash = (ix * 17 + iy * 31 + iz * 13) & 255;
-  if (dist < 0.74) return 0.94 + (hash % 7) * 0.008;
-  return 0.9 + (hash / 255) * 0.2;
+function rareVoxelScale(_v: VoxelCell, _step: number, _radius: number): number {
+  return 1;
 }
 
 function addRareBandVoxelMeshes(
@@ -1089,7 +1064,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
       if (planetShowcase && rarePlanetShowcase) {
         const posScratch = new THREE.Vector3();
-        const rareCubeFill = 0.82;
+        const rareCubeFill = 0.97;
         const rareBoxGeo = new THREE.BoxGeometry(
           voxelStep * rareCubeFill,
           voxelStep * rareCubeFill,
