@@ -223,18 +223,18 @@ export function showcaseRareVoxelHex(
   let g: number;
   let b: number;
 
-  if (hash % 19 === 0 && dist > 0.84) {
-    r = 196; g = 232; b = 255;
-  } else if (hash % 6 === 0 || band === "h" || (ny > 0.7 && dist > 0.8)) {
-    r = 120; g = 198; b = 255;
-  } else if (hash % 4 === 0 || band === "a" || dist > 0.86) {
+  if (hash % 29 === 0 && dist > 0.86) {
+    r = 148; g = 210; b = 255;
+  } else if (hash % 5 === 0 || band === "h" || (ny > 0.68 && dist > 0.78)) {
+    r = 100; g = 186; b = 255;
+  } else if (hash % 3 === 0 || band === "a" || dist > 0.84) {
     r = primaryRgb.r;
     g = primaryRgb.g;
     b = primaryRgb.b;
-  } else if (dist < 0.58 || hash < 110) {
-    r = 18; g = 82; b = 188;
+  } else if (dist < 0.55 || hash < 120) {
+    r = 14; g = 72; b = 178;
   } else {
-    r = 42; g = 132; b = 220;
+    r = 36; g = 118; b = 212;
   }
 
   if (dist > 0.8) {
@@ -259,14 +259,14 @@ export function showcaseRareVoxelHex(
 
 /** Fixed palette for mobile-safe InstancedMesh buckets (no instanceColor). */
 export const RARE_SHOWCASE_PALETTE = [
-  "#1252a8",
-  "#1a70d4",
+  "#0e48a0",
+  "#1868c8",
+  "#3a9ef0",
   "#4facfe",
-  "#5cb4ff",
-  "#74c4ff",
-  "#8fd4ff",
-  "#aadfff",
-  "#c4ebff",
+  "#64b8ff",
+  "#7ec8ff",
+  "#98d8ff",
+  "#b0e4ff",
 ] as const;
 
 export function quantizeRareShowcaseHex(hex: string): string {

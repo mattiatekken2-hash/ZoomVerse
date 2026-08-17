@@ -129,7 +129,8 @@ function addRareBandVoxelMeshes(
   forgeSphereRadius: number,
   primaryColor: string,
 ): { brightSurface: VoxelCell[]; hotSpots: VoxelCell[]; innerCore: VoxelCell[] } {
-  const buckets = new Map<string, VoxelCell[]>();
+  const coreBuckets = new Map<string, VoxelCell[]>();
+  const shellBuckets = new Map<string, VoxelCell[]>();
   const posScratch = new THREE.Vector3();
   const brightSurface: VoxelCell[] = [];
   const hotSpots: VoxelCell[] = [];
@@ -149,17 +150,22 @@ function addRareBandVoxelMeshes(
     const hex = quantizeRareShowcaseHex(
       showcaseRareVoxelHex(v.color, primaryColor, ix, iy, iz, forgeSphereRadius),
     );
+    const buckets = dist > 0.78 ? shellBuckets : coreBuckets;
     if (!buckets.has(hex)) buckets.set(hex, []);
     buckets.get(hex)!.push(v);
     if (dist > 0.82 && brightSet.has(hex)) brightSurface.push(v);
-    if (dist > 0.84 && hash % 19 === 0) hotSpots.push(v);
+    if (dist > 0.84 && hash % 29 === 0) hotSpots.push(v);
     if (dist < 0.72) innerCore.push(v);
   }
 
-  for (const [hex, cells] of buckets) {
-    const mat = new THREE.MeshBasicMaterial({ color: hex, toneMapped: false });
+  const placeCells = (
+    cells: VoxelCell[],
+    mat: THREE.MeshBasicMaterial,
+    renderOrder: number,
+  ) => {
     const mesh = new THREE.InstancedMesh(boxGeo, mat, cells.length);
     mesh.frustumCulled = false;
+    mesh.renderOrder = renderOrder;
     for (let i = 0; i < cells.length; i++) {
       const v = cells[i]!;
       rareVoxelWorldPos(v, voxelStep, forgeSphereRadius, posScratch);
@@ -171,6 +177,19 @@ function addRareBandVoxelMeshes(
     mesh.count = cells.length;
     mesh.instanceMatrix.needsUpdate = true;
     group.add(mesh);
+  };
+
+  for (const [hex, cells] of coreBuckets) {
+    placeCells(cells, new THREE.MeshBasicMaterial({ color: hex, toneMapped: false }), 0);
+  }
+  for (const [hex, cells] of shellBuckets) {
+    placeCells(cells, new THREE.MeshBasicMaterial({
+      color: hex,
+      toneMapped: false,
+      transparent: true,
+      opacity: 0.84,
+      depthWrite: false,
+    }), 1);
   }
 
   return { brightSurface, hotSpots, innerCore };
@@ -1074,7 +1093,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
       if (planetShowcase && rarePlanetShowcase) {
         const posScratch = new THREE.Vector3();
-        const rareCubeFill = 0.94;
+        const rareCubeFill = 0.86;
         const rareBoxGeo = new THREE.BoxGeometry(
           voxelStep * rareCubeFill,
           voxelStep * rareCubeFill,
@@ -1125,9 +1144,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           group.add(glowInst);
         };
 
-        addRareGlowLayer(innerCore, "#4facfe", 0.07, 1.02);
-        addRareGlowLayer(brightSurface, "#78c8ff", 0.18, 1.08);
-        addRareGlowLayer(hotSpots, "#c4ebff", 0.32, 1.22, true);
+        addRareGlowLayer(innerCore, "#4facfe", 0.11, 1.04);
+        addRareGlowLayer(brightSurface, "#64b8ff", 0.22, 1.1);
+        addRareGlowLayer(hotSpots, "#98d8ff", 0.36, 1.24, true);
       } else {
       const vMat = planetShowcase
         ? new THREE.MeshBasicMaterial({
