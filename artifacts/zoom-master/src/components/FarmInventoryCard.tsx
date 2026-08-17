@@ -8,7 +8,7 @@ import {
 } from "../hooks/useGameState";
 import { getPlanetDisplayName } from "../utils/planetNames";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
-import { PlanetOrb } from "./PlanetOrb";
+import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 
 export type FarmCardVariant = "grid" | "compact";
 
@@ -55,6 +55,7 @@ function rgba(hex: string, alpha: number): string {
 export function FarmInventoryCard({
   planet,
   variant = "grid",
+  suspendGl = false,
   onCardClick,
   onStartFarm,
   onUnlist,
@@ -138,7 +139,12 @@ export function FarmInventoryCard({
             transition: "filter 0.3s",
           }}
         >
-          <PlanetOrb planet={planet} size={orbThumb} animate={false} displayFloat={planetFloat} />
+          <PlanetVoxelThumb
+            planet={planet}
+            size={orbThumb}
+            animate={false}
+            suspendGl={suspendGl}
+          />
           {isPlatinumNft && (
             <span className="nft-badge absolute" style={{ top: -4, left: -4 }} aria-label="NFT">
               NFT

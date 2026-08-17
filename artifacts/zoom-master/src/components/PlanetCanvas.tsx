@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { MysteryModel3D, type ForgeMeshHandle } from "./MysteryModel3D";
-import { PlanetOrb } from "./PlanetOrb";
+import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { FORGE_CLAY_HEX, FORGE_SPHERE_SHAPE_ID } from "@workspace/game-models";
 import type { Planet } from "../hooks/useGameState";
 import { getRarityColorsForModel, PLANET_CONFIG } from "../hooks/useGameState";
@@ -496,7 +496,7 @@ export function PlanetCanvas({
                   pointerEvents: "none",
                 }}
               >
-                <PlanetOrb planet={livePlanet} size={modelCanvasSize} animate={revealed} />
+                <PlanetVoxelThumb planet={livePlanet} size={modelCanvasSize} animate={revealed} eager />
               </div>
             )}
           </div>
