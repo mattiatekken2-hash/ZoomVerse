@@ -74,7 +74,7 @@ export function FarmInventoryCard({
   const farmHours = planet.farmDurationHours ?? 1;
   const planetFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
   const isPlatinumNft = planet.name === "V1_NFT";
-  const orbThumb = compact ? 54 : 84;
+  const orbThumb = compact ? 54 : 72;
 
   const cycleTotal = planet.name === "MUSHROOM"
     ? 5
@@ -94,8 +94,7 @@ export function FarmInventoryCard({
         cursor: onCardClick ? "pointer" : undefined,
         width: compact ? 248 : "100%",
         maxWidth: compact ? 248 : undefined,
-        minHeight: compact ? undefined : 340,
-        aspectRatio: compact ? undefined : "1 / 1.92",
+        minHeight: compact ? undefined : 292,
       }}
       onClick={onCardClick}
       data-testid={testId}
@@ -104,13 +103,13 @@ export function FarmInventoryCard({
       <div
         style={{
           position: "relative",
-          flex: compact ? undefined : "1 1 58%",
-          minHeight: compact ? 118 : 210,
+          flex: compact ? undefined : "1 1 auto",
+          minHeight: compact ? 118 : 168,
           background: `linear-gradient(180deg, ${rgba(cardColor, 0.98)} 0%, ${rgba(cardColor, 0.72)} 32%, ${rgba(cardColor, 0.28)} 68%, #08080c 100%)`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: compact ? "14px 10px 22px" : "26px 12px 38px",
+          padding: compact ? "14px 10px 22px" : "18px 10px 28px",
         }}
       >
         {dur < 100 && (
@@ -203,10 +202,10 @@ export function FarmInventoryCard({
       <div
         style={{
           background: "#08080c",
-          padding: compact ? "18px 12px 10px" : "30px 14px 14px",
+          padding: compact ? "18px 12px 10px" : "22px 12px 10px",
           display: "flex",
           flexDirection: "column",
-          gap: compact ? 4 : 8,
+          gap: compact ? 4 : 6,
           flex: compact ? undefined : "0 0 auto",
         }}
       >
@@ -219,16 +218,16 @@ export function FarmInventoryCard({
           </div>
         )}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: compact ? 3 : 5 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: compact ? 10 : 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: compact ? 3 : 4 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: compact ? 10 : 11 }}>
             <span style={{ color: "rgba(255,255,255,0.42)", fontWeight: 600 }}>Farm</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "#fff", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
-              <FarmCubeIcon size={compact ? 11 : 12} color="rgba(255,255,255,0.75)" />
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#fff", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
+              <FarmCubeIcon size={compact ? 10 : 11} color="rgba(255,255,255,0.75)" />
               {planet.name === "MUSHROOM" ? "5 ★" : cycleTotal.toLocaleString()} / {farmHours}H
             </span>
           </div>
-          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 5, fontSize: compact ? 10 : 12 }}>
-            <FarmCubeIcon size={compact ? 11 : 12} color="rgba(255,255,255,0.55)" />
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 4, fontSize: compact ? 10 : 11 }}>
+            <FarmCubeIcon size={compact ? 10 : 11} color="rgba(255,255,255,0.55)" />
             <span style={{ color: "rgba(255,255,255,0.88)", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
               {planet.name === "MUSHROOM" ? "5 ★" : planet.rate.toLocaleString()} / H
             </span>
@@ -237,7 +236,7 @@ export function FarmInventoryCard({
       </div>
 
       {/* Action button */}
-      <div style={{ padding: compact ? "8px 10px 10px" : "12px 12px 16px", marginTop: compact ? undefined : "auto" }}>
+      <div style={{ padding: compact ? "8px 10px 10px" : "8px 10px 12px", marginTop: compact ? undefined : "auto", flexShrink: 0 }}>
         {dur <= 0 ? (
           <div
             style={{
@@ -339,21 +338,22 @@ export function FarmInventoryCard({
         ) : (
           <button
             type="button"
-            className="btn-widget"
             style={{
               width: "100%",
-              borderRadius: 12,
-              padding: "13px 10px",
-              minHeight: 46,
-              fontSize: 12,
+              borderRadius: 10,
+              padding: "9px 8px",
+              minHeight: 38,
+              fontSize: 10,
               fontWeight: 900,
-              letterSpacing: "0.07em",
+              letterSpacing: "0.06em",
+              lineHeight: 1.15,
               cursor: "pointer",
               touchAction: "manipulation",
               background: "#ffffff",
               color: "#0a0a0f",
               border: "1px solid rgba(255,255,255,0.92)",
-              boxShadow: "0 4px 18px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.08) inset",
+              boxShadow: "0 3px 12px rgba(0,0,0,0.35)",
+              whiteSpace: "nowrap",
             }}
             onClick={(e) => {
               e.stopPropagation();
