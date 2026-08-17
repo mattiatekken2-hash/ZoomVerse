@@ -902,7 +902,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     }
     setupRenderer(renderer, showcase && !planetShowcase);
     renderer.setPixelRatio(maxDpr);
-    const renderPx = planetShowcase ? Math.round(size * PLANET_THUMB_RENDER_SCALE) : size;
+    const renderPx = planetShowcase
+      ? Math.round(size * (rarePlanetShowcase ? 2 : PLANET_THUMB_RENDER_SCALE))
+      : size;
     renderer.setSize(renderPx, renderPx);
     if (planetShowcase) {
       renderer.domElement.style.width = `${size}px`;
@@ -1018,7 +1020,10 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     if (useForgeVoxels) {
       try {
         if (shapeId === FORGE_SPHERE_SHAPE_ID) {
-          const bp = getForgeSphereBlueprint(primaryColor, accentColor, { display: planetShowcase });
+          const bp = getForgeSphereBlueprint(primaryColor, accentColor, {
+            display: planetShowcase,
+            rarePremium: rarePlanetShowcase,
+          });
           forgeVoxels = bp.voxels;
           voxelStep = bp.step;
           forgeSphereRadius = bp.radius;

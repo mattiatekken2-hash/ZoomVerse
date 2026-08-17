@@ -7,11 +7,15 @@ export const FORGE_SPHERE_SHAPE_ID = "forge-sphere";
 /** Lab tap forge — one tap places one voxel (~250 cubes at r=4). */
 export const FORGE_SPHERE_RADIUS = 4;
 
-/** Farm/Market/Lab reveal — dense collectible sphere (~1300 cubes at r=7). */
+/** Farm/Market/Lab reveal — dense collectible sphere (~1400 cubes at r=7). */
 export const FORGE_SPHERE_DISPLAY_RADIUS = 7;
+
+/** RARE Farm thumb — higher grid resolution (~3000 cubes, mockup-aligned). */
+export const FORGE_SPHERE_RARE_DISPLAY_RADIUS = 9;
 
 const STEP = FORGE_VOXEL_SIZE;
 const DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.78;
+const RARE_DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.68;
 
 /** Key light direction for fake face shading on unlit thumbs. */
 const LIGHT_X = 0.42;
@@ -75,6 +79,8 @@ export function buildForgeSphereDisplayVoxels(_primary: string, _accent: string)
 export interface ForgeSphereBlueprintOptions {
   /** Use the high-density collectible mesh (cards + reveal). */
   display?: boolean;
+  /** RARE Farm/Market — ~2× voxel count, smaller cubes (mockup density). */
+  rarePremium?: boolean;
 }
 
 export function getForgeSphereBlueprint(
@@ -88,11 +94,18 @@ export function getForgeSphereBlueprint(
   radius: number;
 } {
   const display = options?.display === true;
-  const voxels = display
-    ? buildForgeSphereDisplayVoxels(primary, accent)
-    : buildForgeSphereVoxels(primary, accent);
-  const step = display ? DISPLAY_STEP : STEP;
-  const radius = display ? FORGE_SPHERE_DISPLAY_RADIUS : FORGE_SPHERE_RADIUS;
+  const rarePremium = display && options?.rarePremium === true;
+  const voxels = rarePremium
+    ? buildSphereCells(FORGE_SPHERE_RARE_DISPLAY_RADIUS, RARE_DISPLAY_STEP, true)
+    : display
+      ? buildForgeSphereDisplayVoxels(primary, accent)
+      : buildForgeSphereVoxels(primary, accent);
+  const step = rarePremium ? RARE_DISPLAY_STEP : display ? DISPLAY_STEP : STEP;
+  const radius = rarePremium
+    ? FORGE_SPHERE_RARE_DISPLAY_RADIUS
+    : display
+      ? FORGE_SPHERE_DISPLAY_RADIUS
+      : FORGE_SPHERE_RADIUS;
   return { voxels, step, goal: Math.max(1, buildForgeSphereVoxels(primary, accent).length), radius };
 }
 
