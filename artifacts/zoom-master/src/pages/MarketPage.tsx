@@ -5,7 +5,7 @@ import {
   ITEM_RARITY_LABEL,
   type ItemType,
 } from "../utils/collectibleConfig";
-import { PlanetOrb } from "../components/PlanetOrb";
+import { PlanetVoxelThumb } from "../components/PlanetVoxelThumb";
 import { ObjectThumb } from "../components/MysteryModel3D";
 import { getModelById } from "@workspace/game-models";
 import { PLANET_CONFIG, getRarityColorsForModel } from "../hooks/useGameState";
@@ -411,7 +411,7 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                   {(() => {
                     return (
                       <>
-                        <PlanetOrb planet={fakePlanet} size={42} animate={isPerfectFloat} displayFloat={saleFloat} />
+                        <PlanetVoxelThumb planet={fakePlanet} size={42} animate={isPerfectFloat} />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full" style={{ color: rarityColor, background: rarityColor + "14", border: `1px solid ${rarityColor}33` }}>
@@ -644,7 +644,7 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                           size={56}
                         />
                       ) : (
-                        <PlanetOrb planet={fakePlanet} size={56} animate={isPlatinumNft || isPerfectFloat} displayFloat={listingFloat} />
+                        <PlanetVoxelThumb planet={fakePlanet} size={56} animate={isPlatinumNft || isPerfectFloat} />
                       )}
                       {isPlatinumNft && (
                         <span
