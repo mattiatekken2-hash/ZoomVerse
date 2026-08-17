@@ -74,7 +74,7 @@ export function FarmInventoryCard({
   const farmHours = planet.farmDurationHours ?? 1;
   const planetFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
   const isPlatinumNft = planet.name === "V1_NFT";
-  const orbThumb = compact ? 54 : 72;
+  const orbThumb = compact ? 54 : 88;
 
   const cycleTotal = planet.name === "MUSHROOM"
     ? 5
