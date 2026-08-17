@@ -187,3 +187,57 @@ export function showcaseVoxelHex(
 
   return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 }
+
+/** RARE Farm/Market showcase — bright emissive cyan cubes (mockup-aligned). */
+export function showcaseRareVoxelHex(
+  band: MeshPartColor,
+  primary: string,
+  ix: number,
+  iy: number,
+  iz: number,
+  radius: number,
+): string {
+  const dist = Math.sqrt(ix * ix + iy * iy + iz * iz) / Math.max(radius, 1);
+  const ny = (iy / radius + 1) * 0.5;
+
+  const primaryRgb = hexToRgb(primary);
+  if (!primaryRgb) return primary;
+
+  // Mockup palette: electric cyan → white highlights (no navy/black bands).
+  let r = primaryRgb.r;
+  let g = primaryRgb.g;
+  let b = primaryRgb.b;
+
+  if (band === "a") {
+    r = r * 0.72 + 107 * 0.28;
+    g = g * 0.72 + 191 * 0.28;
+    b = b * 0.72 + 255 * 0.28;
+  }
+
+  if (band === "h" || ny > 0.68 || dist > 0.86) {
+    const hot = dist > 0.9 || band === "h" ? 0.62 : 0.38;
+    r = r + (255 - r) * hot;
+    g = g + (248 - g) * hot;
+    b = b + (255 - b) * hot;
+  }
+
+  if (dist > 0.78) {
+    const shell = 1.08 + (dist - 0.78) * 0.95;
+    r = Math.min(255, r * shell);
+    g = Math.min(255, g * shell);
+    b = Math.min(255, b * shell);
+  }
+
+  const light = faceLightFactor(ix, iy, iz, radius);
+  const lit = 0.78 + Math.max(0, light - 0.42) * 0.72;
+  r *= lit;
+  g *= lit;
+  b *= lit;
+
+  const shimmer = 0.9 + ((ix * 5 + iy * 7 + iz * 11) & 15) * 0.014;
+  r = clampByte(r * shimmer);
+  g = clampByte(g * shimmer);
+  b = clampByte(b * shimmer);
+
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}

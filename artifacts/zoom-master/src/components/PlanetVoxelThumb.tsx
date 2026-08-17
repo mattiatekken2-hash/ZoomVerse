@@ -180,6 +180,7 @@ export function PlanetVoxelThumb({
           shapeId={FORGE_SPHERE_SHAPE_ID}
           primaryColor={displayColors.color}
           accentColor={displayColors.accentHex}
+          planetRarity={planet.name}
           size={size}
           autoSpin={animate}
           performanceMode={false}
