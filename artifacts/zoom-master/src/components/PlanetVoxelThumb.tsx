@@ -182,7 +182,7 @@ export function PlanetVoxelThumb({
           accentColor={displayColors.glowColor || displayColors.accentHex}
           size={size}
           autoSpin={animate}
-          performanceMode
+          performanceMode={false}
           onGlFailed={handleGlError}
           onGlContextLost={handleGlError}
         />
