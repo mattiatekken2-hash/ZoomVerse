@@ -10,12 +10,12 @@ export const FORGE_SPHERE_RADIUS = 4;
 /** Farm/Market/Lab reveal — dense collectible sphere (~1400 cubes at r=7). */
 export const FORGE_SPHERE_DISPLAY_RADIUS = 7;
 
-/** RARE Farm thumb — higher grid resolution (~3000 cubes, mockup-aligned). */
-export const FORGE_SPHERE_RARE_DISPLAY_RADIUS = 9;
+/** RARE Farm thumb — high grid resolution (~4200 cubes, mockup-aligned). */
+export const FORGE_SPHERE_RARE_DISPLAY_RADIUS = 10;
 
 const STEP = FORGE_VOXEL_SIZE;
 const DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.78;
-const RARE_DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.68;
+const RARE_DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.62;
 
 /** Key light direction for fake face shading on unlit thumbs. */
 const LIGHT_X = 0.42;
@@ -218,23 +218,23 @@ export function showcaseRareVoxelHex(
   const primaryRgb = hexToRgb(primary);
   if (!primaryRgb) return primary;
 
-  // Mockup: mix deep blue, electric cyan, and sparse white-hot highlights.
+  // Mockup: deep blue body + electric cyan shell + rare white-hot sparks.
   let r: number;
   let g: number;
   let b: number;
 
-  if (hash % 11 === 0 || (band === "h" && hash > 210)) {
-    r = 224; g = 246; b = 255;
-  } else if (hash % 7 === 0 || band === "h" || ny > 0.74) {
-    r = 143; g = 214; b = 255;
-  } else if (hash % 5 === 0 || band === "a" || dist > 0.88) {
+  if (hash % 19 === 0 && dist > 0.84) {
+    r = 196; g = 232; b = 255;
+  } else if (hash % 6 === 0 || band === "h" || (ny > 0.7 && dist > 0.8)) {
+    r = 120; g = 198; b = 255;
+  } else if (hash % 4 === 0 || band === "a" || dist > 0.86) {
     r = primaryRgb.r;
     g = primaryRgb.g;
     b = primaryRgb.b;
-  } else if (dist < 0.62 || hash < 96) {
-    r = 26; g = 98; b = 196;
+  } else if (dist < 0.58 || hash < 110) {
+    r = 18; g = 82; b = 188;
   } else {
-    r = 58; g = 148; b = 228;
+    r = 42; g = 132; b = 220;
   }
 
   if (dist > 0.8) {
@@ -259,14 +259,14 @@ export function showcaseRareVoxelHex(
 
 /** Fixed palette for mobile-safe InstancedMesh buckets (no instanceColor). */
 export const RARE_SHOWCASE_PALETTE = [
-  "#1a62c4",
-  "#2580dc",
+  "#1252a8",
+  "#1a70d4",
   "#4facfe",
-  "#6bbfff",
+  "#5cb4ff",
+  "#74c4ff",
   "#8fd4ff",
-  "#b8e8ff",
-  "#d8f4ff",
-  "#e0f8ff",
+  "#aadfff",
+  "#c4ebff",
 ] as const;
 
 export function quantizeRareShowcaseHex(hex: string): string {
