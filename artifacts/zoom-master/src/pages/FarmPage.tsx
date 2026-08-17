@@ -12,6 +12,8 @@ import { DailyComboBox } from "../components/DailyComboBox";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
 import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, REPAIR_STARDUST_COST, FARM_UPGRADE_COSTS, FARM_UPGRADE_TIERS, isLegacyCatalogModelPlanet } from "../hooks/useGameState";
+import { FORGE_SPHERE_SHAPE_ID } from "@workspace/game-models";
+import { ObjectThumb } from "../components/MysteryModel3D";
 import { WalletPopup } from "../components/WalletPopup";
 import { useT } from "../i18n/LanguageContext";
 import { PlanetRenameModal } from "../components/PlanetRenameModal";
@@ -708,32 +710,22 @@ export function FarmPage({
                 <div
                   style={{
                     position: "relative",
+                    width: 72,
+                    height: 72,
+                    flexShrink: 0,
                     filter: sunExpired ? "grayscale(1) brightness(0.45)" : undefined,
                     transition: "filter 0.4s ease",
                   }}
                 >
-                  <div
-                    style={{
-                      width: 72, height: 72,
-                      borderRadius: "50%",
-                      position: "relative",
-                      overflow: "hidden",
-                      background: "radial-gradient(circle at 38% 32%, #ffffff 0%, #fffde7 4%, #fff176 10%, #ffee58 18%, #ffca28 30%, #ffa726 48%, #fb8c00 65%, #ef6c00 82%, #e65100 100%)",
-                      boxShadow: sunActive
-                        ? "0 0 30px rgba(255,230,0,1), 0 0 70px rgba(255,165,0,0.85), 0 0 120px rgba(255,100,0,0.55), 0 0 200px rgba(255,50,0,0.25), inset -4px -3px 10px rgba(0,0,0,0.2)"
-                        : "0 0 18px rgba(255,200,0,0.6), 0 0 45px rgba(255,140,0,0.3), 0 0 80px rgba(255,80,0,0.12), inset -4px -3px 10px rgba(0,0,0,0.2)",
-                      flexShrink: 0,
-                      animation: sunActive ? "planet-rotate 18s linear infinite" : "none",
-                    }}
-                  >
-                    <div style={{
-                      position: "absolute",
-                      inset: 0,
-                      borderRadius: "50%",
-                      background: "radial-gradient(circle at 30% 25%, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 35%)",
-                      pointerEvents: "none",
-                    }} />
-                  </div>
+                  <ObjectThumb
+                    shapeId={FORGE_SPHERE_SHAPE_ID}
+                    primaryColor="#ffca28"
+                    accentColor="#e65100"
+                    planetRarity="SUN"
+                    planetId="the-sun"
+                    size={72}
+                    autoSpin={sunActive}
+                  />
                   {sunExpired && (
                     <div
                       className="absolute inset-0 rounded-full pointer-events-none"
