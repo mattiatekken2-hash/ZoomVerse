@@ -22,11 +22,11 @@ function VoxelPlanetPlaceholder({
           position: "absolute",
           left: "50%",
           top: "50%",
-          width: cube,
-          height: cube,
+          width: cube * 1.2,
+          height: cube * 1.2,
           transform: "translate(-50%, -50%)",
-          border: "1px solid rgba(200,210,230,0.35)",
-          boxShadow: "inset 0 0 0 1px rgba(200,210,230,0.12)",
+          borderRadius: "50%",
+          background: `radial-gradient(circle at 50% 42%, ${accent}55 0%, ${color}28 45%, transparent 72%)`,
           pointerEvents: "none",
         }}
       />

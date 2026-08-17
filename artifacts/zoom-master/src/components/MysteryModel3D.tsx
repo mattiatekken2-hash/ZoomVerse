@@ -4,7 +4,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
-import { FORGE_CLAY, FORGE_CLAY_HEX, FORGE_VOXEL_SIZE, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, FORGE_SPHERE_SHAPE_ID, getForgeSphereBlueprint, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
+import { FORGE_CLAY, FORGE_CLAY_HEX, FORGE_VOXEL_SIZE, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, FORGE_SPHERE_SHAPE_ID, getForgeSphereBlueprint, showcaseVoxelHex, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
 
 const DEFAULT_PARTS = mysteryKitParts();
 
@@ -52,11 +52,49 @@ function isShowcaseView(
   opaqueBackground: boolean,
   revealed: boolean,
   forgeVoxelBuild: boolean,
+  planetShowcase: boolean,
 ): boolean {
+  if (planetShowcase) return true;
   if (performanceMode) return false;
   if (forgeVoxelBuild && !revealed) return false;
   if (interactive && !revealed) return false;
   return size >= 96 || opaqueBackground || (revealed && size >= 72);
+}
+
+function addPlanetShowcaseLights(scene: THREE.Scene, accentColor: string): THREE.Object3D[] {
+  const extras: THREE.Object3D[] = [];
+  scene.add(new THREE.AmbientLight(0xffffff, 0.62));
+  const key = new THREE.DirectionalLight(0xffffff, 1.45);
+  key.position.set(4, 7, 5);
+  scene.add(key);
+  extras.push(key);
+  const fill = new THREE.DirectionalLight(0xa8c8ff, 0.55);
+  fill.position.set(-4, 1, 3);
+  scene.add(fill);
+  extras.push(fill);
+  const rim = new THREE.DirectionalLight(0xe8f4ff, 0.72);
+  rim.position.set(0, 2, -6);
+  scene.add(rim);
+  extras.push(rim);
+  const glow = new THREE.PointLight(new THREE.Color(accentColor), 1.05, 14);
+  glow.position.set(-2, 3, 4);
+  scene.add(glow);
+  extras.push(glow);
+  return extras;
+}
+
+function showcaseVoxelColor(
+  v: VoxelCell,
+  step: number,
+  radius: number,
+  primary: string,
+  accent: string,
+  out: THREE.Color,
+): void {
+  const ix = Math.round(v.x / step);
+  const iy = Math.round(v.y / step);
+  const iz = Math.round(v.z / step);
+  out.set(showcaseVoxelHex(v.color, primary, accent, ix, iy, iz, radius));
 }
 
 function isGlassPart(part: MeshPart): boolean {
@@ -756,10 +794,14 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const mount = mountRef.current;
     if (!mount || size <= 0) return;
 
-    const showcase = isShowcaseView(performanceMode, size, interactive, opaqueBackground, revealed, forgeVoxelBuild);
+    const planetShowcase = forgeVoxelBuild
+      && shapeId === FORGE_SPHERE_SHAPE_ID
+      && revealed
+      && !interactive;
+    const showcase = isShowcaseView(performanceMode, size, interactive, opaqueBackground, revealed, forgeVoxelBuild, planetShowcase);
     const isStaticShowcase = showcase && revealed && !interactive;
     const useForgeVoxels = forgeVoxelBuild;
-    const forgeSpaceMode = useForgeVoxels && !revealed;
+    const forgeSpaceMode = useForgeVoxels && !revealed && !planetShowcase;
     const pixelMode = showcase && revealed && !performanceMode;
     const geoDetail: GeoDetail = performanceMode
       ? "low"
@@ -773,11 +815,13 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const usePhysicalMats = showcase && revealed;
 
     const scene = new THREE.Scene();
-    if (showcase) scene.background = new THREE.Color(0x060810);
+    if (showcase && !planetShowcase) scene.background = new THREE.Color(0x060810);
     else if (forgeSpaceMode) scene.background = null;
     const camera = new THREE.PerspectiveCamera(showcase ? 38 : 42, 1, 0.1, 100);
     cameraRef.current = camera;
-    const maxDpr = performanceMode
+    const maxDpr = planetShowcase
+      ? Math.min(window.devicePixelRatio, 2)
+      : performanceMode
       ? 1.25
       : showcase
         ? Math.min(window.devicePixelRatio, size >= 140 ? 3 : 2.5)
@@ -854,6 +898,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     }
 
     const isStaticThumb = revealed && !interactive && !performanceMode;
+    if (planetShowcase) {
+      groundExtras = addPlanetShowcaseLights(scene, accentColor);
+    } else {
     scene.add(new THREE.AmbientLight(0xffffff, forgeSpaceMode ? 1.05 : showcase ? 0.5 : opaqueBackground ? 0.55 : isStaticThumb ? 0.68 : 0.5));
     if (!performanceMode) {
       scene.add(new THREE.HemisphereLight(
@@ -895,6 +942,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         scene.add(bounce);
       }
     }
+    }
 
     const group = new THREE.Group();
     scene.add(group);
@@ -903,12 +951,14 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
     let forgeVoxels: VoxelCell[] = [];
     let voxelStep = FORGE_VOXEL_SIZE;
+    let forgeSphereRadius = 4;
     if (useForgeVoxels) {
       try {
         if (shapeId === FORGE_SPHERE_SHAPE_ID) {
-          const bp = getForgeSphereBlueprint(primaryColor, accentColor);
+          const bp = getForgeSphereBlueprint(primaryColor, accentColor, { display: planetShowcase });
           forgeVoxels = bp.voxels;
           voxelStep = bp.step;
+          forgeSphereRadius = bp.radius;
         } else {
           const voxelized = meshPartsToVoxels(meshParts);
           forgeVoxels = voxelized.voxels;
@@ -930,19 +980,32 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const n = forgeVoxels.length;
       const cube = voxelStep * FORGE_VOXEL_CUBE_FILL;
       const boxGeo = new THREE.BoxGeometry(cube, cube, cube);
-      const vMat = new THREE.MeshBasicMaterial({
-        color: FORGE_CLAY,
-        toneMapped: false,
-      });
+      const vMat = planetShowcase
+        ? new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            vertexColors: true,
+            roughness: 0.32,
+            metalness: 0.26,
+            flatShading: true,
+            emissive: new THREE.Color(accentColor),
+            emissiveIntensity: 0.16,
+            toneMapped: false,
+          })
+        : new THREE.MeshBasicMaterial({
+            color: FORGE_CLAY,
+            toneMapped: false,
+          });
       voxelInst = new THREE.InstancedMesh(boxGeo, vMat, n);
       voxelInst.frustumCulled = false;
       voxelInst.castShadow = false;
 
+      let edgeLines: THREE.LineSegments | null = null;
+      if (!planetShowcase) {
       const tpl = getUnitBoxEdgeTemplate();
       const edgeBuf = new Float32Array(n * tpl.vertCount * 3);
       const edgeBufferGeo = new THREE.BufferGeometry();
       edgeBufferGeo.setAttribute("position", new THREE.BufferAttribute(edgeBuf, 3));
-      const edgeLines = new THREE.LineSegments(
+      edgeLines = new THREE.LineSegments(
         edgeBufferGeo,
         new THREE.LineBasicMaterial({ color: FORGE_VOXEL_EDGE, toneMapped: false }),
       );
@@ -950,7 +1013,22 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       edgeLines.renderOrder = 2;
       forgeEdgeLinesRef.current = edgeLines;
       forgeEdgePositionsRef.current = edgeBuf;
+      }
 
+      if (planetShowcase) {
+        for (let vi = 0; vi < n; vi++) {
+          const v = forgeVoxels[vi]!;
+          voxelDummy.position.set(v.x, v.y, v.z);
+          voxelDummy.scale.setScalar(1);
+          voxelDummy.updateMatrix();
+          voxelInst.setMatrixAt(vi, voxelDummy.matrix);
+          showcaseVoxelColor(v, voxelStep, forgeSphereRadius, primaryColor, accentColor, voxelColorScratch);
+          voxelInst.setColorAt(vi, voxelColorScratch);
+        }
+        voxelInst.count = n;
+        voxelInst.instanceMatrix.needsUpdate = true;
+        if (voxelInst.instanceColor) voxelInst.instanceColor.needsUpdate = true;
+      } else {
       for (let vi = 0; vi < n; vi++) {
         voxelDummy.position.set(0, -999, 0);
         voxelDummy.scale.set(0, 0, 0);
@@ -959,8 +1037,10 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       }
       voxelInst.count = 0;
       voxelInst.instanceMatrix.needsUpdate = true;
+      }
+
       group.add(voxelInst);
-      group.add(edgeLines);
+      if (edgeLines) group.add(edgeLines);
     }
 
     const geos: THREE.BufferGeometry[] = [];
@@ -1140,7 +1220,12 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const activePartFrac = scaledParts - partsDone;
       let touchedMesh = false;
 
-      if (useVoxelForge && voxelInst) {
+      if (planetShowcase && voxelInst) {
+        const voxMat = voxelInst.material as THREE.MeshStandardMaterial;
+        voxMat.emissive.set(st.accentColor);
+        voxMat.emissiveIntensity = 0.15 + Math.sin(now * 0.0016) * 0.055;
+        touchedMesh = true;
+      } else if (useVoxelForge && voxelInst) {
         const voxMesh = voxelInst;
         const edgeLines = forgeEdgeLinesRef.current;
         const edgePosBuf = forgeEdgePositionsRef.current;
@@ -1421,7 +1506,8 @@ export function ObjectThumb({
     () => getMeshParts(shapeId, primaryColor, accentColor),
     [shapeId, primaryColor, accentColor],
   );
-  const hiFi = !performanceMode && size >= 96;
+  const isPlanetThumb = shapeId === FORGE_SPHERE_SHAPE_ID;
+  const hiFi = isPlanetThumb || (!performanceMode && size >= 96);
   return (
     <div
       className="object-thumb"
@@ -1434,14 +1520,16 @@ export function ObjectThumb({
           position: "absolute",
           left: "50%",
           top: "50%",
-          width: size * (hiFi ? 1.05 : 0.95),
-          height: size * (hiFi ? 1.05 : 0.95),
+          width: size * (isPlanetThumb ? 1.15 : hiFi ? 1.05 : 0.95),
+          height: size * (isPlanetThumb ? 1.15 : hiFi ? 1.05 : 0.95),
           transform: "translate(-50%, -50%)",
           borderRadius: "50%",
-          background: hiFi
+          background: isPlanetThumb
+            ? `radial-gradient(circle at 50% 40%, ${accentColor}88 0%, ${primaryColor}44 38%, transparent 72%)`
+            : hiFi
             ? `radial-gradient(circle at 50% 40%, ${accentColor}66 0%, ${primaryColor}33 38%, transparent 70%)`
             : `radial-gradient(circle at 50% 42%, ${accentColor}50 0%, ${primaryColor}28 40%, transparent 72%)`,
-          filter: hiFi ? "blur(0.5px)" : undefined,
+          filter: isPlanetThumb ? "blur(1px)" : hiFi ? "blur(0.5px)" : undefined,
           pointerEvents: "none",
         }}
       />
