@@ -176,7 +176,7 @@ const FORGE_CLAY_MID = 0xa8a8a8;
 const FORGE_CLAY_HI = 0xc4c4c4;
 
 function forgeClayTone(index: number): THREE.Color {
-  const tones = [FORGE_CLAY_HI, FORGE_CLAY_LIGHT, FORGE_CLAY_MID, 0xececec];
+  const tones = [FORGE_CLAY, FORGE_CLAY_LIGHT, FORGE_CLAY_MID, FORGE_CLAY_HI];
   return new THREE.Color(tones[index % tones.length]!);
 }
 
@@ -931,8 +931,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const cube = voxelStep * FORGE_VOXEL_CUBE_FILL;
       const boxGeo = new THREE.BoxGeometry(cube, cube, cube);
       const vMat = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        vertexColors: true,
+        color: FORGE_CLAY,
         toneMapped: false,
       });
       voxelInst = new THREE.InstancedMesh(boxGeo, vMat, n);
@@ -957,12 +956,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         voxelDummy.scale.set(0, 0, 0);
         voxelDummy.updateMatrix();
         voxelInst.setMatrixAt(vi, voxelDummy.matrix);
-        voxelColorScratch.copy(forgeClayTone(vi));
-        voxelInst.setColorAt(vi, voxelColorScratch);
       }
       voxelInst.count = 0;
       voxelInst.instanceMatrix.needsUpdate = true;
-      if (voxelInst.instanceColor) voxelInst.instanceColor.needsUpdate = true;
       group.add(voxelInst);
       group.add(edgeLines);
     }
@@ -1163,9 +1159,16 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           : 1;
         const dropEase = dropT * dropT * (3 - 2 * dropT);
         const paintBlend = st.revealed ? 1 : paintT;
+        const useClayGrey = paintBlend <= 0 && !sealing;
         const voxMat = voxMesh.material as THREE.MeshBasicMaterial;
-        voxMat.color.set(0xffffff);
         voxMat.toneMapped = false;
+        if (useClayGrey) {
+          voxMat.vertexColors = false;
+          voxMat.color.set(FORGE_CLAY);
+        } else {
+          voxMat.vertexColors = true;
+          voxMat.color.set(0xffffff);
+        }
         voxMat.needsUpdate = true;
 
         if (sealing) {
@@ -1194,14 +1197,12 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           voxelDummy.updateMatrix();
           voxMesh.setMatrixAt(visibleCount, voxelDummy.matrix);
 
-          painted.set(resolveColor(v.color, st.primaryColor, st.accentColor));
-          if (paintBlend <= 0) {
-            mixed.copy(forgeClayTone(i));
-          } else {
+          if (!useClayGrey) {
+            painted.set(resolveColor(v.color, st.primaryColor, st.accentColor));
             mixed.copy(forgeClayTone(i)).lerp(painted, paintBlend);
+            voxMesh.setColorAt(visibleCount, mixed);
+            colorsDirty = true;
           }
-          voxMesh.setColorAt(visibleCount, mixed);
-          colorsDirty = true;
 
           if (edgeLines && edgePosBuf) {
             const base = visibleCount * edgeVertCount * 3;
