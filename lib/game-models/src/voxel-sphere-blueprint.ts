@@ -13,9 +13,13 @@ export const FORGE_SPHERE_DISPLAY_RADIUS = 7;
 /** RARE Farm thumb — ultra grid (~9200 cubes, smooth voxel envelope). */
 export const FORGE_SPHERE_RARE_DISPLAY_RADIUS = 13;
 
+/** BASIC Farm thumb — same density as RARE, grey greeble surface. */
+export const FORGE_SPHERE_BASIC_DISPLAY_RADIUS = 13;
+
 const STEP = FORGE_VOXEL_SIZE;
 const DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.78;
 const RARE_DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.54;
+const BASIC_DISPLAY_STEP = FORGE_VOXEL_SIZE * 0.54;
 
 /** Key light direction for fake face shading on unlit thumbs. */
 const LIGHT_X = 0.42;
@@ -81,6 +85,8 @@ export interface ForgeSphereBlueprintOptions {
   display?: boolean;
   /** RARE Farm/Market — ~2× voxel count, smaller cubes (mockup density). */
   rarePremium?: boolean;
+  /** BASIC Farm/Market — dense grey greeble sphere (SOLIS mockup). */
+  basicPremium?: boolean;
 }
 
 export function getForgeSphereBlueprint(
@@ -95,17 +101,28 @@ export function getForgeSphereBlueprint(
 } {
   const display = options?.display === true;
   const rarePremium = display && options?.rarePremium === true;
+  const basicPremium = display && options?.basicPremium === true && !rarePremium;
   const voxels = rarePremium
     ? buildSphereCells(FORGE_SPHERE_RARE_DISPLAY_RADIUS, RARE_DISPLAY_STEP, true)
-    : display
-      ? buildForgeSphereDisplayVoxels(primary, accent)
-      : buildForgeSphereVoxels(primary, accent);
-  const step = rarePremium ? RARE_DISPLAY_STEP : display ? DISPLAY_STEP : STEP;
+    : basicPremium
+      ? buildSphereCells(FORGE_SPHERE_BASIC_DISPLAY_RADIUS, BASIC_DISPLAY_STEP, true)
+      : display
+        ? buildForgeSphereDisplayVoxels(primary, accent)
+        : buildForgeSphereVoxels(primary, accent);
+  const step = rarePremium
+    ? RARE_DISPLAY_STEP
+    : basicPremium
+      ? BASIC_DISPLAY_STEP
+      : display
+        ? DISPLAY_STEP
+        : STEP;
   const radius = rarePremium
     ? FORGE_SPHERE_RARE_DISPLAY_RADIUS
-    : display
-      ? FORGE_SPHERE_DISPLAY_RADIUS
-      : FORGE_SPHERE_RADIUS;
+    : basicPremium
+      ? FORGE_SPHERE_BASIC_DISPLAY_RADIUS
+      : display
+        ? FORGE_SPHERE_DISPLAY_RADIUS
+        : FORGE_SPHERE_RADIUS;
   return { voxels, step, goal: Math.max(1, buildForgeSphereVoxels(primary, accent).length), radius };
 }
 
@@ -274,9 +291,114 @@ export const RARE_SHOWCASE_PALETTE = [
 export function quantizeRareShowcaseHex(hex: string): string {
   const rgb = hexToRgb(hex);
   if (!rgb) return RARE_SHOWCASE_PALETTE[2];
-  let best = RARE_SHOWCASE_PALETTE[2];
+  let best: string = RARE_SHOWCASE_PALETTE[2];
   let bestDist = Infinity;
   for (const candidate of RARE_SHOWCASE_PALETTE) {
+    const c = hexToRgb(candidate);
+    if (!c) continue;
+    const d = (rgb.r - c.r) ** 2 + (rgb.g - c.g) ** 2 + (rgb.b - c.b) ** 2;
+    if (d < bestDist) {
+      bestDist = d;
+      best = candidate;
+    }
+  }
+  return best;
+}
+
+/** BASIC Farm/Market showcase — matte grey/metallic greeble (SOLIS mockup). */
+export function showcaseBasicVoxelHex(
+  band: MeshPartColor,
+  primary: string,
+  accent: string,
+  ix: number,
+  iy: number,
+  iz: number,
+  radius: number,
+): string {
+  const dist = Math.sqrt(ix * ix + iy * iy + iz * iz) / Math.max(radius, 1);
+  const ny = (iy / radius + 1) * 0.5;
+  const hash = (ix * 17 + iy * 31 + iz * 13) & 255;
+  const panelHash = (Math.floor(ix / 2) * 7 + Math.floor(iy / 2) * 13 + Math.floor(iz / 2) * 11) & 255;
+  const flick = 0.9 + (hash % 23) * 0.007;
+
+  const primaryRgb = hexToRgb(primary);
+  const accentRgb = hexToRgb(accent);
+  if (!primaryRgb) return primary;
+
+  let r: number;
+  let g: number;
+  let b: number;
+
+  const recessed = dist > 0.78 && panelHash % 5 === 0;
+  const protruding = dist > 0.78 && hash % 9 === 0;
+
+  if (recessed) {
+    r = accentRgb ? accentRgb.r * 0.72 : 58;
+    g = accentRgb ? accentRgb.g * 0.72 : 72;
+    b = accentRgb ? accentRgb.b * 0.72 : 88;
+  } else if (protruding) {
+    r = primaryRgb.r * 1.08 + 18;
+    g = primaryRgb.g * 1.08 + 18;
+    b = primaryRgb.b * 1.08 + 22;
+  } else if (hash % 7 === 0 || band === "a") {
+    r = accentRgb ? accentRgb.r : primaryRgb.r * 0.82;
+    g = accentRgb ? accentRgb.g : primaryRgb.g * 0.82;
+    b = accentRgb ? accentRgb.b : primaryRgb.b * 0.82;
+  } else if (band === "h" || (ny > 0.68 && dist > 0.82)) {
+    r = primaryRgb.r * 1.04 + 12;
+    g = primaryRgb.g * 1.04 + 12;
+    b = primaryRgb.b * 1.04 + 14;
+  } else if (dist < 0.55) {
+    r = primaryRgb.r * 0.48;
+    g = primaryRgb.g * 0.48;
+    b = primaryRgb.b * 0.48;
+  } else if (dist < 0.72) {
+    r = primaryRgb.r * 0.72;
+    g = primaryRgb.g * 0.72;
+    b = primaryRgb.b * 0.72;
+  } else {
+    r = primaryRgb.r;
+    g = primaryRgb.g;
+    b = primaryRgb.b;
+  }
+
+  if (dist > 0.84 && !recessed) {
+    const shell = 0.96 + (dist - 0.84) * 0.35;
+    r *= shell;
+    g *= shell;
+    b *= shell;
+  }
+
+  const light = faceLightFactor(ix, iy, iz, radius);
+  r *= light;
+  g *= light;
+  b *= light;
+
+  r = clampByte(r * flick);
+  g = clampByte(g * flick);
+  b = clampByte(b * flick);
+
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** Fixed palette for mobile-safe InstancedMesh buckets (no instanceColor). */
+export const BASIC_SHOWCASE_PALETTE = [
+  "#323840",
+  "#424850",
+  "#525860",
+  "#5c6478",
+  "#6a7288",
+  "#788098",
+  "#8892b0",
+  "#98a4bc",
+] as const;
+
+export function quantizeBasicShowcaseHex(hex: string): string {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return BASIC_SHOWCASE_PALETTE[4];
+  let best: string = BASIC_SHOWCASE_PALETTE[4];
+  let bestDist = Infinity;
+  for (const candidate of BASIC_SHOWCASE_PALETTE) {
     const c = hexToRgb(candidate);
     if (!c) continue;
     const d = (rgb.r - c.r) ** 2 + (rgb.g - c.g) ** 2 + (rgb.b - c.b) ** 2;
