@@ -931,7 +931,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const cube = voxelStep * FORGE_VOXEL_CUBE_FILL;
       const boxGeo = new THREE.BoxGeometry(cube, cube, cube);
       const vMat = new THREE.MeshBasicMaterial({
-        color: FORGE_CLAY,
+        color: 0xffffff,
         vertexColors: true,
         toneMapped: false,
       });
@@ -957,7 +957,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         voxelDummy.scale.set(0, 0, 0);
         voxelDummy.updateMatrix();
         voxelInst.setMatrixAt(vi, voxelDummy.matrix);
-        voxelColorScratch.set(FORGE_CLAY);
+        voxelColorScratch.copy(forgeClayTone(vi));
         voxelInst.setColorAt(vi, voxelColorScratch);
       }
       voxelInst.count = 0;
@@ -1164,6 +1164,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         const dropEase = dropT * dropT * (3 - 2 * dropT);
         const paintBlend = st.revealed ? 1 : paintT;
         const voxMat = voxMesh.material as THREE.MeshBasicMaterial;
+        voxMat.color.set(0xffffff);
         voxMat.toneMapped = false;
         voxMat.needsUpdate = true;
 
@@ -1194,8 +1195,11 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           voxMesh.setMatrixAt(visibleCount, voxelDummy.matrix);
 
           painted.set(resolveColor(v.color, st.primaryColor, st.accentColor));
-          mixed.copy(clayDark).lerp(painted, paintBlend > 0 ? paintBlend : 0);
-          if (paintBlend <= 0) mixed.copy(forgeClayTone(i));
+          if (paintBlend <= 0) {
+            mixed.copy(forgeClayTone(i));
+          } else {
+            mixed.copy(forgeClayTone(i)).lerp(painted, paintBlend);
+          }
           voxMesh.setColorAt(visibleCount, mixed);
           colorsDirty = true;
 
