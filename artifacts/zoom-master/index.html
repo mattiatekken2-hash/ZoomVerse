@@ -28,6 +28,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
   <style>
     #splash-screen {
       position: fixed;
@@ -49,58 +50,63 @@
       animation: splashIn 0.6s ease-out both;
     }
     @keyframes splashIn {
-      from { opacity: 0; transform: scale(0.85); }
+      from { opacity: 0; transform: scale(0.92); }
       to { opacity: 1; transform: scale(1); }
     }
-    #splash-screen .splash-emoji {
-      font-size: 72px;
-      margin-bottom: 12px;
-      filter: drop-shadow(0 0 24px rgba(106,90,205,0.6));
-      animation: splashEmoji 2s ease-in-out infinite;
+    #splash-screen .splash-spinner {
+      width: 52px;
+      height: 52px;
+      margin: 0 auto;
+      border-radius: 50%;
+      border: 3px solid rgba(158, 197, 232, 0.14);
+      border-top-color: #9ec5e8;
+      border-right-color: rgba(158, 197, 232, 0.55);
+      animation: splashSpin 0.9s linear infinite;
+      box-shadow: 0 0 24px rgba(158, 197, 232, 0.22);
     }
-    @keyframes splashEmoji {
-      0%, 100% { filter: drop-shadow(0 0 24px rgba(106,90,205,0.6)); transform: scale(1); }
-      50% { filter: drop-shadow(0 0 36px rgba(138,180,255,0.8)); transform: scale(1.08); }
+    @keyframes splashSpin {
+      to { transform: rotate(360deg); }
     }
     #splash-screen .splash-title {
+      margin-top: 22px;
       font-family: 'Orbitron', sans-serif;
       font-weight: 900;
-      font-size: 28px;
-      letter-spacing: 0.2em;
+      font-size: 26px;
+      letter-spacing: 0.22em;
       color: #e0e6ff;
-      text-shadow: 0 0 12px rgba(138,180,255,0.4), 0 0 32px rgba(106,90,205,0.3);
+      text-shadow: 0 0 12px rgba(138,180,255,0.4), 0 0 32px rgba(106,90,205,0.28);
     }
     #splash-screen .splash-sub {
-      margin-top: 8px;
+      margin-top: 10px;
       font-size: 11px;
       font-weight: 600;
-      letter-spacing: 0.15em;
-      color: rgba(255,255,255,0.3);
+      letter-spacing: 0.18em;
+      color: rgba(158, 197, 232, 0.55);
       text-transform: uppercase;
+      animation: splashPulse 1.6s ease-in-out infinite;
+    }
+    @keyframes splashPulse {
+      0%, 100% { opacity: 0.45; }
+      50% { opacity: 1; }
     }
   </style>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
   </head>
   <body>
-    <div id="splash-screen">
+    <div id="splash-screen" role="status" aria-label="Season 3 loading">
       <div class="splash-inner">
-        <div class="splash-emoji">🪐</div>
-        <div class="splash-title">ZOOM</div>
-        <div class="splash-sub">Loading</div>
+        <div class="splash-spinner" aria-hidden="true"></div>
+        <div class="splash-title">Season 3</div>
+        <div class="splash-sub">Entra in gioco</div>
       </div>
     </div>
     <script>
       (function() {
         var splash = document.getElementById('splash-screen');
-        function hide() {
+        window.__hideHtmlSplash = function() {
           if (!splash) return;
           splash.classList.add('hidden');
           setTimeout(function() { splash && splash.remove(); }, 700);
-        }
-        // Show splash for 1.2s in both dev and production.
-        var delay = 1200;
-        setTimeout(hide, delay);
-        window.addEventListener('load', function() { setTimeout(hide, delay); });
+        };
       })();
     </script>
     <div id="root"></div>

@@ -21,6 +21,7 @@ import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, type
 import { useStardust } from "./hooks/useStardust";
 import { FlaskConical, Home, Sprout, ShoppingCart, Gem, Trophy, Wallet, type LucideIcon } from "lucide-react";
 import { WalletPage } from "./pages/WalletPage";
+import { SplashScreen, hideHtmlSplash } from "./components/SplashScreen";
 import { isBrowserDevSession } from "./utils/telegram";
 
 const MAINTENANCE_ADMIN_IDS = ["8144744644", "@zoom0100", "zoom0100"];
@@ -349,6 +350,24 @@ function AppShellWithState() {
   const isAdmin = isMaintenanceAdmin(state.telegramId);
   const showMaintenance = maintenance.enabled && !isAdmin;
   const showSplash = !maintChecked && !isAdmin;
+  const [splashMinDone, setSplashMinDone] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSplashMinDone(true), 1200);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (isAdmin) {
+      hideHtmlSplash();
+      return;
+    }
+    if (maintChecked && splashMinDone) {
+      hideHtmlSplash();
+    }
+  }, [isAdmin, maintChecked, splashMinDone]);
+
+  const showBootSplash = !isAdmin && (showSplash || !splashMinDone);
 
   const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
   const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate * Math.max(1, state.sunCount || 1) : 0;
@@ -681,16 +700,8 @@ function AppShellWithState() {
 
   // Wait for a confirmed server maintenance check before showing the game UI.
   // (Cached "maintenance off" is never trusted — see maintChecked above.)
-  if (showSplash) {
-    return (
-      <div style={{
-        position: "fixed", inset: 0, background: "#000000",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        color: "rgba(255,255,255,0.35)", fontWeight: 800, letterSpacing: "0.2em", fontSize: 12,
-      }}>
-        ZOOM
-      </div>
-    );
+  if (showBootSplash) {
+    return <SplashScreen />;
   }
 
   return (
