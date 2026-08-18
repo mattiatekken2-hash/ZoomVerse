@@ -10,7 +10,7 @@ import { ObjectThumb } from "../components/MysteryModel3D";
 import { getModelById } from "@workspace/game-models";
 import { PLANET_CONFIG, getRarityColorsForModel } from "../hooks/useGameState";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
-import { buyFromMarket, shareListing, openMarketActivityStream, type ServerMarketListing } from "../utils/api";
+import { buyFromMarket, shareListing, openMarketActivityStream, type ServerMarketListing, type MarketSale } from "../utils/api";
 import { useGlobalStore, pushMarketSale, refreshMarketListings } from "../store/globalStore";
 import { PlanetFloatBar } from "../components/PlanetFloatBar";
 import { getListingDisplayFloat, FLOAT_PLANET_TYPES } from "../utils/planetFloat";
