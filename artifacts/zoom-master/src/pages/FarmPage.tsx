@@ -1,28 +1,19 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import {
-  ITEM_CONFIG,
-  ITEM_TYPES_ORDERED,
-  ITEM_RARITY_COLOR,
-  ITEM_RARITY_LABEL,
-  type CollectibleItem,
-  type ItemType,
-} from "../utils/collectibleConfig";
+import type { CollectibleItem } from "../utils/collectibleConfig";
 import { FarmInventoryCard } from "../components/FarmInventoryCard";
+import { StakingWidget } from "../components/StakingWidget";
 import { DailyComboBox } from "../components/DailyComboBox";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
-import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, REPAIR_STARDUST_COST, FARM_UPGRADE_COSTS, FARM_UPGRADE_TIERS, isLegacyCatalogModelPlanet } from "../hooks/useGameState";
+import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, FARM_UPGRADE_COSTS, FARM_UPGRADE_TIERS, isLegacyCatalogModelPlanet } from "../hooks/useGameState";
+import { SunFarmInventoryCard } from "../components/SunFarmInventoryCard";
 import { SunFarmThumb } from "../components/SunFarmThumb";
 import { WalletPopup } from "../components/WalletPopup";
 import { useT } from "../i18n/LanguageContext";
 import { PlanetRenameModal } from "../components/PlanetRenameModal";
 import PvPModal from "../components/PvPModal";
 import { getPlanetDisplayName } from "../utils/planetNames";
-import { EconomyWidget } from "../components/EconomyWidget";
-import { StakingWidget } from "../components/StakingWidget";
 import { PixelAvatar } from "../components/PixelAvatar";
-
-const SUN_THUMB_SIZE = 84;
 
 interface FarmPageProps {
   planets: Planet[];
@@ -100,205 +91,6 @@ interface FarmPageProps {
   visible?: boolean;
 }
 
-/**
- * CollectibleItemInventory — all-time passive ZOOM earners (no farm cycle).
- * Shows a 2-col grid of item cards, each with emoji orb, rarity badge, rate,
- * and List/Delist controls.
- */
-function CollectibleItemInventory({
-  items,
-  onSell,
-  onUnlist,
-}: {
-  items: CollectibleItem[];
-  onSell?: (id: string, price: number) => void;
-  onUnlist?: (id: string) => void;
-}) {
-  const [listFor, setListFor] = useState<{ id: string; cfg: typeof ITEM_CONFIG[ItemType] } | null>(null);
-  const [listPrice, setListPrice] = useState("");
-  const [toast, setToast] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2600);
-  };
-
-  // Sort: rarest first (GOLD → BASIC)
-  const RARITY_RANK = { GOLD: 4, MYTHIC: 3, EPIC: 2, RARE: 1, BASIC: 0 };
-  const sorted = [...items].sort((a, b) =>
-    (RARITY_RANK[b.rarity as keyof typeof RARITY_RANK] ?? 0) - (RARITY_RANK[a.rarity as keyof typeof RARITY_RANK] ?? 0)
-  );
-
-  if (sorted.length === 0) {
-    return (
-      <div
-        className="rounded-2xl border border-dashed flex flex-col items-center justify-center py-10 gap-3"
-        style={{ borderColor: "rgba(120,160,220,0.22)", minHeight: 200 }}
-        data-testid="items-empty"
-      >
-        <div style={{ fontSize: 36, opacity: 0.45 }}>⚗️</div>
-        <div className="text-sm font-bold" style={{ color: "rgba(220,235,255,0.7)" }}>
-          No collectibles yet
-        </div>
-        <div className="text-xs px-6 text-center" style={{ color: "rgba(220,235,255,0.35)" }}>
-          Forge items in the Lab to start collecting passive ZOOM earners.
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-3" data-testid="items-inventory">
-      {toast && (
-        <div className="rounded-xl px-4 py-2 text-xs font-bold text-center slot-enter"
-          style={{ background: "rgba(196,113,237,0.12)", color: "#c471ed", border: "1px solid rgba(196,113,237,0.25)" }}>
-          {toast}
-        </div>
-      )}
-      <div className="grid grid-cols-2 gap-3">
-        {sorted.map((item) => {
-          const type = item.type as ItemType;
-          const cfg = ITEM_CONFIG[type];
-          if (!cfg) return null;
-          const rarityColor = ITEM_RARITY_COLOR[item.rarity];
-          const listed = !!item.isListedInMarket;
-          const bokeh = cfg.glowColor ?? "rgba(180,140,255,0.5)";
-          return (
-            <div
-              key={item.id}
-              className="rounded-xl border flex flex-col gap-2 p-3 slot-enter"
-              style={{
-                borderColor: `${rarityColor}30`,
-                background: `linear-gradient(135deg, ${rarityColor}10 0%, rgba(10,14,30,0.7) 100%)`,
-                backdropFilter: "blur(10px)",
-              }}
-              data-testid={`item-card-${item.id}`}
-            >
-              {/* Emoji orb with bokeh glow — no dark box */}
-              <div className="relative flex justify-center">
-                <div
-                  className="bokeh-blob absolute"
-                  style={{ width: 56, height: 56, top: 0, left: "50%", transform: "translateX(-50%)", background: bokeh, opacity: 0.85 }}
-                />
-                <div
-                  className="relative w-14 h-14 flex items-center justify-center text-3xl planet-float-anim"
-                  style={{ filter: `drop-shadow(0 0 14px ${bokeh})` }}
-                >
-                  {cfg.emoji}
-                </div>
-                {listed && (
-                  <div
-                    className="absolute -top-1 -right-1 text-[8px] font-black px-1.5 py-0.5 rounded-full"
-                    style={{ background: "rgba(255,215,0,0.15)", color: "#ffd700", border: "1px solid rgba(255,215,0,0.3)" }}
-                  >
-                    LISTED
-                  </div>
-                )}
-              </div>
-              {/* Info */}
-              <div className="text-center">
-                <div className="text-[9px] font-black tracking-wide" style={{ color: rarityColor }}>
-                  {ITEM_RARITY_LABEL[item.rarity] ?? item.rarity} · {cfg.rate}/hr
-                </div>
-                <div className="text-xs font-bold truncate mt-0.5" style={{ color: "rgba(220,235,255,0.85)" }}>
-                  {cfg.label}
-                </div>
-              </div>
-              {/* Actions */}
-              {listed ? (
-                <button
-                  className="w-full py-1.5 rounded-lg text-[10px] font-black border transition-all active:scale-95"
-                  style={{ borderColor: "rgba(255,215,0,0.3)", background: "rgba(255,215,0,0.07)", color: "#ffd700" }}
-                  onClick={() => { if (onUnlist) onUnlist(item.id); }}
-                >
-                  Delist
-                </button>
-              ) : (
-                <button
-                  className="w-full py-1.5 rounded-lg text-[10px] font-black border transition-all active:scale-95"
-                  style={{ borderColor: `${rarityColor}33`, background: `${rarityColor}0d`, color: rarityColor }}
-                  onClick={() => {
-                    setListFor({ id: item.id, cfg });
-                    setListPrice("");
-                    setTimeout(() => inputRef.current?.focus(), 80);
-                  }}
-                >
-                  List
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* List-price modal */}
-      {listFor && (
-        <div
-          className="fixed inset-0 flex items-end justify-center z-50"
-          style={{ background: "rgba(6,8,16,0.92)" }}
-          onClick={(e) => { if (e.target === e.currentTarget) setListFor(null); }}
-        >
-          <div className="w-full rounded-t-3xl px-5 pt-6 pb-8 glass-strong">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="text-3xl">{listFor.cfg.emoji}</div>
-              <div className="font-black text-base" style={{ color: ITEM_RARITY_COLOR[listFor.cfg.rarity] }}>
-                List {listFor.cfg.label}
-              </div>
-            </div>
-            <div className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
-              Price in GRAM (0.25 – 10). 10% marketplace fee included.
-            </div>
-            <div className="relative mb-4">
-              <input
-                ref={inputRef}
-                type="number"
-                min={0.25}
-                max={10.0}
-                step={0.01}
-                value={listPrice}
-                onChange={(e) => setListPrice(e.target.value)}
-                className="w-full rounded-xl px-4 py-4 text-xl font-black pr-20 outline-none"
-                style={{ background: "rgba(255,255,255,0.06)", color: "white", border: `1px solid ${ITEM_RARITY_COLOR[listFor.cfg.rarity]}44`, caretColor: ITEM_RARITY_COLOR[listFor.cfg.rarity] }}
-                placeholder="0.00"
-                inputMode="decimal"
-              />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "rgba(255,255,255,0.35)" }}>GRAM</span>
-            </div>
-            <div className="flex gap-3">
-              <button
-                className="flex-1 py-3.5 rounded-2xl font-black text-sm border"
-                style={{ borderColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }}
-                onClick={() => setListFor(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className="flex-1 py-3.5 rounded-2xl font-black text-sm border transition-all active:scale-95"
-                style={{ borderColor: `${ITEM_RARITY_COLOR[listFor.cfg.rarity]}44`, background: `${ITEM_RARITY_COLOR[listFor.cfg.rarity]}14`, color: ITEM_RARITY_COLOR[listFor.cfg.rarity] }}
-                onClick={() => {
-                  const p = parseFloat(listPrice);
-                  if (isNaN(p) || p < 0.25 || p > 10) {
-                    showToast("Price must be 0.25 – 10 GRAM");
-                    return;
-                  }
-                  if (onSell) onSell(listFor.id, p);
-                  setListFor(null);
-                }}
-              >
-                List for Sale
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * Collectible items inventory grouped by type.
- */
 interface SellPopup {
   planetId: string;
   planetName: string;
@@ -310,7 +102,7 @@ export function FarmPage({
   planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId,
   onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun,
   onSell, onUnlist, onRepair, stardustBalance = 0, onRename,
-  items = [], onSellItem, onUnlistItem, onFlushPlanets, tonBalance = 0,
+  items: _items = [], onSellItem: _onSellItem, onUnlistItem: _onUnlistItem, onFlushPlanets, tonBalance = 0,
   onUpgradeDuration, onUpgradeSunDuration,
   whiteCollectionUnlocked = false,
   whiteCollectionBundles = 0,
@@ -367,12 +159,14 @@ export function FarmPage({
   // visually collide.
   const [comingSoonMsg, setComingSoonMsg] = useState<string | null>(null);
   const [collectionOpen, setCollectionOpen] = useState(false);
+  const [stakingOpen, setStakingOpen] = useState(false);
   // Timeout id for the COLLECTION toast — kept in a ref so repeated
   // taps reset the auto-dismiss timer instead of firing stale clears.
   const comingSoonTimeoutRef = useRef<number | null>(null);
   const [renamePlanet, setRenamePlanet] = useState<Planet | null>(null);
   const [pvpPlanet, setPvPPlanet] = useState<Planet | null>(null);
   const [detailPlanet, setDetailPlanet] = useState<Planet | null>(null);
+  const [sunDetailOpen, setSunDetailOpen] = useState(false);
   const handleComboClaimed = useCallback((newRedStarBalance: number) => {
     // Snap the local redStar balance to the server-confirmed value immediately
     // so the UI reflects the combo reward without waiting for the next sync.
@@ -381,10 +175,9 @@ export function FarmPage({
     }));
   }, []);
   const inputRef = useRef<HTMLInputElement>(null);
-  // Inventory tab — the FarmPage hosts the player's full inventory, split
-  // between "Planets" (existing planet/SUN/staking grid) and "Equipment"
-  // (new space gear: Helmets / Jetpacks / Hats / Scanners).
-  const [inventoryTab, setInventoryTab] = useState<"planets" | "items">("planets");
+  void _items;
+  void _onSellItem;
+  void _onUnlistItem;
 
   // Daily-collect removed — planets now farm autonomously for the full 24h
   // cycle and then need a $ZOOM reactivation, with no manual collect step.
@@ -436,11 +229,6 @@ export function FarmPage({
     setSellPopup(null);
     setSellPrice("");
   };
-
-  const sunActive = sun ? isSunActive(sun) : false;
-  const sunExpired = isSunExpired(sun);
-  // SUN reactivation now costs 1 ★ REDSTAR (flat) instead of a ZOOM fee.
-  const sunRemaining = sun && sun.isActive ? getSunTimeRemaining(sun) : 0;
 
   const handleSunStartOrReactivate = () => {
     const res = onStartSunFarming();
@@ -498,52 +286,17 @@ export function FarmPage({
             </p>
           </div>
           {totalRate > 0 && (
-            <div className="glass-neon px-3 py-1.5 rounded-full text-xs font-bold neon-text flex-shrink-0" data-testid="total-farm-rate">
+            <div
+              className="glass-neon px-3 py-1.5 rounded-full text-xs font-bold flex-shrink-0"
+              style={{ color: "#9EC5E8", textShadow: "0 0 10px rgba(158,197,232,0.45)" }}
+              data-testid="total-farm-rate"
+            >
               +{Math.floor(totalRate).toLocaleString()}/hr
             </div>
           )}
         </div>
 
-        {/* Inventory tab switcher — splits the FarmPage between the
-            existing planets/SUN/staking grid and the new space equipment
-            grid (Helmets / Jetpacks / Hats / Scanners). The Economy /
-            Staking widgets stay above this row because they describe the
-            overall portfolio, not a single inventory section. */}
-        <div
-          className="flex items-center gap-1 mt-3 p-1 rounded-xl"
-          style={{
-            background: "rgba(20,28,48,0.55)",
-            border: "1px solid rgba(120,160,220,0.18)",
-          }}
-        >
-          {([
-            { id: "planets", label: "Planets", count: planets.length },
-            { id: "items", label: "Items", count: items.length },
-          ] as const).map((tab) => {
-            const active = inventoryTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setInventoryTab(tab.id)}
-                data-testid={`tab-inventory-${tab.id}`}
-                className="flex-1 px-3 py-2 rounded-lg text-xs font-black tracking-wide transition-all"
-                style={{
-                  background: active
-                    ? "linear-gradient(135deg, rgba(80,180,255,0.30) 0%, rgba(60,120,220,0.18) 100%)"
-                    : "transparent",
-                  color: active ? "#e6f3ff" : "rgba(220,230,245,0.55)",
-                  border: active ? "1px solid rgba(120,200,255,0.5)" : "1px solid transparent",
-                  boxShadow: active ? "0 0 12px rgba(80,160,255,0.25)" : "none",
-                  letterSpacing: 0.6,
-                }}
-              >
-                {tab.label.toUpperCase()} · {tab.count}
-              </button>
-            );
-          })}
-        </div>
-        {/* Row 2: teaser pills aligned left, equal gap, no wrapping. */}
+        {/* Row 2: STAKING + COLLECTION pills */}
         <div className="flex items-center gap-2 mt-2 flex-wrap">
           {/* STAKING teaser button — sits to the left of COLLECTION.
               Same disabled "coming soon" pattern: greyscale + reduced
@@ -551,27 +304,22 @@ export function FarmPage({
               navigates or mutates state. */}
           <button
             type="button"
-            onClick={() => {
-              setComingSoonMsg("Coming Soon: Stake your $ZOOM or Planets to earn massive rewards!");
-              if (comingSoonTimeoutRef.current !== null) {
-                window.clearTimeout(comingSoonTimeoutRef.current);
-              }
-              comingSoonTimeoutRef.current = window.setTimeout(() => {
-                setComingSoonMsg(null);
-                comingSoonTimeoutRef.current = null;
-              }, 2400);
-            }}
-            aria-label="Staking — coming soon"
-            data-testid="btn-staking-coming-soon"
+            onClick={() => setStakingOpen((v) => !v)}
+            aria-label="GRAM staking"
+            aria-pressed={stakingOpen}
+            data-testid="btn-staking"
             className="px-3 py-1.5 rounded-full text-xs font-black tracking-wide"
             style={{
-              background: "linear-gradient(135deg, rgba(120,140,180,0.18) 0%, rgba(60,72,96,0.14) 100%)",
-              border: "1px solid rgba(180,200,230,0.22)",
-              color: "rgba(220,230,245,0.85)",
-              filter: "grayscale(1)",
-              opacity: 0.55,
+              background: stakingOpen
+                ? "linear-gradient(135deg, rgba(255,215,64,0.22) 0%, rgba(255,179,0,0.16) 100%)"
+                : "linear-gradient(135deg, rgba(120,140,180,0.18) 0%, rgba(60,72,96,0.14) 100%)",
+              border: stakingOpen ? "1px solid rgba(255,215,64,0.45)" : "1px solid rgba(180,200,230,0.22)",
+              color: stakingOpen ? "#ffd740" : "rgba(220,230,245,0.85)",
+              filter: stakingOpen ? "none" : "grayscale(0.35)",
+              opacity: stakingOpen ? 1 : 0.85,
               cursor: "pointer",
               letterSpacing: 0.5,
+              boxShadow: stakingOpen ? "0 0 14px rgba(255,215,64,0.22)" : "none",
             }}
           >
             STAKING
@@ -625,10 +373,11 @@ export function FarmPage({
       >
         <div className="flex flex-col gap-3">
 
-          {/* ECONOMY widget — global $ZOOM price + live portfolio.
-              Tappable card; opens the full chart modal. Polls /economy
-              every 12s while mounted. Read-only, no mutations. */}
-          <EconomyWidget balance={balance} />
+          <DailyComboBox
+            telegramId={telegramId}
+            planets={planets}
+            onClaimed={handleComboClaimed}
+          />
 
           {collectionOpen && (
             <PixelAvatar
@@ -678,176 +427,25 @@ export function FarmPage({
             />
           )}
 
-          {/* TON STAKING — locks 4 V1 or 4 SUN for 0.5 TON / 30 days each.
-              Server is the source of truth (re-validates count on start);
-              the widget polls /staking/status every 30s and ticks a local
-              counter every second for the live display. */}
-          <StakingWidget
-            telegramId={telegramId}
-            planets={planets}
-            sunCountClient={Math.max(sunCount ?? 0, sun?.isOwned ? 1 : 0)}
-            sunFarmStartedAtClient={sun?.farmStartedAt ?? 0}
-          />
-
-          {inventoryTab === "planets" && (
-          <>
-          {/* SUN CARD */}
-          {sun?.isOwned && (
-            <div
-              className={`slot-enter rounded-2xl p-4 relative overflow-hidden sun-card-3d${sunActive ? " sun-card-3d--active" : ""}${sunExpired ? " sun-card-3d--expired" : ""}`}
-              style={{
-                transform: "translateZ(0)",
-                contain: "layout style paint",
-              } as React.CSSProperties}
-            >
-              <div className="sun-card-3d__sheen" aria-hidden />
-              <div className="sun-card-3d__body">
-              <div className="flex items-center gap-4 mb-4">
-                <div
-                  style={{
-                    position: "relative",
-                    width: SUN_THUMB_SIZE,
-                    height: SUN_THUMB_SIZE,
-                    flexShrink: 0,
-                    filter: sunExpired ? "grayscale(0.55) saturate(0.65)" : undefined,
-                    opacity: sunExpired ? 0.88 : 1,
-                    transition: "filter 0.4s ease, opacity 0.4s ease",
-                  }}
-                >
-                  <SunFarmThumb
-                    size={SUN_THUMB_SIZE}
-                    animate={sunActive || sunExpired}
-                    suspendGl={!!detailPlanet || !visible}
-                  />
-                  {sunActive && (
-                    <div
-                      className="absolute -top-1 -right-1 w-3 h-3 rounded-full pulse-soft"
-                      style={{ background: "#00e676", boxShadow: "0 0 8px #00e676" }}
-                    />
-                  )}
-                  {sunExpired && (
-                    <div
-                      className="absolute -top-1 -right-1 w-3 h-3 rounded-full"
-                      style={{ background: "#ff5252", boxShadow: "0 0 8px #ff5252" }}
-                    />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`font-black text-base tracking-wide${sunExpired ? "" : " sun-title-3d"}`} style={sunExpired ? { color: "rgba(220,230,240,0.55)" } : undefined}>THE SUN</span>
-                    {sunMultiplier > 1 && (
-                      <span className="text-xs font-black px-2 py-0.5 rounded-full sun-badge-cyan" style={{ fontSize: 10 }}>
-                        ×{sunMultiplier}
-                      </span>
-                    )}
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full sun-badge-cyan" style={{ fontSize: 9, opacity: sunExpired ? 0.55 : 1 }}>
-                      EXCLUSIVE
-                    </span>
-                    {sunExpired && (
-                      <span
-                        className="text-xs font-black px-2 py-0.5 rounded-full"
-                        style={{ fontSize: 9, background: "rgba(255,82,82,0.15)", color: "#ff5252", border: "1px solid rgba(255,82,82,0.35)" }}
-                      >
-                        EXPIRED
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs font-bold" style={{ color: sunExpired ? "rgba(255,82,82,0.75)" : "rgba(200,240,255,0.62)" }}>
-                    {sunActive
-                      ? `+${SUN_CONFIG.rate.toLocaleString()} $ZOOM/hr · ${formatDuration(sunRemaining)} left`
-                      : sunExpired
-                      ? `Cycle ended · Reactivate · 1 ★ Redstar`
-                      : "Farming paused"}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                {sunExpired ? (
-                  <button
-                    className="btn-widget flex-1"
-                    style={{
-                      background: "linear-gradient(135deg, rgba(200,245,255,0.2) 0%, rgba(80,180,220,0.1) 100%)",
-                      border: "1px solid rgba(160,230,255,0.45)",
-                      color: "#d8f7ff",
-                      boxShadow: "0 0 14px rgba(100,220,255,0.2), 0 2px 0 rgba(255,255,255,0.12) inset",
-                    }}
-                    onClick={handleSunStartOrReactivate}
-                    data-testid="btn-reactivate-sun"
-                  >
-                    <span>REACTIVATE</span>
-                    <span style={{ fontSize: 8, opacity: 0.85 }}>1 ★ Redstar</span>
-                  </button>
-                ) : sunActive ? (
-                  // Active SUN cycle: show a non-interactive FARMING indicator.
-                  // The cycle runs uninterrupted — there is no manual pause/stop.
-                  <div
-                    className="btn-widget flex-1 btn-glass-farm-active"
-                    style={{ cursor: "default", pointerEvents: "none" }}
-                    aria-disabled="true"
-                    data-testid="status-sun-farming"
-                  >
-                    <span>FARMING</span>
-                    <span style={{ fontSize: 8, opacity: 0.6 }}>{formatDuration(sunRemaining)}</span>
-                  </div>
-                ) : (
-                  <button
-                    className="btn-widget flex-1 btn-glass-farm"
-                    onClick={handleSunStartOrReactivate}
-                  >
-                    <span>{t("farm.farm")}</span>
-                    <span style={{ fontSize: 8, opacity: 0.6 }}>{t("farm.startSmall")}</span>
-                  </button>
-                )}
-              </div>
-
-              {/* SUN farm-duration upgrade — same tier system as regular planets */}
-              {sun && onUpgradeSunDuration && (
-                <div className="farm-panel-3d" style={{ marginTop: 10 }}>
-                  <div className="farm-panel-3d__title">
-                    ⏱ CYCLE DURATION — {sun.farmDurationHours ?? 1}h · costs EARNED GRAM
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 5 }}>
-                    {FARM_UPGRADE_TIERS.map((h) => {
-                      const cost = FARM_UPGRADE_COSTS[h]!;
-                      const isCurrent = (sun.farmDurationHours ?? 1) === h;
-                      const canAfford = tonBalance >= cost;
-                      const tierDisabled = isCurrent || !canAfford;
-                      return (
-                        <button
-                          key={h}
-                          disabled={tierDisabled}
-                          onClick={async () => {
-                            const result = await onUpgradeSunDuration(h);
-                            if (!result.ok) {
-                              setDefectMsg(result.error ?? "Upgrade failed");
-                              setTimeout(() => setDefectMsg(null), 2000);
-                            }
-                          }}
-                          className={`farm-btn-3d farm-btn-3d--tier${isCurrent ? " farm-btn-3d--current" : ""}${tierDisabled && !isCurrent ? " farm-btn-3d--disabled" : ""}`}
-                        >
-                          <div>{h}h</div>
-                          {!isCurrent && <div>{cost} G</div>}
-                          {isCurrent && <div>✓</div>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              </div>
-            </div>
+          {stakingOpen && (
+            <StakingWidget
+              telegramId={telegramId}
+              planets={planets}
+              sunCountClient={Math.max(sunCount ?? 0, sun?.isOwned ? 1 : 0)}
+              sunFarmStartedAtClient={sun?.farmStartedAt ?? 0}
+            />
           )}
 
-          {/* DAILY COMBO — shown at top of planets tab */}
-          <DailyComboBox
-            telegramId={telegramId}
-            planets={planets}
-            onClaimed={handleComboClaimed}
-          />
-
-          {/* REGULAR PLANETS — 2-column compact grid */}
           <div className="grid grid-cols-2 gap-3">
+          {sun?.isOwned && sun && (
+            <SunFarmInventoryCard
+              sun={sun}
+              sunMultiplier={sunMultiplier}
+              suspendGl={!!detailPlanet || !!sunDetailOpen || !visible}
+              onCardClick={() => setSunDetailOpen(true)}
+              onStartFarm={handleSunStartOrReactivate}
+            />
+          )}
           {planets.filter((p) => !p.isListedInMarket && !isLegacyCatalogModelPlanet(p)).map((planet) => {
             const isListed = planet.isListedInMarket;
 
@@ -908,16 +506,7 @@ export function FarmPage({
             Forge your first planet in the Lab
           </div>
         )}
-          </>
-          )}
 
-          {inventoryTab === "items" && (
-            <CollectibleItemInventory
-              items={items}
-              onSell={onSellItem}
-              onUnlist={onUnlistItem}
-            />
-          )}
         </div>
       </div>
 
@@ -1087,6 +676,94 @@ export function FarmPage({
             : undefined}
           onUpgradeDuration={onUpgradeDuration}
         />
+      )}
+      {sunDetailOpen && sun?.isOwned && sun && (
+        <div
+          className="absolute inset-0 z-50 flex items-end justify-center"
+          style={{ background: "rgba(6,8,16,0.92)" }}
+          onClick={(e) => e.target === e.currentTarget && setSunDetailOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-t-3xl px-5 pt-5 pb-8"
+            style={{
+              background: "linear-gradient(180deg, rgba(255,238,88,0.12) 0%, rgba(8,10,18,0.98) 32%)",
+              border: "1px solid rgba(255,238,88,0.25)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,238,88,0.55)" }}>
+                  EXCLUSIVE
+                </div>
+                <div className="font-black text-xl" style={{ color: "#ffee58" }}>
+                  THE SUN{sunMultiplier > 1 ? ` ×${sunMultiplier}` : ""}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSunDetailOpen(false)}
+                className="text-xs font-bold px-3 py-1.5 rounded-full"
+                style={{ color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.12)" }}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mb-4 flex flex-col items-center gap-3">
+              <SunFarmThumb size={120} animate suspendGl={false} />
+              <div className="text-center text-xs font-bold" style={{ color: "rgba(255,255,255,0.55)" }}>
+                +{(SUN_CONFIG.rate * sunMultiplier).toLocaleString()} $ZOOM/hr · {sun.farmDurationHours ?? 1}h cycle
+              </div>
+              <button
+                type="button"
+                className="w-full max-w-xs py-3 rounded-xl text-xs font-black"
+                style={{
+                  background: "linear-gradient(135deg, #ffee58, #ffb300)",
+                  color: "#1a1000",
+                }}
+                onClick={handleSunStartOrReactivate}
+              >
+                {isSunActive(sun) ? "FARMING ACTIVE" : "START / REACTIVATE"}
+              </button>
+            </div>
+
+            {onUpgradeSunDuration && (
+              <div className="farm-panel-3d">
+                <div className="farm-panel-3d__title">
+                  ⏱ CYCLE DURATION — {sun.farmDurationHours ?? 1}h · costs EARNED GRAM
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 5 }}>
+                  {FARM_UPGRADE_TIERS.map((h) => {
+                    const cost = FARM_UPGRADE_COSTS[h]!;
+                    const isCurrent = (sun.farmDurationHours ?? 1) === h;
+                    const canAfford = tonBalance >= cost;
+                    const tierDisabled = isCurrent || !canAfford;
+                    return (
+                      <button
+                        key={h}
+                        type="button"
+                        disabled={tierDisabled}
+                        onClick={async () => {
+                          const result = await onUpgradeSunDuration(h);
+                          if (!result.ok) {
+                            setDefectMsg(result.error ?? "Upgrade failed");
+                            setTimeout(() => setDefectMsg(null), 2000);
+                          }
+                        }}
+                        className={`farm-btn-3d farm-btn-3d--tier${isCurrent ? " farm-btn-3d--current" : ""}${tierDisabled && !isCurrent ? " farm-btn-3d--disabled" : ""}`}
+                      >
+                        <div>{h}h</div>
+                        {!isCurrent && <div>{cost} G</div>}
+                        {isCurrent && <div>✓</div>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

@@ -83,7 +83,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
         <div className="rounded-xl p-3 border mb-3" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
           <div className="flex justify-between text-xs mb-2" style={{ color: "rgba(255,255,255,0.4)" }}>
             <span className="font-bold">Season {currentSeason} of {TOTAL_SEASONS}</span>
-            <span className="font-bold neon-text">{seasonProgressPercent.toFixed(2)}%</span>
+            <span className="font-bold" style={{ color: "#9EC5E8" }}>{seasonProgressPercent.toFixed(2)}%</span>
           </div>
           <div className="w-full h-2 rounded-full overflow-hidden mb-3" style={{ background: "rgba(255,255,255,0.06)" }}>
             <div

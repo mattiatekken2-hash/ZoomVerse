@@ -15,7 +15,6 @@ import {
 } from "recharts";
 import {
   convertDepositToStardust,
-  convertStardustToGram,
   fetchStardustMarketHistory,
   fetchStardustMarketPrice,
   fetchStardustStakeState,
@@ -23,7 +22,7 @@ import {
   unstakeStardust,
   type StardustChartPoint,
 } from "../utils/api";
-import { gramToStardustPreview, stardustToGramPreview, STARDUST_TO_GRAM_SPREAD } from "../utils/stardustMarket";
+import { gramToStardustPreview } from "../utils/stardustMarket";
 import { GramDiamondIcon } from "./GramDiamondIcon";
 
 const REFRESH_MS = 12_000;
@@ -109,14 +108,13 @@ export function StardustMarketModal({
   const [liveEarned, setLiveEarned] = useState(earnedGramBalance);
   const [amount, setAmount] = useState("");
   const [convertGram, setConvertGram] = useState("");
-  const [convertStardust, setConvertStardust] = useState("");
   const [busy, setBusy] = useState(false);
   const [convertBusy, setConvertBusy] = useState(false);
-  const [convertOutBusy, setConvertOutBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [convertMsg, setConvertMsg] = useState<string | null>(null);
-  const [convertOutMsg, setConvertOutMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [canWithdraw, setCanWithdraw] = useState(false);
+  const [lockDaysRemaining, setLockDaysRemaining] = useState(0);
 
   useEffect(() => {
     setLiveDeposit(depositBalance);
@@ -145,6 +143,8 @@ export function StardustMarketModal({
       setStaked(stake.staked);
       setStakedValue(stake.stakedValue);
       setPnl(stake.pnl);
+      setCanWithdraw(!!stake.canWithdraw);
+      setLockDaysRemaining(stake.lockDaysRemaining ?? 0);
       onBalanceChange?.(stake.balance);
     }
     setLoading(false);
@@ -192,6 +192,7 @@ export function StardustMarketModal({
     setAmount("");
     setMsg(`✓ Staked ${n.toLocaleString()} ★`);
     window.dispatchEvent(new CustomEvent("stardust-refresh"));
+    window.dispatchEvent(new Event("zoom-data-refresh"));
     void refresh();
   };
 
@@ -207,6 +208,7 @@ export function StardustMarketModal({
     }
     setMsg(`✓ Withdrew ${(res.payout ?? 0).toLocaleString()} ★`);
     window.dispatchEvent(new CustomEvent("stardust-refresh"));
+    window.dispatchEvent(new Event("zoom-data-refresh"));
     void refresh();
   };
 
@@ -242,43 +244,6 @@ export function StardustMarketModal({
       onBalanceChange?.(res.stardustBalance);
     }
     if (typeof res.depositBalance === "number") setLiveDeposit(res.depositBalance);
-    if (typeof res.tonBalance === "number") setLiveEarned(res.tonBalance);
-    window.dispatchEvent(new CustomEvent("stardust-refresh"));
-    window.dispatchEvent(new Event("zoom-data-refresh"));
-    void refresh();
-  };
-
-  const convertOutPreview = useMemo(() => {
-    const n = parseInt(convertStardust, 10);
-    if (!Number.isFinite(n) || n <= 0) return 0;
-    return stardustToGramPreview(n, index);
-  }, [convertStardust, index]);
-
-  const handleConvertOut = async () => {
-    if (!telegramId || convertOutBusy) return;
-    const n = parseInt(convertStardust, 10);
-    if (!Number.isFinite(n) || n <= 0) {
-      setConvertOutMsg("Enter a valid STARDUST amount");
-      return;
-    }
-    if (n > balance) {
-      setConvertOutMsg(`Not enough STARDUST (${balance.toLocaleString()} in wallet)`);
-      return;
-    }
-    setConvertOutBusy(true);
-    setConvertOutMsg(null);
-    const res = await convertStardustToGram(telegramId, n);
-    setConvertOutBusy(false);
-    if (!res.ok) {
-      setConvertOutMsg(res.error ?? "Conversion failed");
-      return;
-    }
-    setConvertStardust("");
-    setConvertOutMsg(`✓ +${(res.gramReceived ?? 0).toFixed(4)} GRAM from ${n.toLocaleString()} ★`);
-    if (typeof res.stardustBalance === "number") {
-      setBalance(res.stardustBalance);
-      onBalanceChange?.(res.stardustBalance);
-    }
     if (typeof res.tonBalance === "number") setLiveEarned(res.tonBalance);
     window.dispatchEvent(new CustomEvent("stardust-refresh"));
     window.dispatchEvent(new Event("zoom-data-refresh"));
@@ -438,73 +403,6 @@ export function StardustMarketModal({
           className="mx-4 mb-3 rounded-2xl p-4"
           style={{ background: "rgba(255,215,64,0.06)", border: "1px solid rgba(255,215,64,0.18)" }}
         >
-          <div className="flex items-center gap-2 mb-2">
-            <span style={{ fontSize: 18, lineHeight: 1 }}>★</span>
-            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.14em", color: "rgba(255,215,64,0.65)" }}>
-              CONVERT STARDUST → GRAM
-            </div>
-          </div>
-          <div className="flex justify-between mb-2 text-xs">
-            <span style={{ color: "rgba(255,255,255,0.4)" }}>Wallet STARDUST</span>
-            <span style={{ color: "#ffd740", fontWeight: 800 }}>{balance.toLocaleString()} ★</span>
-          </div>
-          <div className="flex gap-2 mb-2">
-            <input
-              type="number"
-              min={1}
-              step={1}
-              placeholder="STARDUST to convert"
-              value={convertStardust}
-              onChange={(e) => setConvertStardust(e.target.value)}
-              className="flex-1 rounded-xl px-3 py-2 text-sm font-bold"
-              style={{
-                background: "rgba(0,0,0,0.35)",
-                border: "1px solid rgba(255,215,64,0.25)",
-                color: "#fff8e0",
-              }}
-            />
-            <button
-              type="button"
-              disabled={convertOutBusy || !telegramId || balance <= 0}
-              onClick={() => setConvertStardust(String(Math.max(1, Math.floor(balance))))}
-              className="px-3 rounded-xl text-[10px] font-black"
-              style={{ background: "rgba(255,215,64,0.12)", color: "#ffd740", border: "1px solid rgba(255,215,64,0.25)" }}
-            >
-              MAX
-            </button>
-          </div>
-          {convertOutPreview > 0 && (
-            <div className="text-[10px] font-bold mb-2" style={{ color: "rgba(0,180,255,0.85)" }}>
-              ≈ {convertOutPreview.toFixed(4)} GRAM at index {index.toFixed(3)} ({Math.round(STARDUST_TO_GRAM_SPREAD * 100)}% rate)
-            </div>
-          )}
-          <button
-            type="button"
-            disabled={convertOutBusy || !telegramId}
-            onClick={() => { void handleConvertOut(); }}
-            className="w-full py-2.5 rounded-xl text-xs font-black"
-            style={{
-              background: "linear-gradient(135deg, #ffd740, #ffb300)",
-              color: "#1a1000",
-              boxShadow: "0 0 16px rgba(255,215,64,0.25)",
-            }}
-          >
-            CONVERT TO GRAM
-          </button>
-          {convertOutMsg && (
-            <div className="mt-2 text-center text-[10px] font-bold" style={{ color: convertOutMsg.startsWith("✓") ? "#69f0ae" : "#ff8a80" }}>
-              {convertOutMsg}
-            </div>
-          )}
-          <div className="mt-2 text-[9px] leading-relaxed" style={{ color: "rgba(255,255,255,0.32)" }}>
-            Credits earned GRAM at {Math.round(STARDUST_TO_GRAM_SPREAD * 100)}% of the live index (15% market spread). Staked ★ must be withdrawn first.
-          </div>
-        </div>
-
-        <div
-          className="mx-4 mb-3 rounded-2xl p-4"
-          style={{ background: "rgba(255,215,64,0.06)", border: "1px solid rgba(255,215,64,0.18)" }}
-        >
           <div className="flex justify-between mb-3">
             <div>
               <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.14em", color: "rgba(255,215,64,0.55)" }}>
@@ -573,16 +471,16 @@ export function StardustMarketModal({
             </button>
             <button
               type="button"
-              disabled={busy || !telegramId || staked <= 0}
+              disabled={busy || !telegramId || staked <= 0 || !canWithdraw}
               onClick={() => { void handleUnstakeAll(); }}
               className="flex-1 py-2.5 rounded-xl text-xs font-black"
               style={{
-                background: "rgba(255,255,255,0.06)",
+                background: canWithdraw ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.03)",
                 border: "1px solid rgba(255,255,255,0.14)",
-                color: "rgba(255,255,255,0.75)",
+                color: canWithdraw ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.35)",
               }}
             >
-              WITHDRAW ALL
+              {staked <= 0 ? "WITHDRAW ALL" : canWithdraw ? "WITHDRAW ALL" : `LOCKED ${lockDaysRemaining}d`}
             </button>
           </div>
 
@@ -593,7 +491,7 @@ export function StardustMarketModal({
           )}
 
           <div className="mt-3 text-[9px] leading-relaxed" style={{ color: "rgba(255,255,255,0.32)" }}>
-            Live index moves with global STARDUST spend &amp; collect. Your staked value tracks the index — withdraw anytime.
+            Live index moves with global STARDUST activity. Staked value tracks the chart in real time. After staking, withdraw unlocks in 30 days.
           </div>
         </div>
 

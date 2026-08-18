@@ -1240,15 +1240,36 @@ function reconcileFromSyncResponse(
         detail: { balance: res.zoomBalance, epoch: res.balanceEpoch },
       }));
     } catch { /**/ }
+    if (typeof res.tonBalance === "number") {
+      if (_stateRefHolder) {
+        _stateRefHolder.current = { ..._stateRefHolder.current, tonBalance: res.tonBalance };
+      }
+      _lastSyncedTonBalance = res.tonBalance;
+      try {
+        window.dispatchEvent(new CustomEvent("zoom-server-ton-snap", {
+          detail: { tonBalance: res.tonBalance, epoch: res.balanceEpoch },
+        }));
+      } catch { /**/ }
+    }
+    if (typeof res.stardustBalance === "number") {
+      if (_stateRefHolder) {
+        _stateRefHolder.current = { ..._stateRefHolder.current, stardustBalance: res.stardustBalance };
+      }
+      try {
+        window.dispatchEvent(new CustomEvent("zoom-server-stardust-snap", {
+          detail: { stardustBalance: res.stardustBalance, epoch: res.balanceEpoch },
+        }));
+      } catch { /**/ }
+    }
   }
-  // For TON we use a non-destructive merge on the server (GREATEST), so the
-  // server can return a value HIGHER than what we sent even when the epoch
-  // didn't advance (e.g. an earlier session credited TON, or an admin grant
-  // bumped the stored balance). Whenever the server reports a strictly
+  // For TON we use a non-destructive merge on the server (GREATEST when epoch
+  // matches), so the server can return a value HIGHER than what we sent even
+  // when the epoch didn't advance. Whenever the server reports a strictly
   // higher TON than the client sent, snap local up so the user actually
   // sees the credited amount. Same synchronous-stateRef-first ordering as
   // the ZOOM snap above, for the same race-window reason.
   if (
+    !serverAdvanced &&
     typeof res.tonBalance === "number" &&
     typeof sentTonBalance === "number" &&
     (res.tonBalance ?? 0) - (sentTonBalance ?? 0) > 1e-9
@@ -1263,10 +1284,10 @@ function reconcileFromSyncResponse(
       }));
     } catch { /**/ }
   }
-  // Stardust: always server-authoritative-up only (same as TON). If the server
-  // reports a higher value than the client sent, snap local up so admin
-  // grants or cross-device stardust collect are visible immediately.
+  // Stardust: server-authoritative-up when epoch matches (admin removals use
+  // epoch advance + snap in serverAdvanced block above).
   if (
+    !serverAdvanced &&
     typeof res.stardustBalance === "number" &&
     typeof sentStardustBalance === "number" &&
     (res.stardustBalance ?? 0) - (sentStardustBalance ?? 0) > 0 &&
@@ -3315,6 +3336,24 @@ export function useGameState() {
 
       const grants = await fetchGrants(telegramId);
       if (grants) applyGrants(grants);
+
+      const { firstName, username, photoUrl } = getTelegramContext();
+      const sentEpoch = _currentBalanceEpoch;
+      const sentTon = Math.max(0, stateRef.current.tonBalance || 0);
+      const sentStardust = Math.floor(stateRef.current.stardustBalance || 0);
+      const sentRedStar = Math.max(0, stateRef.current.redStarBalance || 0);
+      const syncRes = await syncBalance({
+        telegramId,
+        firstName,
+        username,
+        photoUrl,
+        zoomBalance: Math.floor(stateRef.current.balance),
+        tonBalance: sentTon,
+        stardustBalance: sentStardust,
+        redStarBalance: sentRedStar,
+        clientEpoch: sentEpoch,
+      });
+      reconcileFromSyncResponse(Math.floor(stateRef.current.balance), sentEpoch, syncRes, sentTon, sentStardust);
     };
     const handleLocalCredit = (e: Event) => {
       const detail = (e as CustomEvent<{ amount: number }>).detail;
@@ -3364,10 +3403,14 @@ export function useGameState() {
     const handleServerStardustSnap = (e: Event) => {
       const detail = (e as CustomEvent<{ stardustBalance: number; epoch: number }>).detail;
       if (!detail || typeof detail.stardustBalance !== "number") return;
+      const newStardust = Math.max(0, detail.stardustBalance);
+      const newEpoch = Math.max(stateRef.current.lastBalanceEpoch ?? 0, detail.epoch ?? 0);
+      stateRef.current = { ...stateRef.current, stardustBalance: newStardust, lastBalanceEpoch: newEpoch };
+      saveState(stateRef.current);
       setState((prev) => ({
         ...prev,
-        stardustBalance: Math.max(0, detail.stardustBalance),
-        lastBalanceEpoch: Math.max(prev.lastBalanceEpoch ?? 0, detail.epoch ?? 0),
+        stardustBalance: newStardust,
+        lastBalanceEpoch: newEpoch,
       }));
     };
     // RedStar: server-authoritative snap. Dispatched when a sync response or

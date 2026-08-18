@@ -21,6 +21,8 @@ import {
 
 const router: IRouter = Router();
 
+const STAKE_LOCK_MS = 30 * 24 * 60 * 60 * 1000;
+
 const DAILY_CAP = 25;
 const GLOBAL_KEY = "stardust_global_total";
 
@@ -279,6 +281,7 @@ router.post("/stardust/convert-deposit", async (req, res) => {
         depositBalance: sql`${usersTable.depositBalance} - LEAST(COALESCE(${usersTable.depositBalance}, 0), ${gramAmount})`,
         tonBalance: sql`${usersTable.tonBalance} - GREATEST(0, ${gramAmount} - LEAST(COALESCE(${usersTable.depositBalance}, 0), ${gramAmount}))`,
         stardustBalance: sql`${usersTable.stardustBalance} + ${stardustOut}`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
       .where(sql`
         ${usersTable.telegramId} = ${telegramId}
@@ -451,6 +454,7 @@ router.get("/stardust/stake/state", async (req, res) => {
         balance: usersTable.stardustBalance,
         staked: usersTable.stardustStaked,
         stakeIndex: usersTable.stardustStakeIndexMicro,
+        stakeLockedUntilMs: usersTable.stardustStakeLockedUntilMs,
       })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
@@ -459,6 +463,8 @@ router.get("/stardust/stake/state", async (req, res) => {
     const staked = Number(u?.staked ?? 0);
     const stakeIndex = Number(u?.stakeIndex ?? STARDUST_GENESIS_MICRO);
     const stakedValue = stardustValueAtIndex(staked, stakeIndex, indexMicro);
+    const lockedUntilMs = Number(u?.stakeLockedUntilMs ?? 0);
+    const now = Date.now();
 
     res.json({
       balance: Number(u?.balance ?? 0),
@@ -467,6 +473,9 @@ router.get("/stardust/stake/state", async (req, res) => {
       stakedValue,
       index: indexMicro / STARDUST_SCALE,
       pnl: stakedValue - staked,
+      lockedUntilMs,
+      canWithdraw: staked > 0 && now >= lockedUntilMs,
+      lockDaysRemaining: lockedUntilMs > now ? Math.ceil((lockedUntilMs - now) / (24 * 60 * 60 * 1000)) : 0,
     });
   } catch (err) {
     console.error("[stardust/stake/state]", err);
@@ -510,6 +519,7 @@ router.post("/stardust/stake", async (req, res) => {
     const newIndex = oldStaked <= 0
       ? indexMicro
       : Math.round((oldStaked * oldIndex + amount * indexMicro) / newStaked);
+    const lockUntil = Date.now() + STAKE_LOCK_MS;
 
     const [upd] = await db
       .update(usersTable)
@@ -517,6 +527,8 @@ router.post("/stardust/stake", async (req, res) => {
         stardustBalance: sql`${usersTable.stardustBalance} - ${amount}`,
         stardustStaked: newStaked,
         stardustStakeIndexMicro: newIndex,
+        stardustStakeLockedUntilMs: lockUntil,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
       .where(sql`${usersTable.telegramId} = ${telegramId} AND ${usersTable.stardustBalance} >= ${amount}`)
       .returning({
@@ -540,6 +552,8 @@ router.post("/stardust/stake", async (req, res) => {
       staked: Number(upd.staked ?? 0),
       stakedValue,
       index: indexMicro / STARDUST_SCALE,
+      lockedUntilMs: lockUntil,
+      canWithdraw: false,
     });
   } catch (err) {
     console.error("[stardust/stake]", err);
@@ -570,6 +584,7 @@ router.post("/stardust/unstake", async (req, res) => {
       .select({
         staked: usersTable.stardustStaked,
         stakeIndex: usersTable.stardustStakeIndexMicro,
+        stakeLockedUntilMs: usersTable.stardustStakeLockedUntilMs,
       })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
@@ -578,6 +593,17 @@ router.post("/stardust/unstake", async (req, res) => {
 
     const staked = Number(u.staked ?? 0);
     if (staked <= 0) return res.status(400).json({ ok: false, error: "Nothing staked" });
+
+    const lockedUntilMs = Number(u.stakeLockedUntilMs ?? 0);
+    if (Date.now() < lockedUntilMs) {
+      const daysLeft = Math.ceil((lockedUntilMs - Date.now()) / (24 * 60 * 60 * 1000));
+      return res.status(403).json({
+        ok: false,
+        error: `Stake locked — withdraw available in ${daysLeft} day(s)`,
+        lockedUntilMs,
+        lockDaysRemaining: daysLeft,
+      });
+    }
 
     const stakeIndex = Number(u.stakeIndex ?? STARDUST_GENESIS_MICRO);
     const unstakeUnits = amount ? Math.min(amount, staked) : staked;
@@ -590,6 +616,8 @@ router.post("/stardust/unstake", async (req, res) => {
         stardustBalance: sql`${usersTable.stardustBalance} + ${payout}`,
         stardustStaked: remaining,
         stardustStakeIndexMicro: remaining > 0 ? stakeIndex : STARDUST_GENESIS_MICRO,
+        stardustStakeLockedUntilMs: remaining > 0 ? lockedUntilMs : 0,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
       .where(eq(usersTable.telegramId, telegramId))
       .returning({

@@ -161,10 +161,9 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
         className="active:scale-95"
         style={{
           position: "fixed",
-          // Anchored bottom-left, just above the FORGE PLANET button row
-          // (button row ≈ 70px + bottom nav 70px + safe-area bottom).
+          // Immersive Lab: nav overlays the canvas — sit just above the forge row.
           left: 12,
-          bottom: "calc(env(safe-area-inset-bottom, 0px) + 158px)",
+          bottom: "calc(env(safe-area-inset-bottom, 0px) + 132px)",
           width: 52,
           height: 52,
           borderRadius: "50%",
