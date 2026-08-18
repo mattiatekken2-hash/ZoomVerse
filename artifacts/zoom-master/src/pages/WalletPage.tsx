@@ -98,6 +98,11 @@ export function WalletPage({
     return seededRange(seed, 5_000_000, 18_000_000);
   }, [telegramId]);
 
+  const handleGramPriceUpdate = useCallback((p: number) => {
+    setTonPrice(p);
+    setPriceLoading(false);
+  }, []);
+
   return (
     <div
       className="flex flex-col overflow-y-auto"
@@ -254,13 +259,12 @@ export function WalletPage({
 
       {gramChartOpen && (
         <GramChartModal
+          key="gram-chart-modal"
           gramBalance={tonBalance}
           depositBalance={depositBalance}
+          initialPrice={tonPrice}
           onClose={() => setGramChartOpen(false)}
-          onPriceUpdate={(p) => {
-            setTonPrice(p);
-            setPriceLoading(false);
-          }}
+          onPriceUpdate={handleGramPriceUpdate}
         />
       )}
 
