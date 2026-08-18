@@ -11,7 +11,8 @@ import { FarmInventoryCard } from "../components/FarmInventoryCard";
 import { DailyComboBox } from "../components/DailyComboBox";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
-import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, REPAIR_STARDUST_COST, FARM_UPGRADE_COSTS, FARM_UPGRADE_TIERS, isLegacyCatalogModelPlanet } from "../hooks/useGameState";
+import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, FARM_UPGRADE_COSTS, FARM_UPGRADE_TIERS, isLegacyCatalogModelPlanet } from "../hooks/useGameState";
+import { SunFarmInventoryCard } from "../components/SunFarmInventoryCard";
 import { SunFarmThumb } from "../components/SunFarmThumb";
 import { WalletPopup } from "../components/WalletPopup";
 import { useT } from "../i18n/LanguageContext";
@@ -21,8 +22,6 @@ import { getPlanetDisplayName } from "../utils/planetNames";
 import { EconomyWidget } from "../components/EconomyWidget";
 import { StakingWidget } from "../components/StakingWidget";
 import { PixelAvatar } from "../components/PixelAvatar";
-
-const SUN_THUMB_SIZE = 84;
 
 interface FarmPageProps {
   planets: Planet[];
@@ -367,12 +366,14 @@ export function FarmPage({
   // visually collide.
   const [comingSoonMsg, setComingSoonMsg] = useState<string | null>(null);
   const [collectionOpen, setCollectionOpen] = useState(false);
+  const [stakingOpen, setStakingOpen] = useState(false);
   // Timeout id for the COLLECTION toast — kept in a ref so repeated
   // taps reset the auto-dismiss timer instead of firing stale clears.
   const comingSoonTimeoutRef = useRef<number | null>(null);
   const [renamePlanet, setRenamePlanet] = useState<Planet | null>(null);
   const [pvpPlanet, setPvPPlanet] = useState<Planet | null>(null);
   const [detailPlanet, setDetailPlanet] = useState<Planet | null>(null);
+  const [sunDetailOpen, setSunDetailOpen] = useState(false);
   const handleComboClaimed = useCallback((newRedStarBalance: number) => {
     // Snap the local redStar balance to the server-confirmed value immediately
     // so the UI reflects the combo reward without waiting for the next sync.
@@ -436,11 +437,6 @@ export function FarmPage({
     setSellPopup(null);
     setSellPrice("");
   };
-
-  const sunActive = sun ? isSunActive(sun) : false;
-  const sunExpired = isSunExpired(sun);
-  // SUN reactivation now costs 1 ★ REDSTAR (flat) instead of a ZOOM fee.
-  const sunRemaining = sun && sun.isActive ? getSunTimeRemaining(sun) : 0;
 
   const handleSunStartOrReactivate = () => {
     const res = onStartSunFarming();
@@ -551,27 +547,22 @@ export function FarmPage({
               navigates or mutates state. */}
           <button
             type="button"
-            onClick={() => {
-              setComingSoonMsg("Coming Soon: Stake your $ZOOM or Planets to earn massive rewards!");
-              if (comingSoonTimeoutRef.current !== null) {
-                window.clearTimeout(comingSoonTimeoutRef.current);
-              }
-              comingSoonTimeoutRef.current = window.setTimeout(() => {
-                setComingSoonMsg(null);
-                comingSoonTimeoutRef.current = null;
-              }, 2400);
-            }}
-            aria-label="Staking — coming soon"
-            data-testid="btn-staking-coming-soon"
+            onClick={() => setStakingOpen((v) => !v)}
+            aria-label="GRAM staking"
+            aria-pressed={stakingOpen}
+            data-testid="btn-staking"
             className="px-3 py-1.5 rounded-full text-xs font-black tracking-wide"
             style={{
-              background: "linear-gradient(135deg, rgba(120,140,180,0.18) 0%, rgba(60,72,96,0.14) 100%)",
-              border: "1px solid rgba(180,200,230,0.22)",
-              color: "rgba(220,230,245,0.85)",
-              filter: "grayscale(1)",
-              opacity: 0.55,
+              background: stakingOpen
+                ? "linear-gradient(135deg, rgba(255,215,64,0.22) 0%, rgba(255,179,0,0.16) 100%)"
+                : "linear-gradient(135deg, rgba(120,140,180,0.18) 0%, rgba(60,72,96,0.14) 100%)",
+              border: stakingOpen ? "1px solid rgba(255,215,64,0.45)" : "1px solid rgba(180,200,230,0.22)",
+              color: stakingOpen ? "#ffd740" : "rgba(220,230,245,0.85)",
+              filter: stakingOpen ? "none" : "grayscale(0.35)",
+              opacity: stakingOpen ? 1 : 0.85,
               cursor: "pointer",
               letterSpacing: 0.5,
+              boxShadow: stakingOpen ? "0 0 14px rgba(255,215,64,0.22)" : "none",
             }}
           >
             STAKING
@@ -624,6 +615,14 @@ export function FarmPage({
         }}
       >
         <div className="flex flex-col gap-3">
+
+          {inventoryTab === "planets" && (
+            <DailyComboBox
+              telegramId={telegramId}
+              planets={planets}
+              onClaimed={handleComboClaimed}
+            />
+          )}
 
           {/* ECONOMY widget — global $ZOOM price + live portfolio.
               Tappable card; opens the full chart modal. Polls /economy
@@ -678,176 +677,28 @@ export function FarmPage({
             />
           )}
 
-          {/* TON STAKING — locks 4 V1 or 4 SUN for 0.5 TON / 30 days each.
-              Server is the source of truth (re-validates count on start);
-              the widget polls /staking/status every 30s and ticks a local
-              counter every second for the live display. */}
-          <StakingWidget
-            telegramId={telegramId}
-            planets={planets}
-            sunCountClient={Math.max(sunCount ?? 0, sun?.isOwned ? 1 : 0)}
-            sunFarmStartedAtClient={sun?.farmStartedAt ?? 0}
-          />
+          {stakingOpen && (
+            <StakingWidget
+              telegramId={telegramId}
+              planets={planets}
+              sunCountClient={Math.max(sunCount ?? 0, sun?.isOwned ? 1 : 0)}
+              sunFarmStartedAtClient={sun?.farmStartedAt ?? 0}
+            />
+          )}
 
           {inventoryTab === "planets" && (
           <>
-          {/* SUN CARD */}
-          {sun?.isOwned && (
-            <div
-              className={`slot-enter rounded-2xl p-4 relative overflow-hidden sun-card-3d${sunActive ? " sun-card-3d--active" : ""}${sunExpired ? " sun-card-3d--expired" : ""}`}
-              style={{
-                transform: "translateZ(0)",
-                contain: "layout style paint",
-              } as React.CSSProperties}
-            >
-              <div className="sun-card-3d__sheen" aria-hidden />
-              <div className="sun-card-3d__body">
-              <div className="flex items-center gap-4 mb-4">
-                <div
-                  style={{
-                    position: "relative",
-                    width: SUN_THUMB_SIZE,
-                    height: SUN_THUMB_SIZE,
-                    flexShrink: 0,
-                    filter: sunExpired ? "grayscale(0.55) saturate(0.65)" : undefined,
-                    opacity: sunExpired ? 0.88 : 1,
-                    transition: "filter 0.4s ease, opacity 0.4s ease",
-                  }}
-                >
-                  <SunFarmThumb
-                    size={SUN_THUMB_SIZE}
-                    animate={sunActive || sunExpired}
-                    suspendGl={!!detailPlanet || !visible}
-                  />
-                  {sunActive && (
-                    <div
-                      className="absolute -top-1 -right-1 w-3 h-3 rounded-full pulse-soft"
-                      style={{ background: "#00e676", boxShadow: "0 0 8px #00e676" }}
-                    />
-                  )}
-                  {sunExpired && (
-                    <div
-                      className="absolute -top-1 -right-1 w-3 h-3 rounded-full"
-                      style={{ background: "#ff5252", boxShadow: "0 0 8px #ff5252" }}
-                    />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`font-black text-base tracking-wide${sunExpired ? "" : " sun-title-3d"}`} style={sunExpired ? { color: "rgba(220,230,240,0.55)" } : undefined}>THE SUN</span>
-                    {sunMultiplier > 1 && (
-                      <span className="text-xs font-black px-2 py-0.5 rounded-full sun-badge-cyan" style={{ fontSize: 10 }}>
-                        ×{sunMultiplier}
-                      </span>
-                    )}
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full sun-badge-cyan" style={{ fontSize: 9, opacity: sunExpired ? 0.55 : 1 }}>
-                      EXCLUSIVE
-                    </span>
-                    {sunExpired && (
-                      <span
-                        className="text-xs font-black px-2 py-0.5 rounded-full"
-                        style={{ fontSize: 9, background: "rgba(255,82,82,0.15)", color: "#ff5252", border: "1px solid rgba(255,82,82,0.35)" }}
-                      >
-                        EXPIRED
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs font-bold" style={{ color: sunExpired ? "rgba(255,82,82,0.75)" : "rgba(200,240,255,0.62)" }}>
-                    {sunActive
-                      ? `+${SUN_CONFIG.rate.toLocaleString()} $ZOOM/hr · ${formatDuration(sunRemaining)} left`
-                      : sunExpired
-                      ? `Cycle ended · Reactivate · 1 ★ Redstar`
-                      : "Farming paused"}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                {sunExpired ? (
-                  <button
-                    className="btn-widget flex-1"
-                    style={{
-                      background: "linear-gradient(135deg, rgba(200,245,255,0.2) 0%, rgba(80,180,220,0.1) 100%)",
-                      border: "1px solid rgba(160,230,255,0.45)",
-                      color: "#d8f7ff",
-                      boxShadow: "0 0 14px rgba(100,220,255,0.2), 0 2px 0 rgba(255,255,255,0.12) inset",
-                    }}
-                    onClick={handleSunStartOrReactivate}
-                    data-testid="btn-reactivate-sun"
-                  >
-                    <span>REACTIVATE</span>
-                    <span style={{ fontSize: 8, opacity: 0.85 }}>1 ★ Redstar</span>
-                  </button>
-                ) : sunActive ? (
-                  // Active SUN cycle: show a non-interactive FARMING indicator.
-                  // The cycle runs uninterrupted — there is no manual pause/stop.
-                  <div
-                    className="btn-widget flex-1 btn-glass-farm-active"
-                    style={{ cursor: "default", pointerEvents: "none" }}
-                    aria-disabled="true"
-                    data-testid="status-sun-farming"
-                  >
-                    <span>FARMING</span>
-                    <span style={{ fontSize: 8, opacity: 0.6 }}>{formatDuration(sunRemaining)}</span>
-                  </div>
-                ) : (
-                  <button
-                    className="btn-widget flex-1 btn-glass-farm"
-                    onClick={handleSunStartOrReactivate}
-                  >
-                    <span>{t("farm.farm")}</span>
-                    <span style={{ fontSize: 8, opacity: 0.6 }}>{t("farm.startSmall")}</span>
-                  </button>
-                )}
-              </div>
-
-              {/* SUN farm-duration upgrade — same tier system as regular planets */}
-              {sun && onUpgradeSunDuration && (
-                <div className="farm-panel-3d" style={{ marginTop: 10 }}>
-                  <div className="farm-panel-3d__title">
-                    ⏱ CYCLE DURATION — {sun.farmDurationHours ?? 1}h · costs EARNED GRAM
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 5 }}>
-                    {FARM_UPGRADE_TIERS.map((h) => {
-                      const cost = FARM_UPGRADE_COSTS[h]!;
-                      const isCurrent = (sun.farmDurationHours ?? 1) === h;
-                      const canAfford = tonBalance >= cost;
-                      const tierDisabled = isCurrent || !canAfford;
-                      return (
-                        <button
-                          key={h}
-                          disabled={tierDisabled}
-                          onClick={async () => {
-                            const result = await onUpgradeSunDuration(h);
-                            if (!result.ok) {
-                              setDefectMsg(result.error ?? "Upgrade failed");
-                              setTimeout(() => setDefectMsg(null), 2000);
-                            }
-                          }}
-                          className={`farm-btn-3d farm-btn-3d--tier${isCurrent ? " farm-btn-3d--current" : ""}${tierDisabled && !isCurrent ? " farm-btn-3d--disabled" : ""}`}
-                        >
-                          <div>{h}h</div>
-                          {!isCurrent && <div>{cost} G</div>}
-                          {isCurrent && <div>✓</div>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              </div>
-            </div>
-          )}
-
-          {/* DAILY COMBO — shown at top of planets tab */}
-          <DailyComboBox
-            telegramId={telegramId}
-            planets={planets}
-            onClaimed={handleComboClaimed}
-          />
-
-          {/* REGULAR PLANETS — 2-column compact grid */}
+          {/* REGULAR PLANETS + SUN — 2-column compact grid */}
           <div className="grid grid-cols-2 gap-3">
+          {sun?.isOwned && sun && (
+            <SunFarmInventoryCard
+              sun={sun}
+              sunMultiplier={sunMultiplier}
+              suspendGl={!!detailPlanet || !!sunDetailOpen || !visible}
+              onCardClick={() => setSunDetailOpen(true)}
+              onStartFarm={handleSunStartOrReactivate}
+            />
+          )}
           {planets.filter((p) => !p.isListedInMarket && !isLegacyCatalogModelPlanet(p)).map((planet) => {
             const isListed = planet.isListedInMarket;
 
@@ -1087,6 +938,94 @@ export function FarmPage({
             : undefined}
           onUpgradeDuration={onUpgradeDuration}
         />
+      )}
+      {sunDetailOpen && sun?.isOwned && sun && (
+        <div
+          className="absolute inset-0 z-50 flex items-end justify-center"
+          style={{ background: "rgba(6,8,16,0.92)" }}
+          onClick={(e) => e.target === e.currentTarget && setSunDetailOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-t-3xl px-5 pt-5 pb-8"
+            style={{
+              background: "linear-gradient(180deg, rgba(255,238,88,0.12) 0%, rgba(8,10,18,0.98) 32%)",
+              border: "1px solid rgba(255,238,88,0.25)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,238,88,0.55)" }}>
+                  EXCLUSIVE
+                </div>
+                <div className="font-black text-xl" style={{ color: "#ffee58" }}>
+                  THE SUN{sunMultiplier > 1 ? ` ×${sunMultiplier}` : ""}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSunDetailOpen(false)}
+                className="text-xs font-bold px-3 py-1.5 rounded-full"
+                style={{ color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.12)" }}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mb-4 flex flex-col items-center gap-3">
+              <SunFarmThumb size={120} animate suspendGl={false} />
+              <div className="text-center text-xs font-bold" style={{ color: "rgba(255,255,255,0.55)" }}>
+                +{(SUN_CONFIG.rate * sunMultiplier).toLocaleString()} $ZOOM/hr · {sun.farmDurationHours ?? 1}h cycle
+              </div>
+              <button
+                type="button"
+                className="w-full max-w-xs py-3 rounded-xl text-xs font-black"
+                style={{
+                  background: "linear-gradient(135deg, #ffee58, #ffb300)",
+                  color: "#1a1000",
+                }}
+                onClick={handleSunStartOrReactivate}
+              >
+                {isSunActive(sun) ? "FARMING ACTIVE" : "START / REACTIVATE"}
+              </button>
+            </div>
+
+            {onUpgradeSunDuration && (
+              <div className="farm-panel-3d">
+                <div className="farm-panel-3d__title">
+                  ⏱ CYCLE DURATION — {sun.farmDurationHours ?? 1}h · costs EARNED GRAM
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 5 }}>
+                  {FARM_UPGRADE_TIERS.map((h) => {
+                    const cost = FARM_UPGRADE_COSTS[h]!;
+                    const isCurrent = (sun.farmDurationHours ?? 1) === h;
+                    const canAfford = tonBalance >= cost;
+                    const tierDisabled = isCurrent || !canAfford;
+                    return (
+                      <button
+                        key={h}
+                        type="button"
+                        disabled={tierDisabled}
+                        onClick={async () => {
+                          const result = await onUpgradeSunDuration(h);
+                          if (!result.ok) {
+                            setDefectMsg(result.error ?? "Upgrade failed");
+                            setTimeout(() => setDefectMsg(null), 2000);
+                          }
+                        }}
+                        className={`farm-btn-3d farm-btn-3d--tier${isCurrent ? " farm-btn-3d--current" : ""}${tierDisabled && !isCurrent ? " farm-btn-3d--disabled" : ""}`}
+                      >
+                        <div>{h}h</div>
+                        {!isCurrent && <div>{cost} G</div>}
+                        {isCurrent && <div>✓</div>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
