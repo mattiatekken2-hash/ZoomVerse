@@ -4,6 +4,8 @@ import { LANGS, useT } from "../i18n/LanguageContext";
 interface SettingsMenuProps {
   muted: boolean;
   setMuted: (next: boolean | ((prev: boolean) => boolean)) => void;
+  /** 40px header pill — matches shop button size in App header. */
+  headerButton?: boolean;
 }
 
 /**
@@ -13,7 +15,7 @@ interface SettingsMenuProps {
  *   - Language picker (flags shown for the languages exposed in `LANGS`)
  *   - Audio toggle (mute / unmute)
  */
-export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted }: SettingsMenuProps) {
+export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted, headerButton = false }: SettingsMenuProps) {
   const { lang, setLang, t } = useT();
   const [open, setOpen] = useState(false);
 
@@ -34,8 +36,21 @@ export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted }: Sett
         aria-label={t("common.settings")}
         data-testid="settings-button"
         onClick={() => setOpen(true)}
-        className="glass-neon rounded-full flex items-center justify-center"
-        style={{
+        className={headerButton ? "flex items-center justify-center active:scale-95 flex-shrink-0" : "glass-neon rounded-full flex items-center justify-center"}
+        style={headerButton ? {
+          width: 40,
+          height: 40,
+          borderRadius: "50%",
+          background: "rgba(0, 0, 0, 0.62)",
+          border: "1px solid rgba(255, 255, 255, 0.14)",
+          backdropFilter: "blur(10px)",
+          boxShadow: "0 4px 14px rgba(0, 0, 0, 0.35)",
+          cursor: "pointer",
+          padding: 0,
+          color: "rgba(255,255,255,0.9)",
+          transition: "transform 0.12s",
+          WebkitTapHighlightColor: "transparent",
+        } : {
           width: 32,
           height: 32,
           padding: 0,
@@ -49,8 +64,8 @@ export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted }: Sett
             platforms (Telegram WebView on iOS/Android sometimes substitutes
             emoji glyphs). */}
         <svg
-          width="16"
-          height="16"
+          width={headerButton ? 20 : 16}
+          height={headerButton ? 20 : 16}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"

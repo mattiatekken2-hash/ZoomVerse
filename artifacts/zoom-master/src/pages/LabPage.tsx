@@ -4,6 +4,8 @@ import { AutoTapWidget } from "../components/AutoTapWidget";
 import { RarityForgeWheel } from "../components/RarityForgeWheel";
 import { FarmInventoryCard } from "../components/FarmInventoryCard";
 import { MerchantPopup } from "../components/MerchantPopup";
+import { SettingsMenu } from "../components/SettingsMenu";
+import { ShoppingBag } from "lucide-react";
 
 import type { Planet, PlanetType } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
@@ -28,6 +30,10 @@ interface LabPageProps {
   onClaim: () => void;
   onMerchantScrap?: (planetId: string, planetType: string) => Promise<{ ok: boolean; reward?: number; reason?: string }>;
   onBurnPlanet?: (id: string) => void;
+  onOpenHistory?: () => void;
+  onOpenShop?: () => void;
+  muted?: boolean;
+  setMuted?: (next: boolean | ((prev: boolean) => boolean)) => void;
   visible?: boolean;
 }
 
@@ -35,7 +41,7 @@ interface FloatMsg { id: number; text: string; color: string }
 
 const GREY = "#8892b0";
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, hasAutoTap, stardustBalance, telegramId, onCraft, onClaim, onMerchantScrap, onBurnPlanet, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, hasAutoTap, stardustBalance, telegramId, onCraft, onClaim, onMerchantScrap, onBurnPlanet, onOpenHistory, onOpenShop, muted = false, setMuted, visible = true }: LabPageProps) {
   const { t } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
@@ -194,6 +200,55 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         style={{ minHeight: 0 }}
         onClick={canCraft && forgePhase === "idle" ? () => handleCraft({ relaxed: true }) : undefined}
       >
+        <div
+          className="absolute left-0 right-0 z-30 flex items-center justify-center gap-2 px-3 pointer-events-none"
+          style={{ top: 14 }}
+        >
+          <div className="pointer-events-auto flex-shrink-0">
+            <SettingsMenu muted={muted} setMuted={setMuted ?? (() => {})} headerButton />
+          </div>
+          <button
+            type="button"
+            onClick={onOpenHistory}
+            data-testid="lab-zoom-balance"
+            className="px-5 py-2 rounded-full pointer-events-auto active:scale-95 flex-shrink-0"
+            style={{
+              background: "rgba(0, 0, 0, 0.62)",
+              border: "1px solid rgba(255, 255, 255, 0.14)",
+              backdropFilter: "blur(10px)",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.35)",
+              cursor: onOpenHistory ? "pointer" : "default",
+            }}
+          >
+            <span
+              className="font-black text-base tracking-wide whitespace-nowrap"
+              style={{ color: "#ffffff", letterSpacing: "0.06em" }}
+            >
+              {Math.floor(balance).toLocaleString()} $ZOOM
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onOpenShop}
+            data-testid="button-shop-nav"
+            aria-label="Open shop"
+            className="flex items-center justify-center active:scale-95 flex-shrink-0 pointer-events-auto"
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              background: "linear-gradient(145deg, #ffb347, #ff8c00)",
+              border: "1px solid rgba(255, 140, 0, 0.55)",
+              boxShadow: "0 4px 14px rgba(255, 140, 0, 0.45)",
+              cursor: "pointer",
+              padding: 0,
+              transition: "transform 0.12s",
+            }}
+          >
+            <ShoppingBag size={20} strokeWidth={2.4} color="#111" />
+          </button>
+        </div>
+
         <PlanetCanvas
           backdrop
           onPunch={canCraft && forgePhase === "idle" ? () => handleCraft({ relaxed: true }) : undefined}
@@ -271,15 +326,15 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             className="absolute inset-0 flex items-center justify-center"
             style={{
               zIndex: 45,
-              background: "radial-gradient(circle at 50% 42%, rgba(255,215,64,0.12) 0%, rgba(4,6,12,0.92) 55%, rgba(4,6,12,0.97) 100%)",
-              backdropFilter: "blur(6px)",
+              background: "radial-gradient(circle at 50% 44%, rgba(255,255,255,0.06) 0%, rgba(4,6,12,0.94) 52%, rgba(4,6,12,0.98) 100%)",
+              backdropFilter: "blur(8px)",
               pointerEvents: "auto",
             }}
           >
             <RarityForgeWheel
               targetRarity={pendingPlanet.name}
               onComplete={handleWheelComplete}
-              size={Math.min(320, typeof window !== "undefined" ? window.innerWidth - 48 : 300)}
+              size={Math.min(360, typeof window !== "undefined" ? window.innerWidth - 28 : 340)}
             />
           </div>
         )}

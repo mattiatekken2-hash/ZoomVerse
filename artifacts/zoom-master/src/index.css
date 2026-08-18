@@ -1191,6 +1191,14 @@ body.animations-paused * {
   animation: forgeClaimFadeIn 360ms cubic-bezier(.2,.9,.3,1) forwards;
 }
 
+@keyframes rarityWheelGlow {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.92; }
+}
+.rarity-wheel-spinning {
+  animation: rarityWheelGlow 1.8s ease-in-out infinite;
+}
+
 @keyframes forgeCorePulse {
   0%, 100% { transform: scale(1); }
   50%      { transform: scale(1.06); }

@@ -1057,6 +1057,8 @@ export interface ForgeMeshHandle {
   getPartScreenTargets: (maxCount?: number) => Array<{ x: number; y: number; strength?: number }>;
   /** Next voxel landing slot — for pixel-in particle on the latest tap. */
   getIncomingVoxelTarget: () => { x: number; y: number; color: string; sizePx: number } | null;
+  /** Lab forge — place the next voxel at the tap ray (or sequential if no point). */
+  queueForgeTapPlacement: (point?: { x: number; y: number }) => void;
 }
 
 interface ObjectMesh3DProps {
@@ -1285,6 +1287,11 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
   const forgeSphereRadiusRef = useRef(4);
   const forgeWorldRadiusRef = useRef(2);
   const displayFloatRef = useRef(typeof displayFloat === "number" ? displayFloat : 1);
+  const placedMaskRef = useRef<boolean[]>([]);
+  const lastPlacedIdxRef = useRef(-1);
+  const dropAnimStartRef = useRef(0);
+  const tapPickScratch = useRef(new THREE.Vector3());
+  const raycasterRef = useRef(new THREE.Raycaster());
   onTapRef.current = onTap;
   forgeSealRef.current = forgeSeal;
   forgeRevealPhaseRef.current = forgeRevealPhase;
@@ -1298,9 +1305,73 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     displayFloat: displayFloatRef.current,
   };
 
+  useEffect(() => {
+    if (progress <= 0 && placedMaskRef.current.length > 0) {
+      placedMaskRef.current.fill(false);
+      lastPlacedIdxRef.current = -1;
+    }
+  }, [progress]);
+
   const meshParts = parts && parts.length > 0 ? parts : DEFAULT_PARTS;
 
   useImperativeHandle(ref, () => ({
+    queueForgeTapPlacement(point?: { x: number; y: number }) {
+      if (!labForgeBackdrop || voxelsRef.current.length === 0) return;
+      const list = voxelsRef.current;
+      let placed = placedMaskRef.current;
+      if (placed.length !== list.length) {
+        placed = new Array(list.length).fill(false);
+        placedMaskRef.current = placed;
+      }
+      const camera = cameraRef.current;
+      const group = groupRef.current;
+      const renderer = rendererRef.current;
+      if (!camera || !group || !renderer) return;
+
+      const morphT = labForgeMorphT(assemblyRef.current);
+      const vec = tapPickScratch.current;
+      let bestIdx = -1;
+      let bestScore = Infinity;
+
+      if (point && Number.isFinite(point.x) && Number.isFinite(point.y)) {
+        const w = renderer.domElement.clientWidth;
+        const h = renderer.domElement.clientHeight;
+        if (w > 0 && h > 0) {
+          const ndc = new THREE.Vector2(point.x / (w / 2), -point.y / (h / 2));
+          raycasterRef.current.setFromCamera(ndc, camera);
+          const camWorld = new THREE.Vector3();
+          camera.getWorldPosition(camWorld);
+          const groupWorld = new THREE.Vector3();
+          group.getWorldPosition(groupWorld);
+          for (let i = 0; i < list.length; i++) {
+            if (placed[i]) continue;
+            resolveForgeVoxelPosition(list[i]!, morphT, vec);
+            const world = vec.clone();
+            group.localToWorld(world);
+            const normal = world.clone().sub(groupWorld);
+            const nLen = normal.length();
+            if (nLen < 1e-6) continue;
+            normal.multiplyScalar(1 / nLen);
+            const toCam = camWorld.clone().sub(world).normalize();
+            if (normal.dot(toCam) < 0.12) continue;
+            const dist = raycasterRef.current.ray.distanceToPoint(world);
+            if (dist < bestScore) {
+              bestScore = dist;
+              bestIdx = i;
+            }
+          }
+        }
+      }
+
+      if (bestIdx < 0) {
+        bestIdx = placed.findIndex((p) => !p);
+      }
+      if (bestIdx >= 0 && !placed[bestIdx]) {
+        placed[bestIdx] = true;
+        lastPlacedIdxRef.current = bestIdx;
+        dropAnimStartRef.current = performance.now();
+      }
+    },
     getIncomingVoxelTarget() {
       const camera = cameraRef.current;
       const renderer = rendererRef.current;
@@ -1644,6 +1715,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     voxelsRef.current = forgeVoxels;
     voxelStepRef.current = voxelStep;
     forgeSphereRadiusRef.current = forgeSphereRadius;
+    placedMaskRef.current = new Array(forgeVoxels.length).fill(false);
+    lastPlacedIdxRef.current = -1;
+    dropAnimStartRef.current = performance.now();
     const voxelDummy = new THREE.Object3D();
     const edgeScratch = new THREE.Vector3();
     let voxelInst: THREE.InstancedMesh | null = null;
@@ -2009,6 +2083,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     let revealVisualBaked = false;
     const VOXEL_PARTICLE_MS = 520;
     const particleLandMs = () => (forgeTapRelaxed ? 900 : VOXEL_PARTICLE_MS) * 0.68;
+    const forgePopMs = () => (forgeTapRelaxed ? 150 : 85);
+    const useLabTapPlacement = labForgeBackdrop && interactive && !planetShowcase;
     const smoothProgressRef = { current: progress };
     const clayDark = new THREE.Color(FORGE_CLAY);
     const clayLight = new THREE.Color(0xffffff);
@@ -2051,11 +2127,30 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const useVoxelForge = useForgeVoxels && !!voxelInst && forgeVoxels.length > 0
         && (isForgeSphere || !st.revealed || sealing || inForgeReveal);
       if (useVoxelForge && !sealing && !inForgeReveal) {
-        const placed = Math.min(forgeVoxels.length, Math.round(targetP * forgeVoxels.length));
+        const placed = useLabTapPlacement
+          ? placedMaskRef.current.filter(Boolean).length
+          : Math.min(forgeVoxels.length, Math.round(targetP * forgeVoxels.length));
+        if (useLabTapPlacement) {
+          const targetPlaced = Math.min(forgeVoxels.length, Math.round(targetP * forgeVoxels.length));
+          let count = placedMaskRef.current.filter(Boolean).length;
+          while (count < targetPlaced) {
+            const idx = placedMaskRef.current.findIndex((p) => !p);
+            if (idx < 0) break;
+            placedMaskRef.current[idx] = true;
+            lastPlacedIdxRef.current = idx;
+            dropAnimStartRef.current = now;
+            count++;
+          }
+          if (targetPlaced === 0 && count > 0) {
+            placedMaskRef.current.fill(false);
+            lastPlacedIdxRef.current = -1;
+          }
+        }
         smoothProgressRef.current = placed / forgeVoxels.length;
         if (placed > lastPlacedVoxels) {
           lastPlacedVoxels = placed;
           dropAnimStart = now;
+          dropAnimStartRef.current = now;
         }
       } else if (sealing || inForgeReveal) {
         smoothProgressRef.current = 1;
@@ -2176,11 +2271,13 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           if (edgeLines) edgeLines.visible = true;
           revealVisualBaked = false;
           const sealEase = sealT * sealT * (3 - 2 * sealT);
-          const placedCount = sealing || st.revealed
-            ? forgeVoxels.length
-            : Math.min(forgeVoxels.length, Math.round(targetP * forgeVoxels.length));
-          const sinceDrop = now - dropAnimStart;
-          const dropT = !sealing && !st.revealed && placedCount > 0
+          const sinceDrop = now - (useLabTapPlacement ? dropAnimStartRef.current : dropAnimStart);
+          const placedCount = useLabTapPlacement
+            ? placedMaskRef.current.filter(Boolean).length
+            : sealing || st.revealed
+              ? forgeVoxels.length
+              : Math.min(forgeVoxels.length, Math.round(targetP * forgeVoxels.length));
+          const dropT = !useLabTapPlacement && !sealing && !st.revealed && placedCount > 0
             ? Math.min(1, Math.max(0, (sinceDrop - particleLandMs()) / 200))
             : 1;
           const dropEase = dropT * dropT * (3 - 2 * dropT);
@@ -2212,15 +2309,27 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           let colorsDirty = false;
           for (let i = 0; i < forgeVoxels.length; i++) {
             const v = forgeVoxels[i]!;
-            const settled = sealing || i < placedCount - 1;
-            const landing = !sealing && i === placedCount - 1 && placedCount > 0 && sinceDrop >= particleLandMs();
-
-            if (!settled && !landing) {
-              continue;
+            if (useLabTapPlacement) {
+              if (!placedMaskRef.current[i]) continue;
+            } else {
+              const settled = sealing || i < placedCount - 1;
+              const landing = !sealing && i === placedCount - 1 && placedCount > 0 && sinceDrop >= particleLandMs();
+              if (!settled && !landing) continue;
             }
 
-            const lock = settled ? 1 : dropEase;
-            const drop = settled ? 0 : (1 - lock) * 0.35;
+            const isNewest = useLabTapPlacement
+              ? i === lastPlacedIdxRef.current
+              : i === placedCount - 1;
+            const popT = useLabTapPlacement && isNewest && !sealing
+              ? Math.min(1, sinceDrop / forgePopMs())
+              : 1;
+            const popEase = popT * popT * (3 - 2 * popT);
+            const lock = useLabTapPlacement
+              ? popEase
+              : (sealing || i < placedCount - 1)
+                ? 1
+                : dropEase;
+            const drop = useLabTapPlacement ? 0 : ((sealing || i < placedCount - 1) ? 0 : (1 - lock) * 0.35);
             resolveForgeVoxelPosition(v, shapeMorphT, forgePosScratch);
             voxelDummy.position.set(forgePosScratch.x, forgePosScratch.y + drop, forgePosScratch.z);
             voxelDummy.scale.setScalar(Math.max(0.04, lock * cubeSeal));

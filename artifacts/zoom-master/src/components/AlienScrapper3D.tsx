@@ -7,7 +7,69 @@ interface Props {
   className?: string;
 }
 
-/** White alien with black eyes + glass space helmet (procedural Three.js). */
+/** Voxel coords + hex color — chunky retro pixel-art alien in 3D. */
+type VoxelDef = [number, number, number, number, "skin" | "eye" | "helmet" | "rim" | "antenna"];
+
+const VOXEL_UNIT = 0.11;
+
+/** Front-facing pixel alien: big head, black eyes, glass helmet, tiny antenna. */
+const ALIEN_VOXELS: VoxelDef[] = [
+  // Antenna
+  [0, 6, 0, 0x6dff6d, "antenna"],
+  [0, 5, 0, 0x4ade80, "antenna"],
+  // Helmet bubble (cyan glass ring)
+  [-2, 4, 0, 0x8ed4f0, "helmet"], [2, 4, 0, 0x8ed4f0, "helmet"],
+  [-2, 3, 1, 0x7ec8e3, "helmet"], [2, 3, 1, 0x7ec8e3, "helmet"],
+  [-1, 4, 1, 0x9ee5ff, "helmet"], [0, 4, 1, 0x9ee5ff, "helmet"], [1, 4, 1, 0x9ee5ff, "helmet"],
+  [-2, 3, -1, 0x7ec8e3, "helmet"], [2, 3, -1, 0x7ec8e3, "helmet"],
+  [-1, 4, -1, 0x9ee5ff, "helmet"], [0, 4, -1, 0x9ee5ff, "helmet"], [1, 4, -1, 0x9ee5ff, "helmet"],
+  [0, 4, 2, 0x7ec8e3, "helmet"],
+  [0, 4, -2, 0x7ec8e3, "helmet"],
+  // Helmet rim
+  [-2, 2, 1, 0x5a9fb8, "rim"], [2, 2, 1, 0x5a9fb8, "rim"],
+  [-2, 2, -1, 0x5a9fb8, "rim"], [2, 2, -1, 0x5a9fb8, "rim"],
+  [-1, 2, 2, 0x5a9fb8, "rim"], [0, 2, 2, 0x5a9fb8, "rim"], [1, 2, 2, 0x5a9fb8, "rim"],
+  [-1, 2, -2, 0x5a9fb8, "rim"], [0, 2, -2, 0x5a9fb8, "rim"], [1, 2, -2, 0x5a9fb8, "rim"],
+  // Head (white)
+  [-1, 3, 0, 0xf4f4f4, "skin"], [0, 3, 0, 0xffffff, "skin"], [1, 3, 0, 0xf4f4f4, "skin"],
+  [-2, 3, 0, 0xececec, "skin"], [2, 3, 0, 0xececec, "skin"],
+  [-1, 2, 0, 0xffffff, "skin"], [0, 2, 0, 0xffffff, "skin"], [1, 2, 0, 0xffffff, "skin"],
+  [-2, 2, 0, 0xe8e8e8, "skin"], [2, 2, 0, 0xe8e8e8, "skin"],
+  [-1, 1, 0, 0xf0f0f0, "skin"], [0, 1, 0, 0xffffff, "skin"], [1, 1, 0, 0xf0f0f0, "skin"],
+  // Eyes (black pixels)
+  [-1, 2, 1, 0x0a0a0a, "eye"], [1, 2, 1, 0x0a0a0a, "eye"],
+  [-1, 3, 1, 0x050505, "eye"], [1, 3, 1, 0x050505, "eye"],
+  // Body
+  [0, 0, 0, 0xffffff, "skin"],
+  [-1, 0, 0, 0xececec, "skin"], [1, 0, 0, 0xececec, "skin"],
+  [0, -1, 0, 0xf0f0f0, "skin"],
+  // Feet
+  [-1, -2, 0, 0xe0e0e0, "skin"], [1, -2, 0, 0xe0e0e0, "skin"],
+  // Arms
+  [-2, 0, 0, 0xeeeeee, "skin"], [2, 0, 0, 0xeeeeee, "skin"],
+];
+
+function makeVoxelMaterial(kind: VoxelDef[4]): THREE.MeshLambertMaterial {
+  switch (kind) {
+    case "eye":
+      return new THREE.MeshLambertMaterial({ color: 0x0a0a0a, flatShading: true });
+    case "helmet":
+      return new THREE.MeshLambertMaterial({
+        color: 0x9ee5ff,
+        transparent: true,
+        opacity: 0.55,
+        flatShading: true,
+      });
+    case "rim":
+      return new THREE.MeshLambertMaterial({ color: 0x5a9fb8, flatShading: true });
+    case "antenna":
+      return new THREE.MeshLambertMaterial({ color: 0x6dff6d, flatShading: true, emissive: 0x224422, emissiveIntensity: 0.35 });
+    default:
+      return new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
+  }
+}
+
+/** Retro pixel-art alien — low-res render scaled up with crisp pixels. */
 export function AlienScrapper3D({ size = 72, shaking = false, className }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const shakingRef = useRef(shaking);
@@ -17,85 +79,58 @@ export function AlienScrapper3D({ size = 72, shaking = false, className }: Props
     const mount = mountRef.current;
     if (!mount) return;
 
+    const PIXEL = 96;
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 50);
+    const camera = new THREE.OrthographicCamera(-1.35, 1.35, 1.35, -1.35, 0.1, 30);
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+      renderer = new THREE.WebGLRenderer({
+        antialias: false,
+        alpha: true,
+        powerPreference: "high-performance",
+        preserveDrawingBuffer: false,
+      });
     } catch {
       return;
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(size, size);
+    renderer.setPixelRatio(1);
+    renderer.setSize(PIXEL, PIXEL, false);
     renderer.setClearColor(0x000000, 0);
-    mount.appendChild(renderer.domElement);
+    const canvas = renderer.domElement;
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.imageRendering = "pixelated";
+    mount.appendChild(canvas);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.65));
-    const key = new THREE.DirectionalLight(0xffffff, 1.35);
-    key.position.set(2.5, 4, 3.5);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.72));
+    const key = new THREE.DirectionalLight(0xffffff, 1.05);
+    key.position.set(2, 4, 3);
     scene.add(key);
-    const rim = new THREE.DirectionalLight(0x88ccff, 0.55);
-    rim.position.set(-3, 1, -2);
-    scene.add(rim);
+    const fill = new THREE.DirectionalLight(0x88aacc, 0.45);
+    fill.position.set(-3, 1, -2);
+    scene.add(fill);
 
     const alien = new THREE.Group();
     scene.add(alien);
 
-    const skin = new THREE.MeshStandardMaterial({
-      color: 0xf8f8f8,
-      roughness: 0.42,
-      metalness: 0.04,
-    });
-    const eyeMat = new THREE.MeshStandardMaterial({
-      color: 0x0a0a0a,
-      roughness: 0.25,
-      metalness: 0.1,
-    });
-    const helmetGlass = new THREE.MeshPhysicalMaterial({
-      color: 0xdaf4ff,
-      roughness: 0.04,
-      metalness: 0,
-      transmission: 0.88,
-      thickness: 0.35,
-      transparent: true,
-      opacity: 0.92,
-    });
-    const helmetRim = new THREE.MeshStandardMaterial({
-      color: 0xb8d4e8,
-      roughness: 0.35,
-      metalness: 0.55,
-    });
+    const cubeGeo = new THREE.BoxGeometry(VOXEL_UNIT * 0.94, VOXEL_UNIT * 0.94, VOXEL_UNIT * 0.94);
+    const matCache = new Map<string, THREE.MeshLambertMaterial>();
 
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.42, 32, 32), skin);
-    head.scale.set(1, 1.08, 0.92);
-    head.position.y = 0.05;
-    alien.add(head);
+    for (const [ix, iy, iz, hex, kind] of ALIEN_VOXELS) {
+      const keyMat = kind;
+      let mat = matCache.get(keyMat);
+      if (!mat) {
+        mat = makeVoxelMaterial(kind);
+        matCache.set(keyMat, mat);
+      }
+      const mesh = new THREE.Mesh(cubeGeo, mat);
+      mesh.position.set(ix * VOXEL_UNIT, iy * VOXEL_UNIT, iz * VOXEL_UNIT);
+      alien.add(mesh);
+    }
 
-    const leftEye = new THREE.Mesh(new THREE.SphereGeometry(0.11, 20, 20), eyeMat);
-    leftEye.scale.set(0.85, 1.35, 0.55);
-    leftEye.position.set(-0.14, 0.12, 0.34);
-    alien.add(leftEye);
-
-    const rightEye = leftEye.clone();
-    rightEye.position.x = 0.14;
-    alien.add(rightEye);
-
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.35, 8, 16), skin);
-    body.position.y = -0.52;
-    alien.add(body);
-
-    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.56, 32, 32), helmetGlass);
-    helmet.scale.set(1, 1.05, 1);
-    helmet.position.y = 0.08;
-    alien.add(helmet);
-
-    const rimMesh = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.035, 12, 40), helmetRim);
-    rimMesh.rotation.x = Math.PI / 2;
-    rimMesh.position.set(0, -0.18, 0.02);
-    alien.add(rimMesh);
-
-    camera.position.set(0, 0.05, 2.35);
-    camera.lookAt(0, 0, 0);
+    alien.position.y = -0.15;
+    camera.position.set(2.2, 1.4, 3.4);
+    camera.lookAt(0, 0.35, 0);
 
     let frameId = 0;
     let t0 = performance.now();
@@ -103,15 +138,16 @@ export function AlienScrapper3D({ size = 72, shaking = false, className }: Props
       frameId = requestAnimationFrame(animate);
       if (document.hidden) return;
       const t = (now - t0) / 1000;
-      const bob = Math.sin(t * 2.2) * 0.04;
-      alien.position.y = bob;
+      const bob = Math.sin(t * 2.4) * 0.05;
+      alien.position.y = -0.15 + bob;
+
       if (shakingRef.current) {
-        alien.rotation.z = Math.sin(t * 28) * 0.08;
-        alien.rotation.x = Math.sin(t * 22) * 0.04;
+        alien.rotation.z = Math.sin(t * 30) * 0.1;
+        alien.rotation.x = Math.sin(t * 24) * 0.06;
       } else {
-        alien.rotation.z = Math.sin(t * 0.9) * 0.04;
+        alien.rotation.z = Math.sin(t * 1.1) * 0.04;
         alien.rotation.x = 0;
-        alien.rotation.y = Math.sin(t * 0.7) * 0.12;
+        alien.rotation.y = Math.sin(t * 0.85) * 0.18;
       }
       renderer.render(scene, camera);
     };
@@ -123,12 +159,12 @@ export function AlienScrapper3D({ size = 72, shaking = false, className }: Props
         const mesh = node as THREE.Mesh;
         if (mesh.isMesh) {
           mesh.geometry?.dispose();
-          const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-          mats.forEach((m) => m?.dispose());
         }
       });
+      cubeGeo.dispose();
+      matCache.forEach((m) => m.dispose());
       renderer.dispose();
-      if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
+      if (canvas.parentNode === mount) mount.removeChild(canvas);
     };
   }, [size]);
 
@@ -137,7 +173,12 @@ export function AlienScrapper3D({ size = 72, shaking = false, className }: Props
       ref={mountRef}
       className={className}
       aria-hidden
-      style={{ width: size, height: size, pointerEvents: "none" }}
+      style={{
+        width: size,
+        height: size,
+        pointerEvents: "none",
+        imageRendering: "pixelated",
+      }}
     />
   );
 }

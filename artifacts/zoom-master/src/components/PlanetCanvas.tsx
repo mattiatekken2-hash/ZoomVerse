@@ -332,6 +332,7 @@ export function PlanetCanvas({
   const fragmentLayerRef = useRef<HTMLDivElement>(null);
   const meshRef = useRef<ForgeMeshHandle>(null);
   const fragIdRef = useRef(0);
+  const tapPointRef = useRef<{ x: number; y: number } | null>(null);
   const lastTapSignalRef = useRef(tapSignal);
   const burstSpawnedRef = useRef<string | null>(null);
   const [size, setSize] = useState(280);
@@ -424,7 +425,7 @@ export function PlanetCanvas({
   const modelCanvasSize = backdrop ? layoutSize : Math.round(layoutSize * 0.88);
 
   const spawnParticles = useCallback((relaxed = tapRelaxed) => {
-    if (!isActiveCraft) return;
+    if (!isActiveCraft || showVoxelLayer) return;
     const layer = fragmentLayerRef.current;
     const half = modelCanvasSize / 2;
     if (!layer || half <= 0) return;
@@ -443,9 +444,10 @@ export function PlanetCanvas({
     const emit = () => spawnForgeParticles(layer, half, targets, fragIdRef, relaxed);
     emit();
     if (fromMesh.length === 0) requestAnimationFrame(emit);
-  }, [isActiveCraft, modelCanvasSize, tapRelaxed]);
+  }, [isActiveCraft, showVoxelLayer, modelCanvasSize, tapRelaxed]);
 
-  const handleModelTap = useCallback(() => {
+  const handleModelTap = useCallback((point?: { x: number; y: number }) => {
+    tapPointRef.current = point ?? null;
     onPunch?.();
   }, [onPunch]);
 
@@ -453,8 +455,13 @@ export function PlanetCanvas({
     if (tapSignal === lastTapSignalRef.current) return;
     lastTapSignalRef.current = tapSignal;
     if (tapSignal <= 0) return;
+    if (showVoxelLayer) {
+      meshRef.current?.queueForgeTapPlacement?.(tapPointRef.current ?? undefined);
+      tapPointRef.current = null;
+      return;
+    }
     spawnParticles(tapRelaxed);
-  }, [tapSignal, tapRelaxed, spawnParticles]);
+  }, [tapSignal, tapRelaxed, spawnParticles, showVoxelLayer]);
 
   useEffect(() => {
     if (!pendingPlanet) burstSpawnedRef.current = null;
@@ -506,7 +513,6 @@ export function PlanetCanvas({
                   lineHeight: 0,
                   pointerEvents: isForging && !forgeRolling ? "auto" : "none",
                 }}
-                onClick={isForging && !forgeRolling ? handleModelTap : undefined}
               >
                 <MysteryModel3D
                   ref={meshRef}
@@ -536,7 +542,7 @@ export function PlanetCanvas({
           </div>
         )}
 
-        {(isActiveCraft || !!pendingPlanet) && (
+        {(isActiveCraft || !!pendingPlanet) && !showVoxelLayer && (
           <div
             ref={fragmentLayerRef}
             style={{

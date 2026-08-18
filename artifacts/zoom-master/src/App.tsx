@@ -15,12 +15,11 @@ import { RankPage } from "./pages/RankPage";
 import { ShopPage } from "./pages/ShopPage";
 import { HomePage } from "./pages/HomePage";
 import { AdminPanel } from "./components/AdminPanel";
-import { SettingsMenu } from "./components/SettingsMenu";
 import { LanguageProvider, useT } from "./i18n/LanguageContext";
 import HistoryModal from "./components/HistoryModal";
 import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, merchantScrap, type StardustLeaderboardEntry } from "./utils/api";
 import { useStardust } from "./hooks/useStardust";
-import { FlaskConical, Home, Sprout, ShoppingCart, Gem, Trophy, Wallet, ShoppingBag, type LucideIcon } from "lucide-react";
+import { FlaskConical, Home, Sprout, ShoppingCart, Gem, Trophy, Wallet, type LucideIcon } from "lucide-react";
 import { WalletPage } from "./pages/WalletPage";
 import { isBrowserDevSession } from "./utils/telegram";
 
@@ -704,63 +703,19 @@ function AppShellWithState() {
       )}
 
       <header
-        className="flex items-center justify-between px-2 py-2 flex-shrink-0 relative z-20"
+        className="flex items-center justify-center py-2 flex-shrink-0 relative z-20"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
       >
-        <div className="flex items-center gap-2 min-w-0">
-          <div
-            onClick={() => setProfileModalOpen(true)}
-            style={{ cursor: "pointer" }}
-            aria-label="View profile"
-          >
-            <AvatarXP
-              totalTaps={state.totalTaps || 0}
-              photoUrl={displayProfile.photoUrl}
-              name={displayProfile.name}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => setHistoryOpen(true)}
-            data-testid="header-zoom-balance"
-            className="px-3 py-1.5 rounded-full active:scale-95 flex-shrink-0"
-            style={{
-              background: "rgba(0, 0, 0, 0.62)",
-              border: "1px solid rgba(255, 255, 255, 0.14)",
-              backdropFilter: "blur(10px)",
-              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.35)",
-              cursor: "pointer",
-            }}
-          >
-            <span
-              className="font-black text-sm tracking-wide whitespace-nowrap"
-              style={{ color: "#ffffff", letterSpacing: "0.06em" }}
-            >
-              {Math.floor(state.balance).toLocaleString()} $ZOOM
-            </span>
-          </button>
-        </div>
-        <div className="flex items-center gap-1.5 min-w-0">
-          <button
-            onClick={() => switchTab("shop")}
-            data-testid="button-shop-nav"
-            aria-label="Open shop"
-            className="flex items-center justify-center active:scale-95 flex-shrink-0"
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: "50%",
-              background: "linear-gradient(145deg, #ffb347, #ff8c00)",
-              border: "1px solid rgba(255, 140, 0, 0.55)",
-              boxShadow: "0 4px 14px rgba(255, 140, 0, 0.45)",
-              cursor: "pointer",
-              padding: 0,
-              transition: "transform 0.12s",
-            }}
-          >
-            <ShoppingBag size={20} strokeWidth={2.4} color="#111" />
-          </button>
-          <SettingsMenu muted={muted} setMuted={setMuted} />
+        <div
+          onClick={() => setProfileModalOpen(true)}
+          style={{ cursor: "pointer" }}
+          aria-label="View profile"
+        >
+          <AvatarXP
+            totalTaps={state.totalTaps || 0}
+            photoUrl={displayProfile.photoUrl}
+            name={displayProfile.name}
+          />
         </div>
       </header>
 
@@ -794,6 +749,10 @@ function AppShellWithState() {
                   telegramId={state.telegramId}
                   onCraft={craft}
                   onClaim={claimCraft}
+                  onOpenHistory={() => setHistoryOpen(true)}
+                  onOpenShop={() => switchTab("shop")}
+                  muted={muted}
+                  setMuted={setMuted}
                   onMerchantScrap={async (planetId, planetType) =>
                     merchantScrap(state.telegramId || "", planetId, planetType)
                   }
