@@ -184,8 +184,10 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     onClaim();
   }, [onClaim]);
 
+  const bottomChromeOffset = "calc(env(safe-area-inset-bottom, 0px) + 78px)";
+
   return (
-    <div className="flex flex-col h-full relative overflow-hidden">
+    <div className="relative h-full overflow-hidden">
       <AutoTapWidget
         hasAutoTap={hasAutoTap}
         canCraft={canCraft}
@@ -194,10 +196,25 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       />
 
       <div
-        className="relative flex-1"
-        style={{ minHeight: 0 }}
+        className="absolute inset-0"
         onClick={canCraft && forgePhase === "idle" ? () => handleCraft({ relaxed: true }) : undefined}
       >
+        <PlanetCanvas
+          backdrop
+          onPunch={canCraft && forgePhase === "idle" ? () => handleCraft({ relaxed: true }) : undefined}
+          tapSignal={tapSignal}
+          tapRelaxed={tapRelaxed}
+          progress={taps}
+          goal={goal}
+          accentColor={dynamicColor}
+          pendingPlanet={pendingPlanet}
+          forgePlanetBuild={forgePlanetBuild}
+          craftRarity={currentCraftRarity}
+          forgePhase={forgePhase}
+          forgeRolling={forgeRolling}
+          chromeBottomOffset={bottomChromeOffset}
+        />
+
         <div
           className="absolute left-0 right-0 z-30 flex items-center justify-center gap-2 px-3 pointer-events-none"
           style={{ top: "max(10px, env(safe-area-inset-top, 0px))" }}
@@ -246,21 +263,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             <ShoppingBag size={20} strokeWidth={2.4} color="#111" />
           </button>
         </div>
-
-        <PlanetCanvas
-          backdrop
-          onPunch={canCraft && forgePhase === "idle" ? () => handleCraft({ relaxed: true }) : undefined}
-          tapSignal={tapSignal}
-          tapRelaxed={tapRelaxed}
-          progress={taps}
-          goal={goal}
-          accentColor={dynamicColor}
-          pendingPlanet={pendingPlanet}
-          forgePlanetBuild={forgePlanetBuild}
-          craftRarity={currentCraftRarity}
-          forgePhase={forgePhase}
-          forgeRolling={forgeRolling}
-        />
 
         {floats.map(f => (
           <div
@@ -394,13 +396,13 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       </div>
 
       <div
-        className="flex-shrink-0 px-5 pt-2 flex flex-col gap-3"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 78px)" }}
+        className="absolute left-0 right-0 z-20 px-5 pt-2 flex flex-col gap-3 pointer-events-none"
+        style={{ bottom: bottomChromeOffset }}
       >
         <div style={{ display: "flex", alignItems: "center" }}>
           {!pendingPlanet && (
             <button
-              className="btn-craft"
+              className="btn-craft pointer-events-auto"
               onClick={() => handleCraft({ relaxed: true })}
               disabled={!canCraft}
               data-testid="button-craft"
