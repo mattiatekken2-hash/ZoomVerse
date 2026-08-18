@@ -75,6 +75,10 @@ async function runBootMigrations() {
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS stardust_stake_index_micro integer NOT NULL DEFAULT 1000000
     `);
+    await db.execute(sql`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS stardust_stake_locked_until_ms bigint NOT NULL DEFAULT 0
+    `);
     logger.info("[boot-migration] items_json / models_json / stardust stake columns OK");
   } catch (err) {
     logger.error({ err }, "[boot-migration] failed to add items columns — items routes may error");

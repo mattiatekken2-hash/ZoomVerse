@@ -95,8 +95,9 @@ export function MarketPlanetCard({
     lastCollectedAt: 0,
     isListedInMarket: true,
     isFarmingActive: false,
-    modelId: listing.modelId,
-    shapeId: listing.shapeId,
+    marketPrice: listing.price,
+    modelId: listing.modelId ?? undefined,
+    shapeId: listing.shapeId ?? undefined,
   };
 
   return (
