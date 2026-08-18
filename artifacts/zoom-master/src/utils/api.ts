@@ -2319,7 +2319,7 @@ export async function fetchStardustStakeState(telegramId: string): Promise<Stard
 export async function stakeStardust(
   telegramId: string,
   amount: number,
-): Promise<{ ok: boolean; balance?: number; staked?: number; stakedValue?: number; error?: string }> {
+): Promise<{ ok: boolean; balance?: number; staked?: number; stakedValue?: number; balanceEpoch?: number; error?: string }> {
   try {
     const res = await fetch(`${API_BASE}/stardust/stake`, {
       method: "POST",
@@ -2330,7 +2330,7 @@ export async function stakeStardust(
     if (!res.ok || data?.ok === false) {
       return { ok: false, error: parseApiError(data, res.status, "Stake failed") };
     }
-    return data as { ok: boolean; balance?: number; staked?: number; stakedValue?: number };
+    return data as { ok: boolean; balance?: number; staked?: number; stakedValue?: number; balanceEpoch?: number };
   } catch {
     return { ok: false, error: "Network error" };
   }

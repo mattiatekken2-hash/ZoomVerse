@@ -189,6 +189,19 @@ export function StardustMarketModal({
         : (res.error ?? "Stake failed"));
       return;
     }
+    const newBalance = res.balance ?? Math.max(0, balance - n);
+    const newStaked = res.staked ?? staked + n;
+    setBalance(newBalance);
+    setStaked(newStaked);
+    if (typeof res.stakedValue === "number") setStakedValue(res.stakedValue);
+    onBalanceChange?.(newBalance);
+    if (typeof res.balanceEpoch === "number") {
+      try {
+        window.dispatchEvent(new CustomEvent("zoom-server-stardust-snap", {
+          detail: { stardustBalance: newBalance, epoch: res.balanceEpoch },
+        }));
+      } catch { /**/ }
+    }
     setAmount("");
     setMsg(`✓ Staked ${n.toLocaleString()} ★`);
     window.dispatchEvent(new CustomEvent("stardust-refresh"));

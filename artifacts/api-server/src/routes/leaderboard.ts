@@ -118,7 +118,12 @@ router.post("/balance/sync", async (req, res) => {
             : {}),
           ...(typeof stardustBalance === "number"
             ? {
-                stardustBalance: sql`CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.stardustBalance} ELSE GREATEST(0, ${stardustBalance}) END`,
+                // LEAST (not GREATEST): when epochs match the client may still
+                // hold a stale pre-stake wallet balance. GREATEST would undo
+                // /stardust/stake by writing the old balance back while
+                // stardust_staked stays locked. LEAST allows client-side
+                // spends (lab craft) and blocks stale snap-ups.
+                stardustBalance: sql`CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.stardustBalance} ELSE LEAST(${usersTable.stardustBalance}, GREATEST(0, ${stardustBalance})) END`,
               }
             : {}),
           ...(typeof redStarBalance === "number"
