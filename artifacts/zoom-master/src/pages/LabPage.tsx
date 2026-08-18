@@ -3,7 +3,6 @@ import { PlanetCanvas, type ForgePhase } from "../components/PlanetCanvas";
 import { AutoTapWidget } from "../components/AutoTapWidget";
 import { RarityForgeWheel } from "../components/RarityForgeWheel";
 import { FarmInventoryCard } from "../components/FarmInventoryCard";
-import { MerchantPopup } from "../components/MerchantPopup";
 import { SettingsMenu } from "../components/SettingsMenu";
 import { ShoppingBag } from "lucide-react";
 
@@ -11,6 +10,7 @@ import type { Planet, PlanetType } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
 import { useT } from "../i18n/LanguageContext";
+import { planetTypeLabel } from "../i18n/translations";
 
 
 interface LabPageProps {
@@ -28,8 +28,6 @@ interface LabPageProps {
   telegramId: string | null;
   onCraft: (availableStardust?: number) => { completed: boolean; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType };
   onClaim: () => void;
-  onMerchantScrap?: (planetId: string, planetType: string) => Promise<{ ok: boolean; reward?: number; reason?: string }>;
-  onBurnPlanet?: (id: string) => void;
   onOpenHistory?: () => void;
   onOpenShop?: () => void;
   muted?: boolean;
@@ -41,8 +39,8 @@ interface FloatMsg { id: number; text: string; color: string }
 
 const GREY = "#8892b0";
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, hasAutoTap, stardustBalance, telegramId, onCraft, onClaim, onMerchantScrap, onBurnPlanet, onOpenHistory, onOpenShop, muted = false, setMuted, visible = true }: LabPageProps) {
-  const { t } = useT();
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, hasAutoTap, stardustBalance, telegramId, onCraft, onClaim, onOpenHistory, onOpenShop, muted = false, setMuted, visible = true }: LabPageProps) {
+  const { t, lang } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
   const floatTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
@@ -149,10 +147,10 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   useEffect(() => {
     if (forgePhase === "revealed" && pendingFloatRef.current) {
       const p = pendingFloatRef.current.planet;
-      addFloat(`✦ ${PLANET_CONFIG[p.name].label}!`, p.color);
+      addFloat(t("lab.planetAcquired", { kind: planetTypeLabel(lang, p.name, PLANET_CONFIG[p.name].label) }), p.color);
       pendingFloatRef.current = null;
     }
-  }, [forgePhase, addFloat]);
+  }, [forgePhase, addFloat, t, lang]);
 
   const handleCraft = useCallback((opts?: { particles?: boolean; relaxed?: boolean }) => {
     if (!canCraft) return;
@@ -202,7 +200,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       >
         <div
           className="absolute left-0 right-0 z-30 flex items-center justify-center gap-2 px-3 pointer-events-none"
-          style={{ top: 14 }}
+          style={{ top: "max(10px, env(safe-area-inset-top, 0px))" }}
         >
           <div className="pointer-events-auto flex-shrink-0">
             <SettingsMenu muted={muted} setMuted={setMuted ?? (() => {})} headerButton />
@@ -224,14 +222,14 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
               className="font-black text-base tracking-wide whitespace-nowrap"
               style={{ color: "#ffffff", letterSpacing: "0.06em" }}
             >
-              {Math.floor(balance).toLocaleString()} $ZOOM
+              {t("lab.balance", { n: Math.floor(balance).toLocaleString() })}
             </span>
           </button>
           <button
             type="button"
             onClick={onOpenShop}
             data-testid="button-shop-nav"
-            aria-label="Open shop"
+            aria-label={t("header.openShop")}
             className="flex items-center justify-center active:scale-95 flex-shrink-0 pointer-events-auto"
             style={{
               width: 40,
@@ -303,7 +301,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
                 {t("lab.planetBroken")}
               </div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 6, fontWeight: 600 }}>
-                {t("lab.brokenBody", { kind: PLANET_CONFIG[brokenFlash.rarity].label })}
+                {t("lab.brokenBody", { kind: planetTypeLabel(lang, brokenFlash.rarity, PLANET_CONFIG[brokenFlash.rarity].label) })}
               </div>
               <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 4, fontWeight: 500 }}>
                 {t("lab.tryAgainNext")}
@@ -393,13 +391,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           </div>
         )}
 
-        {telegramId && onMerchantScrap && onBurnPlanet && visible && (
-          <MerchantPopup
-            planets={planets}
-            onScrap={onMerchantScrap}
-            onBurnPlanet={onBurnPlanet}
-          />
-        )}
       </div>
 
       <div className="flex-shrink-0 px-5 pb-6 pt-2 flex flex-col gap-3">
