@@ -17,7 +17,7 @@ import { HomePage } from "./pages/HomePage";
 import { AdminPanel } from "./components/AdminPanel";
 import { LanguageProvider, useT } from "./i18n/LanguageContext";
 import HistoryModal from "./components/HistoryModal";
-import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, merchantScrap, type StardustLeaderboardEntry } from "./utils/api";
+import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, type StardustLeaderboardEntry } from "./utils/api";
 import { useStardust } from "./hooks/useStardust";
 import { FlaskConical, Home, Sprout, ShoppingCart, Gem, Trophy, Wallet, type LucideIcon } from "lucide-react";
 import { WalletPage } from "./pages/WalletPage";
@@ -624,7 +624,7 @@ function AppShellWithState() {
 
     // Outside the LAB: don't despawn — just hint and let the user navigate.
     if (tab !== "lab") {
-      showStardustToast("Go to the LAB to harvest!");
+      showStardustToast(t("stardust.goToLab"));
       return;
     }
 
@@ -656,9 +656,9 @@ function AppShellWithState() {
           ...prev,
           stardustBalance: (prev.stardustBalance || 0) + 1,
         }));
-        showStardustToast("✦ +1 STARDUST", 1600);
+        showStardustToast(t("stardust.collected"), 1600);
       } else if (res.reason === "DAILY_CAP") {
-        showStardustToast("Daily Stardust limit reached.");
+        showStardustToast(t("stardust.dailyCap"));
       } else if (res.reason === "NO_SUN") {
         setNoSunPopup(true);
       }
@@ -691,7 +691,7 @@ function AppShellWithState() {
 
   return (
     <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
-    <div className="flex flex-col overflow-hidden relative" style={{ height: "100dvh", background: "#000000", paddingTop: "calc(env(safe-area-inset-top, 0px) + 56px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+    <div className="flex flex-col overflow-hidden relative" style={{ height: "100dvh", background: "#000000", paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
       <NebulaBackground />
       {isAdmin && maintenance.enabled && (
         <div
@@ -702,14 +702,14 @@ function AppShellWithState() {
         </div>
       )}
 
+      {tab !== "lab" && (
       <header
         className="flex items-center justify-center py-2 flex-shrink-0 relative z-20"
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
       >
         <div
           onClick={() => setProfileModalOpen(true)}
           style={{ cursor: "pointer" }}
-          aria-label="View profile"
+          aria-label={t("header.viewProfile")}
         >
           <AvatarXP
             totalTaps={state.totalTaps || 0}
@@ -718,6 +718,7 @@ function AppShellWithState() {
           />
         </div>
       </header>
+      )}
 
       <main className="flex-1 overflow-hidden relative z-10" style={{ minHeight: 0 }}>
         {ALL_TABS.map((t) => {
@@ -753,10 +754,6 @@ function AppShellWithState() {
                   onOpenShop={() => switchTab("shop")}
                   muted={muted}
                   setMuted={setMuted}
-                  onMerchantScrap={async (planetId, planetType) =>
-                    merchantScrap(state.telegramId || "", planetId, planetType)
-                  }
-                  onBurnPlanet={burnPlanet}
                   visible={tab === "lab"}
                 />
               )}
@@ -1044,10 +1041,10 @@ function AppShellWithState() {
           >
             <div style={{ fontSize: 36, lineHeight: 1, marginBottom: 8 }}>☀</div>
             <div className="font-black tracking-wide" style={{ fontSize: 14, color: "#ffb347", letterSpacing: "0.06em" }}>
-              SUN PROTECTION REQUIRED
+              {t("sun.requiredTitle")}
             </div>
             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.78)", marginTop: 8, fontWeight: 500, lineHeight: 1.45 }}>
-              The star's heat is too strong! You need the SUN's protection to harvest it.
+              {t("sun.requiredBody")}
             </div>
             <button
               type="button"
@@ -1065,7 +1062,7 @@ function AppShellWithState() {
                 cursor: "pointer",
               }}
             >
-              GOT IT
+              {t("sun.gotIt")}
             </button>
           </div>
         </div>
@@ -1124,7 +1121,7 @@ function AppShellWithState() {
         <div
           className="fixed left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-xs font-black tracking-widest"
           style={{
-            top: 70,
+            top: tab === "lab" ? 12 : 70,
             zIndex: 9999,
             background: globalToast.ok ? "rgba(0,230,118,0.15)" : "rgba(255,65,108,0.15)",
             border: `1px solid ${globalToast.ok ? "rgba(0,230,118,0.3)" : "rgba(255,65,108,0.3)"}`,
@@ -1176,13 +1173,13 @@ function AppShellWithState() {
                 <rect x="3" y="9" width="6" height="2" fill="#ffd740" />
                 <rect x="5" y="11" width="2" height="1" fill="#ffb300" />
               </svg>
-              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: "0.2em", color: "#ffd740", textTransform: "uppercase" }}>Resources</div>
+              <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: "0.2em", color: "#ffd740", textTransform: "uppercase" }}>{t("header.resources")}</div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {[
-                { label: "Stardust", value: state.stardustBalance || 0, color: "#ffd740", icon: "★" },
-                { label: "RedStar", value: state.redStarBalance || 0, color: "#ff4444", icon: "★" },
-                { label: "NFTSTAR", value: state.nftStarBalance || 0, color: "#a0a0a8", icon: "★" },
+                { label: t("resources.stardust"), value: state.stardustBalance || 0, color: "#ffd740", icon: "★" },
+                { label: t("resources.redStar"), value: state.redStarBalance || 0, color: "#ff4444", icon: "★" },
+                { label: t("resources.nftStar"), value: state.nftStarBalance || 0, color: "#a0a0a8", icon: "★" },
               ].map(({ label, value, color, icon }) => (
                 <div
                   key={label}
@@ -1214,7 +1211,7 @@ function AppShellWithState() {
                 background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)",
                 color: "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: 700, cursor: "pointer",
               }}
-            >Close</button>
+            >{t("common.close")}</button>
           </div>
         </div>
       )}
@@ -1268,20 +1265,20 @@ function AppShellWithState() {
                   )}
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 900, color: "rgba(255,255,255,0.85)", marginBottom: 2 }}>
-                  {displayProfile.name || "Player"}
+                  {displayProfile.name || t("profile.player")}
                 </div>
                 <div style={{ fontSize: 9, color: "rgba(255,51,85,0.6)", letterSpacing: "0.12em", textTransform: "uppercase" }}>
-                  Member for {timeStr}
+                  {t("profile.memberFor", { time: timeStr })}
                 </div>
               </div>
 
               {/* Stats grid — gameplay stats only (balances moved to Wallet tab) */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {[
-                  { label: "Total Crafts", value: state.craftsCompleted?.toLocaleString() ?? "0", color: "#c471ed" },
-                  { label: "ZOOM Total", value: (() => { const n = state.totalEarned || 0; return n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toLocaleString(); })(), color: "#ffd740" },
-                  { label: "Total Taps", value: (() => { const n = state.totalTaps || 0; return n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toLocaleString(); })(), color: "#ff3355" },
-                  { label: "Referrals", value: (state.referralCount || 0).toLocaleString(), color: "#00c8ff" },
+                  { label: t("profile.totalCrafts"), value: state.craftsCompleted?.toLocaleString() ?? "0", color: "#c471ed" },
+                  { label: t("profile.zoomTotal"), value: (() => { const n = state.totalEarned || 0; return n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toLocaleString(); })(), color: "#ffd740" },
+                  { label: t("profile.totalTaps"), value: (() => { const n = state.totalTaps || 0; return n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toLocaleString(); })(), color: "#ff3355" },
+                  { label: t("profile.referrals"), value: (state.referralCount || 0).toLocaleString(), color: "#00c8ff" },
                 ].map(({ label, value, color }) => (
                   <div
                     key={label}
@@ -1310,7 +1307,7 @@ function AppShellWithState() {
                   letterSpacing: "0.08em",
                 }}
               >
-                💎 View Wallet
+                💎 {t("profile.viewWallet")}
               </button>
 
               <button
@@ -1321,7 +1318,7 @@ function AppShellWithState() {
                   background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)",
                   color: "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: 700, cursor: "pointer",
                 }}
-              >Close</button>
+              >{t("common.close")}</button>
             </div>
           </div>
         );
@@ -1338,6 +1335,7 @@ function StardustInfoPopup({ balance, today, dailyCap, globalTotal, onClose }: {
   globalTotal: number;
   onClose: () => void;
 }) {
+  const { t } = useT();
   // Top 10 stardust holders. Loaded once when the popup opens. We keep the
   // initial state as `null` (vs `[]`) so we can distinguish "still loading"
   // from "loaded but empty" and show the right placeholder text.
@@ -1376,9 +1374,9 @@ function StardustInfoPopup({ balance, today, dailyCap, globalTotal, onClose }: {
         }}
       >
         <div style={{ fontSize: 44, lineHeight: 1, marginBottom: 6, color: "#ffd740", textShadow: "0 0 22px rgba(255,215,64,0.85)" }}>★</div>
-        <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: "0.22em", color: "#ffd740" }}>STARDUST</div>
+        <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: "0.22em", color: "#ffd740" }}>{t("stardustPopup.title")}</div>
         <div style={{ marginTop: 14, fontSize: 13, lineHeight: 1.55, color: "rgba(255,255,255,0.78)", fontStyle: "italic" }}>
-          "Residual stellar energy. Its purpose will be revealed when the sky darkens...!"
+          {t("stardustPopup.quote")}
         </div>
         <div
           style={{
@@ -1389,11 +1387,11 @@ function StardustInfoPopup({ balance, today, dailyCap, globalTotal, onClose }: {
           }}
         >
           <div style={{ background: "rgba(255,215,64,0.07)", border: "1px solid rgba(255,215,64,0.20)", borderRadius: 12, padding: "10px 6px" }}>
-            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,215,64,0.7)" }}>YOUR BALANCE</div>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,215,64,0.7)" }}>{t("stardustPopup.yourBalance")}</div>
             <div style={{ marginTop: 4, fontSize: 20, fontWeight: 900, color: "#ffd740" }}>{balance.toLocaleString()}</div>
           </div>
           <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 12, padding: "10px 6px" }}>
-            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,255,255,0.55)" }}>TODAY</div>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,255,255,0.55)" }}>{t("stardustPopup.today")}</div>
             <div style={{ marginTop: 4, fontSize: 20, fontWeight: 900, color: "#fff" }}>
               {today}<span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", fontWeight: 700 }}>/{dailyCap}</span>
             </div>
@@ -1411,7 +1409,7 @@ function StardustInfoPopup({ balance, today, dailyCap, globalTotal, onClose }: {
             alignItems: "center",
           }}
         >
-          <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,255,255,0.55)" }}>GLOBAL COLLECTED</span>
+          <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,255,255,0.55)" }}>{t("stardustPopup.globalCollected")}</span>
           <span style={{ fontSize: 15, fontWeight: 900, color: "#ffd740", textShadow: "0 0 8px rgba(255,215,64,0.5)" }}>★ {globalTotal.toLocaleString()}</span>
         </div>
         {/* Top 10 stardust leaderboard. Lives inside the popup so the user can
@@ -1427,16 +1425,16 @@ function StardustInfoPopup({ balance, today, dailyCap, globalTotal, onClose }: {
           }}
         >
           <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,215,64,0.75)", textAlign: "center", marginBottom: 8 }}>
-            TOP 10 STARDUST
+            {t("stardustPopup.top10")}
           </div>
           {leaderboard === null && (
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", textAlign: "center", padding: "8px 0" }}>
-              Loading...
+              {t("stardustPopup.loading")}
             </div>
           )}
           {leaderboard !== null && leaderboard.length === 0 && (
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", textAlign: "center", padding: "8px 0" }}>
-              No collectors yet. Be the first!
+              {t("stardustPopup.noCollectors")}
             </div>
           )}
           {leaderboard !== null && leaderboard.length > 0 && (
@@ -1501,7 +1499,7 @@ function StardustInfoPopup({ balance, today, dailyCap, globalTotal, onClose }: {
             boxShadow: "0 0 18px rgba(255,215,64,0.45)",
           }}
         >
-          CLOSE
+          {t("common.close")}
         </button>
       </div>
     </div>
