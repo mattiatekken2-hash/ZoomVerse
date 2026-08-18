@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Area,
@@ -12,11 +12,36 @@ import {
 import { GramWalletIcon } from "./TonWalletWidget";
 
 const REFRESH_MS = 15_000;
+const CACHE_TTL_MS = 60_000;
 
 interface ChartPoint {
   t: number;
   price: number;
   label: string;
+}
+
+/** Shared cache survives modal unmount so reopening shows the chart instantly. */
+const gramMarketCache: {
+  price: number | null;
+  points: ChartPoint[];
+  fetchedAt: number;
+} = {
+  price: null,
+  points: [],
+  fetchedAt: 0,
+};
+
+function readCache(): { price: number | null; points: ChartPoint[] } {
+  if (Date.now() - gramMarketCache.fetchedAt > CACHE_TTL_MS) {
+    return { price: null, points: [] };
+  }
+  return { price: gramMarketCache.price, points: gramMarketCache.points };
+}
+
+function writeCache(price: number | null, points: ChartPoint[]) {
+  if (price != null && Number.isFinite(price)) gramMarketCache.price = price;
+  if (points.length) gramMarketCache.points = points;
+  if (price != null || points.length) gramMarketCache.fetchedAt = Date.now();
 }
 
 async function fetchGramPrice(): Promise<number | null> {
@@ -54,24 +79,62 @@ async function fetchGramHistory(): Promise<ChartPoint[]> {
 interface Props {
   gramBalance: number;
   depositBalance: number;
+  initialPrice?: number | null;
   onClose: () => void;
   onPriceUpdate?: (price: number) => void;
 }
 
-export function GramChartModal({ gramBalance, depositBalance, onClose, onPriceUpdate }: Props) {
-  const [price, setPrice] = useState<number | null>(null);
-  const [points, setPoints] = useState<ChartPoint[]>([]);
-  const [loading, setLoading] = useState(true);
+export function GramChartModal({
+  gramBalance,
+  depositBalance,
+  initialPrice = null,
+  onClose,
+  onPriceUpdate,
+}: Props) {
+  const cached = readCache();
+  const [price, setPrice] = useState<number | null>(
+    initialPrice ?? cached.price,
+  );
+  const [points, setPoints] = useState<ChartPoint[]>(cached.points);
+  const [loading, setLoading] = useState(
+    () => (initialPrice ?? cached.price) == null || cached.points.length < 2,
+  );
+  const [chartReady, setChartReady] = useState(false);
+  const onPriceUpdateRef = useRef(onPriceUpdate);
+  onPriceUpdateRef.current = onPriceUpdate;
+  const gradientId = useId().replace(/:/g, "");
+
+  // Recharts needs one frame after portal mount before ResponsiveContainer measures.
+  useLayoutEffect(() => {
+    setChartReady(false);
+    const id = window.requestAnimationFrame(() => setChartReady(true));
+    return () => window.cancelAnimationFrame(id);
+  }, []);
 
   const refresh = useCallback(async () => {
-    const [p, hist] = await Promise.all([fetchGramPrice(), fetchGramHistory()]);
-    if (p != null && Number.isFinite(p)) {
-      setPrice(p);
-      onPriceUpdate?.(p);
+    let nextPrice: number | null = null;
+    let nextPoints: ChartPoint[] = [];
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const [p, hist] = await Promise.all([fetchGramPrice(), fetchGramHistory()]);
+      if (p != null && Number.isFinite(p)) {
+        nextPrice = p;
+        setPrice(p);
+        onPriceUpdateRef.current?.(p);
+      }
+      if (hist.length >= 2) {
+        nextPoints = hist;
+        setPoints(hist);
+        break;
+      }
+      if (attempt === 0) await new Promise((r) => window.setTimeout(r, 400));
     }
-    if (hist.length) setPoints(hist);
+
+    if (nextPoints.length >= 2 || nextPrice != null) {
+      writeCache(nextPrice ?? readCache().price, nextPoints.length >= 2 ? nextPoints : readCache().points);
+    }
     setLoading(false);
-  }, [onPriceUpdate]);
+  }, []);
 
   useEffect(() => {
     void refresh();
@@ -95,7 +158,13 @@ export function GramChartModal({ gramBalance, depositBalance, onClose, onPriceUp
         points[0],
       ];
     }
-    return price != null ? [{ t: Date.now() - 3_600_000, price, label: "" }, { t: Date.now(), price, label: "now" }] : [];
+    if (price != null) {
+      return [
+        { t: Date.now() - 3_600_000, price, label: "" },
+        { t: Date.now(), price, label: "now" },
+      ];
+    }
+    return [];
   }, [points, price]);
 
   const pctChange = useMemo(() => {
@@ -105,6 +174,8 @@ export function GramChartModal({ gramBalance, depositBalance, onClose, onPriceUp
     if (!first) return 0;
     return ((last - first) / first) * 100;
   }, [chartData]);
+
+  const showChart = chartReady && chartData.length >= 2;
 
   return createPortal(
     <div
@@ -157,12 +228,12 @@ export function GramChartModal({ gramBalance, depositBalance, onClose, onPriceUp
           </div>
         </div>
 
-        <div className="px-3 pb-4" style={{ height: 200 }}>
-          {chartData.length >= 2 ? (
-            <ResponsiveContainer width="100%" height="100%">
+        <div className="px-3 pb-4" style={{ height: 200, minHeight: 200 }}>
+          {showChart ? (
+            <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="gramChartFill" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#00f2b4" stopOpacity={0.35} />
                     <stop offset="100%" stopColor="#00f2b4" stopOpacity={0.02} />
                   </linearGradient>
@@ -181,7 +252,7 @@ export function GramChartModal({ gramBalance, depositBalance, onClose, onPriceUp
                   contentStyle={{ background: "#0c1018", border: "1px solid rgba(0,242,180,0.25)", borderRadius: 8 }}
                   formatter={(v: number) => [`$${v.toFixed(4)}`, "GRAM"]}
                 />
-                <Area type="monotone" dataKey="price" stroke="#00f2b4" strokeWidth={2} fill="url(#gramChartFill)" />
+                <Area type="monotone" dataKey="price" stroke="#00f2b4" strokeWidth={2} fill={`url(#${gradientId})`} />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
