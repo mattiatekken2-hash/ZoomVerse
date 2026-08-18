@@ -75,46 +75,7 @@ const PLANET_TASKS: PlanetTaskDef[] = [
   { id: "planets_10000", kind: "planets", threshold: 10000, rewardZoom: 200_000 },
 ];
 
-const SPONSOR_TASKS: SponsorTaskDef[] = [
-  {
-    id: "sponsor_coinflip",
-    kind: "sponsor",
-    url: "https://t.me/coinflip_vip",
-    rewardSpins: 3,
-  },
-  {
-    id: "sponsor_giftkombat",
-    kind: "sponsor",
-    url: "https://t.me/gift_kombat_bot?startapp=963796674utm_zoom",
-    rewardSpins: 25,
-    // Gate removed by design: anyone can claim. We still show the
-    // "Aggiungi 🪐 al tuo nome Telegram" hint client-side as a request
-    // to the user, but it's not enforced on the server.
-    requirementLabel: "Aggiungi 🪐 al tuo nome Telegram per riscattare 25 spin",
-  },
-  {
-    id: "sponsor_channel_mb5",
-    kind: "sponsor",
-    url: "https://t.me/+Mb5yuzpNmdZhYzE0",
-    rewardStardust: 100,
-  },
-  {
-    id: "sponsor_izimoney",
-    kind: "sponsor",
-    url: "https://t.me/izimoney_10",
-    rewardZoom: 10_000,
-    requireMinZoomBalance: 500_000,
-    requirementLabel: "Richiede almeno 500.000 $ZOOM nel saldo per riscattare 10.000 $ZOOM",
-  },
-  {
-    id: "sponsor_yt_miketamago",
-    kind: "sponsor",
-    url: "https://youtube.com/@miketamago-?si=qIRnjO-DR-8PmYPx",
-    rewardZoom: 30_000,
-    requireMinReferrals: 50,
-    requirementLabel: "Richiede almeno 50 referral per riscattare 30.000 $ZOOM",
-  },
-];
+const SPONSOR_TASKS: SponsorTaskDef[] = [];
 
 const TASKS_BY_ID: Record<string, TaskDef> = Object.fromEntries(
   [...PLANET_TASKS, ...SPONSOR_TASKS].map((t) => [t.id, t]),

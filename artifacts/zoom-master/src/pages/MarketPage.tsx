@@ -5,7 +5,7 @@ import {
   ITEM_RARITY_LABEL,
   type ItemType,
 } from "../utils/collectibleConfig";
-import { PlanetVoxelThumb } from "../components/PlanetVoxelThumb";
+import { MarketPlanetCard, type MarketPlanetListingView } from "../components/MarketPlanetCard";
 import { ObjectThumb } from "../components/MysteryModel3D";
 import { getModelById } from "@workspace/game-models";
 import { PLANET_CONFIG, getRarityColorsForModel } from "../hooks/useGameState";
@@ -314,9 +314,6 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
     <div className="flex flex-col h-full relative">
       <div className="px-5 pt-4 pb-2 flex-shrink-0">
         <h2 className="font-black text-lg tracking-tight">{t("market.title")}</h2>
-        <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-          P2P TON trading · {filtered.length} listings · Min 0.25 – Max 10 TON
-        </p>
         <div className="flex gap-2 mt-3">
           <button
             onClick={() => setTab("listings")}
@@ -328,7 +325,7 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
             }}
             data-testid="tab-listings"
           >
-            🛒 Listings
+            LISTINGS
           </button>
           <button
             onClick={() => setTab("activity")}
@@ -357,96 +354,38 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                 </div>
               </div>
             )}
+          <div className="grid grid-cols-2 gap-3 mt-2">
             {sales.map((s) => {
               const cfg = PLANET_CONFIG[s.planetType as PlanetType];
               if (!cfg) return null;
-              const rarityColor = RARITY_COLORS[s.planetType] ?? "#8892b0";
-              const fakePlanet = {
-                id: `sale-${s.id}`,
-                name: s.planetType as PlanetType,
-                color: cfg.color,
-                glowColor: cfg.glowColor,
-                rate: s.planetRate,
-                craftCost: 0,
-                createdAt: 0,
-                farmStartedAt: 0,
-                lastCollectedAt: 0,
-                isListedInMarket: false,
-                isFarmingActive: false,
-              } as Planet;
               const ago = Math.max(0, Math.floor((Date.now() - s.soldAt) / 1000));
               const agoLabel = ago < 60 ? `${ago}s ago` : ago < 3600 ? `${Math.floor(ago / 60)}m ago` : `${Math.floor(ago / 3600)}h ago`;
               const isPulsing = pulseId === s.id;
-              const saleFloat = FLOAT_PLANET_TYPES.has(s.planetType)
-                ? getListingDisplayFloat({ id: `sale-${s.id}`, planetFloat: s.planetFloat })
-                : undefined;
-              // Same gold-glow rule as Farm/Marketplace cards: only the
-              // absolute Perfect float (= 1.000) triggers the rotating
-              // ring + warm gold gradient. Pulse (NEW) takes priority.
-              const isPerfectFloat = typeof saleFloat === "number" && saleFloat >= 1;
+              const view: MarketPlanetListingView = {
+                id: `sale-${s.id}`,
+                name: s.planetType as PlanetType,
+                price: s.price,
+                rate: s.planetRate,
+                seller: s.sellerName,
+                isOwn: false,
+                planetFloat: s.planetFloat,
+                displayName: deterministicNameFromId(`sale-${s.id}`),
+                modelId: (s as MarketSale & { modelId?: string | null }).modelId ?? null,
+                shapeId: (s as MarketSale & { shapeId?: string | null }).shapeId ?? null,
+              };
               return (
-                <div
+                <MarketPlanetCard
                   key={s.id}
-                  className={`rounded-xl border flex items-center gap-3 px-3 py-2.5 ${!isPulsing && isPerfectFloat ? "perfect-card-glow" : ""}`}
-                  style={{
-                    borderColor: isPulsing
-                      ? "#00e676"
-                      : isPerfectFloat
-                      ? "rgba(255,215,0,0.45)"
-                      : rarityColor + "22",
-                    background: isPulsing
-                      ? "rgba(0,230,118,0.08)"
-                      : isPerfectFloat
-                      ? "linear-gradient(135deg, rgba(255,215,0,0.18) 0%, rgba(255,170,40,0.10) 45%, rgba(20,12,4,0.85) 100%)"
-                      : `linear-gradient(135deg, ${rarityColor}06 0%, rgba(6,8,16,0.55) 100%)`,
-                    boxShadow: isPulsing
-                      ? "0 0 24px rgba(0,230,118,0.45)"
-                      : isPerfectFloat
-                      ? "0 0 22px rgba(255,215,0,0.35)"
-                      : "none",
-                    transition: "all 0.4s ease",
-                  }}
-                  data-testid={`sale-${s.id}`}
-                >
-                  {(() => {
-                    return (
-                      <>
-                        <PlanetVoxelThumb planet={fakePlanet} size={42} animate={isPerfectFloat} />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full" style={{ color: rarityColor, background: rarityColor + "14", border: `1px solid ${rarityColor}33` }}>
-                              {cfg.label}
-                            </span>
-                            {isPulsing && (
-                              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ color: "#00e676", background: "rgba(0,230,118,0.15)", border: "1px solid rgba(0,230,118,0.4)" }}>
-                                NEW
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[11px] font-bold mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.7)" }}>
-                            <span style={{ color: "#ffd700" }}>{s.buyerName}</span>
-                            <span style={{ color: "rgba(255,255,255,0.4)" }}> bought from </span>
-                            <span style={{ color: "#4facfe" }}>{s.sellerName}</span>
-                          </div>
-                          {typeof saleFloat === "number" && (
-                            <div className="mt-1">
-                              <PlanetFloatBar value={saleFloat} compact />
-                            </div>
-                          )}
-                          <div className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>{agoLabel}</div>
-                        </div>
-                      </>
-                    );
-                  })()}
-                  <div className="flex flex-col items-end flex-shrink-0">
-                    <div className="text-xs font-black" style={{ color: rarityColor }}>
-                      {s.price.toLocaleString()}
-                    </div>
-                    <div className="text-[9px] font-bold" style={{ color: "rgba(255,255,255,0.3)" }}>GRAM</div>
-                  </div>
-                </div>
+                  listing={view}
+                  canBuy={false}
+                  highlighted={isPulsing}
+                  onBuy={() => {}}
+                  onUnlist={() => {}}
+                  statusText={`${s.buyerName} bought · ${agoLabel}`}
+                />
               );
             })}
+          </div>
           </div>
         ) : (
         <div className="flex flex-col gap-3">
@@ -560,241 +499,58 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
             </div>
           )}
 
+          <div className="grid grid-cols-2 gap-3">
           {filtered.map((listing) => {
             const cfg = PLANET_CONFIG[listing.name];
-            const modelColors = listing.modelId ? getRarityColorsForModel(listing.name) : null;
             if (!cfg) return null;
-            const rarityColor = RARITY_COLORS[listing.name];
-            const fakePlanet = {
+            const isOwn = listing.isLocal;
+            const canBuy = !isOwn && depositBalance >= listing.price * 0.5 && earnedBalance >= listing.price * 0.5 && myListings.filter((p) => !p.isListedInMarket).length < maxSlots;
+            const isFocused = listing.serverId != null && highlightId === listing.serverId;
+            const view: MarketPlanetListingView = {
               id: listing.id,
               name: listing.name,
-              color: cfg.color,
-              glowColor: cfg.glowColor,
+              price: listing.price,
               rate: listing.rate,
-              craftCost: 0,
-              createdAt: 0,
-              farmStartedAt: 0,
-              lastCollectedAt: 0,
-              isListedInMarket: true,
-              isFarmingActive: false,
-              marketPrice: listing.price,
-            } as Planet;
-
-            const isOwn = listing.isLocal;
-            // P2P TON marketplace: buyer pays 50% deposit + 50% earned
-            const canBuy = !isOwn && depositBalance >= listing.price * 0.5 && earnedBalance >= listing.price * 0.5 && myListings.filter((p) => !p.isListedInMarket).length < maxSlots;
-            const isPlatinumNft = listing.name === "V1_NFT";
-            const listingFloat = FLOAT_PLANET_TYPES.has(listing.name)
-              ? getListingDisplayFloat({ id: listing.serverId ?? listing.id, planetFloat: listing.planetFloat })
-              : undefined;
-            const isPerfectFloat = typeof listingFloat === "number" && listingFloat >= 1;
-
-            const isFocused = listing.serverId != null && highlightId === listing.serverId;
-
+              seller: isOwn ? "you" : listing.seller,
+              isOwn,
+              serverId: listing.serverId,
+              planetFloat: listing.planetFloat,
+              displayName: listing.displayName,
+              farmDurationHours: listing.farmDurationHours,
+              modelId: listing.modelId,
+              shapeId: listing.shapeId,
+            };
             return (
-              <div
+              <MarketPlanetCard
                 key={listing.id}
-                id={`listing-card-${listing.serverId ?? listing.id}`}
-                className={`rounded-2xl border overflow-hidden ${isFocused ? "deeplink-focus-glow" : ""} ${isPlatinumNft ? "nft-card-glow" : isPerfectFloat ? "perfect-card-glow" : ""}`}
-                style={{
-                  borderColor: isFocused
-                    ? "rgba(0,230,255,0.7)"
-                    : isPlatinumNft
-                    ? "rgba(220,232,255,0.10)"
-                    : isPerfectFloat
-                    ? "rgba(255,215,0,0.10)"
-                    : isOwn ? "rgba(255,215,0,0.3)" : rarityColor + "28",
-                  background: isPerfectFloat
-                    ? "linear-gradient(135deg, rgba(255,215,0,0.18) 0%, rgba(255,170,40,0.10) 45%, rgba(20,12,4,0.85) 100%)"
-                    : `linear-gradient(135deg, ${rarityColor}07 0%, rgba(6,8,16,0.65) 100%)`,
-                  boxShadow: isFocused
-                    ? "0 0 26px rgba(0,230,255,0.55)"
-                    : isPerfectFloat ? "0 0 22px rgba(255,215,0,0.35)" : undefined,
-                  backdropFilter: "blur(10px)",
-                  WebkitBackdropFilter: "blur(10px)",
+                listing={view}
+                canBuy={canBuy}
+                highlighted={isFocused}
+                sharing={sharingId === listing.serverId}
+                onBuy={() => {
+                  if (listing.serverId) {
+                    handleBuyServer(
+                      listing.serverId,
+                      listing.name,
+                      listing.rate,
+                      listing.price,
+                      listing.planetFloat ?? null,
+                      {
+                        modelId: listing.modelId,
+                        shapeId: listing.shapeId,
+                        modelName: listing.displayName,
+                      },
+                    );
+                  } else {
+                    handleBuyLocal(listing as MarketListing);
+                  }
                 }}
-                data-testid={`listing-${listing.id}`}
-              >
-                <div className="flex items-center gap-3 px-4 py-3">
-                  {/* Planet orb with bokeh glow */}
-                  <div style={{ position: "relative", flexShrink: 0 }}>
-                    {/* Bokeh blob behind orb */}
-                    <div
-                      style={{
-                        position: "absolute",
-                        width: 80,
-                        height: 80,
-                        borderRadius: "50%",
-                        background: `radial-gradient(circle, ${rarityColor}55 0%, transparent 70%)`,
-                        filter: "blur(18px)",
-                        pointerEvents: "none",
-                        top: "50%",
-                        left: "50%",
-                        transform: "translate(-50%,-50%)",
-                        zIndex: 0,
-                        opacity: 0.7,
-                      }}
-                    />
-                    <div className="planet-float-anim-slow" style={{ position: "relative", zIndex: 1 }}>
-                      {listing.modelId ? (
-                        <ObjectThumb
-                          shapeId={listing.shapeId || getModelById(listing.modelId)?.shapeId || "minifig"}
-                          primaryColor={modelColors!.color}
-                          accentColor={modelColors!.accentHex}
-                          size={56}
-                        />
-                      ) : (
-                        <PlanetVoxelThumb planet={fakePlanet} size={56} animate={isPlatinumNft || isPerfectFloat} />
-                      )}
-                      {isPlatinumNft && (
-                        <span
-                          className="nft-badge absolute"
-                          style={{ top: -4, left: -4 }}
-                          aria-label="NFT"
-                        >
-                          NFT
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    {listing.displayName && (
-                      <div
-                        className={`font-black text-base tracking-wide mb-0.5 truncate ${isPlatinumNft ? "nft-platinum-text" : ""}`}
-                        style={isPlatinumNft ? undefined : { color: rarityColor }}
-                        data-testid={`listing-name-${listing.id}`}
-                      >
-                        {listing.displayName}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                      <span
-                        className="text-xs font-black px-2 py-0.5 rounded-full border"
-                        style={{ color: rarityColor, borderColor: rarityColor + "44", background: rarityColor + "12", fontSize: 9 }}
-                      >
-                        {cfg.label.toUpperCase()}
-                      </span>
-                      {listing.farmDurationHours && listing.farmDurationHours > 1 && (
-                        <span
-                          className="text-xs font-black px-2 py-0.5 rounded-full border"
-                          style={{
-                            color: "#ffb347",
-                            borderColor: "rgba(255,179,71,0.35)",
-                            background: "rgba(255,179,71,0.10)",
-                            fontSize: 9,
-                          }}
-                          title={`Farm duration upgraded: ${listing.farmDurationHours}h per cycle`}
-                        >
-                          ⏱ {listing.farmDurationHours}h
-                        </span>
-                      )}
-                      <span
-                        className="text-xs px-2 py-0.5 rounded-full border font-bold"
-                        style={{
-                          color: isOwn ? "#C9D6E8" : "#E8ECF4",
-                          borderColor: isOwn ? "rgba(201,214,232,0.28)" : "rgba(255,255,255,0.12)",
-                          background: isOwn ? "rgba(201,214,232,0.08)" : "rgba(255,255,255,0.04)",
-                          fontSize: 9,
-                        }}
-                      >
-                        {isOwn ? "👤 you" : `👤 ${listing.seller}`}
-                      </span>
-                    </div>
-                    <div className="text-xs font-bold" style={{ color: "rgba(255,255,255,0.45)" }}>
-                      {listing.name === "MUSHROOM"
-                        ? `+${listing.rate.toLocaleString()} ★ NFTSTAR/cycle`
-                        : `+${listing.rate.toLocaleString()} $ZOOM/hr`}
-                    </div>
-                    {FLOAT_PLANET_TYPES.has(listing.name) && (
-                      <div className="mt-1.5">
-                        <PlanetFloatBar
-                          value={getListingDisplayFloat({
-                            id: listing.serverId ?? listing.id,
-                            planetFloat: listing.planetFloat,
-                          })}
-                          compact
-                        />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                    <div className="font-black text-sm" style={{ color: rarityColor }}>
-                      {listing.price.toLocaleString()} TON
-                    </div>
-                  </div>
-                </div>
-                <div className="px-4 pb-3" style={{ borderTop: `1px solid ${rarityColor}12` }}>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-xs" style={{ color: "rgba(255,255,255,0.2)" }}>
-                      P2P TON
-                    </div>
-                    <div className="flex items-center gap-2">
-                    {listing.serverId != null && isOwn && (
-                      <button
-                        className="px-3 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95"
-                        disabled={sharingId === listing.serverId}
-                        style={{
-                          borderColor: "rgba(0,180,255,0.3)",
-                          background: "rgba(0,180,255,0.08)",
-                          color: "#36c5ff",
-                          opacity: sharingId === listing.serverId ? 0.5 : 1,
-                          cursor: sharingId === listing.serverId ? "wait" : "pointer",
-                        }}
-                        onClick={() => handleShare(listing.serverId as number)}
-                        data-testid={`btn-share-${listing.id}`}
-                        title={t("market.share")}
-                      >
-                        {sharingId === listing.serverId ? "…" : "🔗"}
-                      </button>
-                    )}
-                    {isOwn ? (
-                      <button
-                        className="px-4 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95"
-                        style={{ borderColor: "rgba(255,215,0,0.3)", background: "rgba(255,215,0,0.07)", color: "#ffd700" }}
-                        onClick={() => onUnlist(listing.id)}
-                        data-testid={`btn-unlist-${listing.id}`}
-                      >
-                        Delist
-                      </button>
-                    ) : (
-                      <button
-                        className="px-4 py-1.5 rounded-xl text-xs font-bold border transition-all active:scale-95"
-                        disabled={!canBuy}
-                        style={{
-                          borderColor: canBuy ? "rgba(0,230,118,0.3)" : "rgba(255,255,255,0.06)",
-                          background: canBuy ? "rgba(0,230,118,0.08)" : "transparent",
-                          color: canBuy ? "#00e676" : "rgba(255,255,255,0.15)",
-                          cursor: canBuy ? "pointer" : "not-allowed",
-                        }}
-                        onClick={() => {
-                          if (listing.serverId) {
-                            handleBuyServer(
-                              listing.serverId,
-                              listing.name,
-                              listing.rate,
-                              listing.price,
-                              listing.planetFloat ?? null,
-                              {
-                                modelId: listing.modelId,
-                                shapeId: listing.shapeId,
-                                modelName: listing.displayName,
-                              },
-                            );
-                          } else {
-                            handleBuyLocal(listing as MarketListing);
-                          }
-                        }}
-                        data-testid={`btn-buy-${listing.id}`}
-                      >
-                        Buy
-                      </button>
-                    )}
-                    </div>
-                  </div>
-                </div>
-              </div>
+                onUnlist={() => onUnlist(listing.id)}
+                onShare={listing.serverId != null && isOwn ? () => handleShare(listing.serverId as number) : undefined}
+              />
             );
           })}
+          </div>
 
           {/* Collectible item listings — shown when filter is ALL or ITEMS. */}
           {(filter === "ALL" || filter === "ITEMS") && itemListings.length > 0 && (

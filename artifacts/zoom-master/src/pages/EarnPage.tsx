@@ -47,6 +47,7 @@ const SPONSOR_GATE_MS = 10_000;
 // channel" timestamp unlock the Claim button on a second account, AND
 // so opening one sponsor task doesn't unlock the Claim button on every
 // other sponsor task in the list.
+const CYAN_WHITE = "#9EC5E8";
 const sponsorGateKey = (telegramId: string | null, taskId: string) =>
   `zoom:sponsor-gate-opened-at:${telegramId ?? "_anon"}:${taskId}`;
 
@@ -466,7 +467,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             <div className="flex items-center gap-2">
               <CosmicChestIcon size={26} />
               <div>
-                <div className="font-black text-base tracking-wide neon-text">{t("earn.dailyStreak")}</div>
+                <div className="font-black text-base tracking-wide" style={{ color: CYAN_WHITE }}>{t("earn.dailyStreak")}</div>
                 <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.4)" }}>
                   {t("earn.streakLoop7")}
                 </div>
@@ -474,7 +475,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             </div>
             <div className="text-right">
               <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.35)" }}>{t("earn.next")}</div>
-              <div className="text-sm font-black neon-text">+{Math.round(upcomingReward)} <span style={{ color: "#ffd700" }}>★</span></div>
+              <div className="text-sm font-black" style={{ color: CYAN_WHITE }}>+{Math.round(upcomingReward)} <span style={{ color: CYAN_WHITE }}>★</span></div>
             </div>
           </div>
 
@@ -558,9 +559,9 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         >
           <div className="flex items-center gap-2 mb-2">
             <SpaceTicketIcon size={24} />
-            <div className="font-black text-base" style={{ color: "#ffb347" }}>{t("earn.redeemCode")}</div>
+            <div className="font-black text-base" style={{ color: CYAN_WHITE }}>{t("earn.redeemCode")}</div>
           </div>
-          <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.4)" }}>
+          <div className="text-xs mb-3" style={{ color: CYAN_WHITE, opacity: 0.75 }}>
             {t("earn.redeemHint")}
           </div>
           <div className="flex gap-2">
@@ -574,7 +575,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
               style={{
                 background: "rgba(0,0,0,0.3)",
                 border: "1px solid rgba(255,179,71,0.2)",
-                color: "#ffb347",
+                color: CYAN_WHITE,
                 letterSpacing: "0.06em",
               }}
               data-testid="input-redeem-code"
@@ -584,7 +585,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
               className="px-4 py-2.5 rounded-xl font-black text-sm tracking-wider uppercase transition-all active:scale-95"
               style={{
                 background: "rgba(255,179,71,0.12)",
-                color: "#ffb347",
+                color: CYAN_WHITE,
                 border: "1px solid rgba(255,179,71,0.25)",
               }}
               data-testid="button-redeem"
@@ -610,9 +611,9 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         <div className="rounded-2xl p-5 border" style={{ borderColor: "rgba(255,215,0,0.15)", background: "rgba(255,215,0,0.03)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
           <div className="flex items-center gap-2 mb-3">
             <OrbitLinkIcon size={24} />
-            <div className="font-black text-base gold-text">{t("earn.referralProgram")}</div>
+            <div className="font-black text-base" style={{ color: CYAN_WHITE }}>{t("earn.referralProgram")}</div>
           </div>
-          <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
+          <div className="text-xs mb-3" style={{ color: CYAN_WHITE, opacity: 0.75 }}>
             {t("earn.referralProgramHintNew")}
           </div>
           <button
@@ -623,16 +624,16 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             }}
             className="w-full py-3 mb-3 rounded-xl font-black text-sm tracking-wider uppercase transition-all active:scale-95"
             style={{
-              background: "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,179,71,0.1))",
-              color: "#ffd700",
-              border: "1px solid rgba(255,215,0,0.25)",
+              background: "linear-gradient(135deg, rgba(158,197,232,0.15), rgba(122,158,200,0.1))",
+              color: CYAN_WHITE,
+              border: "1px solid rgba(158,197,232,0.25)",
             }}
           >
             {t("earn.inviteFriends")}
           </button>
           <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
             <span>ID:</span>
-            <span className="font-bold font-mono gold-text">{referralCode}</span>
+            <span className="font-bold font-mono" style={{ color: CYAN_WHITE }}>{referralCode}</span>
             <span>·</span>
             <span className="font-bold" style={{ color: "#00e676" }}>{t("earn.invitedSuffix", { n: referralCount })}</span>
           </div>
@@ -658,16 +659,16 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
 
         {/* Milestones */}
         <div className="rounded-2xl p-4 border" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
-          <div className="font-black text-sm tracking-wide mb-3" style={{ color: "rgba(255,255,255,0.7)" }}>
+          <div className="font-black text-sm tracking-wide mb-3" style={{ color: CYAN_WHITE }}>
             {t("earn.referralMilestones")}
           </div>
           {nextMilestone && (
             <div className="mb-4">
               <div className="flex justify-between text-xs mb-1.5">
-                <span style={{ color: "rgba(255,255,255,0.4)" }}>
+                <span style={{ color: CYAN_WHITE, opacity: 0.75 }}>
                   {t("earn.nextMilestone", { c: nextMilestone.count, r: nextMilestone.reward.toLocaleString() })}
                 </span>
-                <span className="font-bold neon-text">{referralCount}/{nextMilestone.count}</span>
+                <span className="font-bold" style={{ color: CYAN_WHITE }}>{referralCount}/{nextMilestone.count}</span>
               </div>
               <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
                 <div
@@ -722,14 +723,14 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         >
           <div className="flex items-center justify-between mb-3">
             <div>
-              <div className="font-black text-base tracking-wide" style={{ color: "#b39dff" }}>{t("earn.tasks")}</div>
-              <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.4)" }}>
+              <div className="font-black text-base tracking-wide" style={{ color: CYAN_WHITE }}>{t("earn.tasks")}</div>
+              <div className="text-[10px] font-bold tracking-wider" style={{ color: CYAN_WHITE, opacity: 0.65 }}>
                 {t("earn.tasksSub")}
               </div>
             </div>
             <div className="text-right">
               <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.35)" }}>{t("earn.built")}</div>
-              <div className="text-sm font-black" style={{ color: "#b39dff" }}>
+              <div className="text-sm font-black" style={{ color: CYAN_WHITE }}>
                 {(tasks?.planetsBuilt ?? 0).toLocaleString()}
               </div>
             </div>

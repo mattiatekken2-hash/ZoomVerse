@@ -1,7 +1,10 @@
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useState, useCallback } from "react";
 import { Lock } from "lucide-react";
 import { GramWalletPanel, GramWalletIcon, type TonWalletProps } from "../components/TonWalletWidget";
 import { StardustMarketModal } from "../components/StardustMarketModal";
+import { GramChartModal } from "../components/GramChartModal";
+
+const PRICE_POLL_MS = 15_000;
 
 interface WalletPageProps extends Omit<TonWalletProps, "onOpenWalletTab" | "labVariant"> {
   /** ZOOM Season 2 balance */
@@ -63,23 +66,26 @@ export function WalletPage({
   const [tonPrice, setTonPrice] = useState<number | null>(null);
   const [priceLoading, setPriceLoading] = useState(true);
   const [stardustMarketOpen, setStardustMarketOpen] = useState(false);
+  const [gramChartOpen, setGramChartOpen] = useState(false);
   const [liveStardustBalance, setLiveStardustBalance] = useState(stardustBalance);
+
+  const refreshTonPrice = useCallback(async () => {
+    const price = await fetchTonPrice();
+    if (price != null) {
+      setTonPrice(price);
+      setPriceLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     setLiveStardustBalance(stardustBalance);
   }, [stardustBalance]);
 
   useEffect(() => {
-    let cancelled = false;
-    setPriceLoading(true);
-    fetchTonPrice().then((price) => {
-      if (!cancelled) {
-        setTonPrice(price);
-        setPriceLoading(false);
-      }
-    });
-    return () => { cancelled = true; };
-  }, []);
+    void refreshTonPrice();
+    const id = window.setInterval(() => { void refreshTonPrice(); }, PRICE_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [refreshTonPrice]);
 
   const usdtValue = tonPrice !== null ? (tonBalance * tonPrice).toFixed(2) : null;
   const priceLabel = tonPrice !== null
@@ -143,14 +149,19 @@ export function WalletPage({
       </div>
 
       {/* ── MAIN BALANCE: GRAM ── */}
-      <div
-        className="rounded-2xl"
+      <button
+        type="button"
+        className="rounded-2xl text-left w-full transition-all active:scale-[0.99]"
         style={{
           background: "linear-gradient(135deg, rgba(0,242,180,0.09) 0%, rgba(0,180,130,0.05) 100%)",
           border: "1px solid rgba(0,242,180,0.20)",
           boxShadow: "0 0 32px rgba(0,242,180,0.07)",
           padding: "16px 18px",
+          cursor: "pointer",
         }}
+        onClick={() => setGramChartOpen(true)}
+        data-testid="gram-balance-card"
+        aria-label="Open GRAM market chart"
       >
         {/* Label row */}
         <div
@@ -237,9 +248,21 @@ export function WalletPage({
             letterSpacing: "0.06em",
           }}
         >
-          {priceLabel}
+          {priceLabel} · tap for chart
         </div>
-      </div>
+      </button>
+
+      {gramChartOpen && (
+        <GramChartModal
+          gramBalance={tonBalance}
+          depositBalance={depositBalance}
+          onClose={() => setGramChartOpen(false)}
+          onPriceUpdate={(p) => {
+            setTonPrice(p);
+            setPriceLoading(false);
+          }}
+        />
+      )}
 
       {/* ── ACTIVE BALANCES: Season 2 ── */}
       <div>
