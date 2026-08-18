@@ -46,6 +46,24 @@ export function withInitData<T extends Record<string, unknown>>(body: T): T & { 
   return initData ? { ...body, _initData: initData } : body;
 }
 
+/** Map server JSON errors to user-visible messages (convert, stake, shop, etc.). */
+function parseApiError(data: unknown, httpStatus: number, fallback: string): string {
+  if (data && typeof data === "object") {
+    const d = data as Record<string, unknown>;
+    if (typeof d.error === "string" && d.error) {
+      if (d.error === "TG_AUTH_REQUIRED") return "Apri di nuovo da Telegram per autorizzare";
+      if (d.error === "TG_USER_MISMATCH") return "Sessione non valida — riapri l'app da Telegram";
+      if (d.error === "SERVER_ERROR") return "Errore server — riprova tra poco";
+      return d.error;
+    }
+    if (typeof d.reason === "string" && d.reason) return d.reason;
+  }
+  if (httpStatus === 404) return "Funzione non ancora attiva sul server (404)";
+  if (httpStatus === 401 || httpStatus === 403) return "Non autorizzato — riapri da Telegram";
+  if (httpStatus === 503) return "Server in aggiornamento — riprova tra 1 minuto";
+  return `${fallback} (${httpStatus})`;
+}
+
 /**
  * Tell the server a planet started farming. The server uses this to
  * schedule the "Farm full" Telegram notification 24h later. Fire-and-forget
@@ -689,6 +707,95 @@ export async function buyShopItemFromDeposit(
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, error: data?.error || `Purchase failed (${res.status})` };
     return { ok: true, txnId: data.txnId, itemName: data.itemName };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function buyShopItemFromStardust(
+  telegramId: string,
+  itemId: string,
+  meta?: unknown,
+): Promise<{ ok: boolean; txnId?: number; itemName?: string; stardustSpent?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/shop/buy-stardust`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(withInitData({ telegramId, itemId, meta })),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: data?.error || `Purchase failed (${res.status})` };
+    return { ok: true, txnId: data.txnId, itemName: data.itemName, stardustSpent: data.stardustSpent };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function convertDepositToStardust(
+  telegramId: string,
+  gramAmount: number,
+): Promise<{
+  ok: boolean;
+  stardustReceived?: number;
+  depositBalance?: number;
+  tonBalance?: number;
+  stardustBalance?: number;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(`${API_BASE}/stardust/convert-deposit`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(withInitData({ telegramId, gramAmount })),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data?.ok === false) {
+      return { ok: false, error: parseApiError(data, res.status, "Conversion failed") };
+    }
+    return {
+      ok: true,
+      stardustReceived: data.stardustReceived,
+      depositBalance: data.depositBalance,
+      tonBalance: data.tonBalance,
+      stardustBalance: data.stardustBalance,
+    };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function convertStardustToGram(
+  telegramId: string,
+  stardustAmount: number,
+): Promise<{
+  ok: boolean;
+  gramReceived?: number;
+  stardustSpent?: number;
+  depositBalance?: number;
+  tonBalance?: number;
+  stardustBalance?: number;
+  spread?: number;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(`${API_BASE}/stardust/convert-to-gram`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(withInitData({ telegramId, stardustAmount })),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data?.ok === false) {
+      return { ok: false, error: parseApiError(data, res.status, "Conversion failed") };
+    }
+    return {
+      ok: true,
+      gramReceived: data.gramReceived,
+      stardustSpent: data.stardustSpent,
+      depositBalance: data.depositBalance,
+      tonBalance: data.tonBalance,
+      stardustBalance: data.stardustBalance,
+      spread: data.spread,
+    };
   } catch {
     return { ok: false, error: "Network error" };
   }
@@ -2149,6 +2256,101 @@ export async function fetchEconomyHistory(): Promise<EconomyHistoryResponse | nu
     if (!res.ok) return null;
     return (await res.json()) as EconomyHistoryResponse;
   } catch { return null; }
+}
+
+export interface StardustMarketPriceResponse {
+  indexMicro: number;
+  index: number;
+  genesisIndex: number;
+  totalStaked: number;
+  updatedAt: number;
+}
+
+export interface StardustChartPoint {
+  t: number;
+  p: number;
+  index: number;
+}
+
+export interface StardustMarketHistoryResponse {
+  points: StardustChartPoint[];
+  genesisIndex: number;
+}
+
+export interface StardustStakeStateResponse {
+  balance: number;
+  staked: number;
+  stakeIndexMicro: number;
+  stakedValue: number;
+  index: number;
+  pnl: number;
+}
+
+export async function fetchStardustMarketPrice(): Promise<StardustMarketPriceResponse | null> {
+  try {
+    const res = await fetch(`${API_BASE}/stardust/market/price`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return (await res.json()) as StardustMarketPriceResponse;
+  } catch { return null; }
+}
+
+export async function fetchStardustMarketHistory(): Promise<StardustMarketHistoryResponse | null> {
+  try {
+    const res = await fetch(`${API_BASE}/stardust/market/history`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return (await res.json()) as StardustMarketHistoryResponse;
+  } catch { return null; }
+}
+
+export async function fetchStardustStakeState(telegramId: string): Promise<StardustStakeStateResponse | null> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/stardust/stake/state?telegramId=${encodeURIComponent(telegramId)}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as StardustStakeStateResponse;
+  } catch { return null; }
+}
+
+export async function stakeStardust(
+  telegramId: string,
+  amount: number,
+): Promise<{ ok: boolean; balance?: number; staked?: number; stakedValue?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/stardust/stake`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(withInitData({ telegramId, amount })),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data?.ok === false) {
+      return { ok: false, error: parseApiError(data, res.status, "Stake failed") };
+    }
+    return data as { ok: boolean; balance?: number; staked?: number; stakedValue?: number };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function unstakeStardust(
+  telegramId: string,
+  amount?: number,
+): Promise<{ ok: boolean; balance?: number; staked?: number; payout?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/stardust/unstake`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(withInitData({ telegramId, ...(amount ? { amount } : {}) })),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data?.ok === false) {
+      return { ok: false, error: parseApiError(data, res.status, "Unstake failed") };
+    }
+    return data as { ok: boolean; balance?: number; staked?: number; payout?: number };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
 }
 
 

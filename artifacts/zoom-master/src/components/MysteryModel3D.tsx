@@ -4,7 +4,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
-import { FORGE_CLAY, FORGE_CLAY_HEX, FORGE_VOXEL_SIZE, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, FORGE_SPHERE_SHAPE_ID, getForgeSphereBlueprint, labForgeMorphT, showcaseVoxelHex, getShowcaseVoxelHex, getShowcasePaletteForRarity, getShowcaseRarityStyle, quantizeToShowcasePalette, isBattleScarVoxel, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
+import { FORGE_CLAY, FORGE_CLAY_HEX, FORGE_VOXEL_SIZE, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, FORGE_SPHERE_SHAPE_ID, getForgeSphereBlueprint, isLabCollectibleVoxelRarity, labForgeMorphT, showcaseVoxelHex, getShowcaseVoxelHex, getShowcasePaletteForRarity, getShowcaseRarityStyle, quantizeToShowcasePalette, isBattleScarVoxel, shouldPlanetShowRing, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
 import { FLOAT_PLANET_TYPES } from "../utils/planetFloat";
 
 const DEFAULT_PARTS = mysteryKitParts();
@@ -23,10 +23,14 @@ const STUDIO_HDR = "/assets/env/studio_small_09_1k.hdr";
 /** Internal render scale — 3 ⇒ 156px canvas renders at ~52×52 then upscales blocky. */
 const PIXEL_SCALE = 3;
 const PIXEL_MIN_INTERNAL = 16;
-/** Internal supersampling for planet card thumbs. */
-const PLANET_THUMB_RENDER_SCALE = 1.75;
+/** Internal supersampling for premium planet card thumbs (SUN, etc.). */
+const PLANET_THUMB_RENDER_SCALE = 2;
+/** Display sizes at/above this get hi-fi internal resolution + DPR. */
+const PLANET_THUMB_HIFI_MIN = 80;
 /** Forge voxel — solid face + EdgesGeometry line per cube. */
 const FORGE_VOXEL_CUBE_FILL = 0.98;
+/** Farm card thumbs — smaller cubes + gaps so blocks read at ~128px. */
+const LAB_THUMB_CUBE_FILL = 0.86;
 
 function resolveForgeVoxelPosition(v: VoxelCell, morphT: number, out: THREE.Vector3): void {
   const mx = v.morphX;
@@ -75,8 +79,10 @@ function isShowcaseView(
   revealed: boolean,
   forgeVoxelBuild: boolean,
   planetShowcase: boolean,
+  labCollectibleShowcase: boolean,
 ): boolean {
   if (planetShowcase) return false;
+  if (labCollectibleShowcase) return false;
   if (performanceMode) return false;
   if (forgeVoxelBuild && !revealed) return false;
   if (interactive && !revealed) return false;
@@ -90,11 +96,121 @@ function showcaseVoxelColor(
   primary: string,
   accent: string,
   out: THREE.Color,
+  rarity?: string,
+  floatValue = 1,
 ): void {
   const ix = Math.round(v.x / step);
   const iy = Math.round(v.y / step);
   const iz = Math.round(v.z / step);
-  out.set(showcaseVoxelHex(v.color, primary, accent, ix, iy, iz, radius));
+  const hex = rarity
+    ? getShowcaseVoxelHex(rarity, v.color, primary, accent, ix, iy, iz, radius, floatValue)
+    : showcaseVoxelHex(v.color, primary, accent, ix, iy, iz, radius);
+  out.set(hex);
+  // Guard — invalid hex strings paint instanced voxels black in WebGL.
+  if (!Number.isFinite(out.r) || (out.r + out.g + out.b) < 0.001) {
+    out.set(primary && primary.startsWith("#") ? primary : `#${primary || "8892b0"}`);
+  }
+}
+
+/** Remove Lab tap-257 reveal meshes — same path as Farm card thumbs. */
+function removeForgeLabRevealVisuals(
+  group: THREE.Group,
+  forgeEdgeLinesRef: { current: THREE.LineSegments | null },
+): void {
+  const toRemove: THREE.Object3D[] = [];
+  group.children.forEach((child) => {
+    const ud = (child as THREE.Object3D).userData;
+    if (
+      ud?.["forgeLabRevealVisual"]
+      || ud?.["labCollectibleBucket"]
+      || ud?.["planetAtmosphere"]
+      || ud?.["planetCorona"]
+      || ud?.["planetRing"]
+      || ud?.["perfectFloatSparkle"]
+    ) {
+      toRemove.push(child);
+    }
+  });
+  for (const child of toRemove) {
+    group.remove(child);
+    const mesh = child as THREE.Mesh;
+    mesh.geometry?.dispose();
+    const mat = mesh.material;
+    if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
+    else (mat as THREE.Material | undefined)?.dispose();
+  }
+  const edgeLines = forgeEdgeLinesRef.current;
+  if (edgeLines?.userData?.["forgeLabRevealVisual"]) {
+    group.remove(edgeLines);
+    edgeLines.geometry.dispose();
+    (edgeLines.material as THREE.Material).dispose();
+    forgeEdgeLinesRef.current = null;
+  }
+}
+
+/** Lab tap-257 reveal — identical voxel paint + decor as Farm inventory cards. */
+function addForgeLabCollectibleRevealVisual(
+  group: THREE.Group,
+  forgeVoxels: VoxelCell[],
+  voxelStep: number,
+  forgeSphereRadius: number,
+  primaryColor: string,
+  accentColor: string,
+  rarity: string,
+  floatValue: number,
+  worldRadius: number,
+  voxelDummy: THREE.Object3D,
+  edgeScratch: THREE.Vector3,
+  forgeEdgeLinesRef: { current: THREE.LineSegments | null },
+): THREE.BoxGeometry {
+  removeForgeLabRevealVisuals(group, forgeEdgeLinesRef);
+
+  const labThumbCubeFill = LAB_THUMB_CUBE_FILL;
+  const labBoxGeo = new THREE.BoxGeometry(
+    voxelStep * labThumbCubeFill,
+    voxelStep * labThumbCubeFill,
+    voxelStep * labThumbCubeFill,
+  );
+
+  const edgeLines = addLabCollectibleBucketMeshes(
+    group,
+    forgeVoxels,
+    labBoxGeo,
+    voxelDummy,
+    voxelStep,
+    forgeSphereRadius,
+    primaryColor,
+    accentColor,
+    rarity,
+    floatValue,
+    labThumbCubeFill,
+    edgeScratch,
+  );
+  edgeLines.userData["forgeLabRevealVisual"] = true;
+  forgeEdgeLinesRef.current = edgeLines;
+
+  addLabPlanetDecorations(
+    group,
+    worldRadius,
+    primaryColor,
+    accentColor,
+    rarity,
+    floatValue,
+    forgeVoxels,
+    voxelStep,
+    forgeSphereRadius,
+    labThumbCubeFill,
+    labBoxGeo,
+    voxelDummy,
+  );
+
+  group.children.forEach((child) => {
+    if ((child as THREE.Object3D).userData?.["labCollectibleBucket"]) {
+      (child as THREE.Object3D).userData["forgeLabRevealVisual"] = true;
+    }
+  });
+
+  return labBoxGeo;
 }
 
 /** Snap shell cubes so outer faces sit on a perfect sphere envelope. */
@@ -239,6 +355,258 @@ function addPremiumBandVoxelMeshes(
   }
 
   return { hotSpots, glowSurface };
+}
+
+/** Farm/Market lab-voxel cards — color buckets + greeble shell + edge lines (no instanceColor). */
+function addLabCollectibleBucketMeshes(
+  group: THREE.Group,
+  forgeVoxels: VoxelCell[],
+  boxGeo: THREE.BoxGeometry,
+  voxelDummy: THREE.Object3D,
+  voxelStep: number,
+  forgeSphereRadius: number,
+  primaryColor: string,
+  accentColor: string,
+  rarity: string,
+  floatValue: number,
+  cubeFill: number,
+  edgeScratch: THREE.Vector3,
+): THREE.LineSegments {
+  const style = getShowcaseRarityStyle(rarity);
+  const buckets = new Map<string, Array<{ x: number; y: number; z: number; scale: number }>>();
+  const posScratch = new THREE.Vector3();
+  const placed: Array<{ x: number; y: number; z: number; scale: number; hex: string }> = [];
+
+  for (const v of forgeVoxels) {
+    const ix = Math.round(v.x / voxelStep);
+    const iy = Math.round(v.y / voxelStep);
+    const iz = Math.round(v.z / voxelStep);
+    const hex = getShowcaseVoxelHex(rarity, v.color, primaryColor, accentColor, ix, iy, iz, forgeSphereRadius, floatValue);
+    let scale = 1;
+    if (style === "BASIC") {
+      basicVoxelWorldPos(v, voxelStep, forgeSphereRadius, cubeFill, posScratch);
+      scale = basicVoxelScale(v, voxelStep, forgeSphereRadius);
+    } else {
+      rareVoxelWorldPos(v, voxelStep, forgeSphereRadius, cubeFill, posScratch);
+      scale = rareVoxelScale(v, voxelStep, forgeSphereRadius);
+    }
+    const entry = { x: posScratch.x, y: posScratch.y, z: posScratch.z, scale, hex };
+    placed.push(entry);
+    const list = buckets.get(hex);
+    if (list) list.push(entry);
+    else buckets.set(hex, [entry]);
+  }
+
+  for (const [hex, cells] of buckets) {
+    const mat = new THREE.MeshLambertMaterial({
+      color: hex,
+      flatShading: true,
+      toneMapped: false,
+    });
+    const mesh = new THREE.InstancedMesh(boxGeo, mat, cells.length);
+    mesh.frustumCulled = false;
+    for (let i = 0; i < cells.length; i++) {
+      const p = cells[i]!;
+      voxelDummy.position.set(p.x, p.y, p.z);
+      voxelDummy.scale.setScalar(p.scale);
+      voxelDummy.rotation.set(0, 0, 0);
+      voxelDummy.updateMatrix();
+      mesh.setMatrixAt(i, voxelDummy.matrix);
+    }
+    mesh.count = cells.length;
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.userData["labCollectibleBucket"] = true;
+    group.add(mesh);
+  }
+
+  const tpl = getUnitBoxEdgeTemplate();
+  const edgeBuf = new Float32Array(placed.length * tpl.vertCount * 3);
+  const cubeSize = voxelStep * cubeFill;
+  for (let vi = 0; vi < placed.length; vi++) {
+    const p = placed[vi]!;
+    voxelDummy.position.set(p.x, p.y, p.z);
+    voxelDummy.scale.setScalar(p.scale);
+    voxelDummy.rotation.set(0, 0, 0);
+    voxelDummy.updateMatrix();
+    const scaledCube = cubeSize * p.scale;
+    const base = vi * tpl.vertCount * 3;
+    for (let j = 0; j < tpl.vertCount; j++) {
+      const t = j * 3;
+      edgeScratch.set(
+        tpl.positions[t]! * scaledCube,
+        tpl.positions[t + 1]! * scaledCube,
+        tpl.positions[t + 2]! * scaledCube,
+      );
+      edgeScratch.applyMatrix4(voxelDummy.matrix);
+      edgeBuf[base + t] = edgeScratch.x;
+      edgeBuf[base + t + 1] = edgeScratch.y;
+      edgeBuf[base + t + 2] = edgeScratch.z;
+    }
+  }
+
+  const edgeBufferGeo = new THREE.BufferGeometry();
+  edgeBufferGeo.setAttribute("position", new THREE.BufferAttribute(edgeBuf, 3));
+  const edgeLines = new THREE.LineSegments(
+    edgeBufferGeo,
+    new THREE.LineBasicMaterial({ color: FORGE_VOXEL_EDGE, toneMapped: false }),
+  );
+  edgeLines.frustumCulled = false;
+  edgeLines.renderOrder = 2;
+  group.add(edgeLines);
+  return edgeLines;
+}
+
+/** Farm card — atmosphere halo, perfect-float sparkles, EPIC+ ring. */
+function addLabPlanetDecorations(
+  group: THREE.Group,
+  worldRadius: number,
+  primaryColor: string,
+  accentColor: string,
+  rarity: string,
+  floatValue: number,
+  forgeVoxels: VoxelCell[],
+  voxelStep: number,
+  forgeSphereRadius: number,
+  cubeFill: number,
+  boxGeo: THREE.BoxGeometry,
+  voxelDummy: THREE.Object3D,
+): void {
+  const f = Math.max(0, Math.min(1, floatValue));
+  const style = getShowcaseRarityStyle(rarity);
+  const posScratch = new THREE.Vector3();
+
+  const atmBackOpacity = 0.07 + 0.14 * f;
+  const atmBack = new THREE.Mesh(
+    new THREE.SphereGeometry(worldRadius * 1.1, 22, 16),
+    new THREE.MeshBasicMaterial({
+      color: primaryColor,
+      transparent: true,
+      opacity: atmBackOpacity,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.BackSide,
+      toneMapped: false,
+    }),
+  );
+  atmBack.renderOrder = -2;
+  atmBack.userData["planetAtmosphere"] = true;
+  atmBack.userData["baseOpacity"] = atmBackOpacity;
+  group.add(atmBack);
+
+  const atmRimOpacity = 0.04 + 0.09 * f;
+  const atmRim = new THREE.Mesh(
+    new THREE.SphereGeometry(worldRadius * 1.04, 22, 16),
+    new THREE.MeshBasicMaterial({
+      color: accentColor,
+      transparent: true,
+      opacity: atmRimOpacity,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
+  atmRim.renderOrder = -1;
+  atmRim.userData["planetAtmosphere"] = true;
+  atmRim.userData["baseOpacity"] = atmRimOpacity;
+  group.add(atmRim);
+
+  if (f >= 0.98 || getShowcaseRarityStyle(rarity) === "SUN") {
+    const sparkles: VoxelCell[] = [];
+    for (const v of forgeVoxels) {
+      const ix = Math.round(v.x / voxelStep);
+      const iy = Math.round(v.y / voxelStep);
+      const iz = Math.round(v.z / voxelStep);
+      const dist = Math.sqrt(ix * ix + iy * iy + iz * iz) / Math.max(forgeSphereRadius, 1);
+      const hash = (ix * 17 + iy * 31 + iz * 13) & 255;
+      if (dist > 0.86 && hash % 37 === 0) sparkles.push(v);
+    }
+    if (sparkles.length > 0) {
+      const glowMat = new THREE.MeshBasicMaterial({
+        color: "#fffef0",
+        transparent: true,
+        opacity: 0.62,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false,
+      });
+      const glowInst = new THREE.InstancedMesh(boxGeo, glowMat, sparkles.length);
+      glowInst.frustumCulled = false;
+      glowInst.renderOrder = 4;
+      for (let i = 0; i < sparkles.length; i++) {
+        const v = sparkles[i]!;
+        if (style === "BASIC") {
+          basicVoxelWorldPos(v, voxelStep, forgeSphereRadius, cubeFill, posScratch);
+          voxelDummy.scale.setScalar(basicVoxelScale(v, voxelStep, forgeSphereRadius) * 1.18);
+        } else {
+          rareVoxelWorldPos(v, voxelStep, forgeSphereRadius, cubeFill, posScratch);
+          voxelDummy.scale.setScalar(1.18);
+        }
+        voxelDummy.position.copy(posScratch);
+        voxelDummy.rotation.set(0, 0, 0);
+        voxelDummy.updateMatrix();
+        glowInst.setMatrixAt(i, voxelDummy.matrix);
+      }
+      glowInst.count = sparkles.length;
+      glowInst.instanceMatrix.needsUpdate = true;
+      glowInst.userData["planetGlow"] = true;
+      glowInst.userData["perfectFloatSparkle"] = true;
+      group.add(glowInst);
+    }
+
+    const coronaOpacity = 0.1 + 0.08 * Math.sin(0);
+    const corona = new THREE.Mesh(
+      new THREE.SphereGeometry(worldRadius * 1.14, 18, 12),
+      new THREE.MeshBasicMaterial({
+        color: primaryColor,
+        transparent: true,
+        opacity: coronaOpacity,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.BackSide,
+        toneMapped: false,
+      }),
+    );
+    corona.renderOrder = -3;
+    corona.userData["planetCorona"] = true;
+    corona.userData["baseOpacity"] = 0.12;
+    group.add(corona);
+  }
+
+  if (shouldPlanetShowRing(rarity, f)) {
+    const ringOpacity = 0.16 + 0.22 * f;
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: accentColor,
+      transparent: true,
+      opacity: ringOpacity,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      toneMapped: false,
+    });
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(worldRadius * 1.38, worldRadius * 1.78, 56),
+      ringMat,
+    );
+    ring.rotation.x = Math.PI / 2.25;
+    ring.rotation.z = 0.12;
+    ring.renderOrder = 3;
+    ring.userData["planetRing"] = true;
+    ring.userData["baseOpacity"] = ringOpacity;
+    group.add(ring);
+
+    const innerRing = new THREE.Mesh(
+      new THREE.RingGeometry(worldRadius * 1.3, worldRadius * 1.42, 48),
+      ringMat.clone(),
+    );
+    const innerMat = innerRing.material as THREE.MeshBasicMaterial;
+    innerMat.opacity = ringOpacity * 0.55;
+    innerRing.rotation.copy(ring.rotation);
+    innerRing.rotation.z += 0.06;
+    innerRing.renderOrder = 3;
+    innerRing.userData["planetRing"] = true;
+    innerRing.userData["baseOpacity"] = innerMat.opacity;
+    group.add(innerRing);
+  }
 }
 
 function basicGreebleOffset(
@@ -706,6 +1074,8 @@ interface ObjectMesh3DProps {
   forgeVoxelBuild?: boolean;
   /** After last tap — close gaps / inflate into a round planet shell before morph-out. */
   forgeSeal?: boolean;
+  /** Lab forge cinematic — burst + color paint without remounting the WebGL scene. */
+  forgeRevealPhase?: "idle" | "flash" | "waiting" | "revealed";
   /** Softer particle timing (auto-tap). */
   forgeTapRelaxed?: boolean;
   interactive?: boolean;
@@ -721,6 +1091,10 @@ interface ObjectMesh3DProps {
   displayFloat?: number;
   /** Planet id — stable seed for battle-scar placement. */
   planetId?: string;
+  /** Supersample planet card thumbs (Farm/Market). */
+  thumbHiQuality?: boolean;
+  /** Lab backdrop forge — keep one GL session; space grid bg; simple rarity paint at end. */
+  labForgeBackdrop?: boolean;
 }
 
 function resolveColor(c: MeshPart["color"], primary: string, accent: string): string {
@@ -871,6 +1245,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
   interactive = true,
   forgeVoxelBuild = false,
   forgeSeal = false,
+  forgeRevealPhase = "idle",
   forgeTapRelaxed = false,
   opaqueBackground = false,
   performanceMode = false,
@@ -879,6 +1254,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
   planetRarity,
   displayFloat,
   planetId = "planet",
+  thumbHiQuality,
+  labForgeBackdrop = false,
 }, ref) {
   const mountRef = useRef<HTMLDivElement>(null);
   const onTapRef = useRef(onTap);
@@ -895,11 +1272,31 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const assemblyRef = useRef(progress);
-  const stateRef = useRef({ progress, revealed, primaryColor, accentColor });
+  const stateRef = useRef({
+    progress,
+    revealed,
+    primaryColor,
+    accentColor,
+    planetRarity: planetRarity ?? "BASIC",
+    displayFloat: typeof displayFloat === "number" ? displayFloat : 1,
+  });
   const forgeSealRef = useRef(forgeSeal);
+  const forgeRevealPhaseRef = useRef(forgeRevealPhase);
+  const forgeSphereRadiusRef = useRef(4);
+  const forgeWorldRadiusRef = useRef(2);
+  const displayFloatRef = useRef(typeof displayFloat === "number" ? displayFloat : 1);
   onTapRef.current = onTap;
   forgeSealRef.current = forgeSeal;
-  stateRef.current = { progress, revealed, primaryColor, accentColor };
+  forgeRevealPhaseRef.current = forgeRevealPhase;
+  displayFloatRef.current = typeof displayFloat === "number" && Number.isFinite(displayFloat) ? displayFloat : 1;
+  stateRef.current = {
+    progress,
+    revealed,
+    primaryColor,
+    accentColor,
+    planetRarity: planetRarity ?? "BASIC",
+    displayFloat: displayFloatRef.current,
+  };
 
   const meshParts = parts && parts.length > 0 ? parts : DEFAULT_PARTS;
 
@@ -1018,21 +1415,27 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const mount = mountRef.current;
     if (!mount || size <= 0) return;
 
+    const labCollectibleView = forgeVoxelBuild
+      && shapeId === FORGE_SPHERE_SHAPE_ID
+      && isLabCollectibleVoxelRarity(planetRarity);
+    const labCollectibleShowcase = labCollectibleView && revealed && !interactive;
     const planetShowcase = forgeVoxelBuild
       && shapeId === FORGE_SPHERE_SHAPE_ID
       && revealed
-      && !interactive;
+      && !interactive
+      && !labCollectibleView;
     const premiumPlanetShowcase = planetShowcase;
     const isFloatGraded = !!planetRarity && FLOAT_PLANET_TYPES.has(planetRarity.toUpperCase());
     const effectiveFloat = isFloatGraded && typeof displayFloat === "number" && Number.isFinite(displayFloat)
       ? Math.max(0, Math.min(1, displayFloat))
       : 1;
     const showcaseRarity = planetRarity ?? "BASIC";
-    const showcase = isShowcaseView(performanceMode, size, interactive, opaqueBackground, revealed, forgeVoxelBuild, planetShowcase);
+    const showcase = isShowcaseView(performanceMode, size, interactive, opaqueBackground, revealed, forgeVoxelBuild, planetShowcase, labCollectibleShowcase);
     const isStaticShowcase = showcase && revealed && !interactive;
     const useForgeVoxels = forgeVoxelBuild;
-    const forgeSpaceMode = useForgeVoxels && !revealed && !planetShowcase;
+    const forgeSpaceMode = useForgeVoxels && !revealed && !planetShowcase && !labCollectibleShowcase;
     const pixelMode = showcase && revealed && !performanceMode && !planetShowcase;
+    const isLabFarmThumb = labCollectibleShowcase;
     const geoDetail: GeoDetail = performanceMode
       ? "low"
       : pixelMode || (isStaticShowcase && size >= 140)
@@ -1045,21 +1448,27 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const usePhysicalMats = showcase && revealed;
 
     const scene = new THREE.Scene();
-    if (showcase && !planetShowcase) scene.background = new THREE.Color(0x060810);
+    if (showcase && !planetShowcase && !labCollectibleShowcase) scene.background = new THREE.Color(0x060810);
     else if (forgeSpaceMode) scene.background = null;
     const camera = new THREE.PerspectiveCamera(showcase ? 38 : 42, 1, 0.1, 100);
     cameraRef.current = camera;
-    const maxDpr = planetShowcase
-      ? Math.min(window.devicePixelRatio, 2)
-      : performanceMode
-      ? 1.25
-      : showcase
-        ? Math.min(window.devicePixelRatio, size >= 140 ? 3 : 2.5)
-        : (size > 90 ? 1.75 : 1.25);
+    const thumbHiFi = (planetShowcase || isLabFarmThumb) && (thumbHiQuality ?? size >= PLANET_THUMB_HIFI_MIN);
+    // Farm lab-voxel thumbs: 1:1 canvas like Lab forge — sharp squares via DPR, not supersample downscale.
+    const maxDpr = isLabFarmThumb
+      ? (performanceMode ? 1.25 : (size > 90 ? 1.75 : 1.25))
+      : (planetShowcase)
+        ? Math.min(window.devicePixelRatio, thumbHiFi ? 2.75 : 2)
+        : performanceMode
+          ? 1.25
+          : showcase
+            ? Math.min(window.devicePixelRatio, size >= 140 ? 3 : 2.5)
+            : (size > 90 ? 1.75 : 1.25);
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({
-        antialias: planetShowcase || showcase || (!performanceMode && size > 90),
+        antialias: isLabFarmThumb
+          ? false
+          : (planetShowcase || showcase || (!performanceMode && size > 90)),
         alpha: !opaqueBackground,
         premultipliedAlpha: false,
         powerPreference: "high-performance",
@@ -1070,15 +1479,21 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       onGlFailedRef.current?.();
       return;
     }
-    setupRenderer(renderer, showcase && !planetShowcase);
+    setupRenderer(renderer, showcase && !planetShowcase && !labCollectibleShowcase);
     renderer.setPixelRatio(maxDpr);
-    const renderPx = planetShowcase
-      ? Math.round(size * (premiumPlanetShowcase ? 2 : PLANET_THUMB_RENDER_SCALE))
-      : size;
+    const planetThumbScale = premiumPlanetShowcase
+      ? (thumbHiFi ? 2.5 : 2)
+      : PLANET_THUMB_RENDER_SCALE;
+    const renderPx = isLabFarmThumb
+      ? size
+      : planetShowcase
+        ? Math.round(size * planetThumbScale)
+        : size;
     renderer.setSize(renderPx, renderPx);
-    if (planetShowcase) {
+    if (planetShowcase || isLabFarmThumb) {
       renderer.domElement.style.width = `${size}px`;
       renderer.domElement.style.height = `${size}px`;
+      renderer.domElement.style.imageRendering = "auto";
     }
     if (opaqueBackground) {
       renderer.setClearColor(0x060810, 1);
@@ -1103,14 +1518,22 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
     const onContextLost = (e: Event) => {
       e.preventDefault();
+      disposed = true;
+      cancelAnimationFrame(frameId);
+      onGlContextLostRef.current?.();
+    };
+    const onContextRestored = () => {
+      if (!disposed) return;
       onGlContextLostRef.current?.();
     };
     renderer.domElement.addEventListener("webglcontextlost", onContextLost);
+    renderer.domElement.addEventListener("webglcontextrestored", onContextRestored);
 
     let envMap: THREE.Texture | null = null;
     let groundExtras: THREE.Object3D[] = [];
     let glbRoot: THREE.Object3D | null = null;
     let disposed = false;
+    let frameId = 0;
 
     if (showcase) {
       loadStudioHDRI(renderer)
@@ -1135,7 +1558,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     }
 
     const isStaticThumb = revealed && !interactive && !performanceMode;
-    if (!planetShowcase) {
+    if (!planetShowcase && !labCollectibleShowcase) {
     scene.add(new THREE.AmbientLight(0xffffff, forgeSpaceMode ? 1.05 : showcase ? 0.5 : opaqueBackground ? 0.55 : isStaticThumb ? 0.68 : 0.5));
     if (!performanceMode) {
       scene.add(new THREE.HemisphereLight(
@@ -1177,6 +1600,17 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         scene.add(bounce);
       }
     }
+    } else if (labCollectibleShowcase) {
+      scene.add(new THREE.AmbientLight(0xffffff, 0.58));
+      const key = new THREE.DirectionalLight(0xffffff, 1.08);
+      key.position.set(2.8, 5.5, 3.8);
+      scene.add(key);
+      const fill = new THREE.DirectionalLight(0x667799, 0.38);
+      fill.position.set(-3.5, 0.5, -2.2);
+      scene.add(fill);
+      const rim = new THREE.DirectionalLight(0xddeeff, 0.26);
+      rim.position.set(0, 2.2, -4.5);
+      scene.add(rim);
     }
 
     const group = new THREE.Group();
@@ -1191,9 +1625,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       try {
         if (shapeId === FORGE_SPHERE_SHAPE_ID) {
           const bp = getForgeSphereBlueprint(primaryColor, accentColor, {
-            display: planetShowcase,
+            display: planetShowcase && !labCollectibleShowcase,
             premiumDisplay: premiumPlanetShowcase,
-            labMorph: useForgeVoxels && !planetShowcase,
+            labMorph: (useForgeVoxels && !planetShowcase) || labCollectibleShowcase,
           });
           forgeVoxels = bp.voxels;
           voxelStep = bp.step;
@@ -1209,16 +1643,20 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     }
     voxelsRef.current = forgeVoxels;
     voxelStepRef.current = voxelStep;
+    forgeSphereRadiusRef.current = forgeSphereRadius;
     const voxelDummy = new THREE.Object3D();
     const edgeScratch = new THREE.Vector3();
     let voxelInst: THREE.InstancedMesh | null = null;
     forgeEdgeLinesRef.current = null;
     forgeEdgePositionsRef.current = null;
     const voxelColorScratch = new THREE.Color();
+    let forgeBoxGeo: THREE.BoxGeometry | null = null;
+    let labThumbCubeFill = LAB_THUMB_CUBE_FILL;
     if (forgeVoxels.length > 0) {
       const n = forgeVoxels.length;
       const cube = voxelStep * FORGE_VOXEL_CUBE_FILL;
       const boxGeo = new THREE.BoxGeometry(cube, cube, cube);
+      forgeBoxGeo = boxGeo;
 
       if (planetShowcase && premiumPlanetShowcase) {
         const posScratch = new THREE.Vector3();
@@ -1293,6 +1731,28 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         if (effectiveFloat >= 1 && hotSpots.length > 0 && style !== "RARE" && style !== "SUN") {
           addPlanetGlowLayer(hotSpots, "#ffd700", 0.16, true);
         }
+      } else if (labCollectibleShowcase) {
+        labThumbCubeFill = LAB_THUMB_CUBE_FILL;
+        const labBoxGeo = new THREE.BoxGeometry(
+          voxelStep * labThumbCubeFill,
+          voxelStep * labThumbCubeFill,
+          voxelStep * labThumbCubeFill,
+        );
+        forgeBoxGeo = labBoxGeo;
+        forgeEdgeLinesRef.current = addLabCollectibleBucketMeshes(
+          group,
+          forgeVoxels,
+          labBoxGeo,
+          voxelDummy,
+          voxelStep,
+          forgeSphereRadius,
+          primaryColor,
+          accentColor,
+          showcaseRarity,
+          effectiveFloat,
+          labThumbCubeFill,
+          edgeScratch,
+        );
       } else {
       const vMat = planetShowcase
         ? new THREE.MeshBasicMaterial({
@@ -1341,7 +1801,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           voxelDummy.scale.setScalar(1);
           voxelDummy.updateMatrix();
           voxelInst.setMatrixAt(vi, voxelDummy.matrix);
-          showcaseVoxelColor(v, voxelStep, forgeSphereRadius, primaryColor, accentColor, voxelColorScratch);
+          showcaseVoxelColor(v, voxelStep, forgeSphereRadius, primaryColor, accentColor, voxelColorScratch, showcaseRarity, effectiveFloat);
           voxelInst.setColorAt(vi, voxelColorScratch);
 
           const base = vi * tpl.vertCount * 3;
@@ -1427,16 +1887,33 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const center = box.getCenter(new THREE.Vector3());
     const dim = box.getSize(new THREE.Vector3());
     const maxDim = Math.max(dim.x, dim.y, dim.z, 0.8);
+    forgeWorldRadiusRef.current = maxDim * 0.5;
     group.position.sub(center);
+    if (labCollectibleShowcase && forgeBoxGeo) {
+      addLabPlanetDecorations(
+        group,
+        maxDim * 0.5,
+        primaryColor,
+        accentColor,
+        showcaseRarity,
+        effectiveFloat,
+        forgeVoxels,
+        voxelStep,
+        forgeSphereRadius,
+        labThumbCubeFill,
+        forgeBoxGeo,
+        voxelDummy,
+      );
+    }
     if (showcase && !planetShowcase) {
       groundExtras = addShowcaseGround(scene, maxDim, accentColor);
     } else if (forgeSpaceMode) {
       groundExtras = addForgeSpaceGrid(scene, maxDim);
     }
     camera.position.set(
-      maxDim * (planetShowcase ? 1.28 : showcase ? 1.22 : 1.35),
-      maxDim * (planetShowcase ? 0.75 : showcase ? 0.82 : 0.95),
-      maxDim * (planetShowcase ? 1.55 : showcase ? 1.48 : 1.7),
+      maxDim * (planetShowcase ? 1.28 : labCollectibleShowcase ? 1.35 : showcase ? 1.22 : 1.35),
+      maxDim * (planetShowcase ? 0.75 : labCollectibleShowcase ? 0.95 : showcase ? 0.82 : 0.95),
+      maxDim * (planetShowcase ? 1.55 : labCollectibleShowcase ? 1.7 : showcase ? 1.48 : 1.7),
     );
     camera.lookAt(0, 0, 0);
 
@@ -1519,7 +1996,6 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     renderer.domElement.addEventListener("pointerup", onPointerUp);
     renderer.domElement.addEventListener("pointermove", onPointerMove);
 
-    let frameId = 0;
     let paintT = revealed && !interactive ? 1 : 0;
     let lastFrame = performance.now();
     let lastPlacedVoxels = Math.min(
@@ -1528,6 +2004,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     );
     let dropAnimStart = performance.now() - 300;
     let sealT = 0;
+    let revealPaintT = 0;
+    let lastRevealPhase: typeof forgeRevealPhase = "idle";
+    let revealVisualBaked = false;
     const VOXEL_PARTICLE_MS = 520;
     const particleLandMs = () => (forgeTapRelaxed ? 900 : VOXEL_PARTICLE_MS) * 0.68;
     const smoothProgressRef = { current: progress };
@@ -1544,7 +2023,21 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const dt = Math.min(32, now - lastFrame);
       lastFrame = now;
       const st = stateRef.current;
-      const isLiveForge = interactive && !st.revealed;
+      const revealPhase = forgeRevealPhaseRef.current;
+      if (revealPhase === "idle" && lastRevealPhase !== "idle") {
+        revealVisualBaked = false;
+        revealPaintT = 0;
+      }
+      if (revealPhase !== "idle" && lastRevealPhase === "idle") {
+        revealVisualBaked = false;
+        revealPaintT = 1;
+      }
+      lastRevealPhase = revealPhase;
+      const inForgeReveal = revealPhase !== "idle";
+      if (inForgeReveal) {
+        revealPaintT = 1;
+      }
+      const isLiveForge = interactive && !st.revealed && !inForgeReveal;
       const list = partsRef.current;
       const n = Math.max(isLiveForge && voxelsRef.current.length > 0
         ? voxelsRef.current.length
@@ -1553,20 +2046,20 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const targetP = st.revealed ? 1 : Math.min(1, Math.max(0, st.progress));
       const lerpK = 1 - Math.pow(0.001, dt / 16.67);
       const snap = performanceMode ? 0.95 : 0.55;
-      const sealing = forgeSealRef.current && !st.revealed;
+      const sealing = forgeSealRef.current && !st.revealed && !inForgeReveal;
       const isForgeSphere = shapeId === FORGE_SPHERE_SHAPE_ID;
       const useVoxelForge = useForgeVoxels && !!voxelInst && forgeVoxels.length > 0
-        && (isForgeSphere || !st.revealed || sealing);
-      if (useVoxelForge && !sealing) {
+        && (isForgeSphere || !st.revealed || sealing || inForgeReveal);
+      if (useVoxelForge && !sealing && !inForgeReveal) {
         const placed = Math.min(forgeVoxels.length, Math.round(targetP * forgeVoxels.length));
         smoothProgressRef.current = placed / forgeVoxels.length;
         if (placed > lastPlacedVoxels) {
           lastPlacedVoxels = placed;
           dropAnimStart = now;
         }
-      } else if (sealing) {
+      } else if (sealing || inForgeReveal) {
         smoothProgressRef.current = 1;
-        sealT = Math.min(1, sealT + dt / 720);
+        if (sealing) sealT = Math.min(1, sealT + dt / 720);
         lastPlacedVoxels = forgeVoxels.length;
       } else {
         smoothProgressRef.current += (targetP - smoothProgressRef.current) * lerpK * snap;
@@ -1576,6 +2069,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
       if (st.revealed && !interactive) {
         paintT = 1;
+      } else if (inForgeReveal) {
+        paintT = revealPaintT;
       } else if (st.revealed) {
         paintT = Math.min(1, paintT + (dt / 16.67) * 0.042);
       } else {
@@ -1587,7 +2082,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const activePartFrac = scaledParts - partsDone;
       let touchedMesh = false;
 
-      if (planetShowcase) {
+      if (premiumPlanetShowcase) {
         group.children.forEach((child) => {
           if (!(child as THREE.Object3D).userData?.["planetGlow"]) return;
           const glow = child as THREE.InstancedMesh;
@@ -1603,6 +2098,26 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           }
         });
         touchedMesh = true;
+      } else if (labCollectibleShowcase) {
+        const edgeLines = forgeEdgeLinesRef.current;
+        if (edgeLines) edgeLines.visible = true;
+        group.children.forEach((child) => {
+          const ud = (child as THREE.Object3D).userData;
+          const mat = (child as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined;
+          if (!mat || !("opacity" in mat)) return;
+          const base = typeof ud["baseOpacity"] === "number" ? ud["baseOpacity"] as number : null;
+          if (ud["planetAtmosphere"] && base !== null) {
+            mat.opacity = base + Math.sin(now * 0.0014) * 0.025;
+          } else if (ud["planetCorona"] && base !== null) {
+            mat.opacity = base + Math.sin(now * 0.002) * 0.06;
+          } else if (ud["planetRing"] && base !== null) {
+            mat.opacity = base + Math.sin(now * 0.0018) * 0.04;
+          } else if (ud["perfectFloatSparkle"]) {
+            mat.opacity = 0.45 + Math.sin(now * 0.0032) * 0.28;
+          }
+        });
+        group.scale.setScalar(1);
+        touchedMesh = true;
       } else if (useVoxelForge && voxelInst) {
         const voxMesh = voxelInst;
         const edgeLines = forgeEdgeLinesRef.current;
@@ -1612,97 +2127,158 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         const cubeSize = voxelStepRef.current * FORGE_VOXEL_CUBE_FILL;
         voxMesh.visible = true;
         if (edgeLines) edgeLines.visible = true;
-        const sealEase = sealT * sealT * (3 - 2 * sealT);
-        const placedCount = sealing || st.revealed
-          ? forgeVoxels.length
-          : Math.min(forgeVoxels.length, Math.round(targetP * forgeVoxels.length));
-        const sinceDrop = now - dropAnimStart;
-        const dropT = !sealing && !st.revealed && placedCount > 0
-          ? Math.min(1, Math.max(0, (sinceDrop - particleLandMs()) / 200))
-          : 1;
-        const dropEase = dropT * dropT * (3 - 2 * dropT);
-        const paintBlend = st.revealed ? 1 : paintT;
-        const useClayGrey = paintBlend <= 0 && !sealing;
-        const shapeMorphT = isForgeSphere && !planetShowcase && !st.revealed
-          ? (sealing ? 1 : labForgeMorphT(assembly))
-          : 0;
-        const voxMat = voxMesh.material as THREE.MeshBasicMaterial;
-        voxMat.toneMapped = false;
-        if (useClayGrey) {
-          voxMat.vertexColors = false;
-          voxMat.color.set(FORGE_CLAY);
-        } else {
-          voxMat.vertexColors = true;
-          voxMat.color.set(0xffffff);
-        }
-        voxMat.needsUpdate = true;
+        group.scale.setScalar(1);
 
-        if (sealing) {
-          group.scale.setScalar(1 + sealEase * 0.04);
-        } else if (shapeMorphT > 0) {
-          group.scale.setScalar(0.94 + shapeMorphT * 0.06);
-        } else {
-          group.scale.setScalar(1);
-        }
-        const cubeSeal = 1 + sealEase * 0.012;
-
-        let visibleCount = 0;
-        let colorsDirty = false;
-        for (let i = 0; i < forgeVoxels.length; i++) {
-          const v = forgeVoxels[i]!;
-          const settled = sealing || i < placedCount - 1;
-          const landing = !sealing && i === placedCount - 1 && placedCount > 0 && sinceDrop >= particleLandMs();
-
-          if (!settled && !landing) {
-            continue;
+        if (inForgeReveal) {
+          if (edgeLines) edgeLines.visible = false;
+          if (!revealVisualBaked) {
+            voxMesh.visible = false;
+            const rarity = st.planetRarity ?? "BASIC";
+            const isFloatGraded = FLOAT_PLANET_TYPES.has(rarity.toUpperCase());
+            const effectiveFloat = isFloatGraded ? st.displayFloat : 1;
+            addForgeLabCollectibleRevealVisual(
+              group,
+              forgeVoxels,
+              voxelStepRef.current,
+              forgeSphereRadiusRef.current,
+              st.primaryColor,
+              st.accentColor,
+              rarity,
+              effectiveFloat,
+              forgeWorldRadiusRef.current,
+              voxelDummy,
+              edgeScratch,
+              forgeEdgeLinesRef,
+            );
+            revealVisualBaked = true;
           }
-
-          const lock = settled ? 1 : dropEase;
-          const drop = settled ? 0 : (1 - lock) * 0.35;
-          resolveForgeVoxelPosition(v, shapeMorphT, forgePosScratch);
-          voxelDummy.position.set(forgePosScratch.x, forgePosScratch.y + drop, forgePosScratch.z);
-          voxelDummy.scale.setScalar(Math.max(0.04, lock * cubeSeal));
-          voxelDummy.rotation.set(0, 0, 0);
-          voxelDummy.updateMatrix();
-          voxMesh.setMatrixAt(visibleCount, voxelDummy.matrix);
-
-          if (!useClayGrey) {
-            painted.set(resolveColor(v.color, st.primaryColor, st.accentColor));
-            mixed.copy(forgeClayTone(i)).lerp(painted, paintBlend);
-            voxMesh.setColorAt(visibleCount, mixed);
-            colorsDirty = true;
+          const revealEdgeLines = forgeEdgeLinesRef.current;
+          if (revealEdgeLines) revealEdgeLines.visible = true;
+          group.children.forEach((child) => {
+            const ud = (child as THREE.Object3D).userData;
+            const mat = (child as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined;
+            if (!mat || !("opacity" in mat)) return;
+            const base = typeof ud["baseOpacity"] === "number" ? ud["baseOpacity"] as number : null;
+            if (ud["planetAtmosphere"] && base !== null) {
+              mat.opacity = base + Math.sin(now * 0.0014) * 0.025;
+            } else if (ud["planetCorona"] && base !== null) {
+              mat.opacity = base + Math.sin(now * 0.002) * 0.06;
+            } else if (ud["planetRing"] && base !== null) {
+              mat.opacity = base + Math.sin(now * 0.0018) * 0.04;
+            } else if (ud["perfectFloatSparkle"]) {
+              mat.opacity = 0.45 + Math.sin(now * 0.0032) * 0.28;
+            }
+          });
+          touchedMesh = true;
+        } else {
+          voxMesh.visible = true;
+          removeForgeLabRevealVisuals(group, forgeEdgeLinesRef);
+          if (edgeLines) edgeLines.visible = true;
+          revealVisualBaked = false;
+          const sealEase = sealT * sealT * (3 - 2 * sealT);
+          const placedCount = sealing || st.revealed
+            ? forgeVoxels.length
+            : Math.min(forgeVoxels.length, Math.round(targetP * forgeVoxels.length));
+          const sinceDrop = now - dropAnimStart;
+          const dropT = !sealing && !st.revealed && placedCount > 0
+            ? Math.min(1, Math.max(0, (sinceDrop - particleLandMs()) / 200))
+            : 1;
+          const dropEase = dropT * dropT * (3 - 2 * dropT);
+          const useClayGrey = paintT <= 0.001 && !sealing;
+          const shapeMorphT = isForgeSphere && !premiumPlanetShowcase
+            ? (labCollectibleShowcase || st.revealed || sealing ? 1 : labForgeMorphT(assembly))
+            : 0;
+          const voxMat = voxMesh.material as THREE.MeshBasicMaterial;
+          voxMat.toneMapped = false;
+          if (useClayGrey) {
+            voxMat.vertexColors = false;
+            voxMat.color.set(FORGE_CLAY);
+          } else {
+            voxMat.vertexColors = true;
+            voxMat.color.set(0xffffff);
           }
+          voxMat.needsUpdate = true;
+
+          if (sealing) {
+            group.scale.setScalar(1 + sealEase * 0.04);
+          } else if (shapeMorphT > 0) {
+            group.scale.setScalar(0.94 + shapeMorphT * 0.06);
+          } else {
+            group.scale.setScalar(1);
+          }
+          const cubeSeal = 1 + sealEase * 0.012;
+
+          let visibleCount = 0;
+          let colorsDirty = false;
+          for (let i = 0; i < forgeVoxels.length; i++) {
+            const v = forgeVoxels[i]!;
+            const settled = sealing || i < placedCount - 1;
+            const landing = !sealing && i === placedCount - 1 && placedCount > 0 && sinceDrop >= particleLandMs();
+
+            if (!settled && !landing) {
+              continue;
+            }
+
+            const lock = settled ? 1 : dropEase;
+            const drop = settled ? 0 : (1 - lock) * 0.35;
+            resolveForgeVoxelPosition(v, shapeMorphT, forgePosScratch);
+            voxelDummy.position.set(forgePosScratch.x, forgePosScratch.y + drop, forgePosScratch.z);
+            voxelDummy.scale.setScalar(Math.max(0.04, lock * cubeSeal));
+            voxelDummy.rotation.set(0, 0, 0);
+            voxelDummy.updateMatrix();
+            voxMesh.setMatrixAt(visibleCount, voxelDummy.matrix);
+
+            if (!useClayGrey && paintT > 0) {
+              showcaseVoxelColor(
+                v,
+                voxelStepRef.current,
+                forgeSphereRadius,
+                st.primaryColor,
+                st.accentColor,
+                painted,
+                st.planetRarity,
+                st.displayFloat,
+              );
+              if (paintT < 1) {
+                mixed.copy(forgeClayTone(i)).lerp(painted, paintT);
+              } else {
+                mixed.copy(painted);
+              }
+              voxMesh.setColorAt(visibleCount, mixed);
+              colorsDirty = true;
+            }
+
+            if (edgeLines && edgePosBuf) {
+              const base = visibleCount * edgeVertCount * 3;
+              for (let j = 0; j < edgeVertCount; j++) {
+                const t = j * 3;
+                edgeScratch.set(
+                  edgeTpl.positions[t]! * cubeSize,
+                  edgeTpl.positions[t + 1]! * cubeSize,
+                  edgeTpl.positions[t + 2]! * cubeSize,
+                );
+                edgeScratch.applyMatrix4(voxelDummy.matrix);
+                edgePosBuf[base + t] = edgeScratch.x;
+                edgePosBuf[base + t + 1] = edgeScratch.y;
+                edgePosBuf[base + t + 2] = edgeScratch.z;
+              }
+            }
+
+            visibleCount++;
+          }
+          voxMesh.count = visibleCount;
+          voxMesh.instanceMatrix.needsUpdate = true;
+          if (colorsDirty && voxMesh.instanceColor) voxMesh.instanceColor.needsUpdate = true;
 
           if (edgeLines && edgePosBuf) {
-            const base = visibleCount * edgeVertCount * 3;
-            for (let j = 0; j < edgeVertCount; j++) {
-              const t = j * 3;
-              edgeScratch.set(
-                edgeTpl.positions[t]! * cubeSize,
-                edgeTpl.positions[t + 1]! * cubeSize,
-                edgeTpl.positions[t + 2]! * cubeSize,
-              );
-              edgeScratch.applyMatrix4(voxelDummy.matrix);
-              edgePosBuf[base + t] = edgeScratch.x;
-              edgePosBuf[base + t + 1] = edgeScratch.y;
-              edgePosBuf[base + t + 2] = edgeScratch.z;
-            }
+            const edgePosAttr = edgeLines.geometry.attributes.position as THREE.BufferAttribute;
+            edgePosAttr.needsUpdate = true;
+            edgeLines.geometry.setDrawRange(0, visibleCount * edgeVertCount);
+            edgeLines.geometry.computeBoundingSphere();
           }
 
-          visibleCount++;
+          touchedMesh = true;
         }
-        voxMesh.count = visibleCount;
-        voxMesh.instanceMatrix.needsUpdate = true;
-        if (colorsDirty && voxMesh.instanceColor) voxMesh.instanceColor.needsUpdate = true;
-
-        if (edgeLines && edgePosBuf) {
-          const edgePosAttr = edgeLines.geometry.attributes.position as THREE.BufferAttribute;
-          edgePosAttr.needsUpdate = true;
-          edgeLines.geometry.setDrawRange(0, visibleCount * edgeVertCount);
-          edgeLines.geometry.computeBoundingSphere();
-        }
-
-        touchedMesh = true;
 
         group.children.forEach((child) => {
           if (child === voxMesh || child === edgeLines) return;
@@ -1812,8 +2388,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         group.rotation.y += (dt / 16.67) * (planetShowcase ? 0.0024 : showcase ? 0.0028 : 0.0035);
       }
       if (dragging) controls.update();
-      const stillMoving = Math.abs(targetP - assembly) > 0.0008 || (paintT > 0 && paintT < 1);
-      if (isLiveForge || autoSpin || stillMoving || touchedMesh || dragging || st.revealed) {
+      const stillMoving = Math.abs(targetP - assembly) > 0.0008
+        || (paintT > 0 && paintT < 1 && !inForgeReveal);
+      if (isLiveForge || autoSpin || stillMoving || touchedMesh || dragging || st.revealed || inForgeReveal) {
         draw(camera);
       }
     };
@@ -1831,6 +2408,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       });
       envMap?.dispose();
       renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
+      renderer.domElement.removeEventListener("webglcontextrestored", onContextRestored);
       cancelAnimationFrame(frameId);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
@@ -1840,6 +2418,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       if (voxelInst) {
         voxelInst.geometry.dispose();
         (voxelInst.material as THREE.Material).dispose();
+      } else if (forgeBoxGeo) {
+        forgeBoxGeo.dispose();
       }
       const edgeLinesCleanup = forgeEdgeLinesRef.current;
       if (edgeLinesCleanup) {
@@ -1858,7 +2438,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       cameraRef.current = null;
       rendererRef.current = null;
     };
-  }, [size, meshParts, shapeId, autoSpin, interactive, forgeVoxelBuild, forgeTapRelaxed, opaqueBackground, accentColor, performanceMode, revealed, planetRarity, displayFloat, planetId]);
+  }, labForgeBackdrop
+    ? [size, meshParts, shapeId, autoSpin, interactive, forgeVoxelBuild, forgeTapRelaxed, opaqueBackground, performanceMode, labForgeBackdrop]
+    : [size, meshParts, shapeId, autoSpin, interactive, forgeVoxelBuild, forgeTapRelaxed, opaqueBackground, performanceMode, planetRarity, displayFloat, planetId, primaryColor, accentColor]);
 
   return (
     <div
@@ -1876,6 +2458,7 @@ export function ObjectThumb({
   size,
   autoSpin = true,
   performanceMode = false,
+  hiQuality,
   onGlFailed,
   onGlContextLost,
   planetRarity,
@@ -1888,6 +2471,7 @@ export function ObjectThumb({
   size: number;
   autoSpin?: boolean;
   performanceMode?: boolean;
+  hiQuality?: boolean;
   onGlFailed?: () => void;
   onGlContextLost?: () => void;
   planetRarity?: string;
@@ -1906,6 +2490,7 @@ export function ObjectThumb({
   const haloMult = f !== null ? 0.35 + 1.05 * f : 1;
   const haloScale = isPlanetThumb ? 1.15 + (f !== null ? 0.07 * f : 0) : (f !== null ? 1.05 + 0.05 * f : 1);
   const isSunThumb = isPlanetThumb && planetRarity === "SUN";
+  const showThumbGlow = !isSunThumb && (!isPlanetThumb || size >= 140);
   const hiFi = isPlanetThumb || (!performanceMode && size >= 96);
   const innerAlpha = Math.round(Math.min(255, 0x44 * haloMult)).toString(16).padStart(2, "0");
   const midAlpha = Math.round(Math.min(255, 0x28 * haloMult)).toString(16).padStart(2, "0");
@@ -1914,7 +2499,7 @@ export function ObjectThumb({
       className="object-thumb"
       style={{ position: "relative", width: size, height: size, flexShrink: 0 }}
     >
-      {!isSunThumb && (
+      {showThumbGlow && (
       <div
         aria-hidden
         className="object-thumb-glow"
@@ -1955,6 +2540,7 @@ export function ObjectThumb({
           interactive={false}
           forgeVoxelBuild={shapeId === FORGE_SPHERE_SHAPE_ID}
           performanceMode={performanceMode}
+          thumbHiQuality={hiQuality}
           onGlFailed={onGlFailed}
           onGlContextLost={onGlContextLost}
           planetRarity={planetRarity}

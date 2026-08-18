@@ -10,6 +10,8 @@ const SPAWN_MIN_MS = 4 * 60 * 60 * 1000;   // 4 hours
 const SPAWN_MAX_MS = 6 * 60 * 60 * 1000;   // 6 hours
 const VISIT_DURATION_MS = 15 * 60 * 1000;  // 15 minutes
 const SCRAP_GRACE_MS = 30 * 1000;
+/** Permanent Lab dock — scrapper is always stationed (no spawn timer). */
+const PERMANENT_VISIT_MARKER = new Date("2099-01-01T00:00:00.000Z");
 
 // Stardust recycling table — how much Stardust each planet rarity yields when scrapped.
 const SCRAP_REWARDS: Record<string, number> = {
@@ -114,27 +116,11 @@ router.get("/merchant/state/:telegramId", async (req, res) => {
   const telegramId = String(req.params.telegramId ?? "").trim();
   if (!telegramId) return res.status(400).json({ error: "telegramId required" });
   try {
-    const now = Date.now();
-    const g = await advanceGlobal(now);
-
-    if (g.expiresAtMs != null && g.expiresAtMs > now) {
-      const [u] = await db
-        .select({ marker: usersTable.merchantExpiresAt })
-        .from(usersTable)
-        .where(eq(usersTable.telegramId, telegramId))
-        .limit(1);
-
-      const visitMarker = new Date(g.expiresAtMs);
-      const isAttending = !!(u?.marker && u.marker.getTime() === visitMarker.getTime());
-
-      return res.json({
-        active: true,
-        expiresAt: visitMarker.toISOString(),
-        justSpawned: !isAttending,
-      });
-    }
-
-    return res.json({ active: false, expiresAt: null });
+    return res.json({
+      active: true,
+      expiresAt: PERMANENT_VISIT_MARKER.toISOString(),
+      justSpawned: false,
+    });
   } catch (err) {
     console.error("[merchant/state] error:", err);
     return res.status(500).json({ error: "Internal error" });
@@ -156,13 +142,7 @@ router.post("/merchant/scrap", async (req, res) => {
   if (reward == null) return res.status(400).json({ ok: false, reason: "BAD_REQUEST" });
 
   try {
-    const now = Date.now();
-    const g = await advanceGlobal(now);
-
-    if (g.expiresAtMs == null || g.expiresAtMs < now - SCRAP_GRACE_MS) {
-      return res.status(409).json({ ok: false, reason: "EXPIRED" });
-    }
-    const visitMarker = new Date(g.expiresAtMs);
+    const visitMarker = PERMANENT_VISIT_MARKER;
 
     const client = await pool.connect();
     try {

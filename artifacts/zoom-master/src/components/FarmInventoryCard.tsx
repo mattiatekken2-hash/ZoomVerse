@@ -22,6 +22,8 @@ interface FarmInventoryCardProps {
   onRename?: () => void;
   className?: string;
   testId?: string;
+  /** Load voxel thumb immediately (Lab reveal). */
+  eagerThumb?: boolean;
 }
 
 function FarmCubeIcon({ size = 12, color = "currentColor" }: { size?: number; color?: string }) {
@@ -62,6 +64,7 @@ export function FarmInventoryCard({
   onRename,
   className = "",
   testId,
+  eagerThumb = false,
 }: FarmInventoryCardProps) {
   const compact = variant === "compact";
   const displayColors = getPlanetDisplayColors(planet);
@@ -74,9 +77,9 @@ export function FarmInventoryCard({
   const farmHours = planet.farmDurationHours ?? 1;
   const planetFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
   const isPlatinumNft = planet.name === "V1_NFT";
-  const orbThumb = 96;
-  const heroHeight = compact ? 158 : 168;
-  const heroOrbTop = compact ? 18 : 22;
+  const orbThumb = compact ? 112 : 128;
+  const heroHeight = compact ? 168 : 188;
+  const heroOrbTop = compact ? 14 : 16;
 
   const cycleTotal = planet.name === "MUSHROOM"
     ? 5
@@ -96,7 +99,7 @@ export function FarmInventoryCard({
         cursor: onCardClick ? "pointer" : undefined,
         width: compact ? 268 : "100%",
         maxWidth: compact ? 268 : undefined,
-        minHeight: compact ? undefined : 292,
+        minHeight: compact ? undefined : 308,
       }}
       onClick={onCardClick}
       data-testid={testId}
@@ -147,18 +150,13 @@ export function FarmInventoryCard({
             size={orbThumb}
             animate
             suspendGl={suspendGl}
-            eager={compact}
+            eager={eagerThumb}
+            hiQuality
           />
           {isPlatinumNft && (
             <span className="nft-badge absolute" style={{ top: -4, left: -4 }} aria-label="NFT">
               NFT
             </span>
-          )}
-          {active && (
-            <div
-              className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full pulse-soft"
-              style={{ background: "#00e676", boxShadow: "0 0 8px #00e676" }}
-            />
           )}
         </div>
 
@@ -265,21 +263,15 @@ export function FarmInventoryCard({
               borderRadius: 12,
               padding: compact ? "9px 0" : "14px 0",
               textAlign: "center",
-              fontSize: compact ? 10 : 12,
+              fontSize: compact ? 12 : 14,
               fontWeight: 900,
-              letterSpacing: "0.06em",
-              background: "rgba(0,230,118,0.08)",
-              border: `1px solid ${rgba(cardColor, 0.45)}`,
-              color: "#00e676",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 2,
+              letterSpacing: "0.04em",
+              color: "#ffffff",
+              fontVariantNumeric: "tabular-nums",
             }}
             data-testid={`status-farming-${planet.id}`}
           >
-            <span>FARMING</span>
-            <span style={{ fontSize: compact ? 8 : 9, opacity: 0.75 }}>{formatDuration(remaining)}</span>
+            {formatDuration(remaining)}
           </div>
         ) : isListed ? (
           <button

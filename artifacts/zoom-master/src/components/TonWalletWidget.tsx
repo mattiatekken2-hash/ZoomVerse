@@ -20,27 +20,14 @@ import {
   type StakingStatusResponse,
 } from "../utils/api";
 import { getWhitePlanetPendingTon, type Planet } from "../hooks/useGameState";
+import { GramDiamondIcon } from "./GramDiamondIcon";
 
 const TON_RECEIVER_WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 const POLL_MS = 60_000;
-const GRAM_LOGO_URL = "/ton-logo.svg";
 
-/** Official Telegram Wallet / TON diamond mark used in @wallet. */
+/** Official Telegram GRAM / Wallet diamond mark. */
 export function GramWalletIcon({ size = 18 }: { size?: number }) {
-  return (
-    <img
-      src={GRAM_LOGO_URL}
-      alt=""
-      width={size}
-      height={size}
-      draggable={false}
-      style={{
-        display: "block",
-        flexShrink: 0,
-        filter: "drop-shadow(0 0 5px rgba(0,152,234,0.55))",
-      }}
-    />
-  );
+  return <GramDiamondIcon size={size} />;
 }
 
 interface Props {

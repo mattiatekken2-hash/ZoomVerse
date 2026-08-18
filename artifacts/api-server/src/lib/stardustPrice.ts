@@ -1,0 +1,214 @@
+/**
+ * Global STARDUST index — decorative market price driven by real in-game
+ * spend/collect activity (mirrors zoomPrice.ts, lighter scale).
+ *
+ * Genesis index = 1.000000. Stored as micro-units (index * 1e6).
+ */
+import { db } from "@workspace/db";
+import { appSettingsTable, usersTable } from "@workspace/db/schema";
+import { eq, sql } from "drizzle-orm";
+import { logger } from "./logger";
+
+const INDEX_KEY = "stardust_index_micro";
+const CHART_KEY = "stardust_index_chart";
+const VERSION_KEY = "stardust_index_version";
+
+export const STARDUST_SCALE = 1_000_000;
+export const STARDUST_GENESIS_MICRO = 1_000_000; // 1.0
+/** At index 1.0: 1 GRAM → 100 STARDUST (shop + convert baseline). */
+export const STARDUST_PER_GRAM_BASE = 100;
+
+export function stardustPriceForGram(gramAmount: number, indexMicro: number): number {
+  const index = Math.max(0.25, indexMicro / STARDUST_SCALE);
+  return Math.max(1, Math.ceil(gramAmount * STARDUST_PER_GRAM_BASE * index));
+}
+
+export function gramToStardust(gramAmount: number, indexMicro: number): number {
+  const index = Math.max(0.25, indexMicro / STARDUST_SCALE);
+  return Math.max(1, Math.floor((gramAmount * STARDUST_PER_GRAM_BASE) / index));
+}
+
+/** Reverse convert spread — users receive 85% of nominal GRAM value. */
+export const STARDUST_TO_GRAM_SPREAD = 0.85;
+
+export function stardustToGram(stardustAmount: number, indexMicro: number): number {
+  const index = Math.max(0.25, indexMicro / STARDUST_SCALE);
+  const nominal = (stardustAmount * index) / STARDUST_PER_GRAM_BASE;
+  const gram = nominal * STARDUST_TO_GRAM_SPREAD;
+  return Math.max(0, Math.round(gram * 1_000_000) / 1_000_000);
+}
+
+const GENESIS_VERSION = 1;
+const CHART_MAX = 240;
+const CHART_THROTTLE_MS = 10_000;
+
+type ChartPoint = { t: number; p: number };
+
+const ACTION_BP: Record<string, number> = {
+  spend: 18,   // +0.18% per spend event
+  earn: -4,    // -0.04% per collect (supply)
+  stake: 6,    // +0.06% when users stake (demand lock)
+  unstake: -3, // -0.03% on withdraw
+  convert: 12, // +0.12% GRAM → STARDUST conversion (demand)
+  convert_out: -8, // -0.08% STARDUST → GRAM (supply back)
+};
+
+function applyBp(current: number, bp: number): number {
+  const delta = Math.max(1, Math.round((current * bp) / 10_000));
+  const next = current + (bp >= 0 ? delta : -delta);
+  return Math.max(Math.round(STARDUST_GENESIS_MICRO * 0.25), next);
+}
+
+async function ensureGenesis(): Promise<void> {
+  const [ver] = await db
+    .select({ valueNum: appSettingsTable.valueNum })
+    .from(appSettingsTable)
+    .where(eq(appSettingsTable.key, VERSION_KEY))
+    .limit(1);
+  if (Number(ver?.valueNum ?? 0) >= GENESIS_VERSION) return;
+
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(appSettingsTable)
+      .values({ key: INDEX_KEY, valueNum: STARDUST_GENESIS_MICRO })
+      .onConflictDoUpdate({
+        target: appSettingsTable.key,
+        set: { valueNum: STARDUST_GENESIS_MICRO, updatedAt: new Date() },
+      });
+    await tx
+      .insert(appSettingsTable)
+      .values({ key: CHART_KEY, valueText: JSON.stringify([{ t: Date.now(), p: STARDUST_GENESIS_MICRO }]) })
+      .onConflictDoUpdate({
+        target: appSettingsTable.key,
+        set: { valueText: "[]", updatedAt: new Date() },
+      });
+    await tx
+      .insert(appSettingsTable)
+      .values({ key: VERSION_KEY, valueNum: GENESIS_VERSION })
+      .onConflictDoUpdate({
+        target: appSettingsTable.key,
+        set: { valueNum: GENESIS_VERSION, updatedAt: new Date() },
+      });
+  });
+}
+
+async function appendChartPoint(indexMicro: number): Promise<void> {
+  const now = Date.now();
+  const [row] = await db
+    .select({ valueText: appSettingsTable.valueText })
+    .from(appSettingsTable)
+    .where(eq(appSettingsTable.key, CHART_KEY))
+    .limit(1);
+
+  let points: ChartPoint[] = [];
+  try {
+    points = JSON.parse(row?.valueText ?? "[]") as ChartPoint[];
+    if (!Array.isArray(points)) points = [];
+  } catch {
+    points = [];
+  }
+
+  const last = points[points.length - 1];
+  if (last && now - last.t < CHART_THROTTLE_MS) {
+    last.p = indexMicro;
+    last.t = now;
+  } else {
+    points.push({ t: now, p: indexMicro });
+    if (points.length > CHART_MAX) points = points.slice(-CHART_MAX);
+  }
+
+  await db
+    .insert(appSettingsTable)
+    .values({ key: CHART_KEY, valueText: JSON.stringify(points) })
+    .onConflictDoUpdate({
+      target: appSettingsTable.key,
+      set: { valueText: JSON.stringify(points), updatedAt: new Date() },
+    });
+}
+
+export async function getStardustIndexMicro(): Promise<number> {
+  await ensureGenesis();
+  const [row] = await db
+    .select({ valueNum: appSettingsTable.valueNum })
+    .from(appSettingsTable)
+    .where(eq(appSettingsTable.key, INDEX_KEY))
+    .limit(1);
+  return Number(row?.valueNum ?? STARDUST_GENESIS_MICRO);
+}
+
+export async function getStardustChart(): Promise<ChartPoint[]> {
+  await ensureGenesis();
+  const [row] = await db
+    .select({ valueText: appSettingsTable.valueText })
+    .from(appSettingsTable)
+    .where(eq(appSettingsTable.key, CHART_KEY))
+    .limit(1);
+  try {
+    const pts = JSON.parse(row?.valueText ?? "[]") as ChartPoint[];
+    if (Array.isArray(pts) && pts.length > 0) return pts;
+  } catch { /**/ }
+
+  const indexMicro = await getStardustIndexMicro();
+  const seed: ChartPoint[] = [{ t: Date.now(), p: indexMicro }];
+  await db
+    .insert(appSettingsTable)
+    .values({ key: CHART_KEY, valueText: JSON.stringify(seed) })
+    .onConflictDoUpdate({
+      target: appSettingsTable.key,
+      set: { valueText: JSON.stringify(seed), updatedAt: new Date() },
+    });
+  return seed;
+}
+
+/** Pad chart for UI: flat line when index hasn't moved yet. */
+export function normalizeStardustChartPoints(points: ChartPoint[]): ChartPoint[] {
+  if (points.length === 0) return [];
+  if (points.length === 1) {
+    const p = points[0];
+    return [
+      { t: p.t - 3_600_000, p: p.p },
+      { t: p.t, p: p.p },
+    ];
+  }
+  return points;
+}
+
+export async function bumpStardustIndex(action: keyof typeof ACTION_BP): Promise<void> {
+  try {
+    await ensureGenesis();
+    const bp = ACTION_BP[action] ?? 0;
+    if (bp === 0) return;
+
+    const current = await getStardustIndexMicro();
+    const next = applyBp(current, bp);
+
+    await db
+      .insert(appSettingsTable)
+      .values({ key: INDEX_KEY, valueNum: next })
+      .onConflictDoUpdate({
+        target: appSettingsTable.key,
+        set: { valueNum: next, updatedAt: new Date() },
+      });
+
+    await appendChartPoint(next);
+  } catch (err) {
+    logger.warn({ err, action }, "[stardustIndex] bump failed");
+  }
+}
+
+export function stardustValueAtIndex(staked: number, stakeIndexMicro: number, indexMicro: number): number {
+  if (staked <= 0) return 0;
+  const basis = stakeIndexMicro > 0 ? stakeIndexMicro : STARDUST_GENESIS_MICRO;
+  return Math.max(0, Math.floor((staked * indexMicro) / basis));
+}
+
+export async function readGlobalStakedTotal(): Promise<number> {
+  try {
+    const [row] = await db
+      .select({ total: sql<number>`COALESCE(SUM(${usersTable.stardustStaked}), 0)` })
+      .from(usersTable);
+    return Number(row?.total ?? 0);
+  } catch {
+    return 0;
+  }
+}

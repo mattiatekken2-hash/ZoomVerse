@@ -288,19 +288,7 @@ export function PlanetDetailModal({
 
               onClick={() => pvpEligible && onPvP?.(planet)}
 
-              className="py-2 rounded-xl text-xs font-black"
-
-              style={{
-
-                background: pvpEligible ? "rgba(255,50,50,0.12)" : "rgba(255,255,255,0.04)",
-
-                border: `1px solid ${pvpEligible ? "rgba(255,50,50,0.45)" : "rgba(255,255,255,0.1)"}`,
-
-                color: pvpEligible ? "#ff6666" : "rgba(255,255,255,0.2)",
-
-                cursor: pvpEligible ? "pointer" : "not-allowed",
-
-              }}
+              className={`farm-btn-3d py-2 text-xs font-black${pvpEligible ? "" : " farm-btn-3d--disabled"}`}
 
             >
 
@@ -314,17 +302,7 @@ export function PlanetDetailModal({
 
               onClick={() => onSell(planet)}
 
-              className="py-2 rounded-xl text-xs font-black"
-
-              style={{
-
-                background: "rgba(255,215,0,0.08)",
-
-                border: "1px solid rgba(255,215,0,0.35)",
-
-                color: "#ffd700",
-
-              }}
+              className="farm-btn-3d py-2 text-xs font-black"
 
             >
 
@@ -338,17 +316,7 @@ export function PlanetDetailModal({
 
               onClick={handleBurn}
 
-              className="py-2 rounded-xl text-xs font-black"
-
-              style={{
-
-                background: confirmBurn ? "rgba(255,82,82,0.20)" : "rgba(255,82,82,0.07)",
-
-                border: `1px solid ${confirmBurn ? "rgba(255,82,82,0.7)" : "rgba(255,82,82,0.25)"}`,
-
-                color: confirmBurn ? "#ff5252" : "rgba(255,82,82,0.7)",
-
-              }}
+              className={`farm-btn-3d py-2 text-xs font-black${confirmBurn ? " farm-btn-3d--burn-confirm" : ""}`}
 
             >
 
@@ -364,25 +332,9 @@ export function PlanetDetailModal({
 
         {onUpgradeDuration && !isListed && planet.name !== "MUSHROOM" && (
 
-          <div
+          <div className="farm-panel-3d w-full">
 
-            className="w-full"
-
-            style={{
-
-              borderRadius: 12,
-
-              border: "1px solid rgba(255,215,0,0.18)",
-
-              background: "rgba(255,215,0,0.04)",
-
-              padding: "10px 12px",
-
-            }}
-
-          >
-
-            <div style={{ fontSize: 10, fontWeight: 900, color: "rgba(255,215,0,0.7)", letterSpacing: "0.07em", marginBottom: 8 }}>
+            <div className="farm-panel-3d__title">
 
               ⏱ FARM DURATION
 
@@ -398,6 +350,8 @@ export function PlanetDetailModal({
 
                 const canAfford = tonBalance >= cost;
 
+                const tierDisabled = upgrading || isCurrent || !canAfford;
+
                 return (
 
                   <button
@@ -406,7 +360,7 @@ export function PlanetDetailModal({
 
                     type="button"
 
-                    disabled={upgrading || isCurrent || !canAfford}
+                    disabled={tierDisabled}
 
                     onClick={async () => {
 
@@ -424,35 +378,13 @@ export function PlanetDetailModal({
 
                     }}
 
-                    style={{
-
-                      padding: "5px 2px",
-
-                      borderRadius: 8,
-
-                      border: `1px solid ${isCurrent ? "rgba(0,230,118,0.5)" : canAfford ? "rgba(255,215,0,0.3)" : "rgba(255,255,255,0.07)"}`,
-
-                      background: isCurrent ? "rgba(0,230,118,0.12)" : canAfford ? "rgba(255,215,0,0.07)" : "rgba(255,255,255,0.03)",
-
-                      color: isCurrent ? "#00e676" : canAfford ? "#ffd700" : "rgba(255,255,255,0.2)",
-
-                      fontSize: 9,
-
-                      fontWeight: 900,
-
-                      cursor: isCurrent || !canAfford ? "default" : "pointer",
-
-                      textAlign: "center",
-
-                      lineHeight: 1.3,
-
-                    }}
+                    className={`farm-btn-3d farm-btn-3d--tier${isCurrent ? " farm-btn-3d--current" : ""}${tierDisabled && !isCurrent ? " farm-btn-3d--disabled" : ""}`}
 
                   >
 
                     <div>{hrs}h</div>
 
-                    <div style={{ fontWeight: 700, fontSize: 8, opacity: 0.8 }}>{isCurrent ? "●" : `${cost}G`}</div>
+                    <div>{isCurrent ? "●" : `${cost}G`}</div>
 
                   </button>
 

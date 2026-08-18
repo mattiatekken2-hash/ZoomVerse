@@ -1,12 +1,12 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { MysteryModel3D, type ForgeMeshHandle } from "./MysteryModel3D";
-import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { FORGE_CLAY_HEX, FORGE_SPHERE_SHAPE_ID } from "@workspace/game-models";
 import type { Planet } from "../hooks/useGameState";
 import { getRarityColorsForModel, PLANET_CONFIG } from "../hooks/useGameState";
+import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { useT } from "../i18n/LanguageContext";
 
-export type ForgePhase = "idle" | "flash" | "waiting" | "revealed";
+export type ForgePhase = "idle" | "wheel" | "flash" | "waiting" | "revealed";
 
 interface PlanetCanvasProps {
   onPunch?: () => void;
@@ -262,6 +262,57 @@ function spawnForgeParticles(
   }
 }
 
+function spawnForgeBurst(
+  layer: HTMLDivElement,
+  half: number,
+  accentColor: string,
+  primaryColor: string,
+  fragIdRef: { current: number },
+) {
+  while (layer.childElementCount >= MAX_FRAGMENTS) {
+    layer.firstElementChild?.remove();
+  }
+
+  const burstColors = [accentColor, primaryColor, "#ffffff", "#e8f4ff", "#fff8e0"];
+  const count = 28;
+
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
+    const dist = half * (0.55 + Math.random() * 0.42);
+    const tx = Math.cos(angle) * dist;
+    const ty = Math.sin(angle) * dist;
+    const isSpark = i % 5 === 0;
+    const dotSize = isSpark
+      ? Math.max(5, half * 0.028 + Math.random() * 4)
+      : Math.max(4, half * 0.02 + Math.random() * 3);
+
+    const dot = document.createElement("div");
+    dot.className = isSpark ? "lab-fragment lab-fragment--burst lab-fragment--spark" : "lab-fragment lab-fragment--burst";
+    dot.dataset["fid"] = `b-${fragIdRef.current++}`;
+
+    const s = dot.style;
+    s.position = "absolute";
+    s.left = "50%";
+    s.top = "50%";
+    s.width = `${dotSize}px`;
+    s.height = `${dotSize}px`;
+    s.borderRadius = isSpark ? "50%" : "1px";
+    s.background = isSpark ? "#ffffff" : (burstColors[i % burstColors.length] ?? accentColor);
+    s.pointerEvents = "none";
+    s.contain = "strict";
+    s.setProperty("--tx", `${tx}px`);
+    s.setProperty("--ty", `${ty}px`);
+    s.setProperty("--delay", `${i * 8}ms`);
+    s.setProperty("--dur", `${420 + Math.random() * 180}ms`);
+    if (isSpark) s.setProperty("--spark", `${accentColor}cc`);
+    s.transform = "translate(-50%, -50%) scale(0.15)";
+    s.opacity = "0";
+
+    layer.appendChild(dot);
+    dot.addEventListener("animationend", () => dot.remove(), { once: true });
+  }
+}
+
 export function PlanetCanvas({
   onPunch,
   tapSignal = 0,
@@ -282,7 +333,9 @@ export function PlanetCanvas({
   const meshRef = useRef<ForgeMeshHandle>(null);
   const fragIdRef = useRef(0);
   const lastTapSignalRef = useRef(tapSignal);
+  const burstSpawnedRef = useRef<string | null>(null);
   const [size, setSize] = useState(280);
+  const [forgeGlSession, setForgeGlSession] = useState<string | null>(null);
   const sizeRef = useRef(280);
   const craftSizeLockRef = useRef<number | null>(null);
 
@@ -304,41 +357,37 @@ export function PlanetCanvas({
   } as Planet : null);
   const isActiveCraft = forgePhase === "idle" && !!craftRarity && !forgeRolling;
   const isCrafting = isActiveCraft;
-  const showVoxelLayer = (isCrafting && forgePlanetBuild) || (!!pendingPlanet && forgePhase !== "revealed");
-  const showPlanetOrb = !!livePlanet && (!showVoxelLayer || !!pendingPlanet);
+  const forgeRarity = pendingPlanet?.name ?? craftRarity;
+  const showVoxelLayer = isCrafting && forgePlanetBuild;
+  const showPlanetOrb = false;
   const pct = goal > 0 ? Math.min(progress / goal, 1) : 0;
-  const revealed = forgePhase === "revealed";
   const buildProgress = isCrafting ? pct : 1;
   const isForging = isCrafting;
-  const forgeSeal = !!pendingPlanet && forgePhase !== "revealed";
-  const voxelMorphScale = forgePhase === "flash" ? 1.04 : forgePhase === "waiting" ? 1.07 : 1;
-  const voxelLayerOpacity = !pendingPlanet
-    ? 1
-    : forgePhase === "flash"
-      ? 0.88
-      : forgePhase === "waiting"
-        ? 0.42
-        : 0;
-  const orbRevealScale = revealed ? 1 : forgePhase === "waiting" ? 0.96 : forgePhase === "flash" ? 0.9 : 0.88;
-  const orbRevealOpacity = !pendingPlanet
-    ? 0
-    : revealed
-      ? 1
-      : forgePhase === "waiting"
-        ? 0.72
-        : forgePhase === "flash"
-          ? 0.28
-          : 0;
+  const forgeRevealPhase: ForgePhase = pendingPlanet ? forgePhase : "idle";
   const rarityPaint = livePlanet ? getRarityColorsForModel(livePlanet.name) : undefined;
-  const displayAccent = revealed
-    ? (rarityPaint?.accentHex || (livePlanet ? PLANET_CONFIG[livePlanet.name as Planet["name"]].glowColor : undefined) || accentColor || DEFAULT_ACCENT)
-    : DEFAULT_ACCENT;
-  const displayPrimary = revealed
-    ? (rarityPaint?.color || livePlanet?.color || displayAccent)
-    : FORGE_CLAY_HEX;
+  const meshPrimary = rarityPaint?.color ?? FORGE_CLAY_HEX;
+  const meshAccent = rarityPaint?.accentHex ?? DEFAULT_ACCENT;
+  const displayAccent = DEFAULT_ACCENT;
+  const forgeDisplayFloat = livePlanet && isFloatablePlanet(livePlanet)
+    ? getDisplayFloat(livePlanet)
+    : undefined;
 
   const forgeShapeId = showVoxelLayer ? FORGE_SPHERE_SHAPE_ID : undefined;
   const objectParts = useMemo(() => (showVoxelLayer ? [] : undefined), [showVoxelLayer]);
+
+  /** One WebGL session per forge cycle — released when clay build ends so reveal card gets GPU budget. */
+  useEffect(() => {
+    if (showVoxelLayer && !forgeGlSession) {
+      setForgeGlSession(`forge-${Date.now()}`);
+    } else if (!showVoxelLayer && forgeGlSession) {
+      setForgeGlSession(null);
+    }
+  }, [showVoxelLayer, forgeGlSession]);
+
+  const handleLabGlError = useCallback(() => {
+    if (!showVoxelLayer) return;
+    setForgeGlSession(`forge-recover-${Date.now()}`);
+  }, [showVoxelLayer]);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -362,14 +411,14 @@ export function PlanetCanvas({
   }, [backdrop]);
 
   useLayoutEffect(() => {
-    if (isActiveCraft) {
+    if (isActiveCraft || pendingPlanet) {
       if (craftSizeLockRef.current == null) {
         craftSizeLockRef.current = sizeRef.current;
       }
-    } else if (!isActiveCraft && forgePhase === "idle" && !pendingPlanet) {
+    } else if (forgePhase === "idle" && !pendingPlanet) {
       craftSizeLockRef.current = null;
     }
-  }, [isActiveCraft, forgePhase, pendingPlanet]);
+  }, [isActiveCraft, pendingPlanet, forgePhase]);
 
   const layoutSize = craftSizeLockRef.current ?? size;
   const modelCanvasSize = backdrop ? layoutSize : Math.round(layoutSize * 0.88);
@@ -407,8 +456,9 @@ export function PlanetCanvas({
     spawnParticles(tapRelaxed);
   }, [tapSignal, tapRelaxed, spawnParticles]);
 
-  const showModel3D = forgePhase !== "flash";
-  const showFlash = forgePhase === "flash";
+  useEffect(() => {
+    if (!pendingPlanet) burstSpawnedRef.current = null;
+  }, [pendingPlanet]);
 
   const progressLabel = forgeRolling
     ? t("planetCanvas.forgingMass")
@@ -439,7 +489,7 @@ export function PlanetCanvas({
         }}
         data-testid="planet-wrap"
       >
-        {(showVoxelLayer || (showPlanetOrb && livePlanet)) && (
+        {(showVoxelLayer && livePlanet) && (
           <div
             style={{
               position: "relative",
@@ -448,94 +498,45 @@ export function PlanetCanvas({
               pointerEvents: isForging && !forgeRolling ? "auto" : "none",
             }}
           >
-            {showModel3D && showVoxelLayer && (
+            {showVoxelLayer && forgeGlSession && livePlanet && (
               <div
                 style={{
                   position: "absolute",
                   inset: 0,
                   lineHeight: 0,
-                  opacity: voxelLayerOpacity,
-                  transform: `scale(${voxelMorphScale})`,
-                  transition: "opacity 0.7s ease, transform 0.85s cubic-bezier(0.22, 1, 0.36, 1)",
                   pointerEvents: isForging && !forgeRolling ? "auto" : "none",
                 }}
                 onClick={isForging && !forgeRolling ? handleModelTap : undefined}
               >
                 <MysteryModel3D
                   ref={meshRef}
-                  key={`planet-voxel-${craftRarity ?? pendingPlanet?.id ?? "forge"}`}
+                  key={`planet-voxel-${forgeGlSession}`}
                   parts={objectParts ?? []}
                   shapeId={forgeShapeId}
-                  primaryColor={displayPrimary}
-                  accentColor={displayAccent}
-                  progress={buildProgress}
+                  primaryColor={meshPrimary}
+                  accentColor={meshAccent}
+                  progress={isCrafting ? buildProgress : 1}
                   revealed={false}
+                  planetRarity={forgeRarity ?? undefined}
+                  displayFloat={forgeDisplayFloat}
+                  planetId={livePlanet?.id}
                   size={modelCanvasSize}
                   onTap={isForging && !forgeRolling ? handleModelTap : undefined}
                   autoSpin
                   forgeVoxelBuild={true}
-                  forgeSeal={forgeSeal}
+                  forgeRevealPhase={forgeRevealPhase}
                   forgeTapRelaxed={tapRelaxed}
                   performanceMode={false}
+                  labForgeBackdrop={backdrop}
+                  onGlFailed={handleLabGlError}
+                  onGlContextLost={handleLabGlError}
                 />
-              </div>
-            )}
-
-            {showModel3D && showPlanetOrb && livePlanet && orbRevealOpacity > 0.01 && (
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  lineHeight: 0,
-                  transform: `scale(${orbRevealScale})`,
-                  opacity: orbRevealOpacity,
-                  transition: "transform 0.85s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.75s ease",
-                  pointerEvents: "none",
-                }}
-              >
-                <PlanetVoxelThumb planet={livePlanet} size={modelCanvasSize} animate={revealed} eager />
               </div>
             )}
           </div>
         )}
 
-        {revealed && rarityPaint && (
-          <div
-            className="pointer-events-none"
-            style={{
-              position: "absolute",
-              inset: "-8%",
-              borderRadius: "50%",
-              background: `radial-gradient(circle, ${rarityPaint.color}55 0%, ${rarityPaint.color}18 42%, transparent 70%)`,
-              boxShadow: `0 0 48px ${rarityPaint.color}44`,
-              zIndex: 1,
-            }}
-          />
-        )}
-
-        {showFlash && (
-          <div
-            className="forge-flash"
-            style={{
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              width: size,
-              height: size,
-              marginLeft: -size / 2,
-              marginTop: -size / 2,
-              borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,255,255,0.85) 30%, rgba(220,230,255,0.4) 60%, transparent 80%)",
-              pointerEvents: "none",
-              zIndex: 20,
-            }}
-          />
-        )}
-
-        {isActiveCraft && (
+        {(isActiveCraft || !!pendingPlanet) && (
           <div
             ref={fragmentLayerRef}
             style={{

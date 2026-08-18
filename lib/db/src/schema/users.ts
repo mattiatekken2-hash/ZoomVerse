@@ -112,6 +112,10 @@ export const usersTable = pgTable("users", {
   // UTC day key (YYYY-MM-DD) the today-counter belongs to. When the stored
   // key differs from today, today is reset to 0 before incrementing.
   stardustDayKey: text("stardust_day_key"),
+  /** STARDUST market — amount locked in the global index pool. */
+  stardustStaked: integer("stardust_staked").notNull().default(0),
+  /** Weighted entry index (micro) for staked STARDUST. */
+  stardustStakeIndexMicro: integer("stardust_stake_index_micro").notNull().default(1_000_000),
   // HALL OF FAME — Daily Referrals.
   // `dailyReferralCount` is the number of *new* successful referrals this
   // user has earned during the current UTC day. `dailyReferralDayKey` is

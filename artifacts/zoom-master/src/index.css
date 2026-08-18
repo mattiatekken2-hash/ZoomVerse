@@ -1115,6 +1115,26 @@ body.animations-paused * {
   backface-visibility: hidden;
 }
 
+@keyframes labFragmentBurst {
+  0% {
+    transform: translate(-50%, -50%) scale(0.15);
+    opacity: 0;
+  }
+  12% { opacity: 1; }
+  100% {
+    transform: translate(calc(-50% + var(--tx, 0px)), calc(-50% + var(--ty, 0px))) scale(0);
+    opacity: 0;
+  }
+}
+.lab-fragment--burst {
+  transform: translate(-50%, -50%) scale(0.15);
+  opacity: 0;
+  animation: labFragmentBurst var(--dur, 520ms) cubic-bezier(0.12, 0.82, 0.22, 1) forwards;
+  animation-delay: var(--delay, 0ms);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
 /* ─── Forge cinematic animations ───────────────────────────────────
    The forge sequence runs: idle → flash (220ms) → waiting (2000ms) →
    revealed. All transforms use translate/rotate/scale only so the GPU
@@ -1126,7 +1146,7 @@ body.animations-paused * {
   100% { opacity: 0; transform: scale(1.6); }
 }
 .forge-flash {
-  animation: forgeFlash 220ms ease-out forwards;
+  animation: forgeFlash 360ms ease-out forwards;
 }
 
 @keyframes forgeShake {
@@ -1691,4 +1711,305 @@ body.animations-paused * {
 }
 @media (prefers-reduced-motion: reduce) {
   .nft-pulse-halo { animation: none; opacity: 0.7; }
+}
+
+/* ─── THE SUN card — white / cyan 3D slab ───────────────────────────── */
+@keyframes sun-border-spin { to { transform: rotate(360deg); } }
+@keyframes sun-card-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(1); }
+  50%      { opacity: 0.85; transform: scale(1.04); }
+}
+@keyframes stardust-coin-spin {
+  from { transform: perspective(420px) rotateY(0deg); }
+  to   { transform: perspective(420px) rotateY(360deg); }
+}
+.stardust-coin-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.stardust-coin-3d {
+  transform: perspective(420px) rotateY(-18deg);
+}
+.stardust-coin-3d--spin {
+  animation: stardust-coin-spin 4.5s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .stardust-coin-3d--spin { animation: none; }
+}
+
+.sun-card-3d {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(152deg,
+      rgba(255, 255, 255, 0.16) 0%,
+      rgba(190, 245, 255, 0.1) 18%,
+      rgba(12, 32, 48, 0.94) 48%,
+      rgba(4, 10, 18, 0.98) 100%);
+  border: 1px solid rgba(170, 235, 255, 0.38);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.28) inset,
+    0 -2px 0 rgba(0, 50, 70, 0.45) inset,
+    0 14px 32px rgba(0, 0, 0, 0.48),
+    0 0 28px rgba(120, 220, 255, 0.14);
+  transform: perspective(880px) translateZ(0);
+}
+.sun-card-3d::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from 210deg,
+    rgba(255, 255, 255, 0.06) 0deg,
+    rgba(200, 250, 255, 0.95) 55deg,
+    rgba(255, 255, 255, 1) 85deg,
+    rgba(80, 210, 255, 0.88) 115deg,
+    rgba(255, 255, 255, 0.08) 200deg,
+    rgba(255, 255, 255, 0.06) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: sun-border-spin 5.5s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+.sun-card-3d::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(180, 240, 255, 0.05) 28%,
+    transparent 52%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+.sun-card-3d > .sun-card-3d__body {
+  position: relative;
+  z-index: 1;
+}
+.sun-card-3d__sheen {
+  position: absolute;
+  top: -18%;
+  right: -8%;
+  width: 52%;
+  height: 58%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.22) 0%, rgba(120, 230, 255, 0.12) 38%, transparent 72%);
+  pointer-events: none;
+  z-index: 0;
+  animation: sun-card-pulse 4.2s ease-in-out infinite;
+}
+.sun-card-3d--active {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.32) inset,
+    0 -2px 0 rgba(0, 50, 70, 0.45) inset,
+    0 16px 36px rgba(0, 0, 0, 0.5),
+    0 0 36px rgba(100, 230, 255, 0.28),
+    0 0 64px rgba(80, 200, 255, 0.12);
+}
+.sun-card-3d--expired {
+  border-color: rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(152deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(120, 160, 180, 0.05) 22%,
+      rgba(8, 12, 18, 0.96) 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.1) inset,
+    0 8px 20px rgba(0, 0, 0, 0.4);
+}
+.sun-card-3d--expired::before {
+  opacity: 0.35;
+  animation: none;
+}
+.sun-card-3d--expired .sun-card-3d__sheen {
+  animation: none;
+  opacity: 0.25;
+}
+.sun-title-3d {
+  color: #f4fcff;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.85),
+    0 0 14px rgba(160, 240, 255, 0.75),
+    0 0 28px rgba(80, 200, 255, 0.35);
+  letter-spacing: 0.06em;
+}
+.sun-badge-cyan {
+  background: rgba(180, 240, 255, 0.12);
+  color: #d8f7ff;
+  border: 1px solid rgba(160, 230, 255, 0.38);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sun-card-3d::before { animation: none; }
+  .sun-card-3d__sheen { animation: none; }
+}
+
+/* ─── Farm planet detail — white / cyan 3D panels & buttons ─────────── */
+.farm-panel-3d {
+  position: relative;
+  isolation: isolate;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background:
+    linear-gradient(152deg,
+      rgba(255, 255, 255, 0.14) 0%,
+      rgba(185, 245, 255, 0.09) 22%,
+      rgba(10, 24, 36, 0.94) 100%);
+  border: 1px solid rgba(165, 235, 255, 0.34);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 -1px 0 rgba(0, 45, 65, 0.4) inset,
+    0 8px 22px rgba(0, 0, 0, 0.38),
+    0 0 18px rgba(100, 220, 255, 0.1);
+  transform: perspective(640px) translateZ(0);
+}
+.farm-panel-3d::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from 210deg,
+    rgba(255, 255, 255, 0.05) 0deg,
+    rgba(195, 248, 255, 0.85) 55deg,
+    rgba(255, 255, 255, 0.95) 85deg,
+    rgba(80, 210, 255, 0.75) 115deg,
+    rgba(255, 255, 255, 0.06) 200deg,
+    rgba(255, 255, 255, 0.05) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: sun-border-spin 6.5s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+.farm-panel-3d::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(170, 235, 255, 0.04) 30%, transparent 55%);
+  pointer-events: none;
+  z-index: 0;
+}
+.farm-panel-3d > * {
+  position: relative;
+  z-index: 1;
+}
+.farm-panel-3d__title {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.07em;
+  color: #d8f7ff;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.55),
+    0 0 10px rgba(140, 230, 255, 0.45);
+  margin-bottom: 8px;
+}
+
+.farm-btn-3d {
+  position: relative;
+  isolation: isolate;
+  border-radius: 12px;
+  background:
+    linear-gradient(145deg,
+      rgba(255, 255, 255, 0.15) 0%,
+      rgba(150, 225, 255, 0.08) 38%,
+      rgba(6, 14, 22, 0.92) 100%);
+  border: 1px solid rgba(170, 235, 255, 0.36);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.24) inset,
+    0 -1px 0 rgba(0, 40, 58, 0.35) inset,
+    0 4px 12px rgba(0, 0, 0, 0.32),
+    0 0 14px rgba(90, 210, 255, 0.08);
+  color: #e8fbff;
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35),
+    0 0 8px rgba(120, 220, 255, 0.35);
+  transform: perspective(520px) translateZ(0);
+  transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+.farm-btn-3d::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0%, transparent 48%);
+  pointer-events: none;
+}
+.farm-btn-3d:not(:disabled):active {
+  transform: perspective(520px) translateY(1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 2px 6px rgba(0, 0, 0, 0.28);
+}
+.farm-btn-3d--tier {
+  padding: 5px 2px;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 900;
+  text-align: center;
+  line-height: 1.3;
+  cursor: pointer;
+}
+.farm-btn-3d--tier > div:last-child {
+  font-weight: 700;
+  font-size: 8px;
+  opacity: 0.85;
+}
+.farm-btn-3d--current {
+  border-color: rgba(120, 255, 210, 0.55);
+  color: #b8ffe8;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.26) inset,
+    0 0 16px rgba(80, 255, 180, 0.18),
+    0 4px 12px rgba(0, 0, 0, 0.32);
+}
+.farm-btn-3d--disabled,
+.farm-btn-3d:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  border-color: rgba(170, 235, 255, 0.14);
+  color: rgba(200, 240, 255, 0.35);
+  text-shadow: none;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 2px 6px rgba(0, 0, 0, 0.22);
+}
+.farm-btn-3d--burn-confirm {
+  border-color: rgba(255, 120, 120, 0.55);
+  color: #ffb8b8;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 0 18px rgba(255, 80, 80, 0.22),
+    0 4px 12px rgba(0, 0, 0, 0.32);
+}
+@media (prefers-reduced-motion: reduce) {
+  .farm-panel-3d::before { animation: none; }
+}
+
+/* Farm / Market voxel planet thumbs — crisp blocky WebGL */
+.planet-voxel-thumb canvas,
+.planet-voxel-thumb--hifi canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+.object-thumb canvas {
+  display: block;
+  image-rendering: auto;
 }

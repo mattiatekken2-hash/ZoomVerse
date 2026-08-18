@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
-import { createStarsInvoice, confirmStarsPurchase, buyShopItemFromDeposit, fetchSunStock, pollTxnUntilFinal, fetchHomeState, buyComputer, buyPlantSeed, fetchSlotPrice, type SunStock, type HomeState, type SlotPriceInfo } from "../utils/api";
+import { createStarsInvoice, confirmStarsPurchase, buyShopItemFromDeposit, buyShopItemFromStardust, fetchSunStock, pollTxnUntilFinal, fetchHomeState, buyComputer, buyPlantSeed, fetchSlotPrice, fetchStardustMarketPrice, type SunStock, type HomeState, type SlotPriceInfo } from "../utils/api";
+import { stardustShopPrice } from "../utils/stardustMarket";
 import { PixelPlant } from "../components/PixelPlant";
 import { useT } from "../i18n/LanguageContext";
 import { LottoStellareWidget } from "../components/LottoStellareWidget";
@@ -62,6 +63,7 @@ const COLLECTIONS = [
 
 interface ShopPageProps {
   balance: number;
+  stardustBalance?: number;
   // DEPOSIT TON balance. Shop TON-priced items are paid EXCLUSIVELY from this
   // (never from the earned/withdrawable balance, never via per-item TonConnect
   // signing). External deposits → /shop/buy-deposit → entitlements.
@@ -85,6 +87,7 @@ interface ShopPageProps {
 
 export function ShopPage({
   balance,
+  stardustBalance: stardustBalanceProp = 0,
   depositBalance,
   hasSun: _hasSun,
   telegramId,
@@ -107,7 +110,9 @@ export function ShopPage({
   const connectedAddress = useTonAddress();
   const [buying, setBuying] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [payMode, setPayMode] = useState<"stars" | "ton">("stars");
+  const [payMode, setPayMode] = useState<"stars" | "ton" | "stardust">("stars");
+  const [stardustIndex, setStardustIndex] = useState(1);
+  const [liveStardustBalance, setLiveStardustBalance] = useState(stardustBalanceProp);
   const [sunStock, setSunStock] = useState<SunStock | null>(null);
   const [slotPrice, setSlotPrice] = useState<SlotPriceInfo | null>(null);
   // Shop categories: tabs per organizzare i prodotti.
@@ -115,6 +120,27 @@ export function ShopPage({
   // - items: bundle pacchetti + extra slot (consumabili "in-game")
   // - resources: stardust top-ups + computer/plant (currency e item stardust)
   const [shopTab, setShopTab] = useState<"exclusive" | "bundles" | "items" | "resources" | "lab" | "hub">("exclusive");
+
+  useEffect(() => {
+    setLiveStardustBalance(stardustBalanceProp);
+  }, [stardustBalanceProp]);
+
+  useEffect(() => {
+    const load = () => {
+      void fetchStardustMarketPrice().then((p) => {
+        if (p && Number.isFinite(p.index)) setStardustIndex(p.index);
+      });
+    };
+    load();
+    const id = window.setInterval(load, 20_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const gramPriceForItem = (item: ShopItem) =>
+    item.id === "extra_slot" ? (slotPrice?.nextPriceTon ?? item.tonPrice) : item.tonPrice;
+
+  const stardustPriceForItem = (item: ShopItem) =>
+    stardustShopPrice(gramPriceForItem(item), stardustIndex);
   // Live stock for each collection bundle (api/<key>-collection/stock).
   const [collStocks, setCollStocks] = useState<Record<string, StockInfo | null>>({});
   const refreshCollStocks = async () => {
@@ -306,6 +332,46 @@ export function ShopPage({
     }
   };
 
+  const handleStardustBuy = async (item: ShopItem) => {
+    if (!telegramId) { setMessage("Telegram ID missing"); return; }
+    const cost = stardustPriceForItem(item);
+    if (liveStardustBalance < cost) {
+      setMessage(`Insufficient STARDUST (need ${cost.toLocaleString()} ★). Wallet → STARDUST → convert GRAM.`);
+      return;
+    }
+    setBuying(item.id);
+    const res = await buyShopItemFromStardust(telegramId, item.id);
+    setBuying(null);
+    if (res.ok) {
+      setMessage(`${item.title} purchased! (−${(res.stardustSpent ?? cost).toLocaleString()} ★)`);
+      setLiveStardustBalance((b) => Math.max(0, b - (res.stardustSpent ?? cost)));
+      triggerDataRefresh();
+      window.dispatchEvent(new CustomEvent("stardust-refresh"));
+      if (item.id === "extra_slot") refreshSlotPrice();
+    } else {
+      setMessage(res.error || "Purchase failed");
+    }
+  };
+
+  const purchaseItem = async (item: ShopItem) => {
+    if (payMode === "stars") await handleStarsBuy(item);
+    else if (payMode === "ton") await handleTonBuy(item);
+    else await handleStardustBuy(item);
+  };
+
+  const payColor = payMode === "stars" ? "#ffd700" : payMode === "ton" ? "#0088ff" : "#ffd740";
+  const formatItemPrice = (item: ShopItem) => {
+    if (payMode === "stars") return `⭐ ${item.starsPrice}`;
+    if (payMode === "ton") return `${gramPriceForItem(item)}`;
+    return `★ ${stardustPriceForItem(item).toLocaleString()}`;
+  };
+  const formatBuyLabel = (item: ShopItem) => {
+    if (payMode === "stars") return `BUY — ⭐ ${item.starsPrice}`;
+    if (payMode === "ton") return `BUY — ${gramPriceForItem(item)} GRAM`;
+    return `BUY — ★ ${stardustPriceForItem(item).toLocaleString()}`;
+  };
+  const priceUnit = payMode === "stars" ? "Stars" : payMode === "ton" ? "GRAM" : "STARDUST";
+
   const handleConnectWallet = () => {
     tonConnectUI.openModal();
   };
@@ -419,7 +485,23 @@ export function ShopPage({
           >
             GRAM
           </button>
+          <button
+            onClick={() => setPayMode("stardust")}
+            className="flex-1 py-2 rounded-md text-xs font-bold tracking-wider transition-all"
+            style={{
+              background: payMode === "stardust" ? "rgba(255,215,64,0.15)" : "transparent",
+              color: payMode === "stardust" ? "#ffd740" : "rgba(255,255,255,0.3)",
+              border: payMode === "stardust" ? "1px solid rgba(255,215,64,0.28)" : "1px solid transparent",
+            }}
+          >
+            ★ STARDUST
+          </button>
         </div>
+        {payMode === "stardust" && (
+          <div className="mt-2 text-[10px] font-bold text-center" style={{ color: "rgba(255,215,64,0.55)" }}>
+            Balance {liveStardustBalance.toLocaleString()} ★ · Index {stardustIndex.toFixed(3)} · convert GRAM in Wallet
+          </div>
+        )}
       </div>
 
       {/* Shop category tabs — Exclusive / Items / Resources.
@@ -491,7 +573,7 @@ export function ShopPage({
                 if (sunDisabled) return;
                 const sunItem: ShopItem = { id: "the_sun", title: "SUN", desc: "Exclusive", starsPrice: 1000, tonPrice: 10, color: "#ffb347", icon: "☀", type: "sun" };
                 if (payMode === "stars") await handleStarsBuy(sunItem);
-                else await handleTonBuy(sunItem);
+                else await purchaseItem(sunItem);
                 refreshSunStock();
               }}
               disabled={sunDisabled || buying === "the_sun"}
@@ -505,7 +587,7 @@ export function ShopPage({
                 opacity: buying === "the_sun" ? 0.6 : 1,
               }}
             >
-              {sunSoldOut ? "Sold Out" : sunUserMaxed ? `Max ${sunStock?.maxPerUser ?? 5} Reached` : buying === "the_sun" ? "Processing..." : payMode === "stars" ? "BUY — ⭐ 1,000 Stars" : "BUY — 10 GRAM"}
+              {sunSoldOut ? "Sold Out" : sunUserMaxed ? `Max ${sunStock?.maxPerUser ?? 5} Reached` : buying === "the_sun" ? "Processing..." : formatBuyLabel({ id: "the_sun", title: "SUN", desc: "", starsPrice: 1000, tonPrice: 10, color: "#ffb347", icon: "☀", type: "sun" })}
             </button>
           </div>
           </>)}
@@ -536,7 +618,7 @@ export function ShopPage({
                 type: "bundle",
               };
               if (payMode === "stars") await handleStarsBuy(shopItem);
-              else await handleTonBuy(shopItem);
+              else await purchaseItem(shopItem);
               refreshCollStocks();
             };
             return (
@@ -593,7 +675,9 @@ export function ShopPage({
                     ? "Processing..."
                     : payMode === "stars"
                     ? `BUY — ⭐ ${col.priceStars.toLocaleString()} Stars`
-                    : `BUY — ${col.priceTon} GRAM`}
+                    : payMode === "ton"
+                    ? `BUY — ${col.priceTon} GRAM`
+                    : `BUY — ★ ${stardustShopPrice(col.priceTon, stardustIndex).toLocaleString()}`}
                 </button>
               </div>
             );
@@ -657,17 +741,17 @@ export function ShopPage({
                   <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>{item.desc}</div>
                 </div>
                 <div className="flex-shrink-0 text-right">
-                  <div className="font-black text-base" style={{ color: payMode === "stars" ? "#ffd700" : "#0088ff" }}>
-                    {payMode === "stars" ? `⭐ ${item.starsPrice}` : `${item.tonPrice}`}
+                  <div className="font-black text-base" style={{ color: payColor }}>
+                    {formatItemPrice(item)}
                   </div>
-                  <div className="text-xs opacity-70" style={{ color: payMode === "stars" ? "#ffd700" : "#0088ff" }}>
-                    {payMode === "stars" ? "Stars" : "GRAM"}
+                  <div className="text-xs opacity-70" style={{ color: payColor }}>
+                    {priceUnit}
                   </div>
                 </div>
               </div>
               <div style={{ borderTop: `1px solid ${item.color}20` }}>
                 <button
-                  onClick={() => payMode === "stars" ? handleStarsBuy(item) : handleTonBuy(item)}
+                  onClick={() => { void purchaseItem(item); }}
                   disabled={buying === item.id}
                   className="w-full py-3 font-black text-sm tracking-wider uppercase transition-all active:scale-95"
                   style={{
@@ -676,7 +760,7 @@ export function ShopPage({
                     opacity: buying === item.id ? 0.6 : 1,
                   }}
                 >
-                  {buying === item.id ? "Processing..." : payMode === "stars" ? `BUY — ⭐ ${item.starsPrice}` : `BUY — ${item.tonPrice} GRAM`}
+                  {buying === item.id ? "Processing..." : formatBuyLabel(item)}
                 </button>
               </div>
             </div>
@@ -799,10 +883,11 @@ export function ShopPage({
               disabilitato lato server e nascosto qui. */}
           {(() => {
             const item = EXTRA_SLOT_ITEM;
-            const price = slotPrice?.nextPriceTon ?? item.tonPrice;
+            const gramPrice = slotPrice?.nextPriceTon ?? item.tonPrice;
+            const slotShopItem: ShopItem = { ...item, tonPrice: gramPrice };
             const owned = slotPrice?.bonusSlots ?? 0;
             const maxPrice = slotPrice?.maxPriceTon ?? 1;
-            const atCap = price >= maxPrice;
+            const atCap = gramPrice >= maxPrice;
             return (
               <div
                 key={item.id}
@@ -827,22 +912,28 @@ export function ShopPage({
                     </div>
                   </div>
                   <div className="flex-shrink-0 text-right">
-                    <div className="font-black text-base" style={{ color: "#0088ff" }}>{price}</div>
-                    <div className="text-xs opacity-70" style={{ color: "#0088ff" }}>GRAM</div>
+                    <div className="font-black text-base" style={{ color: payColor }}>{formatItemPrice(slotShopItem)}</div>
+                    <div className="text-xs opacity-70" style={{ color: payColor }}>{priceUnit}</div>
                   </div>
                 </div>
                 <div style={{ borderTop: `1px solid ${item.color}15` }}>
                   <button
-                    onClick={() => handleTonBuy(item)}
-                    disabled={buying === item.id || !slotPrice}
+                    onClick={() => { void purchaseItem(slotShopItem); }}
+                    disabled={buying === item.id || !slotPrice || payMode === "stars"}
                     className="w-full py-3 font-black text-sm tracking-wider uppercase transition-all active:scale-95"
                     style={{
                       background: item.color + "10",
                       color: item.color,
-                      opacity: buying === item.id || !slotPrice ? 0.6 : 1,
+                      opacity: buying === item.id || !slotPrice || payMode === "stars" ? 0.6 : 1,
                     }}
                   >
-                    {buying === item.id ? "Processing..." : !slotPrice ? "Loading..." : `BUY — ${price} GRAM`}
+                    {payMode === "stars"
+                      ? "GRAM or STARDUST only"
+                      : buying === item.id
+                      ? "Processing..."
+                      : !slotPrice
+                      ? "Loading..."
+                      : formatBuyLabel(slotShopItem)}
                   </button>
                 </div>
               </div>
@@ -867,17 +958,17 @@ export function ShopPage({
                   <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>{item.desc}</div>
                 </div>
                 <div className="flex-shrink-0 text-right">
-                  <div className="font-black text-base" style={{ color: payMode === "stars" ? "#ffd700" : "#0088ff" }}>
-                    {payMode === "stars" ? `⭐ ${item.starsPrice}` : `${item.tonPrice}`}
+                  <div className="font-black text-base" style={{ color: payColor }}>
+                    {formatItemPrice(item)}
                   </div>
-                  <div className="text-xs opacity-70" style={{ color: payMode === "stars" ? "#ffd700" : "#0088ff" }}>
-                    {payMode === "stars" ? "Stars" : "GRAM"}
+                  <div className="text-xs opacity-70" style={{ color: payColor }}>
+                    {priceUnit}
                   </div>
                 </div>
               </div>
               <div style={{ borderTop: `1px solid ${item.color}15` }}>
                 <button
-                  onClick={() => payMode === "stars" ? handleStarsBuy(item) : handleTonBuy(item)}
+                  onClick={() => { void purchaseItem(item); }}
                   disabled={buying === item.id}
                   className="w-full py-3 font-black text-sm tracking-wider uppercase transition-all active:scale-95"
                   style={{
@@ -886,7 +977,7 @@ export function ShopPage({
                     opacity: buying === item.id ? 0.6 : 1,
                   }}
                 >
-                  {buying === item.id ? "Processing..." : payMode === "stars" ? `BUY — ⭐ ${item.starsPrice}` : `BUY — ${item.tonPrice} TON`}
+                  {buying === item.id ? "Processing..." : formatBuyLabel(item)}
                 </button>
               </div>
             </div>

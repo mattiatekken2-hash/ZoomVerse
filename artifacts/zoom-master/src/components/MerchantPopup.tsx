@@ -1,19 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { type Planet, type PlanetType, PLANET_CONFIG } from "../hooks/useGameState";
-import alienMerchantImg from "../assets/alien-merchant.png";
+import { AlienScrapper3D } from "./AlienScrapper3D";
+import { useT } from "../i18n/LanguageContext";
 
 interface Props {
-  expiresAt: string | null;
   planets: Planet[];
   onScrap: (planetId: string, planetType: string) => Promise<{ ok: boolean; reward?: number; reason?: string }>;
   onBurnPlanet: (id: string, stardustReward?: number) => void;
-  onClose: () => void;
 }
 
-type View = "idle" | "confirm" | "scrapping" | "result" | "expired";
+type View = "idle" | "confirm" | "scrapping" | "result";
 
 const SCRAP_ANIMATION_MS = 1500;
-const SCRAP_GRACE_MS = 25_000;
 
 const REWARD_MAP: Record<string, number> = {
   BASIC: 1,
@@ -28,63 +26,24 @@ const REWARD_MAP: Record<string, number> = {
 const GREEN_ACCENT = "#00ff88";
 const GREEN_ACCENT_RGB = "0,255,136";
 
-export function MerchantPopup({
-  expiresAt,
-  planets,
-  onScrap,
-  onBurnPlanet,
-  onClose,
-}: Props) {
+/** Permanent Lab scrapper — left dock, always available. */
+export function MerchantPopup({ planets, onScrap, onBurnPlanet }: Props) {
+  const { t } = useT();
   const [view, setView] = useState<View>("idle");
   const [selected, setSelected] = useState<Planet | null>(null);
   const [resultReward, setResultReward] = useState<number | null>(null);
   const [resultType, setResultType] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [now, setNow] = useState(() => Date.now());
   const [isOpen, setIsOpen] = useState(false);
-
-  const expiresMs = useMemo(() => (expiresAt ? new Date(expiresAt).getTime() : 0), [expiresAt]);
-  const remaining = Math.max(0, expiresMs - now);
-  const remainingSec = Math.ceil(remaining / 1000);
-
   const inFlightRef = useRef(false);
 
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 3000);
-    return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    if (view === "scrapping" || view === "result") return;
-    if (remaining <= 0 && view !== "expired") setView("expired");
-  }, [remaining, view]);
-
-  useEffect(() => {
-    if (view !== "expired") return;
-    const id = setTimeout(onClose, 5000);
-    return () => clearTimeout(id);
-  }, [view, onClose]);
-
-  useEffect(() => {
-    if (view === "result" || view === "scrapping") setIsOpen(true);
-  }, [view]);
-
-  const tryClose = () => {
-    if (inFlightRef.current) return;
-    setIsOpen(false);
-  };
-
-  const eligible = useMemo(() => {
-    return planets.filter((p) => !p.isFarmingActive && !p.isListedInMarket);
-  }, [planets]);
+  const eligible = useMemo(
+    () => planets.filter((p) => !p.isFarmingActive && !p.isListedInMarket),
+    [planets],
+  );
 
   const startScrap = async () => {
-    if (!selected) return;
-    if (inFlightRef.current) return;
-    if (expiresMs > 0 && Date.now() - expiresMs > SCRAP_GRACE_MS) {
-      setView("expired");
-      return;
-    }
+    if (!selected || inFlightRef.current) return;
 
     inFlightRef.current = true;
     setError(null);
@@ -95,17 +54,13 @@ export function MerchantPopup({
     const [, res] = await Promise.all([anim, scrap]);
 
     if (!res.ok) {
-      setError(res.reason ?? "Scrap failed");
+      setError(res.reason ?? t("merchant.scrapFailed"));
       setView("idle");
       inFlightRef.current = false;
       return;
     }
 
-    // Burn locally so inventory updates immediately.
-    // NOTE: stardust is NOT credited here — the server already added it
-    // in the /merchant/scrap transaction, and we don't want double credit.
     onBurnPlanet(selected.id);
-
     setResultReward(res.reward ?? null);
     setResultType(selected.name);
     setSelected(null);
@@ -117,99 +72,67 @@ export function MerchantPopup({
     setResultReward(null);
     setResultType(null);
     setError(null);
-    if (remaining <= 0) onClose();
-    else setView("idle");
+    setView("idle");
   };
 
-  const formatTime = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${m}:${String(s).padStart(2, "0")}`;
-  };
+  const shaking = view === "scrapping";
 
   return (
-    <>
-      {/* Vibrating alien tile — yellow theme */}
+    <div
+      className="pointer-events-auto"
+      style={{
+        position: "absolute",
+        left: 8,
+        bottom: 88,
+        zIndex: 35,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-start",
+        gap: 6,
+      }}
+    >
       <button
         type="button"
         onClick={() => setIsOpen((v) => !v)}
-        aria-label={isOpen ? "Close Stardust Scrapper" : "Open Stardust Scrapper"}
+        aria-label={isOpen ? t("merchant.closeAria") : t("merchant.openAria")}
         style={{
-          position: "fixed",
-          left: 12,
-          top: 390,
-          width: 60,
-          height: 60,
-          borderRadius: 14,
-          background: "rgba(4,28,16,0.88)",
-          border: `1.5px solid rgba(${GREEN_ACCENT_RGB},0.65)`,
+          width: 76,
+          height: 76,
+          borderRadius: 18,
+          background: "linear-gradient(145deg, rgba(8,32,20,0.92) 0%, rgba(4,18,12,0.96) 100%)",
+          border: `1.5px solid rgba(${GREEN_ACCENT_RGB},0.55)`,
           padding: 0,
           cursor: "pointer",
-          zIndex: 39,
           WebkitTapHighlightColor: "transparent",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          lineHeight: 1,
-          boxShadow: `0 0 14px rgba(${GREEN_ACCENT_RGB},0.45)`,
-          animation: "merchant-vibrate 1.2s ease-in-out infinite",
+          boxShadow: `0 0 18px rgba(${GREEN_ACCENT_RGB},0.35), inset 0 0 12px rgba(${GREEN_ACCENT_RGB},0.08)`,
         }}
         data-testid="button-space-merchant"
       >
-        <img
-          src={alienMerchantImg}
-          alt=""
-          aria-hidden
-          draggable={false}
-          style={{
-            width: 50,
-            height: 50,
-            objectFit: "contain",
-            imageRendering: "pixelated",
-            filter: `drop-shadow(0 0 6px rgba(${GREEN_ACCENT_RGB},0.7)) hue-rotate(120deg) saturate(1.5) brightness(1.1)`,
-            pointerEvents: "none",
-          }}
-        />
+        <AlienScrapper3D size={68} shaking={shaking} />
       </button>
 
-      {/* Countdown badge */}
-      {remaining > 0 && (
-        <div
-          aria-hidden
-          style={{
-            position: "fixed",
-            left: 78,
-            top: 410,
-            zIndex: 41,
-            minWidth: 22,
-            padding: "2px 6px",
-            borderRadius: 8,
-            background: "rgba(140,0,0,0.92)",
-            border: "1px solid rgba(255,60,60,0.7)",
-            color: "#ffd0d0",
-            fontSize: 10,
-            fontWeight: 800,
-            letterSpacing: "0.04em",
-            textAlign: "center",
-            boxShadow: "0 0 6px rgba(255,80,80,0.5)",
-            pointerEvents: "none",
-          }}
-        >
-          {formatTime(remainingSec)}
-        </div>
-      )}
+      <div
+        style={{
+          fontSize: 8,
+          fontWeight: 800,
+          letterSpacing: "0.12em",
+          color: GREEN_ACCENT,
+          textShadow: `0 0 8px rgba(${GREEN_ACCENT_RGB},0.5)`,
+          paddingLeft: 4,
+        }}
+      >
+        {t("merchant.title")}
+      </div>
 
-      {/* Panel */}
       {isOpen && (
         <div
           role="dialog"
-          aria-label="Stardust Scrapper"
+          aria-label={t("merchant.title")}
           style={{
-            position: "fixed",
-            left: 80,
-            top: 330,
-            width: 240,
-            zIndex: 60,
+            width: 248,
             borderRadius: 16,
             background: "linear-gradient(180deg,#1a1708 0%,#0f0d04 100%)",
             border: `1px solid rgba(${GREEN_ACCENT_RGB},0.55)`,
@@ -218,35 +141,18 @@ export function MerchantPopup({
             color: "#fff8d6",
           }}
         >
-          {/* Alien character */}
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 4 }}>
-            <img
-              src={alienMerchantImg}
-              alt=""
-              aria-hidden
-              draggable={false}
-              style={{
-                width: 64,
-                height: 64,
-                objectFit: "contain",
-                imageRendering: "pixelated",
-                filter: `drop-shadow(0 0 8px rgba(${GREEN_ACCENT_RGB},0.6)) hue-rotate(120deg) saturate(1.5) brightness(1.1)`,
-                animation: view === "scrapping" ? "merchant-shake 0.18s linear infinite" : "merchant-bob 2.4s ease-in-out infinite",
-                pointerEvents: "none",
-              }}
-            />
+            <AlienScrapper3D size={80} shaking={shaking} />
           </div>
 
           <div style={{ textAlign: "center", fontWeight: 900, letterSpacing: "0.08em", fontSize: 11, color: GREEN_ACCENT }}>
-            STARDUST SCRAPPER
+            {t("merchant.title")}
           </div>
 
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 9, color: "rgba(255,255,255,0.7)" }}>
-            <span>Scrap your planets for Stardust</span>
-            <span>{formatTime(remainingSec)}</span>
+          <div style={{ marginTop: 6, fontSize: 9, color: "rgba(255,255,255,0.65)", textAlign: "center" }}>
+            Scrap planets → Stardust ★
           </div>
 
-          {/* Body switches by view */}
           {view === "idle" && (
             <div style={{ marginTop: 8, maxHeight: 220, overflowY: "auto" }}>
               {error && (
@@ -254,9 +160,9 @@ export function MerchantPopup({
               )}
               {eligible.length === 0 ? (
                 <div style={{ textAlign: "center", fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 12 }}>
-                  No planets available to scrap.
+                  {t("merchant.noPlanets")}
                   <br />
-                  Unfarm or unlist a planet first.
+                  {t("merchant.unfarmFirst")}
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -296,88 +202,68 @@ export function MerchantPopup({
                             +{p.rate.toLocaleString()} $ZOOM/hr
                           </div>
                         </div>
-                        <div
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 900,
-                            color: GREEN_ACCENT,
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          +{reward} ✦
+                        <div style={{ fontSize: 10, fontWeight: 900, color: GREEN_ACCENT, whiteSpace: "nowrap" }}>
+                          +{reward} ★
                         </div>
                       </button>
                     );
                   })}
                 </div>
               )}
-              <button type="button" onClick={tryClose} style={ghostBtnStyle}>LEAVE</button>
+              <button type="button" onClick={() => setIsOpen(false)} style={ghostBtnStyle}>
+                {t("common.close")}
+              </button>
             </div>
           )}
 
           {view === "confirm" && selected && (
             <div style={{ marginTop: 10 }}>
               <div style={{ textAlign: "center", fontSize: 11, color: "rgba(255,248,214,0.9)", marginBottom: 8 }}>
-                Scrap this {PLANET_CONFIG[selected.name]?.label ?? selected.name} planet?
+                {t("merchant.scrapConfirm", { kind: PLANET_CONFIG[selected.name]?.label ?? selected.name })}
               </div>
               <div style={{ textAlign: "center", fontSize: 14, fontWeight: 900, color: GREEN_ACCENT, marginBottom: 12 }}>
-                +{REWARD_MAP[selected.name] ?? 0} ✦ Stardust
+                {t("merchant.scrapReward", { n: REWARD_MAP[selected.name] ?? 0 })}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <button type="button" onClick={() => { setSelected(null); setView("idle"); }} style={ghostBtnStyle}>CANCEL</button>
-                <button type="button" onClick={startScrap} style={primaryBtnStyle}>SCRAP</button>
+                <button type="button" onClick={() => { setSelected(null); setView("idle"); }} style={ghostBtnStyle}>
+                  {t("common.cancel")}
+                </button>
+                <button type="button" onClick={() => { void startScrap(); }} style={primaryBtnStyle}>
+                  SCRAP
+                </button>
               </div>
             </div>
           )}
 
           {view === "scrapping" && (
             <div style={{ marginTop: 10, textAlign: "center" }}>
-              <div style={{ fontSize: 10, color: GREEN_ACCENT, letterSpacing: "0.1em", fontWeight: 800 }}>SCRAPPING...</div>
-              <div style={{ fontSize: 9, marginTop: 4, color: "rgba(255,255,255,0.55)" }}>The scrapper feeds on planetary matter.</div>
+              <div style={{ fontSize: 10, color: GREEN_ACCENT, letterSpacing: "0.1em", fontWeight: 800 }}>
+                {t("merchant.scrapping")}
+              </div>
+              <div style={{ fontSize: 9, marginTop: 4, color: "rgba(255,255,255,0.55)" }}>
+                {t("merchant.scrappingHint")}
+              </div>
             </div>
           )}
 
           {view === "result" && resultReward != null && resultType && (
             <div style={{ marginTop: 8, textAlign: "center" }}>
               <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: "0.04em", color: GREEN_ACCENT }}>
-                +{resultReward} ✦ Stardust!
+                {t("merchant.result.title", { n: resultReward })}
               </div>
               <div style={{ fontSize: 9, marginTop: 4, color: "rgba(255,248,214,0.85)", lineHeight: 1.35 }}>
-                Your {(PLANET_CONFIG as Record<string, { label?: string }>)[resultType]?.label ?? resultType} planet was recycled into stardust.
+                {t("merchant.result.body", {
+                  kind: (PLANET_CONFIG as Record<string, { label?: string }>)[resultType]?.label ?? resultType,
+                })}
               </div>
-              <button type="button" onClick={dismissResult} style={primaryBtnStyle}>OK</button>
-            </div>
-          )}
-
-          {view === "expired" && (
-            <div style={{ marginTop: 8, textAlign: "center" }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: GREEN_ACCENT, letterSpacing: "0.04em" }}>
-                The scrapper left.
-              </div>
-              <div style={{ fontSize: 9, marginTop: 4, color: "rgba(255,248,214,0.8)", lineHeight: 1.35 }}>
-                It will return in 4–6 hours.
-              </div>
-              <button type="button" onClick={onClose} style={primaryBtnStyle}>CLOSE</button>
+              <button type="button" onClick={dismissResult} style={primaryBtnStyle}>
+                OK
+              </button>
             </div>
           )}
         </div>
       )}
-
-      <style>{`
-        @keyframes merchant-bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-        @keyframes merchant-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
-        @keyframes merchant-vibrate {
-          0%, 100% { transform: translate(0, 0) rotate(0deg); }
-          10% { transform: translate(-1.5px, 1px) rotate(-1.5deg); }
-          20% { transform: translate(1.5px, -1px) rotate(1.5deg); }
-          30% { transform: translate(-1.5px, -1px) rotate(-1deg); }
-          40% { transform: translate(1.5px, 1px) rotate(1deg); }
-          50% { transform: translate(-1px, 1.5px) rotate(-1.5deg); }
-          60% { transform: translate(1px, -1.5px) rotate(1.5deg); }
-          70% { transform: translate(0, 0) rotate(0deg); }
-        }
-      `}</style>
-    </>
+    </div>
   );
 }
 

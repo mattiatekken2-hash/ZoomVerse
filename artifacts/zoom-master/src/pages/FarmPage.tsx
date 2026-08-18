@@ -12,8 +12,7 @@ import { DailyComboBox } from "../components/DailyComboBox";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
 import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, isFarmExpired, isSunExpired, getReactivationFee, getFarmTimeRemaining, getSunTimeRemaining, formatDuration, REPAIR_STARDUST_COST, FARM_UPGRADE_COSTS, FARM_UPGRADE_TIERS, isLegacyCatalogModelPlanet } from "../hooks/useGameState";
-import { FORGE_SPHERE_SHAPE_ID } from "@workspace/game-models";
-import { ObjectThumb } from "../components/MysteryModel3D";
+import { SunFarmThumb } from "../components/SunFarmThumb";
 import { WalletPopup } from "../components/WalletPopup";
 import { useT } from "../i18n/LanguageContext";
 import { PlanetRenameModal } from "../components/PlanetRenameModal";
@@ -97,6 +96,8 @@ interface FarmPageProps {
   onCollectStellaRossaPlanet?: (planetId: string) => void;
   onMarkStellaRossaPlanetReactivated?: (planetId: string) => { ok: boolean; reason?: string };
   onUpgradeCollectionDuration?: (collectionType: "white" | "earth" | "black" | "supernova" | "stella_rossa", hours: number) => Promise<{ ok: boolean; error?: string }>;
+  /** False when another tab is active — releases Farm WebGL contexts for Lab. */
+  visible?: boolean;
 }
 
 /**
@@ -348,6 +349,7 @@ export function FarmPage({
   onCollectStellaRossaPlanet,
   onMarkStellaRossaPlanetReactivated,
   onUpgradeCollectionDuration,
+  visible = true,
 }: FarmPageProps) {
   const { t } = useT();
   const sunMultiplier = Math.max(1, sunCount || (sun?.isOwned ? 1 : 0));
@@ -692,22 +694,14 @@ export function FarmPage({
           {/* SUN CARD */}
           {sun?.isOwned && (
             <div
-              className="slot-enter rounded-2xl p-4 border relative overflow-hidden"
+              className={`slot-enter rounded-2xl p-4 relative overflow-hidden sun-card-3d${sunActive ? " sun-card-3d--active" : ""}${sunExpired ? " sun-card-3d--expired" : ""}`}
               style={{
-                borderColor: sunExpired ? "rgba(255,255,255,0.08)" : "rgba(255,179,71,0.35)",
-                background: "linear-gradient(135deg, rgba(255,179,71,0.09) 0%, rgba(255,140,0,0.04) 100%)",
-                boxShadow: sunActive ? "0 0 18px rgba(255,179,71,0.18)" : "none",
                 transform: "translateZ(0)",
                 contain: "layout style paint",
               } as React.CSSProperties}
             >
-              <div
-                className="absolute top-0 right-0 w-28 h-28 rounded-full pointer-events-none"
-                style={{
-                  background: "radial-gradient(circle, rgba(255,179,71,0.14) 0%, rgba(255,179,71,0.05) 45%, transparent 75%)",
-                  transform: "translate(30%,-30%) translateZ(0)",
-                }}
-              />
+              <div className="sun-card-3d__sheen" aria-hidden />
+              <div className="sun-card-3d__body">
               <div className="flex items-center gap-4 mb-4">
                 <div
                   style={{
@@ -715,25 +709,16 @@ export function FarmPage({
                     width: SUN_THUMB_SIZE,
                     height: SUN_THUMB_SIZE,
                     flexShrink: 0,
-                    filter: sunExpired ? "grayscale(1) brightness(0.45)" : undefined,
-                    transition: "filter 0.4s ease",
+                    filter: sunExpired ? "grayscale(0.55) saturate(0.65)" : undefined,
+                    opacity: sunExpired ? 0.88 : 1,
+                    transition: "filter 0.4s ease, opacity 0.4s ease",
                   }}
                 >
-                  <ObjectThumb
-                    shapeId={FORGE_SPHERE_SHAPE_ID}
-                    primaryColor="#ffee58"
-                    accentColor="#ef6c00"
-                    planetRarity="SUN"
-                    planetId="the-sun"
+                  <SunFarmThumb
                     size={SUN_THUMB_SIZE}
-                    autoSpin={sunActive}
+                    animate={sunActive || sunExpired}
+                    suspendGl={!!detailPlanet || !visible}
                   />
-                  {sunExpired && (
-                    <div
-                      className="absolute inset-0 rounded-full pointer-events-none"
-                      style={{ background: "radial-gradient(circle, rgba(0,0,0,0.55) 30%, rgba(0,0,0,0.85) 100%)" }}
-                    />
-                  )}
                   {sunActive && (
                     <div
                       className="absolute -top-1 -right-1 w-3 h-3 rounded-full pulse-soft"
@@ -749,13 +734,13 @@ export function FarmPage({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-black text-base tracking-wide gold-text" style={sunExpired ? { opacity: 0.55 } : undefined}>THE SUN</span>
+                    <span className={`font-black text-base tracking-wide${sunExpired ? "" : " sun-title-3d"}`} style={sunExpired ? { color: "rgba(220,230,240,0.55)" } : undefined}>THE SUN</span>
                     {sunMultiplier > 1 && (
-                      <span className="text-xs font-black px-2 py-0.5 rounded-full" style={{ background: "rgba(255,179,71,0.18)", color: "#ffb347", border: "1px solid rgba(255,179,71,0.45)", fontSize: 10 }}>
+                      <span className="text-xs font-black px-2 py-0.5 rounded-full sun-badge-cyan" style={{ fontSize: 10 }}>
                         ×{sunMultiplier}
                       </span>
                     )}
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(255,215,0,0.12)", color: "#ffd700", border: "1px solid rgba(255,215,0,0.25)", fontSize: 9, opacity: sunExpired ? 0.55 : 1 }}>
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full sun-badge-cyan" style={{ fontSize: 9, opacity: sunExpired ? 0.55 : 1 }}>
                       EXCLUSIVE
                     </span>
                     {sunExpired && (
@@ -767,7 +752,7 @@ export function FarmPage({
                       </span>
                     )}
                   </div>
-                  <div className="text-xs font-bold" style={{ color: sunExpired ? "rgba(255,82,82,0.75)" : "rgba(255,255,255,0.5)" }}>
+                  <div className="text-xs font-bold" style={{ color: sunExpired ? "rgba(255,82,82,0.75)" : "rgba(200,240,255,0.62)" }}>
                     {sunActive
                       ? `+${SUN_CONFIG.rate.toLocaleString()} $ZOOM/hr · ${formatDuration(sunRemaining)} left`
                       : sunExpired
@@ -782,10 +767,10 @@ export function FarmPage({
                   <button
                     className="btn-widget flex-1"
                     style={{
-                      background: "linear-gradient(135deg, rgba(255,179,71,0.22) 0%, rgba(255,140,0,0.12) 100%)",
-                      border: "1px solid rgba(255,179,71,0.5)",
-                      color: "#ffb347",
-                      boxShadow: "0 0 14px rgba(255,179,71,0.25)",
+                      background: "linear-gradient(135deg, rgba(200,245,255,0.2) 0%, rgba(80,180,220,0.1) 100%)",
+                      border: "1px solid rgba(160,230,255,0.45)",
+                      color: "#d8f7ff",
+                      boxShadow: "0 0 14px rgba(100,220,255,0.2), 0 2px 0 rgba(255,255,255,0.12) inset",
                     }}
                     onClick={handleSunStartOrReactivate}
                     data-testid="btn-reactivate-sun"
@@ -818,8 +803,8 @@ export function FarmPage({
 
               {/* SUN farm-duration upgrade — same tier system as regular planets */}
               {sun && onUpgradeSunDuration && (
-                <div style={{ marginTop: 10, padding: "10px 12px", background: "rgba(255,179,71,0.07)", borderRadius: 10, border: "1px solid rgba(255,179,71,0.2)" }}>
-                  <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.08em", color: "rgba(255,179,71,0.7)", marginBottom: 8 }}>
+                <div className="farm-panel-3d" style={{ marginTop: 10 }}>
+                  <div className="farm-panel-3d__title">
                     ⏱ CYCLE DURATION — {sun.farmDurationHours ?? 1}h · costs EARNED GRAM
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 5 }}>
@@ -827,10 +812,11 @@ export function FarmPage({
                       const cost = FARM_UPGRADE_COSTS[h]!;
                       const isCurrent = (sun.farmDurationHours ?? 1) === h;
                       const canAfford = tonBalance >= cost;
+                      const tierDisabled = isCurrent || !canAfford;
                       return (
                         <button
                           key={h}
-                          disabled={isCurrent || !canAfford}
+                          disabled={tierDisabled}
                           onClick={async () => {
                             const result = await onUpgradeSunDuration(h);
                             if (!result.ok) {
@@ -838,26 +824,18 @@ export function FarmPage({
                               setTimeout(() => setDefectMsg(null), 2000);
                             }
                           }}
-                          style={{
-                            padding: "5px 2px", borderRadius: 7, fontSize: 9, fontWeight: 900,
-                            background: isCurrent
-                              ? "rgba(255,179,71,0.25)"
-                              : canAfford ? "rgba(255,179,71,0.10)" : "rgba(255,255,255,0.04)",
-                            border: isCurrent ? "1px solid rgba(255,179,71,0.7)" : "1px solid rgba(255,179,71,0.2)",
-                            color: isCurrent ? "#ffb347" : canAfford ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.25)",
-                            cursor: isCurrent || !canAfford ? "default" : "pointer",
-                            textAlign: "center", lineHeight: 1.3,
-                          }}
+                          className={`farm-btn-3d farm-btn-3d--tier${isCurrent ? " farm-btn-3d--current" : ""}${tierDisabled && !isCurrent ? " farm-btn-3d--disabled" : ""}`}
                         >
                           <div>{h}h</div>
-                          {!isCurrent && <div style={{ fontSize: 8, opacity: 0.75 }}>{cost} G</div>}
-                          {isCurrent && <div style={{ fontSize: 8, opacity: 0.7 }}>✓</div>}
+                          {!isCurrent && <div>{cost} G</div>}
+                          {isCurrent && <div>✓</div>}
                         </button>
                       );
                     })}
                   </div>
                 </div>
               )}
+              </div>
             </div>
           )}
 
@@ -887,7 +865,7 @@ export function FarmPage({
                 key={planet.id}
                 planet={planet}
                 variant="grid"
-                suspendGl={!!detailPlanet}
+                suspendGl={!!detailPlanet || !visible}
                 testId={`planet-card-${planet.id}`}
                 onCardClick={() => setDetailPlanet(planet)}
                 onStartFarm={handleStartOrReactivate}

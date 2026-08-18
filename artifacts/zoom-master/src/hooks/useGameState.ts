@@ -1642,6 +1642,9 @@ export function getRarityColorsForModel(rarityOrPlanetType: string): {
   glowColor: string;
   accentHex: string;
 } {
+  if (rarityOrPlanetType === "SUN") {
+    return { color: "#ffee58", glowColor: "#ffd700", accentHex: "#ef6c00" };
+  }
   const planetType = (MODEL_RARITY_TO_PLANET[rarityOrPlanetType] ?? rarityOrPlanetType) as PlanetType;
   const cfg = PLANET_CONFIG[planetType];
   if (!cfg) {

@@ -233,6 +233,11 @@ export function forgeSphereTapGoal(): number {
   return getForgeSphereBlueprint("#888888", "#666666").goal;
 }
 
+/** All forge-sphere display rarities — Lab, Farm, Market (including THE SUN). */
+export function isLabCollectibleVoxelRarity(_rarity: string | undefined): boolean {
+  return true;
+}
+
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
   const h = hex.replace("#", "").trim();
   if (h.length !== 6) return null;
@@ -660,6 +665,53 @@ export function showcasePremiumVoxelHex(
   return rgbToHex(graded.r, graded.g, graded.b);
 }
 
+/** Polar ice caps + equatorial band — planet surface cues on voxel shells. */
+export function applyPlanetSurfaceFeatures(
+  hex: string,
+  ix: number,
+  iy: number,
+  iz: number,
+  radius: number,
+  floatValue = 1,
+): string {
+  const dist = Math.sqrt(ix * ix + iy * iy + iz * iz) / Math.max(radius, 1);
+  if (dist < 0.74) return hex;
+
+  const ny = (iy / radius + 1) * 0.5;
+  const rgb = hexToRgb(hex);
+  if (!rgb) return hex;
+
+  const f = Math.max(0, Math.min(1, floatValue));
+
+  if (ny > 0.84 || ny < 0.16) {
+    const ice = { r: 228, g: 240, b: 255 };
+    const pole = ny > 0.84 ? (ny - 0.84) / 0.16 : (0.16 - ny) / 0.16;
+    const t = Math.min(1, pole * (0.55 + 0.45 * f));
+    const blended = mixRgb(rgb, ice, t);
+    return rgbToHex(blended.r, blended.g, blended.b);
+  }
+
+  if (ny > 0.36 && ny < 0.64 && dist > 0.76) {
+    const bandT = 1 - Math.abs(ny - 0.5) / 0.14;
+    const dust = {
+      r: rgb.r * (0.68 + 0.08 * f),
+      g: rgb.g * (0.68 + 0.08 * f),
+      b: rgb.b * (0.74 + 0.06 * f),
+    };
+    const blended = mixRgb(rgb, dust, bandT * 0.42 * (0.45 + 0.55 * f));
+    return rgbToHex(blended.r, blended.g, blended.b);
+  }
+
+  return hex;
+}
+
+/** EPIC+ planets — ring when float is mid-high. */
+export function shouldPlanetShowRing(rarity: string, floatValue: number): boolean {
+  const r = rarity.toUpperCase();
+  if (r === "BASIC" || r === "RARE" || r === "SUN" || r === "MUSHROOM" || r === "V1_NFT") return false;
+  return floatValue >= 0.55;
+}
+
 export type ShowcaseRarityStyle = "BASIC" | "RARE" | "SUN" | "STANDARD";
 
 export function getShowcaseRarityStyle(rarity: string): ShowcaseRarityStyle {
@@ -682,16 +734,17 @@ export function getShowcaseVoxelHex(
   floatValue = 1,
 ): string {
   const style = getShowcaseRarityStyle(rarity);
+  let hex: string;
   if (style === "BASIC") {
-    return showcaseBasicVoxelHex(band, primary, accent, ix, iy, iz, radius, floatValue);
-  }
-  if (style === "RARE") {
-    return showcaseRareVoxelHex(band, primary, ix, iy, iz, radius, floatValue);
-  }
-  if (style === "SUN") {
+    hex = showcaseBasicVoxelHex(band, primary, accent, ix, iy, iz, radius, floatValue);
+  } else if (style === "RARE") {
+    hex = showcaseRareVoxelHex(band, primary, ix, iy, iz, radius, floatValue);
+  } else if (style === "SUN") {
     return showcaseSunVoxelHex(band, primary, accent, ix, iy, iz, radius);
+  } else {
+    hex = showcasePremiumVoxelHex(band, primary, accent, ix, iy, iz, radius, floatValue);
   }
-  return showcasePremiumVoxelHex(band, primary, accent, ix, iy, iz, radius, floatValue);
+  return applyPlanetSurfaceFeatures(hex, ix, iy, iz, radius, floatValue);
 }
 
 /** THE SUN — emissive yellow/orange corona (exclusive, always perfect-float vivid). */

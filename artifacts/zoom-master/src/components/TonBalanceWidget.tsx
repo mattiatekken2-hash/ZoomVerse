@@ -6,7 +6,7 @@
 import { memo, useEffect, useState, useRef, useCallback } from "react";
 import { fetchStakingStatus } from "../utils/api";
 import type { StakingStatusResponse } from "../utils/api";
-const TON_LOGO_URL = "/ton-logo.svg";
+import { GramDiamondIcon } from "./GramDiamondIcon";
 
 const POLL_MS = 60_000;
 
@@ -270,18 +270,7 @@ function TonBalanceWidgetBase({ tonBalance, telegramId }: Props) {
         >
           {formatTon(total)}
         </span>
-        <img
-          src={TON_LOGO_URL}
-          alt="TON"
-          draggable={false}
-          style={{
-            width: 14,
-            height: 14,
-            objectFit: "contain",
-            borderRadius: "0%",
-            filter: "drop-shadow(0 0 3px rgba(0,255,140,0.4))",
-          }}
-        />
+        <GramDiamondIcon size={14} />
       </button>
 
       {open && (

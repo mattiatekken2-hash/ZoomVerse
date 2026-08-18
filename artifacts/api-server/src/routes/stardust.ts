@@ -4,6 +4,20 @@ import { usersTable, appSettingsTable } from "@workspace/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { z } from "zod";
 import { recordHistoryAsync } from "../lib/history";
+import {
+  STARDUST_GENESIS_MICRO,
+  STARDUST_SCALE,
+  bumpStardustIndex,
+  getStardustChart,
+  getStardustIndexMicro,
+  normalizeStardustChartPoints,
+  readGlobalStakedTotal,
+  stardustValueAtIndex,
+  gramToStardust,
+  stardustToGram,
+  STARDUST_PER_GRAM_BASE,
+  STARDUST_TO_GRAM_SPREAD,
+} from "../lib/stardustPrice";
 
 const router: IRouter = Router();
 
@@ -163,6 +177,7 @@ router.post("/stardust/collect", async (req, res) => {
         delta: 1,
         currency: "stardust",
       });
+      void bumpStardustIndex("earn");
     }
     if (!txResult) {
       // Lost the race (cap reached or sun lost between read and write).
@@ -234,9 +249,364 @@ router.post("/stardust/deduct", async (req, res) => {
     if (!upd) {
       return res.status(402).json({ ok: false, error: "Insufficient stardust" });
     }
+    void bumpStardustIndex("spend");
     res.json({ ok: true, newBalance: Number(upd.stardustBalance ?? 0) });
   } catch (err) {
     req.log.error(err, "[stardust/deduct] error");
+    res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+});
+
+const ConvertBody = z.object({
+  telegramId: z.string().min(1),
+  /** GRAM from deposit + earned balance → STARDUST. */
+  gramAmount: z.coerce.number().positive(),
+});
+
+router.post("/stardust/convert-deposit", async (req, res) => {
+  const parsed = ConvertBody.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ ok: false, error: "Invalid amount — enter a positive GRAM value" });
+  }
+  const { telegramId, gramAmount } = parsed.data;
+  try {
+    const indexMicro = await getStardustIndexMicro();
+    const stardustOut = gramToStardust(gramAmount, indexMicro);
+
+    const [upd] = await db
+      .update(usersTable)
+      .set({
+        depositBalance: sql`${usersTable.depositBalance} - LEAST(COALESCE(${usersTable.depositBalance}, 0), ${gramAmount})`,
+        tonBalance: sql`${usersTable.tonBalance} - GREATEST(0, ${gramAmount} - LEAST(COALESCE(${usersTable.depositBalance}, 0), ${gramAmount}))`,
+        stardustBalance: sql`${usersTable.stardustBalance} + ${stardustOut}`,
+      })
+      .where(sql`
+        ${usersTable.telegramId} = ${telegramId}
+        AND COALESCE(${usersTable.depositBalance}, 0) + COALESCE(${usersTable.tonBalance}, 0) >= ${gramAmount}
+        AND ${usersTable.isDisabled} = false
+      `)
+      .returning({
+        depositBalance: usersTable.depositBalance,
+        tonBalance: usersTable.tonBalance,
+        stardustBalance: usersTable.stardustBalance,
+      });
+
+    if (!upd) {
+      return res.status(402).json({
+        ok: false,
+        error: "Insufficient GRAM (need deposit + earned balance)",
+      });
+    }
+
+    void bumpStardustIndex("convert");
+    recordHistoryAsync({
+      telegramId,
+      kind: "stardust_convert",
+      delta: stardustOut,
+      currency: "stardust",
+      meta: { gramSpent: gramAmount, index: indexMicro / STARDUST_SCALE },
+    });
+
+    res.json({
+      ok: true,
+      stardustReceived: stardustOut,
+      depositBalance: Number(upd.depositBalance ?? 0),
+      tonBalance: Number(upd.tonBalance ?? 0),
+      stardustBalance: Number(upd.stardustBalance ?? 0),
+      index: indexMicro / STARDUST_SCALE,
+      rate: STARDUST_PER_GRAM_BASE,
+    });
+  } catch (err) {
+    console.error("[stardust/convert-deposit]", err);
+    res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+});
+
+const ConvertToGramBody = z.object({
+  telegramId: z.string().min(1),
+  /** STARDUST from wallet balance → earned GRAM (85% of nominal at live index). */
+  stardustAmount: z.coerce.number().int().positive(),
+});
+
+router.post("/stardust/convert-to-gram", async (req, res) => {
+  const parsed = ConvertToGramBody.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ ok: false, error: "Invalid amount — enter a positive STARDUST value" });
+  }
+  const { telegramId, stardustAmount } = parsed.data;
+  try {
+    const indexMicro = await getStardustIndexMicro();
+    const gramOut = stardustToGram(stardustAmount, indexMicro);
+    if (gramOut <= 0) {
+      return res.status(400).json({ ok: false, error: "Amount too small at current index" });
+    }
+
+    const [upd] = await db
+      .update(usersTable)
+      .set({
+        stardustBalance: sql`${usersTable.stardustBalance} - ${stardustAmount}`,
+        tonBalance: sql`${usersTable.tonBalance} + ${gramOut}`,
+      })
+      .where(sql`
+        ${usersTable.telegramId} = ${telegramId}
+        AND COALESCE(${usersTable.stardustBalance}, 0) >= ${stardustAmount}
+        AND ${usersTable.isDisabled} = false
+      `)
+      .returning({
+        depositBalance: usersTable.depositBalance,
+        tonBalance: usersTable.tonBalance,
+        stardustBalance: usersTable.stardustBalance,
+      });
+
+    if (!upd) {
+      return res.status(402).json({
+        ok: false,
+        error: "Insufficient STARDUST (wallet balance only — unstake first if needed)",
+      });
+    }
+
+    void bumpStardustIndex("convert_out");
+    recordHistoryAsync({
+      telegramId,
+      kind: "stardust_convert_out",
+      delta: -stardustAmount,
+      currency: "stardust",
+      meta: { gramReceived: gramOut, index: indexMicro / STARDUST_SCALE, spread: STARDUST_TO_GRAM_SPREAD },
+    });
+    recordHistoryAsync({
+      telegramId,
+      kind: "gram_convert_in",
+      delta: gramOut,
+      currency: "gram",
+      meta: { stardustSpent: stardustAmount, index: indexMicro / STARDUST_SCALE, spread: STARDUST_TO_GRAM_SPREAD },
+    });
+
+    res.json({
+      ok: true,
+      gramReceived: gramOut,
+      stardustSpent: stardustAmount,
+      depositBalance: Number(upd.depositBalance ?? 0),
+      tonBalance: Number(upd.tonBalance ?? 0),
+      stardustBalance: Number(upd.stardustBalance ?? 0),
+      index: indexMicro / STARDUST_SCALE,
+      spread: STARDUST_TO_GRAM_SPREAD,
+    });
+  } catch (err) {
+    console.error("[stardust/convert-to-gram]", err);
+    res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+});
+
+router.get("/stardust/market/price", async (_req, res) => {
+  try {
+    const indexMicro = await getStardustIndexMicro();
+    const totalStaked = await readGlobalStakedTotal();
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      indexMicro,
+      index: indexMicro / STARDUST_SCALE,
+      genesisIndex: STARDUST_GENESIS_MICRO / STARDUST_SCALE,
+      totalStaked,
+      stardustPerGramBase: STARDUST_PER_GRAM_BASE,
+      gramPerStardustAtIndex: (indexMicro / STARDUST_SCALE) / STARDUST_PER_GRAM_BASE,
+      updatedAt: Date.now(),
+    });
+  } catch (err) {
+    console.error("[stardust/market/price]", err);
+    res.json({
+      indexMicro: STARDUST_GENESIS_MICRO,
+      index: STARDUST_GENESIS_MICRO / STARDUST_SCALE,
+      genesisIndex: STARDUST_GENESIS_MICRO / STARDUST_SCALE,
+      totalStaked: 0,
+      updatedAt: Date.now(),
+    });
+  }
+});
+
+router.get("/stardust/market/history", async (_req, res) => {
+  try {
+    const raw = await getStardustChart();
+    const points = normalizeStardustChartPoints(raw);
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      points: points.map((pt) => ({
+        t: pt.t,
+        p: pt.p,
+        index: pt.p / STARDUST_SCALE,
+      })),
+      genesisIndex: STARDUST_GENESIS_MICRO / STARDUST_SCALE,
+    });
+  } catch {
+    res.json({ points: [], genesisIndex: STARDUST_GENESIS_MICRO / STARDUST_SCALE });
+  }
+});
+
+router.get("/stardust/stake/state", async (req, res) => {
+  const telegramId = String(req.query.telegramId ?? "").trim();
+  if (!telegramId) return res.status(400).json({ error: "telegramId required" });
+  try {
+    const indexMicro = await getStardustIndexMicro();
+    const [u] = await db
+      .select({
+        balance: usersTable.stardustBalance,
+        staked: usersTable.stardustStaked,
+        stakeIndex: usersTable.stardustStakeIndexMicro,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, telegramId))
+      .limit(1);
+
+    const staked = Number(u?.staked ?? 0);
+    const stakeIndex = Number(u?.stakeIndex ?? STARDUST_GENESIS_MICRO);
+    const stakedValue = stardustValueAtIndex(staked, stakeIndex, indexMicro);
+
+    res.json({
+      balance: Number(u?.balance ?? 0),
+      staked,
+      stakeIndexMicro: stakeIndex,
+      stakedValue,
+      index: indexMicro / STARDUST_SCALE,
+      pnl: stakedValue - staked,
+    });
+  } catch (err) {
+    console.error("[stardust/stake/state]", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/stardust_staked|stardust_stake_index|column/i.test(msg)) {
+      res.status(503).json({ error: "Stake pool not migrated — run stardust_stake.sql" });
+      return;
+    }
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+const StakeBody = z.object({
+  telegramId: z.string().min(1),
+  amount: z.coerce.number().int().positive(),
+});
+
+router.post("/stardust/stake", async (req, res) => {
+  const parsed = StakeBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ ok: false, error: "BAD_REQUEST" });
+  const { telegramId, amount } = parsed.data;
+  try {
+    const indexMicro = await getStardustIndexMicro();
+    const [u] = await db
+      .select({
+        balance: usersTable.stardustBalance,
+        staked: usersTable.stardustStaked,
+        stakeIndex: usersTable.stardustStakeIndexMicro,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, telegramId))
+      .limit(1);
+    if (!u) return res.status(404).json({ ok: false, error: "USER_NOT_FOUND" });
+    if ((u.balance ?? 0) < amount) {
+      return res.status(402).json({ ok: false, error: "Insufficient stardust" });
+    }
+
+    const oldStaked = Number(u.staked ?? 0);
+    const oldIndex = Number(u.stakeIndex ?? STARDUST_GENESIS_MICRO);
+    const newStaked = oldStaked + amount;
+    const newIndex = oldStaked <= 0
+      ? indexMicro
+      : Math.round((oldStaked * oldIndex + amount * indexMicro) / newStaked);
+
+    const [upd] = await db
+      .update(usersTable)
+      .set({
+        stardustBalance: sql`${usersTable.stardustBalance} - ${amount}`,
+        stardustStaked: newStaked,
+        stardustStakeIndexMicro: newIndex,
+      })
+      .where(sql`${usersTable.telegramId} = ${telegramId} AND ${usersTable.stardustBalance} >= ${amount}`)
+      .returning({
+        balance: usersTable.stardustBalance,
+        staked: usersTable.stardustStaked,
+        stakeIndex: usersTable.stardustStakeIndexMicro,
+      });
+
+    if (!upd) return res.status(402).json({ ok: false, error: "Insufficient stardust" });
+
+    void bumpStardustIndex("stake");
+    const stakedValue = stardustValueAtIndex(
+      Number(upd.staked ?? 0),
+      Number(upd.stakeIndex ?? STARDUST_GENESIS_MICRO),
+      indexMicro,
+    );
+
+    res.json({
+      ok: true,
+      balance: Number(upd.balance ?? 0),
+      staked: Number(upd.staked ?? 0),
+      stakedValue,
+      index: indexMicro / STARDUST_SCALE,
+    });
+  } catch (err) {
+    console.error("[stardust/stake]", err);
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/stardust_staked|stardust_stake_index|column/i.test(msg)) {
+      res.status(503).json({
+        ok: false,
+        error: "Stake pool not migrated yet — run DB migration for stardust_staked columns",
+      });
+      return;
+    }
+    res.status(500).json({ ok: false, error: "SERVER_ERROR" });
+  }
+});
+
+const UnstakeBody = z.object({
+  telegramId: z.string().min(1),
+  amount: z.number().int().positive().optional(),
+});
+
+router.post("/stardust/unstake", async (req, res) => {
+  const parsed = UnstakeBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ ok: false, error: "BAD_REQUEST" });
+  const { telegramId, amount } = parsed.data;
+  try {
+    const indexMicro = await getStardustIndexMicro();
+    const [u] = await db
+      .select({
+        staked: usersTable.stardustStaked,
+        stakeIndex: usersTable.stardustStakeIndexMicro,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, telegramId))
+      .limit(1);
+    if (!u) return res.status(404).json({ ok: false, error: "USER_NOT_FOUND" });
+
+    const staked = Number(u.staked ?? 0);
+    if (staked <= 0) return res.status(400).json({ ok: false, error: "Nothing staked" });
+
+    const stakeIndex = Number(u.stakeIndex ?? STARDUST_GENESIS_MICRO);
+    const unstakeUnits = amount ? Math.min(amount, staked) : staked;
+    const payout = stardustValueAtIndex(unstakeUnits, stakeIndex, indexMicro);
+    const remaining = staked - unstakeUnits;
+
+    const [upd] = await db
+      .update(usersTable)
+      .set({
+        stardustBalance: sql`${usersTable.stardustBalance} + ${payout}`,
+        stardustStaked: remaining,
+        stardustStakeIndexMicro: remaining > 0 ? stakeIndex : STARDUST_GENESIS_MICRO,
+      })
+      .where(eq(usersTable.telegramId, telegramId))
+      .returning({
+        balance: usersTable.stardustBalance,
+        staked: usersTable.stardustStaked,
+      });
+
+    void bumpStardustIndex("unstake");
+    res.json({
+      ok: true,
+      balance: Number(upd?.balance ?? 0),
+      staked: Number(upd?.staked ?? 0),
+      payout,
+      index: indexMicro / STARDUST_SCALE,
+    });
+  } catch (err) {
+    console.error("[stardust/unstake]", err);
     res.status(500).json({ ok: false, error: "SERVER_ERROR" });
   }
 });

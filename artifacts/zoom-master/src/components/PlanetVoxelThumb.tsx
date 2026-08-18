@@ -5,15 +5,69 @@ import { FORGE_SPHERE_SHAPE_ID } from "@workspace/game-models";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { ObjectThumb } from "./MysteryModel3D";
 
+function SunVoxelPlaceholder({ size }: { size: number }) {
+  const cube = size * 0.52;
+  return (
+    <div
+      className="sun-voxel-placeholder"
+      style={{ width: size, height: size, position: "relative", flexShrink: 0 }}
+      aria-hidden
+    >
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          width: cube * 1.35,
+          height: cube * 1.35,
+          transform: "translate(-50%, -50%)",
+          borderRadius: "50%",
+          background: "radial-gradient(circle at 50% 42%, #fffef055 0%, #ffee5844 38%, #ef6c0022 62%, transparent 78%)",
+          pointerEvents: "none",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          transform: "translate(-50%, -50%)",
+          width: cube * 0.82,
+          height: cube * 0.82,
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gridTemplateRows: "repeat(3, 1fr)",
+          gap: 1,
+        }}
+      >
+        {Array.from({ length: 9 }, (_, i) => (
+          <div
+            key={i}
+            style={{
+              background: i % 2 === 0 ? "#ffee58" : "#ffb300",
+              borderRadius: 1,
+              opacity: 0.72 + (i % 3) * 0.08,
+              boxShadow: i === 4 ? "0 0 8px #fff8c0" : undefined,
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function VoxelPlanetPlaceholder({
   size,
   color,
   accent,
+  isSun = false,
 }: {
   size: number;
   color: string;
   accent: string;
+  isSun?: boolean;
 }) {
+  if (isSun) return <SunVoxelPlaceholder size={size} />;
   const cube = size * 0.52;
   return (
     <div style={{ width: size, height: size, position: "relative", flexShrink: 0 }}>
@@ -61,7 +115,7 @@ function VoxelPlanetPlaceholder({
   );
 }
 
-const PLANET_THUMB_GL_MAX = 14;
+const PLANET_THUMB_GL_MAX = 8;
 let planetThumbGlActive = 0;
 const planetThumbWaiters: Array<() => void> = [];
 
@@ -88,6 +142,8 @@ export interface PlanetVoxelThumbProps {
   suspendGl?: boolean;
   /** Skip viewport throttling — Lab forge canvas uses one active renderer. */
   eager?: boolean;
+  /** Hi-fi internal supersampling (auto when size ≥ 80 if omitted). */
+  hiQuality?: boolean;
 }
 
 /** Voxel planet preview — same forge-sphere mesh as Lab, for Farm/Market cards. */
@@ -97,6 +153,7 @@ export function PlanetVoxelThumb({
   animate = true,
   suspendGl = false,
   eager = false,
+  hiQuality,
 }: PlanetVoxelThumbProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const hasSlotRef = useRef(false);
@@ -168,11 +225,12 @@ export function PlanetVoxelThumb({
   }, [releaseSlot]);
 
   const showGl = eager || (!suspendGl && inView && hasSlot);
+  const useHiQuality = hiQuality ?? size >= 80;
 
   return (
     <div
       ref={rootRef}
-      className="planet-voxel-thumb"
+      className={`planet-voxel-thumb${useHiQuality ? " planet-voxel-thumb--hifi" : ""}`}
       style={{ width: size, height: size, flexShrink: 0, position: "relative" }}
       data-testid="planet-voxel-thumb"
     >
@@ -188,6 +246,7 @@ export function PlanetVoxelThumb({
           size={size}
           autoSpin={animate}
           performanceMode={false}
+          hiQuality={useHiQuality}
           onGlFailed={handleGlError}
           onGlContextLost={handleGlError}
         />
@@ -196,6 +255,7 @@ export function PlanetVoxelThumb({
           size={size}
           color={displayColors.color}
           accent={displayColors.glowColor || displayColors.accentHex}
+          isSun={planet.name === "SUN"}
         />
       )}
     </div>

@@ -8,6 +8,7 @@ import { sendWithdrawalChannelMessage, notifyAdminWithdrawalRequest, sendBotMess
 import { logger } from "../lib/logger";
 import { registerLottoTicketPurchase } from "./lottery";
 import { recordHistoryAsync } from "../lib/history";
+import { bumpStardustIndex, getStardustIndexMicro, stardustPriceForGram } from "../lib/stardustPrice";
 
 const router: IRouter = Router();
 
@@ -1255,6 +1256,131 @@ router.post("/shop/buy-deposit", async (req, res) => {
       return;
     }
     console.error("[shop/buy-deposit] error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
+});
+
+/**
+ * Shop purchase paid in STARDUST at the live global index rate.
+ * Price = ceil(itemTonPrice × STARDUST_PER_GRAM_BASE × index).
+ */
+router.post("/shop/buy-stardust", async (req, res) => {
+  const { telegramId, itemId, meta } = req.body as {
+    telegramId?: string;
+    itemId?: string;
+    meta?: unknown;
+  };
+  if (!telegramId || !itemId) {
+    res.status(400).json({ error: "Missing telegramId or itemId" });
+    return;
+  }
+
+  const item = findItem(itemId);
+  if (!item) { res.status(404).json({ error: "Item not found" }); return; }
+  if (!(item.tonPrice > 0)) {
+    res.status(400).json({ error: "Item is not purchasable with STARDUST" });
+    return;
+  }
+
+  if (item.itemType === "sun") {
+    const check = await checkSunPurchasable(telegramId);
+    if (!check.ok) { res.status(409).json({ error: check.reason }); return; }
+  }
+
+  const reactMeta = parseReactMeta(meta, item.itemType);
+  const indexMicro = await getStardustIndexMicro();
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [user] = await tx
+        .select({
+          stardustBalance: usersTable.stardustBalance,
+          bonusSlots: usersTable.bonusSlots,
+        })
+        .from(usersTable)
+        .where(eq(usersTable.telegramId, telegramId))
+        .for("update")
+        .limit(1);
+
+      if (!user) throw new Error("USER_NOT_FOUND");
+
+      const effectiveGram = item.id === "extra_slot"
+        ? getSlotPriceTon(user.bonusSlots ?? 0)
+        : item.tonPrice;
+      const stardustCost = stardustPriceForGram(effectiveGram, indexMicro);
+
+      const bal = user.stardustBalance ?? 0;
+      if (bal < stardustCost) throw new Error("INSUFFICIENT_STARDUST");
+
+      const [txn] = await tx.insert(transactionsTable).values({
+        telegramId,
+        type: item.itemType,
+        currency: "STARDUST",
+        amount: item.zoomAmount || 0,
+        tonAmount: effectiveGram,
+        itemId: item.id,
+        itemName: item.title,
+        status: "completed",
+        telegramPaymentId: `stardust_${Date.now()}_${Math.random().toString(36).slice(2, 10)}_${item.id}`,
+      }).returning();
+
+      await tx.update(usersTable)
+        .set({ stardustBalance: sql`${usersTable.stardustBalance} - ${stardustCost}` })
+        .where(eq(usersTable.telegramId, telegramId));
+
+      const creditRes = await creditUserTx(
+        tx,
+        { ...item, tonPrice: effectiveGram },
+        telegramId,
+        txn.id,
+        reactMeta,
+      );
+      if (creditRes.award) {
+        await tx.update(transactionsTable)
+          .set({ award: creditRes.award })
+          .where(eq(transactionsTable.id, txn.id));
+      }
+      return { txnId: txn.id, award: creditRes.award, stardustCost, effectiveGram };
+    });
+
+    void bumpStardustIndex("spend");
+    recordHistoryAsync({
+      telegramId,
+      kind: "stardust_purchase",
+      delta: -result.stardustCost,
+      currency: "stardust",
+      meta: {
+        txnId: result.txnId,
+        itemId: item.id,
+        itemName: item.title,
+        itemType: item.itemType,
+        gramEquivalent: result.effectiveGram,
+      },
+    });
+
+    res.json({
+      ok: true,
+      txnId: result.txnId,
+      itemId: item.id,
+      itemName: item.title,
+      award: result.award,
+      stardustSpent: result.stardustCost,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === "INSUFFICIENT_STARDUST") {
+      res.status(400).json({ error: "Insufficient STARDUST. Convert GRAM in Wallet → STARDUST market." });
+      return;
+    }
+    if (msg === "USER_NOT_FOUND") {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    if (/SOLD_OUT|MAX_REACHED|ALREADY|NOT_ELIGIBLE|INSUFFICIENT_STOCK|GLOBAL_CAP/i.test(msg)) {
+      res.status(409).json({ error: msg });
+      return;
+    }
+    console.error("[shop/buy-stardust] error:", err);
     res.status(500).json({ error: "Internal error" });
   }
 });

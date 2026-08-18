@@ -1,7 +1,4 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { TonWalletWidget } from "./components/TonWalletWidget";
-import { OnlineIndicator } from "./components/OnlineIndicator";
-import { BalanceCounter } from "./components/BalanceCounter";
 import { AvatarXP } from "./components/AvatarXP";
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
 import { BlackPlanetOrbStyles } from "./components/BlackPlanetOrb";
@@ -23,9 +20,7 @@ import { LanguageProvider, useT } from "./i18n/LanguageContext";
 import HistoryModal from "./components/HistoryModal";
 import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, merchantScrap, type StardustLeaderboardEntry } from "./utils/api";
 import { useStardust } from "./hooks/useStardust";
-import { useMerchant } from "./hooks/useMerchant";
-import { MerchantPopup } from "./components/MerchantPopup";
-import { FlaskConical, Home, Sprout, ShoppingCart, Gem, Trophy, Wallet } from "lucide-react";
+import { FlaskConical, Home, Sprout, ShoppingCart, Gem, Trophy, Wallet, ShoppingBag } from "lucide-react";
 import { WalletPage } from "./pages/WalletPage";
 import { isBrowserDevSession } from "./utils/telegram";
 
@@ -145,13 +140,6 @@ function AppShellWithState() {
     items, listItem, unlistItem, buyItemFromMarket,
   } = useGameState();
 
-  // Space Merchant — wire once at App level so the radar LED in LAB and the
-  // overlay popup share the same authoritative timer state. Polling stays
-  // active on every tab so the spawn timer keeps ticking in the background;
-  // the popup itself is gated to the LAB tab below, so the alien can only be
-  // *interacted with* in the lab even though it can *appear* anywhere.
-  const merchant = useMerchant(state.telegramId);
-  const scrapEligiblePlanets = state.planets.filter((p) => !p.isFarmingActive && !p.isListedInMarket);
 
   // Telegram profile photo + name for the header avatar/XP widget.
   // We poll once because Telegram WebApp populates initDataUnsafe
@@ -731,82 +719,46 @@ function AppShellWithState() {
               name={displayProfile.name}
             />
           </div>
-          <BalanceCounter
-            balance={state.balance}
-            activeRate={totalRate}
+          <button
+            type="button"
             onClick={() => setHistoryOpen(true)}
-          />
+            data-testid="header-zoom-balance"
+            className="px-3 py-1.5 rounded-full active:scale-95 flex-shrink-0"
+            style={{
+              background: "rgba(0, 0, 0, 0.62)",
+              border: "1px solid rgba(255, 255, 255, 0.14)",
+              backdropFilter: "blur(10px)",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.35)",
+              cursor: "pointer",
+            }}
+          >
+            <span
+              className="font-black text-sm tracking-wide whitespace-nowrap"
+              style={{ color: "#ffffff", letterSpacing: "0.06em" }}
+            >
+              {Math.floor(state.balance).toLocaleString()} $ZOOM
+            </span>
+          </button>
         </div>
-        <div className="flex items-center gap-1 min-w-0">
-          <OnlineIndicator />
-          <TonWalletWidget
-            tonBalance={state.tonBalance || 0}
-            depositBalance={state.depositBalance || 0}
-            telegramId={state.telegramId || null}
-            whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
-            earthCollectionUnlocked={!!state.earthCollectionUnlocked}
-            blackCollectionUnlocked={!!state.blackCollectionUnlocked}
-            supernovaCollectionUnlocked={!!state.supernovaCollectionUnlocked}
-            sunCount={state.sunCount || 0}
-            whitePlanets={state.whitePlanets || []}
-            earthPlanets={state.earthPlanets || []}
-            blackPlanets={state.blackPlanets || []}
-            supernovaPlanets={state.supernovaPlanets || []}
-            onOpenWalletTab={() => switchTab("wallet")}
-          />
+        <div className="flex items-center gap-1.5 min-w-0">
           <button
             onClick={() => switchTab("shop")}
             data-testid="button-shop-nav"
             aria-label="Open shop"
-            className="flex flex-col items-center justify-center gap-0.5 active:scale-95 flex-shrink-0"
+            className="flex items-center justify-center active:scale-95 flex-shrink-0"
             style={{
-              width: 34,
-              height: 34,
-              borderRadius: 9,
-              background: "linear-gradient(135deg, rgba(220,30,50,0.22), rgba(160,10,20,0.14))",
-              border: "1px solid rgba(220,30,50,0.55)",
-              boxShadow: "0 0 14px rgba(220,30,50,0.35), inset 0 0 8px rgba(200,20,40,0.18)",
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              background: "linear-gradient(145deg, #ffb347, #ff8c00)",
+              border: "1px solid rgba(255, 140, 0, 0.55)",
+              boxShadow: "0 4px 14px rgba(255, 140, 0, 0.45)",
               cursor: "pointer",
               padding: 0,
               transition: "transform 0.12s",
             }}
           >
-            <span style={{
-              fontSize: 9,
-              fontWeight: 900,
-              letterSpacing: 1.2,
-              color: "#ff3355",
-              textShadow: "0 0 4px rgba(220,30,50,0.8)",
-              lineHeight: 1,
-            }}>SHOP</span>
-          </button>
-          {/* Single ⭐ resource widget button — shows Stardust, Redstar, NFTSTAR */}
-          <button
-            onClick={() => setResourceWidgetOpen(true)}
-            data-testid="resource-widget-btn"
-            aria-label="Resources"
-            className="flex items-center justify-center active:scale-95 flex-shrink-0"
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 9,
-              background: "linear-gradient(135deg, rgba(255,215,64,0.18), rgba(255,100,40,0.10))",
-              border: "1px solid rgba(255,215,64,0.45)",
-              boxShadow: "0 0 10px rgba(255,215,64,0.22)",
-              cursor: "pointer",
-              padding: 0,
-            }}
-          >
-            <svg width={18} height={18} viewBox="0 0 12 12" shapeRendering="crispEdges" style={{ filter: "drop-shadow(0 0 4px rgba(255,215,64,0.9))" }}>
-              <rect x="5" y="0" width="2" height="2" fill="#ffd740" />
-              <rect x="3" y="2" width="6" height="2" fill="#ffd740" />
-              <rect x="1" y="4" width="10" height="2" fill="#ffd740" />
-              <rect x="0" y="5" width="12" height="2" fill="#ffee88" />
-              <rect x="1" y="7" width="10" height="2" fill="#ffd740" />
-              <rect x="3" y="9" width="6" height="2" fill="#ffd740" />
-              <rect x="5" y="11" width="2" height="1" fill="#ffb300" />
-              <rect x="5" y="1" width="1" height="1" fill="#fff8c0" />
-            </svg>
+            <ShoppingBag size={20} strokeWidth={2.4} color="#111" />
           </button>
           <SettingsMenu muted={muted} setMuted={setMuted} />
         </div>
@@ -842,11 +794,16 @@ function AppShellWithState() {
                   telegramId={state.telegramId}
                   onCraft={craft}
                   onClaim={claimCraft}
+                  onMerchantScrap={async (planetId, planetType) =>
+                    merchantScrap(state.telegramId || "", planetId, planetType)
+                  }
+                  onBurnPlanet={burnPlanet}
                   visible={tab === "lab"}
                 />
               )}
               {t === "farm" && (
                 <FarmPage
+                  visible={tab === "farm"}
                   planets={state.planets}
                   sun={state.sun}
                   sunCount={state.sunCount}
@@ -992,6 +949,7 @@ function AppShellWithState() {
               {t === "shop" && (
                 <ShopPage
                   balance={state.balance}
+                  stardustBalance={state.stardustBalance || 0}
                   depositBalance={state.depositBalance || 0}
                   hasSun={!!state.sun?.isOwned}
                   telegramId={state.telegramId}
@@ -1160,23 +1118,6 @@ function AppShellWithState() {
         <HistoryModal telegramId={state.telegramId} onClose={() => setHistoryOpen(false)} />
       )}
 
-      {/* Space Merchant overlay — gated to LAB so the popup can't ambush
-          users who are mid-trade in MARKET or mid-tap in another tab. The
-          radar LED on LAB tells them the merchant is waiting if they're
-          elsewhere; the popup itself only appears when they actually open
-          the lab. */}
-      {merchant.active && tab === "lab" && (
-        <MerchantPopup
-          expiresAt={merchant.expiresAt}
-          planets={scrapEligiblePlanets}
-          onScrap={async (planetId, planetType) => {
-            const res = await merchantScrap(state.telegramId || "", planetId, planetType);
-            return res;
-          }}
-          onBurnPlanet={burnPlanet}
-          onClose={merchant.dismissLocally}
-        />
-      )}
 
       <nav
         className="flex-shrink-0 relative z-20"

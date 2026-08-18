@@ -1,6 +1,7 @@
 import { useMemo, useEffect, useState } from "react";
 import { Lock } from "lucide-react";
 import { GramWalletPanel, GramWalletIcon, type TonWalletProps } from "../components/TonWalletWidget";
+import { StardustMarketModal } from "../components/StardustMarketModal";
 
 interface WalletPageProps extends Omit<TonWalletProps, "onOpenWalletTab" | "labVariant"> {
   /** ZOOM Season 2 balance */
@@ -61,6 +62,12 @@ export function WalletPage({
 }: WalletPageProps) {
   const [tonPrice, setTonPrice] = useState<number | null>(null);
   const [priceLoading, setPriceLoading] = useState(true);
+  const [stardustMarketOpen, setStardustMarketOpen] = useState(false);
+  const [liveStardustBalance, setLiveStardustBalance] = useState(stardustBalance);
+
+  useEffect(() => {
+    setLiveStardustBalance(stardustBalance);
+  }, [stardustBalance]);
 
   useEffect(() => {
     let cancelled = false;
@@ -262,10 +269,12 @@ export function WalletPage({
           <BalanceRow
             icon="★"
             label="STARDUST"
-            value={formatZoom(stardustBalance)}
+            value={formatZoom(liveStardustBalance)}
             color="#ffd740"
             glow="rgba(255,215,64,0.35)"
             iconColor="#ffd740"
+            onClick={() => setStardustMarketOpen(true)}
+            hint="Tap for market & stake"
           />
           {/* REDSTAR — star (★), red */}
           <BalanceRow
@@ -368,6 +377,17 @@ export function WalletPage({
           </div>
         </div>
       </div>
+
+      {stardustMarketOpen && (
+        <StardustMarketModal
+          telegramId={telegramId ?? null}
+          walletBalance={liveStardustBalance}
+          depositBalance={depositBalance}
+          earnedGramBalance={tonBalance}
+          onClose={() => setStardustMarketOpen(false)}
+          onBalanceChange={setLiveStardustBalance}
+        />
+      )}
     </div>
   );
 }
@@ -381,6 +401,8 @@ function BalanceRow({
   color,
   glow,
   iconColor,
+  onClick,
+  hint,
 }: {
   icon: string;
   label: string;
@@ -388,12 +410,24 @@ function BalanceRow({
   color: string;
   glow: string;
   iconColor?: string;
+  onClick?: () => void;
+  hint?: string;
 }) {
   const ic = iconColor ?? color;
+  const interactive = !!onClick;
   return (
     <div
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={interactive ? (e) => { if (e.key === "Enter" || e.key === " ") onClick?.(); } : undefined}
       className="flex items-center justify-between rounded-2xl"
-      style={{ padding: "11px 14px", background: color + "08", border: `1px solid ${color}22` }}
+      style={{
+        padding: "11px 14px",
+        background: color + "08",
+        border: `1px solid ${color}22`,
+        cursor: interactive ? "pointer" : undefined,
+      }}
     >
       <div className="flex items-center gap-3">
         <div
@@ -414,16 +448,23 @@ function BalanceRow({
         >
           {icon}
         </div>
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 800,
-            color: "rgba(255,255,255,0.52)",
-            letterSpacing: "0.12em",
-            textTransform: "uppercase",
-          }}
-        >
-          {label}
+        <div>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 800,
+              color: "rgba(255,255,255,0.52)",
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+            }}
+          >
+            {label}
+          </div>
+          {hint && (
+            <div style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,215,64,0.45)", marginTop: 2 }}>
+              {hint}
+            </div>
+          )}
         </div>
       </div>
       <div
