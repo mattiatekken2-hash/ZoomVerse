@@ -535,6 +535,7 @@ router.post("/stardust/stake", async (req, res) => {
         balance: usersTable.stardustBalance,
         staked: usersTable.stardustStaked,
         stakeIndex: usersTable.stardustStakeIndexMicro,
+        balanceEpoch: usersTable.balanceEpoch,
       });
 
     if (!upd) return res.status(402).json({ ok: false, error: "Insufficient stardust" });
@@ -554,6 +555,7 @@ router.post("/stardust/stake", async (req, res) => {
       index: indexMicro / STARDUST_SCALE,
       lockedUntilMs: lockUntil,
       canWithdraw: false,
+      balanceEpoch: Number(upd.balanceEpoch ?? 0),
     });
   } catch (err) {
     console.error("[stardust/stake]", err);

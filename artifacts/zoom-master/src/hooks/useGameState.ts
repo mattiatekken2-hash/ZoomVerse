@@ -1302,6 +1302,23 @@ function reconcileFromSyncResponse(
       }));
     } catch { /**/ }
   }
+  // Stardust snap-down when the server reports a lower wallet balance at the
+  // same epoch (e.g. /stardust/stake raced ahead of a stale client sync).
+  if (
+    !serverAdvanced &&
+    typeof res.stardustBalance === "number" &&
+    typeof sentStardustBalance === "number" &&
+    (res.stardustBalance ?? 0) < (sentStardustBalance ?? 0)
+  ) {
+    if (_stateRefHolder) {
+      _stateRefHolder.current = { ..._stateRefHolder.current, stardustBalance: res.stardustBalance };
+    }
+    try {
+      window.dispatchEvent(new CustomEvent("zoom-server-stardust-snap", {
+        detail: { stardustBalance: res.stardustBalance, epoch: res.balanceEpoch },
+      }));
+    } catch { /**/ }
+  }
   // REDSTAR: server-authoritative-up only. Snap local state whenever the
   // server returns a value higher than what we currently hold (admin credits
   // or future gameplay mechanics). Never decremented client-side.
