@@ -113,12 +113,12 @@ router.post("/balance/sync", async (req, res) => {
           // other when balance_epoch advances.
           ...(typeof tonBalance === "number"
             ? {
-                tonBalance: sql`GREATEST(${usersTable.tonBalance}, ${tb})`,
+                tonBalance: sql`CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.tonBalance} ELSE GREATEST(${usersTable.tonBalance}, ${tb}) END`,
               }
             : {}),
           ...(typeof stardustBalance === "number"
             ? {
-                stardustBalance: sql`GREATEST(${usersTable.stardustBalance}, ${stardustBalance})`,
+                stardustBalance: sql`CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.stardustBalance} ELSE GREATEST(0, ${stardustBalance}) END`,
               }
             : {}),
           ...(typeof redStarBalance === "number"

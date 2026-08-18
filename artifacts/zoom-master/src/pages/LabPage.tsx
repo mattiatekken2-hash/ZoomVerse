@@ -393,7 +393,10 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
       </div>
 
-      <div className="flex-shrink-0 px-5 pb-6 pt-2 flex flex-col gap-3">
+      <div
+        className="flex-shrink-0 px-5 pt-2 flex flex-col gap-3"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 78px)" }}
+      >
         <div style={{ display: "flex", alignItems: "center" }}>
           {!pendingPlanet && (
             <button

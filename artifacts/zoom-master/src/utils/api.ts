@@ -2284,6 +2284,9 @@ export interface StardustStakeStateResponse {
   stakedValue: number;
   index: number;
   pnl: number;
+  lockedUntilMs?: number;
+  canWithdraw?: boolean;
+  lockDaysRemaining?: number;
 }
 
 export async function fetchStardustMarketPrice(): Promise<StardustMarketPriceResponse | null> {

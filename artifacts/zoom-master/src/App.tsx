@@ -225,8 +225,12 @@ function AppShellWithState() {
         }
         return prev;
       }
-      // Subsequent syncs: grow-only to avoid clobbering a live craft deduction.
-      if (stardust.balance > prev.stardustBalance && !prev.pendingPlanet) {
+      // Subsequent syncs: adopt server when not mid-forge (craft deducts locally).
+      const forging = prev.forgePlanetBuild || prev.currentCraftRarity || prev.pendingPlanet;
+      if (!forging && stardust.balance !== prev.stardustBalance) {
+        return { ...prev, stardustBalance: stardust.balance };
+      }
+      if (forging && stardust.balance > prev.stardustBalance) {
         return { ...prev, stardustBalance: stardust.balance };
       }
       return prev;
@@ -691,7 +695,7 @@ function AppShellWithState() {
 
   return (
     <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
-    <div className="flex flex-col overflow-hidden relative" style={{ height: "100dvh", background: "#000000", paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+    <div className="flex flex-col overflow-hidden relative" style={{ height: "100dvh", background: "#000000", paddingTop: tab === "lab" ? 0 : "env(safe-area-inset-top, 0px)", paddingBottom: tab === "lab" ? 0 : "env(safe-area-inset-bottom, 0px)" }}>
       <NebulaBackground />
       {isAdmin && maintenance.enabled && (
         <div
@@ -720,7 +724,7 @@ function AppShellWithState() {
       </header>
       )}
 
-      <main className="flex-1 overflow-hidden relative z-10" style={{ minHeight: 0 }}>
+      <main className="flex-1 overflow-hidden relative z-10" style={{ minHeight: 0, ...(tab === "lab" ? { position: "absolute", inset: 0 } : {}) }}>
         {ALL_TABS.map((t) => {
           const isActive = tab === t;
           if (!visitedTabs.has(t)) return null;
@@ -1077,13 +1081,24 @@ function AppShellWithState() {
 
       <nav
         className="flex-shrink-0 relative z-20"
-        style={{
+        style={tab === "lab" ? {
+          position: "fixed",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 30,
+          height: "calc(64px + env(safe-area-inset-bottom, 0px))",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+          background: "linear-gradient(to top, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.42) 50%, transparent 100%)",
+          borderTop: "none",
+          pointerEvents: "none",
+        } : {
           height: 70,
           background: "rgba(8,1,9,0.92)",
           borderTop: "1px solid rgba(255,255,255,0.05)",
         }}
       >
-        <div className="flex h-full">
+        <div className="flex h-full" style={tab === "lab" ? { pointerEvents: "auto" } : undefined}>
           {NAV.map((item) => {
             const isActive = tab === item.id;
             return (

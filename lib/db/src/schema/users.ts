@@ -116,6 +116,8 @@ export const usersTable = pgTable("users", {
   stardustStaked: integer("stardust_staked").notNull().default(0),
   /** Weighted entry index (micro) for staked STARDUST. */
   stardustStakeIndexMicro: integer("stardust_stake_index_micro").notNull().default(1_000_000),
+  /** Earliest epoch ms when staked STARDUST can be withdrawn (30-day lock). */
+  stardustStakeLockedUntilMs: bigint("stardust_stake_locked_until_ms", { mode: "number" }).notNull().default(0),
   // HALL OF FAME — Daily Referrals.
   // `dailyReferralCount` is the number of *new* successful referrals this
   // user has earned during the current UTC day. `dailyReferralDayKey` is
