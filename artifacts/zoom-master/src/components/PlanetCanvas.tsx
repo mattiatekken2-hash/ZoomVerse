@@ -24,6 +24,8 @@ interface PlanetCanvasProps {
   forgeRolling?: boolean;
   /** Full-bleed backdrop layer (Lab forge behind UI). */
   backdrop?: boolean;
+  /** Bottom inset for progress bar when backdrop overlays nav chrome. */
+  chromeBottomOffset?: string;
 }
 
 const DEFAULT_ACCENT = "#8892b0";
@@ -63,15 +65,20 @@ const ForgeProgressBar = memo(function ForgeProgressBar({
   pct,
   displayAccent,
   label,
+  bottomOffset,
 }: {
   progress: number;
   goal: number;
   pct: number;
   displayAccent: string;
   label: string;
+  bottomOffset?: string;
 }) {
   return (
-    <div className="absolute bottom-0 left-0 right-0 px-6 pb-2 pt-4 z-10">
+    <div
+      className="absolute left-0 right-0 px-6 pb-2 pt-4 z-10"
+      style={bottomOffset ? { bottom: bottomOffset } : { bottom: 0 }}
+    >
       <div className="flex justify-between text-xs mb-1.5">
         <span className="font-semibold tracking-wider uppercase" style={{ color: "rgba(255,255,255,0.4)" }}>
           {label}
@@ -326,6 +333,7 @@ export function PlanetCanvas({
   forgePhase,
   forgeRolling = false,
   backdrop = false,
+  chromeBottomOffset,
 }: PlanetCanvasProps) {
   const { t } = useT();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -336,8 +344,10 @@ export function PlanetCanvas({
   const lastTapSignalRef = useRef(tapSignal);
   const burstSpawnedRef = useRef<string | null>(null);
   const [size, setSize] = useState(280);
+  const [viewport, setViewport] = useState({ w: 0, h: 0 });
   const [forgeGlSession, setForgeGlSession] = useState<string | null>(null);
   const sizeRef = useRef(280);
+  const viewportRef = useRef({ w: 0, h: 0 });
   const craftSizeLockRef = useRef<number | null>(null);
 
   const livePlanet = pendingPlanet || (craftRarity ? {
@@ -394,13 +404,23 @@ export function PlanetCanvas({
     const el = containerRef.current;
     if (!el) return;
     const update = () => {
-      if (craftSizeLockRef.current != null) return;
       const h = el.clientHeight;
       const w = el.clientWidth;
       if (w <= 1 || h <= 1) return;
-      const next = backdrop
-        ? Math.round(Math.min(w, h))
-        : Math.round(Math.min(w * 0.88, h * 0.82, 380));
+      if (backdrop) {
+        if (viewportRef.current.w !== w || viewportRef.current.h !== h) {
+          viewportRef.current = { w, h };
+          setViewport({ w, h });
+        }
+        if (craftSizeLockRef.current != null) return;
+        const next = Math.round(Math.min(w, h));
+        if (Math.abs(next - sizeRef.current) < 1) return;
+        sizeRef.current = next;
+        setSize(next);
+        return;
+      }
+      if (craftSizeLockRef.current != null) return;
+      const next = Math.round(Math.min(w * 0.88, h * 0.82, 380));
       if (Math.abs(next - sizeRef.current) < 1) return;
       sizeRef.current = next;
       setSize(next);
@@ -496,7 +516,43 @@ export function PlanetCanvas({
         }}
         data-testid="planet-wrap"
       >
-        {(showVoxelLayer && livePlanet) && (
+        {(showVoxelLayer && livePlanet) && backdrop && forgeGlSession && (
+          <div
+            className="absolute inset-0"
+            style={{
+              lineHeight: 0,
+              pointerEvents: isForging && !forgeRolling ? "auto" : "none",
+            }}
+          >
+            <MysteryModel3D
+              ref={meshRef}
+              key={`planet-voxel-${forgeGlSession}`}
+              parts={objectParts ?? []}
+              shapeId={forgeShapeId}
+              primaryColor={meshPrimary}
+              accentColor={meshAccent}
+              progress={isCrafting ? buildProgress : 1}
+              revealed={false}
+              planetRarity={forgeRarity ?? undefined}
+              displayFloat={forgeDisplayFloat}
+              planetId={livePlanet?.id}
+              size={modelCanvasSize}
+              viewportWidth={viewport.w}
+              viewportHeight={viewport.h}
+              onTap={isForging && !forgeRolling ? handleModelTap : undefined}
+              autoSpin
+              forgeVoxelBuild={true}
+              forgeRevealPhase={forgeRevealPhase}
+              forgeTapRelaxed={tapRelaxed}
+              performanceMode={false}
+              labForgeBackdrop={true}
+              onGlFailed={handleLabGlError}
+              onGlContextLost={handleLabGlError}
+            />
+          </div>
+        )}
+
+        {(showVoxelLayer && livePlanet) && !backdrop && (
           <div
             style={{
               position: "relative",
@@ -505,7 +561,7 @@ export function PlanetCanvas({
               pointerEvents: isForging && !forgeRolling ? "auto" : "none",
             }}
           >
-            {showVoxelLayer && forgeGlSession && livePlanet && (
+            {forgeGlSession && (
               <div
                 style={{
                   position: "absolute",
@@ -533,7 +589,6 @@ export function PlanetCanvas({
                   forgeRevealPhase={forgeRevealPhase}
                   forgeTapRelaxed={tapRelaxed}
                   performanceMode={false}
-                  labForgeBackdrop={backdrop}
                   onGlFailed={handleLabGlError}
                   onGlContextLost={handleLabGlError}
                 />
@@ -562,15 +617,14 @@ export function PlanetCanvas({
       </div>
 
       {isForging && (
-        <div className="relative z-10 w-full">
-          <ForgeProgressBar
-            progress={progress}
-            goal={goal}
-            pct={pct}
-            displayAccent={displayAccent}
-            label={progressLabel}
-          />
-        </div>
+        <ForgeProgressBar
+          progress={progress}
+          goal={goal}
+          pct={pct}
+          displayAccent={displayAccent}
+          label={progressLabel}
+          bottomOffset={backdrop ? chromeBottomOffset : undefined}
+        />
       )}
     </div>
   );

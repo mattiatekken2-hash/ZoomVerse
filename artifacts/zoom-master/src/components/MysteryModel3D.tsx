@@ -1097,6 +1097,10 @@ interface ObjectMesh3DProps {
   thumbHiQuality?: boolean;
   /** Lab backdrop forge — keep one GL session; space grid bg; simple rarity paint at end. */
   labForgeBackdrop?: boolean;
+  /** Full viewport width for Lab backdrop (grid fills screen). */
+  viewportWidth?: number;
+  /** Full viewport height for Lab backdrop (grid fills screen). */
+  viewportHeight?: number;
 }
 
 function resolveColor(c: MeshPart["color"], primary: string, accent: string): string {
@@ -1258,6 +1262,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
   planetId = "planet",
   thumbHiQuality,
   labForgeBackdrop = false,
+  viewportWidth,
+  viewportHeight,
 }, ref) {
   const mountRef = useRef<HTMLDivElement>(null);
   const onTapRef = useRef(onTap);
@@ -1486,6 +1492,14 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const mount = mountRef.current;
     if (!mount || size <= 0) return;
 
+    const labViewportFill = labForgeBackdrop
+      && typeof viewportWidth === "number"
+      && viewportWidth > 0
+      && typeof viewportHeight === "number"
+      && viewportHeight > 0;
+    const canvasW = labViewportFill ? viewportWidth : size;
+    const canvasH = labViewportFill ? viewportHeight : size;
+
     const labCollectibleView = forgeVoxelBuild
       && shapeId === FORGE_SPHERE_SHAPE_ID
       && isLabCollectibleVoxelRarity(planetRarity);
@@ -1521,7 +1535,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const scene = new THREE.Scene();
     if (showcase && !planetShowcase && !labCollectibleShowcase) scene.background = new THREE.Color(0x060810);
     else if (forgeSpaceMode) scene.background = null;
-    const camera = new THREE.PerspectiveCamera(showcase ? 38 : 42, 1, 0.1, 100);
+    const camera = new THREE.PerspectiveCamera(showcase ? 38 : 42, canvasW / canvasH, 0.1, 100);
     cameraRef.current = camera;
     const thumbHiFi = (planetShowcase || isLabFarmThumb) && (thumbHiQuality ?? size >= PLANET_THUMB_HIFI_MIN);
     // Farm lab-voxel thumbs: 1:1 canvas like Lab forge — sharp squares via DPR, not supersample downscale.
@@ -1559,12 +1573,24 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       ? size
       : planetShowcase
         ? Math.round(size * planetThumbScale)
-        : size;
-    renderer.setSize(renderPx, renderPx);
+        : labViewportFill
+          ? canvasW
+          : size;
+    const renderPy = isLabFarmThumb
+      ? size
+      : planetShowcase
+        ? Math.round(size * planetThumbScale)
+        : labViewportFill
+          ? canvasH
+          : size;
+    renderer.setSize(renderPx, renderPy);
     if (planetShowcase || isLabFarmThumb) {
       renderer.domElement.style.width = `${size}px`;
       renderer.domElement.style.height = `${size}px`;
       renderer.domElement.style.imageRendering = "auto";
+    } else if (labViewportFill) {
+      renderer.domElement.style.width = "100%";
+      renderer.domElement.style.height = "100%";
     }
     if (opaqueBackground) {
       renderer.setClearColor(0x060810, 1);
@@ -2548,13 +2574,19 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       rendererRef.current = null;
     };
   }, labForgeBackdrop
-    ? [size, meshParts, shapeId, autoSpin, interactive, forgeVoxelBuild, forgeTapRelaxed, opaqueBackground, performanceMode, labForgeBackdrop]
+    ? [size, meshParts, shapeId, autoSpin, interactive, forgeVoxelBuild, forgeTapRelaxed, opaqueBackground, performanceMode, labForgeBackdrop, viewportWidth, viewportHeight]
     : [size, meshParts, shapeId, autoSpin, interactive, forgeVoxelBuild, forgeTapRelaxed, opaqueBackground, performanceMode, planetRarity, displayFloat, planetId, primaryColor, accentColor]);
 
   return (
     <div
       ref={mountRef}
-      style={{ width: size, height: size, touchAction: "manipulation", background: "transparent", overflow: "visible" }}
+      style={{
+        width: labForgeBackdrop && viewportWidth && viewportHeight ? "100%" : size,
+        height: labForgeBackdrop && viewportWidth && viewportHeight ? "100%" : size,
+        touchAction: "manipulation",
+        background: "transparent",
+        overflow: "visible",
+      }}
       data-testid="object-mesh-3d"
     />
   );
