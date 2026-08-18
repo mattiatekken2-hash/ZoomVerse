@@ -20,7 +20,7 @@ import { LanguageProvider, useT } from "./i18n/LanguageContext";
 import HistoryModal from "./components/HistoryModal";
 import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, merchantScrap, type StardustLeaderboardEntry } from "./utils/api";
 import { useStardust } from "./hooks/useStardust";
-import { FlaskConical, Home, Sprout, ShoppingCart, Gem, Trophy, Wallet, ShoppingBag } from "lucide-react";
+import { FlaskConical, Home, Sprout, ShoppingCart, Gem, Trophy, Wallet, ShoppingBag, type LucideIcon } from "lucide-react";
 import { WalletPage } from "./pages/WalletPage";
 import { isBrowserDevSession } from "./utils/telegram";
 
@@ -47,7 +47,7 @@ const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
 type Tab = "lab" | "home" | "farm" | "market" | "earn" | "rank" | "shop" | "wallet";
 
-const NAV: { id: Tab; labelKey: string; icon: React.ElementType }[] = [
+const NAV: { id: Tab; labelKey: string; icon: LucideIcon }[] = [
   { id: "lab", labelKey: "nav.lab", icon: FlaskConical },
   { id: "farm", labelKey: "nav.farm", icon: Sprout },
   { id: "market", labelKey: "nav.market", icon: ShoppingCart },

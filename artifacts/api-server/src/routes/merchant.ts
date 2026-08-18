@@ -175,7 +175,7 @@ router.post("/merchant/scrap", async (req, res) => {
              merchant_expires_at = $4::timestamp,
              planets_updated_at_ms = GREATEST(planets_updated_at_ms, $5::bigint)
          WHERE telegram_id = $1`,
-        [telegramId, JSON.stringify(nextPlanets), reward, visitMarker, now]
+        [telegramId, JSON.stringify(nextPlanets), reward, visitMarker, Date.now()]
       );
 
       // If the burned planet was a bonus planet, decrement the server-side entitlement

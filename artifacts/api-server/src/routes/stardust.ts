@@ -377,7 +377,7 @@ router.post("/stardust/convert-to-gram", async (req, res) => {
       telegramId,
       kind: "gram_convert_in",
       delta: gramOut,
-      currency: "gram",
+      currency: "ton",
       meta: { stardustSpent: stardustAmount, index: indexMicro / STARDUST_SCALE, spread: STARDUST_TO_GRAM_SPREAD },
     });
 

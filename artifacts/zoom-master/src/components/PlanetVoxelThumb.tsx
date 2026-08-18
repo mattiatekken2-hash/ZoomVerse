@@ -255,7 +255,7 @@ export function PlanetVoxelThumb({
           size={size}
           color={displayColors.color}
           accent={displayColors.glowColor || displayColors.accentHex}
-          isSun={planet.name === "SUN"}
+          isSun={(planet.name as string) === "SUN"}
         />
       )}
     </div>

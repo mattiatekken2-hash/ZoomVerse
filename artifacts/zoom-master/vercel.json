@@ -1,9 +1,13 @@
 {
   "version": 2,
-  "installCommand": "cd ../.. && pnpm install",
+  "installCommand": "cd ../.. && corepack enable && pnpm install --frozen-lockfile",
   "buildCommand": "cd ../.. && pnpm --filter @workspace/zoom-master run build",
   "outputDirectory": "dist/public",
   "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://zoomverse-api.onrender.com/api/:path*"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

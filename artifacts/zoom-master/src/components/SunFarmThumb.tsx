@@ -18,7 +18,7 @@ const SUN_PREVIEW_PLANET = {
   marketPrice: null,
   craftCost: 0,
   shapeId: "forge-sphere",
-} as Planet;
+} as unknown as Planet;
 
 export function SunFarmThumb({
   size,

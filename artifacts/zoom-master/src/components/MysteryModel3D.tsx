@@ -1075,7 +1075,7 @@ interface ObjectMesh3DProps {
   /** After last tap — close gaps / inflate into a round planet shell before morph-out. */
   forgeSeal?: boolean;
   /** Lab forge cinematic — burst + color paint without remounting the WebGL scene. */
-  forgeRevealPhase?: "idle" | "flash" | "waiting" | "revealed";
+  forgeRevealPhase?: "idle" | "wheel" | "flash" | "waiting" | "revealed";
   /** Softer particle timing (auto-tap). */
   forgeTapRelaxed?: boolean;
   interactive?: boolean;

@@ -2,7 +2,7 @@
 # Mirrors vercel.json so deploy previews do not fall back to npm.
 
 [build]
-  command = "pnpm install --frozen-lockfile && pnpm --filter @workspace/zoom-master run build"
+  command = "corepack enable && pnpm install --frozen-lockfile && pnpm --filter @workspace/zoom-master run build"
   publish = "artifacts/zoom-master/dist/public"
 
 [build.environment]

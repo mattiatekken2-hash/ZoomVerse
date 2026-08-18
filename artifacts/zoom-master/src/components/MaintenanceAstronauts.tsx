@@ -86,7 +86,7 @@ export function MaintenanceAstronauts() {
       root.rotation.y += 0.008;
       renderer.render(scene, camera);
     };
-    animate(performance.now());
+    animate();
 
     const ro = new ResizeObserver(() => {
       const next = Math.min(mount.clientWidth, mount.clientHeight, 360);
