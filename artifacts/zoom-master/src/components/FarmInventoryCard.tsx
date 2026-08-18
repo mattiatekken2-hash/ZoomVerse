@@ -326,10 +326,7 @@ export function FarmInventoryCard({
             }}
             data-testid={`btn-reactivate-${planet.id}`}
           >
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <FarmCubeIcon size={12} color={cardColor} />
-              REACTIVATE
-            </span>
+            <span>REACTIVATE</span>
             <span style={{ fontSize: compact ? 7 : 8, opacity: 0.85 }}>1 ★ Redstar</span>
           </button>
         ) : (

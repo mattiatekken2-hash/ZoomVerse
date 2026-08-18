@@ -286,7 +286,11 @@ export function FarmPage({
             </p>
           </div>
           {totalRate > 0 && (
-            <div className="glass-neon px-3 py-1.5 rounded-full text-xs font-bold neon-text flex-shrink-0" data-testid="total-farm-rate">
+            <div
+              className="glass-neon px-3 py-1.5 rounded-full text-xs font-bold flex-shrink-0"
+              style={{ color: "#9EC5E8", textShadow: "0 0 10px rgba(158,197,232,0.45)" }}
+              data-testid="total-farm-rate"
+            >
               +{Math.floor(totalRate).toLocaleString()}/hr
             </div>
           )}
