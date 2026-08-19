@@ -1301,6 +1301,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
   const displayFloatRef = useRef(typeof displayFloat === "number" ? displayFloat : 1);
   const placedMaskRef = useRef<boolean[]>([]);
   const lastPlacedIdxRef = useRef(-1);
+  /** Per-voxel fly-in start times — supports concurrent animations during autotap. */
+  const flyInStartByIdxRef = useRef<Map<number, number>>(new Map());
   const dropAnimStartRef = useRef(0);
   /** True while silently catching placedMask up to saved progress (mount / remount). */
   const forgeRestorePendingRef = useRef(false);
@@ -1326,6 +1328,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       if (placedMaskRef.current.length > 0) {
         placedMaskRef.current.fill(false);
         lastPlacedIdxRef.current = -1;
+        flyInStartByIdxRef.current.clear();
       }
       forgeRestorePendingRef.current = false;
       return;
@@ -1350,6 +1353,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     }
 
     lastPlacedIdxRef.current = -1;
+    flyInStartByIdxRef.current.clear();
     dropAnimStartRef.current = performance.now() - 10000;
     for (let i = 0; i < n && placedMaskRef.current.filter(Boolean).length < targetPlaced; i++) {
       if (!placedMaskRef.current[i]) placedMaskRef.current[i] = true;
@@ -1416,8 +1420,10 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       if (bestIdx >= 0 && !placed[bestIdx]) {
         placed[bestIdx] = true;
         forgeRestorePendingRef.current = false;
+        const startMs = performance.now();
         lastPlacedIdxRef.current = bestIdx;
-        dropAnimStartRef.current = performance.now();
+        flyInStartByIdxRef.current.set(bestIdx, startMs);
+        dropAnimStartRef.current = startMs;
       }
     },
     getIncomingVoxelTarget() {
@@ -1429,10 +1435,19 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
       const st = stateRef.current;
       const n = list.length;
-      const placedCount = Math.min(n, Math.round(Math.min(1, Math.max(0, st.progress)) * n));
-      if (placedCount <= 0) return null;
-
-      const idx = placedCount - 1;
+      let idx = lastPlacedIdxRef.current;
+      let latestFlyStart = -1;
+      for (const [i, start] of flyInStartByIdxRef.current) {
+        if (start > latestFlyStart && placedMaskRef.current[i]) {
+          latestFlyStart = start;
+          idx = i;
+        }
+      }
+      if (idx < 0 || !list[idx]) {
+        const placedCount = Math.min(n, Math.round(Math.min(1, Math.max(0, st.progress)) * n));
+        if (placedCount <= 0) return null;
+        idx = placedCount - 1;
+      }
       const v = list[idx]!;
       const morphT = labForgeMorphT(assemblyRef.current);
       const w = renderer.domElement.clientWidth;
@@ -1810,6 +1825,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     forgeRestorePendingRef.current = restoreTarget > placedMaskRef.current.filter(Boolean).length;
     // Seeded / restored voxels must appear settled — fly-in only on new taps.
     lastPlacedIdxRef.current = -1;
+    flyInStartByIdxRef.current.clear();
     dropAnimStartRef.current = performance.now() - 10000;
     const voxelDummy = new THREE.Object3D();
     const edgeScratch = new THREE.Vector3();
@@ -2189,8 +2205,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     let revealVisualBaked = false;
     const VOXEL_PARTICLE_MS = 520;
     const particleLandMs = () => (forgeTapRelaxed ? 900 : VOXEL_PARTICLE_MS) * 0.68;
-    const forgePopMs = () => (forgeTapRelaxed ? 150 : 85);
-    const forgeFlyMs = () => (forgeTapRelaxed ? 520 : 380);
+    const forgePopMs = () => (forgeTapRelaxed ? 95 : 85);
+    const forgeFlyMs = () => (forgeTapRelaxed ? 300 : 340);
     const smoothProgressRef = { current: progress };
     const clayDark = new THREE.Color(FORGE_CLAY);
     const clayLight = new THREE.Color(0xffffff);
@@ -2245,6 +2261,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
             const currentPlaced = placedMaskRef.current.filter(Boolean).length;
             if (currentPlaced < restoreTarget) {
               lastPlacedIdxRef.current = -1;
+              flyInStartByIdxRef.current.clear();
               dropAnimStartRef.current = performance.now() - 10000;
               for (let ri = 0; ri < forgeVoxels.length && placedMaskRef.current.filter(Boolean).length < restoreTarget; ri++) {
                 if (!placedMaskRef.current[ri]) placedMaskRef.current[ri] = true;
@@ -2419,6 +2436,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
           let visibleCount = 0;
           let colorsDirty = false;
+          const flyDoneIdx: number[] = [];
           for (let i = 0; i < forgeVoxels.length; i++) {
             const v = forgeVoxels[i]!;
             if (useLabTapPlacement) {
@@ -2429,17 +2447,21 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
               if (!settled && !landing) continue;
             }
 
-            const isNewest = useLabTapPlacement
-              ? !forgeRestorePendingRef.current && i === lastPlacedIdxRef.current
-              : i === placedCount - 1;
-            const popT = useLabTapPlacement && isNewest && !sealing
-              ? Math.min(1, sinceDrop / forgePopMs())
+            const flyStart = useLabTapPlacement ? flyInStartByIdxRef.current.get(i) : undefined;
+            const isFlyingIn = useLabTapPlacement
+              && !forgeRestorePendingRef.current
+              && !sealing
+              && flyStart != null;
+            const sinceFly = isFlyingIn ? now - flyStart : 0;
+            const popT = isFlyingIn
+              ? Math.min(1, sinceFly / forgePopMs())
               : 1;
             const popEase = popT * popT * (3 - 2 * popT);
-            const flyT = useLabTapPlacement && isNewest && !sealing
-              ? Math.min(1, sinceDrop / forgeFlyMs())
+            const flyT = isFlyingIn
+              ? Math.min(1, sinceFly / forgeFlyMs())
               : 1;
             const flyEase = flyT * flyT * (3 - 2 * flyT);
+            if (isFlyingIn && flyT >= 1) flyDoneIdx.push(i);
             const lock = useLabTapPlacement
               ? Math.min(popEase, flyEase)
               : (sealing || i < placedCount - 1)
@@ -2447,7 +2469,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
                 : dropEase;
             const drop = useLabTapPlacement ? 0 : ((sealing || i < placedCount - 1) ? 0 : (1 - lock) * 0.35);
             resolveForgeVoxelPosition(v, shapeMorphT, forgePosScratch);
-            if (useLabTapPlacement && isNewest && flyT < 1 && camera) {
+            if (useLabTapPlacement && isFlyingIn && flyT < 1 && camera) {
               const camDir = new THREE.Vector3();
               camera.getWorldDirection(camDir);
               const flyDist = forgeSphereRadius * 2.8 * (1 - flyEase);
@@ -2497,6 +2519,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
             }
 
             visibleCount++;
+          }
+          for (const doneIdx of flyDoneIdx) {
+            flyInStartByIdxRef.current.delete(doneIdx);
           }
           voxMesh.count = visibleCount;
           voxMesh.instanceMatrix.needsUpdate = true;
