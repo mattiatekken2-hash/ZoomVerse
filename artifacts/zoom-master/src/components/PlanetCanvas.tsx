@@ -379,7 +379,9 @@ export function PlanetCanvas({
   const forgeRarity = pendingPlanet?.name ?? craftRarity;
   const showVoxelLayer = isCrafting && forgePlanetBuild;
   /** Lab forge space grid + stars — visible from idle, not only after first craft tap. */
-  const showLabBackdrop = backdrop && visible && !pendingPlanet && forgePhase === "idle";
+  const keepForgeGl = backdrop && !pendingPlanet && forgePhase === "idle";
+  const labViewportReady = !backdrop || (viewport.w > 1 && viewport.h > 1);
+  const showLabBackdrop = keepForgeGl && visible;
   const showPlanetOrb = false;
   const pct = goal > 0 ? Math.min(progress / goal, 1) : 0;
   const buildProgress = isCrafting ? pct : 1;
@@ -396,19 +398,19 @@ export function PlanetCanvas({
   const forgeShapeId = showLabBackdrop || showVoxelLayer ? FORGE_SPHERE_SHAPE_ID : undefined;
   const objectParts = useMemo(() => ((showLabBackdrop || showVoxelLayer) ? [] : undefined), [showLabBackdrop, showVoxelLayer]);
 
-  /** One WebGL session for the Lab backdrop — released during reveal cinematic for GPU budget. */
+  /** One WebGL session for the Lab backdrop — released when forge ends, not on tab switch. */
   useEffect(() => {
-    if (showLabBackdrop && !forgeGlSession) {
+    if (keepForgeGl && labViewportReady && !forgeGlSession) {
       setForgeGlSession(`forge-${Date.now()}`);
-    } else if (!showLabBackdrop && forgeGlSession) {
+    } else if (!keepForgeGl && forgeGlSession) {
       setForgeGlSession(null);
     }
-  }, [showLabBackdrop, forgeGlSession]);
+  }, [keepForgeGl, labViewportReady, forgeGlSession]);
 
   const handleLabGlError = useCallback(() => {
-    if (!showLabBackdrop) return;
+    if (!keepForgeGl) return;
     setForgeGlSession(`forge-recover-${Date.now()}`);
-  }, [showLabBackdrop]);
+  }, [keepForgeGl]);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -481,7 +483,7 @@ export function PlanetCanvas({
     onPunch?.();
   }, [onPunch]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (tapSignal === lastTapSignalRef.current) return;
     lastTapSignalRef.current = tapSignal;
     if (tapSignal <= 0) return;
@@ -526,12 +528,13 @@ export function PlanetCanvas({
         }}
         data-testid="planet-wrap"
       >
-        {showLabBackdrop && forgeGlSession && (
+        {keepForgeGl && labViewportReady && forgeGlSession && (
           <div
             className="absolute inset-0"
             style={{
               lineHeight: 0,
-              pointerEvents: showVoxelLayer && isForging && !forgeRolling ? "auto" : "none",
+              visibility: visible ? "visible" : "hidden",
+              pointerEvents: showVoxelLayer && isForging && !forgeRolling && visible ? "auto" : "none",
             }}
           >
             <MysteryModel3D
