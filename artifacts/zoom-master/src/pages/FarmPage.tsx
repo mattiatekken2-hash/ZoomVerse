@@ -606,7 +606,7 @@ export function FarmPage({
           }}
         />
       )}
-      {/* ⚔️ COMBATTENTE ON badge — visible whenever PvP modal is active */}
+      {/* PvP active badge — always English, visible to everyone while in queue/match */}
       {pvpPlanet && (
         <div
           style={{
@@ -620,22 +620,22 @@ export function FarmPage({
             gap: 6,
             padding: "6px 16px",
             borderRadius: 20,
-            background: "linear-gradient(90deg, rgba(180,0,0,0.92), rgba(220,40,40,0.92))",
-            border: "1px solid rgba(255,100,100,0.5)",
-            boxShadow: "0 0 18px rgba(255,50,50,0.5)",
+            background: "linear-gradient(90deg, rgba(14,22,36,0.94), rgba(20,32,48,0.94))",
+            border: "1px solid rgba(158,197,232,0.45)",
+            boxShadow: "0 0 18px rgba(158,197,232,0.35)",
             animation: "pvp-fighter-pulse 1.4s ease-in-out infinite",
             pointerEvents: "none",
           }}
         >
           <span style={{ fontSize: 14 }}>⚔️</span>
-          <span style={{ fontSize: 11, fontWeight: 900, color: "#fff", letterSpacing: 1.5, textTransform: "uppercase" }}>
-            Combattente ON
+          <span style={{ fontSize: 11, fontWeight: 900, color: "#9EC5E8", letterSpacing: 1.5, textTransform: "uppercase" }}>
+            PVP ACTIVE
           </span>
           <span style={{ fontSize: 14 }}>⚔️</span>
           <style>{`
             @keyframes pvp-fighter-pulse {
-              0%,100% { box-shadow: 0 0 14px rgba(255,50,50,0.5); }
-              50%      { box-shadow: 0 0 28px rgba(255,80,80,0.85); }
+              0%,100% { box-shadow: 0 0 14px rgba(158,197,232,0.35); }
+              50%      { box-shadow: 0 0 28px rgba(158,197,232,0.55); }
             }
           `}</style>
         </div>

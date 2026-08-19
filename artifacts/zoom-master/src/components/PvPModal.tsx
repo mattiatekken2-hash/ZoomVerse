@@ -14,6 +14,12 @@ import { PlanetOrb } from "./PlanetOrb";
 import { getPlanetDisplayName } from "../utils/planetNames";
 import type { Planet } from "../hooks/useGameState";
 
+const CYAN = "#9EC5E8";
+const CYAN_BORDER = "rgba(158,197,232,0.35)";
+const CYAN_GLOW = "rgba(158,197,232,0.18)";
+const CYAN_BG = "rgba(158,197,232,0.12)";
+const CYAN_BG_STRONG = "rgba(158,197,232,0.22)";
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -342,13 +348,13 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
         className="relative mx-4 w-full max-w-sm rounded-2xl p-6"
         style={{
           background: "linear-gradient(135deg, rgba(20,12,30,0.95), rgba(10,6,18,0.98))",
-          border: "1px solid rgba(255,50,50,0.3)",
-          boxShadow: "0 0 40px rgba(255,50,50,0.15)",
+          border: `1px solid ${CYAN_BORDER}`,
+          boxShadow: `0 0 40px ${CYAN_GLOW}`,
         }}
       >
         {/* Header */}
         <div className="text-center mb-5">
-          <div className="text-lg font-black tracking-wider" style={{ color: "#ff4444" }}>
+          <div className="text-lg font-black tracking-wider" style={{ color: CYAN }}>
             PvP BATTLE
           </div>
           <div className="text-xs font-bold mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
@@ -363,7 +369,10 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
         {/* QUEUE PHASE */}
         {phase === "queue" && (
           <div className="text-center py-6">
-            <div className="w-12 h-12 rounded-full border-2 border-red-500 border-t-transparent mx-auto mb-4 animate-spin" />
+            <div
+              className="w-12 h-12 rounded-full border-2 border-t-transparent mx-auto mb-4 animate-spin"
+              style={{ borderColor: `${CYAN} transparent transparent transparent` }}
+            />
             <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.6)" }}>
               Your planet is in queue
             </div>
@@ -374,9 +383,9 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
               onClick={handleCancel}
               className="mt-6 w-full py-3 rounded-xl font-black text-sm tracking-wider active:scale-95"
               style={{
-                background: "rgba(255,50,50,0.2)",
-                color: "#ff6666",
-                border: "1px solid rgba(255,50,50,0.4)",
+                background: CYAN_BG_STRONG,
+                color: CYAN,
+                border: `1px solid ${CYAN_BORDER}`,
               }}
             >
               CANCEL SEARCH
@@ -401,7 +410,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
               </div>
 
               {/* VS divider */}
-              <div className="text-sm font-black px-1" style={{ color: "#ff4444" }}>VS</div>
+              <div className="text-sm font-black px-1" style={{ color: CYAN }}>VS</div>
 
               {/* Opponent planet */}
               <div className="flex-1 flex flex-col items-center gap-1 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.04)" }}>
@@ -432,7 +441,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
                 </div>
               ) : (
                 <>
-                  <div className="text-3xl font-black" style={{ color: "#ff4444" }}>
+                  <div className="text-3xl font-black" style={{ color: CYAN }}>
                     {countdown}s
                   </div>
                   <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
@@ -450,9 +459,9 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
               style={{
                 background: playerConfirmed
                   ? "rgba(255,255,255,0.04)"
-                  : "linear-gradient(135deg, rgba(255,50,50,0.3), rgba(255,30,30,0.2))",
-                color: playerConfirmed ? "rgba(255,255,255,0.3)" : "#ffcccc",
-                border: `1px solid ${playerConfirmed ? "rgba(255,255,255,0.1)" : "rgba(255,50,50,0.5)"}`,
+                  : `linear-gradient(135deg, ${CYAN_BG_STRONG}, ${CYAN_BG})`,
+                color: playerConfirmed ? "rgba(255,255,255,0.3)" : "#E8ECF4",
+                border: `1px solid ${playerConfirmed ? "rgba(255,255,255,0.1)" : CYAN_BORDER}`,
                 cursor: playerConfirmed ? "default" : "pointer",
               }}
             >
@@ -512,7 +521,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
                   {/* Player slice (red) */}
                   <path
                     d="M100,100 L100,2 A98,98 0 0,1 100,198 Z"
-                    fill="rgba(255,50,50,0.8)"
+                    fill="rgba(158,197,232,0.75)"
                   />
                   {/* Opponent slice (blue) */}
                   <path
@@ -532,7 +541,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
                   height: 0,
                   borderLeft: "10px solid transparent",
                   borderRight: "10px solid transparent",
-                  borderTop: "14px solid #ff4444",
+                  borderTop: `14px solid ${CYAN}`,
                 }}
               />
             </div>
