@@ -17,6 +17,8 @@ import {
 } from "../hooks/useGameState";
 import { getPlanetDisplayName } from "../utils/planetNames";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
+import { useT } from "../i18n/LanguageContext";
+import { planetTypeLabel } from "../i18n/translations";
 
 interface Props {
   planet: Planet;
@@ -58,6 +60,7 @@ export function PlanetDetailModal({
   onRepair,
   onUpgradeDuration,
 }: Props) {
+  const { t, lang } = useT();
   const [confirmBurn, setConfirmBurn] = useState(false);
   const [defectMsg, setDefectMsg] = useState<string | null>(null);
   const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null);
@@ -81,7 +84,7 @@ export function PlanetDetailModal({
   const remaining = getFarmTimeRemaining(livePlanet);
   const farmHours = livePlanet.farmDurationHours ?? 1;
   const cfg = PLANET_CONFIG[livePlanet.name];
-  const rarityLabel = cfg?.label?.toUpperCase() ?? livePlanet.name;
+  const rarityLabel = (planetTypeLabel(lang, livePlanet.name, cfg?.label ?? livePlanet.name)).toUpperCase();
 
   const handleBurn = () => {
     if (!confirmBurn) {
@@ -97,7 +100,7 @@ export function PlanetDetailModal({
     if (!onRepair) return;
     const r = onRepair(livePlanet.id);
     if (!r.ok) {
-      setDefectMsg(r.reason ?? "Repair failed");
+      setDefectMsg(r.reason ?? t("planetDetail.failed"));
       setTimeout(() => setDefectMsg(null), 1800);
     } else {
       onClose();
@@ -107,17 +110,17 @@ export function PlanetDetailModal({
   const handleStart = () => {
     const r = onStartFarming(livePlanet.id);
     if (!r.ok) {
-      setDefectMsg(r.reason ?? "Cannot start farming");
+      setDefectMsg(r.reason ?? t("farm.cannotStartFarming"));
       setTimeout(() => setDefectMsg(null), 1800);
     }
   };
 
   const primaryLabel = (() => {
-    if (durability <= 0) return "FROZEN — REPAIR";
-    if (isListed) return "LISTED ON MARKET";
-    if (active) return `FARMING · ${formatDuration(remaining)}`;
-    if (expired) return "START / REACTIVATE";
-    return "START FARMING";
+    if (durability <= 0) return t("planetDetail.frozenRepair");
+    if (isListed) return t("planetDetail.listedMarket");
+    if (active) return `${t("farm.farming")} · ${formatDuration(remaining)}`;
+    if (expired) return t("planetDetail.startReactivate");
+    return t("planetDetail.startFarming");
   })();
 
   const primaryDisabled = durability <= 0 || isListed || (active && !expired);
@@ -155,14 +158,14 @@ export function PlanetDetailModal({
             className="text-xs font-bold px-3 py-1.5 rounded-full"
             style={{ color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.12)" }}
           >
-            Close
+            {t("common.close")}
           </button>
         </div>
 
         <div className="mb-4 flex flex-col items-center gap-3">
           <PlanetVoxelThumb planet={livePlanet} size={120} animate={false} suspendGl={false} />
           <div className="text-center text-xs font-bold" style={{ color: "rgba(255,255,255,0.55)" }}>
-            +{livePlanet.name === "MUSHROOM" ? "5 ★" : `${livePlanet.rate.toLocaleString()} $ZOOM`}/hr · {farmHours}h cycle
+            +{livePlanet.name === "MUSHROOM" ? "5 ★" : `${livePlanet.rate.toLocaleString()} $ZOOM`}/hr · {farmHours}h {t("planetDetail.cycleShort")}
           </div>
 
           {durability <= 0 && onRepair ? (
@@ -177,7 +180,7 @@ export function PlanetDetailModal({
                 border: `1px solid ${canRepair ? "rgba(255,183,77,0.45)" : "rgba(255,255,255,0.1)"}`,
               }}
             >
-              REPAIR · {repairCost.toLocaleString()} ★
+              {t("planetDetail.repairBtn", { n: repairCost.toLocaleString() })}
             </button>
           ) : isListed && onUnlist ? (
             <button
@@ -190,7 +193,7 @@ export function PlanetDetailModal({
               }}
               onClick={() => { onUnlist(livePlanet.id); onClose(); }}
             >
-              DELIST FROM MARKET
+              {t("planetDetail.delist")}
             </button>
           ) : (
             <button
@@ -223,7 +226,7 @@ export function PlanetDetailModal({
         {onUpgradeDuration && !isListed && livePlanet.name !== "MUSHROOM" && (
           <div className="farm-panel-3d farm-panel-3d--static mb-3">
             <div className="farm-panel-3d__title">
-              ⏱ CYCLE DURATION — {currentDurationHours}h · costs EARNED GRAM
+              {t("planetDetail.cycleDuration", { n: currentDurationHours })}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 5 }}>
               {FARM_UPGRADE_TIERS.map((hrs) => {
@@ -242,7 +245,7 @@ export function PlanetDetailModal({
                       setUpgradeMsg(null);
                       const r = await onUpgradeDuration(livePlanet.id, hrs);
                       setUpgrading(false);
-                      setUpgradeMsg(r.ok ? `✓ Upgraded to ${hrs}h` : (r.error ?? "Failed"));
+                      setUpgradeMsg(r.ok ? t("planetDetail.upgraded", { n: hrs }) : (r.error ?? t("planetDetail.failed")));
                     }}
                     className={`farm-btn-3d farm-btn-3d--tier${isCurrent ? " farm-btn-3d--current" : ""}${tierDisabled && !isCurrent ? " farm-btn-3d--disabled" : ""}`}
                   >
@@ -269,21 +272,21 @@ export function PlanetDetailModal({
               onClick={() => pvpEligible && onPvP?.(livePlanet)}
               className={`farm-btn-3d py-3 text-xs font-black${pvpEligible ? "" : " farm-btn-3d--disabled"}`}
             >
-              PvP
+              {t("nav.pvp")}
             </button>
             <button
               type="button"
               onClick={() => onSell(livePlanet)}
               className="farm-btn-3d py-3 text-xs font-black"
             >
-              Sell
+              {t("farm.sell")}
             </button>
             <button
               type="button"
               onClick={handleBurn}
               className={`farm-btn-3d py-3 text-xs font-black${confirmBurn ? " farm-btn-3d--burn-confirm" : ""}`}
             >
-              {confirmBurn ? "SURE?" : "Burn"}
+              {confirmBurn ? t("planetDetail.sure") : t("planetDetail.burn")}
             </button>
           </div>
         )}

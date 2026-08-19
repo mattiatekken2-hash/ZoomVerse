@@ -3,6 +3,7 @@
  */
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { PLANET_CONFIG, type PlanetType } from "../hooks/useGameState";
+import { useT } from "../i18n/LanguageContext";
 
 /** Lab-forge rarities in wheel order (same as rollRarity cumulative walk). */
 export const LAB_FORGE_RARITIES: PlanetType[] = [
@@ -150,6 +151,7 @@ export const RarityForgeWheel = memo(function RarityForgeWheel({
   onComplete,
   size = 340,
 }: Props) {
+  const { t } = useT();
   const segments = useMemo(() => buildRarityWheelSegments(), []);
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
@@ -212,7 +214,7 @@ export const RarityForgeWheel = memo(function RarityForgeWheel({
           textTransform: "uppercase",
         }}
       >
-        {landed ? "Rarity locked" : "Spinning…"}
+        {landed ? t("wheel.rarityLocked") : t("wheel.spinning")}
       </div>
 
       <div

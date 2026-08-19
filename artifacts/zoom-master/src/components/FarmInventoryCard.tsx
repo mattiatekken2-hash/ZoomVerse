@@ -9,6 +9,7 @@ import {
 import { getPlanetDisplayName } from "../utils/planetNames";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
+import { useT } from "../i18n/LanguageContext";
 
 export type FarmCardVariant = "grid" | "compact";
 
@@ -72,6 +73,7 @@ export function FarmInventoryCard({
   glDelayMs = 0,
   hideActions = false,
 }: FarmInventoryCardProps) {
+  const { t } = useT();
   const compact = variant === "compact";
   const displayColors = getPlanetDisplayColors(planet);
   const cardColor = displayColors.color;
@@ -131,7 +133,7 @@ export function FarmInventoryCard({
             }}
           >
             <div style={{ fontSize: compact ? 7 : 9, fontWeight: 700, color: rgba(cardColor, 0.9), letterSpacing: "0.04em" }}>
-              Durability
+              {t("farm.durability")}
             </div>
             <div style={{ fontSize: compact ? 13 : 17, fontWeight: 900, color: cardColor, lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}>
               {Math.round(dur)}/100
@@ -221,7 +223,7 @@ export function FarmInventoryCard({
       >
         {typeof planetFloat === "number" && (
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: compact ? 10 : 12 }}>
-            <span style={{ color: "rgba(255,255,255,0.42)", fontWeight: 600 }}>Float</span>
+            <span style={{ color: "rgba(255,255,255,0.42)", fontWeight: 600 }}>{t("farm.floatLabel")}</span>
             <span style={{ color: "#fff", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
               {planetFloat.toFixed(4)}
             </span>
@@ -230,7 +232,7 @@ export function FarmInventoryCard({
 
         <div style={{ display: "flex", flexDirection: "column", gap: compact ? 3 : 4 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: compact ? 10 : 11 }}>
-            <span style={{ color: "rgba(255,255,255,0.42)", fontWeight: 600 }}>Farm</span>
+            <span style={{ color: "rgba(255,255,255,0.42)", fontWeight: 600 }}>{t("farm.farmLabel")}</span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#fff", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
               <FarmCubeIcon size={compact ? 10 : 11} color="rgba(255,255,255,0.75)" />
               {planet.name === "MUSHROOM" ? "5 ★" : cycleTotal.toLocaleString()} / {farmHours}H
@@ -263,7 +265,7 @@ export function FarmInventoryCard({
               cursor: "not-allowed",
             }}
           >
-            ❄ FROZEN
+            ❄ {t("farm.frozenBadge")}
           </div>
         ) : active ? (
           <div
@@ -307,7 +309,7 @@ export function FarmInventoryCard({
             data-testid={`btn-unlist-${planet.id}`}
           >
             <FarmCubeIcon size={12} color={cardColor} />
-            DELIST
+            {t("farm.delist").toUpperCase()}
           </button>
         ) : expired ? (
           <button
@@ -334,8 +336,8 @@ export function FarmInventoryCard({
             }}
             data-testid={`btn-reactivate-${planet.id}`}
           >
-            <span>REACTIVATE</span>
-            <span style={{ fontSize: compact ? 7 : 8, opacity: 0.85 }}>1 ★ Redstar</span>
+            <span>{t("farm.reactivate").toUpperCase()}</span>
+            <span style={{ fontSize: compact ? 7 : 8, opacity: 0.85 }}>{t("farm.reactivateCost")}</span>
           </button>
         ) : (
           <button
@@ -363,7 +365,7 @@ export function FarmInventoryCard({
             }}
             data-testid={`btn-farm-${planet.id}`}
           >
-            START FARM
+            {t("farm.startFarmBtn")}
           </button>
         )}
       </div>

@@ -454,6 +454,7 @@ const en: Dict = {
   "lab.brokenBody": "The {kind} planet shattered during forging.",
   "lab.tryAgainNext": "Try again with the next attempt.",
   "lab.claimPlanet": "CLAIM PLANET",
+  "splash.loading": "Loading…",
   "lab.forgeComplete": "FORGE COMPLETE",
   "lab.rarityWheelNext": "Rarity wheel incoming…",
   "lab.tapsNeeded": "{n} taps needed",
@@ -528,6 +529,7 @@ const en: Dict = {
   "earn.zoomDay": "+{n} $ZOOM (Day {d})",
   "earn.stardustDay": "+{n} ★ Stardust (Day {d})",
   "earn.alreadyClaimed": "Already claimed",
+  "earn.alreadyClaimedToday": "Already claimed today",
   "earn.thresholdNotMet": "Need {t} planets (you have {b})",
 
   // shop page
@@ -985,6 +987,7 @@ const it: Dict = {
   "lab.brokenBody": "Il pianeta {kind} si è frantumato durante la forgiatura.",
   "lab.tryAgainNext": "Riprova con il prossimo tentativo.",
   "lab.claimPlanet": "RITIRA PIANETA",
+  "splash.loading": "Caricamento…",
   "lab.forgeComplete": "FORGIA COMPLETA",
   "lab.rarityWheelNext": "Ruota rarità in arrivo…",
   "lab.tapsNeeded": "{n} tap necessari",
@@ -1058,6 +1061,7 @@ const it: Dict = {
   "earn.zoomDay": "+{n} $ZOOM (Giorno {d})",
   "earn.stardustDay": "+{n} ★ Stardust (Giorno {d})",
   "earn.alreadyClaimed": "Già riscattato",
+  "earn.alreadyClaimedToday": "Già riscattato oggi",
   "earn.thresholdNotMet": "Servono {t} pianeti (ne hai {b})",
 
   "shop.computer": "COMPUTER",
@@ -1488,6 +1492,7 @@ const ru: Dict = {
   "lab.brokenBody": "Планета {kind} разрушилась при ковке.",
   "lab.tryAgainNext": "Попробуйте ещё раз при следующей попытке.",
   "lab.claimPlanet": "ЗАБРАТЬ ПЛАНЕТУ",
+  "splash.loading": "Загрузка…",
   "lab.forgeComplete": "КОВКА ЗАВЕРШЕНА",
   "lab.rarityWheelNext": "Колесо редкости…",
   "lab.tapsNeeded": "Нужно {n} нажатий",
@@ -1560,6 +1565,7 @@ const ru: Dict = {
   "earn.claimFailed": "Не удалось забрать",
   "earn.zoomDay": "+{n} $ZOOM (День {d})",
   "earn.alreadyClaimed": "Уже получено",
+  "earn.alreadyClaimedToday": "Уже получено сегодня",
   "earn.thresholdNotMet": "Нужно {t} планет (у вас {b})",
 
   "shop.computer": "КОМПЬЮТЕР",
@@ -1990,6 +1996,7 @@ const uk: Dict = {
   "lab.brokenBody": "Планета {kind} зруйнувалася під час кування.",
   "lab.tryAgainNext": "Спробуйте знову з наступною спробою.",
   "lab.claimPlanet": "ЗАБРАТИ ПЛАНЕТУ",
+  "splash.loading": "Завантаження…",
   "lab.forgeComplete": "КУВАННЯ ЗАВЕРШЕНО",
   "lab.rarityWheelNext": "Колесо рідкості…",
   "lab.tapsNeeded": "Потрібно {n} натискань",
@@ -2063,6 +2070,7 @@ const uk: Dict = {
   "earn.zoomDay": "+{n} $ZOOM (День {d})",
   "earn.stardustDay": "+{n} ★ Stardust (День {d})",
   "earn.alreadyClaimed": "Вже отримано",
+  "earn.alreadyClaimedToday": "Вже отримано сьогодні",
   "earn.thresholdNotMet": "Треба {t} планет (у вас {b})",
 
   "shop.computer": "КОМП'ЮТЕР",

@@ -9,23 +9,16 @@
 import { useEffect, useState, useMemo, memo } from "react";
 import type { Planet } from "../hooks/useGameState";
 import { PLANET_CONFIG, isFarmActive } from "../hooks/useGameState";
+import { useT } from "../i18n/LanguageContext";
+import { planetTypeLabel } from "../i18n/translations";
+import {
+  getCachedCombo,
+  prefetchCombo,
+  setCachedCombo,
+  type ComboState,
+} from "../utils/comboCache";
 
 const API = `${window.location.origin}/api`;
-
-interface ComboState {
-  comboEpoch: number;
-  required: string[];
-  claimed: boolean;
-  nextResetMs: number;
-}
-
-async function fetchCombo(telegramId: string): Promise<ComboState | null> {
-  try {
-    const r = await fetch(`${API}/combo/current?telegramId=${encodeURIComponent(telegramId)}`);
-    if (!r.ok) return null;
-    return await r.json() as ComboState;
-  } catch { return null; }
-}
 
 async function claimCombo(telegramId: string): Promise<{ ok: boolean; newRedStarBalance?: number; error?: string } | null> {
   try {
@@ -137,33 +130,67 @@ interface Props {
   active?: boolean;
 }
 
+function ComboSkeleton({ t }: { t: (key: string) => string }) {
+  return (
+    <div
+      className="combo-box-relax"
+      style={{
+        borderRadius: 20,
+        border: "1.5px dashed rgba(255,255,255,0.28)",
+        background: "linear-gradient(165deg, rgba(255,255,255,0.05) 0%, rgba(18,20,28,0.88) 38%, rgba(8,9,14,0.94) 100%)",
+        padding: "16px 16px 14px",
+        contain: "layout style paint",
+      }}
+      aria-busy="true"
+      aria-label={t("combo.loading")}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,0.08)" }} />
+        <div style={{ height: 14, width: 88, borderRadius: 6, background: "rgba(255,255,255,0.1)" }} />
+      </div>
+      <div style={{ height: 8, borderRadius: 999, background: "rgba(255,255,255,0.08)", marginBottom: 12 }} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+        {[0, 1, 2].map((i) => (
+          <div key={i} style={{ height: 92, borderRadius: 14, background: "rgba(255,255,255,0.06)" }} />
+        ))}
+      </div>
+      <div style={{ height: 44, borderRadius: 14, background: "rgba(255,255,255,0.07)" }} />
+    </div>
+  );
+}
+
 function DailyComboBoxBase({ telegramId, planets, onClaimed, active = true }: Props) {
-  const [combo, setCombo] = useState<ComboState | null>(null);
+  const { t, lang } = useT();
+  const [combo, setCombo] = useState<ComboState | null>(() =>
+    telegramId ? getCachedCombo(telegramId) : null,
+  );
   const [claiming, setClaiming] = useState(false);
   const [justClaimed, setJustClaimed] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [showCard, setShowCard] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(() => {
+    const c = telegramId ? getCachedCombo(telegramId) : null;
+    return c ? Math.max(0, c.nextResetMs - Date.now()) : 0;
+  });
 
   useEffect(() => {
-    if (!active) {
-      setShowCard(false);
-      return;
+    if (!telegramId) return;
+    const cached = getCachedCombo(telegramId);
+    if (cached) {
+      setCombo(cached);
+      setTimeLeft(Math.max(0, cached.nextResetMs - Date.now()));
     }
-    const revealTimer = window.setTimeout(() => setShowCard(true), 1400);
-    return () => window.clearTimeout(revealTimer);
-  }, [active]);
-
-  useEffect(() => {
-    if (!telegramId || !active) return;
-    void fetchCombo(telegramId).then((c) => {
+    void prefetchCombo(telegramId).then((c) => {
       if (c) {
         setCombo(c);
         setTimeLeft(Math.max(0, c.nextResetMs - Date.now()));
       }
     });
+  }, [telegramId]);
+
+  useEffect(() => {
+    if (!telegramId || !active) return;
     const interval = setInterval(() => {
       if (document.hidden) return;
-      void fetchCombo(telegramId).then((c) => {
+      void prefetchCombo(telegramId).then((c) => {
         if (c) setCombo(c);
       });
     }, 30_000);
@@ -187,11 +214,11 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed, active = true }: Pr
     if (!combo) return [];
     return combo.required.map((type) => ({
       type,
-      label: PLANET_CONFIG[type as keyof typeof PLANET_CONFIG]?.label ?? type,
+      label: planetTypeLabel(lang, type as import("../hooks/useGameState").PlanetType, PLANET_CONFIG[type as keyof typeof PLANET_CONFIG]?.label ?? type),
       color: PLANET_CONFIG[type as keyof typeof PLANET_CONFIG]?.color ?? "#888",
       active: activeFarmingTypes.has(type as import("../hooks/useGameState").PlanetType),
     }));
-  }, [combo, activeFarmingTypes]);
+  }, [combo, activeFarmingTypes, lang]);
 
   const activeCount = slotStatuses.filter((s) => s.active).length;
   const allActive = slotStatuses.length === 3 && slotStatuses.every((s) => s.active);
@@ -204,14 +231,19 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed, active = true }: Pr
     setClaiming(false);
     if (result?.ok) {
       setJustClaimed(true);
-      setCombo((prev) => prev ? { ...prev, claimed: true } : prev);
+      setCombo((prev) => {
+        const next = prev ? { ...prev, claimed: true } : prev;
+        if (next && telegramId) setCachedCombo(telegramId, next);
+        return next;
+      });
       if (result.newRedStarBalance !== undefined) {
         onClaimed?.(result.newRedStarBalance);
       }
     }
   };
 
-  if (!combo || !telegramId || !showCard) return null;
+  if (!telegramId) return null;
+  if (!combo) return <ComboSkeleton t={t} />;
 
   const claimed = combo.claimed || justClaimed;
   const progressPct = Math.round((activeCount / 3) * 100);
@@ -260,7 +292,7 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed, active = true }: Pr
               textShadow: "0 1px 0 rgba(255,255,255,0.35), 0 2px 8px rgba(0,0,0,0.45)",
             }}
           >
-            COMBO
+            {t("combo.title")}
           </span>
         </div>
 
@@ -280,11 +312,11 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed, active = true }: Pr
           }}
         >
           {claimed ? (
-            <>✓ CLAIMED</>
+            <>{t("combo.claimed")}</>
           ) : (
             <>
               <span style={{ fontSize: 12, color: "#ff6b6b", textShadow: "0 0 8px rgba(255,80,80,0.45)" }}>★</span>
-              2 Redstar
+              {t("combo.reward")}
             </>
           )}
         </div>
@@ -293,7 +325,7 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed, active = true }: Pr
       {/* Progress bar — soft white 3D track */}
       <div style={{ marginBottom: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 10, fontWeight: 700 }}>
-          <span style={{ color: "rgba(255,255,255,0.45)" }}>Progress</span>
+          <span style={{ color: "rgba(255,255,255,0.45)" }}>{t("combo.progress")}</span>
           <span style={{ color: "rgba(255,255,255,0.82)", fontVariantNumeric: "tabular-nums" }}>
             {activeCount} / 3
             <span style={{ marginLeft: 6, color: "#ff6b6b" }}>★</span>
@@ -325,8 +357,7 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed, active = true }: Pr
       </div>
 
       <p style={{ fontSize: 10, color: "rgba(255,255,255,0.52)", margin: "0 0 12px", lineHeight: 1.55 }}>
-        Have all 3 planets <strong style={{ color: "rgba(255,255,255,0.82)", fontWeight: 800 }}>actively farming</strong> and claim 2{" "}
-        <span style={{ color: "#ff6b6b", fontWeight: 900 }}>★</span> Redstar. Changes every 48h.
+        {t("combo.hint")}
       </p>
 
       {/* 3 mystery slots — white 3D cubes */}
@@ -397,10 +428,10 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed, active = true }: Pr
                   textShadow: revealed ? "0 1px 4px rgba(0,0,0,0.35)" : undefined,
                 }}
               >
-                {revealed ? slot.label.toUpperCase() : "???"}
+                {revealed ? slot.label.toUpperCase() : t("combo.mystery")}
               </span>
               {slot.active && (
-                <span style={{ fontSize: 8, color: "#a8f0c8", fontWeight: 900, letterSpacing: "0.06em" }}>✓ ACTIVE</span>
+                <span style={{ fontSize: 8, color: "#a8f0c8", fontWeight: 900, letterSpacing: "0.06em" }}>{t("combo.active")}</span>
               )}
             </div>
           );
@@ -444,7 +475,7 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed, active = true }: Pr
           }}
         >
           <ComboCubeIcon size={16} opacity={canClaim || claimed ? 1 : 0.45} />
-          {claiming ? "CLAIMING…" : claimed ? "✓ CLAIMED" : "CLAIM ALL"}
+          {claiming ? t("combo.claiming") : claimed ? t("combo.claimed") : t("combo.claimAll")}
         </button>
 
         {timeLeft > 0 && (
@@ -458,7 +489,7 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed, active = true }: Pr
               lineHeight: 1.35,
             }}
           >
-            resets in
+            {t("combo.resetsIn")}
             <br />
             <span style={{ color: "rgba(255,255,255,0.68)" }}>{formatTimeLeft(timeLeft)}</span>
           </div>
