@@ -7,5 +7,5 @@ export function isLowEndDevice(): boolean {
 }
 
 export function planetThumbGlBudget(): number {
-  return isLowEndDevice() ? 4 : 8;
+  return isLowEndDevice() ? 5 : 10;
 }

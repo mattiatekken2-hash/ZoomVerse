@@ -27,9 +27,9 @@ import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
 import { initVersionCheck } from "./utils/appVersion";
 
-const SPLASH_MIN_MS = 1200;
+const SPLASH_MIN_MS = 2500;
 /** Hard cap — never keep users on splash longer than this. */
-const SPLASH_MAX_MS = 3500;
+const SPLASH_MAX_MS = 5000;
 
 const MAINTENANCE_ADMIN_IDS = ["8144744644", "@zoom0100", "zoom0100"];
 
@@ -390,41 +390,13 @@ function AppShellWithState() {
     return () => document.removeEventListener("visibilitychange", syncPause);
   }, [showBootSplash, tab]);
 
-  const [visitedTabs, setVisitedTabs] = useState<Set<Tab>>(() => new Set(["lab"]));
-
-  useEffect(() => {
-    setVisitedTabs((prev) => {
-      if (prev.has(tab)) return prev;
-      const next = new Set(prev);
-      next.add(tab);
-      return next;
-    });
-  }, [tab]);
-
-  useEffect(() => {
-    if (showBootSplash) return;
-    const warm = () => {
-      setVisitedTabs((prev) => {
-        const next = new Set(prev);
-        next.add("farm");
-        next.add("wallet");
-        return next.size === prev.size ? prev : next;
-      });
-    };
-    if (typeof requestIdleCallback !== "undefined") {
-      const id = requestIdleCallback(warm, { timeout: 2000 });
-      return () => cancelIdleCallback(id);
-    }
-    const t = window.setTimeout(warm, 1200);
-    return () => window.clearTimeout(t);
-  }, [showBootSplash]);
-
   const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
   const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate * Math.max(1, state.sunCount || 1) : 0;
   const totalRate = planetRate + sunRate;
 
   const switchTab = (nextTab: Tab) => {
     setTab(nextTab);
+    window.dispatchEvent(new CustomEvent("zoom-tab-active", { detail: { tab: nextTab } }));
     // Throttle: only fire global refresh if user hasn't switched in last 4s.
     // Pages that need fresh data on activation listen to "zoom-tab-active" with their tab id.
     const now = Date.now();
@@ -748,7 +720,7 @@ function AppShellWithState() {
   // Maintenance poll runs in background; boot splash is time-based only.
   return (
     <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
-      {showBootSplash && <SplashScreen />}
+      {showBootSplash && null}
       <div
         className="flex flex-col overflow-hidden relative"
         style={{
@@ -788,21 +760,16 @@ function AppShellWithState() {
 
       <main className="flex-1 overflow-hidden relative z-10" style={{ minHeight: 0 }}>
         {ALL_TABS.map((t) => {
-          const isActive = tab === t;
-          if (!visitedTabs.has(t)) return null;
+          if (tab !== t) return null;
           return (
             <div
               key={t}
-              aria-hidden={!isActive}
               style={{
                 position: "absolute",
                 inset: 0,
-                display: isActive ? "flex" : "none",
+                display: "flex",
                 flexDirection: "column",
                 overflow: "hidden",
-                pointerEvents: isActive ? "auto" : "none",
-                zIndex: isActive ? 2 : 0,
-                contain: isActive ? undefined : "strict",
               }}
             >
               {t === "lab" && (
