@@ -658,8 +658,11 @@ export function FarmPage({
           telegramId={telegramId}
           stardustBalance={stardustBalance}
           tonBalance={tonBalance}
+          planets={planets}
+          maxSlots={maxSlots}
           onClose={() => setDetailPlanet(null)}
           onStartFarming={(id) => onStartFarming(id)}
+          onPvP={(p) => { setDetailPlanet(null); setPvPPlanet(p); }}
           onSell={(p) => { setDetailPlanet(null); openSellPopup(p); }}
           onBurn={onBurn}
           onUnlist={(id: string) => onUnlist(id)}

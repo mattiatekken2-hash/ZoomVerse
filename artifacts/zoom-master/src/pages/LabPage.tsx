@@ -248,6 +248,55 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           </button>
         </div>
 
+        <div
+          className="absolute left-0 right-0 z-30 flex items-center justify-center gap-2 px-3 pointer-events-none"
+          style={{ top: "max(58px, calc(env(safe-area-inset-top, 0px) + 52px))" }}
+        >
+          <div className="pointer-events-auto flex-shrink-0">
+            <SettingsMenu muted={muted} setMuted={setMuted ?? (() => {})} headerButton />
+          </div>
+          <button
+            type="button"
+            onClick={onOpenHistory}
+            data-testid="lab-zoom-balance"
+            className="px-5 py-2 rounded-full pointer-events-auto active:scale-95 flex-shrink-0"
+            style={{
+              background: "rgba(0, 0, 0, 0.62)",
+              border: "1px solid rgba(255, 255, 255, 0.14)",
+              backdropFilter: "blur(10px)",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.35)",
+              cursor: onOpenHistory ? "pointer" : "default",
+            }}
+          >
+            <span
+              className="font-black text-base tracking-wide whitespace-nowrap"
+              style={{ color: "#ffffff", letterSpacing: "0.06em" }}
+            >
+              {t("lab.balance", { n: Math.floor(balance).toLocaleString() })}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onOpenShop}
+            data-testid="button-shop-nav"
+            aria-label={t("header.openShop")}
+            className="flex items-center justify-center active:scale-95 flex-shrink-0 pointer-events-auto"
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              background: "linear-gradient(145deg, #ffb347, #ff8c00)",
+              border: "1px solid rgba(255, 140, 0, 0.55)",
+              boxShadow: "0 4px 14px rgba(255, 140, 0, 0.45)",
+              cursor: "pointer",
+              padding: 0,
+              transition: "transform 0.12s",
+            }}
+          >
+            <ShoppingBag size={20} strokeWidth={2.4} color="#111" />
+          </button>
+        </div>
+
         {floats.map(f => (
           <div
             key={f.id}
@@ -393,52 +442,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             inline
           />
         )}
-
-        <div className="flex items-center justify-center gap-2">
-          <div className="pointer-events-auto flex-shrink-0">
-            <SettingsMenu muted={muted} setMuted={setMuted ?? (() => {})} headerButton />
-          </div>
-          <button
-            type="button"
-            onClick={onOpenHistory}
-            data-testid="lab-zoom-balance"
-            className="px-5 py-2 rounded-full pointer-events-auto active:scale-95 flex-shrink-0"
-            style={{
-              background: "rgba(0, 0, 0, 0.62)",
-              border: "1px solid rgba(255, 255, 255, 0.14)",
-              backdropFilter: "blur(10px)",
-              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.35)",
-              cursor: onOpenHistory ? "pointer" : "default",
-            }}
-          >
-            <span
-              className="font-black text-base tracking-wide whitespace-nowrap"
-              style={{ color: "#ffffff", letterSpacing: "0.06em" }}
-            >
-              {t("lab.balance", { n: Math.floor(balance).toLocaleString() })}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={onOpenShop}
-            data-testid="button-shop-nav"
-            aria-label={t("header.openShop")}
-            className="flex items-center justify-center active:scale-95 flex-shrink-0 pointer-events-auto"
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: "50%",
-              background: "linear-gradient(145deg, #ffb347, #ff8c00)",
-              border: "1px solid rgba(255, 140, 0, 0.55)",
-              boxShadow: "0 4px 14px rgba(255, 140, 0, 0.45)",
-              cursor: "pointer",
-              padding: 0,
-              transition: "transform 0.12s",
-            }}
-          >
-            <ShoppingBag size={20} strokeWidth={2.4} color="#111" />
-          </button>
-        </div>
 
         <div style={{ display: "flex", alignItems: "center" }}>
           {!pendingPlanet && (

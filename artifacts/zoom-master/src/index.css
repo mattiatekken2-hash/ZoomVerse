@@ -1928,6 +1928,10 @@ body.animations-paused * {
     0 0 10px rgba(140, 230, 255, 0.45);
   margin-bottom: 8px;
 }
+.farm-panel-3d--static::before {
+  animation: none;
+  opacity: 0.42;
+}
 
 .farm-btn-3d {
   position: relative;

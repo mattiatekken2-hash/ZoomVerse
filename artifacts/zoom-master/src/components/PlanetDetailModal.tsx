@@ -23,10 +23,13 @@ interface Props {
   telegramId: string | null;
   stardustBalance?: number;
   tonBalance?: number;
+  maxSlots: number;
+  planets: Planet[];
   onClose: () => void;
   onStartFarming: (id: string) => { ok: boolean; reason?: string };
   onBurn: (id: string) => void;
   onSell: (planet: Planet) => void;
+  onPvP?: (planet: Planet) => void;
   onUnlist?: (id: string) => void;
   onRepair?: (id: string) => { ok: boolean; reason?: string };
   onUpgradeDuration?: (planetId: string, durationHours: number) => Promise<{ ok: boolean; error?: string }>;
@@ -44,10 +47,13 @@ export function PlanetDetailModal({
   telegramId,
   stardustBalance = 0,
   tonBalance = 0,
+  maxSlots,
+  planets,
   onClose,
   onStartFarming,
   onBurn,
   onSell,
+  onPvP,
   onUnlist,
   onRepair,
   onUpgradeDuration,
@@ -110,6 +116,8 @@ export function PlanetDetailModal({
   })();
 
   const primaryDisabled = durability <= 0 || isListed || (active && !expired);
+  const slotsFull = planets.filter((p) => !p.isListedInMarket).length >= maxSlots;
+  const pvpEligible = !planet.isFarmingActive && !isListed && planet.slotIndex == null && !slotsFull && !!telegramId;
 
   return createPortal(
     <div
@@ -147,7 +155,7 @@ export function PlanetDetailModal({
         </div>
 
         <div className="mb-4 flex flex-col items-center gap-3">
-          <PlanetVoxelThumb planet={planet} size={120} animate suspendGl={false} />
+          <PlanetVoxelThumb planet={planet} size={120} animate={false} suspendGl={false} />
           <div className="text-center text-xs font-bold" style={{ color: "rgba(255,255,255,0.55)" }}>
             +{planet.name === "MUSHROOM" ? "5 ★" : `${planet.rate.toLocaleString()} $ZOOM`}/hr · {farmHours}h cycle
           </div>
@@ -208,7 +216,7 @@ export function PlanetDetailModal({
         )}
 
         {onUpgradeDuration && !isListed && planet.name !== "MUSHROOM" && (
-          <div className="farm-panel-3d mb-3">
+          <div className="farm-panel-3d farm-panel-3d--static mb-3">
             <div className="farm-panel-3d__title">
               ⏱ CYCLE DURATION — {currentDurationHours}h · costs EARNED GRAM
             </div>
@@ -249,20 +257,28 @@ export function PlanetDetailModal({
         )}
 
         {!isListed && (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              disabled={!pvpEligible}
+              onClick={() => pvpEligible && onPvP?.(planet)}
+              className={`farm-btn-3d py-3 text-xs font-black${pvpEligible ? "" : " farm-btn-3d--disabled"}`}
+            >
+              PvP
+            </button>
             <button
               type="button"
               onClick={() => onSell(planet)}
               className="farm-btn-3d py-3 text-xs font-black"
             >
-              💰 Sell
+              Sell
             </button>
             <button
               type="button"
               onClick={handleBurn}
               className={`farm-btn-3d py-3 text-xs font-black${confirmBurn ? " farm-btn-3d--burn-confirm" : ""}`}
             >
-              {confirmBurn ? "SURE?" : "🔥 Burn"}
+              {confirmBurn ? "SURE?" : "Burn"}
             </button>
           </div>
         )}
