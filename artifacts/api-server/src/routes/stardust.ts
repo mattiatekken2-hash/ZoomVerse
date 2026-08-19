@@ -292,6 +292,7 @@ router.post("/stardust/convert-deposit", async (req, res) => {
         depositBalance: usersTable.depositBalance,
         tonBalance: usersTable.tonBalance,
         stardustBalance: usersTable.stardustBalance,
+        balanceEpoch: usersTable.balanceEpoch,
       });
 
     if (!upd) {
@@ -316,6 +317,7 @@ router.post("/stardust/convert-deposit", async (req, res) => {
       depositBalance: Number(upd.depositBalance ?? 0),
       tonBalance: Number(upd.tonBalance ?? 0),
       stardustBalance: Number(upd.stardustBalance ?? 0),
+      balanceEpoch: Number(upd.balanceEpoch ?? 0),
       index: indexMicro / STARDUST_SCALE,
       rate: STARDUST_PER_GRAM_BASE,
     });

@@ -1,6 +1,5 @@
 /**
- * Lab forge rarity wheel — colored Fortune-style spinner (reference UI).
- * Slice sizes are visual-only (readable labels); outcome is preset via targetRarity.
+ * Lab forge rarity wheel — outcome is preset via targetRarity; wheel lands on that slice.
  */
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { PLANET_CONFIG, type PlanetType } from "../hooks/useGameState";
@@ -18,25 +17,10 @@ export const LAB_FORGE_RARITIES: PlanetType[] = [
   "V1",
 ];
 
-/** Display weights — not drop rates. Keeps rare tiers wide enough to read. */
-const WHEEL_VISUAL_WEIGHT: Record<PlanetType, number> = {
-  BASIC: 34,
-  RARE: 22,
-  EPIC: 14,
-  MYTHIC: 11,
-  NOVA: 11,
-  PLASMA: 11,
-  MUSHROOM: 10,
-  GOLD: 10,
-  V1: 9,
-  // unused types — never on wheel
-  SUN: 0,
-  V1_NFT: 0,
-  WHITE: 0,
-  EARTH: 0,
-  BLACK: 0,
-  SUPERNOVA: 0,
-  STELLA_ROSSA: 0,
+/** Short labels so text stays horizontal inside each equal slice. */
+const WHEEL_LABEL: Partial<Record<PlanetType, string>> = {
+  MUSHROOM: "SHROOM",
+  MYTHIC: "MYTHIC",
 };
 
 export interface RarityWheelSegment {
@@ -77,22 +61,22 @@ function segmentTextColor(hex: string): string {
   return mixHex(hex, { r: 0, g: 0, b: 0 }, 0.52);
 }
 
+/** Equal slices — landing angle matches segment type 1:1 with targetRarity. */
 export function buildRarityWheelSegments(): RarityWheelSegment[] {
   const entries = LAB_FORGE_RARITIES.map((type) => {
     const cfg = PLANET_CONFIG[type];
-    return { type, cfg, chance: cfg.chance, weight: WHEEL_VISUAL_WEIGHT[type] ?? 10 };
+    return { type, cfg, chance: cfg.chance };
   }).filter((e) => e.chance > 0);
 
-  const totalWeight = entries.reduce((s, e) => s + e.weight, 0);
-  let cursor = 0;
-  return entries.map(({ type, cfg, chance, weight }) => {
-    const span = (weight / totalWeight) * 360;
-    const startDeg = cursor;
-    const endDeg = cursor + span;
-    cursor = endDeg;
+  const span = 360 / entries.length;
+  return entries.map(({ type, cfg, chance }, i) => {
+    const startDeg = i * span;
+    const endDeg = (i + 1) * span;
+    const short = WHEEL_LABEL[type];
+    const label = short ?? (type === "V1" ? "V1" : cfg.label.toUpperCase());
     return {
       type,
-      label: type === "V1" ? "V1" : cfg.label.toUpperCase(),
+      label,
       color: cfg.color,
       fill: segmentFill(cfg.color),
       textColor: segmentTextColor(cfg.color),
@@ -119,18 +103,21 @@ function segmentPath(cx: number, cy: number, r: number, startDeg: number, endDeg
 }
 
 function labelFontSize(span: number): number {
-  if (span >= 90) return 28;
-  if (span >= 55) return 22;
-  if (span >= 32) return 18;
-  if (span >= 22) return 15;
-  if (span >= 16) return 13;
-  return 11;
+  if (span >= 50) return 13;
+  if (span >= 40) return 12;
+  return 10;
 }
 
 function labelRadius(span: number, r: number): number {
-  if (span >= 80) return r * 0.56;
-  if (span >= 40) return r * 0.6;
-  return r * 0.64;
+  return r * 0.62;
+}
+
+/** Pointer fixed at 12 o'clock. Rotate wheel so segment midDeg aligns under pointer. */
+function rotationForSegment(midDeg: number, jitter = 0): number {
+  const landAngle = midDeg + jitter;
+  const landOn = ((360 - landAngle) % 360 + 360) % 360;
+  const extraSpins = 2 + Math.random() * 0.75;
+  return extraSpins * 360 + landOn;
 }
 
 /** Long coast-down — feels like a hand push, not a slot machine. */
@@ -159,14 +146,15 @@ export const RarityForgeWheel = memo(function RarityForgeWheel({
   const ringR = r + 10;
 
   useEffect(() => {
-    if (doneRef.current) return;
+    doneRef.current = false;
+    setLanded(false);
+    setSpinning(false);
+    setRotation(0);
+
     const seg = segments.find((s) => s.type === targetRarity) ?? segments[0];
     const span = seg.endDeg - seg.startDeg;
-    const jitter = (Math.random() - 0.5) * Math.min(span * 0.28, 8);
-    const landAngle = seg.midDeg + jitter;
-    const landOn = (360 - landAngle) % 360;
-    const extraSpins = 2 + Math.random() * 0.75;
-    const target = extraSpins * 360 + landOn;
+    const jitter = (Math.random() - 0.5) * Math.min(span * 0.3, 5);
+    const target = rotationForSegment(seg.midDeg, jitter);
 
     const t0 = requestAnimationFrame(() => {
       setSpinning(true);
@@ -230,6 +218,7 @@ export const RarityForgeWheel = memo(function RarityForgeWheel({
               ? `transform ${SPIN_MS}ms ${SPIN_EASING}`
               : "none",
             willChange: "transform",
+            transformOrigin: "50% 50%",
           }}
           onTransitionEnd={handleTransitionEnd}
         >
@@ -241,8 +230,6 @@ export const RarityForgeWheel = memo(function RarityForgeWheel({
               const fs = labelFontSize(span);
               const labelR = labelRadius(span, r);
               const lp = polar(cx, cx, s.midDeg, labelR);
-              const labelLen = s.label.length;
-              const fsAdj = labelLen > 6 ? Math.max(9, fs - 2) : fs;
 
               return (
                 <g key={s.type}>
@@ -257,13 +244,13 @@ export const RarityForgeWheel = memo(function RarityForgeWheel({
                     x={lp.x}
                     y={lp.y}
                     fill={s.textColor}
-                    fontSize={fsAdj}
+                    fontSize={fs}
                     fontWeight="900"
                     fontFamily="system-ui, -apple-system, Segoe UI, sans-serif"
                     textAnchor="middle"
                     dominantBaseline="middle"
                     style={{
-                      letterSpacing: span >= 30 ? "0.08em" : "0.04em",
+                      letterSpacing: "0.05em",
                     }}
                   >
                     {s.label}
@@ -283,7 +270,7 @@ export const RarityForgeWheel = memo(function RarityForgeWheel({
           </svg>
         </div>
 
-        {/* Fixed center pointer — black teardrop */}
+        {/* Fixed center pointer — black teardrop at 12 o'clock */}
         <svg
           width={size}
           height={size}

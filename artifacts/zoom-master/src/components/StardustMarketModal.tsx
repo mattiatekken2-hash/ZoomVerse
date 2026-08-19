@@ -216,10 +216,10 @@ export function StardustMarketModal({
       detail: {
         depositBalance: res.depositBalance,
         tonBalance: res.tonBalance,
+        balanceEpoch: res.balanceEpoch,
       },
     }));
     window.dispatchEvent(new CustomEvent("stardust-refresh"));
-    window.dispatchEvent(new Event("zoom-data-refresh"));
     void refresh();
   };
 

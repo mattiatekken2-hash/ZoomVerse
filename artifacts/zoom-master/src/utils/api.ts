@@ -740,6 +740,7 @@ export async function convertDepositToStardust(
   depositBalance?: number;
   tonBalance?: number;
   stardustBalance?: number;
+  balanceEpoch?: number;
   error?: string;
 }> {
   try {
@@ -758,6 +759,7 @@ export async function convertDepositToStardust(
       depositBalance: data.depositBalance,
       tonBalance: data.tonBalance,
       stardustBalance: data.stardustBalance,
+      balanceEpoch: data.balanceEpoch,
     };
   } catch {
     return { ok: false, error: "Network error" };
