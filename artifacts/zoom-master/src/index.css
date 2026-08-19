@@ -2116,6 +2116,30 @@ body.animations-paused * {
   0%, 100% { opacity: 0.45; }
   50% { opacity: 1; }
 }
+.zoom-splash-bar-wrap,
+#splash-screen .splash-bar-wrap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(28px, env(safe-area-inset-bottom, 0px));
+  padding: 0 32px;
+}
+.zoom-splash-bar-track,
+#splash-screen .splash-bar-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35) inset;
+}
+.zoom-splash-bar-fill,
+#splash-screen .splash-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7a9ec8, #9ec5e8, #c9d6e8);
+  box-shadow: 0 0 12px rgba(158, 197, 232, 0.45);
+  transition: width 0.08s linear;
+}
 @media (prefers-reduced-motion: reduce) {
   .zoom-splash-spinner,
   #splash-screen .splash-spinner {

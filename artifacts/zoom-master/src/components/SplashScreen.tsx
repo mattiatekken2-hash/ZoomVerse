@@ -1,11 +1,11 @@
-/** Boot splash — HTML preloader in index.html + React overlay until min display time. */
+/** Boot splash — HTML preloader in index.html + React overlay with progress bar. */
 
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { isSplashMinElapsed } from "../utils/bootSplash";
+import { isSplashComplete, splashProgress } from "../utils/bootSplash";
 
 /** Fade out and remove the pre-React HTML splash (index.html). */
 export function hideHtmlSplash() {
-  if (!isSplashMinElapsed()) return;
   try {
     const w = window as unknown as { __hideHtmlSplash?: () => void };
     if (typeof w.__hideHtmlSplash === "function") {
@@ -16,7 +16,7 @@ export function hideHtmlSplash() {
   const splash = document.getElementById("splash-screen");
   if (!splash || splash.classList.contains("hidden")) return;
   splash.classList.add("hidden");
-  window.setTimeout(() => splash.remove(), 500);
+  window.setTimeout(() => splash.remove(), 400);
 }
 
 interface BootSplashOverlayProps {
@@ -24,18 +24,47 @@ interface BootSplashOverlayProps {
 }
 
 function BootSplashOverlayInner({ subtitle = "Season 3" }: BootSplashOverlayProps) {
+  const [progress, setProgress] = useState(() => splashProgress());
+
+  useEffect(() => {
+    hideHtmlSplash();
+  }, []);
+
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      setProgress(splashProgress());
+      if (!isSplashComplete()) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const pct = Math.round(progress * 100);
+
   return (
     <div
       className="zoom-splash-screen"
-      role="status"
-      aria-live="polite"
-      aria-label="Loading"
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={pct}
+      aria-label="Loading game"
       style={{ zIndex: 2147483646 }}
     >
       <div className="zoom-splash-inner">
         <div className="zoom-splash-spinner" aria-hidden />
         <div className="zoom-splash-title">Season 3</div>
         <div className="zoom-splash-sub">{subtitle}</div>
+      </div>
+
+      <div className="zoom-splash-bar-wrap" aria-hidden>
+        <div className="zoom-splash-bar-track">
+          <div
+            className="zoom-splash-bar-fill"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
       </div>
     </div>
   );
