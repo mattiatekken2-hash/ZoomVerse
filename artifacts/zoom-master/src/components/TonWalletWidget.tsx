@@ -6,6 +6,7 @@
  *   - Withdrawal (min 10 TON) — moved here from PixelAvatar
  */
 import { memo, useState, useEffect, useRef, useCallback, type CSSProperties, type ReactNode, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import {
   fetchStakingStatus,
@@ -189,12 +190,16 @@ function CompactWalletChip({
 
 function WalletActionPopup({
   title,
+  subtitle,
   color,
+  icon,
   onClose,
   children,
 }: {
   title: string;
+  subtitle?: string;
   color: string;
+  icon: string;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -205,50 +210,114 @@ function WalletActionPopup({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  return (
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center"
+      className="fixed inset-0 z-[120] flex items-center justify-center p-4"
       style={{ background: "rgba(4,6,12,0.88)", backdropFilter: "blur(8px)" }}
       onClick={onClose}
       data-testid="wallet-action-backdrop"
     >
       <div
-        className="w-full max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden flex flex-col"
+        className="w-full rounded-2xl overflow-hidden flex flex-col relative"
         style={{
+          maxWidth: 300,
           background: "linear-gradient(180deg, rgba(14,18,32,0.98), rgba(8,10,22,0.99))",
           border: `1px solid ${color}44`,
-          boxShadow: `0 -8px 32px ${color}14`,
-          maxHeight: "72vh",
+          boxShadow: `0 12px 40px ${color}18`,
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          className="flex items-center justify-between px-3.5 py-2.5 flex-shrink-0"
-          style={{ borderBottom: `1px solid ${color}22` }}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={t("common.closeAria")}
+          className="absolute top-3 right-3 flex items-center justify-center"
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: "50%",
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.05)",
+            color: "rgba(255,255,255,0.7)",
+            cursor: "pointer",
+            fontSize: 13,
+            zIndex: 2,
+          }}
         >
-          <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.14em", color, textTransform: "uppercase" }}>
-            {title}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={t("common.closeAria")}
+          ✕
+        </button>
+
+        <div className="flex flex-col items-center text-center px-4 pt-5 pb-3">
+          <div
+            className="flex items-center justify-center rounded-full mb-2"
             style={{
-              width: 28,
-              height: 28,
-              borderRadius: "50%",
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: "rgba(255,255,255,0.05)",
-              color: "rgba(255,255,255,0.7)",
-              cursor: "pointer",
-              fontSize: 13,
+              width: 44,
+              height: 44,
+              background: `${color}18`,
+              border: `1px solid ${color}44`,
+              fontSize: 20,
+              fontWeight: 900,
+              color,
             }}
           >
-            ✕
-          </button>
+            {icon}
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 900, letterSpacing: "0.06em", color }}>
+            {title}
+          </div>
+          {subtitle && (
+            <div style={{ fontSize: 10, lineHeight: 1.45, color: "rgba(255,255,255,0.42)", marginTop: 6, maxWidth: 240 }}>
+              {subtitle}
+            </div>
+          )}
         </div>
-        <div className="overflow-y-auto" style={{ padding: "12px 14px 16px" }}>{children}</div>
+
+        <div style={{ padding: "0 16px 16px" }}>{children}</div>
       </div>
+    </div>,
+    document.body,
+  );
+}
+
+function FieldLabel({ children, color }: { children: ReactNode; color?: string }) {
+  return (
+    <div
+      style={{
+        fontSize: 9,
+        fontWeight: 800,
+        letterSpacing: "0.14em",
+        textTransform: "uppercase",
+        color: color ?? "rgba(255,255,255,0.38)",
+        marginBottom: 6,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function Feedback({ tone, children }: { tone: "error" | "ok"; children: ReactNode }) {
+  const isErr = tone === "error";
+  return (
+    <div
+      style={{
+        fontSize: 11,
+        lineHeight: 1.4,
+        color: isErr ? "#ff8a80" : "#69f0ae",
+        padding: "8px 10px",
+        borderRadius: 10,
+        background: isErr ? "rgba(255,80,80,0.08)" : "rgba(0,230,118,0.08)",
+        border: `1px solid ${isErr ? "rgba(255,80,80,0.22)" : "rgba(0,230,118,0.22)"}`,
+        textAlign: "center",
+      }}
+    >
+      {children}
     </div>
   );
 }
@@ -411,17 +480,24 @@ export function GramWalletPanel({
   const NEON = "#0fd9ff";
   const inputStyle: CSSProperties = {
     width: "100%",
-    minHeight: 46,
-    padding: "12px 14px",
+    minHeight: 44,
+    padding: "11px 12px",
     borderRadius: 12,
     background: "rgba(0,0,0,0.45)",
     border: `1px solid ${NEON}33`,
     color: "#fff",
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 800,
     fontVariantNumeric: "tabular-nums",
     outline: "none",
     boxSizing: "border-box",
+    textAlign: "center",
+  };
+  const inputStyleCompact: CSSProperties = {
+    ...inputStyle,
+    fontSize: 14,
+    fontWeight: 600,
+    textAlign: "left",
   };
   const btnPrimary: CSSProperties = {
     width: "100%",
@@ -470,21 +546,28 @@ export function GramWalletPanel({
       </div>
 
       {activeModal === "deposit" && (
-        <WalletActionPopup title={t("wallet.depositTitle")} color={NEON} onClose={() => setActiveModal(null)}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ fontSize: 12, lineHeight: 1.45, color: "rgba(180,220,240,0.6)" }}>
-              {t("wallet.depositHint", { min: DEPOSIT_MIN_TON })}
+        <WalletActionPopup
+          title={t("wallet.depositTitle")}
+          subtitle={t("wallet.depositHint", { min: DEPOSIT_MIN_TON })}
+          color={NEON}
+          icon="↓"
+          onClose={() => setActiveModal(null)}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <FieldLabel color={`${NEON}99`}>{t("wallet.amountLabel")}</FieldLabel>
+              <input
+                type="number"
+                inputMode="decimal"
+                value={dAmount}
+                onChange={(e) => setDAmount(e.target.value)}
+                placeholder={t("wallet.depositPlaceholder", { min: DEPOSIT_MIN_TON })}
+                disabled={depositing}
+                style={inputStyle}
+              />
             </div>
-            <input
-              type="number"
-              inputMode="decimal"
-              value={dAmount}
-              onChange={(e) => setDAmount(e.target.value)}
-              placeholder={t("wallet.depositPlaceholder", { min: DEPOSIT_MIN_TON })}
-              disabled={depositing}
-              style={inputStyle}
-            />
             <button
+              type="button"
               onClick={() => void handleDeposit()}
               disabled={depositing}
               style={{
@@ -495,39 +578,81 @@ export function GramWalletPanel({
                 cursor: depositing ? "not-allowed" : "pointer",
               }}
             >
-              {depositing ? "..." : !walletAddress ? t("wallet.connect") : t("wallet.depositBtn")}
+              {depositing ? t("common.processing") : !walletAddress ? t("wallet.connect") : t("wallet.depositBtn")}
             </button>
-            {dErr && <div style={{ fontSize: 11, color: "#ff7a7a", padding: "8px 12px", borderRadius: 8, background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.25)" }}>{dErr}</div>}
-            {dMsg && <div style={{ fontSize: 11, color: NEON, padding: "8px 12px", borderRadius: 8, background: `${NEON}0d`, border: `1px solid ${NEON}33` }}>{dMsg}</div>}
+            {dErr && <Feedback tone="error">{dErr}</Feedback>}
+            {dMsg && <Feedback tone="ok">{dMsg}</Feedback>}
           </div>
         </WalletActionPopup>
       )}
 
       {activeModal === "withdraw" && (
-        <WalletActionPopup title={t("wallet.withdrawTitle")} color="#00e676" onClose={() => setActiveModal(null)}>
+        <WalletActionPopup
+          title={t("wallet.withdrawTitle")}
+          subtitle={canWithdraw ? t("wallet.withdrawHint", { min: WITHDRAWAL_MIN_TON, fee: WITHDRAWAL_FEE_TON }) : undefined}
+          color="#00e676"
+          icon="↑"
+          onClose={() => setActiveModal(null)}
+        >
           {canWithdraw ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <div style={{ fontSize: 12, lineHeight: 1.45, color: "rgba(180,220,240,0.6)" }}>
-                {t("wallet.withdrawHint", { min: WITHDRAWAL_MIN_TON, fee: WITHDRAWAL_FEE_TON })}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div
+                className="rounded-xl text-center py-2"
+                style={{ background: "rgba(0,230,118,0.08)", border: "1px solid rgba(0,230,118,0.18)" }}
+              >
+                <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.12em", color: "rgba(255,255,255,0.4)", textTransform: "uppercase" }}>
+                  {t("wallet.availableEarned")}
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 900, color: "#00e676", marginTop: 2 }}>
+                  {liveEarnedTon.toFixed(4)} GRAM
+                </div>
               </div>
-              <input
-                type="number"
-                inputMode="decimal"
-                placeholder={t("wallet.withdrawAmountPlaceholder", { min: WITHDRAWAL_MIN_TON })}
-                value={wAmount}
-                onChange={(e) => setWAmount(e.target.value)}
-                disabled={submitting}
-                style={inputStyle}
-              />
-              <input
-                type="text"
-                placeholder={t("wallet.withdrawAddressPlaceholder")}
-                value={wWallet}
-                onChange={(e) => setWWallet(e.target.value)}
-                disabled={submitting}
-                style={{ ...inputStyle, fontSize: 14, fontWeight: 600 }}
-              />
+              <div>
+                <FieldLabel color="rgba(0,230,118,0.65)">{t("wallet.amountLabel")}</FieldLabel>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder={t("wallet.withdrawAmountPlaceholder", { min: WITHDRAWAL_MIN_TON })}
+                    value={wAmount}
+                    onChange={(e) => setWAmount(e.target.value)}
+                    disabled={submitting}
+                    style={{ ...inputStyle, flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setWAmount(String(Math.max(WITHDRAWAL_MIN_TON, Math.floor(liveEarnedTon * 10000) / 10000)))}
+                    disabled={submitting || liveEarnedTon < WITHDRAWAL_MIN_TON}
+                    style={{
+                      padding: "0 12px",
+                      borderRadius: 12,
+                      fontSize: 10,
+                      fontWeight: 900,
+                      letterSpacing: "0.08em",
+                      color: "#00e676",
+                      background: "rgba(0,230,118,0.10)",
+                      border: "1px solid rgba(0,230,118,0.25)",
+                      cursor: submitting ? "not-allowed" : "pointer",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {t("common.max")}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <FieldLabel>{t("wallet.addressLabel")}</FieldLabel>
+                <input
+                  type="text"
+                  placeholder={t("wallet.withdrawAddressPlaceholder")}
+                  value={wWallet}
+                  onChange={(e) => setWWallet(e.target.value)}
+                  disabled={submitting}
+                  style={inputStyleCompact}
+                />
+              </div>
               <button
+                type="button"
                 onClick={() => void handleWithdraw()}
                 disabled={submitting}
                 style={{
@@ -538,41 +663,17 @@ export function GramWalletPanel({
                   cursor: submitting ? "not-allowed" : "pointer",
                 }}
               >
-                {submitting ? "..." : t("wallet.withdrawBtn")}
+                {submitting ? t("common.processing") : t("wallet.withdrawBtn")}
               </button>
-              {wErr && <div style={{ fontSize: 11, color: "#ff7a7a", padding: "7px 11px", borderRadius: 8, background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.25)" }}>{wErr}</div>}
-              {wMsg && <div style={{ fontSize: 11, color: "#00e676", padding: "7px 11px", borderRadius: 8, background: "rgba(0,230,118,0.08)", border: "1px solid rgba(0,230,118,0.25)" }}>{wMsg}</div>}
-              {withdrawals.length > 0 && (
-                <div style={{ marginTop: 4 }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,255,255,0.45)", textTransform: "uppercase", marginBottom: 6 }}>{t("wallet.recentWithdrawals")}</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 160, overflowY: "auto" }}>
-                    {withdrawals.slice(0, 8).map((w) => {
-                      const col = w.status === "paid" ? "#3ddc97" : w.status === "rejected" ? "#ff7a7a" : "#f5d36a";
-                      return (
-                        <div key={w.id} style={{ fontSize: 11, padding: "6px 10px", borderRadius: 8, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                          <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-                            <span style={{ color: "#fff", fontWeight: 700 }}>{w.amountTon.toFixed(4)} GRAM</span>
-                            <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 10 }}>{new Date(w.createdAt).toLocaleString()}</span>
-                            {w.status === "paid" && w.txHash && (
-                              <a href={`https://tonscan.org/tx/${w.txHash}`} target="_blank" rel="noreferrer" style={{ color: NEON, fontSize: 10, textDecoration: "underline", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t("wallet.viewTx")}</a>
-                            )}
-                          </div>
-                          <span style={{ color: col, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                            {t(`wallet.status.${w.status}` as "wallet.status.paid") || w.status}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              {wErr && <Feedback tone="error">{wErr}</Feedback>}
+              {wMsg && <Feedback tone="ok">{wMsg}</Feedback>}
             </div>
           ) : (
-            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", padding: "12px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 10, border: "1px dashed rgba(255,255,255,0.12)" }}>
+            <Feedback tone="error">
               {earthCollectionUnlocked && sunCount <= 0
                 ? t("wallet.withdrawSunRequired")
                 : t("wallet.withdrawEligible")}
-            </div>
+            </Feedback>
           )}
         </WalletActionPopup>
       )}
