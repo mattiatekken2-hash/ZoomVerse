@@ -27,10 +27,7 @@ import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
 import { prefetchCombo } from "./utils/comboCache";
 import { initVersionCheck } from "./utils/appVersion";
-
-const SPLASH_MIN_MS = 2800;
-/** Hard cap — never keep users on splash longer than this. */
-const SPLASH_MAX_MS = 5000;
+import { SPLASH_MAX_MS, isSplashMinElapsed, splashElapsedMs, splashRemainingMs } from "./utils/bootSplash";
 
 const MAINTENANCE_ADMIN_IDS = ["8144744644", "@zoom0100", "zoom0100"];
 
@@ -345,10 +342,10 @@ function AppShellWithState() {
   }, []);
   const isAdmin = isMaintenanceAdmin(state.telegramId);
   const showMaintenance = maintenance.enabled && !isAdmin;
-  const [splashMinDone, setSplashMinDone] = useState(false);
+  const [splashMinDone, setSplashMinDone] = useState(() => isSplashMinElapsed());
   const [splashForceDone, setSplashForceDone] = useState(false);
 
-  // Time-based splash only — never block boot on API/network checks.
+  // Timer anchored to page load (index.html __zoomBootStart), not React mount.
   const showBootSplash = !isAdmin && !splashMinDone && !splashForceDone;
 
   useEffect(() => {
@@ -356,8 +353,10 @@ function AppShellWithState() {
   }, []);
 
   useEffect(() => {
-    const doneTimer = window.setTimeout(() => setSplashMinDone(true), SPLASH_MIN_MS);
-    const forceTimer = window.setTimeout(() => setSplashForceDone(true), SPLASH_MAX_MS);
+    const remaining = splashRemainingMs();
+    const forceRemaining = Math.max(0, SPLASH_MAX_MS - splashElapsedMs());
+    const doneTimer = window.setTimeout(() => setSplashMinDone(true), remaining);
+    const forceTimer = window.setTimeout(() => setSplashForceDone(true), forceRemaining);
     return () => {
       window.clearTimeout(doneTimer);
       window.clearTimeout(forceTimer);
@@ -725,7 +724,8 @@ function AppShellWithState() {
   if (showMaintenance) {
     return (
       <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
-        <MaintenanceScreen message={maintenance.message} />
+        {showBootSplash && <BootSplashOverlay subtitle={t("splash.loading")} />}
+        {!showBootSplash && <MaintenanceScreen message={maintenance.message} />}
       </TonConnectUIProvider>
     );
   }
@@ -743,6 +743,7 @@ function AppShellWithState() {
           paddingBottom: tab === "lab" ? 0 : "env(safe-area-inset-bottom, 0px)",
           opacity: showBootSplash ? 0 : 1,
           visibility: showBootSplash ? "hidden" : "visible",
+          display: showBootSplash ? "none" : "flex",
           pointerEvents: showBootSplash ? "none" : "auto",
           transition: showBootSplash ? "none" : "opacity 0.35s ease",
         }}
