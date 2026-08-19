@@ -5,7 +5,7 @@
  *   - Deposit via TonConnect (min 0.25 TON)
  *   - Withdrawal (min 10 TON) — moved here from PixelAvatar
  */
-import { memo, useState, useEffect, useRef, useCallback, type CSSProperties, type ReactNode } from "react";
+import { memo, useState, useEffect, useRef, useCallback, type CSSProperties, type ReactNode, type MouseEvent } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import {
   fetchStakingStatus,
@@ -140,17 +140,17 @@ export function GramWalletConnectButton() {
   );
 }
 
-function RoundWalletAction({
+function CompactWalletChip({
   label,
-  sublabel,
+  icon,
   color,
   onClick,
   testId,
 }: {
   label: string;
-  sublabel: string;
+  icon: string;
   color: string;
-  onClick: () => void;
+  onClick: (e: MouseEvent<HTMLButtonElement>) => void;
   testId: string;
 }) {
   return (
@@ -158,34 +158,29 @@ function RoundWalletAction({
       type="button"
       onClick={onClick}
       data-testid={testId}
-      className="flex flex-col items-center gap-2 active:scale-95 transition-transform"
-      style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
+      className="flex items-center gap-1 active:scale-95 transition-transform"
+      style={{
+        padding: "5px 9px",
+        borderRadius: 10,
+        background: `${color}14`,
+        border: `1px solid ${color}44`,
+        boxShadow: `0 0 12px ${color}18`,
+        cursor: "pointer",
+        flexShrink: 0,
+      }}
     >
-      <div
+      <span style={{ fontSize: 11, lineHeight: 1, color, fontWeight: 900 }}>{icon}</span>
+      <span
         style={{
-          width: 58,
-          height: 58,
-          borderRadius: "50%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: `linear-gradient(145deg, ${color}22, ${color}08)`,
-          border: `1.5px solid ${color}55`,
-          boxShadow: `0 0 18px ${color}20`,
+          fontSize: 9,
+          fontWeight: 900,
+          letterSpacing: "0.08em",
+          color,
+          textTransform: "uppercase",
         }}
       >
-        <span style={{ fontSize: 20, lineHeight: 1, color, fontWeight: 900 }}>
-          {label === "Deposit" ? "↓" : "↑"}
-        </span>
-      </div>
-      <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: "0.12em", color, textTransform: "uppercase" }}>
-          {label}
-        </div>
-        <div style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>
-          {sublabel}
-        </div>
-      </div>
+        {label}
+      </span>
     </button>
   );
 }
@@ -210,24 +205,25 @@ function WalletActionPopup({
   return (
     <div
       className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)" }}
+      style={{ background: "rgba(4,6,12,0.88)", backdropFilter: "blur(8px)" }}
       onClick={onClose}
       data-testid="wallet-action-backdrop"
     >
       <div
-        className="w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden"
+        className="w-full max-w-sm rounded-t-2xl sm:rounded-2xl overflow-hidden flex flex-col"
         style={{
-          background: "linear-gradient(160deg, rgba(6,14,32,0.98), rgba(2,8,18,0.99))",
+          background: "linear-gradient(180deg, rgba(14,18,32,0.98), rgba(8,10,22,0.99))",
           border: `1px solid ${color}44`,
-          boxShadow: `0 0 32px ${color}18`,
+          boxShadow: `0 -8px 32px ${color}14`,
+          maxHeight: "72vh",
         }}
         onClick={(e) => e.stopPropagation()}
       >
         <div
-          className="flex items-center justify-between px-4 py-3"
+          className="flex items-center justify-between px-3.5 py-2.5 flex-shrink-0"
           style={{ borderBottom: `1px solid ${color}22` }}
         >
-          <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: "0.14em", color, textTransform: "uppercase" }}>
+          <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.14em", color, textTransform: "uppercase" }}>
             {title}
           </div>
           <button
@@ -235,20 +231,20 @@ function WalletActionPopup({
             onClick={onClose}
             aria-label="Close"
             style={{
-              width: 32,
-              height: 32,
+              width: 28,
+              height: 28,
               borderRadius: "50%",
               border: "1px solid rgba(255,255,255,0.12)",
               background: "rgba(255,255,255,0.05)",
               color: "rgba(255,255,255,0.7)",
               cursor: "pointer",
-              fontSize: 14,
+              fontSize: 13,
             }}
           >
             ✕
           </button>
         </div>
-        <div style={{ padding: "14px 16px 18px" }}>{children}</div>
+        <div className="overflow-y-auto" style={{ padding: "12px 14px 16px" }}>{children}</div>
       </div>
     </div>
   );
@@ -268,7 +264,8 @@ export function GramWalletPanel({
   blackPlanets,
   supernovaCollectionUnlocked = false,
   supernovaPlanets = [],
-}: Props) {
+  overlay = true,
+}: Props & { overlay?: boolean }) {
   const [tonConnectUI] = useTonConnectUI();
   const walletAddress   = useTonAddress();
   const canWithdraw = whiteCollectionUnlocked || (earthCollectionUnlocked && sunCount > 0) || blackCollectionUnlocked || supernovaCollectionUnlocked;
@@ -436,19 +433,33 @@ export function GramWalletPanel({
 
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "center", gap: 28, padding: "2px 0 6px" }}>
-        <RoundWalletAction
+      <div
+        style={
+          overlay
+            ? {
+                position: "absolute",
+                top: 12,
+                right: 12,
+                zIndex: 4,
+                display: "flex",
+                gap: 6,
+                pointerEvents: "auto",
+              }
+            : { display: "flex", justifyContent: "center", gap: 28, padding: "2px 0 6px" }
+        }
+      >
+        <CompactWalletChip
           label="Deposit"
-          sublabel="TonConnect"
+          icon="↓"
           color={NEON}
-          onClick={() => setActiveModal("deposit")}
+          onClick={(e) => { e.stopPropagation(); setActiveModal("deposit"); }}
           testId="wallet-deposit-orb"
         />
-        <RoundWalletAction
+        <CompactWalletChip
           label="Withdraw"
-          sublabel="To wallet"
+          icon="↑"
           color="#00e676"
-          onClick={() => setActiveModal("withdraw")}
+          onClick={(e) => { e.stopPropagation(); setActiveModal("withdraw"); }}
           testId="wallet-withdraw-orb"
         />
       </div>

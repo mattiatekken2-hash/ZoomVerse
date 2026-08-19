@@ -113,8 +113,10 @@ export function WalletPage({
         <GramWalletConnectButton />
       </div>
 
-      {/* ── DEPOSIT / WITHDRAW — round action orbs ── */}
-      <GramWalletPanel
+      {/* ── MAIN BALANCE: GRAM + deposit/withdraw chips overlaid ── */}
+      <div style={{ position: "relative" }}>
+        <GramWalletPanel
+          overlay
           tonBalance={tonBalance}
           depositBalance={depositBalance}
           telegramId={telegramId}
@@ -127,23 +129,22 @@ export function WalletPage({
           earthPlanets={earthPlanets}
           blackPlanets={blackPlanets}
           supernovaPlanets={supernovaPlanets}
-      />
-
-      {/* ── MAIN BALANCE: GRAM ── */}
-      <button
-        type="button"
-        className="rounded-2xl text-left w-full transition-all active:scale-[0.99]"
-        style={{
-          background: "linear-gradient(135deg, rgba(0,242,180,0.09) 0%, rgba(0,180,130,0.05) 100%)",
-          border: "1px solid rgba(0,242,180,0.20)",
-          boxShadow: "0 0 32px rgba(0,242,180,0.07)",
-          padding: "16px 18px",
-          cursor: "pointer",
-        }}
-        onClick={() => setGramChartOpen(true)}
-        data-testid="gram-balance-card"
-        aria-label="Open GRAM market chart"
-      >
+        />
+        <button
+          type="button"
+          className="rounded-2xl text-left w-full transition-all active:scale-[0.99]"
+          style={{
+            background: "linear-gradient(135deg, rgba(0,242,180,0.09) 0%, rgba(0,180,130,0.05) 100%)",
+            border: "1px solid rgba(0,242,180,0.20)",
+            boxShadow: "0 0 32px rgba(0,242,180,0.07)",
+            padding: "16px 18px",
+            paddingTop: 44,
+            cursor: "pointer",
+          }}
+          onClick={() => setGramChartOpen(true)}
+          data-testid="gram-balance-card"
+          aria-label="Open GRAM market chart"
+        >
         {/* Label row */}
         <div
           style={{
@@ -240,7 +241,8 @@ export function WalletPage({
         >
           {priceLabel} · tap for chart
         </div>
-      </button>
+        </button>
+      </div>
 
       {gramChartOpen && (
         <GramChartModal
