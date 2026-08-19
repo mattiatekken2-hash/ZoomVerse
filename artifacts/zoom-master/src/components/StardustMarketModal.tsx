@@ -212,6 +212,12 @@ export function StardustMarketModal({
     }
     if (typeof res.depositBalance === "number") setLiveDeposit(res.depositBalance);
     if (typeof res.tonBalance === "number") setLiveEarned(res.tonBalance);
+    window.dispatchEvent(new CustomEvent("zoom-gram-balance-snap", {
+      detail: {
+        depositBalance: res.depositBalance,
+        tonBalance: res.tonBalance,
+      },
+    }));
     window.dispatchEvent(new CustomEvent("stardust-refresh"));
     window.dispatchEvent(new Event("zoom-data-refresh"));
     void refresh();

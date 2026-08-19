@@ -161,7 +161,10 @@ export const RarityForgeWheel = memo(function RarityForgeWheel({
   useEffect(() => {
     if (doneRef.current) return;
     const seg = segments.find((s) => s.type === targetRarity) ?? segments[0];
-    const landOn = 360 - seg.midDeg;
+    const span = seg.endDeg - seg.startDeg;
+    const jitter = (Math.random() - 0.5) * Math.min(span * 0.28, 8);
+    const landAngle = seg.midDeg + jitter;
+    const landOn = (360 - landAngle) % 360;
     const extraSpins = 2 + Math.random() * 0.75;
     const target = extraSpins * 360 + landOn;
 
@@ -172,7 +175,9 @@ export const RarityForgeWheel = memo(function RarityForgeWheel({
     return () => cancelAnimationFrame(t0);
   }, [segments, targetRarity]);
 
-  const handleTransitionEnd = () => {
+  const handleTransitionEnd = (e: React.TransitionEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.propertyName !== "transform") return;
     if (!spinning || doneRef.current) return;
     doneRef.current = true;
     setLanded(true);
@@ -236,8 +241,8 @@ export const RarityForgeWheel = memo(function RarityForgeWheel({
               const fs = labelFontSize(span);
               const labelR = labelRadius(span, r);
               const lp = polar(cx, cx, s.midDeg, labelR);
-              const flip = s.midDeg > 90 && s.midDeg < 270;
-              const textRot = s.midDeg + (flip ? 180 : 0);
+              const labelLen = s.label.length;
+              const fsAdj = labelLen > 6 ? Math.max(9, fs - 2) : fs;
 
               return (
                 <g key={s.type}>
@@ -252,14 +257,13 @@ export const RarityForgeWheel = memo(function RarityForgeWheel({
                     x={lp.x}
                     y={lp.y}
                     fill={s.textColor}
-                    fontSize={fs}
+                    fontSize={fsAdj}
                     fontWeight="900"
                     fontFamily="system-ui, -apple-system, Segoe UI, sans-serif"
                     textAnchor="middle"
                     dominantBaseline="middle"
-                    transform={`rotate(${textRot}, ${lp.x}, ${lp.y})`}
                     style={{
-                      letterSpacing: span >= 30 ? "0.12em" : "0.05em",
+                      letterSpacing: span >= 30 ? "0.08em" : "0.04em",
                     }}
                   >
                     {s.label}

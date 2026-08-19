@@ -556,15 +556,15 @@ const en: Dict = {
 
 // Italian
 const it: Dict = {
-  "nav.lab": "LAB",
+  "nav.lab": "LABORATORIO",
   "nav.home": "HOME",
-  "nav.farm": "FARM",
-  "nav.market": "MARKET",
+  "nav.farm": "FATTORIA",
+  "nav.market": "MERCATO",
   "nav.pvp": "PVP",
-  "nav.earn": "EARN",
-  "nav.rank": "RANK",
-  "nav.shop": "SHOP",
-  "nav.wallet": "WALLET",
+  "nav.earn": "GUADAGNA",
+  "nav.rank": "CLASSIFICA",
+  "nav.shop": "NEGOZIO",
+  "nav.wallet": "PORTAFOGLIO",
 
   "header.perHour": "/h",
   "header.resources": "Risorse",
@@ -1081,15 +1081,15 @@ const it: Dict = {
 
 // Russian
 const ru: Dict = {
-  "nav.lab": "LAB",
+  "nav.lab": "ЛАБ",
   "nav.home": "HOME",
-  "nav.farm": "FARM",
-  "nav.market": "MARKET",
+  "nav.farm": "ФЕРМА",
+  "nav.market": "РЫНОК",
   "nav.pvp": "PVP",
-  "nav.earn": "EARN",
-  "nav.rank": "RANK",
+  "nav.earn": "ЗАРАБОТОК",
+  "nav.rank": "РЕЙТИНГ",
   "nav.shop": "SHOP",
-  "nav.wallet": "WALLET",
+  "nav.wallet": "КОШЕЛЁК",
 
   "header.perHour": "/час",
   "header.resources": "Ресурсы",

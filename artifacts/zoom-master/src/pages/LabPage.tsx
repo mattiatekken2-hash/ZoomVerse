@@ -393,6 +393,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
                 variant="compact"
                 suspendGl={false}
                 eagerThumb
+                hideActions
                 testId="lab-reveal-planet-card"
               />
             </div>
