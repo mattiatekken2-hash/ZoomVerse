@@ -735,6 +735,7 @@ export const fil: Record<string, string> = {
   "farm.exclusive": "EKSKLUSIBO",
 
   "splash.loading": "Naglo-load…",
+  "splash.subtitle": "Pasok sa laro",
 
   "combo.title": "KOMBO",
   "combo.claimed": "✓ NA-CLAIM",

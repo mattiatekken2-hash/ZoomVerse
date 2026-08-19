@@ -724,7 +724,7 @@ function AppShellWithState() {
     return (
       <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
         {showBootSplash && (
-          <BootSplashOverlay subtitle={t("splash.loading")} sessionStartMs={splashSessionStart} />
+          <BootSplashOverlay subtitle={t("splash.subtitle")} sessionStartMs={splashSessionStart} />
         )}
         {!showBootSplash && <MaintenanceScreen message={maintenance.message} />}
       </TonConnectUIProvider>
@@ -735,7 +735,7 @@ function AppShellWithState() {
   return (
     <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
       {showBootSplash && (
-        <BootSplashOverlay subtitle={t("splash.loading")} sessionStartMs={splashSessionStart} />
+        <BootSplashOverlay subtitle={t("splash.subtitle")} sessionStartMs={splashSessionStart} />
       )}
       <div
         className="flex flex-col overflow-hidden relative"

@@ -118,7 +118,7 @@
       <div class="splash-inner">
         <div class="splash-spinner" aria-hidden="true"></div>
         <div class="splash-title">Season 3</div>
-        <div class="splash-sub">Entra in gioco</div>
+        <div class="splash-sub">Loading…</div>
         <button type="button" id="splash-retry-btn">Riprova</button>
       </div>
       <div class="splash-bar-wrap" aria-hidden="true">
@@ -129,8 +129,40 @@
     </div>
     <script>
       (function() {
-        var splash = document.getElementById('splash-screen');
-        var retryBtn = document.getElementById('splash-retry-btn');
+        var SPLASH_SUB = {
+          en: "Enter the game",
+          it: "Entra in gioco",
+          es: "Entra al juego",
+          fil: "Pasok sa laro",
+          ru: "Войти в игру",
+          uk: "Увійти в гру"
+        };
+        function splashLang() {
+          try {
+            var saved = localStorage.getItem("zoom-lang");
+            if (saved && SPLASH_SUB[saved]) return saved;
+          } catch (e) {}
+          try {
+            var tg = window.Telegram && window.Telegram.WebApp;
+            var code = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.language_code)
+              || (navigator.language || "");
+            var norm = (code || "").toLowerCase().slice(0, 2);
+            if (norm === "it") return "it";
+            if (norm === "es") return "es";
+            if (norm === "fil" || norm === "tl") return "fil";
+            if (norm === "ru") return "ru";
+            if (norm === "uk") return "uk";
+          } catch (e) {}
+          return "en";
+        }
+        var splash = document.getElementById("splash-screen");
+        function applySplashSubtitle() {
+          var el = splash && splash.querySelector(".splash-sub");
+          if (el) el.textContent = SPLASH_SUB[splashLang()] || SPLASH_SUB.en;
+        }
+        applySplashSubtitle();
+
+        var retryBtn = document.getElementById("splash-retry-btn");
         window.__hideHtmlSplash = function() {
           if (!splash) return;
           splash.classList.add('hidden');
@@ -157,6 +189,7 @@
               var sp = tg.initDataUnsafe && tg.initDataUnsafe.start_param;
               if (sp) localStorage.setItem('zoom-start-param', sp);
             } catch (e) {}
+            applySplashSubtitle();
           } catch (e) {}
         }
         if (document.readyState === 'loading') {
@@ -165,12 +198,6 @@
           configureTelegramWhenReady();
         }
         window.addEventListener('load', configureTelegramWhenReady);
-
-        setTimeout(function() {
-          if (window.__zoomReactBooted) return;
-          var sub = splash && splash.querySelector('.splash-sub');
-          if (sub) sub.textContent = 'Caricamento…';
-        }, 900);
       })();
     </script>
     <div id="root"></div>

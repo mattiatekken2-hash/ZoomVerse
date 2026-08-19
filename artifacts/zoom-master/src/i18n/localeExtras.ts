@@ -267,6 +267,7 @@ export const LOCALE_EXTRAS: Record<Lang, Dict> = {
     "shop.comingSoonHint": "This section will be available shortly.",
 
     "splash.loading": "Loading…",
+    "splash.subtitle": "Enter the game",
 
     "combo.title": "COMBO",
     "combo.claimed": "✓ CLAIMED",
