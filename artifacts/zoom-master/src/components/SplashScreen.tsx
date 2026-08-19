@@ -1,5 +1,8 @@
-/** Fade out and remove the pre-React HTML splash (index.html). */
+/** Remove the pre-React HTML splash (index.html) and reveal #root. */
 export function hideHtmlSplash() {
+  try {
+    document.body.classList.remove("zoom-splash-on");
+  } catch { /**/ }
   try {
     const w = window as unknown as { __hideHtmlSplash?: () => void };
     if (typeof w.__hideHtmlSplash === "function") {
