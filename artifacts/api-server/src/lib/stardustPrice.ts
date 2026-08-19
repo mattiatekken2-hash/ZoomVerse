@@ -15,16 +15,27 @@ const VERSION_KEY = "stardust_index_version";
 
 export const STARDUST_SCALE = 1_000_000;
 export const STARDUST_GENESIS_MICRO = 1_000_000; // 1.0
+/** Hard cap — index stays near genesis so stakers don't see large passive gains. */
+export const STARDUST_INDEX_MAX_MICRO = 1_015_000; // 1.015 (+1.5% from launch)
+export const STARDUST_INDEX_MIN_MICRO = 985_000; // 0.985 (-1.5% floor)
 /** At index 1.0: 1 GRAM → 100 STARDUST (shop + convert baseline). */
 export const STARDUST_PER_GRAM_BASE = 100;
 
+function clampIndexMicro(micro: number): number {
+  return Math.min(STARDUST_INDEX_MAX_MICRO, Math.max(STARDUST_INDEX_MIN_MICRO, micro));
+}
+
+function indexFromMicro(indexMicro: number): number {
+  return clampIndexMicro(indexMicro) / STARDUST_SCALE;
+}
+
 export function stardustPriceForGram(gramAmount: number, indexMicro: number): number {
-  const index = Math.max(0.25, indexMicro / STARDUST_SCALE);
+  const index = indexFromMicro(indexMicro);
   return Math.max(1, Math.ceil(gramAmount * STARDUST_PER_GRAM_BASE * index));
 }
 
 export function gramToStardust(gramAmount: number, indexMicro: number): number {
-  const index = Math.max(0.25, indexMicro / STARDUST_SCALE);
+  const index = indexFromMicro(indexMicro);
   return Math.max(1, Math.floor((gramAmount * STARDUST_PER_GRAM_BASE) / index));
 }
 
@@ -32,7 +43,7 @@ export function gramToStardust(gramAmount: number, indexMicro: number): number {
 export const STARDUST_TO_GRAM_SPREAD = 0.85;
 
 export function stardustToGram(stardustAmount: number, indexMicro: number): number {
-  const index = Math.max(0.25, indexMicro / STARDUST_SCALE);
+  const index = indexFromMicro(indexMicro);
   const nominal = (stardustAmount * index) / STARDUST_PER_GRAM_BASE;
   const gram = nominal * STARDUST_TO_GRAM_SPREAD;
   return Math.max(0, Math.round(gram * 1_000_000) / 1_000_000);
@@ -45,18 +56,21 @@ const CHART_THROTTLE_MS = 10_000;
 type ChartPoint = { t: number; p: number };
 
 const ACTION_BP: Record<string, number> = {
-  spend: 18,   // +0.18% per spend event
-  earn: -4,    // -0.04% per collect (supply)
-  stake: 6,    // +0.06% when users stake (demand lock)
-  unstake: -3, // -0.03% on withdraw
-  convert: 12, // +0.12% GRAM → STARDUST conversion (demand)
-  convert_out: -8, // -0.08% STARDUST → GRAM (supply back)
+  spend: 3,    // +0.03% per spend event
+  earn: -1,    // -0.01% per collect (supply)
+  stake: 2,    // +0.02% when users stake
+  unstake: -1, // -0.01% on withdraw
+  convert: 2,  // +0.02% GRAM → STARDUST
+  convert_out: -1, // -0.01% STARDUST → GRAM
 };
 
 function applyBp(current: number, bp: number): number {
   const delta = Math.max(1, Math.round((current * bp) / 10_000));
   const next = current + (bp >= 0 ? delta : -delta);
-  return Math.max(Math.round(STARDUST_GENESIS_MICRO * 0.25), next);
+  return Math.min(
+    STARDUST_INDEX_MAX_MICRO,
+    Math.max(STARDUST_INDEX_MIN_MICRO, next),
+  );
 }
 
 async function ensureGenesis(): Promise<void> {
@@ -133,7 +147,18 @@ export async function getStardustIndexMicro(): Promise<number> {
     .from(appSettingsTable)
     .where(eq(appSettingsTable.key, INDEX_KEY))
     .limit(1);
-  return Number(row?.valueNum ?? STARDUST_GENESIS_MICRO);
+  const raw = Number(row?.valueNum ?? STARDUST_GENESIS_MICRO);
+  const clamped = clampIndexMicro(raw);
+  if (clamped !== raw) {
+    await db
+      .insert(appSettingsTable)
+      .values({ key: INDEX_KEY, valueNum: clamped })
+      .onConflictDoUpdate({
+        target: appSettingsTable.key,
+        set: { valueNum: clamped, updatedAt: new Date() },
+      });
+  }
+  return clamped;
 }
 
 export async function getStardustChart(): Promise<ChartPoint[]> {

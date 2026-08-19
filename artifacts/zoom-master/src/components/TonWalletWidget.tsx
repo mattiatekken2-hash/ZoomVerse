@@ -163,18 +163,18 @@ function RoundWalletAction({
     >
       <div
         style={{
-          width: 76,
-          height: 76,
+          width: 58,
+          height: 58,
           borderRadius: "50%",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           background: `linear-gradient(145deg, ${color}22, ${color}08)`,
           border: `1.5px solid ${color}55`,
-          boxShadow: `0 0 24px ${color}20`,
+          boxShadow: `0 0 18px ${color}20`,
         }}
       >
-        <span style={{ fontSize: 26, lineHeight: 1, color, fontWeight: 900 }}>
+        <span style={{ fontSize: 20, lineHeight: 1, color, fontWeight: 900 }}>
           {label === "Deposit" ? "↓" : "↑"}
         </span>
       </div>
@@ -436,7 +436,7 @@ export function GramWalletPanel({
 
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "center", gap: 36, padding: "4px 0 8px" }}>
+      <div style={{ display: "flex", justifyContent: "center", gap: 28, padding: "2px 0 6px" }}>
         <RoundWalletAction
           label="Deposit"
           sublabel="TonConnect"
@@ -447,7 +447,7 @@ export function GramWalletPanel({
         <RoundWalletAction
           label="Withdraw"
           sublabel="To wallet"
-          color="#c471ed"
+          color="#00e676"
           onClick={() => setActiveModal("withdraw")}
           testId="wallet-withdraw-orb"
         />
@@ -488,7 +488,7 @@ export function GramWalletPanel({
       )}
 
       {activeModal === "withdraw" && (
-        <WalletActionPopup title="Withdraw GRAM" color="#c471ed" onClose={() => setActiveModal(null)}>
+        <WalletActionPopup title="Withdraw GRAM" color="#00e676" onClose={() => setActiveModal(null)}>
           {canWithdraw ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ fontSize: 12, lineHeight: 1.45, color: "rgba(180,220,240,0.6)" }}>
@@ -516,8 +516,8 @@ export function GramWalletPanel({
                 disabled={submitting}
                 style={{
                   ...btnPrimary,
-                  background: "linear-gradient(135deg, #c471ed, #7b2fff)",
-                  color: "#fff",
+                  background: "linear-gradient(135deg, #00e676, #00c853)",
+                  color: "#001a0e",
                   opacity: submitting ? 0.6 : 1,
                   cursor: submitting ? "not-allowed" : "pointer",
                 }}
@@ -525,7 +525,7 @@ export function GramWalletPanel({
                 {submitting ? "..." : "WITHDRAW GRAM"}
               </button>
               {wErr && <div style={{ fontSize: 11, color: "#ff7a7a", padding: "7px 11px", borderRadius: 8, background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.25)" }}>{wErr}</div>}
-              {wMsg && <div style={{ fontSize: 11, color: "#c471ed", padding: "7px 11px", borderRadius: 8, background: "rgba(192,96,255,0.08)", border: "1px solid rgba(192,96,255,0.3)" }}>{wMsg}</div>}
+              {wMsg && <div style={{ fontSize: 11, color: "#00e676", padding: "7px 11px", borderRadius: 8, background: "rgba(0,230,118,0.08)", border: "1px solid rgba(0,230,118,0.25)" }}>{wMsg}</div>}
               {withdrawals.length > 0 && (
                 <div style={{ marginTop: 4 }}>
                   <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,255,255,0.45)", textTransform: "uppercase", marginBottom: 6 }}>Recent withdrawals</div>

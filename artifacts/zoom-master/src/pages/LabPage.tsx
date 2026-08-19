@@ -250,7 +250,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
         <div
           className="absolute left-0 right-0 z-30 flex items-center justify-center gap-2 px-3 pointer-events-none"
-          style={{ top: "max(68px, calc(env(safe-area-inset-top, 0px) + 62px))" }}
+          style={{ top: "max(80px, calc(env(safe-area-inset-top, 0px) + 74px))" }}
         >
           <div className="pointer-events-auto flex-shrink-0">
             <SettingsMenu muted={muted} setMuted={setMuted ?? (() => {})} headerButton />
@@ -457,16 +457,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           )}
         </div>
 
-        {!pendingPlanet && (
-          <div className="flex justify-between text-xs pointer-events-none px-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
-            <span>
-              {currentCraftRarity
-                ? t("lab.tapsNeeded", { n: goal })
-                : t("lab.perTap")}
-            </span>
-            <span>{t("lab.slotsFree", { n: Math.max(0, maxSlots - planets.length) })}</span>
-          </div>
-        )}
       </div>
     </div>
   );
