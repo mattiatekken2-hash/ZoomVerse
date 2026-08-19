@@ -23,6 +23,7 @@ import {
 } from "../utils/api";
 import { gramToStardustPreview } from "../utils/stardustMarket";
 import { GramDiamondIcon } from "./GramDiamondIcon";
+import { useT } from "../i18n/LanguageContext";
 
 const REFRESH_MS = 12_000;
 const CYAN = "#9EC5E8";
@@ -57,6 +58,7 @@ export function StardustMarketModal({
   onClose,
   onBalanceChange,
 }: Props) {
+  const { t } = useT();
   const [index, setIndex] = useState(1);
   const [genesis, setGenesis] = useState(1);
   const [totalStaked, setTotalStaked] = useState(0);
@@ -134,11 +136,11 @@ export function StardustMarketModal({
     if (!telegramId || busy) return;
     const n = parseInt(amount, 10);
     if (!Number.isFinite(n) || n <= 0) {
-      setMsg("Enter a valid amount");
+      setMsg(t("stardustMarket.invalidAmount"));
       return;
     }
     if (n > balance) {
-      setMsg("Not enough STARDUST");
+      setMsg(t("stardustMarket.notEnough"));
       return;
     }
     setBusy(true);
@@ -147,15 +149,15 @@ export function StardustMarketModal({
     setBusy(false);
     if (!res.ok) {
       setMsg(res.error?.includes("migrated")
-        ? "Stake needs a DB update on the server — contact admin"
-        : (res.error ?? "Stake failed"));
+        ? t("stardustMarket.stakeDbMigration")
+        : (res.error ?? t("stardustMarket.stakeFailed")));
       return;
     }
     const newBalance = res.balance ?? Math.max(0, balance - n);
     setBalance(newBalance);
     onBalanceChange?.(newBalance);
     setAmount("");
-    setMsg(`✓ Staked ${n.toLocaleString()} ★`);
+    setMsg(t("stardustMarket.stakedSuccess", { n: n.toLocaleString() }));
     window.dispatchEvent(new CustomEvent("stardust-refresh"));
     window.dispatchEvent(new Event("zoom-data-refresh"));
     void refresh();
@@ -168,10 +170,10 @@ export function StardustMarketModal({
     const res = await unstakeStardust(telegramId);
     setBusy(false);
     if (!res.ok) {
-      setMsg(res.error ?? "Unstake failed");
+      setMsg(res.error ?? t("stardustMarket.unstakeFailed"));
       return;
     }
-    setMsg(`✓ Withdrew ${(res.payout ?? 0).toLocaleString()} ★`);
+    setMsg(t("stardustMarket.unstakedSuccess", { n: (res.payout ?? 0).toLocaleString() }));
     window.dispatchEvent(new CustomEvent("stardust-refresh"));
     window.dispatchEvent(new Event("zoom-data-refresh"));
     void refresh();
@@ -187,11 +189,11 @@ export function StardustMarketModal({
     if (!telegramId || convertBusy) return;
     const g = parseFloat(convertGram);
     if (!Number.isFinite(g) || g <= 0) {
-      setConvertMsg("Enter a valid GRAM amount");
+      setConvertMsg(t("stardustMarket.invalidGram"));
       return;
     }
     if (g > convertibleGram) {
-      setConvertMsg(`Not enough GRAM (${convertibleGram.toFixed(4)} available)`);
+      setConvertMsg(t("stardustMarket.notEnoughGram", { n: convertibleGram.toFixed(4) }));
       return;
     }
     setConvertBusy(true);
@@ -199,11 +201,11 @@ export function StardustMarketModal({
     const res = await convertDepositToStardust(telegramId, g);
     setConvertBusy(false);
     if (!res.ok) {
-      setConvertMsg(res.error ?? "Conversion failed");
+      setConvertMsg(res.error ?? t("stardustMarket.convertFailed"));
       return;
     }
     setConvertGram("");
-    setConvertMsg(`✓ +${(res.stardustReceived ?? 0).toLocaleString()} ★`);
+    setConvertMsg(t("stardustMarket.convertSuccess", { n: (res.stardustReceived ?? 0).toLocaleString() }));
     if (typeof res.stardustBalance === "number") {
       setBalance(res.stardustBalance);
       onBalanceChange?.(res.stardustBalance);
@@ -243,7 +245,7 @@ export function StardustMarketModal({
         <div className="flex items-center justify-between px-4 pt-4 pb-2 flex-shrink-0">
           <div>
             <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(158,197,232,0.55)" }}>
-              STARDUST MARKET
+              {t("stardustMarket.title")}
             </div>
             <div style={{ fontSize: 20, fontWeight: 900, color: "#ffd740", marginTop: 2 }}>
               ★ {formatIndex(index)}
@@ -252,7 +254,7 @@ export function StardustMarketModal({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("common.closeAria")}
             style={{
               width: 32, height: 32, borderRadius: "50%",
               border: "1px solid rgba(255,255,255,0.12)",
@@ -270,12 +272,12 @@ export function StardustMarketModal({
           <span style={{ color: pctChange >= 0 ? "#69f0ae" : "#ff8a80" }}>
             {pctChange >= 0 ? "+" : ""}{pctChange.toFixed(2)}%
           </span>
-          <span style={{ color: "rgba(255,255,255,0.35)" }}>Pool {totalStaked.toLocaleString()} ★</span>
-          <span style={{ color: "#ffd740" }}>Wallet {balance.toLocaleString()} ★</span>
-          <span style={{ color: CYAN }}>Staked {stakedValue.toLocaleString()} ★</span>
+          <span style={{ color: "rgba(255,255,255,0.35)" }}>{t("stardustMarket.pool", { n: totalStaked.toLocaleString() })}</span>
+          <span style={{ color: "#ffd740" }}>{t("stardustMarket.wallet", { n: balance.toLocaleString() })}</span>
+          <span style={{ color: CYAN }}>{t("stardustMarket.staked", { n: stakedValue.toLocaleString() })}</span>
         </div>
         <div className="px-4 pb-1 text-[9px] font-semibold" style={{ color: "rgba(158,197,232,0.45)" }}>
-          Live index from real convert, spend & stake · slow ±0.8% band
+          {t("stardustMarket.indexNote")}
         </div>
 
         {/* Chart — compact */}
@@ -300,14 +302,14 @@ export function StardustMarketModal({
                 />
                 <Tooltip
                   contentStyle={{ background: "#0c1018", border: "1px solid rgba(255,215,64,0.25)", borderRadius: 8, fontSize: 10 }}
-                  formatter={(v: number) => [formatIndex(v), "Index"]}
+                  formatter={(v: number) => [formatIndex(v), t("stardustMarket.indexLabel")]}
                 />
                 <Area type="monotone" dataKey="index" stroke="#ffd740" strokeWidth={1.5} fill="url(#stardustChartFill)" />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-full text-[10px] text-center px-2" style={{ color: "rgba(255,255,255,0.32)" }}>
-              {loading ? "Loading chart…" : "Index starts at 1.000 — moves with convert, stake & spend"}
+              {loading ? t("stardustMarket.loadingChart") : t("stardustMarket.emptyChart")}
             </div>
           )}
         </div>
@@ -326,7 +328,7 @@ export function StardustMarketModal({
                 color: tab === id ? (id === "convert" ? "#0088ff" : "#ffd740") : "rgba(255,255,255,0.35)",
               }}
             >
-              {id === "convert" ? "Convert GRAM" : "Stake ★"}
+              {id === "convert" ? t("stardustMarket.tabConvert") : t("stardustMarket.tabStake")}
             </button>
           ))}
         </div>
@@ -337,7 +339,7 @@ export function StardustMarketModal({
             <div className="rounded-xl p-3" style={{ background: "rgba(0,136,255,0.06)", border: "1px solid rgba(0,136,255,0.15)" }}>
               <div className="flex items-center justify-between mb-2 text-[10px]">
                 <span className="flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-                  <GramDiamondIcon size={14} /> Available
+                  <GramDiamondIcon size={14} /> {t("stardustMarket.available")}
                 </span>
                 <span style={{ color: "#0088ff", fontWeight: 800 }}>{convertibleGram.toFixed(4)} GRAM</span>
               </div>
@@ -346,7 +348,7 @@ export function StardustMarketModal({
                   type="number"
                   min={0.01}
                   step={0.01}
-                  placeholder="GRAM amount"
+                  placeholder={t("stardustMarket.gramPlaceholder")}
                   value={convertGram}
                   onChange={(e) => setConvertGram(e.target.value)}
                   className="flex-1 rounded-lg px-3 py-2 text-sm font-bold"
@@ -359,7 +361,7 @@ export function StardustMarketModal({
                   className="px-3 rounded-lg text-[10px] font-black"
                   style={{ background: "rgba(0,136,255,0.12)", color: "#0088ff", border: "1px solid rgba(0,136,255,0.22)" }}
                 >
-                  MAX
+                  {t("common.max")}
                 </button>
               </div>
               {convertPreview > 0 && (
@@ -374,7 +376,7 @@ export function StardustMarketModal({
                 className="w-full py-2.5 rounded-lg text-xs font-black"
                 style={{ background: "linear-gradient(135deg, #0088ff, #0066cc)", color: "#fff" }}
               >
-                CONVERT TO STARDUST
+                {t("stardustMarket.convertBtn")}
               </button>
               {convertMsg && (
                 <div className="mt-2 text-center text-[10px] font-bold" style={{ color: convertMsg.startsWith("✓") ? "#69f0ae" : "#ff8a80" }}>
@@ -385,17 +387,20 @@ export function StardustMarketModal({
           ) : (
             <div className="rounded-xl p-3" style={{ background: "rgba(255,215,64,0.05)", border: "1px solid rgba(255,215,64,0.15)" }}>
               <div className="flex justify-between mb-2 text-[10px]">
-                <span style={{ color: "rgba(255,255,255,0.4)" }}>Wallet</span>
+                <span style={{ color: "rgba(255,255,255,0.4)" }}>{t("stardustMarket.walletLabel")}</span>
                 <span style={{ color: "#ffd740", fontWeight: 800 }}>{balance.toLocaleString()} ★</span>
               </div>
               <div className="text-[10px] mb-2" style={{ color: pnl >= 0 ? "#69f0ae" : "#ff8a80" }}>
-                {pnl >= 0 ? "+" : ""}{pnl.toLocaleString()} PnL · {staked.toLocaleString()} locked
+                {t("stardustMarket.pnlLocked", {
+                  pnl: `${pnl >= 0 ? "+" : ""}${pnl.toLocaleString()}`,
+                  n: staked.toLocaleString(),
+                })}
               </div>
               <div className="flex gap-2 mb-2">
                 <input
                   type="number"
                   min={1}
-                  placeholder="Amount to stake"
+                  placeholder={t("stardustMarket.stakePlaceholder")}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="flex-1 rounded-lg px-3 py-2 text-sm font-bold"
@@ -408,7 +413,7 @@ export function StardustMarketModal({
                   className="px-3 rounded-lg text-[10px] font-black"
                   style={{ background: "rgba(255,215,64,0.10)", color: "#ffd740", border: "1px solid rgba(255,215,64,0.22)" }}
                 >
-                  MAX
+                  {t("common.max")}
                 </button>
               </div>
               <div className="flex gap-2">
@@ -419,7 +424,7 @@ export function StardustMarketModal({
                   className="flex-1 py-2.5 rounded-lg text-xs font-black"
                   style={{ background: "linear-gradient(135deg, #ffd740, #ffb300)", color: "#1a1000" }}
                 >
-                  STAKE ★
+                  {t("stardustMarket.stakeBtn")}
                 </button>
                 <button
                   type="button"
@@ -432,7 +437,7 @@ export function StardustMarketModal({
                     color: canWithdraw ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.35)",
                   }}
                 >
-                  {staked <= 0 ? "WITHDRAW" : canWithdraw ? "WITHDRAW ALL" : `${lockDaysRemaining}d lock`}
+                  {staked <= 0 ? t("stardustMarket.withdraw") : canWithdraw ? t("stardustMarket.withdrawAll") : t("stardustMarket.lockDays", { n: lockDaysRemaining })}
                 </button>
               </div>
               {msg && (

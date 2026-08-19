@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FeedEvent } from "../hooks/useGameState";
 import { useGlobalStore } from "../store/globalStore";
 import { useT } from "../i18n/LanguageContext";
+import { planetTypeLabel } from "../i18n/translations";
 import { TrophyIcon } from "../components/icons/GameIcons";
 
 interface RankPageProps {
@@ -35,7 +36,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
   void _totalTonSpent;
   void _feedEvents;
   const [currentTime, setCurrentTime] = useState(Date.now());
-  const { t } = useT();
+  const { t, lang } = useT();
 
   // All shared data is pre-loaded centrally — no per-mount fetch, no pop-in
   const leaderboard = useGlobalStore((s) => s.leaderboard);
@@ -62,16 +63,16 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
       <div className="px-5 pt-4 pb-2 flex-shrink-0">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-black text-lg tracking-tight flex items-center gap-2">
-            <TrophyIcon size={26} /> Season {currentSeason}
+            <TrophyIcon size={26} /> {t("rank.season", { n: currentSeason })}
           </h2>
           <span className="text-xs font-bold px-3 py-1 rounded-full border" style={{ borderColor: "rgba(158,197,232,0.18)", color: "#9EC5E8" }}>
-            In progress
+            {t("rank.inProgress")}
           </span>
         </div>
 
         <div className="rounded-xl p-3 border mb-3" style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
           <div className="flex justify-between text-xs mb-2" style={{ color: "rgba(255,255,255,0.4)" }}>
-            <span className="font-bold">Season {currentSeason} of {TOTAL_SEASONS}</span>
+            <span className="font-bold">{t("rank.seasonOf", { n: currentSeason, tot: TOTAL_SEASONS })}</span>
             <span className="font-bold" style={{ color: "#9EC5E8" }}>{seasonProgressPercent.toFixed(2)}%</span>
           </div>
           <div className="w-full h-2 rounded-full overflow-hidden mb-3" style={{ background: "rgba(255,255,255,0.06)" }}>
@@ -111,7 +112,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
             })}
           </div>
           <div className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.2)" }}>
-            Exchange activates when Season 3 concludes
+            {t("rank.exchangeActSeason", { n: currentSeason })}
           </div>
         </div>
       </div>
@@ -135,7 +136,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                 <span className="font-black text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>{t("rank.myProfile")}</span>
                 {profile.createdAt && (
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(158,197,232,0.08)", color: "rgba(232,236,244,0.75)", border: "1px solid rgba(158,197,232,0.15)" }}>
-                    {t("rank.joined", { date: new Date(profile.createdAt).toLocaleDateString("it-IT") })}
+                    {t("rank.joined", { date: new Date(profile.createdAt).toLocaleDateString(lang === "it" ? "it-IT" : lang === "ru" ? "ru-RU" : lang === "uk" ? "uk-UA" : "en-US") })}
                   </span>
                 )}
               </div>
@@ -154,7 +155,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                   ] as const).map(({ key, label, color }) => (
                     <div key={key} className="rounded-lg p-2 text-center" style={{ background: color + "10", border: `1px solid ${color}20` }}>
                       <div className="font-black text-base" style={{ color }}>{(profile.crafted as Record<string, number> | undefined)?.[key] ?? 0}</div>
-                      <div className="text-[9px] font-bold uppercase" style={{ color: color + "90" }}>{label}</div>
+                      <div className="text-[9px] font-bold uppercase" style={{ color: color + "90" }}>{planetTypeLabel(lang, key, label)}</div>
                     </div>
                   ))}
                 </div>
@@ -172,16 +173,16 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full" style={{ background: "#9EC5E8", boxShadow: "0 0 6px rgba(158,197,232,0.75)" }} />
-                <span className="font-black text-sm tracking-wide" style={{ color: "#E8ECF4" }}>LIVE SEASON RANK</span>
+                <span className="font-black text-sm tracking-wide" style={{ color: "#E8ECF4" }}>{t("rank.liveSeasonRank")}</span>
               </div>
-              <span className="text-[10px] font-bold uppercase" style={{ color: "rgba(255,255,255,0.35)" }}>wallet sync</span>
+              <span className="text-[10px] font-bold uppercase" style={{ color: "rgba(255,255,255,0.35)" }}>{t("rank.walletSync")}</span>
             </div>
             <div className="flex flex-col gap-1.5">
               {loadingLb && leaderboard.length === 0 && (
-                <div className="text-xs text-center py-3" style={{ color: "rgba(255,255,255,0.2)" }}>Loading...</div>
+                <div className="text-xs text-center py-3" style={{ color: "rgba(255,255,255,0.2)" }}>{t("common.loading")}</div>
               )}
               {!loadingLb && leaderboard.length === 0 && (
-                <div className="text-xs text-center py-3" style={{ color: "rgba(255,255,255,0.2)" }}>No players yet — start farming to appear here</div>
+                <div className="text-xs text-center py-3" style={{ color: "rgba(255,255,255,0.2)" }}>{t("rank.noPlayers")}</div>
               )}
               {leaderboard.slice(0, 10).map((entry) => {
                 const isUser = !!telegramId && entry.telegramId === telegramId;
@@ -216,10 +217,10 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                     )}
                     <div className={isUser ? "flex-1 font-black text-sm" : "flex-1 font-bold text-sm"} style={{ color: isUser ? "#E8ECF4" : "rgba(255,255,255,0.58)" }}>
                       {entry.firstName}
-                      {isUser && <span className="text-xs opacity-40 ml-1">(you)</span>}
+                      {isUser && <span className="text-xs opacity-40 ml-1">{t("rank.you")}</span>}
                     </div>
                     <div className="text-xs font-black tabular-nums" style={{ color: isUser ? "#9EC5E8" : "rgba(255,255,255,0.42)" }}>
-                      {formatZoom(entry.zoomBalance)} $ZOOM
+                      {t("rank.zoomBalance", { n: formatZoom(entry.zoomBalance) })}
                     </div>
                   </div>
                 );
@@ -230,15 +231,15 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                   style={{ borderColor: "rgba(158,197,232,0.15)", background: "rgba(158,197,232,0.04)" }}
                 >
                   <div className="font-black text-sm w-7 text-center flex-shrink-0" style={{ color: "rgba(232,236,244,0.5)" }}>—</div>
-                  <div className="flex-1 font-black text-sm opacity-60" style={{ color: "#E8ECF4" }}>YOU</div>
+                  <div className="flex-1 font-black text-sm opacity-60" style={{ color: "#E8ECF4" }}>{t("rank.you2")}</div>
                   <div className="text-xs font-black tabular-nums" style={{ color: "rgba(158,197,232,0.65)" }}>
-                    {formatZoom(balance)} $ZOOM
+                    {t("rank.zoomBalance", { n: formatZoom(balance) })}
                   </div>
                 </div>
               )}
             </div>
             <div className="text-[10px] mt-2 leading-relaxed" style={{ color: "rgba(255,255,255,0.25)" }}>
-              Top 10 players by $ZOOM balance, updated in real time from the server.
+              {t("rank.top10desc")}
             </div>
           </div>
         </div>

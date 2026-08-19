@@ -383,10 +383,10 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             <div style={{ fontSize: 28, lineHeight: 1, color: "#9EC5E8" }}>★</div>
             <div className="flex-1">
               <div className="font-black text-base tracking-wide" style={{ color: "#E8ECF4" }}>
-                Watch &amp; Earn
+                {t("earn.watchAndEarn")}
               </div>
               <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.45)" }}>
-                {WEEKLY_REDSTAR_REWARD} ★ REDSTAR ogni giorno · ciclo di {WEEKLY_CYCLE_DAYS} giorni
+                {t("earn.weeklyRedStarSubtitle", { n: WEEKLY_REDSTAR_REWARD })}
               </div>
             </div>
             <div
@@ -399,7 +399,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
               }}
             >
               <div style={{ fontSize: 16 }}>{cycleDay}/{WEEKLY_CYCLE_DAYS}</div>
-              <div style={{ fontSize: 8, opacity: 0.7, fontWeight: 700 }}>day</div>
+              <div style={{ fontSize: 8, opacity: 0.7, fontWeight: 700 }}>{t("earn.dayLabel")}</div>
             </div>
           </div>
 
@@ -442,10 +442,10 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             }}
           >
             {claimedToday
-              ? "✓ Claimed today — torna domani"
+              ? t("earn.claimedTodayReturn")
               : claimingRedStar
-                ? "Claiming…"
-                : `Claim · +${WEEKLY_REDSTAR_REWARD} ★ REDSTAR`}
+                ? t("earn.claimingRedStar")
+                : t("earn.claimRedStarBtn", { n: WEEKLY_REDSTAR_REWARD })}
           </button>
 
           {redStarMsg && (
@@ -635,7 +635,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           </div>
           <button
             onClick={() => {
-              const text = encodeURIComponent("Join Zoom and earn $ZOOM!");
+              const text = encodeURIComponent(t("earn.shareInviteText"));
               const url = encodeURIComponent(referralLink);
               window.open(`https://t.me/share/url?url=${url}&text=${text}`, "_blank");
             }}
@@ -649,7 +649,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             {t("earn.inviteFriends")}
           </button>
           <div className="flex items-center gap-2 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
-            <span>ID:</span>
+            <span>{t("earn.idLabel")}</span>
             <span className="font-bold font-mono" style={{ color: CYAN_WHITE }}>{referralCode}</span>
             <span>·</span>
             <span className="font-bold" style={{ color: "#00e676" }}>{t("earn.invitedSuffix", { n: referralCount })}</span>

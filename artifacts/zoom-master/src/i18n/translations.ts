@@ -1,3 +1,5 @@
+import { LOCALE_EXTRAS } from "./localeExtras";
+
 export type Lang = "en" | "it" | "ru" | "uk";
 
 // Languages exposed in the in-app picker.
@@ -2037,7 +2039,12 @@ const uk: Dict = {
   "farm.enterPrice": "Введіть ціну",
 };
 
-export const DICTS: Record<Lang, Dict> = { en, it, ru, uk };
+export const DICTS: Record<Lang, Dict> = {
+  en: { ...en, ...LOCALE_EXTRAS.en },
+  it: { ...it, ...LOCALE_EXTRAS.it },
+  ru: { ...ru, ...LOCALE_EXTRAS.ru },
+  uk: { ...uk, ...LOCALE_EXTRAS.uk },
+};
 
 export function translate(lang: Lang, key: string, vars?: Record<string, string | number>): string {
   const dict = DICTS[lang] || DICTS.en;

@@ -108,7 +108,7 @@ export default function HistoryModal({ telegramId, onClose }: Props) {
           <button
             ref={closeBtnRef}
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("common.closeAria")}
             className="w-8 h-8 rounded-full flex items-center justify-center text-white/80 hover:bg-white/10 active:scale-95"
             data-testid="history-modal-close"
           >

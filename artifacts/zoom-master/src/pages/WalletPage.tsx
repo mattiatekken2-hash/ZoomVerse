@@ -3,6 +3,7 @@ import { Lock } from "lucide-react";
 import { GramWalletPanel, GramWalletIcon, GramWalletConnectButton, type TonWalletProps } from "../components/TonWalletWidget";
 import { StardustMarketModal } from "../components/StardustMarketModal";
 import { GramChartModal } from "../components/GramChartModal";
+import { useT } from "../i18n/LanguageContext";
 
 const PRICE_POLL_MS = 15_000;
 
@@ -63,6 +64,7 @@ export function WalletPage({
   redStarBalance,
   nftStarBalance,
 }: WalletPageProps) {
+  const { t } = useT();
   const [tonPrice, setTonPrice] = useState<number | null>(null);
   const [priceLoading, setPriceLoading] = useState(true);
   const [stardustMarketOpen, setStardustMarketOpen] = useState(false);
@@ -89,8 +91,8 @@ export function WalletPage({
 
   const usdtValue = tonPrice !== null ? (tonBalance * tonPrice).toFixed(2) : null;
   const priceLabel = tonPrice !== null
-    ? `1 GRAM ≈ $${tonPrice.toFixed(2)} · live rate`
-    : "Loading live rate…";
+    ? t("walletPage.liveRate", { price: tonPrice.toFixed(2) })
+    : t("walletPage.loadingRate");
 
   // Stable vault amount between 5 000 000 and 18 000 000
   const vaultZoom = useMemo(() => {
@@ -143,7 +145,7 @@ export function WalletPage({
           }}
           onClick={() => setGramChartOpen(true)}
           data-testid="gram-balance-card"
-          aria-label="Open GRAM market chart"
+          aria-label={t("walletPage.openChartAria")}
         >
         {/* Label row */}
         <div
@@ -156,7 +158,7 @@ export function WalletPage({
             marginBottom: 8,
           }}
         >
-          GRAM BALANCE
+          {t("walletPage.gramBalance")}
         </div>
 
         {/* Amount row — grid keeps GRAM and USDT from overlapping */}
@@ -203,7 +205,7 @@ export function WalletPage({
                 marginBottom: 2,
               }}
             >
-              ≈ USDT
+              {t("walletPage.approxUsdt")}
             </div>
             <div
               style={{
@@ -239,7 +241,7 @@ export function WalletPage({
             letterSpacing: "0.06em",
           }}
         >
-          {priceLabel} · tap for chart
+          {priceLabel} · {t("walletPage.tapForChart")}
         </div>
         </button>
       </div>
@@ -267,14 +269,14 @@ export function WalletPage({
             marginBottom: 8,
           }}
         >
-          Active Balances — Season 2
+          {t("walletPage.activeBalancesTitle")}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
           {/* ZOOM S2 — planet emoji, matches top bar */}
           <BalanceRow
             icon="🪐"
-            label="ZOOM S2"
+            label={t("walletPage.zoomS2")}
             value={formatZoom(balance)}
             color="#ffd740"
             glow="rgba(255,215,64,0.4)"
@@ -282,18 +284,18 @@ export function WalletPage({
           {/* STARDUST — star (★), yellow like resource widget */}
           <BalanceRow
             icon="★"
-            label="STARDUST"
+            label={t("resources.stardust")}
             value={formatZoom(liveStardustBalance)}
             color="#ffd740"
             glow="rgba(255,215,64,0.35)"
             iconColor="#ffd740"
             onClick={() => setStardustMarketOpen(true)}
-            hint="Tap for market & stake"
+            hint={t("walletPage.stardustHint")}
           />
           {/* REDSTAR — star (★), red */}
           <BalanceRow
             icon="★"
-            label="REDSTAR"
+            label={t("resources.redStar")}
             value={redStarBalance.toLocaleString()}
             color="#ff4444"
             glow="rgba(255,68,68,0.4)"
@@ -302,7 +304,7 @@ export function WalletPage({
           {/* NFTSTAR — star (★), silver */}
           <BalanceRow
             icon="★"
-            label="NFTSTAR"
+            label={t("resources.nftStar")}
             value={nftStarBalance.toLocaleString()}
             color="#a0a0a8"
             glow="rgba(192,192,192,0.3)"
@@ -323,7 +325,7 @@ export function WalletPage({
             marginBottom: 8,
           }}
         >
-          Vault — Legacy &amp; Airdrop
+          {t("walletPage.vaultTitle")}
         </div>
 
         <div
@@ -354,10 +356,10 @@ export function WalletPage({
               </div>
               <div>
                 <div style={{ fontSize: 11, fontWeight: 900, color: "#ffaa00", letterSpacing: "0.05em" }}>
-                  Season 1 Vault
+                  {t("walletPage.season1Vault")}
                 </div>
                 <div style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,170,0,0.45)", letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 1 }}>
-                  ZOOM S1 · Locked
+                  {t("walletPage.zoomS1Locked")}
                 </div>
               </div>
             </div>
@@ -377,7 +379,7 @@ export function WalletPage({
                 {formatZoom(vaultZoom)}
               </div>
               <div style={{ fontSize: 8, color: "rgba(255,170,0,0.4)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                ZOOM
+                {t("walletPage.zoomUnit")}
               </div>
             </div>
           </div>
@@ -385,8 +387,7 @@ export function WalletPage({
           {/* Info note */}
           <div style={{ padding: "10px 14px" }}>
             <div style={{ fontSize: 10, lineHeight: 1.55, color: "rgba(255,255,255,0.32)", fontWeight: 600 }}>
-              🔒 Season 1 rewards are safely stored in the Vault and will be converted into
-              On-Chain Tokens at the time of Listing &amp; Airdrop.
+              {t("walletPage.vaultInfo")}
             </div>
           </div>
         </div>

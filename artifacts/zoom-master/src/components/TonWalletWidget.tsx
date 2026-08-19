@@ -21,6 +21,7 @@ import {
 } from "../utils/api";
 import { getWhitePlanetPendingTon, type Planet } from "../hooks/useGameState";
 import { GramDiamondIcon } from "./GramDiamondIcon";
+import { useT } from "../i18n/LanguageContext";
 
 const TON_RECEIVER_WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 const POLL_MS = 60_000;
@@ -78,6 +79,7 @@ function sumAccrued(s: StakingStatusResponse): number {
 export function GramWalletConnectButton() {
   const [tonConnectUI] = useTonConnectUI();
   const walletAddress = useTonAddress();
+  const { t } = useT();
   const NEON = "#0fd9ff";
 
   return (
@@ -132,7 +134,7 @@ export function GramWalletConnectButton() {
               color: NEON,
             }}
           >
-            Connect Wallet
+            {t("wallet.connect")}
           </span>
         </>
       )}
@@ -196,6 +198,7 @@ function WalletActionPopup({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const { t } = useT();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -229,7 +232,7 @@ function WalletActionPopup({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Close"
+            aria-label={t("common.closeAria")}
             style={{
               width: 28,
               height: 28,
@@ -266,6 +269,7 @@ export function GramWalletPanel({
   supernovaPlanets = [],
   overlay = true,
 }: Props & { overlay?: boolean }) {
+  const { t } = useT();
   const [tonConnectUI] = useTonConnectUI();
   const walletAddress   = useTonAddress();
   const canWithdraw = whiteCollectionUnlocked || (earthCollectionUnlocked && sunCount > 0) || blackCollectionUnlocked || supernovaCollectionUnlocked;
@@ -319,10 +323,10 @@ export function GramWalletPanel({
   // ── deposit handler ─────────────────────────────────────────────────────
   const handleDeposit = async () => {
     setDErr(null); setDMsg(null);
-    if (!telegramId) { setDErr("Session not ready"); return; }
+    if (!telegramId) { setDErr(t("wallet.sessionNotReady")); return; }
     const n = parseFloat(dAmount);
     if (!Number.isFinite(n) || n < DEPOSIT_MIN_TON) {
-      setDErr(`Minimum deposit is ${DEPOSIT_MIN_TON} GRAM`); return;
+      setDErr(t("wallet.depositMin", { min: DEPOSIT_MIN_TON })); return;
     }
     if (!walletAddress) {
       // open TonConnect; user will reconnect and come back
@@ -336,10 +340,10 @@ export function GramWalletPanel({
         validUntil: Math.floor(Date.now() / 1000) + 300,
         messages: [{ address: TON_RECEIVER_WALLET, amount: nanotons }],
       });
-      if (!txResult?.boc) { setDErr("Transaction cancelled or failed"); setDepositing(false); return; }
+      if (!txResult?.boc) { setDErr(t("wallet.txCancelled")); setDepositing(false); return; }
 
       const res = await depositTonConfirm({ telegramId, walletAddress, boc: txResult.boc, amountTon: n });
-      if (!res.ok && !res.pending) { setDErr(res.error || "Deposit failed"); setDepositing(false); return; }
+      if (!res.ok && !res.pending) { setDErr(res.error || t("wallet.depositFailed")); setDepositing(false); return; }
 
       if (res.txnId && !res.alreadyCredited) {
         // poll until final
@@ -349,20 +353,20 @@ export function GramWalletPanel({
           // earned tonBalance. Fire a refresh so the next /grants pull picks
           // up the new deposit balance authoritatively.
           window.dispatchEvent(new Event("zoom-data-refresh"));
-          setDMsg(`Deposit confirmed! +${n} GRAM aggiunti al saldo deposito (spendibile nello Shop).`);
+          setDMsg(t("wallet.depositConfirmed", { n }));
         } else if (final?.status === "failed") {
-          setDErr("Deposit verification failed. Contact support if GRAM was deducted.");
+          setDErr(t("wallet.depositVerifyFailed"));
         } else {
-          setDMsg("Deposit is being verified on-chain. Balance will update shortly.");
+          setDMsg(t("wallet.depositVerifying"));
         }
       } else if (res.alreadyCredited) {
-        setDMsg("Deposit already credited.");
+        setDMsg(t("wallet.depositAlreadyCredited"));
       } else {
-        setDMsg("Deposit submitted — verifying on-chain.");
+        setDMsg(t("wallet.depositSubmitted"));
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (!msg.includes("cancel") && !msg.includes("Cancel")) setDErr("Transaction failed");
+      if (!msg.includes("cancel") && !msg.includes("Cancel")) setDErr(t("wallet.txFailed"));
     }
     setDepositing(false);
   };
@@ -372,34 +376,35 @@ export function GramWalletPanel({
     setWErr(null); setWMsg(null);
     if (!canWithdraw) {
       setWErr(earthCollectionUnlocked && sunCount <= 0
-        ? "Earth Collection requires a SUN module to withdraw"
-        : "Available to White or Earth Collection holders"); return;
+        ? t("wallet.withdrawEarthSunRequired")
+        : t("wallet.withdrawCollectionRequired")); return;
     }
-    if (!telegramId) { setWErr("Session not ready"); return; }
+    if (!telegramId) { setWErr(t("wallet.sessionNotReady")); return; }
     const n = parseFloat(wAmount);
     if (!Number.isFinite(n) || n < WITHDRAWAL_MIN_TON) {
-      setWErr(`Minimum amount: ${WITHDRAWAL_MIN_TON} GRAM`); return;
+      setWErr(t("wallet.withdrawMin", { min: WITHDRAWAL_MIN_TON })); return;
     }
-    // Withdrawals are paid out of EARNED GRAM only — depositBalance is
-    // intentionally excluded so external deposits stay one-way (in-only).
     if (liveEarnedTon < WITHDRAWAL_MIN_TON) {
-      setWErr(`Minimo ${WITHDRAWAL_MIN_TON} GRAM guadagnati per prelevare`); return;
+      setWErr(t("wallet.withdrawEarnedMin", { min: WITHDRAWAL_MIN_TON })); return;
     }
     if (liveEarnedTon < n + WITHDRAWAL_FEE_TON) {
-      setWErr(`Saldo GRAM guadagnato insufficiente. Servono ${(n + WITHDRAWAL_FEE_TON).toFixed(4)} GRAM (importo + ${WITHDRAWAL_FEE_TON} di fee)`); return;
+      setWErr(t("wallet.withdrawInsufficientEarned", {
+        total: (n + WITHDRAWAL_FEE_TON).toFixed(4),
+        fee: WITHDRAWAL_FEE_TON,
+      })); return;
     }
-    if (!wWallet.trim()) { setWErr("Enter your GRAM wallet address"); return; }
+    if (!wWallet.trim()) { setWErr(t("wallet.withdrawAddressRequired")); return; }
 
     setSubmitting(true);
     const res = await requestTonWithdrawal({ telegramId, amountTon: n, walletAddress: wWallet.trim() });
     setSubmitting(false);
-    if (!res.ok) { setWErr(res.error || "Withdrawal failed"); return; }
+    if (!res.ok) { setWErr(res.error || t("wallet.withdrawFailed")); return; }
     if (typeof res.newTonBalance === "number" && typeof res.balanceEpoch === "number") {
       window.dispatchEvent(new CustomEvent("zoom-server-ton-snap", {
         detail: { tonBalance: res.newTonBalance, epoch: res.balanceEpoch },
       }));
     }
-    setWMsg(`Request submitted. You'll receive ${n.toFixed(4)} GRAM after admin approval.`);
+    setWMsg(t("wallet.withdrawSubmitted", { n: n.toFixed(4) }));
     setWAmount(""); void refreshWithdrawals();
   };
 
@@ -449,14 +454,14 @@ export function GramWalletPanel({
         }
       >
         <CompactWalletChip
-          label="Deposit"
+          label={t("wallet.deposit")}
           icon="↓"
           color={NEON}
           onClick={(e) => { e.stopPropagation(); setActiveModal("deposit"); }}
           testId="wallet-deposit-orb"
         />
         <CompactWalletChip
-          label="Withdraw"
+          label={t("wallet.withdraw")}
           icon="↑"
           color="#00e676"
           onClick={(e) => { e.stopPropagation(); setActiveModal("withdraw"); }}
@@ -465,17 +470,17 @@ export function GramWalletPanel({
       </div>
 
       {activeModal === "deposit" && (
-        <WalletActionPopup title="Deposit GRAM" color={NEON} onClose={() => setActiveModal(null)}>
+        <WalletActionPopup title={t("wallet.depositTitle")} color={NEON} onClose={() => setActiveModal(null)}>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ fontSize: 12, lineHeight: 1.45, color: "rgba(180,220,240,0.6)" }}>
-              Send GRAM to your in-game balance via TonConnect. Min {DEPOSIT_MIN_TON} GRAM.
+              {t("wallet.depositHint", { min: DEPOSIT_MIN_TON })}
             </div>
             <input
               type="number"
               inputMode="decimal"
               value={dAmount}
               onChange={(e) => setDAmount(e.target.value)}
-              placeholder={`Min ${DEPOSIT_MIN_TON} GRAM`}
+              placeholder={t("wallet.depositPlaceholder", { min: DEPOSIT_MIN_TON })}
               disabled={depositing}
               style={inputStyle}
             />
@@ -490,7 +495,7 @@ export function GramWalletPanel({
                 cursor: depositing ? "not-allowed" : "pointer",
               }}
             >
-              {depositing ? "..." : !walletAddress ? "Connect Wallet" : "DEPOSIT GRAM"}
+              {depositing ? "..." : !walletAddress ? t("wallet.connect") : t("wallet.depositBtn")}
             </button>
             {dErr && <div style={{ fontSize: 11, color: "#ff7a7a", padding: "8px 12px", borderRadius: 8, background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.25)" }}>{dErr}</div>}
             {dMsg && <div style={{ fontSize: 11, color: NEON, padding: "8px 12px", borderRadius: 8, background: `${NEON}0d`, border: `1px solid ${NEON}33` }}>{dMsg}</div>}
@@ -499,16 +504,16 @@ export function GramWalletPanel({
       )}
 
       {activeModal === "withdraw" && (
-        <WalletActionPopup title="Withdraw GRAM" color="#00e676" onClose={() => setActiveModal(null)}>
+        <WalletActionPopup title={t("wallet.withdrawTitle")} color="#00e676" onClose={() => setActiveModal(null)}>
           {canWithdraw ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <div style={{ fontSize: 12, lineHeight: 1.45, color: "rgba(180,220,240,0.6)" }}>
-                Min {WITHDRAWAL_MIN_TON} GRAM · Fee {WITHDRAWAL_FEE_TON} GRAM
+                {t("wallet.withdrawHint", { min: WITHDRAWAL_MIN_TON, fee: WITHDRAWAL_FEE_TON })}
               </div>
               <input
                 type="number"
                 inputMode="decimal"
-                placeholder={`Amount (min ${WITHDRAWAL_MIN_TON})`}
+                placeholder={t("wallet.withdrawAmountPlaceholder", { min: WITHDRAWAL_MIN_TON })}
                 value={wAmount}
                 onChange={(e) => setWAmount(e.target.value)}
                 disabled={submitting}
@@ -516,7 +521,7 @@ export function GramWalletPanel({
               />
               <input
                 type="text"
-                placeholder="GRAM wallet address (UQ... / EQ...)"
+                placeholder={t("wallet.withdrawAddressPlaceholder")}
                 value={wWallet}
                 onChange={(e) => setWWallet(e.target.value)}
                 disabled={submitting}
@@ -533,13 +538,13 @@ export function GramWalletPanel({
                   cursor: submitting ? "not-allowed" : "pointer",
                 }}
               >
-                {submitting ? "..." : "WITHDRAW GRAM"}
+                {submitting ? "..." : t("wallet.withdrawBtn")}
               </button>
               {wErr && <div style={{ fontSize: 11, color: "#ff7a7a", padding: "7px 11px", borderRadius: 8, background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.25)" }}>{wErr}</div>}
               {wMsg && <div style={{ fontSize: 11, color: "#00e676", padding: "7px 11px", borderRadius: 8, background: "rgba(0,230,118,0.08)", border: "1px solid rgba(0,230,118,0.25)" }}>{wMsg}</div>}
               {withdrawals.length > 0 && (
                 <div style={{ marginTop: 4 }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,255,255,0.45)", textTransform: "uppercase", marginBottom: 6 }}>Recent withdrawals</div>
+                  <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,255,255,0.45)", textTransform: "uppercase", marginBottom: 6 }}>{t("wallet.recentWithdrawals")}</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 160, overflowY: "auto" }}>
                     {withdrawals.slice(0, 8).map((w) => {
                       const col = w.status === "paid" ? "#3ddc97" : w.status === "rejected" ? "#ff7a7a" : "#f5d36a";
@@ -549,10 +554,12 @@ export function GramWalletPanel({
                             <span style={{ color: "#fff", fontWeight: 700 }}>{w.amountTon.toFixed(4)} GRAM</span>
                             <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 10 }}>{new Date(w.createdAt).toLocaleString()}</span>
                             {w.status === "paid" && w.txHash && (
-                              <a href={`https://tonscan.org/tx/${w.txHash}`} target="_blank" rel="noreferrer" style={{ color: NEON, fontSize: 10, textDecoration: "underline", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>View tx</a>
+                              <a href={`https://tonscan.org/tx/${w.txHash}`} target="_blank" rel="noreferrer" style={{ color: NEON, fontSize: 10, textDecoration: "underline", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t("wallet.viewTx")}</a>
                             )}
                           </div>
-                          <span style={{ color: col, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em" }}>{w.status}</span>
+                          <span style={{ color: col, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                            {t(`wallet.status.${w.status}` as "wallet.status.paid") || w.status}
+                          </span>
                         </div>
                       );
                     })}
@@ -563,8 +570,8 @@ export function GramWalletPanel({
           ) : (
             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", padding: "12px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 10, border: "1px dashed rgba(255,255,255,0.12)" }}>
               {earthCollectionUnlocked && sunCount <= 0
-                ? "GRAM withdrawals require a SUN module (Earth Collection)."
-                : "GRAM withdrawals are available to White or Earth Collection holders."}
+                ? t("wallet.withdrawSunRequired")
+                : t("wallet.withdrawEligible")}
             </div>
           )}
         </WalletActionPopup>
@@ -579,6 +586,7 @@ function TonWalletWidgetBase(props: Props) {
     tonBalance, telegramId, whitePlanets, earthPlanets, blackPlanets,
     supernovaPlanets = [], labVariant = false, onOpenWalletTab,
   } = props;
+  const { t } = useT();
   const [accrued, setAccrued] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -615,7 +623,7 @@ function TonWalletWidgetBase(props: Props) {
   return (
     <button
       type="button"
-      aria-label="GRAM Wallet"
+      aria-label={t("wallet.gramWalletAria")}
       onClick={() => onOpenWalletTab?.()}
       className="glass-neon flex items-center gap-1.5 rounded-full font-black cursor-pointer active:scale-95"
       style={{

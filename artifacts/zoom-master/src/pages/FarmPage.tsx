@@ -216,7 +216,7 @@ export function FarmPage({
     if (!price || price <= 0) return;
     // Price cap enforcement client-side: 0.25 – 10.0 TON
     if (price < 0.25 || price > 10.0) {
-      setDefectMsg("Prezzo deve essere tra 0.25 e 10 TON");
+      setDefectMsg(t("farm.priceRangeError"));
       setTimeout(() => setDefectMsg(null), 3000);
       return;
     }
@@ -233,7 +233,7 @@ export function FarmPage({
   const handleSunStartOrReactivate = () => {
     const res = onStartSunFarming();
     if (!res.ok) {
-      setDefectMsg(res.reason ?? "Cannot start SUN farming");
+      setDefectMsg(res.reason ?? t("farm.cannotStartSun"));
       setTimeout(() => setDefectMsg(null), 1800);
     }
   };
@@ -453,7 +453,7 @@ export function FarmPage({
               if (isListed) return;
               const res = onStartFarming(planet.id);
               if (!res.ok) {
-                setDefectMsg(res.reason ?? "Cannot start farming");
+                setDefectMsg(res.reason ?? t("farm.cannotStartFarming"));
                 setTimeout(() => setDefectMsg(null), 1800);
               }
             };
@@ -528,7 +528,7 @@ export function FarmPage({
               </div>
             </div>
             <div className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
-              Prezzo in GRAM (min 0.25 – max 10). Commissione 10% inclusa.
+              {t("farm.sellPriceHint")}
             </div>
             <div className="relative mb-2">
               <input
@@ -550,7 +550,7 @@ export function FarmPage({
             </div>
             {sellPrice && parseFloat(sellPrice) > 0 && (
               <div className="text-xs mb-4 px-1" style={{ color: "rgba(255,255,255,0.35)" }}>
-                Ricevi ~{((parseFloat(sellPrice) || 0) * 0.9).toFixed(3)} GRAM netto
+                {t("farm.netReceive", { n: ((parseFloat(sellPrice) || 0) * 0.9).toFixed(3) })}
               </div>
             )}
             <div className="flex gap-3 mt-4">
@@ -629,7 +629,7 @@ export function FarmPage({
         >
           <span style={{ fontSize: 14 }}>⚔️</span>
           <span style={{ fontSize: 11, fontWeight: 900, color: "#9EC5E8", letterSpacing: 1.5, textTransform: "uppercase" }}>
-            PVP ACTIVE
+            {t("farm.pvpActive")}
           </span>
           <span style={{ fontSize: 14 }}>⚔️</span>
           <style>{`

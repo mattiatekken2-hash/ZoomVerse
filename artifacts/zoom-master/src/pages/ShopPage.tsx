@@ -257,7 +257,7 @@ export function ShopPage({
   };
 
   const handleStarsBuy = async (item: ShopItem) => {
-    if (!telegramId) { setMessage("Telegram ID missing"); return; }
+    if (!telegramId) { setMessage(t("shop.telegramIdMissing")); return; }
     setBuying(item.id);
     try {
       const result = await createStarsInvoice(telegramId, item.id);
@@ -271,7 +271,7 @@ export function ShopPage({
         if (webApp?.openInvoice) {
           webApp.openInvoice(result.invoiceUrl, async (status) => {
             if (status === "paid" && result.txnId) {
-              setMessage("Confirming payment…");
+              setMessage(t("shop.confirmingPayment"));
               // Webhook is the only path that credits; poll until it does.
               const final = await pollTxnUntilFinal(result.txnId, { maxMs: 60_000, intervalMs: 2_000 });
               if (final?.status === "completed") {
@@ -312,7 +312,7 @@ export function ShopPage({
 
   // TON purchases removed — shop accepts Telegram Stars or in-game STARDUST.
   const handleStardustBuy = async (item: ShopItem) => {
-    if (!telegramId) { setMessage("Telegram ID missing"); return; }
+    if (!telegramId) { setMessage(t("shop.telegramIdMissing")); return; }
     const cost = stardustPriceForItem(item);
     if (liveStardustBalance < cost) {
       setMessage(`Insufficient STARDUST (need ${cost.toLocaleString()} ★). Earn stardust in Lab or buy a top-up below.`);
@@ -425,10 +425,10 @@ export function ShopPage({
         <div className="flex items-center justify-between mb-3">
           <div>
             <div className="font-black text-lg tracking-widest" style={{ color: CYAN, textShadow: "0 0 12px rgba(158,197,232,0.35)" }}>
-              SHOP
+              {t("shop.title")}
             </div>
             <div className="text-[10px] font-bold tracking-wider mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-              Stars or in-game Stardust
+              {t("shop.subtitle")}
             </div>
           </div>
           <div
@@ -454,7 +454,7 @@ export function ShopPage({
               boxShadow: payMode === "stars" ? "0 0 14px rgba(255,215,0,0.12)" : "none",
             }}
           >
-            ⭐ TELEGRAM STARS
+            {t("shop.payStars")}
           </button>
           <button
             onClick={() => setPayMode("stardust")}
@@ -466,12 +466,12 @@ export function ShopPage({
               boxShadow: payMode === "stardust" ? "0 0 14px rgba(255,215,64,0.10)" : "none",
             }}
           >
-            ★ STARDUST
+            {t("shop.payStardust")}
           </button>
         </div>
         {payMode === "stardust" && (
           <div className="mt-2 text-[10px] font-bold text-center" style={{ color: "rgba(158,197,232,0.55)" }}>
-            Index {stardustIndex.toFixed(3)} · prices scale with the market
+            {t("shop.stardustIndexNote", { n: stardustIndex.toFixed(3) })}
           </div>
         )}
       </div>

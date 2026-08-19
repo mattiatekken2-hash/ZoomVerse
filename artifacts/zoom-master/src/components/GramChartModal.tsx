@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { GramWalletIcon } from "./TonWalletWidget";
+import { useT } from "../i18n/LanguageContext";
 
 const REFRESH_MS = 15_000;
 const CACHE_TTL_MS = 60_000;
@@ -91,6 +92,7 @@ export function GramChartModal({
   onClose,
   onPriceUpdate,
 }: Props) {
+  const { t } = useT();
   const cached = readCache();
   const [price, setPrice] = useState<number | null>(
     initialPrice ?? cached.price,
@@ -161,7 +163,7 @@ export function GramChartModal({
     if (price != null) {
       return [
         { t: Date.now() - 3_600_000, price, label: "" },
-        { t: Date.now(), price, label: "now" },
+        { t: Date.now(), price, label: t("gramChart.now") },
       ];
     }
     return [];
@@ -196,7 +198,7 @@ export function GramChartModal({
         <div className="flex items-center justify-between px-5 pt-5 pb-2">
           <div>
             <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.22em", color: "rgba(0,242,180,0.55)" }}>
-              GRAM MARKET
+              {t("gramChart.title")}
             </div>
             <div className="flex items-center gap-2 mt-1">
               <GramWalletIcon size={28} />
@@ -207,21 +209,21 @@ export function GramChartModal({
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 9, fontWeight: 800, color: pctChange >= 0 ? "#69f0ae" : "#ff8a80" }}>
-              {pctChange >= 0 ? "+" : ""}{pctChange.toFixed(2)}% 24h
+              {t("gramChart.change24h", { pct: `${pctChange >= 0 ? "+" : ""}${pctChange.toFixed(2)}` })}
             </div>
             <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>
-              Live TON/USD
+              {t("gramChart.liveTonUsd")}
             </div>
           </div>
         </div>
 
         <div className="px-3 pb-2 mx-2 rounded-xl" style={{ background: "rgba(0,242,180,0.06)", border: "1px solid rgba(0,242,180,0.12)" }}>
           <div className="flex justify-between py-2 px-2 text-xs">
-            <span style={{ color: "rgba(255,255,255,0.45)" }}>Your GRAM</span>
+            <span style={{ color: "rgba(255,255,255,0.45)" }}>{t("gramChart.yourGram")}</span>
             <span style={{ color: "#00f2b4", fontWeight: 800 }}>{totalGram.toFixed(4)}</span>
           </div>
           <div className="flex justify-between py-2 px-2 text-xs border-t" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-            <span style={{ color: "rgba(255,255,255,0.45)" }}>≈ USDT value</span>
+            <span style={{ color: "rgba(255,255,255,0.45)" }}>{t("gramChart.usdtValue")}</span>
             <span style={{ color: "#fff", fontWeight: 800 }}>
               {usdtValue != null ? `$${usdtValue.toFixed(2)}` : "…"}
             </span>
@@ -250,14 +252,14 @@ export function GramChartModal({
                 />
                 <Tooltip
                   contentStyle={{ background: "#0c1018", border: "1px solid rgba(0,242,180,0.25)", borderRadius: 8 }}
-                  formatter={(v: number) => [`$${v.toFixed(4)}`, "GRAM"]}
+                  formatter={(v: number) => [`$${v.toFixed(4)}`, t("gramChart.seriesGram")]}
                 />
                 <Area type="monotone" dataKey="price" stroke="#00f2b4" strokeWidth={2} fill={`url(#${gradientId})`} />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-full text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
-              {loading ? "Loading live GRAM chart…" : "Chart unavailable"}
+              {loading ? t("gramChart.loading") : t("gramChart.unavailable")}
             </div>
           )}
         </div>
@@ -268,7 +270,7 @@ export function GramChartModal({
           className="w-full py-3 text-xs font-black"
           style={{ color: "rgba(255,255,255,0.4)", borderTop: "1px solid rgba(255,255,255,0.06)" }}
         >
-          Close
+          {t("common.close")}
         </button>
       </div>
     </div>,
