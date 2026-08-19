@@ -380,7 +380,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           style={{ borderColor: "rgba(158,197,232,0.18)", background: "rgba(158,197,232,0.04)" }}
         >
           <div className="flex items-center gap-3 mb-3">
-            <div style={{ fontSize: 28, lineHeight: 1, color: "#9EC5E8" }}>★</div>
+            <div style={{ fontSize: 28, lineHeight: 1, color: "#ff3355" }}>★</div>
             <div className="flex-1">
               <div className="font-black text-base tracking-wide" style={{ color: "#E8ECF4" }}>
                 {t("earn.watchAndEarn")}
@@ -479,7 +479,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             </div>
             <div className="text-right">
               <div className="text-[10px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.35)" }}>{t("earn.next")}</div>
-              <div className="text-sm font-black" style={{ color: CYAN_WHITE }}>+{Math.round(upcomingReward)} <span style={{ color: CYAN_WHITE }}>★</span></div>
+              <div className="text-sm font-black" style={{ color: CYAN_WHITE }}>+{Math.round(upcomingReward)} <span style={{ color: "#ffd700" }}>★</span></div>
             </div>
           </div>
 

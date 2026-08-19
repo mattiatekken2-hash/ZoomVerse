@@ -2093,13 +2093,17 @@ export const DICTS: Record<Lang, Dict> = {
   it: { ...it, ...LOCALE_EXTRAS.it },
   ru: { ...ru, ...LOCALE_EXTRAS.ru },
   uk: { ...uk, ...LOCALE_EXTRAS.uk },
-  es: { ...es, ...LOCALE_EXTRAS.es },
-  fil: { ...fil, ...LOCALE_EXTRAS.fil },
+  es: { ...LOCALE_EXTRAS.es, ...es },
+  fil: { ...LOCALE_EXTRAS.fil, ...fil },
 };
 
 export function translate(lang: Lang, key: string, vars?: Record<string, string | number>): string {
   const dict = DICTS[lang] || DICTS.en;
-  let str = dict[key] ?? DICTS.en[key] ?? key;
+  let str = dict[key];
+  if (str === undefined && lang === "uk") {
+    str = DICTS.ru[key];
+  }
+  str = str ?? DICTS.en[key] ?? key;
   if (vars) {
     for (const [k, v] of Object.entries(vars)) {
       str = str.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
