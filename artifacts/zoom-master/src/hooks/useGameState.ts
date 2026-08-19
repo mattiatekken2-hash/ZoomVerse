@@ -3525,6 +3525,7 @@ export function useGameState() {
       if (!detail || typeof detail.stardustBalance !== "number") return;
       const newStardust = Math.max(0, detail.stardustBalance);
       const newEpoch = Math.max(stateRef.current.lastBalanceEpoch ?? 0, detail.epoch ?? 0);
+      setCurrentBalanceEpoch(newEpoch);
       stateRef.current = { ...stateRef.current, stardustBalance: newStardust, lastBalanceEpoch: newEpoch };
       saveState(stateRef.current);
       setState((prev) => ({
