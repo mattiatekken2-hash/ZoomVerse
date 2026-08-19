@@ -274,6 +274,9 @@ export function StardustMarketModal({
           <span style={{ color: "#ffd740" }}>Wallet {balance.toLocaleString()} ★</span>
           <span style={{ color: CYAN }}>Staked {stakedValue.toLocaleString()} ★</span>
         </div>
+        <div className="px-4 pb-1 text-[9px] font-semibold" style={{ color: "rgba(158,197,232,0.45)" }}>
+          Live index from real convert, spend & stake · slow ±0.8% band
+        </div>
 
         {/* Chart — compact */}
         <div className="px-3 flex-shrink-0" style={{ height: 110 }}>

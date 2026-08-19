@@ -15,9 +15,11 @@ const VERSION_KEY = "stardust_index_version";
 
 export const STARDUST_SCALE = 1_000_000;
 export const STARDUST_GENESIS_MICRO = 1_000_000; // 1.0
-/** Hard cap — index stays near genesis so stakers don't see large passive gains. */
-export const STARDUST_INDEX_MAX_MICRO = 1_015_000; // 1.015 (+1.5% from launch)
-export const STARDUST_INDEX_MIN_MICRO = 985_000; // 0.985 (-1.5% floor)
+/** Hard cap — real activity moves the index, but stays in a tight band near 1.0. */
+export const STARDUST_INDEX_MAX_MICRO = 1_008_000; // 1.008 (+0.8% from launch)
+export const STARDUST_INDEX_MIN_MICRO = 992_000; // 0.992 (-0.8% floor)
+/** Minimum ms between index bumps — prevents burst spam from moving the chart too fast. */
+const BUMP_COOLDOWN_MS = 8_000;
 /** At index 1.0: 1 GRAM → 100 STARDUST (shop + convert baseline). */
 export const STARDUST_PER_GRAM_BASE = 100;
 
@@ -56,21 +58,20 @@ const CHART_THROTTLE_MS = 10_000;
 type ChartPoint = { t: number; p: number };
 
 const ACTION_BP: Record<string, number> = {
-  spend: 3,    // +0.03% per spend event
-  earn: -1,    // -0.01% per collect (supply)
-  stake: 2,    // +0.02% when users stake
-  unstake: -1, // -0.01% on withdraw
-  convert: 2,  // +0.02% GRAM → STARDUST
-  convert_out: -1, // -0.01% STARDUST → GRAM
+  spend: 1,         // +0.01% per shop spend (real demand)
+  earn: -1,         // -0.01% per lab collect (real supply)
+  stake: 1,         // +0.01% per stake lock
+  unstake: -1,      // -0.01% on unstake
+  convert: 1,       // +0.01% GRAM → STARDUST
+  convert_out: -1,  // -0.01% STARDUST → GRAM
 };
 
 function applyBp(current: number, bp: number): number {
+  if (bp > 0 && current >= STARDUST_INDEX_MAX_MICRO) return STARDUST_INDEX_MAX_MICRO;
+  if (bp < 0 && current <= STARDUST_INDEX_MIN_MICRO) return STARDUST_INDEX_MIN_MICRO;
   const delta = Math.max(1, Math.round((current * bp) / 10_000));
   const next = current + (bp >= 0 ? delta : -delta);
-  return Math.min(
-    STARDUST_INDEX_MAX_MICRO,
-    Math.max(STARDUST_INDEX_MIN_MICRO, next),
-  );
+  return clampIndexMicro(next);
 }
 
 async function ensureGenesis(): Promise<void> {
@@ -170,7 +171,9 @@ export async function getStardustChart(): Promise<ChartPoint[]> {
     .limit(1);
   try {
     const pts = JSON.parse(row?.valueText ?? "[]") as ChartPoint[];
-    if (Array.isArray(pts) && pts.length > 0) return pts;
+    if (Array.isArray(pts) && pts.length > 0) {
+      return pts.map((pt) => ({ t: pt.t, p: clampIndexMicro(pt.p) }));
+    }
   } catch { /**/ }
 
   const indexMicro = await getStardustIndexMicro();
@@ -185,17 +188,31 @@ export async function getStardustChart(): Promise<ChartPoint[]> {
   return seed;
 }
 
-/** Pad chart for UI: flat line when index hasn't moved yet. */
+/** Pad chart for UI: flat line when index hasn't moved yet. Values are clamped to the live band. */
 export function normalizeStardustChartPoints(points: ChartPoint[]): ChartPoint[] {
-  if (points.length === 0) return [];
-  if (points.length === 1) {
-    const p = points[0];
+  const clamped = points.map((pt) => ({ t: pt.t, p: clampIndexMicro(pt.p) }));
+  if (clamped.length === 0) return [];
+  if (clamped.length === 1) {
+    const p = clamped[0];
     return [
       { t: p.t - 3_600_000, p: p.p },
       { t: p.t, p: p.p },
     ];
   }
-  return points;
+  return clamped;
+}
+
+async function lastChartBumpMs(): Promise<number> {
+  const [row] = await db
+    .select({ valueText: appSettingsTable.valueText })
+    .from(appSettingsTable)
+    .where(eq(appSettingsTable.key, CHART_KEY))
+    .limit(1);
+  try {
+    const pts = JSON.parse(row?.valueText ?? "[]") as ChartPoint[];
+    if (Array.isArray(pts) && pts.length > 0) return pts[pts.length - 1]!.t;
+  } catch { /**/ }
+  return 0;
 }
 
 export async function bumpStardustIndex(action: keyof typeof ACTION_BP): Promise<void> {
@@ -204,8 +221,12 @@ export async function bumpStardustIndex(action: keyof typeof ACTION_BP): Promise
     const bp = ACTION_BP[action] ?? 0;
     if (bp === 0) return;
 
+    const lastBump = await lastChartBumpMs();
+    if (lastBump > 0 && Date.now() - lastBump < BUMP_COOLDOWN_MS) return;
+
     const current = await getStardustIndexMicro();
     const next = applyBp(current, bp);
+    if (next === current) return;
 
     await db
       .insert(appSettingsTable)
@@ -221,10 +242,20 @@ export async function bumpStardustIndex(action: keyof typeof ACTION_BP): Promise
   }
 }
 
+/** Staked notional tracks the live index, but appreciation above entry is damped (35%). */
+export const STAKED_INDEX_GAIN_FACTOR = 0.35;
+
 export function stardustValueAtIndex(staked: number, stakeIndexMicro: number, indexMicro: number): number {
   if (staked <= 0) return 0;
   const basis = stakeIndexMicro > 0 ? stakeIndexMicro : STARDUST_GENESIS_MICRO;
-  return Math.max(0, Math.floor((staked * indexMicro) / basis));
+  const live = clampIndexMicro(indexMicro);
+  if (live <= basis) {
+    return Math.max(0, Math.floor((staked * live) / basis));
+  }
+  const basisF = basis / STARDUST_SCALE;
+  const liveF = live / STARDUST_SCALE;
+  const dampedF = basisF + (liveF - basisF) * STAKED_INDEX_GAIN_FACTOR;
+  return Math.max(0, Math.floor(staked * (dampedF / basisF)));
 }
 
 export async function readGlobalStakedTotal(): Promise<number> {
