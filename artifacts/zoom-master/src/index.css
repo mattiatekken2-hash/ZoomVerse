@@ -2056,13 +2056,14 @@ body.animations-paused * {
 #splash-screen {
   position: fixed;
   inset: 0;
-  z-index: 99999;
+  z-index: 2147483647;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #060810;
-  transition: opacity 0.6s ease-in-out;
   opacity: 1;
+  isolation: isolate;
+  transform: translateZ(0);
 }
 #splash-screen.hidden {
   opacity: 0;

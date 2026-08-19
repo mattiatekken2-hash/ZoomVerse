@@ -63,11 +63,64 @@ const NAV: { id: Tab; labelKey: string; icon: LucideIcon }[] = [
 
 const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "rank", "shop", "wallet"];
 
+function splashElapsedDone(): boolean {
+  try {
+    if ((window as unknown as { __zoomSplashFinished?: boolean }).__zoomSplashFinished) return true;
+  } catch { /**/ }
+  if (!document.getElementById("splash-screen")) return true;
+  try {
+    const start = (window as unknown as { __zoomSplashStart?: number }).__zoomSplashStart;
+    if (typeof start === "number") return performance.now() - start >= SPLASH_MS;
+  } catch { /**/ }
+  return false;
+}
+
+/** Hold Lab/WebGL until the HTML splash has covered the first 2s — WebGL on iOS draws above overlays. */
+function BootSplashGate() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      setReady(true);
+      requestAnimationFrame(() => hideHtmlSplash());
+    };
+
+    if (splashElapsedDone()) {
+      release();
+      return;
+    }
+
+    const start =
+      (window as unknown as { __zoomSplashStart?: number }).__zoomSplashStart ??
+      performance.now();
+    const remaining = Math.max(0, SPLASH_MS - (performance.now() - start));
+    const timeoutId = window.setTimeout(release, remaining);
+    const pollId = window.setInterval(() => {
+      if (splashElapsedDone()) release();
+    }, 50);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.clearInterval(pollId);
+    };
+  }, []);
+
+  if (!ready) return null;
+  return (
+    <>
+      <BlackPlanetOrbStyles />
+      <AppShellWithState />
+    </>
+  );
+}
+
 export default function App() {
   return (
     <LanguageProvider>
-      <BlackPlanetOrbStyles />
-      <AppShellWithState />
+      <BootSplashGate />
     </LanguageProvider>
   );
 }
@@ -349,15 +402,6 @@ function AppShellWithState() {
 
   useEffect(() => {
     initVersionCheck();
-  }, []);
-
-  useEffect(() => {
-    const start =
-      (window as unknown as { __zoomSplashStart?: number }).__zoomSplashStart ??
-      performance.now();
-    const remaining = Math.max(0, SPLASH_MS - (performance.now() - start));
-    const id = window.setTimeout(hideHtmlSplash, remaining);
-    return () => window.clearTimeout(id);
   }, []);
 
   useEffect(() => {
