@@ -4,7 +4,6 @@ import { FORGE_CLAY_HEX, FORGE_SPHERE_SHAPE_ID } from "@workspace/game-models";
 import type { Planet } from "../hooks/useGameState";
 import { getRarityColorsForModel, PLANET_CONFIG } from "../hooks/useGameState";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
-import { isLowEndDevice } from "../utils/deviceTier";
 import { useT } from "../i18n/LanguageContext";
 
 export type ForgePhase = "idle" | "wheel" | "flash" | "waiting" | "revealed";
@@ -345,7 +344,6 @@ export function PlanetCanvas({
   visible = true,
 }: PlanetCanvasProps) {
   const { t } = useT();
-  const lowEnd = useMemo(() => isLowEndDevice(), []);
   const containerRef = useRef<HTMLDivElement>(null);
   const fragmentLayerRef = useRef<HTMLDivElement>(null);
   const meshRef = useRef<ForgeMeshHandle>(null);
@@ -554,7 +552,7 @@ export function PlanetCanvas({
               forgeVoxelBuild={true}
               forgeRevealPhase={forgeRevealPhase}
               forgeTapRelaxed={tapRelaxed}
-              performanceMode={lowEnd}
+              performanceMode={false}
               labForgeBackdrop={true}
               sceneActive={visible}
               onGlFailed={handleLabGlError}
@@ -599,7 +597,7 @@ export function PlanetCanvas({
                   forgeVoxelBuild={true}
                   forgeRevealPhase={forgeRevealPhase}
                   forgeTapRelaxed={tapRelaxed}
-                  performanceMode={lowEnd}
+                  performanceMode={false}
                   onGlFailed={handleLabGlError}
                   onGlContextLost={handleLabGlError}
                 />

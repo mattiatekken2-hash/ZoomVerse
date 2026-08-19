@@ -1,11 +1,15 @@
 import { LOCALE_EXTRAS } from "./localeExtras";
+import { es } from "./langs/es";
+import { fil } from "./langs/fil";
 
-export type Lang = "en" | "it" | "ru" | "uk";
+export type Lang = "en" | "it" | "ru" | "uk" | "es" | "fil";
 
 // Languages exposed in the in-app picker.
 export const LANGS: { code: Lang; flag: string; label: string }[] = [
   { code: "en", flag: "🇬🇧", label: "English" },
   { code: "it", flag: "🇮🇹", label: "Italiano" },
+  { code: "es", flag: "🇪🇸", label: "Español" },
+  { code: "fil", flag: "🇵🇭", label: "Filipino" },
   { code: "ru", flag: "🇷🇺", label: "Русский" },
   { code: "uk", flag: "🇺🇦", label: "Українська" },
 ];
@@ -96,7 +100,6 @@ const en: Dict = {
   "history.kind.stardust_convert": "Stardust converted",
   "history.kind.stardust_convert_out": "Stardust sent to pool",
   "history.kind.gram_convert_in": "GRAM received from pool",
-  "history.kind.stardust_purchase": "Stardust purchase",
 
   // maintenance
   "maint.title": "UNDER MAINTENANCE",
@@ -621,7 +624,6 @@ const it: Dict = {
   "history.kind.stardust_convert": "Stardust convertita",
   "history.kind.stardust_convert_out": "Stardust inviata al pool",
   "history.kind.gram_convert_in": "GRAM ricevuti dal pool",
-  "history.kind.stardust_purchase": "Acquisto stardust",
 
 
   "maint.title": "MANUTENZIONE IN CORSO",
@@ -1138,7 +1140,6 @@ const ru: Dict = {
   "history.kind.stardust_convert": "Конвертация пыли",
   "history.kind.stardust_convert_out": "Пыль отправлена в пул",
   "history.kind.gram_convert_in": "GRAM получено из пула",
-  "history.kind.stardust_purchase": "Покупка за stardust",
 
 
   "maint.title": "ТЕХНИЧЕСКИЕ РАБОТЫ",
@@ -1630,7 +1631,6 @@ const uk: Dict = {
   "history.kind.stardust_convert": "Конвертація пилу",
   "history.kind.stardust_convert_out": "Пил надіслано в пул",
   "history.kind.gram_convert_in": "GRAM отримано з пулу",
-  "history.kind.stardust_purchase": "Покупка за stardust",
 
 
   "maint.title": "ТЕХНІЧНІ РОБОТИ",
@@ -2048,6 +2048,8 @@ export const DICTS: Record<Lang, Dict> = {
   it: { ...it, ...LOCALE_EXTRAS.it },
   ru: { ...ru, ...LOCALE_EXTRAS.ru },
   uk: { ...uk, ...LOCALE_EXTRAS.uk },
+  es: { ...es, ...LOCALE_EXTRAS.es },
+  fil: { ...fil, ...LOCALE_EXTRAS.fil },
 };
 
 export function translate(lang: Lang, key: string, vars?: Record<string, string | number>): string {

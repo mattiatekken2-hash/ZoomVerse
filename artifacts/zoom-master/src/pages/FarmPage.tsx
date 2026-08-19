@@ -447,7 +447,7 @@ export function FarmPage({
               onStartFarm={handleSunStartOrReactivate}
             />
           )}
-          {planets.filter((p) => !p.isListedInMarket && !isLegacyCatalogModelPlanet(p)).map((planet) => {
+          {planets.filter((p) => !p.isListedInMarket && !isLegacyCatalogModelPlanet(p)).map((planet, index) => {
             const isListed = planet.isListedInMarket;
 
             const handleStartOrReactivate = () => {
@@ -465,7 +465,7 @@ export function FarmPage({
                 planet={planet}
                 variant="grid"
                 suspendGl={!!detailPlanet || !visible}
-                eagerThumb={visible}
+                glDelayMs={Math.min(index, 8) * 160}
                 testId={`planet-card-${planet.id}`}
                 onCardClick={() => setDetailPlanet(planet)}
                 onStartFarm={handleStartOrReactivate}

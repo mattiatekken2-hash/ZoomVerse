@@ -36,8 +36,8 @@ export function SunFarmThumb({
       size={size}
       animate={animate}
       suspendGl={suspendGl}
-      eager
-      hiQuality
+      glDelayMs={120}
+      hiQuality={false}
     />
   );
 }
