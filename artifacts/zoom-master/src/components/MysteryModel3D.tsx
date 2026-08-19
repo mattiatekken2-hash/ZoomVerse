@@ -1764,11 +1764,10 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       for (let i = 0; i < initialPlaced; i++) {
         placedMaskRef.current[i] = true;
       }
-      lastPlacedIdxRef.current = initialPlaced > 0 ? initialPlaced - 1 : -1;
-    } else {
-      lastPlacedIdxRef.current = -1;
     }
-    dropAnimStartRef.current = performance.now();
+    // Seeded / restored voxels must appear settled — fly-in only on new taps.
+    lastPlacedIdxRef.current = -1;
+    dropAnimStartRef.current = performance.now() - 10000;
     const voxelDummy = new THREE.Object3D();
     const edgeScratch = new THREE.Vector3();
     let voxelInst: THREE.InstancedMesh | null = null;
@@ -2133,10 +2132,13 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
     let paintT = revealed && !interactive ? 1 : 0;
     let lastFrame = performance.now();
-    let lastPlacedVoxels = Math.min(
-      forgeVoxels.length,
-      Math.round(Math.min(1, Math.max(0, progress)) * forgeVoxels.length),
-    );
+    const useLabTapPlacement = labForgeBackdrop && interactive && !planetShowcase;
+    let lastPlacedVoxels = useLabTapPlacement
+      ? placedMaskRef.current.filter(Boolean).length
+      : Math.min(
+          forgeVoxels.length,
+          Math.round(Math.min(1, Math.max(0, progress)) * forgeVoxels.length),
+        );
     let dropAnimStart = performance.now() - 300;
     let sealT = 0;
     let revealPaintT = 0;
@@ -2146,7 +2148,6 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const particleLandMs = () => (forgeTapRelaxed ? 900 : VOXEL_PARTICLE_MS) * 0.68;
     const forgePopMs = () => (forgeTapRelaxed ? 150 : 85);
     const forgeFlyMs = () => (forgeTapRelaxed ? 520 : 380);
-    const useLabTapPlacement = labForgeBackdrop && interactive && !planetShowcase;
     const smoothProgressRef = { current: progress };
     const clayDark = new THREE.Color(FORGE_CLAY);
     const clayLight = new THREE.Color(0xffffff);
@@ -2198,8 +2199,11 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         smoothProgressRef.current = placed / forgeVoxels.length;
         if (placed > lastPlacedVoxels) {
           lastPlacedVoxels = placed;
-          dropAnimStart = now;
-          dropAnimStartRef.current = now;
+          // Tap mode: fly-in timing is owned by queueForgeTapPlacement only.
+          if (!useLabTapPlacement) {
+            dropAnimStart = now;
+            dropAnimStartRef.current = now;
+          }
         }
       } else if (sealing || inForgeReveal) {
         smoothProgressRef.current = 1;
