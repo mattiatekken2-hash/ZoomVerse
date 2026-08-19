@@ -27,6 +27,9 @@ import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
 
 const SPLASH_MIN_MS = 6000;
+/** Never block boot longer than this — unblocks if API checks hang. */
+const SPLASH_MAX_MS = 14000;
+const MAINT_FAIL_BEFORE_BOOT = 3;
 
 const MAINTENANCE_ADMIN_IDS = ["8144744644", "@zoom0100", "zoom0100"];
 
@@ -308,6 +311,7 @@ function AppShellWithState() {
   useEffect(() => {
     let alive = true;
     let retryTimer: number | undefined;
+    let failStreak = 0;
 
     const finish = (next: MaintSnapshot) => {
       if (!alive) return;
@@ -320,9 +324,15 @@ function AppShellWithState() {
       const s = await fetchMaintenanceStatus();
       if (!alive) return;
       if (!s) {
+        failStreak += 1;
+        if (failStreak >= MAINT_FAIL_BEFORE_BOOT) {
+          finish({ enabled: false, message: "" });
+          return;
+        }
         retryTimer = window.setTimeout(() => { void load(); }, 2000);
         return;
       }
+      failStreak = 0;
       finish({ enabled: !!s.enabled, message: s.message || "", updatedAt: s.updatedAt });
     };
 
@@ -345,6 +355,7 @@ function AppShellWithState() {
   const showMaintenance = maintenance.enabled && !isAdmin;
   const showSplash = !maintChecked && !isAdmin;
   const [splashMinDone, setSplashMinDone] = useState(false);
+  const [splashForceDone, setSplashForceDone] = useState(false);
 
   useEffect(() => {
     void fetchTonPrice();
@@ -352,8 +363,10 @@ function AppShellWithState() {
 
   useEffect(() => {
     const doneTimer = window.setTimeout(() => setSplashMinDone(true), SPLASH_MIN_MS);
+    const forceTimer = window.setTimeout(() => setSplashForceDone(true), SPLASH_MAX_MS);
     return () => {
       window.clearTimeout(doneTimer);
+      window.clearTimeout(forceTimer);
     };
   }, []);
 
@@ -362,12 +375,12 @@ function AppShellWithState() {
       hideHtmlSplash();
       return;
     }
-    if (maintChecked && splashMinDone && globalReady) {
+    if ((maintChecked && splashMinDone && globalReady) || splashForceDone) {
       hideHtmlSplash();
     }
-  }, [isAdmin, maintChecked, splashMinDone, globalReady]);
+  }, [isAdmin, maintChecked, splashMinDone, globalReady, splashForceDone]);
 
-  const showBootSplash = !isAdmin && (showSplash || !splashMinDone || !globalReady);
+  const showBootSplash = !isAdmin && !splashForceDone && (showSplash || !splashMinDone || !globalReady);
 
   useEffect(() => {
     if (!state.telegramId || showBootSplash) return;
