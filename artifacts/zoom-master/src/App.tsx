@@ -27,9 +27,9 @@ import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
 import { initVersionCheck } from "./utils/appVersion";
 
-const SPLASH_MIN_MS = 2500;
+const SPLASH_MIN_MS = 1200;
 /** Hard cap — never keep users on splash longer than this. */
-const SPLASH_MAX_MS = 6000;
+const SPLASH_MAX_MS = 3500;
 
 const MAINTENANCE_ADMIN_IDS = ["8144744644", "@zoom0100", "zoom0100"];
 

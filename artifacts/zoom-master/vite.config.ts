@@ -25,6 +25,20 @@ export default defineConfig({
     tailwindcss(),
     runtimeErrorOverlay(),
     {
+      // Keep the entry script at the end of <body> so the splash paints before JS downloads.
+      name: "keep-entry-script-in-body",
+      transformIndexHtml(html) {
+        const scriptRe = /<script type="module" crossorigin src="(\/assets\/index-[^"]+\.js)"><\/script>\s*/;
+        const match = html.match(scriptRe);
+        if (!match) return html;
+        const tag = match[0];
+        let next = html.replace(tag, "");
+        if (!next.includes("</body>")) return html;
+        next = next.replace("</body>", `    ${tag.trim()}\n  </body>`);
+        return next;
+      },
+    },
+    {
       // Emit dist/public/version.json containing the same BUILD_VERSION so the
       // running app can detect when a newer build has been published.
       name: "emit-version-json",
@@ -71,6 +85,7 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    modulePreload: { polyfill: false },
   },
   server: {
     port,

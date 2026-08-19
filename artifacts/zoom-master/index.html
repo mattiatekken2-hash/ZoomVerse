@@ -1,98 +1,90 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
-    <script>
-      try {
-        var tg = window.Telegram && window.Telegram.WebApp;
-        if (tg) {
-          tg.ready();
-          tg.expand();
-          try { tg.disableVerticalSwipes(); } catch(e) {}
-          try { tg.setHeaderColor('#000000'); } catch(e) {}
-          try { tg.setBackgroundColor('#000000'); } catch(e) {}
-          try { tg.setBottomBarColor('#000000'); } catch(e) {}
-          try { if (tg.requestFullscreen) tg.requestFullscreen(); } catch(e) {}
-
-          try {
-            var sp = tg.initDataUnsafe && tg.initDataUnsafe.start_param;
-            if (sp) {
-              localStorage.setItem("zoom-start-param", sp);
-            }
-          } catch(e) {}
-        }
-      } catch(e) {}
-    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>ZOOM MASTER</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
-  <style>
-    #splash-screen {
-      position: fixed;
-      inset: 0;
-      z-index: 99999;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #060810;
-      transition: opacity 0.6s ease-in-out;
-      opacity: 1;
-    }
-    #splash-screen.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-    #splash-screen .splash-inner {
-      text-align: center;
-      animation: splashIn 0.6s ease-out both;
-    }
-    @keyframes splashIn {
-      from { opacity: 0; transform: scale(0.92); }
-      to { opacity: 1; transform: scale(1); }
-    }
-    #splash-screen .splash-spinner {
-      width: 52px;
-      height: 52px;
-      margin: 0 auto;
-      border-radius: 50%;
-      border: 3px solid rgba(158, 197, 232, 0.14);
-      border-top-color: #9ec5e8;
-      border-right-color: rgba(158, 197, 232, 0.55);
-      animation: splashSpin 0.9s linear infinite;
-      box-shadow: 0 0 24px rgba(158, 197, 232, 0.22);
-    }
-    @keyframes splashSpin {
-      to { transform: rotate(360deg); }
-    }
-    #splash-screen .splash-title {
-      margin-top: 22px;
-      font-family: 'Orbitron', sans-serif;
-      font-weight: 900;
-      font-size: 26px;
-      letter-spacing: 0.22em;
-      color: #e0e6ff;
-      text-shadow: 0 0 12px rgba(138,180,255,0.4), 0 0 32px rgba(106,90,205,0.28);
-    }
-    #splash-screen .splash-sub {
-      margin-top: 10px;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.18em;
-      color: rgba(158, 197, 232, 0.55);
-      text-transform: uppercase;
-      animation: splashPulse 1.6s ease-in-out infinite;
-    }
-    @keyframes splashPulse {
-      0%, 100% { opacity: 0.45; }
-      50% { opacity: 1; }
-    }
-  </style>
+    <!-- Non-blocking fonts — never delay first paint / JS boot -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@700;900&display=swap" media="print" onload="this.media='all'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@700;900&display=swap" /></noscript>
+    <!-- Telegram SDK: defer so HTML splash + app bundle start immediately -->
+    <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+      #splash-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #060810;
+        transition: opacity 0.5s ease-in-out;
+        opacity: 1;
+      }
+      #splash-screen.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #splash-screen .splash-inner {
+        text-align: center;
+        animation: splashIn 0.6s ease-out both;
+      }
+      @keyframes splashIn {
+        from { opacity: 0; transform: scale(0.92); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      #splash-screen .splash-spinner {
+        width: 52px;
+        height: 52px;
+        margin: 0 auto;
+        border-radius: 50%;
+        border: 3px solid rgba(158, 197, 232, 0.14);
+        border-top-color: #9ec5e8;
+        border-right-color: rgba(158, 197, 232, 0.55);
+        animation: splashSpin 0.9s linear infinite;
+        box-shadow: 0 0 24px rgba(158, 197, 232, 0.22);
+      }
+      @keyframes splashSpin {
+        to { transform: rotate(360deg); }
+      }
+      #splash-screen .splash-title {
+        margin-top: 22px;
+        font-family: 'Orbitron', system-ui, sans-serif;
+        font-weight: 900;
+        font-size: 26px;
+        letter-spacing: 0.22em;
+        color: #e0e6ff;
+        text-shadow: 0 0 12px rgba(138,180,255,0.4), 0 0 32px rgba(106,90,205,0.28);
+      }
+      #splash-screen .splash-sub {
+        margin-top: 10px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.18em;
+        color: rgba(158, 197, 232, 0.55);
+        text-transform: uppercase;
+        animation: splashPulse 1.6s ease-in-out infinite;
+      }
+      #splash-retry-btn {
+        display: none;
+        margin-top: 18px;
+        padding: 12px 28px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.22);
+        background: rgba(255,255,255,0.08);
+        color: #e0e6ff;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+      }
+      @keyframes splashPulse {
+        0%, 100% { opacity: 0.45; }
+        50% { opacity: 1; }
+      }
+    </style>
   </head>
   <body>
     <div id="splash-screen" role="status" aria-label="Season 3 loading">
@@ -100,22 +92,68 @@
         <div class="splash-spinner" aria-hidden="true"></div>
         <div class="splash-title">Season 3</div>
         <div class="splash-sub">Entra in gioco</div>
+        <button type="button" id="splash-retry-btn">Riprova</button>
       </div>
     </div>
     <script>
       (function() {
         var splash = document.getElementById('splash-screen');
+        var retryBtn = document.getElementById('splash-retry-btn');
         window.__hideHtmlSplash = function() {
           if (!splash) return;
           splash.classList.add('hidden');
-          setTimeout(function() { splash && splash.remove(); }, 700);
+          setTimeout(function() { splash && splash.remove(); }, 500);
         };
-        // If React never boots (JS error / slow device), show a hint — do NOT remove splash (avoids black screen).
+        if (retryBtn) {
+          retryBtn.onclick = function() {
+            try { sessionStorage.removeItem('zoom-boot-reload'); } catch (e) {}
+            location.reload();
+          };
+        }
+        function configureTelegramWhenReady() {
+          try {
+            var tg = window.Telegram && window.Telegram.WebApp;
+            if (!tg) return;
+            tg.ready && tg.ready();
+            tg.expand && tg.expand();
+            try { tg.disableVerticalSwipes(); } catch (e) {}
+            try { tg.setHeaderColor('#000000'); } catch (e) {}
+            try { tg.setBackgroundColor('#000000'); } catch (e) {}
+            try { tg.setBottomBarColor('#000000'); } catch (e) {}
+            try { if (tg.requestFullscreen) tg.requestFullscreen(); } catch (e) {}
+            try {
+              var sp = tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+              if (sp) localStorage.setItem('zoom-start-param', sp);
+            } catch (e) {}
+          } catch (e) {}
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', configureTelegramWhenReady);
+        } else {
+          configureTelegramWhenReady();
+        }
+        window.addEventListener('load', configureTelegramWhenReady);
+
         setTimeout(function() {
           if (window.__zoomReactBooted) return;
           var sub = splash && splash.querySelector('.splash-sub');
-          if (sub) sub.textContent = 'Caricamento lento — riapri da Telegram';
-        }, 18000);
+          if (sub) sub.textContent = 'Caricamento in corso…';
+        }, 6000);
+
+        setTimeout(function() {
+          if (window.__zoomReactBooted) return;
+          var sub = splash && splash.querySelector('.splash-sub');
+          if (sub) sub.textContent = 'Quasi pronto…';
+          try {
+            if (!sessionStorage.getItem('zoom-boot-reload')) {
+              sessionStorage.setItem('zoom-boot-reload', '1');
+              location.reload();
+              return;
+            }
+          } catch (e) {}
+          if (sub) sub.textContent = 'Tocca riprova';
+          if (retryBtn) retryBtn.style.display = 'inline-block';
+        }, 12000);
       })();
     </script>
     <div id="root"></div>

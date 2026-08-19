@@ -154,13 +154,28 @@ document.addEventListener("pointerup", (e: PointerEvent) => {
   hapticLight();
 });
 
-createRoot(document.getElementById("root")!).render(
-  <BootErrorBoundary>
-    <App />
-  </BootErrorBoundary>,
-);
-
 try {
+  const rootEl = document.getElementById("root");
+  if (!rootEl) throw new Error("Missing #root element");
+  createRoot(rootEl).render(
+    <BootErrorBoundary>
+      <App />
+    </BootErrorBoundary>,
+  );
   (window as unknown as { __zoomReactBooted?: boolean }).__zoomReactBooted = true;
-} catch { /**/ }
+} catch (err) {
+  console.error("[boot] React mount failed:", err);
+  try {
+    (window as unknown as { __hideHtmlSplash?: () => void }).__hideHtmlSplash?.();
+    const rootEl = document.getElementById("root");
+    if (rootEl) {
+      rootEl.innerHTML =
+        '<div style="min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;background:#060810;color:#e0e6ff;font-family:system-ui,sans-serif;text-align:center">' +
+        '<div style="font-size:17px;font-weight:800">Errore di avvio</div>' +
+        '<div style="font-size:13px;color:rgba(255,255,255,0.55)">Chiudi e riapri da Telegram</div>' +
+        '<button type="button" onclick="location.reload()" style="margin-top:8px;padding:12px 24px;border-radius:999px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.08);color:#fff;font-weight:700">Riprova</button>' +
+        "</div>";
+    }
+  } catch { /**/ }
+}
 
