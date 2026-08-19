@@ -715,8 +715,7 @@ function AppShellWithState() {
   if (showMaintenance) {
     return (
       <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
-        {showBootSplash && <BootSplashOverlay subtitle={t("splash.subtitle")} />}
-        {!showBootSplash && <MaintenanceScreen message={maintenance.message} />}
+        <MaintenanceScreen message={maintenance.message} />
       </TonConnectUIProvider>
     );
   }
