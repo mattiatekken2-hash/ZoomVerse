@@ -278,7 +278,6 @@ export function WalletPage({
             color="#ffd740"
             glow="rgba(255,215,64,0.4)"
             onClick={onOpenHistory}
-            hint={onOpenHistory ? t("walletPage.zoomHistoryHint") : undefined}
             data-testid="wallet-zoom-balance"
           />
           {/* STARDUST — star (★), yellow like resource widget */}
