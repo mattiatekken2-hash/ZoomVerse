@@ -262,7 +262,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         }
         setRedStarMsg(`+${res.reward ?? WEEKLY_REDSTAR_REWARD} ★ REDSTAR · Day ${res.cycleDay ?? cycleDay}/${WEEKLY_CYCLE_DAYS}`);
       } else {
-        setRedStarMsg(res.error === "Already claimed today" ? "Already claimed today" : (res.error ?? "Claim failed"));
+        setRedStarMsg(res.error === "Already claimed today" ? t("earn.alreadyClaimedToday") : (res.error ?? t("earn.claimFailed")));
       }
     } finally {
       setClaimingRedStar(false);

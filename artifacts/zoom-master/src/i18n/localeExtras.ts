@@ -278,6 +278,13 @@ export const LOCALE_EXTRAS: Record<Lang, Dict> = {
     "combo.claiming": "CLAIMING…",
     "combo.claimAll": "CLAIM ALL",
     "combo.resetsIn": "resets in",
+    "combo.loading": "Loading combo…",
+
+    "wheel.rarityLocked": "Rarity locked",
+    "wheel.spinning": "Spinning…",
+
+    "planetDetail.cycleShort": "cycle",
+    "planetDetail.repairBtn": "REPAIR · {n} ★",
 
     "farm.durability": "Durability",
     "farm.floatLabel": "Float",

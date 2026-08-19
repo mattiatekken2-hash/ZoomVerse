@@ -11,23 +11,14 @@ import type { Planet } from "../hooks/useGameState";
 import { PLANET_CONFIG, isFarmActive } from "../hooks/useGameState";
 import { useT } from "../i18n/LanguageContext";
 import { planetTypeLabel } from "../i18n/translations";
+import {
+  getCachedCombo,
+  prefetchCombo,
+  setCachedCombo,
+  type ComboState,
+} from "../utils/comboCache";
 
 const API = `${window.location.origin}/api`;
-
-interface ComboState {
-  comboEpoch: number;
-  required: string[];
-  claimed: boolean;
-  nextResetMs: number;
-}
-
-async function fetchCombo(telegramId: string): Promise<ComboState | null> {
-  try {
-    const r = await fetch(`${API}/combo/current?telegramId=${encodeURIComponent(telegramId)}`);
-    if (!r.ok) return null;
-    return await r.json() as ComboState;
-  } catch { return null; }
-}
 
 async function claimCombo(telegramId: string): Promise<{ ok: boolean; newRedStarBalance?: number; error?: string } | null> {
   try {
@@ -139,24 +130,67 @@ interface Props {
   active?: boolean;
 }
 
+function ComboSkeleton({ t }: { t: (key: string) => string }) {
+  return (
+    <div
+      className="combo-box-relax"
+      style={{
+        borderRadius: 20,
+        border: "1.5px dashed rgba(255,255,255,0.28)",
+        background: "linear-gradient(165deg, rgba(255,255,255,0.05) 0%, rgba(18,20,28,0.88) 38%, rgba(8,9,14,0.94) 100%)",
+        padding: "16px 16px 14px",
+        contain: "layout style paint",
+      }}
+      aria-busy="true"
+      aria-label={t("combo.loading")}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 10, background: "rgba(255,255,255,0.08)" }} />
+        <div style={{ height: 14, width: 88, borderRadius: 6, background: "rgba(255,255,255,0.1)" }} />
+      </div>
+      <div style={{ height: 8, borderRadius: 999, background: "rgba(255,255,255,0.08)", marginBottom: 12 }} />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+        {[0, 1, 2].map((i) => (
+          <div key={i} style={{ height: 92, borderRadius: 14, background: "rgba(255,255,255,0.06)" }} />
+        ))}
+      </div>
+      <div style={{ height: 44, borderRadius: 14, background: "rgba(255,255,255,0.07)" }} />
+    </div>
+  );
+}
+
 function DailyComboBoxBase({ telegramId, planets, onClaimed, active = true }: Props) {
   const { t, lang } = useT();
-  const [combo, setCombo] = useState<ComboState | null>(null);
+  const [combo, setCombo] = useState<ComboState | null>(() =>
+    telegramId ? getCachedCombo(telegramId) : null,
+  );
   const [claiming, setClaiming] = useState(false);
   const [justClaimed, setJustClaimed] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(() => {
+    const c = telegramId ? getCachedCombo(telegramId) : null;
+    return c ? Math.max(0, c.nextResetMs - Date.now()) : 0;
+  });
 
   useEffect(() => {
-    if (!telegramId || !active) return;
-    void fetchCombo(telegramId).then((c) => {
+    if (!telegramId) return;
+    const cached = getCachedCombo(telegramId);
+    if (cached) {
+      setCombo(cached);
+      setTimeLeft(Math.max(0, cached.nextResetMs - Date.now()));
+    }
+    void prefetchCombo(telegramId).then((c) => {
       if (c) {
         setCombo(c);
         setTimeLeft(Math.max(0, c.nextResetMs - Date.now()));
       }
     });
+  }, [telegramId]);
+
+  useEffect(() => {
+    if (!telegramId || !active) return;
     const interval = setInterval(() => {
       if (document.hidden) return;
-      void fetchCombo(telegramId).then((c) => {
+      void prefetchCombo(telegramId).then((c) => {
         if (c) setCombo(c);
       });
     }, 30_000);
@@ -197,14 +231,19 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed, active = true }: Pr
     setClaiming(false);
     if (result?.ok) {
       setJustClaimed(true);
-      setCombo((prev) => prev ? { ...prev, claimed: true } : prev);
+      setCombo((prev) => {
+        const next = prev ? { ...prev, claimed: true } : prev;
+        if (next && telegramId) setCachedCombo(telegramId, next);
+        return next;
+      });
       if (result.newRedStarBalance !== undefined) {
         onClaimed?.(result.newRedStarBalance);
       }
     }
   };
 
-  if (!combo || !telegramId) return null;
+  if (!telegramId) return null;
+  if (!combo) return <ComboSkeleton t={t} />;
 
   const claimed = combo.claimed || justClaimed;
   const progressPct = Math.round((activeCount / 3) * 100);
