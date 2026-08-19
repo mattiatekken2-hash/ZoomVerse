@@ -733,6 +733,7 @@ export const es: Record<string, string> = {
   "farm.exclusive": "EXCLUSIVO",
 
   "splash.loading": "Cargando…",
+  "splash.subtitle": "Entra al juego",
   "combo.title": "COMBO",
   "combo.claimed": "✓ RECLAMADO",
   "combo.reward": "2 Redstar",
