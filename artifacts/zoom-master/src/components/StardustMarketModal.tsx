@@ -268,7 +268,7 @@ export function StardustMarketModal({
         {/* Compact stats row */}
         <div className="px-4 pb-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-bold flex-shrink-0">
           <span style={{ color: pctChange >= 0 ? "#69f0ae" : "#ff8a80" }}>
-            {pctChange >= 0 ? "+" : ""}{pctChange.toFixed(2)}% since launch
+            {pctChange >= 0 ? "+" : ""}{pctChange.toFixed(2)}%
           </span>
           <span style={{ color: "rgba(255,255,255,0.35)" }}>Pool {totalStaked.toLocaleString()} ★</span>
           <span style={{ color: "#ffd740" }}>Wallet {balance.toLocaleString()} ★</span>
