@@ -1,8 +1,12 @@
-/** Boot splash — HTML preloader in index.html + React overlay with progress bar. */
+/** Boot splash — React overlay with progress bar; fixed duration from app mount. */
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { isSplashComplete, splashProgress } from "../utils/bootSplash";
+import {
+  SPLASH_VISIBLE_MS,
+  isSplashSessionComplete,
+  splashSessionProgress,
+} from "../utils/bootSplash";
 
 /** Fade out and remove the pre-React HTML splash (index.html). */
 export function hideHtmlSplash() {
@@ -21,10 +25,12 @@ export function hideHtmlSplash() {
 
 interface BootSplashOverlayProps {
   subtitle?: string;
+  /** Session start from App mount — progress bar syncs to this. */
+  sessionStartMs: number;
 }
 
-function BootSplashOverlayInner({ subtitle = "Season 3" }: BootSplashOverlayProps) {
-  const [progress, setProgress] = useState(() => splashProgress());
+function BootSplashOverlayInner({ subtitle = "Season 3", sessionStartMs }: BootSplashOverlayProps) {
+  const [progress, setProgress] = useState(() => splashSessionProgress(sessionStartMs));
 
   useEffect(() => {
     hideHtmlSplash();
@@ -33,12 +39,14 @@ function BootSplashOverlayInner({ subtitle = "Season 3" }: BootSplashOverlayProp
   useEffect(() => {
     let raf = 0;
     const tick = () => {
-      setProgress(splashProgress());
-      if (!isSplashComplete()) raf = requestAnimationFrame(tick);
+      setProgress(splashSessionProgress(sessionStartMs));
+      if (!isSplashSessionComplete(sessionStartMs)) {
+        raf = requestAnimationFrame(tick);
+      }
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [sessionStartMs]);
 
   const pct = Math.round(progress * 100);
 
@@ -62,7 +70,10 @@ function BootSplashOverlayInner({ subtitle = "Season 3" }: BootSplashOverlayProp
         <div className="zoom-splash-bar-track">
           <div
             className="zoom-splash-bar-fill"
-            style={{ width: `${pct}%` }}
+            style={{
+              width: `${pct}%`,
+              transition: "width 0.06s linear",
+            }}
           />
         </div>
       </div>
@@ -70,7 +81,7 @@ function BootSplashOverlayInner({ subtitle = "Season 3" }: BootSplashOverlayProp
   );
 }
 
-/** Full-screen loading overlay — portaled above the entire app until boot timer completes. */
+/** Full-screen loading overlay — portaled above the entire app. */
 export function BootSplashOverlay(props: BootSplashOverlayProps) {
   if (typeof document === "undefined") return null;
   return createPortal(<BootSplashOverlayInner {...props} />, document.body);
@@ -80,3 +91,5 @@ export function BootSplashOverlay(props: BootSplashOverlayProps) {
 export function SplashScreen() {
   return null;
 }
+
+export { SPLASH_VISIBLE_MS };

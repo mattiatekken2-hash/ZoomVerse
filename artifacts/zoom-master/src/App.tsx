@@ -27,7 +27,7 @@ import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
 import { prefetchCombo } from "./utils/comboCache";
 import { initVersionCheck } from "./utils/appVersion";
-import { isSplashComplete, msUntilSplashEnd } from "./utils/bootSplash";
+import { beginSplashSession, isSplashSessionComplete, splashSessionRemainingMs } from "./utils/bootSplash";
 
 const MAINTENANCE_ADMIN_IDS = ["8144744644", "@zoom0100", "zoom0100"];
 
@@ -342,7 +342,8 @@ function AppShellWithState() {
   }, []);
   const isAdmin = isMaintenanceAdmin(state.telegramId);
   const showMaintenance = maintenance.enabled && !isAdmin;
-  const [splashDone, setSplashDone] = useState(() => isSplashComplete());
+  const splashSessionStart = beginSplashSession();
+  const [splashDone, setSplashDone] = useState(false);
 
   const showBootSplash = !isAdmin && !splashDone;
 
@@ -352,10 +353,14 @@ function AppShellWithState() {
 
   useEffect(() => {
     if (splashDone) return;
-    const remaining = msUntilSplashEnd();
+    if (isSplashSessionComplete(splashSessionStart)) {
+      setSplashDone(true);
+      return;
+    }
+    const remaining = splashSessionRemainingMs(splashSessionStart);
     const timer = window.setTimeout(() => setSplashDone(true), remaining);
     return () => window.clearTimeout(timer);
-  }, [splashDone]);
+  }, [splashDone, splashSessionStart]);
 
   useEffect(() => {
     if (isAdmin || !showBootSplash) {
@@ -718,7 +723,9 @@ function AppShellWithState() {
   if (showMaintenance) {
     return (
       <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
-        {showBootSplash && <BootSplashOverlay subtitle={t("splash.loading")} />}
+        {showBootSplash && (
+          <BootSplashOverlay subtitle={t("splash.loading")} sessionStartMs={splashSessionStart} />
+        )}
         {!showBootSplash && <MaintenanceScreen message={maintenance.message} />}
       </TonConnectUIProvider>
     );
@@ -727,7 +734,9 @@ function AppShellWithState() {
   // Maintenance poll runs in background; boot splash is time-based only.
   return (
     <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
-      {showBootSplash && <BootSplashOverlay subtitle={t("splash.loading")} />}
+      {showBootSplash && (
+        <BootSplashOverlay subtitle={t("splash.loading")} sessionStartMs={splashSessionStart} />
+      )}
       <div
         className="flex flex-col overflow-hidden relative"
         style={{
