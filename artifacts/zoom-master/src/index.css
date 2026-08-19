@@ -2116,6 +2116,16 @@ body.animations-paused * {
   0%, 100% { opacity: 0.45; }
   50% { opacity: 1; }
 }
+.zoom-splash-sub-maint {
+  max-width: 280px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.55;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  white-space: pre-wrap;
+}
 .zoom-splash-bar-wrap,
 #splash-screen .splash-bar-wrap {
   position: absolute;
