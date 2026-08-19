@@ -69,9 +69,11 @@ export function buildRarityWheelSegments(): RarityWheelSegment[] {
   }).filter((e) => e.chance > 0);
 
   const span = 360 / entries.length;
+  /** Offset −span/2 so slice centers (not borders) sit under the 12 o'clock pointer. */
+  const phaseOffset = -span / 2;
   return entries.map(({ type, cfg, chance }, i) => {
-    const startDeg = i * span;
-    const endDeg = (i + 1) * span;
+    const startDeg = i * span + phaseOffset;
+    const endDeg = (i + 1) * span + phaseOffset;
     const short = WHEEL_LABEL[type];
     const label = short ?? (type === "V1" ? "V1" : cfg.label.toUpperCase());
     return {
@@ -113,11 +115,24 @@ function labelRadius(span: number, r: number): number {
 }
 
 /** Pointer fixed at 12 o'clock. Rotate wheel so segment midDeg aligns under pointer. */
-function rotationForSegment(midDeg: number, jitter = 0): number {
+function rotationForSegment(midDeg: number, span: number): number {
+  /** Land in the inner ~56% of the slice — never near a border. */
+  const safeHalf = span * 0.22;
+  const jitter = (Math.random() - 0.5) * 2 * safeHalf;
   const landAngle = midDeg + jitter;
   const landOn = ((360 - landAngle) % 360 + 360) % 360;
-  const extraSpins = 2 + Math.random() * 0.75;
+  /** Integer full turns only — fractional spins shift the mod-360 landing angle. */
+  const extraSpins = 2 + Math.floor(Math.random() * 2);
   return extraSpins * 360 + landOn;
+}
+
+/** Which segment sits under the fixed 12 o'clock pointer for a given wheel rotation. */
+export function segmentIndexAtPointer(rotationDeg: number, segmentCount: number): number {
+  const span = 360 / segmentCount;
+  const phaseOffset = -span / 2;
+  const pointerOnWheel = ((-rotationDeg % 360) + 360) % 360;
+  const shifted = ((pointerOnWheel - phaseOffset) % 360 + 360) % 360;
+  return Math.floor(shifted / span) % segmentCount;
 }
 
 /** Long coast-down — feels like a hand push, not a slot machine. */
@@ -140,6 +155,7 @@ export const RarityForgeWheel = memo(function RarityForgeWheel({
   const [spinning, setSpinning] = useState(false);
   const [landed, setLanded] = useState(false);
   const doneRef = useRef(false);
+  const targetRotationRef = useRef(0);
 
   const cx = size / 2;
   const r = size / 2 - 16;
@@ -153,8 +169,8 @@ export const RarityForgeWheel = memo(function RarityForgeWheel({
 
     const seg = segments.find((s) => s.type === targetRarity) ?? segments[0];
     const span = seg.endDeg - seg.startDeg;
-    const jitter = (Math.random() - 0.5) * Math.min(span * 0.3, 5);
-    const target = rotationForSegment(seg.midDeg, jitter);
+    const target = rotationForSegment(seg.midDeg, span);
+    targetRotationRef.current = target;
 
     const t0 = requestAnimationFrame(() => {
       setSpinning(true);
@@ -168,6 +184,7 @@ export const RarityForgeWheel = memo(function RarityForgeWheel({
     if (e.propertyName !== "transform") return;
     if (!spinning || doneRef.current) return;
     doneRef.current = true;
+    setRotation(targetRotationRef.current);
     setLanded(true);
     try {
       const tg = (window as unknown as {

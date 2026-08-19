@@ -2235,11 +2235,12 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         revealPaintT = 1;
       }
       lastRevealPhase = revealPhase;
-      const inForgeReveal = revealPhase !== "idle";
-      if (inForgeReveal) {
+      const inForgeSequence = revealPhase !== "idle";
+      const inForgeRevealPaint = revealPhase === "flash" || revealPhase === "revealed";
+      if (inForgeRevealPaint) {
         revealPaintT = 1;
       }
-      const isLiveForge = interactive && !st.revealed && !inForgeReveal;
+      const isLiveForge = interactive && !st.revealed && !inForgeSequence;
       const list = partsRef.current;
       const n = Math.max(isLiveForge && voxelsRef.current.length > 0
         ? voxelsRef.current.length
@@ -2248,11 +2249,11 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const targetP = st.revealed ? 1 : Math.min(1, Math.max(0, st.progress));
       const lerpK = 1 - Math.pow(0.001, dt / 16.67);
       const snap = performanceMode ? 0.95 : 0.55;
-      const sealing = forgeSealRef.current && !st.revealed && !inForgeReveal;
+      const sealing = forgeSealRef.current && !st.revealed && !inForgeSequence;
       const isForgeSphere = shapeId === FORGE_SPHERE_SHAPE_ID;
       const useVoxelForge = useForgeVoxels && !!voxelInst && forgeVoxels.length > 0
-        && (isForgeSphere || !st.revealed || sealing || inForgeReveal);
-      if (useVoxelForge && !sealing && !inForgeReveal) {
+        && (isForgeSphere || !st.revealed || sealing || inForgeRevealPaint);
+      if (useVoxelForge && !sealing && !inForgeSequence) {
         const placed = useLabTapPlacement
           ? placedMaskRef.current.filter(Boolean).length
           : Math.min(forgeVoxels.length, Math.round(targetP * forgeVoxels.length));
@@ -2285,7 +2286,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
             dropAnimStartRef.current = now;
           }
         }
-      } else if (sealing || inForgeReveal) {
+      } else if (sealing || inForgeSequence) {
         smoothProgressRef.current = 1;
         if (sealing) sealT = Math.min(1, sealT + dt / 720);
         lastPlacedVoxels = forgeVoxels.length;
@@ -2297,7 +2298,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
       if (st.revealed && !interactive) {
         paintT = 1;
-      } else if (inForgeReveal) {
+      } else if (inForgeRevealPaint) {
         paintT = revealPaintT;
       } else if (st.revealed) {
         paintT = Math.min(1, paintT + (dt / 16.67) * 0.042);
@@ -2357,7 +2358,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         if (edgeLines) edgeLines.visible = true;
         group.scale.setScalar(1);
 
-        if (inForgeReveal) {
+        if (inForgeRevealPaint) {
           if (edgeLines) edgeLines.visible = false;
           if (!revealVisualBaked) {
             voxMesh.visible = false;
@@ -2655,8 +2656,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       }
       if (interactive) controls.update();
       const stillMoving = Math.abs(targetP - assembly) > 0.0008
-        || (paintT > 0 && paintT < 1 && !inForgeReveal);
-      if (isLiveForge || autoSpin || stillMoving || touchedMesh || dragging || st.revealed || inForgeReveal) {
+        || (paintT > 0 && paintT < 1 && !inForgeRevealPaint);
+      if (isLiveForge || autoSpin || stillMoving || touchedMesh || dragging || st.revealed || inForgeSequence) {
         draw(camera);
       }
     };
