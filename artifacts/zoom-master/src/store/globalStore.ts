@@ -157,6 +157,39 @@ export async function refreshDailyStatus() {
   } catch { /**/ }
 }
 
+/** Apply claim response immediately so UI can't flash stale streak state. */
+export function applyDailyClaimResult(payload: DailyStatus & { ok?: boolean }) {
+  const {
+    streakDay,
+    streakCycle,
+    lastClaimAt,
+    nextAvailableAt,
+    hardResetAt,
+    canClaim,
+    willHardReset,
+    upcomingDay,
+    upcomingReward,
+    cycleMultiplier,
+    rewardsPreview,
+  } = payload;
+  if (streakDay == null || upcomingDay == null) return;
+  set({
+    daily: {
+      streakDay,
+      streakCycle: streakCycle ?? 0,
+      lastClaimAt: lastClaimAt ?? Date.now(),
+      nextAvailableAt: nextAvailableAt ?? Date.now() + 86_400_000,
+      hardResetAt: hardResetAt ?? 0,
+      canClaim: !!canClaim,
+      willHardReset: !!willHardReset,
+      upcomingDay,
+      upcomingReward: upcomingReward ?? 1,
+      cycleMultiplier: cycleMultiplier ?? 1,
+      rewardsPreview: rewardsPreview ?? [],
+    },
+  });
+}
+
 /** Force a market listings refresh (used after a buy/sell). */
 export async function refreshMarketListings() {
   try {

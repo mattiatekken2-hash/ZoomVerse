@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { claimDailyReward, fetchTasksState, claimTask, type TasksState, redeemServerCode, claimWeeklyRedStar, fetchWeeklyRedStarStatus } from "../utils/api";
-import { useGlobalStore, refreshDailyStatus } from "../store/globalStore";
+import { useGlobalStore, refreshDailyStatus, applyDailyClaimResult } from "../store/globalStore";
 import { useT } from "../i18n/LanguageContext";
 import { CosmicChestIcon, SpaceTicketIcon, OrbitLinkIcon, SpeedBoltIcon } from "../components/icons/GameIcons";
 
@@ -111,6 +111,9 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
   const cyclePct = Math.round((1 + cycle * 0.01 - 1) * 10000) / 100;
   const rewardsPreview = daily?.rewardsPreview ?? DAILY_REWARDS_BASE;
   const currentDay = daily?.streakDay ?? 0;
+  const willHardReset = !!daily?.willHardReset;
+  const streakRestart = canClaim && (willHardReset || currentDay >= 7);
+  const displayDay = streakRestart ? 0 : currentDay;
   const upcomingDay = daily?.upcomingDay ?? 1;
   const upcomingReward = daily?.upcomingReward ?? DAILY_REWARDS_BASE[0];
 
@@ -120,6 +123,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
     const res = await claimDailyReward(telegramId, firstName ?? undefined);
     setClaiming(false);
     if (res.ok && res.reward) {
+      applyDailyClaimResult(res as Parameters<typeof applyDailyClaimResult>[0]);
       setClaimMsg(t("earn.stardustDay", { n: res.reward.toLocaleString(), d: res.day ?? 0 }));
       window.dispatchEvent(new Event("zoom-data-refresh"));
       await refreshDailyStatus();
@@ -479,10 +483,23 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             </div>
           </div>
 
+          {streakRestart && (
+            <div
+              className="mb-3 rounded-xl px-3 py-2 text-[11px] font-bold text-center border"
+              style={{
+                color: "#ffb347",
+                background: "rgba(255,179,71,0.08)",
+                borderColor: "rgba(255,179,71,0.22)",
+              }}
+            >
+              {willHardReset ? t("earn.streakExpiredReset") : t("earn.streakWeekComplete")}
+            </div>
+          )}
+
           <div className="grid grid-cols-7 gap-1.5 mb-3">
             {rewardsPreview.map((amt, i) => {
               const dayNum = i + 1;
-              const isClaimed = dayNum <= currentDay;
+              const isClaimed = dayNum <= displayDay;
               const isNext = dayNum === upcomingDay && canClaim;
               const isMega = dayNum === 7;
               return (

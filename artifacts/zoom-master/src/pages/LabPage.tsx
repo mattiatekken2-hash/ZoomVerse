@@ -250,7 +250,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
         <div
           className="absolute left-0 right-0 z-30 flex items-center justify-center gap-2 px-3 pointer-events-none"
-          style={{ top: "max(58px, calc(env(safe-area-inset-top, 0px) + 52px))" }}
+          style={{ top: "max(68px, calc(env(safe-area-inset-top, 0px) + 62px))" }}
         >
           <div className="pointer-events-auto flex-shrink-0">
             <SettingsMenu muted={muted} setMuted={setMuted ?? (() => {})} headerButton />

@@ -1,6 +1,10 @@
 import { memo, useEffect, useState } from "react";
 import { LANGS, useT } from "../i18n/LanguageContext";
 
+const CYAN = "#9EC5E8";
+const CYAN_BORDER = "rgba(158,197,232,0.35)";
+const CYAN_GLOW = "rgba(158,197,232,0.15)";
+
 interface SettingsMenuProps {
   muted: boolean;
   setMuted: (next: boolean | ((prev: boolean) => boolean)) => void;
@@ -73,7 +77,7 @@ export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted, header
           strokeLinecap="round"
           strokeLinejoin="round"
           style={{
-            filter: "drop-shadow(0 0 4px rgba(255,51,85,0.45))",
+            filter: "drop-shadow(0 0 4px rgba(158,197,232,0.45))",
           }}
         >
           <circle cx="12" cy="12" r="3" />
@@ -99,7 +103,7 @@ export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted, header
             data-testid="settings-modal"
             style={{
               background: "linear-gradient(180deg, rgba(14,18,36,0.98), rgba(8,10,22,0.98))",
-              border: "1px solid rgba(255,51,85,0.3)",
+              border: `1px solid ${CYAN_BORDER}`,
               borderRadius: 16,
               padding: 18,
               width: "100%",
@@ -107,7 +111,7 @@ export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted, header
               display: "flex",
               flexDirection: "column",
               gap: 14,
-              boxShadow: "0 0 30px rgba(255,51,85,0.15)",
+              boxShadow: `0 0 30px ${CYAN_GLOW}`,
             }}
           >
             {/* Title */}
@@ -159,8 +163,8 @@ export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted, header
                         gap: 8,
                         padding: "10px 12px",
                         borderRadius: 12,
-                        border: active ? "1.5px solid #ff3355" : "1px solid rgba(255,255,255,0.08)",
-                        background: active ? "rgba(255,51,85,0.10)" : "rgba(255,255,255,0.03)",
+                        border: active ? `1.5px solid ${CYAN}` : "1px solid rgba(255,255,255,0.08)",
+                        background: active ? "rgba(158,197,232,0.10)" : "rgba(255,255,255,0.03)",
                         color: "#fff",
                         fontSize: 13,
                         fontWeight: 700,
@@ -232,9 +236,9 @@ export const SettingsMenu = memo(function SettingsMenu({ muted, setMuted, header
                     width: 38,
                     height: 22,
                     borderRadius: 999,
-                    background: muted ? "rgba(255,255,255,0.10)" : "#ff3355",
+                    background: muted ? "rgba(255,255,255,0.10)" : CYAN,
                     transition: "background 160ms",
-                    boxShadow: muted ? "none" : "0 0 12px rgba(255,51,85,0.55)",
+                    boxShadow: muted ? "none" : "0 0 12px rgba(158,197,232,0.55)",
                   }}
                 >
                   <span

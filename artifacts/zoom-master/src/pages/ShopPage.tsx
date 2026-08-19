@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
-import { createStarsInvoice, confirmStarsPurchase, buyShopItemFromDeposit, buyShopItemFromStardust, fetchSunStock, pollTxnUntilFinal, fetchHomeState, buyComputer, buyPlantSeed, fetchSlotPrice, fetchStardustMarketPrice, type SunStock, type HomeState, type SlotPriceInfo } from "../utils/api";
+import { createStarsInvoice, confirmStarsPurchase, buyShopItemFromStardust, fetchSunStock, pollTxnUntilFinal, fetchHomeState, buyComputer, buyPlantSeed, fetchSlotPrice, fetchStardustMarketPrice, type SunStock, type HomeState, type SlotPriceInfo } from "../utils/api";
 import { stardustShopPrice } from "../utils/stardustMarket";
 import { PixelPlant } from "../components/PixelPlant";
 import { useT } from "../i18n/LanguageContext";
@@ -13,6 +12,16 @@ import { LabRankWidget } from "../components/LabRankWidget";
 import { ExchangeWidget } from "../components/ExchangeWidget";
 import { StellaRossaCollectionWidget } from "../components/StellaRossaCollectionWidget";
 import { ZoomStoreWidget } from "../components/ZoomStoreWidget";
+
+const CYAN = "#9EC5E8";
+const SHOP_TABS = [
+  { id: "exclusive" as const, label: "Exclusive", short: "EXCL.", color: "#ffb347", icon: "☀" },
+  { id: "bundles" as const, label: "Bundles", short: "PACK", color: CYAN, icon: "◈" },
+  { id: "items" as const, label: "Items", short: "ITEM", color: "#c471ed", icon: "◇" },
+  { id: "resources" as const, label: "Stardust", short: "RES.", color: "#ffd740", icon: "★" },
+  { id: "lab" as const, label: "Lab", short: "LAB", color: "#a855f7", icon: "⚗" },
+  { id: "hub" as const, label: "Hub", short: "HUB", color: "#00d4ff", icon: "◎" },
+];
 
 interface ShopItem {
   id: string;
@@ -106,11 +115,9 @@ export function ShopPage({
   onStellaClaimDaily,
 }: ShopPageProps) {
   const { t } = useT();
-  const [tonConnectUI] = useTonConnectUI();
-  const connectedAddress = useTonAddress();
   const [buying, setBuying] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [payMode, setPayMode] = useState<"stars" | "ton" | "stardust">("stars");
+  const [payMode, setPayMode] = useState<"stars" | "stardust">("stars");
   const [stardustIndex, setStardustIndex] = useState(1);
   const [liveStardustBalance, setLiveStardustBalance] = useState(stardustBalanceProp);
   const [sunStock, setSunStock] = useState<SunStock | null>(null);
@@ -303,40 +310,12 @@ export function ShopPage({
     }
   };
 
-  // TON purchases are paid from the user's in-game DEPOSIT balance (credited
-  // by external TonConnect deposits via the TON Wallet widget). No on-chain
-  // signature per item — one deposit, many shop purchases.
-  const handleTonBuy = async (item: ShopItem) => {
-    if (!telegramId) { setMessage("Telegram ID missing"); return; }
-
-    // Dynamic price for extra_slot (server is the source of truth; this is
-    // just for the client-side balance gate — the endpoint re-derives it).
-    const effectiveTonPrice = item.id === "extra_slot"
-      ? (slotPrice?.nextPriceTon ?? item.tonPrice)
-      : item.tonPrice;
-
-    if (depositBalance < effectiveTonPrice) {
-      setMessage(`Insufficient deposit balance (${effectiveTonPrice} GRAM). Deposit GRAM from your wallet to buy.`);
-      return;
-    }
-
-    setBuying(item.id);
-    const res = await buyShopItemFromDeposit(telegramId, item.id);
-    setBuying(null);
-    if (res.ok) {
-      setMessage(`${item.title} purchased!`);
-      triggerDataRefresh();
-      if (item.id === "extra_slot") refreshSlotPrice();
-    } else {
-      setMessage(res.error || "Purchase failed");
-    }
-  };
-
+  // TON purchases removed — shop accepts Telegram Stars or in-game STARDUST.
   const handleStardustBuy = async (item: ShopItem) => {
     if (!telegramId) { setMessage("Telegram ID missing"); return; }
     const cost = stardustPriceForItem(item);
     if (liveStardustBalance < cost) {
-      setMessage(`Insufficient STARDUST (need ${cost.toLocaleString()} ★). Wallet → STARDUST → convert GRAM.`);
+      setMessage(`Insufficient STARDUST (need ${cost.toLocaleString()} ★). Earn stardust in Lab or buy a top-up below.`);
       return;
     }
     setBuying(item.id);
@@ -355,26 +334,19 @@ export function ShopPage({
 
   const purchaseItem = async (item: ShopItem) => {
     if (payMode === "stars") await handleStarsBuy(item);
-    else if (payMode === "ton") await handleTonBuy(item);
     else await handleStardustBuy(item);
   };
 
-  const payColor = payMode === "stars" ? "#ffd700" : payMode === "ton" ? "#0088ff" : "#ffd740";
+  const payColor = payMode === "stars" ? "#ffd700" : "#ffd740";
   const formatItemPrice = (item: ShopItem) => {
-    if (payMode === "stars") return `⭐ ${item.starsPrice}`;
-    if (payMode === "ton") return `${gramPriceForItem(item)}`;
+    if (payMode === "stars") return `⭐ ${item.starsPrice.toLocaleString()}`;
     return `★ ${stardustPriceForItem(item).toLocaleString()}`;
   };
   const formatBuyLabel = (item: ShopItem) => {
-    if (payMode === "stars") return `BUY — ⭐ ${item.starsPrice}`;
-    if (payMode === "ton") return `BUY — ${gramPriceForItem(item)} GRAM`;
+    if (payMode === "stars") return `BUY — ⭐ ${item.starsPrice.toLocaleString()}`;
     return `BUY — ★ ${stardustPriceForItem(item).toLocaleString()}`;
   };
-  const priceUnit = payMode === "stars" ? "Stars" : payMode === "ton" ? "GRAM" : "STARDUST";
-
-  const handleConnectWallet = () => {
-    tonConnectUI.openModal();
-  };
+  const priceUnit = payMode === "stars" ? "Stars" : "Stardust";
 
   // ─── COMPUTER (stardust-priced item that lives in the HOME) ──────────
   // Independent of the Stars/TON pay mode toggle above — this is the only
@@ -431,107 +403,98 @@ export function ShopPage({
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden relative">
+    <div className="flex flex-col h-full overflow-hidden relative" style={{ background: "linear-gradient(180deg, #060810 0%, #0a0e18 100%)" }}>
       {message && (
         <div
-          className="absolute top-2 left-4 right-4 z-50 py-2 px-4 rounded-xl text-sm font-bold text-center"
+          className="absolute top-3 left-4 right-4 z-50 py-2.5 px-4 rounded-xl text-sm font-bold text-center border"
+          style={{
+            color: CYAN,
+            background: "rgba(158,197,232,0.10)",
+            borderColor: "rgba(158,197,232,0.25)",
+            backdropFilter: "blur(12px)",
+          }}
         >
           {message}
         </div>
       )}
 
-      <div className="flex-shrink-0 px-4 py-3" style={{ background: "rgba(6,8,16,0.95)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        <div className="flex items-center gap-2 mb-3">
-          <div className="font-black text-sm tracking-widest neon-text">SHOP</div>
-          <div className="flex-1" />
-          {connectedAddress ? (
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full" style={{ background: "#00e676", boxShadow: "0 0 6px #00e676" }} />
-              <span className="text-xs font-mono" style={{ color: "rgba(255,255,255,0.5)" }}>
-                {connectedAddress.slice(0, 6)}...{connectedAddress.slice(-4)}
-              </span>
+      <div
+        className="flex-shrink-0 px-4 pt-4 pb-3"
+        style={{ borderBottom: "1px solid rgba(158,197,232,0.12)", background: "rgba(6,8,16,0.92)" }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="font-black text-lg tracking-widest" style={{ color: CYAN, textShadow: "0 0 12px rgba(158,197,232,0.35)" }}>
+              SHOP
             </div>
-          ) : (
-            <button
-              onClick={handleConnectWallet}
-              className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95"
-              style={{ background: "rgba(0,136,255,0.15)", color: "#0088ff", border: "1px solid rgba(0,136,255,0.3)" }}
-            >
-              Connect Wallet
-            </button>
-          )}
+            <div className="text-[10px] font-bold tracking-wider mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
+              Stars or in-game Stardust
+            </div>
+          </div>
+          <div
+            className="px-3 py-1.5 rounded-full text-xs font-black border"
+            style={{
+              color: "#ffd740",
+              background: "rgba(255,215,64,0.08)",
+              borderColor: "rgba(255,215,64,0.22)",
+            }}
+          >
+            ★ {liveStardustBalance.toLocaleString()}
+          </div>
         </div>
 
-        <div className="flex gap-1 p-0.5 rounded-lg" style={{ background: "rgba(255,255,255,0.04)" }}>
+        <div className="flex gap-2 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(158,197,232,0.10)" }}>
           <button
             onClick={() => setPayMode("stars")}
-            className="flex-1 py-2 rounded-md text-xs font-bold tracking-wider transition-all"
+            className="flex-1 py-2.5 rounded-lg text-xs font-black tracking-wider transition-all active:scale-[0.98]"
             style={{
-              background: payMode === "stars" ? "rgba(255,215,0,0.15)" : "transparent",
-              color: payMode === "stars" ? "#ffd700" : "rgba(255,255,255,0.3)",
-              border: payMode === "stars" ? "1px solid rgba(255,215,0,0.25)" : "1px solid transparent",
+              background: payMode === "stars" ? "linear-gradient(135deg, rgba(255,215,0,0.22), rgba(255,179,71,0.12))" : "transparent",
+              color: payMode === "stars" ? "#ffd700" : "rgba(255,255,255,0.35)",
+              border: payMode === "stars" ? "1px solid rgba(255,215,0,0.30)" : "1px solid transparent",
+              boxShadow: payMode === "stars" ? "0 0 14px rgba(255,215,0,0.12)" : "none",
             }}
           >
-            STARS
-          </button>
-          <button
-            onClick={() => setPayMode("ton")}
-            className="flex-1 py-2 rounded-md text-xs font-bold tracking-wider transition-all"
-            style={{
-              background: payMode === "ton" ? "rgba(0,136,255,0.15)" : "transparent",
-              color: payMode === "ton" ? "#0088ff" : "rgba(255,255,255,0.3)",
-              border: payMode === "ton" ? "1px solid rgba(0,136,255,0.25)" : "1px solid transparent",
-            }}
-          >
-            GRAM
+            ⭐ TELEGRAM STARS
           </button>
           <button
             onClick={() => setPayMode("stardust")}
-            className="flex-1 py-2 rounded-md text-xs font-bold tracking-wider transition-all"
+            className="flex-1 py-2.5 rounded-lg text-xs font-black tracking-wider transition-all active:scale-[0.98]"
             style={{
-              background: payMode === "stardust" ? "rgba(255,215,64,0.15)" : "transparent",
-              color: payMode === "stardust" ? "#ffd740" : "rgba(255,255,255,0.3)",
+              background: payMode === "stardust" ? "linear-gradient(135deg, rgba(255,215,64,0.20), rgba(158,197,232,0.08))" : "transparent",
+              color: payMode === "stardust" ? "#ffd740" : "rgba(255,255,255,0.35)",
               border: payMode === "stardust" ? "1px solid rgba(255,215,64,0.28)" : "1px solid transparent",
+              boxShadow: payMode === "stardust" ? "0 0 14px rgba(255,215,64,0.10)" : "none",
             }}
           >
             ★ STARDUST
           </button>
         </div>
         {payMode === "stardust" && (
-          <div className="mt-2 text-[10px] font-bold text-center" style={{ color: "rgba(255,215,64,0.55)" }}>
-            Balance {liveStardustBalance.toLocaleString()} ★ · Index {stardustIndex.toFixed(3)} · convert GRAM in Wallet
+          <div className="mt-2 text-[10px] font-bold text-center" style={{ color: "rgba(158,197,232,0.55)" }}>
+            Index {stardustIndex.toFixed(3)} · prices scale with the market
           </div>
         )}
       </div>
 
-      {/* Shop category tabs — Exclusive / Items / Resources.
-          Sticky sotto l'header pay-mode così la categoria attiva è
-          sempre visibile mentre lo shop scrolla. */}
-      <div className="px-4 pb-3" style={{ background: "rgba(6,8,16,0.4)" }}>
-        <div className="flex gap-1 p-0.5 rounded-lg" style={{ background: "rgba(255,255,255,0.04)" }}>
-          {([
-            { id: "exclusive", label: "EXCL.", color: "#ffb347" },
-            { id: "bundles", label: "BUNDLES", color: "#ff3355" },
-            { id: "lab", label: "LAB", color: "#a855f7" },
-            { id: "hub", label: "HUB", color: "#00d4ff" },
-            { id: "items", label: "ITEMS", color: "#c471ed" },
-            { id: "resources", label: "RES.", color: "#ffd740" },
-          ] as const).map(tab => {
+      <div className="flex-shrink-0 px-4 py-3 overflow-x-auto" style={{ background: "rgba(6,8,16,0.55)" }}>
+        <div className="flex gap-2 min-w-max">
+          {SHOP_TABS.map((tab) => {
             const active = shopTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setShopTab(tab.id)}
-                className="flex-1 py-2 rounded-md text-xs font-black tracking-wider transition-all"
+                className="px-3 py-2 rounded-xl text-[11px] font-black tracking-wider transition-all active:scale-95 flex items-center gap-1.5"
                 style={{
-                  background: active ? `${tab.color}20` : "transparent",
-                  color: active ? tab.color : "rgba(255,255,255,0.35)",
-                  border: active ? `1px solid ${tab.color}45` : "1px solid transparent",
-                  textShadow: active ? `0 0 8px ${tab.color}80` : "none",
+                  background: active ? `${tab.color}18` : "rgba(255,255,255,0.03)",
+                  color: active ? tab.color : "rgba(255,255,255,0.40)",
+                  border: active ? `1px solid ${tab.color}55` : "1px solid rgba(255,255,255,0.06)",
+                  boxShadow: active ? `0 0 16px ${tab.color}22` : "none",
                 }}
                 data-testid={`tab-shop-${tab.id}`}
               >
-                {tab.label}
+                <span style={{ fontSize: 13, lineHeight: 1 }}>{tab.icon}</span>
+                <span>{tab.short}</span>
               </button>
             );
           })}
@@ -573,7 +536,7 @@ export function ShopPage({
                 if (sunDisabled) return;
                 const sunItem: ShopItem = { id: "the_sun", title: "SUN", desc: "Exclusive", starsPrice: 1000, tonPrice: 10, color: "#ffb347", icon: "☀", type: "sun" };
                 if (payMode === "stars") await handleStarsBuy(sunItem);
-                else await purchaseItem(sunItem);
+                else await handleStardustBuy(sunItem);
                 refreshSunStock();
               }}
               disabled={sunDisabled || buying === "the_sun"}
@@ -674,9 +637,7 @@ export function ShopPage({
                     : buying === col.id
                     ? "Processing..."
                     : payMode === "stars"
-                    ? `BUY — ⭐ ${col.priceStars.toLocaleString()} Stars`
-                    : payMode === "ton"
-                    ? `BUY — ${col.priceTon} GRAM`
+                    ? `BUY — ⭐ ${col.priceStars.toLocaleString()}`
                     : `BUY — ★ ${stardustShopPrice(col.priceTon, stardustIndex).toLocaleString()}`}
                 </button>
               </div>
@@ -919,17 +880,15 @@ export function ShopPage({
                 <div style={{ borderTop: `1px solid ${item.color}15` }}>
                   <button
                     onClick={() => { void purchaseItem(slotShopItem); }}
-                    disabled={buying === item.id || !slotPrice || payMode === "stars"}
+                    disabled={buying === item.id || !slotPrice}
                     className="w-full py-3 font-black text-sm tracking-wider uppercase transition-all active:scale-95"
                     style={{
                       background: item.color + "10",
                       color: item.color,
-                      opacity: buying === item.id || !slotPrice || payMode === "stars" ? 0.6 : 1,
+                      opacity: buying === item.id || !slotPrice ? 0.6 : 1,
                     }}
                   >
-                    {payMode === "stars"
-                      ? "GRAM or STARDUST only"
-                      : buying === item.id
+                    {buying === item.id
                       ? "Processing..."
                       : !slotPrice
                       ? "Loading..."

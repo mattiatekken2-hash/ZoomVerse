@@ -96,13 +96,13 @@ export default function HistoryModal({ telegramId, onClose }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="history-modal-title"
-        className="w-full sm:max-w-md bg-[#0b0b18] border border-[rgba(196,113,237,0.55)] rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+        className="w-full sm:max-w-md bg-[#0b0b18] border border-[rgba(158,197,232,0.55)] rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col"
         style={{ maxHeight: "85vh" }}
         onClick={(e) => e.stopPropagation()}
         data-testid="history-modal"
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-          <div id="history-modal-title" className="font-black text-base tracking-widest neon-text">
+          <div id="history-modal-title" className="font-black text-base tracking-widest" style={{ color: "#9EC5E8", textShadow: "0 0 10px rgba(158,197,232,0.45)" }}>
             {t("history.title")}
           </div>
           <button
