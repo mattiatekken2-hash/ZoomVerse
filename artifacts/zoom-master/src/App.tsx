@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { AvatarXP } from "./components/AvatarXP";
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
 import { BlackPlanetOrbStyles } from "./components/BlackPlanetOrb";
@@ -27,7 +27,6 @@ import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
 import { prefetchCombo } from "./utils/comboCache";
 import { initVersionCheck } from "./utils/appVersion";
-import { SPLASH_MS } from "./utils/bootSplash";
 
 const MAINTENANCE_ADMIN_IDS = ["8144744644", "@zoom0100", "zoom0100"];
 
@@ -63,11 +62,41 @@ const NAV: { id: Tab; labelKey: string; icon: LucideIcon }[] = [
 
 const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "rank", "shop", "wallet"];
 
+function getEarlyTelegramId(): string | null {
+  try {
+    const id = (window as unknown as {
+      Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number } } } };
+    }).Telegram?.WebApp?.initDataUnsafe?.user?.id;
+    return id != null ? String(id) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Splash gate — Lab and heavy hooks mount only after the 2s overlay completes. */
+function BootSplashGate() {
+  const { t } = useT();
+  const skipSplash =
+    isMaintenanceAdmin(getEarlyTelegramId()) || !!readMaintCache()?.enabled;
+  const [splashDone, setSplashDone] = useState(skipSplash);
+
+  const finishSplash = useCallback(() => {
+    setSplashDone(true);
+    hideHtmlSplash();
+  }, []);
+
+  if (!splashDone) {
+    return <BootSplashOverlay subtitle={t("splash.subtitle")} onComplete={finishSplash} />;
+  }
+
+  return <AppShellWithState />;
+}
+
 export default function App() {
   return (
     <LanguageProvider>
       <BlackPlanetOrbStyles />
-      <AppShellWithState />
+      <BootSplashGate />
     </LanguageProvider>
   );
 }
@@ -342,28 +371,14 @@ function AppShellWithState() {
   }, []);
   const isAdmin = isMaintenanceAdmin(state.telegramId);
   const showMaintenance = maintenance.enabled && !isAdmin;
-  const [splashDone, setSplashDone] = useState(isAdmin);
-
-  const showBootSplash = !isAdmin && !splashDone;
 
   useEffect(() => {
     void fetchTonPrice();
   }, []);
 
-  // Simple fixed splash: exactly SPLASH_MS once the app shell is ready, then Lab.
   useEffect(() => {
-    if (isAdmin || splashDone) return;
-    const timer = window.setTimeout(() => {
-      setSplashDone(true);
-      hideHtmlSplash();
-    }, SPLASH_MS);
-    return () => window.clearTimeout(timer);
-  }, [isAdmin, splashDone]);
-
-  useEffect(() => {
-    if (showBootSplash) return;
     initVersionCheck();
-  }, [showBootSplash]);
+  }, []);
 
   useEffect(() => {
     if (!state.telegramId) return;
@@ -371,20 +386,20 @@ function AppShellWithState() {
   }, [state.telegramId]);
 
   useEffect(() => {
-    if (!state.telegramId || showBootSplash) return;
+    if (!state.telegramId) return;
     void prefetchShopData(state.telegramId);
-  }, [state.telegramId, showBootSplash]);
+  }, [state.telegramId]);
 
   // Pause CSS animations when backgrounded or when a non-Lab tab is active.
   useEffect(() => {
     const syncPause = () => {
-      const pause = document.visibilityState === "hidden" || showBootSplash || tab !== "lab";
+      const pause = document.visibilityState === "hidden" || tab !== "lab";
       document.body.classList.toggle("animations-paused", pause);
     };
     syncPause();
     document.addEventListener("visibilitychange", syncPause);
     return () => document.removeEventListener("visibilitychange", syncPause);
-  }, [showBootSplash, tab]);
+  }, [tab]);
 
   const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
   const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate * Math.max(1, state.sunCount || 1) : 0;
@@ -720,10 +735,8 @@ function AppShellWithState() {
     );
   }
 
-  // Maintenance poll runs in background; boot splash is time-based only.
   return (
     <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
-      {showBootSplash && <BootSplashOverlay subtitle={t("splash.subtitle")} />}
       <div
         className="flex flex-col overflow-hidden relative"
         style={{
@@ -731,11 +744,6 @@ function AppShellWithState() {
           background: "#000000",
           paddingTop: tab === "lab" ? 0 : "env(safe-area-inset-top, 0px)",
           paddingBottom: tab === "lab" ? 0 : "env(safe-area-inset-bottom, 0px)",
-          opacity: showBootSplash ? 0 : 1,
-          visibility: showBootSplash ? "hidden" : "visible",
-          display: showBootSplash ? "none" : "flex",
-          pointerEvents: showBootSplash ? "none" : "auto",
-          transition: showBootSplash ? "none" : "opacity 0.35s ease",
         }}
       >
       {tab !== "lab" && <NebulaBackground />}
@@ -1393,6 +1401,7 @@ function AppShellWithState() {
     </TonConnectUIProvider>
   );
 }
+
 
 function StardustInfoPopup({ balance, today, dailyCap, globalTotal, onClose }: {
   balance: number;

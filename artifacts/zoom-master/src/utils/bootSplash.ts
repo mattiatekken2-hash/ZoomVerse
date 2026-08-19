@@ -1,2 +1,2 @@
-/** Fixed splash duration once the app shell is ready. */
-export const SPLASH_MS = 2500;
+/** Fixed splash duration once the React overlay mounts. */
+export const SPLASH_MS = 2000;
