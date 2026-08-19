@@ -125,6 +125,12 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
     if (res.ok && res.reward) {
       applyDailyClaimResult(res as Parameters<typeof applyDailyClaimResult>[0]);
       setClaimMsg(t("earn.stardustDay", { n: res.reward.toLocaleString(), d: res.day ?? 0 }));
+      if (typeof res.stardustBalance === "number" && typeof res.balanceEpoch === "number") {
+        window.dispatchEvent(new CustomEvent("zoom-server-stardust-snap", {
+          detail: { stardustBalance: res.stardustBalance, epoch: res.balanceEpoch },
+        }));
+      }
+      window.dispatchEvent(new Event("stardust-refresh"));
       window.dispatchEvent(new Event("zoom-data-refresh"));
       await refreshDailyStatus();
       setTimeout(() => setClaimMsg(null), 3500);

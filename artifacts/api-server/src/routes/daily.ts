@@ -126,18 +126,31 @@ router.post("/daily/claim", async (req, res) => {
 
     const reward = rewardForDay(newDay - 1);
 
-    await db
+    const [updated] = await db
       .update(usersTable)
       .set({
         dailyStreakDay: newDay,
         dailyStreakCycle: 0,
         lastDailyClaimAt: new Date(now),
         stardustBalance: sql`${usersTable.stardustBalance} + ${reward}`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
-      .where(eq(usersTable.telegramId, telegramId));
+      .where(eq(usersTable.telegramId, telegramId))
+      .returning({
+        stardustBalance: usersTable.stardustBalance,
+        balanceEpoch: usersTable.balanceEpoch,
+      });
 
     const status = computeStatus(new Date(now), newDay);
-    res.json({ ok: true, reward, day: newDay, cycle: 0, ...status });
+    res.json({
+      ok: true,
+      reward,
+      day: newDay,
+      cycle: 0,
+      stardustBalance: updated?.stardustBalance ?? 0,
+      balanceEpoch: updated?.balanceEpoch ?? 0,
+      ...status,
+    });
     recordHistoryAsync({
       telegramId,
       kind: "daily_claim",
