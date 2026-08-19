@@ -21,13 +21,13 @@ import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, type
 import { useStardust } from "./hooks/useStardust";
 import { FlaskConical, Home, Sprout, ShoppingCart, Gem, Trophy, Wallet, type LucideIcon } from "lucide-react";
 import { WalletPage } from "./pages/WalletPage";
-import { hideHtmlSplash } from "./components/SplashScreen";
+import { hideHtmlSplash, BootSplashOverlay } from "./components/SplashScreen";
 import { isBrowserDevSession } from "./utils/telegram";
 import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
 import { initVersionCheck } from "./utils/appVersion";
 
-const SPLASH_MIN_MS = 2000;
+const SPLASH_MIN_MS = 2800;
 /** Hard cap — never keep users on splash longer than this. */
 const SPLASH_MAX_MS = 5000;
 
@@ -727,7 +727,7 @@ function AppShellWithState() {
   // Maintenance poll runs in background; boot splash is time-based only.
   return (
     <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
-      {showBootSplash && null}
+      {showBootSplash && <BootSplashOverlay subtitle={t("splash.loading")} />}
       <div
         className="flex flex-col overflow-hidden relative"
         style={{
@@ -735,7 +735,7 @@ function AppShellWithState() {
           background: "#000000",
           paddingTop: tab === "lab" ? 0 : "env(safe-area-inset-top, 0px)",
           paddingBottom: tab === "lab" ? 0 : "env(safe-area-inset-bottom, 0px)",
-          visibility: showBootSplash ? "hidden" : "visible",
+          opacity: showBootSplash ? 0 : 1,
           pointerEvents: showBootSplash ? "none" : "auto",
         }}
       >

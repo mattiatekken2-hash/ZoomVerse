@@ -328,7 +328,7 @@ export function FarmPage({
               boxShadow: stakingOpen ? "0 0 14px rgba(255,215,64,0.22)" : "none",
             }}
           >
-            STAKING
+            {t("farm.staking")}
           </button>
           {/* COLLECTION teaser button.
               Visually disabled (greyscale + reduced opacity) to signal
@@ -355,7 +355,7 @@ export function FarmPage({
               boxShadow: collectionOpen ? "0 0 14px rgba(15,217,255,0.22)" : "none",
             }}
           >
-            COLLECTION
+            {t("farm.collection")}
           </button>
         </div>
       </div>
