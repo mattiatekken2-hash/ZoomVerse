@@ -1,6 +1,6 @@
 import { useMemo, useEffect, useState, useCallback } from "react";
 import { Lock } from "lucide-react";
-import { GramWalletPanel, GramWalletIcon, type TonWalletProps } from "../components/TonWalletWidget";
+import { GramWalletPanel, GramWalletIcon, GramWalletConnectButton, type TonWalletProps } from "../components/TonWalletWidget";
 import { StardustMarketModal } from "../components/StardustMarketModal";
 import { GramChartModal } from "../components/GramChartModal";
 
@@ -108,36 +108,13 @@ export function WalletPage({
       className="flex flex-col overflow-y-auto"
       style={{ height: "100%", padding: "12px 14px 28px", gap: 14 }}
     >
-      {/* ── PAGE TITLE ── */}
-      <div className="text-center">
-        <div
-          style={{
-            fontSize: 10,
-            fontWeight: 800,
-            letterSpacing: "0.22em",
-            textTransform: "uppercase",
-            color: "rgba(255,255,255,0.28)",
-          }}
-        >
-          MY WALLET
-        </div>
+      {/* ── CONNECT WALLET (Telegram / TonConnect) ── */}
+      <div className="flex justify-center pt-1 pb-1">
+        <GramWalletConnectButton />
       </div>
 
-      {/* ── DEPOSIT / WITHDRAW (first — visible immediately) ── */}
-      <div>
-        <div
-          style={{
-            fontSize: 9,
-            fontWeight: 800,
-            letterSpacing: "0.22em",
-            textTransform: "uppercase",
-            color: "rgba(255,255,255,0.28)",
-            marginBottom: 8,
-          }}
-        >
-          Deposit &amp; Withdraw
-        </div>
-        <GramWalletPanel
+      {/* ── DEPOSIT / WITHDRAW — round action orbs ── */}
+      <GramWalletPanel
           tonBalance={tonBalance}
           depositBalance={depositBalance}
           telegramId={telegramId}
@@ -150,8 +127,7 @@ export function WalletPage({
           earthPlanets={earthPlanets}
           blackPlanets={blackPlanets}
           supernovaPlanets={supernovaPlanets}
-        />
-      </div>
+      />
 
       {/* ── MAIN BALANCE: GRAM ── */}
       <button
@@ -182,30 +158,40 @@ export function WalletPage({
           GRAM BALANCE
         </div>
 
-        {/* Amount row */}
-        <div className="flex items-end justify-between" style={{ gap: 8 }}>
-          <div>
+        {/* Amount row — grid keeps GRAM and USDT from overlapping */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1fr) auto",
+            gap: 14,
+            alignItems: "end",
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
             <div
               style={{
-                fontSize: 38,
+                fontSize: tonBalance >= 1000 ? 28 : 34,
                 fontWeight: 900,
                 color: "#00f2b4",
-                lineHeight: 1,
+                lineHeight: 1.1,
                 fontVariantNumeric: "tabular-nums",
                 textShadow: "0 0 24px rgba(0,242,180,0.50)",
                 letterSpacing: "-0.02em",
                 display: "flex",
                 alignItems: "center",
-                gap: 10,
+                gap: 8,
+                flexWrap: "nowrap",
+                overflow: "hidden",
               }}
             >
-              <GramWalletIcon size={34} />
-              {tonBalance.toFixed(4)}
+              <GramWalletIcon size={tonBalance >= 1000 ? 28 : 32} />
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {tonBalance.toFixed(4)}
+              </span>
             </div>
           </div>
 
-          {/* USDT estimate */}
-          <div style={{ textAlign: "right", flexShrink: 0 }}>
+          <div style={{ textAlign: "right", flexShrink: 0, paddingBottom: 2 }}>
             <div
               style={{
                 fontSize: 9,
@@ -220,13 +206,12 @@ export function WalletPage({
             </div>
             <div
               style={{
-                fontSize: 22,
+                fontSize: 18,
                 fontWeight: 900,
                 color: priceLoading ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.65)",
                 fontVariantNumeric: "tabular-nums",
                 letterSpacing: "-0.01em",
-                minWidth: 70,
-                textAlign: "right",
+                whiteSpace: "nowrap",
               }}
             >
               {priceLoading
