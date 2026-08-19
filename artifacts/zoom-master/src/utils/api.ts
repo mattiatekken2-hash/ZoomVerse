@@ -2637,7 +2637,7 @@ export async function fetchDailyStatus(telegramId: string): Promise<DailyStatus 
   } catch { return null; }
 }
 
-export async function claimDailyReward(telegramId: string, firstName?: string): Promise<{ ok: boolean; reward?: number; day?: number; cycle?: number; error?: string }> {
+export async function claimDailyReward(telegramId: string, firstName?: string): Promise<{ ok: boolean; reward?: number; day?: number; cycle?: number; error?: string } & Partial<DailyStatus>> {
   try {
     const res = await fetch(`${API_BASE}/daily/claim`, {
       method: "POST",

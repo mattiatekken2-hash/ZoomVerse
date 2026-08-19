@@ -111,14 +111,17 @@ router.post("/daily/claim", async (req, res) => {
       return;
     }
 
+    const prevDay = Math.max(0, Math.min(7, Number(u.day) || 0));
     let newDay: number;
 
     if (!lastMs || now >= hardResetAt) {
+      // Missed the 24h claim window after reward became available.
       newDay = 1;
-    } else if (u.day >= 7) {
+    } else if (prevDay >= 7) {
+      // Completed the 7-day loop — start fresh.
       newDay = 1;
     } else {
-      newDay = u.day + 1;
+      newDay = prevDay + 1;
     }
 
     const reward = rewardForDay(newDay - 1);

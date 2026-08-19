@@ -90,6 +90,9 @@ const en: Dict = {
   "history.kind.computer_buy": "Computer bought",
   "history.kind.computer_claim": "Computer claimed",
   "history.kind.craft_planet": "Planet forged",
+  "history.kind.stardust_convert": "Stardust converted",
+  "history.kind.stardust_convert_out": "Stardust sent to pool",
+  "history.kind.gram_convert_in": "GRAM received from pool",
 
   // maintenance
   "maint.title": "UNDER MAINTENANCE",
@@ -448,6 +451,8 @@ const en: Dict = {
   "earn.claimDayStardust": "CLAIM DAY {n} — +{r} ★ STARDUST",
   "earn.nextIn": "NEXT IN {h}h {m}m {s}s",
   "earn.streakResetHint": "Miss 24h after available → streak resets to Day 1",
+  "earn.streakExpiredReset": "Claim window expired — streak restarts at Day 1",
+  "earn.streakWeekComplete": "7-day loop complete — claim to start a new week",
   "earn.redeemCode": "Redeem Code",
   "earn.redeemHint": "Enter a promo or SUN code (SUN-****) to claim instant rewards",
   "earn.go": "GO",
@@ -608,6 +613,9 @@ const it: Dict = {
   "history.kind.computer_buy": "Computer acquistato",
   "history.kind.computer_claim": "Riscossione computer",
   "history.kind.craft_planet": "Pianeta forgiato",
+  "history.kind.stardust_convert": "Stardust convertita",
+  "history.kind.stardust_convert_out": "Stardust inviata al pool",
+  "history.kind.gram_convert_in": "GRAM ricevuti dal pool",
 
 
   "maint.title": "MANUTENZIONE IN CORSO",
@@ -961,6 +969,8 @@ const it: Dict = {
   "earn.claimDayStardust": "RISCATTA GIORNO {n} — +{r} ★ STARDUST",
   "earn.nextIn": "PROSSIMO IN {h}h {m}m {s}s",
   "earn.streakResetHint": "Salta 24h dopo la disponibilità → la streak torna al Giorno 1",
+  "earn.streakExpiredReset": "Finestra scaduta — la streak riparte dal Giorno 1",
+  "earn.streakWeekComplete": "Ciclo di 7 giorni completato — riscatta per ricominciare",
   "earn.redeemCode": "Riscatta Codice",
   "earn.redeemHint": "Inserisci un codice promo o SUN (SUN-****) per ricompense istantanee",
   "earn.go": "VAI",
@@ -1118,6 +1128,9 @@ const ru: Dict = {
   "history.kind.computer_buy": "Покупка компьютера",
   "history.kind.computer_claim": "Сбор с компьютера",
   "history.kind.craft_planet": "Планета создана",
+  "history.kind.stardust_convert": "Конвертация пыли",
+  "history.kind.stardust_convert_out": "Пыль отправлена в пул",
+  "history.kind.gram_convert_in": "GRAM получено из пула",
 
 
   "maint.title": "ТЕХНИЧЕСКИЕ РАБОТЫ",
@@ -1447,6 +1460,8 @@ const ru: Dict = {
   "earn.claimDayStardust": "ЗАБРАТЬ ДЕНЬ {n} — +{r} ★ STARDUST",
   "earn.nextIn": "ЧЕРЕЗ {h}ч {m}м {s}с",
   "earn.streakResetHint": "Пропустите 24ч после доступности → серия сбросится до Дня 1",
+  "earn.streakExpiredReset": "Окно истекло — серия начинается с Дня 1",
+  "earn.streakWeekComplete": "7-дневный цикл завершён — заберите награду для нового цикла",
   "earn.redeemCode": "Активация Кода",
   "earn.redeemHint": "Введите промо-код или код SUN (SUN-****) для мгновенной награды",
   "earn.go": "ВПЕРЁД",
@@ -1603,6 +1618,9 @@ const uk: Dict = {
   "history.kind.computer_buy": "Покупка комп'ютера",
   "history.kind.computer_claim": "Збір з комп'ютера",
   "history.kind.craft_planet": "Планета створена",
+  "history.kind.stardust_convert": "Конвертація пилу",
+  "history.kind.stardust_convert_out": "Пил надіслано в пул",
+  "history.kind.gram_convert_in": "GRAM отримано з пулу",
 
 
   "maint.title": "ТЕХНІЧНІ РОБОТИ",
@@ -1932,6 +1950,8 @@ const uk: Dict = {
   "earn.claimDayStardust": "ЗАБРАТИ ДЕНЬ {n} — +{r} ★ STARDUST",
   "earn.nextIn": "ЧЕРЕЗ {h}год {m}хв {s}с",
   "earn.streakResetHint": "Пропустіть 24год після доступності → серія обнулиться до Дня 1",
+  "earn.streakExpiredReset": "Вікно минуло — серія починається з Дня 1",
+  "earn.streakWeekComplete": "7-денний цикл завершено — заберіть нагороду для нового циклу",
   "earn.redeemCode": "Активація Коду",
   "earn.redeemHint": "Введіть промо-код або код SUN (SUN-****) для миттєвої нагороди",
   "earn.go": "ВПЕРЕД",
