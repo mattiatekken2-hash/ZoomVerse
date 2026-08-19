@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { FeedEvent } from "../hooks/useGameState";
 import { useGlobalStore } from "../store/globalStore";
 import { useT } from "../i18n/LanguageContext";
@@ -18,13 +18,6 @@ const SEASON_DURATION_MS = 90 * 24 * 60 * 60 * 1000;
 const DEFAULT_SEASON_START = new Date("2026-08-15T00:00:00.000Z").getTime();
 const TOTAL_SEASONS = 6;
 
-function timeAgo(ts: number): string {
-  const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  return `${Math.floor(s / 3600)}h ago`;
-}
-
 function getSeasonProgress(now: number, seasonStart: number): number {
   if (now <= seasonStart) return 0;
   return Math.min((now - seasonStart) / SEASON_DURATION_MS, 1);
@@ -34,13 +27,13 @@ function formatZoom(amount: number): string {
   return Math.floor(amount).toLocaleString();
 }
 
-export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSpent: _totalTonSpent, feedEvents, telegramId, visible }: RankPageProps) {
+export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSpent: _totalTonSpent, feedEvents: _feedEvents, telegramId, visible }: RankPageProps) {
   void telegramId;
   void visible;
   void seasonPoolEarned;
   void activeFarmRate;
   void _totalTonSpent;
-  const feedRef = useRef<HTMLDivElement>(null);
+  void _feedEvents;
   const [currentTime, setCurrentTime] = useState(Date.now());
   const { t } = useT();
 
@@ -62,10 +55,6 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
     }, 1000);
     return () => clearInterval(interval);
   }, []);
-
-  useEffect(() => {
-    if (feedRef.current) feedRef.current.scrollTop = 0;
-  }, [feedEvents.length]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -252,33 +241,6 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
             <div className="text-[10px] mt-2 leading-relaxed" style={{ color: "rgba(255,255,255,0.25)" }}>
               Top 10 players by $ZOOM balance, updated in real time from the server.
             </div>
-          </div>
-        </div>
-
-        <div className="px-4">
-          <div className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: "rgba(255,255,255,0.2)" }}>
-            ⚡ Live Activity
-          </div>
-        </div>
-        <div ref={feedRef} className="px-4 pb-4">
-          <div className="flex flex-col gap-1.5">
-            {feedEvents.length === 0 && (
-              <div className="text-xs text-center py-8 flex flex-col items-center gap-2">
-                <div style={{ fontSize: 28, opacity: 0.2 }}>🪐</div>
-                <div style={{ color: "rgba(255,255,255,0.15)" }}>No activity yet — forge and farm to appear here</div>
-              </div>
-            )}
-            {feedEvents.map(ev => (
-              <div
-                key={ev.id}
-                className="feed-item rounded-xl px-3 py-2 border flex items-center gap-2"
-                style={{ borderColor: "rgba(255,255,255,0.05)", background: "rgba(255,255,255,0.02)" }}
-              >
-                <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "#9EC5E8", boxShadow: "0 0 4px rgba(158,197,232,0.65)" }} />
-                <div className="flex-1 text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>{ev.text}</div>
-                <div className="text-xs flex-shrink-0" style={{ color: "rgba(255,255,255,0.2)" }}>{timeAgo(ev.timestamp)}</div>
-              </div>
-            ))}
           </div>
         </div>
       </div>

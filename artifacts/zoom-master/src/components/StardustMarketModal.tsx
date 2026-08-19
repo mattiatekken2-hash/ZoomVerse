@@ -78,11 +78,15 @@ function SpinningStardustCoin({ index, spinning }: { index: number; spinning: bo
           textAlign: "center",
           fontSize: 10,
           fontWeight: 800,
-          letterSpacing: "0.08em",
+          letterSpacing: "0.06em",
           color: up ? "#ffd740" : "#ff8a80",
+          lineHeight: 1.35,
         }}
       >
-        {up ? "+" : ""}{pct}% vs genesis
+        {up ? "+" : ""}{pct}%
+        <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", color: "rgba(255,255,255,0.38)", marginTop: 2 }}>
+          dal lancio (base 1.000)
+        </div>
       </div>
     </div>
   );
@@ -288,7 +292,10 @@ export function StardustMarketModal({
               STARDUST MARKET
             </div>
             <div style={{ fontSize: 22, fontWeight: 900, color: "#ffd740", marginTop: 2 }}>
-              Index {formatIndex(index)}
+              Valore ★ {formatIndex(index)}
+            </div>
+            <div style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.35)", marginTop: 4, maxWidth: 200, lineHeight: 1.4 }}>
+              Prezzo globale STARDUST — parte da 1.000 al lancio e sale o scende con convert, stake e spese in-game
             </div>
           </div>
           <SpinningStardustCoin index={index} spinning={!loading} />
@@ -329,14 +336,14 @@ export function StardustMarketModal({
                 <Tooltip
                   contentStyle={{ background: "#0c1018", border: "1px solid rgba(255,215,64,0.25)", borderRadius: 8 }}
                   labelStyle={{ color: "rgba(255,255,255,0.5)", fontSize: 10 }}
-                  formatter={(v: number) => [formatIndex(v), "Index"]}
+                  formatter={(v: number) => [formatIndex(v), "Valore ★"]}
                 />
                 <Area type="monotone" dataKey="index" stroke="#ffd740" strokeWidth={2} fill="url(#stardustChartFill)" />
               </AreaChart>
             </ResponsiveContainer>
           ) : (
             <div className="flex items-center justify-center h-full text-xs text-center px-4" style={{ color: "rgba(255,255,255,0.35)" }}>
-              {loading ? "Loading live chart…" : "Index at genesis (1.000) — line moves when players convert, stake, or spend STARDUST"}
+              {loading ? "Loading live chart…" : "Valore al lancio (1.000) — la linea si muove quando i giocatori convertono, stakano o spendono STARDUST"}
             </div>
           )}
         </div>

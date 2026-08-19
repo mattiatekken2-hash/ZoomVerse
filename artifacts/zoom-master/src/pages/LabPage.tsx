@@ -1,9 +1,10 @@
-import { useState, useCallback, useEffect, useRef } from "react";
-import { PlanetCanvas, type ForgePhase } from "../components/PlanetCanvas";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { PlanetCanvas, ForgeProgressBar, type ForgePhase } from "../components/PlanetCanvas";
 import { AutoTapWidget } from "../components/AutoTapWidget";
 import { RarityForgeWheel } from "../components/RarityForgeWheel";
 import { FarmInventoryCard } from "../components/FarmInventoryCard";
 import { SettingsMenu } from "../components/SettingsMenu";
+import { AvatarXP } from "../components/AvatarXP";
 import { ShoppingBag } from "lucide-react";
 
 import type { Planet, PlanetType } from "../hooks/useGameState";
@@ -30,6 +31,10 @@ interface LabPageProps {
   onClaim: () => void;
   onOpenHistory?: () => void;
   onOpenShop?: () => void;
+  onOpenProfile?: () => void;
+  totalTaps?: number;
+  profilePhotoUrl?: string | null;
+  profileName?: string | null;
   muted?: boolean;
   setMuted?: (next: boolean | ((prev: boolean) => boolean)) => void;
   visible?: boolean;
@@ -39,7 +44,7 @@ interface FloatMsg { id: number; text: string; color: string }
 
 const GREY = "#8892b0";
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, hasAutoTap, stardustBalance, telegramId, onCraft, onClaim, onOpenHistory, onOpenShop, muted = false, setMuted, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, hasAutoTap, stardustBalance, telegramId, onCraft, onClaim, onOpenHistory, onOpenShop, onOpenProfile, totalTaps = 0, profilePhotoUrl, profileName, muted = false, setMuted, visible = true }: LabPageProps) {
   const { t, lang } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
@@ -185,6 +190,14 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   }, [onClaim]);
 
   const bottomChromeOffset = "calc(env(safe-area-inset-bottom, 0px) + 78px)";
+  const isForging = !pendingPlanet && !!currentCraftRarity && !forgeRolling && forgePhase === "idle";
+  const forgePct = goal > 0 ? Math.min(taps / goal, 1) : 0;
+  const progressLabel = useMemo(() => {
+    if (forgeRolling) return t("planetCanvas.forgingMass");
+    if (forgePct < 0.04) return t("planetCanvas.primordial");
+    if (forgePlanetBuild) return t("planetCanvas.forming");
+    return t("planetCanvas.assembling");
+  }, [forgeRolling, forgePct, forgePlanetBuild, t]);
 
   return (
     <div className="relative h-full overflow-hidden">
@@ -213,54 +226,25 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           forgePhase={forgePhase}
           forgeRolling={forgeRolling}
           chromeBottomOffset={bottomChromeOffset}
+          suppressProgressBar
         />
 
         <div
-          className="absolute left-0 right-0 z-30 flex items-center justify-center gap-2 px-3 pointer-events-none"
+          className="absolute left-0 right-0 z-30 flex justify-center pointer-events-none"
           style={{ top: "max(10px, env(safe-area-inset-top, 0px))" }}
         >
-          <div className="pointer-events-auto flex-shrink-0">
-            <SettingsMenu muted={muted} setMuted={setMuted ?? (() => {})} headerButton />
-          </div>
           <button
             type="button"
-            onClick={onOpenHistory}
-            data-testid="lab-zoom-balance"
-            className="px-5 py-2 rounded-full pointer-events-auto active:scale-95 flex-shrink-0"
-            style={{
-              background: "rgba(0, 0, 0, 0.62)",
-              border: "1px solid rgba(255, 255, 255, 0.14)",
-              backdropFilter: "blur(10px)",
-              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.35)",
-              cursor: onOpenHistory ? "pointer" : "default",
-            }}
+            onClick={onOpenProfile}
+            className="pointer-events-auto active:scale-95"
+            aria-label={t("header.viewProfile")}
+            data-testid="lab-profile-header"
           >
-            <span
-              className="font-black text-base tracking-wide whitespace-nowrap"
-              style={{ color: "#ffffff", letterSpacing: "0.06em" }}
-            >
-              {t("lab.balance", { n: Math.floor(balance).toLocaleString() })}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={onOpenShop}
-            data-testid="button-shop-nav"
-            aria-label={t("header.openShop")}
-            className="flex items-center justify-center active:scale-95 flex-shrink-0 pointer-events-auto"
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: "50%",
-              background: "linear-gradient(145deg, #ffb347, #ff8c00)",
-              border: "1px solid rgba(255, 140, 0, 0.55)",
-              boxShadow: "0 4px 14px rgba(255, 140, 0, 0.45)",
-              cursor: "pointer",
-              padding: 0,
-              transition: "transform 0.12s",
-            }}
-          >
-            <ShoppingBag size={20} strokeWidth={2.4} color="#111" />
+            <AvatarXP
+              totalTaps={totalTaps}
+              photoUrl={profilePhotoUrl}
+              name={profileName}
+            />
           </button>
         </div>
 
@@ -396,9 +380,66 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       </div>
 
       <div
-        className="absolute left-0 right-0 z-20 px-5 pt-2 flex flex-col gap-3 pointer-events-none"
-        style={{ bottom: bottomChromeOffset }}
+        className="absolute left-0 right-0 z-20 px-5 flex flex-col gap-2.5 pointer-events-none"
+        style={{ bottom: bottomChromeOffset, paddingBottom: 8 }}
       >
+        {isForging && (
+          <ForgeProgressBar
+            progress={taps}
+            goal={goal}
+            pct={forgePct}
+            displayAccent={dynamicColor}
+            label={progressLabel}
+            inline
+          />
+        )}
+
+        <div className="flex items-center justify-center gap-2">
+          <div className="pointer-events-auto flex-shrink-0">
+            <SettingsMenu muted={muted} setMuted={setMuted ?? (() => {})} headerButton />
+          </div>
+          <button
+            type="button"
+            onClick={onOpenHistory}
+            data-testid="lab-zoom-balance"
+            className="px-5 py-2 rounded-full pointer-events-auto active:scale-95 flex-shrink-0"
+            style={{
+              background: "rgba(0, 0, 0, 0.62)",
+              border: "1px solid rgba(255, 255, 255, 0.14)",
+              backdropFilter: "blur(10px)",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.35)",
+              cursor: onOpenHistory ? "pointer" : "default",
+            }}
+          >
+            <span
+              className="font-black text-base tracking-wide whitespace-nowrap"
+              style={{ color: "#ffffff", letterSpacing: "0.06em" }}
+            >
+              {t("lab.balance", { n: Math.floor(balance).toLocaleString() })}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onOpenShop}
+            data-testid="button-shop-nav"
+            aria-label={t("header.openShop")}
+            className="flex items-center justify-center active:scale-95 flex-shrink-0 pointer-events-auto"
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              background: "linear-gradient(145deg, #ffb347, #ff8c00)",
+              border: "1px solid rgba(255, 140, 0, 0.55)",
+              boxShadow: "0 4px 14px rgba(255, 140, 0, 0.45)",
+              cursor: "pointer",
+              padding: 0,
+              transition: "transform 0.12s",
+            }}
+          >
+            <ShoppingBag size={20} strokeWidth={2.4} color="#111" />
+          </button>
+        </div>
+
         <div style={{ display: "flex", alignItems: "center" }}>
           {!pendingPlanet && (
             <button
@@ -414,7 +455,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         </div>
 
         {!pendingPlanet && (
-          <div className="flex justify-between text-xs" style={{ color: "rgba(255,255,255,0.3)" }}>
+          <div className="flex justify-between text-xs pointer-events-none px-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
             <span>
               {currentCraftRarity
                 ? t("lab.tapsNeeded", { n: goal })
