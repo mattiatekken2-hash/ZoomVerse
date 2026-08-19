@@ -142,6 +142,16 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed, active = true }: Pr
   const [claiming, setClaiming] = useState(false);
   const [justClaimed, setJustClaimed] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [showCard, setShowCard] = useState(false);
+
+  useEffect(() => {
+    if (!active) {
+      setShowCard(false);
+      return;
+    }
+    const revealTimer = window.setTimeout(() => setShowCard(true), 1400);
+    return () => window.clearTimeout(revealTimer);
+  }, [active]);
 
   useEffect(() => {
     if (!telegramId || !active) return;
@@ -201,7 +211,7 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed, active = true }: Pr
     }
   };
 
-  if (!combo || !telegramId) return null;
+  if (!combo || !telegramId || !showCard) return null;
 
   const claimed = combo.claimed || justClaimed;
   const progressPct = Math.round((activeCount / 3) * 100);

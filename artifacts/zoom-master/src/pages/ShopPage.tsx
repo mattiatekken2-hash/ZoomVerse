@@ -1,16 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { createStarsInvoice, confirmStarsPurchase, buyShopItemFromStardust, fetchSunStock, pollTxnUntilFinal, fetchHomeState, buyComputer, buyPlantSeed, fetchSlotPrice, fetchStardustMarketPrice, type SunStock, type HomeState, type SlotPriceInfo } from "../utils/api";
+import { createStarsInvoice, confirmStarsPurchase, buyShopItemFromStardust, fetchSunStock, pollTxnUntilFinal, fetchHomeState, fetchSlotPrice, fetchStardustMarketPrice, type SunStock, type HomeState, type SlotPriceInfo } from "../utils/api";
 import { stardustShopPrice } from "../utils/stardustMarket";
-import { PixelPlant } from "../components/PixelPlant";
 import { useT } from "../i18n/LanguageContext";
-import { LottoStellareWidget } from "../components/LottoStellareWidget";
-import { LabTicketWidget } from "../components/LabTicketWidget";
-import { MysteryBoxWidget } from "../components/MysteryBoxWidget";
 import { V1NftWidget } from "../components/V1NftWidget";
 import { HallOfFameWidget } from "../components/HallOfFameWidget";
 import { LabRankWidget } from "../components/LabRankWidget";
 import { ExchangeWidget } from "../components/ExchangeWidget";
-import { StellaRossaCollectionWidget } from "../components/StellaRossaCollectionWidget";
 import { ZoomStoreWidget } from "../components/ZoomStoreWidget";
 import { patchShopPrefetch, readShopPrefetch } from "../utils/shopPrefetch";
 
@@ -36,13 +31,8 @@ interface ShopItem {
   type: "bundle" | "sun" | "slot" | "stardust";
 }
 
-const SHOP_ITEMS: ShopItem[] = [
-  { id: "starter_pack", title: "Starter Pack", desc: "2,000 $ZOOM + 1 Basic Planet", starsPrice: 50, tonPrice: 0.5, zoomAmount: 2000, color: "#8892b0", icon: "◇", type: "bundle" },
-  { id: "explorer_pack", title: "Explorer Pack", desc: "8,000 $ZOOM + 1 Rare Planet", starsPrice: 150, tonPrice: 1.5, zoomAmount: 8000, color: "#4facfe", icon: "◈", type: "bundle" },
-  { id: "legend_pack", title: "Legend Pack", desc: "25,000 $ZOOM + 1 Epic Planet", starsPrice: 400, tonPrice: 4.0, zoomAmount: 25000, color: "#c471ed", icon: "⬡", type: "bundle" },
-];
 
-// Extra Slot is rendered as its own TON-only card with a dynamic price
+// Extra Slot is rendered as its own card with a dynamic price
 // (escalates per slot already owned, capped at 3 TON).
 const EXTRA_SLOT_ITEM: ShopItem = {
   id: "extra_slot", title: "Extra Slot", desc: "Unlock 1 additional planet slot",
@@ -366,60 +356,6 @@ export function ShopPage({
   };
   const priceUnit = payMode === "stars" ? "Stars" : "Stardust";
 
-  // ─── COMPUTER (stardust-priced item that lives in the HOME) ──────────
-  // Independent of the Stars/TON pay mode toggle above — this is the only
-  // item priced in stardust right now. After a successful buy we trigger
-  // a global refresh so the HOME page picks up the new ownership state.
-  const computerOwned = !!home?.computer.owned;
-  const computerCost = home?.computer.cost ?? 5000;
-  const stardustBalance = home?.stardustBalance ?? 0;
-  const canBuyComputer = !!telegramId && !computerOwned && stardustBalance >= computerCost;
-
-  const handleBuyComputer = async () => {
-    if (!telegramId || !canBuyComputer) return;
-    setBuying("computer");
-    const r = await buyComputer(telegramId);
-    setBuying(null);
-    if (r.ok) {
-      setMessage("COMPUTER purchased!");
-      window.dispatchEvent(new Event("zoom-data-refresh"));
-      refreshHome();
-    } else if (r.error === "NOT_ENOUGH_STARDUST") {
-      setMessage(`Need ${r.need?.toLocaleString()} stardust (have ${r.have?.toLocaleString()})`);
-    } else if (r.error === "ALREADY_OWNED") {
-      setMessage("You already own the COMPUTER");
-      refreshHome();
-    } else {
-      setMessage("Purchase failed");
-    }
-  };
-
-  // ─── PLANT SEED (stardust-priced) ───────────────────────────────────
-  // Same flow as the computer: a one-time buy that the player then places
-  // in a HOME slot. Hidden buy-button after purchase. The plant is grown
-  // through 10 levels of watering on the HOME page itself.
-  const plantOwned = !!home?.plant.owned;
-  const plantSeedCost = home?.plant.seedCost ?? 10000;
-  const canBuyPlant = !!telegramId && !plantOwned && stardustBalance >= plantSeedCost;
-  const handleBuyPlant = async () => {
-    if (!telegramId || !canBuyPlant) return;
-    setBuying("plant");
-    const r = await buyPlantSeed(telegramId);
-    setBuying(null);
-    if (r.ok) {
-      setMessage("PLANT SEED purchased!");
-      window.dispatchEvent(new Event("zoom-data-refresh"));
-      refreshHome();
-    } else if (r.error === "NOT_ENOUGH_STARDUST") {
-      setMessage(`Need ${r.need?.toLocaleString()} stardust (have ${r.have?.toLocaleString()})`);
-    } else if (r.error === "ALREADY_OWNED") {
-      setMessage("You already own a PLANT");
-      refreshHome();
-    } else {
-      setMessage("Purchase failed");
-    }
-  };
-
   return (
     <div className="flex flex-col h-full overflow-hidden relative" style={{ background: "linear-gradient(180deg, #060810 0%, #0a0e18 100%)" }}>
       {message && (
@@ -574,115 +510,36 @@ export function ShopPage({
           </>)}
 
           {shopTab === "bundles" && (<>
-          {/* Collection bundles — moved here from the old BUNDLES nav page.
-              Paid in Stars or TON via the shared pay-mode toggle (like the SUN):
-              Stars → createStarsInvoice; TON → in-game deposit balance. */}
-          {COLLECTIONS.map((col) => {
-            const stock = collStocks[col.key];
-            const owned = collOwned[col.key];
-            const c = col.color;
-            const c2 = col.color2;
-            const soldOut = !!stock && stock.remaining <= 0;
-            const sunLocked = col.requiresSun && sunCount < 1;
-            const atUserCap = col.userCap > 0 && owned.bundles >= col.userCap;
-            const disabled = soldOut || sunLocked || atUserCap || buying === col.id;
-            const onBuy = async () => {
-              if (disabled) return;
-              const shopItem: ShopItem = {
-                id: col.id,
-                title: t(col.titleKey as Parameters<typeof t>[0]),
-                desc: "",
-                starsPrice: col.priceStars,
-                tonPrice: col.priceTon,
-                color: c,
-                icon: "",
-                type: "bundle",
-              };
-              if (payMode === "stars") await handleStarsBuy(shopItem);
-              else await purchaseItem(shopItem);
-              refreshCollStocks();
-            };
-            return (
-              <div
-                key={col.key}
-                className="rounded-2xl p-5 border relative overflow-hidden"
-                style={{
-                  borderColor: `${c}4d`,
-                  background: `linear-gradient(135deg, ${c}14 0%, ${c2}0a 100%)`,
-                  boxShadow: `0 0 32px ${c}1a`,
-                }}
-              >
-                <div className="absolute top-0 right-0 w-40 h-40 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${c}26 0%, transparent 70%)`, filter: "blur(20px)", transform: "translate(30%, -30%)" }} />
-                <div className="flex items-start justify-between mb-3 relative z-10">
-                  <div>
-                    <div className="font-black text-xl tracking-wide" style={{ color: c }}>
-                      {t(col.titleKey as Parameters<typeof t>[0])}
-                    </div>
-                    <div className="text-xs mt-1" style={{ color: `${c}99` }}>
-                      {stock ? `${stock.remaining}/${stock.max} left` : "Limited Edition"}
-                    </div>
-                  </div>
-                  <div className="px-3 py-1.5 rounded-full text-xs font-bold" style={{ background: `${c}26`, color: c, border: `1px solid ${c}4d` }}>
-                    {owned.unlocked ? `OWNED ${owned.bundles}${col.key === "white" ? "/10" : ""}` : "LOCKED"}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 mb-4 relative z-10">
-                  {col.tags.map((tag) => (
-                    <span key={tag} className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${c}14`, color: `${c}b3`, border: `1px solid ${c}26` }}>
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-                <button
-                  onClick={onBuy}
-                  disabled={disabled}
-                  className="w-full py-4 rounded-xl font-black text-base tracking-wider text-center transition-all active:scale-95 relative z-10"
-                  style={{
-                    background: disabled ? "rgba(255,255,255,0.04)" : `linear-gradient(135deg, ${c}33, ${c2}26)`,
-                    color: disabled ? "rgba(255,255,255,0.2)" : c,
-                    boxShadow: disabled ? "none" : `0 0 20px ${c}33`,
-                    border: `1px solid ${disabled ? "rgba(255,255,255,0.06)" : `${c}4d`}`,
-                    cursor: disabled ? "not-allowed" : "pointer",
-                    opacity: buying === col.id ? 0.6 : 1,
-                  }}
-                >
-                  {soldOut
-                    ? "Sold Out"
-                    : atUserCap
-                    ? `MAX OWNED (${col.userCap}/${col.userCap})`
-                    : sunLocked
-                    ? "🔒 SUN REQUIRED"
-                    : buying === col.id
-                    ? "Processing..."
-                    : payMode === "stars"
-                    ? `BUY — ⭐ ${col.priceStars.toLocaleString()}`
-                    : `BUY — ★ ${stardustShopPrice(col.priceTon, stardustIndex).toLocaleString()}`}
-                </button>
+          <div
+            className="rounded-2xl p-8 border relative overflow-hidden flex flex-col items-center justify-center text-center"
+            style={{
+              borderColor: "rgba(158,197,232,0.22)",
+              background: "linear-gradient(160deg, rgba(8,12,20,0.92), rgba(4,6,12,0.98))",
+              minHeight: 280,
+              boxShadow: "inset 0 0 48px rgba(0,0,0,0.45)",
+            }}
+          >
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(2px)" }}
+            />
+            <div className="relative z-10 flex flex-col items-center gap-3 px-4">
+              <div style={{ fontSize: 40, lineHeight: 1, opacity: 0.85 }}>◈</div>
+              <div className="font-black text-xl tracking-widest uppercase" style={{ color: CYAN }}>
+                {t("shop.comingSoon")}
               </div>
-            );
-          })}
+              <div className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.42)", maxWidth: 280, lineHeight: 1.5 }}>
+                {t("shop.comingSoonHint")}
+              </div>
+            </div>
+          </div>
           </>)}
 
           {shopTab === "lab" && (<>
           <div className="font-black text-sm tracking-widest uppercase mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-            Lab & merch
+            {t("shop.section.labMerch")}
           </div>
-          <LottoStellareWidget telegramId={telegramId ?? null} shopMode />
-          <LabTicketWidget
-            telegramId={telegramId ?? null}
-            depositBalance={depositBalance}
-            shopMode
-          />
-          <MysteryBoxWidget telegramId={telegramId ?? null} shopMode />
           <V1NftWidget telegramId={telegramId ?? null} shopMode />
-          <StellaRossaCollectionWidget
-            telegramId={telegramId ?? null}
-            unlocked={stellaRossaCollectionUnlocked}
-            ownedBundles={stellaRossaCollectionBundles}
-            lastClaimAt={stellaLastClaimAt}
-            onClaim={onStellaClaimDaily}
-            shopMode
-          />
           <ZoomStoreWidget shopMode />
           </>)}
 
@@ -745,121 +602,14 @@ export function ShopPage({
             </div>
           ))}
 
-          {/* Stardust-priced items (Computer / Plant): use stardust as
-              currency to buy in-game items. */}
-          <div className="font-black text-sm tracking-widest uppercase mb-1 mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
-            Stardust Items
-          </div>
-          <div
-            className="rounded-2xl border overflow-hidden"
-            style={{ borderColor: "rgba(255,215,64,0.25)", background: "rgba(255,215,64,0.04)" }}
-          >
-            <div className="flex items-center gap-4 p-4">
-              <div
-                className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center"
-                style={{ background: "rgba(255,215,64,0.12)", border: "1px solid rgba(255,215,64,0.3)" }}
-              >
-                <svg viewBox="0 0 16 12" width={28} height={21} style={{ imageRendering: "pixelated" }}>
-                  <rect x="1" y="1" width="14" height="9" fill="#cfd6e6" />
-                  <rect x="2" y="2" width="12" height="7" fill={computerOwned ? "#0a1a3d" : "#ffd740"} />
-                  {!computerOwned && <rect x="6" y="4" width="4" height="3" fill="#fff7c2" />}
-                  <rect x="6" y="10" width="4" height="1" fill="#cfd6e6" />
-                  <rect x="4" y="11" width="8" height="1" fill="#cfd6e6" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-black text-sm" style={{ color: "#ffd740" }}>{t("shop.computer")}</div>
-                <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-                  Place it in your HOME · produces 25 stardust every 24h
-                </div>
-              </div>
-              <div className="flex-shrink-0 text-right">
-                <div className="font-black text-base" style={{ color: "#ffd740" }}>★ {computerCost.toLocaleString()}</div>
-                <div className="text-xs opacity-70" style={{ color: "#ffd740" }}>{t("shop.stardust")}</div>
-              </div>
-            </div>
-            <div style={{ borderTop: "1px solid rgba(255,215,64,0.15)" }}>
-              <button
-                onClick={handleBuyComputer}
-                disabled={!canBuyComputer || buying === "computer"}
-                className="w-full py-3 font-black text-sm tracking-wider uppercase transition-all active:scale-95"
-                style={{
-                  background: "rgba(255,215,64,0.10)",
-                  color: canBuyComputer ? "#ffd740" : "rgba(255,215,64,0.35)",
-                  cursor: canBuyComputer ? "pointer" : "not-allowed",
-                  opacity: buying === "computer" ? 0.6 : 1,
-                }}
-              >
-                {computerOwned
-                  ? "OWNED — PLACE IT IN YOUR HOME"
-                  : buying === "computer"
-                  ? "Processing..."
-                  : stardustBalance < computerCost
-                  ? `Need ${(computerCost - stardustBalance).toLocaleString()} more stardust`
-                  : `BUY — ★ ${computerCost.toLocaleString()} STARDUST`}
-              </button>
-            </div>
-          </div>
-
-          {/* PLANT SEED — second stardust item. Same card pattern as the
-              computer; the player then grows it on the HOME page through
-              10 levels of watering until it produces 10 TON / 30 days. */}
-          <div
-            className="rounded-2xl border overflow-hidden"
-            style={{ borderColor: "rgba(0,230,118,0.30)", background: "rgba(0,230,118,0.04)" }}
-          >
-            <div className="flex items-center gap-4 p-4">
-              <div
-                className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center"
-                style={{ background: "rgba(0,230,118,0.12)", border: "1px solid rgba(0,230,118,0.30)" }}
-              >
-                {/* Show a level-1 seed in the pot when not owned, full
-                    grown level-9 plant when owned (preview of progress). */}
-                <PixelPlant level={plantOwned ? 9 : 1} size={36} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-black text-sm" style={{ color: "#00e676" }}>{t("shop.plantSeed")}</div>
-                <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-                  Grow a plant in your HOME · 10 levels · matures into 10 GRAM every 30 days
-                </div>
-              </div>
-              <div className="flex-shrink-0 text-right">
-                <div className="font-black text-base" style={{ color: "#00e676" }}>★ {plantSeedCost.toLocaleString()}</div>
-                <div className="text-xs opacity-70" style={{ color: "#00e676" }}>{t("shop.stardust")}</div>
-              </div>
-            </div>
-            <div style={{ borderTop: "1px solid rgba(0,230,118,0.20)" }}>
-              <button
-                onClick={handleBuyPlant}
-                disabled={!canBuyPlant || buying === "plant"}
-                className="w-full py-3 font-black text-sm tracking-wider uppercase transition-all active:scale-95"
-                style={{
-                  background: "rgba(0,230,118,0.10)",
-                  color: canBuyPlant ? "#00e676" : "rgba(0,230,118,0.40)",
-                  cursor: canBuyPlant ? "pointer" : "not-allowed",
-                  opacity: buying === "plant" ? 0.6 : 1,
-                }}
-              >
-                {plantOwned
-                  ? "OWNED — PLACE IT IN YOUR HOME"
-                  : buying === "plant"
-                  ? "Processing..."
-                  : stardustBalance < plantSeedCost
-                  ? `Need ${(plantSeedCost - stardustBalance).toLocaleString()} more stardust`
-                  : `BUY — ★ ${plantSeedCost.toLocaleString()} STARDUST`}
-              </button>
-            </div>
-          </div>
           </>)}
 
           {shopTab === "items" && (<>
           <div className="font-black text-sm tracking-widest uppercase mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-            Packs & Items
+            {t("shop.section.packsItems")}
           </div>
 
-          {/* Extra Slot — TON-only, prezzo fisso 0.25 TON per ogni slot
-              acquistato (nessuna escalation). Il pagamento in Stars è
-              disabilitato lato server e nascosto qui. */}
+          {/* Extra Slot only — Stars or Stardust via pay-mode toggle. */}
           {(() => {
             const item = EXTRA_SLOT_ITEM;
             const gramPrice = slotPrice?.nextPriceTon ?? item.tonPrice;
@@ -916,49 +666,6 @@ export function ShopPage({
               </div>
             );
           })()}
-
-          {SHOP_ITEMS.map(item => (
-            <div
-              key={item.id}
-              className="rounded-2xl border overflow-hidden"
-              style={{ borderColor: item.color + "30", background: item.color + "06" }}
-            >
-              <div className="flex items-center gap-4 p-4">
-                <div
-                  className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center font-black text-lg"
-                  style={{ background: item.color + "18", color: item.color, border: `1px solid ${item.color}30` }}
-                >
-                  {item.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-black text-sm" style={{ color: item.color }}>{item.title}</div>
-                  <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>{item.desc}</div>
-                </div>
-                <div className="flex-shrink-0 text-right">
-                  <div className="font-black text-base" style={{ color: payColor }}>
-                    {formatItemPrice(item)}
-                  </div>
-                  <div className="text-xs opacity-70" style={{ color: payColor }}>
-                    {priceUnit}
-                  </div>
-                </div>
-              </div>
-              <div style={{ borderTop: `1px solid ${item.color}15` }}>
-                <button
-                  onClick={() => { void purchaseItem(item); }}
-                  disabled={buying === item.id}
-                  className="w-full py-3 font-black text-sm tracking-wider uppercase transition-all active:scale-95"
-                  style={{
-                    background: item.color + "10",
-                    color: item.color,
-                    opacity: buying === item.id ? 0.6 : 1,
-                  }}
-                >
-                  {buying === item.id ? "Processing..." : formatBuyLabel(item)}
-                </button>
-              </div>
-            </div>
-          ))}
           </>)}
         </div>
       </div>

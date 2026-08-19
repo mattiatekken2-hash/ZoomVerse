@@ -27,7 +27,7 @@ import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
 import { initVersionCheck } from "./utils/appVersion";
 
-const SPLASH_MIN_MS = 2500;
+const SPLASH_MIN_MS = 2000;
 /** Hard cap — never keep users on splash longer than this. */
 const SPLASH_MAX_MS = 5000;
 
