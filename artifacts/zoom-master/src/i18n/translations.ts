@@ -96,6 +96,7 @@ const en: Dict = {
   "history.kind.stardust_convert": "Stardust converted",
   "history.kind.stardust_convert_out": "Stardust sent to pool",
   "history.kind.gram_convert_in": "GRAM received from pool",
+  "history.kind.stardust_purchase": "Stardust purchase",
 
   // maintenance
   "maint.title": "UNDER MAINTENANCE",
@@ -620,6 +621,7 @@ const it: Dict = {
   "history.kind.stardust_convert": "Stardust convertita",
   "history.kind.stardust_convert_out": "Stardust inviata al pool",
   "history.kind.gram_convert_in": "GRAM ricevuti dal pool",
+  "history.kind.stardust_purchase": "Acquisto stardust",
 
 
   "maint.title": "MANUTENZIONE IN CORSO",
@@ -1136,6 +1138,7 @@ const ru: Dict = {
   "history.kind.stardust_convert": "Конвертация пыли",
   "history.kind.stardust_convert_out": "Пыль отправлена в пул",
   "history.kind.gram_convert_in": "GRAM получено из пула",
+  "history.kind.stardust_purchase": "Покупка за stardust",
 
 
   "maint.title": "ТЕХНИЧЕСКИЕ РАБОТЫ",
@@ -1627,6 +1630,7 @@ const uk: Dict = {
   "history.kind.stardust_convert": "Конвертація пилу",
   "history.kind.stardust_convert_out": "Пил надіслано в пул",
   "history.kind.gram_convert_in": "GRAM отримано з пулу",
+  "history.kind.stardust_purchase": "Покупка за stardust",
 
 
   "maint.title": "ТЕХНІЧНІ РОБОТИ",
