@@ -4,6 +4,8 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { Planet } from "../hooks/useGameState";
+import { useT } from "../i18n/LanguageContext";
+import { translateGameMessage } from "../i18n/gameMessage";
 import {
   REPAIR_STARDUST_COST,
   FARM_UPGRADE_COSTS,
@@ -58,6 +60,7 @@ export function PlanetDetailModal({
   onRepair,
   onUpgradeDuration,
 }: Props) {
+  const { t, lang } = useT();
   const [confirmBurn, setConfirmBurn] = useState(false);
   const [defectMsg, setDefectMsg] = useState<string | null>(null);
   const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null);
@@ -92,7 +95,7 @@ export function PlanetDetailModal({
     if (!onRepair) return;
     const r = onRepair(planet.id);
     if (!r.ok) {
-      setDefectMsg(r.reason ?? "Repair failed");
+      setDefectMsg(translateGameMessage(lang, r.reason ?? t("game.repairFailed")));
       setTimeout(() => setDefectMsg(null), 1800);
     } else {
       onClose();
@@ -102,17 +105,17 @@ export function PlanetDetailModal({
   const handleStart = () => {
     const r = onStartFarming(planet.id);
     if (!r.ok) {
-      setDefectMsg(r.reason ?? "Cannot start farming");
+      setDefectMsg(translateGameMessage(lang, r.reason ?? t("game.cannotStartFarming")));
       setTimeout(() => setDefectMsg(null), 1800);
     }
   };
 
   const primaryLabel = (() => {
-    if (durability <= 0) return "FROZEN — REPAIR";
-    if (isListed) return "LISTED ON MARKET";
-    if (active) return `FARMING · ${formatDuration(remaining)}`;
-    if (expired) return "START / REACTIVATE";
-    return "START FARMING";
+    if (durability <= 0) return t("planetDetail.frozenRepair");
+    if (isListed) return t("planetDetail.listedMarket");
+    if (active) return `${t("farm.farming")} · ${formatDuration(remaining)}`;
+    if (expired) return t("planetDetail.startReactivate");
+    return t("planetDetail.startFarming");
   })();
 
   const primaryDisabled = durability <= 0 || isListed || (active && !expired);
@@ -185,7 +188,7 @@ export function PlanetDetailModal({
               }}
               onClick={() => { onUnlist(planet.id); onClose(); }}
             >
-              DELIST FROM MARKET
+              {t("planetDetail.delist")}
             </button>
           ) : (
             <button
@@ -218,7 +221,7 @@ export function PlanetDetailModal({
         {onUpgradeDuration && !isListed && planet.name !== "MUSHROOM" && (
           <div className="farm-panel-3d farm-panel-3d--static mb-3">
             <div className="farm-panel-3d__title">
-              ⏱ CYCLE DURATION — {currentDurationHours}h · costs EARNED GRAM
+              {t("planetDetail.cycleDuration", { n: currentDurationHours })}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 5 }}>
               {FARM_UPGRADE_TIERS.map((hrs) => {
@@ -237,7 +240,7 @@ export function PlanetDetailModal({
                       setUpgradeMsg(null);
                       const r = await onUpgradeDuration(planet.id, hrs);
                       setUpgrading(false);
-                      setUpgradeMsg(r.ok ? `✓ Upgraded to ${hrs}h` : (r.error ?? "Failed"));
+                      setUpgradeMsg(r.ok ? t("planetDetail.upgraded", { n: hrs }) : translateGameMessage(lang, r.error ?? t("planetDetail.failed")));
                     }}
                     className={`farm-btn-3d farm-btn-3d--tier${isCurrent ? " farm-btn-3d--current" : ""}${tierDisabled && !isCurrent ? " farm-btn-3d--disabled" : ""}`}
                   >
@@ -278,7 +281,7 @@ export function PlanetDetailModal({
               onClick={handleBurn}
               className={`farm-btn-3d py-3 text-xs font-black${confirmBurn ? " farm-btn-3d--burn-confirm" : ""}`}
             >
-              {confirmBurn ? "SURE?" : "Burn"}
+              {confirmBurn ? t("planetDetail.sure") : t("planetDetail.burn")}
             </button>
           </div>
         )}

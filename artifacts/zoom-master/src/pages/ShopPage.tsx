@@ -3,6 +3,7 @@ import { createStarsInvoice, confirmStarsPurchase, buyShopItemFromStardust, fetc
 import { stardustShopPrice } from "../utils/stardustMarket";
 import { PixelPlant } from "../components/PixelPlant";
 import { useT } from "../i18n/LanguageContext";
+import { translateGameMessage } from "../i18n/gameMessage";
 import { LottoStellareWidget } from "../components/LottoStellareWidget";
 import { LabTicketWidget } from "../components/LabTicketWidget";
 import { MysteryBoxWidget } from "../components/MysteryBoxWidget";
@@ -14,19 +15,19 @@ import { StellaRossaCollectionWidget } from "../components/StellaRossaCollection
 import { ZoomStoreWidget } from "../components/ZoomStoreWidget";
 
 const CYAN = "#9EC5E8";
-const SHOP_TABS = [
-  { id: "exclusive" as const, label: "Exclusive", short: "EXCL.", color: "#ffb347", icon: "☀" },
-  { id: "bundles" as const, label: "Bundles", short: "PACK", color: CYAN, icon: "◈" },
-  { id: "items" as const, label: "Items", short: "ITEM", color: "#c471ed", icon: "◇" },
-  { id: "resources" as const, label: "Stardust", short: "RES.", color: "#ffd740", icon: "★" },
-  { id: "lab" as const, label: "Lab", short: "LAB", color: "#a855f7", icon: "⚗" },
-  { id: "hub" as const, label: "Hub", short: "HUB", color: "#00d4ff", icon: "◎" },
-];
+
+interface ShopTabDef {
+  id: "exclusive" | "bundles" | "items" | "resources" | "lab" | "hub";
+  labelKey: string;
+  shortKey: string;
+  color: string;
+  icon: string;
+}
 
 interface ShopItem {
   id: string;
-  title: string;
-  desc: string;
+  titleKey: string;
+  descKey: string;
   starsPrice: number;
   tonPrice: number;
   zoomAmount?: number;
@@ -36,24 +37,19 @@ interface ShopItem {
 }
 
 const SHOP_ITEMS: ShopItem[] = [
-  { id: "starter_pack", title: "Starter Pack", desc: "2,000 $ZOOM + 1 Basic Planet", starsPrice: 50, tonPrice: 0.5, zoomAmount: 2000, color: "#8892b0", icon: "◇", type: "bundle" },
-  { id: "explorer_pack", title: "Explorer Pack", desc: "8,000 $ZOOM + 1 Rare Planet", starsPrice: 150, tonPrice: 1.5, zoomAmount: 8000, color: "#4facfe", icon: "◈", type: "bundle" },
-  { id: "legend_pack", title: "Legend Pack", desc: "25,000 $ZOOM + 1 Epic Planet", starsPrice: 400, tonPrice: 4.0, zoomAmount: 25000, color: "#c471ed", icon: "⬡", type: "bundle" },
+  { id: "starter_pack", titleKey: "shop.products.starter.title", descKey: "shop.products.starter.desc", starsPrice: 50, tonPrice: 0.5, zoomAmount: 2000, color: "#8892b0", icon: "◇", type: "bundle" },
+  { id: "explorer_pack", titleKey: "shop.products.explorer.title", descKey: "shop.products.explorer.desc", starsPrice: 150, tonPrice: 1.5, zoomAmount: 8000, color: "#4facfe", icon: "◈", type: "bundle" },
+  { id: "legend_pack", titleKey: "shop.products.legend.title", descKey: "shop.products.legend.desc", starsPrice: 400, tonPrice: 4.0, zoomAmount: 25000, color: "#c471ed", icon: "⬡", type: "bundle" },
 ];
 
-// Extra Slot is rendered as its own TON-only card with a dynamic price
-// (escalates per slot already owned, capped at 3 TON).
 const EXTRA_SLOT_ITEM: ShopItem = {
-  id: "extra_slot", title: "Extra Slot", desc: "Unlock 1 additional planet slot",
+  id: "extra_slot", titleKey: "shop.products.extraSlot.title", descKey: "shop.products.extraSlot.desc",
   starsPrice: 0, tonPrice: 0.25, color: "#ff3355", icon: "+", type: "slot",
 };
 
-// Stardust top-up bundles — paid in Stars or TON via the same shop pay-mode
-// toggle. Rendered in their own card group above the existing stardust items
-// (Computer/Plant) so players who lack stardust can buy it instantly.
 const STARDUST_BUNDLES: ShopItem[] = [
-  { id: "stardust_100", title: "Stardust Pack — 100", desc: "Instant top-up · 100 stardust", starsPrice: 100, tonPrice: 1, zoomAmount: 100, color: "#ffd740", icon: "★", type: "stardust" },
-  { id: "stardust_500", title: "Stardust Pack — 500", desc: "Instant top-up · 500 stardust", starsPrice: 500, tonPrice: 5, zoomAmount: 500, color: "#ffd740", icon: "★", type: "stardust" },
+  { id: "stardust_100", titleKey: "shop.products.stardust100.title", descKey: "shop.products.stardust100.desc", starsPrice: 100, tonPrice: 1, zoomAmount: 100, color: "#ffd740", icon: "★", type: "stardust" },
+  { id: "stardust_500", titleKey: "shop.products.stardust500.title", descKey: "shop.products.stardust500.desc", starsPrice: 500, tonPrice: 5, zoomAmount: 500, color: "#ffd740", icon: "★", type: "stardust" },
 ];
 
 interface StockInfo { sold: number; remaining: number; max: number; }
@@ -114,7 +110,16 @@ export function ShopPage({
   stellaLastClaimAt = 0,
   onStellaClaimDaily,
 }: ShopPageProps) {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const SHOP_TABS: ShopTabDef[] = [
+    { id: "exclusive", labelKey: "shop.tabs.exclusive", shortKey: "shop.tabs.exclusiveShort", color: "#ffb347", icon: "☀" },
+    { id: "bundles", labelKey: "shop.tabs.bundles", shortKey: "shop.tabs.bundlesShort", color: CYAN, icon: "◈" },
+    { id: "items", labelKey: "shop.tabs.items", shortKey: "shop.tabs.itemsShort", color: "#c471ed", icon: "◇" },
+    { id: "resources", labelKey: "shop.tabs.resources", shortKey: "shop.tabs.resourcesShort", color: "#ffd740", icon: "★" },
+    { id: "lab", labelKey: "shop.tabs.lab", shortKey: "shop.tabs.labShort", color: "#a855f7", icon: "⚗" },
+    { id: "hub", labelKey: "shop.tabs.hub", shortKey: "shop.tabs.hubShort", color: "#00d4ff", icon: "◎" },
+  ];
+  const itemTitle = (item: ShopItem) => t(item.titleKey);
   const [buying, setBuying] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [payMode, setPayMode] = useState<"stars" | "stardust">("stars");
@@ -275,25 +280,25 @@ export function ShopPage({
               // Webhook is the only path that credits; poll until it does.
               const final = await pollTxnUntilFinal(result.txnId, { maxMs: 60_000, intervalMs: 2_000 });
               if (final?.status === "completed") {
-                setMessage(`${item.title} purchased!`);
+                setMessage(t("shop.purchased", { title: itemTitle(item) }));
                 triggerDataRefresh();
               } else if (final?.status === "failed") {
-                setMessage("Payment failed");
+                setMessage(t("shop.paymentFailed"));
               } else {
                 // Final fallback — call confirm to get latest known status.
                 const c = await confirmStarsPurchase(result.txnId, telegramId);
                 if (c.ok) {
-                  setMessage(`${item.title} purchased!`);
+                  setMessage(t("shop.purchased", { title: itemTitle(item) }));
                   triggerDataRefresh();
                 } else {
                   // Webhook may still arrive — keep refreshing so the UI
                   // updates as soon as the credit lands server-side.
-                  setMessage("Awaiting confirmation… item will appear automatically.");
+                  setMessage(t("shop.awaitingConfirmation"));
                   triggerDataRefresh();
                 }
               }
             } else if (status === "cancelled") {
-              setMessage("Payment cancelled");
+              setMessage(t("shop.paymentCancelled"));
             } else if (status === "failed") {
               setMessage("Payment failed");
             }
@@ -305,7 +310,7 @@ export function ShopPage({
         }
       }
     } catch {
-      setMessage("Payment error");
+      setMessage(t("shop.paymentError"));
       setBuying(null);
     }
   };
@@ -315,20 +320,20 @@ export function ShopPage({
     if (!telegramId) { setMessage(t("shop.telegramIdMissing")); return; }
     const cost = stardustPriceForItem(item);
     if (liveStardustBalance < cost) {
-      setMessage(`Insufficient STARDUST (need ${cost.toLocaleString()} ★). Earn stardust in Lab or buy a top-up below.`);
+      setMessage(t("shop.insufficientStardustLong", { n: cost.toLocaleString() }));
       return;
     }
     setBuying(item.id);
     const res = await buyShopItemFromStardust(telegramId, item.id);
     setBuying(null);
     if (res.ok) {
-      setMessage(`${item.title} purchased! (−${(res.stardustSpent ?? cost).toLocaleString()} ★)`);
+      setMessage(t("shop.purchasedStardust", { title: itemTitle(item), n: (res.stardustSpent ?? cost).toLocaleString() }));
       setLiveStardustBalance((b) => Math.max(0, b - (res.stardustSpent ?? cost)));
       triggerDataRefresh();
       window.dispatchEvent(new CustomEvent("stardust-refresh"));
       if (item.id === "extra_slot") refreshSlotPrice();
     } else {
-      setMessage(res.error || "Purchase failed");
+      setMessage(res.error ? translateGameMessage(lang, res.error) : t("shop.purchaseFailed"));
     }
   };
 
@@ -343,10 +348,10 @@ export function ShopPage({
     return `★ ${stardustPriceForItem(item).toLocaleString()}`;
   };
   const formatBuyLabel = (item: ShopItem) => {
-    if (payMode === "stars") return `BUY — ⭐ ${item.starsPrice.toLocaleString()}`;
-    return `BUY — ★ ${stardustPriceForItem(item).toLocaleString()}`;
+    if (payMode === "stars") return t("shop.buyStars", { n: item.starsPrice.toLocaleString() });
+    return t("shop.buyStardust", { n: stardustPriceForItem(item).toLocaleString() });
   };
-  const priceUnit = payMode === "stars" ? "Stars" : "Stardust";
+  const priceUnit = payMode === "stars" ? t("shop.priceStars") : t("shop.priceStardust");
 
   // ─── COMPUTER (stardust-priced item that lives in the HOME) ──────────
   // Independent of the Stars/TON pay mode toggle above — this is the only
@@ -363,16 +368,16 @@ export function ShopPage({
     const r = await buyComputer(telegramId);
     setBuying(null);
     if (r.ok) {
-      setMessage("COMPUTER purchased!");
+      setMessage(t("shop.computerPurchased"));
       window.dispatchEvent(new Event("zoom-data-refresh"));
       refreshHome();
     } else if (r.error === "NOT_ENOUGH_STARDUST") {
-      setMessage(`Need ${r.need?.toLocaleString()} stardust (have ${r.have?.toLocaleString()})`);
+      setMessage(t("shop.notEnoughStardust", { need: r.need?.toLocaleString() ?? "0", have: r.have?.toLocaleString() ?? "0" }));
     } else if (r.error === "ALREADY_OWNED") {
-      setMessage("You already own the COMPUTER");
+      setMessage(t("shop.alreadyOwnComputer"));
       refreshHome();
     } else {
-      setMessage("Purchase failed");
+      setMessage(t("shop.purchaseFailed"));
     }
   };
 
@@ -389,16 +394,16 @@ export function ShopPage({
     const r = await buyPlantSeed(telegramId);
     setBuying(null);
     if (r.ok) {
-      setMessage("PLANT SEED purchased!");
+      setMessage(t("shop.plantPurchased"));
       window.dispatchEvent(new Event("zoom-data-refresh"));
       refreshHome();
     } else if (r.error === "NOT_ENOUGH_STARDUST") {
-      setMessage(`Need ${r.need?.toLocaleString()} stardust (have ${r.have?.toLocaleString()})`);
+      setMessage(t("shop.notEnoughStardust", { need: r.need?.toLocaleString() ?? "0", have: r.have?.toLocaleString() ?? "0" }));
     } else if (r.error === "ALREADY_OWNED") {
-      setMessage("You already own a PLANT");
+      setMessage(t("shop.alreadyOwnPlant"));
       refreshHome();
     } else {
-      setMessage("Purchase failed");
+      setMessage(t("shop.purchaseFailed"));
     }
   };
 
@@ -494,7 +499,7 @@ export function ShopPage({
                 data-testid={`tab-shop-${tab.id}`}
               >
                 <span style={{ fontSize: 13, lineHeight: 1 }}>{tab.icon}</span>
-                <span>{tab.short}</span>
+                <span>{t(tab.shortKey)}</span>
               </button>
             );
           })}
@@ -515,17 +520,17 @@ export function ShopPage({
             <div className="absolute top-0 right-0 w-40 h-40 rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(255,179,71,0.15) 0%, transparent 70%)", filter: "blur(20px)", transform: "translate(30%, -30%)" }} />
             <div className="flex items-start justify-between mb-3">
               <div>
-                <div className="font-black text-xl tracking-wide" style={{ color: "#ffb347" }}>SUN</div>
+                <div className="font-black text-xl tracking-wide" style={{ color: "#ffb347" }}>{t("shop.sun.title")}</div>
                 <div className="text-xs mt-1" style={{ color: "rgba(255,179,71,0.6)" }}>
-                  Limited Edition · {sunStock ? `${sunStock.remaining}/${sunStock.max} left` : "Exclusive"}
+                  {t("shop.sun.limitedEdition")} · {sunStock ? t("shop.sun.stockLeft", { remaining: sunStock.remaining, max: sunStock.max }) : t("shop.sun.exclusive")}
                 </div>
               </div>
               <div className="px-3 py-1.5 rounded-full text-xs font-bold" style={{ background: "rgba(255,179,71,0.15)", color: "#ffb347", border: "1px solid rgba(255,179,71,0.3)" }}>
-                {sunStock ? `OWNED ${sunStock.userCount}/${sunStock.maxPerUser}` : "EXCLUSIVE"}
+                {sunStock ? t("shop.sun.owned", { n: sunStock.userCount, max: sunStock.maxPerUser }) : t("farm.exclusive")}
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mb-4">
-              {["Not tradeable", "Max yield", "1,000/hr each", `Max ${sunStock?.maxPerUser ?? 5}/user`].map(tag => (
+              {[t("shop.sun.tagNotTradeable"), t("shop.sun.tagMaxYield"), t("shop.sun.tagRate"), t("shop.sun.tagMaxUser", { n: sunStock?.maxPerUser ?? 5 })].map(tag => (
                 <span key={tag} className="text-xs px-2 py-0.5 rounded-full" style={{ background: "rgba(255,179,71,0.08)", color: "rgba(255,179,71,0.7)", border: "1px solid rgba(255,179,71,0.15)" }}>
                   {tag}
                 </span>
@@ -534,7 +539,7 @@ export function ShopPage({
             <button
               onClick={async () => {
                 if (sunDisabled) return;
-                const sunItem: ShopItem = { id: "the_sun", title: "SUN", desc: "Exclusive", starsPrice: 1000, tonPrice: 10, color: "#ffb347", icon: "☀", type: "sun" };
+                const sunItem: ShopItem = { id: "the_sun", titleKey: "shop.sun.title", descKey: "shop.sun.exclusive", starsPrice: 1000, tonPrice: 10, color: "#ffb347", icon: "☀", type: "sun" };
                 if (payMode === "stars") await handleStarsBuy(sunItem);
                 else await handleStardustBuy(sunItem);
                 refreshSunStock();
@@ -550,7 +555,7 @@ export function ShopPage({
                 opacity: buying === "the_sun" ? 0.6 : 1,
               }}
             >
-              {sunSoldOut ? "Sold Out" : sunUserMaxed ? `Max ${sunStock?.maxPerUser ?? 5} Reached` : buying === "the_sun" ? "Processing..." : formatBuyLabel({ id: "the_sun", title: "SUN", desc: "", starsPrice: 1000, tonPrice: 10, color: "#ffb347", icon: "☀", type: "sun" })}
+              {sunSoldOut ? t("shop.sun.soldOut") : sunUserMaxed ? t("shop.sun.maxReached", { n: sunStock?.maxPerUser ?? 5 }) : buying === "the_sun" ? t("shop.processing") : formatBuyLabel({ id: "the_sun", titleKey: "shop.sun.title", descKey: "shop.sun.exclusive", starsPrice: 1000, tonPrice: 10, color: "#ffb347", icon: "☀", type: "sun" })}
             </button>
           </div>
           </>)}
@@ -629,16 +634,16 @@ export function ShopPage({
                   }}
                 >
                   {soldOut
-                    ? "Sold Out"
+                    ? t("shop.coll.soldOut")
                     : atUserCap
                     ? `MAX OWNED (${col.userCap}/${col.userCap})`
                     : sunLocked
-                    ? "🔒 SUN REQUIRED"
+                    ? t("shop.coll.sunRequired")
                     : buying === col.id
-                    ? "Processing..."
+                    ? t("shop.processing")
                     : payMode === "stars"
-                    ? `BUY — ⭐ ${col.priceStars.toLocaleString()}`
-                    : `BUY — ★ ${stardustShopPrice(col.priceTon, stardustIndex).toLocaleString()}`}
+                    ? t("shop.buyStars", { n: col.priceStars.toLocaleString() })
+                    : t("shop.buyStardust", { n: stardustShopPrice(col.priceTon, stardustIndex).toLocaleString() })}
                 </button>
               </div>
             );
@@ -698,8 +703,8 @@ export function ShopPage({
                   {item.icon}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-black text-sm" style={{ color: item.color }}>{item.title}</div>
-                  <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>{item.desc}</div>
+                  <div className="font-black text-sm" style={{ color: item.color }}>{item.titleKey ? t(item.titleKey) : itemTitle(item)}</div>
+                  <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>{item.descKey ? t(item.descKey) : ""}</div>
                 </div>
                 <div className="flex-shrink-0 text-right">
                   <div className="font-black text-base" style={{ color: payColor }}>
@@ -721,7 +726,7 @@ export function ShopPage({
                     opacity: buying === item.id ? 0.6 : 1,
                   }}
                 >
-                  {buying === item.id ? "Processing..." : formatBuyLabel(item)}
+                  {buying === item.id ? t("shop.processing") : formatBuyLabel(item)}
                 </button>
               </div>
             </div>
@@ -775,10 +780,10 @@ export function ShopPage({
                 {computerOwned
                   ? "OWNED — PLACE IT IN YOUR HOME"
                   : buying === "computer"
-                  ? "Processing..."
+                  ? t("shop.processing")
                   : stardustBalance < computerCost
                   ? `Need ${(computerCost - stardustBalance).toLocaleString()} more stardust`
-                  : `BUY — ★ ${computerCost.toLocaleString()} STARDUST`}
+                  : t("shop.buyStardustBtn", { n: computerCost.toLocaleString() })}
               </button>
             </div>
           </div>
@@ -825,10 +830,10 @@ export function ShopPage({
                 {plantOwned
                   ? "OWNED — PLACE IT IN YOUR HOME"
                   : buying === "plant"
-                  ? "Processing..."
+                  ? t("shop.processing")
                   : stardustBalance < plantSeedCost
                   ? `Need ${(plantSeedCost - stardustBalance).toLocaleString()} more stardust`
-                  : `BUY — ★ ${plantSeedCost.toLocaleString()} STARDUST`}
+                  : t("shop.buyStardustBtn", { n: plantSeedCost.toLocaleString() })}
               </button>
             </div>
           </div>
@@ -863,9 +868,9 @@ export function ShopPage({
                     {item.icon}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-black text-sm" style={{ color: item.color }}>{item.title}</div>
+                    <div className="font-black text-sm" style={{ color: item.color }}>{item.titleKey ? t(item.titleKey) : itemTitle(item)}</div>
                     <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-                      {item.desc}
+                      {item.descKey ? t(item.descKey) : ""}
                     </div>
                     <div className="text-[10px] mt-1 font-bold tracking-wider" style={{ color: "rgba(255,51,85,0.7)" }}>
                       {owned > 0 ? `Extra slots owned: ${owned}` : "First extra slot"}
@@ -889,7 +894,7 @@ export function ShopPage({
                     }}
                   >
                     {buying === item.id
-                      ? "Processing..."
+                      ? t("shop.processing")
                       : !slotPrice
                       ? "Loading..."
                       : formatBuyLabel(slotShopItem)}
@@ -913,8 +918,8 @@ export function ShopPage({
                   {item.icon}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-black text-sm" style={{ color: item.color }}>{item.title}</div>
-                  <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>{item.desc}</div>
+                  <div className="font-black text-sm" style={{ color: item.color }}>{item.titleKey ? t(item.titleKey) : itemTitle(item)}</div>
+                  <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>{item.descKey ? t(item.descKey) : ""}</div>
                 </div>
                 <div className="flex-shrink-0 text-right">
                   <div className="font-black text-base" style={{ color: payColor }}>
@@ -936,7 +941,7 @@ export function ShopPage({
                     opacity: buying === item.id ? 0.6 : 1,
                   }}
                 >
-                  {buying === item.id ? "Processing..." : formatBuyLabel(item)}
+                  {buying === item.id ? t("shop.processing") : formatBuyLabel(item)}
                 </button>
               </div>
             </div>

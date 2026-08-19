@@ -84,8 +84,8 @@ const PHASE_GROUND: Record<SkyPhase, string> = {
   night: "#0d1d18",
 };
 
-function fmtCountdown(s: number): string {
-  if (s <= 0) return "READY";
+function fmtCountdown(s: number, readyLabel: string): string {
+  if (s <= 0) return readyLabel;
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
@@ -258,7 +258,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
     if (!telegramId) return;
     const raw = inviteUsername.trim();
     if (!raw) {
-      setInviteFeedback({ kind: "err", text: "Type a @username first" });
+      setInviteFeedback({ kind: "err", text: t("home.usrTypeUsername") });
       return;
     }
     setInviteSending(true);
@@ -267,22 +267,22 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
     setInviteSending(false);
     if (r.ok) {
       setInviteUsername("");
-      setInviteFeedback({ kind: "ok", text: "Invite sent! They will see it on their HOME." });
+      setInviteFeedback({ kind: "ok", text: t("home.inviteSent") });
     } else {
       const msg = (() => {
         switch (r.error) {
-          case "user_not_found": return "No player with that @username.";
-          case "ambiguous_username": return "More than one account uses that @username. Try again later.";
-          case "cannot_invite_self": return "You can't invite yourself.";
-          case "cooldown": return `Already invited recently. Try again in ${r.waitSeconds ?? 60}s.`;
-          case "too_many_pending": return "Too many pending invites. Wait for replies first.";
-          case "invalid_username": return "That @username doesn't look right.";
-          default: return "Could not send the invite.";
+          case "user_not_found": return t("home.err.userNotFound");
+          case "ambiguous_username": return t("home.err.ambiguous");
+          case "cannot_invite_self": return t("home.err.self");
+          case "cooldown": return t("home.err.cooldown", { n: r.waitSeconds ?? 60 });
+          case "too_many_pending": return t("home.err.tooMany");
+          case "invalid_username": return t("home.err.invalid");
+          default: return t("home.err.failed");
         }
       })();
       setInviteFeedback({ kind: "err", text: msg });
     }
-  }, [telegramId, inviteUsername]);
+  }, [telegramId, inviteUsername, t]);
 
   const handleRespondInvite = useCallback(async (id: number, action: "accept" | "decline") => {
     if (!telegramId) return;
@@ -293,11 +293,11 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
       // Optimistically drop the row so the banner disappears immediately;
       // the next 15s poll will reconcile if the server disagrees.
       setInbox((cur) => cur.filter((i) => i.id !== id));
-      if (action === "accept") setToast("Joined the room!");
+      if (action === "accept") setToast(t("home.inviteJoined"));
     } else {
-      setToast("Could not respond");
+      setToast(t("home.inviteCouldNot"));
     }
-  }, [telegramId]);
+  }, [telegramId, t]);
 
   // Watering tick — bumps each time the player successfully waters the
   // plant. PlantSlotContent listens to this number to (re-)trigger a
@@ -384,13 +384,13 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
     const r = await unlockHome(telegramId);
     setBusy(null);
     if (r.ok) {
-      setToast("HOME unlocked!");
+      setToast(t("home.unlocked"));
       window.dispatchEvent(new Event("zoom-data-refresh"));
       void refresh();
-    } else if (r.error === "NO_SUN") setToast("You need the SUN first");
-    else if (r.error === "NOT_ENOUGH_STARDUST") setToast(`Need ${r.need} stardust (have ${r.have})`);
+    } else if (r.error === "NO_SUN") setToast(t("home.needSun"));
+    else if (r.error === "NOT_ENOUGH_STARDUST") setToast(t("home.needStardust", { need: r.need, have: r.have }));
     else if (r.error === "ALREADY_UNLOCKED") void refresh();
-    else setToast("Unlock failed");
+    else setToast(t("home.unlockFailed"));
   };
 
   const handleClaim = async () => {
@@ -399,14 +399,14 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
     const r = await claimComputer(telegramId);
     setBusy(null);
     if (r.ok) {
-      setToast(`+${r.reward} STARDUST`);
+      setToast(t("home.gotStardust", { n: r.reward }));
       window.dispatchEvent(new Event("zoom-data-refresh"));
       void refresh();
     } else if (r.error === "NOT_READY") {
-      setToast(`Not ready: ${fmtCountdown(r.secondsToReady ?? 0)}`);
+      setToast(t("home.notReady", { time: fmtCountdown(r.secondsToReady ?? 0, t("home.ready")) }));
       void refresh();
-    } else if (r.error === "NOT_OWNED") setToast("Buy the COMPUTER in the SHOP");
-    else setToast("Claim failed");
+    } else if (r.error === "NOT_OWNED") setToast(t("home.buyComputer"));
+    else setToast(t("home.claimFailed"));
   };
 
   // Easter-egg: tap the computer to try the +200 $ZOOM daily bonus.
@@ -417,7 +417,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
     if (!telegramId) return;
     const r = await claimComputerZoomBonus(telegramId);
     if (r.ok) {
-      setToast(`+${r.reward} $ZOOM`);
+      setToast(t("earn.zoomCredited", { n: r.reward }));
       window.dispatchEvent(new Event("zoom-data-refresh"));
       void refresh();
     } else if (r.error === "NOT_READY") {
@@ -436,23 +436,23 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
       // shake-and-droplets animation. Each bump is unique so the
       // animation re-runs even on rapid successive successful waters.
       setWateringTick((t) => t + 1);
-      if (r.maxedOut) setToast("PLANT FULLY GROWN — STELLAR PLANT!");
-      else if (r.leveledUp) setToast(`Level up! → L${r.plantLevel}`);
-      else setToast(`+${10} XP`);
+      if (r.maxedOut) setToast(t("home.fullyGrown"));
+      else if (r.leveledUp) setToast(t("home.levelUp", { n: r.plantLevel }));
+      else setToast(t("home.gotXp", { n: 10 }));
       window.dispatchEvent(new Event("zoom-data-refresh"));
       void refresh();
     } else if (r.error === "NOT_READY") {
-      setToast(`Wait ${fmtCountdown(r.secondsToReady ?? 0)} to water again`);
+      setToast(t("home.waitWater", { time: fmtCountdown(r.secondsToReady ?? 0, t("home.ready")) }));
       void refresh();
     } else if (r.error === "NOT_ENOUGH_STARDUST") {
-      setToast(`Need ${r.need} stardust (have ${r.have})`);
+      setToast(t("home.needStardust", { need: r.need, have: r.have }));
     } else if (r.error === "MAX_LEVEL") {
-      setToast("Plant is fully grown");
+      setToast(t("home.maxLevel"));
       void refresh();
     } else if (r.error === "NOT_OWNED") {
-      setToast("Buy the PLANT SEED in the SHOP");
+      setToast(t("home.buySeed"));
     } else {
-      setToast("Watering failed");
+      setToast(t("home.waterFailed"));
     }
   };
 
@@ -462,16 +462,16 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
     const r = await claimPlant(telegramId);
     setBusy(null);
     if (r.ok) {
-      setToast(`+${r.reward} TON`);
+      setToast(t("home.gotTon", { n: r.reward }));
       window.dispatchEvent(new Event("zoom-data-refresh"));
       void refresh();
     } else if (r.error === "NOT_READY") {
-      setToast(`Not ready: ${fmtCountdown(r.secondsToReady ?? 0)}`);
+      setToast(t("home.notReady", { time: fmtCountdown(r.secondsToReady ?? 0, t("home.ready")) }));
       void refresh();
     } else if (r.error === "NOT_MATURE") {
-      setToast("Plant is not fully grown yet");
+      setToast(t("home.notMature"));
     } else {
-      setToast("Claim failed");
+      setToast(t("home.claimFailed"));
     }
   };
 
@@ -482,8 +482,8 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
     setBusy(null);
     setPickerSlot(null);
     if (r.ok) void refresh();
-    else if (r.error === "ITEM_NOT_OWNED") setToast("You don't own that item");
-    else setToast("Could not place item");
+    else if (r.error === "ITEM_NOT_OWNED") setToast(t("home.notOwned"));
+    else setToast(t("home.placeFailed"));
   };
 
   const handleClear = async (slot: Slot) => {
@@ -495,7 +495,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
   };
 
   if (loading) {
-    return <div className="flex-1 flex items-center justify-center text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>Loading…</div>;
+    return <div className="flex-1 flex items-center justify-center text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{t("home.loading")}</div>;
   }
   if (!state) {
     return <div className="flex-1 flex items-center justify-center text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{t("home.couldNotLoad")}</div>;
@@ -536,13 +536,13 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 relative" style={{ overflow: "auto" }}>
         {toast && <Toast text={toast} />}
         <PixelLock />
-        <div className="mt-6 font-black text-lg tracking-widest neon-text text-center">HOME LOCKED</div>
+        <div className="mt-6 font-black text-lg tracking-widest neon-text text-center">{t("home.locked")}</div>
         <div className="mt-2 text-xs text-center" style={{ color: "rgba(255,255,255,0.55)", maxWidth: 280, lineHeight: 1.5 }}>
-          Your private pixel room — unlock it to display your collection and farm passive stardust.
+          {t("home.lockedDesc")}
         </div>
         <div className="mt-5 w-full max-w-xs flex flex-col gap-2">
-          <Requirement met={state.hasSun} label="Own the SUN" />
-          <Requirement met={canPay} label={`Pay ${state.unlockCost.toLocaleString()} stardust (have ${state.stardustBalance.toLocaleString()})`} />
+          <Requirement met={state.hasSun} label={t("home.reqSun")} />
+          <Requirement met={canPay} label={t("home.reqStardust", { cost: state.unlockCost.toLocaleString(), have: state.stardustBalance.toLocaleString() })} />
         </div>
         <button
           type="button"
@@ -558,7 +558,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
             opacity: busy === "unlock" ? 0.6 : 1,
           }}
         >
-          {busy === "unlock" ? "UNLOCKING…" : `UNLOCK — ${state.unlockCost.toLocaleString()} STARDUST`}
+          {busy === "unlock" ? t("home.unlocking") : t("home.unlock", { n: state.unlockCost.toLocaleString() })}
         </button>
       </div>
     );
@@ -584,7 +584,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
             border: "1px solid rgba(0,230,118,0.4)",
           }}
         >
-          + INVITE
+          {t("home.invite")}
           {(roomOccupants.length > 0 || inbox.length > 0) && (
             <span style={{ marginLeft: 6, opacity: 0.85 }}>
               · {roomOccupants.length}
@@ -604,7 +604,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
             border: `1px solid ${arrange ? "rgba(255,215,64,0.45)" : "rgba(255,255,255,0.08)"}`,
           }}
         >
-          {arrange ? "DONE" : "ARRANGE"}
+          {arrange ? t("home.done") : t("home.arrange")}
         </button>
       </div>
 
@@ -638,10 +638,10 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
             }}
           >
             <div className="font-black text-base mb-1" style={{ color: "#00e676" }}>
-              Invite a Friend
+              {t("home.inviteFriend")}
             </div>
             <div className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.55)" }}>
-              Type a player's @username — they'll get a notification on their HOME and tap Accept to visit your room for 30 min.
+              {t("home.inviteDesc")}
             </div>
             <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
               <input
@@ -675,7 +675,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
                   opacity: inviteUsername.trim() ? 1 : 0.5,
                 }}
               >
-                {inviteSending ? "..." : "Invite"}
+                {inviteSending ? "..." : t("home.inviteBtn")}
               </button>
             </div>
             {inviteFeedback && (
@@ -692,7 +692,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
             )}
 
             <div className="text-xs mb-2" style={{ color: "rgba(255,255,255,0.5)", marginTop: 6 }}>
-              In your room now: <span style={{ color: "#00e676", fontWeight: 700 }}>{roomOccupants.length}</span>
+              {t("home.inRoomNow")} <span style={{ color: "#00e676", fontWeight: 700 }}>{roomOccupants.length}</span>
             </div>
 
             <button
@@ -705,7 +705,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
                 border: "1px solid rgba(255,255,255,0.12)",
               }}
             >
-              Close
+              {t("home.close")}
             </button>
           </div>
         </div>
@@ -741,8 +741,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
                 }}
               >
                 <div className="text-xs" style={{ flex: 1, color: "rgba(255,255,255,0.92)" }}>
-                  <span style={{ color: "#ffd740", fontWeight: 800 }}>{inv.from}</span>{" "}
-                  invited you to their room
+                  {t("home.pendingInvite", { name: inv.from })}
                 </div>
                 <button
                   type="button"
@@ -756,7 +755,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
                     opacity: busy ? 0.5 : 1,
                   }}
                 >
-                  Accept
+                  {t("home.accept")}
                 </button>
                 <button
                   type="button"
@@ -770,7 +769,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
                     opacity: busy ? 0.5 : 1,
                   }}
                 >
-                  No
+                  {t("home.decline")}
                 </button>
               </div>
             );
@@ -818,11 +817,11 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
                 else if (id === "plant") {
                   if (livePlant.level >= livePlant.maxLevel) {
                     if (livePlant.claimReady) handleClaimPlant();
-                    else setToast(`Next TON in ${fmtCountdown(livePlant.secondsToClaim)}`);
+                    else setToast(t("home.notReady", { time: fmtCountdown(livePlant.secondsToClaim, t("home.ready")) }));
                   } else if (livePlant.waterReady) {
                     handleWaterPlant();
                   } else {
-                    setToast(`Water in ${fmtCountdown(livePlant.secondsToWater)}`);
+                    setToast(t("home.waitWater", { time: fmtCountdown(livePlant.secondsToWater, t("home.ready")) }));
                   }
                 }
                 return;
@@ -853,7 +852,7 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
             }}
           >
             <div className="text-xs font-black tracking-widest mb-2" style={{ color: "#ffd740" }}>
-              SLOT {pickerSlot}
+              {t("home.placementTitle")}
             </div>
             <div className="flex flex-wrap gap-2">
               <SlotPickerOption
@@ -880,14 +879,14 @@ export function HomePage({ telegramId, referralCode, visible }: HomePageProps) {
                     border: "1px solid rgba(255,99,99,0.3)",
                   }}
                 >
-                  REMOVE
+                  {t("home.remove")}
                 </button>
               )}
             </div>
             <div className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.4)", lineHeight: 1.4 }}>
               {state.computer.owned
-                ? "Tap COMPUTER to place it here, or REMOVE to empty the slot."
-                : "Visit the SHOP to buy items you can place in your HOME."}
+                ? t("home.placementComputer")
+                : t("home.placementShop")}
             </div>
           </div>
         )}
@@ -934,6 +933,7 @@ function Requirement({ met, label }: { met: boolean; label: string }) {
 }
 
 function SlotPickerOption({ label, owned, disabled, onClick }: { label: string; owned: boolean; disabled: boolean; onClick: () => void }) {
+  const { t } = useT();
   return (
     <button
       type="button"
@@ -948,7 +948,7 @@ function SlotPickerOption({ label, owned, disabled, onClick }: { label: string; 
         opacity: disabled ? 0.6 : 1,
       }}
     >
-      {label} {!owned && "(not owned)"}
+      {label}{!owned && ` (${t("home.notOwned")})`}
     </button>
   );
 }
@@ -1271,28 +1271,29 @@ interface PixelRoomProps {
 // natural day/night sky (UTC-driven). Indices 1..3 are deliberate
 // "skin" overrides — they ignore phase so a Pink Nebula stays pink even
 // at midnight UTC. Stars draw on top only when phase==="night" still.
-type OutdoorOverride = { sky: string; ground: string; label: string; planet?: "ringed" | "giant" };
+type OutdoorOverride = { sky: string; ground: string; labelKey: string; planet?: "ringed" | "giant" };
 const OUTDOOR_SCENES: Array<OutdoorOverride | null> = [
   null,
   {
     sky: "linear-gradient(180deg, #2a0540 0%, #6a1480 45%, #ff5db5 100%)",
     ground: "#3a0a4a",
-    label: "Pink Nebula",
+    labelKey: "home.scenery.pinkNebula",
   },
   {
     sky: "linear-gradient(180deg, #1a0533 0%, #471174 60%, #b47ce0 100%)",
     ground: "#2a1040",
-    label: "Giant Planet",
+    labelKey: "home.scenery.giantPlanet",
     planet: "giant",
   },
   {
     sky: "linear-gradient(180deg, #000000 0%, #050018 60%, #0a0030 100%)",
     ground: "#020010",
-    label: "Deep Space",
+    labelKey: "home.scenery.deepSpace",
   },
 ];
 
 function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTick, onSlotClick, visible, friends, onComputerExtraClick }: PixelRoomProps & { visible: boolean }) {
+  const { t } = useT();
   // Read shared astronaut activity so the room can react to what the
   // robot is doing — used for the plant "cheer" hop while he is doing
   // push-ups near it.
@@ -1396,12 +1397,13 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
   const cycleOutdoor = useCallback(() => {
     setOutdoorIdx((i) => {
       const next = (i + 1) % OUTDOOR_SCENES.length;
-      const lbl = OUTDOOR_SCENES[next]?.label || "Sky";
+      const scene = OUTDOOR_SCENES[next];
+      const lbl = scene?.labelKey ? t(scene.labelKey) : phase.toUpperCase();
       setSceneLabel(lbl);
       window.setTimeout(() => setSceneLabel(null), 1800);
       return next;
     });
-  }, []);
+  }, [t, phase]);
 
   const triggerBedSleep = useCallback(() => {
     setForceSleepUntil(Date.now() + 30000);
@@ -1636,7 +1638,7 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
       <button
         type="button"
         onClick={cycleOutdoor}
-        aria-label="Cycle outdoor view"
+        aria-label={t("home.aria.cycleView")}
         style={{
           position: "absolute",
           left: `${(28 / 80) * 100}%`,
@@ -1677,7 +1679,7 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
       <button
         type="button"
         onClick={triggerBedSleep}
-        aria-label="Send astronaut to sleep"
+        aria-label={t("home.aria.sleep")}
         style={{
           position: "absolute",
           left: `${(2 / 80) * 100}%`,
@@ -1696,7 +1698,7 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
       <button
         type="button"
         onClick={toggleTv}
-        aria-label={tvOn ? "Turn TV off" : "Turn TV on"}
+        aria-label={tvOn ? t("home.aria.tvOff") : t("home.aria.tvOn")}
         style={{
           position: "absolute",
           left: `${(5 / 80) * 100}%`,
@@ -1716,7 +1718,7 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
       <button
         type="button"
         onClick={triggerSofaSit}
-        aria-label="Send astronaut to sit on the sofa"
+        aria-label={t("home.aria.sitSofa")}
         style={{
           position: "absolute",
           left: `${(2 / 80) * 100}%`,
@@ -1987,7 +1989,7 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
       <button
         type="button"
         onClick={() => setViewMode((m) => (m === "flat" ? "persp" : "flat"))}
-        aria-label={persp ? "Switch to flat view" : "Switch to first-person view"}
+        aria-label={persp ? t("home.aria.viewFlat") : t("home.aria.viewFirst")}
         style={{
           position: "absolute",
           top: 8,
@@ -2008,7 +2010,7 @@ function PixelRoom({ phase, slots, arrange, computerClaimable, plant, wateringTi
           transition: "all 200ms ease",
         }}
       >
-        {persp ? "VIEW: 1ST" : "VIEW: FLAT"}
+        {persp ? t("home.viewFirst") : t("home.viewFlat")}
       </button>
     </div>
   );
@@ -2080,17 +2082,18 @@ const FRIEND_SPOTS: { left: string; top: string }[] = [
   { left: "76%", top: "50%" },
 ];
 
-// Random English speech bubbles surfaced when the user taps the resident
+// Random speech bubbles surfaced when the user taps the resident
 // astronaut. Brief one-liners that hint at the game without nagging.
-const ASTRO_SPEECH: string[] = [
-  "All good, Captain?",
-  "I'm hungry for Stardust!",
-  "Did you check the plant?",
-  "Need a coffee break ★",
-  "The window view is amazing!",
-];
+const ASTRO_SPEECH_KEYS = [
+  "home.astronaut.line1",
+  "home.astronaut.line2",
+  "home.astronaut.line3",
+  "home.astronaut.line4",
+  "home.astronaut.line5",
+] as const;
 
 function RoomLifeOverlay({ phase, visible, friends, forceSleep, forceSit }: { phase: SkyPhase; visible: boolean; friends: InvitedFriend[]; forceSleep?: boolean; forceSit?: boolean }) {
+  const { t } = useT();
   const baseActivity = useAstronautActivity();
   // Idle detection — if the user hasn't touched the screen for 30 s
   // we override the rotation and force the "drum" activity (the
@@ -2373,7 +2376,7 @@ function RoomLifeOverlay({ phase, visible, friends, forceSleep, forceSit }: { ph
     const now = Date.now();
     if (!jumping) {
       setJumping(true);
-      setBubbleText(ASTRO_SPEECH[Math.floor(Math.random() * ASTRO_SPEECH.length)]!);
+      setBubbleText(t(ASTRO_SPEECH_KEYS[Math.floor(Math.random() * ASTRO_SPEECH_KEYS.length)]!));
       window.setTimeout(() => setJumping(false), 600);
       window.setTimeout(() => setBubbleText((cur) => (cur && Date.now() - now >= 2400 ? null : cur)), 2500);
     }
@@ -2482,7 +2485,7 @@ function RoomLifeOverlay({ phase, visible, friends, forceSleep, forceSit }: { ph
               pointerEvents: "none",
             }}
           >
-            {bubbleText || "Welcome back, Commander!"}
+            {bubbleText || t("home.welcomeBack")}
           </div>
         )}
         {/* Sleeping Zzz cloud — drifts up from the helmet whenever the
@@ -2849,7 +2852,7 @@ function RoomLifeOverlay({ phase, visible, friends, forceSleep, forceSit }: { ph
                 animation: "home-visitor-bubble 2s ease-in-out infinite",
               }}
             >
-              Ciao!
+              {t("home.ciao")}
             </div>
           )}
           <div style={{ transform: `scaleX(${visitorFacing})` }}>

@@ -56,6 +56,32 @@ const SPIN_PACKS = [
   { id: "wheel_spin_10", spins: 10, stars: 350, ton: 3.5, badge: "-30%" },
 ];
 
+type WheelPrizeLike = Pick<
+  WheelPrizeConfig,
+  "type" | "zoomAmount" | "starsAmount" | "tonAmount" | "planetType" | "label"
+>;
+
+function wheelPrizeLabelKey(p: WheelPrizeLike): string | null {
+  if (p.type === "stars") {
+    if (p.starsAmount === 100) return "wheel.prize.stars100";
+    if (p.starsAmount === 200) return "wheel.prize.stars200";
+  }
+  if (p.type === "planet") {
+    if (p.planetType === "BASIC") return "wheel.prize.basic";
+    if (p.planetType === "RARE") return "wheel.prize.rare";
+    if (p.planetType === "EPIC") return "wheel.prize.epic";
+  }
+  return null;
+}
+
+function wheelPrizeLabel(
+  p: WheelPrizeLike,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): string {
+  const key = wheelPrizeLabelKey(p);
+  return key ? t(key) : p.label;
+}
+
 interface TgWebApp {
   openInvoice?: (url: string, callback: (status: string) => void) => void;
 }
@@ -191,6 +217,7 @@ const WheelDisc = memo(function WheelDisc({ prizes, highlightIdx, size }: WheelD
 // Keeps the parent's render tree small so the wheel never re-renders for it.
 // ─────────────────────────────────────────────────────────────────────────────
 const WheelFeedTicker = memo(function WheelFeedTicker() {
+  const { t } = useT();
   const [entries, setEntries] = useState<WheelFeedEntry[]>([]);
   useEffect(() => {
     let alive = true;
@@ -227,7 +254,7 @@ const WheelFeedTicker = memo(function WheelFeedTicker() {
           ● LIVE
         </span>
         <span className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
-          Waiting for the next spin…
+          {t("wheel.feedEmpty")}
         </span>
       </div>
     );
@@ -273,7 +300,7 @@ const WheelFeedTicker = memo(function WheelFeedTicker() {
         {display.map((e, idx) => (
           <div key={`${e.ts}-${idx}`} className="flex items-center gap-1.5 text-xs">
             <span style={{ color: "rgba(255,255,255,0.55)" }}>{e.name}</span>
-            <span style={{ color: "rgba(255,255,255,0.35)" }}>won</span>
+            <span style={{ color: "rgba(255,255,255,0.35)" }}>{t("wheel.feedWon")}</span>
             <span style={{ fontSize: 13 }}>{e.prizeIcon}</span>
             <span className="font-black" style={{ color: e.prizeColor }}>{e.prizeLabel}</span>
             <span style={{ color: "rgba(255,255,255,0.15)" }}>·</span>
@@ -418,7 +445,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
         // the claim — without this the same-session retry never fires
         // and the user would have to reload the page.
         resumedTokensRef.current.delete(claimToken);
-        setMessage("Conferma premio fallita: riproveremo automaticamente.");
+        setMessage(t("wheel.prizeConfirmFailed"));
       }
       spinInFlightRef.current = false;
     }, 5200);
@@ -426,7 +453,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
   // them in deps would not change behavior since we use closure values
   // captured at call time, and the function is small.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [telegramId]);
+  }, [telegramId, t]);
 
   const refreshStatus = useCallback(async () => {
     if (!telegramId) return;
@@ -599,7 +626,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
         return;
       }
       spinInFlightRef.current = false;
-      setMessage(res.error || "Spin failed");
+      setMessage(res.error || t("wheel.spinFailed"));
       return;
     }
     const r = res.result;
@@ -616,21 +643,21 @@ export function WheelPage({ telegramId }: WheelPageProps) {
     const res = await claimWheelDaily(telegramId);
     setClaiming(false);
     if (res.ok) {
-      setMessage("🎁 +1 free spin claimed!");
+      setMessage(t("wheel.dailyClaimed"));
       await refreshStatus();
     } else {
-      setMessage(res.error || "Claim failed");
+      setMessage(res.error || t("wheel.claimFailed"));
       await refreshStatus();
     }
   };
 
   const handleBuy = async (packId: string) => {
-    if (!telegramId) { setMessage("Telegram ID missing"); return; }
+    if (!telegramId) { setMessage(t("wheel.telegramMissing")); return; }
     setBuying(packId);
     try {
       const inv = await createStarsInvoice(telegramId, packId);
       if (inv.error || !inv.invoiceUrl || !inv.txnId) {
-        setMessage(inv.error || "Failed to create invoice");
+        setMessage(inv.error || t("wheel.invoiceFailed"));
         setBuying(null);
         return;
       }
@@ -639,22 +666,22 @@ export function WheelPage({ telegramId }: WheelPageProps) {
         tg.openInvoice(inv.invoiceUrl, async (status: string) => {
           if (status === "paid") {
             const c = await confirmStarsPurchase(inv.txnId!, telegramId);
-            if (c.ok) { setMessage("✓ Spins added!"); await refreshStatus(); }
-            else setMessage(c.error || "Confirmation failed");
-          } else if (status === "failed") setMessage("Payment failed");
-          else if (status === "cancelled") setMessage("Payment cancelled");
+            if (c.ok) { setMessage(t("wheel.spinsAdded")); await refreshStatus(); }
+            else setMessage(c.error || t("wheel.confirmFailed"));
+          } else if (status === "failed") setMessage(t("wheel.paymentFailed"));
+          else if (status === "cancelled") setMessage(t("wheel.paymentCancelled"));
           setBuying(null);
         });
       } else {
         window.open(inv.invoiceUrl, "_blank");
         setTimeout(async () => {
           const c = await confirmStarsPurchase(inv.txnId!, telegramId);
-          if (c.ok) { setMessage("✓ Spins added!"); await refreshStatus(); }
+          if (c.ok) { setMessage(t("wheel.spinsAdded")); await refreshStatus(); }
           setBuying(null);
         }, 4000);
       }
     } catch {
-      setMessage("Error opening invoice");
+      setMessage(t("wheel.invoiceError"));
       setBuying(null);
     }
   };
@@ -665,12 +692,12 @@ export function WheelPage({ telegramId }: WheelPageProps) {
   // completes). Spins are added by the server's wheel_spin branch in
   // /stars/ton/confirm so we just refreshStatus() once the credit lands.
   const handleTonBuy = async (packId: string) => {
-    if (!telegramId) { setMessage("Telegram ID missing"); return; }
+    if (!telegramId) { setMessage(t("wheel.telegramMissing")); return; }
     const pack = SPIN_PACKS.find((p) => p.id === packId);
-    if (!pack) { setMessage("Pack not found"); return; }
+    if (!pack) { setMessage(t("wheel.packNotFound")); return; }
     if (!connectedAddress) {
       tonConnectUI.openModal();
-      setMessage("Connect your wallet first");
+      setMessage(t("wheel.connectWalletFirst"));
       return;
     }
     setBuying(packId);
@@ -683,32 +710,32 @@ export function WheelPage({ telegramId }: WheelPageProps) {
       const boc = txResult.boc || "";
       const confirmResult = await confirmTonPurchase(telegramId, packId, connectedAddress, pack.ton, boc);
       if (confirmResult.alreadyCredited || confirmResult.ok) {
-        setMessage("✓ Spins added!");
+        setMessage(t("wheel.spinsAdded"));
         await refreshStatus();
       } else if (confirmResult.pending && confirmResult.txnId) {
-        setMessage("Verifying payment on-chain…");
+        setMessage(t("wheel.verifyingOnChain"));
         const final = await pollTxnUntilFinal(confirmResult.txnId);
         if (final?.status === "completed") {
-          setMessage("✓ Spins added!");
+          setMessage(t("wheel.spinsAdded"));
           await refreshStatus();
         } else if (final?.status === "failed") {
-          setMessage("Payment not detected on-chain. Contact support if TON was sent.");
+          setMessage(t("wheel.paymentNotOnChain"));
         } else {
-          setMessage("Still awaiting confirmation. Spins will appear automatically once verified.");
+          setMessage(t("wheel.awaitingConfirm"));
           // Late-arrival safety net: refresh a couple more times so the spins
           // pop in without the user having to reopen the tab.
           setTimeout(() => { refreshStatus(); }, 30_000);
           setTimeout(() => { refreshStatus(); }, 90_000);
         }
       } else {
-        setMessage(confirmResult.error || "Credit failed");
+        setMessage(confirmResult.error || t("wheel.creditFailed"));
       }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       if (errMsg.includes("cancel") || errMsg.includes("reject") || errMsg.includes("Interrupted")) {
-        setMessage("Payment cancelled");
+        setMessage(t("wheel.paymentCancelled"));
       } else {
-        setMessage("TON payment failed");
+        setMessage(t("wheel.tonPaymentFailed"));
         console.error("[wheel/ton] sendTransaction error:", err);
       }
     }
@@ -731,6 +758,11 @@ export function WheelPage({ telegramId }: WheelPageProps) {
 
   const totalSpinSources = spins + (canClaimDaily ? 1 : 0);
 
+  const localizedPrizes = useMemo(
+    () => prizes.map((p) => ({ ...p, label: wheelPrizeLabel(p, t) })),
+    [prizes, t],
+  );
+
   return (
     <div className="flex flex-col h-full overflow-hidden relative">
       <div className="px-5 pt-4 pb-2 flex-shrink-0">
@@ -738,7 +770,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
           <div>
             <div className="font-black text-2xl tracking-wider neon-text">{t("wheel.fortuneWheel")}</div>
             <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
-              Spin to win mega prizes
+              {t("wheel.subtitle")}
             </div>
           </div>
           <div
@@ -750,7 +782,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
               boxShadow: "0 0 14px rgba(255,51,85,0.2)",
             }}
           >
-            {totalSpinSources} {totalSpinSources === 1 ? "SPIN" : "SPINS"}
+            {totalSpinSources} {totalSpinSources === 1 ? t("wheel.spin") : t("wheel.spins")}
           </div>
         </div>
       </div>
@@ -901,7 +933,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
                 borderRadius: "50%",
               }}
             >
-              <WheelDisc prizes={prizes} highlightIdx={highlightIdx} size={SIZE} />
+              <WheelDisc prizes={localizedPrizes} highlightIdx={highlightIdx} size={SIZE} />
 
               {/* Pulsing center overlay (HTML for animation) — removed during
                   spin so its own animation doesn't compete with the wheel
@@ -994,7 +1026,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
         <div className="text-center mb-3" style={{ minHeight: 38 }}>
           {spinning ? (
             <div className="text-sm font-black tracking-widest" style={{ color: "rgba(255,51,85,0.7)" }}>
-              ✦ SPINNING... ✦
+              ✦ {t("wheel.spinning")} ✦
             </div>
           ) : result ? (
             <div
@@ -1007,7 +1039,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
                 ["--winColor" as string]: `${result.prize.color}99`,
               } as React.CSSProperties}
             >
-              {result.prize.icon} YOU WON {result.prize.label}!
+              {result.prize.icon} {t("wheel.youWon")} {wheelPrizeLabel(result.prize, t)}!
             </div>
           ) : null}
         </div>
@@ -1028,7 +1060,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
             textShadow: spins > 0 && !spinning ? "0 1px 0 rgba(255,255,255,0.4)" : "none",
           }}
         >
-          {spinning ? "SPINNING..." : spins > 0 ? `🎯 SPIN — ${spins} LEFT` : "NO SPINS"}
+          {spinning ? t("wheel.spinning") : spins > 0 ? t("wheel.spinLeft", { n: spins }) : t("wheel.noSpins")}
         </button>
 
         {/* Daily free spin */}
@@ -1054,10 +1086,10 @@ export function WheelPage({ telegramId }: WheelPageProps) {
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-black text-sm tracking-wider" style={{ color: canClaimDaily ? "#43e97b" : "rgba(255,255,255,0.7)" }}>
-                DAILY FREE SPIN
+                {t("wheel.dailyTitle")}
               </div>
               <div className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>
-                {canClaimDaily ? "Ready to claim!" : `Next in ${countdown}`}
+                {canClaimDaily ? t("wheel.dailyReady") : t("wheel.dailyNext", { time: countdown })}
               </div>
             </div>
             <button
@@ -1071,7 +1103,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
                 boxShadow: canClaimDaily && !claiming ? "0 0 18px rgba(67,233,123,0.4)" : "none",
               }}
             >
-              {claiming ? "..." : canClaimDaily ? "CLAIM" : "WAIT"}
+              {claiming ? "..." : canClaimDaily ? t("wheel.claim") : t("wheel.wait")}
             </button>
           </div>
         </div>
@@ -1079,7 +1111,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
         {/* Buy spins — payment mode toggle (Stars / TON) */}
         <div className="flex items-center justify-between mb-2">
           <div className="font-black text-sm tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.4)" }}>
-            Buy Spins
+            {t("wheel.buySpins")}
           </div>
           <div
             className="flex rounded-full p-0.5"
@@ -1093,7 +1125,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
                 color: payMode === "stars" ? "#0a0e1a" : "rgba(255,255,255,0.55)",
               }}
             >
-              ⭐ STARS
+              ⭐ {t("wheel.payStars")}
             </button>
             <button
               onClick={() => setPayMode("ton")}
@@ -1103,7 +1135,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
                 color: payMode === "ton" ? "#0a0e1a" : "rgba(255,255,255,0.55)",
               }}
             >
-              TON
+              {t("wheel.payTon")}
             </button>
           </div>
         </div>
@@ -1117,7 +1149,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
               color: "#00d4ff",
             }}
           >
-            CONNECT WALLET
+            {t("wheel.connectWallet").toUpperCase()}
           </button>
         )}
         <div className="flex flex-col gap-2 mb-4">
@@ -1125,7 +1157,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
             const onClick = payMode === "stars" ? () => handleBuy(p.id) : () => handleTonBuy(p.id);
             const priceLabel = payMode === "stars" ? `${p.stars}` : `${p.ton}`;
             const priceColor = payMode === "stars" ? "#ffd700" : "#00d4ff";
-            const priceIcon = payMode === "stars" ? "⭐" : "TON";
+            const priceIcon = payMode === "stars" ? "⭐" : t("wheel.payTon");
             const borderColor = payMode === "stars" ? "rgba(255,215,0,0.15)" : "rgba(0,212,255,0.2)";
             return (
               <button
@@ -1150,7 +1182,7 @@ export function WheelPage({ telegramId }: WheelPageProps) {
                     🎡
                   </div>
                   <div className="text-left">
-                    <div className="font-black text-sm">{p.spins} {p.spins === 1 ? "Spin" : "Spins"}</div>
+                    <div className="font-black text-sm">{p.spins} {p.spins === 1 ? t("wheel.spin") : t("wheel.spins")}</div>
                     {p.badge && (
                       <div className="text-xs font-bold" style={{ color: "#43e97b" }}>{p.badge} OFF</div>
                     )}
@@ -1168,10 +1200,10 @@ export function WheelPage({ telegramId }: WheelPageProps) {
 
         {/* Prize legend */}
         <div className="font-black text-xs tracking-widest uppercase mb-2" style={{ color: "rgba(255,255,255,0.35)" }}>
-          Possible Prizes
+          {t("wheel.possiblePrizes")}
         </div>
         <div className="grid grid-cols-2 gap-2 pb-2">
-          {prizes.map((p) => (
+          {localizedPrizes.map((p) => (
             <div
               key={p.index}
               className="flex items-center gap-2 rounded-lg px-2.5 py-2"

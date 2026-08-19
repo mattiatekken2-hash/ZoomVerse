@@ -1,6 +1,8 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { haptic } from "../utils/haptic";
+import { useT } from "../i18n/LanguageContext";
+import { planetTypeLabel } from "../i18n/translations";
 import { isBrowserDevSession } from "../utils/telegram";
 import {
   adminCreditZoom,
@@ -94,16 +96,16 @@ type EqRarity = "BASIC" | "RARE" | "EPIC" | "GOLD" | "PLASMA" | "MYTHIC";
 // Stardust supports both add (credit) and remove (subtract clamped at 0).
 type ActionType = "zoom" | "planets" | "slots" | "spins" | "stardust" | "ton" | "labpoints" | "redstar";
 
-const PLANET_OPTIONS: { type: PlanetChoice; label: string; color: string }[] = [
-  { type: "BASIC",  label: "Basic",  color: "#8892b0" },
-  { type: "RARE",   label: "Rare",   color: "#4facfe" },
-  { type: "EPIC",   label: "Epic",   color: "#c471ed" },
-  { type: "MYTHIC",  label: "Mythic",  color: "#dc143c" },
-  { type: "NOVA",    label: "Nova",    color: "#5000b4" },
-  { type: "PLASMA",  label: "Plasma",  color: "#00e676" },
-  { type: "GOLD",    label: "Gold",    color: "#ffd700" },
-  { type: "MUSHROOM", label: "Fungo 🍄", color: "#8b3a8b" },
-  { type: "SUN",    label: "Sole ☀️", color: "#ffb347" },
+const PLANET_OPTIONS: { type: PlanetChoice; color: string }[] = [
+  { type: "BASIC",  color: "#8892b0" },
+  { type: "RARE",   color: "#4facfe" },
+  { type: "EPIC",   color: "#c471ed" },
+  { type: "MYTHIC",  color: "#dc143c" },
+  { type: "NOVA",    color: "#5000b4" },
+  { type: "PLASMA",  color: "#00e676" },
+  { type: "GOLD",    color: "#ffd700" },
+  { type: "MUSHROOM", color: "#8b3a8b" },
+  { type: "SUN",    color: "#ffb347" },
 ];
 
 interface Props {
@@ -111,6 +113,7 @@ interface Props {
 }
 
 export function AdminPanel({ telegramId }: Props) {
+  const { t, lang } = useT();
   const [open, setOpen] = useState(false);
   const browserDev = isBrowserDevSession();
   const [mode, setMode] = useState<"add" | "remove">("add");
@@ -134,7 +137,8 @@ export function AdminPanel({ telegramId }: Props) {
   const [topPlayersLoading, setTopPlayersLoading] = useState(false);
   const [topPlayersFilter, setTopPlayersFilter] = useState("");
   const [maintEnabled, setMaintEnabled] = useState(false);
-  const [maintMessage, setMaintMessage] = useState("We're upgrading the game. Back online shortly.");
+  const [maintMessage, setMaintMessage] = useState("");
+  const maintDefaultSet = useRef(false);
   const [maintLoading, setMaintLoading] = useState(false);
   const [merchantStatus, setMerchantStatus] = useState<{ active: boolean; expiresAt?: string; nextAt?: string; remainingSec?: number }>({ active: false });
 
@@ -154,6 +158,13 @@ export function AdminPanel({ telegramId }: Props) {
     setMaintEnabled(!!s.enabled);
     if (s.message) setMaintMessage(s.message);
   }, []);
+
+  useEffect(() => {
+    if (!maintDefaultSet.current) {
+      setMaintMessage(t("admin.maint.defaultMessage"));
+      maintDefaultSet.current = true;
+    }
+  }, [t]);
 
   const refreshTopPlayers = useCallback(async () => {
     setTopPlayersLoading(true);
@@ -196,11 +207,11 @@ export function AdminPanel({ telegramId }: Props) {
         }));
       } catch { /**/ }
       window.dispatchEvent(new Event("zoom-admin-refresh"));
-      showFeedback(next ? "✓ Maintenance ON — users locked out" : "✓ Maintenance OFF — game live", true);
+      showFeedback(next ? t("admin.maint.on") : t("admin.maint.off"), true);
     } else {
-      showFeedback(`✗ ${res.error || "Failed"}`, false);
+      showFeedback(`✗ ${res.error || t("admin.feedback.failed")}`, false);
     }
-  }, [telegramId, maintMessage]);
+  }, [telegramId, maintMessage, t]);
 
   const formatCountdown = (sec: number) => {
     const m = Math.floor(sec / 60);
@@ -218,7 +229,7 @@ export function AdminPanel({ telegramId }: Props) {
     const id = targetId.trim() || ADMIN_ID;
     const val = parseFloat(amount);
     if (isNaN(val) || val <= 0) {
-      showFeedback("Valore non valido", false);
+      showFeedback(t("admin.feedback.invalidValue"), false);
       return;
     }
     setLoading(type);
@@ -264,86 +275,92 @@ export function AdminPanel({ telegramId }: Props) {
       }
       window.dispatchEvent(new Event("zoom-admin-refresh"));
     }
-    const direction = mode === "add" ? "aggiunti" : "rimossi";
-    const item = type === "zoom" ? `${val} $ZOOM`
-      : type === "slots" ? `${Math.floor(val)} slot`
-      : type === "spins" ? `${Math.floor(val)} spin`
-      : type === "stardust" ? `${Math.floor(val)} stardust ⭐`
-      : type === "ton" ? `${val} TON 💎`
-      : type === "labpoints" ? `${Math.floor(val)} punti classifica 🏆`
-      : type === "redstar" ? `${Math.floor(val)} ★ REDSTAR`
-      : `${Math.floor(val)} ${planetType === "SUN" ? "Sole" : `pianeti ${planetType}`}`;
-    showFeedback(ok ? `✓ ${item} ${direction} a ID ${id}` : `✗ ${apiError || `Errore per ID ${id}`}`, ok);
-  }, [targetId, amount, planetType, mode, telegramId]);
+    const n = Math.floor(val);
+    const item = type === "zoom" ? t("admin.item.zoom", { n: val })
+      : type === "slots" ? t("admin.item.slots", { n })
+      : type === "spins" ? t("admin.item.spins", { n })
+      : type === "stardust" ? t("admin.item.stardust", { n })
+      : type === "ton" ? t("admin.item.ton", { n: val })
+      : type === "labpoints" ? t("admin.item.labPoints", { n })
+      : type === "redstar" ? t("admin.item.redstar", { n })
+      : planetType === "SUN" ? t("admin.item.sun", { n })
+      : t("admin.item.planets", { n, type: planetType });
+    showFeedback(
+      ok
+        ? (mode === "add" ? t("admin.feedback.actionAdded", { item, id }) : t("admin.feedback.actionRemoved", { item, id }))
+        : t("admin.feedback.actionError", { error: apiError || t("admin.feedback.error").replace("✗ ", ""), id }),
+      ok,
+    );
+  }, [targetId, amount, planetType, mode, telegramId, t]);
 
   const handleGlobalBonus = useCallback(async () => {
     haptic();
     const val = parseFloat(globalAmount);
     if (isNaN(val) || val <= 0) {
-      showFeedback("Valore non valido", false);
+      showFeedback(t("admin.feedback.invalidValue"), false);
       return;
     }
     setLoading("global");
     const ok = await adminGlobalBonus(telegramId, val);
     setLoading(null);
     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-    showFeedback(ok ? "✓ Bonus inviato a tutti!" : "✗ Errore", ok);
+    showFeedback(ok ? t("admin.feedback.globalBonus") : t("admin.feedback.error"), ok);
   }, [globalAmount, telegramId]);
 
   const handleGlobalRemove = useCallback(async () => {
     haptic();
     const val = parseFloat(globalAmount);
     if (isNaN(val) || val <= 0) {
-      showFeedback("Valore non valido", false);
+      showFeedback(t("admin.feedback.invalidValue"), false);
       return;
     }
     setLoading("global");
     const ok = await adminGlobalRemove(telegramId, val);
     setLoading(null);
     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-    showFeedback(ok ? "✓ ZOOM rimosso a tutti!" : "✗ Errore", ok);
+    showFeedback(ok ? t("admin.feedback.globalZoomRemoved") : t("admin.feedback.error"), ok);
   }, [globalAmount, telegramId]);
 
   const handleGlobalStardust = useCallback(async () => {
     haptic();
     const val = parseFloat(globalAmount);
     if (isNaN(val) || val <= 0) {
-      showFeedback("Valore non valido", false);
+      showFeedback(t("admin.feedback.invalidValue"), false);
       return;
     }
     setLoading("global");
     const ok = await adminGlobalStardust(telegramId, val);
     setLoading(null);
     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-    showFeedback(ok ? "✓ Stardust inviato a tutti!" : "✗ Errore", ok);
+    showFeedback(ok ? t("admin.feedback.globalStardust") : t("admin.feedback.error"), ok);
   }, [globalAmount, telegramId]);
 
   const handleGlobalTon = useCallback(async () => {
     haptic();
     const val = parseFloat(globalAmount);
     if (isNaN(val) || val <= 0) {
-      showFeedback("Valore non valido", false);
+      showFeedback(t("admin.feedback.invalidValue"), false);
       return;
     }
     setLoading("global");
     const ok = await adminGlobalTon(telegramId, val);
     setLoading(null);
     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-    showFeedback(ok ? "✓ TON accreditato a tutti!" : "✗ Errore", ok);
+    showFeedback(ok ? t("admin.feedback.globalTon") : t("admin.feedback.error"), ok);
   }, [globalAmount, telegramId]);
 
   const handleGlobalRedStar = useCallback(async () => {
     haptic();
     const val = parseInt(globalAmount, 10);
     if (isNaN(val) || val <= 0) {
-      showFeedback("Valore non valido (intero positivo)", false);
+      showFeedback(t("admin.feedback.invalidPositiveInt"), false);
       return;
     }
     setLoading("global");
     const ok = await adminGlobalRedStar(telegramId, val);
     setLoading(null);
     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-    showFeedback(ok ? `✓ ${val} ★ REDSTAR accreditati a tutti!` : "✗ Errore", ok);
+    showFeedback(ok ? t("admin.feedback.globalRedstar", { n: val }) : t("admin.feedback.error"), ok);
   }, [globalAmount, telegramId]);
 
   const handleRepairTasks = useCallback(async () => {
@@ -353,7 +370,7 @@ export function AdminPanel({ telegramId }: Props) {
     setLoading(null);
     if (affected != null) window.dispatchEvent(new Event("zoom-admin-refresh"));
     showFeedback(
-      affected != null ? `✓ Task riparate (${affected} utenti)` : "✗ Errore",
+      affected != null ? t("admin.feedback.tasksRepaired", { n: affected }) : t("admin.feedback.error"),
       affected != null,
     );
   }, [telegramId]);
@@ -376,7 +393,7 @@ export function AdminPanel({ telegramId }: Props) {
     <>
       <motion.button
         onClick={() => { haptic(); setOpen(true); }}
-        title="Admin Panel"
+        title={t("admin.title")}
         style={{
           position: "fixed",
           bottom: browserDev ? 96 : 88,
@@ -398,7 +415,7 @@ export function AdminPanel({ telegramId }: Props) {
           boxShadow: browserDev ? "0 0 16px rgba(255,51,85,0.35)" : undefined,
         }}
       >
-        {browserDev ? "ADM" : "⚙"}
+        {browserDev ? t("admin.fabDev") : "⚙"}
       </motion.button>
 
       <AnimatePresence>
@@ -452,9 +469,9 @@ export function AdminPanel({ telegramId }: Props) {
               }}>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: "0.12em", color: "#ff3355", textShadow: "0 0 12px rgba(255,51,85,0.6)" }}>
-                    ⚙ ADMIN PANEL
+                    {t("admin.panelTitle")}
                   </div>
-                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginTop: 2 }}>Accesso riservato</div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.25)", marginTop: 2 }}>{t("admin.subtitle")}</div>
                 </div>
                 <button
                   onClick={() => { haptic(); setOpen(false); }}
@@ -480,7 +497,7 @@ export function AdminPanel({ telegramId }: Props) {
               {/* Content */}
               <div style={{ padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
 
-                {/* MAINTENANCE MODE */}
+                {/* {t("admin.maint.title")} */}
                 <div
                   style={{
                     display: "flex",
@@ -499,10 +516,10 @@ export function AdminPanel({ telegramId }: Props) {
                       <span style={{ fontSize: 18 }}>🛠️</span>
                       <div>
                         <div style={{ fontSize: 12, fontWeight: 900, letterSpacing: "0.08em", color: maintEnabled ? "#ffb347" : "rgba(255,255,255,0.85)" }}>
-                          MAINTENANCE MODE
+                          {t("admin.maint.title")}
                         </div>
                         <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)" }}>
-                          {maintEnabled ? "Users see a lock screen" : "Game is live for everyone"}
+                          {maintEnabled ? t("admin.maint.lockDesc") : t("admin.maint.liveDesc")}
                         </div>
                       </div>
                     </div>
@@ -541,7 +558,7 @@ export function AdminPanel({ telegramId }: Props) {
                   <input
                     value={maintMessage}
                     onChange={(e) => setMaintMessage(e.target.value)}
-                    placeholder="Message shown to users…"
+                    placeholder={t("admin.maint.placeholder")}
                     onFocus={() => haptic()}
                     style={{ ...inputStyle, fontSize: 12, padding: "8px 10px" }}
                   />
@@ -562,7 +579,7 @@ export function AdminPanel({ telegramId }: Props) {
                         cursor: "pointer",
                       }}
                     >
-                      {maintLoading ? "..." : "💬 UPDATE MESSAGE"}
+                      {maintLoading ? t("admin.loading") : t("admin.maint.updateBtn")}
                     </motion.button>
                   )}
                 </div>
@@ -571,14 +588,14 @@ export function AdminPanel({ telegramId }: Props) {
                 <input
                   value={targetId}
                   onChange={(e) => setTargetId(e.target.value)}
-                  placeholder="Telegram ID o @username (vuoto = 8144744644)"
+                  placeholder={t("admin.placeholder.targetId")}
                   onFocus={() => haptic()}
                   style={inputStyle}
                 />
                 <input
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  placeholder="Quantità / Numero"
+                  placeholder={t("admin.placeholder.amount")}
                   type="number"
                   min="1"
                   onFocus={() => haptic()}
@@ -610,7 +627,7 @@ export function AdminPanel({ telegramId }: Props) {
                         letterSpacing: "0.05em",
                       }}
                     >
-                      {m === "add" ? "➕ Aggiungi" : "➖ Rimuovi"}
+                      {m === "add" ? t("admin.mode.add") : t("admin.mode.remove")}
                     </motion.button>
                   ))}
                 </div>
@@ -618,19 +635,17 @@ export function AdminPanel({ telegramId }: Props) {
                 {/* Action buttons */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   {([
-                    { type: "zoom" as ActionType,    label: "🪐 ZOOM",    color: "#ff3355" },
-                    { type: "planets" as ActionType, label: "🌍 Pianeti", color: "#c471ed" },
-                    { type: "slots" as ActionType,   label: "📦 Slot",    color: "#4facfe" },
-                    { type: "spins" as ActionType,   label: "🎡 Spin",    color: "#ffd700" },
-                    // Stardust supports both add and remove (subtract is
-                    // server-clamped at 0 so we can't push balances negative).
-                    { type: "stardust" as ActionType, label: "⭐ Stardust", color: "#ffd23f" },
-                    // TON earned balance — admin credit only; users withdraw naturally.
-                    { type: "ton" as ActionType,      label: "💎 TON",     color: "#00e5ff" },
-                    { type: "labpoints" as ActionType, label: "🏆 LAB POINTS", color: "#00d4ff" },
-                    { type: "redstar" as ActionType,   label: "★ REDSTAR",    color: "#ff2244" },
+                    { type: "zoom" as ActionType,    labelKey: "admin.action.zoom",    color: "#ff3355" },
+                    { type: "planets" as ActionType, labelKey: "admin.action.planets", color: "#c471ed" },
+                    { type: "slots" as ActionType,   labelKey: "admin.action.slots",    color: "#4facfe" },
+                    { type: "spins" as ActionType,   labelKey: "admin.action.spins",    color: "#ffd700" },
+                    { type: "stardust" as ActionType, labelKey: "admin.action.stardust", color: "#ffd23f" },
+                    { type: "ton" as ActionType,      labelKey: "admin.action.ton",     color: "#00e5ff" },
+                    { type: "labpoints" as ActionType, labelKey: "admin.action.labPoints", color: "#00d4ff" },
+                    { type: "redstar" as ActionType,   labelKey: "admin.action.redstar",    color: "#ff2244" },
                   ])
-                    .map(({ type, label, color }) => {
+                    .map(({ type, labelKey, color }) => {
+                    const label = t(labelKey);
                     const btnColor = mode === "remove" ? "#ff5555" : color;
                     return (
                       <motion.button
@@ -652,7 +667,7 @@ export function AdminPanel({ telegramId }: Props) {
                           transition: "all 0.2s",
                         }}
                       >
-                        {loading === type ? "..." : label}
+                        {loading === type ? t("admin.loading") : label}
                       </motion.button>
                     );
                   })}
@@ -661,10 +676,13 @@ export function AdminPanel({ telegramId }: Props) {
                 {/* Planet type selector */}
                 <div style={{ marginTop: 2 }}>
                   <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", marginBottom: 6, letterSpacing: "0.08em" }}>
-                    TIPO PIANETA
+                    {t("admin.planetType")}
                   </div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {PLANET_OPTIONS.map(({ type, label, color }) => {
+                    {PLANET_OPTIONS.map(({ type, color }) => {
+                      const label = type === "MUSHROOM" ? t("admin.planet.mushroom")
+                        : type === "SUN" ? t("admin.planet.sun")
+                        : planetTypeLabel(lang, type, type);
                       const selected = planetType === type;
                       return (
                         <motion.button
@@ -703,7 +721,7 @@ export function AdminPanel({ telegramId }: Props) {
                     const ok = await adminUnlockWhiteCollection(telegramId, id);
                     setLoading(null);
                     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-                    showFeedback(ok ? `✓ White Collection unlocked for ID ${id}` : `✗ Error for ID ${id}`, ok);
+                    showFeedback(ok ? t("admin.feedback.collectionUnlocked", { collection: t("admin.collection.white"), id }) : t("admin.feedback.errorForId", { id }), ok);
                   }}
                   disabled={loading !== null}
                   style={{
@@ -721,7 +739,7 @@ export function AdminPanel({ telegramId }: Props) {
                     boxShadow: "0 0 14px rgba(255,255,255,0.15)",
                   }}
                 >
-                  {loading === "white" ? "..." : "🤍 GRANT WHITE COLLECTION (4 planets)"}
+                  {loading === "white" ? t("admin.loading") : t("admin.grant.white")}
                 </motion.button>
 
                 {/* Earth Collection unlock */}
@@ -734,7 +752,7 @@ export function AdminPanel({ telegramId }: Props) {
                     const ok = await adminUnlockEarthCollection(telegramId, id);
                     setLoading(null);
                     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-                    showFeedback(ok ? `✓ Earth Collection unlocked for ID ${id}` : `✗ Error for ID ${id}`, ok);
+                    showFeedback(ok ? t("admin.feedback.collectionUnlocked", { collection: t("admin.collection.earth"), id }) : t("admin.feedback.errorForId", { id }), ok);
                   }}
                   disabled={loading !== null}
                   style={{
@@ -752,7 +770,7 @@ export function AdminPanel({ telegramId }: Props) {
                     boxShadow: "0 0 14px rgba(61,220,151,0.18)",
                   }}
                 >
-                  {loading === "earth" ? "..." : "🌍 GRANT EARTH COLLECTION (4 planets)"}
+                  {loading === "earth" ? t("admin.loading") : t("admin.grant.earth")}
                 </motion.button>
 
                 {/* Black Collection unlock */}
@@ -765,7 +783,7 @@ export function AdminPanel({ telegramId }: Props) {
                     const ok = await adminUnlockBlackCollection(telegramId, id);
                     setLoading(null);
                     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-                    showFeedback(ok ? `✓ Black Collection unlocked for ID ${id}` : `✗ Error for ID ${id}`, ok);
+                    showFeedback(ok ? t("admin.feedback.collectionUnlocked", { collection: t("admin.collection.black"), id }) : t("admin.feedback.errorForId", { id }), ok);
                   }}
                   disabled={loading !== null}
                   style={{
@@ -783,7 +801,7 @@ export function AdminPanel({ telegramId }: Props) {
                     boxShadow: "0 0 14px rgba(123,47,255,0.25)",
                   }}
                 >
-                  {loading === "black" ? "..." : "⬛ GRANT BLACK COLLECTION (4 planets)"}
+                  {loading === "black" ? t("admin.loading") : t("admin.grant.black")}
                 </motion.button>
 
                 {/* Supernova Collection unlock */}
@@ -796,7 +814,7 @@ export function AdminPanel({ telegramId }: Props) {
                     const ok = await adminUnlockSupernovaCollection(telegramId, id);
                     setLoading(null);
                     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-                    showFeedback(ok ? `✓ Supernova Collection unlocked for ID ${id}` : `✗ Error for ID ${id}`, ok);
+                    showFeedback(ok ? t("admin.feedback.collectionUnlocked", { collection: t("admin.collection.supernova"), id }) : t("admin.feedback.errorForId", { id }), ok);
                   }}
                   disabled={loading !== null}
                   style={{
@@ -814,7 +832,7 @@ export function AdminPanel({ telegramId }: Props) {
                     boxShadow: "0 0 14px rgba(255,215,0,0.28)",
                   }}
                 >
-                  {loading === "supernova" ? "..." : "🌟 GRANT SUPERNOVA COLLECTION (4 stars)"}
+                  {loading === "supernova" ? t("admin.loading") : t("admin.grant.supernova")}
                 </motion.button>
 
                 {/* Revoke Supernova */}
@@ -823,12 +841,12 @@ export function AdminPanel({ telegramId }: Props) {
                   onClick={async () => {
                     haptic();
                     const id = targetId.trim() || ADMIN_ID;
-                    if (!confirm(`Rimuovere la SUPERNOVA COLLECTION a ID ${id}?`)) return;
+                    if (!confirm(t("admin.confirm.revokeSupernova", { id }))) return;
                     setLoading("revoke-supernova");
                     const ok = await adminRevokeSupernovaCollection(telegramId, id);
                     setLoading(null);
                     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-                    showFeedback(ok ? `✓ Supernova Collection rimossa a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                    showFeedback(ok ? t("admin.feedback.collectionRevoked", { collection: t("admin.collection.supernova"), id }) : t("admin.feedback.errorForId", { id }), ok);
                   }}
                   disabled={loading !== null}
                   style={{
@@ -845,7 +863,7 @@ export function AdminPanel({ telegramId }: Props) {
                     transition: "opacity 0.15s",
                   }}
                 >
-                  {loading === "revoke-supernova" ? "..." : "✗ REVOKE SUPERNOVA"}
+                  {loading === "revoke-supernova" ? t("admin.loading") : t("admin.revoke.supernova")}
                 </motion.button>
 
                 {/* Stella Rossa Collection unlock */}
@@ -858,7 +876,7 @@ export function AdminPanel({ telegramId }: Props) {
                     const ok = await adminUnlockStellaRossaCollection(telegramId, id);
                     setLoading(null);
                     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-                    showFeedback(ok ? `✓ Stella Rossa Collection sbloccata per ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                    showFeedback(ok ? t("admin.feedback.collectionUnlocked", { collection: t("admin.collection.stellaRossa"), id }) : t("admin.feedback.errorForId", { id }), ok);
                   }}
                   disabled={loading !== null}
                   style={{
@@ -876,7 +894,7 @@ export function AdminPanel({ telegramId }: Props) {
                     boxShadow: "0 0 14px rgba(220,20,60,0.28)",
                   }}
                 >
-                  {loading === "stella-rossa" ? "..." : "🔴 GRANT STELLA ROSSA COLLECTION (4 SR)"}
+                  {loading === "stella-rossa" ? t("admin.loading") : t("admin.grant.stellaRossa")}
                 </motion.button>
 
                 {/* Revoke Stella Rossa */}
@@ -885,12 +903,12 @@ export function AdminPanel({ telegramId }: Props) {
                   onClick={async () => {
                     haptic();
                     const id = targetId.trim() || ADMIN_ID;
-                    if (!confirm(`Rimuovere la STELLA ROSSA COLLECTION a ID ${id}?`)) return;
+                    if (!confirm(t("admin.confirm.revokeStellaRossa", { id }))) return;
                     setLoading("revoke-stella-rossa");
                     const ok = await adminRevokeStellaRossaCollection(telegramId, id);
                     setLoading(null);
                     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-                    showFeedback(ok ? `✓ Stella Rossa Collection rimossa a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                    showFeedback(ok ? t("admin.feedback.collectionRevoked", { collection: t("admin.collection.stellaRossa"), id }) : t("admin.feedback.errorForId", { id }), ok);
                   }}
                   disabled={loading !== null}
                   style={{
@@ -907,7 +925,7 @@ export function AdminPanel({ telegramId }: Props) {
                     transition: "opacity 0.15s",
                   }}
                 >
-                  {loading === "revoke-stella-rossa" ? "..." : "✗ REVOKE STELLA ROSSA"}
+                  {loading === "revoke-stella-rossa" ? t("admin.loading") : t("admin.revoke.stellaRossa")}
                 </motion.button>
 
                 {/* Revoke collections */}
@@ -917,12 +935,12 @@ export function AdminPanel({ telegramId }: Props) {
                     onClick={async () => {
                       haptic();
                       const id = targetId.trim() || ADMIN_ID;
-                      if (!confirm(`Rimuovere la WHITE COLLECTION a ID ${id}?`)) return;
+                      if (!confirm(t("admin.confirm.revokeWhite", { id }))) return;
                       setLoading("revoke-white");
                       const ok = await adminRevokeWhiteCollection(telegramId, id);
                       setLoading(null);
                       if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-                      showFeedback(ok ? `✓ White Collection rimossa a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                      showFeedback(ok ? t("admin.feedback.collectionRevoked", { collection: t("admin.collection.white"), id }) : t("admin.feedback.errorForId", { id }), ok);
                     }}
                     disabled={loading !== null}
                     style={{
@@ -939,19 +957,19 @@ export function AdminPanel({ telegramId }: Props) {
                       transition: "opacity 0.15s",
                     }}
                   >
-                    {loading === "revoke-white" ? "..." : "✗ REVOKE WHITE"}
+                    {loading === "revoke-white" ? t("admin.loading") : t("admin.revoke.white")}
                   </motion.button>
                   <motion.button
                     whileTap={{ scale: 0.93 }}
                     onClick={async () => {
                       haptic();
                       const id = targetId.trim() || ADMIN_ID;
-                      if (!confirm(`Rimuovere la EARTH COLLECTION a ID ${id}?`)) return;
+                      if (!confirm(t("admin.confirm.revokeEarth", { id }))) return;
                       setLoading("revoke-earth");
                       const ok = await adminRevokeEarthCollection(telegramId, id);
                       setLoading(null);
                       if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-                      showFeedback(ok ? `✓ Earth Collection rimossa a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                      showFeedback(ok ? t("admin.feedback.collectionRevoked", { collection: t("admin.collection.earth"), id }) : t("admin.feedback.errorForId", { id }), ok);
                     }}
                     disabled={loading !== null}
                     style={{
@@ -968,19 +986,19 @@ export function AdminPanel({ telegramId }: Props) {
                       transition: "opacity 0.15s",
                     }}
                   >
-                    {loading === "revoke-earth" ? "..." : "✗ REVOKE EARTH"}
+                    {loading === "revoke-earth" ? t("admin.loading") : t("admin.revoke.earth")}
                   </motion.button>
                   <motion.button
                     whileTap={{ scale: 0.93 }}
                     onClick={async () => {
                       haptic();
                       const id = targetId.trim() || ADMIN_ID;
-                      if (!confirm(`Rimuovere la BLACK COLLECTION a ID ${id}?`)) return;
+                      if (!confirm(t("admin.confirm.revokeBlack", { id }))) return;
                       setLoading("revoke-black");
                       const ok = await adminRevokeBlackCollection(telegramId, id);
                       setLoading(null);
                       if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-                      showFeedback(ok ? `✓ Black Collection rimossa a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                      showFeedback(ok ? t("admin.feedback.collectionRevoked", { collection: t("admin.collection.black"), id }) : t("admin.feedback.errorForId", { id }), ok);
                     }}
                     disabled={loading !== null}
                     style={{
@@ -997,7 +1015,7 @@ export function AdminPanel({ telegramId }: Props) {
                       transition: "opacity 0.15s",
                     }}
                   >
-                    {loading === "revoke-black" ? "..." : "✗ REVOKE BLACK"}
+                    {loading === "revoke-black" ? t("admin.loading") : t("admin.revoke.black")}
                   </motion.button>
                 </div>
 
@@ -1011,7 +1029,7 @@ export function AdminPanel({ telegramId }: Props) {
                     const ok = await adminGrantV1(telegramId, id);
                     setLoading(null);
                     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-                    showFeedback(ok ? `✓ V1 +1 accreditato a ID ${id} (rank)` : `✗ Errore per ID ${id}`, ok);
+                    showFeedback(ok ? t("admin.feedback.v1Granted", { id }) : t("admin.feedback.errorForId", { id }), ok);
                   }}
                   disabled={loading !== null}
                   style={{
@@ -1029,7 +1047,7 @@ export function AdminPanel({ telegramId }: Props) {
                     boxShadow: "0 0 14px rgba(245,251,255,0.2)",
                   }}
                 >
-                  {loading === "v1" ? "..." : "✦ GRANT V1 (+1 su Rank)"}
+                  {loading === "v1" ? t("admin.loading") : t("admin.grant.v1")}
                 </motion.button>
 
                 {/* Grant V1 NFT Platinum (bypassa cap globale) */}
@@ -1042,7 +1060,7 @@ export function AdminPanel({ telegramId }: Props) {
                     const ok = await adminGrantV1Nft(telegramId, id);
                     setLoading(null);
                     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-                    showFeedback(ok ? `✓ V1 NFT Platinum +1 accreditato a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                    showFeedback(ok ? t("admin.feedback.v1NftGranted", { id }) : t("admin.feedback.errorForId", { id }), ok);
                   }}
                   disabled={loading !== null}
                   style={{
@@ -1060,7 +1078,7 @@ export function AdminPanel({ telegramId }: Props) {
                     boxShadow: "0 0 14px rgba(202,225,255,0.25)",
                   }}
                 >
-                  {loading === "v1nft" ? "..." : "◆ GRANT V1 NFT (+1 inventory)"}
+                  {loading === "v1nft" ? t("admin.loading") : t("admin.grant.v1Nft")}
                 </motion.button>
 
                 {/* Auto-Tap grant */}
@@ -1073,7 +1091,7 @@ export function AdminPanel({ telegramId }: Props) {
                     const ok = await adminGrantAutoTap(telegramId, id);
                     setLoading(null);
                     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-                    showFeedback(ok ? `✓ Auto-Tap accreditato a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                    showFeedback(ok ? t("admin.feedback.autoTapGranted", { id }) : t("admin.feedback.errorForId", { id }), ok);
                   }}
                   disabled={loading !== null}
                   style={{
@@ -1091,7 +1109,7 @@ export function AdminPanel({ telegramId }: Props) {
                     boxShadow: "0 0 14px rgba(255,51,85,0.15)",
                   }}
                 >
-                  {loading === "autotap" ? "..." : "⚡ GRANT AUTO-TAP"}
+                  {loading === "autotap" ? t("admin.loading") : t("admin.grant.autoTap")}
                 </motion.button>
 
                 {/* ── EQUIPMENT GRANT ── */}
@@ -1137,7 +1155,7 @@ export function AdminPanel({ telegramId }: Props) {
                     setLoading(null);
                     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
                     const label = `${eqCategory} ${eqRarity}`;
-                    showFeedback(ok ? `✓ Equipment [${label}] accreditato a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                    showFeedback(ok ? t("admin.feedback.equipmentGranted", { label, id }) : t("admin.feedback.errorForId", { id }), ok);
                   }}
                   disabled={loading !== null}
                   style={{
@@ -1149,7 +1167,7 @@ export function AdminPanel({ telegramId }: Props) {
                     boxShadow: "0 0 14px rgba(180,140,255,0.2)",
                   }}
                 >
-                  {loading === "grant-equipment" ? "..." : `🪖 GRANT EQUIPMENT [${eqCategory} · ${eqRarity}]`}
+                  {loading === "grant-equipment" ? t("admin.loading") : t("admin.grant.equipment", { category: eqCategory, rarity: eqRarity })}
                 </motion.button>
 
                 {/* Test withdrawal-channel announcement */}
@@ -1160,7 +1178,7 @@ export function AdminPanel({ telegramId }: Props) {
                     setLoading("test-wd-chan");
                     const ok = await adminTestWithdrawalChannel(telegramId);
                     setLoading(null);
-                    showFeedback(ok ? "✓ Messaggio test inviato nel canale" : "✗ Bot non può scrivere nel canale", ok);
+                    showFeedback(ok ? t("admin.feedback.testChannelOk") : t("admin.feedback.testChannelFail"), ok);
                   }}
                   disabled={loading !== null}
                   style={{
@@ -1179,7 +1197,7 @@ export function AdminPanel({ telegramId }: Props) {
                     boxShadow: "0 0 14px rgba(255,200,80,0.15)",
                   }}
                 >
-                  {loading === "test-wd-chan" ? "..." : "🧪 TEST WITHDRAWAL CHANNEL"}
+                  {loading === "test-wd-chan" ? t("admin.loading") : t("admin.testWithdrawalChannel")}
                 </motion.button>
 
                 {/* Reconcile Stars payments — credits any pending Stars purchases that webhook missed */}
@@ -1192,9 +1210,9 @@ export function AdminPanel({ telegramId }: Props) {
                     setLoading(null);
                     if (res.ok) {
                       window.dispatchEvent(new Event("zoom-admin-refresh"));
-                      showFeedback(`✓ Scansionati ${res.scanned ?? 0} • Accreditati ${res.credited ?? 0} • Già fatti ${res.alreadyDone ?? 0}`, true);
+                      showFeedback(t("admin.feedback.starsReconciled", { scanned: res.scanned ?? 0, credited: res.credited ?? 0, already: res.alreadyDone ?? 0 }), true);
                     } else {
-                      showFeedback(`✗ ${res.error || "Errore"}`, false);
+                      showFeedback(t("admin.feedback.auditError", { error: res.error || t("admin.feedback.error").replace("✗ ", "") }), false);
                     }
                   }}
                   disabled={loading !== null}
@@ -1213,10 +1231,10 @@ export function AdminPanel({ telegramId }: Props) {
                     boxShadow: "0 0 14px rgba(255,200,80,0.18)",
                   }}
                 >
-                  {loading === "rec-stars" ? "..." : "★ RICONCILIA PAGAMENTI STARS"}
+                  {loading === "rec-stars" ? t("admin.loading") : t("admin.reconcileStars")}
                 </motion.button>
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.4 }}>
-                  Recupera da Telegram tutti i pagamenti Stars ricevuti e accredita quelli che il webhook non ha consegnato. Sicuro: non accredita due volte.
+                  {t("admin.reconcileStarsHint")}
                 </div>
 
                 {/* Webhook info — live diagnostic */}
@@ -1233,14 +1251,14 @@ export function AdminPanel({ telegramId }: Props) {
                       const pending = r?.pending_update_count ?? 0;
                       const err = r?.last_error_message;
                       if (err) {
-                        showFeedback(`Pending: ${pending} • Errore: ${err.slice(0, 60)}`, false);
+                        showFeedback(t("admin.feedback.webhookPendingError", { pending, error: err.slice(0, 60) }), false);
                       } else {
-                        showFeedback(`✓ Webhook ok • Pending: ${pending} • Nessun errore`, true);
+                        showFeedback(t("admin.feedback.webhookOk", { pending }), true);
                       }
                       // Also log full info to console for deep inspection
                       try { console.warn("[admin webhook-info]", JSON.stringify(info, null, 2)); } catch { /**/ }
                     } else {
-                      showFeedback(`✗ ${res.error || "Errore"}`, false);
+                      showFeedback(t("admin.feedback.auditError", { error: res.error || t("admin.feedback.error").replace("✗ ", "") }), false);
                     }
                   }}
                   disabled={loading !== null}
@@ -1258,7 +1276,7 @@ export function AdminPanel({ telegramId }: Props) {
                     transition: "opacity 0.15s",
                   }}
                 >
-                  {loading === "wh-info" ? "..." : "🛰 STATO WEBHOOK TELEGRAM"}
+                  {loading === "wh-info" ? t("admin.loading") : t("admin.webhookStatus")}
                 </motion.button>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
@@ -1267,7 +1285,7 @@ export function AdminPanel({ telegramId }: Props) {
                 <input
                   value={globalAmount}
                   onChange={(e) => setGlobalAmount(e.target.value)}
-                  placeholder="ZOOM per tutti gli utenti"
+                  placeholder={t("admin.placeholder.globalZoom")}
                   type="number"
                   min="1"
                   onFocus={() => haptic()}
@@ -1291,7 +1309,7 @@ export function AdminPanel({ telegramId }: Props) {
                     transition: "opacity 0.15s",
                   }}
                 >
-                  {loading === "global" ? "..." : "⚡ BONUS ZOOM GLOBALE"}
+                  {loading === "global" ? t("admin.loading") : t("admin.global.bonusZoom")}
                 </motion.button>
                 <motion.button
                   whileTap={{ scale: 0.93 }}
@@ -1311,7 +1329,7 @@ export function AdminPanel({ telegramId }: Props) {
                     transition: "opacity 0.15s",
                   }}
                 >
-                  {loading === "global" ? "..." : "🗑 RIMUOVI ZOOM GLOBALE"}
+                  {loading === "global" ? t("admin.loading") : t("admin.global.removeZoom")}
                 </motion.button>
                 <motion.button
                   whileTap={{ scale: 0.93 }}
@@ -1331,7 +1349,7 @@ export function AdminPanel({ telegramId }: Props) {
                     transition: "opacity 0.15s",
                   }}
                 >
-                  {loading === "global" ? "..." : "⭐ INVIA STARDUST GLOBALE"}
+                  {loading === "global" ? t("admin.loading") : t("admin.global.stardust")}
                 </motion.button>
                 <motion.button
                   whileTap={{ scale: 0.93 }}
@@ -1351,7 +1369,7 @@ export function AdminPanel({ telegramId }: Props) {
                     transition: "opacity 0.15s",
                   }}
                 >
-                  {loading === "global" ? "..." : "💎 ACCREDITA TON GLOBALE"}
+                  {loading === "global" ? t("admin.loading") : t("admin.global.ton")}
                 </motion.button>
                 <motion.button
                   whileTap={{ scale: 0.93 }}
@@ -1371,7 +1389,7 @@ export function AdminPanel({ telegramId }: Props) {
                     transition: "opacity 0.15s",
                   }}
                 >
-                  {loading === "global" ? "..." : "★ REDSTAR A TUTTI"}
+                  {loading === "global" ? t("admin.loading") : t("admin.global.redstar")}
                 </motion.button>
                 <motion.button
                   whileTap={{ scale: 0.93 }}
@@ -1391,7 +1409,7 @@ export function AdminPanel({ telegramId }: Props) {
                     transition: "opacity 0.15s",
                   }}
                 >
-                  {loading === "global" ? "..." : "🧹 RIPARA TASK"}
+                  {loading === "global" ? t("admin.loading") : t("admin.global.repairTasks")}
                 </motion.button>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
@@ -1403,7 +1421,7 @@ export function AdminPanel({ telegramId }: Props) {
                     setLoading("clear-planet-market");
                     const r = await adminClearPlanetMarket(telegramId);
                     setLoading(null);
-                    showFeedback(r.ok ? `✓ ${r.cleared ?? 0} listing rimossi dal mercato` : "✗ Errore pulizia mercato", r.ok);
+                    showFeedback(r.ok ? t("admin.feedback.marketCleared", { n: r.cleared ?? 0 }) : t("admin.feedback.marketClearError"), r.ok);
                   }}
                   disabled={loading !== null}
                   style={{
@@ -1420,7 +1438,7 @@ export function AdminPanel({ telegramId }: Props) {
                     transition: "opacity 0.15s",
                   }}
                 >
-                  {loading === "clear-planet-market" ? "..." : "🧹 PULISCI MERCATO PIANETI"}
+                  {loading === "clear-planet-market" ? t("admin.loading") : t("admin.clear.planetMarket")}
                 </motion.button>
 
                 <motion.button
@@ -1429,7 +1447,7 @@ export function AdminPanel({ telegramId }: Props) {
                     setLoading("clear-equipment-market");
                     const r = await adminClearEquipmentMarket(telegramId);
                     setLoading(null);
-                    showFeedback(r.ok ? `✓ ${r.cleared ?? 0} equipment rimossi dal mercato` : "✗ Errore pulizia mercato equipment", r.ok);
+                    showFeedback(r.ok ? t("admin.feedback.equipmentCleared", { n: r.cleared ?? 0 }) : t("admin.feedback.equipmentClearError"), r.ok);
                   }}
                   disabled={loading !== null}
                   style={{
@@ -1446,19 +1464,19 @@ export function AdminPanel({ telegramId }: Props) {
                     transition: "opacity 0.15s",
                   }}
                 >
-                  {loading === "clear-equipment-market" ? "..." : "🧹 PULISCI MERCATO EQUIPMENT"}
+                  {loading === "clear-equipment-market" ? t("admin.loading") : t("admin.clear.equipmentMarket")}
                 </motion.button>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
 
                 {/* ── BROADCAST TELEGRAM ── */}
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
-                  📢 BROADCAST TELEGRAM
+                  {t("admin.broadcast.title")}
                 </div>
                 <textarea
                   value={broadcastText}
                   onChange={e => setBroadcastText(e.target.value)}
-                  placeholder="Scrivi il messaggio da inviare a tutti gli utenti…"
+                  placeholder={t("admin.placeholder.broadcast")}
                   maxLength={4096}
                   rows={4}
                   style={{
@@ -1480,7 +1498,7 @@ export function AdminPanel({ telegramId }: Props) {
                 </div>
                 {broadcastResult && (
                   <div style={{ fontSize: 11, color: "#00e676", background: "rgba(0,230,118,0.08)", borderRadius: 8, padding: "6px 10px" }}>
-                    ✓ Inviato a <b>{broadcastResult.sent}</b> utenti · {broadcastResult.skipped} saltati
+                    {t("admin.broadcast.result", { sent: broadcastResult.sent, skipped: broadcastResult.skipped })}
                   </div>
                 )}
                 <motion.button
@@ -1495,7 +1513,7 @@ export function AdminPanel({ telegramId }: Props) {
                       setBroadcastResult({ sent: r.sent ?? 0, skipped: r.skipped ?? 0 });
                       setBroadcastText("");
                     } else {
-                      showFeedback(`✗ ${r.error ?? "Errore broadcast"}`, false);
+                      showFeedback(t("admin.feedback.broadcastError", { error: r.error ?? t("admin.feedback.error") }), false);
                     }
                   }}
                   disabled={loading !== null || !broadcastText.trim()}
@@ -1513,14 +1531,14 @@ export function AdminPanel({ telegramId }: Props) {
                     transition: "opacity 0.15s",
                   }}
                 >
-                  {loading === "broadcast" ? "⏳ Invio in corso…" : "📤 INVIA A TUTTI"}
+                  {loading === "broadcast" ? t("admin.broadcast.sending") : t("admin.broadcast.send")}
                 </motion.button>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
 
                 {/* Merchant status monitor */}
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
-                  STATO ALIENO
+                  {t("admin.merchant.title")}
                 </div>
                 <div
                   style={{
@@ -1538,10 +1556,10 @@ export function AdminPanel({ telegramId }: Props) {
                 >
                   <span>
                     {merchantStatus.active
-                      ? `🔴 ATTIVO (scade tra ${formatCountdown(merchantStatus.remainingSec ?? 0)})`
+                      ? t("admin.merchant.active", { time: formatCountdown(merchantStatus.remainingSec ?? 0) })
                       : merchantStatus.nextAt
-                        ? `🕓 Prossimo: ${formatCountdown(merchantStatus.remainingSec ?? 0)}`
-                        : "— Nessun timer —"}
+                        ? t("admin.merchant.next", { time: formatCountdown(merchantStatus.remainingSec ?? 0) })
+                        : t("admin.merchant.noTimer")}
                   </span>
                   <span
                     onClick={() => { haptic(); refreshMerchantStatus(); }}
@@ -1558,7 +1576,7 @@ export function AdminPanel({ telegramId }: Props) {
                     setLoading("force-merchant");
                     const r = await adminForceMerchantSpawn(telegramId);
                     setLoading(null);
-                    showFeedback(r.ok ? `✓ Alieno spawnato! Scade: ${new Date(r.expiresAt || "").toLocaleTimeString()}` : "✗ Errore spawn alieno", r.ok);
+                    showFeedback(r.ok ? t("admin.feedback.merchantSpawned", { time: new Date(r.expiresAt || "").toLocaleTimeString() }) : t("admin.feedback.merchantSpawnError"), r.ok);
                   }}
                   disabled={loading !== null}
                   style={{
@@ -1575,20 +1593,20 @@ export function AdminPanel({ telegramId }: Props) {
                     transition: "opacity 0.15s",
                   }}
                 >
-                  {loading === "force-merchant" ? "..." : "👽 FORZA ALIENO"}
+                  {loading === "force-merchant" ? t("admin.loading") : t("admin.merchant.force")}
                 </motion.button>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
 
                 {/* Force delist marketplace listing */}
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
-                  RIMUOVI LISTING DAL MERCATO
+                  {t("admin.delist.title")}
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <input
                     value={delistId}
                     onChange={(e) => setDelistId(e.target.value)}
-                    placeholder="ID listing"
+                    placeholder={t("admin.placeholder.listingId")}
                     type="number"
                     min="1"
                     onFocus={() => haptic()}
@@ -1600,14 +1618,14 @@ export function AdminPanel({ telegramId }: Props) {
                       haptic();
                       const id = parseInt(delistId, 10);
                       if (!Number.isFinite(id) || id <= 0) {
-                        showFeedback("✗ ID non valido", false);
+                        showFeedback(t("admin.feedback.invalidId"), false);
                         return;
                       }
                       setLoading("delist");
                       const ok = await adminForceDelist(telegramId, id);
                       setLoading(null);
                       if (ok) setDelistId("");
-                      showFeedback(ok ? `✓ Listing #${id} rimosso` : `✗ Listing non trovato`, ok);
+                      showFeedback(ok ? t("admin.feedback.listingRemoved", { id }) : t("admin.feedback.listingNotFound"), ok);
                     }}
                     disabled={loading !== null}
                     style={{
@@ -1623,7 +1641,7 @@ export function AdminPanel({ telegramId }: Props) {
                       letterSpacing: "0.05em",
                     }}
                   >
-                    {loading === "delist" ? "..." : "🗑 DELIST"}
+                    {loading === "delist" ? t("admin.loading") : t("admin.delist.btn")}
                   </motion.button>
                 </div>
 
@@ -1632,7 +1650,7 @@ export function AdminPanel({ telegramId }: Props) {
                 {/* Top players (with Telegram IDs) — tap to fill the disable input */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                   <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
-                    TOP PLAYERS (TELEGRAM ID)
+                    {t("admin.topPlayers.title")}
                   </div>
                   <motion.button
                     whileTap={{ scale: 0.93 }}
@@ -1651,13 +1669,13 @@ export function AdminPanel({ telegramId }: Props) {
                       opacity: topPlayersLoading ? 0.5 : 1,
                     }}
                   >
-                    {topPlayersLoading ? "..." : "↻ REFRESH"}
+                    {topPlayersLoading ? t("admin.loading") : t("admin.topPlayers.refresh")}
                   </motion.button>
                 </div>
                 <input
                   value={topPlayersFilter}
                   onChange={(e) => setTopPlayersFilter(e.target.value)}
-                  placeholder="Filtra per nome o ID (es. Бам)"
+                  placeholder={t("admin.placeholder.filterPlayers")}
                   onFocus={() => haptic()}
                   style={{ ...inputStyle, width: "100%" }}
                 />
@@ -1681,14 +1699,14 @@ export function AdminPanel({ telegramId }: Props) {
                     if (topPlayersLoading && filtered.length === 0) {
                       return (
                         <div style={{ padding: 10, fontSize: 11, color: "rgba(255,255,255,0.4)", textAlign: "center" }}>
-                          Caricamento…
+                          {t("admin.topPlayers.loading")}
                         </div>
                       );
                     }
                     if (filtered.length === 0) {
                       return (
                         <div style={{ padding: 10, fontSize: 11, color: "rgba(255,255,255,0.4)", textAlign: "center" }}>
-                          Nessun risultato
+                          {t("admin.topPlayers.empty")}
                         </div>
                       );
                     }
@@ -1701,7 +1719,7 @@ export function AdminPanel({ telegramId }: Props) {
                             haptic();
                             setDisableId(r.telegramId);
                             setTargetId(r.telegramId);
-                            showFeedback(`✓ ID ${r.telegramId} copiato (${r.firstName})`, true);
+                            showFeedback(t("admin.feedback.idCopied", { id: r.telegramId, name: r.firstName }), true);
                           }}
                           style={{
                             display: "grid",
@@ -1722,7 +1740,7 @@ export function AdminPanel({ telegramId }: Props) {
                           <span style={{ fontSize: 12, opacity: 0.85 }}>{medal}</span>
                           <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                             <span style={{ fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {r.firstName || "Player"}
+                              {r.firstName || t("admin.topPlayers.fallbackName")}
                             </span>
                             <span style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
                               {r.telegramId}
@@ -1741,13 +1759,13 @@ export function AdminPanel({ telegramId }: Props) {
 
                 {/* Disable / Enable user (anti-abuse freeze) */}
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
-                  DISABILITA / RIATTIVA UTENTE (blocca market + prelievi)
+                  {t("admin.disable.title")}
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <input
                     value={disableId}
                     onChange={(e) => setDisableId(e.target.value)}
-                    placeholder="@username o telegram_id"
+                    placeholder={t("admin.placeholder.userId")}
                     onFocus={() => haptic()}
                     style={{ ...inputStyle, flex: 1, border: "1px solid rgba(255,60,60,0.18)" }}
                   />
@@ -1756,12 +1774,12 @@ export function AdminPanel({ telegramId }: Props) {
                     onClick={async () => {
                       haptic();
                       const id = disableId.trim();
-                      if (!id) { showFeedback("✗ Nessun ID", false); return; }
+                      if (!id) { showFeedback(t("admin.feedback.noId"), false); return; }
                       setLoading("disable");
                       const ok = await adminDisableUser(telegramId, id);
                       setLoading(null);
                       if (ok) setDisableId("");
-                      showFeedback(ok ? `✓ ${id} disabilitato` : `✗ Errore per ${id}`, ok);
+                      showFeedback(ok ? t("admin.feedback.userDisabled", { id }) : t("admin.feedback.userError", { id }), ok);
                     }}
                     disabled={loading !== null}
                     style={{
@@ -1777,19 +1795,19 @@ export function AdminPanel({ telegramId }: Props) {
                       letterSpacing: "0.05em",
                     }}
                   >
-                    {loading === "disable" ? "..." : "DISABLE"}
+                    {loading === "disable" ? t("admin.loading") : t("admin.disable.btn")}
                   </motion.button>
                   <motion.button
                     whileTap={{ scale: 0.93 }}
                     onClick={async () => {
                       haptic();
                       const id = disableId.trim();
-                      if (!id) { showFeedback("✗ Nessun ID", false); return; }
+                      if (!id) { showFeedback(t("admin.feedback.noId"), false); return; }
                       setLoading("enable");
                       const ok = await adminEnableUser(telegramId, id);
                       setLoading(null);
                       if (ok) setDisableId("");
-                      showFeedback(ok ? `✓ ${id} riattivato` : `✗ Errore per ${id}`, ok);
+                      showFeedback(ok ? t("admin.feedback.userEnabled", { id }) : t("admin.feedback.userError", { id }), ok);
                     }}
                     disabled={loading !== null}
                     style={{
@@ -1805,7 +1823,7 @@ export function AdminPanel({ telegramId }: Props) {
                       letterSpacing: "0.05em",
                     }}
                   >
-                    {loading === "enable" ? "..." : "ENABLE"}
+                    {loading === "enable" ? t("admin.loading") : t("admin.enable.btn")}
                   </motion.button>
                 </div>
 
@@ -1832,7 +1850,7 @@ export function AdminPanel({ telegramId }: Props) {
                     setLoading(null);
                     if (r.ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
                     showFeedback(
-                      r.ok ? `✓ ${r.disabled}/${ids.length} account disabilitati` : "✗ Errore bulk-disable",
+                      r.ok ? t("admin.feedback.bulkDisabled", { disabled: r.disabled, total: ids.length }) : t("admin.feedback.bulkDisableError"),
                       r.ok,
                     );
                   }}
@@ -1853,8 +1871,8 @@ export function AdminPanel({ telegramId }: Props) {
                   {loading === "bulk-nebo"
                     ? "..."
                     : confirmBulkNebo
-                      ? "CONFERMA: BAN NEBO + 17 ALTS"
-                      : "BAN NEBO + 17 ALTS (1 click)"}
+                      ? t("admin.bulkNebo.confirm")
+                      : t("admin.bulkNebo.btn")}
                 </motion.button>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
@@ -1862,7 +1880,7 @@ export function AdminPanel({ telegramId }: Props) {
                 {/* TON Withdrawal Requests */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
-                    PRELIEVI TON ({pendingWithdrawals.length})
+                    {t("admin.withdrawals.title", { n: pendingWithdrawals.length })}
                   </div>
                   <motion.button
                     whileTap={{ scale: 0.93 }}
@@ -1878,12 +1896,12 @@ export function AdminPanel({ telegramId }: Props) {
                       cursor: "pointer",
                     }}
                   >
-                    ↻ AGGIORNA
+                    {t("admin.withdrawals.refresh")}
                   </motion.button>
                 </div>
                 {pendingWithdrawals.length === 0 ? (
                   <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", padding: "8px 10px", background: "rgba(255,255,255,0.02)", border: "1px dashed rgba(255,255,255,0.08)", borderRadius: 8 }}>
-                    Nessuna richiesta in attesa.
+                    {t("admin.withdrawals.empty")}
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 280, overflowY: "auto" }}>
@@ -1897,7 +1915,7 @@ export function AdminPanel({ telegramId }: Props) {
                           setWithdrawalLoadingId(w.id);
                           const res = await adminApproveWithdrawal(telegramId, w.id, txHash);
                           setWithdrawalLoadingId(null);
-                          showFeedback(res.ok ? `✓ Prelievo #${w.id} approvato` : `✗ ${res.error || "Errore"}`, res.ok);
+                          showFeedback(res.ok ? t("admin.feedback.withdrawalApproved", { id: w.id }) : t("admin.feedback.error"), res.ok);
                           if (res.ok) refreshPendingWithdrawals();
                         }}
                         onReject={async (reason) => {
@@ -1905,7 +1923,7 @@ export function AdminPanel({ telegramId }: Props) {
                           setWithdrawalLoadingId(w.id);
                           const res = await adminRejectWithdrawal(telegramId, w.id, reason);
                           setWithdrawalLoadingId(null);
-                          showFeedback(res.ok ? `✓ Prelievo #${w.id} rifiutato e rimborsato` : `✗ ${res.error || "Errore"}`, res.ok);
+                          showFeedback(res.ok ? t("admin.feedback.withdrawalRejected", { id: w.id }) : t("admin.feedback.error"), res.ok);
                           if (res.ok) {
                             refreshPendingWithdrawals();
                             window.dispatchEvent(new Event("zoom-admin-refresh"));
@@ -1920,7 +1938,7 @@ export function AdminPanel({ telegramId }: Props) {
 
                 {/* Reset Season - destructive */}
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
-                  RESET STAGIONE
+                  {t("admin.seasonReset.title")}
                 </div>
                 <motion.button
                   whileTap={{ scale: 0.93 }}
@@ -1936,7 +1954,7 @@ export function AdminPanel({ telegramId }: Props) {
                     setLoading(null);
                     setConfirmReset(false);
                     if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
-                    showFeedback(ok ? "✓ Stagione resettata per tutti" : "✗ Errore reset", ok);
+                    showFeedback(ok ? t("admin.feedback.seasonReset") : t("admin.feedback.seasonResetError"), ok);
                   }}
                   disabled={loading !== null}
                   style={{
@@ -1954,17 +1972,17 @@ export function AdminPanel({ telegramId }: Props) {
                     boxShadow: confirmReset ? "0 0 14px rgba(255,60,60,0.3)" : "none",
                   }}
                 >
-                  {loading === "reset" ? "..." : confirmReset ? "⚠ CONFERMA RESET (tap)" : "🔄 RESET STAGIONE (Zoom + Exchange)"}
+                  {loading === "reset" ? t("admin.loading") : confirmReset ? t("admin.seasonReset.confirm") : t("admin.seasonReset.btn")}
                 </motion.button>
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.4 }}>
-                  Azzera $ZOOM, pool stagionale, conteggi craft e claim per tutti gli utenti.
+                  {t("admin.seasonReset.hint")}
                 </div>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
 
                 {/* Reconcile referral counts - safe data fix */}
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
-                  RICONCILIA REFERRAL
+                  {t("admin.reconcileReferrals.title")}
                 </div>
                 <motion.button
                   whileTap={{ scale: 0.93 }}
@@ -1976,9 +1994,9 @@ export function AdminPanel({ telegramId }: Props) {
                     if (res.ok) {
                       window.dispatchEvent(new Event("zoom-admin-refresh"));
                       const delta = res.delta ?? 0;
-                      showFeedback(`✓ Referral riallineati: ${res.before} → ${res.after} (${delta >= 0 ? "+" : ""}${delta})`, true);
+                      showFeedback(t("admin.feedback.referralsReconciled", { before: res.before, after: res.after, delta: `${delta >= 0 ? "+" : ""}${delta}` }), true);
                     } else {
-                      showFeedback(`✗ ${res.error || "Errore"}`, false);
+                      showFeedback(t("admin.feedback.auditError", { error: res.error || t("admin.feedback.error").replace("✗ ", "") }), false);
                     }
                   }}
                   disabled={loading !== null}
@@ -1996,17 +2014,17 @@ export function AdminPanel({ telegramId }: Props) {
                     transition: "all 0.2s",
                   }}
                 >
-                  🧮 RICONCILIA CONTEGGIO REFERRAL
+                  {t("admin.reconcileReferrals.btn")}
                 </motion.button>
                 <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.4 }}>
-                  Riallinea il conteggio referral di ogni utente al numero reale di invitati. Non tocca i $ZOOM già accreditati.
+                  {t("admin.reconcileReferrals.hint")}
                 </div>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
 
-                {/* AUDIT + PURGE FAKE REFERRALS — chirurgico, solo i fantasmi */}
+                {/* {t("admin.fakeRef.title")} — chirurgico, solo i fantasmi */}
                 <FakeReferralsAdminSection adminId={telegramId} onFeedback={showFeedback} />
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
@@ -2060,6 +2078,7 @@ interface LottoAdminSectionProps {
 }
 
 function LottoAdminSection({ adminId, onFeedback }: LottoAdminSectionProps) {
+  const { t } = useT();
   const [dash, setDash] = useState<LottoAdminDashboard | null>(null);
   const [loading, setLoading] = useState(false);
   const [drawing, setDrawing] = useState(false);
@@ -2087,12 +2106,12 @@ function LottoAdminSection({ adminId, onFeedback }: LottoAdminSectionProps) {
     setConfirmDraw(false);
     if (res.ok) {
       const name = res.winnerName || res.winnerTelegramId || "?";
-      onFeedback(`✓ Vincitore: ${name} · ${res.winnerTickets} biglietti · paga ${(res.prizeTon || 0).toFixed(4)} TON`, true);
+      onFeedback(t("admin.lotto.winnerFeedback", { name, tickets: res.winnerTickets ?? 0, ton: (res.prizeTon || 0).toFixed(4) }), true);
       refresh();
     } else {
-      const msg = res.error === "NO_TICKETS_SOLD" ? "Nessun biglietto venduto in questo round"
-        : res.error === "NO_ACTIVE_ROUND" ? "Nessun round attivo"
-        : res.error || "Errore estrazione";
+      const msg = res.error === "NO_TICKETS_SOLD" ? t("admin.lotto.noTickets")
+        : res.error === "NO_ACTIVE_ROUND" ? t("admin.lotto.noActiveRound")
+        : res.error || t("admin.lotto.drawError");
       onFeedback(`✗ ${msg}`, false);
     }
   };
@@ -2105,7 +2124,7 @@ function LottoAdminSection({ adminId, onFeedback }: LottoAdminSectionProps) {
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontSize: 10, color: "rgba(255,216,77,0.7)", letterSpacing: "0.08em", fontWeight: 800 }}>
-          🎟 LOTTO STELLARE
+          {t("admin.lotto.title")}
         </div>
         <motion.button
           whileTap={{ scale: 0.93 }}
@@ -2121,7 +2140,7 @@ function LottoAdminSection({ adminId, onFeedback }: LottoAdminSectionProps) {
             cursor: "pointer",
           }}
         >
-          {loading ? "..." : "↻ AGGIORNA"}
+          {loading ? t("admin.loading") : t("admin.labRank.refresh")}
         </motion.button>
       </div>
 
@@ -2135,25 +2154,25 @@ function LottoAdminSection({ adminId, onFeedback }: LottoAdminSectionProps) {
         border: "1px solid rgba(255,216,77,0.2)",
       }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Total Collected</div>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>{t("admin.lotto.totalCollected")}</div>
           <div style={{ fontSize: 16, fontWeight: 900, color: "#fff", marginTop: 2 }}>{collected.toFixed(4)}</div>
           <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>TON</div>
         </div>
         <div style={{ textAlign: "center", borderLeft: "1px solid rgba(255,255,255,0.08)", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
-          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Prize 90%</div>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>{t("admin.lotto.prize90")}</div>
           <div style={{ fontSize: 16, fontWeight: 900, color: "#ffd84d", marginTop: 2 }}>{prize.toFixed(4)}</div>
-          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>al vincitore</div>
+          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>{t("admin.lotto.toWinner")}</div>
         </div>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Profit 10%</div>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>{t("admin.lotto.profit10")}</div>
           <div style={{ fontSize: 16, fontWeight: 900, color: "#00f264", marginTop: 2 }}>{profit.toFixed(4)}</div>
-          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>tuo netto</div>
+          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>{t("admin.lotto.yourNet")}</div>
         </div>
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(255,255,255,0.6)", padding: "0 4px" }}>
-        <span>Round #{dash?.round.id ?? "—"}</span>
-        <span>{dash?.round.totalTickets ?? 0} biglietti · {dash?.round.participants ?? 0} partecipanti</span>
+        <span>{t("admin.lotto.round", { id: dash?.round.id ?? "—" })}</span>
+        <span>{t("admin.lotto.ticketsParticipants", { tickets: dash?.round.totalTickets ?? 0, participants: dash?.round.participants ?? 0 })}</span>
       </div>
 
       <div style={{
@@ -2163,7 +2182,7 @@ function LottoAdminSection({ adminId, onFeedback }: LottoAdminSectionProps) {
         border: "1px solid rgba(196,113,237,0.25)",
       }}>
         <span style={{ color: "rgba(255,255,255,0.65)", letterSpacing: "0.04em" }}>
-          Estrazione automatica settimanale
+          {t("admin.lotto.autoDraw")}
         </span>
         <span style={{ color: "#c471ed", fontWeight: 800 }}>
           {dash?.round.nextDrawAt
@@ -2177,7 +2196,7 @@ function LottoAdminSection({ adminId, onFeedback }: LottoAdminSectionProps) {
 
       {dash && dash.topBuyers.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto", padding: 8, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", marginBottom: 2 }}>TOP COMPRATORI</div>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", marginBottom: 2 }}>{t("admin.lotto.topBuyers")}</div>
           {dash.topBuyers.map((b, i) => {
             const total = dash.round.totalTickets || 1;
             const pct = (b.tickets / total) * 100;
@@ -2215,26 +2234,26 @@ function LottoAdminSection({ adminId, onFeedback }: LottoAdminSectionProps) {
           boxShadow: confirmDraw ? "0 0 14px rgba(255,216,77,0.3)" : "none",
         }}
       >
-        {drawing ? "..." : confirmDraw ? "⚠ CONFERMA ESTRAZIONE (tap)" : "🎲 ESTRAI VINCITORE"}
+        {drawing ? t("admin.loading") : confirmDraw ? t("admin.lotto.drawConfirm") : t("admin.lotto.drawBtn")}
       </motion.button>
       <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", lineHeight: 1.4 }}>
-        L'estrazione automatica avviene ogni settimana e manda una notifica Telegram a TUTTI gli utenti del bot col vincitore e il montepremi. Questo bottone qui sopra serve come <b>override manuale</b> nel caso volessi anticipare il draw. Dopo ogni estrazione parte automaticamente un nuovo round. <b style={{ color: "#ffd84d" }}>Il pagamento del premio al vincitore lo fai manualmente dal tuo wallet.</b>
+        {t("admin.lotto.drawHint")}
       </div>
 
       {dash && dash.history.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto", padding: 8, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", marginBottom: 2 }}>STORICO ESTRAZIONI</div>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", marginBottom: 2 }}>{t("admin.lotto.history")}</div>
           {dash.history.map((h) => (
             <div key={h.id} style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "rgba(255,255,255,0.7)", padding: "4px 4px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Round #{h.id}</span>
+                <span>{t("admin.lotto.round", { id: h.id })}</span>
                 <span>{h.drawnAt ? new Date(h.drawnAt).toLocaleString() : ""}</span>
               </div>
               <div>
-                Vincitore: <b style={{ color: "#fff" }}>{h.winnerTelegramId || "—"}</b> ({h.winnerTickets ?? 0} biglietti)
+                {t("admin.lotto.winner", { id: h.winnerTelegramId || "—", tickets: h.winnerTickets ?? 0 })}
               </div>
               <div>
-                Premio: <b style={{ color: "#ffd84d" }}>{(h.prizeTon ?? 0).toFixed(4)} TON</b> · Profitto: <b style={{ color: "#00f264" }}>{(h.profitTon ?? 0).toFixed(4)} TON</b>
+                {t("admin.lotto.prizeProfit", { prize: (h.prizeTon ?? 0).toFixed(4), profit: (h.profitTon ?? 0).toFixed(4) })}
               </div>
             </div>
           ))}
@@ -2250,6 +2269,7 @@ interface LabRankAdminSectionProps {
 }
 
 function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) {
+  const { t } = useT();
   const [dash, setDash] = useState<LabRankAdminDashboard | null>(null);
   const [loading, setLoading] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -2274,7 +2294,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
       return;
     }
     if (!dash?.round.id) {
-      onFeedback("✗ Dashboard non caricata: aggiorna prima di chiudere", false);
+      onFeedback(t("admin.labRank.dashboardNotLoaded"), false);
       return;
     }
     setClosing(true);
@@ -2282,14 +2302,14 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
     setClosing(false);
     setConfirmClose(false);
     if (res.ok) {
-      const winnerName = res.winner?.name || "Nessun vincitore";
+      const winnerName = res.winner?.name || t("admin.labRank.noWinner");
       const credited = res.credited?.length || 0;
-      onFeedback(`✓ Stagione chiusa · #1: ${winnerName} · ${(res.prizeTon || 0).toFixed(2)} TON accreditati a ${credited} vincitori`, true);
+      onFeedback(t("admin.labRank.seasonClosed", { name: winnerName, ton: (res.prizeTon || 0).toFixed(2), count: credited }), true);
       refresh();
     } else {
       const msg = res.error === "NO_ACTIVE_ROUND_OR_ALREADY_ROTATED"
-        ? "Nessun round attivo o già ruotato"
-        : res.error || "Errore chiusura";
+        ? t("admin.labRank.noActiveOrRotated")
+        : res.error || t("admin.labRank.closeError");
       onFeedback(`✗ ${msg}`, false);
     }
   };
@@ -2306,10 +2326,10 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
     setResetting(false);
     setConfirmReset(false);
     if (res.ok) {
-      onFeedback(`✓ Punti azzerati per ${res.resetCount || 0} giocatori`, true);
+      onFeedback(t("admin.labRank.pointsReset", { n: res.resetCount || 0 }), true);
       refresh();
     } else {
-      onFeedback(`✗ ${res.error || "Errore reset"}`, false);
+      onFeedback(t("admin.feedback.auditError", { error: res.error || t("admin.labRank.resetError") }), false);
     }
   };
 
@@ -2322,7 +2342,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ fontSize: 10, color: "rgba(255,215,0,0.75)", letterSpacing: "0.08em", fontWeight: 800 }}>
-          🏆 CLASSIFICA MENSILE LAB
+          {t("admin.labRank.title")}
         </div>
         <motion.button
           whileTap={{ scale: 0.93 }}
@@ -2338,7 +2358,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
             cursor: "pointer",
           }}
         >
-          {loading ? "..." : "↻ AGGIORNA"}
+          {loading ? t("admin.loading") : t("admin.labRank.refresh")}
         </motion.button>
       </div>
 
@@ -2352,20 +2372,20 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
         border: "1px solid rgba(255,215,0,0.2)",
       }}>
         <div style={{ textAlign: "center", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
-          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Montepremi</div>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>{t("admin.labRank.prizePool")}</div>
           <div style={{ fontSize: 16, fontWeight: 900, color: "#ffd700", marginTop: 2 }}>{pool} TON</div>
-          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>fisso · Top 30</div>
+          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>{t("admin.labRank.fixedTop30")}</div>
         </div>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Giocatori</div>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>{t("admin.labRank.players")}</div>
           <div style={{ fontSize: 16, fontWeight: 900, color: "#fff", marginTop: 2 }}>{participants}</div>
-          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>nella stagione</div>
+          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>{t("admin.labRank.inSeason")}</div>
         </div>
       </div>
 
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(255,255,255,0.6)", padding: "0 4px" }}>
-        <span>Round #{dash?.round.id ?? "—"}</span>
-        <span>{endsAt ? `Scade: ${endsAt.toLocaleString()}` : "Scadenza —"}</span>
+        <span>{t("admin.lotto.round", { id: dash?.round.id ?? "—" })}</span>
+        <span>{endsAt ? t("admin.labRank.expires", { date: endsAt.toLocaleString() }) : t("admin.labRank.noExpiry")}</span>
       </div>
 
       {prizes.length > 0 && (
@@ -2386,7 +2406,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
           border: "1px solid rgba(255,215,0,0.25)",
         }}>
           <span style={{ color: "rgba(255,255,255,0.65)", letterSpacing: "0.04em" }}>
-            👑 Leader corrente
+            {t("admin.labRank.currentLeader")}
           </span>
           <span style={{ color: "#ffd700", fontWeight: 800 }}>
             {dash.currentLeader.name} · {dash.currentLeader.labPoints} pt
@@ -2396,7 +2416,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
 
       {dash && dash.top30.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto", padding: 8, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", marginBottom: 2 }}>TOP 30 — ANTEPRIMA PAYOUT</div>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", marginBottom: 2 }}>{t("admin.labRank.top30Preview")}</div>
           {dash.top30.map((r) => (
             <div key={r.telegramId} style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#fff", padding: "3px 4px" }}>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }}>
@@ -2430,10 +2450,10 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
         }}
         data-testid="button-close-lab-rank-season"
       >
-        {closing ? "..." : confirmClose ? "⚠ CONFERMA CHIUSURA STAGIONE (tap)" : "🏁 CHIUDI STAGIONE & PAYOUT"}
+        {closing ? t("admin.loading") : confirmClose ? t("admin.labRank.closeConfirm") : t("admin.labRank.closeBtn")}
       </motion.button>
       <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", lineHeight: 1.4 }}>
-        La stagione si chiude <b style={{ color: "#ffd700" }}>automaticamente dopo 60 giorni</b>: i premi TON ({pool} TON in totale) vengono accreditati <b style={{ color: "#ffd700" }}>direttamente sul saldo Earned (ritirabile)</b> dei primi 30, i punti di tutti vengono azzerati e parte una nuova stagione. Questo pulsante è solo un fallback manuale.
+        {t("admin.labRank.closeHint", { pool })}
       </div>
 
       <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
@@ -2457,26 +2477,26 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
           boxShadow: confirmReset ? "0 0 14px rgba(255,80,80,0.3)" : "none",
         }}
       >
-        {resetting ? "..." : confirmReset ? "⚠ CONFERMA RESET PUNTI (tap)" : "🔄 RESET PUNTI CLASSIFICA"}
+        {resetting ? t("admin.loading") : confirmReset ? t("admin.labRank.resetPointsConfirm") : t("admin.labRank.resetPointsBtn")}
       </motion.button>
       <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", lineHeight: 1.4 }}>
-        Azzera <b style={{ color: "#ff6b6b" }}>tutti i punti</b> della classifica craft per tutti i giocatori. <b>Nessun premio viene distribuito</b> — i punti tornano solo a 0. Utile per ripartire da zero con una classifica pulita.
+        {t("admin.labRank.resetPointsHint")}
       </div>
 
       {dash && dash.history.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto", padding: 8, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", marginBottom: 2 }}>STORICO STAGIONI</div>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", marginBottom: 2 }}>{t("admin.labRank.history")}</div>
           {dash.history.map((h) => (
             <div key={h.id} style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 10, color: "rgba(255,255,255,0.7)", padding: "4px 4px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Stagione #{h.id}</span>
+                <span>{t("admin.labRank.season", { id: h.id })}</span>
                 <span>{h.closedAt ? new Date(h.closedAt).toLocaleString() : ""}</span>
               </div>
               <div>
-                #1: <b style={{ color: "#fff" }}>{h.winnerTelegramId || "—"}</b> ({h.winnerLabPoints ?? 0} pt)
+                {t("admin.labRank.seasonWinner", { id: h.winnerTelegramId || "—", points: h.winnerLabPoints ?? 0 })}
               </div>
               <div>
-                Pool: <b style={{ color: "#fff" }}>{(h.poolTon ?? 0).toFixed(4)}</b> · Premio: <b style={{ color: "#ffd700" }}>{(h.prizeTon ?? 0).toFixed(4)} TON</b> · Profitto: <b style={{ color: "#00f264" }}>{(h.profitTon ?? 0).toFixed(4)} TON</b>
+                {t("admin.labRank.seasonPool", { pool: (h.poolTon ?? 0).toFixed(4), prize: (h.prizeTon ?? 0).toFixed(4), profit: (h.profitTon ?? 0).toFixed(4) })}
               </div>
             </div>
           ))}
@@ -2494,6 +2514,7 @@ interface WithdrawalRowProps {
 }
 
 function WithdrawalRow({ w, loading, onApprove, onReject }: WithdrawalRowProps) {
+  const { t } = useT();
   const [txHash, setTxHash] = useState("");
   const [showReject, setShowReject] = useState(false);
   const [reason, setReason] = useState("");
@@ -2508,7 +2529,7 @@ function WithdrawalRow({ w, loading, onApprove, onReject }: WithdrawalRowProps) 
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: 1 }}>
           <span style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>
-            {w.amountTon.toFixed(4)} TON <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 600, fontSize: 11 }}>(fee {w.feeTon.toFixed(4)})</span>
+            {w.amountTon.toFixed(4)} TON <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 600, fontSize: 11 }}>({t("admin.withdrawals.fee", { fee: w.feeTon.toFixed(4) })})</span>
           </span>
           <span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)" }}>
             {userLabel} · ID {w.telegramId}
@@ -2524,7 +2545,7 @@ function WithdrawalRow({ w, loading, onApprove, onReject }: WithdrawalRowProps) 
 
       <div
         onClick={() => copy(w.walletAddress)}
-        title="Tap per copiare"
+        title={t("admin.withdrawals.tapCopy")}
         style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", background: "rgba(0,0,0,0.25)", padding: "6px 8px", borderRadius: 6, fontFamily: "monospace", wordBreak: "break-all", cursor: "pointer", border: "1px solid rgba(255,255,255,0.06)" }}
       >
         {w.walletAddress}
@@ -2534,7 +2555,7 @@ function WithdrawalRow({ w, loading, onApprove, onReject }: WithdrawalRowProps) 
         <>
           <input
             type="text"
-            placeholder="TX hash dopo invio"
+            placeholder={t("admin.placeholder.txHash")}
             value={txHash}
             onChange={(e) => setTxHash(e.target.value)}
             disabled={loading}
@@ -2562,7 +2583,7 @@ function WithdrawalRow({ w, loading, onApprove, onReject }: WithdrawalRowProps) 
                 letterSpacing: "0.05em",
               }}
             >
-              {loading ? "..." : "✓ APPROVA"}
+              {loading ? t("admin.loading") : t("admin.withdrawals.approve")}
             </motion.button>
             <motion.button
               whileTap={{ scale: 0.94 }}
@@ -2582,7 +2603,7 @@ function WithdrawalRow({ w, loading, onApprove, onReject }: WithdrawalRowProps) 
                 letterSpacing: "0.05em",
               }}
             >
-              ✗ RIFIUTA
+              {t("admin.withdrawals.reject")}
             </motion.button>
           </div>
         </>
@@ -2590,7 +2611,7 @@ function WithdrawalRow({ w, loading, onApprove, onReject }: WithdrawalRowProps) 
         <>
           <input
             type="text"
-            placeholder="Motivo rifiuto (opzionale)"
+            placeholder={t("admin.placeholder.rejectReason")}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             disabled={loading}
@@ -2615,7 +2636,7 @@ function WithdrawalRow({ w, loading, onApprove, onReject }: WithdrawalRowProps) 
                 letterSpacing: "0.05em",
               }}
             >
-              {loading ? "..." : "CONFERMA RIFIUTO + RIMBORSO"}
+              {loading ? t("admin.loading") : t("admin.withdrawals.confirmReject")}
             </motion.button>
             <motion.button
               whileTap={{ scale: 0.94 }}
@@ -2632,7 +2653,7 @@ function WithdrawalRow({ w, loading, onApprove, onReject }: WithdrawalRowProps) 
                 cursor: "pointer",
               }}
             >
-              ANNULLA
+              {t("admin.withdrawals.cancel")}
             </motion.button>
           </div>
         </>
@@ -2647,6 +2668,7 @@ interface FakeReferralsAdminSectionProps {
 }
 
 function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSectionProps) {
+  const { t } = useT();
   const [target, setTarget] = useState("");
   const [scope, setScope] = useState<"today" | "all">("today");
   const [audit, setAudit] = useState<ReferralAudit | null>(null);
@@ -2657,18 +2679,18 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
   const runAudit = useCallback(async () => {
     haptic();
     const t = target.trim();
-    if (!t) { onFeedback("Inserisci username o telegram_id", false); return; }
+    if (!t) { onFeedback(t("admin.feedback.enterUsername"), false); return; }
     setBusy("audit");
     setConfirmPurge(false);
     const res = await adminAuditReferrals(adminId, t);
     setBusy(null);
     if (!res.ok) {
       setAudit(null);
-      onFeedback(`✗ ${res.error || "Errore audit"}`, false);
+      onFeedback(t("admin.feedback.auditError", { error: res.error || "audit" }), false);
       return;
     }
     setAudit(res);
-    onFeedback("✓ Audit completato", true);
+    onFeedback(t("admin.feedback.auditComplete"), true);
   }, [adminId, target, onFeedback]);
 
   const runPurge = useCallback(async () => {
@@ -2680,10 +2702,10 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
     setBusy(null);
     setConfirmPurge(false);
     if (!res.ok) {
-      onFeedback(`✗ ${res.error || "Errore purge"}`, false);
+      onFeedback(t("admin.feedback.purgeError", { error: res.error || "purge" }), false);
       return;
     }
-    onFeedback(`✓ Sganciati ${res.unlinked} fake (-${res.decrementedDaily} oggi, -${res.decrementedTotal} totale)`, true);
+    onFeedback(t("admin.fakeRef.unlinked", { n: res.unlinked, daily: res.decrementedDaily, total: res.decrementedTotal }), true);
     // Auto-refresh audit per mostrare i nuovi numeri.
     const refreshed = await adminAuditReferrals(adminId, t);
     if (refreshed.ok) setAudit(refreshed);
@@ -2705,12 +2727,12 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
     setBusy(null);
     setConfirmForce(null);
     if (!res.ok) {
-      onFeedback(`✗ ${res.error || "Errore force-zero"}`, false);
+      onFeedback(t("admin.feedback.purgeError", { error: res.error || "force-zero" }), false);
       return;
     }
     onFeedback(mode === "all"
-      ? "✓ HoF azzerato (oggi + totale). L'utente sparisce dalla classifica."
-      : "✓ HoF azzerato per oggi. L'utente sparisce dalla Hall of Fame.", true);
+      ? t("admin.fakeRef.forceZeroAllOk")
+      : t("admin.fakeRef.forceZeroTodayOk"), true);
     const refreshed = await adminAuditReferrals(adminId, id);
     if (refreshed.ok) setAudit(refreshed);
   }, [adminId, audit?.targetTelegramId, onFeedback]);
@@ -2721,12 +2743,12 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
-        AUDIT + PURGE FAKE REFERRALS
+        {t("admin.fakeRef.title")}
       </div>
 
       <input
         type="text"
-        placeholder="@username o telegram_id"
+        placeholder={t("admin.placeholder.userId")}
         value={target}
         onChange={(e) => { setTarget(e.target.value); setAudit(null); setConfirmPurge(false); }}
         disabled={busy !== null}
@@ -2758,7 +2780,7 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
           opacity: busy ? 0.5 : 1,
         }}
       >
-        {busy === "audit" ? "..." : "🔍 AUDIT REFERRALS"}
+        {busy === "audit" ? t("admin.loading") : t("admin.fakeRef.auditBtn")}
       </motion.button>
 
       {audit && c && (
@@ -2782,13 +2804,13 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
             </span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
-            <div>Oggi totali: <b>{c.today_refs}</b></div>
-            <div style={{ color: "#ff7a7a" }}>Oggi fake: <b>{c.today_fake}</b></div>
-            <div>Tutti totali: <b>{c.total_refs}</b></div>
-            <div style={{ color: "#ff7a7a" }}>Tutti fake: <b>{c.total_fake}</b></div>
+            <div>{t("admin.fakeRef.todayTotal", { n: c.today_refs })}</div>
+            <div style={{ color: "#ff7a7a" }}>{t("admin.fakeRef.todayFake", { n: c.today_fake })}</div>
+            <div>{t("admin.fakeRef.allTotal", { n: c.total_refs })}</div>
+            <div style={{ color: "#ff7a7a" }}>{t("admin.fakeRef.allFake", { n: c.total_fake })}</div>
           </div>
           <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)" }}>
-            HOF count: <b>{audit.dailyReferralCount}</b> oggi · <b>{audit.referralCount}</b> totale
+            {t("admin.fakeRef.hofCount", { daily: audit.dailyReferralCount, total: audit.referralCount })}
           </div>
 
           <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
@@ -2809,7 +2831,7 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
                   cursor: "pointer",
                 }}
               >
-                {s === "today" ? "OGGI" : "TUTTI"}
+                {s === "today" ? t("admin.fakeRef.scopeToday") : t("admin.fakeRef.scopeAll")}
               </button>
             ))}
           </div>
@@ -2832,7 +2854,7 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
                 opacity: targetCount === 0 ? 0.4 : 1,
               }}
             >
-              {targetCount === 0 ? "Nessun fake da rimuovere" : `🧹 RIMUOVI ${targetCount} FAKE (${scope === "today" ? "oggi" : "tutti"})`}
+              {targetCount === 0 ? t("admin.fakeRef.noFake") : t("admin.fakeRef.removeFake", { n: targetCount, scope: scope === "today" ? t("admin.fakeRef.scopeTodayLabel") : t("admin.fakeRef.scopeAllLabel") })}
             </motion.button>
           ) : (
             <div style={{ display: "flex", gap: 4 }}>
@@ -2854,7 +2876,7 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
                   opacity: busy ? 0.5 : 1,
                 }}
               >
-                {busy === "purge" ? "..." : `CONFERMA RIMOZIONE ${targetCount}`}
+                {busy === "purge" ? t("admin.loading") : t("admin.fakeRef.confirmRemove", { n: targetCount })}
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.94 }}
@@ -2871,7 +2893,7 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
                   cursor: "pointer",
                 }}
               >
-                ANNULLA
+                {t("admin.withdrawals.cancel")}
               </motion.button>
             </div>
           )}
@@ -2882,7 +2904,7 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
               unlinks 0 rows and the HoF count never drops). */}
           <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "2px 0" }} />
           <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.05em" }}>
-            FORZA AZZERAMENTO HALL OF FAME (bypassa il filtro fake)
+            {t("admin.fakeRef.forceZeroTitle")}
           </div>
           {confirmForce === null ? (
             <div style={{ display: "flex", gap: 4 }}>
@@ -2904,7 +2926,7 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
                   opacity: (audit.dailyReferralCount ?? 0) === 0 ? 0.4 : 1,
                 }}
               >
-                ⚡ AZZERA HOF OGGI ({audit.dailyReferralCount ?? 0})
+                {t("admin.fakeRef.zeroToday", { n: audit.dailyReferralCount ?? 0 })}
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.94 }}
@@ -2924,7 +2946,7 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
                   opacity: (audit.referralCount ?? 0) === 0 ? 0.4 : 1,
                 }}
               >
-                ☢ AZZERA TUTTO ({audit.referralCount ?? 0})
+                {t("admin.fakeRef.zeroAll", { n: audit.referralCount ?? 0 })}
               </motion.button>
             </div>
           ) : (
@@ -2954,8 +2976,8 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
                 {busy === "force-daily" || busy === "force-all"
                   ? "..."
                   : confirmForce === "all"
-                    ? "CONFERMA AZZERAMENTO TOTALE"
-                    : "CONFERMA AZZERAMENTO OGGI"}
+                    ? t("admin.fakeRef.confirmZeroAll")
+                    : t("admin.fakeRef.confirmZeroToday")}
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.94 }}
@@ -2972,7 +2994,7 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
                   cursor: "pointer",
                 }}
               >
-                ANNULLA
+                {t("admin.withdrawals.cancel")}
               </motion.button>
             </div>
           )}
@@ -2980,13 +3002,7 @@ function FakeReferralsAdminSection({ adminId, onFeedback }: FakeReferralsAdminSe
       )}
 
       <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.4 }}>
-        <b>RIMUOVI FAKE</b>: sgancia solo i referral fantasma (zoom_balance=0 + mai loggati).
-        Se i bot hanno aperto il WebApp anche solo una volta, questo non li trova
-        e il contatore HoF resta intero.
-        <br />
-        <b>AZZERA HOF OGGI</b>: forza a 0 il contatore di oggi (l'utente sparisce subito dalla Hall of Fame).
-        <br />
-        <b>AZZERA TUTTO</b>: forza a 0 anche il contatore lifetime (resetta i milestone visibili).
+        {t("admin.fakeRef.hint")}
       </div>
     </div>
   );
@@ -2998,6 +3014,7 @@ interface RedeemCodesAdminSectionProps {
 }
 
 function RedeemCodesAdminSection({ adminId, onFeedback }: RedeemCodesAdminSectionProps) {
+  const { t } = useT();
   const [codes, setCodes] = useState<AdminRedeemCode[]>([]);
   const [generating, setGenerating] = useState<RedeemKind | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -3026,10 +3043,10 @@ function RedeemCodesAdminSection({ adminId, onFeedback }: RedeemCodesAdminSectio
       try { await navigator.clipboard.writeText(res.code); } catch { /**/ }
       setCopiedCode(res.code);
       setTimeout(() => setCopiedCode(null), 2500);
-      onFeedback(`✓ Codice ${res.code} generato e copiato`, true);
+      onFeedback(t("admin.redeem.generated", { code: res.code }), true);
       refresh();
     } else {
-      onFeedback(`✗ ${res.error || "Errore"}`, false);
+      onFeedback(t("admin.feedback.auditError", { error: res.error || t("admin.feedback.error").replace("✗ ", "") }), false);
     }
   }, [adminId, onFeedback, refresh]);
 
@@ -3042,16 +3059,16 @@ function RedeemCodesAdminSection({ adminId, onFeedback }: RedeemCodesAdminSectio
 
   const formatRemaining = (expiresAt: string): string => {
     const ms = new Date(expiresAt).getTime() - Date.now();
-    if (ms <= 0) return "scaduto";
+    if (ms <= 0) return t("admin.redeem.expired");
     const h = Math.floor(ms / 3_600_000);
     const m = Math.floor((ms % 3_600_000) / 60_000);
     return `${h}h ${m}m`;
   };
 
   const labelFor = (k: string, n: number): string => {
-    if (k === "zoom") return `${n.toLocaleString()} $ZOOM`;
-    if (k === "stardust") return `${n} ★ Stardust`;
-    if (k === "spins") return `${n} Spin`;
+    if (k === "zoom") return t("admin.redeem.rewardZoom", { n: n.toLocaleString() });
+    if (k === "stardust") return t("admin.redeem.rewardStardust", { n });
+    if (k === "spins") return t("admin.redeem.rewardSpins", { n });
     return `${n}`;
   };
 
@@ -3065,14 +3082,14 @@ function RedeemCodesAdminSection({ adminId, onFeedback }: RedeemCodesAdminSectio
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
-        REDEEM CODES (24h, 1× per utente)
+        {t("admin.redeem.title")}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
         {([
-          { kind: "zoom" as RedeemKind,     label: "2.000 $ZOOM",  color: "#ff3355" },
-          { kind: "stardust" as RedeemKind, label: "10 ★ Stardust", color: "#ffd23f" },
-          { kind: "spins" as RedeemKind,    label: "3 Spin",       color: "#ffd700" },
+          { kind: "zoom" as RedeemKind,     label: t("admin.redeem.zoom2000"),  color: "#ff3355" },
+          { kind: "stardust" as RedeemKind, label: t("admin.redeem.stardust10"), color: "#ffd23f" },
+          { kind: "spins" as RedeemKind,    label: t("admin.redeem.spins3"),       color: "#ffd700" },
         ]).map(({ kind, label, color }) => (
           <motion.button
             key={kind}
@@ -3143,9 +3160,9 @@ function RedeemCodesAdminSection({ adminId, onFeedback }: RedeemCodesAdminSectio
                   </div>
                 </div>
                 <div style={{ fontSize: 10, color: expired ? "#ff7a7a" : "rgba(255,255,255,0.45)", fontWeight: 700, textAlign: "right" }}>
-                  {expired ? "scaduto" : formatRemaining(c.expiresAt)}
+                  {expired ? t("admin.redeem.expired") : formatRemaining(c.expiresAt)}
                   <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", fontWeight: 600 }}>
-                    {copiedCode === c.code ? "copiato ✓" : "tap = copia"}
+                    {copiedCode === c.code ? t("admin.redeem.copied") : t("admin.redeem.tapCopy")}
                   </div>
                 </div>
               </button>
@@ -3155,7 +3172,7 @@ function RedeemCodesAdminSection({ adminId, onFeedback }: RedeemCodesAdminSectio
       )}
 
       <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.4 }}>
-        Genera un codice random valido 24h. Ogni utente può usarlo una sola volta.
+        {t("admin.redeem.hint")}
       </div>
     </div>
   );

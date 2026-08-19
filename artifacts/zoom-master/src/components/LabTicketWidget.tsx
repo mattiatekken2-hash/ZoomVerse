@@ -2,6 +2,8 @@ import { useEffect, useState, memo } from "react";
 import { buyLabTicket } from "../utils/api";
 import { haptic } from "../utils/haptic";
 import ticketPx from "../assets/lab-ticket.png";
+import { useT } from "../i18n/LanguageContext";
+import { translateGameMessage } from "../i18n/gameMessage";
 
 const PURPLE = "#a78bfa";
 const ACCENT = "#e0c3fc";
@@ -14,23 +16,24 @@ interface Props {
 }
 
 function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode = false }: Props) {
+  const { t, lang } = useT();
   const [open, setOpen] = useState(false);
   const [buying, setBuying] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!msg) return;
-    const t = setTimeout(() => setMsg(null), 3500);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setMsg(null), 3500);
+    return () => clearTimeout(timer);
   }, [msg]);
 
   const handleBuy = async () => {
     if (!telegramId) {
-      setMsg("Telegram ID missing");
+      setMsg(t("labTicket.telegramMissing"));
       return;
     }
     if (depositBalance < 1) {
-      setMsg("Need 1 GRAM to buy");
+      setMsg(t("labTicket.needGram"));
       return;
     }
     haptic();
@@ -38,14 +41,14 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode 
     try {
       const r = await buyLabTicket(telegramId, 1);
       if (r.ok) {
-        setMsg("+30 Lab Points & +300 Stardust!");
+        setMsg(t("labTicket.purchased"));
         onPurchase?.(30, 300);
         window.dispatchEvent(new Event("zoom-data-refresh"));
       } else {
-        setMsg(r.error || "Purchase failed");
+        setMsg(r.error ? translateGameMessage(lang, r.error) : t("labTicket.purchaseFailed"));
       }
     } catch {
-      setMsg("Purchase failed");
+      setMsg(t("labTicket.purchaseFailed"));
     }
     setBuying(false);
   };
@@ -63,7 +66,6 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode 
       `}</style>
 
       {shopMode ? (
-        /* Inline shop card */
         <div
           onClick={() => setOpen(true)}
           style={{
@@ -80,21 +82,20 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode 
               <img src={ticketPx} alt="" style={{ width: 40, height: 40, objectFit: "contain", imageRendering: "pixelated" }} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 900, color: PURPLE, fontSize: 14, letterSpacing: "0.04em" }}>LAB TICKET</div>
+              <div style={{ fontWeight: 900, color: PURPLE, fontSize: 14, letterSpacing: "0.04em" }}>{t("labTicket.title")}</div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>
-                +30 Lab Points · +300 Stardust · 1 GRAM
+                {t("labTicket.cardLine")}
               </div>
             </div>
           </div>
           <div style={{ borderTop: `1px solid ${PURPLE}22`, padding: "10px 16px", textAlign: "center", fontWeight: 900, color: PURPLE, fontSize: 12, letterSpacing: "0.06em" }}>
-            BUY — 1 GRAM →
+            {t("labTicket.buyShort")}
           </div>
         </div>
       ) : (
-        /* Fixed floating button */
         <button
           onClick={() => setOpen(true)}
-          aria-label="Lab Ticket"
+          aria-label={t("labTicket.aria")}
           className="lt-tile"
           style={{
             position: "fixed",
@@ -171,7 +172,7 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode 
           >
             <button
               onClick={() => setOpen(false)}
-              aria-label="Close"
+              aria-label={t("common.closeAria")}
               style={{
                 position: "absolute",
                 top: 12,
@@ -203,10 +204,10 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode 
                   textTransform: "uppercase",
                 }}
               >
-                Lab Ticket
+                {t("labTicket.titleModal")}
               </div>
               <div style={{ fontSize: 11, color: "rgba(224,195,252,0.7)", marginTop: 4 }}>
-                Instantly boost your craft leaderboard standing
+                {t("labTicket.subtitle")}
               </div>
             </div>
 
@@ -228,7 +229,7 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode 
                 }}
               >
                 <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Cost
+                  {t("labTicket.cost")}
                 </div>
                 <div style={{ fontSize: 20, fontWeight: 900, color: ACCENT, marginTop: 2 }}>1 GRAM</div>
               </div>
@@ -242,7 +243,7 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode 
                 }}
               >
                 <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-                  Your GRAM
+                  {t("labTicket.yourGram")}
                 </div>
                 <div style={{ fontSize: 20, fontWeight: 900, color: "#fff", marginTop: 2 }}>
                   {depositBalance.toFixed(2)}
@@ -260,16 +261,16 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode 
               }}
             >
               <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", letterSpacing: "0.08em", marginBottom: 6 }}>
-                WHAT YOU GET
+                {t("labTicket.whatYouGet")}
               </div>
               <div style={{ fontSize: 11, color: "#fff", lineHeight: 1.8 }}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: ACCENT, fontWeight: 800 }}>+30</span>
-                  <span>Craft Leaderboard Points</span>
+                  <span>{t("labTicket.pointsLabel")}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ color: ACCENT, fontWeight: 800 }}>+300</span>
-                  <span>Stardust for Lab crafting</span>
+                  <span>{t("labTicket.stardustLabel")}</span>
                 </div>
               </div>
             </div>
@@ -294,7 +295,7 @@ function LabTicketWidgetBase({ telegramId, depositBalance, onPurchase, shopMode 
               }}
               data-testid="button-buy-lab-ticket"
             >
-              {buying ? "Processing..." : depositBalance < 1 ? "Not enough GRAM" : "Buy Lab Ticket (1 GRAM)"}
+              {buying ? t("labTicket.processing") : depositBalance < 1 ? t("labTicket.notEnoughGram") : t("labTicket.buyBtn")}
             </button>
 
             {msg && (

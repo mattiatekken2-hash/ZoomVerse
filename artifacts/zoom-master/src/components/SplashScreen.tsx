@@ -1,16 +1,19 @@
+import { useT } from "../i18n/LanguageContext";
+
 /** Boot splash — Season 3 spinner shown while Telegram mini-app initializes. */
 export function SplashScreen() {
+  const { t } = useT();
   return (
     <div
       className="zoom-splash-screen"
       role="status"
       aria-live="polite"
-      aria-label="Season 3 loading"
+      aria-label={t("splash.loadingAria")}
     >
       <div className="zoom-splash-inner">
         <div className="zoom-splash-spinner" aria-hidden />
-        <div className="zoom-splash-title">Season 3</div>
-        <div className="zoom-splash-sub">Entra in gioco</div>
+        <div className="zoom-splash-title">{t("splash.title")}</div>
+        <div className="zoom-splash-sub">{t("splash.sub")}</div>
       </div>
     </div>
   );
