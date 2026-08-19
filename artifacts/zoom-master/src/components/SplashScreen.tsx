@@ -21,24 +21,37 @@ export function hideHtmlSplash() {
 
 interface BootSplashOverlayProps {
   subtitle?: string;
+  onComplete: () => void;
 }
 
-function BootSplashOverlayInner({ subtitle = "Season 3" }: BootSplashOverlayProps) {
-  const startRef = useRef(Date.now());
+function BootSplashOverlayInner({ subtitle = "Season 3", onComplete }: BootSplashOverlayProps) {
   const [progress, setProgress] = useState(0);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   useEffect(() => {
     let raf = 0;
-    const tick = () => {
-      const pct = Math.min(1, (Date.now() - startRef.current) / SPLASH_MS);
+    let done = false;
+    const start = performance.now();
+
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const pct = Math.min(1, elapsed / SPLASH_MS);
       setProgress(pct);
-      if (pct < 1) raf = requestAnimationFrame(tick);
+
+      if (elapsed >= SPLASH_MS) {
+        if (!done) {
+          done = true;
+          onCompleteRef.current();
+        }
+        return;
+      }
+      raf = requestAnimationFrame(tick);
     };
+
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
-
-  const pct = Math.round(progress * 100);
 
   return (
     <div
@@ -46,7 +59,7 @@ function BootSplashOverlayInner({ subtitle = "Season 3" }: BootSplashOverlayProp
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-valuenow={pct}
+      aria-valuenow={Math.round(progress * 100)}
       aria-label="Loading game"
       style={{ zIndex: 2147483646 }}
     >
@@ -60,7 +73,7 @@ function BootSplashOverlayInner({ subtitle = "Season 3" }: BootSplashOverlayProp
         <div className="zoom-splash-bar-track">
           <div
             className="zoom-splash-bar-fill"
-            style={{ width: `${pct}%`, transition: "width 0.08s linear" }}
+            style={{ transform: `scaleX(${progress})` }}
           />
         </div>
       </div>
