@@ -5,6 +5,7 @@ import type { Planet } from "../hooks/useGameState";
 import { getRarityColorsForModel, PLANET_CONFIG } from "../hooks/useGameState";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { isLowEndDevice } from "../utils/deviceTier";
+import { useT } from "../i18n/LanguageContext";
 
 export type ForgePhase = "idle" | "wheel" | "flash" | "waiting" | "revealed";
 

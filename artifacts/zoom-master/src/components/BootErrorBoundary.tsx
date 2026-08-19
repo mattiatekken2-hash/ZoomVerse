@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { hideHtmlSplash } from "./SplashScreen";
 
 interface Props {
   children: ReactNode;
@@ -18,6 +19,7 @@ export class BootErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[BootErrorBoundary]", error, info.componentStack);
+    hideHtmlSplash();
   }
 
   render() {

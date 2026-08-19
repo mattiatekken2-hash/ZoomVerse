@@ -141,7 +141,8 @@
         }, 6000);
 
         setTimeout(function() {
-          if (window.__zoomReactBooted) return;
+          var splashVisible = splash && !splash.classList.contains('hidden');
+          if (!splashVisible) return;
           var sub = splash && splash.querySelector('.splash-sub');
           if (sub) sub.textContent = 'Quasi pronto…';
           try {
@@ -153,6 +154,7 @@
           } catch (e) {}
           if (sub) sub.textContent = 'Tocca riprova';
           if (retryBtn) retryBtn.style.display = 'inline-block';
+          if (window.__hideHtmlSplash) window.__hideHtmlSplash();
         }, 12000);
       })();
     </script>
