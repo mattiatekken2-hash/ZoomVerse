@@ -6,7 +6,7 @@ import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/use
 import { fetchRegularPlanets, saveRegularPlanets } from "./utils/api";
 import { useGlobalInit, useGlobalStore } from "./store/globalStore";
 import { NebulaBackground } from "./components/NebulaBackground";
-import { MaintenanceAstronauts } from "./components/MaintenanceAstronauts";
+import { MaintenanceScreen } from "./components/MaintenanceScreen";
 import { LabPage } from "./pages/LabPage";
 import { FarmPage } from "./pages/FarmPage";
 import { MarketPage } from "./pages/MarketPage";
@@ -1580,32 +1580,6 @@ function StardustInfoPopup({ balance, today, dailyCap, globalTotal, onClose }: {
         >
           {t("common.close")}
         </button>
-      </div>
-    </div>
-  );
-}
-
-function MaintenanceScreen({ message }: { message: string }) {
-  const { t } = useT();
-  return (
-    <div
-      className="flex flex-col items-center justify-center text-center px-6"
-      style={{ height: "100dvh", background: "#06030e", paddingTop: "env(safe-area-inset-top, 0px)", paddingBottom: "env(safe-area-inset-bottom, 0px)", position: "relative", overflow: "hidden" }}
-    >
-      <NebulaBackground />
-      <MaintenanceAstronauts />
-      <div className="relative z-10 max-w-sm" style={{ marginTop: "58%" }}>
-        <div className="font-black text-2xl tracking-widest neon-text mb-3">{t("maint.title")}</div>
-        <div className="text-sm" style={{ color: "rgba(255,255,255,0.65)", lineHeight: 1.55 }}>
-          {message || t("maint.default")}
-        </div>
-        <div
-          className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black tracking-widest"
-          style={{ background: "rgba(255,179,71,0.12)", color: "#ffb347", border: "1px solid rgba(255,179,71,0.4)" }}
-        >
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#ffb347", boxShadow: "0 0 10px #ffb347" }} />
-          {t("maint.paused")}
-        </div>
       </div>
     </div>
   );
