@@ -1162,6 +1162,63 @@ let _pendingSyncBalance = -1;
 // still carry the old (higher) server balance (before deductCraftStardust runs).
 // Suppress snap-up for a short window so the UI doesn't yo-yo back.
 let _stardustSnapSuppressUntil = 0;
+/** Block balance/sync until first /grants hydration — prevents stale localStorage GRAM from resurrecting on boot. */
+let _balancesHydrated = false;
+/** After GRAM→Stardust convert, cap TON snap-ups until server and client converge. */
+let _gramConvertCeiling: { epoch: number; ton: number; deposit: number; until: number } | null = null;
+
+const GRAM_CONVERT_CEILING_MS = 5 * 60_000;
+const GRAM_SNAP_STORAGE_KEY = "zoom-gram-snap";
+
+function loadPersistedGramSnap(): { epoch: number; ton: number; deposit: number } | null {
+  try {
+    const raw = localStorage.getItem(GRAM_SNAP_STORAGE_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as { epoch?: number; ton?: number; deposit?: number };
+    if (typeof p.epoch !== "number" || p.epoch <= 0) return null;
+    return {
+      epoch: p.epoch,
+      ton: Math.max(0, typeof p.ton === "number" ? p.ton : 0),
+      deposit: Math.max(0, typeof p.deposit === "number" ? p.deposit : 0),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function persistGramSnap(ton: number, deposit: number, epoch: number) {
+  try {
+    localStorage.setItem(GRAM_SNAP_STORAGE_KEY, JSON.stringify({ ton, deposit, epoch, at: Date.now() }));
+  } catch { /**/ }
+  _gramConvertCeiling = {
+    epoch,
+    ton: Math.max(0, ton),
+    deposit: Math.max(0, deposit),
+    until: Date.now() + GRAM_CONVERT_CEILING_MS,
+  };
+}
+
+function applyGramConvertCeilingTon(ton: number, epoch: number): number {
+  const g = _gramConvertCeiling;
+  if (!g || Date.now() > g.until || epoch < g.epoch) return ton;
+  return Math.min(ton, g.ton);
+}
+
+function adoptServerGramBalances(
+  holder: StateRefHolder,
+  tonBalance: number,
+  depositBalance: number,
+  balanceEpoch?: number,
+) {
+  const ton = Math.max(0, tonBalance);
+  const deposit = Math.max(0, depositBalance);
+  holder.current = { ...holder.current, tonBalance: ton, depositBalance: deposit };
+  _lastSyncedTonBalance = ton;
+  if (typeof balanceEpoch === "number" && balanceEpoch > 0) {
+    holder.current = { ...holder.current, lastBalanceEpoch: balanceEpoch };
+    setCurrentBalanceEpoch(balanceEpoch);
+  }
+}
 // Tracks the most recent server balanceEpoch we've observed. Sent on every
 // /balance/sync so the server can detect stale clients (e.g. after admin
 // mutations) and overwrite their balance instead of merging.
@@ -1241,7 +1298,7 @@ function reconcileFromSyncResponse(
       }));
     } catch { /**/ }
     if (typeof res.tonBalance === "number") {
-      const newTon = Math.max(0, res.tonBalance);
+      const newTon = applyGramConvertCeilingTon(Math.max(0, res.tonBalance), res.balanceEpoch);
       if (_stateRefHolder) {
         _stateRefHolder.current = { ..._stateRefHolder.current, tonBalance: newTon };
       }
@@ -1268,28 +1325,10 @@ function reconcileFromSyncResponse(
       } catch { /**/ }
     }
   }
-  // For TON we use a non-destructive merge on the server (GREATEST when epoch
-  // matches), so the server can return a value HIGHER than what we sent even
-  // when the epoch didn't advance. Whenever the server reports a strictly
-  // higher TON than the client sent, snap local up so the user actually
-  // sees the credited amount. Same synchronous-stateRef-first ordering as
-  // the ZOOM snap above, for the same race-window reason.
-  if (
-    !serverAdvanced &&
-    typeof res.tonBalance === "number" &&
-    typeof sentTonBalance === "number" &&
-    (res.tonBalance ?? 0) - (sentTonBalance ?? 0) > 1e-9
-  ) {
-    if (_stateRefHolder) {
-      _stateRefHolder.current = { ..._stateRefHolder.current, tonBalance: res.tonBalance };
-    }
-    _lastSyncedTonBalance = res.tonBalance;
-    try {
-      window.dispatchEvent(new CustomEvent("zoom-server-ton-snap", {
-        detail: { tonBalance: res.tonBalance, epoch: res.balanceEpoch },
-      }));
-    } catch { /**/ }
-  }
+  // TON at the same epoch: never snap up from /balance/sync — /grants is
+  // server-authoritative for earned GRAM. Snap-up here resurrected converted
+  // GRAM when the sync merge used GREATEST(server, staleClient).
+  // Local collects persist by sending the higher client value in the sync body.
   // Stardust: server-authoritative-up when epoch matches (admin removals use
   // epoch advance + snap in serverAdvanced block above).
   if (
@@ -1347,7 +1386,7 @@ function reconcileFromSyncResponse(
 
 function immediateSyncToServer(state: GameState) {
   const { telegramId } = getTelegramContext();
-  if (!telegramId) return;
+  if (!telegramId || !_balancesHydrated) return;
   const balance = Math.floor(state.balance);
   const tonNow = Math.max(0, state.tonBalance || 0);
   // Sync if EITHER currency changed since the last sync — TON-only changes
@@ -2284,11 +2323,29 @@ export function useGameState() {
         : Math.max(localBalance, serverBalance);
 
       setCurrentBalanceEpoch(serverEpoch);
-      // Pull authoritative TON balance from /grants and seed local state with
-      // it before syncing back, so other devices' TON earnings/spends are
-      // reflected immediately on this device.
-      const serverTonBalance = Math.max(0, grants.tonBalance ?? 0);
-      const serverDepositBalance = Math.max(0, grants.depositBalance ?? 0);
+      // Pull authoritative GRAM from /grants before any /balance/sync so stale
+      // localStorage cannot resurrect converted GRAM via GREATEST(server, client).
+      let serverTonBalance = Math.max(0, grants.tonBalance ?? 0);
+      let serverDepositBalance = Math.max(0, grants.depositBalance ?? 0);
+      const gramSnap = loadPersistedGramSnap();
+      if (
+        gramSnap &&
+        gramSnap.epoch >= (stateRef.current.lastBalanceEpoch ?? 0) &&
+        (stateRef.current.tonBalance || 0) > gramSnap.ton + 1e-9 &&
+        serverTonBalance <= gramSnap.ton + 1e-9
+      ) {
+        serverTonBalance = gramSnap.ton;
+        serverDepositBalance = gramSnap.deposit;
+        adoptServerGramBalances(stateRef, gramSnap.ton, gramSnap.deposit, gramSnap.epoch);
+        _gramConvertCeiling = {
+          epoch: gramSnap.epoch,
+          ton: gramSnap.ton,
+          deposit: gramSnap.deposit,
+          until: Date.now() + GRAM_CONVERT_CEILING_MS,
+        };
+      } else if (grantsOk) {
+        adoptServerGramBalances(stateRef, serverTonBalance, serverDepositBalance, serverEpoch);
+      }
       const sentTon = serverTonBalance;
       const syncRes = await syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: Math.floor(finalBalance), tonBalance: sentTon, clientEpoch: serverEpoch });
       setCurrentBalanceEpoch(syncRes.balanceEpoch);
@@ -2877,6 +2934,7 @@ export function useGameState() {
       if (serverItems.ok) {
         itemsHydratedRef.current = true;
       }
+      _balancesHydrated = true;
     })();
   }, []);
 
@@ -3309,20 +3367,24 @@ export function useGameState() {
         });
       }
 
-      // Now sync the (possibly-credited) balance + epoch.
+      // Fetch authoritative GRAM before /balance/sync — never push stale local ton first.
+      const grants = await fetchGrants(telegramId);
+      if (grants) {
+        adoptServerGramBalances(stateRef, grants.tonBalance ?? 0, grants.depositBalance ?? 0);
+        setState((prev) => ({
+          ...prev,
+          tonBalance: Math.max(0, grants.tonBalance ?? 0),
+          depositBalance: Math.max(0, grants.depositBalance ?? 0),
+        }));
+      }
+
       const localBalance = Math.floor(stateRef.current.balance);
       const sentEpoch = _currentBalanceEpoch;
       const sentTon = Math.max(0, stateRef.current.tonBalance || 0);
       const sentStardust = Math.floor(stateRef.current.stardustBalance || 0);
-      const [syncRes, grants] = await Promise.all([
-        syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: localBalance, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch }),
-        fetchGrants(telegramId),
-      ]);
+      const syncRes = await syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: localBalance, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch });
       reconcileFromSyncResponse(localBalance, sentEpoch, syncRes, sentTon, sentStardust);
 
-      // Skip on transient /grants failure — applying an empty payload would
-      // trip the destructive branches inside applyGrants (SUN reset,
-      // collection revoke, slot/autoTap reset) and silently wipe owned state.
       if (grants) applyGrants(grants);
     };
 
@@ -3362,7 +3424,10 @@ export function useGameState() {
       }
 
       const grants = await fetchGrants(telegramId);
-      if (grants) applyGrants(grants);
+      if (grants) {
+        adoptServerGramBalances(stateRef, grants.tonBalance ?? 0, grants.depositBalance ?? 0);
+        applyGrants(grants);
+      }
 
       const { firstName, username, photoUrl } = getTelegramContext();
       const sentEpoch = _currentBalanceEpoch;
@@ -3444,6 +3509,13 @@ export function useGameState() {
         setCurrentBalanceEpoch(detail.balanceEpoch);
       }
       if (Object.keys(patch).length === 0) return;
+      if (typeof patch.tonBalance === "number" && typeof patch.lastBalanceEpoch === "number") {
+        persistGramSnap(
+          patch.tonBalance,
+          typeof patch.depositBalance === "number" ? patch.depositBalance : stateRef.current.depositBalance || 0,
+          patch.lastBalanceEpoch,
+        );
+      }
       stateRef.current = { ...stateRef.current, ...patch };
       saveState(stateRef.current);
       setState((prev) => ({ ...prev, ...patch }));
@@ -3695,25 +3767,21 @@ export function useGameState() {
 
       if (telegramId) {
         (async () => {
-          setState((prev) => {
-            const settled = settleFarmingState(prev, serverNow());
-            stateRef.current = settled;
-            {
-              const sent = Math.floor(settled.balance);
-              const sentTon = Math.max(0, settled.tonBalance || 0);
-              const sentStardust = Math.floor(settled.stardustBalance || 0);
-              {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: sent, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
-                .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon, sentStardust));}
-            }
-            return settled;
-          });
+          const localNow = serverNow();
+          const settled = settleFarmingState(stateRef.current, localNow);
+          stateRef.current = settled;
+          setState(settled);
 
-          // Bump the server-side watermark right after a visibility resume
-          // (which may have been preceded by hours of throttled / paused
-          // background timers in the Telegram WebView). Without this, the
-          // server still thinks "lastSettled = before-background" and the
-          // next /farm/settle from a different device would recredit a
-          // period the client just credited locally above.
+          const grants = await fetchGrants(telegramId);
+          if (grants) {
+            adoptServerGramBalances(stateRef, grants.tonBalance ?? 0, grants.depositBalance ?? 0);
+            setState((prev) => ({
+              ...prev,
+              tonBalance: Math.max(0, grants.tonBalance ?? 0),
+              depositBalance: Math.max(0, grants.depositBalance ?? 0),
+            }));
+          }
+
           void settleOfflineFarming({
             telegramId,
             clientLastSettledAtMs: Math.floor(stateRef.current.lastFarmingSettledAt || 0),

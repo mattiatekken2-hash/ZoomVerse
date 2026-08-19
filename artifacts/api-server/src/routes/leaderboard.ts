@@ -103,17 +103,11 @@ router.post("/balance/sync", async (req, res) => {
           // the client's reconcileFromSyncResponse takes the snap-up path
           // (serverAdvanced=true) and surfaces the credited amount.
           balanceEpoch: sql`${usersTable.balanceEpoch} + (CASE WHEN ${usersTable.pendingZoomCredits} > 0 THEN 1 ELSE 0 END)`,
-          // TON balance uses a non-destructive merge: take the MAX of server
-          // and client. Unlike ZOOM, internal TON has no client-side spends
-          // (reactivation fees are paid on-chain via TonConnect and the only
-          // server-side decrement, withdrawals, immediately snaps the client
-          // via the zoom-server-ton-snap event before the next sync). Picking
-          // MAX preserves both client-side credits (white/earth COLLECT) and
-          // server-side credits (admin TON grants) without one wiping the
-          // other when balance_epoch advances.
+          // TON: allow client-side decreases at the same epoch (convert spend,
+          // marketplace buy) while still accepting client-side credits (collect).
           ...(typeof tonBalance === "number"
             ? {
-                tonBalance: sql`CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.tonBalance} ELSE GREATEST(${usersTable.tonBalance}, ${tb}) END`,
+                tonBalance: sql`CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.tonBalance} WHEN ${tb} + 1e-12 < ${usersTable.tonBalance} THEN GREATEST(0, ${tb}) ELSE GREATEST(${usersTable.tonBalance}, ${tb}) END`,
               }
             : {}),
           ...(typeof stardustBalance === "number"
