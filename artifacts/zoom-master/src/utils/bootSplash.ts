@@ -1,7 +1,8 @@
-/** Minimum splash duration from first HTML paint — not from React mount. */
+/** Boot splash timing — fixed duration from first HTML paint. */
 
-export const SPLASH_MIN_MS = 2600;
-export const SPLASH_MAX_MS = 6000;
+export const SPLASH_DURATION_MS = 2400;
+/** Absolute cap so the splash never blocks longer than ~3s. */
+export const SPLASH_HARD_MAX_MS = 3000;
 
 declare global {
   interface Window {
@@ -21,10 +22,17 @@ export function splashElapsedMs(): number {
   return Date.now() - bootStartMs();
 }
 
-export function splashRemainingMs(): number {
-  return Math.max(0, SPLASH_MIN_MS - splashElapsedMs());
+/** 0 → 1 loading progress (reaches 1 at SPLASH_DURATION_MS). */
+export function splashProgress(): number {
+  return Math.min(1, splashElapsedMs() / SPLASH_DURATION_MS);
 }
 
-export function isSplashMinElapsed(): boolean {
-  return splashRemainingMs() <= 0;
+export function msUntilSplashEnd(): number {
+  const untilBar = SPLASH_DURATION_MS - splashElapsedMs();
+  const untilCap = SPLASH_HARD_MAX_MS - splashElapsedMs();
+  return Math.max(0, Math.min(untilBar, untilCap));
+}
+
+export function isSplashComplete(): boolean {
+  return splashElapsedMs() >= SPLASH_DURATION_MS || splashElapsedMs() >= SPLASH_HARD_MAX_MS;
 }

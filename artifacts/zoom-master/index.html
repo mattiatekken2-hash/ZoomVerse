@@ -84,6 +84,32 @@
         0%, 100% { opacity: 0.45; }
         50% { opacity: 1; }
       }
+      #splash-screen .splash-bar-wrap {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: max(28px, env(safe-area-inset-bottom, 0px));
+        padding: 0 32px;
+      }
+      #splash-screen .splash-bar-track {
+        height: 4px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35) inset;
+      }
+      #splash-screen .splash-bar-fill {
+        height: 100%;
+        width: 0%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #7a9ec8, #9ec5e8, #c9d6e8);
+        box-shadow: 0 0 12px rgba(158, 197, 232, 0.45);
+        animation: splashBarFill 2.4s linear forwards;
+      }
+      @keyframes splashBarFill {
+        from { width: 0%; }
+        to { width: 100%; }
+      }
     </style>
   </head>
   <body>
@@ -93,6 +119,11 @@
         <div class="splash-title">Season 3</div>
         <div class="splash-sub">Entra in gioco</div>
         <button type="button" id="splash-retry-btn">Riprova</button>
+      </div>
+      <div class="splash-bar-wrap" aria-hidden="true">
+        <div class="splash-bar-track">
+          <div class="splash-bar-fill" id="splash-bar-fill"></div>
+        </div>
       </div>
     </div>
     <script>
@@ -140,23 +171,6 @@
           var sub = splash && splash.querySelector('.splash-sub');
           if (sub) sub.textContent = 'Caricamento…';
         }, 900);
-
-        setTimeout(function() {
-          var splashVisible = splash && !splash.classList.contains('hidden');
-          if (!splashVisible) return;
-          var sub = splash && splash.querySelector('.splash-sub');
-          if (sub) sub.textContent = 'Quasi pronto…';
-          try {
-            if (!sessionStorage.getItem('zoom-boot-reload')) {
-              sessionStorage.setItem('zoom-boot-reload', '1');
-              location.reload();
-              return;
-            }
-          } catch (e) {}
-          if (sub) sub.textContent = 'Tocca riprova';
-          if (retryBtn) retryBtn.style.display = 'inline-block';
-          if (window.__hideHtmlSplash) window.__hideHtmlSplash();
-        }, 12000);
       })();
     </script>
     <div id="root"></div>

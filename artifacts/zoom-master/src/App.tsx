@@ -27,7 +27,7 @@ import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
 import { prefetchCombo } from "./utils/comboCache";
 import { initVersionCheck } from "./utils/appVersion";
-import { SPLASH_MAX_MS, isSplashMinElapsed, splashElapsedMs, splashRemainingMs } from "./utils/bootSplash";
+import { isSplashComplete, msUntilSplashEnd } from "./utils/bootSplash";
 
 const MAINTENANCE_ADMIN_IDS = ["8144744644", "@zoom0100", "zoom0100"];
 
@@ -342,26 +342,20 @@ function AppShellWithState() {
   }, []);
   const isAdmin = isMaintenanceAdmin(state.telegramId);
   const showMaintenance = maintenance.enabled && !isAdmin;
-  const [splashMinDone, setSplashMinDone] = useState(() => isSplashMinElapsed());
-  const [splashForceDone, setSplashForceDone] = useState(false);
+  const [splashDone, setSplashDone] = useState(() => isSplashComplete());
 
-  // Timer anchored to page load (index.html __zoomBootStart), not React mount.
-  const showBootSplash = !isAdmin && !splashMinDone && !splashForceDone;
+  const showBootSplash = !isAdmin && !splashDone;
 
   useEffect(() => {
     void fetchTonPrice();
   }, []);
 
   useEffect(() => {
-    const remaining = splashRemainingMs();
-    const forceRemaining = Math.max(0, SPLASH_MAX_MS - splashElapsedMs());
-    const doneTimer = window.setTimeout(() => setSplashMinDone(true), remaining);
-    const forceTimer = window.setTimeout(() => setSplashForceDone(true), forceRemaining);
-    return () => {
-      window.clearTimeout(doneTimer);
-      window.clearTimeout(forceTimer);
-    };
-  }, []);
+    if (splashDone) return;
+    const remaining = msUntilSplashEnd();
+    const timer = window.setTimeout(() => setSplashDone(true), remaining);
+    return () => window.clearTimeout(timer);
+  }, [splashDone]);
 
   useEffect(() => {
     if (isAdmin || !showBootSplash) {
