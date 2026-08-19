@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { translate, type Lang, LANGS } from "./translations";
+import { setI18nLang } from "./gameMessage";
 import { setUserLanguage as apiSetUserLanguage, fetchUserLanguage } from "../utils/api";
 
 type Ctx = {
@@ -12,10 +13,12 @@ const LanguageContext = createContext<Ctx | null>(null);
 
 const STORAGE_KEY = "zoom-lang";
 
+const ALL_LANGS: Lang[] = ["en", "it", "ru", "uk", "es", "fil"];
+
 function readInitial(): Lang {
   try {
     const v = localStorage.getItem(STORAGE_KEY);
-    if (v === "en" || v === "it" || v === "ru" || v === "uk") return v;
+    if (v && ALL_LANGS.includes(v as Lang)) return v as Lang;
   } catch { /**/ }
   // Auto-detect from Telegram WebApp / browser
   try {
@@ -25,6 +28,8 @@ function readInitial(): Lang {
       (typeof navigator !== "undefined" ? navigator.language : "");
     const norm = (code || "").toLowerCase().slice(0, 2);
     if (norm === "it") return "it";
+    if (norm === "es") return "es";
+    if (norm === "fil" || norm === "tl") return "fil";
     if (norm === "ru") return "ru";
     if (norm === "uk") return "uk";
   } catch { /**/ }
@@ -57,7 +62,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     let alive = true;
     fetchUserLanguage(tid).then((serverLang) => {
       if (!alive) return;
-      if (serverLang && (serverLang === "en" || serverLang === "it" || serverLang === "ru" || serverLang === "uk")) {
+      if (serverLang && ALL_LANGS.includes(serverLang as Lang)) {
         setLangState(serverLang);
         try { localStorage.setItem(STORAGE_KEY, serverLang); } catch { /**/ }
       }
@@ -65,6 +70,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     }).catch(() => setHydratedFromServer(true));
     return () => { alive = false; };
   }, [hydratedFromServer]);
+
+  useEffect(() => {
+    setI18nLang(lang);
+  }, [lang]);
 
   const setLang = useCallback((l: Lang) => {
     setLangState(l);

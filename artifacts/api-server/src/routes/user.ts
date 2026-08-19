@@ -6,7 +6,7 @@ import { z } from "zod";
 
 const router = Router();
 
-const ALLOWED = new Set(["en", "ru", "uk"]);
+const ALLOWED = new Set(["en", "it", "ru", "uk", "es", "fil"]);
 
 const SetLangBody = z.object({
   telegramId: z.string().min(1),

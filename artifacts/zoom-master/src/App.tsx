@@ -16,6 +16,7 @@ import { ShopPage } from "./pages/ShopPage";
 import { HomePage } from "./pages/HomePage";
 import { AdminPanel } from "./components/AdminPanel";
 import { LanguageProvider, useT } from "./i18n/LanguageContext";
+import { translateGameMessage } from "./i18n/gameMessage";
 import HistoryModal from "./components/HistoryModal";
 import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, type StardustLeaderboardEntry } from "./utils/api";
 import { useStardust } from "./hooks/useStardust";
@@ -69,7 +70,7 @@ export default function App() {
 
 function AppShellWithState() {
   const [tab, setTab] = useState<Tab>("lab");
-  const { t } = useT();
+  const { t, lang } = useT();
 
   // Deep-link focus (Feature 2 — Planet Sharing). When the mini app is opened
   // via a `mkt_<listingId>` start_param, jump straight to the Market tab and
@@ -110,7 +111,7 @@ function AppShellWithState() {
     const onToast = (e: Event) => {
       const detail = (e as CustomEvent<{ text: string; ok: boolean }>).detail;
       if (!detail) return;
-      const text = detail.text === "Slots full" ? t("common.slotsFull") : detail.text;
+      const text = translateGameMessage(lang, detail.text ?? "");
       setGlobalToast({ text, ok: !!detail.ok });
       if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
       toastTimerRef.current = window.setTimeout(() => {
@@ -123,7 +124,7 @@ function AppShellWithState() {
       window.removeEventListener("zoom-toast", onToast);
       if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
     };
-  }, [t]);
+  }, [t, lang]);
   const {
     state, setState, craft, claimCraft, redeemCode,
     pvpAddPlanet, pvpRemovePlanet,

@@ -46,22 +46,11 @@ export function withInitData<T extends Record<string, unknown>>(body: T): T & { 
   return initData ? { ...body, _initData: initData } : body;
 }
 
+import { tApiError } from "../i18n/gameMessage";
+
 /** Map server JSON errors to user-visible messages (convert, stake, shop, etc.). */
-function parseApiError(data: unknown, httpStatus: number, fallback: string): string {
-  if (data && typeof data === "object") {
-    const d = data as Record<string, unknown>;
-    if (typeof d.error === "string" && d.error) {
-      if (d.error === "TG_AUTH_REQUIRED") return "Apri di nuovo da Telegram per autorizzare";
-      if (d.error === "TG_USER_MISMATCH") return "Sessione non valida — riapri l'app da Telegram";
-      if (d.error === "SERVER_ERROR") return "Errore server — riprova tra poco";
-      return d.error;
-    }
-    if (typeof d.reason === "string" && d.reason) return d.reason;
-  }
-  if (httpStatus === 404) return "Funzione non ancora attiva sul server (404)";
-  if (httpStatus === 401 || httpStatus === 403) return "Non autorizzato — riapri da Telegram";
-  if (httpStatus === 503) return "Server in aggiornamento — riprova tra 1 minuto";
-  return `${fallback} (${httpStatus})`;
+function parseApiError(data: unknown, httpStatus: number, fallbackKey: string): string {
+  return tApiError(data, httpStatus, fallbackKey);
 }
 
 /**
@@ -750,7 +739,7 @@ export async function convertDepositToStardust(
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data?.ok === false) {
-      return { ok: false, error: parseApiError(data, res.status, "Conversion failed") };
+      return { ok: false, error: parseApiError(data, res.status, "api.error.conversionFailed") };
     }
     return {
       ok: true,
@@ -785,7 +774,7 @@ export async function convertStardustToGram(
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data?.ok === false) {
-      return { ok: false, error: parseApiError(data, res.status, "Conversion failed") };
+      return { ok: false, error: parseApiError(data, res.status, "api.error.conversionFailed") };
     }
     return {
       ok: true,
@@ -2328,7 +2317,7 @@ export async function stakeStardust(
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data?.ok === false) {
-      return { ok: false, error: parseApiError(data, res.status, "Stake failed") };
+      return { ok: false, error: parseApiError(data, res.status, "api.error.stakeFailed") };
     }
     return data as { ok: boolean; balance?: number; staked?: number; stakedValue?: number; balanceEpoch?: number };
   } catch {
@@ -2348,7 +2337,7 @@ export async function unstakeStardust(
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || data?.ok === false) {
-      return { ok: false, error: parseApiError(data, res.status, "Unstake failed") };
+      return { ok: false, error: parseApiError(data, res.status, "api.error.unstakeFailed") };
     }
     return data as { ok: boolean; balance?: number; staked?: number; payout?: number };
   } catch {

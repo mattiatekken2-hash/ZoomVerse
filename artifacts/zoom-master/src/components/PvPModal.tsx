@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useT } from "../i18n/LanguageContext";
+import { translateGameMessage } from "../i18n/gameMessage";
 import {
   pvpQueue,
   pvpLeaveQueue,
@@ -34,7 +35,7 @@ interface Props {
 }
 
 export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTransferred, onBeforeQueue }: Props) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const [phase, setPhase] = useState<"queue" | "match" | "roulette" | "result" | "error">("queue");
   const [error, setError] = useState<string | null>(null);
   const [battle, setBattle] = useState<PvPStatus | null>(null);
@@ -60,7 +61,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
     | { id?: string; name?: string; rarity?: string; rate?: number; float?: number | null }
     | null;
   const opponentRarity = opponentPlanet?.rarity || opponentPlanet?.name || "BASIC";
-  const opponentName = opponent?.username || "Opponent";
+  const opponentName = opponent?.username || t("pvp.battle.opponent");
 
   const handleResult = useCallback((b: PvPStatus) => {
     const won = b.winnerTelegramId === telegramId;
@@ -355,14 +356,14 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
         {/* Header */}
         <div className="text-center mb-5">
           <div className="text-lg font-black tracking-wider" style={{ color: CYAN }}>
-            PvP BATTLE
+            {t("pvp.battle.title")}
           </div>
           <div className="text-xs font-bold mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-            {phase === "queue" && "Searching for opponent..."}
-            {phase === "match" && "Match found! Confirm to start"}
-            {phase === "roulette" && "Spinning the wheel..."}
-            {phase === "result" && (isWinner ? "Victory!" : "Defeat")}
-            {phase === "error" && "Error"}
+            {phase === "queue" && t("pvp.battle.phase.searching")}
+            {phase === "match" && t("pvp.battle.phase.matchFound")}
+            {phase === "roulette" && t("pvp.battle.phase.spinning")}
+            {phase === "result" && (isWinner ? t("pvp.battle.phase.victory") : t("pvp.battle.phase.defeat"))}
+            {phase === "error" && t("pvp.battle.phase.error")}
           </div>
         </div>
 
@@ -374,7 +375,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
               style={{ borderColor: `${CYAN} transparent transparent transparent` }}
             />
             <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.6)" }}>
-              Your planet is in queue
+              {t("pvp.battle.inQueue")}
             </div>
             <div className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.35)" }}>
               {getPlanetDisplayName(planet)} · {planet.name}
@@ -388,7 +389,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
                 border: `1px solid ${CYAN_BORDER}`,
               }}
             >
-              CANCEL SEARCH
+              {t("pvp.battle.cancelSearch")}
             </button>
           </div>
         )}
@@ -402,7 +403,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
               <div className="flex-1 flex flex-col items-center gap-1 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.04)" }}>
                 <PlanetOrb planet={planet} size={56} animate={false} />
                 <div className="text-xs font-black mt-1 text-center truncate w-full" style={{ color: "#fff" }}>
-                  You
+                  {t("pvp.battle.you")}
                 </div>
                 <div className="text-[10px] text-center" style={{ color: "rgba(255,255,255,0.5)" }}>
                   {getPlanetDisplayName(planet)} · {planet.name}
@@ -410,7 +411,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
               </div>
 
               {/* VS divider */}
-              <div className="text-sm font-black px-1" style={{ color: CYAN }}>VS</div>
+              <div className="text-sm font-black px-1" style={{ color: CYAN }}>{t("pvp.battle.vs")}</div>
 
               {/* Opponent planet */}
               <div className="flex-1 flex flex-col items-center gap-1 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.04)" }}>
@@ -437,7 +438,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
             <div className="text-center mb-4">
               {playerConfirmed ? (
                 <div className="text-sm font-black" style={{ color: "#00e676" }}>
-                  Waiting for opponent...
+                  {t("pvp.battle.waitOpponent")}
                 </div>
               ) : (
                 <>
@@ -445,7 +446,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
                     {countdown}s
                   </div>
                   <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-                    Confirm before time runs out!
+                    {t("pvp.battle.confirmBefore")}
                   </div>
                 </>
               )}
@@ -465,12 +466,12 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
                 cursor: playerConfirmed ? "default" : "pointer",
               }}
             >
-              {playerConfirmed ? "CONFIRMED ✓" : "CONFIRM BATTLE"}
+              {playerConfirmed ? t("pvp.battle.confirmed") : t("pvp.battle.confirmBtn")}
             </button>
 
             {/* Opponent status */}
             <div className="text-center text-xs font-bold mb-3" style={{ color: opponentConfirmed ? "#00e676" : "rgba(255,255,255,0.3)" }}>
-              {opponentConfirmed ? "Opponent confirmed ✓" : "Waiting for opponent..."}
+              {opponentConfirmed ? t("pvp.battle.opponentConfirmedWait") : t("pvp.battle.waitOpponent")}
             </div>
 
             {/* SKIP — reject this opponent and keep searching. Hidden once you've
@@ -485,7 +486,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
                   border: "1px solid rgba(80,130,255,0.4)",
                 }}
               >
-                SKIP OPPONENT
+                {t("pvp.battle.skipOpponent")}
               </button>
             )}
 
@@ -498,7 +499,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
                 border: "1px solid rgba(255,255,255,0.15)",
               }}
             >
-              DECLINE
+              {t("pvp.battle.decline")}
             </button>
           </div>
         )}
@@ -546,7 +547,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
               />
             </div>
             <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.6)" }}>
-              Spinning...
+              {t("pvp.battle.spinning")}
             </div>
           </div>
         )}
@@ -555,16 +556,16 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
         {phase === "result" && (
           <div className="text-center py-4">
             <div className="text-4xl font-black mb-3" style={{ color: isWinner ? "#00e676" : "#ff4444" }}>
-              {isWinner ? "VICTORY!" : "DEFEAT"}
+              {isWinner ? t("pvp.battle.victory") : t("pvp.battle.defeat")}
             </div>
             <div className="text-sm font-bold mb-4" style={{ color: "rgba(255,255,255,0.6)" }}>
               {isWinner
-                ? `You won ${opponentName}'s ${opponentRarity} planet!`
-                : `You lost your ${getPlanetDisplayName(planet)} to ${opponentName}...`}
+                ? t("pvp.battle.wonPlanetFull", { name: opponentName, rarity: opponentRarity })
+                : t("pvp.battle.lostPlanetFull", { name: getPlanetDisplayName(planet), opponent: opponentName })}
             </div>
             {isWinner && (
               <div className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
-                The planet has been added to your inventory!
+                {t("pvp.battle.planetAdded")}
               </div>
             )}
             <button
@@ -581,7 +582,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
                 border: `1px solid ${isWinner ? "rgba(0,230,118,0.4)" : "rgba(255,50,50,0.4)"}`,
               }}
             >
-              {isWinner ? "CLAIM PRIZE" : "CLOSE"}
+              {isWinner ? t("pvp.battle.claimPrize") : t("common.close").toUpperCase()}
             </button>
           </div>
         )}
@@ -594,10 +595,10 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
             </div>
             <div className="text-sm font-bold mb-4" style={{ color: "rgba(255,255,255,0.6)" }}>
               {error === "NOT_ELIGIBLE"
-                ? "This planet is not eligible for PvP"
+                ? t("pvp.battle.error.notEligible")
                 : error === "BATTLE_CANCELLED"
-                  ? "The battle was cancelled — the opponent didn't confirm in time."
-                  : error}
+                  ? t("pvp.battle.cancelledDetail")
+                  : translateGameMessage(lang, error ?? t("pvp.battle.failed"))}
             </div>
             <button
               onClick={() => {
@@ -611,7 +612,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
                 border: "1px solid rgba(255,255,255,0.15)",
               }}
             >
-              CLOSE
+              {t("common.close").toUpperCase()}
             </button>
           </div>
         )}
