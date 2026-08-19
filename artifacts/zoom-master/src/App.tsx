@@ -21,7 +21,7 @@ import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, type
 import { useStardust } from "./hooks/useStardust";
 import { FlaskConical, Home, Sprout, ShoppingCart, Gem, Trophy, Wallet, type LucideIcon } from "lucide-react";
 import { WalletPage } from "./pages/WalletPage";
-import { SplashScreen, hideHtmlSplash } from "./components/SplashScreen";
+import { hideHtmlSplash } from "./components/SplashScreen";
 import { isBrowserDevSession } from "./utils/telegram";
 import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
