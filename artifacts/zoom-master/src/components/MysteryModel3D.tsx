@@ -1387,10 +1387,14 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
       const st = stateRef.current;
       const n = list.length;
-      const placedCount = Math.min(n, Math.round(Math.min(1, Math.max(0, st.progress)) * n));
-      if (placedCount <= 0) return null;
-
-      const idx = placedCount - 1;
+      const lastTapIdx = lastPlacedIdxRef.current;
+      const idx = labForgeBackdrop && lastTapIdx >= 0 && placedMaskRef.current[lastTapIdx]
+        ? lastTapIdx
+        : (() => {
+            const placedCount = Math.min(n, Math.round(Math.min(1, Math.max(0, st.progress)) * n));
+            return placedCount > 0 ? placedCount - 1 : -1;
+          })();
+      if (idx < 0) return null;
       const v = list[idx]!;
       const morphT = labForgeMorphT(assemblyRef.current);
       const w = renderer.domElement.clientWidth;
@@ -2121,7 +2125,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     let revealVisualBaked = false;
     const VOXEL_PARTICLE_MS = 520;
     const particleLandMs = () => (forgeTapRelaxed ? 900 : VOXEL_PARTICLE_MS) * 0.68;
-    const forgePopMs = () => (forgeTapRelaxed ? 150 : 85);
+    const forgeFlyInMs = () => (forgeTapRelaxed ? 480 : 320);
+    const forgeSnapMs = () => (forgeTapRelaxed ? 120 : 85);
     const useLabTapPlacement = labForgeBackdrop && interactive && !planetShowcase;
     const smoothProgressRef = { current: progress };
     const clayDark = new THREE.Color(FORGE_CLAY);
@@ -2358,20 +2363,59 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
             const isNewest = useLabTapPlacement
               ? i === lastPlacedIdxRef.current
               : i === placedCount - 1;
-            const popT = useLabTapPlacement && isNewest && !sealing
-              ? Math.min(1, sinceDrop / forgePopMs())
-              : 1;
-            const popEase = popT * popT * (3 - 2 * popT);
-            const lock = useLabTapPlacement
-              ? popEase
-              : (sealing || i < placedCount - 1)
+            resolveForgeVoxelPosition(v, shapeMorphT, forgePosScratch);
+
+            let lock = 1;
+            let posX = forgePosScratch.x;
+            let posY = forgePosScratch.y;
+            let posZ = forgePosScratch.z;
+            let rotX = 0;
+            let rotY = 0;
+
+            if (useLabTapPlacement) {
+              if (isNewest && !sealing) {
+                const flyT = Math.min(1, Math.max(0, sinceDrop / forgeFlyInMs()));
+                const flyEase = flyT * flyT * (3 - 2 * flyT);
+                const snapStart = forgeFlyInMs();
+                const snapT = sinceDrop > snapStart
+                  ? Math.min(1, (sinceDrop - snapStart) / forgeSnapMs())
+                  : 0;
+                const snapEase = snapT * snapT * (3 - 2 * snapT);
+                const snapBump = snapT > 0 ? 1 + (1 - snapEase) * 0.14 : 1;
+                lock = Math.min(1.15, flyEase * snapBump);
+
+                const flyDist = cubeSize * 3.6;
+                const remain = 1 - flyEase;
+                let nx = forgePosScratch.x;
+                let ny = forgePosScratch.y;
+                let nz = forgePosScratch.z;
+                const nLen = Math.hypot(nx, ny, nz);
+                if (nLen > 1e-6) {
+                  nx /= nLen;
+                  ny /= nLen;
+                  nz /= nLen;
+                } else {
+                  nx = 0;
+                  ny = 1;
+                  nz = 0;
+                }
+                posX = forgePosScratch.x + nx * flyDist * remain;
+                posY = forgePosScratch.y + ny * flyDist * remain;
+                posZ = forgePosScratch.z + nz * flyDist * remain;
+                rotX = (1 - flyEase) * 0.45;
+                rotY = (1 - flyEase) * 0.65;
+              }
+            } else {
+              lock = (sealing || i < placedCount - 1)
                 ? 1
                 : dropEase;
-            const drop = useLabTapPlacement ? 0 : ((sealing || i < placedCount - 1) ? 0 : (1 - lock) * 0.35);
-            resolveForgeVoxelPosition(v, shapeMorphT, forgePosScratch);
-            voxelDummy.position.set(forgePosScratch.x, forgePosScratch.y + drop, forgePosScratch.z);
+              const drop = (sealing || i < placedCount - 1) ? 0 : (1 - lock) * 0.35;
+              posY = forgePosScratch.y + drop;
+            }
+
+            voxelDummy.position.set(posX, posY, posZ);
             voxelDummy.scale.setScalar(Math.max(0.04, lock * cubeSeal));
-            voxelDummy.rotation.set(0, 0, 0);
+            voxelDummy.rotation.set(rotX, rotY, 0);
             voxelDummy.updateMatrix();
             voxMesh.setMatrixAt(visibleCount, voxelDummy.matrix);
 
