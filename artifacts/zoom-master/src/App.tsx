@@ -393,6 +393,13 @@ function AppShellWithState() {
   const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
   const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate * Math.max(1, state.sunCount || 1) : 0;
   const totalRate = planetRate + sunRate;
+  /** Keep Lab WebGL + voxel mask alive while forging so tab return does not replay fly-in. */
+  const keepLabForgeAlive = Boolean(
+    state.currentCraftRarity &&
+    state.forgePlanetBuild &&
+    !state.pendingPlanet &&
+    !state.forgeRolling,
+  );
 
   const switchTab = (nextTab: Tab) => {
     setTab(nextTab);
@@ -762,7 +769,9 @@ function AppShellWithState() {
 
       <main className="flex-1 overflow-hidden relative z-10" style={{ minHeight: 0 }}>
         {ALL_TABS.map((t) => {
-          if (tab !== t) return null;
+          const isActiveTab = tab === t;
+          const isHiddenLabForge = t === "lab" && !isActiveTab && keepLabForgeAlive;
+          if (!isActiveTab && !isHiddenLabForge) return null;
           return (
             <div
               key={t}
@@ -772,6 +781,8 @@ function AppShellWithState() {
                 display: "flex",
                 flexDirection: "column",
                 overflow: "hidden",
+                visibility: isActiveTab ? "visible" : "hidden",
+                pointerEvents: isActiveTab ? "auto" : "none",
               }}
             >
               {t === "lab" && (
@@ -798,7 +809,7 @@ function AppShellWithState() {
                   onOpenProfile={() => setProfileModalOpen(true)}
                   muted={muted}
                   setMuted={setMuted}
-                  visible={tab === "lab"}
+                  visible={isActiveTab}
                 />
               )}
               {t === "farm" && (
