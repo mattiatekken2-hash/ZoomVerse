@@ -63,34 +63,39 @@ export function PlanetDetailModal({
   const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null);
   const [upgrading, setUpgrading] = useState(false);
 
-  const displayColors = getPlanetDisplayColors(planet);
+  // Always read the latest planet from the live array — the `planet` prop
+  // is a snapshot captured when the modal opened and goes stale after
+  // START / REACTIVATE until the parent re-resolves it.
+  const livePlanet = planets.find((p) => p.id === planet.id) ?? planet;
+
+  const displayColors = getPlanetDisplayColors(livePlanet);
   const accent = displayColors.color;
   const rgb = hexToRgb(accent);
-  const durability = planet.durability ?? 100;
-  const isListed = planet.isListedInMarket;
-  const repairCost = REPAIR_STARDUST_COST[planet.name] ?? 500;
+  const durability = livePlanet.durability ?? 100;
+  const isListed = livePlanet.isListedInMarket;
+  const repairCost = REPAIR_STARDUST_COST[livePlanet.name] ?? 500;
   const canRepair = stardustBalance >= repairCost;
-  const currentDurationHours = planet.farmDurationHours ?? 1;
-  const active = isFarmActive(planet);
-  const expired = isFarmExpired(planet);
-  const remaining = getFarmTimeRemaining(planet);
-  const farmHours = planet.farmDurationHours ?? 1;
-  const cfg = PLANET_CONFIG[planet.name];
-  const rarityLabel = cfg?.label?.toUpperCase() ?? planet.name;
+  const currentDurationHours = livePlanet.farmDurationHours ?? 1;
+  const active = isFarmActive(livePlanet);
+  const expired = isFarmExpired(livePlanet);
+  const remaining = getFarmTimeRemaining(livePlanet);
+  const farmHours = livePlanet.farmDurationHours ?? 1;
+  const cfg = PLANET_CONFIG[livePlanet.name];
+  const rarityLabel = cfg?.label?.toUpperCase() ?? livePlanet.name;
 
   const handleBurn = () => {
     if (!confirmBurn) {
       setConfirmBurn(true);
       setTimeout(() => setConfirmBurn(false), 2500);
     } else {
-      onBurn(planet.id);
+      onBurn(livePlanet.id);
       onClose();
     }
   };
 
   const handleRepair = () => {
     if (!onRepair) return;
-    const r = onRepair(planet.id);
+    const r = onRepair(livePlanet.id);
     if (!r.ok) {
       setDefectMsg(r.reason ?? "Repair failed");
       setTimeout(() => setDefectMsg(null), 1800);
@@ -100,7 +105,7 @@ export function PlanetDetailModal({
   };
 
   const handleStart = () => {
-    const r = onStartFarming(planet.id);
+    const r = onStartFarming(livePlanet.id);
     if (!r.ok) {
       setDefectMsg(r.reason ?? "Cannot start farming");
       setTimeout(() => setDefectMsg(null), 1800);
@@ -117,7 +122,7 @@ export function PlanetDetailModal({
 
   const primaryDisabled = durability <= 0 || isListed || (active && !expired);
   const slotsFull = planets.filter((p) => !p.isListedInMarket).length >= maxSlots;
-  const pvpEligible = !planet.isFarmingActive && !isListed && planet.slotIndex == null && !slotsFull && !!telegramId;
+  const pvpEligible = !livePlanet.isFarmingActive && !isListed && livePlanet.slotIndex == null && !slotsFull && !!telegramId;
 
   return createPortal(
     <div
@@ -141,7 +146,7 @@ export function PlanetDetailModal({
               {rarityLabel}
             </div>
             <div className="font-black text-xl" style={{ color: accent }}>
-              {getPlanetDisplayName(planet)}
+              {getPlanetDisplayName(livePlanet)}
             </div>
           </div>
           <button
@@ -155,9 +160,9 @@ export function PlanetDetailModal({
         </div>
 
         <div className="mb-4 flex flex-col items-center gap-3">
-          <PlanetVoxelThumb planet={planet} size={120} animate={false} suspendGl={false} />
+          <PlanetVoxelThumb planet={livePlanet} size={120} animate={false} suspendGl={false} />
           <div className="text-center text-xs font-bold" style={{ color: "rgba(255,255,255,0.55)" }}>
-            +{planet.name === "MUSHROOM" ? "5 ★" : `${planet.rate.toLocaleString()} $ZOOM`}/hr · {farmHours}h cycle
+            +{livePlanet.name === "MUSHROOM" ? "5 ★" : `${livePlanet.rate.toLocaleString()} $ZOOM`}/hr · {farmHours}h cycle
           </div>
 
           {durability <= 0 && onRepair ? (
@@ -183,7 +188,7 @@ export function PlanetDetailModal({
                 color: accent,
                 border: `1px solid rgba(${rgb},0.45)`,
               }}
-              onClick={() => { onUnlist(planet.id); onClose(); }}
+              onClick={() => { onUnlist(livePlanet.id); onClose(); }}
             >
               DELIST FROM MARKET
             </button>
@@ -215,7 +220,7 @@ export function PlanetDetailModal({
           </div>
         )}
 
-        {onUpgradeDuration && !isListed && planet.name !== "MUSHROOM" && (
+        {onUpgradeDuration && !isListed && livePlanet.name !== "MUSHROOM" && (
           <div className="farm-panel-3d farm-panel-3d--static mb-3">
             <div className="farm-panel-3d__title">
               ⏱ CYCLE DURATION — {currentDurationHours}h · costs EARNED GRAM
@@ -235,7 +240,7 @@ export function PlanetDetailModal({
                       if (isCurrent || upgrading) return;
                       setUpgrading(true);
                       setUpgradeMsg(null);
-                      const r = await onUpgradeDuration(planet.id, hrs);
+                      const r = await onUpgradeDuration(livePlanet.id, hrs);
                       setUpgrading(false);
                       setUpgradeMsg(r.ok ? `✓ Upgraded to ${hrs}h` : (r.error ?? "Failed"));
                     }}
@@ -261,14 +266,14 @@ export function PlanetDetailModal({
             <button
               type="button"
               disabled={!pvpEligible}
-              onClick={() => pvpEligible && onPvP?.(planet)}
+              onClick={() => pvpEligible && onPvP?.(livePlanet)}
               className={`farm-btn-3d py-3 text-xs font-black${pvpEligible ? "" : " farm-btn-3d--disabled"}`}
             >
               PvP
             </button>
             <button
               type="button"
-              onClick={() => onSell(planet)}
+              onClick={() => onSell(livePlanet)}
               className="farm-btn-3d py-3 text-xs font-black"
             >
               Sell

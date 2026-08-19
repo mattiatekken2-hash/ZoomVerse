@@ -238,6 +238,12 @@ export function FarmPage({
     }
   };
 
+  // Keep the detail sheet in sync with the live planets array — `detailPlanet`
+  // is a snapshot from the moment the user tapped the card.
+  const liveDetailPlanet = detailPlanet
+    ? planets.find((p) => p.id === detailPlanet.id) ?? detailPlanet
+    : null;
+
   return (
     <div className="flex flex-col h-full relative">
       {defectMsg && (
@@ -652,9 +658,9 @@ export function FarmPage({
           onBeforeQueue={onFlushPlanets}
         />
       )}
-      {detailPlanet && (
+      {liveDetailPlanet && (
         <PlanetDetailModal
-          planet={detailPlanet}
+          planet={liveDetailPlanet}
           telegramId={telegramId}
           stardustBalance={stardustBalance}
           tonBalance={tonBalance}
