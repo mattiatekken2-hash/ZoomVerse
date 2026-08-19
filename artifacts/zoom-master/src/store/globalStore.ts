@@ -68,6 +68,8 @@ let currentTelegramId: string | null = null;
 let intervals: ReturnType<typeof setInterval>[] = [];
 let inflight = false;
 
+const GLOBAL_INIT_TIMEOUT_MS = 8000;
+
 async function refreshAll(telegramId: string | null) {
   if (inflight) return;
   inflight = true;
@@ -86,7 +88,10 @@ async function refreshAll(telegramId: string | null) {
       tasks.push(fetchProfile(telegramId).then((p) => set({ profile: p })).catch(() => {}));
       tasks.push(fetchDailyStatus(telegramId).then((d) => { if (d) set({ daily: d }); }).catch(() => {}));
     }
-    await Promise.all(tasks);
+    await Promise.race([
+      Promise.all(tasks),
+      new Promise<void>((resolve) => window.setTimeout(resolve, GLOBAL_INIT_TIMEOUT_MS)),
+    ]);
     set({ initialized: true, lastFetch: Date.now() });
   } finally {
     inflight = false;

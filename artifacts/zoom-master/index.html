@@ -4,20 +4,23 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
     <script>
-      const tg = window.Telegram.WebApp;
-      tg.ready();
-      tg.expand();
-      try { tg.disableVerticalSwipes(); } catch(e) {}
-      try { tg.setHeaderColor('#000000'); } catch(e) {}
-      try { tg.setBackgroundColor('#000000'); } catch(e) {}
-      try { tg.setBottomBarColor('#000000'); } catch(e) {}
-      try { if (tg.requestFullscreen) tg.requestFullscreen(); } catch(e) {}
-
-      // Persist start_param immediately before React mounts
       try {
-        const sp = tg.initDataUnsafe && tg.initDataUnsafe.start_param;
-        if (sp) {
-          localStorage.setItem("zoom-start-param", sp);
+        var tg = window.Telegram && window.Telegram.WebApp;
+        if (tg) {
+          tg.ready();
+          tg.expand();
+          try { tg.disableVerticalSwipes(); } catch(e) {}
+          try { tg.setHeaderColor('#000000'); } catch(e) {}
+          try { tg.setBackgroundColor('#000000'); } catch(e) {}
+          try { tg.setBottomBarColor('#000000'); } catch(e) {}
+          try { if (tg.requestFullscreen) tg.requestFullscreen(); } catch(e) {}
+
+          try {
+            var sp = tg.initDataUnsafe && tg.initDataUnsafe.start_param;
+            if (sp) {
+              localStorage.setItem("zoom-start-param", sp);
+            }
+          } catch(e) {}
         }
       } catch(e) {}
     </script>
@@ -107,6 +110,10 @@
           splash.classList.add('hidden');
           setTimeout(function() { splash && splash.remove(); }, 700);
         };
+        // Safety net: never leave users stuck on the HTML splash if React fails to boot.
+        setTimeout(function() {
+          if (window.__hideHtmlSplash) window.__hideHtmlSplash();
+        }, 15000);
       })();
     </script>
     <div id="root"></div>
