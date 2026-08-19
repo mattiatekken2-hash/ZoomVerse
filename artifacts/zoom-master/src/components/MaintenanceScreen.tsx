@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { useT } from "../i18n/LanguageContext";
+import { hideHtmlSplash } from "./SplashScreen";
 
 interface Props {
   /** Custom message from admin panel — shown under the ZOOM title. */
@@ -9,6 +11,10 @@ interface Props {
 export function MaintenanceScreen({ message }: Props) {
   const { t } = useT();
   const subtitle = (message || "").trim() || t("maint.default");
+
+  useEffect(() => {
+    hideHtmlSplash();
+  }, []);
 
   return (
     <div
