@@ -26,6 +26,8 @@ interface FarmInventoryCardProps {
   eagerThumb?: boolean;
   /** Stagger WebGL init on Farm grid. */
   glDelayMs?: number;
+  /** Hide START FARM / REACTIVATE footer (Lab reveal card). */
+  hideActions?: boolean;
 }
 
 function FarmCubeIcon({ size = 12, color = "currentColor" }: { size?: number; color?: string }) {
@@ -68,6 +70,7 @@ export function FarmInventoryCard({
   testId,
   eagerThumb = false,
   glDelayMs = 0,
+  hideActions = false,
 }: FarmInventoryCardProps) {
   const compact = variant === "compact";
   const displayColors = getPlanetDisplayColors(planet);
@@ -243,6 +246,7 @@ export function FarmInventoryCard({
       </div>
 
       {/* Action button */}
+      {!hideActions && (
       <div style={{ padding: compact ? "8px 10px 10px" : "8px 10px 12px", marginTop: compact ? undefined : "auto", flexShrink: 0 }}>
         {dur <= 0 ? (
           <div
@@ -363,6 +367,7 @@ export function FarmInventoryCard({
           </button>
         )}
       </div>
+      )}
     </div>
   );
 }

@@ -728,6 +728,8 @@ function AppShellWithState() {
           background: "#000000",
           paddingTop: tab === "lab" ? 0 : "env(safe-area-inset-top, 0px)",
           paddingBottom: tab === "lab" ? 0 : "env(safe-area-inset-bottom, 0px)",
+          visibility: showBootSplash ? "hidden" : "visible",
+          pointerEvents: showBootSplash ? "none" : "auto",
         }}
       >
       {tab !== "lab" && <NebulaBackground />}

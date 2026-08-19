@@ -1756,7 +1756,18 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     voxelStepRef.current = voxelStep;
     forgeSphereRadiusRef.current = forgeSphereRadius;
     placedMaskRef.current = new Array(forgeVoxels.length).fill(false);
-    lastPlacedIdxRef.current = -1;
+    if (labForgeBackdrop && interactive && !planetShowcase && forgeVoxels.length > 0) {
+      const initialPlaced = Math.min(
+        forgeVoxels.length,
+        Math.round(Math.min(1, Math.max(0, progress)) * forgeVoxels.length),
+      );
+      for (let i = 0; i < initialPlaced; i++) {
+        placedMaskRef.current[i] = true;
+      }
+      lastPlacedIdxRef.current = initialPlaced > 0 ? initialPlaced - 1 : -1;
+    } else {
+      lastPlacedIdxRef.current = -1;
+    }
     dropAnimStartRef.current = performance.now();
     const voxelDummy = new THREE.Object3D();
     const edgeScratch = new THREE.Vector3();
@@ -2083,6 +2094,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     controls.enablePan = false;
     controls.enableZoom = interactive;
     controls.enableRotate = interactive;
+    controls.rotateSpeed = 0.85;
+    controls.zoomSpeed = 0.9;
     controls.minDistance = maxDim * (labForgeZoomOut ? 2.4 : 1.1);
     controls.maxDistance = labForgeZoomOut ? labForgeCamFar : maxDim * 4;
     controls.enableDamping = !performanceMode;
@@ -2095,13 +2108,15 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     let dragging = false;
     let downX = 0;
     let downY = 0;
+    controls.addEventListener("start", () => { dragging = true; });
+    controls.addEventListener("end", () => { dragging = false; });
     const onPointerDown = (e: PointerEvent) => {
-      dragging = false;
       downX = e.clientX;
       downY = e.clientY;
     };
     const onPointerUp = (e: PointerEvent) => {
-      if (Math.hypot(e.clientX - downX, e.clientY - downY) < 8 && onTapRef.current) {
+      if (dragging) return;
+      if (Math.hypot(e.clientX - downX, e.clientY - downY) < 10 && onTapRef.current) {
         e.stopPropagation();
         const rect = renderer.domElement.getBoundingClientRect();
         const cx = rect.left + rect.width / 2;
@@ -2110,7 +2125,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       }
     };
     const onPointerMove = (e: PointerEvent) => {
-      if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) dragging = true;
+      if (!dragging && Math.hypot(e.clientX - downX, e.clientY - downY) > 10) dragging = true;
     };
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
@@ -2130,6 +2145,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const VOXEL_PARTICLE_MS = 520;
     const particleLandMs = () => (forgeTapRelaxed ? 900 : VOXEL_PARTICLE_MS) * 0.68;
     const forgePopMs = () => (forgeTapRelaxed ? 150 : 85);
+    const forgeFlyMs = () => (forgeTapRelaxed ? 520 : 380);
     const useLabTapPlacement = labForgeBackdrop && interactive && !planetShowcase;
     const smoothProgressRef = { current: progress };
     const clayDark = new THREE.Color(FORGE_CLAY);
@@ -2177,20 +2193,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           ? placedMaskRef.current.filter(Boolean).length
           : Math.min(forgeVoxels.length, Math.round(targetP * forgeVoxels.length));
         if (useLabTapPlacement) {
-          const targetPlaced = Math.min(forgeVoxels.length, Math.round(targetP * forgeVoxels.length));
-          let count = placedMaskRef.current.filter(Boolean).length;
-          while (count < targetPlaced) {
-            const idx = placedMaskRef.current.findIndex((p) => !p);
-            if (idx < 0) break;
-            placedMaskRef.current[idx] = true;
-            lastPlacedIdxRef.current = idx;
-            dropAnimStartRef.current = now;
-            count++;
-          }
-          if (targetPlaced === 0 && count > 0) {
-            placedMaskRef.current.fill(false);
-            lastPlacedIdxRef.current = -1;
-          }
+          // Tap-driven placement only — never auto-fill on remount/tab return.
         }
         smoothProgressRef.current = placed / forgeVoxels.length;
         if (placed > lastPlacedVoxels) {
@@ -2370,14 +2373,25 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
               ? Math.min(1, sinceDrop / forgePopMs())
               : 1;
             const popEase = popT * popT * (3 - 2 * popT);
+            const flyT = useLabTapPlacement && isNewest && !sealing
+              ? Math.min(1, sinceDrop / forgeFlyMs())
+              : 1;
+            const flyEase = flyT * flyT * (3 - 2 * flyT);
             const lock = useLabTapPlacement
-              ? popEase
+              ? Math.min(popEase, flyEase)
               : (sealing || i < placedCount - 1)
                 ? 1
                 : dropEase;
             const drop = useLabTapPlacement ? 0 : ((sealing || i < placedCount - 1) ? 0 : (1 - lock) * 0.35);
             resolveForgeVoxelPosition(v, shapeMorphT, forgePosScratch);
-            voxelDummy.position.set(forgePosScratch.x, forgePosScratch.y + drop, forgePosScratch.z);
+            if (useLabTapPlacement && isNewest && flyT < 1 && camera) {
+              const camDir = new THREE.Vector3();
+              camera.getWorldDirection(camDir);
+              const flyDist = forgeSphereRadius * 2.8 * (1 - flyEase);
+              voxelDummy.position.copy(forgePosScratch).sub(camDir.multiplyScalar(flyDist));
+            } else {
+              voxelDummy.position.set(forgePosScratch.x, forgePosScratch.y + drop, forgePosScratch.z);
+            }
             voxelDummy.scale.setScalar(Math.max(0.04, lock * cubeSeal));
             voxelDummy.rotation.set(0, 0, 0);
             voxelDummy.updateMatrix();
@@ -2542,7 +2556,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       if (autoSpin && !dragging) {
         group.rotation.y += (dt / 16.67) * (planetShowcase ? 0.0024 : showcase ? 0.0028 : 0.0035);
       }
-      if (dragging) controls.update();
+      if (interactive) controls.update();
       const stillMoving = Math.abs(targetP - assembly) > 0.0008
         || (paintT > 0 && paintT < 1 && !inForgeReveal);
       if (isLiveForge || autoSpin || stillMoving || touchedMesh || dragging || st.revealed || inForgeReveal) {

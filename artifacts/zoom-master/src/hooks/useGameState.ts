@@ -3417,6 +3417,21 @@ export function useGameState() {
         lastBalanceEpoch: newEpoch,
       }));
     };
+    const handleGramBalanceSnap = (e: Event) => {
+      const detail = (e as CustomEvent<{ depositBalance?: number; tonBalance?: number }>).detail;
+      if (!detail) return;
+      const patch: Partial<GameState> = {};
+      if (typeof detail.depositBalance === "number") {
+        patch.depositBalance = Math.max(0, detail.depositBalance);
+      }
+      if (typeof detail.tonBalance === "number") {
+        patch.tonBalance = Math.max(0, detail.tonBalance);
+      }
+      if (Object.keys(patch).length === 0) return;
+      stateRef.current = { ...stateRef.current, ...patch };
+      saveState(stateRef.current);
+      setState((prev) => ({ ...prev, ...patch }));
+    };
     const handleServerStardustSnap = (e: Event) => {
       const detail = (e as CustomEvent<{ stardustBalance: number; epoch: number }>).detail;
       if (!detail || typeof detail.stardustBalance !== "number") return;
@@ -3633,6 +3648,7 @@ export function useGameState() {
     window.addEventListener("zoom-credit-local", handleLocalCredit as EventListener);
     window.addEventListener("zoom-server-balance-snap", handleServerSnap as EventListener);
     window.addEventListener("zoom-server-ton-snap", handleServerTonSnap as EventListener);
+    window.addEventListener("zoom-gram-balance-snap", handleGramBalanceSnap as EventListener);
     window.addEventListener("zoom-server-stardust-snap", handleServerStardustSnap as EventListener);
     window.addEventListener("zoom-server-redstar-snap", handleServerRedstarSnap as EventListener);
 
@@ -3645,6 +3661,7 @@ export function useGameState() {
       window.removeEventListener("zoom-credit-local", handleLocalCredit as EventListener);
       window.removeEventListener("zoom-server-balance-snap", handleServerSnap as EventListener);
       window.removeEventListener("zoom-server-ton-snap", handleServerTonSnap as EventListener);
+      window.removeEventListener("zoom-gram-balance-snap", handleGramBalanceSnap as EventListener);
       window.removeEventListener("zoom-server-stardust-snap", handleServerStardustSnap as EventListener);
       window.removeEventListener("zoom-server-redstar-snap", handleServerRedstarSnap as EventListener);
     };
@@ -3891,29 +3908,30 @@ export function useGameState() {
   }, []);
 
   const skipForge = useCallback((): { ok: boolean; reason?: string } => {
-    let outcome: { ok: boolean; reason?: string } = { ok: true };
     const SKIP_COST = 1;
+    const prev = stateRef.current;
 
-    setState((prev) => {
-      if (!prev.currentCraftRarity) {
-        outcome = { ok: false, reason: "Not forging" };
-        return prev;
-      }
-      if (prev.pendingPlanet || prev.forgeRolling) {
-        outcome = { ok: false, reason: "Cannot skip now" };
-        return prev;
-      }
-      if ((prev.stardustBalance ?? 0) < SKIP_COST) {
-        outcome = { ok: false, reason: "Need 1 ★ Stardust to skip" };
-        return prev;
-      }
+    if (!prev.currentCraftRarity) {
+      return { ok: false, reason: "Not forging" };
+    }
+    if (prev.pendingPlanet || prev.forgeRolling) {
+      return { ok: false, reason: "Cannot skip now" };
+    }
+    if ((prev.stardustBalance ?? 0) < SKIP_COST) {
+      return { ok: false, reason: "Need 1 ★ Stardust to skip" };
+    }
 
-      const newRarity = rollRarity();
-      const goal = forgeTapGoalForPlanet(newRarity);
+    const newRarity = rollRarity();
+    const goal = forgeTapGoalForPlanet(newRarity);
+
+    setState((p) => {
+      if (!p.currentCraftRarity) return p;
+      if (p.pendingPlanet || p.forgeRolling) return p;
+      if ((p.stardustBalance ?? 0) < SKIP_COST) return p;
 
       const next: GameState = {
-        ...prev,
-        stardustBalance: (prev.stardustBalance ?? 0) - SKIP_COST,
+        ...p,
+        stardustBalance: (p.stardustBalance ?? 0) - SKIP_COST,
         currentCraftRarity: newRarity,
         taps: 0,
         goal,
@@ -3921,14 +3939,14 @@ export function useGameState() {
       };
       schedulePersist(next);
 
-      if (prev.telegramId) {
-        void deductCraftStardust(prev.telegramId, SKIP_COST);
+      if (p.telegramId) {
+        void deductCraftStardust(p.telegramId, SKIP_COST);
       }
 
       return next;
     });
 
-    return outcome;
+    return { ok: true };
   }, []);
 
   const claimCraft = useCallback((): { ok: boolean; reason?: string } => {

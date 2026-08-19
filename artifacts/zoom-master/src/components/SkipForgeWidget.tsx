@@ -1,4 +1,5 @@
 import { memo, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { SkipForward } from "lucide-react";
 import { useT } from "../i18n/LanguageContext";
 
@@ -23,12 +24,23 @@ function SkipForgeWidgetBase({ isForging, canSkip, stardustBalance, onSkip }: Sk
     return () => clearTimeout(timer);
   }, [message]);
 
-  const handleOpen = () => {
+  useEffect(() => {
+    if (!showPopup) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [showPopup]);
+
+  const handleOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
     setMessage(null);
     setShowPopup(true);
   };
 
-  const handleSkip = () => {
+  const handleSkip = (e: React.SyntheticEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
     if (busy) return;
     if (!isForging) {
       setMessage(t("skipForge.notForging"));
@@ -39,14 +51,19 @@ function SkipForgeWidgetBase({ isForging, canSkip, stardustBalance, onSkip }: Sk
       return;
     }
     setBusy(true);
-    const res = onSkip();
-    setBusy(false);
-    if (res.ok) {
-      setMessage(t("skipForge.done"));
-      setShowPopup(false);
-    } else {
-      setMessage(res.reason ?? t("skipForge.noStardust"));
-    }
+    window.requestAnimationFrame(() => {
+      try {
+        const res = onSkip();
+        if (res.ok) {
+          setShowPopup(false);
+          setMessage(null);
+        } else {
+          setMessage(res.reason ?? t("skipForge.noStardust"));
+        }
+      } finally {
+        setBusy(false);
+      }
+    });
   };
 
   const ringColor = canSkip
@@ -54,6 +71,89 @@ function SkipForgeWidgetBase({ isForging, canSkip, stardustBalance, onSkip }: Sk
     : isForging
       ? "rgba(255, 255, 255, 0.28)"
       : "rgba(255, 255, 255, 0.18)";
+
+  const popup = showPopup ? createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={() => !busy && setShowPopup(false)}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(6,8,16,0.88)",
+        zIndex: 99999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+        pointerEvents: "auto",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "linear-gradient(135deg, rgba(20,28,48,0.98), rgba(6,8,16,0.98))",
+          border: "1.5px solid rgba(255,255,255,0.18)",
+          borderRadius: 20,
+          padding: 24,
+          maxWidth: 320,
+          width: "100%",
+          boxShadow: "0 0 48px rgba(0, 8, 20, 0.55)",
+          textAlign: "center",
+          pointerEvents: "auto",
+        }}
+      >
+        <div style={{ marginBottom: 8, lineHeight: 1, display: "flex", justifyContent: "center" }}>
+          <SkipForward size={52} strokeWidth={2.2} color="#ffd866" />
+        </div>
+        <div className="font-black text-lg tracking-wider" style={{ color: "#E8ECF4", marginBottom: 4 }}>
+          {t("skipForge.title")}
+        </div>
+        <div className="text-xs" style={{ color: "rgba(255,255,255,0.6)", marginBottom: 18, lineHeight: 1.5 }}>
+          {t("skipForge.desc")}
+        </div>
+        <div className="font-black text-2xl" style={{ color: "#ffd866", marginBottom: 16 }}>
+          {t("skipForge.cost")}
+        </div>
+        {message && (
+          <div className="text-xs" style={{ color: "rgba(200,220,255,0.85)", marginBottom: 12 }}>{message}</div>
+        )}
+        <button
+          type="button"
+          onClick={handleSkip}
+          disabled={busy}
+          className="w-full py-3 rounded-xl font-black text-sm tracking-wider active:scale-95"
+          style={{
+            background: busy ? "rgba(255,255,255,0.12)" : "hsl(210 22% 90%)",
+            color: "hsl(222 28% 10%)",
+            border: "1px solid rgba(255,255,255,0.18)",
+            boxShadow: "0 4px 16px rgba(0, 8, 20, 0.35)",
+            marginBottom: 8,
+            opacity: busy ? 0.6 : 1,
+            pointerEvents: "auto",
+          }}
+          data-testid="button-confirm-skip-forge"
+        >
+          {busy ? t("common.processing") : t("skipForge.btn")}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setShowPopup(false); }}
+          disabled={busy}
+          className="w-full py-2 rounded-xl text-xs font-bold active:scale-95"
+          style={{
+            background: "transparent",
+            color: "rgba(255,255,255,0.5)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            pointerEvents: "auto",
+          }}
+        >
+          {t("common.cancel").toUpperCase()}
+        </button>
+      </div>
+    </div>,
+    document.body,
+  ) : null;
 
   return (
     <>
@@ -90,82 +190,7 @@ function SkipForgeWidgetBase({ isForging, canSkip, stardustBalance, onSkip }: Sk
           color={canSkip ? "#ffd866" : "rgba(255,255,255,0.55)"}
         />
       </button>
-
-      {showPopup && (
-        <div
-          onClick={() => !busy && setShowPopup(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(6,8,16,0.85)",
-            zIndex: 100,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 20,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "linear-gradient(135deg, rgba(20,28,48,0.98), rgba(6,8,16,0.98))",
-              border: "1.5px solid rgba(255,255,255,0.18)",
-              borderRadius: 20,
-              padding: 24,
-              maxWidth: 340,
-              width: "100%",
-              boxShadow: "0 0 48px rgba(0, 8, 20, 0.55)",
-              textAlign: "center",
-            }}
-          >
-            <div style={{ marginBottom: 8, lineHeight: 1, display: "flex", justifyContent: "center" }}>
-              <SkipForward size={52} strokeWidth={2.2} color="#ffd866" />
-            </div>
-            <div className="font-black text-lg tracking-wider" style={{ color: "#E8ECF4", marginBottom: 4 }}>
-              {t("skipForge.title")}
-            </div>
-            <div className="text-xs" style={{ color: "rgba(255,255,255,0.6)", marginBottom: 18, lineHeight: 1.5 }}>
-              {t("skipForge.desc")}
-            </div>
-            <div className="font-black text-2xl" style={{ color: "#ffd866", marginBottom: 16 }}>
-              {t("skipForge.cost")}
-            </div>
-            {message && (
-              <div className="text-xs" style={{ color: "rgba(200,220,255,0.85)", marginBottom: 12 }}>{message}</div>
-            )}
-            <button
-              type="button"
-              onClick={handleSkip}
-              disabled={busy || !canSkip}
-              className="w-full py-3 rounded-xl font-black text-sm tracking-wider active:scale-95"
-              style={{
-                background: busy || !canSkip ? "rgba(255,255,255,0.12)" : "hsl(210 22% 90%)",
-                color: "hsl(222 28% 10%)",
-                border: "1px solid rgba(255,255,255,0.18)",
-                boxShadow: "0 4px 16px rgba(0, 8, 20, 0.35)",
-                marginBottom: 8,
-                opacity: busy || !canSkip ? 0.6 : 1,
-              }}
-              data-testid="button-confirm-skip-forge"
-            >
-              {busy ? t("common.processing") : t("skipForge.btn")}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowPopup(false)}
-              disabled={busy}
-              className="w-full py-2 rounded-xl text-xs font-bold active:scale-95"
-              style={{
-                background: "transparent",
-                color: "rgba(255,255,255,0.5)",
-                border: "1px solid rgba(255,255,255,0.15)",
-              }}
-            >
-              {t("common.cancel").toUpperCase()}
-            </button>
-          </div>
-        </div>
-      )}
+      {popup}
     </>
   );
 }

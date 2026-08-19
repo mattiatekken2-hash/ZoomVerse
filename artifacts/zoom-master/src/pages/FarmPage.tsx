@@ -471,8 +471,8 @@ export function FarmPage({
                 planet={planet}
                 variant="grid"
                 suspendGl={!!detailPlanet || !visible}
-                eagerThumb={visible && index < 8}
-                glDelayMs={visible && index < 8 ? 0 : Math.min(Math.max(0, index - 8), 10) * 40}
+                eagerThumb={visible}
+                glDelayMs={0}
                 testId={`planet-card-${planet.id}`}
                 onCardClick={() => setDetailPlanet(planet)}
                 onStartFarm={handleStartOrReactivate}

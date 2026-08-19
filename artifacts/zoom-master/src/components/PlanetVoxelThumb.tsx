@@ -207,6 +207,18 @@ export function PlanetVoxelThumb({
   }, [suspendGl, eager]);
 
   useEffect(() => {
+    const onTab = (e: Event) => {
+      const tab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
+      if (tab === "farm") {
+        setInView(true);
+        setGlGen((g) => g + 1);
+      }
+    };
+    window.addEventListener("zoom-tab-active", onTab);
+    return () => window.removeEventListener("zoom-tab-active", onTab);
+  }, []);
+
+  useEffect(() => {
     if (!inView || glDelayMs <= 0) {
       setDelayReady(true);
       return;
