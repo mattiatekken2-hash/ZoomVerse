@@ -45,6 +45,7 @@ interface Props {
   canBuy: boolean;
   sharing?: boolean;
   highlighted?: boolean;
+  suspendGl?: boolean;
   onBuy: () => void;
   onUnlist: () => void;
   onShare?: () => void;
@@ -57,6 +58,7 @@ export function MarketPlanetCard({
   canBuy,
   sharing = false,
   highlighted = false,
+  suspendGl = false,
   onBuy,
   onUnlist,
   onShare,
@@ -144,7 +146,7 @@ export function MarketPlanetCard({
               size={128}
             />
           ) : (
-            <PlanetVoxelThumb planet={fakePlanet} size={128} animate hiQuality eager />
+            <PlanetVoxelThumb planet={fakePlanet} size={128} animate suspendGl={suspendGl} />
           )}
         </div>
         <div

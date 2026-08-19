@@ -95,17 +95,6 @@ function AppShellWithState() {
     } catch { /* noop */ }
   }, []);
 
-  // Pause ALL CSS animations when the page is hidden (user switches apps /
-  // minimises Telegram). Eliminates GPU/CPU work while backgrounded — the
-  // single biggest cause of phone heating on long sessions.
-  useEffect(() => {
-    const onVisibility = () => {
-      document.body.classList.toggle("animations-paused", document.visibilityState === "hidden");
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, []);
-
   // Global toast — listens for window 'zoom-toast' CustomEvents and shows a
   // brief banner. Used by useGameState (e.g. claimCraft when slots are full).
   const [globalToast, setGlobalToast] = useState<{ text: string; ok: boolean } | null>(null);
@@ -385,12 +374,49 @@ function AppShellWithState() {
     void prefetchShopData(state.telegramId);
   }, [state.telegramId, showBootSplash]);
 
+  // Pause CSS animations when backgrounded or when a non-Lab tab is active.
+  useEffect(() => {
+    const syncPause = () => {
+      const pause = document.visibilityState === "hidden" || showBootSplash || tab !== "lab";
+      document.body.classList.toggle("animations-paused", pause);
+    };
+    syncPause();
+    document.addEventListener("visibilitychange", syncPause);
+    return () => document.removeEventListener("visibilitychange", syncPause);
+  }, [showBootSplash, tab]);
+
+  const [visitedTabs, setVisitedTabs] = useState<Set<Tab>>(() => new Set(["lab"]));
+
+  useEffect(() => {
+    setVisitedTabs((prev) => {
+      if (prev.has(tab)) return prev;
+      const next = new Set(prev);
+      next.add(tab);
+      return next;
+    });
+  }, [tab]);
+
+  useEffect(() => {
+    if (showBootSplash) return;
+    const warm = () => {
+      setVisitedTabs((prev) => {
+        const next = new Set(prev);
+        next.add("farm");
+        next.add("wallet");
+        return next.size === prev.size ? prev : next;
+      });
+    };
+    if (typeof requestIdleCallback !== "undefined") {
+      const id = requestIdleCallback(warm, { timeout: 2000 });
+      return () => cancelIdleCallback(id);
+    }
+    const t = window.setTimeout(warm, 1200);
+    return () => window.clearTimeout(t);
+  }, [showBootSplash]);
+
   const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
   const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate * Math.max(1, state.sunCount || 1) : 0;
   const totalRate = planetRate + sunRate;
-
-  const visitedTabs = useMemo(() => new Set<Tab>(["lab", "farm", "wallet"]), []);
-  if (!visitedTabs.has(tab)) visitedTabs.add(tab);
 
   const switchTab = (nextTab: Tab) => {
     setTab(nextTab);
@@ -757,7 +783,7 @@ function AppShellWithState() {
       </header>
       )}
 
-      <main className="flex-1 overflow-hidden relative z-10" style={{ minHeight: 0, ...(tab === "lab" ? { position: "absolute", inset: 0 } : {}) }}>
+      <main className="flex-1 overflow-hidden relative z-10" style={{ minHeight: 0 }}>
         {ALL_TABS.map((t) => {
           const isActive = tab === t;
           if (!visitedTabs.has(t)) return null;
@@ -765,10 +791,15 @@ function AppShellWithState() {
             <div
               key={t}
               style={{
-                height: "100%",
-                display: isActive ? "flex" : "none",
+                position: "absolute",
+                inset: 0,
+                display: "flex",
                 flexDirection: "column",
                 overflow: "hidden",
+                visibility: isActive ? "visible" : "hidden",
+                pointerEvents: isActive ? "auto" : "none",
+                zIndex: isActive ? 2 : 0,
+                contain: isActive ? undefined : "strict",
               }}
             >
               {t === "lab" && (
@@ -899,6 +930,7 @@ function AppShellWithState() {
               )}
               {t === "market" && (
                 <MarketPage
+                  visible={tab === "market"}
                   depositBalance={state.depositBalance || 0}
                   earnedBalance={state.tonBalance || 0}
                   myListings={state.planets}
@@ -971,6 +1003,7 @@ function AppShellWithState() {
               )}
               {t === "wallet" && (
                 <WalletPage
+                  visible={tab === "wallet"}
                   tonBalance={state.tonBalance || 0}
                   depositBalance={state.depositBalance || 0}
                   onOpenHistory={() => setHistoryOpen(true)}

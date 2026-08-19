@@ -115,7 +115,9 @@ function VoxelPlanetPlaceholder({
   );
 }
 
-const PLANET_THUMB_GL_MAX = 8;
+import { planetThumbGlBudget } from "../utils/deviceTier";
+
+const PLANET_THUMB_GL_MAX = planetThumbGlBudget();
 let planetThumbGlActive = 0;
 const planetThumbWaiters: Array<() => void> = [];
 
@@ -245,8 +247,8 @@ export function PlanetVoxelThumb({
           planetId={planet.id}
           size={size}
           autoSpin={animate}
-          performanceMode={false}
-          hiQuality={useHiQuality}
+          performanceMode
+          hiQuality={useHiQuality && size >= 96}
           onGlFailed={handleGlError}
           onGlContextLost={handleGlError}
         />
