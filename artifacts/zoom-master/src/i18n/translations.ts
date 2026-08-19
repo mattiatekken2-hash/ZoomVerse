@@ -207,6 +207,16 @@ const en: Dict = {
   "autoTap.unlocked": "Auto-Tap unlocked!",
   "autoTap.buyBtn": "BUY — {n} GRAM",
 
+  // skip forge
+  "skipForge.title": "SKIP FORGE",
+  "skipForge.desc": "Skip the planet currently being forged and roll a new model. You won't receive the current planet.",
+  "skipForge.cost": "1 ★ Stardust",
+  "skipForge.btn": "SKIP — 1 ★",
+  "skipForge.done": "New forge started!",
+  "skipForge.notForging": "Start forging first to skip.",
+  "skipForge.noStardust": "Need 1 ★ Stardust to skip.",
+  "skipForge.aria": "Skip current forge",
+
   // chat
   "chat.title": "GLOBAL CHAT",
   "chat.empty": "No messages yet. Be the first to write!",
@@ -724,6 +734,15 @@ const it: Dict = {
   "autoTap.unlocked": "Auto-Tap sbloccato!",
   "autoTap.buyBtn": "COMPRA — {n} GRAM",
 
+  "skipForge.title": "SALTA FORGIA",
+  "skipForge.desc": "Salta il pianeta in creazione e passa a un altro modello. Non riceverai il pianeta attuale.",
+  "skipForge.cost": "1 ★ Stardust",
+  "skipForge.btn": "SALTA — 1 ★",
+  "skipForge.done": "Nuova forgia avviata!",
+  "skipForge.notForging": "Inizia prima a forgiare per poter saltare.",
+  "skipForge.noStardust": "Servono 1 ★ Stardust per saltare.",
+  "skipForge.aria": "Salta forgia in corso",
+
   "chat.title": "CHAT GLOBALE",
   "chat.empty": "Nessun messaggio. Scrivi tu il primo!",
   "chat.placeholder": "Scrivi un messaggio…",
@@ -1240,6 +1259,15 @@ const ru: Dict = {
   "autoTap.unlocked": "Авто-Тап разблокирован!",
   "autoTap.buyBtn": "КУПИТИ — {n} GRAM",
 
+  "skipForge.title": "ПРОПУСТИТЬ КОВКУ",
+  "skipForge.desc": "Пропустите создаваемую планету и получите новую модель. Текущая планета не будет получена.",
+  "skipForge.cost": "1 ★ Stardust",
+  "skipForge.btn": "ПРОПУСТИТЬ — 1 ★",
+  "skipForge.done": "Новая ковка начата!",
+  "skipForge.notForging": "Сначала начните ковку, чтобы пропустить.",
+  "skipForge.noStardust": "Нужна 1 ★ Stardust для пропуска.",
+  "skipForge.aria": "Пропустить текущую ковку",
+
   "chat.title": "ОБЩИЙ ЧАТ",
   "chat.empty": "Нет сообщений. Напишите первым!",
   "chat.placeholder": "Напишите сообщение…",
@@ -1730,6 +1758,15 @@ const uk: Dict = {
   "autoTap.buyAria": "Купити Авто-Тап",
   "autoTap.unlocked": "Авто-Тап розблоковано!",
   "autoTap.buyBtn": "КУПИТИ — {n} TON",
+
+  "skipForge.title": "ПРОПУСТИТИ КОВКУ",
+  "skipForge.desc": "Пропустіть планету в процесі створення та отримайте нову модель. Поточну планету не буде отримано.",
+  "skipForge.cost": "1 ★ Stardust",
+  "skipForge.btn": "ПРОПУСТИТИ — 1 ★",
+  "skipForge.done": "Нова ковка розпочата!",
+  "skipForge.notForging": "Спочатку почніть ковку, щоб пропустити.",
+  "skipForge.noStardust": "Потрібна 1 ★ Stardust для пропуску.",
+  "skipForge.aria": "Пропустити поточну ковку",
 
   "chat.title": "ЗАГАЛЬНИЙ ЧАТ",
   "chat.empty": "Повідомлень немає. Напишіть першим!",
