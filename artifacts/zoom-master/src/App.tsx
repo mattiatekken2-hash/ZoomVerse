@@ -21,8 +21,8 @@ import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, type
 import { useStardust } from "./hooks/useStardust";
 import { FlaskConical, Home, Sprout, ShoppingCart, Gem, Trophy, Wallet, type LucideIcon } from "lucide-react";
 import { WalletPage } from "./pages/WalletPage";
-import { hideHtmlSplash, BootSplashOverlay } from "./components/SplashScreen";
-import { isSplashFinished, subscribeSplashDone } from "./utils/bootSplash";
+import { hideHtmlSplash } from "./components/SplashScreen";
+import { SPLASH_MS } from "./utils/bootSplash";
 import { isBrowserDevSession } from "./utils/telegram";
 import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
@@ -63,60 +63,11 @@ const NAV: { id: Tab; labelKey: string; icon: LucideIcon }[] = [
 
 const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "rank", "shop", "wallet"];
 
-function getEarlyTelegramId(): string | null {
-  try {
-    const id = (window as unknown as {
-      Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number } } } };
-    }).Telegram?.WebApp?.initDataUnsafe?.user?.id;
-    return id != null ? String(id) : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Splash gate — Lab and heavy hooks mount only after the 2s overlay completes. */
-function BootSplashGate() {
-  const { t } = useT();
-  const skipSplash =
-    isMaintenanceAdmin(getEarlyTelegramId()) || !!readMaintCache()?.enabled;
-  const [splashDone, setSplashDone] = useState(() => skipSplash || isSplashFinished());
-
-  const finishSplash = useCallback(() => {
-    hideHtmlSplash();
-    setSplashDone(true);
-  }, []);
-
-  useEffect(() => {
-    if (splashDone) return;
-
-    const onDone = () => finishSplash();
-    window.addEventListener("zoom-splash-done", onDone);
-    const unsub = subscribeSplashDone(finishSplash);
-
-    // Poll — Telegram iOS can drop setTimeout/rAF callbacks after progress hits 100%.
-    const poll = window.setInterval(() => {
-      if (isSplashFinished()) finishSplash();
-    }, 100);
-
-    return () => {
-      window.removeEventListener("zoom-splash-done", onDone);
-      unsub();
-      window.clearInterval(poll);
-    };
-  }, [splashDone, finishSplash]);
-
-  if (!splashDone) {
-    return <BootSplashOverlay subtitle={t("splash.subtitle")} />;
-  }
-
-  return <AppShellWithState />;
-}
-
 export default function App() {
   return (
     <LanguageProvider>
       <BlackPlanetOrbStyles />
-      <BootSplashGate />
+      <AppShellWithState />
     </LanguageProvider>
   );
 }
@@ -398,6 +349,15 @@ function AppShellWithState() {
 
   useEffect(() => {
     initVersionCheck();
+  }, []);
+
+  useEffect(() => {
+    const start =
+      (window as unknown as { __zoomSplashStart?: number }).__zoomSplashStart ??
+      performance.now();
+    const remaining = Math.max(0, SPLASH_MS - (performance.now() - start));
+    const id = window.setTimeout(hideHtmlSplash, remaining);
+    return () => window.clearTimeout(id);
   }, []);
 
   useEffect(() => {

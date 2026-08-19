@@ -2067,6 +2067,7 @@ body.animations-paused * {
 #splash-screen.hidden {
   opacity: 0;
   pointer-events: none;
+  display: none !important;
 }
 .zoom-splash-inner,
 #splash-screen .splash-inner {
