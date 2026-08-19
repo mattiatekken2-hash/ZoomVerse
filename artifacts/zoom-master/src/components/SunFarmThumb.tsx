@@ -24,10 +24,12 @@ export function SunFarmThumb({
   size,
   animate = true,
   suspendGl = false,
+  eager = false,
 }: {
   size: number;
   animate?: boolean;
   suspendGl?: boolean;
+  eager?: boolean;
 }) {
   const planet = useMemo(() => SUN_PREVIEW_PLANET, []);
   return (
@@ -36,7 +38,8 @@ export function SunFarmThumb({
       size={size}
       animate={animate}
       suspendGl={suspendGl}
-      glDelayMs={120}
+      eager={eager || !suspendGl}
+      glDelayMs={0}
       hiQuality={false}
     />
   );

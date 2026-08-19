@@ -758,7 +758,7 @@ function AppShellWithState() {
           paddingBottom: tab === "lab" ? 0 : "env(safe-area-inset-bottom, 0px)",
         }}
       >
-      <NebulaBackground />
+      {tab !== "lab" && <NebulaBackground />}
       {isAdmin && maintenance.enabled && (
         <div
           className="flex-shrink-0 text-center text-xs font-black tracking-widest py-1.5 relative z-30"
@@ -793,13 +793,13 @@ function AppShellWithState() {
           return (
             <div
               key={t}
+              aria-hidden={!isActive}
               style={{
                 position: "absolute",
                 inset: 0,
-                display: "flex",
+                display: isActive ? "flex" : "none",
                 flexDirection: "column",
                 overflow: "hidden",
-                visibility: isActive ? "visible" : "hidden",
                 pointerEvents: isActive ? "auto" : "none",
                 zIndex: isActive ? 2 : 0,
                 contain: isActive ? undefined : "strict",

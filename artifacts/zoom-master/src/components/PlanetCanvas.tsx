@@ -378,6 +378,8 @@ export function PlanetCanvas({
   const isCrafting = isActiveCraft;
   const forgeRarity = pendingPlanet?.name ?? craftRarity;
   const showVoxelLayer = isCrafting && forgePlanetBuild;
+  /** Lab forge space grid + stars — visible from idle, not only after first craft tap. */
+  const showLabBackdrop = backdrop && visible && !pendingPlanet && forgePhase === "idle";
   const showPlanetOrb = false;
   const pct = goal > 0 ? Math.min(progress / goal, 1) : 0;
   const buildProgress = isCrafting ? pct : 1;
@@ -391,22 +393,22 @@ export function PlanetCanvas({
     ? getDisplayFloat(livePlanet)
     : undefined;
 
-  const forgeShapeId = showVoxelLayer ? FORGE_SPHERE_SHAPE_ID : undefined;
-  const objectParts = useMemo(() => (showVoxelLayer ? [] : undefined), [showVoxelLayer]);
+  const forgeShapeId = showLabBackdrop || showVoxelLayer ? FORGE_SPHERE_SHAPE_ID : undefined;
+  const objectParts = useMemo(() => ((showLabBackdrop || showVoxelLayer) ? [] : undefined), [showLabBackdrop, showVoxelLayer]);
 
-  /** One WebGL session per forge cycle — released when clay build ends so reveal card gets GPU budget. */
+  /** One WebGL session for the Lab backdrop — released during reveal cinematic for GPU budget. */
   useEffect(() => {
-    if (showVoxelLayer && !forgeGlSession) {
+    if (showLabBackdrop && !forgeGlSession) {
       setForgeGlSession(`forge-${Date.now()}`);
-    } else if (!showVoxelLayer && forgeGlSession) {
+    } else if (!showLabBackdrop && forgeGlSession) {
       setForgeGlSession(null);
     }
-  }, [showVoxelLayer, forgeGlSession]);
+  }, [showLabBackdrop, forgeGlSession]);
 
   const handleLabGlError = useCallback(() => {
-    if (!showVoxelLayer) return;
+    if (!showLabBackdrop) return;
     setForgeGlSession(`forge-recover-${Date.now()}`);
-  }, [showVoxelLayer]);
+  }, [showLabBackdrop]);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -524,12 +526,12 @@ export function PlanetCanvas({
         }}
         data-testid="planet-wrap"
       >
-        {(showVoxelLayer && livePlanet) && backdrop && forgeGlSession && (
+        {showLabBackdrop && forgeGlSession && (
           <div
             className="absolute inset-0"
             style={{
               lineHeight: 0,
-              pointerEvents: isForging && !forgeRolling ? "auto" : "none",
+              pointerEvents: showVoxelLayer && isForging && !forgeRolling ? "auto" : "none",
             }}
           >
             <MysteryModel3D
@@ -539,15 +541,15 @@ export function PlanetCanvas({
               shapeId={forgeShapeId}
               primaryColor={meshPrimary}
               accentColor={meshAccent}
-              progress={isCrafting ? buildProgress : 1}
+              progress={showVoxelLayer && isCrafting ? buildProgress : 0}
               revealed={false}
-              planetRarity={forgeRarity ?? undefined}
+              planetRarity={forgeRarity ?? "BASIC"}
               displayFloat={forgeDisplayFloat}
-              planetId={livePlanet?.id}
+              planetId={livePlanet?.id ?? "lab-forge-idle"}
               size={modelCanvasSize}
               viewportWidth={viewport.w}
               viewportHeight={viewport.h}
-              onTap={isForging && !forgeRolling ? handleModelTap : undefined}
+              onTap={showVoxelLayer && isForging && !forgeRolling ? handleModelTap : undefined}
               autoSpin
               forgeVoxelBuild={true}
               forgeRevealPhase={forgeRevealPhase}
