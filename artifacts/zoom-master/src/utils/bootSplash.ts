@@ -1,38 +1,29 @@
-/** Boot splash timing — fixed duration from first HTML paint. */
+/** Splash visible duration once React is ready — always from React mount, not page load. */
 
-export const SPLASH_DURATION_MS = 2400;
-/** Absolute cap so the splash never blocks longer than ~3s. */
-export const SPLASH_HARD_MAX_MS = 3000;
+export const SPLASH_VISIBLE_MS = 2500;
 
-declare global {
-  interface Window {
-    __zoomBootStart?: number;
+let sessionStartMs: number | null = null;
+
+/** Call once when the app shell mounts; returns the session start timestamp. */
+export function beginSplashSession(): number {
+  if (sessionStartMs === null) {
+    sessionStartMs = Date.now();
   }
+  return sessionStartMs;
 }
 
-function bootStartMs(): number {
-  if (typeof window === "undefined") return Date.now();
-  if (typeof window.__zoomBootStart !== "number") {
-    window.__zoomBootStart = Date.now();
-  }
-  return window.__zoomBootStart;
+export function splashSessionElapsedMs(startMs: number): number {
+  return Date.now() - startMs;
 }
 
-export function splashElapsedMs(): number {
-  return Date.now() - bootStartMs();
+export function splashSessionProgress(startMs: number): number {
+  return Math.min(1, splashSessionElapsedMs(startMs) / SPLASH_VISIBLE_MS);
 }
 
-/** 0 → 1 loading progress (reaches 1 at SPLASH_DURATION_MS). */
-export function splashProgress(): number {
-  return Math.min(1, splashElapsedMs() / SPLASH_DURATION_MS);
+export function splashSessionRemainingMs(startMs: number): number {
+  return Math.max(0, SPLASH_VISIBLE_MS - splashSessionElapsedMs(startMs));
 }
 
-export function msUntilSplashEnd(): number {
-  const untilBar = SPLASH_DURATION_MS - splashElapsedMs();
-  const untilCap = SPLASH_HARD_MAX_MS - splashElapsedMs();
-  return Math.max(0, Math.min(untilBar, untilCap));
-}
-
-export function isSplashComplete(): boolean {
-  return splashElapsedMs() >= SPLASH_DURATION_MS || splashElapsedMs() >= SPLASH_HARD_MAX_MS;
+export function isSplashSessionComplete(startMs: number): boolean {
+  return splashSessionElapsedMs(startMs) >= SPLASH_VISIBLE_MS;
 }
