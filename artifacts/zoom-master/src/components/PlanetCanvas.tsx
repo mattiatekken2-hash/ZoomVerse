@@ -376,10 +376,14 @@ export function PlanetCanvas({
   } as Planet : null);
   const isActiveCraft = forgePhase === "idle" && !!craftRarity && !forgeRolling;
   const isCrafting = isActiveCraft;
+  const showCompletedForgeMesh = !!pendingPlanet && (forgePhase === "waiting" || forgePhase === "wheel" || forgePhase === "flash");
   const forgeRarity = pendingPlanet?.name ?? craftRarity;
-  const showVoxelLayer = isCrafting && forgePlanetBuild;
-  /** Lab forge space grid + stars — visible from idle, not only after first craft tap. */
-  const keepForgeGl = backdrop && !pendingPlanet && forgePhase === "idle";
+  const showVoxelLayer = (isCrafting && forgePlanetBuild) || showCompletedForgeMesh;
+  /** Lab forge space grid + stars — keep GL alive through forge completion sequence. */
+  const keepForgeGl = backdrop && (
+    (!pendingPlanet && forgePhase === "idle") ||
+    showCompletedForgeMesh
+  );
   const labViewportReady = !backdrop || (viewport.w > 1 && viewport.h > 1);
   const showLabBackdrop = keepForgeGl && visible;
   const showPlanetOrb = false;
@@ -544,7 +548,7 @@ export function PlanetCanvas({
               shapeId={forgeShapeId}
               primaryColor={meshPrimary}
               accentColor={meshAccent}
-              progress={showVoxelLayer && isCrafting ? buildProgress : 0}
+              progress={showVoxelLayer ? (isCrafting ? buildProgress : 1) : 0}
               revealed={false}
               planetRarity={forgeRarity ?? "BASIC"}
               displayFloat={forgeDisplayFloat}

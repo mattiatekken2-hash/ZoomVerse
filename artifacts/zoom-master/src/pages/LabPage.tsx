@@ -62,7 +62,9 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const claimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const waitingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showClaim, setShowClaim] = useState(false);
+  const FORGE_COMPLETE_MS = 1800;
 
   useEffect(() => {
     if (pendingPlanet && forgePhase === "idle" && !pendingFloatRef.current) {
@@ -72,11 +74,16 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
   useEffect(() => {
     if (pendingPlanet && forgePhase === "idle") {
-      setForgePhase("wheel");
+      setForgePhase("waiting");
       setShowClaim(false);
       if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
       if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
       if (claimTimerRef.current) clearTimeout(claimTimerRef.current);
+      if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
+      waitingTimerRef.current = setTimeout(() => {
+        setForgePhase("wheel");
+        waitingTimerRef.current = null;
+      }, FORGE_COMPLETE_MS);
     } else if (!pendingPlanet && forgePhase !== "idle") {
       setForgePhase("idle");
       setShowClaim(false);
@@ -84,6 +91,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
       if (flashTimerRef.current) { clearTimeout(flashTimerRef.current); flashTimerRef.current = null; }
       if (revealTimerRef.current) { clearTimeout(revealTimerRef.current); revealTimerRef.current = null; }
       if (claimTimerRef.current) { clearTimeout(claimTimerRef.current); claimTimerRef.current = null; }
+      if (waitingTimerRef.current) { clearTimeout(waitingTimerRef.current); waitingTimerRef.current = null; }
     }
   }, [pendingPlanet, forgePhase]);
 
@@ -106,6 +114,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
     if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
     if (claimTimerRef.current) clearTimeout(claimTimerRef.current);
+    if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
   }, []);
 
   const isFull = planets.length >= maxSlots && !pendingPlanet;
@@ -354,9 +363,44 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           </div>
         )}
 
+        {pendingPlanet && forgePhase === "waiting" && (
+          <div
+            className="absolute inset-0 flex flex-col items-center justify-end pointer-events-none forge-complete-celebrate"
+            style={{ zIndex: 44, paddingBottom: "22%" }}
+          >
+            <div
+              className="font-black tracking-widest text-center forge-complete-label px-6 py-3 rounded-2xl"
+              style={{
+                fontSize: 13,
+                letterSpacing: "0.22em",
+                color: "rgba(255,255,255,0.95)",
+                textShadow: "0 0 24px rgba(255,255,255,0.35)",
+                background: "rgba(6,8,14,0.55)",
+                border: "1px solid rgba(255,255,255,0.14)",
+                backdropFilter: "blur(8px)",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.45)",
+              }}
+            >
+              {t("lab.forgeComplete")}
+            </div>
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: "0.14em",
+                color: "rgba(255,255,255,0.42)",
+                textTransform: "uppercase",
+              }}
+            >
+              {t("lab.rarityWheelNext")}
+            </div>
+          </div>
+        )}
+
         {pendingPlanet && forgePhase === "wheel" && (
           <div
-            className="absolute inset-0 flex items-center justify-center"
+            className="absolute inset-0 flex items-center justify-center forge-wheel-enter"
             style={{
               zIndex: 45,
               background: "radial-gradient(circle at 50% 44%, rgba(255,255,255,0.06) 0%, rgba(4,6,12,0.94) 52%, rgba(4,6,12,0.98) 100%)",

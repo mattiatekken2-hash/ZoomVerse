@@ -454,6 +454,8 @@ const en: Dict = {
   "lab.brokenBody": "The {kind} planet shattered during forging.",
   "lab.tryAgainNext": "Try again with the next attempt.",
   "lab.claimPlanet": "CLAIM PLANET",
+  "lab.forgeComplete": "FORGE COMPLETE",
+  "lab.rarityWheelNext": "Rarity wheel incoming…",
   "lab.tapsNeeded": "{n} taps needed",
 
   // earn page
@@ -983,6 +985,8 @@ const it: Dict = {
   "lab.brokenBody": "Il pianeta {kind} si è frantumato durante la forgiatura.",
   "lab.tryAgainNext": "Riprova con il prossimo tentativo.",
   "lab.claimPlanet": "RITIRA PIANETA",
+  "lab.forgeComplete": "FORGIA COMPLETA",
+  "lab.rarityWheelNext": "Ruota rarità in arrivo…",
   "lab.tapsNeeded": "{n} tap necessari",
 
   "earn.title": "Guadagna",
@@ -1484,6 +1488,8 @@ const ru: Dict = {
   "lab.brokenBody": "Планета {kind} разрушилась при ковке.",
   "lab.tryAgainNext": "Попробуйте ещё раз при следующей попытке.",
   "lab.claimPlanet": "ЗАБРАТЬ ПЛАНЕТУ",
+  "lab.forgeComplete": "КОВКА ЗАВЕРШЕНА",
+  "lab.rarityWheelNext": "Колесо редкости…",
   "lab.tapsNeeded": "Нужно {n} нажатий",
 
   "earn.title": "Бонус",
@@ -1984,6 +1990,8 @@ const uk: Dict = {
   "lab.brokenBody": "Планета {kind} зруйнувалася під час кування.",
   "lab.tryAgainNext": "Спробуйте знову з наступною спробою.",
   "lab.claimPlanet": "ЗАБРАТИ ПЛАНЕТУ",
+  "lab.forgeComplete": "КУВАННЯ ЗАВЕРШЕНО",
+  "lab.rarityWheelNext": "Колесо рідкості…",
   "lab.tapsNeeded": "Потрібно {n} натискань",
 
   "earn.title": "Бонус",
