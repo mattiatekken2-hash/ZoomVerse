@@ -25,11 +25,11 @@ import { SplashScreen, hideHtmlSplash } from "./components/SplashScreen";
 import { isBrowserDevSession } from "./utils/telegram";
 import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
+import { initVersionCheck } from "./utils/appVersion";
 
-const SPLASH_MIN_MS = 6000;
-/** Never block boot longer than this — unblocks if API checks hang. */
-const SPLASH_MAX_MS = 14000;
-const MAINT_FAIL_BEFORE_BOOT = 3;
+const SPLASH_MIN_MS = 2500;
+/** Hard cap — never keep users on splash longer than this. */
+const SPLASH_MAX_MS = 6000;
 
 const MAINTENANCE_ADMIN_IDS = ["8144744644", "@zoom0100", "zoom0100"];
 
@@ -307,16 +307,13 @@ function AppShellWithState() {
     }
     return { enabled: false, message: "" };
   });
-  const [maintChecked, setMaintChecked] = useState(() => !!initialMaintCache?.enabled);
   useEffect(() => {
     let alive = true;
     let retryTimer: number | undefined;
-    let failStreak = 0;
 
     const finish = (next: MaintSnapshot) => {
       if (!alive) return;
       setMaintenance(next);
-      setMaintChecked(true);
       try { localStorage.setItem("zoom-maint-cached", JSON.stringify(next)); } catch { /**/ }
     };
 
@@ -324,15 +321,10 @@ function AppShellWithState() {
       const s = await fetchMaintenanceStatus();
       if (!alive) return;
       if (!s) {
-        failStreak += 1;
-        if (failStreak >= MAINT_FAIL_BEFORE_BOOT) {
-          finish({ enabled: false, message: "" });
-          return;
-        }
-        retryTimer = window.setTimeout(() => { void load(); }, 2000);
+        finish({ enabled: false, message: "" });
+        retryTimer = window.setTimeout(() => { void load(); }, 5000);
         return;
       }
-      failStreak = 0;
       finish({ enabled: !!s.enabled, message: s.message || "", updatedAt: s.updatedAt });
     };
 
@@ -350,12 +342,13 @@ function AppShellWithState() {
       window.removeEventListener("zoom-admin-refresh", onAdmin);
     };
   }, []);
-  const globalReady = useGlobalStore((s) => s.initialized);
   const isAdmin = isMaintenanceAdmin(state.telegramId);
   const showMaintenance = maintenance.enabled && !isAdmin;
-  const showSplash = !maintChecked && !isAdmin;
   const [splashMinDone, setSplashMinDone] = useState(false);
   const [splashForceDone, setSplashForceDone] = useState(false);
+
+  // Time-based splash only — never block boot on API/network checks.
+  const showBootSplash = !isAdmin && !splashMinDone && !splashForceDone;
 
   useEffect(() => {
     void fetchTonPrice();
@@ -371,16 +364,15 @@ function AppShellWithState() {
   }, []);
 
   useEffect(() => {
-    if (isAdmin) {
-      hideHtmlSplash();
-      return;
-    }
-    if ((maintChecked && splashMinDone && globalReady) || splashForceDone) {
+    if (isAdmin || !showBootSplash) {
       hideHtmlSplash();
     }
-  }, [isAdmin, maintChecked, splashMinDone, globalReady, splashForceDone]);
+  }, [isAdmin, showBootSplash]);
 
-  const showBootSplash = !isAdmin && !splashForceDone && (showSplash || !splashMinDone || !globalReady);
+  useEffect(() => {
+    if (showBootSplash) return;
+    initVersionCheck();
+  }, [showBootSplash]);
 
   useEffect(() => {
     if (!state.telegramId || showBootSplash) return;
@@ -753,8 +745,7 @@ function AppShellWithState() {
     );
   }
 
-  // Wait for a confirmed server maintenance check before showing the game UI.
-  // (Cached "maintenance off" is never trusted — see maintChecked above.)
+  // Maintenance poll runs in background; boot splash is time-based only.
   return (
     <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
       {showBootSplash && <SplashScreen />}
@@ -765,7 +756,6 @@ function AppShellWithState() {
           background: "#000000",
           paddingTop: tab === "lab" ? 0 : "env(safe-area-inset-top, 0px)",
           paddingBottom: tab === "lab" ? 0 : "env(safe-area-inset-bottom, 0px)",
-          visibility: showBootSplash ? "hidden" : "visible",
         }}
       >
       <NebulaBackground />

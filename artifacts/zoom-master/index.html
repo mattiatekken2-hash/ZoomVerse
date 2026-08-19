@@ -110,10 +110,12 @@
           splash.classList.add('hidden');
           setTimeout(function() { splash && splash.remove(); }, 700);
         };
-        // Safety net: never leave users stuck on the HTML splash if React fails to boot.
+        // If React never boots (JS error / slow device), show a hint — do NOT remove splash (avoids black screen).
         setTimeout(function() {
-          if (window.__hideHtmlSplash) window.__hideHtmlSplash();
-        }, 15000);
+          if (window.__zoomReactBooted) return;
+          var sub = splash && splash.querySelector('.splash-sub');
+          if (sub) sub.textContent = 'Caricamento lento — riapri da Telegram';
+        }, 18000);
       })();
     </script>
     <div id="root"></div>

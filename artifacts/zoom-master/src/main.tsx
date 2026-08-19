@@ -2,11 +2,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { hapticLight } from "./utils/haptic";
-import { initVersionCheck } from "./utils/appVersion";
-
-// Force-update guard: reloads the app when a newer build has been published,
-// defeating Telegram's webview cache. No-op in development.
-initVersionCheck();
+import { BootErrorBoundary } from "./components/BootErrorBoundary";
 
 function configureTelegramViewport() {
   try {
@@ -158,5 +154,13 @@ document.addEventListener("pointerup", (e: PointerEvent) => {
   hapticLight();
 });
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <BootErrorBoundary>
+    <App />
+  </BootErrorBoundary>,
+);
+
+try {
+  (window as unknown as { __zoomReactBooted?: boolean }).__zoomReactBooted = true;
+} catch { /**/ }
 

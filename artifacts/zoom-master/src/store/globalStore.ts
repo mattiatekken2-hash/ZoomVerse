@@ -115,7 +115,9 @@ export function initGlobalStore(telegramId: string | null) {
   initStarted = true;
   currentTelegramId = telegramId;
 
-  // Kick off initial fetch immediately
+  // App can boot immediately; data hydrates in the background.
+  set({ initialized: true, lastFetch: Date.now() });
+
   void refreshAll(telegramId);
   void refreshMarketSales();
 
