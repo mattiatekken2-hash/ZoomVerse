@@ -226,6 +226,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           forgeRolling={forgeRolling}
           chromeBottomOffset={bottomChromeOffset}
           suppressProgressBar
+          visible={visible}
         />
 
         <div

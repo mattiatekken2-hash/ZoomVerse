@@ -2029,7 +2029,7 @@ function settleFarmingState(state: GameState, now: number): GameState {
     }
   }
 
-  if (earned <= 0 && nftStarEarned <= 0) return { ...state, lastFarmingSettledAt: now };
+  if (earned <= 0 && nftStarEarned <= 0) return state;
 
   return {
     ...state,
@@ -3767,7 +3767,11 @@ export function useGameState() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setState((prev) => settleFarmingState(prev, serverNow()));
+      if (document.hidden) return;
+      setState((prev) => {
+        const next = settleFarmingState(prev, serverNow());
+        return next === prev ? prev : next;
+      });
     }, 1000);
     return () => clearInterval(interval);
   }, []);

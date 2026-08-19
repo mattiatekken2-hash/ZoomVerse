@@ -6,6 +6,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 import { FORGE_CLAY, FORGE_CLAY_HEX, FORGE_VOXEL_SIZE, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, FORGE_SPHERE_SHAPE_ID, getForgeSphereBlueprint, isLabCollectibleVoxelRarity, labForgeMorphT, showcaseVoxelHex, getShowcaseVoxelHex, getShowcasePaletteForRarity, getShowcaseRarityStyle, quantizeToShowcasePalette, isBattleScarVoxel, shouldPlanetShowRing, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
 import { FLOAT_PLANET_TYPES } from "../utils/planetFloat";
+import { isLowEndDevice } from "../utils/deviceTier";
 
 const DEFAULT_PARTS = mysteryKitParts();
 
@@ -1101,6 +1102,8 @@ interface ObjectMesh3DProps {
   viewportWidth?: number;
   /** Full viewport height for Lab backdrop (grid fills screen). */
   viewportHeight?: number;
+  /** When false, skip WebGL draw loop (tab hidden). */
+  sceneActive?: boolean;
 }
 
 function resolveColor(c: MeshPart["color"], primary: string, accent: string): string {
@@ -1264,8 +1267,11 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
   labForgeBackdrop = false,
   viewportWidth,
   viewportHeight,
+  sceneActive = true,
 }, ref) {
   const mountRef = useRef<HTMLDivElement>(null);
+  const sceneActiveRef = useRef(sceneActive);
+  sceneActiveRef.current = sceneActive;
   const onTapRef = useRef(onTap);
   const onGlFailedRef = useRef(onGlFailed);
   const onGlContextLostRef = useRef(onGlContextLost);
@@ -1553,7 +1559,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           ? 1.25
           : showcase
             ? Math.min(window.devicePixelRatio, size >= 140 ? 3 : 2.5)
-            : (size > 90 ? 1.75 : 1.25);
+            : labViewportFill
+              ? Math.min(window.devicePixelRatio, isLowEndDevice() ? 1.25 : 1.5)
+              : (size > 90 ? 1.75 : 1.25);
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({
@@ -2132,7 +2140,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
     const animate = (now: number) => {
       frameId = requestAnimationFrame(animate);
-      if (document.hidden) return;
+      if (document.hidden || !sceneActiveRef.current) return;
 
       const dt = Math.min(32, now - lastFrame);
       lastFrame = now;

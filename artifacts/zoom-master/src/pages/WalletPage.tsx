@@ -15,6 +15,7 @@ interface WalletPageProps extends Omit<TonWalletProps, "onOpenWalletTab" | "labV
   redStarBalance: number;
   nftStarBalance: number;
   onOpenHistory?: () => void;
+  visible?: boolean;
 }
 
 /** Seed a stable pseudo-random between min..max from a string. */
@@ -51,6 +52,7 @@ export function WalletPage({
   redStarBalance,
   nftStarBalance,
   onOpenHistory,
+  visible = true,
 }: WalletPageProps) {
   const { t } = useT();
   const cachedPrice = readCachedTonPrice();
@@ -75,10 +77,14 @@ export function WalletPage({
   }, [stardustBalance]);
 
   useEffect(() => {
+    if (!visible) return;
     void refreshTonPrice();
-    const id = window.setInterval(() => { void refreshTonPrice(); }, PRICE_POLL_MS);
+    const id = window.setInterval(() => {
+      if (document.hidden) return;
+      void refreshTonPrice();
+    }, PRICE_POLL_MS);
     return () => window.clearInterval(id);
-  }, [refreshTonPrice]);
+  }, [refreshTonPrice, visible]);
 
   const usdtValue = tonPrice !== null ? (tonBalance * tonPrice).toFixed(2) : null;
   const priceLabel = tonPrice !== null

@@ -70,11 +70,12 @@ interface MarketPageProps {
   focusListingId?: number | null;
   // Called once the focus has been consumed so it isn't re-applied on re-render.
   onFocusConsumed?: () => void;
+  visible?: boolean;
 }
 
 interface Toast { text: string; ok: boolean }
 
-export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete, onBuyEquipment, onUnlistEquipment, onBuyItem, onUnlistItem, focusListingId, onFocusConsumed }: MarketPageProps) {
+export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete, onBuyEquipment, onUnlistEquipment, onBuyItem, onUnlistItem, focusListingId, onFocusConsumed, visible = true }: MarketPageProps) {
   const { t } = useT();
   const [filter, setFilter] = useState<MarketFilter>("ALL");
   // Float sort widget for the marketplace (▲ = low→high, ▼ = high→low,
@@ -143,13 +144,14 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
   }, [focusListingId]);
 
   useEffect(() => {
+    if (!visible) return;
     const close = openMarketActivityStream((sale) => {
       pushMarketSale(sale);
       setPulseId(sale.id);
       setTimeout(() => setPulseId((id) => (id === sale.id ? null : id)), 2200);
     });
     return () => { close(); };
-  }, []);
+  }, [visible]);
 
   const userListings: MarketListing[] = myListings
     .filter((p) => p.isListedInMarket && p.marketPrice)
@@ -379,6 +381,7 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                   listing={view}
                   canBuy={false}
                   highlighted={isPulsing}
+                  suspendGl={!visible}
                   onBuy={() => {}}
                   onUnlist={() => {}}
                   statusText={`${s.buyerName} bought · ${agoLabel}`}
@@ -526,6 +529,7 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
                 listing={view}
                 canBuy={canBuy}
                 highlighted={isFocused}
+                suspendGl={!visible}
                 sharing={sharingId === listing.serverId}
                 onBuy={() => {
                   if (listing.serverId) {

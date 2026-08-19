@@ -134,16 +134,17 @@ interface Props {
   telegramId: string | null;
   planets: Planet[];
   onClaimed?: (newRedStarBalance: number) => void;
+  active?: boolean;
 }
 
-function DailyComboBoxBase({ telegramId, planets, onClaimed }: Props) {
+function DailyComboBoxBase({ telegramId, planets, onClaimed, active = true }: Props) {
   const [combo, setCombo] = useState<ComboState | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [justClaimed, setJustClaimed] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
 
   useEffect(() => {
-    if (!telegramId) return;
+    if (!telegramId || !active) return;
     void fetchCombo(telegramId).then((c) => {
       if (c) {
         setCombo(c);
@@ -151,20 +152,21 @@ function DailyComboBoxBase({ telegramId, planets, onClaimed }: Props) {
       }
     });
     const interval = setInterval(() => {
+      if (document.hidden) return;
       void fetchCombo(telegramId).then((c) => {
         if (c) setCombo(c);
       });
     }, 30_000);
     return () => clearInterval(interval);
-  }, [telegramId]);
+  }, [telegramId, active]);
 
   useEffect(() => {
-    if (!combo) return;
+    if (!combo || !active) return;
     const t = setInterval(() => {
       setTimeLeft(Math.max(0, combo.nextResetMs - Date.now()));
     }, 1000);
     return () => clearInterval(t);
-  }, [combo]);
+  }, [combo, active]);
 
   const activeFarmingTypes = useMemo(
     () => new Set(planets.filter((p) => isFarmActive(p)).map((p) => p.name)),

@@ -377,6 +377,7 @@ export function FarmPage({
             telegramId={telegramId}
             planets={planets}
             onClaimed={handleComboClaimed}
+            active={visible}
           />
 
           {collectionOpen && (

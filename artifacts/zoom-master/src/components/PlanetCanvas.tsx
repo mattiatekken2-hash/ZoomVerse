@@ -4,7 +4,7 @@ import { FORGE_CLAY_HEX, FORGE_SPHERE_SHAPE_ID } from "@workspace/game-models";
 import type { Planet } from "../hooks/useGameState";
 import { getRarityColorsForModel, PLANET_CONFIG } from "../hooks/useGameState";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
-import { useT } from "../i18n/LanguageContext";
+import { isLowEndDevice } from "../utils/deviceTier";
 
 export type ForgePhase = "idle" | "wheel" | "flash" | "waiting" | "revealed";
 
@@ -28,6 +28,8 @@ interface PlanetCanvasProps {
   chromeBottomOffset?: string;
   /** Hide built-in progress bar (e.g. Lab renders it in the bottom chrome stack). */
   suppressProgressBar?: boolean;
+  /** Pause forge WebGL when Lab tab is hidden. */
+  visible?: boolean;
 }
 
 const DEFAULT_ACCENT = "#8892b0";
@@ -339,8 +341,10 @@ export function PlanetCanvas({
   backdrop = false,
   chromeBottomOffset,
   suppressProgressBar = false,
+  visible = true,
 }: PlanetCanvasProps) {
   const { t } = useT();
+  const lowEnd = useMemo(() => isLowEndDevice(), []);
   const containerRef = useRef<HTMLDivElement>(null);
   const fragmentLayerRef = useRef<HTMLDivElement>(null);
   const meshRef = useRef<ForgeMeshHandle>(null);
@@ -549,8 +553,9 @@ export function PlanetCanvas({
               forgeVoxelBuild={true}
               forgeRevealPhase={forgeRevealPhase}
               forgeTapRelaxed={tapRelaxed}
-              performanceMode={false}
+              performanceMode={lowEnd}
               labForgeBackdrop={true}
+              sceneActive={visible}
               onGlFailed={handleLabGlError}
               onGlContextLost={handleLabGlError}
             />
@@ -593,7 +598,7 @@ export function PlanetCanvas({
                   forgeVoxelBuild={true}
                   forgeRevealPhase={forgeRevealPhase}
                   forgeTapRelaxed={tapRelaxed}
-                  performanceMode={false}
+                  performanceMode={lowEnd}
                   onGlFailed={handleLabGlError}
                   onGlContextLost={handleLabGlError}
                 />
