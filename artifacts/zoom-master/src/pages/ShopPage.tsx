@@ -12,6 +12,7 @@ import { LabRankWidget } from "../components/LabRankWidget";
 import { ExchangeWidget } from "../components/ExchangeWidget";
 import { StellaRossaCollectionWidget } from "../components/StellaRossaCollectionWidget";
 import { ZoomStoreWidget } from "../components/ZoomStoreWidget";
+import { patchShopPrefetch, readShopPrefetch } from "../utils/shopPrefetch";
 
 const CYAN = "#9EC5E8";
 const SHOP_TABS = [
@@ -115,13 +116,16 @@ export function ShopPage({
   onStellaClaimDaily,
 }: ShopPageProps) {
   const { t } = useT();
+  const shopPrefetch = readShopPrefetch(telegramId);
   const [buying, setBuying] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [payMode, setPayMode] = useState<"stars" | "stardust">("stars");
-  const [stardustIndex, setStardustIndex] = useState(1);
+  const [stardustIndex, setStardustIndex] = useState(shopPrefetch?.stardustIndex ?? 1);
   const [liveStardustBalance, setLiveStardustBalance] = useState(stardustBalanceProp);
-  const [sunStock, setSunStock] = useState<SunStock | null>(null);
-  const [slotPrice, setSlotPrice] = useState<SlotPriceInfo | null>(null);
+  const [sunStock, setSunStock] = useState<SunStock | null>(shopPrefetch?.sunStock ?? null);
+  const [slotPrice, setSlotPrice] = useState<SlotPriceInfo | null>(shopPrefetch?.slotPrice ?? null);
+  const [collStocks, setCollStocks] = useState<Record<string, StockInfo | null>>(shopPrefetch?.collStocks ?? {});
+  const [home, setHome] = useState<HomeState | null>(shopPrefetch?.home ?? null);
   // Shop categories: tabs per organizzare i prodotti.
   // - exclusive: SUN (e in futuro altri NFT/limited shop items)
   // - items: bundle pacchetti + extra slot (consumabili "in-game")
@@ -143,13 +147,26 @@ export function ShopPage({
     return () => window.clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    const applyCache = () => {
+      const cached = readShopPrefetch(telegramId);
+      if (!cached) return;
+      if (cached.sunStock) setSunStock(cached.sunStock);
+      if (cached.slotPrice) setSlotPrice(cached.slotPrice);
+      if (cached.home) setHome(cached.home);
+      if (Object.keys(cached.collStocks).length > 0) setCollStocks(cached.collStocks);
+      if (Number.isFinite(cached.stardustIndex)) setStardustIndex(cached.stardustIndex);
+    };
+    applyCache();
+    window.addEventListener("zoom-shop-prefetch", applyCache);
+    return () => window.removeEventListener("zoom-shop-prefetch", applyCache);
+  }, [telegramId]);
+
   const gramPriceForItem = (item: ShopItem) =>
     item.id === "extra_slot" ? (slotPrice?.nextPriceTon ?? item.tonPrice) : item.tonPrice;
 
   const stardustPriceForItem = (item: ShopItem) =>
     stardustShopPrice(gramPriceForItem(item), stardustIndex);
-  // Live stock for each collection bundle (api/<key>-collection/stock).
-  const [collStocks, setCollStocks] = useState<Record<string, StockInfo | null>>({});
   const refreshCollStocks = async () => {
     const entries = await Promise.all(
       COLLECTIONS.map(async (c) => {
@@ -161,6 +178,7 @@ export function ShopPage({
       }),
     );
     setCollStocks(Object.fromEntries(entries));
+    patchShopPrefetch(telegramId, { collStocks: Object.fromEntries(entries) });
   };
   // Ownership map for the BUNDLES tab badges and per-user caps.
   const collOwned: Record<string, { unlocked: boolean; bundles: number }> = {
@@ -169,21 +187,20 @@ export function ShopPage({
     black: { unlocked: blackCollectionUnlocked, bundles: blackCollectionBundles },
     supernova: { unlocked: supernovaCollectionUnlocked, bundles: supernovaCollectionBundles },
   };
-  // Stardust shop section reads `/home/state` because that single endpoint
-  // already returns both the live stardust balance AND whether the user
-  // owns the COMPUTER (so we can hide the buy button after purchase). One
-  // less round-trip than splitting into two fetches.
-  const [home, setHome] = useState<HomeState | null>(null);
 
   const refreshSunStock = async () => {
     if (!telegramId) return;
     const stock = await fetchSunStock(telegramId);
     setSunStock(stock);
+    patchShopPrefetch(telegramId, { sunStock: stock });
   };
   const refreshSlotPrice = async () => {
     if (!telegramId) return;
     const p = await fetchSlotPrice(telegramId);
-    if (p) setSlotPrice(p);
+    if (p) {
+      setSlotPrice(p);
+      patchShopPrefetch(telegramId, { slotPrice: p });
+    }
   };
   // Sequence guard so an older in-flight `/home/state` response can't
   // overwrite a newer one (e.g. interval tick racing the post-purchase
@@ -195,6 +212,7 @@ export function ShopPage({
     const h = await fetchHomeState(telegramId);
     if (mySeq !== homeSeqRef.current) return;
     setHome(h);
+    patchShopPrefetch(telegramId, { home: h });
   };
 
   useEffect(() => {

@@ -276,9 +276,6 @@ export function StardustMarketModal({
           <span style={{ color: "#ffd740" }}>{t("stardustMarket.wallet", { n: balance.toLocaleString() })}</span>
           <span style={{ color: CYAN }}>{t("stardustMarket.staked", { n: stakedValue.toLocaleString() })}</span>
         </div>
-        <div className="px-4 pb-1 text-[9px] font-semibold" style={{ color: "rgba(158,197,232,0.45)" }}>
-          {t("stardustMarket.indexNote")}
-        </div>
 
         {/* Chart — compact */}
         <div className="px-3 flex-shrink-0" style={{ height: 110 }}>
