@@ -1241,13 +1241,19 @@ function reconcileFromSyncResponse(
       }));
     } catch { /**/ }
     if (typeof res.tonBalance === "number") {
+      const newTon = Math.max(0, res.tonBalance);
       if (_stateRefHolder) {
-        _stateRefHolder.current = { ..._stateRefHolder.current, tonBalance: res.tonBalance };
+        _stateRefHolder.current = { ..._stateRefHolder.current, tonBalance: newTon };
       }
-      _lastSyncedTonBalance = res.tonBalance;
+      _lastSyncedTonBalance = newTon;
       try {
         window.dispatchEvent(new CustomEvent("zoom-server-ton-snap", {
-          detail: { tonBalance: res.tonBalance, epoch: res.balanceEpoch },
+          detail: { tonBalance: newTon, epoch: res.balanceEpoch },
+        }));
+      } catch { /**/ }
+      try {
+        window.dispatchEvent(new CustomEvent("zoom-gram-balance-snap", {
+          detail: { tonBalance: newTon, balanceEpoch: res.balanceEpoch },
         }));
       } catch { /**/ }
     }
@@ -3235,6 +3241,10 @@ export function useGameState() {
         if (typeof grants.depositBalance === "number") {
           updated = { ...updated, depositBalance: Math.max(0, grants.depositBalance) };
         }
+        // Earned GRAM — server-authoritative (collects, market, convert, withdraw).
+        if (typeof grants.tonBalance === "number") {
+          updated = { ...updated, tonBalance: Math.max(0, grants.tonBalance) };
+        }
 
         return updated;
       });
@@ -3418,14 +3428,20 @@ export function useGameState() {
       }));
     };
     const handleGramBalanceSnap = (e: Event) => {
-      const detail = (e as CustomEvent<{ depositBalance?: number; tonBalance?: number }>).detail;
+      const detail = (e as CustomEvent<{ depositBalance?: number; tonBalance?: number; balanceEpoch?: number }>).detail;
       if (!detail) return;
       const patch: Partial<GameState> = {};
       if (typeof detail.depositBalance === "number") {
         patch.depositBalance = Math.max(0, detail.depositBalance);
       }
       if (typeof detail.tonBalance === "number") {
-        patch.tonBalance = Math.max(0, detail.tonBalance);
+        const ton = Math.max(0, detail.tonBalance);
+        patch.tonBalance = ton;
+        _lastSyncedTonBalance = ton;
+      }
+      if (typeof detail.balanceEpoch === "number" && detail.balanceEpoch > 0) {
+        patch.lastBalanceEpoch = detail.balanceEpoch;
+        setCurrentBalanceEpoch(detail.balanceEpoch);
       }
       if (Object.keys(patch).length === 0) return;
       stateRef.current = { ...stateRef.current, ...patch };
