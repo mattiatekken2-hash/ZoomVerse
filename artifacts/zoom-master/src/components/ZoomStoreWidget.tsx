@@ -1,5 +1,6 @@
 import { memo, useState, useCallback } from "react";
 import { haptic } from "../utils/haptic";
+import { useT } from "../i18n/LanguageContext";
 
 const STORE_GOLD = "#ffd700";
 const STORE_GLOW = "#ffe44d";
@@ -7,31 +8,10 @@ const STORE_DARK = "rgba(18,14,0,0.92)";
 
 /* ─── Catalogue ─────────────────────────────────────────────── */
 const PRODUCTS = [
-  {
-    id: "polo",
-    name: "ZOOM Polo Shirt",
-    tag: "OFFICIAL DROP",
-    desc: "Premium black polo with the iconic ZOOM logo embroidered on the chest. Web3-powered merch.",
-    price: 12_500_000,
-    emoji: "👕",
-  },
-  {
-    id: "mug",
-    name: "ZOOM Mug",
-    tag: "LIMITED EDITION",
-    desc: "Matte black ceramic mug. Start every morning with the ZOOM universe.",
-    price: 8_000_000,
-    emoji: "☕",
-  },
-  {
-    id: "cap",
-    name: "ZOOM Cap",
-    tag: "EXCLUSIVE",
-    desc: "Snapback cap with 3D embroidered ZOOM cube logo. One size fits all.",
-    price: 10_750_000,
-    emoji: "🧢",
-  },
-];
+  { id: "polo", price: 12_500_000, emoji: "👕" },
+  { id: "mug", price: 8_000_000, emoji: "☕" },
+  { id: "cap", price: 10_750_000, emoji: "🧢" },
+] as const;
 
 function fmtZoom(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1) + "M";
@@ -41,6 +21,8 @@ function fmtZoom(n: number): string {
 
 /* ─── "Coming soon" overlay ──────────────────────────────────── */
 function ComingSoonOverlay({ onClose }: { onClose: () => void }) {
+  const { t } = useT();
+
   return (
     <div
       onClick={onClose}
@@ -68,20 +50,19 @@ function ComingSoonOverlay({ onClose }: { onClose: () => void }) {
           color: STORE_GOLD, textShadow: `0 0 18px ${STORE_GLOW}88`,
           marginBottom: 8,
         }}>
-          COMING SOON
+          {t("zoomStore.comingSoon")}
         </div>
         <div style={{
           fontSize: 12, color: "rgba(255,220,80,0.6)",
-          lineHeight: 1.6, marginBottom: 24,
+          lineHeight: 1.6, marginBottom: 24, whiteSpace: "pre-line",
         }}>
-          Il pagamento con $ZOOM arriverà presto.{"\n"}
-          Grazie per supportare il movimento!
+          {t("zoomStore.comingSoonBody")}
         </div>
         <div style={{
           fontSize: 10, letterSpacing: "0.12em",
           color: "rgba(255,255,255,0.25)", marginBottom: 22,
         }}>
-          STORE.ZOOM.APP · POWERED BY WEB3
+          {t("zoomStore.comingSoonFoot")}
         </div>
         <button
           onClick={onClose}
@@ -94,7 +75,7 @@ function ComingSoonOverlay({ onClose }: { onClose: () => void }) {
             boxShadow: `0 0 18px ${STORE_GOLD}44`,
           }}
         >
-          OK, MI AVVISI!
+          {t("zoomStore.notifyOk")}
         </button>
       </div>
     </div>
@@ -103,6 +84,7 @@ function ComingSoonOverlay({ onClose }: { onClose: () => void }) {
 
 /* ─── Main widget ────────────────────────────────────────────── */
 function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [comingSoon, setComingSoon] = useState(false);
   // qty per product id
@@ -160,7 +142,7 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
       {/* ── Floating button ── */}
       <button
         onClick={() => { haptic(); setOpen(true); }}
-        aria-label="ZOOM Store"
+        aria-label={t("zoomStore.aria")}
         className="zs-btn-tile"
         style={shopMode ? {
           width: "100%",
@@ -219,7 +201,7 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
           <span style={{
             fontSize: 6, fontWeight: 900, color: STORE_GOLD,
             letterSpacing: "0.04em", lineHeight: 1, marginTop: -1,
-          }}>STORE</span>
+          }}>{t("zoomStore.store")}</span>
 
           {/* Cart badge */}
           {cartTotal > 0 && (
@@ -234,8 +216,8 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
         </div>
         {shopMode && (
           <div>
-            <div style={{ fontWeight: 900, fontSize: 13, letterSpacing: "0.08em", color: STORE_GOLD }}>ZOOM STORE</div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>Official merch · $ZOOM</div>
+            <div style={{ fontWeight: 900, fontSize: 13, letterSpacing: "0.08em", color: STORE_GOLD }}>{t("zoomStore.title")}</div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>{t("zoomStore.subtitle")}</div>
           </div>
         )}
       </button>
@@ -265,7 +247,7 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
             {/* Close */}
             <button
               onClick={() => setOpen(false)}
-              aria-label="Close"
+              aria-label={t("common.closeAria")}
               style={{
                 position: "absolute", top: 12, right: 12, zIndex: 10,
                 width: 32, height: 32, borderRadius: 8,
@@ -282,7 +264,7 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
             }}>
               <img
                 src={`${import.meta.env.BASE_URL}zoom-merch.png`}
-                alt="ZOOM Merch"
+                alt={t("zoomStore.title")}
                 style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
               />
               <div style={{
@@ -294,9 +276,9 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
                   fontFamily: "'Orbitron', 'Inter', sans-serif",
                   fontSize: 18, fontWeight: 900, letterSpacing: "0.2em",
                   color: STORE_GOLD, textShadow: `0 0 20px ${STORE_GOLD}99`,
-                }}>ZOOM STORE</div>
+                }}>{t("zoomStore.title")}</div>
                 <div style={{ fontSize: 9, color: "rgba(255,220,80,0.6)", letterSpacing: "0.12em", marginTop: 2 }}>
-                  OFFICIAL MERCH · PAY IN $ZOOM
+                  {t("zoomStore.heroSub")}
                 </div>
               </div>
             </div>
@@ -307,13 +289,13 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
               padding: "10px 18px", borderBottom: `1px solid ${STORE_GOLD}22`,
             }}>
               {[
-                { icon: "🌐", label: "WEB3 POWERED" },
-                { icon: "🛒", label: "OFFICIAL STORE" },
-                { icon: "💛", label: "PAY WITH ZOOM" },
-              ].map(({ icon, label }) => (
-                <div key={label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                { icon: "🌐", labelKey: "zoomStore.web3" },
+                { icon: "🛒", labelKey: "zoomStore.official" },
+                { icon: "💛", labelKey: "zoomStore.payZoom" },
+              ].map(({ icon, labelKey }) => (
+                <div key={labelKey} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
                   <span style={{ fontSize: 14 }}>{icon}</span>
-                  <span style={{ fontSize: 7, fontWeight: 800, letterSpacing: "0.06em", color: "rgba(255,215,0,0.45)" }}>{label}</span>
+                  <span style={{ fontSize: 7, fontWeight: 800, letterSpacing: "0.06em", color: "rgba(255,215,0,0.45)" }}>{t(labelKey)}</span>
                 </div>
               ))}
             </div>
@@ -324,7 +306,7 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
                 fontSize: 9, letterSpacing: "0.14em", fontWeight: 800,
                 color: "rgba(255,215,0,0.45)", marginBottom: 12, textAlign: "center",
               }}>
-                ── OFFICIAL MERCH DROP ──
+                {t("zoomStore.dropTitle")}
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -370,13 +352,13 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
                           background: `${STORE_GOLD}22`, border: `1px solid ${STORE_GOLD}44`,
                           color: STORE_GOLD, marginBottom: 4,
                         }}>
-                          {p.tag}
+                          {t(`zoomStore.product.${p.id}.tag`)}
                         </div>
                         <div style={{ fontSize: 12, fontWeight: 800, color: "#fff", marginBottom: 3 }}>
-                          {p.name}
+                          {t(`zoomStore.product.${p.id}.name`)}
                         </div>
                         <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", lineHeight: 1.5 }}>
-                          {p.desc}
+                          {t(`zoomStore.product.${p.id}.desc`)}
                         </div>
                       </div>
 
@@ -441,7 +423,7 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
                               transition: "all 0.2s",
                             }}
                           >
-                            {isAdded ? "✓ AGGIUNTO" : "🛒 AGGIUNGI"}
+                            {isAdded ? t("zoomStore.added") : t("zoomStore.addToCart")}
                           </button>
                         )}
                       </div>
@@ -466,7 +448,7 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
                         fontSize: 10, color: "rgba(255,255,255,0.65)",
                         marginBottom: 4,
                       }}>
-                        <span>{p.emoji} {p.name} × {cart[p.id]}</span>
+                        <span>{p.emoji} {t(`zoomStore.product.${p.id}.name`)} × {cart[p.id]}</span>
                         <span style={{ color: STORE_GOLD, fontWeight: 700 }}>
                           {fmtZoom((cart[p.id] ?? 0) * p.price)} $ZOOM
                         </span>
@@ -483,7 +465,7 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
                     alignItems: "center", marginBottom: 12,
                   }}>
                     <span style={{ fontSize: 11, fontWeight: 800, color: "rgba(255,255,255,0.55)", letterSpacing: "0.08em" }}>
-                      TOTALE ({cartTotal} {cartTotal === 1 ? "articolo" : "articoli"})
+                      {t(cartTotal === 1 ? "zoomStore.totalOne" : "zoomStore.totalMany", { n: cartTotal })}
                     </span>
                     <span style={{
                       fontSize: 15, fontWeight: 900, color: STORE_GOLD,
@@ -505,7 +487,7 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
                       boxShadow: `0 0 24px ${STORE_GOLD}44`,
                     }}
                   >
-                    💳 PAGA CON $ZOOM
+                    {t("zoomStore.checkout")}
                   </button>
                 </div>
               )}
@@ -514,10 +496,9 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
               <div style={{
                 marginTop: 14, textAlign: "center",
                 fontSize: 8, color: "rgba(255,215,0,0.25)",
-                lineHeight: 1.7, letterSpacing: "0.06em",
+                lineHeight: 1.7, letterSpacing: "0.06em", whiteSpace: "pre-line",
               }}>
-                🔒 Checkout sicuro · Ordini verificati on-chain{"\n"}
-                STORE.ZOOM.APP · GLOBAL COMMUNITY
+                {t("zoomStore.footer")}
               </div>
             </div>
           </div>
