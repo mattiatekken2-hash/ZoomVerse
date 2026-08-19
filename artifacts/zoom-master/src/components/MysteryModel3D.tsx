@@ -1535,7 +1535,13 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const scene = new THREE.Scene();
     if (showcase && !planetShowcase && !labCollectibleShowcase) scene.background = new THREE.Color(0x060810);
     else if (forgeSpaceMode) scene.background = null;
-    const camera = new THREE.PerspectiveCamera(showcase ? 38 : 42, canvasW / canvasH, 0.1, 100);
+    const labForgeZoomOut = labForgeBackdrop && forgeSpaceMode;
+    const camera = new THREE.PerspectiveCamera(
+      showcase ? 38 : labForgeZoomOut ? 48 : 42,
+      canvasW / canvasH,
+      0.1,
+      100,
+    );
     cameraRef.current = camera;
     const thumbHiFi = (planetShowcase || isLabFarmThumb) && (thumbHiQuality ?? size >= PLANET_THUMB_HIFI_MIN);
     // Farm lab-voxel thumbs: 1:1 canvas like Lab forge — sharp squares via DPR, not supersample downscale.
@@ -2010,11 +2016,17 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     } else if (forgeSpaceMode) {
       groundExtras = addForgeSpaceGrid(scene, maxDim);
     }
-    camera.position.set(
-      maxDim * (planetShowcase ? 1.28 : labCollectibleShowcase ? 1.35 : showcase ? 1.22 : 1.35),
-      maxDim * (planetShowcase ? 0.75 : labCollectibleShowcase ? 0.95 : showcase ? 0.82 : 0.95),
-      maxDim * (planetShowcase ? 1.55 : labCollectibleShowcase ? 1.7 : showcase ? 1.48 : 1.7),
-    );
+    const labForgeCamDir = new THREE.Vector3(1.35, 0.95, 1.7).normalize();
+    const labForgeCamFar = maxDim * 4.5;
+    if (labForgeZoomOut) {
+      camera.position.copy(labForgeCamDir).multiplyScalar(labForgeCamFar);
+    } else {
+      camera.position.set(
+        maxDim * (planetShowcase ? 1.28 : labCollectibleShowcase ? 1.35 : showcase ? 1.22 : 1.35),
+        maxDim * (planetShowcase ? 0.75 : labCollectibleShowcase ? 0.95 : showcase ? 0.82 : 0.95),
+        maxDim * (planetShowcase ? 1.55 : labCollectibleShowcase ? 1.7 : showcase ? 1.48 : 1.7),
+      );
+    }
     camera.lookAt(0, 0, 0);
 
     const glbUrl = shapeId && isStaticShowcase && !pixelMode ? getShapeGlbUrl(shapeId) : null;
@@ -2063,8 +2075,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     controls.enablePan = false;
     controls.enableZoom = interactive;
     controls.enableRotate = interactive;
-    controls.minDistance = maxDim * 1.1;
-    controls.maxDistance = maxDim * 4;
+    controls.minDistance = maxDim * (labForgeZoomOut ? 2.4 : 1.1);
+    controls.maxDistance = labForgeZoomOut ? labForgeCamFar : maxDim * 4;
     controls.enableDamping = !performanceMode;
     controls.dampingFactor = performanceMode ? 0 : 0.08;
     controls.target.set(0, 0, 0);
