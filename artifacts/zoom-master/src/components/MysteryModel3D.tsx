@@ -2205,8 +2205,12 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     let revealVisualBaked = false;
     const VOXEL_PARTICLE_MS = 520;
     const particleLandMs = () => (forgeTapRelaxed ? 900 : VOXEL_PARTICLE_MS) * 0.68;
-    const forgePopMs = () => (forgeTapRelaxed ? 95 : 85);
-    const forgeFlyMs = () => (forgeTapRelaxed ? 300 : 340);
+    const forgePopMs = () => (forgeTapRelaxed ? 180 : 85);
+    const forgeFlyMs = () => (forgeTapRelaxed ? 520 : 340);
+    const forgeFlyDistMul = () => (forgeTapRelaxed ? 3.15 : 2.8);
+    const smoothStep = (t: number) => t * t * (3 - 2 * t);
+    /** Ease-out: slow gentle landing — feels more relaxed than symmetric smoothstep. */
+    const relaxedEaseOut = (t: number, power = 2.35) => 1 - Math.pow(1 - t, power);
     const smoothProgressRef = { current: progress };
     const clayDark = new THREE.Color(FORGE_CLAY);
     const clayLight = new THREE.Color(0xffffff);
@@ -2456,11 +2460,15 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
             const popT = isFlyingIn
               ? Math.min(1, sinceFly / forgePopMs())
               : 1;
-            const popEase = popT * popT * (3 - 2 * popT);
             const flyT = isFlyingIn
               ? Math.min(1, sinceFly / forgeFlyMs())
               : 1;
-            const flyEase = flyT * flyT * (3 - 2 * flyT);
+            const popEase = isFlyingIn
+              ? (forgeTapRelaxed ? relaxedEaseOut(popT, 2) : smoothStep(popT))
+              : 1;
+            const flyEase = isFlyingIn
+              ? (forgeTapRelaxed ? relaxedEaseOut(flyT, 2.35) : smoothStep(flyT))
+              : 1;
             if (isFlyingIn && flyT >= 1) flyDoneIdx.push(i);
             const lock = useLabTapPlacement
               ? Math.min(popEase, flyEase)
@@ -2472,12 +2480,13 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
             if (useLabTapPlacement && isFlyingIn && flyT < 1 && camera) {
               const camDir = new THREE.Vector3();
               camera.getWorldDirection(camDir);
-              const flyDist = forgeSphereRadius * 2.8 * (1 - flyEase);
+              const flyDist = forgeSphereRadius * forgeFlyDistMul() * (1 - flyEase);
               voxelDummy.position.copy(forgePosScratch).sub(camDir.multiplyScalar(flyDist));
             } else {
               voxelDummy.position.set(forgePosScratch.x, forgePosScratch.y + drop, forgePosScratch.z);
             }
-            voxelDummy.scale.setScalar(Math.max(0.04, lock * cubeSeal));
+            const minFlyScale = forgeTapRelaxed ? 0.02 : 0.04;
+            voxelDummy.scale.setScalar(Math.max(minFlyScale, lock * cubeSeal));
             voxelDummy.rotation.set(0, 0, 0);
             voxelDummy.updateMatrix();
             voxMesh.setMatrixAt(visibleCount, voxelDummy.matrix);
