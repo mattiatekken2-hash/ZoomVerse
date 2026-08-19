@@ -3,19 +3,19 @@
 import { useEffect, useState } from "react";
 import { subscribeSplashProgress } from "../utils/bootSplash";
 
-/** Fade out and remove the pre-React HTML splash (index.html). */
+/** Remove every splash layer so the game is always visible after boot. */
 export function hideHtmlSplash() {
   try {
     const w = window as unknown as { __hideHtmlSplash?: () => void };
     if (typeof w.__hideHtmlSplash === "function") {
       w.__hideHtmlSplash();
-      return;
     }
   } catch { /**/ }
-  const splash = document.getElementById("splash-screen");
-  if (!splash || splash.classList.contains("hidden")) return;
-  splash.classList.add("hidden");
-  window.setTimeout(() => splash.remove(), 400);
+
+  document.querySelectorAll("#splash-screen, .zoom-splash-screen").forEach((el) => {
+    el.classList.add("hidden");
+    window.setTimeout(() => el.remove(), 300);
+  });
 }
 
 interface BootSplashOverlayProps {
@@ -23,7 +23,7 @@ interface BootSplashOverlayProps {
 }
 
 /** Full-screen loading overlay — rendered inline (no portal) for WebView reliability. */
-export function BootSplashOverlay({ subtitle = "Season 3" }: Omit<BootSplashOverlayProps, "onComplete">) {
+export function BootSplashOverlay({ subtitle = "Season 3" }: BootSplashOverlayProps) {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => subscribeSplashProgress(setProgress), []);
