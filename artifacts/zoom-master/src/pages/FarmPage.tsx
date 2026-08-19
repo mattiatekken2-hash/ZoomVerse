@@ -89,6 +89,8 @@ interface FarmPageProps {
   onUpgradeCollectionDuration?: (collectionType: "white" | "earth" | "black" | "supernova" | "stella_rossa", hours: number) => Promise<{ ok: boolean; error?: string }>;
   /** False when another tab is active — releases Farm WebGL contexts for Lab. */
   visible?: boolean;
+  /** Warm WebGL thumbs during boot splash so FARM opens instantly. */
+  prewarm?: boolean;
 }
 
 interface SellPopup {
@@ -142,6 +144,7 @@ export function FarmPage({
   onMarkStellaRossaPlanetReactivated,
   onUpgradeCollectionDuration,
   visible = true,
+  prewarm = false,
 }: FarmPageProps) {
   const { t } = useT();
   const sunMultiplier = Math.max(1, sunCount || (sun?.isOwned ? 1 : 0));
@@ -441,7 +444,7 @@ export function FarmPage({
             <SunFarmInventoryCard
               sun={sun}
               sunMultiplier={sunMultiplier}
-              suspendGl={!!detailPlanet || !!sunDetailOpen || !visible}
+              suspendGl={!!detailPlanet || !!sunDetailOpen || (!visible && !prewarm)}
               onCardClick={() => setSunDetailOpen(true)}
               onStartFarm={handleSunStartOrReactivate}
             />
@@ -463,7 +466,8 @@ export function FarmPage({
                 key={planet.id}
                 planet={planet}
                 variant="grid"
-                suspendGl={!!detailPlanet || !visible}
+                suspendGl={!!detailPlanet || (!visible && !prewarm)}
+                eagerThumb={visible || prewarm}
                 testId={`planet-card-${planet.id}`}
                 onCardClick={() => setDetailPlanet(planet)}
                 onStartFarm={handleStartOrReactivate}

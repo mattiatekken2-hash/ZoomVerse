@@ -23,6 +23,10 @@ import { FlaskConical, Home, Sprout, ShoppingCart, Gem, Trophy, Wallet, type Luc
 import { WalletPage } from "./pages/WalletPage";
 import { SplashScreen, hideHtmlSplash } from "./components/SplashScreen";
 import { isBrowserDevSession } from "./utils/telegram";
+import { fetchTonPrice } from "./utils/tonPrice";
+
+const SPLASH_MIN_MS = 6000;
+const PREWARM_TABS_AT_MS = 3200;
 
 const MAINTENANCE_ADMIN_IDS = ["8144744644", "@zoom0100", "zoom0100"];
 
@@ -347,14 +351,24 @@ function AppShellWithState() {
       window.removeEventListener("zoom-admin-refresh", onAdmin);
     };
   }, []);
+  const globalReady = useGlobalStore((s) => s.initialized);
   const isAdmin = isMaintenanceAdmin(state.telegramId);
   const showMaintenance = maintenance.enabled && !isAdmin;
   const showSplash = !maintChecked && !isAdmin;
   const [splashMinDone, setSplashMinDone] = useState(false);
+  const [prewarmTabs, setPrewarmTabs] = useState(false);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setSplashMinDone(true), 3500);
-    return () => window.clearTimeout(timer);
+    void fetchTonPrice();
+  }, []);
+
+  useEffect(() => {
+    const prewarmTimer = window.setTimeout(() => setPrewarmTabs(true), PREWARM_TABS_AT_MS);
+    const doneTimer = window.setTimeout(() => setSplashMinDone(true), SPLASH_MIN_MS);
+    return () => {
+      window.clearTimeout(prewarmTimer);
+      window.clearTimeout(doneTimer);
+    };
   }, []);
 
   useEffect(() => {
@@ -362,18 +376,18 @@ function AppShellWithState() {
       hideHtmlSplash();
       return;
     }
-    if (maintChecked && splashMinDone) {
+    if (maintChecked && splashMinDone && globalReady) {
       hideHtmlSplash();
     }
-  }, [isAdmin, maintChecked, splashMinDone]);
+  }, [isAdmin, maintChecked, splashMinDone, globalReady]);
 
-  const showBootSplash = !isAdmin && (showSplash || !splashMinDone);
+  const showBootSplash = !isAdmin && (showSplash || !splashMinDone || !globalReady);
 
   const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
   const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate * Math.max(1, state.sunCount || 1) : 0;
   const totalRate = planetRate + sunRate;
 
-  const visitedTabs = useMemo(() => new Set<Tab>(["lab"]), []);
+  const visitedTabs = useMemo(() => new Set<Tab>(["lab", "farm", "wallet"]), []);
   if (!visitedTabs.has(tab)) visitedTabs.add(tab);
 
   const switchTab = (nextTab: Tab) => {
@@ -700,13 +714,19 @@ function AppShellWithState() {
 
   // Wait for a confirmed server maintenance check before showing the game UI.
   // (Cached "maintenance off" is never trusted — see maintChecked above.)
-  if (showBootSplash) {
-    return <SplashScreen />;
-  }
-
   return (
     <TonConnectUIProvider manifestUrl={MANIFEST_URL}>
-    <div className="flex flex-col overflow-hidden relative" style={{ height: "100dvh", background: "#000000", paddingTop: tab === "lab" ? 0 : "env(safe-area-inset-top, 0px)", paddingBottom: tab === "lab" ? 0 : "env(safe-area-inset-bottom, 0px)" }}>
+      {showBootSplash && <SplashScreen />}
+      <div
+        className="flex flex-col overflow-hidden relative"
+        style={{
+          height: "100dvh",
+          background: "#000000",
+          paddingTop: tab === "lab" ? 0 : "env(safe-area-inset-top, 0px)",
+          paddingBottom: tab === "lab" ? 0 : "env(safe-area-inset-bottom, 0px)",
+          visibility: showBootSplash ? "hidden" : "visible",
+        }}
+      >
       <NebulaBackground />
       {isAdmin && maintenance.enabled && (
         <div
@@ -779,6 +799,7 @@ function AppShellWithState() {
               {t === "farm" && (
                 <FarmPage
                   visible={tab === "farm"}
+                  prewarm={prewarmTabs}
                   planets={state.planets}
                   sun={state.sun}
                   sunCount={state.sunCount}
