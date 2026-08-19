@@ -27,7 +27,6 @@ import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
 
 const SPLASH_MIN_MS = 6000;
-const PREWARM_TABS_AT_MS = 3200;
 
 const MAINTENANCE_ADMIN_IDS = ["8144744644", "@zoom0100", "zoom0100"];
 
@@ -357,22 +356,14 @@ function AppShellWithState() {
   const showMaintenance = maintenance.enabled && !isAdmin;
   const showSplash = !maintChecked && !isAdmin;
   const [splashMinDone, setSplashMinDone] = useState(false);
-  const [prewarmTabs, setPrewarmTabs] = useState(false);
 
   useEffect(() => {
     void fetchTonPrice();
   }, []);
 
   useEffect(() => {
-    if (!state.telegramId) return;
-    void prefetchShopData(state.telegramId);
-  }, [state.telegramId]);
-
-  useEffect(() => {
-    const prewarmTimer = window.setTimeout(() => setPrewarmTabs(true), PREWARM_TABS_AT_MS);
     const doneTimer = window.setTimeout(() => setSplashMinDone(true), SPLASH_MIN_MS);
     return () => {
-      window.clearTimeout(prewarmTimer);
       window.clearTimeout(doneTimer);
     };
   }, []);
@@ -389,11 +380,16 @@ function AppShellWithState() {
 
   const showBootSplash = !isAdmin && (showSplash || !splashMinDone || !globalReady);
 
+  useEffect(() => {
+    if (!state.telegramId || showBootSplash) return;
+    void prefetchShopData(state.telegramId);
+  }, [state.telegramId, showBootSplash]);
+
   const planetRate = state.planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
   const sunRate = state.sun && isSunActive(state.sun) ? SUN_CONFIG.rate * Math.max(1, state.sunCount || 1) : 0;
   const totalRate = planetRate + sunRate;
 
-  const visitedTabs = useMemo(() => new Set<Tab>(["lab", "farm", "wallet", "shop"]), []);
+  const visitedTabs = useMemo(() => new Set<Tab>(["lab", "farm", "wallet"]), []);
   if (!visitedTabs.has(tab)) visitedTabs.add(tab);
 
   const switchTab = (nextTab: Tab) => {
@@ -804,7 +800,6 @@ function AppShellWithState() {
               {t === "farm" && (
                 <FarmPage
                   visible={tab === "farm"}
-                  prewarm={prewarmTabs}
                   planets={state.planets}
                   sun={state.sun}
                   sunCount={state.sunCount}
