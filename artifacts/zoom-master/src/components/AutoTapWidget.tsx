@@ -163,7 +163,7 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
           position: "fixed",
           // Immersive Lab: nav overlays the canvas — sit just above the forge row.
           left: 12,
-          bottom: "calc(env(safe-area-inset-bottom, 0px) + 132px)",
+          bottom: "calc(env(safe-area-inset-bottom, 0px) + 78px + 168px)",
           width: 52,
           height: 52,
           borderRadius: "50%",

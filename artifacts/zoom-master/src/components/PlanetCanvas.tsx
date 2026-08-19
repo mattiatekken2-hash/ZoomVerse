@@ -26,6 +26,8 @@ interface PlanetCanvasProps {
   backdrop?: boolean;
   /** Bottom inset for progress bar when backdrop overlays nav chrome. */
   chromeBottomOffset?: string;
+  /** Hide built-in progress bar (e.g. Lab renders it in the bottom chrome stack). */
+  suppressProgressBar?: boolean;
 }
 
 const DEFAULT_ACCENT = "#8892b0";
@@ -59,13 +61,14 @@ function awayFromCenter(x: number, y: number, half: number): { x: number; y: num
   return { x: Math.cos(a) * r, y: Math.sin(a) * r };
 }
 
-const ForgeProgressBar = memo(function ForgeProgressBar({
+export const ForgeProgressBar = memo(function ForgeProgressBar({
   progress,
   goal,
   pct,
   displayAccent,
   label,
   bottomOffset,
+  inline = false,
 }: {
   progress: number;
   goal: number;
@@ -73,11 +76,12 @@ const ForgeProgressBar = memo(function ForgeProgressBar({
   displayAccent: string;
   label: string;
   bottomOffset?: string;
+  inline?: boolean;
 }) {
   return (
     <div
-      className="absolute left-0 right-0 px-6 pb-2 pt-4 z-10"
-      style={bottomOffset ? { bottom: bottomOffset } : { bottom: 0 }}
+      className={inline ? "relative w-full px-1 pt-1 z-10" : "absolute left-0 right-0 px-6 pb-2 pt-4 z-10"}
+      style={inline ? undefined : (bottomOffset ? { bottom: bottomOffset } : { bottom: 0 })}
     >
       <div className="flex justify-between text-xs mb-1.5">
         <span className="font-semibold tracking-wider uppercase" style={{ color: "rgba(255,255,255,0.4)" }}>
@@ -334,6 +338,7 @@ export function PlanetCanvas({
   forgeRolling = false,
   backdrop = false,
   chromeBottomOffset,
+  suppressProgressBar = false,
 }: PlanetCanvasProps) {
   const { t } = useT();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -616,7 +621,7 @@ export function PlanetCanvas({
         )}
       </div>
 
-      {isForging && (
+      {isForging && !suppressProgressBar && (
         <ForgeProgressBar
           progress={progress}
           goal={goal}

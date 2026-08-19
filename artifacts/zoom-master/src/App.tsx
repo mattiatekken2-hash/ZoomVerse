@@ -353,7 +353,7 @@ function AppShellWithState() {
   const [splashMinDone, setSplashMinDone] = useState(false);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setSplashMinDone(true), 1200);
+    const timer = window.setTimeout(() => setSplashMinDone(true), 3500);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -763,10 +763,14 @@ function AppShellWithState() {
                   hasAutoTap={!!state.hasAutoTap}
                   stardustBalance={state.stardustBalance || 0}
                   telegramId={state.telegramId}
+                  totalTaps={state.totalTaps || 0}
+                  profilePhotoUrl={displayProfile.photoUrl}
+                  profileName={displayProfile.name}
                   onCraft={craft}
                   onClaim={claimCraft}
                   onOpenHistory={() => setHistoryOpen(true)}
                   onOpenShop={() => switchTab("shop")}
+                  onOpenProfile={() => setProfileModalOpen(true)}
                   muted={muted}
                   setMuted={setMuted}
                   visible={tab === "lab"}
