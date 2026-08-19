@@ -1248,12 +1248,10 @@ function AppShellWithState() {
 
       {/* ── PROFILE MODAL ── click avatar → pixel art popup */}
       {profileModalOpen && (() => {
-        const createdAt = Number(profile?.createdAt ?? 0);
-        const msElapsed = createdAt > 0 ? Date.now() - createdAt : 0;
-        const days = Math.floor(msElapsed / 86400000);
-        const hours = Math.floor((msElapsed % 86400000) / 3600000);
-        const timeStr = (createdAt as number) > 0
-          ? days > 0 ? `${days}d ${hours}h` : `${hours}h`
+        const CYAN = "#9EC5E8";
+        const createdMs = profile?.createdAt ? new Date(profile.createdAt).getTime() : 0;
+        const memberDate = createdMs > 0
+          ? new Date(createdMs).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })
           : "—";
         return (
           <div
@@ -1270,10 +1268,10 @@ function AppShellWithState() {
               style={{
                 maxWidth: 340, width: "100%",
                 background: "linear-gradient(160deg, rgba(10,8,20,0.99) 0%, rgba(4,4,12,0.99) 100%)",
-                border: "1px solid rgba(255,51,85,0.3)",
+                border: "1px solid rgba(158,197,232,0.35)",
                 borderRadius: 18,
                 padding: "22px 18px 18px",
-                boxShadow: "0 0 50px rgba(255,51,85,0.15), 0 0 100px rgba(0,0,0,0.5)",
+                boxShadow: "0 0 50px rgba(158,197,232,0.12), 0 0 100px rgba(0,0,0,0.5)",
               }}
             >
               {/* Pixel art avatar header */}
@@ -1281,15 +1279,15 @@ function AppShellWithState() {
                 <div style={{
                   width: 52, height: 52, borderRadius: "50%", margin: "0 auto 8px",
                   overflow: "hidden",
-                  border: "2px solid rgba(255,51,85,0.5)",
-                  boxShadow: "0 0 16px rgba(255,51,85,0.35)",
-                  background: "rgba(255,51,85,0.08)",
+                  border: "2px solid rgba(158,197,232,0.5)",
+                  boxShadow: "0 0 16px rgba(158,197,232,0.35)",
+                  background: "rgba(158,197,232,0.08)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
                   {displayProfile.photoUrl ? (
                     <img src={displayProfile.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} referrerPolicy="no-referrer" />
                   ) : (
-                    <span style={{ color: "#ff3355", fontSize: 20, fontWeight: 900 }}>
+                    <span style={{ color: CYAN, fontSize: 20, fontWeight: 900 }}>
                       {(displayProfile.name?.trim()?.[0] || "★").toUpperCase()}
                     </span>
                   )}
@@ -1297,8 +1295,8 @@ function AppShellWithState() {
                 <div style={{ fontSize: 13, fontWeight: 900, color: "rgba(255,255,255,0.85)", marginBottom: 2 }}>
                   {displayProfile.name || t("profile.player")}
                 </div>
-                <div style={{ fontSize: 9, color: "rgba(255,51,85,0.6)", letterSpacing: "0.12em", textTransform: "uppercase" }}>
-                  {t("profile.memberFor", { time: timeStr })}
+                <div style={{ fontSize: 9, color: "rgba(158,197,232,0.75)", letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                  {t("profile.memberSince", { date: memberDate })}
                 </div>
               </div>
 

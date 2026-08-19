@@ -185,7 +185,6 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
               )}
               {leaderboard.slice(0, 10).map((entry) => {
                 const isUser = !!telegramId && entry.telegramId === telegramId;
-                const medal = entry.rank === 1 ? "🥇" : entry.rank === 2 ? "🥈" : entry.rank === 3 ? "🥉" : null;
                 return (
                   <div
                     key={entry.telegramId}
@@ -196,7 +195,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                     }}
                   >
                     <div className="font-black text-sm w-7 text-center flex-shrink-0" style={{ color: isUser ? "#E8ECF4" : "rgba(255,255,255,0.28)" }}>
-                      {medal ?? `#${entry.rank}`}
+                      #{entry.rank}
                     </div>
                     {entry.photoUrl ? (
                       <img
