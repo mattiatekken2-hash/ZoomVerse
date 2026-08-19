@@ -186,6 +186,26 @@ export function PlanetVoxelThumb({
     return () => io.disconnect();
   }, [eager]);
 
+  /** Tabs mount on demand — re-check layout when GL resumes after tab switch. */
+  useEffect(() => {
+    if (suspendGl || eager) return;
+    const el = rootRef.current;
+    if (!el) return;
+    const check = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight) {
+        setInView(true);
+      }
+    };
+    check();
+    const raf = requestAnimationFrame(check);
+    const t = window.setTimeout(check, 64);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(t);
+    };
+  }, [suspendGl, eager]);
+
   useEffect(() => {
     if (!inView || glDelayMs <= 0) {
       setDelayReady(true);

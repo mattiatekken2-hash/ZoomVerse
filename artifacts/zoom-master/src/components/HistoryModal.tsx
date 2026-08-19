@@ -30,14 +30,20 @@ const REDSTAR_KINDS = new Set([
   "pvp_redstar_prize",
 ]);
 
+function isRedstarEntry(entry: HistoryEntry): boolean {
+  if (REDSTAR_KINDS.has(entry.kind) || entry.currency === "redstar") return true;
+  const meta = entry.meta as { asset?: string } | null | undefined;
+  return meta?.asset === "redstar";
+}
+
 type CurrencyVisual = { glyph: string; tint: string; useGramIcon?: boolean };
 
 function currencyVisual(entry: HistoryEntry): CurrencyVisual {
   if (GRAM_KINDS.has(entry.kind) || entry.currency === "ton") {
     return { glyph: "", tint: "#00f2b4", useGramIcon: true };
   }
-  if (REDSTAR_KINDS.has(entry.kind) || entry.currency === "redstar") {
-    return { glyph: "★", tint: "#ff4444" };
+  if (isRedstarEntry(entry)) {
+    return { glyph: "★", tint: "#ff2244" };
   }
   if (STARDUST_KINDS.has(entry.kind) || entry.currency === "stardust") {
     return { glyph: "★", tint: "#ffd740" };
@@ -61,7 +67,7 @@ function formatAmount(delta: number, currency: HistoryCurrency): string {
   const abs = Math.abs(delta);
   const formatted = currency === "ton"
     ? abs.toLocaleString(undefined, { maximumFractionDigits: 4 })
-    : currency === "stardust" || currency === "stars" || currency === "spins" || currency === "planet"
+    : currency === "stardust" || currency === "redstar" || currency === "stars" || currency === "spins" || currency === "planet"
       ? Math.round(abs).toLocaleString()
       : abs.toLocaleString(undefined, { maximumFractionDigits: 2 });
   return `${sign}${formatted}`;

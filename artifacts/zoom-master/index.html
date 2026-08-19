@@ -137,8 +137,8 @@
         setTimeout(function() {
           if (window.__zoomReactBooted) return;
           var sub = splash && splash.querySelector('.splash-sub');
-          if (sub) sub.textContent = 'Caricamento in corso…';
-        }, 6000);
+          if (sub) sub.textContent = 'Caricamento…';
+        }, 900);
 
         setTimeout(function() {
           var splashVisible = splash && !splash.classList.contains('hidden');

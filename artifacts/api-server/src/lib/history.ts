@@ -11,6 +11,7 @@ export type HistoryCurrency =
   | "zoom"
   | "ton"
   | "stardust"
+  | "redstar"
   | "stars"
   | "spins"
   | "planet"

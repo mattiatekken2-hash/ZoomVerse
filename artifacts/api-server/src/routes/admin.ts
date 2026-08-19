@@ -888,6 +888,13 @@ router.post("/admin/credit-redstar", async (req, res) => {
         },
       });
     res.json({ ok: true });
+    recordHistoryAsync({
+      telegramId,
+      kind: "admin_reward",
+      delta: amount,
+      currency: "redstar",
+      meta: { adminId: parsed.data.adminId, asset: "redstar" },
+    });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
   }
@@ -909,6 +916,13 @@ router.post("/admin/remove-redstar", async (req, res) => {
       })
       .where(sql`${usersTable.telegramId} = ${telegramId}`);
     res.json({ ok: true });
+    recordHistoryAsync({
+      telegramId,
+      kind: "admin_remove",
+      delta: -amount,
+      currency: "redstar",
+      meta: { adminId: parsed.data.adminId, asset: "redstar" },
+    });
   } catch (err) {
     res.status(500).json({ error: "Database error" });
   }
