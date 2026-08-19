@@ -1,8 +1,7 @@
 /** Boot splash — full-screen overlay for a fixed duration, then the game appears. */
 
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { SPLASH_MS } from "../utils/bootSplash";
+import { useEffect, useState } from "react";
+import { subscribeSplashProgress } from "../utils/bootSplash";
 
 /** Fade out and remove the pre-React HTML splash (index.html). */
 export function hideHtmlSplash() {
@@ -21,37 +20,13 @@ export function hideHtmlSplash() {
 
 interface BootSplashOverlayProps {
   subtitle?: string;
-  onComplete: () => void;
 }
 
-function BootSplashOverlayInner({ subtitle = "Season 3", onComplete }: BootSplashOverlayProps) {
+/** Full-screen loading overlay — rendered inline (no portal) for WebView reliability. */
+export function BootSplashOverlay({ subtitle = "Season 3" }: Omit<BootSplashOverlayProps, "onComplete">) {
   const [progress, setProgress] = useState(0);
-  const onCompleteRef = useRef(onComplete);
-  onCompleteRef.current = onComplete;
 
-  useEffect(() => {
-    let raf = 0;
-    let done = false;
-    const start = performance.now();
-
-    const tick = (now: number) => {
-      const elapsed = now - start;
-      const pct = Math.min(1, elapsed / SPLASH_MS);
-      setProgress(pct);
-
-      if (elapsed >= SPLASH_MS) {
-        if (!done) {
-          done = true;
-          onCompleteRef.current();
-        }
-        return;
-      }
-      raf = requestAnimationFrame(tick);
-    };
-
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
+  useEffect(() => subscribeSplashProgress(setProgress), []);
 
   return (
     <div
@@ -81,10 +56,4 @@ function BootSplashOverlayInner({ subtitle = "Season 3", onComplete }: BootSplas
   );
 }
 
-/** Full-screen loading overlay — portaled above the entire app. */
-export function BootSplashOverlay(props: BootSplashOverlayProps) {
-  if (typeof document === "undefined") return null;
-  return createPortal(<BootSplashOverlayInner {...props} />, document.body);
-}
-
-export { SPLASH_MS };
+export { SPLASH_MS } from "../utils/bootSplash";

@@ -1,4 +1,5 @@
 import { createRoot } from "react-dom/client";
+import "./utils/bootSplash";
 import App from "./App";
 import "./index.css";
 import { hapticLight } from "./utils/haptic";
