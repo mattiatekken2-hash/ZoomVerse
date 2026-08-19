@@ -22,6 +22,7 @@ import { useStardust } from "./hooks/useStardust";
 import { FlaskConical, Home, Sprout, ShoppingCart, Gem, Trophy, Wallet, type LucideIcon } from "lucide-react";
 import { WalletPage } from "./pages/WalletPage";
 import { hideHtmlSplash, BootSplashOverlay } from "./components/SplashScreen";
+import { isSplashFinished, subscribeSplashDone } from "./utils/bootSplash";
 import { isBrowserDevSession } from "./utils/telegram";
 import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
@@ -78,15 +79,26 @@ function BootSplashGate() {
   const { t } = useT();
   const skipSplash =
     isMaintenanceAdmin(getEarlyTelegramId()) || !!readMaintCache()?.enabled;
-  const [splashDone, setSplashDone] = useState(skipSplash);
+  const [splashDone, setSplashDone] = useState(() => skipSplash || isSplashFinished());
 
   const finishSplash = useCallback(() => {
     setSplashDone(true);
     hideHtmlSplash();
   }, []);
 
+  useEffect(() => {
+    if (splashDone) return;
+    const onDone = () => finishSplash();
+    window.addEventListener("zoom-splash-done", onDone);
+    const unsub = subscribeSplashDone(finishSplash);
+    return () => {
+      window.removeEventListener("zoom-splash-done", onDone);
+      unsub();
+    };
+  }, [splashDone, finishSplash]);
+
   if (!splashDone) {
-    return <BootSplashOverlay subtitle={t("splash.subtitle")} onComplete={finishSplash} />;
+    return <BootSplashOverlay subtitle={t("splash.subtitle")} />;
   }
 
   return <AppShellWithState />;
