@@ -1,8 +1,9 @@
 import type { Lang } from "./translations";
+import { WIDGET_I18N } from "./localeExtrasWidgets";
 
 type Dict = Record<string, string>;
 
-export const LOCALE_EXTRAS: Record<Lang, Dict> = {
+const BASE_LOCALE_EXTRAS: Record<Lang, Dict> = {
   en: {
     "common.closeAria": "Close",
     "common.max": "MAX",
@@ -943,4 +944,13 @@ export const LOCALE_EXTRAS: Record<Lang, Dict> = {
     "farm.sunStartReactivate": "START / REACTIVATE",
     "farm.exclusive": "EXCLUSIVE",
   },
+};
+
+export const LOCALE_EXTRAS: Record<Lang, Dict> = {
+  en: { ...BASE_LOCALE_EXTRAS.en, ...WIDGET_I18N.en },
+  it: { ...BASE_LOCALE_EXTRAS.it, ...WIDGET_I18N.it },
+  ru: { ...BASE_LOCALE_EXTRAS.ru, ...WIDGET_I18N.ru },
+  uk: { ...BASE_LOCALE_EXTRAS.uk, ...WIDGET_I18N.uk },
+  es: { ...BASE_LOCALE_EXTRAS.es, ...WIDGET_I18N.es },
+  fil: { ...BASE_LOCALE_EXTRAS.fil, ...WIDGET_I18N.fil },
 };

@@ -9,6 +9,7 @@ import {
   type V1NftPlatinumStock,
   type V1NftStardustStatus,
 } from "../utils/api";
+import { useT } from "../i18n/LanguageContext";
 
 // Format a seconds-to-ready countdown as "Xh Ym" (or "Ym" under an hour).
 function fmtCountdown(secs: number): string {
@@ -37,6 +38,7 @@ interface Props {
 }
 
 function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
+  const { t } = useT();
   const [tonConnectUI] = useTonConnectUI();
   const connectedAddress = useTonAddress();
   const [open, setOpen] = useState(false);
@@ -78,14 +80,14 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
     setClaiming(true);
     const r = await claimV1NftStardust(telegramId);
     if (r.ok) {
-      setMessage(`+${r.reward ?? 25} Stardust claimed!`);
+      setMessage(t("v1Nft.claimed", { n: r.reward ?? 25 }));
       window.dispatchEvent(new Event("stardust-refresh"));
     } else if (r.error === "NOT_READY") {
-      setMessage(`Next claim in ${fmtCountdown(r.secondsToReady ?? 0)}`);
+      setMessage(t("v1Nft.notReady", { time: fmtCountdown(r.secondsToReady ?? 0) }));
     } else if (r.error === "NOT_OWNED") {
-      setMessage("You don't own the V1 NFT planet");
+      setMessage(t("v1Nft.notOwned"));
     } else {
-      setMessage("Claim failed, try again");
+      setMessage(t("v1Nft.claimFailed"));
     }
     await refreshSdStatus();
     if (aliveRef.current) setClaiming(false);
@@ -110,10 +112,10 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
 
   const handleBuy = async () => {
     if (disabled) return;
-    if (!telegramId) { setMessage("Telegram ID missing"); return; }
+    if (!telegramId) { setMessage(t("v1Nft.telegramMissing")); return; }
     if (!connectedAddress) {
       tonConnectUI.openModal();
-      setMessage("Connect your wallet first");
+      setMessage(t("v1Nft.connectWallet"));
       return;
     }
     setBuying(true);
@@ -127,27 +129,27 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
       const boc = txResult.boc || "";
       const confirmResult = await confirmTonPurchase(telegramId, "v1_nft_platinum", connectedAddress, tonPrice, boc);
       if (confirmResult.alreadyCredited) {
-        setMessage("V1 NFT purchased!");
+        setMessage(t("v1Nft.purchased"));
         window.dispatchEvent(new Event("zoom-data-refresh"));
       } else if (confirmResult.pending && confirmResult.txnId) {
-        setMessage("Verifying payment on-chain…");
+        setMessage(t("v1Nft.verifying"));
         const final = await pollTxnUntilFinal(confirmResult.txnId);
         if (final?.status === "completed") {
-          setMessage("V1 NFT purchased!");
+          setMessage(t("v1Nft.purchased"));
           window.dispatchEvent(new Event("zoom-data-refresh"));
         } else if (final?.status === "failed") {
-          setMessage("Payment not detected. Contact support if GRAM was sent.");
+          setMessage(t("v1Nft.paymentNotDetected"));
         } else {
-          setMessage("Awaiting confirmation. The NFT will appear once verified.");
+          setMessage(t("v1Nft.awaitingConfirm"));
           window.dispatchEvent(new Event("zoom-data-refresh"));
           setTimeout(() => window.dispatchEvent(new Event("zoom-data-refresh")), 90_000);
           setTimeout(() => window.dispatchEvent(new Event("zoom-data-refresh")), 150_000);
         }
       } else if (confirmResult.ok) {
-        setMessage("V1 NFT purchased!");
+        setMessage(t("v1Nft.purchased"));
         window.dispatchEvent(new Event("zoom-data-refresh"));
       } else {
-        setMessage(confirmResult.error || "Credit failed");
+        setMessage(confirmResult.error || t("v1Nft.creditFailed"));
       }
       // refresh stock after attempt
       const s = await fetchV1NftPlatinumStock();
@@ -155,9 +157,9 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       if (errMsg.includes("cancel") || errMsg.includes("reject") || errMsg.includes("Interrupted")) {
-        setMessage("Payment cancelled");
+        setMessage(t("v1Nft.paymentCancelled"));
       } else {
-        setMessage("GRAM payment failed");
+        setMessage(t("v1Nft.paymentFailed"));
         console.error("[v1nft] sendTransaction error:", err);
       }
     }
@@ -197,14 +199,14 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
               <div style={{ position: "absolute", top: -4, right: -8, background: "linear-gradient(135deg, #cfe4ff, #7ea8e0)", color: "#0a1a3d", fontSize: 7, fontWeight: 900, padding: "1px 3px", borderRadius: 3 }}>NFT</div>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 900, color: "#cfe4ff", fontSize: 14, letterSpacing: "0.04em" }}>V1 NFT PLATINUM</div>
+              <div style={{ fontWeight: 900, color: "#cfe4ff", fontSize: 14, letterSpacing: "0.04em" }}>{t("v1Nft.title")}</div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>
-                {stock ? `${stock.remaining}/${stock.max} left · ` : ""}20 GRAM · 275 $ZOOM/h
+                {stock ? t("v1Nft.stockLine", { remaining: stock.remaining, max: stock.max }) : "20 GRAM · 275 $ZOOM/h"}
               </div>
             </div>
           </div>
           <div style={{ borderTop: "1px solid rgba(202,225,255,0.22)", padding: "10px 16px", textAlign: "center", fontWeight: 900, color: "#cfe4ff", fontSize: 12, letterSpacing: "0.06em" }}>
-            BUY — 20 GRAM →
+            {t("v1Nft.buyShort")}
           </div>
         </div>
       ) : (
@@ -231,7 +233,7 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
             WebkitTapHighlightColor: "transparent",
           }}
           data-testid="button-v1-nft"
-          aria-label="V1 NFT Platinum Edition"
+          aria-label={t("v1Nft.aria")}
         >
           <div style={{ animation: "v1nft-float 2.4s ease-in-out infinite", position: "relative" }}>
             <PixelDiamond size={40} />
@@ -281,10 +283,10 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
               <PixelDiamond size={64} />
             </div>
             <div className="font-black text-lg tracking-wider" style={{ color: "#cfe4ff", marginBottom: 4 }}>
-              V1 NFT Platinum Edition
+              {t("v1Nft.titleLong")}
             </div>
             <div className="text-xs" style={{ color: "rgba(202,225,255,0.7)", marginBottom: 14 }}>
-              Exclusive · Only 5 worldwide · 275 $ZOOM/h
+              {t("v1Nft.subtitle")}
             </div>
 
             <div style={{
@@ -292,10 +294,10 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
               marginBottom: 14,
             }}>
               {[
-                { label: "Yield", value: "275 $ZOOM/h" },
-                { label: "Price", value: "20 GRAM" },
-                { label: "Global stock", value: stock ? `${stock.remaining}/${stock.max}` : "5/5" },
-                { label: "Per-user", value: "Unlimited" },
+                { label: t("v1Nft.row.yield"), value: "275 $ZOOM/h" },
+                { label: t("v1Nft.row.price"), value: "20 GRAM" },
+                { label: t("v1Nft.row.stock"), value: stock ? `${stock.remaining}/${stock.max}` : "5/5" },
+                { label: t("v1Nft.row.perUser"), value: t("v1Nft.row.unlimited") },
               ].map((row) => (
                 <div key={row.label} style={{
                   padding: "8px 10px", borderRadius: 10,
@@ -335,7 +337,7 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
                 border: "1px solid rgba(255,215,64,0.35)",
               }}>
                 <div style={{ color: "rgba(255,235,150,0.85)", fontSize: 11, fontWeight: 700, marginBottom: 8, letterSpacing: 0.4 }}>
-                  ⭐ PASSIVE STARDUST · +{sdStatus.rewardPerClaim} / 24h
+                  {t("v1Nft.passiveTitle", { n: sdStatus.rewardPerClaim })}
                 </div>
                 <button
                   onClick={handleClaimStardust}
@@ -352,10 +354,10 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
                   data-testid="button-v1-nft-claim-stardust"
                 >
                   {claiming
-                    ? "CLAIMING…"
+                    ? t("v1Nft.claiming")
                     : sdStatus.claimable
-                    ? `CLAIM ${sdStatus.rewardPerClaim} STARDUST`
-                    : `NEXT IN ${fmtCountdown(sdStatus.secondsToReady)}`}
+                    ? t("v1Nft.claimBtn", { n: sdStatus.rewardPerClaim })
+                    : t("v1Nft.nextIn", { time: fmtCountdown(sdStatus.secondsToReady) })}
                 </button>
               </div>
             )}
@@ -374,7 +376,7 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
               }}
               data-testid="button-v1-nft-buy"
             >
-              {soldOut ? "SOLD OUT" : buying ? "PROCESSING…" : "BUY — 20 GRAM"}
+              {soldOut ? t("v1Nft.soldOut") : buying ? t("v1Nft.processing") : t("v1Nft.buy")}
             </button>
 
             <button
@@ -388,7 +390,7 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
               }}
               data-testid="button-v1-nft-close"
             >
-              CLOSE
+              {t("v1Nft.close")}
             </button>
           </div>
         </div>
