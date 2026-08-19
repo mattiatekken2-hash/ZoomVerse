@@ -1,11 +1,15 @@
 import { LOCALE_EXTRAS } from "./localeExtras";
+import { es } from "./langs/es";
+import { fil } from "./langs/fil";
 
-export type Lang = "en" | "it" | "ru" | "uk";
+export type Lang = "en" | "it" | "ru" | "uk" | "es" | "fil";
 
 // Languages exposed in the in-app picker.
 export const LANGS: { code: Lang; flag: string; label: string }[] = [
   { code: "en", flag: "🇬🇧", label: "English" },
   { code: "it", flag: "🇮🇹", label: "Italiano" },
+  { code: "es", flag: "🇪🇸", label: "Español" },
+  { code: "fil", flag: "🇵🇭", label: "Filipino" },
   { code: "ru", flag: "🇷🇺", label: "Русский" },
   { code: "uk", flag: "🇺🇦", label: "Українська" },
 ];
@@ -2044,6 +2048,8 @@ export const DICTS: Record<Lang, Dict> = {
   it: { ...it, ...LOCALE_EXTRAS.it },
   ru: { ...ru, ...LOCALE_EXTRAS.ru },
   uk: { ...uk, ...LOCALE_EXTRAS.uk },
+  es: { ...es, ...LOCALE_EXTRAS.es },
+  fil: { ...fil, ...LOCALE_EXTRAS.fil },
 };
 
 export function translate(lang: Lang, key: string, vars?: Record<string, string | number>): string {

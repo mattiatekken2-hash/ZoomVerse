@@ -10,6 +10,7 @@ import { SunFarmInventoryCard } from "../components/SunFarmInventoryCard";
 import { SunFarmThumb } from "../components/SunFarmThumb";
 import { WalletPopup } from "../components/WalletPopup";
 import { useT } from "../i18n/LanguageContext";
+import { translateGameMessage } from "../i18n/gameMessage";
 import { PlanetRenameModal } from "../components/PlanetRenameModal";
 import PvPModal from "../components/PvPModal";
 import { getPlanetDisplayName } from "../utils/planetNames";
@@ -143,7 +144,7 @@ export function FarmPage({
   onUpgradeCollectionDuration,
   visible = true,
 }: FarmPageProps) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const sunMultiplier = Math.max(1, sunCount || (sun?.isOwned ? 1 : 0));
   const sunDisplayRate = SUN_CONFIG.rate * sunMultiplier;
   const [confirmBurn, setConfirmBurn] = useState<string | null>(null);
@@ -584,16 +585,16 @@ export function FarmPage({
         <WalletPopup
           isOpen={sunWalletOpen}
           amount={`${sun.activationCost} GRAM`}
-          purpose="Activate THE SUN"
+          purpose={t("farm.activateSun")}
           onClose={() => setSunWalletOpen(false)}
         />
       )}
       <WalletPopup
         isOpen={slotWalletOpen}
         amount="0.25 GRAM"
-        purpose="Unlock Farm Slot"
-        instruction="Send GRAM to this address to unlock your slot."
-        copyLabel="Copy Link"
+        purpose={t("farm.unlockSlot")}
+        instruction={t("farm.unlockSlotInstruction")}
+        copyLabel={t("farm.copyLink")}
         onClose={() => setSlotWalletOpen(false)}
       />
       {renamePlanet && telegramId && (
@@ -669,7 +670,7 @@ export function FarmPage({
           onRepair={onRepair
             ? (id: string) => {
                 const r = onRepair(id);
-                if (!r.ok) { setDefectMsg(r.reason ?? "Repair failed"); setTimeout(() => setDefectMsg(null), 1800); }
+                if (!r.ok) { setDefectMsg(translateGameMessage(lang, r.reason ?? t("game.repairFailed"))); setTimeout(() => setDefectMsg(null), 1800); }
                 return r;
               }
             : undefined}

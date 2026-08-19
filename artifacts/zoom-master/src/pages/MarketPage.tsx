@@ -16,6 +16,7 @@ import { PlanetFloatBar } from "../components/PlanetFloatBar";
 import { getListingDisplayFloat, FLOAT_PLANET_TYPES } from "../utils/planetFloat";
 import { getPlanetDisplayName, deterministicNameFromId } from "../utils/planetNames";
 import { useT } from "../i18n/LanguageContext";
+import { translateGameMessage } from "../i18n/gameMessage";
 import {
   EQUIPMENT_CATEGORIES,
   EQUIPMENT_RARITY_INFO,
@@ -75,7 +76,7 @@ interface MarketPageProps {
 interface Toast { text: string; ok: boolean }
 
 export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots, telegramId, onBuy, onUnlist, onServerBuyComplete, onBuyEquipment, onUnlistEquipment, onBuyItem, onUnlistItem, focusListingId, onFocusConsumed }: MarketPageProps) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const [filter, setFilter] = useState<MarketFilter>("ALL");
   // Float sort widget for the marketplace (▲ = low→high, ▼ = high→low,
   // null = natural order). Floatable planets sort by their actual float;
@@ -92,7 +93,7 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
   const [pulseId, setPulseId] = useState<number | null>(null);
 
   const showToast = (text: string, ok: boolean) => {
-    setToast({ text, ok });
+    setToast({ text: translateGameMessage(lang, text), ok });
     setTimeout(() => setToast(null), 2500);
   };
 
@@ -295,7 +296,7 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
       onServerBuyComplete(planetType, planetRate, price, finalFloat, modelMeta);
       void refreshMarketListings();
       const label = modelMeta.modelName || PLANET_CONFIG[planetType].label;
-      showToast(`${label} added to your farm!`, true);
+      showToast(t("market.addedToFarm", { label }), true);
     } else {
       showToast(result.error ?? "Purchase failed", false);
     }
@@ -304,7 +305,7 @@ export function MarketPage({ depositBalance, earnedBalance, myListings, maxSlots
   const handleBuyLocal = (listing: MarketListing) => {
     const result = onBuy(listing);
     if (result.success) {
-      showToast(`${PLANET_CONFIG[listing.name].label} planet added to your farm!`, true);
+      showToast(t("market.planetAdded", { kind: PLANET_CONFIG[listing.name].label }), true);
     } else {
       showToast(result.reason ?? "Purchase failed", false);
     }
