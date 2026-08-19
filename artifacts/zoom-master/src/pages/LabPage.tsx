@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { PlanetCanvas, ForgeProgressBar, type ForgePhase } from "../components/PlanetCanvas";
 import { AutoTapWidget } from "../components/AutoTapWidget";
+import { SkipForgeWidget } from "../components/SkipForgeWidget";
 import { RarityForgeWheel } from "../components/RarityForgeWheel";
 import { FarmInventoryCard } from "../components/FarmInventoryCard";
 import { SettingsMenu } from "../components/SettingsMenu";
@@ -28,6 +29,7 @@ interface LabPageProps {
   stardustBalance: number;
   telegramId: string | null;
   onCraft: (availableStardust?: number) => { completed: boolean; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType };
+  onSkipForge: () => { ok: boolean; reason?: string };
   onClaim: () => void;
   onOpenHistory?: () => void;
   onOpenShop?: () => void;
@@ -44,7 +46,7 @@ interface FloatMsg { id: number; text: string; color: string }
 
 const GREY = "#8892b0";
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, hasAutoTap, stardustBalance, telegramId, onCraft, onClaim, onOpenHistory, onOpenShop, onOpenProfile, totalTaps = 0, profilePhotoUrl, profileName, muted = false, setMuted, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, hasAutoTap, stardustBalance, telegramId, onCraft, onSkipForge, onClaim, onOpenHistory, onOpenShop, onOpenProfile, totalTaps = 0, profilePhotoUrl, profileName, muted = false, setMuted, visible = true }: LabPageProps) {
   const { t, lang } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
@@ -190,7 +192,8 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   }, [onClaim]);
 
   const bottomChromeOffset = "calc(env(safe-area-inset-bottom, 0px) + 78px)";
-  const isForging = !pendingPlanet && !!currentCraftRarity && !forgeRolling && forgePhase === "idle";
+  const isForgingActive = !pendingPlanet && !!currentCraftRarity && !forgeRolling && forgePhase === "idle";
+  const canSkipForge = isForgingActive && stardustBalance >= 1;
   const forgePct = goal > 0 ? Math.min(taps / goal, 1) : 0;
   const progressLabel = useMemo(() => {
     if (forgeRolling) return t("planetCanvas.forgingMass");
@@ -432,7 +435,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
         className="absolute left-0 right-0 z-20 px-5 flex flex-col gap-2.5 pointer-events-none"
         style={{ bottom: bottomChromeOffset, paddingBottom: 8 }}
       >
-        {isForging && (
+        {isForgingActive && (
           <ForgeProgressBar
             progress={taps}
             goal={goal}
@@ -443,17 +446,25 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           />
         )}
 
-        <div style={{ display: "flex", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {!pendingPlanet && (
-            <button
-              className="btn-craft pointer-events-auto"
-              onClick={() => handleCraft({ relaxed: true })}
-              disabled={!canCraft}
-              data-testid="button-craft"
-              style={{ width: "100%" }}
-            >
-              {isFull ? t("lab.farmFull") : !canCraft ? t("lab.noStardust") : t("lab.forgePlanet")}
-            </button>
+            <>
+              <button
+                className="btn-craft pointer-events-auto"
+                onClick={() => handleCraft({ relaxed: true })}
+                disabled={!canCraft}
+                data-testid="button-craft"
+                style={{ flex: 1, width: "auto" }}
+              >
+                {isFull ? t("lab.farmFull") : !canCraft ? t("lab.noStardust") : t("lab.forgePlanet")}
+              </button>
+              <SkipForgeWidget
+                isForging={isForgingActive}
+                canSkip={canSkipForge}
+                stardustBalance={stardustBalance}
+                onSkip={onSkipForge}
+              />
+            </>
           )}
         </div>
 

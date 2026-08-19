@@ -3886,6 +3886,47 @@ export function useGameState() {
     }
   }, []);
 
+  const skipForge = useCallback((): { ok: boolean; reason?: string } => {
+    let outcome: { ok: boolean; reason?: string } = { ok: true };
+    const SKIP_COST = 1;
+
+    setState((prev) => {
+      if (!prev.currentCraftRarity) {
+        outcome = { ok: false, reason: "Not forging" };
+        return prev;
+      }
+      if (prev.pendingPlanet || prev.forgeRolling) {
+        outcome = { ok: false, reason: "Cannot skip now" };
+        return prev;
+      }
+      if ((prev.stardustBalance ?? 0) < SKIP_COST) {
+        outcome = { ok: false, reason: "Need 1 ★ Stardust to skip" };
+        return prev;
+      }
+
+      const newRarity = rollRarity();
+      const goal = forgeTapGoalForPlanet(newRarity);
+
+      const next: GameState = {
+        ...prev,
+        stardustBalance: (prev.stardustBalance ?? 0) - SKIP_COST,
+        currentCraftRarity: newRarity,
+        taps: 0,
+        goal,
+        forgePlanetBuild: true,
+      };
+      schedulePersist(next);
+
+      if (prev.telegramId) {
+        void deductCraftStardust(prev.telegramId, SKIP_COST);
+      }
+
+      return next;
+    });
+
+    return outcome;
+  }, []);
+
   const claimCraft = useCallback((): { ok: boolean; reason?: string } => {
     let outcome: { ok: boolean; reason?: string } = { ok: true };
     let claimedName: PlanetType | null = null;
@@ -5889,7 +5930,7 @@ export function useGameState() {
   }, [state.telegramId]);
 
   return {
-    state, setState, craft, claimCraft, redeemCode,
+    state, setState, craft, skipForge, claimCraft, redeemCode,
     pvpAddPlanet, pvpRemovePlanet,
     collectPlanet, burnPlanet, renamePlanetLocal,
     startFarming, stopFarming, repairPlanet,

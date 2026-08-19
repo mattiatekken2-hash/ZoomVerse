@@ -125,7 +125,7 @@ function AppShellWithState() {
     };
   }, [t]);
   const {
-    state, setState, craft, claimCraft, redeemCode,
+    state, setState, craft, skipForge, claimCraft, redeemCode,
     pvpAddPlanet, pvpRemovePlanet,
     collectPlanet, burnPlanet, renamePlanetLocal,
     startFarming, stopFarming, repairPlanet, upgradePlanetFarmDuration, upgradeSunFarmDuration, upgradeCollectionFarmDuration,
@@ -767,6 +767,7 @@ function AppShellWithState() {
                   profilePhotoUrl={displayProfile.photoUrl}
                   profileName={displayProfile.name}
                   onCraft={craft}
+                  onSkipForge={skipForge}
                   onClaim={claimCraft}
                   onOpenHistory={() => setHistoryOpen(true)}
                   onOpenShop={() => switchTab("shop")}
