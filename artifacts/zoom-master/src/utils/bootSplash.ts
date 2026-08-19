@@ -11,6 +11,7 @@ const progressListeners = new Set<SplashListener>();
 const doneListeners = new Set<SplashDoneListener>();
 let rafId = 0;
 let timeoutId = 0;
+let pollId = 0;
 
 function splashStartMs(): number {
   try {
@@ -18,6 +19,20 @@ function splashStartMs(): number {
     if (typeof pinned === "number" && Number.isFinite(pinned)) return pinned;
   } catch { /**/ }
   return performance.now();
+}
+
+function markFinishedGlobal(): void {
+  try {
+    (window as unknown as { __zoomSplashFinished?: boolean }).__zoomSplashFinished = true;
+  } catch { /**/ }
+}
+
+function readFinishedGlobal(): boolean {
+  try {
+    return !!(window as unknown as { __zoomSplashFinished?: boolean }).__zoomSplashFinished;
+  } catch {
+    return false;
+  }
 }
 
 function elapsedMs(): number {
@@ -33,11 +48,13 @@ function notifyProgress() {
   progressListeners.forEach((fn) => fn(progress));
 }
 
-function finishSplashTimer() {
+export function finishSplashTimer(): void {
   if (finished) return;
   finished = true;
+  markFinishedGlobal();
   if (rafId) cancelAnimationFrame(rafId);
   if (timeoutId) window.clearTimeout(timeoutId);
+  if (pollId) window.clearInterval(pollId);
   progressListeners.forEach((fn) => fn(1));
   doneListeners.forEach((fn) => {
     try { fn(); } catch { /**/ }
@@ -49,26 +66,37 @@ function finishSplashTimer() {
   } catch { /**/ }
 }
 
+function tick(): void {
+  if (finished) return;
+  notifyProgress();
+  if (elapsedMs() >= SPLASH_MS) {
+    finishSplashTimer();
+    return;
+  }
+  rafId = requestAnimationFrame(tick);
+}
+
 /** Start the one-shot splash clock (safe to call multiple times). */
 export function ensureSplashTimer(): void {
+  if (finished || readFinishedGlobal()) {
+    finished = true;
+    return;
+  }
   if (timerStarted) return;
   timerStarted = true;
   startedAt = splashStartMs();
 
-  const remaining = Math.max(0, SPLASH_MS - elapsedMs());
-  if (remaining === 0) {
+  if (elapsedMs() >= SPLASH_MS) {
     finishSplashTimer();
     return;
   }
 
-  const tick = () => {
-    notifyProgress();
-    if (!finished && elapsedMs() < SPLASH_MS) {
-      rafId = requestAnimationFrame(tick);
-    }
-  };
   rafId = requestAnimationFrame(tick);
-  timeoutId = window.setTimeout(finishSplashTimer, remaining);
+  timeoutId = window.setTimeout(finishSplashTimer, Math.max(0, SPLASH_MS - elapsedMs()));
+  // Backup for WebViews that throttle rAF/setTimeout (Telegram iOS).
+  pollId = window.setInterval(() => {
+    if (elapsedMs() >= SPLASH_MS) finishSplashTimer();
+  }, 100);
 }
 
 export function subscribeSplashProgress(fn: SplashListener): () => void {
@@ -79,7 +107,8 @@ export function subscribeSplashProgress(fn: SplashListener): () => void {
 }
 
 export function subscribeSplashDone(fn: SplashDoneListener): () => void {
-  if (finished) {
+  if (finished || readFinishedGlobal()) {
+    finished = true;
     fn();
     return () => {};
   }
@@ -89,7 +118,7 @@ export function subscribeSplashDone(fn: SplashDoneListener): () => void {
 }
 
 export function isSplashFinished(): boolean {
-  if (finished) return true;
+  if (finished || readFinishedGlobal()) return true;
   ensureSplashTimer();
   return elapsedMs() >= SPLASH_MS;
 }
@@ -97,6 +126,7 @@ export function isSplashFinished(): boolean {
 declare global {
   interface Window {
     __zoomSplashStart?: number;
+    __zoomSplashFinished?: boolean;
     __onZoomSplashDone?: () => void;
   }
 }

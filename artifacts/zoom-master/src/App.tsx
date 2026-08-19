@@ -82,18 +82,26 @@ function BootSplashGate() {
   const [splashDone, setSplashDone] = useState(() => skipSplash || isSplashFinished());
 
   const finishSplash = useCallback(() => {
-    setSplashDone(true);
     hideHtmlSplash();
+    setSplashDone(true);
   }, []);
 
   useEffect(() => {
     if (splashDone) return;
+
     const onDone = () => finishSplash();
     window.addEventListener("zoom-splash-done", onDone);
     const unsub = subscribeSplashDone(finishSplash);
+
+    // Poll — Telegram iOS can drop setTimeout/rAF callbacks after progress hits 100%.
+    const poll = window.setInterval(() => {
+      if (isSplashFinished()) finishSplash();
+    }, 100);
+
     return () => {
       window.removeEventListener("zoom-splash-done", onDone);
       unsub();
+      window.clearInterval(poll);
     };
   }, [splashDone, finishSplash]);
 

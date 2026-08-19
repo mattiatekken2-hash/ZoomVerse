@@ -165,11 +165,20 @@
             fill.style.transform = "scaleX(" + pct + ")";
             fill.style.transformOrigin = "left center";
           }
-          if (elapsed < SPLASH_MS) requestAnimationFrame(updateHtmlSplashBar);
+          if (elapsed >= SPLASH_MS) {
+            window.__zoomSplashFinished = true;
+            try {
+              if (typeof window.__onZoomSplashDone === "function") window.__onZoomSplashDone();
+            } catch (e) {}
+            window.dispatchEvent(new Event("zoom-splash-done"));
+            return;
+          }
+          requestAnimationFrame(updateHtmlSplashBar);
         }
         requestAnimationFrame(updateHtmlSplashBar);
 
         setTimeout(function() {
+          window.__zoomSplashFinished = true;
           try {
             if (typeof window.__onZoomSplashDone === "function") window.__onZoomSplashDone();
           } catch (e) {}
