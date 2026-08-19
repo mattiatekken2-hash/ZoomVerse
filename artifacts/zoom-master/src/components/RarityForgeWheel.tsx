@@ -133,7 +133,9 @@ function labelRadius(span: number, r: number): number {
   return r * 0.64;
 }
 
-const SPIN_MS = 3500;
+/** Long coast-down — feels like a hand push, not a slot machine. */
+const SPIN_MS = 8200;
+const SPIN_EASING = "cubic-bezier(0.09, 0.82, 0.14, 1)";
 
 interface Props {
   targetRarity: PlanetType;
@@ -160,7 +162,7 @@ export const RarityForgeWheel = memo(function RarityForgeWheel({
     if (doneRef.current) return;
     const seg = segments.find((s) => s.type === targetRarity) ?? segments[0];
     const landOn = 360 - seg.midDeg;
-    const extraSpins = 3 + Math.floor(Math.random() * 2);
+    const extraSpins = 2 + Math.random() * 0.75;
     const target = extraSpins * 360 + landOn;
 
     const t0 = requestAnimationFrame(() => {
@@ -220,7 +222,7 @@ export const RarityForgeWheel = memo(function RarityForgeWheel({
             borderRadius: "50%",
             transform: `rotate(${rotation}deg)`,
             transition: spinning
-              ? `transform ${SPIN_MS}ms cubic-bezier(0.16, 0.84, 0.28, 1)`
+              ? `transform ${SPIN_MS}ms ${SPIN_EASING}`
               : "none",
             willChange: "transform",
           }}

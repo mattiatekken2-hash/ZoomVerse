@@ -1196,7 +1196,7 @@ body.animations-paused * {
   50%      { opacity: 0.92; }
 }
 .rarity-wheel-spinning {
-  animation: rarityWheelGlow 1.8s ease-in-out infinite;
+  animation: rarityWheelGlow 3.2s ease-in-out infinite;
 }
 
 @keyframes forgeCorePulse {
