@@ -1,12 +1,8 @@
-/** Boot splash — React overlay with progress bar; fixed duration from app mount. */
+/** Boot splash — full-screen overlay for a fixed duration, then the game appears. */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  SPLASH_VISIBLE_MS,
-  isSplashSessionComplete,
-  splashSessionProgress,
-} from "../utils/bootSplash";
+import { SPLASH_MS } from "../utils/bootSplash";
 
 /** Fade out and remove the pre-React HTML splash (index.html). */
 export function hideHtmlSplash() {
@@ -25,28 +21,22 @@ export function hideHtmlSplash() {
 
 interface BootSplashOverlayProps {
   subtitle?: string;
-  /** Session start from App mount — progress bar syncs to this. */
-  sessionStartMs: number;
 }
 
-function BootSplashOverlayInner({ subtitle = "Season 3", sessionStartMs }: BootSplashOverlayProps) {
-  const [progress, setProgress] = useState(() => splashSessionProgress(sessionStartMs));
-
-  useEffect(() => {
-    hideHtmlSplash();
-  }, []);
+function BootSplashOverlayInner({ subtitle = "Season 3" }: BootSplashOverlayProps) {
+  const startRef = useRef(Date.now());
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     let raf = 0;
     const tick = () => {
-      setProgress(splashSessionProgress(sessionStartMs));
-      if (!isSplashSessionComplete(sessionStartMs)) {
-        raf = requestAnimationFrame(tick);
-      }
+      const pct = Math.min(1, (Date.now() - startRef.current) / SPLASH_MS);
+      setProgress(pct);
+      if (pct < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [sessionStartMs]);
+  }, []);
 
   const pct = Math.round(progress * 100);
 
@@ -70,10 +60,7 @@ function BootSplashOverlayInner({ subtitle = "Season 3", sessionStartMs }: BootS
         <div className="zoom-splash-bar-track">
           <div
             className="zoom-splash-bar-fill"
-            style={{
-              width: `${pct}%`,
-              transition: "width 0.06s linear",
-            }}
+            style={{ width: `${pct}%`, transition: "width 0.08s linear" }}
           />
         </div>
       </div>
@@ -87,9 +74,4 @@ export function BootSplashOverlay(props: BootSplashOverlayProps) {
   return createPortal(<BootSplashOverlayInner {...props} />, document.body);
 }
 
-/** @deprecated Use BootSplashOverlay during boot. */
-export function SplashScreen() {
-  return null;
-}
-
-export { SPLASH_VISIBLE_MS };
+export { SPLASH_MS };
