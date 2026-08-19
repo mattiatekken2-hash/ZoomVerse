@@ -326,9 +326,6 @@ export const RarityForgeWheel = memo(function RarityForgeWheel({
           <span style={{ fontSize: 15, fontWeight: 900, color: targetSeg.color, letterSpacing: "0.14em" }}>
             {targetSeg.label}
           </span>
-          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", marginLeft: 10 }}>
-            {(targetSeg.chance * 100).toFixed(targetSeg.chance < 0.001 ? 3 : 2)}%
-          </span>
         </div>
       )}
     </div>
