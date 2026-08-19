@@ -1560,14 +1560,14 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           : showcase
             ? Math.min(window.devicePixelRatio, size >= 140 ? 3 : 2.5)
             : labViewportFill
-              ? Math.min(window.devicePixelRatio, isLowEndDevice() ? 1.25 : 1.5)
+              ? Math.min(window.devicePixelRatio, 2)
               : (size > 90 ? 1.75 : 1.25);
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({
         antialias: isLabFarmThumb
           ? false
-          : (planetShowcase || showcase || (!performanceMode && size > 90)),
+          : (planetShowcase || showcase || labViewportFill || (!performanceMode && size > 90)),
         alpha: !opaqueBackground,
         premultipliedAlpha: false,
         powerPreference: "high-performance",

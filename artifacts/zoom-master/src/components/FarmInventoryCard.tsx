@@ -24,6 +24,8 @@ interface FarmInventoryCardProps {
   testId?: string;
   /** Load voxel thumb immediately (Lab reveal). */
   eagerThumb?: boolean;
+  /** Stagger WebGL init on Farm grid. */
+  glDelayMs?: number;
 }
 
 function FarmCubeIcon({ size = 12, color = "currentColor" }: { size?: number; color?: string }) {
@@ -65,6 +67,7 @@ export function FarmInventoryCard({
   className = "",
   testId,
   eagerThumb = false,
+  glDelayMs = 0,
 }: FarmInventoryCardProps) {
   const compact = variant === "compact";
   const displayColors = getPlanetDisplayColors(planet);
@@ -151,7 +154,8 @@ export function FarmInventoryCard({
             animate
             suspendGl={suspendGl}
             eager={eagerThumb}
-            hiQuality
+            glDelayMs={glDelayMs}
+            hiQuality={false}
           />
           {isPlatinumNft && (
             <span className="nft-badge absolute" style={{ top: -4, left: -4 }} aria-label="NFT">

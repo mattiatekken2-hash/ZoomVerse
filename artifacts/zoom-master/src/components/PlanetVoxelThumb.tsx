@@ -146,6 +146,8 @@ export interface PlanetVoxelThumbProps {
   eager?: boolean;
   /** Hi-fi internal supersampling (auto when size ≥ 80 if omitted). */
   hiQuality?: boolean;
+  /** Stagger WebGL mount (Farm grid) to avoid GPU spikes. */
+  glDelayMs?: number;
 }
 
 /** Voxel planet preview — same forge-sphere mesh as Lab, for Farm/Market cards. */
@@ -156,27 +158,43 @@ export function PlanetVoxelThumb({
   suspendGl = false,
   eager = false,
   hiQuality,
+  glDelayMs = 0,
 }: PlanetVoxelThumbProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const hasSlotRef = useRef(false);
-  const [inView, setInView] = useState(eager);
-  const [hasSlot, setHasSlot] = useState(eager);
+  const [inView, setInView] = useState(false);
+  const [hasSlot, setHasSlot] = useState(false);
+  const [delayReady, setDelayReady] = useState(glDelayMs <= 0);
+
   const [glGen, setGlGen] = useState(0);
 
   const displayColors = getPlanetDisplayColors(planet);
   const displayFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
 
   useEffect(() => {
-    if (eager) return;
+    if (eager) {
+      setInView(true);
+      return;
+    }
     const el = rootRef.current;
     if (!el) return;
     const io = new IntersectionObserver(
       ([entry]) => setInView(entry?.isIntersecting ?? false),
-      { rootMargin: "140px 0px", threshold: 0.08 },
+      { rootMargin: "180px 0px", threshold: 0.06 },
     );
     io.observe(el);
     return () => io.disconnect();
   }, [eager]);
+
+  useEffect(() => {
+    if (!inView || glDelayMs <= 0) {
+      setDelayReady(true);
+      return;
+    }
+    setDelayReady(false);
+    const t = window.setTimeout(() => setDelayReady(true), glDelayMs);
+    return () => window.clearTimeout(t);
+  }, [inView, glDelayMs]);
 
   const releaseSlot = useCallback(() => {
     if (!hasSlotRef.current) return;
@@ -186,12 +204,7 @@ export function PlanetVoxelThumb({
   }, []);
 
   useEffect(() => {
-    if (eager) {
-      hasSlotRef.current = true;
-      setHasSlot(true);
-      return;
-    }
-    if (suspendGl || !inView) {
+    if (suspendGl || !inView || !delayReady) {
       releaseSlot();
       return;
     }
@@ -205,7 +218,7 @@ export function PlanetVoxelThumb({
 
     let cancelled = false;
     const retry = () => {
-      if (cancelled || hasSlotRef.current || suspendGl || !inView) return;
+      if (cancelled || hasSlotRef.current || suspendGl || !inView || !delayReady) return;
       if (acquirePlanetThumbGl()) {
         hasSlotRef.current = true;
         setHasSlot(true);
@@ -219,14 +232,14 @@ export function PlanetVoxelThumb({
       if (idx >= 0) planetThumbWaiters.splice(idx, 1);
       releaseSlot();
     };
-  }, [eager, suspendGl, inView, releaseSlot]);
+  }, [suspendGl, inView, delayReady, releaseSlot]);
 
   const handleGlError = useCallback(() => {
     releaseSlot();
     setGlGen((g) => g + 1);
   }, [releaseSlot]);
 
-  const showGl = eager || (!suspendGl && inView && hasSlot);
+  const showGl = !suspendGl && inView && delayReady && hasSlot;
   const useHiQuality = hiQuality ?? size >= 80;
 
   return (

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchHistory, type HistoryEntry, type HistoryCurrency } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
+import { GramDiamondIcon } from "./GramDiamondIcon";
 
 interface Props {
   telegramId: string;
@@ -29,11 +30,11 @@ const REDSTAR_KINDS = new Set([
   "pvp_redstar_prize",
 ]);
 
-type CurrencyVisual = { glyph: string; tint: string };
+type CurrencyVisual = { glyph: string; tint: string; useGramIcon?: boolean };
 
 function currencyVisual(entry: HistoryEntry): CurrencyVisual {
   if (GRAM_KINDS.has(entry.kind) || entry.currency === "ton") {
-    return { glyph: "💎", tint: "#00f2b4" };
+    return { glyph: "", tint: "#00f2b4", useGramIcon: true };
   }
   if (REDSTAR_KINDS.has(entry.kind) || entry.currency === "redstar") {
     return { glyph: "★", tint: "#ff4444" };
@@ -190,7 +191,11 @@ export default function HistoryModal({ telegramId, onClose }: Props) {
                   style={{ color }}
                 >
                   <span>{formatAmount(e.delta, e.currency)}</span>
-                  <span style={{ color: visual.tint }}>{visual.glyph}</span>
+                  {visual.useGramIcon ? (
+                    <GramDiamondIcon size={14} />
+                  ) : (
+                    <span style={{ color: visual.tint }}>{visual.glyph}</span>
+                  )}
                 </div>
               </div>
             );
