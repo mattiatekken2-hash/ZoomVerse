@@ -4,6 +4,7 @@ import { GramWalletPanel, GramWalletIcon, GramWalletConnectButton, type TonWalle
 import { StardustMarketModal } from "../components/StardustMarketModal";
 import { GramChartModal } from "../components/GramChartModal";
 import { useT } from "../i18n/LanguageContext";
+import { fetchTonPrice, readCachedTonPrice } from "../utils/tonPrice";
 
 const PRICE_POLL_MS = 15_000;
 
@@ -31,21 +32,6 @@ function formatZoom(n: number): string {
   return n.toLocaleString();
 }
 
-/** Fetch live TON/USD price from CoinGecko. Returns null on failure. */
-async function fetchTonPrice(): Promise<number | null> {
-  try {
-    const res = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd",
-      { signal: AbortSignal.timeout(6000) }
-    );
-    if (!res.ok) return null;
-    const data = await res.json() as { "the-open-network"?: { usd?: number } };
-    return data["the-open-network"]?.usd ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export function WalletPage({
   tonBalance,
   depositBalance,
@@ -65,8 +51,9 @@ export function WalletPage({
   nftStarBalance,
 }: WalletPageProps) {
   const { t } = useT();
-  const [tonPrice, setTonPrice] = useState<number | null>(null);
-  const [priceLoading, setPriceLoading] = useState(true);
+  const cachedPrice = readCachedTonPrice();
+  const [tonPrice, setTonPrice] = useState<number | null>(cachedPrice);
+  const [priceLoading, setPriceLoading] = useState(cachedPrice === null);
   const [stardustMarketOpen, setStardustMarketOpen] = useState(false);
   const [gramChartOpen, setGramChartOpen] = useState(false);
   const [liveStardustBalance, setLiveStardustBalance] = useState(stardustBalance);
@@ -75,6 +62,8 @@ export function WalletPage({
     const price = await fetchTonPrice();
     if (price != null) {
       setTonPrice(price);
+      setPriceLoading(false);
+    } else if (readCachedTonPrice() != null) {
       setPriceLoading(false);
     }
   }, []);
