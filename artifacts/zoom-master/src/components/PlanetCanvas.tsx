@@ -4,6 +4,7 @@ import { FORGE_CLAY_HEX, FORGE_SPHERE_SHAPE_ID } from "@workspace/game-models";
 import type { Planet } from "../hooks/useGameState";
 import { getRarityColorsForModel, PLANET_CONFIG } from "../hooks/useGameState";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
+import { useT } from "../i18n/LanguageContext";
 
 export type ForgePhase = "idle" | "wheel" | "flash" | "waiting" | "revealed";
 
