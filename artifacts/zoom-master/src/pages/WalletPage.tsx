@@ -14,6 +14,7 @@ interface WalletPageProps extends Omit<TonWalletProps, "onOpenWalletTab" | "labV
   stardustBalance: number;
   redStarBalance: number;
   nftStarBalance: number;
+  onOpenHistory?: () => void;
 }
 
 /** Seed a stable pseudo-random between min..max from a string. */
@@ -49,6 +50,7 @@ export function WalletPage({
   stardustBalance,
   redStarBalance,
   nftStarBalance,
+  onOpenHistory,
 }: WalletPageProps) {
   const { t } = useT();
   const cachedPrice = readCachedTonPrice();
@@ -269,6 +271,9 @@ export function WalletPage({
             value={formatZoom(balance)}
             color="#ffd740"
             glow="rgba(255,215,64,0.4)"
+            onClick={onOpenHistory}
+            hint={onOpenHistory ? t("walletPage.zoomHistoryHint") : undefined}
+            data-testid="wallet-zoom-balance"
           />
           {/* STARDUST — star (★), yellow like resource widget */}
           <BalanceRow
@@ -407,6 +412,7 @@ function BalanceRow({
   iconColor,
   onClick,
   hint,
+  "data-testid": dataTestId,
 }: {
   icon: string;
   label: string;
@@ -416,6 +422,7 @@ function BalanceRow({
   iconColor?: string;
   onClick?: () => void;
   hint?: string;
+  "data-testid"?: string;
 }) {
   const ic = iconColor ?? color;
   const interactive = !!onClick;
@@ -425,6 +432,7 @@ function BalanceRow({
       tabIndex={interactive ? 0 : undefined}
       onClick={onClick}
       onKeyDown={interactive ? (e) => { if (e.key === "Enter" || e.key === " ") onClick?.(); } : undefined}
+      data-testid={dataTestId}
       className="flex items-center justify-between rounded-2xl"
       style={{
         padding: "11px 14px",

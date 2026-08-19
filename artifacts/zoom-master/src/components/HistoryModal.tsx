@@ -7,15 +7,53 @@ interface Props {
   onClose: () => void;
 }
 
-const CURRENCY_ICON: Record<HistoryCurrency, string> = {
-  zoom: "🪐",
-  ton: "💎",
-  stardust: "✦",
-  stars: "⭐",
-  spins: "🎡",
-  planet: "🪐",
-  none: "•",
-};
+const STARDUST_KINDS = new Set([
+  "stardust_collect",
+  "stardust_convert",
+  "stardust_convert_out",
+  "stardust_purchase",
+]);
+
+const GRAM_KINDS = new Set([
+  "gram_convert_in",
+  "ton_purchase",
+  "withdraw_request",
+  "plant_claim",
+  "market_buy",
+  "market_sale",
+]);
+
+const REDSTAR_KINDS = new Set([
+  "redstar_claim",
+  "weekly_redstar_claim",
+  "pvp_redstar_prize",
+]);
+
+type CurrencyVisual = { glyph: string; tint: string };
+
+function currencyVisual(entry: HistoryEntry): CurrencyVisual {
+  if (GRAM_KINDS.has(entry.kind) || entry.currency === "ton") {
+    return { glyph: "💎", tint: "#00f2b4" };
+  }
+  if (REDSTAR_KINDS.has(entry.kind) || entry.currency === "redstar") {
+    return { glyph: "★", tint: "#ff4444" };
+  }
+  if (STARDUST_KINDS.has(entry.kind) || entry.currency === "stardust") {
+    return { glyph: "★", tint: "#ffd740" };
+  }
+  switch (entry.currency) {
+    case "zoom":
+      return { glyph: "🪐", tint: "#ffd740" };
+    case "stars":
+      return { glyph: "⭐", tint: "#ffd700" };
+    case "spins":
+      return { glyph: "🎡", tint: "#9EC5E8" };
+    case "planet":
+      return { glyph: "🪐", tint: "#9EC5E8" };
+    default:
+      return { glyph: "•", tint: "rgba(255,255,255,0.45)" };
+  }
+}
 
 function formatAmount(delta: number, currency: HistoryCurrency): string {
   const sign = delta > 0 ? "+" : delta < 0 ? "−" : "";
@@ -134,7 +172,9 @@ export default function HistoryModal({ telegramId, onClose }: Props) {
           {!loading && list.map((e) => {
             const positive = e.delta > 0;
             const color = positive ? "#26d97f" : e.delta < 0 ? "#ff5d6c" : "#cccccc";
-            const kindLabel = t(`history.kind.${e.kind}`);
+            const kindKey = `history.kind.${e.kind}` as const;
+            const kindLabel = t(kindKey) === kindKey ? e.kind.replace(/_/g, " ") : t(kindKey);
+            const visual = currencyVisual(e);
             return (
               <div
                 key={e.id}
@@ -146,10 +186,11 @@ export default function HistoryModal({ telegramId, onClose }: Props) {
                   <div className="text-[10px] text-white/40">{formatTime(e.createdAt)}</div>
                 </div>
                 <div
-                  className="text-[13px] font-black tabular-nums whitespace-nowrap"
+                  className="text-[13px] font-black tabular-nums whitespace-nowrap flex items-center gap-1"
                   style={{ color }}
                 >
-                  {formatAmount(e.delta, e.currency)} {CURRENCY_ICON[e.currency]}
+                  <span>{formatAmount(e.delta, e.currency)}</span>
+                  <span style={{ color: visual.tint }}>{visual.glyph}</span>
                 </div>
               </div>
             );

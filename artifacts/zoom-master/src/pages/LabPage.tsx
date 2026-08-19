@@ -29,7 +29,6 @@ interface LabPageProps {
   telegramId: string | null;
   onCraft: (availableStardust?: number) => { completed: boolean; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType };
   onClaim: () => void;
-  onOpenHistory?: () => void;
   onOpenShop?: () => void;
   onOpenProfile?: () => void;
   totalTaps?: number;
@@ -44,7 +43,7 @@ interface FloatMsg { id: number; text: string; color: string }
 
 const GREY = "#8892b0";
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, hasAutoTap, stardustBalance, telegramId, onCraft, onClaim, onOpenHistory, onOpenShop, onOpenProfile, totalTaps = 0, profilePhotoUrl, profileName, muted = false, setMuted, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, hasAutoTap, stardustBalance, telegramId, onCraft, onClaim, onOpenShop, onOpenProfile, totalTaps = 0, profilePhotoUrl, profileName, muted = false, setMuted, visible = true }: LabPageProps) {
   const { t, lang } = useT();
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
@@ -255,17 +254,14 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           <div className="pointer-events-auto flex-shrink-0">
             <SettingsMenu muted={muted} setMuted={setMuted ?? (() => {})} headerButton />
           </div>
-          <button
-            type="button"
-            onClick={onOpenHistory}
+          <div
             data-testid="lab-zoom-balance"
-            className="px-5 py-2 rounded-full pointer-events-auto active:scale-95 flex-shrink-0"
+            className="px-5 py-2 rounded-full pointer-events-auto flex-shrink-0"
             style={{
               background: "rgba(0, 0, 0, 0.62)",
               border: "1px solid rgba(255, 255, 255, 0.14)",
               backdropFilter: "blur(10px)",
               boxShadow: "0 4px 20px rgba(0, 0, 0, 0.35)",
-              cursor: onOpenHistory ? "pointer" : "default",
             }}
           >
             <span
@@ -274,7 +270,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             >
               {t("lab.balance", { n: Math.floor(balance).toLocaleString() })}
             </span>
-          </button>
+          </div>
           <button
             type="button"
             onClick={onOpenShop}

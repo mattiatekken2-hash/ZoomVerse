@@ -788,7 +788,6 @@ function AppShellWithState() {
                   profileName={displayProfile.name}
                   onCraft={craft}
                   onClaim={claimCraft}
-                  onOpenHistory={() => setHistoryOpen(true)}
                   onOpenShop={() => switchTab("shop")}
                   onOpenProfile={() => setProfileModalOpen(true)}
                   muted={muted}
@@ -973,6 +972,7 @@ function AppShellWithState() {
                 <WalletPage
                   tonBalance={state.tonBalance || 0}
                   depositBalance={state.depositBalance || 0}
+                  onOpenHistory={() => setHistoryOpen(true)}
                   telegramId={state.telegramId}
                   whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
                   earthCollectionUnlocked={!!state.earthCollectionUnlocked}

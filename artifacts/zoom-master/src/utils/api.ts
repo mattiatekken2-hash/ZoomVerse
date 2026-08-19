@@ -3908,7 +3908,7 @@ export async function redeemServerCode(telegramId: string, code: string): Promis
 // per l'utente loggato. Il server applica già il filtro 48h e l'ordine
 // (più recente prima); il cron pulisce poi le righe oltre il limite.
 export type HistoryCurrency =
-  | "zoom" | "ton" | "stardust" | "stars" | "spins" | "planet" | "none";
+  | "zoom" | "ton" | "stardust" | "redstar" | "stars" | "spins" | "planet" | "none";
 
 export interface HistoryEntry {
   id: number;
