@@ -27,6 +27,7 @@
       #splash-screen.hidden {
         opacity: 0;
         pointer-events: none;
+        display: none !important;
       }
       #splash-screen .splash-inner {
         text-align: center;
@@ -106,6 +107,11 @@
         box-shadow: 0 0 12px rgba(158, 197, 232, 0.45);
         transform-origin: left center;
         transform: scaleX(0);
+        animation: splashFill 2s linear forwards;
+      }
+      @keyframes splashFill {
+        from { transform: scaleX(0); }
+        to { transform: scaleX(1); }
       }
     </style>
   </head>
@@ -154,40 +160,37 @@
         var splash = document.getElementById("splash-screen");
         window.__zoomSplashStart = performance.now();
         var SPLASH_MS = 2000;
+        var splashHidden = false;
 
-        function updateHtmlSplashBar() {
-          var elapsed = performance.now() - window.__zoomSplashStart;
-          var pct = Math.min(1, elapsed / SPLASH_MS);
-          var fill = document.getElementById("splash-bar-fill");
-          if (fill) {
-            fill.style.animation = "none";
-            fill.style.width = "100%";
-            fill.style.transform = "scaleX(" + pct + ")";
-            fill.style.transformOrigin = "left center";
-          }
-          if (elapsed >= SPLASH_MS) {
-            window.__zoomSplashFinished = true;
-            try {
-              if (typeof window.__onZoomSplashDone === "function") window.__onZoomSplashDone();
-            } catch (e) {}
-            window.dispatchEvent(new Event("zoom-splash-done"));
+        function hideSplash() {
+          if (splashHidden) return;
+          splashHidden = true;
+          window.__zoomSplashFinished = true;
+          if (!splash) return;
+          splash.classList.add("hidden");
+          splash.style.display = "none";
+          try { splash.remove(); } catch (e) {}
+        }
+        window.__hideHtmlSplash = hideSplash;
+
+        var fill = document.getElementById("splash-bar-fill");
+        if (fill) fill.addEventListener("animationend", hideSplash);
+        setTimeout(hideSplash, SPLASH_MS);
+        (function tick() {
+          if (splashHidden) return;
+          if (performance.now() - window.__zoomSplashStart >= SPLASH_MS) {
+            hideSplash();
             return;
           }
-          requestAnimationFrame(updateHtmlSplashBar);
-        }
-        requestAnimationFrame(updateHtmlSplashBar);
+          requestAnimationFrame(tick);
+        })();
 
         setTimeout(function() {
-          window.__zoomSplashFinished = true;
-          try {
-            if (typeof window.__onZoomSplashDone === "function") window.__onZoomSplashDone();
-          } catch (e) {}
-          window.dispatchEvent(new Event("zoom-splash-done"));
           if (!window.__zoomReactBooted) {
             var btn = document.getElementById("splash-retry-btn");
             if (btn) btn.style.display = "inline-block";
           }
-        }, SPLASH_MS);
+        }, 8000);
 
         function applySplashSubtitle() {
           var el = splash && splash.querySelector(".splash-sub");
@@ -196,11 +199,6 @@
         applySplashSubtitle();
 
         var retryBtn = document.getElementById("splash-retry-btn");
-        window.__hideHtmlSplash = function() {
-          if (!splash) return;
-          splash.classList.add('hidden');
-          setTimeout(function() { splash && splash.remove(); }, 500);
-        };
         if (retryBtn) {
           retryBtn.onclick = function() {
             try { sessionStorage.removeItem('zoom-boot-reload'); } catch (e) {}
