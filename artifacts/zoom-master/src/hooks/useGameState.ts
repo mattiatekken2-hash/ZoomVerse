@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, invalidateTasksCache, bumpTasksPlanetsBuilt, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
 import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, isLabZoomShapeId, type LabForgePath } from "@workspace/game-models";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
@@ -4149,9 +4149,17 @@ export function useGameState() {
     if (outcome.ok && claimedName) {
       const { telegramId: tid } = getTelegramContext();
       if (tid) {
+        const builtNow = stateRef.current.craftsCompleted;
+        invalidateTasksCache(tid);
+        bumpTasksPlanetsBuilt(tid, builtNow);
         void recordCraft(tid, claimedName, claimedCost).then(() => {
-          try { window.dispatchEvent(new Event("zoom-data-refresh")); } catch { /**/ }
+          try {
+            bumpTasksPlanetsBuilt(tid, stateRef.current.craftsCompleted);
+            window.dispatchEvent(new Event("zoom-data-refresh"));
+          } catch { /**/ }
         });
+      } else {
+        try { window.dispatchEvent(new Event("zoom-data-refresh")); } catch { /**/ }
       }
     }
     return outcome;

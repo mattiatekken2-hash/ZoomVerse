@@ -3343,9 +3343,9 @@ export interface TasksState {
   sponsorTasks: SponsorTaskInfo[];
 }
 
-const TASKS_CACHE_KEY = "zoom:tasks-state-v3";
+const TASKS_CACHE_KEY = "zoom:tasks-state-v4";
 let tasksMemoryCache: { telegramId: string; state: TasksState; at: number } | null = null;
-let tasksInflight: { telegramId: string; promise: Promise<TasksState | null> } | null = null;
+let tasksInflight: { telegramId: string; promise: Promise<TasksState | null>; force: boolean; id: symbol } | null = null;
 
 /** Authoritative Lab forge rewards — must match api-server labv3_* (never show legacy planets_* 5k–200k). */
 export const LAB_FORGE_TASK_CATALOG: ReadonlyArray<{ id: string; threshold: number; rewardZoom: number }> = [
@@ -3409,6 +3409,36 @@ function writeTasksSession(telegramId: string, state: TasksState): void {
   } catch { /**/ }
 }
 
+/** Drop memory/session task snapshots so the next fetch cannot paint pre-forge counts. */
+export function invalidateTasksCache(telegramId?: string | null): void {
+  if (!telegramId || tasksMemoryCache?.telegramId === telegramId) {
+    tasksMemoryCache = null;
+  }
+  if (!telegramId) return;
+  try {
+    sessionStorage.removeItem(`${TASKS_CACHE_KEY}:${telegramId}`);
+    // Legacy keys from earlier Earn cache versions.
+    sessionStorage.removeItem(`zoom:tasks-state-v3:${telegramId}`);
+    sessionStorage.removeItem(`zoom:tasks-state-v1:${telegramId}`);
+  } catch { /**/ }
+}
+
+/**
+ * Optimistically raise planetsBuilt (e.g. right after a Lab forge claim) so Earn
+ * progress bars move immediately even before /tasks/state catches up.
+ */
+export function bumpTasksPlanetsBuilt(telegramId: string | null | undefined, built: number): TasksState | null {
+  if (!telegramId || !Number.isFinite(built) || built < 0) return null;
+  const base = peekTasksState(telegramId);
+  if (built <= base.planetsBuilt) return base;
+  const next = normalizeLabTasksState({
+    ...base,
+    planetsBuilt: built,
+  });
+  rememberTasksState(telegramId, next);
+  return next;
+}
+
 /** Instant paint — memory → session → static catalog. */
 export function peekTasksState(telegramId: string | null | undefined): TasksState {
   if (!telegramId) return TASKS_CATALOG_FALLBACK;
@@ -3429,14 +3459,22 @@ function rememberTasksState(telegramId: string, state: TasksState): void {
   writeTasksSession(telegramId, normalized);
 }
 
-export async function fetchTasksState(telegramId: string): Promise<TasksState | null> {
-  if (tasksInflight?.telegramId === telegramId) {
+export async function fetchTasksState(
+  telegramId: string,
+  opts?: { force?: boolean },
+): Promise<TasksState | null> {
+  const force = !!opts?.force;
+  // Reuse in-flight only for soft prefetches. Forced reloads (post-forge /
+  // Earn tab focus) must not wait on a request that started before the craft.
+  if (!force && tasksInflight?.telegramId === telegramId) {
     return tasksInflight.promise;
   }
-  const promise = (async (): Promise<TasksState | null> => {
+  const requestId = Symbol("tasks-fetch");
+  const promise: Promise<TasksState | null> = (async () => {
     try {
-      const res = await fetch(`${API_BASE}/tasks/state/${encodeURIComponent(telegramId)}`, {
+      const res = await fetch(`${API_BASE}/tasks/state/${encodeURIComponent(telegramId)}?t=${Date.now()}`, {
         headers: apiHeaders(),
+        cache: "no-store",
       });
       if (!res.ok) return null;
       const json = await res.json();
@@ -3447,15 +3485,20 @@ export async function fetchTasksState(telegramId: string): Promise<TasksState | 
         planetTasks: Array.isArray(json.planetTasks) ? json.planetTasks : [],
         sponsorTasks: Array.isArray(json.sponsorTasks) ? json.sponsorTasks : [],
       });
-      rememberTasksState(telegramId, state);
-      return state;
+      // Never regress a fresher optimistic bump with a racing older response.
+      const prev = tasksMemoryCache?.telegramId === telegramId ? tasksMemoryCache.state.planetsBuilt : 0;
+      const merged = prev > state.planetsBuilt
+        ? normalizeLabTasksState({ ...state, planetsBuilt: prev })
+        : state;
+      rememberTasksState(telegramId, merged);
+      return merged;
     } catch {
       return null;
     } finally {
-      if (tasksInflight?.telegramId === telegramId) tasksInflight = null;
+      if (tasksInflight?.id === requestId) tasksInflight = null;
     }
   })();
-  tasksInflight = { telegramId, promise };
+  tasksInflight = { telegramId, promise, force, id: requestId };
   return promise;
 }
 
