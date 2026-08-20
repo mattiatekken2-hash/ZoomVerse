@@ -302,7 +302,7 @@ router.post("/tasks/claim", async (req, res) => {
     // guard as a belt-and-suspenders defence against a programmer error
     // bypassing the lock path.
     type ClaimOutcome =
-      | { kind: "ok"; zoom: number; spins: number; stardust: number; totalBuilt: number }
+      | { kind: "ok"; zoom: number; spins: number; stardust: number; epoch: number; totalBuilt: number }
       | { kind: "user_not_found" }
       | { kind: "already_claimed" }
       | { kind: "threshold_not_met"; built: number }
@@ -401,6 +401,7 @@ router.post("/tasks/claim", async (req, res) => {
           zoom: usersTable.zoomBalance,
           spins: usersTable.wheelSpins,
           stardust: usersTable.stardustBalance,
+          epoch: usersTable.balanceEpoch,
           totalPlanetsBuilt: builtSumSql,
         });
 
@@ -415,6 +416,7 @@ router.post("/tasks/claim", async (req, res) => {
         zoom: Number(updated[0]!.zoom),
         spins: Number(updated[0]!.spins),
         stardust: Number(updated[0]!.stardust),
+        epoch: Number(updated[0]!.epoch ?? 0),
         totalBuilt: Number(updated[0]!.totalPlanetsBuilt ?? 0),
       } as const;
     });
@@ -457,6 +459,7 @@ router.post("/tasks/claim", async (req, res) => {
       rewardSpins,
       rewardStardust,
       zoomBalance: outcome.zoom,
+      balanceEpoch: outcome.epoch,
       wheelSpins: outcome.spins,
       stardustBalance: outcome.stardust,
       totalPlanetsBuilt: outcome.totalBuilt,
