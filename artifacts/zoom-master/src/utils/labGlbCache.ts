@@ -1,7 +1,6 @@
 /**
  * Shared Lab GLB loader — one network parse per shape, clones for each viewer.
- * Fixes street_scene / island_home disappearing when the picker cycler remounts
- * before large GLBs finish loading.
+ * Cache keys include the asset URL so cache-bust query changes retry cleanly.
  */
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -10,36 +9,41 @@ import { getShapeGlbUrl } from "@workspace/game-models";
 
 const loader = new GLTFLoader();
 const templates = new Map<string, Promise<THREE.Object3D>>();
-const readyIds = new Set<string>();
+const readyKeys = new Set<string>();
+
+function cacheKey(shapeId: string, url: string): string {
+  return `${shapeId}|${url}`;
+}
 
 export function preloadLabGlb(shapeId: string): Promise<THREE.Object3D> {
-  const cached = templates.get(shapeId);
-  if (cached) return cached;
-
   const url = getShapeGlbUrl(shapeId);
   if (!url) {
-    const fail = Promise.reject(new Error(`no glb for ${shapeId}`));
-    templates.set(shapeId, fail);
-    return fail;
+    return Promise.reject(new Error(`no glb for ${shapeId}`));
   }
+
+  const key = cacheKey(shapeId, url);
+  const cached = templates.get(key);
+  if (cached) return cached;
 
   const promise = new Promise<THREE.Object3D>((resolve, reject) => {
     loader.load(
       url,
       (gltf) => {
-        readyIds.add(shapeId);
+        readyKeys.add(key);
         resolve(gltf.scene);
       },
       undefined,
       (err) => reject(err ?? new Error(`load failed ${shapeId}`)),
     );
   });
-  templates.set(shapeId, promise);
+  templates.set(key, promise);
   return promise;
 }
 
 export function isLabGlbPreloaded(shapeId: string): boolean {
-  return readyIds.has(shapeId);
+  const url = getShapeGlbUrl(shapeId);
+  if (!url) return false;
+  return readyKeys.has(cacheKey(shapeId, url));
 }
 
 /** Deep clone for a new WebGL viewer instance. */

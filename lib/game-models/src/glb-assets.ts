@@ -20,7 +20,7 @@ export const SHAPE_GLB_ASSETS: Partial<Record<string, string>> = {
 };
 
 /** Bust stale CDN / Telegram cache when Lab GLB assets are replaced. */
-const LAB_GLB_CACHE_BUST = "20260820e";
+const LAB_GLB_CACHE_BUST = "20260820f";
 
 const LAB_GLB_SHAPE_IDS = new Set([
   "pizza",
