@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { fetchHistory, type HistoryEntry, type HistoryCurrency } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 import { GramDiamondIcon } from "./GramDiamondIcon";
+import { ZoomCubeIcon } from "./ZoomCubeIcon";
 
 interface Props {
   telegramId: string;
@@ -37,7 +38,12 @@ function isRedstarEntry(entry: HistoryEntry): boolean {
   return meta?.asset === "redstar";
 }
 
-type CurrencyVisual = { glyph: string; tint: string; useGramIcon?: boolean };
+type CurrencyVisual = {
+  glyph: string;
+  tint: string;
+  useGramIcon?: boolean;
+  useZoomIcon?: boolean;
+};
 
 function currencyVisual(entry: HistoryEntry): CurrencyVisual {
   if (GRAM_KINDS.has(entry.kind) || entry.currency === "ton") {
@@ -51,13 +57,13 @@ function currencyVisual(entry: HistoryEntry): CurrencyVisual {
   }
   switch (entry.currency) {
     case "zoom":
-      return { glyph: "🪐", tint: "#ffd740" };
+      return { glyph: "", tint: "#ffd740", useZoomIcon: true };
     case "stars":
       return { glyph: "⭐", tint: "#ffd700" };
     case "spins":
       return { glyph: "🎡", tint: "#9EC5E8" };
     case "planet":
-      return { glyph: "🪐", tint: "#9EC5E8" };
+      return { glyph: "", tint: "#ffd740", useZoomIcon: true };
     default:
       return { glyph: "•", tint: "rgba(255,255,255,0.45)" };
   }
@@ -206,6 +212,8 @@ export default function HistoryModal({ telegramId, onClose }: Props) {
                   <span>{formatAmount(e.delta, e.currency)}</span>
                   {visual.useGramIcon ? (
                     <GramDiamondIcon size={13} />
+                  ) : visual.useZoomIcon ? (
+                    <ZoomCubeIcon size={13} />
                   ) : (
                     <span style={{ color: visual.tint }}>{visual.glyph}</span>
                   )}

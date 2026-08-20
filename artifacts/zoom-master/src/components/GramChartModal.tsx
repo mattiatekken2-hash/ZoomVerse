@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { GramWalletIcon } from "./TonWalletWidget";
 import { useT } from "../i18n/LanguageContext";
+import { fetchTonPrice, readCachedTonPriceAllowStale } from "../utils/tonPrice";
 
 const REFRESH_MS = 15_000;
 const CACHE_TTL_MS = 60_000;
@@ -45,21 +46,50 @@ function writeCache(price: number | null, points: ChartPoint[]) {
   if (price != null || points.length) gramMarketCache.fetchedAt = Date.now();
 }
 
-async function fetchGramPrice(): Promise<number | null> {
+function formatTime(ts: number): string {
+  try {
+    return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
+/** Binance klines — CORS-friendly, works inside Telegram WebView. */
+async function fetchBinanceHistory(): Promise<ChartPoint[]> {
   try {
     const res = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd",
+      "https://api.binance.com/api/v3/klines?symbol=TONUSDT&interval=15m&limit=96",
+      { signal: AbortSignal.timeout(10000), cache: "no-store" },
+    );
+    if (!res.ok) return [];
+    const rows = await res.json() as Array<[number, string, string, string, string]>;
+    if (!Array.isArray(rows) || rows.length < 2) return [];
+    return rows.map((row) => {
+      const t = Number(row[0]);
+      const price = parseFloat(row[4]);
+      return { t, price, label: formatTime(t) };
+    }).filter((p) => Number.isFinite(p.price) && p.price > 0);
+  } catch {
+    return [];
+  }
+}
+
+async function fetchBinancePrice(): Promise<number | null> {
+  try {
+    const res = await fetch(
+      "https://api.binance.com/api/v3/ticker/price?symbol=TONUSDT",
       { signal: AbortSignal.timeout(8000), cache: "no-store" },
     );
     if (!res.ok) return null;
-    const data = await res.json() as { "the-open-network"?: { usd?: number } };
-    return data["the-open-network"]?.usd ?? null;
+    const data = await res.json() as { price?: string };
+    const p = parseFloat(data.price ?? "");
+    return Number.isFinite(p) && p > 0 ? p : null;
   } catch {
     return null;
   }
 }
 
-async function fetchGramHistory(): Promise<ChartPoint[]> {
+async function fetchCoinGeckoHistory(): Promise<ChartPoint[]> {
   try {
     const res = await fetch(
       "https://api.coingecko.com/api/v3/coins/the-open-network/market_chart?vs_currency=usd&days=1",
@@ -70,11 +100,22 @@ async function fetchGramHistory(): Promise<ChartPoint[]> {
     return (data.prices ?? []).map(([t, price]) => ({
       t,
       price,
-      label: new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-    }));
+      label: formatTime(t),
+    })).filter((p) => Number.isFinite(p.price) && p.price > 0);
   } catch {
     return [];
   }
+}
+
+/** Downsample so the chart stays smooth on mobile. */
+function downsample(points: ChartPoint[], maxPoints = 64): ChartPoint[] {
+  if (points.length <= maxPoints) return points;
+  const step = Math.ceil(points.length / maxPoints);
+  const out: ChartPoint[] = [];
+  for (let i = 0; i < points.length; i += step) out.push(points[i]);
+  const last = points[points.length - 1];
+  if (out[out.length - 1]?.t !== last.t) out.push(last);
+  return out;
 }
 
 interface Props {
@@ -95,7 +136,7 @@ export function GramChartModal({
   const { t } = useT();
   const cached = readCache();
   const [price, setPrice] = useState<number | null>(
-    initialPrice ?? cached.price,
+    initialPrice ?? cached.price ?? readCachedTonPriceAllowStale(),
   );
   const [points, setPoints] = useState<ChartPoint[]>(cached.points);
   const [loading, setLoading] = useState(
@@ -106,7 +147,6 @@ export function GramChartModal({
   onPriceUpdateRef.current = onPriceUpdate;
   const gradientId = useId().replace(/:/g, "");
 
-  // Recharts needs one frame after portal mount before ResponsiveContainer measures.
   useLayoutEffect(() => {
     setChartReady(false);
     const id = window.requestAnimationFrame(() => setChartReady(true));
@@ -117,23 +157,34 @@ export function GramChartModal({
     let nextPrice: number | null = null;
     let nextPoints: ChartPoint[] = [];
 
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const [p, hist] = await Promise.all([fetchGramPrice(), fetchGramHistory()]);
-      if (p != null && Number.isFinite(p)) {
-        nextPrice = p;
-        setPrice(p);
-        onPriceUpdateRef.current?.(p);
+    // Prefer Binance (reliable in Telegram WebView); CoinGecko / wallet cache as fallback.
+    const [binancePrice, binanceHist] = await Promise.all([
+      fetchBinancePrice(),
+      fetchBinanceHistory(),
+    ]);
+
+    if (binanceHist.length >= 2) {
+      nextPoints = downsample(binanceHist);
+      setPoints(nextPoints);
+    } else {
+      const cgHist = await fetchCoinGeckoHistory();
+      if (cgHist.length >= 2) {
+        nextPoints = downsample(cgHist);
+        setPoints(nextPoints);
       }
-      if (hist.length >= 2) {
-        nextPoints = hist;
-        setPoints(hist);
-        break;
-      }
-      if (attempt === 0) await new Promise((r) => window.setTimeout(r, 400));
+    }
+
+    nextPrice = binancePrice ?? (await fetchTonPrice());
+    if (nextPrice != null && Number.isFinite(nextPrice)) {
+      setPrice(nextPrice);
+      onPriceUpdateRef.current?.(nextPrice);
     }
 
     if (nextPoints.length >= 2 || nextPrice != null) {
-      writeCache(nextPrice ?? readCache().price, nextPoints.length >= 2 ? nextPoints : readCache().points);
+      writeCache(
+        nextPrice ?? readCache().price,
+        nextPoints.length >= 2 ? nextPoints : readCache().points,
+      );
     }
     setLoading(false);
   }, []);
@@ -156,18 +207,26 @@ export function GramChartModal({
     if (points.length >= 2) return points;
     if (points.length === 1 && price != null) {
       return [
-        { ...points[0], t: points[0].t - 3_600_000 },
-        points[0],
+        { ...points[0], t: points[0].t - 3_600_000, label: formatTime(points[0].t - 3_600_000) },
+        { ...points[0], price, label: t("gramChart.now") },
       ];
     }
-    if (price != null) {
-      return [
-        { t: Date.now() - 3_600_000, price, label: "" },
-        { t: Date.now(), price, label: t("gramChart.now") },
-      ];
-    }
+    // Avoid a fake flat line when history is missing — show empty instead.
     return [];
-  }, [points, price]);
+  }, [points, price, t]);
+
+  const yDomain = useMemo((): [number, number] | ["auto", "auto"] => {
+    if (chartData.length < 2) return ["auto", "auto"];
+    const vals = chartData.map((d) => d.price);
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    if (!(max > min)) {
+      const pad = Math.max(min * 0.01, 0.01);
+      return [min - pad, max + pad];
+    }
+    const pad = (max - min) * 0.12;
+    return [min - pad, max + pad];
+  }, [chartData]);
 
   const pctChange = useMemo(() => {
     if (chartData.length < 2) return 0;
@@ -241,13 +300,14 @@ export function GramChartModal({
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                <XAxis dataKey="label" tick={{ fill: "rgba(255,255,255,0.28)", fontSize: 9 }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="label" tick={{ fill: "rgba(255,255,255,0.28)", fontSize: 9 }} axisLine={false} tickLine={false} minTickGap={28} />
                 <YAxis
-                  domain={["auto", "auto"]}
+                  domain={yDomain}
                   tick={{ fill: "rgba(255,255,255,0.28)", fontSize: 9 }}
                   axisLine={false}
                   tickLine={false}
                   width={48}
+                  tickCount={5}
                   tickFormatter={(v) => `$${Number(v).toFixed(3)}`}
                 />
                 <Tooltip

@@ -67,11 +67,6 @@ function formatYieldAmount(n: number): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
-function yieldUnit(planet: Planet): string {
-  if (planet.name === "MUSHROOM" || planet.shapeId === LAB_STARDUST_POT_SHAPE_ID) return "★";
-  return "$ZOOM";
-}
-
 export function FarmInventoryCard({
   planet,
   variant = "grid",
@@ -110,10 +105,10 @@ export function FarmInventoryCard({
   const showCycleRow = farmHours >= 2 && planet.name !== "MUSHROOM";
   const hourLabel = planet.name === "MUSHROOM"
     ? "5 ★"
-    : `${formatYieldAmount(planet.rate)} ${yieldUnit(planet)}`;
+    : formatYieldAmount(planet.rate);
   const cycleLabel = planet.name === "MUSHROOM"
     ? "5 ★"
-    : `${formatYieldAmount(cycleTotal)} ${yieldUnit(planet)}`;
+    : formatYieldAmount(cycleTotal);
 
   return (
     <div

@@ -38,6 +38,15 @@ function formatPrice(p: number): string {
   return p.toFixed(2);
 }
 
+/** Compact Y-axis ticks — avoid "0001" clutter on micro prices. */
+function formatAxisPrice(p: number): string {
+  if (!Number.isFinite(p) || p <= 0) return "0";
+  if (p < 1e-5) return p.toExponential(1);
+  if (p < 0.01) return p.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
+  if (p < 1) return p.toFixed(4);
+  return p.toFixed(3);
+}
+
 function fmtGram(p: number): string {
   return `${formatPrice(p)} GRAM`;
 }
@@ -98,6 +107,20 @@ export function ZoomMarketModal({ balance, onClose }: Props) {
     }
     return mapped;
   }, [points]);
+
+  const yDomain = useMemo((): [number, number] | ["auto", "auto"] => {
+    if (chartData.length < 2) return ["auto", "auto"];
+    const vals = chartData.map((d) => d.price).filter((n) => Number.isFinite(n) && n > 0);
+    if (vals.length < 2) return ["auto", "auto"];
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    if (max <= min) {
+      const pad = Math.max(min * 0.002, 1e-9);
+      return [Math.max(0, min - pad), max + pad];
+    }
+    const pad = (max - min) * 0.08;
+    return [Math.max(0, min - pad), max + pad];
+  }, [chartData]);
 
   const currentPrice = price > 0 ? price : genesis;
   const pctChange = genesis > 0 ? ((currentPrice - genesis) / genesis) * 100 : 0;
@@ -169,7 +192,7 @@ export function ZoomMarketModal({ balance, onClose }: Props) {
           <span style={{ color: CYAN }}>{t("zoomMarket.portfolio", { n: formatPrice(portfolio) })}</span>
         </div>
 
-        {/* Chart — compact */}
+        {/* Chart — compact (Stardust-style) */}
         <div className="px-3 flex-shrink-0" style={{ height: 110 }}>
           {chartData.length >= 2 ? (
             <ResponsiveContainer width="100%" height="100%">
@@ -182,18 +205,19 @@ export function ZoomMarketModal({ balance, onClose }: Props) {
                 </defs>
                 <XAxis dataKey="label" tick={{ fill: "rgba(255,255,255,0.22)", fontSize: 8 }} axisLine={false} tickLine={false} />
                 <YAxis
-                  domain={["auto", "auto"]}
+                  domain={yDomain}
                   tick={{ fill: "rgba(255,255,255,0.22)", fontSize: 8 }}
                   axisLine={false}
                   tickLine={false}
-                  width={42}
-                  tickFormatter={(v) => formatPrice(Number(v))}
+                  width={40}
+                  tickCount={4}
+                  tickFormatter={(v) => formatAxisPrice(Number(v))}
                 />
                 <Tooltip
                   contentStyle={{ background: "#0c1018", border: "1px solid rgba(255,215,64,0.25)", borderRadius: 8, fontSize: 10 }}
                   formatter={(v: number) => [fmtGram(v), t("zoomMarket.priceLabel")]}
                 />
-                <Area type="monotone" dataKey="price" stroke={GOLD} strokeWidth={1.5} fill="url(#zoomMarketChartFill)" isAnimationActive={false} />
+                <Area type="monotone" dataKey="price" stroke={GOLD} strokeWidth={1.5} fill="url(#zoomMarketChartFill)" />
               </AreaChart>
             </ResponsiveContainer>
           ) : (

@@ -52,7 +52,7 @@ export const fil: Record<string, string> = {
   "planet.NOVA": "Nova",
   "planet.MUSHROOM": "Mushroom",
   "planet.LEGEND": "Legend",
-  "history.title": "AKING HISTORY",
+  "history.title": "HISTORY",
   "history.subtitle": "Mga monetary action mo sa huling 48 oras",
   "history.loading": "Loading…",
   "history.empty": "Walang action sa huling 48 oras.",
