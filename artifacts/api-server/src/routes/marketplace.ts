@@ -78,6 +78,20 @@ router.get("/market/activity/stream", (req, res) => {
 // per the Global P2P Marketplace rules.
 const TON_MIN = 0.25;
 const TON_MAX = 10.0;
+/** Public shop shelf — listing auto-hides after this unless seller reactivates. */
+export const MARKET_LISTING_TTL_MS = 60 * 60 * 1000;
+
+function listingShelfDeadline(listing: { lastActivatedAt?: Date | string | null; createdAt?: Date | string | null }): number {
+  const raw = listing.lastActivatedAt ?? listing.createdAt;
+  if (!raw) return 0;
+  const t = raw instanceof Date ? raw.getTime() : new Date(raw).getTime();
+  return Number.isFinite(t) ? t + MARKET_LISTING_TTL_MS : 0;
+}
+
+function isListingOnShelf(listing: { lastActivatedAt?: Date | string | null; createdAt?: Date | string | null }, now = Date.now()): boolean {
+  const deadline = listingShelfDeadline(listing);
+  return deadline > 0 && now < deadline;
+}
 
 const ListBody = z.object({
   sellerTelegramId: z.string().min(1),
@@ -90,7 +104,7 @@ const ListBody = z.object({
   // V1_NFT è l'esclusivo NFT (20 TON, max 5 globali) tradabile secondario.
   // V1 era precedentemente soulbound — ora è tradeable.
   planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1", "V1_NFT", "MUSHROOM", "NOVA"]),
-  planetRate: z.number().int().positive(),
+  planetRate: z.number().positive(),
   price: z.number().positive(),
 });
 
@@ -181,7 +195,7 @@ router.post("/market/list", async (req, res) => {
       res.status(400).json({ error: "Planet not found in your inventory" });
       return;
     }
-    if (planet["name"] !== planetType || Number(planet["rate"]) !== planetRate) {
+    if (planet["name"] !== planetType || Math.abs(Number(planet["rate"]) - planetRate) > 0.0001) {
       await client.query("ROLLBACK");
       res.status(400).json({ error: "Planet type or rate mismatch" });
       return;
@@ -267,6 +281,7 @@ router.post("/market/list", async (req, res) => {
           shapeId: shapeIdSnapshot,
           price,
           status: "active",
+          lastActivatedAt: new Date(),
         })
         .returning();
       listing = inserted;
@@ -496,11 +511,95 @@ router.get("/market/listings", async (_req, res) => {
       .from(marketListingsTable)
       .where(eq(marketListingsTable.status, "active"))
       .orderBy(desc(marketListingsTable.createdAt))
-      .limit(100);
+      .limit(200);
 
-    res.json({ listings: rows });
+    const now = Date.now();
+    // Public shop: only show listings still within the 1h shelf window.
+    const listings = rows.filter((r) => isListingOnShelf(r, now));
+    res.json({ listings });
   } catch (err) {
     console.error("[market/listings] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+/** Seller's own Lab listings (including expired shelf) for the Market widget. */
+router.get("/market/my-listings/:telegramId", async (req, res) => {
+  const telegramId = String(req.params.telegramId || "").trim();
+  if (!telegramId) {
+    res.status(400).json({ error: "telegramId required" });
+    return;
+  }
+  try {
+    const rows = await db
+      .select()
+      .from(marketListingsTable)
+      .where(and(
+        eq(marketListingsTable.sellerTelegramId, telegramId),
+        eq(marketListingsTable.status, "active"),
+      ))
+      .orderBy(desc(marketListingsTable.createdAt))
+      .limit(100);
+    const now = Date.now();
+    res.json({
+      listings: rows.map((r) => {
+        const expiresAt = listingShelfDeadline(r);
+        return {
+          ...r,
+          expiresAt,
+          expired: expiresAt > 0 ? now >= expiresAt : false,
+          remainingMs: expiresAt > 0 ? Math.max(0, expiresAt - now) : 0,
+        };
+      }),
+    });
+  } catch (err) {
+    console.error("[market/my-listings] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+const ReactivateBody = z.object({
+  sellerTelegramId: z.string().min(1),
+  listingId: z.number().int().positive(),
+});
+
+/** Reset the 1h shop shelf clock so the listing shows again. */
+router.post("/market/reactivate", async (req, res) => {
+  const parsed = ReactivateBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body" });
+    return;
+  }
+  const { sellerTelegramId, listingId } = parsed.data;
+  try {
+    const [row] = await db
+      .select()
+      .from(marketListingsTable)
+      .where(and(
+        eq(marketListingsTable.id, listingId),
+        eq(marketListingsTable.sellerTelegramId, sellerTelegramId),
+        eq(marketListingsTable.status, "active"),
+      ))
+      .limit(1);
+    if (!row) {
+      res.status(404).json({ error: "Listing not found" });
+      return;
+    }
+    const now = new Date();
+    const [updated] = await db
+      .update(marketListingsTable)
+      .set({ lastActivatedAt: now })
+      .where(eq(marketListingsTable.id, listingId))
+      .returning();
+    const expiresAt = listingShelfDeadline(updated ?? { lastActivatedAt: now, createdAt: now });
+    res.json({
+      ok: true,
+      listing: updated,
+      expiresAt,
+      remainingMs: Math.max(0, expiresAt - Date.now()),
+    });
+  } catch (err) {
+    console.error("[market/reactivate] error:", err);
     res.status(500).json({ error: "Database error" });
   }
 });
@@ -533,6 +632,12 @@ router.post("/market/buy", async (req, res) => {
     if (!listing) {
       await client.query("ROLLBACK");
       res.status(404).json({ error: "Listing not found or already sold" });
+      return;
+    }
+
+    if (!isListingOnShelf(listing)) {
+      await client.query("ROLLBACK");
+      res.status(409).json({ error: "Listing expired — seller must reactivate" });
       return;
     }
 

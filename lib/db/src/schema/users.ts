@@ -473,7 +473,8 @@ export const marketListingsTable = pgTable("market_listings", {
   // equipment_* columns instead. The /market/list handler enforces
   // notNull for kind='planet' at the application layer.
   planetType: text("planet_type"),
-  planetRate: integer("planet_rate"),
+  // Lab generators use fractional rates (e.g. pizza 3.5 $ZOOM/h).
+  planetRate: real("planet_rate"),
   price: real("price").notNull(),
   status: text("status").notNull().default("active"),
   buyerTelegramId: text("buyer_telegram_id"),
@@ -518,6 +519,9 @@ export const marketListingsTable = pgTable("market_listings", {
   shapeId: text("shape_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   soldAt: timestamp("sold_at"),
+  // Shop shelf clock — set on list + each reactivate. Public shop hides
+  // the listing after MARKET_LISTING_TTL_MS (1h) until the seller taps
+  // Reactivate. Nullable for legacy rows (treated as createdAt).
   lastActivatedAt: timestamp("last_activated_at"),
 }, (table) => [
   index("idx_market_status").on(table.status),

@@ -23,12 +23,12 @@ function utcDayKey(now: Date = new Date()): string {
 // Referral ZOOM milestones — tiny helper only. Pot costs 500 $ZOOM;
 // even all six milestones (~1.2k) never replace Lab farming.
 const MILESTONES = [
-  { count: 5, reward: 40 },
-  { count: 10, reward: 70 },
-  { count: 20, reward: 100 },
-  { count: 50, reward: 180 },
-  { count: 100, reward: 300 },
-  { count: 200, reward: 500 },
+  { count: 5, reward: 40, rewardGram: 0.1 },
+  { count: 10, reward: 70, rewardGram: 0.2 },
+  { count: 20, reward: 100, rewardGram: 0.4 },
+  { count: 50, reward: 180, rewardGram: 0.8 },
+  { count: 100, reward: 300, rewardGram: 1.5 },
+  { count: 200, reward: 500, rewardGram: 3.0 },
 ];
 
 function getClaimedSet(raw: string): Set<number> {
@@ -43,32 +43,39 @@ function setToString(s: Set<number>): string {
 async function checkAndCreditMilestones(telegramId: string) {
   const [user] = await db.select().from(usersTable)
     .where(eq(usersTable.telegramId, telegramId)).limit(1);
-  if (!user) return { credited: 0, milestonesClaimed: [] as number[] };
+  if (!user) return { credited: 0, creditedGram: 0, milestonesClaimed: [] as number[] };
 
   const claimed = getClaimedSet(user.claimedMilestones || "");
   let totalReward = 0;
+  let totalGram = 0;
   const newlyClaimed: number[] = [];
 
   for (const m of MILESTONES) {
     if (user.referralCount >= m.count && !claimed.has(m.count)) {
       claimed.add(m.count);
       totalReward += m.reward;
+      totalGram += m.rewardGram;
       newlyClaimed.push(m.count);
     }
   }
 
-  if (totalReward > 0) {
+  if (totalReward > 0 || totalGram > 0) {
     await db.update(usersTable)
       .set({
-        zoomBalance: sql`${usersTable.zoomBalance} + ${totalReward}`,
-        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+        ...(totalReward > 0 ? {
+          zoomBalance: sql`${usersTable.zoomBalance} + ${totalReward}`,
+          balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+        } : {}),
+        ...(totalGram > 0 ? {
+          depositBalance: sql`${usersTable.depositBalance} + ${totalGram}`,
+        } : {}),
         claimedMilestones: setToString(claimed),
       })
       .where(eq(usersTable.telegramId, telegramId));
-    console.log(`[referral] Milestone rewards for ${telegramId}: +${totalReward} ZOOM (milestones: ${newlyClaimed.join(",")})`);
+    console.log(`[referral] Milestone rewards for ${telegramId}: +${totalReward} ZOOM +${totalGram} GRAM (milestones: ${newlyClaimed.join(",")})`);
   }
 
-  return { credited: totalReward, milestonesClaimed: newlyClaimed };
+  return { credited: totalReward, creditedGram: totalGram, milestonesClaimed: newlyClaimed };
 }
 
 const RegisterBody = z.object({

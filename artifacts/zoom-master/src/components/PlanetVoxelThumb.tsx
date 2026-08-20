@@ -175,9 +175,14 @@ export function PlanetVoxelThumb({
   const [delayReady, setDelayReady] = useState(glDelayMs <= 0);
 
   const [glGen, setGlGen] = useState(0);
+  const [glbFailed, setGlbFailed] = useState(false);
 
   const displayColors = getPlanetDisplayColors(planet);
   const displayFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
+
+  useEffect(() => {
+    setGlbFailed(false);
+  }, [planet.id, planet.shapeId]);
 
   useEffect(() => {
     if (eager) {
@@ -276,6 +281,9 @@ export function PlanetVoxelThumb({
 
   const handleGlError = useCallback(() => {
     releaseSlot();
+    // Prefer voxel silhouette over endless LabGlbViewer retries when GLB 404s
+    // (e.g. flower/dollar missing from public/models).
+    setGlbFailed(true);
     setGlGen((g) => g + 1);
   }, [releaseSlot]);
 
@@ -284,7 +292,7 @@ export function PlanetVoxelThumb({
   const thumbShapeId = planet.shapeId && planet.shapeId.length > 0
     ? planet.shapeId
     : FORGE_SPHERE_SHAPE_ID;
-  const useLabGlb = labForgeShapeHasGlbReveal(thumbShapeId);
+  const useLabGlb = labForgeShapeHasGlbReveal(thumbShapeId) && !glbFailed;
 
   return (
     <div
@@ -308,7 +316,7 @@ export function PlanetVoxelThumb({
           />
         ) : (
           <ObjectThumb
-            key={`${planet.id}-${glGen}`}
+            key={`${planet.id}-vox-${glGen}`}
             shapeId={thumbShapeId}
             primaryColor={displayColors.color}
             accentColor={displayColors.accentHex}

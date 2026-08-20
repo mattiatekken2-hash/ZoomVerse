@@ -3556,6 +3556,10 @@ export function useGameState() {
       const { telegramId, firstName, username, photoUrl } = getTelegramContext();
       setState((prev) => {
         const newBal = prev.balance + amount;
+        const next = { ...prev, balance: newBal, totalEarned: prev.totalEarned + amount };
+        // Keep stateRef in sync so a racing zoom-data-refresh doesn't overwrite the credit.
+        stateRef.current = next;
+        saveState(next);
         if (telegramId) {
           const sent = Math.floor(newBal);
           const sentTon = Math.max(0, prev.tonBalance || 0);
@@ -3563,7 +3567,7 @@ export function useGameState() {
           {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: sent, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
             .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon, sentStardust));}
         }
-        return { ...prev, balance: newBal, totalEarned: prev.totalEarned + amount };
+        return next;
       });
     };
     const handleServerSnap = (e: Event) => {
@@ -3572,11 +3576,20 @@ export function useGameState() {
       // Server rejected our merge (admin mutation in progress) — snap local
       // state down to the authoritative server value so the next sync doesn't
       // re-send the stale higher value.
-      setState((prev) => ({
-        ...prev,
-        balance: detail.balance,
-        lastBalanceEpoch: Math.max(prev.lastBalanceEpoch ?? 0, detail.epoch ?? 0),
-      }));
+      setState((prev) => {
+        const newEpoch = Math.max(prev.lastBalanceEpoch ?? 0, detail.epoch ?? 0);
+        const next = {
+          ...prev,
+          balance: detail.balance,
+          lastBalanceEpoch: newEpoch,
+        };
+        stateRef.current = next;
+        saveState(next);
+        if (typeof detail.epoch === "number" && detail.epoch > _currentBalanceEpoch) {
+          _currentBalanceEpoch = detail.epoch;
+        }
+        return next;
+      });
     };
     const handleServerTonSnap = (e: Event) => {
       const detail = (e as CustomEvent<{ tonBalance: number; epoch: number }>).detail;

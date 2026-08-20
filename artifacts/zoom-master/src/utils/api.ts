@@ -2763,7 +2763,13 @@ export interface ServerMarketListing {
   price: number;
   status: string;
   createdAt: string;
+  lastActivatedAt?: string | null;
+  expiresAt?: number;
+  expired?: boolean;
+  remainingMs?: number;
 }
+
+export const MARKET_LISTING_TTL_MS = 60 * 60 * 1000;
 
 export async function fetchMarketListings(): Promise<ServerMarketListing[]> {
   // Throws on network/HTTP/parse failure so callers can distinguish a
@@ -2778,6 +2784,44 @@ export async function fetchMarketListings(): Promise<ServerMarketListing[]> {
   const data = await res.json();
   if (!Array.isArray(data?.listings)) throw new Error("market/listings malformed response");
   return data.listings as ServerMarketListing[];
+}
+
+export async function fetchMyMarketListings(telegramId: string): Promise<ServerMarketListing[]> {
+  try {
+    const res = await fetch(`${API_BASE}/market/my-listings/${encodeURIComponent(telegramId)}?t=${Date.now()}`, {
+      headers: apiHeaders(),
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data?.listings) ? (data.listings as ServerMarketListing[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function reactivateMarketListing(
+  sellerTelegramId: string,
+  listingId: number,
+): Promise<{ ok: boolean; expiresAt?: number; remainingMs?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/market/reactivate`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ sellerTelegramId, listingId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.ok) {
+      return { ok: false, error: typeof data?.error === "string" ? data.error : `HTTP ${res.status}` };
+    }
+    return {
+      ok: true,
+      expiresAt: typeof data.expiresAt === "number" ? data.expiresAt : undefined,
+      remainingMs: typeof data.remainingMs === "number" ? data.remainingMs : undefined,
+    };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
 }
 
 export async function listOnMarket(params: {
@@ -3475,6 +3519,8 @@ export interface ClaimTaskResult {
   rewardStardust?: number;
   planetsBuilt?: number;
   threshold?: number;
+  zoomBalance?: number;
+  balanceEpoch?: number;
 }
 
 export async function claimTask(telegramId: string, taskId: string): Promise<ClaimTaskResult> {
@@ -3501,6 +3547,8 @@ export async function claimTask(telegramId: string, taskId: string): Promise<Cla
       rewardSpins: Number(json.rewardSpins ?? 0),
       rewardStardust: Number(json.rewardStardust ?? 0),
       planetsBuilt: Number(json.totalPlanetsBuilt ?? 0),
+      zoomBalance: typeof json.zoomBalance === "number" ? json.zoomBalance : undefined,
+      balanceEpoch: typeof json.balanceEpoch === "number" ? json.balanceEpoch : undefined,
     };
   } catch {
     return { ok: false, error: "NETWORK" };

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { MarketPlanetCard, type MarketPlanetListingView } from "../components/MarketPlanetCard";
+import { MyMarketListingsWidget } from "../components/MyMarketListingsWidget";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
 import { buyFromMarket, shareListing, openMarketActivityStream, type MarketSale } from "../utils/api";
 import { useGlobalStore, pushMarketSale, refreshMarketListings } from "../store/globalStore";
@@ -279,6 +280,13 @@ export function MarketPage({
           </div>
         ) : (
           <>
+            <MyMarketListingsWidget
+              telegramId={telegramId}
+              myPlanets={myListings}
+              onUnlist={onUnlist}
+              visible={visible}
+            />
+
             <div className="lab-market__filters" role="tablist" aria-label="Market path">
               {FILTERS.map((f) => (
                 <button

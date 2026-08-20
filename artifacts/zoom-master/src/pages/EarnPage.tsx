@@ -29,12 +29,12 @@ const DAILY_REWARDS_BASE = [1, 1, 2, 2, 3, 4, 5];
 
 // Must match artifacts/api-server/src/routes/referral.ts
 const MILESTONES = [
-  { count: 5, reward: 40 },
-  { count: 10, reward: 70 },
-  { count: 20, reward: 100 },
-  { count: 50, reward: 180 },
-  { count: 100, reward: 300 },
-  { count: 200, reward: 500 },
+  { count: 5, reward: 40, rewardGram: 0.1 },
+  { count: 10, reward: 70, rewardGram: 0.2 },
+  { count: 20, reward: 100, rewardGram: 0.4 },
+  { count: 50, reward: 180, rewardGram: 0.8 },
+  { count: 100, reward: 300, rewardGram: 1.5 },
+  { count: 200, reward: 500, rewardGram: 3.0 },
 ];
 
 const REFERRAL_STARDUST_PER_INVITE = 2;
@@ -323,9 +323,6 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
       const parts: string[] = [];
       if (res.rewardZoom && res.rewardZoom > 0) {
         parts.push(`+${res.rewardZoom.toLocaleString()} $ZOOM`);
-        // Mirror the daily-claim UX: optimistic balance bump via the
-        // global event the header listens to, plus a refresh ping.
-        window.dispatchEvent(new CustomEvent("zoom-credit-local", { detail: { amount: res.rewardZoom } }));
       }
       if (res.rewardSpins && res.rewardSpins > 0) {
         parts.push(t(res.rewardSpins > 1 ? "earn.spinsCreditedMany" : "earn.spinsCreditedOne", { n: res.rewardSpins }));
@@ -334,6 +331,28 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         parts.push(`+${res.rewardStardust.toLocaleString()} Stardust`);
       }
       setTaskMsg(parts.join(" · ") || t("earn.claimedBtn"));
+      // Optimistic UI: mark claimed immediately so Claim feels instant.
+      setTasks((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          claimedTasks: prev.claimedTasks.includes(taskId) ? prev.claimedTasks : [...prev.claimedTasks, taskId],
+          planetTasks: prev.planetTasks.map((pt) =>
+            pt.id === taskId ? { ...pt, claimed: true, claimable: false } : pt,
+          ),
+          sponsorTasks: prev.sponsorTasks.map((st) =>
+            st.id === taskId ? { ...st, claimed: true } : st,
+          ),
+        };
+      });
+      // Authoritative ZOOM snap from claim response (avoids race with sync).
+      if (typeof res.zoomBalance === "number" && typeof res.balanceEpoch === "number") {
+        window.dispatchEvent(new CustomEvent("zoom-server-balance-snap", {
+          detail: { balance: res.zoomBalance, epoch: res.balanceEpoch },
+        }));
+      } else if (res.rewardZoom && res.rewardZoom > 0) {
+        window.dispatchEvent(new CustomEvent("zoom-credit-local", { detail: { amount: res.rewardZoom } }));
+      }
       window.dispatchEvent(new Event("zoom-data-refresh"));
       await reloadTasks();
     } else if (res.error === "ALREADY_CLAIMED") {
@@ -737,7 +756,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             <div className="mb-3">
               <div className="flex justify-between text-[11px] mb-1.5">
                 <span style={{ color: "rgba(232,236,244,0.6)" }}>
-                  {nextMilestone.count} invites → +{nextMilestone.reward.toLocaleString()} $ZOOM
+                  {nextMilestone.count} invites → +{nextMilestone.reward.toLocaleString()} $ZOOM + {nextMilestone.rewardGram} GRAM
                 </span>
                 <span className="font-bold tabular-nums" style={{ color: "var(--earn-cyan)" }}>{referralCount}/{nextMilestone.count}</span>
               </div>
@@ -766,7 +785,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                   {claimed ? (
                     <span className="earn-reward-chip earn-reward-chip--ok">{t("earn.claimedTick")}</span>
                   ) : (
-                    <span className="earn-reward-chip">+{m.reward.toLocaleString()} $ZOOM</span>
+                    <span className="earn-reward-chip">+{m.reward.toLocaleString()} $ZOOM · +{m.rewardGram} GRAM</span>
                   )}
                 </div>
               );
