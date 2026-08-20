@@ -1,8 +1,10 @@
 /**
- * Lab forge mesh / GLB helpers.
- * Economy constants + random path pick live in `forge-lab-economy.ts`
- * (zero deps) so Vite named imports never hit a half-initialized module.
+ * Lab forge public module.
+ * Re-exports zero-dep economy first, then mesh/GLB helpers.
+ * Single entry so Vite named imports always resolve on this file.
  */
+export * from "./forge-lab-economy.js";
+
 import { getShapeGlbUrl } from "./glb-assets.js";
 import { getMeshParts } from "./meshes.js";
 import {

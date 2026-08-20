@@ -6,14 +6,7 @@ export * from "./voxelize.js";
 export * from "./voxel-sphere-blueprint.js";
 export * from "./glb-assets.js";
 /**
- * Lab economy + pick/path helpers — zero deps.
- * Do NOT also star-export forge-lab (avoids Vite conflicting / missing named exports).
+ * Single Lab forge barrel — re-exports economy + mesh helpers.
+ * Do not also `export *` from forge-lab-economy here (conflicts / missing names in Vite).
  */
-export * from "./forge-lab-economy.js";
-/** Mesh/GLB forge helpers only. */
-export {
-  resolveLabForgeShapeId,
-  getLabForgeShapeTapGoal,
-  getLabForgeShapeVoxels,
-  labForgeShapeHasGlbReveal,
-} from "./forge-lab.js";
+export * from "./forge-lab.js";
