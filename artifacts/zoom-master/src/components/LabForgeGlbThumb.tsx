@@ -4,28 +4,25 @@ import { LabGlbViewer } from "./LabGlbViewer";
 interface LabForgeGlbThumbProps {
   shapeId: string;
   size?: number;
-  /** reveal = forge grid; picker = studio glow, no grid. */
+  /** reveal = forge grid behind model; picker = clean GLB only. */
   variant?: "reveal" | "picker";
-  /** Path accent for picker pedestal (#rrggbb). */
-  studioGlow?: string;
 }
 
+/** Raw uploaded GLB — same pipeline as pizza (no line-art / voxel stand-ins). */
 function LabForgeGlbThumbBase({
   shapeId,
   size = 112,
   variant = "reveal",
-  studioGlow,
 }: LabForgeGlbThumbProps) {
-  const isPicker = variant === "picker";
   return (
     <LabGlbViewer
       key={shapeId}
       shapeId={shapeId}
       size={size}
       autoSpin
-      showGrid={!isPicker}
-      stage={isPicker ? "studio" : "forge"}
-      studioGlow={isPicker ? studioGlow : undefined}
+      showGrid={variant === "reveal"}
+      stage="forge"
+      chrome="card"
     />
   );
 }

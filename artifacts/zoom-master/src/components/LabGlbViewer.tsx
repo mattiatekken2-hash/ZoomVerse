@@ -9,11 +9,8 @@ import {
   LAB_GLB_FIT_SIZE,
   LAB_GLB_SPIN_RATE,
   addForgeSpaceGrid,
-  addStudioAmbient,
-  applyPathLineArt,
   disposeSceneObject,
   fitGlbToCenter,
-  glbTriangleCount,
 } from "../utils/labGlbScene";
 
 interface LabGlbViewerProps {
@@ -22,11 +19,11 @@ interface LabGlbViewerProps {
   autoSpin?: boolean;
   /** card = bordered panel (picker/reveal); none = transparent embed (farm orb). */
   chrome?: "card" | "none";
-  /** Forge space grid — off in farm slot cards and picker. */
+  /** Forge space grid — reveal card only. */
   showGrid?: boolean;
-  /** Hex glow (#rrggbb) for studio pedestal when grid is off. */
+  /** @deprecated Picker uses forge stage; kept for API compat. */
   studioGlow?: string;
-  /** card chrome style — forge (default) or studio (picker). */
+  /** @deprecated Always forge — raw GLB materials only. */
   stage?: "forge" | "studio";
   /** Drag to orbit (detail modal). */
   interactive?: boolean;
@@ -35,18 +32,18 @@ interface LabGlbViewerProps {
   onGlFailed?: () => void;
 }
 
+const LOAD_RETRIES = 2;
+
 /**
- * Pure GLB preview — no procedural voxels/mesh parts.
- * Materials and geometry come straight from the .glb file.
+ * Pure GLB preview — geometry and materials come straight from the .glb file.
+ * Only uniform scale/center for framing; no procedural overlays.
  */
 function LabGlbViewerBase({
   shapeId,
   size,
   autoSpin = true,
   chrome = "card",
-  showGrid,
-  studioGlow,
-  stage = "forge",
+  showGrid = false,
   interactive = false,
   spinRate = LAB_GLB_SPIN_RATE,
   onGlFailed,
@@ -69,16 +66,10 @@ function LabGlbViewerBase({
     let pmrem: THREE.PMREMGenerator | null = null;
     let envTex: THREE.Texture | null = null;
     const embedded = chrome === "none";
-    const renderGrid = showGrid ?? (chrome === "card" && stage === "forge");
-    const glowHex = parseStudioGlowHex(studioGlow);
-    const floatIdle = stage === "studio" && !interactive;
-    const floatStart = performance.now();
 
     const scene = new THREE.Scene();
     if (!embedded) {
-      scene.background = stage === "studio"
-        ? new THREE.Color(0x070910)
-        : new THREE.Color(0x060810);
+      scene.background = new THREE.Color(0x060810);
     }
 
     const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 5000);
@@ -151,51 +142,53 @@ function LabGlbViewerBase({
     const draw = () => renderer.render(scene, camera);
 
     const loader = new GLTFLoader();
-    loader.load(
-      glbUrl,
-      (gltf) => {
-        if (disposed) return;
-        const model = gltf.scene;
-        const fitted = fitGlbToCenter(model, LAB_GLB_FIT_SIZE);
-        if (stage === "studio" && glowHex != null && glbTriangleCount(model) < 12_000) {
-          applyPathLineArt(model, glowHex);
-        }
-        spinGroup.add(model);
+    let loadAttempt = 0;
 
-        if (renderGrid) {
-          gridExtras = addForgeSpaceGrid(scene, fitted);
-        } else if (glowHex != null && chrome === "card") {
-          gridExtras = addStudioAmbient(scene, fitted, glowHex);
-        }
-        const camDir = new THREE.Vector3(1.35, 0.95, 1.7).normalize();
-        const camDist = fitted * 2.85;
-        camera.position.copy(camDir.multiplyScalar(camDist));
-        camera.near = camDist * 0.02;
-        camera.far = camDist * 12;
-        camera.updateProjectionMatrix();
-        camera.lookAt(0, 0, 0);
-        controls?.update();
-        draw();
-      },
-      undefined,
-      () => { onGlFailedRef.current?.(); },
-    );
+    const placeModel = (model: THREE.Object3D) => {
+      const fitted = fitGlbToCenter(model, LAB_GLB_FIT_SIZE);
+      spinGroup.add(model);
+
+      if (showGrid) {
+        gridExtras = addForgeSpaceGrid(scene, fitted);
+      }
+
+      const camDir = new THREE.Vector3(1.35, 0.95, 1.7).normalize();
+      const camDist = fitted * 2.85;
+      camera.position.copy(camDir.multiplyScalar(camDist));
+      camera.near = camDist * 0.02;
+      camera.far = camDist * 12;
+      camera.updateProjectionMatrix();
+      camera.lookAt(0, 0, 0);
+      controls?.update();
+      draw();
+    };
+
+    const tryLoad = () => {
+      loader.load(
+        glbUrl,
+        (gltf) => {
+          if (disposed) return;
+          placeModel(gltf.scene);
+        },
+        undefined,
+        () => {
+          if (disposed) return;
+          loadAttempt += 1;
+          if (loadAttempt <= LOAD_RETRIES) {
+            window.setTimeout(tryLoad, 400 * loadAttempt);
+            return;
+          }
+          onGlFailedRef.current?.();
+        },
+      );
+    };
+    tryLoad();
 
     const animate = () => {
       if (disposed) return;
-      const t = performance.now() - floatStart;
-      if (floatIdle) {
-        const bob = Math.sin(t * 0.0011) * LAB_GLB_FIT_SIZE * 0.052;
-        const swayX = Math.sin(t * 0.00078) * 0.026;
-        const swayZ = Math.cos(t * 0.00068) * 0.016;
-        spinGroup.position.y = bob;
-        spinGroup.rotation.x = swayX;
-        spinGroup.rotation.z = swayZ;
-      } else {
-        spinGroup.position.y = 0;
-        spinGroup.rotation.x = 0;
-        spinGroup.rotation.z = 0;
-      }
+      spinGroup.position.y = 0;
+      spinGroup.rotation.x = 0;
+      spinGroup.rotation.z = 0;
       if (interactive && controls) {
         controls.update();
         if (autoSpin && !dragging) spinGroup.rotation.y += spinRate;
@@ -227,28 +220,14 @@ function LabGlbViewerBase({
         mount.removeChild(renderer.domElement);
       }
     };
-  }, [shapeId, size, autoSpin, chrome, showGrid, studioGlow, stage, interactive, spinRate]);
+  }, [shapeId, size, autoSpin, chrome, showGrid, interactive, spinRate]);
 
-  const wrapperStyle: CSSProperties = embeddedStyle(chrome, size, stage, studioGlow);
+  const wrapperStyle: CSSProperties = embeddedStyle(chrome, size);
 
   return <div ref={mountRef} style={wrapperStyle} />;
 }
 
-function hexToRgbParts(hex: string | undefined): string {
-  if (!hex) return "136, 153, 187";
-  const h = hex.replace("#", "");
-  if (h.length !== 6) return "136, 153, 187";
-  const n = parseInt(h, 16);
-  if (!Number.isFinite(n)) return "136, 153, 187";
-  return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`;
-}
-
-function embeddedStyle(
-  chrome: "card" | "none",
-  size: number,
-  stage: "forge" | "studio",
-  studioGlow?: string,
-): CSSProperties {
+function embeddedStyle(chrome: "card" | "none", size: number): CSSProperties {
   if (chrome === "none") {
     return {
       width: size,
@@ -256,22 +235,6 @@ function embeddedStyle(
       overflow: "hidden",
       background: "transparent",
       touchAction: "manipulation",
-    };
-  }
-  if (stage === "studio") {
-    const rgb = hexToRgbParts(studioGlow);
-    return {
-      width: size,
-      height: size,
-      borderRadius: 14,
-      overflow: "hidden",
-      background: `radial-gradient(circle at 50% 44%, rgba(${rgb},0.14) 0%, transparent 48%), radial-gradient(circle at 50% 56%, rgba(255,255,255,0.03) 0%, rgba(8,10,18,0.98) 62%)`,
-      border: `1.5px solid rgba(${rgb},0.45)`,
-      boxShadow: `
-        inset 0 0 0 1px rgba(${rgb},0.28),
-        inset 0 0 24px rgba(${rgb},0.1),
-        0 0 20px rgba(${rgb},0.12)
-      `,
     };
   }
   return {
@@ -283,14 +246,6 @@ function embeddedStyle(
     border: "1px solid rgba(255,255,255,0.08)",
     boxShadow: "inset 0 0 24px rgba(0,0,0,0.45)",
   };
-}
-
-function parseStudioGlowHex(hex: string | undefined): number | null {
-  if (!hex) return null;
-  const h = hex.replace("#", "");
-  if (h.length !== 6) return null;
-  const n = parseInt(h, 16);
-  return Number.isFinite(n) ? n : null;
 }
 
 export const LabGlbViewer = memo(LabGlbViewerBase);
