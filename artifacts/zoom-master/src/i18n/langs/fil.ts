@@ -477,6 +477,7 @@ export const fil: Record<string, string> = {
   "common.max": "MAX",
   "wallet.connect": "I-connect ang Wallet",
   "wallet.deposit": "Mag-deposit",
+  "wallet.history": "History",
   "wallet.withdraw": "Mag-withdraw",
   "wallet.depositTitle": "Mag-deposit ng GRAM",
   "wallet.withdrawTitle": "Mag-withdraw ng GRAM",

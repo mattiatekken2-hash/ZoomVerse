@@ -479,6 +479,7 @@ export const es: Record<string, string> = {
   "common.max": "MAX",
   "wallet.connect": "Conectar Wallet",
   "wallet.deposit": "Depositar",
+  "wallet.history": "History",
   "wallet.withdraw": "Retirar",
   "wallet.depositTitle": "Depositar GRAM",
   "wallet.withdrawTitle": "Retirar GRAM",
