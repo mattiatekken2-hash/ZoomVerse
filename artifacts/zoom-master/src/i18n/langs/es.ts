@@ -87,6 +87,7 @@ export const es: Record<string, string> = {
   "lab.forgePlanet": "FORJAR PLANETA",
   "lab.startBuildBtn": "INICIAR BUILD",
   "lab.tonAppVoteAria": "Votar en TON App",
+  "lab.tonAppBadgeAlt": "Ranking de Zoom Bot en TON App",
   "lab.perTap": "El costo de Stardust varía según la rareza",
   "lab.slotsFree": "{n} espacios libres",
   "farm.collect": "RECOLECTAR",

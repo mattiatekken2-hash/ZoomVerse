@@ -780,5 +780,6 @@ export const fil: Record<string, string> = {
 
   "lab.forgeComplete": "TAPOS NA ANG FORGE",
   "lab.tonAppVoteAria": "Bumoto sa TON App",
+  "lab.tonAppBadgeAlt": "Rank ng Zoom Bot sa TON App",
   "lab.rarityWheelNext": "Paparating ang rarity wheel…",
 };
