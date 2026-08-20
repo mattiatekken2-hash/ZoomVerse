@@ -94,6 +94,7 @@ async function ensureGenesis(): Promise<void> {
   if (Number(ver?.valueNum ?? 0) >= GENESIS_VERSION) return;
 
   await db.transaction(async (tx) => {
+    const genesisChart = JSON.stringify([{ t: Date.now(), p: STARDUST_GENESIS_MICRO }]);
     await tx
       .insert(appSettingsTable)
       .values({ key: INDEX_KEY, valueNum: STARDUST_GENESIS_MICRO })
@@ -103,10 +104,10 @@ async function ensureGenesis(): Promise<void> {
       });
     await tx
       .insert(appSettingsTable)
-      .values({ key: CHART_KEY, valueText: JSON.stringify([{ t: Date.now(), p: STARDUST_GENESIS_MICRO }]) })
+      .values({ key: CHART_KEY, valueText: genesisChart })
       .onConflictDoUpdate({
         target: appSettingsTable.key,
-        set: { valueText: "[]", updatedAt: new Date() },
+        set: { valueText: genesisChart, updatedAt: new Date() },
       });
     await tx
       .insert(appSettingsTable)
