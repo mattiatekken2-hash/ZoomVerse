@@ -779,5 +779,6 @@ export const fil: Record<string, string> = {
   "farm.collection": "KOLEKSYON",
 
   "lab.forgeComplete": "TAPOS NA ANG FORGE",
+  "lab.tonAppVoteAria": "Bumoto sa TON App",
   "lab.rarityWheelNext": "Paparating ang rarity wheel…",
 };
