@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
-import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, type LabForgePath } from "@workspace/game-models";
+import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, isLabZoomShapeId, type LabForgePath } from "@workspace/game-models";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import type { CollectibleItem } from "../utils/collectibleConfig";
@@ -1074,8 +1074,9 @@ function loadState(): GameState {
         const forgingNow = !!(base.labForgePath || base.pendingPlanet);
         const savedShape = (parsed as unknown as Record<string, unknown>).labForgeShapeId;
         const savedPath = (parsed as unknown as Record<string, unknown>).labForgePath;
+        // Lab economy — Farm keeps only ZOOM/Stardust generators (no BASIC…GOLD spheres).
+        base.planets = base.planets.filter(isLabForgeGeneratorPlanet);
         if (isLabDevWipeActive() || consumeLabDevFarmResetOnce()) {
-          base.planets = base.planets.filter(isLabForgeGeneratorPlanet);
           base.sun = null;
           base.sunCount = 0;
           base.claimedBonusSun = false;
@@ -1750,10 +1751,33 @@ function makePlanet(rarity: PlanetType): Planet {
   };
 }
 
-/** Lab dual-forge outcome — pizza ($ZOOM) or stardust pot (★ generator). */
+/** Lab dual-forge outcome — ZOOM models (pizza/flower/dollar) or stardust pot. */
 function makeLabGeneratorPlanet(path: LabForgePath, shapeId: string): Planet {
   const isZoom = path === "zoom";
   const now = serverNow();
+  if (isZoom && isLabZoomShapeId(shapeId)) {
+    const colors = LAB_ZOOM_COLORS[shapeId];
+    return {
+      id: `${Date.now()}-${Math.random().toString(36).substring(2)}`,
+      name: "BASIC",
+      displayName: LAB_ZOOM_DISPLAY_NAME[shapeId],
+      shapeId,
+      rate: LAB_ZOOM_FARM_RATE[shapeId],
+      color: colors.color,
+      glowColor: colors.glowColor,
+      createdAt: now,
+      farmStartedAt: 0,
+      lastCollectedAt: 0,
+      isListedInMarket: false,
+      isFarmingActive: false,
+      marketPrice: null,
+      craftCost: LAB_ZOOM_FORGE_STARDUST_COST,
+      float: generateRandomFloat(),
+      durability: 100,
+      durabilityUpdatedAt: 0,
+      farmDurationHours: 1,
+    };
+  }
   return {
     id: `${Date.now()}-${Math.random().toString(36).substring(2)}`,
     name: "BASIC",
@@ -1824,11 +1848,15 @@ export function getRarityColorsForModel(rarityOrPlanetType: string): {
 }
 
 /** Lab 3D + Farm cards — palette from final planet rarity (BASIC grey, RARE blue, …). */
-export function getPlanetDisplayColors(planet: Pick<Planet, "name" | "color" | "glowColor" | "modelId">): {
+export function getPlanetDisplayColors(planet: Pick<Planet, "name" | "color" | "glowColor" | "modelId" | "shapeId">): {
   color: string;
   glowColor: string;
   accentHex: string;
 } {
+  // Lab generators carry their own palette (pizza / flower / dollar / pot).
+  if (isLabForgeGeneratorPlanet(planet) && planet.color && planet.glowColor) {
+    return { color: planet.color, glowColor: planet.glowColor, accentHex: planet.glowColor };
+  }
   return getRarityColorsForModel(planet.name);
 }
 
@@ -1848,10 +1876,9 @@ function stripLegacyCatalogModels(planets: Planet[]): Planet[] {
   return planets.filter((p) => !isLegacyCatalogModelPlanet(p));
 }
 
-/** Lab dev mode — THE SUN must never appear in Farm (server grants re-add it otherwise). */
+/** Lab economy — THE SUN must never appear in Farm (server grants re-add it otherwise). */
 function stripSunForLabDev(state: GameState): GameState {
-  if (!isLabDevWipeActive()) return state;
-  if (!state.sun?.isOwned && (state.sunCount ?? 0) === 0 && !state.claimedBonusSun) return state;
+  if (!state.sun && !state.sunCount && !state.claimedBonusSun) return state;
   return { ...state, sun: null, sunCount: 0, claimedBonusSun: false };
 }
 
@@ -2494,22 +2521,8 @@ export function useGameState() {
         // slot/autoTap reset, collection bundle revoke) and silently wipe
         // state the user actually still owns.
         if (grantsOk) {
-        // Apply bonus sun from server (grant sun if not already owned)
-        if (grants.bonusSun && !isLabDevWipeActive()) {
-          updated = {
-            ...updated,
-            claimedBonusSun: true,
-            sunCount: Math.max(1, grants.sunCount || 1),
-            sun: updated.sun?.isOwned ? updated.sun : {
-              isOwned: true,
-              isActive: false,
-              activationCost: SUN_CONFIG.activationCostBase,
-              cycleCount: 0,
-              farmStartedAt: 0,
-              lastCollectedAt: 0,
-            },
-          };
-        } else if (updated.claimedBonusSun && !isLabDevWipeActive()) {
+        // Lab economy — never grant / restore THE SUN into Farm.
+        if (grants.bonusSun || updated.claimedBonusSun || updated.sun?.isOwned) {
           updated = { ...updated, sun: null, claimedBonusSun: false, sunCount: 0 };
         }
 
@@ -2585,7 +2598,8 @@ export function useGameState() {
               sunCycleCount: mergedCycleCount,
             });
           }
-        } else if (isLabDevWipeActive()) {
+        } else {
+          // Lab economy — never reintroduce THE SUN into Farm inventory.
           updated = stripSunForLabDev(updated);
         }
 
@@ -2600,7 +2614,7 @@ export function useGameState() {
         // server value can never double-count by being smaller than what
         // the local app already materialized.
         if (serverRegular.ok) {
-          if (!isLabDevWipeActive() && serverRegular.exists && (serverRegular.planets.length > 0 || stateRef.current.planets.length === 0)) {
+          if (serverRegular.exists && (serverRegular.planets.length > 0 || stateRef.current.planets.length === 0)) {
             // Apply BOTH migrations as we hydrate so server-stored pianeti
             // arrive normalized for the rest of the app:
             //   1) `migrateLegacyNeverStartedPlanet` — fix old never-started
@@ -2614,6 +2628,7 @@ export function useGameState() {
             //      may still hold pre-migration timestamps. The 1.2s
             //      debounced `saveRegularPlanets` below will then push the
             //      migrated values back to the server.
+            // Lab economy: drop BASIC…GOLD spheres — keep only ZOOM/Stardust generators.
             const nowMs = serverNow();
             updated = {
               ...updated,
@@ -2645,7 +2660,12 @@ export function useGameState() {
                   }
                   return serverP;
                 }),
-              ),
+              ).filter(isLabForgeGeneratorPlanet),
+            };
+          } else {
+            updated = {
+              ...updated,
+              planets: updated.planets.filter(isLabForgeGeneratorPlanet),
             };
           }
           updated = {
@@ -3137,27 +3157,15 @@ export function useGameState() {
       setState((prev) => {
         let updated = { ...prev };
 
-        if (grants.bonusSun && !isLabDevWipeActive()) {
-          updated = {
-            ...updated,
-            claimedBonusSun: true,
-            sunCount: Math.max(1, grants.sunCount || 1),
-            sun: updated.sun?.isOwned ? updated.sun : {
-              isOwned: true,
-              isActive: false,
-              activationCost: SUN_CONFIG.activationCostBase,
-              cycleCount: 0,
-              farmStartedAt: 0,
-              lastCollectedAt: 0,
-            },
-          };
-        } else if (updated.claimedBonusSun && !isLabDevWipeActive()) {
+        // Lab economy — never grant / restore THE SUN into Farm.
+        if (grants.bonusSun || updated.claimedBonusSun || updated.sun?.isOwned) {
           updated = { ...updated, sun: null, claimedBonusSun: false, sunCount: 0 };
         }
 
         // Same SUN-cycle merge as the initial hydration above. See the long
         // comment there for why this exists; this branch covers periodic
         // /grants polls that may pick up cycle changes from another device.
+        // Lab economy: SUN is always cleared above, so this never runs.
         if (updated.sun?.isOwned && !isLabDevWipeActive()) {
           const srvStarted = Math.max(0, Number(grants.sunFarmStartedAtMs ?? 0));
           const srvCollected = Math.max(0, Number(grants.sunLastCollectedAtMs ?? 0));
@@ -3193,7 +3201,7 @@ export function useGameState() {
               sunCycleCount: mergedCycleCount,
             });
           }
-        } else if (isLabDevWipeActive()) {
+        } else {
           updated = stripSunForLabDev(updated);
         }
 

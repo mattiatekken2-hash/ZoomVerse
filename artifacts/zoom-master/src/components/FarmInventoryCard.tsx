@@ -11,7 +11,7 @@ import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 import { useT } from "../i18n/LanguageContext";
-import { LAB_STARDUST_POT_SHAPE_ID } from "@workspace/game-models";
+import { isLabForgeGeneratorPlanet, LAB_STARDUST_POT_SHAPE_ID } from "@workspace/game-models";
 
 export type FarmCardVariant = "grid" | "compact";
 
@@ -91,7 +91,9 @@ export function FarmInventoryCard({
   const remaining = getFarmTimeRemaining(planet);
   const dur = planet.durability ?? 100;
   const farmHours = planet.farmDurationHours ?? 1;
-  const planetFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
+  const planetFloat = !isLabForgeGeneratorPlanet(planet) && isFloatablePlanet(planet)
+    ? getDisplayFloat(planet)
+    : undefined;
   const isPlatinumNft = planet.name === "V1_NFT";
   const isStardustYield = planet.name === "MUSHROOM" || planet.shapeId === LAB_STARDUST_POT_SHAPE_ID;
   const yieldIconSize = compact ? 10 : 11;

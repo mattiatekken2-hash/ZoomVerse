@@ -1,18 +1,15 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import type { CollectibleItem } from "../utils/collectibleConfig";
 import { FarmInventoryCard } from "../components/FarmInventoryCard";
-import { DailyComboBox } from "../components/DailyComboBox";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
-import { PLANET_CONFIG, SUN_CONFIG, isFarmActive, isSunActive, FARM_UPGRADE_COSTS, FARM_UPGRADE_TIERS, isLegacyCatalogModelPlanet } from "../hooks/useGameState";
-import { SunFarmInventoryCard } from "../components/SunFarmInventoryCard";
-import { SunFarmThumb } from "../components/SunFarmThumb";
+import { PLANET_CONFIG, isFarmActive } from "../hooks/useGameState";
 import { WalletPopup } from "../components/WalletPopup";
 import { useT } from "../i18n/LanguageContext";
 import { PlanetRenameModal } from "../components/PlanetRenameModal";
 import PvPModal from "../components/PvPModal";
 import { getPlanetDisplayName } from "../utils/planetNames";
-import { isLabDevWipeActive } from "@workspace/game-models";
+import { isLabForgeGeneratorPlanet } from "@workspace/game-models";
 
 interface FarmPageProps {
   planets: Planet[];
@@ -180,28 +177,23 @@ export function FarmPage({
   void redStarBalance;
   void onRedStarBalanceUpdate;
   const { t } = useT();
-  const showSunInFarm = !isLabDevWipeActive() && !!sun?.isOwned && !!sun;
-  const farmSun = showSunInFarm ? sun : null;
-  const farmSunCount = showSunInFarm ? (sunCount ?? 0) : 0;
-  const sunMultiplier = Math.max(1, farmSunCount || (farmSun?.isOwned ? 1 : 0));
-  const sunDisplayRate = SUN_CONFIG.rate * sunMultiplier;
+  // Lab economy — only ZOOM / Stardust generators in Farm (no spheres, no SUN).
+  const labPlanets = planets.filter(isLabForgeGeneratorPlanet);
+  const farmGenerators = labPlanets.filter((p) => !p.isListedInMarket);
+  void sun;
+  void sunCount;
+  void onStartSunFarming;
+  void onStopSunFarming;
+  void onBurnSun;
+  void onUpgradeSunDuration;
   const [confirmBurn, setConfirmBurn] = useState<string | null>(null);
   const [sellPopup, setSellPopup] = useState<SellPopup | null>(null);
   const [sellPrice, setSellPrice] = useState("");
-  const [sunWalletOpen, setSunWalletOpen] = useState(false);
   const [slotWalletOpen, setSlotWalletOpen] = useState(false);
   const [defectMsg, setDefectMsg] = useState<string | null>(null);
   const [renamePlanet, setRenamePlanet] = useState<Planet | null>(null);
   const [pvpPlanet, setPvPPlanet] = useState<Planet | null>(null);
   const [detailPlanet, setDetailPlanet] = useState<Planet | null>(null);
-  const [sunDetailOpen, setSunDetailOpen] = useState(false);
-  const handleComboClaimed = useCallback((newRedStarBalance: number) => {
-    // Snap the local redStar balance to the server-confirmed value immediately
-    // so the UI reflects the combo reward without waiting for the next sync.
-    window.dispatchEvent(new CustomEvent("zoom-server-redstar-snap", {
-      detail: { redStarBalance: newRedStarBalance },
-    }));
-  }, []);
   const inputRef = useRef<HTMLInputElement>(null);
   void _items;
   void _onSellItem;
@@ -212,8 +204,7 @@ export function FarmPage({
   // `onCollect` prop is retained for legacy compatibility but never invoked.
   void onCollect;
 
-  const totalRate = planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0)
-    + (farmSun && isSunActive(farmSun) ? sunDisplayRate : 0);
+  const totalRate = farmGenerators.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
 
   const handleBurnClick = (id: string) => {
     if (confirmBurn === id) {
@@ -258,13 +249,6 @@ export function FarmPage({
     setSellPrice("");
   };
 
-  const handleSunStartOrReactivate = () => {
-    const res = onStartSunFarming();
-    if (!res.ok) {
-      setDefectMsg(res.reason ?? t("farm.cannotStartSun"));
-      setTimeout(() => setDefectMsg(null), 1800);
-    }
-  };
 
   // Keep the detail sheet in sync with the live planets array — `detailPlanet`
   // is a snapshot from the moment the user tapped the card.
@@ -298,8 +282,8 @@ export function FarmPage({
             <h2 className="font-black text-lg tracking-tight">{t("farm.myPlanets")}</h2>
             <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
               {totalRate > 0
-                ? `${planets.length}/${maxSlots} ${t("farm.slots") || "slots"}`
-                : `${planets.length}/${maxSlots} · ${t("farm.noActive")}`}
+                ? `${labPlanets.length}/${maxSlots} ${t("farm.slots") || "slots"}`
+                : `${labPlanets.length}/${maxSlots} · ${t("farm.noActive")}`}
             </p>
           </div>
           {totalRate > 0 && (
@@ -379,24 +363,8 @@ export function FarmPage({
       >
         <div className="flex flex-col gap-3">
 
-          <DailyComboBox
-            telegramId={telegramId}
-            planets={planets}
-            onClaimed={handleComboClaimed}
-            active={visible}
-          />
-
           <div className="grid grid-cols-2 gap-3">
-          {showSunInFarm && farmSun && (
-            <SunFarmInventoryCard
-              sun={farmSun}
-              sunMultiplier={sunMultiplier}
-              suspendGl={!!detailPlanet || !!sunDetailOpen || !visible}
-              onCardClick={() => setSunDetailOpen(true)}
-              onStartFarm={handleSunStartOrReactivate}
-            />
-          )}
-          {planets.filter((p) => !p.isListedInMarket && !isLegacyCatalogModelPlanet(p)).map((planet, index) => {
+          {farmGenerators.map((planet) => {
             const isListed = planet.isListedInMarket;
 
             const handleStartOrReactivate = () => {
@@ -426,7 +394,7 @@ export function FarmPage({
           })}
           </div>{/* end 2-col grid */}
 
-          {Array.from({ length: Math.max(0, maxSlots - planets.length) }).map((_, i) => (
+          {Array.from({ length: Math.max(0, maxSlots - labPlanets.length) }).map((_, i) => (
             <div
               key={`empty-${i}`}
               className="rounded-2xl border border-dashed flex flex-col items-center justify-center py-10 gap-3"
@@ -453,9 +421,9 @@ export function FarmPage({
             <div className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>to unlock slot</div>
           </div>
 
-        {planets.length === 0 && !showSunInFarm && (
+        {farmGenerators.length === 0 && (
           <div className="text-center text-xs py-4" style={{ color: "rgba(255,255,255,0.22)" }}>
-            Forge your first planet in the Lab
+            Forge a $ZOOM or ★ Stardust model in the Lab
           </div>
         )}
 
@@ -531,15 +499,7 @@ export function FarmPage({
         </div>
       )}
 
-      {/* SUN WALLET POPUP */}
-      {farmSun && (
-        <WalletPopup
-          isOpen={sunWalletOpen}
-          amount={`${farmSun.activationCost} GRAM`}
-          purpose="Activate THE SUN"
-          onClose={() => setSunWalletOpen(false)}
-        />
-      )}
+      {/* Slot unlock */}
       <WalletPopup
         isOpen={slotWalletOpen}
         amount="0.25 GRAM"
@@ -627,94 +587,6 @@ export function FarmPage({
             : undefined}
           onUpgradeDuration={onUpgradeDuration}
         />
-      )}
-      {sunDetailOpen && showSunInFarm && farmSun && (
-        <div
-          className="absolute inset-0 z-50 flex items-end justify-center"
-          style={{ background: "rgba(6,8,16,0.92)" }}
-          onClick={(e) => e.target === e.currentTarget && setSunDetailOpen(false)}
-        >
-          <div
-            className="w-full max-w-md rounded-t-3xl px-5 pt-5 pb-8"
-            style={{
-              background: "linear-gradient(180deg, rgba(255,238,88,0.12) 0%, rgba(8,10,18,0.98) 32%)",
-              border: "1px solid rgba(255,238,88,0.25)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(255,238,88,0.55)" }}>
-                  EXCLUSIVE
-                </div>
-                <div className="font-black text-xl" style={{ color: "#ffee58" }}>
-                  THE SUN{sunMultiplier > 1 ? ` ×${sunMultiplier}` : ""}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSunDetailOpen(false)}
-                className="text-xs font-bold px-3 py-1.5 rounded-full"
-                style={{ color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.12)" }}
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="mb-4 flex flex-col items-center gap-3">
-              <SunFarmThumb size={120} animate suspendGl={false} />
-              <div className="text-center text-xs font-bold" style={{ color: "rgba(255,255,255,0.55)" }}>
-                +{(SUN_CONFIG.rate * sunMultiplier).toLocaleString()} $ZOOM/hr · {farmSun.farmDurationHours ?? 1}h cycle
-              </div>
-              <button
-                type="button"
-                className="w-full max-w-xs py-3 rounded-xl text-xs font-black"
-                style={{
-                  background: "linear-gradient(135deg, #ffee58, #ffb300)",
-                  color: "#1a1000",
-                }}
-                onClick={handleSunStartOrReactivate}
-              >
-                {isSunActive(farmSun) ? "FARMING ACTIVE" : "START / REACTIVATE"}
-              </button>
-            </div>
-
-            {onUpgradeSunDuration && (
-              <div className="farm-panel-3d">
-                <div className="farm-panel-3d__title">
-                  ⏱ CYCLE DURATION — {farmSun.farmDurationHours ?? 1}h · costs EARNED GRAM
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 5 }}>
-                  {FARM_UPGRADE_TIERS.map((h) => {
-                    const cost = FARM_UPGRADE_COSTS[h]!;
-                    const isCurrent = (farmSun.farmDurationHours ?? 1) === h;
-                    const canAfford = tonBalance >= cost;
-                    const tierDisabled = isCurrent || !canAfford;
-                    return (
-                      <button
-                        key={h}
-                        type="button"
-                        disabled={tierDisabled}
-                        onClick={async () => {
-                          const result = await onUpgradeSunDuration(h);
-                          if (!result.ok) {
-                            setDefectMsg(result.error ?? "Upgrade failed");
-                            setTimeout(() => setDefectMsg(null), 2000);
-                          }
-                        }}
-                        className={`farm-btn-3d farm-btn-3d--tier${isCurrent ? " farm-btn-3d--current" : ""}${tierDisabled && !isCurrent ? " farm-btn-3d--disabled" : ""}`}
-                      >
-                        <div>{h}h</div>
-                        {!isCurrent && <div>{cost} G</div>}
-                        {isCurrent && <div>✓</div>}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
       )}
     </div>
   );

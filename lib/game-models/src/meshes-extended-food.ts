@@ -171,11 +171,39 @@ function stardustPot(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
   ];
 }
 
+/** Clay-forge silhouette only — real look comes from flower.glb (untouched). */
+function flower(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const petal = a || "#ff8fab";
+  return [
+    pt("stem", "cyl", 0, 0.22, 0, 0.05, 0.44, 0.05, "#4caf50", { profile: "food" }),
+    pt("center", "sphere", 0, 0.52, 0, 0.12, 0.12, 0.12, "#ffd54f", { profile: "food_glossy" }),
+    pt("p1", "sphere", 0.16, 0.52, 0, 0.12, 0.1, 0.12, petal, { profile: "food" }),
+    pt("p2", "sphere", -0.16, 0.52, 0, 0.12, 0.1, 0.12, petal, { profile: "food" }),
+    pt("p3", "sphere", 0, 0.52, 0.16, 0.12, 0.1, 0.12, petal, { profile: "food" }),
+    pt("p4", "sphere", 0, 0.52, -0.16, 0.12, 0.1, 0.12, petal, { profile: "food" }),
+    pt("leaf", "box", 0.1, 0.28, 0.02, 0.14, 0.03, 0.08, C.GREEN, { ry: 0.5, profile: "food" }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from dollar.glb (untouched). */
+function dollar(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const gold = a || "#ffd43b";
+  return [
+    pt("coin", "cyl", 0, 0.28, 0, 0.36, 0.08, 0.36, gold, { profile: "metal", metal: 0.55 }),
+    pt("rim", "torus", 0, 0.28, 0, 0.34, 0.03, 0.34, "#f4c430", { profile: "metal", metal: 0.65 }),
+    pt("bar", "box", 0, 0.3, 0, 0.06, 0.22, 0.04, "#fff8e1", { profile: "metal" }),
+    pt("sTop", "box", 0, 0.38, 0, 0.16, 0.04, 0.04, "#fff8e1", { profile: "metal" }),
+    pt("sBot", "box", 0, 0.22, 0, 0.16, 0.04, 0.04, "#fff8e1", { profile: "metal" }),
+  ];
+}
+
 export const FOOD_DRINK_SHAPES: ShapeEntry[] = [
   { id: "banana", name: "Banana", category: "food", build: banana },
   { id: "apple", name: "Red Apple", category: "food", build: apple },
   { id: "pear", name: "Green Pear", category: "food", build: pear },
   { id: "pizza", name: "Pizza Slice", category: "food", build: pizza },
+  { id: "flower", name: "Flower", category: "food", build: flower },
+  { id: "dollar", name: "Dollar", category: "food", build: dollar },
   { id: "hotdog", name: "Hot Dog", category: "food", build: hotdog },
   { id: "fries", name: "French Fries", category: "food", build: fries },
   { id: "taco", name: "Taco", category: "food", build: taco },

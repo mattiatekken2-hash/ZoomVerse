@@ -11,27 +11,15 @@ import {
   forgeSphereTapGoal,
   getForgeSphereBlueprint,
 } from "./voxel-sphere-blueprint.js";
-
-/** Lab forge path — ZOOM models vs Stardust generators. */
-export type LabForgePath = "zoom" | "stardust";
-
-/** Catalog shape id for the pizza GLB (produces $ZOOM). */
-export const LAB_PIZZA_SHAPE_ID = "pizza";
-
-/** Watering pot GLB — produces ★ Stardust (Farm generator, test). */
-export const LAB_STARDUST_POT_SHAPE_ID = "stardust_pot";
-
-/** Match the grey sphere forge tap count — one tap = one voxel. */
-export const LAB_MODEL_FORGE_GOAL = 257;
-
-/** $ZOOM cost to start a Stardust-path forge (test balance). */
-export const LAB_STARDUST_FORGE_ZOOM_COST = 500;
-
-/** ★ Stardust cost to start a ZOOM-path pizza forge (test balance). */
-export const LAB_ZOOM_FORGE_STARDUST_COST = 3;
-
-/** @deprecated Use LAB_MODEL_FORGE_GOAL */
-export const LAB_PIZZA_FORGE_GOAL = LAB_MODEL_FORGE_GOAL;
+import {
+  LAB_MODEL_FORGE_GOAL,
+  LAB_PIZZA_SHAPE_ID,
+  LAB_STARDUST_POT_SHAPE_ID,
+  LAB_ZOOM_SHAPE_IDS,
+  isLabZoomShapeId,
+  type LabForgePath,
+  type LabZoomShapeId,
+} from "./forge-lab-economy.js";
 
 /** localStorage key — set to "1" before the next Lab forge to test pizza. */
 export const LAB_FORGE_TEST_PIZZA_KEY = "zoom-test-pizza-forge";
@@ -61,8 +49,8 @@ export function isLabDevWipeActive(): boolean {
   }
 }
 
-/** One-time dev reset — clears farm planets on next load (remove key to revert behaviour). */
-export const LAB_DEV_FARM_RESET_KEY = "zoom-lab-dev-farm-reset-v2";
+/** One-time farm reset — clears rarity spheres once after Lab market cutover. */
+export const LAB_DEV_FARM_RESET_KEY = "zoom-lab-dev-farm-reset-v3";
 
 export function consumeLabDevFarmResetOnce(): boolean {
   try {
@@ -80,8 +68,15 @@ export function enableNextLabForgePizza(): void {
   } catch { /**/ }
 }
 
+/** Pick a random ZOOM-path model (pizza / flower / dollar). Equal weight. */
+export function pickRandomLabZoomShapeId(): LabZoomShapeId {
+  if (readLabForgeTestPizzaFlag()) return LAB_PIZZA_SHAPE_ID;
+  const i = Math.floor(Math.random() * LAB_ZOOM_SHAPE_IDS.length);
+  return LAB_ZOOM_SHAPE_IDS[Math.max(0, Math.min(LAB_ZOOM_SHAPE_IDS.length - 1, i))]!;
+}
+
 export function labForgeShapeForPath(path: LabForgePath): string {
-  return path === "zoom" ? LAB_PIZZA_SHAPE_ID : LAB_STARDUST_POT_SHAPE_ID;
+  return path === "zoom" ? pickRandomLabZoomShapeId() : LAB_STARDUST_POT_SHAPE_ID;
 }
 
 export function resolveLabForgeShapeId(override: string | null | undefined): string {
@@ -90,12 +85,7 @@ export function resolveLabForgeShapeId(override: string | null | undefined): str
 }
 
 function isLabModelShape(shapeId: string): boolean {
-  return shapeId === LAB_PIZZA_SHAPE_ID || shapeId === LAB_STARDUST_POT_SHAPE_ID;
-}
-
-/** Lab forge generators currently claimable to Farm (pizza / stardust pot). */
-export function isLabForgeGeneratorPlanet(planet: { shapeId?: string | null }): boolean {
-  return !!planet.shapeId && isLabModelShape(planet.shapeId);
+  return isLabZoomShapeId(shapeId) || shapeId === LAB_STARDUST_POT_SHAPE_ID;
 }
 
 export function getLabForgeShapeTapGoal(
