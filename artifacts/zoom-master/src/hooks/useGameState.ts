@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
-import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, type LabForgePath } from "@workspace/game-models";
+import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, isLabZoomShapeId, type LabForgePath } from "@workspace/game-models";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import type { CollectibleItem } from "../utils/collectibleConfig";
@@ -1750,10 +1750,33 @@ function makePlanet(rarity: PlanetType): Planet {
   };
 }
 
-/** Lab dual-forge outcome — pizza ($ZOOM) or stardust pot (★ generator). */
+/** Lab dual-forge outcome — ZOOM models (pizza/flower/dollar) or stardust pot. */
 function makeLabGeneratorPlanet(path: LabForgePath, shapeId: string): Planet {
   const isZoom = path === "zoom";
   const now = serverNow();
+  if (isZoom && isLabZoomShapeId(shapeId)) {
+    const colors = LAB_ZOOM_COLORS[shapeId];
+    return {
+      id: `${Date.now()}-${Math.random().toString(36).substring(2)}`,
+      name: "BASIC",
+      displayName: LAB_ZOOM_DISPLAY_NAME[shapeId],
+      shapeId,
+      rate: LAB_ZOOM_FARM_RATE[shapeId],
+      color: colors.color,
+      glowColor: colors.glowColor,
+      createdAt: now,
+      farmStartedAt: 0,
+      lastCollectedAt: 0,
+      isListedInMarket: false,
+      isFarmingActive: false,
+      marketPrice: null,
+      craftCost: LAB_ZOOM_FORGE_STARDUST_COST,
+      float: generateRandomFloat(),
+      durability: 100,
+      durabilityUpdatedAt: 0,
+      farmDurationHours: 1,
+    };
+  }
   return {
     id: `${Date.now()}-${Math.random().toString(36).substring(2)}`,
     name: "BASIC",

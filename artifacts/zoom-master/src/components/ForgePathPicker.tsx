@@ -123,9 +123,9 @@ function ForgePathPickerBase({
               path="zoom"
               shapeId={LAB_PIZZA_SHAPE_ID}
               badge="$ZOOM"
-              name="Pizza"
+              name="Pizza · Flower · Dollar"
               costLabel={`${LAB_ZOOM_FORGE_STARDUST_COST} ★`}
-              yieldLabel="~3.5 /h"
+              yieldLabel="2.6–4.2 /h"
               enabled={canZoom}
               accent="#7bed9f"
               border="rgba(123,237,159,0.38)"

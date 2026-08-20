@@ -11,6 +11,8 @@ export const SHAPE_GLB_ASSETS: Partial<Record<string, string>> = {
   mug: "/models/mug.glb",
   wine: "/models/wine.glb",
   pizza: "/models/pizza.glb",
+  flower: "/models/flower.glb",
+  dollar: "/models/dollar.glb",
   stardust_pot: "/models/stardust_pot.glb",
 };
 
