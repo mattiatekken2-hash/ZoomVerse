@@ -4617,17 +4617,24 @@ export function useGameState() {
           prev.planets as unknown as Array<Record<string, unknown>>,
           claimedSnap,
           prev.craftsCompleted,
-        ).then(() => listOnMarket({
-          sellerTelegramId: telegramId,
-          sellerName: firstName ?? undefined,
-          // Pass the local planet id so the server can verify ownership
-          // against users.planets_json. Without it the server will reject
-          // the listing with 400 "Planet not found in your inventory".
-          planetId: planet.id,
-          planetType: planet.name,
-          planetRate: planet.rate,
-          price,
-        })).then((result) => {
+        ).then((saved) => {
+          if (!saved) {
+            return { ok: false as const, error: "Could not sync inventory before listing" };
+          }
+          return listOnMarket({
+            sellerTelegramId: telegramId,
+            sellerName: firstName ?? undefined,
+            // Pass the local planet id so the server can verify ownership
+            // against users.planets_json. Without it the server will reject
+            // the listing with 400 "Planet not found in your inventory".
+            planetId: planet.id,
+            planetType: planet.name,
+            planetRate: planet.rate,
+            price,
+            shapeId: planet.shapeId,
+            displayName: planet.displayName,
+          });
+        }).then((result) => {
           if (result.ok && result.listing) {
             setState((s) => ({
               ...s,
@@ -4635,6 +4642,7 @@ export function useGameState() {
                 p.id === id ? { ...p, serverListingId: result.listing!.id } : p
               ),
             }));
+            void refreshMarketListings();
           } else {
             // Server rejected the listing (e.g. 409 "already listed",
             // 409 "previously sold", 400 "type/rate mismatch"). Revert
