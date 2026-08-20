@@ -6,7 +6,7 @@ export * from "./voxelize.js";
 export * from "./voxel-sphere-blueprint.js";
 export * from "./glb-assets.js";
 /**
- * Single Lab forge barrel — re-exports economy + mesh helpers.
- * Do not also `export *` from forge-lab-economy here (conflicts / missing names in Vite).
+ * Lab forge — single barrel. Named re-exports live in forge-lab.ts
+ * (explicit, not `export *` from economy) so Vite resolves pickRandom.
  */
 export * from "./forge-lab.js";
