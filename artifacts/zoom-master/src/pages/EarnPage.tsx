@@ -586,7 +586,8 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <div className="min-w-0">
                         <div className="text-[12px] font-black tracking-wide" style={{ color: task.claimed ? "#00e676" : "var(--earn-ink)" }}>
-                          {t("earn.buildPlanetsN", { n: task.threshold.toLocaleString() })}
+                          {t("earn.forgeLabel")}{" "}
+                          <span className="tabular-nums">{task.threshold.toLocaleString()}</span>
                         </div>
                         <div className="mt-1">
                           <span className={`earn-reward-chip ${task.claimed ? "earn-reward-chip--ok" : ""}`}>

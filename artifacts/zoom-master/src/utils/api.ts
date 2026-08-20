@@ -3343,21 +3343,21 @@ export interface TasksState {
   sponsorTasks: SponsorTaskInfo[];
 }
 
-const TASKS_CACHE_KEY = "zoom:tasks-state-v1";
+const TASKS_CACHE_KEY = "zoom:tasks-state-v2";
 let tasksMemoryCache: { telegramId: string; state: TasksState; at: number } | null = null;
 let tasksInflight: { telegramId: string; promise: Promise<TasksState | null> } | null = null;
 
-/** Static catalog mirror of api-server labv2_* — shown instantly before the network returns. */
+/** Static catalog mirror of api-server labv3_* — shown instantly before the network returns. */
 export const TASKS_CATALOG_FALLBACK: TasksState = {
   planetsBuilt: 0,
   claimedTasks: [],
   planetTasks: [
-    { id: "labv2_5", threshold: 5, rewardZoom: 25, claimed: false, claimable: false },
-    { id: "labv2_15", threshold: 15, rewardZoom: 50, claimed: false, claimable: false },
-    { id: "labv2_40", threshold: 40, rewardZoom: 80, claimed: false, claimable: false },
-    { id: "labv2_100", threshold: 100, rewardZoom: 120, claimed: false, claimable: false },
-    { id: "labv2_250", threshold: 250, rewardZoom: 200, claimed: false, claimable: false },
-    { id: "labv2_500", threshold: 500, rewardZoom: 350, claimed: false, claimable: false },
+    { id: "labv3_5", threshold: 5, rewardZoom: 5, claimed: false, claimable: false },
+    { id: "labv3_15", threshold: 15, rewardZoom: 10, claimed: false, claimable: false },
+    { id: "labv3_40", threshold: 40, rewardZoom: 15, claimed: false, claimable: false },
+    { id: "labv3_100", threshold: 100, rewardZoom: 25, claimed: false, claimable: false },
+    { id: "labv3_250", threshold: 250, rewardZoom: 40, claimed: false, claimable: false },
+    { id: "labv3_500", threshold: 500, rewardZoom: 60, claimed: false, claimable: false },
   ],
   sponsorTasks: [],
 };
