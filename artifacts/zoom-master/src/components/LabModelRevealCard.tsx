@@ -1,7 +1,7 @@
 import type { Planet } from "../hooks/useGameState";
 import { getPlanetDisplayColors } from "../hooks/useGameState";
-import { FORGE_SPHERE_SHAPE_ID, isLabStardustShapeId } from "@workspace/game-models";
-import { LabForgeGlbThumb } from "./LabForgeGlbThumb";
+import { isLabStardustShapeId } from "@workspace/game-models";
+import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 
 interface LabModelRevealCardProps {
@@ -9,10 +9,10 @@ interface LabModelRevealCardProps {
   pathLabel: string;
 }
 
-/** Lab forge claim preview — GLB on forge grid, auto-spin. */
+/** Lab forge claim preview — exact forged GLB, auto-spin (same renderer as Farm). */
 export function LabModelRevealCard({ planet, pathLabel }: LabModelRevealCardProps) {
   const colors = getPlanetDisplayColors(planet);
-  const shapeId = planet.shapeId && planet.shapeId.length > 0 ? planet.shapeId : FORGE_SPHERE_SHAPE_ID;
+  const shapeId = planet.shapeId ?? "";
   const title = planet.displayName ?? pathLabel;
   const isStardust = isLabStardustShapeId(shapeId);
   const rateUnit = isStardust ? "★" : "$ZOOM";
@@ -32,6 +32,7 @@ export function LabModelRevealCard({ planet, pathLabel }: LabModelRevealCardProp
         ["--lab-reveal-hero-a" as string]: `${colors.color}28`,
       }}
       data-testid="lab-reveal-model-card"
+      data-shape-id={shapeId}
     >
       <div className="lab-reveal-card__hero">
         <div className="lab-reveal-card__kicker">
@@ -40,7 +41,15 @@ export function LabModelRevealCard({ planet, pathLabel }: LabModelRevealCardProp
         </div>
         <div className="lab-reveal-card__stage">
           <div className="lab-reveal-card__stage-ring" aria-hidden />
-          <LabForgeGlbThumb shapeId={shapeId} size={196} />
+          <PlanetVoxelThumb
+            key={`reveal-${planet.id}-${shapeId}`}
+            planet={planet}
+            size={196}
+            animate
+            eager
+            hiQuality
+            showLabForgeGrid
+          />
         </div>
       </div>
 

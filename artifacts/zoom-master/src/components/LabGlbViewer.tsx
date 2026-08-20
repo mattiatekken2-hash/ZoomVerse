@@ -13,6 +13,7 @@ import {
   applyPathLineArt,
   disposeSceneObject,
   fitGlbToCenter,
+  glbTriangleCount,
 } from "../utils/labGlbScene";
 
 interface LabGlbViewerProps {
@@ -80,7 +81,7 @@ function LabGlbViewerBase({
         : new THREE.Color(0x060810);
     }
 
-    const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 200);
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 5000);
     const spinGroup = new THREE.Group();
     scene.add(spinGroup);
 
@@ -155,19 +156,23 @@ function LabGlbViewerBase({
       (gltf) => {
         if (disposed) return;
         const model = gltf.scene;
-        fitGlbToCenter(model, LAB_GLB_FIT_SIZE);
-        if (stage === "studio" && glowHex != null) {
+        const fitted = fitGlbToCenter(model, LAB_GLB_FIT_SIZE);
+        if (stage === "studio" && glowHex != null && glbTriangleCount(model) < 12_000) {
           applyPathLineArt(model, glowHex);
         }
         spinGroup.add(model);
 
         if (renderGrid) {
-          gridExtras = addForgeSpaceGrid(scene, LAB_GLB_FIT_SIZE);
+          gridExtras = addForgeSpaceGrid(scene, fitted);
         } else if (glowHex != null && chrome === "card") {
-          gridExtras = addStudioAmbient(scene, LAB_GLB_FIT_SIZE, glowHex);
+          gridExtras = addStudioAmbient(scene, fitted, glowHex);
         }
         const camDir = new THREE.Vector3(1.35, 0.95, 1.7).normalize();
-        camera.position.copy(camDir.multiplyScalar(LAB_GLB_FIT_SIZE * 2.75));
+        const camDist = fitted * 2.85;
+        camera.position.copy(camDir.multiplyScalar(camDist));
+        camera.near = camDist * 0.02;
+        camera.far = camDist * 12;
+        camera.updateProjectionMatrix();
         camera.lookAt(0, 0, 0);
         controls?.update();
         draw();

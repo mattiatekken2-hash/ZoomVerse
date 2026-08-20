@@ -19,6 +19,7 @@ function LabForgeGlbThumbBase({
   const isPicker = variant === "picker";
   return (
     <LabGlbViewer
+      key={shapeId}
       shapeId={shapeId}
       size={size}
       autoSpin
