@@ -1,6 +1,6 @@
 import type { Planet } from "../hooks/useGameState";
 import { getPlanetDisplayColors } from "../hooks/useGameState";
-import { FORGE_SPHERE_SHAPE_ID, LAB_STARDUST_POT_SHAPE_ID } from "@workspace/game-models";
+import { FORGE_SPHERE_SHAPE_ID, isLabStardustShapeId } from "@workspace/game-models";
 import { LabForgeGlbThumb } from "./LabForgeGlbThumb";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 
@@ -14,7 +14,7 @@ export function LabModelRevealCard({ planet, pathLabel }: LabModelRevealCardProp
   const colors = getPlanetDisplayColors(planet);
   const shapeId = planet.shapeId && planet.shapeId.length > 0 ? planet.shapeId : FORGE_SPHERE_SHAPE_ID;
   const title = planet.displayName ?? pathLabel;
-  const isStardust = shapeId === LAB_STARDUST_POT_SHAPE_ID;
+  const isStardust = isLabStardustShapeId(shapeId);
   const rateUnit = isStardust ? "★" : "$ZOOM";
   const rateValue = planet.rate >= 1
     ? planet.rate.toLocaleString()

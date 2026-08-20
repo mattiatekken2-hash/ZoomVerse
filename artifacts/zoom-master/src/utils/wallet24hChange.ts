@@ -1,4 +1,4 @@
-/** Rolling 24h % change — baseline resets every UTC day. */
+/** Rolling 24h % change — legacy UTC-day baseline (GRAM uses real chart via gramMarket). */
 const PREFIX = "zoom-wallet-24h-";
 
 interface Snapshot {

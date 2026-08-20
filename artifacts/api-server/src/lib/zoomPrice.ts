@@ -60,14 +60,8 @@ const LAST_DAY_KEY = "zoom_price_last_day_utc";
 // The daily growth cap is enforced as: max_price_today = open * (1 + DAILY_GROWTH_CAP).
 const DAILY_OPEN_KEY = "zoom_price_daily_open";
 
-// Hard daily growth ceiling: max +1.5% above the UTC-day open.
-// (Was briefly +8% — far too aggressive for a grind-driven decorative index.)
-const DAILY_GROWTH_CAP = 0.015; // +1.5% per day, max
-
-// Soft floor expressed as a fraction of the day's opening price. With
-// micro-volatility deltas occasionally going negative, this keeps the
-// price from drifting unboundedly down over a quiet day.
-const DAILY_FLOOR_PCT = 0.02; // up to -2% from the day's open
+// Hard daily growth ceiling — removed: price grows continuously from player activity.
+// Soft floor — removed: no nightly anchor resets that pull the index down.
 
 function utcDayIndex(ts: number): number {
   return Math.floor(ts / 86_400_000);
@@ -174,12 +168,11 @@ export type PriceAction = keyof typeof DELTA_BP;
 
 /**
  * Randomize the per-action bump for organic micro-volatility. Returns a
- * SIGNED basis-point value drawn from [base * -0.3, base * +1.1] with
- * uniform distribution. Mean ≈ +0.4 × base — mild upward drift with
- * soft dips, without the old +1.6× upside spikes.
+ * POSITIVE basis-point value drawn from [base * 0.2, base * 1.1].
+ * The index only climbs from player activity — no downward ticks.
  */
 function randomDeltaBp(base: number): number {
-  const lo = base * -0.3;
+  const lo = base * 0.2;
   const hi = base * 1.1;
   return lo + Math.random() * (hi - lo);
 }
@@ -403,7 +396,6 @@ export async function getDailyHighMicro(): Promise<number> {
  */
 export async function getZoomPriceMicro(): Promise<number> {
   await ensureGenesis();
-  await applyDailyResetIfNeeded();
   const [row] = await db
     .select({ v: appSettingsTable.valueNum })
     .from(appSettingsTable)
@@ -473,41 +465,20 @@ export async function bumpZoomPrice(action: PriceAction, userId?: string | null)
   if (!checkCooldown(action, userId)) return null;
   try {
     await ensureGenesis();
-    // Apply midnight UTC day rollover (anchor reset only) before bumping.
-    await applyDailyResetIfNeeded();
-    // SIGNED random delta around the action's base bp — see randomDeltaBp.
-    // The delta can be slightly negative so the chart shows organic
-    // micro-volatility (small dips between pops) instead of a perfect
-    // straight line up.
     const effectiveBp = randomDeltaBp(bp);
-    // Atomic percentage-based bump with daily cap & floor:
-    //   raw = current + ROUND(current * effectiveBp / 10000)   -- can be < current
-    //   cap = open * (1 + DAILY_GROWTH_CAP)                    -- daily ceiling
-    //   floor = open * (1 - DAILY_FLOOR_PCT)                   -- daily floor
-    //   new = GREATEST(genesis_floor, LEAST(MAX, cap, raw))    -- final clamp
-    // Done in a single SQL statement so concurrent bumps stay atomic.
-    // The daily-open subquery runs once at planning time per execution.
+    // Upward-only percentage bump — no daily floor/cap anchors.
     const updated = await db
       .update(appSettingsTable)
       .set({
-        valueNum: sql`GREATEST(
-          ${GENESIS_PRICE_MICRO},
-          ROUND(
-            COALESCE(
-              (SELECT value_num FROM app_settings WHERE key = ${DAILY_OPEN_KEY}),
-              COALESCE(${appSettingsTable.valueNum}, ${GENESIS_PRICE_MICRO})
-            ) * (1 - ${DAILY_FLOOR_PCT}::numeric)
-          ),
-          LEAST(
-            ${MAX_PRICE_MICRO},
-            ROUND(
-              COALESCE(
-                (SELECT value_num FROM app_settings WHERE key = ${DAILY_OPEN_KEY}),
-                COALESCE(${appSettingsTable.valueNum}, ${GENESIS_PRICE_MICRO})
-              ) * (1 + ${DAILY_GROWTH_CAP}::numeric)
-            ),
+        valueNum: sql`LEAST(
+          ${MAX_PRICE_MICRO},
+          GREATEST(
+            ${GENESIS_PRICE_MICRO},
             COALESCE(${appSettingsTable.valueNum}, ${GENESIS_PRICE_MICRO})
-            + ROUND(COALESCE(${appSettingsTable.valueNum}, ${GENESIS_PRICE_MICRO}) * ${effectiveBp}::numeric / 10000)
+            + GREATEST(
+              1,
+              ROUND(COALESCE(${appSettingsTable.valueNum}, ${GENESIS_PRICE_MICRO}) * ${effectiveBp}::numeric / 10000)
+            )
           )
         )`,
         updatedAt: sql`NOW()`,

@@ -1,7 +1,9 @@
 import {
-  LAB_STARDUST_POT_SHAPE_ID,
+  LAB_STARDUST_DISPLAY_NAME,
+  LAB_STARDUST_FARM_RATE,
   LAB_ZOOM_DISPLAY_NAME,
   LAB_ZOOM_FARM_RATE,
+  isLabStardustShapeId,
   isLabZoomShapeId,
   labMarketPathForShapeId,
   type LabMarketPath,
@@ -51,13 +53,14 @@ interface Props {
 function resolveTitle(listing: MarketPlanetListingView, path: LabMarketPath): string {
   if (listing.displayName && listing.displayName.trim()) return listing.displayName;
   if (isLabZoomShapeId(listing.shapeId)) return LAB_ZOOM_DISPLAY_NAME[listing.shapeId];
-  if (listing.shapeId === LAB_STARDUST_POT_SHAPE_ID) return "Stardust Pot";
-  return path === "zoom" ? "ZOOM Model" : "Stardust Pot";
+  if (isLabStardustShapeId(listing.shapeId)) return LAB_STARDUST_DISPLAY_NAME[listing.shapeId];
+  return path === "zoom" ? "ZOOM Model" : "Stardust Model";
 }
 
 function resolveRate(listing: MarketPlanetListingView, path: LabMarketPath): number {
   if (listing.rate > 0) return listing.rate;
   if (isLabZoomShapeId(listing.shapeId)) return LAB_ZOOM_FARM_RATE[listing.shapeId];
+  if (isLabStardustShapeId(listing.shapeId)) return LAB_STARDUST_FARM_RATE[listing.shapeId];
   return path === "stardust" ? 0.22 : 3.5;
 }
 

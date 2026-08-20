@@ -3,7 +3,7 @@ import type { FeedEvent, Planet } from "../hooks/useGameState";
 import { useGlobalStore } from "../store/globalStore";
 import { useT } from "../i18n/LanguageContext";
 import { TrophyIcon } from "../components/icons/GameIcons";
-import { LAB_STARDUST_POT_SHAPE_ID, isLabZoomShapeId } from "@workspace/game-models";
+import { isLabStardustShapeId, isLabZoomShapeId } from "@workspace/game-models";
 
 interface RankPageProps {
   balance: number;
@@ -50,7 +50,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
   const labRarityCounts = useMemo(() => {
     const crafted = profile?.crafted as Record<string, number> | undefined;
     const zoomFromFarm = planets.filter((p) => isLabZoomShapeId(p.shapeId)).length;
-    const stardustFromFarm = planets.filter((p) => p.shapeId === LAB_STARDUST_POT_SHAPE_ID).length;
+    const stardustFromFarm = planets.filter((p) => isLabStardustShapeId(p.shapeId)).length;
     return {
       ZOOM: crafted?.ZOOM ?? zoomFromFarm,
       STARDUST: crafted?.STARDUST ?? stardustFromFarm,

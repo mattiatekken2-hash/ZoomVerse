@@ -17,7 +17,7 @@ import {
   readGramMarketCache,
   subscribeGramMarket,
 } from "../utils/gramMarket";
-import { formatChangePct, formatGramValueFull, getRolling24hChange, formatZoomChartPrice, formatStardustChartIndex, formatGramChartUsd } from "../utils/wallet24hChange";
+import { formatChangePct, formatGramValueFull, formatZoomChartPrice, formatStardustChartIndex, formatGramChartUsd } from "../utils/wallet24hChange";
 
 const LIVE_POLL_MS = 12_000;
 
@@ -106,12 +106,10 @@ export function WalletPage({
   const [zoomPriceGram, setZoomPriceGram] = useState<number | null>(initialMarket.zoomPriceGram);
   const [stardustIndex, setStardustIndex] = useState<number>(initialMarket.stardustIndex);
   const [zoomChangePct, setZoomChangePct] = useState<number | null>(() =>
-    initialMarket.zoomPriceGram != null
-      ? getRolling24hChange("zoom-index", initialMarket.zoomPriceGram)
-      : null,
+    initialMarket.zoomChange24hPct,
   );
   const [stardustChangePct, setStardustChangePct] = useState<number | null>(() =>
-    getRolling24hChange("stardust-index", initialMarket.stardustIndex),
+    initialMarket.stardustChange24hPct,
   );
   const [gramChangePct, setGramChangePct] = useState<number | null>(() =>
     readGramMarketCache().change24hPct,
@@ -125,11 +123,15 @@ export function WalletPage({
     }
     if (cached.zoomPriceGram != null) {
       setZoomPriceGram(cached.zoomPriceGram);
-      setZoomChangePct(getRolling24hChange("zoom-index", cached.zoomPriceGram));
+    }
+    if (cached.zoomChange24hPct != null && Number.isFinite(cached.zoomChange24hPct)) {
+      setZoomChangePct(cached.zoomChange24hPct);
     }
     if (Number.isFinite(cached.stardustIndex)) {
       setStardustIndex(cached.stardustIndex);
-      setStardustChangePct(getRolling24hChange("stardust-index", cached.stardustIndex));
+    }
+    if (cached.stardustChange24hPct != null && Number.isFinite(cached.stardustChange24hPct)) {
+      setStardustChangePct(cached.stardustChange24hPct);
     }
   }, []);
 

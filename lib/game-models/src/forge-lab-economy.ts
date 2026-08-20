@@ -4,6 +4,8 @@ export const LAB_PIZZA_SHAPE_ID = "pizza";
 export const LAB_FLOWER_SHAPE_ID = "flower";
 export const LAB_DOLLAR_SHAPE_ID = "dollar";
 export const LAB_STARDUST_POT_SHAPE_ID = "stardust_pot";
+export const LAB_STREET_SCENE_SHAPE_ID = "street_scene";
+export const LAB_ISLAND_HOME_SHAPE_ID = "island_home";
 
 export const LAB_ZOOM_SHAPE_IDS = [
   LAB_PIZZA_SHAPE_ID,
@@ -11,7 +13,14 @@ export const LAB_ZOOM_SHAPE_IDS = [
   LAB_DOLLAR_SHAPE_ID,
 ] as const;
 
+export const LAB_STARDUST_SHAPE_IDS = [
+  LAB_STREET_SCENE_SHAPE_ID,
+  LAB_ISLAND_HOME_SHAPE_ID,
+  LAB_STARDUST_POT_SHAPE_ID,
+] as const;
+
 export type LabZoomShapeId = (typeof LAB_ZOOM_SHAPE_IDS)[number];
+export type LabStardustShapeId = (typeof LAB_STARDUST_SHAPE_IDS)[number];
 export type LabForgePath = "zoom" | "stardust";
 export type LabMarketPath = "zoom" | "stardust";
 
@@ -21,16 +30,34 @@ export const LAB_ZOOM_FARM_RATE: Record<LabZoomShapeId, number> = {
   [LAB_DOLLAR_SHAPE_ID]: 4.2,
 };
 
+export const LAB_STARDUST_FARM_RATE: Record<LabStardustShapeId, number> = {
+  [LAB_STREET_SCENE_SHAPE_ID]: 0.22,
+  [LAB_ISLAND_HOME_SHAPE_ID]: 0.28,
+  [LAB_STARDUST_POT_SHAPE_ID]: 0.20,
+};
+
 export const LAB_ZOOM_DISPLAY_NAME: Record<LabZoomShapeId, string> = {
   [LAB_PIZZA_SHAPE_ID]: "Pizza",
   [LAB_FLOWER_SHAPE_ID]: "Flower",
   [LAB_DOLLAR_SHAPE_ID]: "Dollar",
 };
 
+export const LAB_STARDUST_DISPLAY_NAME: Record<LabStardustShapeId, string> = {
+  [LAB_STREET_SCENE_SHAPE_ID]: "Street Scene",
+  [LAB_ISLAND_HOME_SHAPE_ID]: "Island Home",
+  [LAB_STARDUST_POT_SHAPE_ID]: "Stardust Pot",
+};
+
 export const LAB_ZOOM_COLORS: Record<LabZoomShapeId, { color: string; glowColor: string }> = {
   [LAB_PIZZA_SHAPE_ID]: { color: "#7bed9f", glowColor: "#2ed573" },
   [LAB_FLOWER_SHAPE_ID]: { color: "#ff8fab", glowColor: "#ff5c8a" },
   [LAB_DOLLAR_SHAPE_ID]: { color: "#ffe066", glowColor: "#ffd43b" },
+};
+
+export const LAB_STARDUST_COLORS: Record<LabStardustShapeId, { color: string; glowColor: string }> = {
+  [LAB_STREET_SCENE_SHAPE_ID]: { color: "#ffd740", glowColor: "#ffc107" },
+  [LAB_ISLAND_HOME_SHAPE_ID]: { color: "#ffab40", glowColor: "#ff9100" },
+  [LAB_STARDUST_POT_SHAPE_ID]: { color: "#ffd740", glowColor: "#ffc107" },
 };
 
 export const LAB_MODEL_FORGE_GOAL = 257;
@@ -43,15 +70,19 @@ export function isLabZoomShapeId(shapeId: string | null | undefined): shapeId is
   return !!shapeId && (LAB_ZOOM_SHAPE_IDS as readonly string[]).includes(shapeId);
 }
 
+export function isLabStardustShapeId(shapeId: string | null | undefined): shapeId is LabStardustShapeId {
+  return !!shapeId && (LAB_STARDUST_SHAPE_IDS as readonly string[]).includes(shapeId);
+}
+
 export function labMarketPathForShapeId(shapeId: string | null | undefined): LabMarketPath | null {
   if (isLabZoomShapeId(shapeId)) return "zoom";
-  if (shapeId === LAB_STARDUST_POT_SHAPE_ID) return "stardust";
+  if (isLabStardustShapeId(shapeId)) return "stardust";
   return null;
 }
 
 export function isLabForgeGeneratorPlanet(planet: { shapeId?: string | null }): boolean {
   return !!planet.shapeId && (
-    isLabZoomShapeId(planet.shapeId) || planet.shapeId === LAB_STARDUST_POT_SHAPE_ID
+    isLabZoomShapeId(planet.shapeId) || isLabStardustShapeId(planet.shapeId)
   );
 }
 
@@ -109,6 +140,15 @@ export function pickRandomLabZoomShapeId(): LabZoomShapeId {
   return LAB_ZOOM_SHAPE_IDS[Math.max(0, Math.min(LAB_ZOOM_SHAPE_IDS.length - 1, i))]!;
 }
 
-export function labForgeShapeForPath(path: LabForgePath): string {
-  return path === "zoom" ? pickRandomLabZoomShapeId() : LAB_STARDUST_POT_SHAPE_ID;
+/** Pick street scene or island home (legacy pot excluded from new forges). */
+export function pickRandomLabStardustShapeId(): LabStardustShapeId {
+  const pool = [LAB_STREET_SCENE_SHAPE_ID, LAB_ISLAND_HOME_SHAPE_ID] as const;
+  const i = Math.floor(Math.random() * pool.length);
+  return pool[Math.max(0, Math.min(pool.length - 1, i))]!;
+}
+
+export function labForgeShapeForPath(path: LabForgePath, shapeOverride?: string | null): string {
+  if (path === "zoom") return pickRandomLabZoomShapeId();
+  if (shapeOverride && isLabStardustShapeId(shapeOverride)) return shapeOverride;
+  return pickRandomLabStardustShapeId();
 }

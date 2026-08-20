@@ -1427,6 +1427,16 @@ body.animations-paused * {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
+.lab-forge-picker-grid--triple {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.lab-forge-picker-grid--triple .lab-forge-path-card__name {
+  font-size: 11px;
+}
+.lab-forge-picker-grid--triple .lab-forge-path-chip {
+  font-size: 9px;
+}
 .lab-forge-path-card {
   position: relative;
   display: flex;
