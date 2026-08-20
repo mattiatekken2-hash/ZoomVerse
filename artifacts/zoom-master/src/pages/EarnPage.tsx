@@ -380,11 +380,15 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           <div className="earn-section-kicker mb-2.5" style={{ color: "var(--earn-cyan)" }}>
             {t("earn.howTitle")}
           </div>
+          <p className="text-[11px] font-semibold leading-snug mb-2.5" style={{ color: "var(--earn-muted)" }}>
+            {t("earn.howLead")}
+          </p>
           <div className="earn-steps">
             {[
               { n: "1", text: t("earn.how1"), accent: "var(--earn-gold)" },
-              { n: "2", text: t("earn.how2"), accent: "var(--earn-cyan)" },
-              { n: "3", text: t("earn.how3"), accent: "#b8d4ee" },
+              { n: "2", text: t("earn.how2"), accent: "#ff3355" },
+              { n: "3", text: t("earn.how3"), accent: "var(--earn-cyan)" },
+              { n: "4", text: t("earn.how4"), accent: "#b8d4ee" },
             ].map((step) => (
               <div key={step.n} className="earn-step">
                 <div className="earn-step__num" style={{ color: step.accent, border: `1px solid ${step.accent}` }}>
@@ -472,11 +476,15 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
 
         {/* Weekly REDSTAR */}
         <section className="earn-panel">
+          <div className="earn-section-kicker mb-2" style={{ color: "rgba(255,51,85,0.9)" }}>{t("earn.stepRedStar")}</div>
           <div className="flex items-center gap-3 mb-3">
             <div style={{ fontSize: 22, lineHeight: 1, color: "#ff3355" }}>★</div>
             <div className="flex-1 min-w-0">
               <div className="font-black text-[15px] tracking-wide" style={{ color: "var(--earn-ink)" }}>{t("earn.watchAndEarn")}</div>
-              <div className="mt-1">
+              <p className="text-[11px] font-semibold mt-1 leading-snug" style={{ color: "var(--earn-muted)" }}>
+                {t("earn.redStarHint")}
+              </p>
+              <div className="mt-1.5">
                 <span className="earn-reward-chip">+{WEEKLY_REDSTAR_REWARD} ★ REDSTAR / day</span>
               </div>
             </div>
@@ -515,7 +523,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           <button
             onClick={() => void handleClaimWeeklyRedStar()}
             disabled={claimingRedStar || claimedToday || !telegramId}
-            className={`earn-cta ${!claimedToday && !claimingRedStar && telegramId ? "earn-cta--primary" : ""}`}
+            className={`earn-cta ${claimingRedStar ? "earn-cta--busy" : !claimedToday && telegramId ? "earn-cta--primary" : ""}`}
           >
             {claimedToday
               ? t("earn.claimedTodayReturn")
