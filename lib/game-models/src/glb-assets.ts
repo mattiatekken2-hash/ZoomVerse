@@ -1,6 +1,7 @@
 /**
  * Optional HD GLB models per shape. Drop files in `public/models/{name}.glb`
  * (generated via Meshy, Tripo, Rodin, etc.) — showcase view loads these when present.
+ * Lab ZOOM shapes: pizza (Meshy voxel), flower/dollar (solid PBR stand-ins until HD drops).
  */
 export const SHAPE_GLB_ASSETS: Partial<Record<string, string>> = {
   minifig: "/models/minifig.glb",
