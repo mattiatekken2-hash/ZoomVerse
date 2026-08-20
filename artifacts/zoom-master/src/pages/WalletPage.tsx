@@ -12,6 +12,11 @@ import {
   readWalletMarketCacheForDisplay,
   subscribeWalletMarketCache,
 } from "../utils/walletMarketCache";
+import {
+  fetchGramMarketSnapshot,
+  readGramMarketCache,
+  subscribeGramMarket,
+} from "../utils/gramMarket";
 import { formatChangePct, formatGramValueFull, getRolling24hChange, formatZoomChartPrice, formatStardustChartIndex, formatGramChartUsd } from "../utils/wallet24hChange";
 
 const LIVE_POLL_MS = 12_000;
@@ -109,9 +114,7 @@ export function WalletPage({
     getRolling24hChange("stardust-index", initialMarket.stardustIndex),
   );
   const [gramChangePct, setGramChangePct] = useState<number | null>(() =>
-    initialMarket.tonPriceUsd != null
-      ? getRolling24hChange("gram-ton-usd", initialMarket.tonPriceUsd)
-      : null,
+    readGramMarketCache().change24hPct,
   );
 
   const applyMarketCache = useCallback(() => {
@@ -119,7 +122,6 @@ export function WalletPage({
     if (cached.tonPriceUsd != null) {
       setTonPrice(cached.tonPriceUsd);
       setPriceLoading(false);
-      setGramChangePct(getRolling24hChange("gram-ton-usd", cached.tonPriceUsd));
     }
     if (cached.zoomPriceGram != null) {
       setZoomPriceGram(cached.zoomPriceGram);
@@ -131,39 +133,59 @@ export function WalletPage({
     }
   }, []);
 
+  const applyGramMarket = useCallback(() => {
+    const gram = readGramMarketCache();
+    if (gram.priceUsd != null) {
+      setTonPrice(gram.priceUsd);
+      setPriceLoading(false);
+    }
+    if (gram.change24hPct != null && Number.isFinite(gram.change24hPct)) {
+      setGramChangePct(gram.change24hPct);
+    }
+  }, []);
+
   useEffect(() => {
     setLiveStardustBalance(stardustBalance);
   }, [stardustBalance]);
 
   useEffect(() => subscribeWalletMarketCache(applyMarketCache), [applyMarketCache]);
+  useEffect(() => subscribeGramMarket(applyGramMarket), [applyGramMarket]);
 
   useEffect(() => {
     if (!visible) return;
     applyMarketCache();
+    applyGramMarket();
     void prefetchWalletMarket();
+    void fetchGramMarketSnapshot();
     const id = window.setInterval(() => {
       if (document.hidden) return;
       void prefetchWalletMarket();
+      void fetchGramMarketSnapshot();
     }, LIVE_POLL_MS);
     return () => window.clearInterval(id);
-  }, [visible, applyMarketCache]);
+  }, [visible, applyMarketCache, applyGramMarket]);
 
   useEffect(() => {
-    const onRefresh = () => { void prefetchWalletMarket(); };
+    const onRefresh = () => {
+      void prefetchWalletMarket();
+      void fetchGramMarketSnapshot();
+    };
     window.addEventListener("zoom-data-refresh", onRefresh);
     return () => window.removeEventListener("zoom-data-refresh", onRefresh);
-  }, [applyMarketCache]);
+  }, []);
 
   useEffect(() => {
     const onTabActive = (e: Event) => {
       const nextTab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
       if (nextTab !== "wallet") return;
       applyMarketCache();
+      applyGramMarket();
       void prefetchWalletMarket();
+      void fetchGramMarketSnapshot();
     };
     window.addEventListener("zoom-tab-active", onTabActive);
     return () => window.removeEventListener("zoom-tab-active", onTabActive);
-  }, [applyMarketCache]);
+  }, [applyMarketCache, applyGramMarket]);
 
   const usdtValue = tonPrice !== null ? (tonBalance * tonPrice).toFixed(2) : null;
   const zoomGramValue = zoomPriceGram != null && balance > 0 ? balance * zoomPriceGram : null;
@@ -193,10 +215,12 @@ export function WalletPage({
     return seededRange(seed, 5_000_000, 18_000_000);
   }, [telegramId]);
 
-  const handleGramPriceUpdate = useCallback((p: number) => {
+  const handleGramPriceUpdate = useCallback((p: number, change24hPct: number | null) => {
     setTonPrice(p);
     setPriceLoading(false);
-    setGramChangePct(getRolling24hChange("gram-ton-usd", p));
+    if (change24hPct != null && Number.isFinite(change24hPct)) {
+      setGramChangePct(change24hPct);
+    }
   }, []);
 
   return (
