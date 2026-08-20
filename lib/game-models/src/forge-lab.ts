@@ -11,61 +11,17 @@ import {
   forgeSphereTapGoal,
   getForgeSphereBlueprint,
 } from "./voxel-sphere-blueprint.js";
-
-/** Lab forge path — ZOOM models vs Stardust generators. */
-export type LabForgePath = "zoom" | "stardust";
-
-/** Catalog shape id for the pizza GLB (produces $ZOOM). */
-export const LAB_PIZZA_SHAPE_ID = "pizza";
-
-/** Flower GLB — ZOOM Farm generator (random ZOOM forge outcome). */
-export const LAB_FLOWER_SHAPE_ID = "flower";
-
-/** Dollar GLB — ZOOM Farm generator (random ZOOM forge outcome). */
-export const LAB_DOLLAR_SHAPE_ID = "dollar";
-
-/** Watering pot GLB — produces ★ Stardust (Farm generator, test). */
-export const LAB_STARDUST_POT_SHAPE_ID = "stardust_pot";
-
-/** ZOOM-path forge pool — one is picked at random when starting a ZOOM forge. */
-export const LAB_ZOOM_SHAPE_IDS = [
+import {
+  LAB_MODEL_FORGE_GOAL,
   LAB_PIZZA_SHAPE_ID,
-  LAB_FLOWER_SHAPE_ID,
-  LAB_DOLLAR_SHAPE_ID,
-] as const;
+  LAB_STARDUST_POT_SHAPE_ID,
+  LAB_ZOOM_SHAPE_IDS,
+  isLabZoomShapeId,
+  type LabForgePath,
+  type LabZoomShapeId,
+} from "./forge-lab-economy.js";
 
-export type LabZoomShapeId = (typeof LAB_ZOOM_SHAPE_IDS)[number];
-
-/** Farm $ZOOM/h by ZOOM-path model. Pizza = baseline; flower softer; dollar stronger. */
-export const LAB_ZOOM_FARM_RATE: Record<LabZoomShapeId, number> = {
-  [LAB_PIZZA_SHAPE_ID]: 3.5,
-  [LAB_FLOWER_SHAPE_ID]: 2.6,
-  [LAB_DOLLAR_SHAPE_ID]: 4.2,
-};
-
-export const LAB_ZOOM_DISPLAY_NAME: Record<LabZoomShapeId, string> = {
-  [LAB_PIZZA_SHAPE_ID]: "Pizza",
-  [LAB_FLOWER_SHAPE_ID]: "Flower",
-  [LAB_DOLLAR_SHAPE_ID]: "Dollar",
-};
-
-export const LAB_ZOOM_COLORS: Record<LabZoomShapeId, { color: string; glowColor: string }> = {
-  [LAB_PIZZA_SHAPE_ID]: { color: "#7bed9f", glowColor: "#2ed573" },
-  [LAB_FLOWER_SHAPE_ID]: { color: "#ff8fab", glowColor: "#ff5c8a" },
-  [LAB_DOLLAR_SHAPE_ID]: { color: "#ffe066", glowColor: "#ffd43b" },
-};
-
-/** Match the grey sphere forge tap count — one tap = one voxel. */
-export const LAB_MODEL_FORGE_GOAL = 257;
-
-/** $ZOOM cost to start a Stardust-path forge (test balance). */
-export const LAB_STARDUST_FORGE_ZOOM_COST = 500;
-
-/** ★ Stardust cost to start a ZOOM-path pizza forge (test balance). */
-export const LAB_ZOOM_FORGE_STARDUST_COST = 3;
-
-/** @deprecated Use LAB_MODEL_FORGE_GOAL */
-export const LAB_PIZZA_FORGE_GOAL = LAB_MODEL_FORGE_GOAL;
+export type { LabForgePath } from "./forge-lab-economy.js";
 
 /** localStorage key — set to "1" before the next Lab forge to test pizza. */
 export const LAB_FORGE_TEST_PIZZA_KEY = "zoom-test-pizza-forge";
@@ -114,19 +70,6 @@ export function enableNextLabForgePizza(): void {
   } catch { /**/ }
 }
 
-export function isLabZoomShapeId(shapeId: string | null | undefined): shapeId is LabZoomShapeId {
-  return !!shapeId && (LAB_ZOOM_SHAPE_IDS as readonly string[]).includes(shapeId);
-}
-
-/** Market / Farm path for a listing — null if not a Lab generator. */
-export type LabMarketPath = "zoom" | "stardust";
-
-export function labMarketPathForShapeId(shapeId: string | null | undefined): LabMarketPath | null {
-  if (isLabZoomShapeId(shapeId)) return "zoom";
-  if (shapeId === LAB_STARDUST_POT_SHAPE_ID) return "stardust";
-  return null;
-}
-
 /** Pick a random ZOOM-path model (pizza / flower / dollar). Equal weight. */
 export function pickRandomLabZoomShapeId(): LabZoomShapeId {
   if (readLabForgeTestPizzaFlag()) return LAB_PIZZA_SHAPE_ID;
@@ -145,11 +88,6 @@ export function resolveLabForgeShapeId(override: string | null | undefined): str
 
 function isLabModelShape(shapeId: string): boolean {
   return isLabZoomShapeId(shapeId) || shapeId === LAB_STARDUST_POT_SHAPE_ID;
-}
-
-/** Lab forge generators currently claimable to Farm (ZOOM models / stardust pot). */
-export function isLabForgeGeneratorPlanet(planet: { shapeId?: string | null }): boolean {
-  return !!planet.shapeId && isLabModelShape(planet.shapeId);
 }
 
 export function getLabForgeShapeTapGoal(
