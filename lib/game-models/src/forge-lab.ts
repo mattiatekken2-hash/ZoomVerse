@@ -21,8 +21,6 @@ import {
   type LabZoomShapeId,
 } from "./forge-lab-economy.js";
 
-export type { LabForgePath } from "./forge-lab-economy.js";
-
 /** localStorage key — set to "1" before the next Lab forge to test pizza. */
 export const LAB_FORGE_TEST_PIZZA_KEY = "zoom-test-pizza-forge";
 
