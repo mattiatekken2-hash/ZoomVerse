@@ -13,7 +13,7 @@ import { fetchEconomyPrice, type EconomyChartPoint, fetchEconomyHistory } from "
 import { EconomyModal } from "./EconomyModal";
 
 // Slow poll: the price is event-driven server-side (no per-second tick),
-// capped at +1% per UTC day. Polling more often than this just burns
+// capped at +8% per UTC day. Polling more often than this just burns
 // bandwidth without showing any new movement.
 const POLL_MS = 60_000;
 

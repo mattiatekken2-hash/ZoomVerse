@@ -3,6 +3,7 @@ import App from "./App";
 import "./index.css";
 import { hapticLight } from "./utils/haptic";
 import { BootErrorBoundary } from "./components/BootErrorBoundary";
+import { clearLabForgeTestPizzaFlag } from "@workspace/game-models";
 import { hideHtmlSplash } from "./components/SplashScreen";
 import { SPLASH_MS } from "./utils/bootSplash";
 
@@ -50,6 +51,8 @@ function configureTelegramViewport() {
 }
 
 configureTelegramViewport();
+
+try { clearLabForgeTestPizzaFlag(); } catch { /**/ }
 
 {
   const start =
@@ -113,14 +116,23 @@ document.addEventListener(
   { passive: true },
 );
 
+function shouldSkipGlobalHaptic(target: Element | null): boolean {
+  if (!target) return false;
+  if (NO_HAPTIC_TAGS.has(target.tagName)) return true;
+  if ((target as HTMLElement).isContentEditable) return true;
+  if (target.tagName === "CANVAS") return true;
+  if (target.closest("[data-no-global-haptic]")) return true;
+  if (target.closest('[data-testid="planet-wrap"]')) return true;
+  return false;
+}
+
 document.addEventListener(
   "touchend",
   (e: TouchEvent) => {
     if (tapMoved) return;
     if (Date.now() - tapStartT > TAP_MAX_MS) return;
     const target = e.target as Element | null;
-    if (target && NO_HAPTIC_TAGS.has(target.tagName)) return;
-    if (target && (target as HTMLElement).isContentEditable) return;
+    if (shouldSkipGlobalHaptic(target)) return;
     hapticLight();
   },
   { passive: true },
@@ -159,8 +171,7 @@ document.addEventListener("pointerup", (e: PointerEvent) => {
   if (pMoved) return;
   if (Date.now() - pStartT > TAP_MAX_MS) return;
   const target = e.target as Element | null;
-  if (target && NO_HAPTIC_TAGS.has(target.tagName)) return;
-  if (target && (target as HTMLElement).isContentEditable) return;
+  if (shouldSkipGlobalHaptic(target)) return;
   hapticLight();
 });
 

@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { MysteryModel3D, type ForgeMeshHandle } from "./MysteryModel3D";
-import { FORGE_CLAY_HEX, FORGE_SPHERE_SHAPE_ID } from "@workspace/game-models";
+import { FORGE_CLAY_HEX, FORGE_SPHERE_SHAPE_ID, getMeshParts, resolveLabForgeShapeId } from "@workspace/game-models";
 import type { Planet } from "../hooks/useGameState";
 import { getRarityColorsForModel, PLANET_CONFIG } from "../hooks/useGameState";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
@@ -30,6 +30,10 @@ interface PlanetCanvasProps {
   suppressProgressBar?: boolean;
   /** Pause forge WebGL when Lab tab is hidden. */
   visible?: boolean;
+  /** Lab shape override — null = default grey sphere (e.g. "pizza" for GLB test). */
+  labForgeShapeId?: string | null;
+  /** Active lab dual-forge path (zoom / stardust). */
+  labForgePath?: import("@workspace/game-models").LabForgePath | null;
 }
 
 const DEFAULT_ACCENT = "#8892b0";
@@ -342,6 +346,8 @@ export function PlanetCanvas({
   chromeBottomOffset,
   suppressProgressBar = false,
   visible = true,
+  labForgeShapeId = null,
+  labForgePath = null,
 }: PlanetCanvasProps) {
   const { t } = useT();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -374,33 +380,51 @@ export function PlanetCanvas({
     float: 0.5,
     shapeId: forgePlanetBuild ? FORGE_SPHERE_SHAPE_ID : undefined,
   } as Planet : null);
-  const isActiveCraft = forgePhase === "idle" && !!craftRarity && !forgeRolling;
+  const isActiveCraft = forgePhase === "idle" && !forgeRolling && !!forgePlanetBuild
+    && (!!labForgePath || !!craftRarity) && !pendingPlanet;
   const isCrafting = isActiveCraft;
-  const showCompletedForgeMesh = !!pendingPlanet && (forgePhase === "waiting" || forgePhase === "wheel" || forgePhase === "flash");
+  /** Keep lab GLB shape for the whole pending-claim sequence (waiting → wheel → flash). */
+  const labForgeRevealActive = !!pendingPlanet && !!labForgeShapeId;
+  /** Grey voxels while tapping; stay visible through reveal except during wheel. */
+  const showForgeBuildMesh = (isCrafting && forgePlanetBuild)
+    || (labForgeRevealActive && forgePhase !== "wheel");
+  const showCompletedForgeMesh = showForgeBuildMesh;
+  const hideForgeCanvasDuringWheel = labForgeRevealActive && forgePhase === "wheel";
   const forgeRarity = pendingPlanet?.name ?? craftRarity;
-  const showVoxelLayer = (isCrafting && forgePlanetBuild) || showCompletedForgeMesh;
-  /** Lab forge space grid + stars — keep GL alive through forge completion sequence. */
-  const keepForgeGl = backdrop && (
-    (!pendingPlanet && forgePhase === "idle") ||
-    showCompletedForgeMesh
-  );
+  const showVoxelLayer = showForgeBuildMesh;
+  /** Lab backdrop — keep WebGL alive for the full Lab session (idle, forge, reveal, claim). */
+  const keepForgeGl = backdrop;
   const labViewportReady = !backdrop || (viewport.w > 1 && viewport.h > 1);
   const showLabBackdrop = keepForgeGl && visible;
   const showPlanetOrb = false;
   const pct = goal > 0 ? Math.min(progress / goal, 1) : 0;
   const buildProgress = isCrafting ? pct : 1;
   const isForging = isCrafting;
-  const forgeRevealPhase: ForgePhase = pendingPlanet ? forgePhase : "idle";
-  const rarityPaint = livePlanet ? getRarityColorsForModel(livePlanet.name) : undefined;
-  const meshPrimary = rarityPaint?.color ?? FORGE_CLAY_HEX;
-  const meshAccent = rarityPaint?.accentHex ?? DEFAULT_ACCENT;
+  /** Never drop to 0 after forge complete — progress=0 wipes placed voxels in WebGL. */
+  const forgeDisplayProgress = isCrafting ? buildProgress : (!!pendingPlanet || showVoxelLayer ? 1 : 0);
+  const forgeRevealPhase: ForgePhase = pendingPlanet
+    ? (forgePhase === "flash" || forgePhase === "revealed" ? forgePhase : "idle")
+    : "idle";
+  const labClayForge = !!(labForgePath || labForgeRevealActive || (isCrafting && labForgeShapeId));
+  const rarityPaint = livePlanet && !labClayForge ? getRarityColorsForModel(livePlanet.name) : undefined;
+  const meshPrimary = labClayForge ? FORGE_CLAY_HEX : (rarityPaint?.color ?? FORGE_CLAY_HEX);
+  const meshAccent = labClayForge ? DEFAULT_ACCENT : (rarityPaint?.accentHex ?? DEFAULT_ACCENT);
   const displayAccent = DEFAULT_ACCENT;
   const forgeDisplayFloat = livePlanet && isFloatablePlanet(livePlanet)
     ? getDisplayFloat(livePlanet)
     : undefined;
 
-  const forgeShapeId = showLabBackdrop || showVoxelLayer ? FORGE_SPHERE_SHAPE_ID : undefined;
-  const objectParts = useMemo(() => ((showLabBackdrop || showVoxelLayer) ? [] : undefined), [showLabBackdrop, showVoxelLayer]);
+  const useCustomLabShape = !!labForgeShapeId && ((isCrafting && forgePlanetBuild) || labForgeRevealActive);
+  const activeLabShapeId = useCustomLabShape
+    ? resolveLabForgeShapeId(labForgeShapeId)
+    : FORGE_SPHERE_SHAPE_ID;
+  const isLabSphereForge = activeLabShapeId === FORGE_SPHERE_SHAPE_ID;
+  const forgeShapeId = showLabBackdrop || showVoxelLayer ? activeLabShapeId : undefined;
+  const objectParts = useMemo(() => {
+    if (!(showLabBackdrop || showVoxelLayer)) return undefined;
+    if (isLabSphereForge) return [];
+    return getMeshParts(activeLabShapeId, meshPrimary, meshAccent);
+  }, [showLabBackdrop, showVoxelLayer, isLabSphereForge, activeLabShapeId, meshPrimary, meshAccent]);
 
   /** One WebGL session for the Lab backdrop — released when forge ends, not on tab switch. */
   useEffect(() => {
@@ -412,9 +436,14 @@ export function PlanetCanvas({
   }, [keepForgeGl, labViewportReady, forgeGlSession]);
 
   const handleLabGlError = useCallback(() => {
-    if (!keepForgeGl) return;
-    setForgeGlSession(`forge-recover-${Date.now()}`);
-  }, [keepForgeGl]);
+    if (!keepForgeGl || pendingPlanet) return;
+    // Debounce — context-loss storms during forge reveal used to remount in a loop.
+    const w = window as unknown as { __zoomForgeGlRecoverAt?: number };
+    const now = Date.now();
+    if (w.__zoomForgeGlRecoverAt && now - w.__zoomForgeGlRecoverAt < 1200) return;
+    w.__zoomForgeGlRecoverAt = now;
+    setForgeGlSession(`forge-recover-${now}`);
+  }, [keepForgeGl, pendingPlanet]);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -521,8 +550,8 @@ export function PlanetCanvas({
         style={{
           width: backdrop ? "100%" : size,
           height: backdrop ? "100%" : size,
-          cursor: onPunch && isForging && !forgeRolling ? "pointer" : "default",
-          touchAction: "manipulation",
+          cursor: onPunch && isForging && !forgeRolling ? "pointer" : "grab",
+          touchAction: onPunch ? "manipulation" : "none",
           position: "relative",
           background: "transparent",
           overflow: "visible",
@@ -537,8 +566,8 @@ export function PlanetCanvas({
             className="absolute inset-0"
             style={{
               lineHeight: 0,
-              visibility: visible ? "visible" : "hidden",
-              pointerEvents: showVoxelLayer && isForging && !forgeRolling && visible ? "auto" : "none",
+              visibility: visible && !hideForgeCanvasDuringWheel ? "visible" : "hidden",
+              pointerEvents: showVoxelLayer && visible ? "auto" : "none",
             }}
           >
             <MysteryModel3D
@@ -548,7 +577,7 @@ export function PlanetCanvas({
               shapeId={forgeShapeId}
               primaryColor={meshPrimary}
               accentColor={meshAccent}
-              progress={showVoxelLayer ? (isCrafting ? buildProgress : 1) : 0}
+              progress={forgeDisplayProgress}
               revealed={false}
               planetRarity={forgeRarity ?? "BASIC"}
               displayFloat={forgeDisplayFloat}
@@ -556,8 +585,9 @@ export function PlanetCanvas({
               size={modelCanvasSize}
               viewportWidth={viewport.w}
               viewportHeight={viewport.h}
-              onTap={showVoxelLayer && isForging && !forgeRolling ? handleModelTap : undefined}
+              onTap={onPunch && showVoxelLayer && isForging && !forgeRolling ? handleModelTap : undefined}
               autoSpin
+              interactive={isForging && !forgeRolling}
               forgeVoxelBuild={true}
               forgeRevealPhase={forgeRevealPhase}
               forgeTapRelaxed={tapRelaxed}
@@ -601,7 +631,7 @@ export function PlanetCanvas({
                   displayFloat={forgeDisplayFloat}
                   planetId={livePlanet?.id}
                   size={modelCanvasSize}
-                  onTap={isForging && !forgeRolling ? handleModelTap : undefined}
+                  onTap={onPunch && isForging && !forgeRolling ? handleModelTap : undefined}
                   autoSpin
                   forgeVoxelBuild={true}
                   forgeRevealPhase={forgeRevealPhase}

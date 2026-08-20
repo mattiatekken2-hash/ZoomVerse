@@ -8,8 +8,8 @@
  * is small in absolute terms, at high prices it scales naturally):
  *   - market buy:    +0.30%   (cost-bound — real $ZOOM debit)
  *   - market list:   +0.15%   (cost-bound — planet inventory)
- *   - planet cycle:  +0.05%   (per /farm/start, cooldown 60s/user)
- *   - craft mint:    +0.10%   (per /craft/record, cooldown 30s/user)
+ *   - planet cycle:  +0.08%   (per /farm/start, cooldown 60s/user)
+ *   - craft mint:    +0.12%   (per /craft/record, cooldown 30s/user)
  *
  * A floor of +1 micro per bump guarantees the chart still moves at the
  * very lowest prices (otherwise rounding would zero out tiny percentages).
@@ -51,31 +51,22 @@ const PRICE_KEY = "zoom_price_micro";
 const CHART_KEY = "zoom_price_chart";
 const VERSION_KEY = "zoom_price_version";
 // Daily-reset state. Tracks the highest price seen so far during the
-// current UTC day and the UTC-day index of the last reset. When the day
-// rolls over, the price is corrected DOWN by a small random pct (1–5%)
-// below the previous day's high — see `applyDailyResetIfNeeded`.
+// current UTC day and the UTC-day index of the last rollover. When the day
+// rolls over we only reset the daily anchors (open/high) — price is NOT
+// corrected down; it keeps climbing from player activity only.
 const DAILY_HIGH_KEY = "zoom_price_daily_high";
 const LAST_DAY_KEY = "zoom_price_last_day_utc";
-// Today's UTC opening price (set at midnight reset and on first-run).
+// Today's UTC opening price (set at midnight rollover and on first-run).
 // The daily growth cap is enforced as: max_price_today = open * (1 + DAILY_GROWTH_CAP).
 const DAILY_OPEN_KEY = "zoom_price_daily_open";
 
-// Daily correction range (fraction). Each midnight-UTC reset picks a
-// random value in [DAILY_CORRECTION_MIN, DAILY_CORRECTION_MAX] and the
-// new starting price = previousDailyHigh * (1 - pct).
-const DAILY_CORRECTION_MIN = 0.01; // 1%
-const DAILY_CORRECTION_MAX = 0.05; // 5%
-
-// Hard daily growth ceiling: the price can never exceed the day's
-// opening value by more than this fraction. Protects the (decorative)
-// TON-pegged Portfolio Value from runaway pumps when activity spikes —
-// players still see organic growth, but it's bounded per UTC day.
-const DAILY_GROWTH_CAP = 0.01; // +1% per day, max
+// Hard daily growth ceiling: max +8% above the UTC-day open (was +1%).
+// Price only moves on real player actions (+ micro wiggle per bump).
+const DAILY_GROWTH_CAP = 0.08; // +8% per day, max
 
 // Soft floor expressed as a fraction of the day's opening price. With
 // micro-volatility deltas occasionally going negative, this keeps the
-// price from drifting unboundedly down over a quiet day. -2% is enough
-// headroom for organic wiggle without ever falling far below the open.
+// price from drifting unboundedly down over a quiet day.
 const DAILY_FLOOR_PCT = 0.02; // up to -2% from the day's open
 
 function utcDayIndex(ts: number): number {
@@ -162,9 +153,9 @@ function checkCooldown(action: PriceAction, userId: string | null | undefined): 
   return true;
 }
 // Hard ceiling so a runaway loop or admin bug can't drive the price into
-// astronomical territory. With genesis at 1e6 stored units (0.000001 TON)
-// and the +1% daily cap, the price can never reach this ceiling through
-// normal play, but we keep it as a safety belt. 1.0 TON = 1e12 stored.
+// astronomical territory. With genesis at 1e6 stored units (0.000001 GRAM)
+// and the +8% daily cap, the price can never reach this ceiling through
+// normal play, but we keep it as a safety belt. 1.0 GRAM = 1e12 stored.
 const MAX_PRICE_MICRO = SCALE_FACTOR;
 // Per-action deltas in BASIS POINTS (1 bp = 0.01% of current price).
 // These are the BASE values; the actual delta applied to the price is
@@ -172,12 +163,12 @@ const MAX_PRICE_MICRO = SCALE_FACTOR;
 // server-side micro-volatility — small dips and pops around the base —
 // so the chart shows an organic wiggle instead of a perfect straight
 // line up. Combined with the per-day cap (DAILY_GROWTH_CAP) this gives
-// a slow, jagged climb capped at +1%/day.
+// a jagged climb capped at +8%/day from player activity only.
 export const DELTA_BP = {
   market_buy: 30,   // base +0.30% (cost-bound — real $ZOOM debit)
   market_list: 15,  // base +0.15% (cost-bound — planet inventory limit)
-  farm_cycle: 5,    // base +0.05% (cooldown 60s/user — see COOLDOWN_MS)
-  craft: 10,        // base +0.10% (cooldown 30s/user — see COOLDOWN_MS)
+  farm_cycle: 8,    // base +0.08% (cooldown 60s/user — see COOLDOWN_MS)
+  craft: 12,        // base +0.12% (cooldown 30s/user — see COOLDOWN_MS)
 } as const;
 export type PriceAction = keyof typeof DELTA_BP;
 
@@ -292,25 +283,23 @@ async function ensureGenesis(): Promise<void> {
 }
 
 /**
- * Apply the midnight-UTC daily reset if the current UTC day differs from
- * the last-recorded reset day. Idempotent and safe under concurrency
+ * Apply the midnight-UTC day rollover if the current UTC day differs from
+ * the last-recorded day. Idempotent and safe under concurrency
  * (uses a row-level FOR UPDATE lock on the price row). Behaviour:
  *   1. Read stored last-day index and daily high (defaults: today / current price).
  *   2. If today's UTC day index > storedLastDay, the day has rolled over:
- *      newPrice = round(previousDailyHigh * (1 - randomPct in [1%, 5%]))
- *      The new price is set as the floor for the new day, daily high is
- *      reset to newPrice, last-day is set to today, and a correction
- *      point is appended to the chart so the dip is visible.
+ *      price is carried forward unchanged; daily open/high reset to the
+ *      current price so the +8% cap applies fresh for the new day.
  *   3. Otherwise: bump dailyHigh upward to max(stored, currentPrice).
  *
- * The correction is the only mechanism that ever DECREASES the price.
- * Returns the (possibly corrected) current price in micro-units.
+ * There is no automatic nightly price drop — only player-driven bumps
+ * (and tiny per-tick micro-volatility) move the index.
+ * Returns the current price in micro-units.
  */
 async function applyDailyResetIfNeeded(): Promise<number> {
   const now = Date.now();
   const today = utcDayIndex(now);
   let finalPrice = GENESIS_PRICE_MICRO;
-  let didReset = false;
 
   await db.transaction(async (tx) => {
     const priceSel = await tx.execute(sql`
@@ -327,7 +316,7 @@ async function applyDailyResetIfNeeded(): Promise<number> {
     const lastDayRows = (lastDaySel as unknown as { rows: Array<{ value_num?: number | string | null }> }).rows;
     const storedLastDay = lastDayRows?.[0]?.value_num != null
       ? Number(lastDayRows[0].value_num)
-      : today; // first run: pretend "today" so we don't immediately correct
+      : today; // first run: pretend "today" so we don't immediately roll
 
     const highSel = await tx.execute(sql`
       SELECT value_num FROM app_settings WHERE key = ${DAILY_HIGH_KEY}
@@ -338,19 +327,12 @@ async function applyDailyResetIfNeeded(): Promise<number> {
       : currentPrice;
 
     if (today > storedLastDay) {
-      // Day rolled over — apply correction below the previous day's high.
-      const previousHigh = Math.max(storedHigh, currentPrice);
-      const pct = DAILY_CORRECTION_MIN + Math.random() * (DAILY_CORRECTION_MAX - DAILY_CORRECTION_MIN);
-      const corrected = Math.max(GENESIS_PRICE_MICRO, Math.round(previousHigh * (1 - pct)));
-      finalPrice = corrected;
-      didReset = true;
+      // New UTC day — carry price forward, reset daily anchors only.
+      finalPrice = currentPrice;
 
       await tx.execute(sql`
-        UPDATE app_settings SET value_num = ${corrected}, updated_at = NOW() WHERE key = ${PRICE_KEY}
-      `);
-      await tx.execute(sql`
         INSERT INTO app_settings (key, value_num, value_text)
-        VALUES (${DAILY_HIGH_KEY}, ${corrected}, NULL)
+        VALUES (${DAILY_HIGH_KEY}, ${currentPrice}, NULL)
         ON CONFLICT (key) DO UPDATE SET value_num = EXCLUDED.value_num, updated_at = NOW()
       `);
       await tx.execute(sql`
@@ -358,15 +340,14 @@ async function applyDailyResetIfNeeded(): Promise<number> {
         VALUES (${LAST_DAY_KEY}, ${today}, NULL)
         ON CONFLICT (key) DO UPDATE SET value_num = EXCLUDED.value_num, updated_at = NOW()
       `);
-      // Anchor today's opening price for the daily growth cap.
       await tx.execute(sql`
         INSERT INTO app_settings (key, value_num, value_text)
-        VALUES (${DAILY_OPEN_KEY}, ${corrected}, NULL)
+        VALUES (${DAILY_OPEN_KEY}, ${currentPrice}, NULL)
         ON CONFLICT (key) DO UPDATE SET value_num = EXCLUDED.value_num, updated_at = NOW()
       `);
       logger.info(
-        { previousHigh, corrected, pctApplied: pct, today },
-        "[zoomPrice] daily reset applied",
+        { currentPrice, today },
+        "[zoomPrice] daily rollover — price carried forward",
       );
     } else {
       finalPrice = currentPrice;
@@ -398,40 +379,6 @@ async function applyDailyResetIfNeeded(): Promise<number> {
     }
   });
 
-  // Append a correction point to the chart OUTSIDE the price tx so the
-  // chart-row lock doesn't tangle with the price-row lock above.
-  if (didReset) {
-    try {
-      await db.transaction(async (tx) => {
-        const sel = await tx.execute(sql`
-          SELECT value_text FROM app_settings WHERE key = ${CHART_KEY} FOR UPDATE
-        `);
-        const rows = (sel as unknown as { rows: Array<{ value_text?: string | null }> }).rows;
-        const raw = rows?.[0]?.value_text ?? null;
-        let arr: ChartPoint[] = [];
-        if (raw) {
-          try {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) arr = parsed.filter((it): it is ChartPoint =>
-              !!it && typeof it === "object" &&
-              Number.isFinite((it as ChartPoint).t) &&
-              Number.isFinite((it as ChartPoint).p));
-          } catch { arr = []; }
-        }
-        arr.push({ t: now, p: finalPrice });
-        if (arr.length > CHART_MAX_POINTS) {
-          arr = arr.slice(arr.length - CHART_MAX_POINTS);
-        }
-        await tx.execute(sql`
-          UPDATE app_settings SET value_text = ${JSON.stringify(arr)}, updated_at = NOW()
-          WHERE key = ${CHART_KEY}
-        `);
-      });
-    } catch (err) {
-      logger.warn({ err }, "[zoomPrice] daily reset chart append failed");
-    }
-  }
-
   return finalPrice;
 }
 
@@ -454,8 +401,8 @@ export async function getDailyHighMicro(): Promise<number> {
 /**
  * Read the current price in micro-units. Returns the genesis value if the
  * row is somehow missing (defensive — `ensureGenesis` is also called).
- * Also runs the midnight-UTC daily reset lazily on read so the chart
- * shows the correction even if no bumps happen at midnight itself.
+ * Also runs the midnight-UTC day rollover lazily on read so daily
+ * anchors stay in sync even if no bumps happen at midnight itself.
  */
 export async function getZoomPriceMicro(): Promise<number> {
   await ensureGenesis();
@@ -529,8 +476,7 @@ export async function bumpZoomPrice(action: PriceAction, userId?: string | null)
   if (!checkCooldown(action, userId)) return null;
   try {
     await ensureGenesis();
-    // Apply the midnight-UTC reset BEFORE bumping so the bump always
-    // builds on top of the corrected base, never on yesterday's high.
+    // Apply midnight UTC day rollover (anchor reset only) before bumping.
     await applyDailyResetIfNeeded();
     // SIGNED random delta around the action's base bp — see randomDeltaBp.
     // The delta can be slightly negative so the chart shows organic

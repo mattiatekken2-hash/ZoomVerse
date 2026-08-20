@@ -10,6 +10,8 @@ export const SHAPE_GLB_ASSETS: Partial<Record<string, string>> = {
   donut: "/models/donut.glb",
   mug: "/models/mug.glb",
   wine: "/models/wine.glb",
+  pizza: "/models/pizza.glb",
+  stardust_pot: "/models/stardust_pot.glb",
 };
 
 export function getShapeGlbUrl(shapeId: string): string | null {

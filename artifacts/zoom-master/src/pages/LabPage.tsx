@@ -1,35 +1,35 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useState, useCallback, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import { PlanetCanvas, ForgeProgressBar, type ForgePhase } from "../components/PlanetCanvas";
 import { AutoTapWidget } from "../components/AutoTapWidget";
-import { SkipForgeWidget } from "../components/SkipForgeWidget";
-import { RarityForgeWheel } from "../components/RarityForgeWheel";
-import { FarmInventoryCard } from "../components/FarmInventoryCard";
 import { SettingsMenu } from "../components/SettingsMenu";
 import { AvatarXP } from "../components/AvatarXP";
 import { ShoppingBag } from "lucide-react";
 
-import type { Planet, PlanetType } from "../hooks/useGameState";
-import { PLANET_CONFIG } from "../hooks/useGameState";
+import { ForgePathPicker } from "../components/ForgePathPicker";
+import { ForgePathWheel } from "../components/ForgePathWheel";
+import { LabModelRevealCard } from "../components/LabModelRevealCard";
+import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
+import { ForgeUiErrorBoundary } from "../components/ForgeUiErrorBoundary";
+import type { LabForgePath } from "@workspace/game-models";
+import type { Planet } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
 import { useT } from "../i18n/LanguageContext";
-import { planetTypeLabel } from "../i18n/translations";
 
 
 interface LabPageProps {
   balance: number;
   taps: number;
   goal: number;
-  planets: Planet[];
-  maxSlots: number;
-  currentCraftRarity: PlanetType | null;
   pendingPlanet: Planet | null;
   forgePlanetBuild?: boolean;
   forgeRolling?: boolean;
+  labForgeShapeId?: string | null;
+  labForgePath?: LabForgePath | null;
   hasAutoTap: boolean;
   stardustBalance: number;
   telegramId: string | null;
-  onCraft: (availableStardust?: number) => { completed: boolean; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType };
-  onSkipForge: () => { ok: boolean; reason?: string };
+  onCraft: (availableStardust?: number) => { completed: boolean; tapsLeft?: number };
+  onBeginLabForge: (path: LabForgePath) => { ok: boolean; reason?: string };
   onClaim: () => void;
   onOpenShop?: () => void;
   onOpenProfile?: () => void;
@@ -45,14 +45,13 @@ interface FloatMsg { id: number; text: string; color: string }
 
 const GREY = "#8892b0";
 
-export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRarity, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, hasAutoTap, stardustBalance, telegramId, onCraft, onSkipForge, onClaim, onOpenShop, onOpenProfile, totalTaps = 0, profilePhotoUrl, profileName, muted = false, setMuted, visible = true }: LabPageProps) {
-  const { t, lang } = useT();
+export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, labForgeShapeId = null, labForgePath = null, hasAutoTap, stardustBalance, telegramId, onCraft, onBeginLabForge, onClaim, onOpenShop, onOpenProfile, totalTaps = 0, profilePhotoUrl, profileName, muted = false, setMuted, visible = true }: LabPageProps) {
+  const { t } = useT();
+  const [forgePickerOpen, setForgePickerOpen] = useState(false);
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
   const floatTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
-  const [brokenFlash, setBrokenFlash] = useState<{ id: number; rarity: PlanetType } | null>(null);
-  const brokenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingFloatRef = useRef<{ planet: Planet } | null>(null);
+  const pendingFloatRef = useRef<{ planet: Planet; label: string } | null>(null);
 
   // Forge phase state machine: drives the visual sequence after the user
   // hits 100% — flash → 2s dramatic wait → model reveal → claim button.
@@ -68,11 +67,12 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
 
   useEffect(() => {
     if (pendingPlanet && forgePhase === "idle" && !pendingFloatRef.current) {
-      pendingFloatRef.current = { planet: pendingPlanet };
+      const label = labForgePath === "zoom" ? "$ZOOM" : labForgePath === "stardust" ? "★ STARDUST" : pendingPlanet.displayName ?? "Model";
+      pendingFloatRef.current = { planet: pendingPlanet, label };
     }
-  }, [pendingPlanet, forgePhase]);
+  }, [pendingPlanet, forgePhase, labForgePath]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (pendingPlanet && forgePhase === "idle") {
       setForgePhase("waiting");
       setShowClaim(false);
@@ -117,11 +117,10 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     if (waitingTimerRef.current) clearTimeout(waitingTimerRef.current);
   }, []);
 
-  const isFull = planets.length >= maxSlots && !pendingPlanet;
-  const effectiveStardust = stardustBalance;
-  const canCraft = !brokenFlash && !pendingPlanet && !forgeRolling && planets.length < maxSlots && (currentCraftRarity
-    ? true
-    : (effectiveStardust >= (PLANET_CONFIG["BASIC"].craftCost ?? 2)));
+  const isForgingActive = !pendingPlanet && !!labForgePath && !forgeRolling && forgePhase === "idle";
+  const canTapForge = isForgingActive;
+  const canOpenForgePicker = !pendingPlanet && !forgeRolling && !isForgingActive;
+  const pathLabel = labForgePath === "zoom" ? "$ZOOM" : labForgePath === "stardust" ? "★ STARDUST" : "";
 
   const dynamicColor = GREY;
 
@@ -161,47 +160,50 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
   // Show the planet float when the reveal phase fires (end of cinematic).
   useEffect(() => {
     if (forgePhase === "revealed" && pendingFloatRef.current) {
-      const p = pendingFloatRef.current.planet;
-      addFloat(t("lab.planetAcquired", { kind: planetTypeLabel(lang, p.name, PLANET_CONFIG[p.name].label) }), p.color);
+      const p = pendingFloatRef.current;
+      addFloat(t("lab.planetAcquired", { kind: p.label }), p.planet.color);
       pendingFloatRef.current = null;
     }
-  }, [forgePhase, addFloat, t, lang]);
+  }, [forgePhase, addFloat, t]);
 
-  const handleCraft = useCallback((opts?: { particles?: boolean; relaxed?: boolean }) => {
-    if (!canCraft) return;
-    hapticLight();
+  const handleCraft = useCallback((opts?: { particles?: boolean; relaxed?: boolean; haptic?: boolean }) => {
+    if (!canTapForge) return;
+    if (opts?.haptic !== false) hapticLight();
     const result = onCraft(stardustBalance);
-    if (result.completed && result.broken && result.brokenRarity) {
-      try {
-        const tg = (window as unknown as { Telegram?: { WebApp?: { HapticFeedback?: { notificationOccurred?: (s: string) => void } } } }).Telegram?.WebApp;
-        tg?.HapticFeedback?.notificationOccurred?.("error");
-      } catch { /**/ }
-      const id = ++floatIdRef.current;
-      setBrokenFlash({ id, rarity: result.brokenRarity });
-      if (brokenTimerRef.current) clearTimeout(brokenTimerRef.current);
-      brokenTimerRef.current = setTimeout(() => {
-        setBrokenFlash((curr) => (curr && curr.id === id ? null : curr));
-        brokenTimerRef.current = null;
-      }, 4000);
-      return;
-    }
+    if (result.completed) return;
     if (opts?.particles !== false) {
       setTapRelaxed(opts?.relaxed !== false);
       setTapSignal((n) => n + 1);
     }
-  }, [canCraft, onCraft, stardustBalance]);
+  }, [canTapForge, onCraft, stardustBalance]);
 
-  useEffect(() => () => {
-    if (brokenTimerRef.current) clearTimeout(brokenTimerRef.current);
-  }, []);
+  const handleForgeButton = useCallback(() => {
+    if (isForgingActive) {
+      handleCraft({ relaxed: true, haptic: true });
+      return;
+    }
+    if (canOpenForgePicker) {
+      hapticLight();
+      setForgePickerOpen(true);
+    }
+  }, [isForgingActive, canOpenForgePicker, handleCraft]);
+
+  const handleSelectForgePath = useCallback((path: LabForgePath) => {
+    hapticLight();
+    const result = onBeginLabForge(path);
+    setForgePickerOpen(false);
+    if (!result.ok && result.reason === "no_zoom") {
+      setFloats((prev) => [...prev, { id: ++floatIdRef.current, text: "Need 500 $ZOOM", color: "#ff6b6b" }]);
+    } else if (!result.ok && result.reason === "no_stardust") {
+      setFloats((prev) => [...prev, { id: ++floatIdRef.current, text: t("lab.noStardust"), color: "#ff6b6b" }]);
+    }
+  }, [onBeginLabForge, t]);
 
   const handleClaim = useCallback(() => {
     onClaim();
   }, [onClaim]);
 
   const bottomChromeOffset = "calc(env(safe-area-inset-bottom, 0px) + 78px)";
-  const isForgingActive = !pendingPlanet && !!currentCraftRarity && !forgeRolling && forgePhase === "idle";
-  const canSkipForge = isForgingActive && stardustBalance >= 1;
   const forgePct = goal > 0 ? Math.min(taps / goal, 1) : 0;
   const progressLabel = useMemo(() => {
     if (forgeRolling) return t("planetCanvas.forgingMass");
@@ -214,18 +216,15 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
     <div className="relative h-full overflow-hidden">
       <AutoTapWidget
         hasAutoTap={hasAutoTap}
-        canCraft={canCraft}
+        canCraft={canTapForge}
         telegramId={telegramId}
         onTap={() => handleCraft({ relaxed: true })}
       />
 
-      <div
-        className="absolute inset-0"
-        onClick={canCraft && forgePhase === "idle" ? () => handleCraft({ relaxed: true }) : undefined}
-      >
+      <div className="absolute inset-0">
+        <ForgeUiErrorBoundary label="3D forge error">
         <PlanetCanvas
           backdrop
-          onPunch={canCraft && forgePhase === "idle" ? () => handleCraft({ relaxed: true }) : undefined}
           tapSignal={tapSignal}
           tapRelaxed={tapRelaxed}
           progress={taps}
@@ -233,13 +232,16 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           accentColor={dynamicColor}
           pendingPlanet={pendingPlanet}
           forgePlanetBuild={forgePlanetBuild}
-          craftRarity={currentCraftRarity}
+          labForgeShapeId={labForgeShapeId}
+          labForgePath={labForgePath}
           forgePhase={forgePhase}
           forgeRolling={forgeRolling}
+          labForgeShapeId={labForgeShapeId}
           chromeBottomOffset={bottomChromeOffset}
           suppressProgressBar
-          visible={visible}
+          visible={visible && forgePhase !== "revealed"}
         />
+        </ForgeUiErrorBoundary>
 
         <div
           className="absolute left-0 right-0 z-30 flex justify-center pointer-events-none"
@@ -269,7 +271,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           </div>
           <div
             data-testid="lab-zoom-balance"
-            className="px-5 py-2 rounded-full pointer-events-auto flex-shrink-0"
+            className="px-4 py-2 rounded-full pointer-events-auto flex-shrink-0 flex items-center gap-2"
             style={{
               background: "rgba(0, 0, 0, 0.62)",
               border: "1px solid rgba(255, 255, 255, 0.14)",
@@ -278,10 +280,11 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             }}
           >
             <span
-              className="font-black text-base tracking-wide whitespace-nowrap"
+              className="font-black text-base tracking-wide whitespace-nowrap inline-flex items-center gap-1.5"
               style={{ color: "#ffffff", letterSpacing: "0.06em" }}
             >
-              {t("lab.balance", { n: Math.floor(balance).toLocaleString() })}
+              <ZoomCubeIcon size={18} />
+              {Math.floor(balance).toLocaleString()}
             </span>
           </div>
           <button
@@ -322,47 +325,6 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           </div>
         ))}
 
-        {brokenFlash && (
-          <div
-            className="absolute inset-0 flex items-center justify-center pointer-events-none"
-            style={{ zIndex: 60 }}
-          >
-            <div
-              key={brokenFlash.id}
-              className="broken-pop rounded-2xl px-7 py-5 text-center"
-              style={{
-                background: "rgba(20, 6, 8, 0.92)",
-                border: "1.5px solid rgba(255, 80, 80, 0.55)",
-                boxShadow: "0 0 28px rgba(255, 60, 60, 0.45), 0 0 0 1px rgba(255,80,80,0.12) inset",
-                maxWidth: "min(82vw, 320px)",
-              }}
-            >
-              <div style={{ fontSize: 38, lineHeight: 1, marginBottom: 6 }}>💥</div>
-              <div
-                className="font-black tracking-widest"
-                style={{ fontSize: 14, color: "#ff5555", textShadow: "0 0 12px rgba(255,80,80,0.7)", letterSpacing: "0.18em" }}
-              >
-                {t("lab.planetBroken")}
-              </div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.65)", marginTop: 6, fontWeight: 600 }}>
-                {t("lab.brokenBody", { kind: planetTypeLabel(lang, brokenFlash.rarity, PLANET_CONFIG[brokenFlash.rarity].label) })}
-              </div>
-              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", marginTop: 4, fontWeight: 500 }}>
-                {t("lab.tryAgainNext")}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {isFull && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="glass rounded-2xl px-6 py-4 text-center">
-              <div className="text-amber-400 font-black text-base tracking-widest mb-1">{t("lab.farmFull")}</div>
-              <div className="text-xs text-muted-foreground">{t("lab.farmFullHint")}</div>
-            </div>
-          </div>
-        )}
-
         {pendingPlanet && forgePhase === "waiting" && (
           <div
             className="absolute inset-0 flex flex-col items-center justify-end pointer-events-none forge-complete-celebrate"
@@ -398,7 +360,8 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           </div>
         )}
 
-        {pendingPlanet && forgePhase === "wheel" && (
+        {pendingPlanet && forgePhase === "wheel" && labForgePath && (
+          <ForgeUiErrorBoundary label="Wheel error">
           <div
             className="absolute inset-0 flex items-center justify-center forge-wheel-enter"
             style={{
@@ -408,12 +371,13 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
               pointerEvents: "auto",
             }}
           >
-            <RarityForgeWheel
-              targetRarity={pendingPlanet.name}
-              onComplete={handleWheelComplete}
-              size={Math.min(360, typeof window !== "undefined" ? window.innerWidth - 28 : 340)}
-            />
+              <ForgePathWheel
+                targetPath={labForgePath}
+                onComplete={handleWheelComplete}
+                size={Math.min(360, typeof window !== "undefined" ? window.innerWidth - 28 : 340)}
+              />
           </div>
+          </ForgeUiErrorBoundary>
         )}
 
         {pendingPlanet && forgePhase === "flash" && (
@@ -421,27 +385,22 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             className="absolute inset-0 forge-flash pointer-events-none"
             style={{
               zIndex: 46,
-              background: `radial-gradient(circle at 50% 50%, ${pendingPlanet.color}88 0%, rgba(255,255,255,0.35) 28%, transparent 68%)`,
+              background: `radial-gradient(circle at 50% 50%, ${(labForgePath === "zoom" ? "#7bed9f" : labForgePath === "stardust" ? "#ffd740" : pendingPlanet.color)}88 0%, rgba(255,255,255,0.35) 28%, transparent 68%)`,
             }}
           />
         )}
 
         {pendingPlanet && forgePhase === "revealed" && (
-          <div
-            className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
-            style={{ zIndex: 40, padding: "0 12px" }}
-          >
-            <div className="forge-reveal pointer-events-none" style={{ width: "min(92vw, 268px)" }}>
-              <FarmInventoryCard
+          <ForgeUiErrorBoundary label="Reveal error">
+          <div className="lab-forge-reveal-overlay">
+            <div className="forge-reveal pointer-events-none" style={{ width: "min(92vw, 300px)" }}>
+              <LabModelRevealCard
                 planet={pendingPlanet}
-                variant="compact"
-                suspendGl={false}
-                eagerThumb
-                hideActions
-                testId="lab-reveal-planet-card"
+                pathLabel={pathLabel || pendingPlanet.displayName || "Model"}
               />
             </div>
           </div>
+          </ForgeUiErrorBoundary>
         )}
 
         {pendingPlanet && showClaim && (
@@ -455,7 +414,7 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
             }}
           >
             <button
-              className="px-8 py-3.5 rounded-xl font-black text-sm tracking-wider uppercase active:scale-95 border whitespace-nowrap"
+              className="lab-forge-claim-btn active:scale-95 whitespace-nowrap"
               onClick={handleClaim}
               style={{
                 background: `linear-gradient(135deg, ${pendingPlanet.color}, ${pendingPlanet.color}bb)`,
@@ -488,25 +447,42 @@ export function LabPage({ balance, taps, goal, planets, maxSlots, currentCraftRa
           />
         )}
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, position: "relative" }}>
+          {forgePickerOpen && canOpenForgePicker && (
+            <ForgePathPicker
+              stardustBalance={stardustBalance}
+              zoomBalance={balance}
+              onSelect={handleSelectForgePath}
+              onClose={() => setForgePickerOpen(false)}
+            />
+          )}
           {!pendingPlanet && (
-            <>
-              <button
-                className="btn-craft pointer-events-auto"
-                onClick={() => handleCraft({ relaxed: true })}
-                disabled={!canCraft}
-                data-testid="button-craft"
-                style={{ flex: 1, width: "auto" }}
-              >
-                {isFull ? t("lab.farmFull") : !canCraft ? t("lab.noStardust") : t("lab.forgePlanet")}
-              </button>
-              <SkipForgeWidget
-                isForging={isForgingActive}
-                canSkip={canSkipForge}
-                stardustBalance={stardustBalance}
-                onSkip={onSkipForge}
-              />
-            </>
+            <button
+              className="btn-craft pointer-events-auto"
+              onClick={handleForgeButton}
+              disabled={!canTapForge && !canOpenForgePicker}
+              data-no-global-haptic
+              data-testid="button-craft"
+              style={{
+                flex: 1,
+                width: "auto",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                ...((canTapForge || canOpenForgePicker)
+                  ? {
+                      background: "#000000",
+                      color: "#ffffff",
+                      border: "1px solid rgba(255,255,255,0.18)",
+                      boxShadow: "0 3px 12px rgba(0,0,0,0.35)",
+                    }
+                  : {}),
+              }}
+            >
+              <ZoomCubeIcon size={16} />
+              {t("lab.startBuildBtn")}
+            </button>
           )}
         </div>
 

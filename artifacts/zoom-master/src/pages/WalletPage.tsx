@@ -1,12 +1,41 @@
-import { useMemo, useEffect, useState, useCallback } from "react";
+import { useMemo, useEffect, useState, useCallback, type ReactNode } from "react";
 import { Lock } from "lucide-react";
 import { GramWalletPanel, GramWalletIcon, GramWalletConnectButton, type TonWalletProps } from "../components/TonWalletWidget";
 import { StardustMarketModal } from "../components/StardustMarketModal";
 import { GramChartModal } from "../components/GramChartModal";
+import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
+import { WalletStarIcon } from "../components/WalletStarIcon";
 import { useT } from "../i18n/LanguageContext";
-import { fetchTonPrice, readCachedTonPrice } from "../utils/tonPrice";
+import {
+  prefetchWalletMarket,
+  readWalletMarketCacheForDisplay,
+  subscribeWalletMarketCache,
+} from "../utils/walletMarketCache";
+import { formatChangePct, formatGramValueFull, getRolling24hChange } from "../utils/wallet24hChange";
 
-const PRICE_POLL_MS = 15_000;
+const LIVE_POLL_MS = 12_000;
+
+/** Lively white-sky blue for the GRAM wallet card. */
+const GRAM_CELESTE = {
+  main: "#C8EEFF",
+  label: "rgba(200, 235, 255, 0.62)",
+  border: "rgba(140, 215, 255, 0.32)",
+  shadow: "rgba(120, 200, 255, 0.14)",
+  divider: "rgba(140, 215, 255, 0.12)",
+  bgFrom: "rgba(120, 205, 255, 0.12)",
+  bgTo: "rgba(70, 165, 230, 0.05)",
+};
+
+/** Match GramWalletIcon footprint in the GRAM card (28–32px). */
+const BALANCE_ICON_BOX = 42;
+const BALANCE_ICON_SIZE = 30;
+/** Fixed left column — keeps every row icon on the same vertical axis. */
+const BALANCE_LEFT_COL = BALANCE_ICON_BOX;
+/** Green tint for GRAM value under asset logos. */
+const GRAM_SUB_VALUE_GREEN = "#34d399";
+/** Fixed indicative pegs — not tradable until future features ship. */
+const REDSTAR_GRAM_PER_UNIT = 0.05;
+const NFTSTAR_GRAM_PER_UNIT = 0.25;
 
 interface WalletPageProps extends Omit<TonWalletProps, "onOpenWalletTab" | "labVariant"> {
   /** ZOOM Season 2 balance */
@@ -30,8 +59,22 @@ function seededRange(seed: string, min: number, max: number): number {
 
 function formatZoom(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
+  if (n >= 20_000) return (n / 1_000).toFixed(1) + "K";
   return n.toLocaleString();
+}
+
+function formatUsdFromGram(gramValue: number | null, tonPrice: number | null, loading: boolean): string {
+  if (loading) return "···";
+  if (gramValue == null || tonPrice == null || !Number.isFinite(gramValue) || gramValue <= 0) return "—";
+  return `$${(gramValue * tonPrice).toFixed(2)}`;
+}
+
+function formatZoomUnitGram(p: number | null): string {
+  if (p == null || !Number.isFinite(p) || p <= 0) return "—";
+  if (p < 0.000001) return p.toFixed(8);
+  if (p < 0.0001) return p.toFixed(6);
+  if (p < 0.01) return p.toFixed(4);
+  return p.toFixed(3);
 }
 
 export function WalletPage({
@@ -55,20 +98,36 @@ export function WalletPage({
   visible = true,
 }: WalletPageProps) {
   const { t } = useT();
-  const cachedPrice = readCachedTonPrice();
-  const [tonPrice, setTonPrice] = useState<number | null>(cachedPrice);
-  const [priceLoading, setPriceLoading] = useState(cachedPrice === null);
+  const initialMarket = readWalletMarketCacheForDisplay();
+  const [tonPrice, setTonPrice] = useState<number | null>(initialMarket.tonPriceUsd);
+  const [priceLoading, setPriceLoading] = useState(initialMarket.tonPriceUsd == null);
   const [stardustMarketOpen, setStardustMarketOpen] = useState(false);
   const [gramChartOpen, setGramChartOpen] = useState(false);
   const [liveStardustBalance, setLiveStardustBalance] = useState(stardustBalance);
+  const [zoomPriceGram, setZoomPriceGram] = useState<number | null>(initialMarket.zoomPriceGram);
+  const [stardustIndex, setStardustIndex] = useState<number>(initialMarket.stardustIndex);
+  const [zoomChangePct, setZoomChangePct] = useState<number | null>(() =>
+    initialMarket.zoomPriceGram != null
+      ? getRolling24hChange("zoom-index", initialMarket.zoomPriceGram)
+      : null,
+  );
+  const [stardustChangePct, setStardustChangePct] = useState<number | null>(() =>
+    getRolling24hChange("stardust-index", initialMarket.stardustIndex),
+  );
 
-  const refreshTonPrice = useCallback(async () => {
-    const price = await fetchTonPrice();
-    if (price != null) {
-      setTonPrice(price);
+  const applyMarketCache = useCallback(() => {
+    const cached = readWalletMarketCacheForDisplay();
+    if (cached.tonPriceUsd != null) {
+      setTonPrice(cached.tonPriceUsd);
       setPriceLoading(false);
-    } else if (readCachedTonPrice() != null) {
-      setPriceLoading(false);
+    }
+    if (cached.zoomPriceGram != null) {
+      setZoomPriceGram(cached.zoomPriceGram);
+      setZoomChangePct(getRolling24hChange("zoom-index", cached.zoomPriceGram));
+    }
+    if (Number.isFinite(cached.stardustIndex)) {
+      setStardustIndex(cached.stardustIndex);
+      setStardustChangePct(getRolling24hChange("stardust-index", cached.stardustIndex));
     }
   }, []);
 
@@ -76,17 +135,55 @@ export function WalletPage({
     setLiveStardustBalance(stardustBalance);
   }, [stardustBalance]);
 
+  useEffect(() => subscribeWalletMarketCache(applyMarketCache), [applyMarketCache]);
+
   useEffect(() => {
     if (!visible) return;
-    void refreshTonPrice();
+    applyMarketCache();
+    void prefetchWalletMarket();
     const id = window.setInterval(() => {
       if (document.hidden) return;
-      void refreshTonPrice();
-    }, PRICE_POLL_MS);
+      void prefetchWalletMarket();
+    }, LIVE_POLL_MS);
     return () => window.clearInterval(id);
-  }, [refreshTonPrice, visible]);
+  }, [visible, applyMarketCache]);
+
+  useEffect(() => {
+    const onRefresh = () => { void prefetchWalletMarket(); };
+    window.addEventListener("zoom-data-refresh", onRefresh);
+    return () => window.removeEventListener("zoom-data-refresh", onRefresh);
+  }, [applyMarketCache]);
+
+  useEffect(() => {
+    const onTabActive = (e: Event) => {
+      const nextTab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
+      if (nextTab !== "wallet") return;
+      applyMarketCache();
+      void prefetchWalletMarket();
+    };
+    window.addEventListener("zoom-tab-active", onTabActive);
+    return () => window.removeEventListener("zoom-tab-active", onTabActive);
+  }, [applyMarketCache]);
 
   const usdtValue = tonPrice !== null ? (tonBalance * tonPrice).toFixed(2) : null;
+  const zoomGramValue = zoomPriceGram != null && balance > 0 ? balance * zoomPriceGram : null;
+  const stardustGramValue = liveStardustBalance > 0
+    ? (liveStardustBalance * stardustIndex) / 100
+    : null;
+  const zoomBaseGramLabel = balance > 0 && zoomGramValue != null
+    ? `${formatGramValueFull(zoomGramValue)} GRAM`
+    : `${formatZoomUnitGram(zoomPriceGram)} GRAM`;
+  const stardustBaseGramLabel = liveStardustBalance > 0 && stardustGramValue != null
+    ? `${formatGramValueFull(stardustGramValue)} GRAM`
+    : `${formatGramValueFull(stardustIndex)} GRAM`;
+  const redStarGramValue = redStarBalance > 0 ? redStarBalance * REDSTAR_GRAM_PER_UNIT : null;
+  const nftStarGramValue = nftStarBalance > 0 ? nftStarBalance * NFTSTAR_GRAM_PER_UNIT : null;
+  const redStarBaseGramLabel = redStarBalance > 0 && redStarGramValue != null
+    ? `${formatGramValueFull(redStarGramValue)} GRAM`
+    : `${formatGramValueFull(REDSTAR_GRAM_PER_UNIT)} GRAM`;
+  const nftStarBaseGramLabel = nftStarBalance > 0 && nftStarGramValue != null
+    ? `${formatGramValueFull(nftStarGramValue)} GRAM`
+    : `${formatGramValueFull(NFTSTAR_GRAM_PER_UNIT)} GRAM`;
   const priceLabel = tonPrice !== null
     ? t("walletPage.liveRate", { price: tonPrice.toFixed(2) })
     : t("walletPage.loadingRate");
@@ -128,17 +225,21 @@ export function WalletPage({
           earthPlanets={earthPlanets}
           blackPlanets={blackPlanets}
           supernovaPlanets={supernovaPlanets}
+          zoomBalance={balance}
         />
         <button
           type="button"
           className="rounded-2xl text-left w-full transition-all active:scale-[0.99]"
           style={{
-            background: "linear-gradient(135deg, rgba(0,242,180,0.09) 0%, rgba(0,180,130,0.05) 100%)",
-            border: "1px solid rgba(0,242,180,0.20)",
-            boxShadow: "0 0 32px rgba(0,242,180,0.07)",
+            background: `linear-gradient(135deg, ${GRAM_CELESTE.bgFrom} 0%, ${GRAM_CELESTE.bgTo} 100%)`,
+            border: `1px solid ${GRAM_CELESTE.border}`,
+            boxShadow: `0 0 32px ${GRAM_CELESTE.shadow}`,
             padding: "16px 18px",
             paddingTop: 44,
             cursor: "pointer",
+            WebkitTapHighlightColor: "transparent",
+            WebkitUserSelect: "none",
+            userSelect: "none",
           }}
           onClick={() => setGramChartOpen(true)}
           data-testid="gram-balance-card"
@@ -151,8 +252,10 @@ export function WalletPage({
             fontWeight: 800,
             letterSpacing: "0.28em",
             textTransform: "uppercase",
-            color: "rgba(0,242,180,0.50)",
+            color: GRAM_CELESTE.label,
             marginBottom: 8,
+            background: "transparent",
+            textShadow: "none",
           }}
         >
           {t("walletPage.gramBalance")}
@@ -172,11 +275,11 @@ export function WalletPage({
               style={{
                 fontSize: tonBalance >= 1000 ? 28 : 34,
                 fontWeight: 900,
-                color: "#00f2b4",
+                color: GRAM_CELESTE.main,
                 lineHeight: 1.1,
                 fontVariantNumeric: "tabular-nums",
-                textShadow: "0 0 24px rgba(0,242,180,0.50)",
                 letterSpacing: "-0.02em",
+                textShadow: "0 0 14px rgba(180, 230, 255, 0.32)",
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
@@ -227,7 +330,7 @@ export function WalletPage({
         <div
           style={{
             height: 1,
-            background: "rgba(0,242,180,0.08)",
+            background: GRAM_CELESTE.divider,
             margin: "10px 0 8px",
           }}
         />
@@ -269,45 +372,62 @@ export function WalletPage({
           {t("walletPage.activeBalancesTitle")}
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-          {/* ZOOM S2 — planet emoji, matches top bar */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* ZOOM S2 — cube logo, live GRAM portfolio under balance */}
           <BalanceRow
-            icon="🪐"
+            icon={<ZoomCubeIcon size={BALANCE_ICON_SIZE} />}
+            iconImage
             label={t("walletPage.zoomS2")}
             value={formatZoom(balance)}
             color="#ffd740"
-            glow="rgba(255,215,64,0.4)"
+            gramValue={zoomGramValue}
+            tonPrice={tonPrice}
+            priceLoading={priceLoading}
+            changePct={zoomChangePct}
+            iconSubValue={zoomBaseGramLabel}
             onClick={onOpenHistory}
             data-testid="wallet-zoom-balance"
           />
-          {/* STARDUST — star (★), yellow like resource widget */}
           <BalanceRow
-            icon="★"
+            icon={<WalletStarIcon variant="stardust" size={BALANCE_ICON_SIZE} />}
+            iconImage
             label={t("resources.stardust")}
             value={formatZoom(liveStardustBalance)}
             color="#ffd740"
-            glow="rgba(255,215,64,0.35)"
             iconColor="#ffd740"
+            gramValue={stardustGramValue}
+            tonPrice={tonPrice}
+            priceLoading={priceLoading}
+            changePct={stardustChangePct}
+            iconSubValue={stardustBaseGramLabel}
             onClick={() => setStardustMarketOpen(true)}
             hint={t("walletPage.stardustHint")}
           />
-          {/* REDSTAR — star (★), red */}
           <BalanceRow
-            icon="★"
+            icon={<WalletStarIcon variant="redstar" size={BALANCE_ICON_SIZE} />}
+            iconImage
             label={t("resources.redStar")}
             value={redStarBalance.toLocaleString()}
             color="#ff4444"
-            glow="rgba(255,68,68,0.4)"
             iconColor="#ff4444"
+            gramValue={redStarGramValue}
+            tonPrice={tonPrice}
+            priceLoading={priceLoading}
+            iconSubValue={redStarBaseGramLabel}
+            referenceOnly
           />
-          {/* NFTSTAR — star (★), silver */}
           <BalanceRow
-            icon="★"
+            icon={<WalletStarIcon variant="nftstar" size={BALANCE_ICON_SIZE} />}
+            iconImage
             label={t("resources.nftStar")}
             value={nftStarBalance.toLocaleString()}
             color="#a0a0a8"
-            glow="rgba(192,192,192,0.3)"
             iconColor="#a0a0a8"
+            gramValue={nftStarGramValue}
+            tonPrice={tonPrice}
+            priceLoading={priceLoading}
+            iconSubValue={nftStarBaseGramLabel}
+            referenceOnly
           />
         </div>
       </div>
@@ -327,31 +447,23 @@ export function WalletPage({
           {t("walletPage.vaultTitle")}
         </div>
 
-        <div
-          className="rounded-2xl overflow-hidden"
-          style={{
-            background: "rgba(255,165,0,0.04)",
-            border: "1px solid rgba(255,165,0,0.18)",
-          }}
-        >
+        <div>
           {/* Vault row */}
           <div
             className="flex items-center justify-between"
-            style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,165,0,0.09)" }}
+            style={{ padding: "6px 0" }}
           >
             {/* Left: lock icon + label */}
             <div className="flex items-center gap-3">
               <div
-                className="flex items-center justify-center rounded-xl"
+                className="flex items-center justify-center"
                 style={{
-                  width: 34,
-                  height: 34,
-                  background: "rgba(255,165,0,0.10)",
-                  border: "1px solid rgba(255,165,0,0.25)",
+                  width: BALANCE_ICON_BOX,
+                  height: BALANCE_ICON_BOX,
                   flexShrink: 0,
                 }}
               >
-                <Lock size={15} style={{ color: "#ffaa00", opacity: 0.85 }} strokeWidth={2.5} />
+                <Lock size={22} style={{ color: "#ffaa00", opacity: 0.9 }} strokeWidth={2.25} />
               </div>
               <div>
                 <div style={{ fontSize: 11, fontWeight: 900, color: "#ffaa00", letterSpacing: "0.05em" }}>
@@ -384,7 +496,7 @@ export function WalletPage({
           </div>
 
           {/* Info note */}
-          <div style={{ padding: "10px 14px" }}>
+          <div style={{ padding: "8px 0 0", paddingLeft: BALANCE_ICON_BOX + 12 }}>
             <div style={{ fontSize: 10, lineHeight: 1.55, color: "rgba(255,255,255,0.32)", fontWeight: 600 }}>
               {t("walletPage.vaultInfo")}
             </div>
@@ -412,25 +524,40 @@ function BalanceRow({
   icon,
   label,
   value,
-  color,
-  glow,
   iconColor,
+  gramValue,
+  tonPrice,
+  priceLoading,
+  changePct,
+  iconSubValue,
+  referenceOnly,
   onClick,
   hint,
   "data-testid": dataTestId,
 }: {
-  icon: string;
+  icon: ReactNode;
   label: string;
   value: string;
   color: string;
-  glow: string;
   iconColor?: string;
+  gramValue?: number | null;
+  tonPrice?: number | null;
+  priceLoading?: boolean;
+  changePct?: number | null;
+  iconSubValue?: string;
+  referenceOnly?: boolean;
   onClick?: () => void;
   hint?: string;
   "data-testid"?: string;
 }) {
-  const ic = iconColor ?? color;
+  const { t } = useT();
   const interactive = !!onClick;
+  const pctLabel = !referenceOnly && changePct != null ? formatChangePct(changePct) : "";
+  const pctPositive = (changePct ?? 0) > 0;
+  const pctNegative = (changePct ?? 0) < 0;
+  const usdLabel = formatUsdFromGram(gramValue ?? null, tonPrice ?? null, !!priceLoading);
+  const usdHeader = referenceOnly ? "walletPage.approxUsdRef" : "walletPage.approxUsd";
+
   return (
     <div
       role={interactive ? "button" : undefined}
@@ -438,62 +565,143 @@ function BalanceRow({
       onClick={onClick}
       onKeyDown={interactive ? (e) => { if (e.key === "Enter" || e.key === " ") onClick?.(); } : undefined}
       data-testid={dataTestId}
-      className="flex items-center justify-between rounded-2xl"
+      className="flex items-center justify-between"
       style={{
-        padding: "11px 14px",
-        background: color + "08",
-        border: `1px solid ${color}22`,
+        padding: "6px 0",
         cursor: interactive ? "pointer" : undefined,
       }}
     >
-      <div className="flex items-center gap-3">
+      {/* Left — icon column + label/balance */}
+      <div className="flex items-center gap-3 min-w-0">
         <div
           style={{
-            width: 34,
-            height: 34,
-            borderRadius: 10,
-            background: ic + "12",
-            border: `1px solid ${ic}30`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 18,
-            color: ic,
-            filter: `drop-shadow(0 0 5px ${glow})`,
             flexShrink: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 4,
+            minWidth: BALANCE_LEFT_COL,
           }}
         >
-          {icon}
-        </div>
-        <div>
           <div
             style={{
-              fontSize: 11,
-              fontWeight: 800,
-              color: "rgba(255,255,255,0.52)",
-              letterSpacing: "0.12em",
+              width: BALANCE_ICON_BOX,
+              height: BALANCE_ICON_BOX,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <div
+              style={{
+                width: BALANCE_ICON_SIZE,
+                height: BALANCE_ICON_SIZE,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              {icon}
+            </div>
+          </div>
+          {iconSubValue && (
+            <div
+              style={{
+                fontSize: 8,
+                fontWeight: 600,
+                color: GRAM_SUB_VALUE_GREEN,
+                fontVariantNumeric: "tabular-nums",
+                textAlign: "center",
+                lineHeight: 1.2,
+                letterSpacing: "0.01em",
+                whiteSpace: "nowrap",
+                overflow: "visible",
+              }}
+            >
+              {iconSubValue}
+            </div>
+          )}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 9,
+              fontWeight: 700,
+              color: "rgba(255,255,255,0.22)",
+              letterSpacing: "0.16em",
               textTransform: "uppercase",
             }}
           >
             {label}
           </div>
+          <div
+            style={{
+              fontSize: 18,
+              fontWeight: 900,
+              color: "rgba(255,255,255,0.65)",
+              fontVariantNumeric: "tabular-nums",
+              letterSpacing: "-0.01em",
+              whiteSpace: "nowrap",
+              marginTop: 2,
+              lineHeight: 1.1,
+            }}
+          >
+            {value}
+          </div>
           {hint && (
-            <div style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,215,64,0.45)", marginTop: 2 }}>
+            <div style={{ fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.18)", marginTop: 3, letterSpacing: "0.08em" }}>
               {hint}
             </div>
           )}
         </div>
       </div>
-      <div
-        style={{
-          fontSize: 17,
-          fontWeight: 900,
-          color,
-          fontVariantNumeric: "tabular-nums",
-          textShadow: `0 0 8px ${glow}`,
-        }}
-      >
-        {value}
+
+      {/* Right — live USD + 24h change */}
+      <div style={{ textAlign: "right", flexShrink: 0, paddingTop: 2 }}>
+        <div
+          style={{
+            fontSize: 9,
+            fontWeight: 700,
+            color: "rgba(255,255,255,0.22)",
+            textTransform: "uppercase",
+            letterSpacing: "0.16em",
+            marginBottom: 2,
+          }}
+        >
+          {t(usdHeader)}
+        </div>
+        <div
+          style={{
+            fontSize: 18,
+            fontWeight: 900,
+            color: priceLoading ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.65)",
+            fontVariantNumeric: "tabular-nums",
+            letterSpacing: "-0.01em",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {usdLabel}
+        </div>
+        {pctLabel && (
+          <div
+            style={{
+              fontSize: 9,
+              fontWeight: 700,
+              color: pctPositive
+                ? "rgba(0,255,140,0.55)"
+                : pctNegative
+                  ? "rgba(255,100,100,0.55)"
+                  : "rgba(255,255,255,0.22)",
+              fontVariantNumeric: "tabular-nums",
+              letterSpacing: "0.06em",
+              marginTop: 3,
+            }}
+          >
+            {pctLabel}
+          </div>
+        )}
       </div>
     </div>
   );

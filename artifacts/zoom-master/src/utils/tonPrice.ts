@@ -13,6 +13,16 @@ export function readCachedTonPrice(): number | null {
   }
 }
 
+/** Last known TON/USD — used for instant wallet paint while refreshing. */
+export function readCachedTonPriceAllowStale(): number | null {
+  try {
+    const v = parseFloat(sessionStorage.getItem(CACHE_KEY) || "");
+    return Number.isFinite(v) && v > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 function writeCachedTonPrice(price: number) {
   try {
     sessionStorage.setItem(CACHE_KEY, String(price));

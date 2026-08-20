@@ -1,7 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import type { CollectibleItem } from "../utils/collectibleConfig";
 import { FarmInventoryCard } from "../components/FarmInventoryCard";
-import { StakingWidget } from "../components/StakingWidget";
 import { DailyComboBox } from "../components/DailyComboBox";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
@@ -13,7 +12,7 @@ import { useT } from "../i18n/LanguageContext";
 import { PlanetRenameModal } from "../components/PlanetRenameModal";
 import PvPModal from "../components/PvPModal";
 import { getPlanetDisplayName } from "../utils/planetNames";
-import { PixelAvatar } from "../components/PixelAvatar";
+import { isLabDevWipeActive } from "@workspace/game-models";
 
 interface FarmPageProps {
   planets: Planet[];
@@ -143,8 +142,48 @@ export function FarmPage({
   onUpgradeCollectionDuration,
   visible = true,
 }: FarmPageProps) {
+  void whiteCollectionUnlocked;
+  void whiteCollectionBundles;
+  void whitePlanets;
+  void earthCollectionUnlocked;
+  void earthCollectionBundles;
+  void earthPlanets;
+  void blackCollectionUnlocked;
+  void blackCollectionBundles;
+  void blackPlanets;
+  void supernovaCollectionUnlocked;
+  void supernovaCollectionBundles;
+  void supernovaPlanets;
+  void stellaRossaCollectionUnlocked;
+  void stellaRossaCollectionBundles;
+  void stellaPlanets;
+  void onPlaceWhitePlanet;
+  void onCollectWhitePlanet;
+  void onReactivateWhitePlanet;
+  void onMarkWhitePlanetReactivated;
+  void onPlaceEarthPlanet;
+  void onCollectEarthPlanet;
+  void onReactivateEarthPlanet;
+  void onMarkEarthPlanetReactivated;
+  void onPlaceBlackPlanet;
+  void onCollectBlackPlanet;
+  void onReactivateBlackPlanet;
+  void onMarkBlackPlanetReactivated;
+  void onPlaceSupernovaPlanet;
+  void onCollectSupernovaPlanet;
+  void onReactivateSupernovaPlanet;
+  void onMarkSupernovaPlanetReactivated;
+  void onPlaceStellaRossaPlanet;
+  void onCollectStellaRossaPlanet;
+  void onMarkStellaRossaPlanetReactivated;
+  void onUpgradeCollectionDuration;
+  void redStarBalance;
+  void onRedStarBalanceUpdate;
   const { t } = useT();
-  const sunMultiplier = Math.max(1, sunCount || (sun?.isOwned ? 1 : 0));
+  const showSunInFarm = !isLabDevWipeActive() && !!sun?.isOwned && !!sun;
+  const farmSun = showSunInFarm ? sun : null;
+  const farmSunCount = showSunInFarm ? (sunCount ?? 0) : 0;
+  const sunMultiplier = Math.max(1, farmSunCount || (farmSun?.isOwned ? 1 : 0));
   const sunDisplayRate = SUN_CONFIG.rate * sunMultiplier;
   const [confirmBurn, setConfirmBurn] = useState<string | null>(null);
   const [sellPopup, setSellPopup] = useState<SellPopup | null>(null);
@@ -152,17 +191,6 @@ export function FarmPage({
   const [sunWalletOpen, setSunWalletOpen] = useState(false);
   const [slotWalletOpen, setSlotWalletOpen] = useState(false);
   const [defectMsg, setDefectMsg] = useState<string | null>(null);
-  // Transient toast for the disabled COLLECTION teaser button. Shown
-  // for ~2.4s, then auto-cleared. Kept separate from `defectMsg` so the
-  // styling stays neutral (not a red error). When `defectMsg` is also
-  // visible we vertically offset this toast (see render) so they never
-  // visually collide.
-  const [comingSoonMsg, setComingSoonMsg] = useState<string | null>(null);
-  const [collectionOpen, setCollectionOpen] = useState(false);
-  const [stakingOpen, setStakingOpen] = useState(false);
-  // Timeout id for the COLLECTION toast — kept in a ref so repeated
-  // taps reset the auto-dismiss timer instead of firing stale clears.
-  const comingSoonTimeoutRef = useRef<number | null>(null);
   const [renamePlanet, setRenamePlanet] = useState<Planet | null>(null);
   const [pvpPlanet, setPvPPlanet] = useState<Planet | null>(null);
   const [detailPlanet, setDetailPlanet] = useState<Planet | null>(null);
@@ -185,7 +213,7 @@ export function FarmPage({
   void onCollect;
 
   const totalRate = planets.filter(isFarmActive).reduce((a, p) => a + p.rate, 0)
-    + (sun && isSunActive(sun) ? sunDisplayRate : 0);
+    + (farmSun && isSunActive(farmSun) ? sunDisplayRate : 0);
 
   const handleBurnClick = (id: string) => {
     if (confirmBurn === id) {
@@ -258,23 +286,6 @@ export function FarmPage({
           ⚠ {defectMsg}
         </div>
       )}
-      {comingSoonMsg && (
-        <div
-          className="absolute left-4 right-4 z-50 rounded-xl px-4 py-3 text-center text-sm font-bold"
-          style={{
-            // If the red defect toast is currently showing we drop
-            // below it (~64px) instead of overlapping at top-2.
-            top: defectMsg ? 64 : 8,
-            background: "rgba(20,28,48,0.96)",
-            border: "1px solid rgba(120,180,255,0.45)",
-            color: "rgba(220,235,255,0.95)",
-            boxShadow: "0 0 18px rgba(80,140,255,0.18)",
-          }}
-          data-testid="collection-coming-soon-toast"
-        >
-          {comingSoonMsg}
-        </div>
-      )}
       <div className="px-5 pt-4 pb-2 flex-shrink-0">
         {/* Row 1: title + slots subtitle on the left, live +ZOOM/hr
             chip on the right. The previous layout crammed STAKING,
@@ -302,60 +313,49 @@ export function FarmPage({
           )}
         </div>
 
-        {/* Row 2: STAKING + COLLECTION pills */}
+        {/* Row 2: STAKING + COLLECTION pills (coming soon) */}
         <div className="flex items-center gap-2 mt-2 flex-wrap">
-          {/* STAKING teaser button — sits to the left of COLLECTION.
-              Same disabled "coming soon" pattern: greyscale + reduced
-              opacity, click shows a transient neutral toast, never
-              navigates or mutates state. */}
           <button
             type="button"
-            onClick={() => setStakingOpen((v) => !v)}
-            aria-label="GRAM staking"
-            aria-pressed={stakingOpen}
+            aria-disabled="true"
+            aria-label={`${t("farm.staking")} — ${t("shop.comingSoon")}`}
             data-testid="btn-staking"
             className="px-3 py-1.5 rounded-full text-xs font-black tracking-wide"
             style={{
-              background: stakingOpen
-                ? "linear-gradient(135deg, rgba(255,215,64,0.22) 0%, rgba(255,179,0,0.16) 100%)"
-                : "linear-gradient(135deg, rgba(120,140,180,0.18) 0%, rgba(60,72,96,0.14) 100%)",
-              border: stakingOpen ? "1px solid rgba(255,215,64,0.45)" : "1px solid rgba(180,200,230,0.22)",
-              color: stakingOpen ? "#ffd740" : "rgba(220,230,245,0.85)",
-              filter: stakingOpen ? "none" : "grayscale(0.35)",
-              opacity: stakingOpen ? 1 : 0.85,
-              cursor: "pointer",
+              background: "linear-gradient(135deg, rgba(120,140,180,0.18) 0%, rgba(60,72,96,0.14) 100%)",
+              border: "1px solid rgba(180,200,230,0.22)",
+              color: "rgba(220,230,245,0.85)",
+              filter: "grayscale(0.35)",
+              opacity: 0.85,
+              cursor: "default",
               letterSpacing: 0.5,
-              boxShadow: stakingOpen ? "0 0 14px rgba(255,215,64,0.22)" : "none",
             }}
           >
-            {t("farm.staking")}
+            <span className="flex flex-col items-center leading-tight gap-0.5">
+              <span>{t("farm.staking")}</span>
+              <span className="text-[9px] font-bold tracking-wide opacity-55 uppercase">{t("shop.comingSoon")}</span>
+            </span>
           </button>
-          {/* COLLECTION teaser button.
-              Visually disabled (greyscale + reduced opacity) to signal
-              "coming soon" without removing it from the layout. Click
-              shows a transient neutral toast — never navigates, never
-              mutates state. Brand-safe English copy. */}
           <button
             type="button"
-            onClick={() => setCollectionOpen((v) => !v)}
-            aria-label="Collection farms"
-            aria-pressed={collectionOpen}
+            aria-disabled="true"
+            aria-label={`${t("farm.collection")} — ${t("shop.comingSoon")}`}
             data-testid="btn-collection"
             className="px-3 py-1.5 rounded-full text-xs font-black tracking-wide"
             style={{
-              background: collectionOpen
-                ? "linear-gradient(135deg, rgba(15,217,255,0.22) 0%, rgba(192,96,255,0.18) 100%)"
-                : "linear-gradient(135deg, rgba(120,140,180,0.18) 0%, rgba(60,72,96,0.14) 100%)",
-              border: collectionOpen ? "1px solid rgba(15,217,255,0.45)" : "1px solid rgba(180,200,230,0.22)",
-              color: collectionOpen ? "#0fd9ff" : "rgba(220,230,245,0.85)",
-              filter: collectionOpen ? "none" : "grayscale(0.35)",
-              opacity: collectionOpen ? 1 : 0.85,
-              cursor: "pointer",
+              background: "linear-gradient(135deg, rgba(120,140,180,0.18) 0%, rgba(60,72,96,0.14) 100%)",
+              border: "1px solid rgba(180,200,230,0.22)",
+              color: "rgba(220,230,245,0.85)",
+              filter: "grayscale(0.35)",
+              opacity: 0.85,
+              cursor: "default",
               letterSpacing: 0.5,
-              boxShadow: collectionOpen ? "0 0 14px rgba(15,217,255,0.22)" : "none",
             }}
           >
-            {t("farm.collection")}
+            <span className="flex flex-col items-center leading-tight gap-0.5">
+              <span>{t("farm.collection")}</span>
+              <span className="text-[9px] font-bold tracking-wide opacity-55 uppercase">{t("shop.comingSoon")}</span>
+            </span>
           </button>
         </div>
       </div>
@@ -386,67 +386,10 @@ export function FarmPage({
             active={visible}
           />
 
-          {collectionOpen && (
-            <PixelAvatar
-              headless
-              inline
-              onClose={() => setCollectionOpen(false)}
-              whitePlanets={whitePlanets}
-              whiteCollectionUnlocked={whiteCollectionUnlocked}
-              whiteCollectionBundles={whiteCollectionBundles}
-              earthPlanets={earthPlanets}
-              earthCollectionUnlocked={earthCollectionUnlocked}
-              earthCollectionBundles={earthCollectionBundles}
-              blackPlanets={blackPlanets}
-              blackCollectionUnlocked={blackCollectionUnlocked}
-              blackCollectionBundles={blackCollectionBundles}
-              supernovaPlanets={supernovaPlanets}
-              supernovaCollectionUnlocked={supernovaCollectionUnlocked}
-              supernovaCollectionBundles={supernovaCollectionBundles}
-              stellaPlanets={stellaPlanets}
-              stellaRossaCollectionUnlocked={stellaRossaCollectionUnlocked}
-              stellaRossaCollectionBundles={stellaRossaCollectionBundles}
-              sunCount={sunCount ?? 0}
-              tonBalance={tonBalance}
-              telegramId={telegramId}
-              onPlaceWhitePlanet={onPlaceWhitePlanet}
-              onCollectWhitePlanet={onCollectWhitePlanet}
-              onReactivateWhitePlanet={onReactivateWhitePlanet}
-              onMarkWhitePlanetReactivated={onMarkWhitePlanetReactivated}
-              onPlaceEarthPlanet={onPlaceEarthPlanet}
-              onCollectEarthPlanet={onCollectEarthPlanet}
-              onReactivateEarthPlanet={onReactivateEarthPlanet}
-              onMarkEarthPlanetReactivated={onMarkEarthPlanetReactivated}
-              onPlaceBlackPlanet={onPlaceBlackPlanet}
-              onCollectBlackPlanet={onCollectBlackPlanet}
-              onReactivateBlackPlanet={onReactivateBlackPlanet}
-              onMarkBlackPlanetReactivated={onMarkBlackPlanetReactivated}
-              onPlaceSupernovaPlanet={onPlaceSupernovaPlanet}
-              onCollectSupernovaPlanet={onCollectSupernovaPlanet}
-              onReactivateSupernovaPlanet={onReactivateSupernovaPlanet}
-              onMarkSupernovaPlanetReactivated={onMarkSupernovaPlanetReactivated}
-              onPlaceStellaRossaPlanet={onPlaceStellaRossaPlanet}
-              onCollectStellaRossaPlanet={onCollectStellaRossaPlanet}
-              onMarkStellaRossaPlanetReactivated={onMarkStellaRossaPlanetReactivated}
-              redStarBalance={redStarBalance}
-              onRedStarBalanceUpdate={onRedStarBalanceUpdate}
-              onUpgradeCollectionDuration={onUpgradeCollectionDuration}
-            />
-          )}
-
-          {stakingOpen && (
-            <StakingWidget
-              telegramId={telegramId}
-              planets={planets}
-              sunCountClient={Math.max(sunCount ?? 0, sun?.isOwned ? 1 : 0)}
-              sunFarmStartedAtClient={sun?.farmStartedAt ?? 0}
-            />
-          )}
-
           <div className="grid grid-cols-2 gap-3">
-          {sun?.isOwned && sun && (
+          {showSunInFarm && farmSun && (
             <SunFarmInventoryCard
-              sun={sun}
+              sun={farmSun}
               sunMultiplier={sunMultiplier}
               suspendGl={!!detailPlanet || !!sunDetailOpen || !visible}
               onCardClick={() => setSunDetailOpen(true)}
@@ -510,7 +453,7 @@ export function FarmPage({
             <div className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>to unlock slot</div>
           </div>
 
-        {planets.length === 0 && !sun?.isOwned && (
+        {planets.length === 0 && !showSunInFarm && (
           <div className="text-center text-xs py-4" style={{ color: "rgba(255,255,255,0.22)" }}>
             Forge your first planet in the Lab
           </div>
@@ -589,10 +532,10 @@ export function FarmPage({
       )}
 
       {/* SUN WALLET POPUP */}
-      {sun && (
+      {farmSun && (
         <WalletPopup
           isOpen={sunWalletOpen}
-          amount={`${sun.activationCost} GRAM`}
+          amount={`${farmSun.activationCost} GRAM`}
           purpose="Activate THE SUN"
           onClose={() => setSunWalletOpen(false)}
         />
@@ -685,7 +628,7 @@ export function FarmPage({
           onUpgradeDuration={onUpgradeDuration}
         />
       )}
-      {sunDetailOpen && sun?.isOwned && sun && (
+      {sunDetailOpen && showSunInFarm && farmSun && (
         <div
           className="absolute inset-0 z-50 flex items-end justify-center"
           style={{ background: "rgba(6,8,16,0.92)" }}
@@ -721,7 +664,7 @@ export function FarmPage({
             <div className="mb-4 flex flex-col items-center gap-3">
               <SunFarmThumb size={120} animate suspendGl={false} />
               <div className="text-center text-xs font-bold" style={{ color: "rgba(255,255,255,0.55)" }}>
-                +{(SUN_CONFIG.rate * sunMultiplier).toLocaleString()} $ZOOM/hr · {sun.farmDurationHours ?? 1}h cycle
+                +{(SUN_CONFIG.rate * sunMultiplier).toLocaleString()} $ZOOM/hr · {farmSun.farmDurationHours ?? 1}h cycle
               </div>
               <button
                 type="button"
@@ -732,19 +675,19 @@ export function FarmPage({
                 }}
                 onClick={handleSunStartOrReactivate}
               >
-                {isSunActive(sun) ? "FARMING ACTIVE" : "START / REACTIVATE"}
+                {isSunActive(farmSun) ? "FARMING ACTIVE" : "START / REACTIVATE"}
               </button>
             </div>
 
             {onUpgradeSunDuration && (
               <div className="farm-panel-3d">
                 <div className="farm-panel-3d__title">
-                  ⏱ CYCLE DURATION — {sun.farmDurationHours ?? 1}h · costs EARNED GRAM
+                  ⏱ CYCLE DURATION — {farmSun.farmDurationHours ?? 1}h · costs EARNED GRAM
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 5 }}>
                   {FARM_UPGRADE_TIERS.map((h) => {
                     const cost = FARM_UPGRADE_COSTS[h]!;
-                    const isCurrent = (sun.farmDurationHours ?? 1) === h;
+                    const isCurrent = (farmSun.farmDurationHours ?? 1) === h;
                     const canAfford = tonBalance >= cost;
                     const tierDisabled = isCurrent || !canAfford;
                     return (

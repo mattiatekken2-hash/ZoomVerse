@@ -24,6 +24,10 @@ export class BootErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.error) {
+      const inTelegram = !!(window as unknown as { Telegram?: { WebApp?: { initData?: string } } }).Telegram?.WebApp?.initData;
+      const hint = inTelegram
+        ? "Chiudi e riapri da Telegram, oppure riprova."
+        : "Ricarica la pagina (F5). Su PC puoi giocare anche senza Telegram.";
       return (
         <div
           style={{
@@ -42,8 +46,26 @@ export class BootErrorBoundary extends Component<Props, State> {
         >
           <div style={{ fontSize: 18, fontWeight: 800 }}>Errore di avvio</div>
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", maxWidth: 280 }}>
-            Chiudi e riapri da Telegram, oppure riprova.
+            {hint}
           </div>
+          {this.state.error && (
+            <pre
+              style={{
+                fontSize: 10,
+                color: "rgba(255,120,120,0.85)",
+                maxWidth: 320,
+                overflow: "auto",
+                textAlign: "left",
+                whiteSpace: "pre-wrap",
+                margin: 0,
+                padding: 12,
+                background: "rgba(255,0,0,0.06)",
+                borderRadius: 8,
+              }}
+            >
+              {this.state.error.message}
+            </pre>
+          )}
           <button
             type="button"
             onClick={() => window.location.reload()}

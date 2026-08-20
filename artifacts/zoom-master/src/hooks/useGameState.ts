@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
-import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID } from "@workspace/game-models";
+import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, type LabForgePath } from "@workspace/game-models";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import type { CollectibleItem } from "../utils/collectibleConfig";
@@ -210,6 +210,10 @@ export interface GameState {
   forgingModel: ZoomModel | null;
   /** When true, the active Lab craft builds a voxel planet sphere (not a catalog model). */
   forgePlanetBuild: boolean;
+  /** Lab-only shape override (e.g. pizza / stardust pot GLB test). */
+  labForgeShapeId: string | null;
+  /** Lab dual forge path — zoom vs stardust generator. */
+  labForgePath: LabForgePath | null;
   /** True while awaiting server roll after forge completes. */
   forgeRolling: boolean;
   /** 3D collectible models forged in the Lab (100-model catalog). */
@@ -777,6 +781,16 @@ export const FARM_UPGRADE_COSTS: Record<number, number> = {
 };
 export const FARM_UPGRADE_TIERS = [1, 2, 4, 6, 8, 16, 24] as const;
 
+/** Simple farm cycle path shown in planet detail — one next-tier button at a time. */
+export const FARM_DETAIL_CYCLE_TIERS = [1, 2, 4] as const;
+
+export function getNextFarmCycleTier(currentHours: number): number | null {
+  const h = Math.max(1, currentHours);
+  if (h < 2) return 2;
+  if (h < 4) return 4;
+  return null;
+}
+
 function makeReferralCode(): string {
   return "ZOOM-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 }
@@ -848,6 +862,8 @@ const INITIAL_STATE: GameState = {
   pendingModelCost: 0,
   forgingModel: null,
   forgePlanetBuild: false,
+  labForgeShapeId: null,
+  labForgePath: null,
   forgeRolling: false,
   models: [],
   currentCraftRarity: null,
@@ -1052,9 +1068,43 @@ function loadState(): GameState {
           stardustBalance: (parsed as unknown as Record<string, unknown>).stardustBalance as number ?? 0,
           redStarBalance: (parsed as unknown as Record<string, unknown>).redStarBalance as number ?? 0,
           nftStarBalance: (parsed as unknown as Record<string, unknown>).nftStarBalance as number ?? 0,
+          labForgeShapeId: null,
+          labForgePath: null,
         };
-        if (base.forgePlanetBuild && base.currentCraftRarity) {
-          base.goal = forgeSphereTapGoal();
+        const forgingNow = !!(base.labForgePath || base.pendingPlanet);
+        const savedShape = (parsed as unknown as Record<string, unknown>).labForgeShapeId;
+        const savedPath = (parsed as unknown as Record<string, unknown>).labForgePath;
+        if (isLabDevWipeActive() || consumeLabDevFarmResetOnce()) {
+          base.planets = base.planets.filter(isLabForgeGeneratorPlanet);
+          base.sun = null;
+          base.sunCount = 0;
+          base.claimedBonusSun = false;
+          base.pendingPlanet = null;
+          base.pendingPlanetCost = 0;
+          base.currentCraftRarity = null;
+          base.labForgeShapeId = null;
+          base.labForgePath = null;
+          base.forgePlanetBuild = false;
+          base.taps = 0;
+          base.goal = 100;
+        } else if (forgingNow) {
+          if (typeof savedShape === "string" && savedShape.length > 0) {
+            base.labForgeShapeId = savedShape;
+          }
+          if (savedPath === "zoom" || savedPath === "stardust") {
+            base.labForgePath = savedPath;
+          }
+          if (base.labForgePath && base.labForgeShapeId) {
+            base.forgePlanetBuild = true;
+            base.goal = getLabForgeShapeTapGoal(base.labForgeShapeId);
+          }
+        }
+        if (base.forgePlanetBuild && base.labForgePath && base.labForgeShapeId) {
+          base.goal = getLabForgeShapeTapGoal(base.labForgeShapeId);
+        } else if (base.forgePlanetBuild && base.currentCraftRarity) {
+          base.goal = base.labForgeShapeId
+            ? getLabForgeShapeTapGoal(base.labForgeShapeId)
+            : forgeSphereTapGoal();
         } else if (base.currentCraftRarity) {
           base.goal = PLANET_CONFIG[base.currentCraftRarity]?.tapsNeeded ?? 100;
         }
@@ -1110,7 +1160,7 @@ function saveState(state: GameState) {
   _writeSeq++;
   _lastSavedAt = Date.now();
   try {
-    localStorage.setItem(getStorageKey(state.telegramId), JSON.stringify(state));
+    localStorage.setItem(getStorageKey(state.telegramId), JSON.stringify(stripSunForLabDev(state)));
   } catch { /**/ }
 }
 
@@ -1662,8 +1712,11 @@ function persistCollectionPlanet(telegramId: string | null | undefined, planet: 
   void upsertCollectionPlanet(telegramId, snap);
 }
 
-/** Lab forge always builds a grey voxel sphere; claim stores a classic orb planet. */
-function forgeTapGoalForPlanet(_rarity: PlanetType): number {
+/** Lab forge always builds grey voxels; optional shape override (pizza test). */
+function forgeTapGoalForPlanet(_rarity: PlanetType, labForgeShapeId?: string | null): number {
+  if (labForgeShapeId && labForgeShapeId !== FORGE_SPHERE_SHAPE_ID) {
+    return getLabForgeShapeTapGoal(labForgeShapeId);
+  }
   return forgeSphereTapGoal();
 }
 
@@ -1690,6 +1743,32 @@ function makePlanet(rarity: PlanetType): Planet {
     craftCost: cfg.craftCost,
     // Cosmetic CS:GO-style perfection score, generated once at craft
     // and frozen forever (server preserves first-write via server-merge).
+    float: generateRandomFloat(),
+    durability: 100,
+    durabilityUpdatedAt: 0,
+    farmDurationHours: 1,
+  };
+}
+
+/** Lab dual-forge outcome — pizza ($ZOOM) or stardust pot (★ generator). */
+function makeLabGeneratorPlanet(path: LabForgePath, shapeId: string): Planet {
+  const isZoom = path === "zoom";
+  const now = serverNow();
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).substring(2)}`,
+    name: "BASIC",
+    displayName: isZoom ? "Pizza" : "Stardust Pot",
+    shapeId,
+    rate: isZoom ? 3.5 : 0.22,
+    color: isZoom ? "#7bed9f" : "#ffd740",
+    glowColor: isZoom ? "#2ed573" : "#ffc107",
+    createdAt: now,
+    farmStartedAt: 0,
+    lastCollectedAt: 0,
+    isListedInMarket: false,
+    isFarmingActive: false,
+    marketPrice: null,
+    craftCost: isZoom ? LAB_ZOOM_FORGE_STARDUST_COST : LAB_STARDUST_FORGE_ZOOM_COST,
     float: generateRandomFloat(),
     durability: 100,
     durabilityUpdatedAt: 0,
@@ -1767,6 +1846,13 @@ export function isLegacyCatalogModelPlanet(planet: Pick<Planet, "modelId">): boo
 
 function stripLegacyCatalogModels(planets: Planet[]): Planet[] {
   return planets.filter((p) => !isLegacyCatalogModelPlanet(p));
+}
+
+/** Lab dev mode — THE SUN must never appear in Farm (server grants re-add it otherwise). */
+function stripSunForLabDev(state: GameState): GameState {
+  if (!isLabDevWipeActive()) return state;
+  if (!state.sun?.isOwned && (state.sunCount ?? 0) === 0 && !state.claimedBonusSun) return state;
+  return { ...state, sun: null, sunCount: 0, claimedBonusSun: false };
 }
 
 function makePlanetFromModel(model: ZoomModel, craftCost: number): Planet {
@@ -2089,6 +2175,8 @@ function settleFarmingState(state: GameState, now: number): GameState {
 export function useGameState() {
   const [state, setState] = useState<GameState>(loadState);
   const stateRef = useRef(state);
+  /** Prevents double-complete when AutoTap fires before React re-renders. */
+  const labForgeCompletingRef = useRef(false);
   // Expose stateRef to module-scope helpers (`reconcileFromSyncResponse`)
   // so they can perform the synchronous wheel/admin race-fix snap into
   // the same source-of-truth that the periodic doSync reads from. The
@@ -2407,7 +2495,7 @@ export function useGameState() {
         // state the user actually still owns.
         if (grantsOk) {
         // Apply bonus sun from server (grant sun if not already owned)
-        if (grants.bonusSun) {
+        if (grants.bonusSun && !isLabDevWipeActive()) {
           updated = {
             ...updated,
             claimedBonusSun: true,
@@ -2421,7 +2509,7 @@ export function useGameState() {
               lastCollectedAt: 0,
             },
           };
-        } else if (updated.claimedBonusSun) {
+        } else if (updated.claimedBonusSun && !isLabDevWipeActive()) {
           updated = { ...updated, sun: null, claimedBonusSun: false, sunCount: 0 };
         }
 
@@ -2433,7 +2521,7 @@ export function useGameState() {
         // these fields and we merge with max() — newer-on-server values win
         // (e.g. cycle started on another device); newer-on-local values are
         // preserved and will be pushed up on the next /sun/cycle write.
-        if (updated.sun?.isOwned) {
+        if (updated.sun?.isOwned && !isLabDevWipeActive()) {
           const srvStarted = Math.max(0, Number(grants.sunFarmStartedAtMs ?? 0));
           const srvCollected = Math.max(0, Number(grants.sunLastCollectedAtMs ?? 0));
           const srvCycleCount = Math.max(0, Number(grants.sunCycleCount ?? 0));
@@ -2497,6 +2585,8 @@ export function useGameState() {
               sunCycleCount: mergedCycleCount,
             });
           }
+        } else if (isLabDevWipeActive()) {
+          updated = stripSunForLabDev(updated);
         }
 
         // ─── REGULAR PLANETS — server is source of truth ───
@@ -2510,7 +2600,7 @@ export function useGameState() {
         // server value can never double-count by being smaller than what
         // the local app already materialized.
         if (serverRegular.ok) {
-          if (serverRegular.exists && (serverRegular.planets.length > 0 || stateRef.current.planets.length === 0)) {
+          if (!isLabDevWipeActive() && serverRegular.exists && (serverRegular.planets.length > 0 || stateRef.current.planets.length === 0)) {
             // Apply BOTH migrations as we hydrate so server-stored pianeti
             // arrive normalized for the rest of the app:
             //   1) `migrateLegacyNeverStartedPlanet` — fix old never-started
@@ -2919,7 +3009,7 @@ export function useGameState() {
           {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: sent, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
             .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon, sentStardust));}
         }
-        return updated;
+        return stripSunForLabDev(updated);
       });
       // Server hydration is done ONLY if the fetch actually succeeded.
       // On a transient failure we keep the gate closed so the debounced
@@ -3047,7 +3137,7 @@ export function useGameState() {
       setState((prev) => {
         let updated = { ...prev };
 
-        if (grants.bonusSun) {
+        if (grants.bonusSun && !isLabDevWipeActive()) {
           updated = {
             ...updated,
             claimedBonusSun: true,
@@ -3061,14 +3151,14 @@ export function useGameState() {
               lastCollectedAt: 0,
             },
           };
-        } else if (updated.claimedBonusSun) {
+        } else if (updated.claimedBonusSun && !isLabDevWipeActive()) {
           updated = { ...updated, sun: null, claimedBonusSun: false, sunCount: 0 };
         }
 
         // Same SUN-cycle merge as the initial hydration above. See the long
         // comment there for why this exists; this branch covers periodic
         // /grants polls that may pick up cycle changes from another device.
-        if (updated.sun?.isOwned) {
+        if (updated.sun?.isOwned && !isLabDevWipeActive()) {
           const srvStarted = Math.max(0, Number(grants.sunFarmStartedAtMs ?? 0));
           const srvCollected = Math.max(0, Number(grants.sunLastCollectedAtMs ?? 0));
           const srvCycleCount = Math.max(0, Number(grants.sunCycleCount ?? 0));
@@ -3103,6 +3193,8 @@ export function useGameState() {
               sunCycleCount: mergedCycleCount,
             });
           }
+        } else if (isLabDevWipeActive()) {
+          updated = stripSunForLabDev(updated);
         }
 
         const serverBundles2 = Math.max(0, Number(grants.whiteCollectionBundles ?? 0));
@@ -3303,6 +3395,8 @@ export function useGameState() {
         if (typeof grants.tonBalance === "number") {
           updated = { ...updated, tonBalance: Math.max(0, grants.tonBalance) };
         }
+
+        updated = stripSunForLabDev(updated);
 
         return updated;
       });
@@ -3663,6 +3757,7 @@ export function useGameState() {
       if (type === "planets" && planetType) {
         setState((prev) => {
           if (planetType === "SUN") {
+            if (isLabDevWipeActive()) return prev;
             if (prev.sun?.isOwned) return { ...prev, claimedBonusSun: true, sunCount: Math.max(1, prev.sunCount || 1) };
             return {
               ...prev,
@@ -3892,146 +3987,124 @@ export function useGameState() {
     };
   }, []);
 
-  const craft = useCallback((availableStardust?: number): { completed: boolean; tapsLeft?: number; broken?: boolean; brokenRarity?: PlanetType } => {
+  const beginLabForge = useCallback((path: LabForgePath): { ok: boolean; reason?: string } => {
     const current = stateRef.current;
-    if (current.pendingModel || current.pendingPlanet || current.forgeRolling) return { completed: false };
-    if (current.planets.length >= current.maxSlots) return { completed: false };
+    if (current.pendingModel || current.pendingPlanet || current.forgeRolling) {
+      return { ok: false, reason: "busy" };
+    }
+    if (current.labForgePath) {
+      return { ok: false, reason: "already_forging" };
+    }
+    labForgeCompletingRef.current = false;
 
-    let rarity = current.currentCraftRarity;
-    let goal = current.goal;
+    const shapeId = labForgeShapeForPath(path);
+    const goal = getLabForgeShapeTapGoal(shapeId);
 
-    if (rarity === null) {
-      rarity = rollRarity();
-      const config = PLANET_CONFIG[rarity];
-      const stardustBalance = availableStardust ?? current.stardustBalance;
-      if (stardustBalance < config.craftCost) {
-        return { completed: false };
+    if (path === "zoom") {
+      if ((current.stardustBalance ?? 0) < LAB_ZOOM_FORGE_STARDUST_COST) {
+        return { ok: false, reason: "no_stardust" };
       }
-      goal = forgeTapGoalForPlanet(rarity);
-      setState((prev) => ({
-        ...prev,
-        stardustBalance: prev.stardustBalance - config.craftCost,
-        forgingModel: null,
-        forgePlanetBuild: true,
-        goal,
-      }));
+      setState((prev) => {
+        const next: GameState = {
+          ...prev,
+          stardustBalance: prev.stardustBalance - LAB_ZOOM_FORGE_STARDUST_COST,
+          currentCraftRarity: null,
+          goal,
+          taps: 0,
+          forgePlanetBuild: true,
+          labForgeShapeId: shapeId,
+          labForgePath: path,
+          forgingModel: null,
+        };
+        schedulePersist(next);
+        return next;
+      });
       if (current.telegramId) {
-        void deductCraftStardust(current.telegramId, config.craftCost);
+        void deductCraftStardust(current.telegramId, LAB_ZOOM_FORGE_STARDUST_COST);
       }
+      return { ok: true };
     }
 
+    if ((current.balance ?? 0) < LAB_STARDUST_FORGE_ZOOM_COST) {
+      return { ok: false, reason: "no_zoom" };
+    }
+    setState((prev) => {
+      const next: GameState = {
+        ...prev,
+        balance: prev.balance - LAB_STARDUST_FORGE_ZOOM_COST,
+        currentCraftRarity: null,
+        goal,
+        taps: 0,
+        forgePlanetBuild: true,
+        labForgeShapeId: shapeId,
+        labForgePath: path,
+        forgingModel: null,
+      };
+      schedulePersist(next);
+      return next;
+    });
+    return { ok: true };
+  }, []);
+
+  const craft = useCallback((_availableStardust?: number): { completed: boolean; tapsLeft?: number } => {
+    const current = stateRef.current;
+    if (current.pendingModel || current.pendingPlanet || current.forgeRolling) return { completed: false };
+    if (labForgeCompletingRef.current) return { completed: false };
+
+    const labPath = current.labForgePath;
+    const labShape = current.labForgeShapeId;
+    if (!labPath || !labShape) return { completed: false };
+
+    const goal = current.goal;
     const newTaps = current.taps + 1;
 
     if (newTaps >= goal) {
-      const config = PLANET_CONFIG[rarity];
-      const craftCost = config.craftCost;
-
-      const BREAK_CHANCE = 0.15;
-      const isBroken = Math.random() < BREAK_CHANCE;
-
-      if (isBroken) {
-        const brokenRarity = rarity;
-        setState((prev) => {
-          const next: GameState = {
-            ...prev,
-            taps: 0,
-            goal: 100,
-            totalTaps: (prev.totalTaps || 0) + 1,
-            currentCraftRarity: null,
-            pendingPlanet: null,
-            pendingPlanetCost: 0,
-            pendingModel: null,
-            pendingModelCost: 0,
-            forgingModel: null,
-            forgePlanetBuild: false,
-            forgeRolling: false,
-          };
-          schedulePersist(next);
-          return next;
-        });
-        return { completed: true, broken: true, brokenRarity };
-      }
-
+      labForgeCompletingRef.current = true;
       setState((prev) => {
-        const finishedPlanet = makePlanet(rarity);
-        finishedPlanet.craftCost = craftCost;
+        if (prev.pendingPlanet || !prev.labForgePath || !prev.labForgeShapeId) return prev;
+        const finishedPlanet = makeLabGeneratorPlanet(prev.labForgePath, prev.labForgeShapeId);
         const next: GameState = {
           ...prev,
-          taps: 0,
-          goal: 100,
+          taps: goal,
+          goal,
           totalTaps: (prev.totalTaps || 0) + 1,
           currentCraftRarity: null,
           forgingModel: null,
-          forgePlanetBuild: false,
+          forgePlanetBuild: true,
+          labForgeShapeId: prev.labForgeShapeId,
+          labForgePath: prev.labForgePath,
           pendingPlanet: finishedPlanet,
-          pendingPlanetCost: craftCost,
+          pendingPlanetCost: finishedPlanet.craftCost,
           pendingModel: null,
           pendingModelCost: 0,
           forgeRolling: false,
           craftsCompleted: prev.craftsCompleted + 1,
         };
+        stateRef.current = next;
         schedulePersist(next);
         return next;
       });
 
       return { completed: true };
-    } else {
-      setState((prev) => {
-        const next: GameState = {
-          ...prev,
-          taps: newTaps,
-          goal,
-          totalTaps: (prev.totalTaps || 0) + 1,
-          currentCraftRarity: rarity,
-          forgePlanetBuild: prev.forgePlanetBuild,
-        };
-        schedulePersist(next);
-        return next;
-      });
-      return { completed: false, tapsLeft: goal - newTaps };
     }
+
+    setState((prev) => {
+      const next: GameState = {
+        ...prev,
+        taps: newTaps,
+        goal,
+        totalTaps: (prev.totalTaps || 0) + 1,
+        forgePlanetBuild: prev.forgePlanetBuild,
+      };
+      stateRef.current = next;
+      schedulePersist(next);
+      return next;
+    });
+    return { completed: false, tapsLeft: goal - newTaps };
   }, []);
 
   const skipForge = useCallback((): { ok: boolean; reason?: string } => {
-    const SKIP_COST = 1;
-    const prev = stateRef.current;
-
-    if (!prev.currentCraftRarity) {
-      return { ok: false, reason: "Not forging" };
-    }
-    if (prev.pendingPlanet || prev.forgeRolling) {
-      return { ok: false, reason: "Cannot skip now" };
-    }
-    if ((prev.stardustBalance ?? 0) < SKIP_COST) {
-      return { ok: false, reason: "Need 1 ★ Stardust to skip" };
-    }
-
-    const newRarity = rollRarity();
-    const goal = forgeTapGoalForPlanet(newRarity);
-
-    setState((p) => {
-      if (!p.currentCraftRarity) return p;
-      if (p.pendingPlanet || p.forgeRolling) return p;
-      if ((p.stardustBalance ?? 0) < SKIP_COST) return p;
-
-      const next: GameState = {
-        ...p,
-        stardustBalance: (p.stardustBalance ?? 0) - SKIP_COST,
-        currentCraftRarity: newRarity,
-        taps: 0,
-        goal,
-        forgePlanetBuild: true,
-      };
-      schedulePersist(next);
-
-      if (p.telegramId) {
-        void deductCraftStardust(p.telegramId, SKIP_COST);
-      }
-
-      return next;
-    });
-
-    return { ok: true };
+    return { ok: false, reason: "Lab model forge has no skip" };
   }, []);
 
   const claimCraft = useCallback((): { ok: boolean; reason?: string } => {
@@ -4048,12 +4121,21 @@ export function useGameState() {
       }
       claimedName = prev.pendingPlanet.name;
       claimedCost = prev.pendingPlanetCost || 0;
-      return {
+      const next: GameState = {
         ...prev,
         planets: [...prev.planets, prev.pendingPlanet],
         pendingPlanet: null,
         pendingPlanetCost: 0,
+        forgePlanetBuild: false,
+        labForgeShapeId: null,
+        labForgePath: null,
+        taps: 0,
+        goal: 100,
       };
+      stateRef.current = next;
+      schedulePersist(next);
+      labForgeCompletingRef.current = false;
+      return next;
     });
 
     if (outcome.ok && claimedName) {
@@ -4074,6 +4156,9 @@ export function useGameState() {
       return { success: false, error: "Code already used" };
     }
     if (SUN_CODES.includes(upperCode)) {
+      if (isLabDevWipeActive()) {
+        return { success: false, error: "THE SUN is disabled during lab testing" };
+      }
       if (current.sun?.isOwned) {
         return { success: false, error: "You already own THE SUN" };
       }
@@ -4218,6 +4303,7 @@ export function useGameState() {
   }, []);
 
   const acquireSun = useCallback(() => {
+    if (isLabDevWipeActive()) return;
     setState((prev) => {
       if (prev.sun?.isOwned) return prev;
       return withFeedEvent({
@@ -5825,7 +5911,29 @@ export function useGameState() {
   ): Promise<{ ok: boolean; error?: string }> => {
     const tid = state.telegramId;
     if (!tid) return { ok: false, error: "Not logged in" };
-    const result = await upgradeFarmDuration(tid, planetId, durationHours);
+    const planet = state.planets.find((p) => p.id === planetId) ?? null;
+    if (!planet) return { ok: false, error: "Planet not found" };
+    await saveRegularPlanets(
+      tid,
+      state.planets as unknown as Array<Record<string, unknown>>,
+      {
+        basic: state.claimedBonusBasic ?? 0,
+        rare: state.claimedBonusRare ?? 0,
+        epic: state.claimedBonusEpic ?? 0,
+        gold: state.claimedBonusGold ?? 0,
+        mythic: state.claimedBonusMythic ?? 0,
+        plasma: state.claimedBonusPlasma ?? 0,
+        v1: state.claimedBonusV1 ?? 0,
+        v1NftPlatinum: state.claimedBonusV1NftPlatinum ?? 0,
+      },
+      state.craftsCompleted,
+    );
+    const result = await upgradeFarmDuration(
+      tid,
+      planetId,
+      durationHours,
+      planet as unknown as Record<string, unknown>,
+    );
     if (result.ok) {
       setState((prev) => ({
         ...prev,
@@ -5836,7 +5944,7 @@ export function useGameState() {
       }));
     }
     return result;
-  }, [state.telegramId]);
+  }, [state.telegramId, state.planets, state.claimedBonusBasic, state.claimedBonusRare, state.claimedBonusEpic, state.claimedBonusGold, state.claimedBonusMythic, state.claimedBonusPlasma, state.claimedBonusV1, state.claimedBonusV1NftPlatinum, state.craftsCompleted]);
 
   /** Permanently upgrade farm-cycle duration for ONE specific collection. Charges GRAM from EARNED GRAM. */
   const upgradeCollectionFarmDuration = useCallback(async (
@@ -6037,7 +6145,7 @@ export function useGameState() {
   }, [state.telegramId]);
 
   return {
-    state, setState, craft, skipForge, claimCraft, redeemCode,
+    state, setState, craft, beginLabForge, skipForge, claimCraft, redeemCode,
     pvpAddPlanet, pvpRemovePlanet,
     collectPlanet, burnPlanet, renamePlanetLocal,
     startFarming, stopFarming, repairPlanet,

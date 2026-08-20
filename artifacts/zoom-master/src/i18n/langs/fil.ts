@@ -85,6 +85,7 @@ export const fil: Record<string, string> = {
   "lab.farmFullHint": "Burn o ibenta ang planet para magpatuloy",
   "lab.noStardust": "WALANG STARDUST",
   "lab.forgePlanet": "GUMAWA NG PLANETA",
+  "lab.startBuildBtn": "SIMULAN ANG BUILD",
   "lab.perTap": "Nag-iiba ang Stardust cost ayon sa rarity",
   "lab.slotsFree": "{n} slots na libre",
   "farm.collect": "COLLECT",

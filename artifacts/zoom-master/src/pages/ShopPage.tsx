@@ -5,7 +5,6 @@ import { useT } from "../i18n/LanguageContext";
 import { V1NftWidget } from "../components/V1NftWidget";
 import { HallOfFameWidget } from "../components/HallOfFameWidget";
 import { LabRankWidget } from "../components/LabRankWidget";
-import { ExchangeWidget } from "../components/ExchangeWidget";
 import { ZoomStoreWidget } from "../components/ZoomStoreWidget";
 import { patchShopPrefetch, readShopPrefetch } from "../utils/shopPrefetch";
 
@@ -545,9 +544,8 @@ export function ShopPage({
 
           {shopTab === "hub" && (<>
           <div className="font-black text-sm tracking-widest uppercase mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-            Rankings & exchange
+            Rankings
           </div>
-          <ExchangeWidget balance={balance} sunCount={sunCount} shopMode />
           <LabRankWidget telegramId={telegramId ?? null} sunCount={sunCount} balance={balance} shopMode />
           <HallOfFameWidget telegramId={telegramId ?? null} shopMode />
           </>)}

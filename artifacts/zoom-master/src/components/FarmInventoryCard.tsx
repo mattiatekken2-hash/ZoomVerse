@@ -9,7 +9,9 @@ import {
 import { getPlanetDisplayName } from "../utils/planetNames";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
+import { ZoomCubeIcon } from "./ZoomCubeIcon";
 import { useT } from "../i18n/LanguageContext";
+import { LAB_STARDUST_POT_SHAPE_ID } from "@workspace/game-models";
 
 export type FarmCardVariant = "grid" | "compact";
 
@@ -59,6 +61,17 @@ function rgba(hex: string, alpha: number): string {
   return `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`;
 }
 
+function formatYieldAmount(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  if (Number.isInteger(n)) return n.toLocaleString();
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+function yieldUnit(planet: Planet): string {
+  if (planet.name === "MUSHROOM" || planet.shapeId === LAB_STARDUST_POT_SHAPE_ID) return "★";
+  return "$ZOOM";
+}
+
 export function FarmInventoryCard({
   planet,
   variant = "grid",
@@ -85,13 +98,22 @@ export function FarmInventoryCard({
   const farmHours = planet.farmDurationHours ?? 1;
   const planetFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
   const isPlatinumNft = planet.name === "V1_NFT";
+  const isStardustYield = planet.name === "MUSHROOM" || planet.shapeId === LAB_STARDUST_POT_SHAPE_ID;
+  const yieldIconSize = compact ? 10 : 11;
   const orbThumb = compact ? 112 : 128;
   const heroHeight = compact ? 168 : 188;
   const heroOrbTop = compact ? 14 : 16;
 
   const cycleTotal = planet.name === "MUSHROOM"
     ? 5
-    : Math.round(planet.rate * farmHours);
+    : planet.rate * farmHours;
+  const showCycleRow = farmHours >= 2 && planet.name !== "MUSHROOM";
+  const hourLabel = planet.name === "MUSHROOM"
+    ? "5 ★"
+    : `${formatYieldAmount(planet.rate)} ${yieldUnit(planet)}`;
+  const cycleLabel = planet.name === "MUSHROOM"
+    ? "5 ★"
+    : `${formatYieldAmount(cycleTotal)} ${yieldUnit(planet)}`;
 
   return (
     <div
@@ -231,17 +253,19 @@ export function FarmInventoryCard({
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: compact ? 3 : 4 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: compact ? 10 : 11 }}>
-            <span style={{ color: "rgba(255,255,255,0.42)", fontWeight: 600 }}>{t("farm.farmLabel")}</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#fff", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
-              <FarmCubeIcon size={compact ? 10 : 11} color="rgba(255,255,255,0.75)" />
-              {planet.name === "MUSHROOM" ? "5 ★" : cycleTotal.toLocaleString()} / {farmHours}H
-            </span>
-          </div>
+          {showCycleRow && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: compact ? 10 : 11 }}>
+              <span style={{ color: "rgba(255,255,255,0.42)", fontWeight: 600 }}>{t("farm.farmLabel")}</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#fff", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
+                {!isStardustYield && <ZoomCubeIcon size={yieldIconSize} />}
+                {cycleLabel} / {farmHours}H
+              </span>
+            </div>
+          )}
           <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 4, fontSize: compact ? 10 : 11 }}>
-            <FarmCubeIcon size={compact ? 10 : 11} color="rgba(255,255,255,0.55)" />
-            <span style={{ color: "rgba(255,255,255,0.88)", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
-              {planet.name === "MUSHROOM" ? "5 ★" : planet.rate.toLocaleString()} / H
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "rgba(255,255,255,0.88)", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
+              {!isStardustYield && <ZoomCubeIcon size={yieldIconSize} />}
+              {hourLabel} / H
             </span>
           </div>
         </div>
@@ -353,11 +377,15 @@ export function FarmInventoryCard({
               lineHeight: 1.15,
               cursor: "pointer",
               touchAction: "manipulation",
-              background: "#ffffff",
-              color: "#0a0a0f",
-              border: "1px solid rgba(255,255,255,0.92)",
+              background: "#000000",
+              color: "#ffffff",
+              border: "1px solid rgba(255,255,255,0.18)",
               boxShadow: "0 3px 12px rgba(0,0,0,0.35)",
               whiteSpace: "nowrap",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
             }}
             onClick={(e) => {
               e.stopPropagation();
@@ -365,6 +393,7 @@ export function FarmInventoryCard({
             }}
             data-testid={`btn-farm-${planet.id}`}
           >
+            <ZoomCubeIcon size={12} />
             {t("farm.startFarmBtn")}
           </button>
         )}

@@ -214,3 +214,37 @@ export function getForgeBlueprint(parts: MeshPart[]): { voxels: VoxelCell[]; ste
   const { voxels, step } = meshPartsToVoxels(parts);
   return { voxels, step, goal: Math.max(1, voxels.length) };
 }
+
+/** Lab shape forge — densify or trim procedural mesh voxels to an exact tap goal. */
+export function meshPartsToGoalVoxels(
+  parts: MeshPart[],
+  targetGoal: number,
+): { voxels: VoxelCell[]; step: number; goal: number } {
+  const goal = Math.max(1, Math.round(targetGoal));
+  if (parts.length === 0) return { voxels: [], step: FORGE_VOXEL_SIZE, goal: 1 };
+
+  let step = 0.13;
+  let best = collectVoxels(parts, step);
+  for (let i = 0; i < 16; i++) {
+    const count = best.length;
+    if (count >= goal) break;
+    step *= 0.88;
+    best = collectVoxels(parts, step);
+  }
+  if (best.length > goal) best = trimVoxels(best, goal);
+  else if (best.length < goal && best.length > 0) {
+    best = trimVoxels(best, best.length);
+    while (best.length < goal) {
+      const clone = best[best.length % best.length]!;
+      best.push({
+        ...clone,
+        id: `v${best.length}`,
+        x: clone.x + ((best.length % 3) - 1) * step * 0.02,
+        y: clone.y + (((best.length + 1) % 3) - 1) * step * 0.02,
+        z: clone.z + (((best.length + 2) % 3) - 1) * step * 0.02,
+      });
+    }
+  }
+
+  return { voxels: best, step, goal: Math.max(1, best.length) };
+}

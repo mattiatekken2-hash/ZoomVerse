@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
-import type { FeedEvent } from "../hooks/useGameState";
+import { useEffect, useState, useMemo } from "react";
+import type { FeedEvent, Planet } from "../hooks/useGameState";
 import { useGlobalStore } from "../store/globalStore";
 import { useT } from "../i18n/LanguageContext";
-import { planetTypeLabel } from "../i18n/translations";
 import { TrophyIcon } from "../components/icons/GameIcons";
+import { LAB_PIZZA_SHAPE_ID, LAB_STARDUST_POT_SHAPE_ID } from "@workspace/game-models";
 
 interface RankPageProps {
   balance: number;
@@ -12,6 +12,7 @@ interface RankPageProps {
   totalTonSpent: number;
   feedEvents: FeedEvent[];
   telegramId: string | null;
+  planets?: Planet[];
   visible?: boolean;
 }
 
@@ -28,7 +29,7 @@ function formatZoom(amount: number): string {
   return Math.floor(amount).toLocaleString();
 }
 
-export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSpent: _totalTonSpent, feedEvents: _feedEvents, telegramId, visible }: RankPageProps) {
+export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSpent: _totalTonSpent, feedEvents: _feedEvents, telegramId, planets = [], visible }: RankPageProps) {
   void telegramId;
   void visible;
   void seasonPoolEarned;
@@ -45,6 +46,16 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
   const initialized = useGlobalStore((s) => s.initialized);
   const seasonStart = seasonEpoch && seasonEpoch > 0 ? seasonEpoch : DEFAULT_SEASON_START;
   const loadingLb = !initialized && leaderboard.length === 0;
+
+  const labRarityCounts = useMemo(() => {
+    const crafted = profile?.crafted as Record<string, number> | undefined;
+    const zoomFromFarm = planets.filter((p) => p.shapeId === LAB_PIZZA_SHAPE_ID).length;
+    const stardustFromFarm = planets.filter((p) => p.shapeId === LAB_STARDUST_POT_SHAPE_ID).length;
+    return {
+      ZOOM: crafted?.ZOOM ?? zoomFromFarm,
+      STARDUST: crafted?.STARDUST ?? stardustFromFarm,
+    };
+  }, [planets, profile?.crafted]);
 
   const seasonProgress = getSeasonProgress(currentTime, seasonStart);
   const currentSeason = 3;
@@ -140,26 +151,17 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                   </span>
                 )}
               </div>
-              {profile.crafted && (
-                <div className="grid grid-cols-3 gap-2">
-                  {([
-                    { key: "BASIC", label: "Basic", color: "#8892b0" },
-                    { key: "RARE", label: "Rare", color: "#4facfe" },
-                    { key: "EPIC", label: "Epic", color: "#c471ed" },
-                    { key: "MYTHIC", label: "Mythic", color: "#dc143c" },
-                    { key: "NOVA", label: "Nova", color: "#9040ff" },
-                    { key: "PLASMA", label: "Plasma", color: "#00e676" },
-                    { key: "GOLD", label: "Gold", color: "#ffd700" },
-                    { key: "V1", label: "V1", color: "#f5fbff" },
-                    { key: "MUSHROOM", label: "🍄", color: "#b83fbf" },
-                  ] as const).map(({ key, label, color }) => (
-                    <div key={key} className="rounded-lg p-2 text-center" style={{ background: color + "10", border: `1px solid ${color}20` }}>
-                      <div className="font-black text-base" style={{ color }}>{(profile.crafted as Record<string, number> | undefined)?.[key] ?? 0}</div>
-                      <div className="text-[9px] font-bold uppercase" style={{ color: color + "90" }}>{planetTypeLabel(lang, key, label)}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { key: "ZOOM", label: "$ZOOM", color: "#7bed9f" },
+                  { key: "STARDUST", label: "★ STARDUST", color: "#ffd740" },
+                ] as const).map(({ key, label, color }) => (
+                  <div key={key} className="rounded-lg p-2 text-center" style={{ background: color + "10", border: `1px solid ${color}20` }}>
+                    <div className="font-black text-base" style={{ color }}>{labRarityCounts[key]}</div>
+                    <div className="text-[9px] font-bold uppercase" style={{ color: color + "90" }}>{label}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

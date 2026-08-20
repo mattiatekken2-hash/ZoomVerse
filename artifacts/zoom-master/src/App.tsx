@@ -6,6 +6,7 @@ import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/use
 import { fetchRegularPlanets, saveRegularPlanets } from "./utils/api";
 import { useGlobalInit, useGlobalStore } from "./store/globalStore";
 import { NebulaBackground } from "./components/NebulaBackground";
+import { LabSpaceBackground } from "./components/LabSpaceBackground";
 import { MaintenanceScreen } from "./components/MaintenanceScreen";
 import { LabPage } from "./pages/LabPage";
 import { FarmPage } from "./pages/FarmPage";
@@ -19,13 +20,16 @@ import { LanguageProvider, useT } from "./i18n/LanguageContext";
 import HistoryModal from "./components/HistoryModal";
 import { fetchMaintenanceStatus, fetchServerTime, fetchStardustLeaderboard, type StardustLeaderboardEntry } from "./utils/api";
 import { useStardust } from "./hooks/useStardust";
-import { FlaskConical, Home, Sprout, ShoppingCart, Gem, Trophy, Wallet, type LucideIcon } from "lucide-react";
+import { Sprout, ShoppingCart, Trophy, Wallet, type LucideIcon } from "lucide-react";
+import { GramDiamondIcon } from "./components/GramDiamondIcon";
+import { ZoomCubeIcon } from "./components/ZoomCubeIcon";
 import { WalletPage } from "./pages/WalletPage";
 import { hideHtmlSplash } from "./components/SplashScreen";
 import { SPLASH_MS } from "./utils/bootSplash";
 import { isBrowserDevSession } from "./utils/telegram";
 import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
+import { prefetchWalletMarket } from "./utils/walletMarketCache";
 import { prefetchCombo } from "./utils/comboCache";
 import { initVersionCheck } from "./utils/appVersion";
 
@@ -52,16 +56,18 @@ const MANIFEST_URL = `${window.location.origin}/tonconnect-manifest.json`;
 
 type Tab = "lab" | "home" | "farm" | "market" | "earn" | "rank" | "shop" | "wallet";
 
-const NAV: { id: Tab; labelKey: string; icon: LucideIcon }[] = [
-  { id: "lab", labelKey: "nav.lab", icon: FlaskConical },
+const NAV: { id: Tab; labelKey: string; icon: LucideIcon | "zoom-cube" | "gram-diamond" }[] = [
+  { id: "lab", labelKey: "nav.lab", icon: "zoom-cube" },
   { id: "farm", labelKey: "nav.farm", icon: Sprout },
   { id: "market", labelKey: "nav.market", icon: ShoppingCart },
-  { id: "earn", labelKey: "nav.earn", icon: Gem },
+  { id: "earn", labelKey: "nav.earn", icon: "gram-diamond" },
   { id: "rank", labelKey: "nav.rank", icon: Trophy },
   { id: "wallet", labelKey: "nav.wallet", icon: Wallet },
 ];
 
 const ALL_TABS: Tab[] = ["lab", "farm", "market", "earn", "rank", "shop", "wallet"];
+/** Tabs that share the Lab void + stars (no grid). */
+const LAB_SPACE_TABS: Tab[] = ["farm", "market", "earn", "rank", "wallet"];
 
 function splashElapsedDone(): boolean {
   try {
@@ -172,7 +178,7 @@ function AppShellWithState() {
     };
   }, [t]);
   const {
-    state, setState, craft, skipForge, claimCraft, redeemCode,
+    state, setState, craft, beginLabForge, skipForge, claimCraft, redeemCode,
     pvpAddPlanet, pvpRemovePlanet,
     collectPlanet, burnPlanet, renamePlanetLocal,
     startFarming, stopFarming, repairPlanet, upgradePlanetFarmDuration, upgradeSunFarmDuration, upgradeCollectionFarmDuration,
@@ -274,7 +280,7 @@ function AppShellWithState() {
         return prev;
       }
       // Subsequent syncs: adopt server when not mid-forge (craft deducts locally).
-      const forging = prev.forgePlanetBuild || prev.currentCraftRarity || prev.pendingPlanet;
+      const forging = prev.forgePlanetBuild || prev.labForgePath || prev.pendingPlanet;
       if (!forging && stardust.balance !== prev.stardustBalance) {
         return { ...prev, stardustBalance: stardust.balance };
       }
@@ -398,6 +404,12 @@ function AppShellWithState() {
 
   useEffect(() => {
     void fetchTonPrice();
+    void prefetchWalletMarket();
+    const id = window.setInterval(() => {
+      if (document.hidden) return;
+      void prefetchWalletMarket();
+    }, 30_000);
+    return () => window.clearInterval(id);
   }, []);
 
   useEffect(() => {
@@ -412,6 +424,7 @@ function AppShellWithState() {
   useEffect(() => {
     if (!state.telegramId) return;
     void prefetchShopData(state.telegramId);
+    void prefetchWalletMarket();
   }, [state.telegramId]);
 
   // Pause CSS animations when backgrounded or when a non-Lab tab is active.
@@ -430,13 +443,14 @@ function AppShellWithState() {
   const totalRate = planetRate + sunRate;
   /** Keep Lab WebGL + voxel mask alive while forging so tab return does not replay fly-in. */
   const keepLabForgeAlive = Boolean(
-    state.currentCraftRarity &&
+    state.labForgePath &&
     state.forgePlanetBuild &&
     !state.pendingPlanet &&
     !state.forgeRolling,
   );
 
   const switchTab = (nextTab: Tab) => {
+    if (nextTab === "wallet") void prefetchWalletMarket();
     setTab(nextTab);
     window.dispatchEvent(new CustomEvent("zoom-tab-active", { detail: { tab: nextTab } }));
     // Throttle: only fire global refresh if user hasn't switched in last 4s.
@@ -770,7 +784,8 @@ function AppShellWithState() {
           paddingBottom: tab === "lab" ? 0 : "env(safe-area-inset-bottom, 0px)",
         }}
       >
-      {tab !== "lab" && <NebulaBackground />}
+      {LAB_SPACE_TABS.includes(tab) && <LabSpaceBackground />}
+      {!LAB_SPACE_TABS.includes(tab) && tab !== "lab" && <NebulaBackground />}
       {isAdmin && maintenance.enabled && (
         <div
           className="flex-shrink-0 text-center text-xs font-black tracking-widest py-1.5 relative z-30"
@@ -821,12 +836,11 @@ function AppShellWithState() {
                   balance={state.balance}
                   taps={state.taps}
                   goal={state.goal}
-                  planets={state.planets}
-                  maxSlots={state.maxSlots}
-                  currentCraftRarity={state.currentCraftRarity}
                   pendingPlanet={state.pendingPlanet}
                   forgePlanetBuild={state.forgePlanetBuild}
                   forgeRolling={state.forgeRolling}
+                  labForgeShapeId={state.labForgeShapeId}
+                  labForgePath={state.labForgePath}
                   hasAutoTap={!!state.hasAutoTap}
                   stardustBalance={state.stardustBalance || 0}
                   telegramId={state.telegramId}
@@ -834,7 +848,7 @@ function AppShellWithState() {
                   profilePhotoUrl={displayProfile.photoUrl}
                   profileName={displayProfile.name}
                   onCraft={craft}
-                  onSkipForge={skipForge}
+                  onBeginLabForge={beginLabForge}
                   onClaim={claimCraft}
                   onOpenShop={() => switchTab("shop")}
                   onOpenProfile={() => setProfileModalOpen(true)}
@@ -986,6 +1000,7 @@ function AppShellWithState() {
                   totalTonSpent={state.totalTonSpent}
                   feedEvents={state.feedEvents}
                   telegramId={state.telegramId}
+                  planets={state.planets}
                   visible={tab === "rank"}
                 />
               )}
@@ -1200,15 +1215,33 @@ function AppShellWithState() {
                     style={{ background: "rgba(255,255,255,0.75)", boxShadow: "0 0 6px rgba(200,220,255,0.35)" }}
                   />
                 )}
-                <item.icon
-                  size={20}
-                  strokeWidth={isActive ? 2.5 : 1.5}
-                  style={{
-                    transform: isActive ? "scale(1.15)" : "scale(1)",
-                    filter: isActive ? "drop-shadow(0 0 5px rgba(200,220,255,0.35))" : "none",
-                    transition: "transform 150ms ease, filter 150ms ease",
-                  }}
-                />
+                {item.icon === "zoom-cube" || item.icon === "gram-diamond" ? (
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      transform: isActive ? "scale(1.15)" : "scale(1)",
+                      filter: isActive ? "drop-shadow(0 0 5px rgba(200,220,255,0.35))" : "none",
+                      opacity: isActive ? 1 : 0.7,
+                      transition: "transform 150ms ease, filter 150ms ease, opacity 150ms ease",
+                    }}
+                  >
+                    {item.icon === "zoom-cube" ? (
+                      <ZoomCubeIcon size={20} />
+                    ) : (
+                      <GramDiamondIcon size={20} />
+                    )}
+                  </span>
+                ) : (
+                  <item.icon
+                    size={20}
+                    strokeWidth={isActive ? 2.5 : 1.5}
+                    style={{
+                      transform: isActive ? "scale(1.15)" : "scale(1)",
+                      filter: isActive ? "drop-shadow(0 0 5px rgba(200,220,255,0.35))" : "none",
+                      transition: "transform 150ms ease, filter 150ms ease",
+                    }}
+                  />
+                )}
                 <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>
                   {t(item.labelKey)}
                 </div>

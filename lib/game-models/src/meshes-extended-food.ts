@@ -158,6 +158,19 @@ function energyDrink(p: string, a: string): ReturnType<ShapeEntry["build"]> {
   ];
 }
 
+function stardustPot(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const accent = a || "#ffd740";
+  return [
+    pt("body", "cyl", 0, 0.28, 0, 0.28, 0.38, 0.28, "#6a7a8a", { profile: "metal", metal: 0.35 }),
+    pt("rim", "torus", 0, 0.48, 0, 0.3, 0.04, 0.3, "#8a9aaa", { profile: "metal", metal: 0.42 }),
+    pt("spout", "capsule", 0.24, 0.34, 0, 0.07, 0.28, 0.07, "#7a8a9a", { rz: -0.55, profile: "metal" }),
+    pt("handle", "torus", -0.18, 0.34, 0, 0.16, 0.04, 0.16, accent, { rx: 1.57, profile: "metal" }),
+    pt("drops", "sphere", 0.32, 0.18, 0.04, 0.05, 0.05, 0.05, accent, { profile: "food_glossy" }),
+    pt("drop2", "sphere", 0.36, 0.1, -0.02, 0.04, 0.04, 0.04, "#fff59d", { profile: "food_glossy" }),
+    pt("star", "box", 0, 0.52, 0.12, 0.06, 0.06, 0.02, accent, { ry: 0.4 }),
+  ];
+}
+
 export const FOOD_DRINK_SHAPES: ShapeEntry[] = [
   { id: "banana", name: "Banana", category: "food", build: banana },
   { id: "apple", name: "Red Apple", category: "food", build: apple },
@@ -175,4 +188,5 @@ export const FOOD_DRINK_SHAPES: ShapeEntry[] = [
   { id: "water_bottle", name: "Water Bottle", category: "food", build: waterBottle },
   { id: "milk_carton", name: "Milk Carton", category: "food", build: milkCarton },
   { id: "energy_drink", name: "Energy Drink", category: "food", build: energyDrink },
+  { id: "stardust_pot", name: "Stardust Pot", category: "food", build: stardustPot },
 ];

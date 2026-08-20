@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { ZoomCubeIcon } from "./ZoomCubeIcon";
 
 interface Props {
   balance: number;
@@ -85,15 +86,7 @@ export function BalanceCounter({ balance, activeRate, onClick }: Props) {
         transition: "all 0.4s ease",
       }}
     >
-      <span
-        style={{
-          fontSize: 12,
-          filter: isProducing ? "drop-shadow(0 0 4px rgba(200,220,255,0.55))" : "none",
-          transition: "filter 0.4s ease",
-        }}
-      >
-        🪐
-      </span>
+      <ZoomCubeIcon size={14} />
       <span
         ref={textRef}
         style={{

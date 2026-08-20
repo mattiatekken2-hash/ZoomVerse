@@ -164,7 +164,22 @@ const UpgradeDurationBody = z.object({
   telegramId: z.string().min(1),
   planetId: z.string().min(1),
   durationHours: z.number().int().positive().max(24),
+  /** Client snapshot — used when the planet is not in planets_json yet (lab claim / wipe). */
+  planet: z.record(z.unknown()).optional(),
 });
+
+function asPlanetArray(raw: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(raw)) return raw as Array<Record<string, unknown>>;
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      return Array.isArray(parsed) ? parsed as Array<Record<string, unknown>> : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
 
 /**
  * Permanently upgrade a planet's farm duration (stored in planetsJson).
@@ -177,7 +192,7 @@ router.post("/farm/upgrade-duration", async (req, res) => {
     res.status(400).json({ error: "Invalid body" });
     return;
   }
-  const { telegramId, planetId, durationHours } = parsed.data;
+  const { telegramId, planetId, durationHours, planet: planetSnap } = parsed.data;
 
   if (!VALID_DURATIONS.has(durationHours)) {
     res.status(400).json({ error: "Invalid duration" });
@@ -196,12 +211,19 @@ router.post("/farm/upgrade-duration", async (req, res) => {
       const tonBalance = Number(row["ton_balance"] ?? 0);
       if (tonBalance < cost) return { ok: false, error: "Insufficient GRAM balance" };
 
-      const rawPlanets = row["planets_json"];
-      const planets: Array<Record<string, unknown>> = Array.isArray(rawPlanets) ? rawPlanets as Array<Record<string, unknown>> : [];
+      const planets = asPlanetArray(row["planets_json"]);
       const idx = planets.findIndex((p) => String(p["id"] ?? "") === planetId);
-      if (idx < 0) return { ok: false, error: "Planet not found" };
-
-      planets[idx] = { ...planets[idx], farmDurationHours: durationHours };
+      if (idx >= 0) {
+        const currentHours = Math.max(1, Number(planets[idx]["farmDurationHours"] ?? 1));
+        if (durationHours < currentHours) {
+          return { ok: false, error: "Cannot downgrade cycle" };
+        }
+        planets[idx] = { ...planets[idx], farmDurationHours: durationHours };
+      } else if (planetSnap && String(planetSnap["id"] ?? "") === planetId) {
+        planets.push({ ...planetSnap, id: planetId, farmDurationHours: durationHours });
+      } else {
+        return { ok: false, error: "Planet not found" };
+      }
 
       await tx.execute(sql`
         UPDATE users

@@ -63,6 +63,10 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
   useEffect(() => () => stopHold(), [stopHold]);
 
   useEffect(() => {
+    if (!canCraft) stopHold();
+  }, [canCraft, stopHold]);
+
+  useEffect(() => {
     const onVis = () => { if (document.hidden) stopHold(); };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
@@ -132,6 +136,7 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
     <>
       <button
         onClick={handleClick}
+        data-no-global-haptic
         onPointerDown={(e) => {
           if (!hasAutoTap || e.button !== 0) return;
           e.preventDefault();

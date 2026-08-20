@@ -162,12 +162,13 @@ export async function upgradeFarmDuration(
   telegramId: string,
   planetId: string,
   durationHours: number,
+  planet?: Record<string, unknown> | null,
 ): Promise<{ ok: boolean; newTonBalance?: number; error?: string }> {
   try {
     const r = await fetch(`${API_BASE}/farm/upgrade-duration`, {
       method: "POST",
       headers: apiHeaders(),
-      body: JSON.stringify({ telegramId, planetId, durationHours }),
+      body: JSON.stringify({ telegramId, planetId, durationHours, ...(planet ? { planet } : {}) }),
     });
     return await r.json() as { ok: boolean; newTonBalance?: number; error?: string };
   } catch {

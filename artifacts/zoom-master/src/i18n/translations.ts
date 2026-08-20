@@ -112,6 +112,7 @@ const en: Dict = {
   "lab.farmFullHint": "Burn or sell a planet to continue",
   "lab.noStardust": "NO STARDUST",
   "lab.forgePlanet": "FORGE PLANET",
+  "lab.startBuildBtn": "START BUILD",
   "lab.perTap": "Stardust cost varies by rarity",
   "lab.slotsFree": "{n} slots free",
 
@@ -650,6 +651,7 @@ const it: Dict = {
   "lab.farmFullHint": "Brucia o vendi un pianeta per continuare",
   "lab.noStardust": "NESSUN STARDUST",
   "lab.forgePlanet": "FORGIA PIANETA",
+  "lab.startBuildBtn": "AVVIA BUILD",
   "lab.perTap": "Costo Stardust variabile per rarità",
   "lab.slotsFree": "{n} slot liberi",
 
@@ -1180,6 +1182,7 @@ const ru: Dict = {
   "lab.farmFullHint": "Сожгите или продайте планету, чтобы продолжить",
   "lab.noStardust": "НЕТ STARDUST",
   "lab.forgePlanet": "СОЗДАТЬ ПЛАНЕТУ",
+  "lab.startBuildBtn": "START BUILD",
   "lab.perTap": "Стоимость Stardust зависит от редкости",
   "lab.slotsFree": "{n} свободно",
 
@@ -1685,6 +1688,7 @@ const uk: Dict = {
   "lab.farmFullHint": "Спаліть або продайте планету, щоб продовжити",
   "lab.noStardust": "НЕМАЄ STARDUST",
   "lab.forgePlanet": "СТВОРИТИ ПЛАНЕТУ",
+  "lab.startBuildBtn": "START BUILD",
   "lab.perTap": "Вартість Stardust залежить від рідкості",
   "lab.slotsFree": "{n} вільно",
 

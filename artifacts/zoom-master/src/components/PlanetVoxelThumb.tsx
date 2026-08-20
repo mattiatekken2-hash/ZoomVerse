@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Planet } from "../hooks/useGameState";
 import { getPlanetDisplayColors } from "../hooks/useGameState";
-import { FORGE_SPHERE_SHAPE_ID } from "@workspace/game-models";
+import { FORGE_SPHERE_SHAPE_ID, labForgeShapeHasGlbReveal } from "@workspace/game-models";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { ObjectThumb } from "./MysteryModel3D";
+import { LabGlbViewer } from "./LabGlbViewer";
+import { FARM_GLB_SPIN_RATE, LAB_GLB_SPIN_RATE } from "../utils/labGlbScene";
 
 function SunVoxelPlaceholder({ size }: { size: number }) {
   const cube = size * 0.52;
@@ -148,6 +150,10 @@ export interface PlanetVoxelThumbProps {
   hiQuality?: boolean;
   /** Stagger WebGL mount (Farm grid) to avoid GPU spikes. */
   glDelayMs?: number;
+  /** Lab forge GLB: show forge space grid (detail modal). Off in farm slot cards. */
+  showLabForgeGrid?: boolean;
+  /** Lab forge GLB: drag to orbit (detail modal). */
+  labGlbInteractive?: boolean;
 }
 
 /** Voxel planet preview — same forge-sphere mesh as Lab, for Farm/Market cards. */
@@ -159,6 +165,8 @@ export function PlanetVoxelThumb({
   eager = false,
   hiQuality,
   glDelayMs = 0,
+  showLabForgeGrid = false,
+  labGlbInteractive = false,
 }: PlanetVoxelThumbProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const hasSlotRef = useRef(false);
@@ -273,30 +281,48 @@ export function PlanetVoxelThumb({
 
   const showGl = !suspendGl && inView && delayReady && hasSlot;
   const useHiQuality = hiQuality ?? size >= 80;
+  const thumbShapeId = planet.shapeId && planet.shapeId.length > 0
+    ? planet.shapeId
+    : FORGE_SPHERE_SHAPE_ID;
+  const useLabGlb = labForgeShapeHasGlbReveal(thumbShapeId);
 
   return (
     <div
       ref={rootRef}
-      className={`planet-voxel-thumb${useHiQuality ? " planet-voxel-thumb--hifi" : ""}`}
+      className={`planet-voxel-thumb${useHiQuality && !useLabGlb ? " planet-voxel-thumb--hifi" : ""}`}
       style={{ width: size, height: size, flexShrink: 0, position: "relative" }}
       data-testid="planet-voxel-thumb"
     >
       {showGl ? (
-        <ObjectThumb
-          key={`${planet.id}-${glGen}`}
-          shapeId={FORGE_SPHERE_SHAPE_ID}
-          primaryColor={displayColors.color}
-          accentColor={displayColors.accentHex}
-          planetRarity={planet.name}
-          displayFloat={displayFloat}
-          planetId={planet.id}
-          size={size}
-          autoSpin={animate}
-          performanceMode
-          hiQuality={useHiQuality && size >= 96}
-          onGlFailed={handleGlError}
-          onGlContextLost={handleGlError}
-        />
+        useLabGlb ? (
+          <LabGlbViewer
+            key={`${planet.id}-${glGen}`}
+            shapeId={thumbShapeId}
+            size={size}
+            autoSpin={animate}
+            chrome="none"
+            showGrid={showLabForgeGrid}
+            interactive={labGlbInteractive}
+            spinRate={showLabForgeGrid ? LAB_GLB_SPIN_RATE : FARM_GLB_SPIN_RATE}
+            onGlFailed={handleGlError}
+          />
+        ) : (
+          <ObjectThumb
+            key={`${planet.id}-${glGen}`}
+            shapeId={thumbShapeId}
+            primaryColor={displayColors.color}
+            accentColor={displayColors.accentHex}
+            planetRarity={planet.name}
+            displayFloat={displayFloat}
+            planetId={planet.id}
+            size={size}
+            autoSpin={animate}
+            performanceMode
+            hiQuality={useHiQuality && size >= 96}
+            onGlFailed={handleGlError}
+            onGlContextLost={handleGlError}
+          />
+        )
       ) : (
         <VoxelPlanetPlaceholder
           size={size}

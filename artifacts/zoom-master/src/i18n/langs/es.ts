@@ -85,6 +85,7 @@ export const es: Record<string, string> = {
   "lab.farmFullHint": "Quema o vende un planeta para continuar",
   "lab.noStardust": "SIN STARDUST",
   "lab.forgePlanet": "FORJAR PLANETA",
+  "lab.startBuildBtn": "INICIAR BUILD",
   "lab.perTap": "El costo de Stardust varía según la rareza",
   "lab.slotsFree": "{n} espacios libres",
   "farm.collect": "RECOLECTAR",

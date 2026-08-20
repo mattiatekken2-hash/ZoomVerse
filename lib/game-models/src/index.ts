@@ -5,3 +5,4 @@ export * from "./meshes-extended.js";
 export * from "./voxelize.js";
 export * from "./voxel-sphere-blueprint.js";
 export * from "./glb-assets.js";
+export * from "./forge-lab.js";

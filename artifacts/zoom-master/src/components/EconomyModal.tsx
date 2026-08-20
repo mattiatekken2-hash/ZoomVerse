@@ -355,7 +355,7 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, i
           <span style={{ color: "#9EC5E8", fontWeight: 800 }}>♪ How it works.</span>{" "}
           The $ZOOM price moves only on real player actions — market trades,
           farming cycles and crafts. Each tick is a small organic shift, with
-          a +1% daily growth cap so the curve climbs slowly and steadily.
+          a +8% daily growth cap — price only rises from player activity.
         </div>
       </div>
     </div>

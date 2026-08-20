@@ -267,6 +267,7 @@ router.post("/regular-planets/save", async (req, res) => {
     // save for each planet id, then frozen.)
     const storedNamesById = new Map<string, string>();
     const storedFloatsById = new Map<string, number>();
+    const storedDurationById = new Map<string, number>();
     // Server-pinned marketplace + pause fields. /market/list,
     // /market/delist and /market/buy are the ONLY authoritative writers
     // for these. Without pinning, a stale or mid-air /save can flip
@@ -289,6 +290,10 @@ router.post("/regular-planets/save", async (req, res) => {
         if (dn) storedNamesById.set(id, dn);
         const f = sanitizeIncomingFloat(obj.float);
         if (typeof f === "number") storedFloatsById.set(id, f);
+        const storedHours = typeof obj.farmDurationHours === "number" && Number.isFinite(obj.farmDurationHours)
+          ? Math.max(1, obj.farmDurationHours)
+          : 0;
+        if (storedHours > 0) storedDurationById.set(id, storedHours);
         storedListingById.set(id, {
           isListedInMarket: obj.isListedInMarket === true,
           serverListingId: typeof obj.serverListingId === "number" ? obj.serverListingId : undefined,
@@ -322,6 +327,11 @@ router.post("/regular-planets/save", async (req, res) => {
             : deterministicFloatFromId(id);
         }
       }
+      const storedHours = storedDurationById.get(id) ?? 0;
+      const incomingHours = typeof rest.farmDurationHours === "number" && Number.isFinite(rest.farmDurationHours)
+        ? rest.farmDurationHours
+        : 1;
+      out.farmDurationHours = Math.max(1, storedHours, incomingHours);
       // Marketplace + pause pinning. The server-stored values for
       // `isListedInMarket`, `serverListingId`, `marketPrice` and
       // `pausedAt` are authoritative — only /market/* endpoints may
