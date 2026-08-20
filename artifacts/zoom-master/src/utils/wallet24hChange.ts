@@ -69,3 +69,35 @@ export function formatChangePct(pct: number | null): string {
   const sign = pct > 0 ? "+" : "";
   return `${sign}${pct.toFixed(2)}%`;
 }
+
+/**
+ * Map live chart % to icon scale so wallet emojis grow/shrink with the real
+ * market move. ±8% → ±20% size; clamped so icons never look broken.
+ */
+export function chartIconScale(changePct: number | null | undefined): number {
+  if (changePct == null || !Number.isFinite(changePct)) return 1;
+  const clamped = Math.max(-8, Math.min(8, changePct));
+  return 1 + (clamped / 8) * 0.2;
+}
+
+/** ZOOM chart unit — genesis sits near 0.000001 GRAM. */
+export function formatZoomChartPrice(p: number | null | undefined): string {
+  if (p == null || !Number.isFinite(p) || p <= 0) return "—";
+  if (p < 0.000001) return p.toFixed(9);
+  if (p < 0.0001) return p.toFixed(6);
+  if (p < 0.01) return p.toFixed(4);
+  return p.toFixed(3);
+}
+
+/** Stardust chart index — genesis is 1.000000. */
+export function formatStardustChartIndex(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n) || n <= 0) return "1.000000";
+  return n.toFixed(6);
+}
+
+/** GRAM (= TON) USD spot for the wallet GRAM chart. */
+export function formatGramChartUsd(p: number | null | undefined): string {
+  if (p == null || !Number.isFinite(p) || p <= 0) return "—";
+  if (p < 1) return `$${p.toFixed(4)}`;
+  return `$${p.toFixed(2)}`;
+}

@@ -12,6 +12,7 @@ import {
 import { GramWalletIcon } from "./TonWalletWidget";
 import { useT } from "../i18n/LanguageContext";
 import { fetchTonPrice, readCachedTonPriceAllowStale } from "../utils/tonPrice";
+import { chartIconScale } from "../utils/wallet24hChange";
 
 const REFRESH_MS = 15_000;
 const CACHE_TTL_MS = 60_000;
@@ -260,7 +261,16 @@ export function GramChartModal({
               {t("gramChart.title")}
             </div>
             <div className="flex items-center gap-2 mt-1">
-              <GramWalletIcon size={28} />
+              <span
+                style={{
+                  display: "inline-flex",
+                  transform: `scale(${chartIconScale(pctChange)})`,
+                  transformOrigin: "center bottom",
+                  transition: "transform 0.45s ease",
+                }}
+              >
+                <GramWalletIcon size={28} />
+              </span>
               <div style={{ fontSize: 22, fontWeight: 900, color: "#00f2b4" }}>
                 {price != null ? `$${price.toFixed(4)}` : "…"}
               </div>

@@ -12,7 +12,7 @@ import {
   readWalletMarketCacheForDisplay,
   subscribeWalletMarketCache,
 } from "../utils/walletMarketCache";
-import { formatChangePct, formatGramValueFull, getRolling24hChange } from "../utils/wallet24hChange";
+import { formatChangePct, formatGramValueFull, getRolling24hChange, chartIconScale, formatZoomChartPrice, formatStardustChartIndex, formatGramChartUsd } from "../utils/wallet24hChange";
 
 const LIVE_POLL_MS = 12_000;
 
@@ -70,14 +70,6 @@ function formatUsdFromGram(gramValue: number | null, tonPrice: number | null, lo
   return `$${(gramValue * tonPrice).toFixed(2)}`;
 }
 
-function formatZoomUnitGram(p: number | null): string {
-  if (p == null || !Number.isFinite(p) || p <= 0) return "—";
-  if (p < 0.000001) return p.toFixed(8);
-  if (p < 0.0001) return p.toFixed(6);
-  if (p < 0.01) return p.toFixed(4);
-  return p.toFixed(3);
-}
-
 export function WalletPage({
   tonBalance,
   depositBalance,
@@ -116,12 +108,18 @@ export function WalletPage({
   const [stardustChangePct, setStardustChangePct] = useState<number | null>(() =>
     getRolling24hChange("stardust-index", initialMarket.stardustIndex),
   );
+  const [gramChangePct, setGramChangePct] = useState<number | null>(() =>
+    initialMarket.tonPriceUsd != null
+      ? getRolling24hChange("gram-ton-usd", initialMarket.tonPriceUsd)
+      : null,
+  );
 
   const applyMarketCache = useCallback(() => {
     const cached = readWalletMarketCacheForDisplay();
     if (cached.tonPriceUsd != null) {
       setTonPrice(cached.tonPriceUsd);
       setPriceLoading(false);
+      setGramChangePct(getRolling24hChange("gram-ton-usd", cached.tonPriceUsd));
     }
     if (cached.zoomPriceGram != null) {
       setZoomPriceGram(cached.zoomPriceGram);
@@ -172,13 +170,14 @@ export function WalletPage({
   const stardustGramValue = liveStardustBalance > 0
     ? (liveStardustBalance * stardustIndex) / 100
     : null;
-  // Under-icon line: unit/portfolio value + 24h % (no "GRAM" label).
-  const zoomIconValue = balance > 0 && zoomGramValue != null
-    ? formatGramValueFull(zoomGramValue)
-    : formatZoomUnitGram(zoomPriceGram);
-  const stardustIconValue = liveStardustBalance > 0 && stardustGramValue != null
-    ? formatGramValueFull(stardustGramValue)
-    : formatGramValueFull(stardustIndex);
+  // Under-icon: live chart unit (ZOOM ≈ 0.000001, Stardust ≈ 1.000000, GRAM = TON USD).
+  // Icons scale with the same 24h chart % so they grow/shrink with the real market.
+  const zoomIconValue = formatZoomChartPrice(zoomPriceGram);
+  const stardustIconValue = formatStardustChartIndex(stardustIndex);
+  const gramIconValue = formatGramChartUsd(tonPrice);
+  const gramIconScale = chartIconScale(gramChangePct);
+  const zoomIconScale = chartIconScale(zoomChangePct);
+  const stardustIconScale = chartIconScale(stardustChangePct);
   const redStarGramValue = redStarBalance > 0 ? redStarBalance * REDSTAR_GRAM_PER_UNIT : null;
   const nftStarGramValue = nftStarBalance > 0 ? nftStarBalance * NFTSTAR_GRAM_PER_UNIT : null;
   const redStarIconValue = redStarBalance > 0 && redStarGramValue != null
@@ -200,6 +199,7 @@ export function WalletPage({
   const handleGramPriceUpdate = useCallback((p: number) => {
     setTonPrice(p);
     setPriceLoading(false);
+    setGramChangePct(getRolling24hChange("gram-ton-usd", p));
   }, []);
 
   return (
@@ -291,7 +291,56 @@ export function WalletPage({
                 overflow: "hidden",
               }}
             >
-              <GramWalletIcon size={tonBalance >= 1000 ? 28 : 32} />
+              <span
+                style={{
+                  display: "inline-flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 2,
+                  flexShrink: 0,
+                }}
+              >
+                <span
+                  style={{
+                    display: "inline-flex",
+                    transform: `scale(${gramIconScale})`,
+                    transformOrigin: "center bottom",
+                    transition: "transform 0.45s ease",
+                  }}
+                >
+                  <GramWalletIcon size={tonBalance >= 1000 ? 28 : 32} />
+                </span>
+                <span
+                  style={{
+                    fontSize: 8,
+                    fontWeight: 700,
+                    color: "rgba(255,255,255,0.55)",
+                    fontVariantNumeric: "tabular-nums",
+                    letterSpacing: "0.01em",
+                    whiteSpace: "nowrap",
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {gramIconValue}
+                </span>
+                {gramChangePct != null && (
+                  <span
+                    style={{
+                      fontSize: 8,
+                      fontWeight: 800,
+                      color: gramChangePct > 0
+                        ? "rgba(0,255,140,0.75)"
+                        : gramChangePct < 0
+                          ? "rgba(255,100,100,0.75)"
+                          : "rgba(255,255,255,0.35)",
+                      fontVariantNumeric: "tabular-nums",
+                      lineHeight: 1.1,
+                    }}
+                  >
+                    {formatChangePct(gramChangePct)}
+                  </span>
+                )}
+              </span>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {tonBalance.toFixed(4)}
               </span>
@@ -377,7 +426,7 @@ export function WalletPage({
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {/* ZOOM S2 — cube logo, live GRAM portfolio under balance */}
+          {/* ZOOM S2 — cube logo, live chart unit under icon (grows/shrinks with %) */}
           <BalanceRow
             icon={<ZoomCubeIcon size={BALANCE_ICON_SIZE} />}
             label={t("walletPage.zoomS2")}
@@ -388,6 +437,7 @@ export function WalletPage({
             priceLoading={priceLoading}
             changePct={zoomChangePct}
             iconSubValue={zoomIconValue}
+            iconScale={zoomIconScale}
             onClick={() => setZoomMarketOpen(true)}
             hint={t("walletPage.zoomHint")}
             data-testid="wallet-zoom-balance"
@@ -403,6 +453,7 @@ export function WalletPage({
             priceLoading={priceLoading}
             changePct={stardustChangePct}
             iconSubValue={stardustIconValue}
+            iconScale={stardustIconScale}
             onClick={() => setStardustMarketOpen(true)}
             hint={t("walletPage.stardustHint")}
           />
@@ -540,6 +591,7 @@ function BalanceRow({
   priceLoading,
   changePct,
   iconSubValue,
+  iconScale = 1,
   referenceOnly,
   onClick,
   hint,
@@ -555,6 +607,8 @@ function BalanceRow({
   priceLoading?: boolean;
   changePct?: number | null;
   iconSubValue?: string;
+  /** Live chart scale — emoji grows/shrinks with market %. */
+  iconScale?: number;
   referenceOnly?: boolean;
   onClick?: () => void;
   hint?: string;
@@ -562,12 +616,13 @@ function BalanceRow({
 }) {
   const { t } = useT();
   const interactive = !!onClick;
-  // Under-icon always shows value + % (no GRAM). Right column keeps USD.
+  // Under-icon always shows chart unit + % (no GRAM). Right column keeps USD.
   const iconPctLabel = changePct != null ? formatChangePct(changePct) : "";
   const pctPositive = (changePct ?? 0) > 0;
   const pctNegative = (changePct ?? 0) < 0;
   const usdLabel = formatUsdFromGram(gramValue ?? null, tonPrice ?? null, !!priceLoading);
   const usdHeader = referenceOnly ? "walletPage.approxUsdRef" : "walletPage.approxUsd";
+  const scale = Number.isFinite(iconScale) ? iconScale : 1;
 
   return (
     <div
@@ -612,6 +667,9 @@ function BalanceRow({
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
+                transform: `scale(${scale})`,
+                transformOrigin: "center center",
+                transition: "transform 0.45s ease",
               }}
             >
               {icon}
