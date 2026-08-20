@@ -402,6 +402,7 @@ export function PlanetCanvas({
   const isForging = isCrafting;
   /** Never drop to 0 after forge complete — progress=0 wipes placed voxels in WebGL. */
   const forgeDisplayProgress = isCrafting ? buildProgress : (!!pendingPlanet || showVoxelLayer ? 1 : 0);
+  const labIdleAmbient = !!(backdrop && visible && forgePhase === "idle" && !pendingPlanet && !labForgePath && !isActiveCraft && !forgeRolling);
   const forgeRevealPhase: ForgePhase = pendingPlanet
     ? (forgePhase === "flash" || forgePhase === "revealed" ? forgePhase : "idle")
     : "idle";
@@ -567,7 +568,7 @@ export function PlanetCanvas({
             style={{
               lineHeight: 0,
               visibility: visible && !hideForgeCanvasDuringWheel ? "visible" : "hidden",
-              pointerEvents: showVoxelLayer && visible ? "auto" : "none",
+              pointerEvents: (showVoxelLayer || labIdleAmbient) && visible ? "auto" : "none",
             }}
           >
             <MysteryModel3D
@@ -593,6 +594,7 @@ export function PlanetCanvas({
               forgeTapRelaxed={tapRelaxed}
               performanceMode={false}
               labForgeBackdrop={true}
+              labIdleAmbient={labIdleAmbient}
               sceneActive={visible}
               onGlFailed={handleLabGlError}
               onGlContextLost={handleLabGlError}

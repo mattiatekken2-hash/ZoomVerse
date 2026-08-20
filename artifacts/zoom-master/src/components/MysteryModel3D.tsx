@@ -807,6 +807,162 @@ function forgeClayTone(index: number): THREE.Color {
   return new THREE.Color(tones[index % tones.length]!);
 }
 
+const LAB_AMBIENT_CUBE_COUNT = 14;
+
+interface LabAmbientCube {
+  px: number;
+  py: number;
+  pz: number;
+  vx: number;
+  vy: number;
+  vz: number;
+  rx: number;
+  ry: number;
+  rz: number;
+  spinX: number;
+  spinY: number;
+  spinZ: number;
+  phase: number;
+  toneIdx: number;
+  homeX: number;
+  homeY: number;
+  homeZ: number;
+  orbitR: number;
+  orbitRy: number;
+  orbitA: number;
+  orbitB: number;
+  orbitSpeed: number;
+}
+
+function triggerLabAmbientBurst(cubes: LabAmbientCube[]): void {
+  for (const c of cubes) {
+    const d = Math.max(0.22, Math.hypot(c.px, c.py, c.pz));
+    const push = 0.42 + Math.random() * 0.18;
+    c.vx += (c.px / d) * push;
+    c.vy += (c.py / d) * push;
+    c.vz += (c.pz / d) * push;
+  }
+}
+
+/** Relaxing drift with occasional cluster-in / breathe-out cycles. */
+function updateLabAmbientPhysics(cubes: LabAmbientCube[], dt: number, now: number, burstUntil: number): void {
+  const waveA = 0.5 + 0.5 * Math.sin(now * 0.00026 + 1.37);
+  const waveB = 0.5 + 0.5 * Math.sin(now * 0.00015 + 2.85);
+  const clusterT = Math.pow(Math.min(1, Math.max(0, waveA * 0.58 + waveB * 0.42)), 1.4);
+
+  const bounds = 3.35;
+  const boundsY = bounds * 0.78;
+  const minSep = 0.11;
+  const minSep2 = minSep * minSep;
+  const burstActive = now < burstUntil;
+  const burstFade = burstActive ? Math.max(0, (burstUntil - now) / 1600) : 0;
+
+  for (let i = 0; i < cubes.length; i++) {
+    const c = cubes[i]!;
+    const orbitT = now * 0.0009 * c.orbitSpeed + c.phase;
+    const targetX = c.homeX + Math.cos(orbitT + c.orbitA) * c.orbitR;
+    const targetY = c.homeY + Math.sin(orbitT * 0.82 + c.orbitB) * c.orbitRy;
+    const targetZ = c.homeZ + Math.sin(orbitT + c.orbitA * 0.7) * c.orbitR;
+
+    const homePull = 0.000048 * (1 - clusterT);
+    c.vx += (targetX - c.px) * homePull * dt;
+    c.vy += (targetY - c.py) * homePull * dt;
+    c.vz += (targetZ - c.pz) * homePull * dt;
+
+    const clusterPull = 0.0001 * clusterT;
+    c.vx -= c.px * clusterPull * dt;
+    c.vy -= c.py * clusterPull * dt;
+    c.vz -= c.pz * clusterPull * dt;
+
+    if (burstActive) {
+      const d = Math.max(0.2, Math.hypot(c.px, c.py, c.pz));
+      const push = 0.00042 * burstFade * dt;
+      c.vx += (c.px / d) * push;
+      c.vy += (c.py / d) * push;
+      c.vz += (c.pz / d) * push;
+    }
+
+    for (let j = i + 1; j < cubes.length; j++) {
+      const o = cubes[j]!;
+      const dx = c.px - o.px;
+      const dy = c.py - o.py;
+      const dz = c.pz - o.pz;
+      const d2 = dx * dx + dy * dy + dz * dz;
+      if (d2 >= minSep2 || d2 < 0.0001) continue;
+      const d = Math.sqrt(d2);
+      const push = ((minSep - d) / minSep) * 0.0014 * dt;
+      c.vx += (dx / d) * push;
+      c.vy += (dy / d) * push;
+      c.vz += (dz / d) * push;
+      o.vx -= (dx / d) * push;
+      o.vy -= (dy / d) * push;
+      o.vz -= (dz / d) * push;
+    }
+
+    c.px += c.vx * dt * 0.02;
+    c.py += c.vy * dt * 0.02;
+    c.pz += c.vz * dt * 0.02;
+
+    if (Math.abs(c.px) > bounds) {
+      c.px = Math.sign(c.px) * bounds;
+      c.vx *= -0.68;
+    }
+    if (Math.abs(c.py) > boundsY) {
+      c.py = Math.sign(c.py) * boundsY;
+      c.vy *= -0.68;
+    }
+    if (Math.abs(c.pz) > bounds) {
+      c.pz = Math.sign(c.pz) * bounds;
+      c.vz *= -0.68;
+    }
+
+    c.vx *= 0.9988;
+    c.vy *= 0.9988;
+    c.vz *= 0.9988;
+    c.rx += c.spinX * dt;
+    c.ry += c.spinY * dt;
+    c.rz += c.spinZ * dt;
+  }
+}
+
+function seedLabAmbientCubes(): { voxels: VoxelCell[]; cubes: LabAmbientCube[]; radius: number } {
+  const voxels: VoxelCell[] = [];
+  const cubes: LabAmbientCube[] = [];
+  for (let i = 0; i < LAB_AMBIENT_CUBE_COUNT; i++) {
+    const theta = (i / LAB_AMBIENT_CUBE_COUNT) * Math.PI * 2 + Math.random() * 0.55;
+    const spread = 1.35 + Math.random() * 1.65;
+    const px = Math.cos(theta) * spread;
+    const py = (Math.random() - 0.5) * 2.1;
+    const pz = Math.sin(theta) * spread;
+    voxels.push({ x: px, y: py, z: pz, color: FORGE_CLAY_HEX });
+    cubes.push({
+      px,
+      py,
+      pz,
+      vx: (Math.random() - 0.5) * 0.06,
+      vy: (Math.random() - 0.5) * 0.04,
+      vz: (Math.random() - 0.5) * 0.06,
+      rx: Math.random() * Math.PI,
+      ry: Math.random() * Math.PI,
+      rz: Math.random() * Math.PI,
+      spinX: (Math.random() - 0.5) * 0.0014,
+      spinY: (Math.random() - 0.5) * 0.0018,
+      spinZ: (Math.random() - 0.5) * 0.0014,
+      phase: Math.random() * Math.PI * 2,
+      toneIdx: i % 4,
+      homeX: px,
+      homeY: py,
+      homeZ: pz,
+      orbitR: 0.32 + Math.random() * 0.62,
+      orbitRy: 0.22 + Math.random() * 0.48,
+      orbitA: Math.random() * Math.PI * 2,
+      orbitB: Math.random() * Math.PI * 2,
+      orbitSpeed: 0.55 + Math.random() * 0.95,
+    });
+  }
+  return { voxels, cubes, radius: 2.8 };
+}
+
 function addForgeSpaceGrid(scene: THREE.Scene, maxDim: number): THREE.Object3D[] {
   const extras: THREE.Object3D[] = [];
   const span = maxDim * 3.6;
@@ -1121,6 +1277,8 @@ interface ObjectMesh3DProps {
   sceneActive?: boolean;
   /** Lab picker / reveal — exact GLB on forge space grid, auto-spin. */
   labGlbPreview?: boolean;
+  /** Lab idle — floating grey HD voxels before START BUILD. */
+  labIdleAmbient?: boolean;
 }
 
 function resolveColor(c: MeshPart["color"], primary: string, accent: string): string {
@@ -1286,6 +1444,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
   viewportHeight,
   sceneActive = true,
   labGlbPreview = false,
+  labIdleAmbient = false,
 }, ref) {
   const mountRef = useRef<HTMLDivElement>(null);
   const sceneActiveRef = useRef(sceneActive);
@@ -1614,10 +1773,11 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     else if (showcase && !planetShowcase && !labCollectibleShowcase) scene.background = new THREE.Color(0x060810);
     else if (forgeSpaceMode) scene.background = null;
     const labForgeZoomOut = labForgeBackdrop && forgeSpaceMode;
+    const labVisualOrbitIdle = labIdleAmbient && labForgeBackdrop;
     const camera = new THREE.PerspectiveCamera(
       showcase ? 38 : labForgeZoomOut ? 48 : 42,
       canvasW / canvasH,
-      0.1,
+      labVisualOrbitIdle ? 0.02 : 0.1,
       100,
     );
     cameraRef.current = camera;
@@ -1804,9 +1964,15 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     let forgeVoxels: VoxelCell[] = [];
     let voxelStep = FORGE_VOXEL_SIZE;
     let forgeSphereRadius = 4;
+    let ambientCubes: LabAmbientCube[] | null = null;
     if (useForgeVoxels) {
       try {
-        if (shapeId === FORGE_SPHERE_SHAPE_ID) {
+        if (labIdleAmbient && labForgeBackdrop) {
+          const seeded = seedLabAmbientCubes();
+          forgeVoxels = seeded.voxels;
+          ambientCubes = seeded.cubes;
+          forgeSphereRadius = seeded.radius;
+        } else if (shapeId === FORGE_SPHERE_SHAPE_ID) {
           const bp = getForgeSphereBlueprint(primaryColor, accentColor, {
             display: planetShowcase && !labCollectibleShowcase,
             premiumDisplay: premiumPlanetShowcase,
@@ -2190,24 +2356,41 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     }
 
     const controls = new OrbitControls(camera, renderer.domElement);
+    const labVisualOrbit = labVisualOrbitIdle;
+    const orbitEnabled = interactive || labVisualOrbit;
     controls.enablePan = false;
-    controls.enableZoom = interactive;
-    controls.enableRotate = interactive;
+    controls.enableZoom = orbitEnabled;
+    controls.enableRotate = orbitEnabled;
     controls.rotateSpeed = 0.85;
-    controls.zoomSpeed = 0.9;
-    controls.minDistance = maxDim * (labForgeZoomOut ? 2.4 : 1.1);
-    controls.maxDistance = labForgeZoomOut ? labForgeCamFar : maxDim * 4;
+    controls.zoomSpeed = labVisualOrbit ? 1.25 : 0.9;
+    if (labVisualOrbit) {
+      // Macro HD — fill the screen with a single clay voxel.
+      controls.minDistance = Math.max(voxelStep * 1.25, 0.1);
+      controls.maxDistance = labForgeCamFar;
+    } else {
+      controls.minDistance = maxDim * (labForgeZoomOut ? 2.4 : 1.1);
+      controls.maxDistance = labForgeZoomOut ? labForgeCamFar : maxDim * 4;
+    }
     controls.enableDamping = !performanceMode;
     controls.dampingFactor = performanceMode ? 0 : 0.08;
     controls.target.set(0, 0, 0);
-    if (!interactive) {
+    if (!orbitEnabled) {
       renderer.domElement.style.pointerEvents = "none";
+    } else {
+      renderer.domElement.style.pointerEvents = "auto";
+      renderer.domElement.style.touchAction = "none";
+      renderer.domElement.style.cursor = labVisualOrbit && !interactive ? "grab" : undefined;
     }
 
     let dragging = false;
+    let idleCamAuto = labVisualOrbit;
+    let ambientBurstUntil = 0;
     let downX = 0;
     let downY = 0;
-    controls.addEventListener("start", () => { dragging = true; });
+    controls.addEventListener("start", () => {
+      dragging = true;
+      if (labVisualOrbit) idleCamAuto = false;
+    });
     controls.addEventListener("end", () => { dragging = false; });
     const resetDragging = () => { dragging = false; };
     const onPointerDown = (e: PointerEvent) => {
@@ -2215,8 +2398,15 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       downY = e.clientY;
     };
     const onPointerUp = (e: PointerEvent) => {
+      const moved = Math.hypot(e.clientX - downX, e.clientY - downY);
       resetDragging();
-      if (Math.hypot(e.clientX - downX, e.clientY - downY) < 10 && onTapRef.current) {
+      if (labVisualOrbit && !interactive && moved < 12 && ambientCubes) {
+        ambientBurstUntil = performance.now() + 1600;
+        triggerLabAmbientBurst(ambientCubes);
+        return;
+      }
+      if (!interactive) return;
+      if (moved < 10 && onTapRef.current) {
         e.stopPropagation();
         const rect = renderer.domElement.getBoundingClientRect();
         const cx = rect.left + rect.width / 2;
@@ -2410,7 +2600,63 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
         if (edgeLines) edgeLines.visible = true;
         group.scale.setScalar(1);
 
-        if (inForgeRevealPaint) {
+        if (ambientCubes && labIdleAmbient && !interactive && !inForgeSequence) {
+          const voxMat = voxMesh.material as THREE.MeshBasicMaterial;
+          voxMat.vertexColors = false;
+          voxMat.transparent = true;
+          voxMat.toneMapped = false;
+          voxMat.needsUpdate = true;
+          if (edgeLines) {
+            const edgeMat = edgeLines.material as THREE.LineBasicMaterial;
+            edgeMat.transparent = false;
+            edgeMat.opacity = 1;
+            edgeMat.needsUpdate = true;
+            edgeLines.visible = true;
+          }
+
+          updateLabAmbientPhysics(ambientCubes, dt, now, ambientBurstUntil);
+          for (let i = 0; i < ambientCubes.length; i++) {
+            const c = ambientCubes[i]!;
+
+            const pulse = 0.9 + Math.sin(now * 0.0015 + c.phase) * 0.06;
+            voxelDummy.position.set(c.px, c.py, c.pz);
+            voxelDummy.rotation.set(c.rx, c.ry, c.rz);
+            voxelDummy.scale.setScalar(pulse);
+            voxelDummy.updateMatrix();
+            voxMesh.setMatrixAt(i, voxelDummy.matrix);
+            voxMat.color.set(FORGE_CLAY);
+            voxMat.opacity = 0.78 + Math.sin(now * 0.0018 + c.phase) * 0.1;
+            if (edgePosBuf) {
+              const base = i * edgeVertCount * 3;
+              for (let j = 0; j < edgeVertCount; j++) {
+                const t = j * 3;
+                edgeScratch.set(
+                  edgeTpl.positions[t]! * cubeSize * pulse,
+                  edgeTpl.positions[t + 1]! * cubeSize * pulse,
+                  edgeTpl.positions[t + 2]! * cubeSize * pulse,
+                );
+                edgeScratch.applyMatrix4(voxelDummy.matrix);
+                edgePosBuf[base + t] = edgeScratch.x;
+                edgePosBuf[base + t + 1] = edgeScratch.y;
+                edgePosBuf[base + t + 2] = edgeScratch.z;
+              }
+            }
+          }
+          voxMesh.count = ambientCubes.length;
+          voxMesh.instanceMatrix.needsUpdate = true;
+          voxMat.needsUpdate = true;
+          if (edgeLines && edgePosBuf) {
+            edgeLines.geometry.setDrawRange(0, ambientCubes.length * edgeVertCount);
+            edgeLines.geometry.attributes.position!.needsUpdate = true;
+          }
+
+          const camPulse = 1 + Math.sin(now * 0.00075) * 0.07;
+          if (idleCamAuto && !dragging) {
+            camera.position.copy(labForgeCamDir).multiplyScalar(labForgeCamFar * 0.52 * camPulse);
+            camera.lookAt(0, 0, 0);
+          }
+          touchedMesh = true;
+        } else if (inForgeRevealPaint) {
           if (labGlbUrl && labGlbRoot) {
             if (!labGlbRoot.userData["labForgeGlbScaled"]) {
               fitGlbToCenter(labGlbRoot, LAB_GLB_FIT_SIZE);
@@ -2759,13 +3005,15 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
       } // end voxel vs part forge branch
 
-      if (autoSpin && (!dragging || labForgeBackdrop)) {
+      if (autoSpin && (!dragging || (labForgeBackdrop && !labIdleAmbient))) {
         group.rotation.y += (dt / 16.67) * (planetShowcase ? 0.0024 : showcase ? 0.0028 : 0.0035);
       }
-      if (interactive) controls.update();
+      if (orbitEnabled) controls.update();
       const stillMoving = Math.abs(targetP - assembly) > 0.0008
         || (paintT > 0 && paintT < 1 && !inForgeRevealPaint);
-      if (labForgeBackdrop || isLiveForge || autoSpin || stillMoving || touchedMesh || dragging || st.revealed || inForgeSequence) {
+      if (labIdleAmbient && ambientCubes && !interactive && !inForgeSequence) {
+        draw(camera);
+      } else if (labForgeBackdrop || isLiveForge || autoSpin || stillMoving || touchedMesh || dragging || st.revealed || inForgeSequence) {
         draw(camera);
       }
     };
@@ -2825,7 +3073,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       rendererRef.current = null;
     };
   }, labForgeBackdrop
-    ? [size, meshParts, shapeId, autoSpin, interactive, forgeVoxelBuild, forgeTapRelaxed, opaqueBackground, performanceMode, labForgeBackdrop, labGlbPreview, viewportWidth, viewportHeight]
+    ? [size, meshParts, shapeId, autoSpin, interactive, forgeVoxelBuild, forgeTapRelaxed, opaqueBackground, performanceMode, labForgeBackdrop, labGlbPreview, labIdleAmbient, viewportWidth, viewportHeight]
     : [size, meshParts, shapeId, autoSpin, interactive, forgeVoxelBuild, forgeTapRelaxed, opaqueBackground, performanceMode, labGlbPreview, planetRarity, displayFloat, planetId, primaryColor, accentColor]);
 
   return (
