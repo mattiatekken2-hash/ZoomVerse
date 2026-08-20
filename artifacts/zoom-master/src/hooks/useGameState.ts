@@ -1999,6 +1999,49 @@ function migrateLegacyNeverStartedPlanet<T extends Planet>(p: T): T {
   return { ...p, farmStartedAt: 0, lastCollectedAt: 0 };
 }
 
+/** Keep optimistic farm start / listing state when server sync is behind local save. */
+function mergeServerPlanetWithClient(serverP: Planet, clientP: Planet | undefined): Planet {
+  if (!clientP) return serverP;
+  if (clientP.isListedInMarket && clientP.serverListingId != null) {
+    return {
+      ...serverP,
+      isListedInMarket: true,
+      isFarmingActive: false,
+      marketPrice: clientP.marketPrice,
+      serverListingId: clientP.serverListingId,
+      pausedAt: clientP.pausedAt,
+    };
+  }
+  if (clientP.isFarmingActive && !serverP.isFarmingActive) {
+    const clientStart = clientP.farmStartedAt ?? 0;
+    const serverStart = serverP.farmStartedAt ?? 0;
+    if (clientStart >= serverStart) {
+      return {
+        ...serverP,
+        isFarmingActive: true,
+        farmStartedAt: clientP.farmStartedAt,
+        lastCollectedAt: clientP.lastCollectedAt,
+        pausedAt: clientP.pausedAt ?? 0,
+        durability: clientP.durability ?? serverP.durability,
+        durabilityUpdatedAt: clientP.durabilityUpdatedAt ?? serverP.durabilityUpdatedAt,
+      };
+    }
+  }
+  if (clientP.isFarmingActive && serverP.isFarmingActive) {
+    const clientEff = Math.max(clientP.farmStartedAt ?? 0, clientP.lastCollectedAt ?? 0);
+    const serverEff = Math.max(serverP.farmStartedAt ?? 0, serverP.lastCollectedAt ?? 0);
+    if (clientEff > serverEff) {
+      return {
+        ...serverP,
+        farmStartedAt: clientP.farmStartedAt,
+        lastCollectedAt: clientP.lastCollectedAt,
+        pausedAt: clientP.pausedAt ?? 0,
+      };
+    }
+  }
+  return serverP;
+}
+
 /**
  * "Effective" farm start timestamp.
  *
@@ -2661,27 +2704,10 @@ export function useGameState() {
                   .map((p) => applyDailyCollectMigration(p, nowMs))
                   .map(applyModelRarityColors)
                   .map((serverP) => {
-                  // Race-condition guard: the debounced save (1.2s) may not
-                  // have reached the server yet when this sync fires.
-                  // Preserve client-side listing state so a listed planet
-                  // doesn't flash back into inventory on the next sync.
                   const clientP = stateRef.current.planets.find(
                     (cp) => cp.id === serverP.id,
                   );
-                  if (
-                    clientP?.isListedInMarket &&
-                    clientP?.serverListingId != null
-                  ) {
-                    return {
-                      ...serverP,
-                      isListedInMarket: true,
-                      isFarmingActive: false,
-                      marketPrice: clientP.marketPrice,
-                      serverListingId: clientP.serverListingId,
-                      pausedAt: clientP.pausedAt,
-                    };
-                  }
-                  return serverP;
+                  return mergeServerPlanetWithClient(serverP, clientP);
                 }),
               ).filter(isLabForgeGeneratorPlanet),
             };
@@ -4582,6 +4608,21 @@ export function useGameState() {
       };
       saveState(updated);
       if (prev.telegramId) {
+        void saveRegularPlanets(
+          prev.telegramId,
+          updated.planets as unknown as Array<Record<string, unknown>>,
+          {
+            basic: updated.claimedBonusBasic ?? 0,
+            rare: updated.claimedBonusRare ?? 0,
+            epic: updated.claimedBonusEpic ?? 0,
+            gold: updated.claimedBonusGold ?? 0,
+            mythic: updated.claimedBonusMythic ?? 0,
+            plasma: updated.claimedBonusPlasma ?? 0,
+            v1: updated.claimedBonusV1 ?? 0,
+            v1NftPlatinum: updated.claimedBonusV1NftPlatinum ?? 0,
+          },
+          updated.craftsCompleted,
+        );
         if (isReactivation) {
           notifyFarmReactivate(prev.telegramId, id, planet.name, planet.farmDurationHours ?? 1);
         } else {
