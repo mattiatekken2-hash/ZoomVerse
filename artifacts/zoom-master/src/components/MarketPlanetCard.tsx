@@ -5,6 +5,7 @@ import {
   LAB_ZOOM_FARM_RATE,
   isLabStardustShapeId,
   isLabZoomShapeId,
+  resolveLabStardustShapeId,
   labMarketPathForShapeId,
   type LabMarketPath,
 } from "@workspace/game-models";
@@ -53,14 +54,20 @@ interface Props {
 function resolveTitle(listing: MarketPlanetListingView, path: LabMarketPath): string {
   if (listing.displayName && listing.displayName.trim()) return listing.displayName;
   if (isLabZoomShapeId(listing.shapeId)) return LAB_ZOOM_DISPLAY_NAME[listing.shapeId];
-  if (isLabStardustShapeId(listing.shapeId)) return LAB_STARDUST_DISPLAY_NAME[listing.shapeId];
+  if (isLabStardustShapeId(listing.shapeId)) {
+    const id = resolveLabStardustShapeId(listing.shapeId)!;
+    return LAB_STARDUST_DISPLAY_NAME[id];
+  }
   return path === "zoom" ? "ZOOM Model" : "Stardust Model";
 }
 
 function resolveRate(listing: MarketPlanetListingView, path: LabMarketPath): number {
   if (listing.rate > 0) return listing.rate;
   if (isLabZoomShapeId(listing.shapeId)) return LAB_ZOOM_FARM_RATE[listing.shapeId];
-  if (isLabStardustShapeId(listing.shapeId)) return LAB_STARDUST_FARM_RATE[listing.shapeId];
+  if (isLabStardustShapeId(listing.shapeId)) {
+    const id = resolveLabStardustShapeId(listing.shapeId)!;
+    return LAB_STARDUST_FARM_RATE[id];
+  }
   return path === "stardust" ? 0.22 : 3.5;
 }
 

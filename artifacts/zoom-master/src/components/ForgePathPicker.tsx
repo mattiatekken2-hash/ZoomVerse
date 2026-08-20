@@ -145,7 +145,7 @@ function ForgePathPickerBase({
               path="stardust"
               shapeIds={LAB_STARDUST_SHAPE_IDS}
               badge="★ STARDUST"
-              name="Street Scene · Island Home · Pot"
+              name="Onigiri · Island Home · Pot"
               costLabel={`${LAB_STARDUST_FORGE_ZOOM_COST} $ZOOM`}
               yieldLabel="0.20–0.28 ★/h"
               enabled={canStardust}

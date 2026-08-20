@@ -14,18 +14,20 @@ export const SHAPE_GLB_ASSETS: Partial<Record<string, string>> = {
   flower: "/models/flower.glb",
   dollar: "/models/dollar.glb",
   stardust_pot: "/models/stardust_pot.glb",
-  street_scene: "/models/street_scene.glb",
+  onigiri: "/models/onigiri.glb",
+  street_scene: "/models/onigiri.glb",
   island_home: "/models/island_home.glb",
 };
 
 /** Bust stale CDN / Telegram cache when Lab GLB assets are replaced. */
-const LAB_GLB_CACHE_BUST = "20260820d";
+const LAB_GLB_CACHE_BUST = "20260820e";
 
 const LAB_GLB_SHAPE_IDS = new Set([
   "pizza",
   "flower",
   "dollar",
   "stardust_pot",
+  "onigiri",
   "street_scene",
   "island_home",
 ]);
