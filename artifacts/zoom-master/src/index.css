@@ -3135,3 +3135,42 @@ body.animations-paused * {
   background: linear-gradient(90deg, #7a9ec8, #c5daf0);
 >>>>>>> 4e502a1 (Polish Earn UI and fix unreplaced reward placeholders)
 }
+
+.earn-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 22px 12px;
+  border-radius: 14px;
+  background: rgba(255, 51, 85, 0.08);
+  border: 1px solid rgba(255, 51, 85, 0.35);
+}
+.earn-loading__spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 3px solid rgba(255, 51, 85, 0.22);
+  border-top-color: #ff3355;
+  animation: earn-spin 0.75s linear infinite;
+}
+.earn-loading__text {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ff3355;
+}
+@keyframes earn-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .earn-loading__spinner { animation: none; border-top-color: #ff3355; opacity: 0.85; }
+}
+.earn-cta--busy {
+  color: #ff3355 !important;
+  border-color: rgba(255, 51, 85, 0.35) !important;
+  background: rgba(255, 51, 85, 0.1) !important;
+  box-shadow: none !important;
+}

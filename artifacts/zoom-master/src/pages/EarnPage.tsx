@@ -449,7 +449,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           </div>
 
           <button
-            className={`earn-cta ${canClaim && !claiming ? "earn-cta--primary" : ""}`}
+            className={`earn-cta ${claiming ? "earn-cta--busy" : canClaim ? "earn-cta--primary" : ""}`}
             onClick={handleClaimStreak}
             disabled={!canClaim || claiming}
             data-testid="button-claim-daily"
@@ -470,6 +470,73 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           </p>
         </section>
 
+        {/* Weekly REDSTAR */}
+        <section className="earn-panel">
+          <div className="flex items-center gap-3 mb-3">
+            <div style={{ fontSize: 22, lineHeight: 1, color: "#ff3355" }}>★</div>
+            <div className="flex-1 min-w-0">
+              <div className="font-black text-[15px] tracking-wide" style={{ color: "var(--earn-ink)" }}>{t("earn.watchAndEarn")}</div>
+              <div className="mt-1">
+                <span className="earn-reward-chip">+{WEEKLY_REDSTAR_REWARD} ★ REDSTAR / day</span>
+              </div>
+            </div>
+            <div
+              className="flex flex-col items-center justify-center rounded-lg px-2.5 py-1 border font-black tabular-nums"
+              style={{
+                background: claimedToday ? "rgba(0,230,118,0.08)" : "rgba(158,197,232,0.08)",
+                borderColor: claimedToday ? "rgba(0,230,118,0.28)" : "rgba(158,197,232,0.22)",
+                color: claimedToday ? "#00e676" : "#E8ECF4",
+                minWidth: 48,
+              }}
+            >
+              <div style={{ fontSize: 14 }}>{cycleDay}/{WEEKLY_CYCLE_DAYS}</div>
+            </div>
+          </div>
+          <div className="flex gap-1.5 mb-3">
+            {Array.from({ length: WEEKLY_CYCLE_DAYS }, (_, i) => {
+              const dayNum = i + 1;
+              const done = claimedToday ? dayNum <= cycleDay : dayNum < cycleDay;
+              const active = dayNum === cycleDay;
+              return (
+                <div
+                  key={dayNum}
+                  className="flex-1 h-1.5 rounded-full"
+                  style={{
+                    background: done
+                      ? "linear-gradient(90deg, #7a9ec8, #9EC5E8)"
+                      : active
+                        ? "linear-gradient(90deg, #C9D6E8, #9EC5E8)"
+                        : "rgba(255,255,255,0.08)",
+                  }}
+                />
+              );
+            })}
+          </div>
+          <button
+            onClick={() => void handleClaimWeeklyRedStar()}
+            disabled={claimingRedStar || claimedToday || !telegramId}
+            className={`earn-cta ${!claimedToday && !claimingRedStar && telegramId ? "earn-cta--primary" : ""}`}
+          >
+            {claimedToday
+              ? t("earn.claimedTodayReturn")
+              : claimingRedStar
+                ? t("earn.claimingRedStar")
+                : `${t("earn.claimBtn")} · +${WEEKLY_REDSTAR_REWARD} ★ REDSTAR`}
+          </button>
+          {redStarMsg && (
+            <div
+              className="mt-2 text-center text-xs font-bold py-2 rounded-lg"
+              style={{
+                color: redStarMsg.startsWith("+") ? "#00e676" : "#ffb347",
+                background: redStarMsg.startsWith("+") ? "rgba(0,230,118,0.08)" : "rgba(255,183,71,0.08)",
+                border: `1px solid ${redStarMsg.startsWith("+") ? "rgba(0,230,118,0.2)" : "rgba(255,183,71,0.2)"}`,
+              }}
+            >
+              {redStarMsg}
+            </div>
+          )}
+        </section>
+
         {/* Lab tasks */}
         <section className="earn-panel">
           <div className="flex items-end justify-between mb-3">
@@ -487,7 +554,10 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           </div>
 
           {tasksLoading && !tasks && (
-            <div className="text-center text-xs py-4" style={{ color: "rgba(255,255,255,0.35)" }}>{t("earn.loadingTasks")}</div>
+            <div className="earn-loading" role="status" aria-live="polite">
+              <span className="earn-loading__spinner" aria-hidden />
+              <span className="earn-loading__text">{t("earn.loadingTasks")}</span>
+            </div>
           )}
           {tasksError && (
             <div className="text-center text-xs py-2 mb-2 rounded-lg" style={{ color: "#ff5252", background: "rgba(255,82,82,0.06)", border: "1px solid rgba(255,82,82,0.18)" }}>
@@ -732,72 +802,6 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           )}
         </section>
 
-        {/* Weekly REDSTAR */}
-        <section className="earn-panel">
-          <div className="flex items-center gap-3 mb-3">
-            <div style={{ fontSize: 22, lineHeight: 1, color: "#ff3355" }}>★</div>
-            <div className="flex-1 min-w-0">
-              <div className="font-black text-[15px] tracking-wide" style={{ color: "var(--earn-ink)" }}>{t("earn.watchAndEarn")}</div>
-              <div className="mt-1">
-                <span className="earn-reward-chip">+{WEEKLY_REDSTAR_REWARD} ★ REDSTAR / day</span>
-              </div>
-            </div>
-            <div
-              className="flex flex-col items-center justify-center rounded-lg px-2.5 py-1 border font-black tabular-nums"
-              style={{
-                background: claimedToday ? "rgba(0,230,118,0.08)" : "rgba(158,197,232,0.08)",
-                borderColor: claimedToday ? "rgba(0,230,118,0.28)" : "rgba(158,197,232,0.22)",
-                color: claimedToday ? "#00e676" : "#E8ECF4",
-                minWidth: 48,
-              }}
-            >
-              <div style={{ fontSize: 14 }}>{cycleDay}/{WEEKLY_CYCLE_DAYS}</div>
-            </div>
-          </div>
-          <div className="flex gap-1.5 mb-3">
-            {Array.from({ length: WEEKLY_CYCLE_DAYS }, (_, i) => {
-              const dayNum = i + 1;
-              const done = claimedToday ? dayNum <= cycleDay : dayNum < cycleDay;
-              const active = dayNum === cycleDay;
-              return (
-                <div
-                  key={dayNum}
-                  className="flex-1 h-1.5 rounded-full"
-                  style={{
-                    background: done
-                      ? "linear-gradient(90deg, #7a9ec8, #9EC5E8)"
-                      : active
-                        ? "linear-gradient(90deg, #C9D6E8, #9EC5E8)"
-                        : "rgba(255,255,255,0.08)",
-                  }}
-                />
-              );
-            })}
-          </div>
-          <button
-            onClick={() => void handleClaimWeeklyRedStar()}
-            disabled={claimingRedStar || claimedToday || !telegramId}
-            className={`earn-cta ${!claimedToday && !claimingRedStar && telegramId ? "earn-cta--primary" : ""}`}
-          >
-            {claimedToday
-              ? t("earn.claimedTodayReturn")
-              : claimingRedStar
-                ? t("earn.claimingRedStar")
-                : `${t("earn.claimBtn")} · +${WEEKLY_REDSTAR_REWARD} ★ REDSTAR`}
-          </button>
-          {redStarMsg && (
-            <div
-              className="mt-2 text-center text-xs font-bold py-2 rounded-lg"
-              style={{
-                color: redStarMsg.startsWith("+") ? "#00e676" : "#ffb347",
-                background: redStarMsg.startsWith("+") ? "rgba(0,230,118,0.08)" : "rgba(255,183,71,0.08)",
-                border: `1px solid ${redStarMsg.startsWith("+") ? "rgba(0,230,118,0.2)" : "rgba(255,183,71,0.2)"}`,
-              }}
-            >
-              {redStarMsg}
-            </div>
-          )}
-        </section>
       </div>
     </div>
   );
