@@ -5,20 +5,13 @@ export * from "./meshes-extended.js";
 export * from "./voxelize.js";
 export * from "./voxel-sphere-blueprint.js";
 export * from "./glb-assets.js";
-/** Lab economy constants (single source — do not also star-export from forge-lab). */
+/**
+ * Lab economy + pick/path helpers — zero deps.
+ * Do NOT also star-export forge-lab (avoids Vite conflicting / missing named exports).
+ */
 export * from "./forge-lab-economy.js";
-/** Lab forge helpers — explicit names only (avoids Vite conflicting star exports). */
+/** Mesh/GLB forge helpers only. */
 export {
-  LAB_FORGE_TEST_PIZZA_KEY,
-  readLabForgeTestPizzaFlag,
-  clearLabForgeTestPizzaFlag,
-  LAB_DEV_WIPE_STATE_KEY,
-  isLabDevWipeActive,
-  LAB_DEV_FARM_RESET_KEY,
-  consumeLabDevFarmResetOnce,
-  enableNextLabForgePizza,
-  pickRandomLabZoomShapeId,
-  labForgeShapeForPath,
   resolveLabForgeShapeId,
   getLabForgeShapeTapGoal,
   getLabForgeShapeVoxels,

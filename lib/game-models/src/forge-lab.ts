@@ -1,3 +1,8 @@
+/**
+ * Lab forge mesh / GLB helpers.
+ * Economy constants + random path pick live in `forge-lab-economy.ts`
+ * (zero deps) so Vite named imports never hit a half-initialized module.
+ */
 import { getShapeGlbUrl } from "./glb-assets.js";
 import { getMeshParts } from "./meshes.js";
 import {
@@ -13,71 +18,9 @@ import {
 } from "./voxel-sphere-blueprint.js";
 import {
   LAB_MODEL_FORGE_GOAL,
-  LAB_PIZZA_SHAPE_ID,
   LAB_STARDUST_POT_SHAPE_ID,
-  LAB_ZOOM_SHAPE_IDS,
   isLabZoomShapeId,
-  type LabForgePath,
-  type LabZoomShapeId,
 } from "./forge-lab-economy.js";
-
-/** localStorage key — set to "1" before the next Lab forge to test pizza. */
-export const LAB_FORGE_TEST_PIZZA_KEY = "zoom-test-pizza-forge";
-
-export function readLabForgeTestPizzaFlag(): boolean {
-  try {
-    return localStorage.getItem(LAB_FORGE_TEST_PIZZA_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-export function clearLabForgeTestPizzaFlag(): void {
-  try {
-    localStorage.removeItem(LAB_FORGE_TEST_PIZZA_KEY);
-  } catch { /**/ }
-}
-
-/** Dev lab forge — on reload, strip legacy farm inventory but keep lab models (remove when shipping). */
-export const LAB_DEV_WIPE_STATE_KEY = "zoom-lab-dev-wipe-active";
-
-export function isLabDevWipeActive(): boolean {
-  try {
-    return localStorage.getItem(LAB_DEV_WIPE_STATE_KEY) !== "off";
-  } catch {
-    return true;
-  }
-}
-
-/** One-time farm reset — clears rarity spheres once after Lab market cutover. */
-export const LAB_DEV_FARM_RESET_KEY = "zoom-lab-dev-farm-reset-v3";
-
-export function consumeLabDevFarmResetOnce(): boolean {
-  try {
-    if (localStorage.getItem(LAB_DEV_FARM_RESET_KEY) === "done") return false;
-    localStorage.setItem(LAB_DEV_FARM_RESET_KEY, "done");
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export function enableNextLabForgePizza(): void {
-  try {
-    localStorage.setItem(LAB_FORGE_TEST_PIZZA_KEY, "1");
-  } catch { /**/ }
-}
-
-/** Pick a random ZOOM-path model (pizza / flower / dollar). Equal weight. */
-export function pickRandomLabZoomShapeId(): LabZoomShapeId {
-  if (readLabForgeTestPizzaFlag()) return LAB_PIZZA_SHAPE_ID;
-  const i = Math.floor(Math.random() * LAB_ZOOM_SHAPE_IDS.length);
-  return LAB_ZOOM_SHAPE_IDS[Math.max(0, Math.min(LAB_ZOOM_SHAPE_IDS.length - 1, i))]!;
-}
-
-export function labForgeShapeForPath(path: LabForgePath): string {
-  return path === "zoom" ? pickRandomLabZoomShapeId() : LAB_STARDUST_POT_SHAPE_ID;
-}
 
 export function resolveLabForgeShapeId(override: string | null | undefined): string {
   if (override && override.length > 0) return override;

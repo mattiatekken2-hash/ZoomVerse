@@ -1,4 +1,4 @@
-/** Lab ZOOM forge economy constants — isolated module (no graph cycles for Vite). */
+/** Lab ZOOM forge economy — zero-deps module (safe Vite named exports). */
 
 export const LAB_PIZZA_SHAPE_ID = "pizza";
 export const LAB_FLOWER_SHAPE_ID = "flower";
@@ -53,4 +53,62 @@ export function isLabForgeGeneratorPlanet(planet: { shapeId?: string | null }): 
   return !!planet.shapeId && (
     isLabZoomShapeId(planet.shapeId) || planet.shapeId === LAB_STARDUST_POT_SHAPE_ID
   );
+}
+
+/** localStorage key — set to "1" before the next Lab forge to force pizza. */
+export const LAB_FORGE_TEST_PIZZA_KEY = "zoom-test-pizza-forge";
+
+export function readLabForgeTestPizzaFlag(): boolean {
+  try {
+    return localStorage.getItem(LAB_FORGE_TEST_PIZZA_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function clearLabForgeTestPizzaFlag(): void {
+  try {
+    localStorage.removeItem(LAB_FORGE_TEST_PIZZA_KEY);
+  } catch { /**/ }
+}
+
+export function enableNextLabForgePizza(): void {
+  try {
+    localStorage.setItem(LAB_FORGE_TEST_PIZZA_KEY, "1");
+  } catch { /**/ }
+}
+
+/** Dev wipe — strip legacy farm inventory unless explicitly set to "off". */
+export const LAB_DEV_WIPE_STATE_KEY = "zoom-lab-dev-wipe-active";
+
+export function isLabDevWipeActive(): boolean {
+  try {
+    return localStorage.getItem(LAB_DEV_WIPE_STATE_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+/** One-time farm reset after Lab market cutover. */
+export const LAB_DEV_FARM_RESET_KEY = "zoom-lab-dev-farm-reset-v3";
+
+export function consumeLabDevFarmResetOnce(): boolean {
+  try {
+    if (localStorage.getItem(LAB_DEV_FARM_RESET_KEY) === "done") return false;
+    localStorage.setItem(LAB_DEV_FARM_RESET_KEY, "done");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Pick a random ZOOM-path model (pizza / flower / dollar). Equal weight. */
+export function pickRandomLabZoomShapeId(): LabZoomShapeId {
+  if (readLabForgeTestPizzaFlag()) return LAB_PIZZA_SHAPE_ID;
+  const i = Math.floor(Math.random() * LAB_ZOOM_SHAPE_IDS.length);
+  return LAB_ZOOM_SHAPE_IDS[Math.max(0, Math.min(LAB_ZOOM_SHAPE_IDS.length - 1, i))]!;
+}
+
+export function labForgeShapeForPath(path: LabForgePath): string {
+  return path === "zoom" ? pickRandomLabZoomShapeId() : LAB_STARDUST_POT_SHAPE_ID;
 }
