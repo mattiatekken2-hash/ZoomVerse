@@ -1,6 +1,7 @@
 import type { Planet } from "../hooks/useGameState";
 import { getPlanetDisplayColors } from "../hooks/useGameState";
-import { isLabStardustShapeId, labStardustDisplayNameFor, isLabZoomShapeId, LAB_ZOOM_DISPLAY_NAME } from "@workspace/game-models";
+import { isLabStardustShapeId, isLabZoomShapeId, LAB_ZOOM_DISPLAY_NAME } from "@workspace/game-models";
+import { labStardustDisplayNameFor } from "../utils/labForgeShape";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 
