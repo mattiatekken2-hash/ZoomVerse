@@ -511,10 +511,11 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                   className="flex-1 h-1.5 rounded-full"
                   style={{
                     background: done
-                      ? "linear-gradient(90deg, #7a9ec8, #9EC5E8)"
+                      ? "linear-gradient(90deg, #c62828, #ff3355)"
                       : active
-                        ? "linear-gradient(90deg, #C9D6E8, #9EC5E8)"
-                        : "rgba(255,255,255,0.08)",
+                        ? "linear-gradient(90deg, #ff6b81, #ff3355)"
+                        : "rgba(255,51,85,0.12)",
+                    boxShadow: active ? "0 0 8px rgba(255,51,85,0.45)" : "none",
                   }}
                 />
               );
