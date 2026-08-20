@@ -137,6 +137,30 @@ export function MarketPage({
         shapeId: p.shapeId ?? null,
       }));
 
+    const ownLocalServerIds = new Set(
+      userListings.map((l) => l.serverId).filter((id): id is number => typeof id === "number"),
+    );
+
+    // Also surface the seller's own active shelf rows from the server feed
+    // (covers races where local shapeId/list flag hasn't caught up yet).
+    const ownFromServer: MarketPlanetListingView[] = serverListings
+      .filter((l) => l.kind !== "equipment" && l.kind !== "item")
+      .filter((l) => l.sellerTelegramId === telegramId)
+      .filter((l) => labMarketPathForShapeId(l.shapeId))
+      .filter((l) => !ownLocalServerIds.has(l.id))
+      .map((l) => ({
+        id: `server-own-${l.id}`,
+        price: l.price,
+        seller: "you",
+        rate: l.planetRate ?? 0,
+        isOwn: true,
+        serverId: l.id,
+        displayName: l.planetDisplayName
+          ?? deterministicNameFromId(l.planetId || `listing-${l.id}`),
+        farmDurationHours: (l.planetFarmDurationHours ?? 1) > 1 ? l.planetFarmDurationHours : null,
+        shapeId: l.shapeId ?? null,
+      }));
+
     const others: MarketPlanetListingView[] = serverListings
       .filter((l) => l.kind !== "equipment" && l.kind !== "item")
       .filter((l) => l.sellerTelegramId !== telegramId)
@@ -154,7 +178,7 @@ export function MarketPage({
         shapeId: l.shapeId ?? null,
       }));
 
-    return [...userListings, ...others];
+    return [...userListings, ...ownFromServer, ...others];
   }, [myListings, serverListings, telegramId]);
 
   const filtered = useMemo(() => {

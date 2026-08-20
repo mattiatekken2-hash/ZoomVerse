@@ -40,14 +40,17 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
   const [rows, setRows] = useState<ServerMarketListing[]>([]);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [tick, setTick] = useState(0);
+  const [loaded, setLoaded] = useState(false);
 
   const reload = useCallback(async () => {
     if (!telegramId) {
       setRows([]);
+      setLoaded(true);
       return;
     }
     const list = await fetchMyMarketListings(telegramId);
     setRows(list.filter((l) => labMarketPathForShapeId(l.shapeId)));
+    setLoaded(true);
   }, [telegramId]);
 
   useEffect(() => {
@@ -65,7 +68,7 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
 
   void tick;
 
-  if (!telegramId || rows.length === 0) return null;
+  if (!telegramId) return null;
 
   const handleReactivate = async (listingId: number) => {
     if (!telegramId || busyId != null) return;
@@ -105,13 +108,19 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
         <span style={{ fontSize: 11, fontWeight: 800, color: CYAN }}>{rows.length}</span>
       </div>
 
+      {loaded && rows.length === 0 ? (
+        <p style={{ fontSize: 11, color: "rgba(255,255,255,0.35)", margin: "6px 0 2px" }}>
+          No models on the shelf yet. List one from Farm to start the 1h timer.
+        </p>
+      ) : null}
+
       <div className="flex flex-col gap-2">
         {rows.map((listing) => {
           const planet =
             myPlanets.find((p) => p.serverListingId === listing.id)
             ?? myPlanets.find((p) => p.id === listing.planetId);
           const remaining = typeof listing.remainingMs === "number"
-            ? Math.max(0, listing.remainingMs - 0) // tick refreshes via reload; compute live:
+            ? Math.max(0, listing.remainingMs)
             : 0;
           const activated = listing.lastActivatedAt
             ? new Date(listing.lastActivatedAt).getTime()

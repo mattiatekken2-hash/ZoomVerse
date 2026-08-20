@@ -2834,6 +2834,9 @@ export async function listOnMarket(params: {
   planetType: string;
   planetRate: number;
   price: number;
+  /** Lab forge shape (pizza/flower/dollar/stardust_pot) — snapshotted on the listing. */
+  shapeId?: string;
+  displayName?: string;
 }): Promise<{ ok: boolean; listing?: ServerMarketListing; error?: string }> {
   try {
     const res = await fetch(`${API_BASE}/market/list`, {

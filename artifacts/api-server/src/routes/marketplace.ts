@@ -106,6 +106,10 @@ const ListBody = z.object({
   planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1", "V1_NFT", "MUSHROOM", "NOVA"]),
   planetRate: z.number().positive(),
   price: z.number().positive(),
+  // Lab generators: client may send shapeId so the Market card/widget
+  // still render even if planets_json is momentarily missing the field.
+  shapeId: z.string().min(1).max(32).optional(),
+  displayName: z.string().min(1).max(64).optional(),
 });
 
 /**
@@ -146,7 +150,16 @@ router.post("/market/list", async (req, res) => {
     return;
   }
 
-  const { sellerTelegramId, sellerName, planetId, planetType, planetRate, price } = parsed.data;
+  const {
+    sellerTelegramId,
+    sellerName,
+    planetId,
+    planetType,
+    planetRate,
+    price,
+    shapeId: bodyShapeId,
+    displayName: bodyDisplayName,
+  } = parsed.data;
 
   // Price cap: 0.25 – 10.0 TON per any planet
   if (price < TON_MIN || price > TON_MAX) {
@@ -242,7 +255,9 @@ router.post("/market/list", async (req, res) => {
         ? rawDisplayName.trim().slice(0, 64)
         : (typeof rawModelName === "string" && rawModelName.trim().length > 0
           ? rawModelName.trim().slice(0, 64)
-          : null);
+          : (typeof bodyDisplayName === "string" && bodyDisplayName.trim().length > 0
+            ? bodyDisplayName.trim().slice(0, 64)
+            : null));
 
     const rawModelId = (planet as { modelId?: unknown }).modelId;
     const modelIdSnapshot: string | null =
@@ -253,7 +268,9 @@ router.post("/market/list", async (req, res) => {
     const shapeIdSnapshot: string | null =
       typeof rawShapeId === "string" && rawShapeId.trim().length > 0
         ? rawShapeId.trim().slice(0, 32)
-        : null;
+        : (typeof bodyShapeId === "string" && bodyShapeId.trim().length > 0
+          ? bodyShapeId.trim().slice(0, 32)
+          : null);
 
     // Snapshot the farm-duration upgrade (hours). Only store when > 1 to
     // keep legacy/default planets with a clean null. Buyers can then
