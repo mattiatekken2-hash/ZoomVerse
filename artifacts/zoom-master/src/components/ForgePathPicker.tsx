@@ -1,13 +1,13 @@
 import { memo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
-  LAB_PIZZA_SHAPE_ID,
-  LAB_STARDUST_POT_SHAPE_ID,
+  LAB_STARDUST_SHAPE_IDS,
+  LAB_ZOOM_SHAPE_IDS,
   LAB_STARDUST_FORGE_ZOOM_COST,
   LAB_ZOOM_FORGE_STARDUST_COST,
   type LabForgePath,
 } from "@workspace/game-models";
-import { LabForgeGlbThumb } from "./LabForgeGlbThumb";
+import { LabForgeGlbCycler } from "./LabForgeGlbCycler";
 import { preloadLabForgePickerGlbs } from "../utils/labGlbPreload";
 
 interface ForgePathPickerProps {
@@ -19,7 +19,7 @@ interface ForgePathPickerProps {
 
 interface PathCardProps {
   path: LabForgePath;
-  shapeId: string;
+  shapeIds: readonly string[];
   badge: string;
   name: string;
   costLabel: string;
@@ -36,7 +36,7 @@ interface PathCardProps {
 
 function PathCard({
   path,
-  shapeId,
+  shapeIds,
   badge,
   name,
   costLabel,
@@ -68,7 +68,12 @@ function PathCard({
         <div className="lab-forge-path-card__glow" aria-hidden />
         <span className="lab-forge-path-card__badge">{badge}</span>
         <div className="lab-forge-path-card__stage">
-          <LabForgeGlbThumb shapeId={shapeId} size={104} variant="picker" studioGlow={studioGlow} />
+          <LabForgeGlbCycler
+            shapeIds={shapeIds}
+            size={104}
+            variant="picker"
+            studioGlow={studioGlow}
+          />
         </div>
         <div className="lab-forge-path-card__name">{name}</div>
         <div className="lab-forge-path-card__meta">
@@ -126,7 +131,7 @@ function ForgePathPickerBase({
           <div className="lab-forge-picker-grid">
             <PathCard
               path="zoom"
-              shapeId={LAB_PIZZA_SHAPE_ID}
+              shapeIds={LAB_ZOOM_SHAPE_IDS}
               badge="$ZOOM"
               name="Pizza · Flower · Dollar"
               costLabel={`${LAB_ZOOM_FORGE_STARDUST_COST} ★`}
@@ -142,7 +147,7 @@ function ForgePathPickerBase({
             />
             <PathCard
               path="stardust"
-              shapeId={LAB_STARDUST_POT_SHAPE_ID}
+              shapeIds={LAB_STARDUST_SHAPE_IDS}
               badge="★ STARDUST"
               name="Street Scene · Island Home · Pot"
               costLabel={`${LAB_STARDUST_FORGE_ZOOM_COST} $ZOOM`}

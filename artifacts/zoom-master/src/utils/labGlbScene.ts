@@ -9,10 +9,28 @@ export const LAB_GLB_SPIN_RATE = 0.0042;
 /** Slower spin for farm slot cards — easier on the eyes. */
 export const FARM_GLB_SPIN_RATE = 0.0026;
 
-/** Center a loaded GLB at origin and uniform-scale to target max dimension. Returns fitted size. */
+/** Center a loaded GLB at origin and uniform-scale to target max dimension. */
 export function fitGlbToCenter(root: THREE.Object3D, targetMaxDim = LAB_GLB_FIT_SIZE): number {
   root.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(root);
+  const box = new THREE.Box3();
+  let hasMesh = false;
+  root.traverse((node) => {
+    const mesh = node as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.geometry) return;
+    const meshBox = new THREE.Box3().setFromObject(mesh);
+    if (!meshBox.isEmpty()) {
+      box.union(meshBox);
+      hasMesh = true;
+    }
+  });
+  if (!hasMesh) {
+    box.setFromObject(root);
+  }
+  if (box.isEmpty()) {
+    root.position.set(0, 0, 0);
+    root.scale.setScalar(1);
+    return targetMaxDim;
+  }
   const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
   const maxAxis = Math.max(size.x, size.y, size.z, 0.001);
@@ -21,6 +39,17 @@ export function fitGlbToCenter(root: THREE.Object3D, targetMaxDim = LAB_GLB_FIT_
   root.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
   root.updateMatrixWorld(true);
   return targetMaxDim;
+}
+
+/** Rough triangle count — skip heavy line-art on scene GLBs. */
+export function glbTriangleCount(root: THREE.Object3D): number {
+  let n = 0;
+  root.traverse((node) => {
+    const mesh = node as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.geometry?.attributes?.position) return;
+    n += mesh.geometry.attributes.position.count / 3;
+  });
+  return n;
 }
 
 export function addForgeSpaceGrid(scene: THREE.Scene, maxDim: number): THREE.Object3D[] {
