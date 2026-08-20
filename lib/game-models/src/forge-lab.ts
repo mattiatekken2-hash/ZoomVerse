@@ -95,8 +95,8 @@ export function isLabDevWipeActive(): boolean {
   }
 }
 
-/** One-time dev reset — clears farm planets on next load (remove key to revert behaviour). */
-export const LAB_DEV_FARM_RESET_KEY = "zoom-lab-dev-farm-reset-v2";
+/** One-time farm reset — clears rarity spheres once after Lab market cutover. */
+export const LAB_DEV_FARM_RESET_KEY = "zoom-lab-dev-farm-reset-v3";
 
 export function consumeLabDevFarmResetOnce(): boolean {
   try {
@@ -116,6 +116,15 @@ export function enableNextLabForgePizza(): void {
 
 export function isLabZoomShapeId(shapeId: string | null | undefined): shapeId is LabZoomShapeId {
   return !!shapeId && (LAB_ZOOM_SHAPE_IDS as readonly string[]).includes(shapeId);
+}
+
+/** Market / Farm path for a listing — null if not a Lab generator. */
+export type LabMarketPath = "zoom" | "stardust";
+
+export function labMarketPathForShapeId(shapeId: string | null | undefined): LabMarketPath | null {
+  if (isLabZoomShapeId(shapeId)) return "zoom";
+  if (shapeId === LAB_STARDUST_POT_SHAPE_ID) return "stardust";
+  return null;
 }
 
 /** Pick a random ZOOM-path model (pizza / flower / dollar). Equal weight. */

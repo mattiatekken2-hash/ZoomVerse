@@ -2642,3 +2642,321 @@ body.animations-paused * {
     opacity: 0.7;
   }
 }
+
+/* ── Lab Market (ZOOM / Stardust only) ─────────────────────────── */
+.lab-market {
+  --mkt-bg0: #07090f;
+  --mkt-bg1: #0c1220;
+  background:
+    radial-gradient(120% 80% at 10% -10%, rgba(46, 213, 115, 0.12), transparent 55%),
+    radial-gradient(100% 70% at 100% 0%, rgba(255, 215, 64, 0.1), transparent 50%),
+    linear-gradient(180deg, var(--mkt-bg1), var(--mkt-bg0));
+}
+.lab-market__kicker {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(232, 236, 244, 0.42);
+  margin: 0 0 4px;
+}
+.lab-market__title {
+  font-size: 1.35rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: #f2f5fb;
+  margin: 0;
+}
+.lab-market__sub {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(232, 236, 244, 0.48);
+  max-width: 28rem;
+}
+.lab-market__tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+.lab-market__tab {
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.4);
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
+}
+.lab-market__tab.is-active {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #e8ecf4;
+}
+.lab-market__tab--live.is-active {
+  background: rgba(0, 230, 118, 0.1);
+  border-color: rgba(0, 230, 118, 0.35);
+  color: #00e676;
+}
+.lab-market__live-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 6px;
+  background: #00e676;
+  box-shadow: 0 0 10px #00e676;
+  animation: lab-market-pulse 1.6s ease-in-out infinite;
+}
+.lab-market__filters {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+.lab-market__filter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 10, 16, 0.55);
+  text-align: left;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+.lab-market__filter-label {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.55);
+}
+.lab-market__filter-hint {
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.28);
+}
+.lab-market__filter.is-active {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+.lab-market__filter--all.is-active {
+  border-color: rgba(232, 236, 244, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+}
+.lab-market__filter--all.is-active .lab-market__filter-label { color: #e8ecf4; }
+.lab-market__filter--zoom.is-active {
+  border-color: rgba(46, 213, 115, 0.45);
+  background: linear-gradient(160deg, rgba(46, 213, 115, 0.16), rgba(8, 10, 16, 0.7));
+}
+.lab-market__filter--zoom.is-active .lab-market__filter-label { color: #7bed9f; }
+.lab-market__filter--stardust.is-active {
+  border-color: rgba(255, 215, 64, 0.45);
+  background: linear-gradient(160deg, rgba(255, 215, 64, 0.14), rgba(8, 10, 16, 0.7));
+}
+.lab-market__filter--stardust.is-active .lab-market__filter-label { color: #ffd740; }
+.lab-market__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.lab-market__empty {
+  text-align: center;
+  padding: 48px 16px 24px;
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 13px;
+}
+.lab-market__empty-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.25);
+}
+.lab-market__toast {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  backdrop-filter: blur(12px);
+  animation: lab-market-toast-in 0.28s ease;
+}
+.lab-market__toast.is-ok {
+  background: rgba(46, 213, 115, 0.18);
+  border: 1px solid rgba(46, 213, 115, 0.4);
+  color: #7bed9f;
+}
+.lab-market__toast.is-err {
+  background: rgba(255, 80, 80, 0.16);
+  border: 1px solid rgba(255, 80, 80, 0.35);
+  color: #ff8f8f;
+}
+
+.lab-market-card {
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--mkt-accent) 42%, transparent);
+  background: #08080c;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+    0 14px 32px rgba(0, 0, 0, 0.42),
+    0 0 24px var(--mkt-accent-a);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  animation: lab-market-card-in 0.45s ease both;
+}
+.lab-market-card:active {
+  transform: scale(0.985);
+}
+.lab-market-card--focus {
+  box-shadow: 0 0 0 2px rgba(0, 230, 255, 0.65), 0 0 28px rgba(0, 230, 255, 0.35);
+}
+.lab-market-card__stage {
+  position: relative;
+  height: 168px;
+  background:
+    radial-gradient(70% 80% at 50% 35%, color-mix(in srgb, var(--mkt-glow) 55%, transparent), transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--mkt-accent) 88%, #08080c) 0%, rgba(8, 8, 12, 0.2) 72%, #08080c 100%);
+}
+.lab-market-card__orb {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  transform: translateX(-50%);
+  width: 132px;
+  height: 132px;
+  animation: lab-market-float 4.2s ease-in-out infinite;
+}
+.lab-market-card__path {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  padding: 5px 8px;
+  border-radius: 999px;
+  color: #08080c;
+  background: var(--mkt-accent);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+.lab-market-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 12px 12px;
+  flex: 1;
+}
+.lab-market-card__title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #f4f7ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lab-market-card__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+.lab-market-card__yield {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--mkt-accent);
+}
+.lab-market-card__price {
+  font-size: 11px;
+  font-weight: 900;
+  color: #fff;
+}
+.lab-market-card__seller {
+  margin: 0;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lab-market-card__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 6px;
+}
+.lab-market-card__buy,
+.lab-market-card__delist,
+.lab-market-card__share,
+.lab-market-card__status {
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  padding: 10px 12px;
+}
+.lab-market-card__buy {
+  flex: 1;
+  background: #fff;
+  color: #0a0a0f;
+  border: 0;
+}
+.lab-market-card__buy:disabled {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.28);
+}
+.lab-market-card__delist {
+  flex: 1;
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  color: #ffd700;
+  background: rgba(255, 215, 0, 0.08);
+}
+.lab-market-card__share {
+  border: 1px solid rgba(0, 180, 255, 0.3);
+  color: #36c5ff;
+  background: rgba(0, 180, 255, 0.08);
+}
+.lab-market-card__status {
+  flex: 1;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@keyframes lab-market-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+@keyframes lab-market-float {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-6px); }
+}
+@keyframes lab-market-card-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes lab-market-toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lab-market__live-dot,
+  .lab-market-card__orb,
+  .lab-market-card,
+  .lab-market__toast {
+    animation: none;
+  }
+}
