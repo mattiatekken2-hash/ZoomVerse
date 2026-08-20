@@ -2959,6 +2959,8 @@ body.animations-paused * {
   .lab-market__toast {
     animation: none;
   }
+}
+
 /* ─── Earn page ─────────────────────────────────────────────────────── */
 .earn-page {
   --earn-ink: #E8ECF4;
