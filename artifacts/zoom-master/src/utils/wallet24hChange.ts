@@ -79,14 +79,14 @@ export function chartIconScale(_changePct?: number | null): number {
 }
 
 /**
- * Live ZOOM price in GRAM. Genesis is 0.000001 — bumps are tiny, so we need
- * up to 12 decimals (trim trailing zeros). `toFixed(6)` would freeze the UI
- * at "0.000001" even when the server price is 0.000001001863.
+ * Live ZOOM price in GRAM. Genesis is 0.000001 — show enough decimals to
+ * reveal bumps, but cap at 9 so the wallet under-icon stays readable
+ * (12 dp overflowed the row).
  */
 export function formatZoomChartPrice(p: number | null | undefined): string {
   if (p == null || !Number.isFinite(p) || p <= 0) return "—";
   if (p < 0.0001) {
-    return p.toFixed(12).replace(/0+$/, "").replace(/\.$/, "");
+    return p.toFixed(9).replace(/0+$/, "").replace(/\.$/, "");
   }
   if (p < 0.01) return p.toFixed(6);
   if (p < 1) return p.toFixed(4);
