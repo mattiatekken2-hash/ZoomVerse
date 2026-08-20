@@ -241,15 +241,15 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
         <TonAppRankButton
           style={{
             position: "absolute",
-            left: 12,
-            top: "max(10px, env(safe-area-inset-top, 0px))",
+            left: 6,
+            top: "max(56px, calc(env(safe-area-inset-top, 0px) + 50px))",
             zIndex: 30,
           }}
         />
 
         <div
           className="absolute left-0 right-0 z-30 flex items-center justify-center gap-2 px-3 pointer-events-none"
-          style={{ top: "max(10px, env(safe-area-inset-top, 0px))" }}
+          style={{ top: "max(56px, calc(env(safe-area-inset-top, 0px) + 50px))" }}
         >
           <div className="pointer-events-auto flex-shrink-0">
             <SettingsMenu muted={muted} setMuted={setMuted ?? (() => {})} headerButton />
