@@ -33,8 +33,8 @@ export const usersTable = pgTable("users", {
   bonusV1NftPlatinum: integer("bonus_v1_nft_platinum").notNull().default(0),
   claimedMilestones: text("claimed_milestones").notNull().default(""),
   // Long-term Earn tasks (planet-build milestones + sponsor tasks).
-  // CSV of claimed task ids ("planets_200", "planets_500", "planets_1000",
-  // "planets_2000", "sponsor_coinflip"). Mirrors the claimed_milestones
+  // CSV of claimed task ids ("lab_5", "lab_15", …, legacy "planets_200",
+  // "sponsor_coinflip"). Mirrors the claimed_milestones
   // pattern so we don't introduce a new table for a tiny set of flags.
   claimedTasks: text("claimed_tasks").notNull().default(""),
   // Monotonic count of planets the user has ever forged/crafted/fused.

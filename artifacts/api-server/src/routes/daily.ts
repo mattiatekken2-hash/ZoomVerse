@@ -7,6 +7,8 @@ const router: IRouter = Router();
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Rewards in STARDUST, one per day (D1–D7). No cycle multiplier.
+// Tuned as Lab pizza helper: pizza forge costs 3 ★, so D1 alone is not
+// enough — streak commitment matters. Full week = 28 ★ ≈ 9 pizzas.
 const BASE_REWARDS = [1, 2, 3, 4, 5, 6, 7];
 
 function rewardForDay(dayIndex: number): number {

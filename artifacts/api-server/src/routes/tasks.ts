@@ -20,8 +20,11 @@ const router: IRouter = Router();
 // Long-term Earn tasks.
 //
 // Two families:
-//   1. Planet-build milestones — claimable when the user's per-tier
-//      crafting counters reach the threshold. Reward = $ZOOM.
+//   1. Lab forge milestones — claimable when the user's craft counters
+//      reach the threshold (Lab pizza / stardust-pot forges count via
+//      /craft/record → totalPlanetsBuilt). Reward = $ZOOM helper only.
+//      Lab construction stays primary: pot costs 500 $ZOOM, pizza costs
+//      3 ★ — Earn must not flood free pots.
 //   2. Sponsor tasks — single-shot rewards for opening a partner channel
 //      or visiting a link. The 10s wait + link-open is enforced
 //      client-side; the server only guarantees "claimable exactly once"
@@ -66,13 +69,17 @@ interface SponsorTaskDef {
 }
 type TaskDef = PlanetTaskDef | SponsorTaskDef;
 
+// Lab-era catalog (new ids so legacy planets_* claims stay inert).
+// Economy anchors: pizza = 3 ★ → 3.5 $ZOOM/h; pot = 500 $ZOOM → 0.22 ★/h.
+// All six milestones ≈ 4.15k $ZOOM (~8 pots) only after 500 forges —
+// primary income remains Lab farming, not Earn claims.
 const PLANET_TASKS: PlanetTaskDef[] = [
-  { id: "planets_200",  kind: "planets", threshold: 200,  rewardZoom: 5_000 },
-  { id: "planets_500",  kind: "planets", threshold: 500,  rewardZoom: 10_000 },
-  { id: "planets_1000", kind: "planets", threshold: 1000, rewardZoom: 25_000 },
-  { id: "planets_2000", kind: "planets", threshold: 2000, rewardZoom: 50_000 },
-  { id: "planets_5000", kind: "planets", threshold: 5000, rewardZoom: 100_000 },
-  { id: "planets_10000", kind: "planets", threshold: 10000, rewardZoom: 200_000 },
+  { id: "lab_5",   kind: "planets", threshold: 5,   rewardZoom: 100 },
+  { id: "lab_15",  kind: "planets", threshold: 15,  rewardZoom: 200 },
+  { id: "lab_40",  kind: "planets", threshold: 40,  rewardZoom: 350 },
+  { id: "lab_100", kind: "planets", threshold: 100, rewardZoom: 500 },
+  { id: "lab_250", kind: "planets", threshold: 250, rewardZoom: 1_000 },
+  { id: "lab_500", kind: "planets", threshold: 500, rewardZoom: 2_000 },
 ];
 
 const SPONSOR_TASKS: SponsorTaskDef[] = [];

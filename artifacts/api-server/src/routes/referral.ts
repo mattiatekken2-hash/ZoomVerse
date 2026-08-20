@@ -19,13 +19,16 @@ function utcDayKey(now: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
+// Referral ZOOM milestones — helper toward Lab stardust-pot (500 $ZOOM),
+// not a free flood. Per-invite ★ (REFERRAL_STARDUST) remains the main
+// pizza-forge fuel from invites.
 const MILESTONES = [
-  { count: 5, reward: 500 },
-  { count: 10, reward: 1000 },
-  { count: 20, reward: 2000 },
-  { count: 50, reward: 5000 },
-  { count: 100, reward: 12000 },
-  { count: 200, reward: 30000 },
+  { count: 5, reward: 100 },
+  { count: 10, reward: 200 },
+  { count: 20, reward: 350 },
+  { count: 50, reward: 750 },
+  { count: 100, reward: 1_500 },
+  { count: 200, reward: 3_000 },
 ];
 
 function getClaimedSet(raw: string): Set<number> {
