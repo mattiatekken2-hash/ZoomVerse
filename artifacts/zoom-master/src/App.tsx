@@ -1,10 +1,9 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { AvatarXP } from "./components/AvatarXP";
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
 import { BlackPlanetOrbStyles } from "./components/BlackPlanetOrb";
 import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/useGameState";
 import { fetchRegularPlanets, saveRegularPlanets } from "./utils/api";
-import { useGlobalInit, useGlobalStore } from "./store/globalStore";
+import { useGlobalInit } from "./store/globalStore";
 import { NebulaBackground } from "./components/NebulaBackground";
 import { LabSpaceBackground } from "./components/LabSpaceBackground";
 import { MaintenanceScreen } from "./components/MaintenanceScreen";
@@ -26,7 +25,6 @@ import { ZoomCubeIcon } from "./components/ZoomCubeIcon";
 import { WalletPage } from "./pages/WalletPage";
 import { hideHtmlSplash } from "./components/SplashScreen";
 import { SPLASH_MS } from "./utils/bootSplash";
-import { isBrowserDevSession } from "./utils/telegram";
 import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
 import { prefetchWalletMarket } from "./utils/walletMarketCache";
@@ -193,42 +191,6 @@ function AppShellWithState() {
     items, listItem, unlistItem, buyItemFromMarket,
   } = useGameState();
 
-
-  // Telegram profile photo + name for the header avatar/XP widget.
-  // We poll once because Telegram WebApp populates initDataUnsafe
-  // slightly after the initial render, so a single read can miss it.
-  const [tgProfile, setTgProfile] = useState<{ photoUrl: string | null; name: string | null }>({ photoUrl: null, name: null });
-  useEffect(() => {
-    let attempts = 0;
-    const id = setInterval(() => {
-      attempts++;
-      try {
-        const u = (window as unknown as {
-          Telegram?: { WebApp?: { initDataUnsafe?: { user?: { first_name?: string; username?: string; photo_url?: string } } } };
-        }).Telegram?.WebApp?.initDataUnsafe?.user;
-        const next = { photoUrl: u?.photo_url ?? null, name: u?.first_name ?? u?.username ?? null };
-        if (next.photoUrl || next.name || attempts >= 6) {
-          setTgProfile(next);
-          clearInterval(id);
-        }
-      } catch {
-        setTgProfile({ photoUrl: null, name: null });
-        clearInterval(id);
-      }
-    }, 300);
-    return () => clearInterval(id);
-  }, []);
-
-  // Browser dev: Cursor and other embeds load telegram-web-app.js but have no
-  // real initData user — treat that as PC dev, not a Telegram Mini App session.
-  const isBrowserDev = isBrowserDevSession();
-  const devPhotoUrl = isBrowserDev ? "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Circle-icons-profile.svg/1024px-Circle-icons-profile.svg.png" : null;
-  const devName = isBrowserDev ? "Dev" : null;
-  const displayProfile = {
-    photoUrl: tgProfile.photoUrl ?? devPhotoUrl,
-    name: tgProfile.name ?? devName,
-  };
-
   // Centralized global data fetch — Season epoch, leaderboard, profile, daily, market.
   // Pages read from the global store so tab switches show pre-loaded data with no pop-in.
   useGlobalInit(state.telegramId);
@@ -239,8 +201,6 @@ function AppShellWithState() {
   const [stardustPopupOpen, setStardustPopupOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [resourceWidgetOpen, setResourceWidgetOpen] = useState(false);
-  const [profileModalOpen, setProfileModalOpen] = useState(false);
-  const profile = useGlobalStore((s) => s.profile);
 
   // ─────── STARDUST spawn mechanic (lifted to App level) ──────────
   // The star spawns on ANY screen so the user doesn't need to camp the LAB,
@@ -795,24 +755,6 @@ function AppShellWithState() {
         </div>
       )}
 
-      {tab !== "lab" && (
-      <header
-        className="flex items-center justify-center py-2 flex-shrink-0 relative z-20"
-      >
-        <div
-          onClick={() => setProfileModalOpen(true)}
-          style={{ cursor: "pointer" }}
-          aria-label={t("header.viewProfile")}
-        >
-          <AvatarXP
-            totalTaps={state.totalTaps || 0}
-            photoUrl={displayProfile.photoUrl}
-            name={displayProfile.name}
-          />
-        </div>
-      </header>
-      )}
-
       <main className="flex-1 overflow-hidden relative z-10" style={{ minHeight: 0 }}>
         {ALL_TABS.map((t) => {
           const isActiveTab = tab === t;
@@ -844,14 +786,10 @@ function AppShellWithState() {
                   hasAutoTap={!!state.hasAutoTap}
                   stardustBalance={state.stardustBalance || 0}
                   telegramId={state.telegramId}
-                  totalTaps={state.totalTaps || 0}
-                  profilePhotoUrl={displayProfile.photoUrl}
-                  profileName={displayProfile.name}
                   onCraft={craft}
                   onBeginLabForge={beginLabForge}
                   onClaim={claimCraft}
                   onOpenShop={() => switchTab("shop")}
-                  onOpenProfile={() => setProfileModalOpen(true)}
                   muted={muted}
                   setMuted={setMuted}
                   visible={isActiveTab}
@@ -1348,112 +1286,6 @@ function AppShellWithState() {
           </div>
         </div>
       )}
-
-      {/* ── PROFILE MODAL ── click avatar → pixel art popup */}
-      {profileModalOpen && (() => {
-        const CYAN = "#9EC5E8";
-        const createdMs = profile?.createdAt ? new Date(profile.createdAt).getTime() : 0;
-        const memberDate = createdMs > 0
-          ? new Date(createdMs).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" })
-          : "—";
-        return (
-          <div
-            onClick={() => setProfileModalOpen(false)}
-            style={{
-              position: "fixed", inset: 0, zIndex: 10000,
-              background: "rgba(0,0,0,0.82)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              padding: 20,
-            }}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                maxWidth: 340, width: "100%",
-                background: "linear-gradient(160deg, rgba(10,8,20,0.99) 0%, rgba(4,4,12,0.99) 100%)",
-                border: "1px solid rgba(158,197,232,0.35)",
-                borderRadius: 18,
-                padding: "22px 18px 18px",
-                boxShadow: "0 0 50px rgba(158,197,232,0.12), 0 0 100px rgba(0,0,0,0.5)",
-              }}
-            >
-              {/* Pixel art avatar header */}
-              <div style={{ textAlign: "center", marginBottom: 16 }}>
-                <div style={{
-                  width: 52, height: 52, borderRadius: "50%", margin: "0 auto 8px",
-                  overflow: "hidden",
-                  border: "2px solid rgba(158,197,232,0.5)",
-                  boxShadow: "0 0 16px rgba(158,197,232,0.35)",
-                  background: "rgba(158,197,232,0.08)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  {displayProfile.photoUrl ? (
-                    <img src={displayProfile.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} referrerPolicy="no-referrer" />
-                  ) : (
-                    <span style={{ color: CYAN, fontSize: 20, fontWeight: 900 }}>
-                      {(displayProfile.name?.trim()?.[0] || "★").toUpperCase()}
-                    </span>
-                  )}
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 900, color: "rgba(255,255,255,0.85)", marginBottom: 2 }}>
-                  {displayProfile.name || t("profile.player")}
-                </div>
-                <div style={{ fontSize: 9, color: "rgba(158,197,232,0.75)", letterSpacing: "0.12em", textTransform: "uppercase" }}>
-                  {t("profile.memberSince", { date: memberDate })}
-                </div>
-              </div>
-
-              {/* Stats grid — gameplay stats only (balances moved to Wallet tab) */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                {[
-                  { label: t("profile.totalCrafts"), value: state.craftsCompleted?.toLocaleString() ?? "0", color: "#c471ed" },
-                  { label: t("profile.zoomTotal"), value: (() => { const n = state.totalEarned || 0; return n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toLocaleString(); })(), color: "#ffd740" },
-                  { label: t("profile.totalTaps"), value: (() => { const n = state.totalTaps || 0; return n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toLocaleString(); })(), color: "#ff3355" },
-                  { label: t("profile.referrals"), value: (state.referralCount || 0).toLocaleString(), color: "#00c8ff" },
-                ].map(({ label, value, color }) => (
-                  <div
-                    key={label}
-                    style={{
-                      padding: "10px 12px", borderRadius: 10,
-                      background: color + "08",
-                      border: `1px solid ${color}1a`,
-                      textAlign: "center",
-                    }}
-                  >
-                    <div style={{ fontSize: 15, fontWeight: 900, color, fontVariantNumeric: "tabular-nums" }}>{value}</div>
-                    <div style={{ fontSize: 8, color: color + "77", letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 2 }}>{label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Wallet shortcut */}
-              <button
-                onClick={() => { setProfileModalOpen(false); switchTab("wallet"); }}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  width: "100%", marginTop: 4,
-                  padding: "10px", borderRadius: 10,
-                  background: "rgba(0,242,180,0.06)", border: "1px solid rgba(0,242,180,0.18)",
-                  color: "#00f2b4", fontSize: 12, fontWeight: 800, cursor: "pointer",
-                  letterSpacing: "0.08em",
-                }}
-              >
-                💎 {t("profile.viewWallet")}
-              </button>
-
-              <button
-                onClick={() => setProfileModalOpen(false)}
-                style={{
-                  display: "block", width: "100%", marginTop: 14,
-                  padding: "10px", borderRadius: 10,
-                  background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.10)",
-                  color: "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: 700, cursor: "pointer",
-                }}
-              >{t("common.close")}</button>
-            </div>
-          </div>
-        );
-      })()}
     </div>
     </TonConnectUIProvider>
   );

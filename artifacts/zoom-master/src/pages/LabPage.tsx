@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect, useLayoutEffect, useRef, useMemo } fr
 import { PlanetCanvas, ForgeProgressBar, type ForgePhase } from "../components/PlanetCanvas";
 import { AutoTapWidget } from "../components/AutoTapWidget";
 import { SettingsMenu } from "../components/SettingsMenu";
-import { AvatarXP } from "../components/AvatarXP";
 import { ShoppingBag } from "lucide-react";
 
 import { ForgePathPicker } from "../components/ForgePathPicker";
@@ -32,10 +31,6 @@ interface LabPageProps {
   onBeginLabForge: (path: LabForgePath) => { ok: boolean; reason?: string };
   onClaim: () => void;
   onOpenShop?: () => void;
-  onOpenProfile?: () => void;
-  totalTaps?: number;
-  profilePhotoUrl?: string | null;
-  profileName?: string | null;
   muted?: boolean;
   setMuted?: (next: boolean | ((prev: boolean) => boolean)) => void;
   visible?: boolean;
@@ -45,7 +40,7 @@ interface FloatMsg { id: number; text: string; color: string }
 
 const GREY = "#8892b0";
 
-export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, labForgeShapeId = null, labForgePath = null, hasAutoTap, stardustBalance, telegramId, onCraft, onBeginLabForge, onClaim, onOpenShop, onOpenProfile, totalTaps = 0, profilePhotoUrl, profileName, muted = false, setMuted, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, labForgeShapeId = null, labForgePath = null, hasAutoTap, stardustBalance, telegramId, onCraft, onBeginLabForge, onClaim, onOpenShop, muted = false, setMuted, visible = true }: LabPageProps) {
   const { t } = useT();
   const [forgePickerOpen, setForgePickerOpen] = useState(false);
   const [floats, setFloats] = useState<FloatMsg[]>([]);
@@ -236,7 +231,6 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
           labForgePath={labForgePath}
           forgePhase={forgePhase}
           forgeRolling={forgeRolling}
-          labForgeShapeId={labForgeShapeId}
           chromeBottomOffset={bottomChromeOffset}
           suppressProgressBar
           visible={visible && forgePhase !== "revealed"}
@@ -244,27 +238,8 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
         </ForgeUiErrorBoundary>
 
         <div
-          className="absolute left-0 right-0 z-30 flex justify-center pointer-events-none"
-          style={{ top: "max(10px, env(safe-area-inset-top, 0px))" }}
-        >
-          <button
-            type="button"
-            onClick={onOpenProfile}
-            className="pointer-events-auto active:scale-95"
-            aria-label={t("header.viewProfile")}
-            data-testid="lab-profile-header"
-          >
-            <AvatarXP
-              totalTaps={totalTaps}
-              photoUrl={profilePhotoUrl}
-              name={profileName}
-            />
-          </button>
-        </div>
-
-        <div
           className="absolute left-0 right-0 z-30 flex items-center justify-center gap-2 px-3 pointer-events-none"
-          style={{ top: "max(80px, calc(env(safe-area-inset-top, 0px) + 74px))" }}
+          style={{ top: "max(10px, env(safe-area-inset-top, 0px))" }}
         >
           <div className="pointer-events-auto flex-shrink-0">
             <SettingsMenu muted={muted} setMuted={setMuted ?? (() => {})} headerButton />

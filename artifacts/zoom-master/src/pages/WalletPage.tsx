@@ -2,6 +2,7 @@ import { useMemo, useEffect, useState, useCallback, type ReactNode } from "react
 import { Lock } from "lucide-react";
 import { GramWalletPanel, GramWalletIcon, GramWalletConnectButton, type TonWalletProps } from "../components/TonWalletWidget";
 import { StardustMarketModal } from "../components/StardustMarketModal";
+import { ZoomMarketModal } from "../components/ZoomMarketModal";
 import { GramChartModal } from "../components/GramChartModal";
 import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
 import { WalletStarIcon } from "../components/WalletStarIcon";
@@ -102,6 +103,7 @@ export function WalletPage({
   const [tonPrice, setTonPrice] = useState<number | null>(initialMarket.tonPriceUsd);
   const [priceLoading, setPriceLoading] = useState(initialMarket.tonPriceUsd == null);
   const [stardustMarketOpen, setStardustMarketOpen] = useState(false);
+  const [zoomMarketOpen, setZoomMarketOpen] = useState(false);
   const [gramChartOpen, setGramChartOpen] = useState(false);
   const [liveStardustBalance, setLiveStardustBalance] = useState(stardustBalance);
   const [zoomPriceGram, setZoomPriceGram] = useState<number | null>(initialMarket.zoomPriceGram);
@@ -226,6 +228,7 @@ export function WalletPage({
           blackPlanets={blackPlanets}
           supernovaPlanets={supernovaPlanets}
           zoomBalance={balance}
+          onOpenHistory={onOpenHistory}
         />
         <button
           type="button"
@@ -376,7 +379,6 @@ export function WalletPage({
           {/* ZOOM S2 — cube logo, live GRAM portfolio under balance */}
           <BalanceRow
             icon={<ZoomCubeIcon size={BALANCE_ICON_SIZE} />}
-            iconImage
             label={t("walletPage.zoomS2")}
             value={formatZoom(balance)}
             color="#ffd740"
@@ -385,12 +387,12 @@ export function WalletPage({
             priceLoading={priceLoading}
             changePct={zoomChangePct}
             iconSubValue={zoomBaseGramLabel}
-            onClick={onOpenHistory}
+            onClick={() => setZoomMarketOpen(true)}
+            hint={t("walletPage.zoomHint")}
             data-testid="wallet-zoom-balance"
           />
           <BalanceRow
             icon={<WalletStarIcon variant="stardust" size={BALANCE_ICON_SIZE} />}
-            iconImage
             label={t("resources.stardust")}
             value={formatZoom(liveStardustBalance)}
             color="#ffd740"
@@ -405,7 +407,6 @@ export function WalletPage({
           />
           <BalanceRow
             icon={<WalletStarIcon variant="redstar" size={BALANCE_ICON_SIZE} />}
-            iconImage
             label={t("resources.redStar")}
             value={redStarBalance.toLocaleString()}
             color="#ff4444"
@@ -418,7 +419,6 @@ export function WalletPage({
           />
           <BalanceRow
             icon={<WalletStarIcon variant="nftstar" size={BALANCE_ICON_SIZE} />}
-            iconImage
             label={t("resources.nftStar")}
             value={nftStarBalance.toLocaleString()}
             color="#a0a0a8"
@@ -503,6 +503,13 @@ export function WalletPage({
           </div>
         </div>
       </div>
+
+      {zoomMarketOpen && (
+        <ZoomMarketModal
+          balance={balance}
+          onClose={() => setZoomMarketOpen(false)}
+        />
+      )}
 
       {stardustMarketOpen && (
         <StardustMarketModal

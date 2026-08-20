@@ -53,6 +53,8 @@ interface Props {
   labVariant?: boolean;
   /** Tap header pill → open Wallet tab instead of inline modal. */
   onOpenWalletTab?: () => void;
+  /** Open My History from the wallet chip row. */
+  onOpenHistory?: () => void;
 }
 
 function formatTon(v: number, decimals = 3): string {
@@ -205,6 +207,7 @@ export function GramWalletPanel({
   supernovaPlanets = [],
   overlay = true,
   zoomBalance = 0,
+  onOpenHistory,
 }: Props & { overlay?: boolean; zoomBalance?: number }) {
   const { t } = useT();
   const [tonConnectUI] = useTonConnectUI();
@@ -346,6 +349,7 @@ export function GramWalletPanel({
   };
 
   const NEON = "#0fd9ff";
+  const HISTORY_GOLD = "#ffd740";
   const inputStyle: CSSProperties = {
     width: "100%",
     minHeight: 44,
@@ -400,6 +404,31 @@ export function GramWalletPanel({
             : { display: "flex", justifyContent: "center", gap: 28, padding: "2px 0 6px" }
         }
       >
+        {onOpenHistory && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onOpenHistory(); }}
+            data-testid="wallet-history-orb"
+            aria-label={t("history.title")}
+            title={t("history.title")}
+            className="active:scale-95 transition-transform flex items-center justify-center flex-shrink-0"
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              background: "rgba(255,215,64,0.12)",
+              border: "1px solid rgba(255,215,64,0.40)",
+              boxShadow: "0 0 12px rgba(255,215,64,0.16)",
+              cursor: "pointer",
+              color: HISTORY_GOLD,
+              fontSize: 15,
+              lineHeight: 1,
+              padding: 0,
+            }}
+          >
+            📜
+          </button>
+        )}
         <CompactWalletChip
           label={t("wallet.deposit")}
           icon="↓"

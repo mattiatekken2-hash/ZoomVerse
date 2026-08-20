@@ -1,0 +1,307 @@
+/**
+ * ZoomMarketModal — compact $ZOOM price chart + staking (coming soon).
+ * Opens from Wallet when tapping the ZOOM S2 balance row.
+ * Layout mirrors StardustMarketModal; price data from the Economy APIs.
+ */
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import {
+  Area,
+  AreaChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  fetchEconomyHistory,
+  fetchEconomyPrice,
+  type EconomyChartPoint,
+} from "../utils/api";
+import { ZoomCubeIcon } from "./ZoomCubeIcon";
+import { useT } from "../i18n/LanguageContext";
+
+const REFRESH_MS = 12_000;
+const CYAN = "#9EC5E8";
+const GOLD = "#ffd740";
+
+interface Props {
+  balance: number;
+  onClose: () => void;
+}
+
+function formatPrice(p: number): string {
+  if (!Number.isFinite(p) || p <= 0) return "0.000000";
+  if (p < 0.01) return p.toFixed(6);
+  if (p < 1) return p.toFixed(4);
+  if (p < 10) return p.toFixed(3);
+  return p.toFixed(2);
+}
+
+function fmtGram(p: number): string {
+  return `${formatPrice(p)} GRAM`;
+}
+
+function formatZoom(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toLocaleString();
+}
+
+function formatTime(ts: number): string {
+  try {
+    return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "";
+  }
+}
+
+export function ZoomMarketModal({ balance, onClose }: Props) {
+  const { t } = useT();
+  const [price, setPrice] = useState(0);
+  const [genesis, setGenesis] = useState(0);
+  const [points, setPoints] = useState<EconomyChartPoint[]>([]);
+  const [amount, setAmount] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"chart" | "stake">("chart");
+
+  const refresh = useCallback(async () => {
+    const [p, h] = await Promise.all([fetchEconomyPrice(), fetchEconomyHistory()]);
+    if (p && Number.isFinite(p.price)) {
+      setPrice(p.price);
+      if (Number.isFinite(p.genesisPrice)) setGenesis(p.genesisPrice);
+    }
+    if (h?.points?.length) setPoints(h.points);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    const id = window.setInterval(() => { void refresh(); }, REFRESH_MS);
+    return () => window.clearInterval(id);
+  }, [refresh]);
+
+  const chartData = useMemo(() => {
+    const mapped = points.map((pt) => ({
+      t: pt.t,
+      price: pt.price,
+      label: formatTime(pt.t),
+    }));
+    if (mapped.length === 1) {
+      const only = mapped[0];
+      return [
+        { ...only, t: only.t - 3_600_000, label: formatTime(only.t - 3_600_000) },
+        only,
+      ];
+    }
+    return mapped;
+  }, [points]);
+
+  const currentPrice = price > 0 ? price : genesis;
+  const pctChange = genesis > 0 ? ((currentPrice - genesis) / genesis) * 100 : 0;
+  const portfolio = Number.isFinite(balance) ? balance * currentPrice : 0;
+
+  const showComingSoon = () => {
+    setMsg(t("shop.comingSoon"));
+  };
+
+  const inputStyle = {
+    background: "rgba(0,0,0,0.35)",
+    border: "1px solid rgba(255,215,64,0.22)",
+    color: "#fff8e0",
+  } as const;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center"
+      style={{ background: "rgba(4,6,12,0.88)", backdropFilter: "blur(8px)" }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+      data-testid="zoom-market-modal"
+    >
+      <div
+        className="w-full max-w-md rounded-t-2xl sm:rounded-2xl overflow-hidden flex flex-col"
+        style={{
+          background: "linear-gradient(180deg, rgba(14,18,32,0.98), rgba(8,10,22,0.99))",
+          border: "1px solid rgba(158,197,232,0.28)",
+          boxShadow: "0 -8px 40px rgba(158,197,232,0.10)",
+          maxHeight: "88vh",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 pt-4 pb-2 flex-shrink-0">
+          <div>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(158,197,232,0.55)" }}>
+              {t("zoomMarket.title")}
+            </div>
+            <div
+              className="flex items-center gap-2"
+              style={{ fontSize: 20, fontWeight: 900, color: GOLD, marginTop: 2 }}
+            >
+              <ZoomCubeIcon size={22} />
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtGram(currentPrice)}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t("common.closeAria")}
+            style={{
+              width: 32, height: 32, borderRadius: "50%",
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.05)",
+              color: "rgba(255,255,255,0.7)",
+              cursor: "pointer",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Compact stats row */}
+        <div className="px-4 pb-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-bold flex-shrink-0">
+          <span style={{ color: pctChange >= 0 ? "#69f0ae" : "#ff8a80" }}>
+            {pctChange >= 0 ? "+" : ""}{pctChange.toFixed(2)}%
+          </span>
+          <span style={{ color: GOLD }}>{t("zoomMarket.wallet", { n: formatZoom(balance) })}</span>
+          <span style={{ color: CYAN }}>{t("zoomMarket.portfolio", { n: formatPrice(portfolio) })}</span>
+        </div>
+
+        {/* Chart — compact */}
+        <div className="px-3 flex-shrink-0" style={{ height: 110 }}>
+          {chartData.length >= 2 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="zoomMarketChartFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={GOLD} stopOpacity={0.28} />
+                    <stop offset="100%" stopColor={GOLD} stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="label" tick={{ fill: "rgba(255,255,255,0.22)", fontSize: 8 }} axisLine={false} tickLine={false} />
+                <YAxis
+                  domain={["auto", "auto"]}
+                  tick={{ fill: "rgba(255,255,255,0.22)", fontSize: 8 }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={42}
+                  tickFormatter={(v) => formatPrice(Number(v))}
+                />
+                <Tooltip
+                  contentStyle={{ background: "#0c1018", border: "1px solid rgba(255,215,64,0.25)", borderRadius: 8, fontSize: 10 }}
+                  formatter={(v: number) => [fmtGram(v), t("zoomMarket.priceLabel")]}
+                />
+                <Area type="monotone" dataKey="price" stroke={GOLD} strokeWidth={1.5} fill="url(#zoomMarketChartFill)" isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-full text-[10px] text-center px-2" style={{ color: "rgba(255,255,255,0.32)" }}>
+              {loading ? t("zoomMarket.loadingChart") : t("zoomMarket.emptyChart")}
+            </div>
+          )}
+        </div>
+
+        {/* Tab toggle */}
+        <div className="px-4 pt-2 pb-2 flex gap-2 flex-shrink-0">
+          {(["chart", "stake"] as const).map((id) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => {
+                setTab(id);
+                setMsg(null);
+              }}
+              className="flex-1 py-2 rounded-lg text-[10px] font-black tracking-wider uppercase"
+              style={{
+                background: tab === id
+                  ? (id === "chart" ? "rgba(158,197,232,0.12)" : "rgba(255,215,64,0.12)")
+                  : "rgba(255,255,255,0.04)",
+                border: tab === id
+                  ? `1px solid ${id === "chart" ? "rgba(158,197,232,0.30)" : "rgba(255,215,64,0.30)"}`
+                  : "1px solid rgba(255,255,255,0.06)",
+                color: tab === id ? (id === "chart" ? CYAN : GOLD) : "rgba(255,255,255,0.35)",
+              }}
+            >
+              {id === "chart" ? t("zoomMarket.tabLive") : t("zoomMarket.tabStake")}
+            </button>
+          ))}
+        </div>
+
+        {/* Action panel */}
+        <div className="px-4 pb-4 flex-1 overflow-y-auto min-h-0">
+          {tab === "chart" ? (
+            <div
+              className="rounded-xl p-3 text-[11px] leading-relaxed"
+              style={{
+                background: "rgba(158,197,232,0.06)",
+                border: "1px solid rgba(158,197,232,0.15)",
+                color: "rgba(220,235,255,0.7)",
+              }}
+            >
+              <span style={{ color: CYAN, fontWeight: 800 }}>{t("zoomMarket.howTitle")}</span>{" "}
+              {t("zoomMarket.howBody")}
+            </div>
+          ) : (
+            <div className="rounded-xl p-3" style={{ background: "rgba(255,215,64,0.05)", border: "1px solid rgba(255,215,64,0.15)" }}>
+              <div className="flex justify-between mb-2 text-[10px]">
+                <span style={{ color: "rgba(255,255,255,0.4)" }}>{t("zoomMarket.walletLabel")}</span>
+                <span style={{ color: GOLD, fontWeight: 800 }}>{formatZoom(balance)} $ZOOM</span>
+              </div>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="number"
+                  min={1}
+                  placeholder={t("zoomMarket.stakePlaceholder")}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="flex-1 rounded-lg px-3 py-2 text-sm font-bold"
+                  style={inputStyle}
+                />
+                <button
+                  type="button"
+                  onClick={() => setAmount(String(Math.floor(balance)))}
+                  className="px-3 rounded-lg text-[10px] font-black"
+                  style={{ background: "rgba(255,215,64,0.10)", color: GOLD, border: "1px solid rgba(255,215,64,0.22)" }}
+                >
+                  {t("common.max")}
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={showComingSoon}
+                  className="flex-1 py-2.5 rounded-lg text-xs font-black"
+                  style={{ background: "linear-gradient(135deg, #ffd740, #ffb300)", color: "#1a1000" }}
+                  data-testid="zoom-stake-btn"
+                >
+                  {t("zoomMarket.stakeBtn")}
+                </button>
+                <button
+                  type="button"
+                  onClick={showComingSoon}
+                  className="flex-1 py-2.5 rounded-lg text-xs font-black"
+                  style={{
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    color: "rgba(255,255,255,0.75)",
+                  }}
+                  data-testid="zoom-unstake-btn"
+                >
+                  {t("zoomMarket.withdraw")}
+                </button>
+              </div>
+              {msg && (
+                <div className="mt-2 text-center text-[10px] font-bold uppercase tracking-wider" style={{ color: GOLD }}>
+                  {msg}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
