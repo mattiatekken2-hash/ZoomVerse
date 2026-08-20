@@ -154,7 +154,7 @@ function CompactWalletChip({
   testId,
 }: {
   label: string;
-  icon: string;
+  icon?: string;
   color: string;
   onClick: (e: MouseEvent<HTMLButtonElement>) => void;
   testId: string;
@@ -175,7 +175,9 @@ function CompactWalletChip({
         flexShrink: 0,
       }}
     >
-      <span style={{ fontSize: 11, lineHeight: 1, color, fontWeight: 900 }}>{icon}</span>
+      {icon && (
+        <span style={{ fontSize: 11, lineHeight: 1, color, fontWeight: 900 }}>{icon}</span>
+      )}
       <span
         style={{
           fontSize: 9,
@@ -405,29 +407,12 @@ export function GramWalletPanel({
         }
       >
         {onOpenHistory && (
-          <button
-            type="button"
+          <CompactWalletChip
+            label={t("wallet.history")}
+            color={HISTORY_GOLD}
             onClick={(e) => { e.stopPropagation(); onOpenHistory(); }}
-            data-testid="wallet-history-orb"
-            aria-label={t("history.title")}
-            title={t("history.title")}
-            className="active:scale-95 transition-transform flex items-center justify-center flex-shrink-0"
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: "50%",
-              background: "rgba(255,215,64,0.12)",
-              border: "1px solid rgba(255,215,64,0.40)",
-              boxShadow: "0 0 12px rgba(255,215,64,0.16)",
-              cursor: "pointer",
-              color: HISTORY_GOLD,
-              fontSize: 15,
-              lineHeight: 1,
-              padding: 0,
-            }}
-          >
-            📜
-          </button>
+            testId="wallet-history-orb"
+          />
         )}
         <CompactWalletChip
           label={t("wallet.deposit")}
