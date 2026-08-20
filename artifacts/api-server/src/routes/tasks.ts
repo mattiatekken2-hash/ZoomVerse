@@ -69,17 +69,16 @@ interface SponsorTaskDef {
 }
 type TaskDef = PlanetTaskDef | SponsorTaskDef;
 
-// Lab-era catalog (new ids so legacy planets_* claims stay inert).
+// Lab-era catalog (new ids so legacy planets_*/lab_* claims stay inert).
 // Economy anchors: pizza = 3 ★ → 3.5 $ZOOM/h; pot = 500 $ZOOM → 0.22 ★/h.
-// All six milestones ≈ 4.15k $ZOOM (~8 pots) only after 500 forges —
-// primary income remains Lab farming, not Earn claims.
+// All six ≈ 825 $ZOOM after 500 forges — Earn never replaces Lab builds.
 const PLANET_TASKS: PlanetTaskDef[] = [
-  { id: "lab_5",   kind: "planets", threshold: 5,   rewardZoom: 100 },
-  { id: "lab_15",  kind: "planets", threshold: 15,  rewardZoom: 200 },
-  { id: "lab_40",  kind: "planets", threshold: 40,  rewardZoom: 350 },
-  { id: "lab_100", kind: "planets", threshold: 100, rewardZoom: 500 },
-  { id: "lab_250", kind: "planets", threshold: 250, rewardZoom: 1_000 },
-  { id: "lab_500", kind: "planets", threshold: 500, rewardZoom: 2_000 },
+  { id: "labv2_5",   kind: "planets", threshold: 5,   rewardZoom: 25 },
+  { id: "labv2_15",  kind: "planets", threshold: 15,  rewardZoom: 50 },
+  { id: "labv2_40",  kind: "planets", threshold: 40,  rewardZoom: 80 },
+  { id: "labv2_100", kind: "planets", threshold: 100, rewardZoom: 120 },
+  { id: "labv2_250", kind: "planets", threshold: 250, rewardZoom: 200 },
+  { id: "labv2_500", kind: "planets", threshold: 500, rewardZoom: 350 },
 ];
 
 const SPONSOR_TASKS: SponsorTaskDef[] = [];
