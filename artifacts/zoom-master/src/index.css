@@ -2643,7 +2643,6 @@ body.animations-paused * {
   }
 }
 
-<<<<<<< HEAD
 /* ── Lab Market (ZOOM / Stardust only) ─────────────────────────── */
 .lab-market {
   --mkt-bg0: #07090f;
@@ -2960,7 +2959,6 @@ body.animations-paused * {
   .lab-market__toast {
     animation: none;
   }
-=======
 /* ─── Earn page ─────────────────────────────────────────────────────── */
 .earn-page {
   --earn-ink: #E8ECF4;
@@ -3132,7 +3130,5 @@ body.animations-paused * {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #7a9ec8, #c5daf0);
->>>>>>> 4e502a1 (Polish Earn UI and fix unreplaced reward placeholders)
-}
+  background: linear-gradient(90deg, #7a9ec8, #c5daf0);}
 
