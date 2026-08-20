@@ -16,7 +16,6 @@ function LabForgeGlbThumbBase({
 }: LabForgeGlbThumbProps) {
   return (
     <LabGlbViewer
-      key={shapeId}
       shapeId={shapeId}
       size={size}
       autoSpin

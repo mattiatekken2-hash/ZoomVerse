@@ -2,10 +2,9 @@ import { memo, useEffect, useRef, type CSSProperties } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { getShapeGlbUrl, labForgeShapeHasGlbReveal } from "@workspace/game-models";
+import { labForgeShapeHasGlbReveal } from "@workspace/game-models";
+import { cloneLabGlbTemplate, preloadLabGlb } from "../utils/labGlbCache";
 import {
-  FARM_GLB_SPIN_RATE,
   LAB_GLB_FIT_SIZE,
   LAB_GLB_SPIN_RATE,
   addForgeSpaceGrid,
@@ -56,9 +55,6 @@ function LabGlbViewerBase({
     const mount = mountRef.current;
     if (!mount || size <= 0) return;
     if (!labForgeShapeHasGlbReveal(shapeId)) return;
-
-    const glbUrl = getShapeGlbUrl(shapeId);
-    if (!glbUrl) return;
 
     let disposed = false;
     let frameId = 0;
@@ -141,10 +137,23 @@ function LabGlbViewerBase({
 
     const draw = () => renderer.render(scene, camera);
 
-    const loader = new GLTFLoader();
     let loadAttempt = 0;
+    let loadTimer: number | null = null;
+
+    const clearModel = () => {
+      gridExtras.forEach((obj) => {
+        scene.remove(obj);
+        disposeSceneObject(obj);
+      });
+      gridExtras = [];
+      spinGroup.children.slice().forEach((child) => {
+        spinGroup.remove(child);
+        disposeSceneObject(child);
+      });
+    };
 
     const placeModel = (model: THREE.Object3D) => {
+      clearModel();
       const fitted = fitGlbToCenter(model, LAB_GLB_FIT_SIZE);
       spinGroup.add(model);
 
@@ -164,23 +173,20 @@ function LabGlbViewerBase({
     };
 
     const tryLoad = () => {
-      loader.load(
-        glbUrl,
-        (gltf) => {
+      preloadLabGlb(shapeId)
+        .then((template) => {
           if (disposed) return;
-          placeModel(gltf.scene);
-        },
-        undefined,
-        () => {
+          placeModel(cloneLabGlbTemplate(template));
+        })
+        .catch(() => {
           if (disposed) return;
           loadAttempt += 1;
           if (loadAttempt <= LOAD_RETRIES) {
-            window.setTimeout(tryLoad, 400 * loadAttempt);
+            loadTimer = window.setTimeout(tryLoad, 400 * loadAttempt);
             return;
           }
           onGlFailedRef.current?.();
-        },
-      );
+        });
     };
     tryLoad();
 
@@ -202,17 +208,11 @@ function LabGlbViewerBase({
 
     return () => {
       disposed = true;
+      if (loadTimer !== null) window.clearTimeout(loadTimer);
       cancelAnimationFrame(frameId);
       controls?.dispose();
       renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
-      gridExtras.forEach((obj) => {
-        scene.remove(obj);
-        disposeSceneObject(obj);
-      });
-      spinGroup.children.slice().forEach((child) => {
-        spinGroup.remove(child);
-        disposeSceneObject(child);
-      });
+      clearModel();
       envTex?.dispose?.();
       pmrem?.dispose?.();
       renderer.dispose();
