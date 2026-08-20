@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { claimDailyReward, fetchTasksState, peekTasksState, prefetchTasksState, claimTask, type TasksState, redeemServerCode, claimWeeklyRedStar, fetchWeeklyRedStarStatus } from "../utils/api";
+import { claimDailyReward, fetchTasksState, peekTasksState, bumpTasksPlanetsBuilt, claimTask, type TasksState, redeemServerCode, claimWeeklyRedStar, fetchWeeklyRedStarStatus } from "../utils/api";
 import { useGlobalStore, refreshDailyStatus, applyDailyClaimResult } from "../store/globalStore";
 import { useT } from "../i18n/LanguageContext";
 import { SpaceTicketIcon, SpeedBoltIcon } from "../components/icons/GameIcons";
@@ -13,6 +13,10 @@ interface EarnPageProps {
   referredBy: string | null;
   claimedMilestones: number[];
   telegramId: string | null;
+  /** Local Lab forge counter — floors Earn "FORGED" while /tasks/state catches up. */
+  craftsCompleted?: number;
+  /** When false the tab is hidden but kept mounted so craft refresh still lands. */
+  visible?: boolean;
   onClaimDaily: () => void;
   onRedeemCode: (code: string) => { success: boolean; amount?: number; isSun?: boolean; error?: string };
   /** Weekly REDSTAR bonus day (1–7). */
@@ -84,7 +88,7 @@ const SPONSOR_REQ_KEY: Record<string, string> = {
   sponsor_yt_miketamago: "earn.reqMiketamago",
 };
 
-export function EarnPage({ referralCode, referralCount, referralSpeedBonus, referredBy, claimedMilestones, telegramId, onRedeemCode, weeklyRedStarDay = 1, weeklyRedStarClaimedToday = false, onRedStarUpdate }: EarnPageProps) {
+export function EarnPage({ referralCode, referralCount, referralSpeedBonus, referredBy, claimedMilestones, telegramId, craftsCompleted = 0, visible = true, onRedeemCode, weeklyRedStarDay = 1, weeklyRedStarClaimedToday = false, onRedStarUpdate }: EarnPageProps) {
   const { t } = useT();
   const firstName = (() => {
     try { return (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.first_name ?? null; } catch { return null; }
@@ -97,9 +101,10 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
+    if (!visible) return;
     const i = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(i);
-  }, []);
+  }, [visible]);
 
   const nextAvailable = daily?.nextAvailableAt ?? 0;
   void tick;
@@ -292,11 +297,11 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
   const tasksTickRef = useRef(0);
   void tasksTickRef;
 
-  const reloadTasks = useCallback(async () => {
+  const reloadTasks = useCallback(async (force = false) => {
     if (!telegramId) return;
     setTasksError(null);
     // Keep current UI; refresh silently in the background.
-    const s = await fetchTasksState(telegramId);
+    const s = await fetchTasksState(telegramId, { force });
     if (s) setTasks(s);
     else if (!peekTasksState(telegramId).planetTasks.length) {
       setTasksError(t("earn.couldNotLoadTasks"));
@@ -305,14 +310,39 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
 
   useEffect(() => {
     setTasks(peekTasksState(telegramId));
-    void reloadTasks();
+    void reloadTasks(true);
   }, [telegramId, reloadTasks]);
 
+  // Floor FORGED with local craftsCompleted so Lab → Earn never looks stuck.
   useEffect(() => {
-    const handler = () => { void reloadTasks(); };
+    if (!telegramId || craftsCompleted <= 0) return;
+    const bumped = bumpTasksPlanetsBuilt(telegramId, craftsCompleted);
+    if (bumped) setTasks(bumped);
+  }, [telegramId, craftsCompleted]);
+
+  useEffect(() => {
+    const handler = () => { void reloadTasks(true); };
     window.addEventListener("zoom-data-refresh", handler);
     return () => { window.removeEventListener("zoom-data-refresh", handler); };
   }, [reloadTasks]);
+
+  // Always re-sync when the user opens Earn (even if mount was kept alive).
+  useEffect(() => {
+    const onTab = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ tab?: string }>).detail;
+      if (detail?.tab !== "earn") return;
+      void refreshDailyStatus();
+      void reloadTasks(true);
+    };
+    window.addEventListener("zoom-tab-active", onTab);
+    return () => window.removeEventListener("zoom-tab-active", onTab);
+  }, [reloadTasks]);
+
+  useEffect(() => {
+    if (!visible) return;
+    void refreshDailyStatus();
+    void reloadTasks(true);
+  }, [visible, reloadTasks]);
 
   const handleClaimTask = async (taskId: string) => {
     if (!telegramId || claimingTaskId) return;
@@ -354,17 +384,17 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
         window.dispatchEvent(new CustomEvent("zoom-credit-local", { detail: { amount: res.rewardZoom } }));
       }
       window.dispatchEvent(new Event("zoom-data-refresh"));
-      await reloadTasks();
+      await reloadTasks(true);
     } else if (res.error === "ALREADY_CLAIMED") {
       setTaskMsg(t("earn.alreadyClaimed"));
-      await reloadTasks();
+      await reloadTasks(true);
     } else if (res.error === "THRESHOLD_NOT_MET") {
       setTaskMsg(t("earn.thresholdNotMet", { need: String(res.threshold ?? 0), t: String(res.threshold ?? 0), b: String(res.planetsBuilt ?? 0) }));
-      await reloadTasks();
+      await reloadTasks(true);
     } else if (res.error === "INELIGIBLE") {
       const reqKey = SPONSOR_REQ_KEY[taskId];
       setTaskMsg(reqKey ? t(reqKey) : (res.requirementLabel || t("earn.requirementFallback")));
-      await reloadTasks();
+      await reloadTasks(true);
     } else {
       setTaskMsg(t("earn.claimFailed"));
     }
@@ -389,8 +419,10 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
     window.open(url, "_blank");
   };
 
+  const forgedCount = Math.max(tasks.planetsBuilt, Math.max(0, craftsCompleted));
+
   return (
-    <div className="flex flex-col h-full overflow-y-auto earn-page">
+    <div className="flex flex-col h-full overflow-y-auto earn-page" style={{ display: visible ? undefined : "none" }} aria-hidden={!visible}>
       <div className="px-5 pt-4 pb-2 flex-shrink-0">
         <h2 className="font-black text-2xl tracking-tight" style={{ color: "var(--earn-ink)" }}>{t("earn.title")}</h2>
         <p className="text-[12px] mt-1 leading-snug" style={{ color: "var(--earn-muted)" }}>
@@ -581,7 +613,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             <div className="text-right">
               <div className="text-[9px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.35)" }}>{t("earn.built")}</div>
               <div className="text-lg font-black tabular-nums" style={{ color: "var(--earn-cyan)" }}>
-                {tasks.planetsBuilt.toLocaleString()}
+                {forgedCount.toLocaleString()}
               </div>
             </div>
           </div>
@@ -594,13 +626,14 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
 
           <div className="flex flex-col gap-2">
               {tasks.planetTasks.map((task) => {
-                const pct = Math.min(100, Math.round((tasks.planetsBuilt / task.threshold) * 100));
+                const pct = Math.min(100, Math.round((forgedCount / task.threshold) * 100));
                 const isClaiming = claimingTaskId === task.id;
                 const rewardN = Number(task.rewardZoom ?? 0);
+                const claimable = task.claimed ? false : forgedCount >= task.threshold;
                 return (
                   <div
                     key={task.id}
-                    className={`earn-row flex-col !items-stretch ${task.claimed ? "earn-row--done" : task.claimable ? "earn-row--ready" : ""}`}
+                    className={`earn-row flex-col !items-stretch ${task.claimed ? "earn-row--done" : claimable ? "earn-row--ready" : ""}`}
                   >
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <div className="min-w-0">
@@ -616,18 +649,18 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                       </div>
                       <button
                         onClick={() => void handleClaimTask(task.id)}
-                        disabled={task.claimed || !task.claimable || isClaiming}
+                        disabled={task.claimed || !claimable || isClaiming}
                         className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase shrink-0"
                         style={{
-                          background: task.claimed ? "rgba(0,230,118,0.1)" : task.claimable ? "linear-gradient(135deg, #F2F5FA, #9EC5E8)" : "rgba(255,255,255,0.04)",
-                          color: task.claimed ? "#00e676" : task.claimable ? "#0a1220" : "rgba(255,255,255,0.28)",
+                          background: task.claimed ? "rgba(0,230,118,0.1)" : claimable ? "linear-gradient(135deg, #F2F5FA, #9EC5E8)" : "rgba(255,255,255,0.04)",
+                          color: task.claimed ? "#00e676" : claimable ? "#0a1220" : "rgba(255,255,255,0.28)",
                           border: task.claimed ? "1px solid rgba(0,230,118,0.25)" : "1px solid rgba(255,255,255,0.06)",
-                          cursor: task.claimed || !task.claimable || isClaiming ? "not-allowed" : "pointer",
+                          cursor: task.claimed || !claimable || isClaiming ? "not-allowed" : "pointer",
                           minWidth: 84,
                         }}
                         data-testid={`button-task-${task.id}`}
                       >
-                        {task.claimed ? t("earn.claimedBtn") : isClaiming ? "…" : task.claimable ? t("earn.claimBtn") : t("earn.lockedBtn")}
+                        {task.claimed ? t("earn.claimedBtn") : isClaiming ? "…" : claimable ? t("earn.claimBtn") : t("earn.lockedBtn")}
                       </button>
                     </div>
                     <div className="flex items-center gap-2">
@@ -635,7 +668,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                         <i style={{ width: `${pct}%`, background: task.claimed ? "linear-gradient(90deg,#00e676,#00c853)" : undefined }} />
                       </div>
                       <span className="text-[10px] font-bold tabular-nums" style={{ color: "rgba(255,255,255,0.5)", minWidth: 64, textAlign: "right" }}>
-                        {Math.min(tasks.planetsBuilt, task.threshold).toLocaleString()}/{task.threshold.toLocaleString()}
+                        {Math.min(forgedCount, task.threshold).toLocaleString()}/{task.threshold.toLocaleString()}
                       </span>
                     </div>
                   </div>

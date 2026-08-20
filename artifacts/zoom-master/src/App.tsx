@@ -409,6 +409,7 @@ function AppShellWithState() {
     !state.pendingPlanet &&
     !state.forgeRolling,
   );
+  const visitedEarnRef = useRef(false);
 
   const switchTab = (nextTab: Tab) => {
     if (nextTab === "wallet") void prefetchWalletMarket();
@@ -760,7 +761,11 @@ function AppShellWithState() {
         {ALL_TABS.map((t) => {
           const isActiveTab = tab === t;
           const isHiddenLabForge = t === "lab" && !isActiveTab && keepLabForgeAlive;
-          if (!isActiveTab && !isHiddenLabForge) return null;
+          // Keep Earn mounted after first open so forge → zoom-data-refresh still
+          // updates the FORGED counter (unmounting made Earn look "stuck").
+          const keepEarnAlive = t === "earn" && (isActiveTab || visitedEarnRef.current);
+          if (t === "earn" && isActiveTab) visitedEarnRef.current = true;
+          if (!isActiveTab && !isHiddenLabForge && !keepEarnAlive) return null;
           return (
             <div
               key={t}
@@ -917,12 +922,14 @@ function AppShellWithState() {
               )}
               {t === "earn" && (
                 <EarnPage
+                  visible={isActiveTab}
                   referralCode={state.referralCode}
                   referralCount={state.referralCount}
                   lastDailyClaimAt={state.lastDailyClaimAt}
                   referralSpeedBonus={state.referralSpeedBonus}
                   referredBy={state.referredBy}
                   claimedMilestones={state.claimedMilestones}
+                  craftsCompleted={state.craftsCompleted ?? 0}
                   onClaimDaily={claimDaily}
                   onRedeemCode={redeemCode}
                   telegramId={state.telegramId}
