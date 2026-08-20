@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import { fetchEconomyPrice, fetchEconomyHistory, type EconomyChartPoint } from "../utils/api";
+import { formatZoomChartPrice } from "../utils/wallet24hChange";
 
 // Real micro-volatility now lives on the SERVER (zoomPrice.ts:
 // randomDeltaBp signed delta around each action's base bp). The chart
@@ -36,10 +37,10 @@ interface EconomyModalProps {
 }
 
 function formatPrice(p: number): string {
-  // Prices are denominated in TON (decorative). The genesis is 0.0001 TON
-  // and values grow slowly, so we need 6 decimals to show meaningful
-  // movement at sub-unit scale. Larger values fall back to fewer decimals.
-  if (!Number.isFinite(p) || p <= 0) return "0.000000";
+  // Prices are denominated in GRAM. Genesis is 0.000001 — need >6 decimals
+  // so live bumps (e.g. 0.000001001863) don't freeze as "0.000001".
+  if (!Number.isFinite(p) || p <= 0) return "0";
+  if (p < 0.0001) return formatZoomChartPrice(p);
   if (p < 0.01) return p.toFixed(6);
   if (p < 1) return p.toFixed(4);
   if (p < 10) return p.toFixed(3);

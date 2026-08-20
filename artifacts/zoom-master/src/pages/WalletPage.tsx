@@ -12,7 +12,7 @@ import {
   readWalletMarketCacheForDisplay,
   subscribeWalletMarketCache,
 } from "../utils/walletMarketCache";
-import { formatChangePct, formatGramValueFull, getRolling24hChange, chartIconScale, formatZoomChartPrice, formatStardustChartIndex, formatGramChartUsd } from "../utils/wallet24hChange";
+import { formatChangePct, formatGramValueFull, getRolling24hChange, formatZoomChartPrice, formatStardustChartIndex, formatGramChartUsd } from "../utils/wallet24hChange";
 
 const LIVE_POLL_MS = 12_000;
 
@@ -170,14 +170,11 @@ export function WalletPage({
   const stardustGramValue = liveStardustBalance > 0
     ? (liveStardustBalance * stardustIndex) / 100
     : null;
-  // Under-icon: live chart unit (ZOOM ≈ 0.000001, Stardust ≈ 1.000000, GRAM = TON USD).
-  // Icons scale with the same 24h chart % so they grow/shrink with the real market.
+  // Under-icon: live chart unit (ZOOM micro-GRAM, Stardust index, GRAM = TON USD).
+  // Icons stay fixed size — % change is text-only under the icon.
   const zoomIconValue = formatZoomChartPrice(zoomPriceGram);
   const stardustIconValue = formatStardustChartIndex(stardustIndex);
   const gramIconValue = formatGramChartUsd(tonPrice);
-  const gramIconScale = chartIconScale(gramChangePct);
-  const zoomIconScale = chartIconScale(zoomChangePct);
-  const stardustIconScale = chartIconScale(stardustChangePct);
   const redStarGramValue = redStarBalance > 0 ? redStarBalance * REDSTAR_GRAM_PER_UNIT : null;
   const nftStarGramValue = nftStarBalance > 0 ? nftStarBalance * NFTSTAR_GRAM_PER_UNIT : null;
   const redStarIconValue = redStarBalance > 0 && redStarGramValue != null
@@ -303,9 +300,6 @@ export function WalletPage({
                 <span
                   style={{
                     display: "inline-flex",
-                    transform: `scale(${gramIconScale})`,
-                    transformOrigin: "center bottom",
-                    transition: "transform 0.45s ease",
                   }}
                 >
                   <GramWalletIcon size={tonBalance >= 1000 ? 28 : 32} />
@@ -426,7 +420,7 @@ export function WalletPage({
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {/* ZOOM S2 — cube logo, live chart unit under icon (grows/shrinks with %) */}
+          {/* ZOOM S2 — cube logo, live chart unit under icon */}
           <BalanceRow
             icon={<ZoomCubeIcon size={BALANCE_ICON_SIZE} />}
             label={t("walletPage.zoomS2")}
@@ -437,7 +431,6 @@ export function WalletPage({
             priceLoading={priceLoading}
             changePct={zoomChangePct}
             iconSubValue={zoomIconValue}
-            iconScale={zoomIconScale}
             onClick={() => setZoomMarketOpen(true)}
             hint={t("walletPage.zoomHint")}
             data-testid="wallet-zoom-balance"
@@ -453,7 +446,6 @@ export function WalletPage({
             priceLoading={priceLoading}
             changePct={stardustChangePct}
             iconSubValue={stardustIconValue}
-            iconScale={stardustIconScale}
             onClick={() => setStardustMarketOpen(true)}
             hint={t("walletPage.stardustHint")}
           />
@@ -591,7 +583,6 @@ function BalanceRow({
   priceLoading,
   changePct,
   iconSubValue,
-  iconScale = 1,
   referenceOnly,
   onClick,
   hint,
@@ -607,8 +598,6 @@ function BalanceRow({
   priceLoading?: boolean;
   changePct?: number | null;
   iconSubValue?: string;
-  /** Live chart scale — emoji grows/shrinks with market %. */
-  iconScale?: number;
   referenceOnly?: boolean;
   onClick?: () => void;
   hint?: string;
@@ -622,7 +611,6 @@ function BalanceRow({
   const pctNegative = (changePct ?? 0) < 0;
   const usdLabel = formatUsdFromGram(gramValue ?? null, tonPrice ?? null, !!priceLoading);
   const usdHeader = referenceOnly ? "walletPage.approxUsdRef" : "walletPage.approxUsd";
-  const scale = Number.isFinite(iconScale) ? iconScale : 1;
 
   return (
     <div
@@ -667,9 +655,6 @@ function BalanceRow({
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
-                transform: `scale(${scale})`,
-                transformOrigin: "center center",
-                transition: "transform 0.45s ease",
               }}
             >
               {icon}

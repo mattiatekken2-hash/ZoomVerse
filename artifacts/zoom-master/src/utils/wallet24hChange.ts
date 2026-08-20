@@ -71,21 +71,25 @@ export function formatChangePct(pct: number | null): string {
 }
 
 /**
- * Map live chart % to icon scale so wallet emojis grow/shrink with the real
- * market move. ±8% → ±20% size; clamped so icons never look broken.
+ * @deprecated Icons must stay fixed size — % change is shown as text only.
+ * Kept returning 1 so any leftover callers don't resize emojis.
  */
-export function chartIconScale(changePct: number | null | undefined): number {
-  if (changePct == null || !Number.isFinite(changePct)) return 1;
-  const clamped = Math.max(-8, Math.min(8, changePct));
-  return 1 + (clamped / 8) * 0.2;
+export function chartIconScale(_changePct?: number | null): number {
+  return 1;
 }
 
-/** ZOOM chart unit — genesis sits near 0.000001 GRAM. */
+/**
+ * Live ZOOM price in GRAM. Genesis is 0.000001 — bumps are tiny, so we need
+ * up to 12 decimals (trim trailing zeros). `toFixed(6)` would freeze the UI
+ * at "0.000001" even when the server price is 0.000001001863.
+ */
 export function formatZoomChartPrice(p: number | null | undefined): string {
   if (p == null || !Number.isFinite(p) || p <= 0) return "—";
-  if (p < 0.000001) return p.toFixed(9);
-  if (p < 0.0001) return p.toFixed(6);
-  if (p < 0.01) return p.toFixed(4);
+  if (p < 0.0001) {
+    return p.toFixed(12).replace(/0+$/, "").replace(/\.$/, "");
+  }
+  if (p < 0.01) return p.toFixed(6);
+  if (p < 1) return p.toFixed(4);
   return p.toFixed(3);
 }
 
