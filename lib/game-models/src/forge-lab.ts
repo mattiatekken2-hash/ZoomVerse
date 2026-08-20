@@ -25,6 +25,8 @@ export {
   isLabZoomShapeId,
   isLabStardustShapeId,
   resolveLabStardustShapeId,
+  normalizeLabForgeShapeId,
+  labStardustDisplayNameFor,
   labMarketPathForShapeId,
   isLabForgeGeneratorPlanet,
   LAB_FORGE_TEST_PIZZA_KEY,
