@@ -11,7 +11,8 @@
 //    planet without any server round-trip or migration.
 
 import type { Planet } from "../hooks/useGameState";
-import { isLabForgeGeneratorPlanet, labStardustDisplayNameFor, isLabZoomShapeId, LAB_ZOOM_DISPLAY_NAME } from "@workspace/game-models";
+import { isLabZoomShapeId, LAB_ZOOM_DISPLAY_NAME } from "@workspace/game-models";
+import { labStardustDisplayNameFor } from "./labForgeShape";
 
 // Word banks. Picked to feel sci-fi / mythic without being too long.
 // Avoid real-life proper nouns that could be sensitive.

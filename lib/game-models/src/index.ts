@@ -10,7 +10,3 @@ export * from "./glb-assets.js";
  * (explicit, not `export *` from economy) so Vite resolves pickRandom.
  */
 export * from "./forge-lab.js";
-export {
-  normalizeLabForgeShapeId,
-  labStardustDisplayNameFor,
-} from "./forge-lab.js";
