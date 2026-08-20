@@ -9,7 +9,7 @@ import { ForgePathWheel } from "../components/ForgePathWheel";
 import { LabModelRevealCard } from "../components/LabModelRevealCard";
 import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
 import { ForgeUiErrorBoundary } from "../components/ForgeUiErrorBoundary";
-import { TonAppRankButton } from "../components/TonAppRankButton";
+import { GramDiamondIcon } from "../components/GramDiamondIcon";
 import type { LabForgePath } from "@workspace/game-models";
 import type { Planet } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
@@ -40,6 +40,24 @@ interface LabPageProps {
 interface FloatMsg { id: number; text: string; color: string }
 
 const GREY = "#8892b0";
+const TON_APP_VOTE_URL = "https://ton.app/games/zoom-bot?id=5847";
+
+function openExternalUrl(url: string) {
+  try {
+    const tg = (window as unknown as {
+      Telegram?: { WebApp?: { openTelegramLink?: (u: string) => void; openLink?: (u: string) => void } };
+    }).Telegram?.WebApp;
+    if (tg?.openTelegramLink && url.startsWith("https://t.me/")) {
+      tg.openTelegramLink(url);
+      return;
+    }
+    if (tg?.openLink) {
+      tg.openLink(url);
+      return;
+    }
+  } catch { /**/ }
+  window.open(url, "_blank", "noopener,noreferrer");
+}
 
 export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, labForgeShapeId = null, labForgePath = null, hasAutoTap, stardustBalance, telegramId, onCraft, onBeginLabForge, onClaim, onOpenShop, muted = false, setMuted, visible = true }: LabPageProps) {
   const { t } = useT();
@@ -238,14 +256,31 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
         />
         </ForgeUiErrorBoundary>
 
-        <TonAppRankButton
+        <button
+          type="button"
+          onClick={() => openExternalUrl(TON_APP_VOTE_URL)}
+          aria-label={t("lab.tonAppVoteAria")}
+          title={t("lab.tonAppVoteAria")}
+          data-testid="lab-ton-app-vote"
+          className="absolute z-30 flex items-center justify-center active:scale-95 pointer-events-auto"
           style={{
-            position: "absolute",
             left: 6,
             top: "max(56px, calc(env(safe-area-inset-top, 0px) + 50px))",
-            zIndex: 30,
+            width: 40,
+            height: 40,
+            borderRadius: "50%",
+            background: "rgba(0, 0, 0, 0.62)",
+            border: "1px solid rgba(140, 215, 255, 0.28)",
+            backdropFilter: "blur(10px)",
+            boxShadow: "0 4px 14px rgba(120, 200, 255, 0.18)",
+            cursor: "pointer",
+            padding: 0,
+            transition: "transform 0.12s",
+            WebkitTapHighlightColor: "transparent",
           }}
-        />
+        >
+          <GramDiamondIcon size={22} />
+        </button>
 
         <div
           className="absolute left-0 right-0 z-30 flex items-center justify-center gap-2 px-3 pointer-events-none"

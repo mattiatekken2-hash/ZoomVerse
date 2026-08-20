@@ -75,7 +75,7 @@ const en: Dict = {
   "planet.LEGEND": "Legend",
 
   // history modal
-  "history.title": "MY HISTORY",
+  "history.title": "HISTORY",
   "history.subtitle": "Your monetary actions in the last 48 hours",
   "history.loading": "Loading…",
   "history.empty": "No actions in the last 48 hours.",

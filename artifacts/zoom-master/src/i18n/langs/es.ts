@@ -52,7 +52,7 @@ export const es: Record<string, string> = {
   "planet.NOVA": "Nova",
   "planet.MUSHROOM": "Hongo",
   "planet.LEGEND": "Leyenda",
-  "history.title": "MI HISTORIAL",
+  "history.title": "HISTORY",
   "history.subtitle": "Tus acciones monetarias en las últimas 48 horas",
   "history.loading": "Cargando…",
   "history.empty": "Sin acciones en las últimas 48 horas.",
