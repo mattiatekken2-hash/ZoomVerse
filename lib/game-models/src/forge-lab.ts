@@ -25,8 +25,6 @@ export {
   isLabZoomShapeId,
   isLabStardustShapeId,
   resolveLabStardustShapeId,
-  normalizeLabForgeShapeId,
-  labStardustDisplayNameFor,
   labMarketPathForShapeId,
   isLabForgeGeneratorPlanet,
   LAB_FORGE_TEST_PIZZA_KEY,
@@ -61,7 +59,18 @@ import {
   isLabStardustShapeId,
   isLabZoomShapeId,
   resolveLabStardustShapeId,
+  normalizeLabForgeShapeId as normalizeLabForgeShapeIdImpl,
+  labStardustDisplayNameFor as labStardustDisplayNameForImpl,
 } from "./forge-lab-economy.js";
+
+/** Vite dev resolves these when defined on this module (not only re-exported). */
+export function normalizeLabForgeShapeId(shapeId: string | null | undefined): string | null {
+  return normalizeLabForgeShapeIdImpl(shapeId);
+}
+
+export function labStardustDisplayNameFor(shapeId: string | null | undefined): string | null {
+  return labStardustDisplayNameForImpl(shapeId);
+}
 
 export function resolveLabForgeShapeId(override: string | null | undefined): string {
   if (!override || override.length === 0) return FORGE_SPHERE_SHAPE_ID;
