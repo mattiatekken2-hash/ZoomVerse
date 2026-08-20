@@ -4,7 +4,7 @@ export const LAB_PIZZA_SHAPE_ID = "pizza";
 export const LAB_FLOWER_SHAPE_ID = "flower";
 export const LAB_DOLLAR_SHAPE_ID = "dollar";
 export const LAB_STARDUST_POT_SHAPE_ID = "stardust_pot";
-export const LAB_STREET_SCENE_SHAPE_ID = "street_scene";
+export const LAB_ONIGIRI_SHAPE_ID = "onigiri";
 export const LAB_ISLAND_HOME_SHAPE_ID = "island_home";
 
 export const LAB_ZOOM_SHAPE_IDS = [
@@ -14,7 +14,7 @@ export const LAB_ZOOM_SHAPE_IDS = [
 ] as const;
 
 export const LAB_STARDUST_SHAPE_IDS = [
-  LAB_STREET_SCENE_SHAPE_ID,
+  LAB_ONIGIRI_SHAPE_ID,
   LAB_ISLAND_HOME_SHAPE_ID,
   LAB_STARDUST_POT_SHAPE_ID,
 ] as const;
@@ -31,7 +31,7 @@ export const LAB_ZOOM_FARM_RATE: Record<LabZoomShapeId, number> = {
 };
 
 export const LAB_STARDUST_FARM_RATE: Record<LabStardustShapeId, number> = {
-  [LAB_STREET_SCENE_SHAPE_ID]: 0.22,
+  [LAB_ONIGIRI_SHAPE_ID]: 0.22,
   [LAB_ISLAND_HOME_SHAPE_ID]: 0.28,
   [LAB_STARDUST_POT_SHAPE_ID]: 0.20,
 };
@@ -43,7 +43,7 @@ export const LAB_ZOOM_DISPLAY_NAME: Record<LabZoomShapeId, string> = {
 };
 
 export const LAB_STARDUST_DISPLAY_NAME: Record<LabStardustShapeId, string> = {
-  [LAB_STREET_SCENE_SHAPE_ID]: "Street Scene",
+  [LAB_ONIGIRI_SHAPE_ID]: "Onigiri",
   [LAB_ISLAND_HOME_SHAPE_ID]: "Island Home",
   [LAB_STARDUST_POT_SHAPE_ID]: "Stardust Pot",
 };
@@ -55,7 +55,7 @@ export const LAB_ZOOM_COLORS: Record<LabZoomShapeId, { color: string; glowColor:
 };
 
 export const LAB_STARDUST_COLORS: Record<LabStardustShapeId, { color: string; glowColor: string }> = {
-  [LAB_STREET_SCENE_SHAPE_ID]: { color: "#ffd740", glowColor: "#ffc107" },
+  [LAB_ONIGIRI_SHAPE_ID]: { color: "#ffd740", glowColor: "#ffc107" },
   [LAB_ISLAND_HOME_SHAPE_ID]: { color: "#ffab40", glowColor: "#ff9100" },
   [LAB_STARDUST_POT_SHAPE_ID]: { color: "#ffd740", glowColor: "#ffc107" },
 };
@@ -70,8 +70,16 @@ export function isLabZoomShapeId(shapeId: string | null | undefined): shapeId is
   return !!shapeId && (LAB_ZOOM_SHAPE_IDS as readonly string[]).includes(shapeId);
 }
 
-export function isLabStardustShapeId(shapeId: string | null | undefined): shapeId is LabStardustShapeId {
-  return !!shapeId && (LAB_STARDUST_SHAPE_IDS as readonly string[]).includes(shapeId);
+export function resolveLabStardustShapeId(shapeId: string | null | undefined): LabStardustShapeId | null {
+  if (!shapeId) return null;
+  if (shapeId === "street_scene") return LAB_ONIGIRI_SHAPE_ID;
+  return (LAB_STARDUST_SHAPE_IDS as readonly string[]).includes(shapeId)
+    ? (shapeId as LabStardustShapeId)
+    : null;
+}
+
+export function isLabStardustShapeId(shapeId: string | null | undefined): boolean {
+  return resolveLabStardustShapeId(shapeId) !== null;
 }
 
 export function labMarketPathForShapeId(shapeId: string | null | undefined): LabMarketPath | null {

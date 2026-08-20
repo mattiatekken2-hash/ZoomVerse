@@ -10,7 +10,7 @@ import {
 } from "../utils/api";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import type { Planet } from "../hooks/useGameState";
-import { LAB_STARDUST_DISPLAY_NAME, LAB_ZOOM_DISPLAY_NAME, labMarketPathForShapeId, isLabStardustShapeId, isLabZoomShapeId } from "@workspace/game-models";
+import { LAB_STARDUST_DISPLAY_NAME, LAB_ZOOM_DISPLAY_NAME, labMarketPathForShapeId, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId } from "@workspace/game-models";
 
 const CYAN = "#9EC5E8";
 const GOLD = "#ffd740";
@@ -32,7 +32,10 @@ function formatRemain(ms: number): string {
 function labelFor(listing: ServerMarketListing): string {
   const shape = listing.shapeId ?? "";
   if (isLabZoomShapeId(shape)) return LAB_ZOOM_DISPLAY_NAME[shape];
-  if (isLabStardustShapeId(shape)) return LAB_STARDUST_DISPLAY_NAME[shape];
+  if (isLabStardustShapeId(shape)) {
+    const id = resolveLabStardustShapeId(shape)!;
+    return LAB_STARDUST_DISPLAY_NAME[id];
+  }
   if (listing.planetDisplayName) return listing.planetDisplayName;
   return shape || listing.planetType || "Model";
 }
