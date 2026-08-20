@@ -60,26 +60,22 @@ async function runBootMigrations() {
     await db.execute(sql`
       ALTER TABLE market_listings
         ADD COLUMN IF NOT EXISTS model_id text,
-        ADD COLUMN IF NOT EXISTS shape_id text
+        ADD COLUMN IF NOT EXISTS shape_id text,
+        ADD COLUMN IF NOT EXISTS last_activated_at timestamp
+    `);
+    // Lab forge rates are fractional (pizza 3.5, flower 2.6, …). Idempotent.
+    await db.execute(sql`
+      ALTER TABLE market_listings
+        ALTER COLUMN planet_rate TYPE double precision
+        USING planet_rate::double precision
     `);
     await db.execute(sql`
-      ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS weekly_redstar_day integer NOT NULL DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS last_weekly_redstar_claim_date text NOT NULL DEFAULT ''
+      UPDATE market_listings
+         SET last_activated_at = COALESCE(last_activated_at, created_at, NOW())
+       WHERE status = 'active'
+         AND last_activated_at IS NULL
     `);
-    await db.execute(sql`
-      ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS stardust_staked integer NOT NULL DEFAULT 0
-    `);
-    await db.execute(sql`
-      ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS stardust_stake_index_micro integer NOT NULL DEFAULT 1000000
-    `);
-    await db.execute(sql`
-      ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS stardust_stake_locked_until_ms bigint NOT NULL DEFAULT 0
-    `);
-    logger.info("[boot-migration] items_json / models_json / stardust stake columns OK");
+    logger.info("[boot-migration] items_json / models_json / stardust stake / market lab rates OK");
   } catch (err) {
     logger.error({ err }, "[boot-migration] failed to add items columns — items routes may error");
   }
