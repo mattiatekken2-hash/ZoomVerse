@@ -7,7 +7,6 @@ interface LabForgeGlbCyclerProps {
   shapeIds: readonly string[];
   size?: number;
   variant?: "reveal" | "picker";
-  studioGlow?: string;
 }
 
 /** Picker preview — cycles through every GLB in the path pool (same pool as random forge). */
@@ -15,7 +14,6 @@ function LabForgeGlbCyclerBase({
   shapeIds,
   size = 104,
   variant = "picker",
-  studioGlow,
 }: LabForgeGlbCyclerProps) {
   const pool = shapeIds.length > 0 ? shapeIds : ["pizza"];
   const [idx, setIdx] = useState(0);

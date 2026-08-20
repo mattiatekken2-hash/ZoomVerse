@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Planet } from "../hooks/useGameState";
 import { getPlanetDisplayColors } from "../hooks/useGameState";
-import { FORGE_SPHERE_SHAPE_ID, labForgeShapeHasGlbReveal } from "@workspace/game-models";
+import { FORGE_SPHERE_SHAPE_ID, isLabForgeGeneratorPlanet, labForgeShapeHasGlbReveal } from "@workspace/game-models";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { ObjectThumb } from "./MysteryModel3D";
 import { LabGlbViewer } from "./LabGlbViewer";
@@ -281,18 +281,23 @@ export function PlanetVoxelThumb({
 
   const handleGlError = useCallback(() => {
     releaseSlot();
-    // Prefer voxel silhouette over endless LabGlbViewer retries when GLB 404s
-    // (e.g. flower/dollar missing from public/models).
+    // Lab GLB models must never fall back to procedural voxels (wrong mesh).
+    if (isLabForgeGeneratorPlanet(planet) && labForgeShapeHasGlbReveal(planet.shapeId)) {
+      setGlGen((g) => g + 1);
+      return;
+    }
     setGlbFailed(true);
     setGlGen((g) => g + 1);
-  }, [releaseSlot]);
+  }, [releaseSlot, planet]);
 
   const showGl = !suspendGl && inView && delayReady && hasSlot;
   const useHiQuality = hiQuality ?? size >= 80;
   const thumbShapeId = planet.shapeId && planet.shapeId.length > 0
     ? planet.shapeId
     : FORGE_SPHERE_SHAPE_ID;
-  const useLabGlb = labForgeShapeHasGlbReveal(thumbShapeId) && !glbFailed;
+  const hasLabGlb = labForgeShapeHasGlbReveal(thumbShapeId);
+  const labGen = isLabForgeGeneratorPlanet(planet);
+  const useLabGlb = hasLabGlb && (labGen || !glbFailed);
 
   return (
     <div
@@ -304,7 +309,7 @@ export function PlanetVoxelThumb({
       {showGl ? (
         useLabGlb ? (
           <LabGlbViewer
-            key={`${planet.id}-${glGen}`}
+            key={`${planet.id}-${thumbShapeId}-${glGen}`}
             shapeId={thumbShapeId}
             size={size}
             autoSpin={animate}
