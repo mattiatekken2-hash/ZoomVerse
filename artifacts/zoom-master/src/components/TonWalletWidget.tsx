@@ -398,7 +398,7 @@ export function GramWalletPanel({
                 zIndex: 4,
                 display: "flex",
                 gap: 6,
-                flexWrap: "wrap",
+                flexWrap: "nowrap",
                 justifyContent: "flex-end",
                 maxWidth: "calc(100% - 24px)",
                 pointerEvents: "auto",
@@ -406,6 +406,7 @@ export function GramWalletPanel({
             : { display: "flex", justifyContent: "center", gap: 28, padding: "2px 0 6px" }
         }
       >
+        <ExchangeWidget balance={zoomBalance} />
         {onOpenHistory && (
           <CompactWalletChip
             label={t("wallet.history")}
@@ -428,7 +429,6 @@ export function GramWalletPanel({
           onClick={(e) => { e.stopPropagation(); setActiveModal("withdraw"); }}
           testId="wallet-withdraw-orb"
         />
-        <ExchangeWidget balance={zoomBalance} />
       </div>
 
       {activeModal === "deposit" && (
