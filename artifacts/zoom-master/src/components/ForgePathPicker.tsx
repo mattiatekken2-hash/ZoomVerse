@@ -2,8 +2,7 @@ import { memo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
   LAB_PIZZA_SHAPE_ID,
-  LAB_STREET_SCENE_SHAPE_ID,
-  LAB_ISLAND_HOME_SHAPE_ID,
+  LAB_STARDUST_POT_SHAPE_ID,
   LAB_STARDUST_FORGE_ZOOM_COST,
   LAB_ZOOM_FORGE_STARDUST_COST,
   type LabForgePath,
@@ -14,7 +13,7 @@ import { preloadLabForgePickerGlbs } from "../utils/labGlbPreload";
 interface ForgePathPickerProps {
   stardustBalance: number;
   zoomBalance: number;
-  onSelect: (path: LabForgePath, shapeId?: string) => void;
+  onSelect: (path: LabForgePath) => void;
   onClose: () => void;
 }
 
@@ -32,7 +31,7 @@ interface PathCardProps {
   glow: string;
   badgeBg: string;
   studioGlow: string;
-  onSelect: (path: LabForgePath, shapeId?: string) => void;
+  onSelect: (path: LabForgePath) => void;
 }
 
 function PathCard({
@@ -54,7 +53,7 @@ function PathCard({
   return (
     <button
       type="button"
-      onClick={() => enabled && onSelect(path, shapeId)}
+      onClick={() => enabled && onSelect(path)}
       disabled={!enabled}
       className={`lab-forge-path-card lab-forge-path-card--${path}${enabled ? "" : " lab-forge-path-card--disabled"}`}
       style={{
@@ -69,7 +68,7 @@ function PathCard({
         <div className="lab-forge-path-card__glow" aria-hidden />
         <span className="lab-forge-path-card__badge">{badge}</span>
         <div className="lab-forge-path-card__stage">
-          <LabForgeGlbThumb shapeId={shapeId} size={88} variant="picker" studioGlow={studioGlow} />
+          <LabForgeGlbThumb shapeId={shapeId} size={104} variant="picker" studioGlow={studioGlow} />
         </div>
         <div className="lab-forge-path-card__name">{name}</div>
         <div className="lab-forge-path-card__meta">
@@ -124,7 +123,7 @@ function ForgePathPickerBase({
             </div>
           </div>
 
-          <div className="lab-forge-picker-grid lab-forge-picker-grid--triple">
+          <div className="lab-forge-picker-grid">
             <PathCard
               path="zoom"
               shapeId={LAB_PIZZA_SHAPE_ID}
@@ -143,11 +142,11 @@ function ForgePathPickerBase({
             />
             <PathCard
               path="stardust"
-              shapeId={LAB_STREET_SCENE_SHAPE_ID}
+              shapeId={LAB_STARDUST_POT_SHAPE_ID}
               badge="★ STARDUST"
-              name="Street Scene"
+              name="Street Scene · Island Home · Pot"
               costLabel={`${LAB_STARDUST_FORGE_ZOOM_COST} $ZOOM`}
-              yieldLabel="~0.22 ★/h"
+              yieldLabel="0.20–0.28 ★/h"
               enabled={canStardust}
               accent="#ffd740"
               border="rgba(255,215,64,0.38)"
@@ -155,22 +154,6 @@ function ForgePathPickerBase({
               glow="rgba(255,215,64,0.2)"
               badgeBg="rgba(255,193,7,0.1)"
               studioGlow="#ffc107"
-              onSelect={onSelect}
-            />
-            <PathCard
-              path="stardust"
-              shapeId={LAB_ISLAND_HOME_SHAPE_ID}
-              badge="★ STARDUST"
-              name="Island Home"
-              costLabel={`${LAB_STARDUST_FORGE_ZOOM_COST} $ZOOM`}
-              yieldLabel="~0.28 ★/h"
-              enabled={canStardust}
-              accent="#ffab40"
-              border="rgba(255,171,64,0.38)"
-              bgA="rgba(255,145,0,0.12)"
-              glow="rgba(255,145,0,0.2)"
-              badgeBg="rgba(255,145,0,0.1)"
-              studioGlow="#ff9100"
               onSelect={onSelect}
             />
           </div>
