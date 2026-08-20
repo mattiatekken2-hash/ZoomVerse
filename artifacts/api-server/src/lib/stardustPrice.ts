@@ -15,11 +15,15 @@ const VERSION_KEY = "stardust_index_version";
 
 export const STARDUST_SCALE = 1_000_000;
 export const STARDUST_GENESIS_MICRO = 1_000_000; // 1.0
-/** Hard cap — real activity moves the index, but stays in a tight band near 1.0. */
-export const STARDUST_INDEX_MAX_MICRO = 1_008_000; // 1.008 (+0.8% from launch)
-export const STARDUST_INDEX_MIN_MICRO = 992_000; // 0.992 (-0.8% floor)
-/** Minimum ms between index bumps — prevents burst spam from moving the chart too fast. */
-const BUMP_COOLDOWN_MS = 8_000;
+/**
+ * Hard band near 1.0 — Stardust is a soft utility index, not a runaway
+ * speculative chart. ±0.3% keeps convert/shop math stable while still
+ * allowing a gentle live wiggle from real spend/collect.
+ */
+export const STARDUST_INDEX_MAX_MICRO = 1_003_000; // 1.003 (+0.3%)
+export const STARDUST_INDEX_MIN_MICRO = 997_000; // 0.997 (-0.3%)
+/** Global cooldown between bumps — stops convert→stake double-pump bursts. */
+const BUMP_COOLDOWN_MS = 30_000;
 /** At index 1.0: 1 GRAM → 100 STARDUST (shop + convert baseline). */
 export const STARDUST_PER_GRAM_BASE = 100;
 
@@ -51,19 +55,26 @@ export function stardustToGram(stardustAmount: number, indexMicro: number): numb
   return Math.max(0, Math.round(gram * 1_000_000) / 1_000_000);
 }
 
-const GENESIS_VERSION = 1;
+const GENESIS_VERSION = 2;
 const CHART_MAX = 240;
 const CHART_THROTTLE_MS = 10_000;
 
 type ChartPoint = { t: number; p: number };
 
+/**
+ * Index pressure model (reasoned):
+ * - spend = real ★ demand → mild up
+ * - earn / unstake / convert_out = supply back → mild down
+ * - convert (GRAM→★) = mint supply → no up bump (was double-counting with stake)
+ * - stake = lock only → no bump (locking shouldn't pump the chart after convert)
+ */
 const ACTION_BP: Record<string, number> = {
-  spend: 1,         // +0.01% per shop spend (real demand)
-  earn: -1,         // -0.01% per lab collect (real supply)
-  stake: 1,         // +0.01% per stake lock
-  unstake: -1,      // -0.01% on unstake
-  convert: 1,       // +0.01% GRAM → STARDUST
-  convert_out: -1,  // -0.01% STARDUST → GRAM
+  spend: 1,         // +0.01% shop spend
+  earn: -1,         // -0.01% lab collect
+  stake: 0,         // lock: no chart pump
+  unstake: -1,      // unlock: mild supply return
+  convert: 0,       // mint ★: no pump (fixes convert→stake spike)
+  convert_out: -1,  // ★→GRAM
 };
 
 function applyBp(current: number, bp: number): number {
@@ -242,8 +253,8 @@ export async function bumpStardustIndex(action: keyof typeof ACTION_BP): Promise
   }
 }
 
-/** Staked notional tracks the live index, but appreciation above entry is damped (35%). */
-export const STAKED_INDEX_GAIN_FACTOR = 0.35;
+/** Staked notional tracks the live index, but appreciation above entry is damped (20%). */
+export const STAKED_INDEX_GAIN_FACTOR = 0.20;
 
 export function stardustValueAtIndex(staked: number, stakeIndexMicro: number, indexMicro: number): number {
   if (staked <= 0) return 0;

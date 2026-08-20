@@ -60,9 +60,9 @@ const LAST_DAY_KEY = "zoom_price_last_day_utc";
 // The daily growth cap is enforced as: max_price_today = open * (1 + DAILY_GROWTH_CAP).
 const DAILY_OPEN_KEY = "zoom_price_daily_open";
 
-// Hard daily growth ceiling: max +8% above the UTC-day open (was +1%).
-// Price only moves on real player actions (+ micro wiggle per bump).
-const DAILY_GROWTH_CAP = 0.08; // +8% per day, max
+// Hard daily growth ceiling: max +1.5% above the UTC-day open.
+// (Was briefly +8% — far too aggressive for a grind-driven decorative index.)
+const DAILY_GROWTH_CAP = 0.015; // +1.5% per day, max
 
 // Soft floor expressed as a fraction of the day's opening price. With
 // micro-volatility deltas occasionally going negative, this keeps the
@@ -154,7 +154,7 @@ function checkCooldown(action: PriceAction, userId: string | null | undefined): 
 }
 // Hard ceiling so a runaway loop or admin bug can't drive the price into
 // astronomical territory. With genesis at 1e6 stored units (0.000001 GRAM)
-// and the +8% daily cap, the price can never reach this ceiling through
+// and the +1.5% daily cap, the price can never reach this ceiling through
 // normal play, but we keep it as a safety belt. 1.0 GRAM = 1e12 stored.
 const MAX_PRICE_MICRO = SCALE_FACTOR;
 // Per-action deltas in BASIS POINTS (1 bp = 0.01% of current price).
@@ -163,27 +163,24 @@ const MAX_PRICE_MICRO = SCALE_FACTOR;
 // server-side micro-volatility — small dips and pops around the base —
 // so the chart shows an organic wiggle instead of a perfect straight
 // line up. Combined with the per-day cap (DAILY_GROWTH_CAP) this gives
-// a jagged climb capped at +8%/day from player activity only.
+// a jagged climb capped at +1.5%/day from player activity only.
 export const DELTA_BP = {
-  market_buy: 30,   // base +0.30% (cost-bound — real $ZOOM debit)
-  market_list: 15,  // base +0.15% (cost-bound — planet inventory limit)
-  farm_cycle: 8,    // base +0.08% (cooldown 60s/user — see COOLDOWN_MS)
-  craft: 12,        // base +0.12% (cooldown 30s/user — see COOLDOWN_MS)
+  market_buy: 18,   // base +0.18% (cost-bound — real $ZOOM debit)
+  market_list: 8,   // base +0.08% (cost-bound — planet inventory limit)
+  farm_cycle: 4,    // base +0.04% (cooldown 60s/user — see COOLDOWN_MS)
+  craft: 6,         // base +0.06% (cooldown 30s/user — see COOLDOWN_MS)
 } as const;
 export type PriceAction = keyof typeof DELTA_BP;
 
 /**
  * Randomize the per-action bump for organic micro-volatility. Returns a
- * SIGNED basis-point value drawn from [base * -0.4, base * +1.6] with
- * uniform distribution. Mean ≈ +0.6 × base, so the price drifts upward
- * slowly while individual ticks can be small dips — exactly what makes
- * the chart look alive (jagged organic curve) instead of a synthetic
- * straight line. Negative ticks at very low prices may round to 0 in
- * the SQL ROUND(); that's fine, missing one tick keeps the curve calm.
+ * SIGNED basis-point value drawn from [base * -0.3, base * +1.1] with
+ * uniform distribution. Mean ≈ +0.4 × base — mild upward drift with
+ * soft dips, without the old +1.6× upside spikes.
  */
 function randomDeltaBp(base: number): number {
-  const lo = base * -0.4;
-  const hi = base * 1.6;
+  const lo = base * -0.3;
+  const hi = base * 1.1;
   return lo + Math.random() * (hi - lo);
 }
 
