@@ -229,9 +229,10 @@ function ExchangeWidgetBase({ balance }: ExchangeWidgetProps) {
         onClick={(e) => { e.stopPropagation(); setOpen(true); }}
         aria-label={t("wallet.exchangeTitle")}
         data-testid="wallet-exchange-orb"
-        className="flex items-center gap-1 active:scale-95 transition-transform"
+        className="flex items-center justify-center active:scale-95 transition-transform"
         style={{
-          padding: "5px 9px",
+          padding: "5px 8px",
+          minWidth: 28,
           borderRadius: 10,
           background: `${EXCHANGE_COLOR}14`,
           border: `1px solid ${EXCHANGE_COLOR}44`,
@@ -240,17 +241,8 @@ function ExchangeWidgetBase({ balance }: ExchangeWidgetProps) {
           flexShrink: 0,
         }}
       >
-        <span style={{ fontSize: 11, lineHeight: 1, color: EXCHANGE_COLOR, fontWeight: 900 }}>⇄</span>
-        <span
-          style={{
-            fontSize: 9,
-            fontWeight: 900,
-            letterSpacing: "0.08em",
-            color: EXCHANGE_COLOR,
-            textTransform: "uppercase",
-          }}
-        >
-          {t("wallet.exchangeLabel")}
+        <span style={{ fontSize: 13, lineHeight: 1, color: EXCHANGE_COLOR, fontWeight: 900 }} aria-hidden>
+          ⇄
         </span>
       </button>
       {open && (
