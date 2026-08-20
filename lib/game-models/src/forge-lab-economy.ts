@@ -140,15 +140,12 @@ export function pickRandomLabZoomShapeId(): LabZoomShapeId {
   return LAB_ZOOM_SHAPE_IDS[Math.max(0, Math.min(LAB_ZOOM_SHAPE_IDS.length - 1, i))]!;
 }
 
-/** Pick street scene or island home (legacy pot excluded from new forges). */
+/** Pick a random Stardust-path model (street scene / island home / pot). Equal weight. */
 export function pickRandomLabStardustShapeId(): LabStardustShapeId {
-  const pool = [LAB_STREET_SCENE_SHAPE_ID, LAB_ISLAND_HOME_SHAPE_ID] as const;
-  const i = Math.floor(Math.random() * pool.length);
-  return pool[Math.max(0, Math.min(pool.length - 1, i))]!;
+  const i = Math.floor(Math.random() * LAB_STARDUST_SHAPE_IDS.length);
+  return LAB_STARDUST_SHAPE_IDS[Math.max(0, Math.min(LAB_STARDUST_SHAPE_IDS.length - 1, i))]!;
 }
 
-export function labForgeShapeForPath(path: LabForgePath, shapeOverride?: string | null): string {
-  if (path === "zoom") return pickRandomLabZoomShapeId();
-  if (shapeOverride && isLabStardustShapeId(shapeOverride)) return shapeOverride;
-  return pickRandomLabStardustShapeId();
+export function labForgeShapeForPath(path: LabForgePath): string {
+  return path === "zoom" ? pickRandomLabZoomShapeId() : pickRandomLabStardustShapeId();
 }

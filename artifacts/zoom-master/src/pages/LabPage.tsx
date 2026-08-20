@@ -30,7 +30,7 @@ interface LabPageProps {
   stardustBalance: number;
   telegramId: string | null;
   onCraft: (availableStardust?: number) => { completed: boolean; tapsLeft?: number };
-  onBeginLabForge: (path: LabForgePath, shapeId?: string) => { ok: boolean; reason?: string };
+  onBeginLabForge: (path: LabForgePath) => { ok: boolean; reason?: string };
   onClaim: () => void;
   onOpenShop?: () => void;
   muted?: boolean;
@@ -207,9 +207,9 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
     if (visible) preloadLabForgePickerGlbs();
   }, [visible]);
 
-  const handleSelectForgePath = useCallback((path: LabForgePath, shapeId?: string) => {
+  const handleSelectForgePath = useCallback((path: LabForgePath) => {
     hapticLight();
-    const result = onBeginLabForge(path, shapeId);
+    const result = onBeginLabForge(path);
     setForgePickerOpen(false);
     if (!result.ok && result.reason === "no_zoom") {
       setFloats((prev) => [...prev, { id: ++floatIdRef.current, text: "Need 500 $ZOOM", color: "#ff6b6b" }]);

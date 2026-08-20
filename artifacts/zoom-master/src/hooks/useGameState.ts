@@ -4031,7 +4031,7 @@ export function useGameState() {
     };
   }, []);
 
-  const beginLabForge = useCallback((path: LabForgePath, shapeOverride?: string): { ok: boolean; reason?: string } => {
+  const beginLabForge = useCallback((path: LabForgePath): { ok: boolean; reason?: string } => {
     const current = stateRef.current;
     if (current.pendingModel || current.pendingPlanet || current.forgeRolling) {
       return { ok: false, reason: "busy" };
@@ -4041,7 +4041,7 @@ export function useGameState() {
     }
     labForgeCompletingRef.current = false;
 
-    const shapeId = labForgeShapeForPath(path, shapeOverride);
+    const shapeId = labForgeShapeForPath(path);
     const goal = getLabForgeShapeTapGoal(shapeId);
 
     if (path === "zoom") {
