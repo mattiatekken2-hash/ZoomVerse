@@ -543,7 +543,7 @@ const en: Dict = {
   "earn.stardustDay": "+{n} ★ Stardust (Day {d})",
   "earn.alreadyClaimed": "Already claimed",
   "earn.alreadyClaimedToday": "Already claimed today",
-  "earn.thresholdNotMet": "Need {t} planets (you have {b})",
+  "earn.thresholdNotMet": "Need {need} Lab forges (you have {b})",
 
   // shop page
   "shop.computer": "COMPUTER",
@@ -1088,7 +1088,7 @@ const it: Dict = {
   "earn.stardustDay": "+{n} ★ Stardust (Giorno {d})",
   "earn.alreadyClaimed": "Già riscattato",
   "earn.alreadyClaimedToday": "Già riscattato oggi",
-  "earn.thresholdNotMet": "Servono {t} pianeti (ne hai {b})",
+  "earn.thresholdNotMet": "Servono {need} forge Lab (ne hai {b})",
 
   "shop.computer": "COMPUTER",
   "shop.plantSeed": "SEME PIANTA",
@@ -1605,7 +1605,7 @@ const ru: Dict = {
   "earn.zoomDay": "+{n} $ZOOM (День {d})",
   "earn.alreadyClaimed": "Уже получено",
   "earn.alreadyClaimedToday": "Уже получено сегодня",
-  "earn.thresholdNotMet": "Нужно {t} планет (у вас {b})",
+  "earn.thresholdNotMet": "Нужно {need} ковок Lab (у вас {b})",
 
   "shop.computer": "КОМПЬЮТЕР",
   "shop.plantSeed": "СЕМЯ",
@@ -2123,7 +2123,7 @@ const uk: Dict = {
   "earn.stardustDay": "+{n} ★ Stardust (День {d})",
   "earn.alreadyClaimed": "Вже отримано",
   "earn.alreadyClaimedToday": "Вже отримано сьогодні",
-  "earn.thresholdNotMet": "Треба {t} планет (у вас {b})",
+  "earn.thresholdNotMet": "Треба {need} кувань Lab (у вас {b})",
 
   "shop.computer": "КОМП'ЮТЕР",
   "shop.plantSeed": "НАСІННЯ",
@@ -2166,7 +2166,10 @@ export function translate(lang: Lang, key: string, vars?: Record<string, string 
   str = str ?? DICTS.en[key] ?? key;
   if (vars) {
     for (const [k, v] of Object.entries(vars)) {
-      str = str.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
+      const val = String(v);
+      // Support {n}, {N}, (n), (N) so missing/legacy placeholders never show raw.
+      str = str.replace(new RegExp(`\\{${k}\\}`, "gi"), val);
+      str = str.replace(new RegExp(`\\(${k}\\)`, "gi"), val);
     }
   }
   return str;

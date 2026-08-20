@@ -462,7 +462,7 @@ export const fil: Record<string, string> = {
   "earn.stardustDay": "+{n} ★ Stardust (Araw {d})",
   "earn.alreadyClaimed": "Na-claim na",
   "earn.alreadyClaimedToday": "Na-claim na ngayon",
-  "earn.thresholdNotMet": "Kailangan ng {t} planets (mayroon ka {b})",
+  "earn.thresholdNotMet": "Kailangan ng {need} Lab forges (mayroon ka {b})",
   "shop.computer": "COMPUTER",
   "shop.plantSeed": "PLANT SEED",
   "shop.stardust": "Stardust",

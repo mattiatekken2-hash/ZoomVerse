@@ -464,7 +464,7 @@ export const es: Record<string, string> = {
   "earn.stardustDay": "+{n} ★ Stardust (Día {d})",
   "earn.alreadyClaimed": "Ya reclamado",
   "earn.alreadyClaimedToday": "Ya reclamado hoy",
-  "earn.thresholdNotMet": "Necesitas {t} planetas (tienes {b})",
+  "earn.thresholdNotMet": "Necesitas {need} forjas Lab (tienes {b})",
   "shop.computer": "COMPUTADORA",
   "shop.plantSeed": "SEMILLA DE PLANTA",
   "shop.stardust": "Stardust",

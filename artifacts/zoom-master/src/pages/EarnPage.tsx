@@ -335,7 +335,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
       setTaskMsg(t("earn.alreadyClaimed"));
       await reloadTasks();
     } else if (res.error === "THRESHOLD_NOT_MET") {
-      setTaskMsg(t("earn.thresholdNotMet", { t: String(res.threshold ?? 0), b: String(res.planetsBuilt ?? 0) }));
+      setTaskMsg(t("earn.thresholdNotMet", { need: String(res.threshold ?? 0), t: String(res.threshold ?? 0), b: String(res.planetsBuilt ?? 0) }));
       await reloadTasks();
     } else if (res.error === "INELIGIBLE") {
       const reqKey = SPONSOR_REQ_KEY[taskId];
@@ -367,38 +367,30 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
 
   return (
     <div className="flex flex-col h-full overflow-y-auto earn-page">
-      <div className="px-5 pt-4 pb-3 flex-shrink-0">
-        <h2 className="font-black text-xl tracking-tight" style={{ color: "#E8ECF4" }}>{t("earn.title")}</h2>
-        <p className="text-xs mt-1 leading-snug" style={{ color: "rgba(232,236,244,0.55)" }}>
+      <div className="px-5 pt-4 pb-2 flex-shrink-0">
+        <h2 className="font-black text-2xl tracking-tight" style={{ color: "var(--earn-ink)" }}>{t("earn.title")}</h2>
+        <p className="text-[12px] mt-1 leading-snug" style={{ color: "var(--earn-muted)" }}>
           {t("earn.subtitleLabFirst")}
         </p>
       </div>
 
-      <div className="px-4 pb-6 flex flex-col gap-5">
-        <div
-          className="rounded-2xl px-4 py-3.5"
-          style={{
-            background: "linear-gradient(160deg, rgba(158,197,232,0.12) 0%, rgba(12,18,32,0.35) 55%, rgba(255,215,0,0.06) 100%)",
-            border: "1px solid rgba(158,197,232,0.22)",
-          }}
-        >
-          <div className="text-[10px] font-black tracking-[0.14em] uppercase mb-2.5" style={{ color: CYAN_WHITE }}>
+      <div className="px-4 pb-7 flex flex-col gap-4">
+        {/* How to earn */}
+        <div className="earn-hero">
+          <div className="earn-section-kicker mb-2.5" style={{ color: "var(--earn-cyan)" }}>
             {t("earn.howTitle")}
           </div>
-          <div className="flex flex-col gap-2">
+          <div className="earn-steps">
             {[
-              { n: "1", text: t("earn.how1"), accent: "#ffd700" },
-              { n: "2", text: t("earn.how2"), accent: CYAN_WHITE },
-              { n: "3", text: t("earn.how3"), accent: "#9EC5E8" },
+              { n: "1", text: t("earn.how1"), accent: "var(--earn-gold)" },
+              { n: "2", text: t("earn.how2"), accent: "var(--earn-cyan)" },
+              { n: "3", text: t("earn.how3"), accent: "#b8d4ee" },
             ].map((step) => (
-              <div key={step.n} className="flex items-start gap-2.5">
-                <div
-                  className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black"
-                  style={{ background: "rgba(0,0,0,0.35)", color: step.accent, border: `1px solid ${step.accent}55` }}
-                >
+              <div key={step.n} className="earn-step">
+                <div className="earn-step__num" style={{ color: step.accent, border: `1px solid ${step.accent}` }}>
                   {step.n}
                 </div>
-                <p className="text-[12px] font-semibold leading-snug pt-0.5" style={{ color: "rgba(232,236,244,0.88)" }}>
+                <p className="text-[12px] font-semibold leading-snug pt-0.5" style={{ color: "rgba(232,236,244,0.9)" }}>
                   {step.text}
                 </p>
               </div>
@@ -406,25 +398,21 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           </div>
         </div>
 
-        <section>
-          <div className="flex items-end justify-between mb-2 px-0.5">
+        {/* Daily */}
+        <section className="earn-panel">
+          <div className="flex items-end justify-between mb-3">
             <div>
-              <div className="text-[10px] font-black tracking-[0.12em] uppercase" style={{ color: "rgba(255,215,0,0.75)" }}>
-                {t("earn.stepDaily")}
-              </div>
-              <div className="font-black text-base tracking-wide" style={{ color: CYAN_WHITE }}>{t("earn.dailyStreak")}</div>
+              <div className="earn-section-kicker" style={{ color: "rgba(255,215,64,0.85)" }}>{t("earn.stepDaily")}</div>
+              <div className="font-black text-[17px] tracking-wide mt-0.5" style={{ color: "var(--earn-ink)" }}>{t("earn.dailyStreak")}</div>
             </div>
-            <div className="text-right">
-              <div className="text-[10px] font-bold" style={{ color: "rgba(255,255,255,0.35)" }}>{t("earn.next")}</div>
-              <div className="text-sm font-black" style={{ color: CYAN_WHITE }}>
-                +{Math.round(upcomingReward)} <span style={{ color: "#ffd700" }}>★</span>
-              </div>
+            <div className="earn-reward-chip earn-reward-chip--gold" aria-label={`+${Math.round(upcomingReward)} stardust`}>
+              +{Math.round(upcomingReward)} ★
             </div>
           </div>
 
           {streakRestart && (
             <div
-              className="mb-2 rounded-xl px-3 py-2 text-[11px] font-bold text-center"
+              className="mb-3 rounded-xl px-3 py-2 text-[11px] font-bold text-center"
               style={{ color: "#ffb347", background: "rgba(255,179,71,0.08)", border: "1px solid rgba(255,179,71,0.22)" }}
             >
               {willHardReset ? t("earn.streakExpiredReset") : t("earn.streakWeekComplete")}
@@ -439,44 +427,37 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
               return (
                 <div
                   key={dayNum}
-                  className="rounded-lg p-1.5 flex flex-col items-center justify-center border transition-all"
+                  className={`earn-day p-1.5 flex flex-col items-center justify-center border ${isNext ? "earn-day--next" : ""}`}
                   style={{
-                    aspectRatio: "1 / 1.1",
-                    borderColor: isClaimed ? "rgba(0,230,118,0.35)" : isNext ? "rgba(158,197,232,0.55)" : "rgba(255,255,255,0.06)",
-                    background: isClaimed ? "rgba(0,230,118,0.1)" : isNext ? "rgba(158,197,232,0.12)" : "rgba(255,255,255,0.02)",
-                    boxShadow: isNext ? "0 0 10px rgba(158,197,232,0.35)" : "none",
+                    aspectRatio: "1 / 1.12",
+                    borderColor: isClaimed ? "rgba(0,230,118,0.4)" : isNext ? "rgba(158,197,232,0.65)" : "rgba(255,255,255,0.07)",
+                    background: isClaimed ? "rgba(0,230,118,0.12)" : isNext ? "rgba(158,197,232,0.14)" : "rgba(255,255,255,0.025)",
                   }}
                   data-testid={`day-${dayNum}`}
                 >
                   <div className="text-[8px] font-bold" style={{ color: isClaimed ? "#00e676" : isNext ? "#9EC5E8" : "rgba(255,255,255,0.4)" }}>
                     D{dayNum}
                   </div>
-                  <div className="text-[10px] font-black mt-0.5" style={{ color: isClaimed ? "#00e676" : isNext ? "#fff" : "rgba(255,255,255,0.55)" }}>
-                    {Math.round(amt)}<span style={{ color: "#ffd700" }}>★</span>
+                  <div className="text-[11px] font-black mt-0.5 tabular-nums" style={{ color: isClaimed ? "#00e676" : isNext ? "#fff" : "rgba(255,255,255,0.6)" }}>
+                    {Math.round(amt)}
+                    <span style={{ color: "#ffd740", fontSize: 9 }}>★</span>
                   </div>
-                  {isClaimed && <div className="text-[8px]" style={{ color: "#00e676" }}>✓</div>}
+                  {isClaimed && <div className="text-[8px] leading-none" style={{ color: "#00e676" }}>✓</div>}
                 </div>
               );
             })}
           </div>
 
           <button
-            className="w-full py-3.5 rounded-xl font-black text-sm tracking-wider uppercase transition-all active:scale-95 border"
+            className={`earn-cta ${canClaim && !claiming ? "earn-cta--primary" : ""}`}
             onClick={handleClaimStreak}
             disabled={!canClaim || claiming}
-            style={{
-              background: canClaim && !claiming ? "linear-gradient(135deg, #E8ECF4, #9EC5E8)" : "rgba(255,255,255,0.04)",
-              color: canClaim && !claiming ? "#0c1220" : "rgba(255,255,255,0.2)",
-              boxShadow: canClaim && !claiming ? "0 6px 20px rgba(0, 8, 20, 0.4)" : "none",
-              borderColor: canClaim && !claiming ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.06)",
-              cursor: canClaim && !claiming ? "pointer" : "not-allowed",
-            }}
             data-testid="button-claim-daily"
           >
             {claiming
               ? t("earn.claiming")
               : canClaim
-                ? t("earn.claimDayStardust", { n: upcomingDay, r: Math.round(upcomingReward).toLocaleString() })
+                ? `${t("earn.claimBtn")} · D${upcomingDay} · +${Math.round(upcomingReward)} ★`
                 : t("earn.nextIn", { h: hLeft, m: mLeft, s: sLeft })}
           </button>
           {claimMsg && (
@@ -484,23 +465,22 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
               {claimMsg}
             </div>
           )}
-          <p className="mt-2 text-[10px] text-center" style={{ color: "rgba(255,255,255,0.32)" }}>
+          <p className="mt-2.5 text-[10px] text-center leading-snug" style={{ color: "rgba(255,255,255,0.34)" }}>
             {t("earn.dailyPizzaHint")}
           </p>
         </section>
 
-        <section>
-          <div className="flex items-end justify-between mb-2 px-0.5">
-            <div>
-              <div className="text-[10px] font-black tracking-[0.12em] uppercase" style={{ color: "rgba(158,197,232,0.8)" }}>
-                {t("earn.stepLab")}
-              </div>
-              <div className="font-black text-base tracking-wide" style={{ color: CYAN_WHITE }}>{t("earn.tasks")}</div>
+        {/* Lab tasks */}
+        <section className="earn-panel">
+          <div className="flex items-end justify-between mb-3">
+            <div className="min-w-0 pr-2">
+              <div className="earn-section-kicker" style={{ color: "rgba(158,197,232,0.85)" }}>{t("earn.stepLab")}</div>
+              <div className="font-black text-[17px] tracking-wide mt-0.5" style={{ color: "var(--earn-ink)" }}>{t("earn.tasks")}</div>
               <div className="text-[10px] font-bold mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>{t("earn.tasksSub")}</div>
             </div>
             <div className="text-right">
-              <div className="text-[10px] font-bold" style={{ color: "rgba(255,255,255,0.35)" }}>{t("earn.built")}</div>
-              <div className="text-sm font-black" style={{ color: CYAN_WHITE }}>
+              <div className="text-[9px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.35)" }}>{t("earn.built")}</div>
+              <div className="text-lg font-black tabular-nums" style={{ color: "var(--earn-cyan)" }}>
                 {(tasks?.planetsBuilt ?? 0).toLocaleString()}
               </div>
             </div>
@@ -520,34 +500,33 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
               {tasks.planetTasks.map((task) => {
                 const pct = Math.min(100, Math.round((tasks.planetsBuilt / task.threshold) * 100));
                 const isClaiming = claimingTaskId === task.id;
+                const rewardN = Number(task.rewardZoom ?? 0);
                 return (
                   <div
                     key={task.id}
-                    className="rounded-xl p-3"
-                    style={{
-                      border: `1px solid ${task.claimed ? "rgba(0,230,118,0.22)" : task.claimable ? "rgba(158,197,232,0.35)" : "rgba(255,255,255,0.06)"}`,
-                      background: task.claimed ? "rgba(0,230,118,0.05)" : task.claimable ? "rgba(158,197,232,0.06)" : "rgba(255,255,255,0.02)",
-                    }}
+                    className={`earn-row flex-col !items-stretch ${task.claimed ? "earn-row--done" : task.claimable ? "earn-row--ready" : ""}`}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex flex-col min-w-0 pr-2">
-                        <span className="text-xs font-black tracking-wide" style={{ color: task.claimed ? "#00e676" : task.claimable ? "#E8ECF4" : "rgba(255,255,255,0.7)" }}>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="min-w-0">
+                        <div className="text-[12px] font-black tracking-wide" style={{ color: task.claimed ? "#00e676" : "var(--earn-ink)" }}>
                           {t("earn.buildPlanetsN", { n: task.threshold.toLocaleString() })}
-                        </span>
-                        <span className="text-[10px] font-bold mt-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
-                          {t("earn.rewardZoom", { n: task.rewardZoom.toLocaleString() })}
-                        </span>
+                        </div>
+                        <div className="mt-1">
+                          <span className={`earn-reward-chip ${task.claimed ? "earn-reward-chip--ok" : ""}`}>
+                            +{rewardN.toLocaleString()} $ZOOM
+                          </span>
+                        </div>
                       </div>
                       <button
                         onClick={() => void handleClaimTask(task.id)}
                         disabled={task.claimed || !task.claimable || isClaiming}
-                        className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase transition-all active:scale-95"
+                        className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase shrink-0"
                         style={{
-                          background: task.claimed ? "rgba(0,230,118,0.1)" : task.claimable ? "linear-gradient(135deg, #E8ECF4, #9EC5E8)" : "rgba(255,255,255,0.04)",
-                          color: task.claimed ? "#00e676" : task.claimable ? "#0c1220" : "rgba(255,255,255,0.25)",
-                          border: task.claimed ? "1px solid rgba(0,230,118,0.25)" : task.claimable ? "1px solid transparent" : "1px solid rgba(255,255,255,0.06)",
+                          background: task.claimed ? "rgba(0,230,118,0.1)" : task.claimable ? "linear-gradient(135deg, #F2F5FA, #9EC5E8)" : "rgba(255,255,255,0.04)",
+                          color: task.claimed ? "#00e676" : task.claimable ? "#0a1220" : "rgba(255,255,255,0.28)",
+                          border: task.claimed ? "1px solid rgba(0,230,118,0.25)" : "1px solid rgba(255,255,255,0.06)",
                           cursor: task.claimed || !task.claimable || isClaiming ? "not-allowed" : "pointer",
-                          minWidth: 88,
+                          minWidth: 84,
                         }}
                         data-testid={`button-task-${task.id}`}
                       >
@@ -555,19 +534,11 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                       </button>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${pct}%`,
-                            background: task.claimed
-                              ? "linear-gradient(90deg, #00e676, #00c853)"
-                              : "linear-gradient(90deg, #7a9ec8, #9EC5E8)",
-                          }}
-                        />
+                      <div className="earn-progress flex-1">
+                        <i style={{ width: `${pct}%`, background: task.claimed ? "linear-gradient(90deg,#00e676,#00c853)" : undefined }} />
                       </div>
-                      <span className="text-[10px] font-bold tabular-nums" style={{ color: "rgba(255,255,255,0.5)", minWidth: 70, textAlign: "right" }}>
-                        {Math.min(tasks.planetsBuilt, task.threshold).toLocaleString()} / {task.threshold.toLocaleString()}
+                      <span className="text-[10px] font-bold tabular-nums" style={{ color: "rgba(255,255,255,0.5)", minWidth: 64, textAlign: "right" }}>
+                        {Math.min(tasks.planetsBuilt, task.threshold).toLocaleString()}/{task.threshold.toLocaleString()}
                       </span>
                     </div>
                   </div>
@@ -585,49 +556,44 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                 const title = task.id === "sponsor_coinflip"
                   ? t("earn.sponsorJoinHandle", { h: "coinflip_vip" })
                   : sponsorTitle(t, task.url);
-                const rewardLabel = task.rewardZoom > 0
-                  ? t("earn.rewardZoom", { n: task.rewardZoom.toLocaleString() })
-                  : task.rewardStardust > 0
-                    ? t("earn.rewardStardust", { n: task.rewardStardust.toLocaleString() })
-                    : t(task.rewardSpins > 1 ? "earn.rewardSpinsMany" : "earn.rewardSpinsOne", { n: task.rewardSpins });
                 const isLocked = !task.claimed && !task.eligible;
                 const canClaimNow = !task.claimed && task.eligible && gateOpen;
                 const showOpen = !task.claimed && task.eligible && openedAt === 0;
                 const showWait = !task.claimed && task.eligible && openedAt > 0 && !gateOpen;
+                const zoomN = Number(task.rewardZoom ?? 0);
+                const dustN = Number(task.rewardStardust ?? 0);
+                const spinsN = Number(task.rewardSpins ?? 0);
                 return (
-                  <div
-                    key={task.id}
-                    className="rounded-xl p-3"
-                    style={{
-                      border: `1px solid ${task.claimed ? "rgba(0,230,118,0.22)" : isLocked ? "rgba(255,255,255,0.08)" : "rgba(158,197,232,0.2)"}`,
-                      background: task.claimed ? "rgba(0,230,118,0.05)" : isLocked ? "rgba(255,255,255,0.02)" : "rgba(158,197,232,0.04)",
-                    }}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex flex-col min-w-0 pr-2">
-                        <span className="text-xs font-black tracking-wide truncate" style={{ color: task.claimed ? "#00e676" : isLocked ? "rgba(255,255,255,0.45)" : "#E8ECF4" }}>
+                  <div key={task.id} className={`earn-row flex-col !items-stretch ${task.claimed ? "earn-row--done" : ""}`}>
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="min-w-0 pr-2">
+                        <div className="text-[12px] font-black truncate" style={{ color: task.claimed ? "#00e676" : isLocked ? "rgba(255,255,255,0.45)" : "var(--earn-ink)" }}>
                           {title}
-                        </span>
-                        <span className="text-[10px] font-bold mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>{rewardLabel}</span>
+                        </div>
+                        <div className="mt-1">
+                          {zoomN > 0 && <span className="earn-reward-chip">+{zoomN.toLocaleString()} $ZOOM</span>}
+                          {dustN > 0 && <span className="earn-reward-chip earn-reward-chip--gold">+{dustN.toLocaleString()} ★</span>}
+                          {spinsN > 0 && <span className="earn-reward-chip">+{spinsN} spins</span>}
+                        </div>
                       </div>
                       {task.claimed ? (
-                        <button disabled className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase" style={{ background: "rgba(0,230,118,0.1)", color: "#00e676", border: "1px solid rgba(0,230,118,0.25)", minWidth: 88 }} data-testid={`button-task-${task.id}`}>
+                        <button disabled className="px-3 py-2 rounded-lg font-black text-[11px] uppercase" style={{ background: "rgba(0,230,118,0.1)", color: "#00e676", border: "1px solid rgba(0,230,118,0.25)", minWidth: 84 }} data-testid={`button-task-${task.id}`}>
                           {t("earn.claimedBtn")}
                         </button>
                       ) : isLocked ? (
-                        <button disabled className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase" style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.35)", border: "1px solid rgba(255,255,255,0.06)", minWidth: 88, cursor: "not-allowed" }} data-testid={`button-task-${task.id}-locked`}>
+                        <button disabled className="px-3 py-2 rounded-lg font-black text-[11px] uppercase" style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.35)", border: "1px solid rgba(255,255,255,0.06)", minWidth: 84 }} data-testid={`button-task-${task.id}-locked`}>
                           {t("earn.lockedBtn")}
                         </button>
                       ) : showOpen ? (
-                        <button onClick={() => handleOpenSponsor(task.id, task.url)} className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase active:scale-95" style={{ background: "rgba(158,197,232,0.14)", color: CYAN_WHITE, border: "1px solid rgba(158,197,232,0.3)", minWidth: 88 }} data-testid={`button-task-${task.id}-open`}>
+                        <button onClick={() => handleOpenSponsor(task.id, task.url)} className="px-3 py-2 rounded-lg font-black text-[11px] uppercase" style={{ background: "rgba(158,197,232,0.16)", color: CYAN_WHITE, border: "1px solid rgba(158,197,232,0.3)", minWidth: 84 }} data-testid={`button-task-${task.id}-open`}>
                           {t("earn.openBtn")}
                         </button>
                       ) : showWait ? (
-                        <button disabled className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase" style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.08)", minWidth: 88 }} data-testid={`button-task-${task.id}-wait`}>
-                          {t("earn.waitSec", { n: remainingS })}
+                        <button disabled className="px-3 py-2 rounded-lg font-black text-[11px] uppercase tabular-nums" style={{ background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.08)", minWidth: 84 }} data-testid={`button-task-${task.id}-wait`}>
+                          {remainingS}s
                         </button>
                       ) : (
-                        <button onClick={() => void handleClaimTask(task.id)} disabled={!canClaimNow || isClaiming} className="px-3 py-2 rounded-lg font-black text-[11px] tracking-wider uppercase active:scale-95" style={{ background: canClaimNow ? "linear-gradient(135deg, #E8ECF4, #9EC5E8)" : "rgba(255,255,255,0.04)", color: canClaimNow ? "#0c1220" : "rgba(255,255,255,0.25)", border: "1px solid transparent", minWidth: 88, cursor: canClaimNow && !isClaiming ? "pointer" : "not-allowed" }} data-testid={`button-task-${task.id}-claim`}>
+                        <button onClick={() => void handleClaimTask(task.id)} disabled={!canClaimNow || isClaiming} className="px-3 py-2 rounded-lg font-black text-[11px] uppercase" style={{ background: canClaimNow ? "linear-gradient(135deg,#F2F5FA,#9EC5E8)" : "rgba(255,255,255,0.04)", color: canClaimNow ? "#0a1220" : "rgba(255,255,255,0.25)", border: "1px solid transparent", minWidth: 84 }} data-testid={`button-task-${task.id}-claim`}>
                           {isClaiming ? "…" : t("earn.claimBtn")}
                         </button>
                       )}
@@ -637,9 +603,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                       const hintText = isLocked
                         ? (reqKey ? t(reqKey) : (task.requirementLabel || t("earn.requirementFallback")))
                         : (reqKey ? t(reqKey) : t("earn.sponsorHint"));
-                      return (
-                        <div className="text-[10px]" style={{ color: isLocked ? "#ff9b6e" : "rgba(255,255,255,0.35)" }}>{hintText}</div>
-                      );
+                      return <div className="text-[10px]" style={{ color: isLocked ? "#ff9b6e" : "rgba(255,255,255,0.35)" }}>{hintText}</div>;
                     })()}
                   </div>
                 );
@@ -653,14 +617,14 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           )}
         </section>
 
-        <section>
-          <div className="mb-2 px-0.5">
-            <div className="text-[10px] font-black tracking-[0.12em] uppercase" style={{ color: "rgba(158,197,232,0.7)" }}>
-              {t("earn.stepInvite")}
-            </div>
-            <div className="font-black text-base tracking-wide" style={{ color: CYAN_WHITE }}>{t("earn.referralProgram")}</div>
-            <div className="text-[11px] font-semibold mt-0.5" style={{ color: "rgba(232,236,244,0.55)" }}>
-              {t("earn.referralProgramHintNew", { n: REFERRAL_STARDUST_PER_INVITE })}
+        {/* Invite */}
+        <section className="earn-panel">
+          <div className="mb-3">
+            <div className="earn-section-kicker" style={{ color: "rgba(158,197,232,0.75)" }}>{t("earn.stepInvite")}</div>
+            <div className="font-black text-[17px] tracking-wide mt-0.5" style={{ color: "var(--earn-ink)" }}>{t("earn.referralProgram")}</div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <span className="earn-reward-chip earn-reward-chip--gold">+{REFERRAL_STARDUST_PER_INVITE} ★ / invite</span>
+              <span className="earn-reward-chip">+0.1 TON</span>
             </div>
           </div>
 
@@ -670,51 +634,38 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
               const url = encodeURIComponent(referralLink);
               window.open(`https://t.me/share/url?url=${url}&text=${text}`, "_blank");
             }}
-            className="w-full py-3 mb-2 rounded-xl font-black text-sm tracking-wider uppercase transition-all active:scale-95"
-            style={{
-              background: "linear-gradient(135deg, rgba(158,197,232,0.18), rgba(122,158,200,0.08))",
-              color: CYAN_WHITE,
-              border: "1px solid rgba(158,197,232,0.28)",
-            }}
+            className="earn-cta earn-cta--ghost mb-2"
           >
             {t("earn.inviteFriends")}
           </button>
-          <div className="flex items-center gap-2 text-xs mb-3 px-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+          <div className="flex items-center gap-2 text-xs mb-3" style={{ color: "rgba(255,255,255,0.4)" }}>
             <span>{t("earn.idLabel")}</span>
-            <span className="font-bold font-mono" style={{ color: CYAN_WHITE }}>{referralCode}</span>
+            <span className="font-bold font-mono" style={{ color: "var(--earn-cyan)" }}>{referralCode}</span>
             <span>·</span>
-            <span className="font-bold" style={{ color: "#00e676" }}>{t("earn.invitedSuffix", { n: referralCount })}</span>
+            <span className="font-bold" style={{ color: "#00e676" }}>{referralCount.toLocaleString()} invited</span>
           </div>
 
           {referralSpeedBonus > 0 && (
             <div className="mb-3 rounded-xl px-3 py-2.5 flex items-center gap-2" style={{ border: "1px solid rgba(0,230,118,0.22)", background: "rgba(0,230,118,0.05)" }}>
               <SpeedBoltIcon size={20} />
               <div className="flex-1 min-w-0">
-                <div className="font-black text-xs" style={{ color: "#00e676" }}>{t("earn.speedActive", { n: Math.round(referralSpeedBonus * 100) })}</div>
+                <div className="font-black text-xs" style={{ color: "#00e676" }}>+{Math.round(referralSpeedBonus * 100)}% speed</div>
                 <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>{referredBy ? t("earn.speedActiveJoined") : t("earn.speedActiveSub")}</div>
               </div>
             </div>
           )}
 
-          <div className="text-[10px] font-black tracking-[0.1em] uppercase mb-2 px-0.5" style={{ color: "rgba(255,255,255,0.4)" }}>
-            {t("earn.referralMilestones")}
-          </div>
+          <div className="earn-section-kicker mb-2" style={{ color: "rgba(255,255,255,0.4)" }}>{t("earn.referralMilestones")}</div>
           {nextMilestone && (
             <div className="mb-3">
-              <div className="flex justify-between text-[11px] mb-1.5 px-0.5">
+              <div className="flex justify-between text-[11px] mb-1.5">
                 <span style={{ color: "rgba(232,236,244,0.6)" }}>
-                  {t("earn.nextMilestone", { c: nextMilestone.count, r: nextMilestone.reward.toLocaleString() })}
+                  {nextMilestone.count} invites → +{nextMilestone.reward.toLocaleString()} $ZOOM
                 </span>
-                <span className="font-bold" style={{ color: CYAN_WHITE }}>{referralCount}/{nextMilestone.count}</span>
+                <span className="font-bold tabular-nums" style={{ color: "var(--earn-cyan)" }}>{referralCount}/{nextMilestone.count}</span>
               </div>
-              <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${Math.min((referralCount / nextMilestone.count) * 100, 100)}%`,
-                    background: "linear-gradient(90deg, #7a9ec8, #9EC5E8)",
-                  }}
-                />
+              <div className="earn-progress">
+                <i style={{ width: `${Math.min((referralCount / nextMilestone.count) * 100, 100)}%` }} />
               </div>
             </div>
           )}
@@ -726,28 +677,31 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
               return (
                 <div
                   key={m.count}
-                  className="flex items-center justify-between py-2 px-3 rounded-lg"
+                  className="flex items-center justify-between py-2 px-3 rounded-xl"
                   style={{
-                    border: `1px solid ${claimed ? "rgba(0,230,118,0.2)" : isCurrent ? "rgba(158,197,232,0.18)" : "rgba(255,255,255,0.05)"}`,
-                    background: claimed ? "rgba(0,230,118,0.05)" : "transparent",
+                    border: `1px solid ${claimed ? "rgba(0,230,118,0.22)" : isCurrent ? "rgba(158,197,232,0.22)" : "rgba(255,255,255,0.05)"}`,
+                    background: claimed ? "rgba(0,230,118,0.05)" : isCurrent ? "rgba(158,197,232,0.04)" : "transparent",
                   }}
                 >
-                  <span className="text-xs font-bold" style={{ color: claimed ? "#00e676" : reached ? "#C9D6E8" : isCurrent ? "#9EC5E8" : "rgba(255,255,255,0.3)" }}>
-                    {t("earn.invites", { n: m.count })}
+                  <span className="text-xs font-bold" style={{ color: claimed ? "#00e676" : reached ? "#C9D6E8" : isCurrent ? "#9EC5E8" : "rgba(255,255,255,0.32)" }}>
+                    {m.count} invites
                   </span>
-                  <span className="text-xs font-black" style={{ color: claimed ? "#00e676" : "rgba(255,255,255,0.45)" }}>
-                    {claimed ? t("earn.claimedTick") : `+${m.reward.toLocaleString()} $ZOOM`}
-                  </span>
+                  {claimed ? (
+                    <span className="earn-reward-chip earn-reward-chip--ok">{t("earn.claimedTick")}</span>
+                  ) : (
+                    <span className="earn-reward-chip">+{m.reward.toLocaleString()} $ZOOM</span>
+                  )}
                 </div>
               );
             })}
           </div>
         </section>
 
-        <section>
-          <div className="flex items-center gap-2 mb-2">
+        {/* Redeem */}
+        <section className="earn-panel">
+          <div className="flex items-center gap-2 mb-3">
             <SpaceTicketIcon size={22} />
-            <div className="font-black text-sm" style={{ color: CYAN_WHITE }}>{t("earn.redeemCode")}</div>
+            <div className="font-black text-[15px]" style={{ color: "var(--earn-ink)" }}>{t("earn.redeemCode")}</div>
           </div>
           <div className="flex gap-2">
             <input
@@ -757,15 +711,10 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
               onKeyDown={(e) => e.key === "Enter" && handleRedeem()}
               placeholder=""
               className="flex-1 px-3 py-2.5 rounded-xl text-sm font-mono font-bold uppercase outline-none"
-              style={{ background: "rgba(0,0,0,0.28)", border: "1px solid rgba(158,197,232,0.18)", color: CYAN_WHITE, letterSpacing: "0.06em" }}
+              style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(158,197,232,0.2)", color: "var(--earn-cyan)", letterSpacing: "0.06em" }}
               data-testid="input-redeem-code"
             />
-            <button
-              onClick={handleRedeem}
-              className="px-4 py-2.5 rounded-xl font-black text-sm tracking-wider uppercase transition-all active:scale-95"
-              style={{ background: "rgba(158,197,232,0.12)", color: CYAN_WHITE, border: "1px solid rgba(158,197,232,0.25)" }}
-              data-testid="button-redeem"
-            >
+            <button onClick={handleRedeem} className="earn-cta earn-cta--ghost !w-auto px-4" data-testid="button-redeem">
               {t("earn.go")}
             </button>
           </div>
@@ -783,16 +732,14 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           )}
         </section>
 
-        <section
-          className="rounded-2xl p-4"
-          style={{ border: "1px solid rgba(158,197,232,0.14)", background: "rgba(158,197,232,0.03)" }}
-        >
+        {/* Weekly REDSTAR */}
+        <section className="earn-panel">
           <div className="flex items-center gap-3 mb-3">
             <div style={{ fontSize: 22, lineHeight: 1, color: "#ff3355" }}>★</div>
-            <div className="flex-1">
-              <div className="font-black text-sm tracking-wide" style={{ color: "#E8ECF4" }}>{t("earn.watchAndEarn")}</div>
-              <div className="text-[10px] font-bold" style={{ color: "rgba(255,255,255,0.4)" }}>
-                {t("earn.weeklyRedStarSubtitle", { n: WEEKLY_REDSTAR_REWARD })}
+            <div className="flex-1 min-w-0">
+              <div className="font-black text-[15px] tracking-wide" style={{ color: "var(--earn-ink)" }}>{t("earn.watchAndEarn")}</div>
+              <div className="mt-1">
+                <span className="earn-reward-chip">+{WEEKLY_REDSTAR_REWARD} ★ REDSTAR / day</span>
               </div>
             </div>
             <div
@@ -830,19 +777,13 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           <button
             onClick={() => void handleClaimWeeklyRedStar()}
             disabled={claimingRedStar || claimedToday || !telegramId}
-            className="w-full py-3 rounded-xl font-black text-sm tracking-wider uppercase transition-all active:scale-95 border"
-            style={{
-              background: claimedToday ? "rgba(255,255,255,0.04)" : claimingRedStar ? "rgba(158,197,232,0.12)" : "hsl(210 22% 90%)",
-              color: claimedToday ? "rgba(255,255,255,0.25)" : claimingRedStar ? "#9EC5E8" : "hsl(222 28% 10%)",
-              borderColor: claimedToday ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.18)",
-              cursor: claimedToday || claimingRedStar || !telegramId ? "not-allowed" : "pointer",
-            }}
+            className={`earn-cta ${!claimedToday && !claimingRedStar && telegramId ? "earn-cta--primary" : ""}`}
           >
             {claimedToday
               ? t("earn.claimedTodayReturn")
               : claimingRedStar
                 ? t("earn.claimingRedStar")
-                : t("earn.claimRedStarBtn", { n: WEEKLY_REDSTAR_REWARD })}
+                : `${t("earn.claimBtn")} · +${WEEKLY_REDSTAR_REWARD} ★ REDSTAR`}
           </button>
           {redStarMsg && (
             <div
