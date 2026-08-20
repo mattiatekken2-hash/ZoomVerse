@@ -3343,23 +3343,126 @@ export interface TasksState {
   sponsorTasks: SponsorTaskInfo[];
 }
 
-export async function fetchTasksState(telegramId: string): Promise<TasksState | null> {
+const TASKS_CACHE_KEY = "zoom:tasks-state-v3";
+let tasksMemoryCache: { telegramId: string; state: TasksState; at: number } | null = null;
+let tasksInflight: { telegramId: string; promise: Promise<TasksState | null> } | null = null;
+
+/** Authoritative Lab forge rewards — must match api-server labv3_* (never show legacy planets_* 5k–200k). */
+export const LAB_FORGE_TASK_CATALOG: ReadonlyArray<{ id: string; threshold: number; rewardZoom: number }> = [
+  { id: "labv3_5", threshold: 5, rewardZoom: 5 },
+  { id: "labv3_15", threshold: 15, rewardZoom: 10 },
+  { id: "labv3_40", threshold: 40, rewardZoom: 15 },
+  { id: "labv3_100", threshold: 100, rewardZoom: 25 },
+  { id: "labv3_250", threshold: 250, rewardZoom: 40 },
+  { id: "labv3_500", threshold: 500, rewardZoom: 60 },
+];
+
+/** Rebuild planet tasks from the Lab catalog so stale/prod APIs can't paint 25k–200k ZOOM. */
+export function normalizeLabTasksState(raw: {
+  planetsBuilt?: number;
+  claimedTasks?: string[];
+  planetTasks?: PlanetTaskInfo[];
+  sponsorTasks?: SponsorTaskInfo[];
+} | null | undefined): TasksState {
+  const built = Math.max(0, Number(raw?.planetsBuilt ?? 0));
+  const claimed = new Set(Array.isArray(raw?.claimedTasks) ? raw!.claimedTasks : []);
+  // Also honour claim flags from a lab-catalog payload if present.
+  for (const t of raw?.planetTasks ?? []) {
+    if (t?.claimed && typeof t.id === "string") claimed.add(t.id);
+  }
+  return {
+    planetsBuilt: built,
+    claimedTasks: [...claimed],
+    planetTasks: LAB_FORGE_TASK_CATALOG.map((t) => ({
+      id: t.id,
+      threshold: t.threshold,
+      rewardZoom: t.rewardZoom,
+      claimed: claimed.has(t.id),
+      claimable: !claimed.has(t.id) && built >= t.threshold,
+    })),
+    sponsorTasks: Array.isArray(raw?.sponsorTasks) ? raw!.sponsorTasks : [],
+  };
+}
+
+/** Static catalog — shown instantly before the network returns. */
+export const TASKS_CATALOG_FALLBACK: TasksState = normalizeLabTasksState({
+  planetsBuilt: 0,
+  claimedTasks: [],
+  sponsorTasks: [],
+});
+
+function readTasksSession(telegramId: string): TasksState | null {
   try {
-    const res = await fetch(`${API_BASE}/tasks/state/${encodeURIComponent(telegramId)}`, {
-      headers: apiHeaders(),
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (!json?.ok) return null;
-    return {
-      planetsBuilt: Number(json.planetsBuilt ?? 0),
-      claimedTasks: Array.isArray(json.claimedTasks) ? json.claimedTasks : [],
-      planetTasks: Array.isArray(json.planetTasks) ? json.planetTasks : [],
-      sponsorTasks: Array.isArray(json.sponsorTasks) ? json.sponsorTasks : [],
-    };
+    const raw = sessionStorage.getItem(`${TASKS_CACHE_KEY}:${telegramId}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as TasksState;
+    if (!parsed || !Array.isArray(parsed.planetTasks)) return null;
+    return normalizeLabTasksState(parsed);
   } catch {
     return null;
   }
+}
+
+function writeTasksSession(telegramId: string, state: TasksState): void {
+  try {
+    sessionStorage.setItem(`${TASKS_CACHE_KEY}:${telegramId}`, JSON.stringify(state));
+  } catch { /**/ }
+}
+
+/** Instant paint — memory → session → static catalog. */
+export function peekTasksState(telegramId: string | null | undefined): TasksState {
+  if (!telegramId) return TASKS_CATALOG_FALLBACK;
+  if (tasksMemoryCache?.telegramId === telegramId) {
+    return normalizeLabTasksState(tasksMemoryCache.state);
+  }
+  const session = readTasksSession(telegramId);
+  if (session) {
+    tasksMemoryCache = { telegramId, state: session, at: Date.now() };
+    return session;
+  }
+  return TASKS_CATALOG_FALLBACK;
+}
+
+function rememberTasksState(telegramId: string, state: TasksState): void {
+  const normalized = normalizeLabTasksState(state);
+  tasksMemoryCache = { telegramId, state: normalized, at: Date.now() };
+  writeTasksSession(telegramId, normalized);
+}
+
+export async function fetchTasksState(telegramId: string): Promise<TasksState | null> {
+  if (tasksInflight?.telegramId === telegramId) {
+    return tasksInflight.promise;
+  }
+  const promise = (async (): Promise<TasksState | null> => {
+    try {
+      const res = await fetch(`${API_BASE}/tasks/state/${encodeURIComponent(telegramId)}`, {
+        headers: apiHeaders(),
+      });
+      if (!res.ok) return null;
+      const json = await res.json();
+      if (!json?.ok) return null;
+      const state = normalizeLabTasksState({
+        planetsBuilt: Number(json.planetsBuilt ?? 0),
+        claimedTasks: Array.isArray(json.claimedTasks) ? json.claimedTasks : [],
+        planetTasks: Array.isArray(json.planetTasks) ? json.planetTasks : [],
+        sponsorTasks: Array.isArray(json.sponsorTasks) ? json.sponsorTasks : [],
+      });
+      rememberTasksState(telegramId, state);
+      return state;
+    } catch {
+      return null;
+    } finally {
+      if (tasksInflight?.telegramId === telegramId) tasksInflight = null;
+    }
+  })();
+  tasksInflight = { telegramId, promise };
+  return promise;
+}
+
+/** Warm the cache early so Earn opens already filled. */
+export function prefetchTasksState(telegramId: string | null | undefined): void {
+  if (!telegramId) return;
+  void fetchTasksState(telegramId);
 }
 
 export interface ClaimTaskResult {

@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { TonConnectUIProvider } from "@tonconnect/ui-react";
 import { BlackPlanetOrbStyles } from "./components/BlackPlanetOrb";
 import { useGameState, isFarmActive, isSunActive, SUN_CONFIG } from "./hooks/useGameState";
-import { fetchRegularPlanets, saveRegularPlanets } from "./utils/api";
+import { fetchRegularPlanets, saveRegularPlanets, prefetchTasksState } from "./utils/api";
 import { useGlobalInit } from "./store/globalStore";
 import { NebulaBackground } from "./components/NebulaBackground";
 import { LabSpaceBackground } from "./components/LabSpaceBackground";
@@ -385,6 +385,7 @@ function AppShellWithState() {
     if (!state.telegramId) return;
     void prefetchShopData(state.telegramId);
     void prefetchWalletMarket();
+    prefetchTasksState(state.telegramId);
   }, [state.telegramId]);
 
   // Pause CSS animations when backgrounded or when a non-Lab tab is active.

@@ -7,7 +7,8 @@ const router: IRouter = Router();
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Rewards in STARDUST, one per day (D1–D7). No cycle multiplier.
-const BASE_REWARDS = [1, 2, 3, 4, 5, 6, 7];
+// Pizza forge = 3 ★. Week ≈ 18 ★ (~6 pizzas) — helper, not Lab bypass.
+const BASE_REWARDS = [1, 1, 2, 2, 3, 4, 5];
 
 function rewardForDay(dayIndex: number): number {
   return BASE_REWARDS[Math.max(0, Math.min(6, dayIndex))] ?? 1;
