@@ -172,20 +172,21 @@ export function WalletPage({
   const stardustGramValue = liveStardustBalance > 0
     ? (liveStardustBalance * stardustIndex) / 100
     : null;
-  const zoomBaseGramLabel = balance > 0 && zoomGramValue != null
-    ? `${formatGramValueFull(zoomGramValue)} GRAM`
-    : `${formatZoomUnitGram(zoomPriceGram)} GRAM`;
-  const stardustBaseGramLabel = liveStardustBalance > 0 && stardustGramValue != null
-    ? `${formatGramValueFull(stardustGramValue)} GRAM`
-    : `${formatGramValueFull(stardustIndex)} GRAM`;
+  // Under-icon line: unit/portfolio value + 24h % (no "GRAM" label).
+  const zoomIconValue = balance > 0 && zoomGramValue != null
+    ? formatGramValueFull(zoomGramValue)
+    : formatZoomUnitGram(zoomPriceGram);
+  const stardustIconValue = liveStardustBalance > 0 && stardustGramValue != null
+    ? formatGramValueFull(stardustGramValue)
+    : formatGramValueFull(stardustIndex);
   const redStarGramValue = redStarBalance > 0 ? redStarBalance * REDSTAR_GRAM_PER_UNIT : null;
   const nftStarGramValue = nftStarBalance > 0 ? nftStarBalance * NFTSTAR_GRAM_PER_UNIT : null;
-  const redStarBaseGramLabel = redStarBalance > 0 && redStarGramValue != null
-    ? `${formatGramValueFull(redStarGramValue)} GRAM`
-    : `${formatGramValueFull(REDSTAR_GRAM_PER_UNIT)} GRAM`;
-  const nftStarBaseGramLabel = nftStarBalance > 0 && nftStarGramValue != null
-    ? `${formatGramValueFull(nftStarGramValue)} GRAM`
-    : `${formatGramValueFull(NFTSTAR_GRAM_PER_UNIT)} GRAM`;
+  const redStarIconValue = redStarBalance > 0 && redStarGramValue != null
+    ? formatGramValueFull(redStarGramValue)
+    : formatGramValueFull(REDSTAR_GRAM_PER_UNIT);
+  const nftStarIconValue = nftStarBalance > 0 && nftStarGramValue != null
+    ? formatGramValueFull(nftStarGramValue)
+    : formatGramValueFull(NFTSTAR_GRAM_PER_UNIT);
   const priceLabel = tonPrice !== null
     ? t("walletPage.liveRate", { price: tonPrice.toFixed(2) })
     : t("walletPage.loadingRate");
@@ -386,7 +387,7 @@ export function WalletPage({
             tonPrice={tonPrice}
             priceLoading={priceLoading}
             changePct={zoomChangePct}
-            iconSubValue={zoomBaseGramLabel}
+            iconSubValue={zoomIconValue}
             onClick={() => setZoomMarketOpen(true)}
             hint={t("walletPage.zoomHint")}
             data-testid="wallet-zoom-balance"
@@ -401,7 +402,7 @@ export function WalletPage({
             tonPrice={tonPrice}
             priceLoading={priceLoading}
             changePct={stardustChangePct}
-            iconSubValue={stardustBaseGramLabel}
+            iconSubValue={stardustIconValue}
             onClick={() => setStardustMarketOpen(true)}
             hint={t("walletPage.stardustHint")}
           />
@@ -414,7 +415,8 @@ export function WalletPage({
             gramValue={redStarGramValue}
             tonPrice={tonPrice}
             priceLoading={priceLoading}
-            iconSubValue={redStarBaseGramLabel}
+            changePct={0}
+            iconSubValue={redStarIconValue}
             referenceOnly
           />
           <BalanceRow
@@ -426,7 +428,8 @@ export function WalletPage({
             gramValue={nftStarGramValue}
             tonPrice={tonPrice}
             priceLoading={priceLoading}
-            iconSubValue={nftStarBaseGramLabel}
+            changePct={0}
+            iconSubValue={nftStarIconValue}
             referenceOnly
           />
         </div>
@@ -559,7 +562,8 @@ function BalanceRow({
 }) {
   const { t } = useT();
   const interactive = !!onClick;
-  const pctLabel = !referenceOnly && changePct != null ? formatChangePct(changePct) : "";
+  // Under-icon always shows value + % (no GRAM). Right column keeps USD.
+  const iconPctLabel = changePct != null ? formatChangePct(changePct) : "";
   const pctPositive = (changePct ?? 0) > 0;
   const pctNegative = (changePct ?? 0) < 0;
   const usdLabel = formatUsdFromGram(gramValue ?? null, tonPrice ?? null, !!priceLoading);
@@ -586,7 +590,7 @@ function BalanceRow({
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: 4,
+            gap: 3,
             minWidth: BALANCE_LEFT_COL,
           }}
         >
@@ -613,21 +617,50 @@ function BalanceRow({
               {icon}
             </div>
           </div>
-          {iconSubValue && (
+          {(iconSubValue || iconPctLabel) && (
             <div
               style={{
-                fontSize: 8,
-                fontWeight: 600,
-                color: GRAM_SUB_VALUE_GREEN,
-                fontVariantNumeric: "tabular-nums",
-                textAlign: "center",
-                lineHeight: 1.2,
-                letterSpacing: "0.01em",
-                whiteSpace: "nowrap",
-                overflow: "visible",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 1,
+                lineHeight: 1.15,
               }}
             >
-              {iconSubValue}
+              {iconSubValue && (
+                <div
+                  style={{
+                    fontSize: 8,
+                    fontWeight: 700,
+                    color: "rgba(255,255,255,0.55)",
+                    fontVariantNumeric: "tabular-nums",
+                    textAlign: "center",
+                    letterSpacing: "0.01em",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {iconSubValue}
+                </div>
+              )}
+              {iconPctLabel && (
+                <div
+                  style={{
+                    fontSize: 8,
+                    fontWeight: 800,
+                    color: pctPositive
+                      ? "rgba(0,255,140,0.75)"
+                      : pctNegative
+                        ? "rgba(255,100,100,0.75)"
+                        : "rgba(255,255,255,0.35)",
+                    fontVariantNumeric: "tabular-nums",
+                    textAlign: "center",
+                    letterSpacing: "0.02em",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {iconPctLabel}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -665,7 +698,7 @@ function BalanceRow({
         </div>
       </div>
 
-      {/* Right — live USD + 24h change */}
+      {/* Right — live USD */}
       <div style={{ textAlign: "right", flexShrink: 0, paddingTop: 2 }}>
         <div
           style={{
@@ -691,24 +724,6 @@ function BalanceRow({
         >
           {usdLabel}
         </div>
-        {pctLabel && (
-          <div
-            style={{
-              fontSize: 9,
-              fontWeight: 700,
-              color: pctPositive
-                ? "rgba(0,255,140,0.55)"
-                : pctNegative
-                  ? "rgba(255,100,100,0.55)"
-                  : "rgba(255,255,255,0.22)",
-              fontVariantNumeric: "tabular-nums",
-              letterSpacing: "0.06em",
-              marginTop: 3,
-            }}
-          >
-            {pctLabel}
-          </div>
-        )}
       </div>
     </div>
   );
