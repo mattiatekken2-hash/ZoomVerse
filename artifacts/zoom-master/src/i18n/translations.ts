@@ -458,6 +458,8 @@ const en: Dict = {
   "splash.loading": "Loading…",
   "splash.subtitle": "Enter the game",
   "lab.forgeComplete": "FORGE COMPLETE",
+  "lab.tonAppVoteAria": "Vote on TON App",
+  "lab.tonAppBadgeAlt": "Zoom Bot rank on TON App",
   "lab.rarityWheelNext": "Rarity wheel incoming…",
   "lab.tapsNeeded": "{n} taps needed",
 
@@ -993,6 +995,8 @@ const it: Dict = {
   "splash.loading": "Caricamento…",
   "splash.subtitle": "Entra in gioco",
   "lab.forgeComplete": "FORGIA COMPLETA",
+  "lab.tonAppVoteAria": "Vota su TON App",
+  "lab.tonAppBadgeAlt": "Posizione Zoom Bot su TON App",
   "lab.rarityWheelNext": "Ruota rarità in arrivo…",
   "lab.tapsNeeded": "{n} tap necessari",
 
@@ -1500,6 +1504,8 @@ const ru: Dict = {
   "splash.loading": "Загрузка…",
   "splash.subtitle": "Войти в игру",
   "lab.forgeComplete": "КОВКА ЗАВЕРШЕНА",
+  "lab.tonAppVoteAria": "Голосовать на TON App",
+  "lab.tonAppBadgeAlt": "Позиция Zoom Bot на TON App",
   "lab.rarityWheelNext": "Колесо редкости…",
   "lab.tapsNeeded": "Нужно {n} нажатий",
 
@@ -2006,6 +2012,8 @@ const uk: Dict = {
   "splash.loading": "Завантаження…",
   "splash.subtitle": "Увійти в гру",
   "lab.forgeComplete": "КУВАННЯ ЗАВЕРШЕНО",
+  "lab.tonAppVoteAria": "Голосувати на TON App",
+  "lab.tonAppBadgeAlt": "Позиція Zoom Bot на TON App",
   "lab.rarityWheelNext": "Колесо рідкості…",
   "lab.tapsNeeded": "Потрібно {n} натискань",
 
