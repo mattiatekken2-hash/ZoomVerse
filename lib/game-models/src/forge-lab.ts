@@ -1,9 +1,36 @@
 /**
  * Lab forge public module.
- * Re-exports zero-dep economy first, then mesh/GLB helpers.
- * Single entry so Vite named imports always resolve on this file.
+ * Explicit named re-exports (not `export *`) so Vite always sees
+ * pickRandomLabZoomShapeId on this module graph node.
  */
-export * from "./forge-lab-economy.js";
+export {
+  LAB_PIZZA_SHAPE_ID,
+  LAB_FLOWER_SHAPE_ID,
+  LAB_DOLLAR_SHAPE_ID,
+  LAB_STARDUST_POT_SHAPE_ID,
+  LAB_ZOOM_SHAPE_IDS,
+  LAB_ZOOM_FARM_RATE,
+  LAB_ZOOM_DISPLAY_NAME,
+  LAB_ZOOM_COLORS,
+  LAB_MODEL_FORGE_GOAL,
+  LAB_STARDUST_FORGE_ZOOM_COST,
+  LAB_ZOOM_FORGE_STARDUST_COST,
+  LAB_PIZZA_FORGE_GOAL,
+  isLabZoomShapeId,
+  labMarketPathForShapeId,
+  isLabForgeGeneratorPlanet,
+  LAB_FORGE_TEST_PIZZA_KEY,
+  readLabForgeTestPizzaFlag,
+  clearLabForgeTestPizzaFlag,
+  enableNextLabForgePizza,
+  LAB_DEV_WIPE_STATE_KEY,
+  isLabDevWipeActive,
+  LAB_DEV_FARM_RESET_KEY,
+  consumeLabDevFarmResetOnce,
+  pickRandomLabZoomShapeId,
+  labForgeShapeForPath,
+} from "./forge-lab-economy.js";
+export type { LabZoomShapeId, LabForgePath, LabMarketPath } from "./forge-lab-economy.js";
 
 import { getShapeGlbUrl } from "./glb-assets.js";
 import { getMeshParts } from "./meshes.js";
