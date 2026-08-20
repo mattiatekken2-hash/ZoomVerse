@@ -35,7 +35,7 @@ const GRAM_CELESTE = {
 /** Match GramWalletIcon footprint in the GRAM card (28–32px). */
 const BALANCE_ICON_BOX = 42;
 const BALANCE_ICON_SIZE = 30;
-/** Fixed left column — keeps every row icon on the same vertical axis. */
+/** Fixed left column — icons stay on one axis; % sits left under the emoji. */
 const BALANCE_LEFT_COL = BALANCE_ICON_BOX;
 /** Green tint for GRAM value under asset logos. */
 const GRAM_SUB_VALUE_GREEN = "#34d399";
@@ -660,7 +660,9 @@ function BalanceRow({
             flexDirection: "column",
             alignItems: "center",
             gap: 3,
+            width: BALANCE_LEFT_COL,
             minWidth: BALANCE_LEFT_COL,
+            maxWidth: BALANCE_LEFT_COL,
           }}
         >
           <div
@@ -691,9 +693,12 @@ function BalanceRow({
               style={{
                 display: "flex",
                 flexDirection: "column",
-                alignItems: "center",
+                alignItems: "flex-start",
                 gap: 1,
                 lineHeight: 1.15,
+                width: BALANCE_ICON_SIZE,
+                marginLeft: 0,
+                overflow: "visible",
               }}
             >
               {iconSubValue && (
@@ -703,7 +708,7 @@ function BalanceRow({
                     fontWeight: 700,
                     color: "rgba(255,255,255,0.55)",
                     fontVariantNumeric: "tabular-nums",
-                    textAlign: "center",
+                    textAlign: "left",
                     letterSpacing: "0.01em",
                     whiteSpace: "nowrap",
                   }}
@@ -722,7 +727,7 @@ function BalanceRow({
                         ? "rgba(255,100,100,0.75)"
                         : "rgba(255,255,255,0.35)",
                     fontVariantNumeric: "tabular-nums",
-                    textAlign: "center",
+                    textAlign: "left",
                     letterSpacing: "0.02em",
                     whiteSpace: "nowrap",
                   }}
