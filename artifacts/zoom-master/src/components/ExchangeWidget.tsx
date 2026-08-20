@@ -10,6 +10,7 @@ import {
   readWalletMarketCacheForDisplay,
   subscribeWalletMarketCache,
 } from "../utils/walletMarketCache";
+import { formatZoomChartPrice } from "../utils/wallet24hChange";
 
 const EXCHANGE_DELAY_MS = 80 * 24 * 60 * 60 * 1000;
 const FALLBACK_LAUNCH_AT_MS = Date.UTC(2026, 8, 1, 0, 0, 0);
@@ -20,7 +21,8 @@ interface ExchangeWidgetProps {
 }
 
 function formatPrice(p: number): string {
-  if (!Number.isFinite(p) || p <= 0) return "0.000000";
+  if (!Number.isFinite(p) || p <= 0) return "0";
+  if (p < 0.0001) return formatZoomChartPrice(p);
   if (p < 0.01) return p.toFixed(6);
   if (p < 1) return p.toFixed(4);
   if (p < 10) return p.toFixed(3);

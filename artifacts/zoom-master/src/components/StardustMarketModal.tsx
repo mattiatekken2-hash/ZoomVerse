@@ -24,7 +24,6 @@ import {
 import { gramToStardustPreview } from "../utils/stardustMarket";
 import { GramDiamondIcon } from "./GramDiamondIcon";
 import { useT } from "../i18n/LanguageContext";
-import { chartIconScale } from "../utils/wallet24hChange";
 
 const REFRESH_MS = 12_000;
 const CYAN = "#9EC5E8";
@@ -225,7 +224,6 @@ export function StardustMarketModal({
   };
 
   const pctChange = genesis > 0 ? ((index - genesis) / genesis) * 100 : 0;
-  const iconScale = chartIconScale(pctChange);
 
   const inputStyle = {
     background: "rgba(0,0,0,0.35)",
@@ -256,17 +254,7 @@ export function StardustMarketModal({
               {t("stardustMarket.title")}
             </div>
             <div style={{ fontSize: 20, fontWeight: 900, color: "#ffd740", marginTop: 2 }}>
-              <span
-                style={{
-                  display: "inline-block",
-                  transform: `scale(${iconScale})`,
-                  transformOrigin: "center bottom",
-                  transition: "transform 0.45s ease",
-                  marginRight: 6,
-                }}
-              >
-                ★
-              </span>
+              <span style={{ marginRight: 6 }}>★</span>
               <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatIndex(index)}</span>
             </div>
           </div>

@@ -20,7 +20,7 @@ import {
 } from "../utils/api";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 import { useT } from "../i18n/LanguageContext";
-import { chartIconScale } from "../utils/wallet24hChange";
+import { formatZoomChartPrice } from "../utils/wallet24hChange";
 
 const REFRESH_MS = 12_000;
 const CYAN = "#9EC5E8";
@@ -32,17 +32,21 @@ interface Props {
 }
 
 function formatPrice(p: number): string {
-  if (!Number.isFinite(p) || p <= 0) return "0.000000";
-  if (p < 0.01) return p.toFixed(6);
-  if (p < 1) return p.toFixed(4);
-  if (p < 10) return p.toFixed(3);
-  return p.toFixed(2);
+  if (!Number.isFinite(p) || p <= 0) return "0";
+  // Portfolio can be larger than micro unit prices.
+  if (p >= 0.0001) {
+    if (p < 0.01) return p.toFixed(6);
+    if (p < 1) return p.toFixed(4);
+    if (p < 10) return p.toFixed(3);
+    return p.toFixed(2);
+  }
+  return formatZoomChartPrice(p);
 }
 
 /** Compact Y-axis ticks — avoid "0001" clutter on micro prices. */
 function formatAxisPrice(p: number): string {
   if (!Number.isFinite(p) || p <= 0) return "0";
-  if (p < 1e-5) return p.toExponential(1);
+  if (p < 1e-5) return formatZoomChartPrice(p);
   if (p < 0.01) return p.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
   if (p < 1) return p.toFixed(4);
   return p.toFixed(3);
@@ -126,7 +130,6 @@ export function ZoomMarketModal({ balance, onClose }: Props) {
   const currentPrice = price > 0 ? price : genesis;
   const pctChange = genesis > 0 ? ((currentPrice - genesis) / genesis) * 100 : 0;
   const portfolio = Number.isFinite(balance) ? balance * currentPrice : 0;
-  const iconScale = chartIconScale(pctChange);
 
   const showComingSoon = () => {
     setMsg(t("shop.comingSoon"));
@@ -165,16 +168,7 @@ export function ZoomMarketModal({ balance, onClose }: Props) {
               className="flex items-center gap-2"
               style={{ fontSize: 20, fontWeight: 900, color: GOLD, marginTop: 2 }}
             >
-              <span
-                style={{
-                  display: "inline-flex",
-                  transform: `scale(${iconScale})`,
-                  transformOrigin: "center bottom",
-                  transition: "transform 0.45s ease",
-                }}
-              >
-                <ZoomCubeIcon size={22} />
-              </span>
+              <ZoomCubeIcon size={22} />
               <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtGram(currentPrice)}</span>
             </div>
           </div>

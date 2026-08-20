@@ -10,6 +10,7 @@
  */
 import { memo, useEffect, useState, useCallback } from "react";
 import { fetchEconomyPrice, type EconomyChartPoint, fetchEconomyHistory } from "../utils/api";
+import { formatZoomChartPrice } from "../utils/wallet24hChange";
 import { EconomyModal } from "./EconomyModal";
 
 // Slow poll: the price is event-driven server-side (no per-second tick),
@@ -22,10 +23,8 @@ interface EconomyWidgetProps {
 }
 
 function formatPrice(p: number): string {
-  // After the May 2026 rebalance the genesis is $0.0001 and prices grow
-  // very slowly, so sub-cent values need 6 decimals to show meaningful
-  // movement. Larger values fall back to fewer decimals to stay readable.
-  if (!Number.isFinite(p) || p <= 0) return "0.000000";
+  if (!Number.isFinite(p) || p <= 0) return "0";
+  if (p < 0.0001) return formatZoomChartPrice(p);
   if (p < 0.01) return p.toFixed(6);
   if (p < 1) return p.toFixed(4);
   if (p < 10) return p.toFixed(3);
