@@ -8,15 +8,22 @@ export {
   LAB_FLOWER_SHAPE_ID,
   LAB_DOLLAR_SHAPE_ID,
   LAB_STARDUST_POT_SHAPE_ID,
+  LAB_STREET_SCENE_SHAPE_ID,
+  LAB_ISLAND_HOME_SHAPE_ID,
   LAB_ZOOM_SHAPE_IDS,
+  LAB_STARDUST_SHAPE_IDS,
   LAB_ZOOM_FARM_RATE,
+  LAB_STARDUST_FARM_RATE,
   LAB_ZOOM_DISPLAY_NAME,
+  LAB_STARDUST_DISPLAY_NAME,
   LAB_ZOOM_COLORS,
+  LAB_STARDUST_COLORS,
   LAB_MODEL_FORGE_GOAL,
   LAB_STARDUST_FORGE_ZOOM_COST,
   LAB_ZOOM_FORGE_STARDUST_COST,
   LAB_PIZZA_FORGE_GOAL,
   isLabZoomShapeId,
+  isLabStardustShapeId,
   labMarketPathForShapeId,
   isLabForgeGeneratorPlanet,
   LAB_FORGE_TEST_PIZZA_KEY,
@@ -28,9 +35,10 @@ export {
   LAB_DEV_FARM_RESET_KEY,
   consumeLabDevFarmResetOnce,
   pickRandomLabZoomShapeId,
+  pickRandomLabStardustShapeId,
   labForgeShapeForPath,
 } from "./forge-lab-economy.js";
-export type { LabZoomShapeId, LabForgePath, LabMarketPath } from "./forge-lab-economy.js";
+export type { LabZoomShapeId, LabStardustShapeId, LabForgePath, LabMarketPath } from "./forge-lab-economy.js";
 
 import { getShapeGlbUrl } from "./glb-assets.js";
 import { getMeshParts } from "./meshes.js";
@@ -47,7 +55,7 @@ import {
 } from "./voxel-sphere-blueprint.js";
 import {
   LAB_MODEL_FORGE_GOAL,
-  LAB_STARDUST_POT_SHAPE_ID,
+  isLabStardustShapeId,
   isLabZoomShapeId,
 } from "./forge-lab-economy.js";
 
@@ -57,7 +65,7 @@ export function resolveLabForgeShapeId(override: string | null | undefined): str
 }
 
 function isLabModelShape(shapeId: string): boolean {
-  return isLabZoomShapeId(shapeId) || shapeId === LAB_STARDUST_POT_SHAPE_ID;
+  return isLabZoomShapeId(shapeId) || isLabStardustShapeId(shapeId);
 }
 
 export function getLabForgeShapeTapGoal(

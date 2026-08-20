@@ -3,6 +3,7 @@
  * spend/collect activity (mirrors zoomPrice.ts, lighter scale).
  *
  * Genesis index = 1.000000. Stored as micro-units (index * 1e6).
+ * Grows continuously from player activity — no tight daily band or resets.
  */
 import { db } from "@workspace/db";
 import { appSettingsTable, usersTable } from "@workspace/db/schema";
@@ -15,13 +16,10 @@ const VERSION_KEY = "stardust_index_version";
 
 export const STARDUST_SCALE = 1_000_000;
 export const STARDUST_GENESIS_MICRO = 1_000_000; // 1.0
-/**
- * Hard band near 1.0 — Stardust is a soft utility index, not a runaway
- * speculative chart. ±0.3% keeps convert/shop math stable while still
- * allowing a gentle live wiggle from real spend/collect.
- */
-export const STARDUST_INDEX_MAX_MICRO = 1_003_000; // 1.003 (+0.3%)
-export const STARDUST_INDEX_MIN_MICRO = 997_000; // 0.997 (-0.3%)
+/** Safety ceiling — asymptotic cap far above normal play. */
+export const STARDUST_INDEX_MAX_MICRO = 10_000_000; // 10.0
+/** Never below genesis once seeded. */
+export const STARDUST_INDEX_MIN_MICRO = STARDUST_GENESIS_MICRO;
 /** Global cooldown between bumps — stops convert→stake double-pump bursts. */
 const BUMP_COOLDOWN_MS = 30_000;
 /** At index 1.0: 1 GRAM → 100 STARDUST (shop + convert baseline). */
@@ -55,34 +53,29 @@ export function stardustToGram(stardustAmount: number, indexMicro: number): numb
   return Math.max(0, Math.round(gram * 1_000_000) / 1_000_000);
 }
 
-const GENESIS_VERSION = 2;
+const GENESIS_VERSION = 3;
 const CHART_MAX = 240;
 const CHART_THROTTLE_MS = 10_000;
 
 type ChartPoint = { t: number; p: number };
 
 /**
- * Index pressure model (reasoned):
- * - spend = real ★ demand → mild up
- * - earn / unstake / convert_out = supply back → mild down
- * - convert (GRAM→★) = mint supply → no up bump (was double-counting with stake)
- * - stake = lock only → no bump (locking shouldn't pump the chart after convert)
+ * Player-activity pressure — upward only. More players farming/spending
+ * pushes the index higher over time; no nightly reset or downward ticks.
  */
 const ACTION_BP: Record<string, number> = {
-  spend: 1,         // +0.01% shop spend
-  earn: -1,         // -0.01% lab collect
-  stake: 0,         // lock: no chart pump
-  unstake: -1,      // unlock: mild supply return
-  convert: 0,       // mint ★: no pump (fixes convert→stake spike)
-  convert_out: -1,  // ★→GRAM
+  spend: 2,
+  earn: 1,
+  stake: 0,
+  unstake: 0,
+  convert: 1,
+  convert_out: 0,
 };
 
 function applyBp(current: number, bp: number): number {
-  if (bp > 0 && current >= STARDUST_INDEX_MAX_MICRO) return STARDUST_INDEX_MAX_MICRO;
-  if (bp < 0 && current <= STARDUST_INDEX_MIN_MICRO) return STARDUST_INDEX_MIN_MICRO;
+  if (bp <= 0 || current >= STARDUST_INDEX_MAX_MICRO) return current;
   const delta = Math.max(1, Math.round((current * bp) / 10_000));
-  const next = current + (bp >= 0 ? delta : -delta);
-  return clampIndexMicro(next);
+  return clampIndexMicro(current + delta);
 }
 
 async function ensureGenesis(): Promise<void> {
@@ -161,17 +154,7 @@ export async function getStardustIndexMicro(): Promise<number> {
     .where(eq(appSettingsTable.key, INDEX_KEY))
     .limit(1);
   const raw = Number(row?.valueNum ?? STARDUST_GENESIS_MICRO);
-  const clamped = clampIndexMicro(raw);
-  if (clamped !== raw) {
-    await db
-      .insert(appSettingsTable)
-      .values({ key: INDEX_KEY, valueNum: clamped })
-      .onConflictDoUpdate({
-        target: appSettingsTable.key,
-        set: { valueNum: clamped, updatedAt: new Date() },
-      });
-  }
-  return clamped;
+  return clampIndexMicro(raw);
 }
 
 export async function getStardustChart(): Promise<ChartPoint[]> {
@@ -200,7 +183,7 @@ export async function getStardustChart(): Promise<ChartPoint[]> {
   return seed;
 }
 
-/** Pad chart for UI: flat line when index hasn't moved yet. Values are clamped to the live band. */
+/** Pad chart for UI when only one point exists. */
 export function normalizeStardustChartPoints(points: ChartPoint[]): ChartPoint[] {
   const clamped = points.map((pt) => ({ t: pt.t, p: clampIndexMicro(pt.p) }));
   if (clamped.length === 0) return [];

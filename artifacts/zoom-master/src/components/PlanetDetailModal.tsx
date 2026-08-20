@@ -40,7 +40,7 @@ import { useT } from "../i18n/LanguageContext";
 
 import { planetTypeLabel } from "../i18n/translations";
 
-import { labForgeShapeHasGlbReveal, LAB_STARDUST_POT_SHAPE_ID } from "@workspace/game-models";
+import { labForgeShapeHasGlbReveal, isLabStardustShapeId } from "@workspace/game-models";
 
 
 
@@ -99,7 +99,7 @@ function formatYieldAmount(n: number): string {
 }
 
 function yieldUnit(planet: Planet): string {
-  if (planet.name === "MUSHROOM" || planet.shapeId === LAB_STARDUST_POT_SHAPE_ID) return "★";
+  if (planet.name === "MUSHROOM" || isLabStardustShapeId(planet.shapeId)) return "★";
   return "$ZOOM";
 }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, invalidateTasksCache, bumpTasksPlanetsBuilt, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
-import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, isLabZoomShapeId, type LabForgePath } from "@workspace/game-models";
+import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, isLabStardustShapeId, isLabZoomShapeId, type LabForgePath } from "@workspace/game-models";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import type { CollectibleItem } from "../utils/collectibleConfig";
@@ -1751,7 +1751,7 @@ function makePlanet(rarity: PlanetType): Planet {
   };
 }
 
-/** Lab dual-forge outcome — ZOOM models (pizza/flower/dollar) or stardust pot. */
+/** Lab dual-forge outcome — ZOOM models or Stardust scene/home/pot. */
 function makeLabGeneratorPlanet(path: LabForgePath, shapeId: string): Planet {
   const isZoom = path === "zoom";
   const now = serverNow();
@@ -1778,10 +1778,33 @@ function makeLabGeneratorPlanet(path: LabForgePath, shapeId: string): Planet {
       farmDurationHours: 1,
     };
   }
+  if (isLabStardustShapeId(shapeId)) {
+    const colors = LAB_STARDUST_COLORS[shapeId];
+    return {
+      id: `${Date.now()}-${Math.random().toString(36).substring(2)}`,
+      name: "BASIC",
+      displayName: LAB_STARDUST_DISPLAY_NAME[shapeId],
+      shapeId,
+      rate: LAB_STARDUST_FARM_RATE[shapeId],
+      color: colors.color,
+      glowColor: colors.glowColor,
+      createdAt: now,
+      farmStartedAt: 0,
+      lastCollectedAt: 0,
+      isListedInMarket: false,
+      isFarmingActive: false,
+      marketPrice: null,
+      craftCost: LAB_STARDUST_FORGE_ZOOM_COST,
+      float: generateRandomFloat(),
+      durability: 100,
+      durabilityUpdatedAt: 0,
+      farmDurationHours: 1,
+    };
+  }
   return {
     id: `${Date.now()}-${Math.random().toString(36).substring(2)}`,
     name: "BASIC",
-    displayName: isZoom ? "Pizza" : "Stardust Pot",
+    displayName: isZoom ? "Pizza" : "Street Scene",
     shapeId,
     rate: isZoom ? 3.5 : 0.22,
     color: isZoom ? "#7bed9f" : "#ffd740",
@@ -4008,7 +4031,7 @@ export function useGameState() {
     };
   }, []);
 
-  const beginLabForge = useCallback((path: LabForgePath): { ok: boolean; reason?: string } => {
+  const beginLabForge = useCallback((path: LabForgePath, shapeOverride?: string): { ok: boolean; reason?: string } => {
     const current = stateRef.current;
     if (current.pendingModel || current.pendingPlanet || current.forgeRolling) {
       return { ok: false, reason: "busy" };
@@ -4018,7 +4041,7 @@ export function useGameState() {
     }
     labForgeCompletingRef.current = false;
 
-    const shapeId = labForgeShapeForPath(path);
+    const shapeId = labForgeShapeForPath(path, shapeOverride);
     const goal = getLabForgeShapeTapGoal(shapeId);
 
     if (path === "zoom") {

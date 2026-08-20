@@ -217,4 +217,6 @@ export const FOOD_DRINK_SHAPES: ShapeEntry[] = [
   { id: "milk_carton", name: "Milk Carton", category: "food", build: milkCarton },
   { id: "energy_drink", name: "Energy Drink", category: "food", build: energyDrink },
   { id: "stardust_pot", name: "Stardust Pot", category: "food", build: stardustPot },
+  { id: "street_scene", name: "Street Scene", category: "food", build: stardustPot },
+  { id: "island_home", name: "Island Home", category: "food", build: stardustPot },
 ];

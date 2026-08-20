@@ -13,6 +13,7 @@ import { GramDiamondIcon } from "../components/GramDiamondIcon";
 import type { LabForgePath } from "@workspace/game-models";
 import type { Planet } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
+import { preloadLabForgePickerGlbs } from "../utils/labGlbPreload";
 import { useT } from "../i18n/LanguageContext";
 
 
@@ -29,7 +30,7 @@ interface LabPageProps {
   stardustBalance: number;
   telegramId: string | null;
   onCraft: (availableStardust?: number) => { completed: boolean; tapsLeft?: number };
-  onBeginLabForge: (path: LabForgePath) => { ok: boolean; reason?: string };
+  onBeginLabForge: (path: LabForgePath, shapeId?: string) => { ok: boolean; reason?: string };
   onClaim: () => void;
   onOpenShop?: () => void;
   muted?: boolean;
@@ -202,9 +203,13 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
     }
   }, [isForgingActive, canOpenForgePicker, handleCraft]);
 
-  const handleSelectForgePath = useCallback((path: LabForgePath) => {
+  useEffect(() => {
+    if (visible) preloadLabForgePickerGlbs();
+  }, [visible]);
+
+  const handleSelectForgePath = useCallback((path: LabForgePath, shapeId?: string) => {
     hapticLight();
-    const result = onBeginLabForge(path);
+    const result = onBeginLabForge(path, shapeId);
     setForgePickerOpen(false);
     if (!result.ok && result.reason === "no_zoom") {
       setFloats((prev) => [...prev, { id: ++floatIdRef.current, text: "Need 500 $ZOOM", color: "#ff6b6b" }]);

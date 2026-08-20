@@ -1,18 +1,20 @@
-import { memo } from "react";
+import { memo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
   LAB_PIZZA_SHAPE_ID,
-  LAB_STARDUST_POT_SHAPE_ID,
+  LAB_STREET_SCENE_SHAPE_ID,
+  LAB_ISLAND_HOME_SHAPE_ID,
   LAB_STARDUST_FORGE_ZOOM_COST,
   LAB_ZOOM_FORGE_STARDUST_COST,
   type LabForgePath,
 } from "@workspace/game-models";
 import { LabForgeGlbThumb } from "./LabForgeGlbThumb";
+import { preloadLabForgePickerGlbs } from "../utils/labGlbPreload";
 
 interface ForgePathPickerProps {
   stardustBalance: number;
   zoomBalance: number;
-  onSelect: (path: LabForgePath) => void;
+  onSelect: (path: LabForgePath, shapeId?: string) => void;
   onClose: () => void;
 }
 
@@ -30,7 +32,7 @@ interface PathCardProps {
   glow: string;
   badgeBg: string;
   studioGlow: string;
-  onSelect: (path: LabForgePath) => void;
+  onSelect: (path: LabForgePath, shapeId?: string) => void;
 }
 
 function PathCard({
@@ -52,7 +54,7 @@ function PathCard({
   return (
     <button
       type="button"
-      onClick={() => enabled && onSelect(path)}
+      onClick={() => enabled && onSelect(path, shapeId)}
       disabled={!enabled}
       className={`lab-forge-path-card lab-forge-path-card--${path}${enabled ? "" : " lab-forge-path-card--disabled"}`}
       style={{
@@ -67,7 +69,7 @@ function PathCard({
         <div className="lab-forge-path-card__glow" aria-hidden />
         <span className="lab-forge-path-card__badge">{badge}</span>
         <div className="lab-forge-path-card__stage">
-          <LabForgeGlbThumb shapeId={shapeId} size={104} variant="picker" studioGlow={studioGlow} />
+          <LabForgeGlbThumb shapeId={shapeId} size={88} variant="picker" studioGlow={studioGlow} />
         </div>
         <div className="lab-forge-path-card__name">{name}</div>
         <div className="lab-forge-path-card__meta">
@@ -87,6 +89,10 @@ function ForgePathPickerBase({
 }: ForgePathPickerProps) {
   const canZoom = stardustBalance >= LAB_ZOOM_FORGE_STARDUST_COST;
   const canStardust = zoomBalance >= LAB_STARDUST_FORGE_ZOOM_COST;
+
+  useEffect(() => {
+    preloadLabForgePickerGlbs();
+  }, []);
 
   return createPortal(
     <div className="lab-forge-picker-overlay" role="dialog" aria-modal="true" aria-label="Choose forge model">
@@ -118,7 +124,7 @@ function ForgePathPickerBase({
             </div>
           </div>
 
-          <div className="lab-forge-picker-grid">
+          <div className="lab-forge-picker-grid lab-forge-picker-grid--triple">
             <PathCard
               path="zoom"
               shapeId={LAB_PIZZA_SHAPE_ID}
@@ -130,26 +136,42 @@ function ForgePathPickerBase({
               accent="#7bed9f"
               border="rgba(123,237,159,0.38)"
               bgA="rgba(46,213,115,0.14)"
-            glow="rgba(46,213,115,0.22)"
-            badgeBg="rgba(46,213,115,0.12)"
-            studioGlow="#2ed573"
-            onSelect={onSelect}
+              glow="rgba(46,213,115,0.22)"
+              badgeBg="rgba(46,213,115,0.12)"
+              studioGlow="#2ed573"
+              onSelect={onSelect}
             />
             <PathCard
               path="stardust"
-              shapeId={LAB_STARDUST_POT_SHAPE_ID}
+              shapeId={LAB_STREET_SCENE_SHAPE_ID}
               badge="★ STARDUST"
-              name="Stardust Pot"
+              name="Street Scene"
               costLabel={`${LAB_STARDUST_FORGE_ZOOM_COST} $ZOOM`}
               yieldLabel="~0.22 ★/h"
               enabled={canStardust}
               accent="#ffd740"
               border="rgba(255,215,64,0.38)"
               bgA="rgba(255,193,7,0.12)"
-            glow="rgba(255,215,64,0.2)"
-            badgeBg="rgba(255,193,7,0.1)"
-            studioGlow="#ffc107"
-            onSelect={onSelect}
+              glow="rgba(255,215,64,0.2)"
+              badgeBg="rgba(255,193,7,0.1)"
+              studioGlow="#ffc107"
+              onSelect={onSelect}
+            />
+            <PathCard
+              path="stardust"
+              shapeId={LAB_ISLAND_HOME_SHAPE_ID}
+              badge="★ STARDUST"
+              name="Island Home"
+              costLabel={`${LAB_STARDUST_FORGE_ZOOM_COST} $ZOOM`}
+              yieldLabel="~0.28 ★/h"
+              enabled={canStardust}
+              accent="#ffab40"
+              border="rgba(255,171,64,0.38)"
+              bgA="rgba(255,145,0,0.12)"
+              glow="rgba(255,145,0,0.2)"
+              badgeBg="rgba(255,145,0,0.1)"
+              studioGlow="#ff9100"
+              onSelect={onSelect}
             />
           </div>
         </div>
