@@ -78,6 +78,19 @@ export function resolveLabStardustShapeId(shapeId: string | null | undefined): L
     : null;
 }
 
+export function normalizeLabForgeShapeId(shapeId: string | null | undefined): string | null {
+  if (!shapeId) return null;
+  const stardust = resolveLabStardustShapeId(shapeId);
+  if (stardust) return stardust;
+  if (isLabZoomShapeId(shapeId)) return shapeId;
+  return shapeId;
+}
+
+export function labStardustDisplayNameFor(shapeId: string | null | undefined): string | null {
+  const resolved = resolveLabStardustShapeId(shapeId);
+  return resolved ? LAB_STARDUST_DISPLAY_NAME[resolved] : null;
+}
+
 export function isLabStardustShapeId(shapeId: string | null | undefined): boolean {
   return resolveLabStardustShapeId(shapeId) !== null;
 }
@@ -148,7 +161,7 @@ export function pickRandomLabZoomShapeId(): LabZoomShapeId {
   return LAB_ZOOM_SHAPE_IDS[Math.max(0, Math.min(LAB_ZOOM_SHAPE_IDS.length - 1, i))]!;
 }
 
-/** Pick a random Stardust-path model (street scene / island home / pot). Equal weight. */
+/** Pick a random Stardust-path model (onigiri / island home / pot). Equal weight. */
 export function pickRandomLabStardustShapeId(): LabStardustShapeId {
   const i = Math.floor(Math.random() * LAB_STARDUST_SHAPE_IDS.length);
   return LAB_STARDUST_SHAPE_IDS[Math.max(0, Math.min(LAB_STARDUST_SHAPE_IDS.length - 1, i))]!;

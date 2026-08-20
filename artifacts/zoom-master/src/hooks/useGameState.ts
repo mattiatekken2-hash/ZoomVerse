@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, invalidateTasksCache, bumpTasksPlanetsBuilt, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
-import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, type LabForgePath } from "@workspace/game-models";
+import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, normalizeLabForgeShapeId, labStardustDisplayNameFor, type LabForgePath } from "@workspace/game-models";
 import { refreshMarketListings } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import type { CollectibleItem } from "../utils/collectibleConfig";
@@ -959,6 +959,28 @@ export const REPAIR_STARDUST_COST: Partial<Record<PlanetType, number>> = {
   NOVA: 5000, PLASMA: 5000, MUSHROOM: 4000, V1: 10000, V1_NFT: 10000,
 };
 
+function migrateStreetSceneToOnigiri(planet: Planet): Planet {
+  const sid = planet.shapeId;
+  if (!sid) return planet;
+  const resolved = resolveLabStardustShapeId(sid);
+  if (!resolved) return planet;
+
+  const legacyName = (planet.displayName ?? "").trim();
+  const needsShapeMigrate = sid === "street_scene";
+  const needsNameMigrate = legacyName === "Street Scene";
+  if (!needsShapeMigrate && !needsNameMigrate && sid === resolved) return planet;
+
+  const colors = LAB_STARDUST_COLORS[resolved];
+  return {
+    ...planet,
+    shapeId: resolved,
+    displayName: needsNameMigrate ? LAB_STARDUST_DISPLAY_NAME[resolved] : planet.displayName,
+    rate: LAB_STARDUST_FARM_RATE[resolved],
+    color: colors.color,
+    glowColor: colors.glowColor,
+  };
+}
+
 function migratePlanet(p: unknown): Planet {
   const raw = p as Partial<Planet>;
   const planet = {
@@ -973,7 +995,7 @@ function migratePlanet(p: unknown): Planet {
     const { shapeId: _drop, ...rest } = planet;
     return rest as Planet;
   }
-  return planet;
+  return migrateStreetSceneToOnigiri(planet);
 }
 
 // True when loadState() did NOT find a matching localStorage entry for the
@@ -1090,7 +1112,7 @@ function loadState(): GameState {
           base.goal = 100;
         } else if (forgingNow) {
           if (typeof savedShape === "string" && savedShape.length > 0) {
-            base.labForgeShapeId = savedShape;
+            base.labForgeShapeId = normalizeLabForgeShapeId(savedShape) ?? savedShape;
           }
           if (savedPath === "zoom" || savedPath === "stardust") {
             base.labForgePath = savedPath;
@@ -2002,22 +2024,22 @@ function migrateLegacyNeverStartedPlanet<T extends Planet>(p: T): T {
 
 /** Keep optimistic farm start / listing state when server sync is behind local save. */
 function mergeServerPlanetWithClient(serverP: Planet, clientP: Planet | undefined): Planet {
-  if (!clientP) return serverP;
+  if (!clientP) return migrateStreetSceneToOnigiri(serverP);
   if (clientP.isListedInMarket && clientP.serverListingId != null) {
-    return {
+    return migrateStreetSceneToOnigiri({
       ...serverP,
       isListedInMarket: true,
       isFarmingActive: false,
       marketPrice: clientP.marketPrice,
       serverListingId: clientP.serverListingId,
       pausedAt: clientP.pausedAt,
-    };
+    });
   }
   if (clientP.isFarmingActive && !serverP.isFarmingActive) {
     const clientStart = clientP.farmStartedAt ?? 0;
     const serverStart = serverP.farmStartedAt ?? 0;
     if (clientStart >= serverStart) {
-      return {
+      return migrateStreetSceneToOnigiri({
         ...serverP,
         isFarmingActive: true,
         farmStartedAt: clientP.farmStartedAt,
@@ -2025,22 +2047,22 @@ function mergeServerPlanetWithClient(serverP: Planet, clientP: Planet | undefine
         pausedAt: clientP.pausedAt ?? 0,
         durability: clientP.durability ?? serverP.durability,
         durabilityUpdatedAt: clientP.durabilityUpdatedAt ?? serverP.durabilityUpdatedAt,
-      };
+      });
     }
   }
   if (clientP.isFarmingActive && serverP.isFarmingActive) {
     const clientEff = Math.max(clientP.farmStartedAt ?? 0, clientP.lastCollectedAt ?? 0);
     const serverEff = Math.max(serverP.farmStartedAt ?? 0, serverP.lastCollectedAt ?? 0);
     if (clientEff > serverEff) {
-      return {
+      return migrateStreetSceneToOnigiri({
         ...serverP,
         farmStartedAt: clientP.farmStartedAt,
         lastCollectedAt: clientP.lastCollectedAt,
         pausedAt: clientP.pausedAt ?? 0,
-      };
+      });
     }
   }
-  return serverP;
+  return migrateStreetSceneToOnigiri(serverP);
 }
 
 /**
@@ -4068,7 +4090,7 @@ export function useGameState() {
     }
     labForgeCompletingRef.current = false;
 
-    const shapeId = labForgeShapeForPath(path);
+    const shapeId = normalizeLabForgeShapeId(labForgeShapeForPath(path)) ?? labForgeShapeForPath(path);
     const goal = getLabForgeShapeTapGoal(shapeId);
 
     if (path === "zoom") {

@@ -25,6 +25,8 @@ export {
   isLabZoomShapeId,
   isLabStardustShapeId,
   resolveLabStardustShapeId,
+  normalizeLabForgeShapeId,
+  labStardustDisplayNameFor,
   labMarketPathForShapeId,
   isLabForgeGeneratorPlanet,
   LAB_FORGE_TEST_PIZZA_KEY,
@@ -58,11 +60,15 @@ import {
   LAB_MODEL_FORGE_GOAL,
   isLabStardustShapeId,
   isLabZoomShapeId,
+  resolveLabStardustShapeId,
 } from "./forge-lab-economy.js";
 
 export function resolveLabForgeShapeId(override: string | null | undefined): string {
-  if (override && override.length > 0) return override;
-  return FORGE_SPHERE_SHAPE_ID;
+  if (!override || override.length === 0) return FORGE_SPHERE_SHAPE_ID;
+  const stardust = resolveLabStardustShapeId(override);
+  if (stardust) return stardust;
+  if (isLabZoomShapeId(override)) return override;
+  return override;
 }
 
 function isLabModelShape(shapeId: string): boolean {

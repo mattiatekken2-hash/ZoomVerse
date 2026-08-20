@@ -11,6 +11,7 @@
 //    planet without any server round-trip or migration.
 
 import type { Planet } from "../hooks/useGameState";
+import { isLabForgeGeneratorPlanet, labStardustDisplayNameFor, isLabZoomShapeId, LAB_ZOOM_DISPLAY_NAME } from "@workspace/game-models";
 
 // Word banks. Picked to feel sci-fi / mythic without being too long.
 // Avoid real-life proper nouns that could be sensitive.
@@ -96,9 +97,17 @@ export function generateRandomPlanetName(): string {
 
 // What the UI should show. Custom rename wins; otherwise the stable
 // id-derived fallback.
-export function getPlanetDisplayName(planet: Pick<Planet, "id" | "displayName" | "modelName">): string {
+export function getPlanetDisplayName(planet: Pick<Planet, "id" | "displayName" | "modelName" | "shapeId">): string {
   const explicit = (planet.displayName ?? "").trim();
-  if (explicit.length > 0) return explicit;
+  if (explicit.length > 0) {
+    if (explicit === "Street Scene" && planet.shapeId) {
+      const labName = isLabZoomShapeId(planet.shapeId)
+        ? LAB_ZOOM_DISPLAY_NAME[planet.shapeId]
+        : labStardustDisplayNameFor(planet.shapeId);
+      if (labName) return labName;
+    }
+    return explicit;
+  }
   const modelName = (planet.modelName ?? "").trim();
   if (modelName.length > 0) return modelName;
   return deterministicNameFromId(planet.id);
