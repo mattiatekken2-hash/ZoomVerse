@@ -34,7 +34,6 @@ function LabForgeGlbCyclerBase({
       shapeId={shapeId}
       size={size}
       variant={variant}
-      studioGlow={studioGlow}
     />
   );
 }

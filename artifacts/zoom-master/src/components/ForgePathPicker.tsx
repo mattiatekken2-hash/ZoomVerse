@@ -30,7 +30,6 @@ interface PathCardProps {
   bgA: string;
   glow: string;
   badgeBg: string;
-  studioGlow: string;
   onSelect: (path: LabForgePath) => void;
 }
 
@@ -47,7 +46,6 @@ function PathCard({
   bgA,
   glow,
   badgeBg,
-  studioGlow,
   onSelect,
 }: PathCardProps) {
   return (
@@ -72,7 +70,6 @@ function PathCard({
             shapeIds={shapeIds}
             size={104}
             variant="picker"
-            studioGlow={studioGlow}
           />
         </div>
         <div className="lab-forge-path-card__name">{name}</div>
@@ -142,7 +139,6 @@ function ForgePathPickerBase({
               bgA="rgba(46,213,115,0.14)"
               glow="rgba(46,213,115,0.22)"
               badgeBg="rgba(46,213,115,0.12)"
-              studioGlow="#2ed573"
               onSelect={onSelect}
             />
             <PathCard
@@ -158,7 +154,6 @@ function ForgePathPickerBase({
               bgA="rgba(255,193,7,0.12)"
               glow="rgba(255,215,64,0.2)"
               badgeBg="rgba(255,193,7,0.1)"
-              studioGlow="#ffc107"
               onSelect={onSelect}
             />
           </div>

@@ -280,12 +280,11 @@ export function PlanetVoxelThumb({
   }, [suspendGl, inView, delayReady, releaseSlot]);
 
   const handleGlError = useCallback(() => {
-    releaseSlot();
-    // Lab GLB models must never fall back to procedural voxels (wrong mesh).
     if (isLabForgeGeneratorPlanet(planet) && labForgeShapeHasGlbReveal(planet.shapeId)) {
       setGlGen((g) => g + 1);
       return;
     }
+    releaseSlot();
     setGlbFailed(true);
     setGlGen((g) => g + 1);
   }, [releaseSlot, planet]);
