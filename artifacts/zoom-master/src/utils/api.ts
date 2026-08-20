@@ -3343,23 +3343,94 @@ export interface TasksState {
   sponsorTasks: SponsorTaskInfo[];
 }
 
-export async function fetchTasksState(telegramId: string): Promise<TasksState | null> {
+const TASKS_CACHE_KEY = "zoom:tasks-state-v1";
+let tasksMemoryCache: { telegramId: string; state: TasksState; at: number } | null = null;
+let tasksInflight: { telegramId: string; promise: Promise<TasksState | null> } | null = null;
+
+/** Static catalog mirror of api-server labv2_* — shown instantly before the network returns. */
+export const TASKS_CATALOG_FALLBACK: TasksState = {
+  planetsBuilt: 0,
+  claimedTasks: [],
+  planetTasks: [
+    { id: "labv2_5", threshold: 5, rewardZoom: 25, claimed: false, claimable: false },
+    { id: "labv2_15", threshold: 15, rewardZoom: 50, claimed: false, claimable: false },
+    { id: "labv2_40", threshold: 40, rewardZoom: 80, claimed: false, claimable: false },
+    { id: "labv2_100", threshold: 100, rewardZoom: 120, claimed: false, claimable: false },
+    { id: "labv2_250", threshold: 250, rewardZoom: 200, claimed: false, claimable: false },
+    { id: "labv2_500", threshold: 500, rewardZoom: 350, claimed: false, claimable: false },
+  ],
+  sponsorTasks: [],
+};
+
+function readTasksSession(telegramId: string): TasksState | null {
   try {
-    const res = await fetch(`${API_BASE}/tasks/state/${encodeURIComponent(telegramId)}`, {
-      headers: apiHeaders(),
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (!json?.ok) return null;
-    return {
-      planetsBuilt: Number(json.planetsBuilt ?? 0),
-      claimedTasks: Array.isArray(json.claimedTasks) ? json.claimedTasks : [],
-      planetTasks: Array.isArray(json.planetTasks) ? json.planetTasks : [],
-      sponsorTasks: Array.isArray(json.sponsorTasks) ? json.sponsorTasks : [],
-    };
+    const raw = sessionStorage.getItem(`${TASKS_CACHE_KEY}:${telegramId}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as TasksState;
+    if (!parsed || !Array.isArray(parsed.planetTasks)) return null;
+    return parsed;
   } catch {
     return null;
   }
+}
+
+function writeTasksSession(telegramId: string, state: TasksState): void {
+  try {
+    sessionStorage.setItem(`${TASKS_CACHE_KEY}:${telegramId}`, JSON.stringify(state));
+  } catch { /**/ }
+}
+
+/** Instant paint — memory → session → static catalog. */
+export function peekTasksState(telegramId: string | null | undefined): TasksState {
+  if (!telegramId) return TASKS_CATALOG_FALLBACK;
+  if (tasksMemoryCache?.telegramId === telegramId) return tasksMemoryCache.state;
+  const session = readTasksSession(telegramId);
+  if (session) {
+    tasksMemoryCache = { telegramId, state: session, at: Date.now() };
+    return session;
+  }
+  return TASKS_CATALOG_FALLBACK;
+}
+
+function rememberTasksState(telegramId: string, state: TasksState): void {
+  tasksMemoryCache = { telegramId, state, at: Date.now() };
+  writeTasksSession(telegramId, state);
+}
+
+export async function fetchTasksState(telegramId: string): Promise<TasksState | null> {
+  if (tasksInflight?.telegramId === telegramId) {
+    return tasksInflight.promise;
+  }
+  const promise = (async (): Promise<TasksState | null> => {
+    try {
+      const res = await fetch(`${API_BASE}/tasks/state/${encodeURIComponent(telegramId)}`, {
+        headers: apiHeaders(),
+      });
+      if (!res.ok) return null;
+      const json = await res.json();
+      if (!json?.ok) return null;
+      const state: TasksState = {
+        planetsBuilt: Number(json.planetsBuilt ?? 0),
+        claimedTasks: Array.isArray(json.claimedTasks) ? json.claimedTasks : [],
+        planetTasks: Array.isArray(json.planetTasks) ? json.planetTasks : [],
+        sponsorTasks: Array.isArray(json.sponsorTasks) ? json.sponsorTasks : [],
+      };
+      rememberTasksState(telegramId, state);
+      return state;
+    } catch {
+      return null;
+    } finally {
+      if (tasksInflight?.telegramId === telegramId) tasksInflight = null;
+    }
+  })();
+  tasksInflight = { telegramId, promise };
+  return promise;
+}
+
+/** Warm the cache early so Earn opens already filled. */
+export function prefetchTasksState(telegramId: string | null | undefined): void {
+  if (!telegramId) return;
+  void fetchTasksState(telegramId);
 }
 
 export interface ClaimTaskResult {

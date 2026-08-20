@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { claimDailyReward, fetchTasksState, claimTask, type TasksState, redeemServerCode, claimWeeklyRedStar, fetchWeeklyRedStarStatus } from "../utils/api";
+import { claimDailyReward, fetchTasksState, peekTasksState, prefetchTasksState, claimTask, type TasksState, redeemServerCode, claimWeeklyRedStar, fetchWeeklyRedStarStatus } from "../utils/api";
 import { useGlobalStore, refreshDailyStatus, applyDailyClaimResult } from "../store/globalStore";
 import { useT } from "../i18n/LanguageContext";
 import { SpaceTicketIcon, SpeedBoltIcon } from "../components/icons/GameIcons";
@@ -221,8 +221,8 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
   const nextMilestone = MILESTONES.find(m => m.count > referralCount);
 
   // ───────────────── Long-term tasks (planet milestones + sponsor) ─────────────────
-  const [tasks, setTasks] = useState<TasksState | null>(null);
-  const [tasksLoading, setTasksLoading] = useState(false);
+  // Paint instantly from cache/catalog — never flash a loading screen on tab open.
+  const [tasks, setTasks] = useState<TasksState>(() => peekTasksState(telegramId));
   const [tasksError, setTasksError] = useState<string | null>(null);
   const [taskMsg, setTaskMsg] = useState<string | null>(null);
   const [claimingTaskId, setClaimingTaskId] = useState<string | null>(null);
@@ -294,14 +294,19 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
 
   const reloadTasks = useCallback(async () => {
     if (!telegramId) return;
-    setTasksLoading(true);
     setTasksError(null);
+    // Keep current UI; refresh silently in the background.
     const s = await fetchTasksState(telegramId);
-    if (s) setTasks(s); else setTasksError(t("earn.couldNotLoadTasks"));
-    setTasksLoading(false);
-  }, [telegramId]);
+    if (s) setTasks(s);
+    else if (!peekTasksState(telegramId).planetTasks.length) {
+      setTasksError(t("earn.couldNotLoadTasks"));
+    }
+  }, [telegramId, t]);
 
-  useEffect(() => { void reloadTasks(); }, [reloadTasks]);
+  useEffect(() => {
+    setTasks(peekTasksState(telegramId));
+    void reloadTasks();
+  }, [telegramId, reloadTasks]);
 
   useEffect(() => {
     const handler = () => { void reloadTasks(); };
@@ -453,7 +458,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           </div>
 
           <button
-            className={`earn-cta ${claiming ? "earn-cta--busy" : canClaim ? "earn-cta--primary" : ""}`}
+            className={`earn-cta ${canClaim && !claiming ? "earn-cta--primary" : ""}`}
             onClick={handleClaimStreak}
             disabled={!canClaim || claiming}
             data-testid="button-claim-daily"
@@ -524,7 +529,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
           <button
             onClick={() => void handleClaimWeeklyRedStar()}
             disabled={claimingRedStar || claimedToday || !telegramId}
-            className={`earn-cta ${claimingRedStar ? "earn-cta--busy" : !claimedToday && telegramId ? "earn-cta--primary" : ""}`}
+            className={`earn-cta ${!claimedToday && !claimingRedStar && telegramId ? "earn-cta--primary" : ""}`}
           >
             {claimedToday
               ? t("earn.claimedTodayReturn")
@@ -557,25 +562,18 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             <div className="text-right">
               <div className="text-[9px] font-bold tracking-wider" style={{ color: "rgba(255,255,255,0.35)" }}>{t("earn.built")}</div>
               <div className="text-lg font-black tabular-nums" style={{ color: "var(--earn-cyan)" }}>
-                {(tasks?.planetsBuilt ?? 0).toLocaleString()}
+                {tasks.planetsBuilt.toLocaleString()}
               </div>
             </div>
           </div>
 
-          {tasksLoading && !tasks && (
-            <div className="earn-loading" role="status" aria-live="polite">
-              <span className="earn-loading__spinner" aria-hidden />
-              <span className="earn-loading__text">{t("earn.loadingTasks")}</span>
-            </div>
-          )}
           {tasksError && (
             <div className="text-center text-xs py-2 mb-2 rounded-lg" style={{ color: "#ff5252", background: "rgba(255,82,82,0.06)", border: "1px solid rgba(255,82,82,0.18)" }}>
               {tasksError}
             </div>
           )}
 
-          {tasks && (
-            <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2">
               {tasks.planetTasks.map((task) => {
                 const pct = Math.min(100, Math.round((tasks.planetsBuilt / task.threshold) * 100));
                 const isClaiming = claimingTaskId === task.id;
@@ -688,7 +686,6 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                 );
               })}
             </div>
-          )}
           {taskMsg && (
             <div className="mt-3 text-center text-xs font-bold py-2 rounded-lg" style={{ color: "#00e676", background: "rgba(0,230,118,0.08)", border: "1px solid rgba(0,230,118,0.2)" }}>
               {taskMsg}
