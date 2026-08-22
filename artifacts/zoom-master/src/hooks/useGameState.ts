@@ -4870,7 +4870,7 @@ export function useGameState() {
             return;
           }
           const err = (result.error ?? "").toLowerCase();
-          const hardFail = /not found|mismatch|disabled|out of range|previously listed and cannot/.test(err);
+          const hardFail = /not found in your inventory|disabled|out of range/.test(err);
           if (hardFail) revertListing(result.error ?? "The server refused to list this planet.");
           else {
             void refreshMarketListings(telegramId);

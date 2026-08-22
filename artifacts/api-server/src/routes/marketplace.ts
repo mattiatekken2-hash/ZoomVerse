@@ -45,6 +45,12 @@ function canonicalLabFarmRate(shapeId: string | null | undefined): number | null
 const router: IRouter = Router();
 
 void pool.query(`ALTER TABLE market_listings ADD COLUMN IF NOT EXISTS price_currency text NOT NULL DEFAULT 'gram'`).catch(() => {});
+void pool.query(`DROP INDEX IF EXISTS uq_market_seller_planet_active_sold`).catch(() => {});
+void pool.query(`
+  CREATE UNIQUE INDEX IF NOT EXISTS uq_market_seller_planet_active
+  ON market_listings (seller_telegram_id, planet_id)
+  WHERE status = 'active' AND planet_id IS NOT NULL
+`).catch(() => {});
 
 router.get("/market/sales", async (_req, res) => {
   try {
@@ -443,9 +449,59 @@ router.post("/market/list", async (req, res) => {
         if (dup) {
           res.json({
             ok: true,
-            listing: { ...dup, priceCurrency: parseMarketPriceCurrency(dup.priceCurrency) },
+            listing: {
+              ...dup,
+              priceCurrency: parseMarketPriceCurrency(dup.priceCurrency),
+              marketPath: labMarketPathForPlanet({
+                shapeId: dup.shapeId,
+                displayName: dup.planetDisplayName,
+                rate: dup.planetRate,
+              }),
+            },
           });
           return;
+        }
+        const [sold] = await db
+          .select()
+          .from(marketListingsTable)
+          .where(and(
+            eq(marketListingsTable.sellerTelegramId, sellerTelegramId),
+            eq(marketListingsTable.planetId, planetId),
+            eq(marketListingsTable.status, "sold"),
+          ))
+          .limit(1);
+        if (sold) {
+          const [reactivated] = await db
+            .update(marketListingsTable)
+            .set({
+              status: "active",
+              buyerTelegramId: null,
+              soldAt: null,
+              price,
+              priceCurrency,
+              sellerName: sellerName ?? sold.sellerName,
+              planetRate,
+              planetDisplayName: planetDisplayNameSnapshot,
+              shapeId: shapeIdSnapshot,
+              lastActivatedAt: new Date(),
+            })
+            .where(eq(marketListingsTable.id, sold.id))
+            .returning();
+          if (reactivated) {
+            res.json({
+              ok: true,
+              listing: {
+                ...reactivated,
+                priceCurrency,
+                marketPath: labMarketPathForPlanet({
+                  shapeId: reactivated.shapeId ?? shapeIdSnapshot,
+                  displayName: reactivated.planetDisplayName ?? planetDisplayNameSnapshot,
+                  rate: reactivated.planetRate ?? planetRate,
+                }),
+              },
+            });
+            return;
+          }
         }
         res.status(409).json({ error: "This planet was previously listed and cannot be sold again" });
         return;

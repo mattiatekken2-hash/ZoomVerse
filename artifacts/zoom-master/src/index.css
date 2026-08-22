@@ -2817,6 +2817,7 @@ body.animations-paused * {
   flex-direction: column;
   border-radius: 20px;
   overflow: hidden;
+  opacity: 1;
   border: 1px solid color-mix(in srgb, var(--mkt-accent) 42%, transparent);
   background: #08080c;
   box-shadow:
@@ -2824,7 +2825,6 @@ body.animations-paused * {
     0 14px 32px rgba(0, 0, 0, 0.42),
     0 0 24px var(--mkt-accent-a);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  animation: lab-market-card-in 0.45s ease both;
 }
 .lab-market-card:active {
   transform: scale(0.985);

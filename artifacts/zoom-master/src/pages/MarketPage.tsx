@@ -215,56 +215,17 @@ export function MarketPage({
     const seenServer = new Set<number>();
     const seenPlanet = new Set<string>();
 
-    const pushFromServer = (l: ServerMarketListing, forceOwn: boolean) => {
-      if (l.kind === "equipment" || l.kind === "item") return;
-      if (l.planetId && isPlanetBurned(telegramId, l.planetId)) return;
-      const id = Number(l.id);
-      if (!Number.isFinite(id) || seenServer.has(id)) return;
-      if (l.planetId && seenPlanet.has(l.planetId)) return;
-      const local = (l.planetId ? localByPlanet.get(l.planetId) : undefined)
-        ?? myListings.find((p) => p.serverListingId === id);
-      const isOwn = forceOwn
-        || sameTelegram(l.sellerTelegramId, telegramId)
-        || !!local
-        || listedPlanets.some((p) => p.id === l.planetId);
-      const classified = classifyListing({
-        shapeId: l.shapeId ?? local?.shapeId ?? null,
-        displayName: l.planetDisplayName ?? local?.displayName ?? null,
-        rate: l.planetRate ?? local?.rate ?? 0,
-      }, local);
-      seenServer.add(id);
-      if (l.planetId) seenPlanet.add(l.planetId);
-      views.push({
-        id: isOwn ? `server-own-${id}` : `server-${id}`,
-        price: l.price,
-        seller: isOwn ? "you" : (l.sellerName || `Player ${String(l.sellerTelegramId || "").slice(-4)}`),
-        rate: classified.rate,
-        isOwn,
-        serverId: id,
-        displayName: classified.displayName
-          || l.planetDisplayName
-          || deterministicNameFromId(l.planetId || `listing-${id}`),
-        farmDurationHours: (l.planetFarmDurationHours ?? 1) > 1 ? l.planetFarmDurationHours : null,
-        shapeId: classified.shapeId,
-        planetType: l.planetType,
-        priceCurrency: parseMarketPriceCurrency(l.priceCurrency),
-        marketPath: classified.marketPath,
-        planetId: l.planetId ?? local?.id ?? null,
-      });
-    };
-
-    for (const row of myServerListings) pushFromServer(row, true);
-
-    for (const p of listedPlanets) {
-      if (seenPlanet.has(p.id)) continue;
-      if (typeof p.serverListingId === "number" && seenServer.has(p.serverListingId)) continue;
+    const pushPlanet = (p: Planet) => {
+      if (seenPlanet.has(p.id)) return;
       const classified = classifyListing({
         shapeId: p.shapeId ?? null,
         displayName: p.displayName || getPlanetDisplayName(p),
         rate: p.rate,
       }, p);
       seenPlanet.add(p.id);
-      if (typeof p.serverListingId === "number") seenServer.add(p.serverListingId);
+      if (typeof p.serverListingId === "number" && p.serverListingId > 0) {
+        seenServer.add(p.serverListingId);
+      }
       views.push({
         id: p.id,
         price: p.marketPrice ?? 0,
@@ -280,8 +241,57 @@ export function MarketPage({
         marketPath: classified.marketPath,
         planetId: p.id,
       });
-    }
+    };
 
+    const pushFromServer = (l: ServerMarketListing, forceOwn: boolean) => {
+      if (l.kind === "equipment" || l.kind === "item") return;
+      if (l.status && l.status !== "active") return;
+      if (l.planetId && isPlanetBurned(telegramId, l.planetId)) return;
+      const id = Number(l.id);
+      if (Number.isFinite(id) && id > 0 && seenServer.has(id)) return;
+      if (l.planetId && seenPlanet.has(l.planetId)) {
+        const existing = views.find((v) => v.planetId === l.planetId);
+        if (existing && Number.isFinite(id) && id > 0 && !existing.serverId) {
+          existing.serverId = id;
+          existing.price = l.price;
+          existing.priceCurrency = parseMarketPriceCurrency(l.priceCurrency);
+        }
+        return;
+      }
+      const local = (l.planetId ? localByPlanet.get(l.planetId) : undefined)
+        ?? myListings.find((p) => p.serverListingId === id);
+      const isOwn = forceOwn
+        || sameTelegram(l.sellerTelegramId, telegramId)
+        || !!local
+        || listedPlanets.some((p) => p.id === l.planetId);
+      const classified = classifyListing({
+        shapeId: l.shapeId ?? local?.shapeId ?? null,
+        displayName: l.planetDisplayName ?? local?.displayName ?? null,
+        rate: l.planetRate ?? local?.rate ?? 0,
+      }, local);
+      if (Number.isFinite(id) && id > 0) seenServer.add(id);
+      if (l.planetId) seenPlanet.add(l.planetId);
+      views.push({
+        id: isOwn ? `server-own-${id}` : `server-${id}`,
+        price: l.price,
+        seller: isOwn ? "you" : (l.sellerName || `Player ${String(l.sellerTelegramId || "").slice(-4)}`),
+        rate: classified.rate,
+        isOwn,
+        serverId: Number.isFinite(id) && id > 0 ? id : undefined,
+        displayName: classified.displayName
+          || l.planetDisplayName
+          || deterministicNameFromId(l.planetId || `listing-${id}`),
+        farmDurationHours: (l.planetFarmDurationHours ?? 1) > 1 ? l.planetFarmDurationHours : null,
+        shapeId: classified.shapeId,
+        planetType: l.planetType,
+        priceCurrency: parseMarketPriceCurrency(l.priceCurrency),
+        marketPath: classified.marketPath,
+        planetId: l.planetId ?? local?.id ?? null,
+      });
+    };
+
+    for (const p of listedPlanets) pushPlanet(p);
+    for (const row of myServerListings) pushFromServer(row, true);
     for (const row of serverListings) pushFromServer(row, false);
 
     return views;
@@ -487,7 +497,7 @@ export function MarketPage({
               </div>
             )}
 
-            <div className="lab-market__grid">
+            <div className="lab-market__grid" key={`listings-${revealKey}`}>
               {filtered.map((listing) => {
                 const currency = parseMarketPriceCurrency(listing.priceCurrency);
                 const canAfford =
