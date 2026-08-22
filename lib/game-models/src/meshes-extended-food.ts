@@ -231,6 +231,56 @@ function dollar(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
   ];
 }
 
+/** Clay-forge silhouette only — real look comes from creeper.glb (untouched). */
+function creeper(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const green = a || "#5dbe2f";
+  return [
+    pt("legs", "box", 0, 0.12, 0, 0.28, 0.24, 0.16, green, { rough: 0.7 }),
+    pt("body", "box", 0, 0.36, 0, 0.28, 0.28, 0.16, green, { rough: 0.7 }),
+    pt("head", "box", 0, 0.6, 0, 0.28, 0.24, 0.24, green, { rough: 0.65 }),
+    pt("eyeL", "box", -0.08, 0.62, 0.13, 0.06, 0.06, 0.02, "#111", { rough: 0.4 }),
+    pt("eyeR", "box", 0.08, 0.62, 0.13, 0.06, 0.06, 0.02, "#111", { rough: 0.4 }),
+    pt("mouth", "box", 0, 0.54, 0.13, 0.1, 0.06, 0.02, "#111", { rough: 0.4 }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from chest.glb (untouched). */
+function chest(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const wood = a || "#c48a3a";
+  return [
+    pt("box", "box", 0, 0.28, 0, 0.42, 0.32, 0.28, wood, { rough: 0.55 }),
+    pt("lid", "box", 0, 0.46, 0, 0.42, 0.08, 0.28, "#a36f2c", { rough: 0.5 }),
+    pt("latch", "box", 0, 0.38, 0.15, 0.06, 0.1, 0.04, "#ffe066", { profile: "metal", metal: 0.55 }),
+    pt("band", "box", 0, 0.28, 0.15, 0.42, 0.04, 0.02, "#6d4c41", { rough: 0.5 }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from steve.glb (untouched). */
+function steve(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const shirt = a || "#5b8def";
+  return [
+    pt("legs", "box", 0, 0.14, 0, 0.2, 0.24, 0.12, "#3d4a8c", { rough: 0.6 }),
+    pt("torso", "box", 0, 0.36, 0, 0.24, 0.24, 0.12, shirt, { rough: 0.55 }),
+    pt("head", "box", 0, 0.56, 0, 0.2, 0.2, 0.2, "#e0b080", { profile: "skin" }),
+    pt("hair", "box", 0, 0.66, 0, 0.2, 0.06, 0.2, "#3e2723", { rough: 0.7 }),
+    pt("armL", "box", -0.16, 0.34, 0, 0.08, 0.24, 0.08, "#e0b080", { profile: "skin" }),
+    pt("armR", "box", 0.16, 0.34, 0, 0.08, 0.24, 0.08, "#e0b080", { profile: "skin" }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from chicken.glb (untouched). */
+function chicken(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const white = a || "#f0e6c8";
+  return [
+    pt("body", "box", 0, 0.22, 0, 0.28, 0.22, 0.2, white, { rough: 0.55 }),
+    pt("head", "box", 0, 0.4, 0.08, 0.16, 0.16, 0.16, white, { rough: 0.5 }),
+    pt("beak", "box", 0, 0.38, 0.18, 0.08, 0.06, 0.08, "#e8c547", { profile: "food" }),
+    pt("comb", "box", 0, 0.5, 0.08, 0.08, 0.08, 0.04, "#e53935", { profile: "food" }),
+    pt("legL", "box", -0.06, 0.08, 0, 0.04, 0.12, 0.04, "#e8c547"),
+    pt("legR", "box", 0.06, 0.08, 0, 0.04, 0.12, 0.04, "#e8c547"),
+  ];
+}
+
 export const FOOD_DRINK_SHAPES: ShapeEntry[] = [
   { id: "banana", name: "Banana", category: "food", build: banana },
   { id: "apple", name: "Red Apple", category: "food", build: apple },
@@ -238,6 +288,8 @@ export const FOOD_DRINK_SHAPES: ShapeEntry[] = [
   { id: "pizza", name: "Pizza Slice", category: "food", build: pizza },
   { id: "flower", name: "Flower", category: "food", build: flower },
   { id: "dollar", name: "Dollar", category: "food", build: dollar },
+  { id: "creeper", name: "Creeper", category: "food", build: creeper },
+  { id: "chest", name: "Chest", category: "food", build: chest },
   { id: "hotdog", name: "Hot Dog", category: "food", build: hotdog },
   { id: "fries", name: "French Fries", category: "food", build: fries },
   { id: "taco", name: "Taco", category: "food", build: taco },
@@ -254,4 +306,6 @@ export const FOOD_DRINK_SHAPES: ShapeEntry[] = [
   { id: "onigiri", name: "Onigiri", category: "food", build: onigiri },
   { id: "street_scene", name: "Onigiri", category: "food", build: onigiri },
   { id: "island_home", name: "Island Home", category: "food", build: islandHome },
+  { id: "steve", name: "Steve", category: "food", build: steve },
+  { id: "chicken", name: "Chicken", category: "food", build: chicken },
 ];

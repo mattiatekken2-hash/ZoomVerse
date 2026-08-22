@@ -1,21 +1,13 @@
 import {
-  LAB_DOLLAR_SHAPE_ID,
-  LAB_FLOWER_SHAPE_ID,
-  LAB_ISLAND_HOME_SHAPE_ID,
-  LAB_PIZZA_SHAPE_ID,
-  LAB_STARDUST_POT_SHAPE_ID,
-  LAB_ONIGIRI_SHAPE_ID,
+  LAB_STARDUST_SHAPE_IDS,
+  LAB_ZOOM_SHAPE_IDS,
 } from "@workspace/game-models";
 import { preloadLabGlbBatch } from "./labGlbCache";
 
 /** All Lab forge GLBs — warm cache before picker / reveal. */
 export const LAB_FORGE_PICKER_GLB_IDS = [
-  LAB_PIZZA_SHAPE_ID,
-  LAB_FLOWER_SHAPE_ID,
-  LAB_DOLLAR_SHAPE_ID,
-  LAB_ONIGIRI_SHAPE_ID,
-  LAB_ISLAND_HOME_SHAPE_ID,
-  LAB_STARDUST_POT_SHAPE_ID,
+  ...LAB_ZOOM_SHAPE_IDS,
+  ...LAB_STARDUST_SHAPE_IDS,
 ] as const;
 
 export function preloadLabForgePickerGlbs(): void {

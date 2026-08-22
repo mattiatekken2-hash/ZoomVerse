@@ -13,23 +13,31 @@ export const SHAPE_GLB_ASSETS: Partial<Record<string, string>> = {
   pizza: "/models/pizza.glb",
   flower: "/models/flower.glb",
   dollar: "/models/dollar.glb",
+  creeper: "/models/creeper.glb",
+  chest: "/models/chest.glb",
   stardust_pot: "/models/stardust_pot.glb",
   onigiri: "/models/onigiri.glb",
   street_scene: "/models/onigiri.glb",
   island_home: "/models/island_home.glb",
+  steve: "/models/steve.glb",
+  chicken: "/models/chicken.glb",
 };
 
 /** Bust stale CDN / Telegram cache when Lab GLB assets are replaced. */
-const LAB_GLB_CACHE_BUST = "20260822b";
+const LAB_GLB_CACHE_BUST = "20260823a";
 
 const LAB_GLB_SHAPE_IDS = new Set([
   "pizza",
   "flower",
   "dollar",
+  "creeper",
+  "chest",
   "stardust_pot",
   "onigiri",
   "street_scene",
   "island_home",
+  "steve",
+  "chicken",
 ]);
 
 export function getShapeGlbUrl(shapeId: string): string | null {

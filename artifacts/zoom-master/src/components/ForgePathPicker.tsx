@@ -130,9 +130,9 @@ function ForgePathPickerBase({
               path="zoom"
               shapeIds={LAB_ZOOM_SHAPE_IDS}
               badge="$ZOOM"
-              name="Pizza · Flower · Dollar"
+              name="Pizza · Creeper · Chest · Flower · Dollar"
               costLabel={`${LAB_ZOOM_FORGE_STARDUST_COST} ★`}
-              yieldLabel="2.6–4.2 /h"
+              yieldLabel="2.6–5.0 /h"
               enabled={canZoom}
               accent="#7bed9f"
               border="rgba(123,237,159,0.38)"
@@ -145,9 +145,9 @@ function ForgePathPickerBase({
               path="stardust"
               shapeIds={LAB_STARDUST_SHAPE_IDS}
               badge="★ STARDUST"
-              name="Onigiri · Island Home · Pot"
+              name="Pot · Steve · Chicken · Onigiri · Island"
               costLabel={`${LAB_STARDUST_FORGE_ZOOM_COST} $ZOOM`}
-              yieldLabel="0.20–0.28 ★/h"
+              yieldLabel="0.20–0.36 ★/h"
               enabled={canStardust}
               accent="#ffd740"
               border="rgba(255,215,64,0.38)"
