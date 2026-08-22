@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, memo } from "react";
 import type { Planet } from "../hooks/useGameState";
-import { PLANET_CONFIG } from "../hooks/useGameState";
-import { getPlanetDisplayName } from "../utils/planetNames";
+import { PLANET_CONFIG, farmSlotUsedCount } from "../hooks/useGameState";
 import { fetchPvpLobby, type PvpLobbyEntry } from "../utils/api";
 import PvPModal from "../components/PvPModal";
 import { PlanetOrb } from "../components/PlanetOrb";
@@ -12,20 +11,21 @@ interface Props {
   onFlushPlanets?: () => Promise<void>;
   onPlanetTransferred?: () => void;
   visible: boolean;
+  maxSlots?: number;
 }
 
-function PvpLobbyPageBase({ telegramId, planets, onFlushPlanets, onPlanetTransferred, visible }: Props) {
+function PvpLobbyPageBase({ telegramId, planets, onFlushPlanets, onPlanetTransferred, visible, maxSlots = 2 }: Props) {
   const [selected, setSelected] = useState<Planet | null>(null);
   const [pvpPlanet, setPvpPlanet] = useState<Planet | null>(null);
   const [lobbyEntries, setLobbyEntries] = useState<PvpLobbyEntry[]>([]);
   const [onlineCount, setOnlineCount] = useState(0);
   const [loadingLobby, setLoadingLobby] = useState(false);
 
-  // Available planets: not listed in market, not burning
-  // Only planets eligible for PVP: not listed, not farming, not in a collection slot
+  // All owned models except listed / collection-slot ones. Farming is allowed.
   const availablePlanets = planets.filter(
-    (p) => !p.isListedInMarket && !p.isFarmingActive && p.slotIndex == null,
+    (p) => !p.isListedInMarket && p.slotIndex == null,
   );
+  const slotsFull = farmSlotUsedCount(planets) >= maxSlots;
 
   const refreshLobby = useCallback(async () => {
     setLoadingLobby(true);
@@ -56,13 +56,13 @@ function PvpLobbyPageBase({ telegramId, planets, onFlushPlanets, onPlanetTransfe
   }, [availablePlanets.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = () => {
-    if (!selected || !telegramId) return;
+    if (!selected || !telegramId || slotsFull) return;
     setPvpPlanet(selected);
   };
 
   const handleChallenge = (entry: PvpLobbyEntry) => {
-    // Challenge: enter queue with selected planet — the engine will auto-match
-    if (!selected || !telegramId) return;
+    void entry;
+    if (!selected || !telegramId || slotsFull) return;
     setPvpPlanet(selected);
   };
 
@@ -173,7 +173,10 @@ function PvpLobbyPageBase({ telegramId, planets, onFlushPlanets, onPlanetTransfe
                 return (
                   <div
                     key={p.id}
-                    onClick={() => setSelected(p)}
+                    onClick={() => {
+                      setSelected(p);
+                      if (telegramId && !slotsFull) setPvpPlanet(p);
+                    }}
                     style={{
                       flexShrink: 0,
                       width: 88,
@@ -226,11 +229,6 @@ function PvpLobbyPageBase({ telegramId, planets, onFlushPlanets, onPlanetTransfe
                         Float {p.float.toFixed(2)}
                       </div>
                     )}
-                    {p.durability != null && (
-                      <div style={{ fontSize: 8, color: p.durability > 50 ? "#66bb6a" : p.durability > 20 ? "#ffb300" : "#ef5350", marginTop: 1 }}>
-                        🛡 {p.durability}%
-                      </div>
-                    )}
                   </div>
                 );
               })}
@@ -242,25 +240,25 @@ function PvpLobbyPageBase({ telegramId, planets, onFlushPlanets, onPlanetTransfe
         <div style={{ marginTop: 16 }}>
           <button
             onClick={handleSearch}
-            disabled={!selected || !telegramId}
+            disabled={!selected || !telegramId || slotsFull}
             style={{
               width: "100%",
               padding: "15px 0",
               borderRadius: 16,
               border: "none",
-              background: selected && telegramId
+              background: selected && telegramId && !slotsFull
                 ? "linear-gradient(135deg, #c81024, #ff3355)"
                 : "rgba(255,255,255,0.06)",
-              color: selected && telegramId ? "#fff" : "rgba(255,255,255,0.3)",
+              color: selected && telegramId && !slotsFull ? "#fff" : "rgba(255,255,255,0.3)",
               fontSize: 14,
               fontWeight: 900,
               letterSpacing: 2,
-              cursor: selected && telegramId ? "pointer" : "default",
-              animation: selected && telegramId ? "pvp-lobby-glow 2s ease-in-out infinite" : "none",
+              cursor: selected && telegramId && !slotsFull ? "pointer" : "default",
+              animation: selected && telegramId && !slotsFull ? "pvp-lobby-glow 2s ease-in-out infinite" : "none",
               transition: "all 200ms",
             }}
           >
-            ⚔️ CERCA PARTITA
+            {slotsFull ? "NEED A FREE FARM SLOT" : "⚔️ CERCA PARTITA"}
           </button>
         </div>
 

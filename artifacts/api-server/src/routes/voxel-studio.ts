@@ -12,6 +12,7 @@ const Voxel = z.object({
   x: z.number().int().min(-24).max(24),
   y: z.number().int().min(0).max(48),
   z: z.number().int().min(-24).max(24),
+  color: z.number().int().min(0).max(0xffffff).optional(),
 });
 
 const Project = z.object({

@@ -13,6 +13,8 @@ export interface VoxelCoord {
   x: number;
   y: number;
   z: number;
+  /** Optional hex color. Missing = Lab grey clay. */
+  color?: number;
 }
 
 export interface VoxelStudioProject {
@@ -69,6 +71,27 @@ function writeLocal(telegramId: string, state: VoxelStudioState) {
   } catch { /**/ }
 }
 
+function voxelsHaveColor(voxels: VoxelCoord[] | undefined): boolean {
+  return Array.isArray(voxels) && voxels.some((v) => typeof v.color === "number");
+}
+
+function mergeStudioProjects(server: VoxelStudioProject[], local: VoxelStudioProject[]): VoxelStudioProject[] {
+  const localById = new Map(local.map((p) => [p.id, p]));
+  const serverIds = new Set(server.map((p) => p.id));
+  const merged = server.map((sp) => {
+    const lp = localById.get(sp.id);
+    if (!lp) return sp;
+    const serverColored = voxelsHaveColor(sp.voxels);
+    const localColored = voxelsHaveColor(lp.voxels);
+    const localRicher = (lp.voxels?.length ?? 0) > (sp.voxels?.length ?? 0);
+    if ((!serverColored && localColored) || localRicher) {
+      return { ...sp, title: lp.title || sp.title, voxels: lp.voxels };
+    }
+    return sp;
+  });
+  return [...merged, ...local.filter((p) => !serverIds.has(p.id))];
+}
+
 export async function loadVoxelStudio(telegramId: string): Promise<VoxelStudioState> {
   const local = readLocal(telegramId);
   try {
@@ -80,7 +103,7 @@ export async function loadVoxelStudio(telegramId: string): Promise<VoxelStudioSt
       const data = await res.json() as VoxelStudioState;
       const merged: VoxelStudioState = {
         extraSlots: Math.max(local.extraSlots, Number(data.extraSlots) || 0),
-        projects: (data.projects?.length ? data.projects : local.projects) ?? [],
+        projects: mergeStudioProjects(data.projects ?? [], local.projects),
       };
       writeLocal(telegramId, merged);
       return merged;
@@ -96,6 +119,7 @@ export async function saveVoxelStudio(telegramId: string, state: VoxelStudioStat
       method: "POST",
       headers: apiHeaders(),
       body: JSON.stringify({ telegramId, extraSlots: state.extraSlots, projects: state.projects }),
+      keepalive: true,
     });
   } catch { /**/ }
 }

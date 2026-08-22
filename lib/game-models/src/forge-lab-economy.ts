@@ -69,15 +69,25 @@ export const LAB_ZOOM_FORGE_STARDUST_COST = 3;
 /** @deprecated Use LAB_MODEL_FORGE_GOAL */
 export const LAB_PIZZA_FORGE_GOAL = LAB_MODEL_FORGE_GOAL;
 
+function canonicalShapeKey(shapeId: string | null | undefined): string {
+  return (shapeId || "").trim().toLowerCase().replace(/-/g, "_");
+}
+
 export function isLabZoomShapeId(shapeId: string | null | undefined): shapeId is LabZoomShapeId {
   return !!shapeId && (LAB_ZOOM_SHAPE_IDS as readonly string[]).includes(shapeId);
 }
 
+export function resolveLabZoomShapeId(shapeId: string | null | undefined): LabZoomShapeId | null {
+  const k = canonicalShapeKey(shapeId);
+  return (LAB_ZOOM_SHAPE_IDS as readonly string[]).includes(k) ? (k as LabZoomShapeId) : null;
+}
+
 export function resolveLabStardustShapeId(shapeId: string | null | undefined): LabStardustShapeId | null {
   if (!shapeId) return null;
-  if (shapeId === "street_scene") return LAB_ONIGIRI_SHAPE_ID;
-  return (LAB_STARDUST_SHAPE_IDS as readonly string[]).includes(shapeId)
-    ? (shapeId as LabStardustShapeId)
+  const k = canonicalShapeKey(shapeId);
+  if (k === "street_scene") return LAB_ONIGIRI_SHAPE_ID;
+  return (LAB_STARDUST_SHAPE_IDS as readonly string[]).includes(k)
+    ? (k as LabStardustShapeId)
     : null;
 }
 
@@ -85,6 +95,8 @@ export function normalizeLabForgeShapeId(shapeId: string | null | undefined): st
   if (!shapeId) return null;
   const stardust = resolveLabStardustShapeId(shapeId);
   if (stardust) return stardust;
+  const zoom = resolveLabZoomShapeId(shapeId);
+  if (zoom) return zoom;
   if (isLabZoomShapeId(shapeId)) return shapeId;
   return shapeId;
 }
@@ -99,23 +111,44 @@ export function isLabStardustShapeId(shapeId: string | null | undefined): boolea
 }
 
 export function labMarketPathForShapeId(shapeId: string | null | undefined): LabMarketPath | null {
-  if (isLabZoomShapeId(shapeId)) return "zoom";
-  if (isLabStardustShapeId(shapeId)) return "stardust";
+  if (resolveLabZoomShapeId(shapeId)) return "zoom";
+  if (resolveLabStardustShapeId(shapeId)) return "stardust";
+  return null;
+}
+
+function labMarketPathFromDisplayName(displayName: string | null | undefined): LabMarketPath | null {
+  const n = (displayName || "").trim().toLowerCase();
+  if (!n) return null;
+  if (n === "pizza" || n === "flower" || n === "dollar" || n.includes("pizza") || n.includes("flower") || n.includes("dollar")) {
+    return "zoom";
+  }
+  if (
+    n === "onigiri" || n === "island home" || n === "stardust pot"
+    || n.includes("onigiri") || n.includes("island") || (n.includes("stardust") && n.includes("pot"))
+  ) {
+    return "stardust";
+  }
+  for (const name of Object.values(LAB_ZOOM_DISPLAY_NAME)) {
+    if (n === name.toLowerCase()) return "zoom";
+  }
+  for (const name of Object.values(LAB_STARDUST_DISPLAY_NAME)) {
+    if (n === name.toLowerCase()) return "stardust";
+  }
   return null;
 }
 
 export function labMarketPathForPlanet(planet: {
   shapeId?: string | null;
   displayName?: string | null;
-  rate?: number | null;
+  rate?: number | string | null;
 }): LabMarketPath {
   const fromShape = labMarketPathForShapeId(planet.shapeId);
   if (fromShape) return fromShape;
-  const n = (planet.displayName || "").trim().toLowerCase();
-  if (n === "pizza" || n === "flower" || n === "dollar") return "zoom";
-  if (n === "onigiri" || n === "island home" || n === "stardust pot") return "stardust";
-  if (typeof planet.rate === "number" && Number.isFinite(planet.rate) && planet.rate > 0) {
-    return planet.rate >= 1 ? "zoom" : "stardust";
+  const fromName = labMarketPathFromDisplayName(planet.displayName);
+  if (fromName) return fromName;
+  const rate = Number(planet.rate);
+  if (Number.isFinite(rate) && rate > 0) {
+    return rate >= 1 ? "zoom" : "stardust";
   }
   return "zoom";
 }
@@ -126,11 +159,14 @@ export function isLabForgeGeneratorPlanet(planet: { shapeId?: string | null; dis
 
 const DISPLAY_NAME_TO_SHAPE: Record<string, string> = {
   pizza: LAB_PIZZA_SHAPE_ID,
+  "pizza slice": LAB_PIZZA_SHAPE_ID,
   flower: LAB_FLOWER_SHAPE_ID,
   dollar: LAB_DOLLAR_SHAPE_ID,
   onigiri: LAB_ONIGIRI_SHAPE_ID,
   "island home": LAB_ISLAND_HOME_SHAPE_ID,
+  island_home: LAB_ISLAND_HOME_SHAPE_ID,
   "stardust pot": LAB_STARDUST_POT_SHAPE_ID,
+  stardust_pot: LAB_STARDUST_POT_SHAPE_ID,
 };
 
 /** Recover Lab shape id from listing/planet even if displayName was renamed later. */
@@ -138,11 +174,19 @@ export function resolveLabShapeIdFromPlanet(planet: {
   shapeId?: string | null;
   displayName?: string | null;
 }): string | null {
-  if (isLabZoomShapeId(planet.shapeId)) return planet.shapeId;
+  const zoom = resolveLabZoomShapeId(planet.shapeId);
+  if (zoom) return zoom;
   const stardust = resolveLabStardustShapeId(planet.shapeId);
   if (stardust) return stardust;
   const n = (planet.displayName || "").trim().toLowerCase();
-  return DISPLAY_NAME_TO_SHAPE[n] ?? null;
+  if (DISPLAY_NAME_TO_SHAPE[n]) return DISPLAY_NAME_TO_SHAPE[n];
+  if (n.includes("pizza")) return LAB_PIZZA_SHAPE_ID;
+  if (n.includes("flower")) return LAB_FLOWER_SHAPE_ID;
+  if (n.includes("dollar")) return LAB_DOLLAR_SHAPE_ID;
+  if (n.includes("onigiri")) return LAB_ONIGIRI_SHAPE_ID;
+  if (n.includes("island")) return LAB_ISLAND_HOME_SHAPE_ID;
+  if (n.includes("stardust") && n.includes("pot")) return LAB_STARDUST_POT_SHAPE_ID;
+  return null;
 }
 
 /** localStorage key — set to "1" before the next Lab forge to force pizza. */
@@ -192,17 +236,46 @@ export function consumeLabDevFarmResetOnce(): boolean {
   }
 }
 
-/** Pick a random ZOOM-path model (pizza / flower / dollar). Equal weight. */
-export function pickRandomLabZoomShapeId(): LabZoomShapeId {
-  if (readLabForgeTestPizzaFlag()) return LAB_PIZZA_SHAPE_ID;
-  const i = Math.floor(Math.random() * LAB_ZOOM_SHAPE_IDS.length);
-  return LAB_ZOOM_SHAPE_IDS[Math.max(0, Math.min(LAB_ZOOM_SHAPE_IDS.length - 1, i))]!;
+export function labModelDisplayName(planet: {
+  shapeId?: string | null;
+  displayName?: string | null;
+}): string | null {
+  const shape = resolveLabShapeIdFromPlanet(planet);
+  if (!shape) return null;
+  const zoom = resolveLabZoomShapeId(shape);
+  if (zoom) return LAB_ZOOM_DISPLAY_NAME[zoom];
+  const stardust = resolveLabStardustShapeId(shape);
+  if (stardust) return LAB_STARDUST_DISPLAY_NAME[stardust];
+  return null;
 }
 
-/** Pick a random Stardust-path model (onigiri / island home / pot). Equal weight. */
+function weightedPick<T extends string>(entries: readonly { id: T; weight: number }[]): T {
+  const total = entries.reduce((sum, e) => sum + e.weight, 0);
+  let roll = Math.random() * total;
+  for (const entry of entries) {
+    roll -= entry.weight;
+    if (roll <= 0) return entry.id;
+  }
+  return entries[entries.length - 1]!.id;
+}
+
+/** Pizza is common; flower/dollar are rarer. */
+export function pickRandomLabZoomShapeId(): LabZoomShapeId {
+  if (readLabForgeTestPizzaFlag()) return LAB_PIZZA_SHAPE_ID;
+  return weightedPick([
+    { id: LAB_PIZZA_SHAPE_ID, weight: 60 },
+    { id: LAB_FLOWER_SHAPE_ID, weight: 25 },
+    { id: LAB_DOLLAR_SHAPE_ID, weight: 15 },
+  ] as const);
+}
+
+/** Stardust pot is common; onigiri / island home are rarer. */
 export function pickRandomLabStardustShapeId(): LabStardustShapeId {
-  const i = Math.floor(Math.random() * LAB_STARDUST_SHAPE_IDS.length);
-  return LAB_STARDUST_SHAPE_IDS[Math.max(0, Math.min(LAB_STARDUST_SHAPE_IDS.length - 1, i))]!;
+  return weightedPick([
+    { id: LAB_STARDUST_POT_SHAPE_ID, weight: 60 },
+    { id: LAB_ONIGIRI_SHAPE_ID, weight: 25 },
+    { id: LAB_ISLAND_HOME_SHAPE_ID, weight: 15 },
+  ] as const);
 }
 
 export function labForgeShapeForPath(path: LabForgePath): string {

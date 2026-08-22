@@ -163,14 +163,14 @@ export async function upgradeFarmDuration(
   planetId: string,
   durationHours: number,
   planet?: Record<string, unknown> | null,
-): Promise<{ ok: boolean; newTonBalance?: number; error?: string }> {
+): Promise<{ ok: boolean; newTonBalance?: number; newDepositBalance?: number; error?: string }> {
   try {
     const r = await fetch(`${API_BASE}/farm/upgrade-duration`, {
       method: "POST",
       headers: apiHeaders(),
       body: JSON.stringify({ telegramId, planetId, durationHours, ...(planet ? { planet } : {}) }),
     });
-    return await r.json() as { ok: boolean; newTonBalance?: number; error?: string };
+    return await r.json() as { ok: boolean; newTonBalance?: number; newDepositBalance?: number; error?: string };
   } catch {
     return { ok: false, error: "Network error" };
   }
@@ -2760,6 +2760,8 @@ export interface ServerMarketListing {
   // Lab-forged 3D object. Present when the listed planet was crafted in the Lab.
   modelId?: string | null;
   shapeId?: string | null;
+  /** Client/server Lab path so All / $ZOOM / ★ Stardust filters stay in sync. */
+  marketPath?: "zoom" | "stardust" | null;
   price: number;
   priceCurrency?: "gram" | "zoom" | "stardust" | null;
   status: string;
@@ -2771,6 +2773,26 @@ export interface ServerMarketListing {
 }
 
 export const MARKET_LISTING_TTL_MS = 60 * 60 * 1000;
+
+function normalizeMarketListing(raw: ServerMarketListing & Record<string, unknown>): ServerMarketListing {
+  const shapeId = (raw.shapeId ?? raw.shape_id ?? null) as string | null;
+  const planetDisplayName = (raw.planetDisplayName ?? raw.planet_display_name ?? null) as string | null;
+  const planetRateRaw = raw.planetRate ?? raw.planet_rate;
+  const planetRate = planetRateRaw == null ? null : Number(planetRateRaw);
+  const idNum = Number(raw.id);
+  return {
+    ...raw,
+    id: Number.isFinite(idNum) ? idNum : raw.id,
+    shapeId,
+    planetDisplayName,
+    planetRate: Number.isFinite(planetRate as number) ? planetRate : raw.planetRate ?? null,
+    planetId: (raw.planetId ?? raw.planet_id ?? null) as string | null,
+    sellerTelegramId: String(raw.sellerTelegramId ?? raw.seller_telegram_id ?? "").trim(),
+    priceCurrency: (raw.priceCurrency ?? raw.price_currency ?? "gram") as ServerMarketListing["priceCurrency"],
+    marketPath: raw.marketPath === "stardust" || raw.marketPath === "zoom" ? raw.marketPath : null,
+    status: String(raw.status ?? "active"),
+  };
+}
 
 export async function fetchMarketListings(): Promise<ServerMarketListing[]> {
   // Throws on network/HTTP/parse failure so callers can distinguish a
@@ -2784,7 +2806,7 @@ export async function fetchMarketListings(): Promise<ServerMarketListing[]> {
   if (!res.ok) throw new Error(`market/listings HTTP ${res.status}`);
   const data = await res.json();
   if (!Array.isArray(data?.listings)) throw new Error("market/listings malformed response");
-  return data.listings as ServerMarketListing[];
+  return (data.listings as Array<ServerMarketListing & Record<string, unknown>>).map(normalizeMarketListing);
 }
 
 export async function fetchMyMarketListings(telegramId: string): Promise<ServerMarketListing[]> {
@@ -2795,7 +2817,9 @@ export async function fetchMyMarketListings(telegramId: string): Promise<ServerM
     });
     if (!res.ok) return [];
     const data = await res.json();
-    return Array.isArray(data?.listings) ? (data.listings as ServerMarketListing[]) : [];
+    return Array.isArray(data?.listings)
+      ? (data.listings as Array<ServerMarketListing & Record<string, unknown>>).map(normalizeMarketListing)
+      : [];
   } catch {
     return [];
   }
@@ -2912,12 +2936,20 @@ export async function shareListing(telegramId: string, listingId: number): Promi
   }
 }
 
-export async function delistFromMarket(sellerTelegramId: string, listingId: number): Promise<{ ok: boolean }> {
+export async function delistFromMarket(
+  sellerTelegramId: string,
+  listingId?: number | null,
+  planetId?: string | null,
+): Promise<{ ok: boolean }> {
   try {
     const res = await fetch(`${API_BASE}/market/delist`, {
       method: "POST",
       headers: apiHeaders(),
-      body: JSON.stringify({ sellerTelegramId, listingId }),
+      body: JSON.stringify({
+        sellerTelegramId,
+        ...(typeof listingId === "number" && listingId > 0 ? { listingId } : {}),
+        ...(planetId ? { planetId } : {}),
+      }),
     });
     return res.json();
   } catch {

@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useT } from "../i18n/LanguageContext";
 import {
   pvpQueue,
   pvpLeaveQueue,
@@ -8,17 +7,37 @@ import {
   fetchPvPStatus,
   fetchPvPBattle,
   type PvPStatus,
-  type PvPQueueResult,
 } from "../utils/api";
-import { PlanetOrb } from "./PlanetOrb";
+import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
+import { ForgePathWheel } from "./ForgePathWheel";
 import { getPlanetDisplayName } from "../utils/planetNames";
-import type { Planet } from "../hooks/useGameState";
+import { getRarityColorsForModel, type Planet } from "../hooks/useGameState";
 
 const CYAN = "#9EC5E8";
 const CYAN_BORDER = "rgba(158,197,232,0.35)";
 const CYAN_GLOW = "rgba(158,197,232,0.18)";
 const CYAN_BG = "rgba(158,197,232,0.12)";
 const CYAN_BG_STRONG = "rgba(158,197,232,0.22)";
+
+function pvpPlanetFromRaw(raw: unknown, fallback: Planet): Planet {
+  const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const name = (typeof o.name === "string" ? o.name : fallback.name) as Planet["name"];
+  const colors = getRarityColorsForModel(String(o.rarity ?? o.name ?? name));
+  return {
+    ...fallback,
+    id: typeof o.id === "string" && o.id ? o.id : fallback.id,
+    name,
+    rate: typeof o.rate === "number" ? o.rate : fallback.rate,
+    color: typeof o.color === "string" ? o.color : colors.color,
+    glowColor: typeof o.glowColor === "string" ? o.glowColor : colors.glowColor,
+    shapeId: typeof o.shapeId === "string" ? o.shapeId : undefined,
+    displayName: typeof o.displayName === "string" ? o.displayName : undefined,
+    float: typeof o.float === "number" ? o.float : fallback.float,
+    isListedInMarket: false,
+    isFarmingActive: false,
+    marketPrice: null,
+  };
+}
 
 interface Props {
   open: boolean;
@@ -34,12 +53,10 @@ interface Props {
 }
 
 export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTransferred, onBeforeQueue }: Props) {
-  const { t } = useT();
   const [phase, setPhase] = useState<"queue" | "match" | "roulette" | "result" | "error">("queue");
   const [error, setError] = useState<string | null>(null);
   const [battle, setBattle] = useState<PvPStatus | null>(null);
   const [countdown, setCountdown] = useState(20);
-  const [rouletteAngle, setRouletteAngle] = useState(0);
   const [winner, setWinner] = useState<"player" | "opponent" | null>(null);
   const [isWinner, setIsWinner] = useState(false);
   const pollRef = useRef<number | null>(null);
@@ -50,6 +67,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
   // finished battle at once. Without this guard the wheel restarts or the result
   // fires twice (and double-dispatches the planet transfer events).
   const resolvedRef = useRef(false);
+  const resultFiredRef = useRef(false);
 
   const isPlayerP1 = battle?.player?.telegramId === telegramId;
   const player = isPlayerP1 ? battle?.player : battle?.opponent;
@@ -57,12 +75,16 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
   const playerConfirmed = player?.confirmed ?? false;
   const opponentConfirmed = opponent?.confirmed ?? false;
   const opponentPlanet = (opponent?.planet ?? null) as
-    | { id?: string; name?: string; rarity?: string; rate?: number; float?: number | null }
+    | { id?: string; name?: string; rarity?: string; rate?: number; float?: number | null; shapeId?: string; displayName?: string; color?: string; glowColor?: string }
     | null;
   const opponentRarity = opponentPlanet?.rarity || opponentPlanet?.name || "BASIC";
   const opponentName = opponent?.username || "Opponent";
+  const opponentModel = pvpPlanetFromRaw(opponentPlanet, planet);
+  const youWonWheel = battle?.winnerTelegramId === telegramId;
 
   const handleResult = useCallback((b: PvPStatus) => {
+    if (resultFiredRef.current) return;
+    resultFiredRef.current = true;
     const won = b.winnerTelegramId === telegramId;
     setIsWinner(won);
     setWinner(won ? "player" : "opponent");
@@ -73,11 +95,20 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
     if (won) {
       const oppSide = b.player?.telegramId === telegramId ? b.opponent : b.player;
       const op = (oppSide?.planet ?? null) as
-        | { id?: string; name?: string; rarity?: string; rate?: number; float?: number | null }
+        | { id?: string; name?: string; rarity?: string; rate?: number; float?: number | null; shapeId?: string; displayName?: string; color?: string; glowColor?: string }
         | null;
       if (op?.id) {
         window.dispatchEvent(new CustomEvent("pvp-planet-won", {
-          detail: { id: op.id, name: op.rarity || op.name || "BASIC", rate: op.rate, float: op.float ?? null },
+          detail: {
+            id: op.id,
+            name: op.rarity || op.name || "BASIC",
+            rate: op.rate,
+            float: op.float ?? null,
+            shapeId: (op as { shapeId?: string }).shapeId,
+            displayName: (op as { displayName?: string }).displayName,
+            color: (op as { color?: string }).color,
+            glowColor: (op as { glowColor?: string }).glowColor,
+          },
         }));
       }
     } else {
@@ -86,34 +117,8 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
     onPlanetTransferred?.();
   }, [telegramId, planet.id, onPlanetTransferred]);
 
-  const runRouletteAnimation = useCallback((b: PvPStatus) => {
-    const winProb = b.winProbability ?? 0.5;
-    const winAngle = winProb * 360;
-    // Adjust so it lands on the winning segment
-    const actualWin = b.winnerTelegramId === telegramId;
-    const targetAngle = actualWin ? winAngle / 2 : winAngle + (360 - winAngle) / 2;
-    const adjustedFinal = 360 * 5 + targetAngle + Math.random() * 30 - 15;
+  const resultBattleRef = useRef<PvPStatus | null>(null);
 
-    const duration = 4000;
-    const startTime = Date.now();
-    const animate = () => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(1, elapsed / duration);
-      const ease = 1 - Math.pow(1 - progress, 3); // ease-out cubic
-      setRouletteAngle(ease * adjustedFinal);
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      } else {
-        // Animation done, show result
-        setTimeout(() => { if (aliveRef.current) handleResult(b); }, 500);
-      }
-    };
-    requestAnimationFrame(animate);
-  }, [telegramId, handleResult]);
-
-  // Unified resolution: the moment a winner is known (from any poll / confirm
-  // response), play the wheel exactly once and then reveal the result. Returns
-  // true if the battle has been (or already was) resolved.
   const maybeResolve = useCallback((b: PvPStatus): boolean => {
     if (resolvedRef.current) return true;
     if (!b.winnerTelegramId) return false;
@@ -122,11 +127,11 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
       window.clearInterval(pollRef.current);
       pollRef.current = null;
     }
+    resultBattleRef.current = b;
     setBattle(b);
     setPhase("roulette");
-    runRouletteAnimation(b);
     return true;
-  }, [runRouletteAnimation]);
+  }, []);
 
   const startPolling = useCallback(() => {
     if (pollRef.current) window.clearInterval(pollRef.current);
@@ -149,6 +154,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
   const startQueue = useCallback(async () => {
     if (!telegramId || !open) return;
     resolvedRef.current = false;
+    resultFiredRef.current = false;
     setPhase("queue");
     setError(null);
     setBattle(null);
@@ -345,11 +351,14 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
       onClick={(e) => { if (e.target === e.currentTarget) handleCancel(); }}
     >
       <div
-        className="relative mx-4 w-full max-w-sm rounded-2xl p-6"
+        className="relative mx-3 w-full"
         style={{
+          maxWidth: phase === "roulette" ? 440 : 384,
           background: "linear-gradient(135deg, rgba(20,12,30,0.95), rgba(10,6,18,0.98))",
           border: `1px solid ${CYAN_BORDER}`,
           boxShadow: `0 0 40px ${CYAN_GLOW}`,
+          borderRadius: 16,
+          padding: phase === "roulette" ? 16 : 24,
         }}
       >
         {/* Header */}
@@ -368,13 +377,16 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
 
         {/* QUEUE PHASE */}
         {phase === "queue" && (
-          <div className="text-center py-6">
+          <div className="text-center py-4">
+            <div className="flex justify-center mb-3">
+              <PlanetVoxelThumb planet={planet} size={88} animate eager />
+            </div>
             <div
               className="w-12 h-12 rounded-full border-2 border-t-transparent mx-auto mb-4 animate-spin"
               style={{ borderColor: `${CYAN} transparent transparent transparent` }}
             />
             <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.6)" }}>
-              Your planet is in queue
+              Searching for opponent...
             </div>
             <div className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.35)" }}>
               {getPlanetDisplayName(planet)} · {planet.name}
@@ -398,37 +410,25 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
           <div>
             {/* Versus: my planet (left) vs opponent planet (right) */}
             <div className="flex items-center justify-between gap-2 mb-4">
-              {/* My planet */}
               <div className="flex-1 flex flex-col items-center gap-1 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.04)" }}>
-                <PlanetOrb planet={planet} size={56} animate={false} />
+                <PlanetVoxelThumb planet={planet} size={72} animate eager />
                 <div className="text-xs font-black mt-1 text-center truncate w-full" style={{ color: "#fff" }}>
                   You
                 </div>
                 <div className="text-[10px] text-center" style={{ color: "rgba(255,255,255,0.5)" }}>
-                  {getPlanetDisplayName(planet)} · {planet.name}
+                  {getPlanetDisplayName(planet)}
                 </div>
               </div>
 
-              {/* VS divider */}
               <div className="text-sm font-black px-1" style={{ color: CYAN }}>VS</div>
 
-              {/* Opponent planet */}
               <div className="flex-1 flex flex-col items-center gap-1 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.04)" }}>
-                <PlanetOrb
-                  planet={{
-                    ...planet,
-                    id: opponentPlanet?.id || "opponent",
-                    name: opponentRarity as Planet["name"],
-                    color: opponentRarity === "BASIC" ? "#8892b0" : "#4facfe",
-                  }}
-                  size={56}
-                  animate={false}
-                />
+                <PlanetVoxelThumb planet={opponentModel} size={72} animate eager />
                 <div className="text-xs font-black mt-1 text-center truncate w-full" style={{ color: "#fff" }}>
                   {opponentName}
                 </div>
                 <div className="text-[10px] text-center" style={{ color: "rgba(255,255,255,0.5)" }}>
-                  {opponentRarity}
+                  {getPlanetDisplayName(opponentModel)}
                 </div>
               </div>
             </div>
@@ -504,49 +504,27 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
         )}
 
         {/* ROULETTE PHASE */}
-        {phase === "roulette" && (
-          <div className="text-center py-4">
-            {/* Roulette wheel */}
-            <div className="relative mx-auto mb-4" style={{ width: 200, height: 200 }}>
-              <div
-                className="absolute inset-0 rounded-full"
-                style={{
-                  transform: `rotate(${rouletteAngle}deg)`,
-                  transition: "none",
-                }}
-              >
-                {/* Wheel background */}
-                <svg viewBox="0 0 200 200" className="absolute inset-0">
-                  <circle cx="100" cy="100" r="98" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2" />
-                  {/* Player slice (red) */}
-                  <path
-                    d="M100,100 L100,2 A98,98 0 0,1 100,198 Z"
-                    fill="rgba(158,197,232,0.75)"
-                  />
-                  {/* Opponent slice (blue) */}
-                  <path
-                    d="M100,100 L100,198 A98,98 0 0,1 100,2 Z"
-                    fill="rgba(50,100,255,0.8)"
-                  />
-                  {/* Center marker */}
-                  <circle cx="100" cy="100" r="20" fill="rgba(20,12,30,0.95)" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
-                  <text x="100" y="105" textAnchor="middle" fill="white" fontSize="12" fontWeight="bold">VS</text>
-                </svg>
+        {phase === "roulette" && battle && (
+          <div className="text-center py-1">
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <div className="flex flex-col items-center" style={{ width: 92 }}>
+                <PlanetVoxelThumb planet={planet} size={86} animate eager />
+                <div className="text-[10px] font-black mt-1 truncate w-full" style={{ color: "#fff" }}>You</div>
               </div>
-              {/* Pointer at top */}
-              <div
-                className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1"
-                style={{
-                  width: 0,
-                  height: 0,
-                  borderLeft: "10px solid transparent",
-                  borderRight: "10px solid transparent",
-                  borderTop: `14px solid ${CYAN}`,
+              <ForgePathWheel
+                size={168}
+                targetPath={youWonWheel ? "zoom" : "stardust"}
+                zoomLabel="YOU"
+                stardustLabel="OPP"
+                onComplete={() => {
+                  const b = resultBattleRef.current ?? battle;
+                  if (aliveRef.current) handleResult(b);
                 }}
               />
-            </div>
-            <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.6)" }}>
-              Spinning...
+              <div className="flex flex-col items-center" style={{ width: 92 }}>
+                <PlanetVoxelThumb planet={opponentModel} size={86} animate eager />
+                <div className="text-[10px] font-black mt-1 truncate w-full" style={{ color: "#fff" }}>{opponentName}</div>
+              </div>
             </div>
           </div>
         )}
@@ -595,9 +573,11 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
             <div className="text-sm font-bold mb-4" style={{ color: "rgba(255,255,255,0.6)" }}>
               {error === "NOT_ELIGIBLE"
                 ? "This planet is not eligible for PvP"
-                : error === "BATTLE_CANCELLED"
-                  ? "The battle was cancelled — the opponent didn't confirm in time."
-                  : error}
+                : error === "SLOTS_FULL"
+                  ? "Need a free farm slot to play PvP"
+                  : error === "BATTLE_CANCELLED"
+                    ? "The battle was cancelled — the opponent didn't confirm in time."
+                    : error}
             </div>
             <button
               onClick={() => {

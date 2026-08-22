@@ -23,7 +23,6 @@ interface FarmInventoryCardProps {
   onCardClick?: () => void;
   onStartFarm?: () => void;
   onUnlist?: () => void;
-  onRename?: () => void;
   className?: string;
   testId?: string;
   /** Load voxel thumb immediately (Lab reveal). */
@@ -32,20 +31,10 @@ interface FarmInventoryCardProps {
   glDelayMs?: number;
   /** Hide START FARM / REACTIVATE footer (Lab reveal card). */
   hideActions?: boolean;
-}
-
-function FarmCubeIcon({ size = 12, color = "currentColor" }: { size?: number; color?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden style={{ flexShrink: 0 }}>
-      <path
-        d="M8 1.5L14 5v6l-6 3.5L2 11V5l6-3.5z"
-        stroke={color}
-        strokeWidth="1.2"
-        fill={`${color}22`}
-      />
-      <path d="M8 1.5v11M2 5l6 3.5L14 5" stroke={color} strokeWidth="0.9" opacity="0.65" />
-    </svg>
-  );
+  /** Label for the listed-state footer button (Market My List uses Remove). */
+  listedActionLabel?: string;
+  /** Disable Remove when Farm slots are full. */
+  listedActionDisabled?: boolean;
 }
 
 function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
@@ -75,12 +64,13 @@ export function FarmInventoryCard({
   onCardClick,
   onStartFarm,
   onUnlist,
-  onRename,
   className = "",
   testId,
   eagerThumb = false,
   glDelayMs = 0,
   hideActions = false,
+  listedActionLabel,
+  listedActionDisabled = false,
 }: FarmInventoryCardProps) {
   const { t } = useT();
   const compact = variant === "compact";
@@ -90,7 +80,6 @@ export function FarmInventoryCard({
   const expired = isFarmExpired(planet);
   const isListed = planet.isListedInMarket;
   const remaining = getFarmTimeRemaining(planet);
-  const dur = planet.durability ?? 100;
   const farmHours = planet.farmDurationHours ?? 1;
   const planetFloat = !isLabForgeGeneratorPlanet(planet) && isFloatablePlanet(planet)
     ? getDisplayFloat(planet)
@@ -128,6 +117,7 @@ export function FarmInventoryCard({
         width: compact ? 268 : "100%",
         maxWidth: compact ? 268 : undefined,
         minHeight: compact ? undefined : 308,
+        height: compact ? undefined : "100%",
       }}
       onClick={onCardClick}
       data-testid={testId}
@@ -142,25 +132,6 @@ export function FarmInventoryCard({
           padding: compact ? "0 10px" : "0 10px",
         }}
       >
-        {dur < 100 && (
-          <div
-            style={{
-              position: "absolute",
-              top: compact ? 8 : 10,
-              right: compact ? 8 : 10,
-              textAlign: "right",
-              pointerEvents: "none",
-            }}
-          >
-            <div style={{ fontSize: compact ? 7 : 9, fontWeight: 700, color: rgba(cardColor, 0.9), letterSpacing: "0.04em" }}>
-              {t("farm.durability")}
-            </div>
-            <div style={{ fontSize: compact ? 13 : 17, fontWeight: 900, color: cardColor, lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}>
-              {Math.round(dur)}/100
-            </div>
-          </div>
-        )}
-
         <div
           style={{
             position: "absolute",
@@ -200,12 +171,7 @@ export function FarmInventoryCard({
             maxWidth: "90%",
           }}
         >
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRename?.();
-            }}
+          <div
             style={{
               display: "block",
               width: "100%",
@@ -221,12 +187,12 @@ export function FarmInventoryCard({
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
-              cursor: onRename ? "pointer" : "default",
               boxShadow: "0 4px 14px rgba(0,0,0,0.55)",
+              textAlign: "center",
             }}
           >
             {getPlanetDisplayName(planet)}
-          </button>
+          </div>
         </div>
       </div>
 
@@ -238,7 +204,7 @@ export function FarmInventoryCard({
           display: "flex",
           flexDirection: "column",
           gap: compact ? 4 : 6,
-          flex: compact ? undefined : "0 0 auto",
+          flex: compact ? undefined : "1 1 auto",
         }}
       >
         {typeof planetFloat === "number" && (
@@ -276,24 +242,7 @@ export function FarmInventoryCard({
       {/* Action button */}
       {!hideActions && (
       <div style={{ padding: compact ? "8px 10px 10px" : "8px 10px 12px", marginTop: compact ? undefined : "auto", flexShrink: 0 }}>
-        {dur <= 0 ? (
-          <div
-            style={{
-              borderRadius: 12,
-              padding: compact ? "9px 0" : "14px 0",
-              textAlign: "center",
-              fontSize: compact ? 10 : 12,
-              fontWeight: 900,
-              letterSpacing: "0.08em",
-              background: "rgba(255,82,82,0.08)",
-              border: "1px solid rgba(255,82,82,0.35)",
-              color: "#ff5252",
-              cursor: "not-allowed",
-            }}
-          >
-            ❄ {t("farm.frozenBadge")}
-          </div>
-        ) : active ? (
+        {active ? (
           <div
             style={{
               borderRadius: 12,
@@ -312,6 +261,7 @@ export function FarmInventoryCard({
         ) : isListed ? (
           <button
             type="button"
+            disabled={listedActionDisabled || !onUnlist}
             style={{
               width: "100%",
               borderRadius: 12,
@@ -319,10 +269,10 @@ export function FarmInventoryCard({
               fontSize: compact ? 10 : 12,
               fontWeight: 900,
               letterSpacing: "0.08em",
-              background: "rgba(255,215,0,0.08)",
-              border: `1px solid ${rgba(cardColor, 0.55)}`,
-              color: cardColor,
-              cursor: "pointer",
+              background: listedActionDisabled ? "rgba(255,255,255,0.04)" : "rgba(255,82,82,0.12)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              color: listedActionDisabled ? "rgba(255,255,255,0.28)" : "#ff8a80",
+              cursor: listedActionDisabled || !onUnlist ? "not-allowed" : "pointer",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
@@ -330,12 +280,14 @@ export function FarmInventoryCard({
             }}
             onClick={(e) => {
               e.stopPropagation();
+              if (listedActionDisabled) return;
               onUnlist?.();
             }}
             data-testid={`btn-unlist-${planet.id}`}
           >
-            <FarmCubeIcon size={12} color={cardColor} />
-            {t("farm.delist").toUpperCase()}
+            {listedActionDisabled
+              ? (listedActionLabel ?? "Slots full").toUpperCase()
+              : (listedActionLabel ?? t("farm.delist")).toUpperCase()}
           </button>
         ) : expired ? (
           <button

@@ -8,6 +8,7 @@ import {
   resolveLabStardustShapeId,
   resolveLabShapeIdFromPlanet,
   labMarketPathForPlanet,
+  labModelDisplayName,
   formatMarketListingPrice,
   parseMarketPriceCurrency,
   type LabMarketPath,
@@ -42,6 +43,8 @@ export interface MarketPlanetListingView {
   shapeId?: string | null;
   planetType?: string | null;
   priceCurrency?: "gram" | "zoom" | "stardust" | null;
+  marketPath?: LabMarketPath | null;
+  planetId?: string | null;
 }
 
 interface Props {
@@ -57,6 +60,11 @@ interface Props {
 }
 
 function resolveTitle(listing: MarketPlanetListingView, path: LabMarketPath): string {
+  const labName = labModelDisplayName({
+    shapeId: listing.shapeId,
+    displayName: listing.displayName,
+  });
+  if (labName) return labName;
   if (listing.displayName && listing.displayName.trim()) return listing.displayName;
   if (isLabZoomShapeId(listing.shapeId)) return LAB_ZOOM_DISPLAY_NAME[listing.shapeId];
   if (isLabStardustShapeId(listing.shapeId)) {
@@ -87,13 +95,13 @@ export function MarketPlanetCard({
   onShare,
   statusText,
 }: Props) {
-  const path = labMarketPathForPlanet({
+  const path = listing.marketPath ?? labMarketPathForPlanet({
     shapeId: listing.shapeId,
     displayName: listing.displayName,
     rate: listing.rate,
   });
 
-  const theme = PATH_THEME[path];
+  const theme = PATH_THEME[path] ?? PATH_THEME.zoom;
   const accent = theme.accent;
   const title = resolveTitle(listing, path);
   const rate = resolveRate(listing, path);

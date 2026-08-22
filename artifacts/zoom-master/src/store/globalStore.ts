@@ -82,7 +82,17 @@ async function refreshAll(telegramId: string | null) {
       }).catch(() => {}),
       fetchLeaderboard().then((lb) => set({ leaderboard: lb })).catch(() => {}),
       fetchGlobalPool().then((p) => set({ globalPool: p })).catch(() => {}),
-      fetchMarketListings().then((m) => set({ marketListings: m })).catch(() => {}),
+      fetchMarketListings().then((m) => {
+        const mineIds = new Set(m.map((l) => l.id));
+        const minePlanets = new Set(m.map((l) => l.planetId).filter(Boolean));
+        const pending = state.marketListings.filter((l) => {
+          if (mineIds.has(l.id)) return false;
+          if (l.planetId && minePlanets.has(l.planetId)) return false;
+          const t = l.lastActivatedAt ? new Date(l.lastActivatedAt).getTime() : 0;
+          return Number.isFinite(t) && Date.now() - t < 180_000;
+        });
+        set({ marketListings: [...pending, ...m] });
+      }).catch(() => {}),
       fetchTotalPool().then((tp) => set({ totalPool: tp })).catch(() => {}),
     ];
     if (telegramId) {
@@ -198,7 +208,7 @@ export function applyDailyClaimResult(payload: DailyStatus & { ok?: boolean }) {
   });
 }
 
-/** Merge a listing so ALL / STARDUST / My List update immediately after sell. */
+/** Merge a listing so ALL / ZOOM / STARDUST / My List update immediately after sell. */
 export function upsertMarketListing(listing: ServerMarketListing) {
   const id = listing.id;
   const planetId = listing.planetId ?? null;
@@ -206,21 +216,33 @@ export function upsertMarketListing(listing: ServerMarketListing) {
   set({ marketListings: [listing, ...rest] });
 }
 
+export function removeMarketListingByPlanetId(planetId: string) {
+  if (!planetId) return;
+  set({ marketListings: state.marketListings.filter((l) => l.planetId !== planetId) });
+}
+
 /** Force a market listings refresh (used after a buy/sell). */
-export async function refreshMarketListings() {
+export async function refreshMarketListings(telegramId?: string | null) {
+  const tid = (telegramId ?? currentTelegramId)?.trim() || null;
   try {
-    const m = await fetchMarketListings();
-    const mine = currentTelegramId ? await fetchMyMarketListings(currentTelegramId) : [];
+    const [publicRes, mine] = await Promise.all([
+      fetchMarketListings().catch(() => [] as ServerMarketListing[]),
+      tid ? fetchMyMarketListings(tid) : Promise.resolve([] as ServerMarketListing[]),
+    ]);
     const byId = new Map<number, ServerMarketListing>();
-    for (const row of [...m, ...mine]) {
-      if (typeof row?.id === "number") byId.set(row.id, row);
+    for (const row of [...publicRes, ...mine]) {
+      const id = Number(row?.id);
+      if (!Number.isFinite(id)) continue;
+      byId.set(id, { ...row, id });
     }
     const merged = [...byId.values()];
     const serverIds = new Set(merged.map((l) => l.id));
+    const serverPlanetIds = new Set(merged.map((l) => l.planetId).filter(Boolean));
     const pending = state.marketListings.filter((l) => {
-      if (serverIds.has(l.id)) return false;
+      if (serverIds.has(Number(l.id))) return false;
+      if (l.planetId && serverPlanetIds.has(l.planetId)) return false;
       const t = l.lastActivatedAt ? new Date(l.lastActivatedAt).getTime() : 0;
-      return Number.isFinite(t) && Date.now() - t < 120_000;
+      return Number.isFinite(t) && Date.now() - t < 180_000;
     });
     set({ marketListings: [...pending, ...merged] });
   } catch { /**/ }

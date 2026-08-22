@@ -16,8 +16,10 @@ import {
   isLabZoomShapeId,
   resolveLabShapeIdFromPlanet,
   resolveLabStardustShapeId,
+  labMarketPathForPlanet,
   LAB_ZOOM_FARM_RATE,
   LAB_STARDUST_FARM_RATE,
+  labModelDisplayName,
 } from "@workspace/game-models";
 
 type MarketPriceCurrency = "gram" | "zoom" | "stardust";
@@ -270,7 +272,15 @@ router.post("/market/list", async (req, res) => {
       await client.query("COMMIT");
       res.json({
         ok: true,
-        listing: { ...existingActive[0], priceCurrency: parseMarketPriceCurrency(existingActive[0].priceCurrency) },
+        listing: {
+          ...existingActive[0],
+          priceCurrency: parseMarketPriceCurrency(existingActive[0].priceCurrency),
+          marketPath: labMarketPathForPlanet({
+            shapeId: existingActive[0].shapeId,
+            displayName: existingActive[0].planetDisplayName,
+            rate: existingActive[0].planetRate,
+          }),
+        },
       });
       return;
     }
@@ -361,17 +371,6 @@ router.post("/market/list", async (req, res) => {
     // "Eos-Prime" instead of the bare rarity. Lab-forged 3D objects use
     // `modelName` the same way. Truncate defensively to the same 64-char
     // bound used elsewhere; null if never renamed / not a model.
-    const rawDisplayName = (planet as { displayName?: unknown }).displayName;
-    const rawModelName = (planet as { modelName?: unknown }).modelName;
-    const planetDisplayNameSnapshot: string | null =
-      typeof rawDisplayName === "string" && rawDisplayName.trim().length > 0
-        ? rawDisplayName.trim().slice(0, 64)
-        : (typeof rawModelName === "string" && rawModelName.trim().length > 0
-          ? rawModelName.trim().slice(0, 64)
-          : (typeof bodyDisplayName === "string" && bodyDisplayName.trim().length > 0
-            ? bodyDisplayName.trim().slice(0, 64)
-            : null));
-
     const rawModelId = (planet as { modelId?: unknown }).modelId;
     const modelIdSnapshot: string | null =
       typeof rawModelId === "string" && rawModelId.trim().length > 0
@@ -379,11 +378,24 @@ router.post("/market/list", async (req, res) => {
         : null;
     const rawShapeId = (planet as { shapeId?: unknown }).shapeId;
     const shapeIdSnapshot: string | null =
-      typeof rawShapeId === "string" && rawShapeId.trim().length > 0
+      resolvedShape
+      ?? (typeof rawShapeId === "string" && rawShapeId.trim().length > 0
         ? rawShapeId.trim().slice(0, 32)
         : (typeof bodyShapeId === "string" && bodyShapeId.trim().length > 0
           ? bodyShapeId.trim().slice(0, 32)
-          : null);
+          : null));
+
+    const rawDisplayName = (planet as { displayName?: unknown }).displayName;
+    const rawModelName = (planet as { modelName?: unknown }).modelName;
+    const planetDisplayNameSnapshot: string | null =
+      labModelDisplayName({ shapeId: shapeIdSnapshot, displayName: typeof rawDisplayName === "string" ? rawDisplayName : bodyDisplayName })
+      ?? (typeof rawDisplayName === "string" && rawDisplayName.trim().length > 0
+        ? rawDisplayName.trim().slice(0, 64)
+        : (typeof rawModelName === "string" && rawModelName.trim().length > 0
+          ? rawModelName.trim().slice(0, 64)
+          : (typeof bodyDisplayName === "string" && bodyDisplayName.trim().length > 0
+            ? bodyDisplayName.trim().slice(0, 64)
+            : null)));
 
     // Snapshot the farm-duration upgrade (hours). Only store when > 1 to
     // keep legacy/default planets with a clean null. Buyers can then
@@ -487,7 +499,20 @@ router.post("/market/list", async (req, res) => {
     // Cooldown keyed on sellerTelegramId so a single user can't pump the
     // price by repeatedly listing in tight loops.
     bumpZoomPriceFireAndForget("market_list", sellerTelegramId);
-    res.json({ ok: true, listing: { ...listing, priceCurrency } });
+    res.json({
+      ok: true,
+      listing: {
+        ...listing,
+        priceCurrency,
+        planetDisplayName: listing.planetDisplayName ?? planetDisplayNameSnapshot,
+        shapeId: listing.shapeId ?? shapeIdSnapshot,
+        marketPath: labMarketPathForPlanet({
+          shapeId: listing.shapeId ?? shapeIdSnapshot,
+          displayName: listing.planetDisplayName ?? planetDisplayNameSnapshot,
+          rate: listing.planetRate ?? planetRate,
+        }),
+      },
+    });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("[market/list] error:", err);
@@ -657,9 +682,21 @@ router.get("/market/listings", async (_req, res) => {
       .orderBy(desc(marketListingsTable.createdAt))
       .limit(200);
 
-    const now = Date.now();
-    // Public shop: only show listings still within the 1h shelf window.
-    const listings = rows.filter((r) => isListingOnShelf(r, now));
+    const listings = rows.map((r) => {
+      const planetDisplayName = labModelDisplayName({
+        shapeId: r.shapeId,
+        displayName: r.planetDisplayName,
+      }) ?? r.planetDisplayName;
+      return {
+        ...r,
+        planetDisplayName,
+        marketPath: labMarketPathForPlanet({
+          shapeId: r.shapeId,
+          displayName: planetDisplayName,
+          rate: r.planetRate,
+        }),
+      };
+    });
     res.json({ listings });
   } catch (err) {
     console.error("[market/listings] error:", err);
@@ -688,11 +725,21 @@ router.get("/market/my-listings/:telegramId", async (req, res) => {
     res.json({
       listings: rows.map((r) => {
         const expiresAt = listingShelfDeadline(r);
+        const planetDisplayName = labModelDisplayName({
+          shapeId: r.shapeId,
+          displayName: r.planetDisplayName,
+        }) ?? r.planetDisplayName;
         return {
           ...r,
+          planetDisplayName,
           expiresAt,
-          expired: expiresAt > 0 ? now >= expiresAt : false,
+          expired: false,
           remainingMs: expiresAt > 0 ? Math.max(0, expiresAt - now) : 0,
+          marketPath: labMarketPathForPlanet({
+            shapeId: r.shapeId,
+            displayName: planetDisplayName,
+            rate: r.planetRate,
+          }),
         };
       }),
     });
@@ -801,12 +848,6 @@ router.post("/market/buy", async (req, res) => {
     if (!listing) {
       await client.query("ROLLBACK");
       res.status(404).json({ error: "Listing not found or already sold" });
-      return;
-    }
-
-    if (!isListingOnShelf(listing)) {
-      await client.query("ROLLBACK");
-      res.status(409).json({ error: "Listing expired — seller must reactivate" });
       return;
     }
 
@@ -1234,8 +1275,9 @@ router.post("/market/buy", async (req, res) => {
 
 const DelistBody = z.object({
   sellerTelegramId: z.string().min(1),
-  listingId: z.number().int().positive(),
-});
+  listingId: z.number().int().positive().optional(),
+  planetId: z.string().min(1).optional(),
+}).refine((d) => d.listingId != null || !!d.planetId, { message: "listingId or planetId required" });
 
 router.post("/market/delist", async (req, res) => {
   const parsed = DelistBody.safeParse(req.body);
@@ -1244,18 +1286,37 @@ router.post("/market/delist", async (req, res) => {
     return;
   }
 
-  const { sellerTelegramId, listingId } = parsed.data;
+  const { sellerTelegramId, listingId, planetId } = parsed.data;
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     const txDb = drizzle(client);
 
+    let targetId = listingId ?? null;
+    if (targetId == null && planetId) {
+      const [found] = await txDb
+        .select({ id: marketListingsTable.id })
+        .from(marketListingsTable)
+        .where(and(
+          eq(marketListingsTable.sellerTelegramId, sellerTelegramId),
+          eq(marketListingsTable.planetId, planetId),
+          eq(marketListingsTable.status, "active"),
+        ))
+        .limit(1);
+      targetId = found?.id ?? null;
+    }
+    if (targetId == null) {
+      await client.query("ROLLBACK");
+      res.status(404).json({ error: "Listing not found" });
+      return;
+    }
+
     const result = await txDb.update(marketListingsTable)
       .set({ status: "delisted" })
       .where(
         and(
-          eq(marketListingsTable.id, listingId),
+          eq(marketListingsTable.id, targetId),
           eq(marketListingsTable.sellerTelegramId, sellerTelegramId),
           eq(marketListingsTable.status, "active"),
         )

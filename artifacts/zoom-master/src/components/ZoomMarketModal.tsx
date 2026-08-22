@@ -21,6 +21,7 @@ import {
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 import { useT } from "../i18n/LanguageContext";
 import { formatZoomChartPrice } from "../utils/wallet24hChange";
+import { publishWalletZoomPrice } from "../utils/walletMarketCache";
 
 const REFRESH_MS = 5_000;
 const CYAN = "#9EC5E8";
@@ -86,6 +87,10 @@ export function ZoomMarketModal({ balance, onClose }: Props) {
     if (p && Number.isFinite(p.price)) {
       setPrice(p.price);
       if (Number.isFinite(p.genesisPrice)) setGenesis(p.genesisPrice);
+      const hist = (h?.points ?? [])
+        .map((pt) => pt.price)
+        .filter((v): v is number => Number.isFinite(v) && v > 0);
+      publishWalletZoomPrice(p.price, hist);
     }
     if (h?.points?.length) setPoints(h.points);
     setLoading(false);

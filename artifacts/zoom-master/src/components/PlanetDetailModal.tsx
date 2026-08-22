@@ -30,6 +30,8 @@ import {
 
   getNextFarmCycleTier,
 
+  farmSlotUsedCount,
+
 } from "../hooks/useGameState";
 
 import { getPlanetDisplayName } from "../utils/planetNames";
@@ -53,6 +55,8 @@ interface Props {
   stardustBalance?: number;
 
   tonBalance?: number;
+
+  depositBalance?: number;
 
   maxSlots: number;
 
@@ -120,6 +124,8 @@ export function PlanetDetailModal({
 
   tonBalance = 0,
 
+  depositBalance = 0,
+
   maxSlots,
 
   planets,
@@ -154,6 +160,8 @@ export function PlanetDetailModal({
 
 
 
+  const gramBalance = (tonBalance || 0) + (depositBalance || 0);
+
   const livePlanet = planets.find((p) => p.id === planet.id) ?? planet;
 
 
@@ -164,7 +172,7 @@ export function PlanetDetailModal({
 
   const rgb = hexToRgb(accent);
 
-  const durability = livePlanet.durability ?? 100;
+  const durability = 100;
 
   const isListed = livePlanet.isListedInMarket;
 
@@ -303,9 +311,9 @@ export function PlanetDetailModal({
 
   const primaryDisabled = durability <= 0 || isListed || (active && !expired);
 
-  const slotsFull = planets.filter((p) => !p.isListedInMarket).length >= maxSlots;
+  const slotsFull = farmSlotUsedCount(planets) >= maxSlots;
 
-  const pvpEligible = !livePlanet.isFarmingActive && !isListed && livePlanet.slotIndex == null && !slotsFull && !!telegramId;
+  const pvpEligible = !isListed && livePlanet.slotIndex == null && !slotsFull && !!telegramId;
 
   const canUpgradeCycle = !!onUpgradeDuration
 
@@ -641,7 +649,7 @@ export function PlanetDetailModal({
 
               type="button"
 
-              disabled={upgrading || tonBalance < nextCycleCost!}
+              disabled={upgrading || gramBalance < nextCycleCost!}
 
               onClick={handleUpgradeCycle}
 
@@ -657,13 +665,13 @@ export function PlanetDetailModal({
 
                 border: `1px solid rgba(${rgb},0.35)`,
 
-                background: tonBalance >= nextCycleCost!
+                background: gramBalance >= nextCycleCost!
 
                   ? `rgba(${rgb},0.14)`
 
                   : "rgba(255,255,255,0.03)",
 
-                color: tonBalance >= nextCycleCost! ? accent : "rgba(255,255,255,0.35)",
+                color: gramBalance >= nextCycleCost! ? accent : "rgba(255,255,255,0.35)",
 
                 fontSize: 13,
 
@@ -671,7 +679,7 @@ export function PlanetDetailModal({
 
                 letterSpacing: "0.04em",
 
-                cursor: upgrading || tonBalance < nextCycleCost! ? "not-allowed" : "pointer",
+                cursor: upgrading || gramBalance < nextCycleCost! ? "not-allowed" : "pointer",
 
                 opacity: upgrading ? 0.6 : 1,
 
@@ -683,7 +691,7 @@ export function PlanetDetailModal({
 
                 ? "…"
 
-                : `${nextCycleTier}h · ${nextCycleCost} TON`}
+                : `${nextCycleTier}h · ${nextCycleCost} GRAM`}
 
             </button>
 

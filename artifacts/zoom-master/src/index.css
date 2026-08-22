@@ -2984,19 +2984,7 @@ body.animations-paused * {
   --earn-panel: rgba(10, 16, 28, 0.55);
   --earn-line: rgba(158, 197, 232, 0.2);
   position: relative;
-  isolation: isolate;
-}
-.earn-page::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 280px;
-  pointer-events: none;
-  z-index: 0;
-  background:
-    radial-gradient(120% 80% at 50% -10%, rgba(158, 197, 232, 0.22), transparent 60%),
-    radial-gradient(70% 50% at 90% 20%, rgba(255, 215, 64, 0.08), transparent 55%),
-    radial-gradient(60% 40% at 10% 30%, rgba(122, 158, 200, 0.1), transparent 50%);
+  background: transparent;
 }
 .earn-page > * { position: relative; z-index: 1; }
 

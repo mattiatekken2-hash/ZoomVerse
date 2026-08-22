@@ -10,9 +10,11 @@ import {
   declineBattle,
   calcWinProbability,
   getRarityWeight,
+  type PlanetEntry,
 } from "../lib/pvpEngine";
 import { db, usersTable } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
+import { isLabForgeGeneratorPlanet } from "@workspace/game-models";
 
 const router: IRouter = Router();
 
@@ -59,6 +61,7 @@ router.post("/pvp/queue", async (req, res) => {
         planetsJson: usersTable.planetsJson,
         username: usersTable.username,
         firstName: usersTable.firstName,
+        bonusSlots: usersTable.bonusSlots,
       })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
@@ -81,36 +84,55 @@ router.post("/pvp/queue", async (req, res) => {
       return;
     }
 
-    // Check eligibility: not farming, not listed, not already in PvP
-    const isFarming = planet["isFarmingActive"] === true;
+    // Eligible: not listed, not in a collection slot. Farming models are allowed.
+    // Winner takes the opponent's model, so the challenger needs a free farm slot.
     const isListed = planet["isListedInMarket"] === true;
     const hasSlot = planet["slotIndex"] != null;
 
-    if (isFarming || isListed || hasSlot) {
+    if (isListed || hasSlot) {
       res.status(409).json({
         ok: false,
         error: "NOT_ELIGIBLE",
-        reason: isFarming ? "FARMING" : isListed ? "LISTED" : "IN_SLOT",
+        reason: isListed ? "LISTED" : "IN_SLOT",
       });
       return;
     }
 
-    // Server-authoritative: use the actual planet data from DB, not the client payload
-    const serverPlanetName = String(planet["name"] ?? "BASIC");
-    const serverPlanetRarity = String(planet["name"] ?? "BASIC");
-    const serverPlanetRate = Number(planet["rate"] ?? 0);
-    const serverPlanetFloat = typeof planet["float"] === "number" ? planet["float"] : null;
-    const displayUsername = String(user.username || user.firstName || "Player");
-    const entry = enterQueue(telegramId, {
-      id: planetId,
-      name: serverPlanetName,
-      rarity: serverPlanetRarity,
-      rate: serverPlanetRate,
-      float: serverPlanetFloat,
-    }, displayUsername);
+    const maxSlots = 2 + Math.max(0, Number(user.bonusSlots) || 0);
+    const usedSlots = planets.filter((p) => (
+      p && typeof p === "object"
+      && p["isListedInMarket"] !== true
+      && isLabForgeGeneratorPlanet({
+        shapeId: typeof p["shapeId"] === "string" ? p["shapeId"] : null,
+        displayName: typeof p["displayName"] === "string" ? p["displayName"] : null,
+      })
+    )).length;
+    if (usedSlots >= maxSlots) {
+      res.status(409).json({ ok: false, error: "SLOTS_FULL" });
+      return;
+    }
 
-    if (entry.battle) {
-      const b = entry.battle;
+    // Server-authoritative: use the actual planet data from DB, not the client payload
+    const entry: PlanetEntry = {
+      id: planetId,
+      name: String(planet["name"] ?? "BASIC"),
+      rarity: String(planet["name"] ?? "BASIC"),
+      rate: Number(planet["rate"] ?? 0),
+      float: typeof planet["float"] === "number" ? planet["float"] : null,
+      shapeId: typeof planet["shapeId"] === "string" ? planet["shapeId"] : undefined,
+      displayName: typeof planet["displayName"] === "string" ? planet["displayName"] : undefined,
+      color: typeof planet["color"] === "string" ? planet["color"] : undefined,
+      glowColor: typeof planet["glowColor"] === "string" ? planet["glowColor"] : undefined,
+    };
+    const displayUsername = String(user.username || user.firstName || "Player");
+    const queued = enterQueue(telegramId, entry, displayUsername);
+    if (!queued.ok) {
+      res.status(409).json({ ok: false, error: queued.error || "QUEUE_FAILED" });
+      return;
+    }
+
+    if (queued.battle) {
+      const b = queued.battle;
       res.json({
         ok: true,
         status: "match",

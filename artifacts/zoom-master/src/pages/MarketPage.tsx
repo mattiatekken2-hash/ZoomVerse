@@ -2,13 +2,16 @@ import { useState, useEffect, useMemo } from "react";
 import { MarketPlanetCard, type MarketPlanetListingView } from "../components/MarketPlanetCard";
 import { MyMarketListingsWidget } from "../components/MyMarketListingsWidget";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
-import { buyFromMarket, shareListing, openMarketActivityStream, type MarketSale } from "../utils/api";
-import { useGlobalStore, pushMarketSale, refreshMarketListings } from "../store/globalStore";
+import { buyFromMarket, shareListing, openMarketActivityStream, fetchMyMarketListings, type MarketSale, type ServerMarketListing } from "../utils/api";
+import { useGlobalStore, pushMarketSale, refreshMarketListings, upsertMarketListing } from "../store/globalStore";
+import { isPlanetBurned } from "../utils/removedPlanets";
 import { getPlanetDisplayName, deterministicNameFromId } from "../utils/planetNames";
 import { useT } from "../i18n/LanguageContext";
 import {
   labMarketPathForPlanet,
+  labModelDisplayName,
   parseMarketPriceCurrency,
+  resolveLabShapeIdFromPlanet,
   type LabMarketPath,
 } from "@workspace/game-models";
 
@@ -41,6 +44,8 @@ interface MarketPageProps {
   focusListingId?: number | null;
   onFocusConsumed?: () => void;
   visible?: boolean;
+  /** Bumped after SELL so Listings + All open on the new card. */
+  revealKey?: number;
 }
 
 interface Toast { text: string; ok: boolean }
@@ -50,6 +55,40 @@ const FILTERS: { id: MarketFilter; label: string; hint: string }[] = [
   { id: "zoom", label: "$ZOOM", hint: "Farm ZOOM" },
   { id: "stardust", label: "★ Stardust", hint: "Farm ★" },
 ];
+
+function sameTelegram(a?: string | null, b?: string | null): boolean {
+  const x = String(a ?? "").trim();
+  const y = String(b ?? "").trim();
+  return x.length > 0 && x === y;
+}
+
+function classifyListing(
+  raw: {
+    shapeId?: string | null;
+    displayName?: string | null;
+    rate?: number | string | null;
+  },
+  local?: Planet,
+): { shapeId: string | null; displayName: string; rate: number; marketPath: LabMarketPath } {
+  const shapeId = resolveLabShapeIdFromPlanet({
+    shapeId: raw.shapeId || local?.shapeId,
+    displayName: raw.displayName || local?.displayName,
+  }) ?? raw.shapeId ?? local?.shapeId ?? null;
+  const displayName = (
+    labModelDisplayName({ shapeId, displayName: raw.displayName || local?.displayName })
+    || raw.displayName
+    || local?.displayName
+    || (local ? getPlanetDisplayName(local) : "")
+    || ""
+  ).trim();
+  const rate = Number(raw.rate ?? local?.rate ?? 0);
+  return {
+    shapeId,
+    displayName: displayName || (local ? getPlanetDisplayName(local) : "Model"),
+    rate: Number.isFinite(rate) ? rate : 0,
+    marketPath: labMarketPathForPlanet({ shapeId, displayName, rate }),
+  };
+}
 
 export function MarketPage({
   depositBalance,
@@ -65,6 +104,7 @@ export function MarketPage({
   focusListingId,
   onFocusConsumed,
   visible = true,
+  revealKey = 0,
 }: MarketPageProps) {
   const { t } = useT();
   const [filter, setFilter] = useState<MarketFilter>("all");
@@ -72,11 +112,12 @@ export function MarketPage({
   const serverListings = useGlobalStore((s) => s.marketListings);
   const sales = useGlobalStore((s) => s.marketSales);
   const initialized = useGlobalStore((s) => s.initialized);
-  const loading = !initialized && serverListings.length === 0;
   const [tab, setTab] = useState<"listings" | "mine" | "activity">("listings");
   const [pulseId, setPulseId] = useState<number | null>(null);
   const [sharingId, setSharingId] = useState<number | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
+  const [myServerListings, setMyServerListings] = useState<ServerMarketListing[]>([]);
+  const loading = !initialized && serverListings.length === 0 && myServerListings.length === 0;
 
   const showToast = (text: string, ok: boolean) => {
     setToast({ text, ok });
@@ -113,92 +154,152 @@ export function MarketPage({
   }, [focusListingId]);
 
   useEffect(() => {
+    if (!revealKey) return;
+    setTab("listings");
+    setFilter("all");
+    const newest = [...myListings]
+      .filter((p) => p.isListedInMarket)
+      .sort((a, b) => (b.marketListedAt ?? 0) - (a.marketListedAt ?? 0))[0];
+    if (!newest) return;
+    let cancelled = false;
+    const tryScroll = (attempt: number) => {
+      if (cancelled) return;
+      const el = document.querySelector(`[data-testid="listing-${newest.id}"]`)
+        || (newest.serverListingId != null
+          ? document.getElementById(`listing-card-${newest.serverListingId}`)
+          : null);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      else if (attempt < 12) setTimeout(() => tryScroll(attempt + 1), 200);
+    };
+    tryScroll(0);
+    return () => { cancelled = true; };
+    // Newest listed planet is already in this render's myListings.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealKey]);
+
+  useEffect(() => {
+    if (!visible || !telegramId) return;
+    let cancelled = false;
+    const loadMine = async () => {
+      const mine = await fetchMyMarketListings(telegramId);
+      if (cancelled) return;
+      setMyServerListings(mine);
+      for (const row of mine) upsertMarketListing(row);
+    };
+    void loadMine();
+    const timer = window.setInterval(() => { void loadMine(); }, 8000);
+    const onRefresh = () => { void loadMine(); };
+    window.addEventListener("zoom-data-refresh", onRefresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener("zoom-data-refresh", onRefresh);
+    };
+  }, [visible, telegramId, revealKey]);
+
+  useEffect(() => {
     if (!visible) return;
-    void refreshMarketListings();
+    void refreshMarketListings(telegramId);
     const close = openMarketActivityStream((sale) => {
       pushMarketSale(sale);
       setPulseId(sale.id);
       setTimeout(() => setPulseId((id) => (id === sale.id ? null : id)), 2200);
     });
     return () => { close(); };
-  }, [visible]);
+  }, [visible, telegramId]);
 
   const allDisplayListings = useMemo(() => {
-    const localServerIdMap = Object.fromEntries(
-      myListings
-        .filter((p) => p.isListedInMarket && typeof p.serverListingId === "number")
-        .map((p) => [p.id, p.serverListingId as number]),
-    );
+    const localByPlanet = new Map(myListings.map((p) => [p.id, p]));
+    const listedPlanets = myListings.filter((p) => p.isListedInMarket);
+    const views: MarketPlanetListingView[] = [];
+    const seenServer = new Set<number>();
+    const seenPlanet = new Set<string>();
 
-    const userListings: MarketPlanetListingView[] = myListings
-      .filter((p) => p.isListedInMarket && p.marketPrice)
-      .map((p) => ({
-        id: p.id,
-        price: p.marketPrice!,
-        seller: "you",
-        rate: p.rate,
-        isOwn: true,
-        serverId: localServerIdMap[p.id],
-        displayName: p.displayName || getPlanetDisplayName(p),
-        farmDurationHours: (p.farmDurationHours ?? 1) > 1 ? p.farmDurationHours : null,
+    const pushFromServer = (l: ServerMarketListing, forceOwn: boolean) => {
+      if (l.kind === "equipment" || l.kind === "item") return;
+      if (l.planetId && isPlanetBurned(telegramId, l.planetId)) return;
+      const id = Number(l.id);
+      if (!Number.isFinite(id) || seenServer.has(id)) return;
+      if (l.planetId && seenPlanet.has(l.planetId)) return;
+      const local = (l.planetId ? localByPlanet.get(l.planetId) : undefined)
+        ?? myListings.find((p) => p.serverListingId === id);
+      const isOwn = forceOwn
+        || sameTelegram(l.sellerTelegramId, telegramId)
+        || !!local
+        || listedPlanets.some((p) => p.id === l.planetId);
+      const classified = classifyListing({
+        shapeId: l.shapeId ?? local?.shapeId ?? null,
+        displayName: l.planetDisplayName ?? local?.displayName ?? null,
+        rate: l.planetRate ?? local?.rate ?? 0,
+      }, local);
+      seenServer.add(id);
+      if (l.planetId) seenPlanet.add(l.planetId);
+      views.push({
+        id: isOwn ? `server-own-${id}` : `server-${id}`,
+        price: l.price,
+        seller: isOwn ? "you" : (l.sellerName || `Player ${String(l.sellerTelegramId || "").slice(-4)}`),
+        rate: classified.rate,
+        isOwn,
+        serverId: id,
+        displayName: classified.displayName
+          || l.planetDisplayName
+          || deterministicNameFromId(l.planetId || `listing-${id}`),
+        farmDurationHours: (l.planetFarmDurationHours ?? 1) > 1 ? l.planetFarmDurationHours : null,
+        shapeId: classified.shapeId,
+        planetType: l.planetType,
+        priceCurrency: parseMarketPriceCurrency(l.priceCurrency),
+        marketPath: classified.marketPath,
+        planetId: l.planetId ?? local?.id ?? null,
+      });
+    };
+
+    for (const row of myServerListings) pushFromServer(row, true);
+
+    for (const p of listedPlanets) {
+      if (seenPlanet.has(p.id)) continue;
+      if (typeof p.serverListingId === "number" && seenServer.has(p.serverListingId)) continue;
+      const classified = classifyListing({
         shapeId: p.shapeId ?? null,
+        displayName: p.displayName || getPlanetDisplayName(p),
+        rate: p.rate,
+      }, p);
+      seenPlanet.add(p.id);
+      if (typeof p.serverListingId === "number") seenServer.add(p.serverListingId);
+      views.push({
+        id: p.id,
+        price: p.marketPrice ?? 0,
+        seller: "you",
+        rate: classified.rate,
+        isOwn: true,
+        serverId: typeof p.serverListingId === "number" && p.serverListingId > 0 ? p.serverListingId : undefined,
+        displayName: classified.displayName,
+        farmDurationHours: (p.farmDurationHours ?? 1) > 1 ? p.farmDurationHours : null,
+        shapeId: classified.shapeId,
         planetType: p.name,
         priceCurrency: p.marketCurrency ?? "gram",
-      }));
+        marketPath: classified.marketPath,
+        planetId: p.id,
+      });
+    }
 
-    const ownLocalServerIds = new Set(
-      userListings.map((l) => l.serverId).filter((id): id is number => typeof id === "number"),
-    );
+    for (const row of serverListings) pushFromServer(row, false);
 
-    // Also surface the seller's own active shelf rows from the server feed
-    // (covers races where local shapeId/list flag hasn't caught up yet).
-    const ownFromServer: MarketPlanetListingView[] = serverListings
-      .filter((l) => l.kind !== "equipment" && l.kind !== "item")
-      .filter((l) => l.sellerTelegramId === telegramId)
-      .filter((l) => !ownLocalServerIds.has(l.id))
-      .map((l) => ({
-        id: `server-own-${l.id}`,
-        price: l.price,
-        seller: "you",
-        rate: l.planetRate ?? 0,
-        isOwn: true,
-        serverId: l.id,
-        displayName: l.planetDisplayName
-          ?? deterministicNameFromId(l.planetId || `listing-${l.id}`),
-        farmDurationHours: (l.planetFarmDurationHours ?? 1) > 1 ? l.planetFarmDurationHours : null,
-        shapeId: l.shapeId ?? null,
-        planetType: l.planetType,
-        priceCurrency: parseMarketPriceCurrency(l.priceCurrency),
-      }));
-
-    const others: MarketPlanetListingView[] = serverListings
-      .filter((l) => l.kind !== "equipment" && l.kind !== "item")
-      .filter((l) => l.sellerTelegramId !== telegramId)
-      .map((l) => ({
-        id: `server-${l.id}`,
-        price: l.price,
-        seller: l.sellerName || `Player ${l.sellerTelegramId.slice(-4)}`,
-        rate: l.planetRate ?? 0,
-        isOwn: false,
-        serverId: l.id,
-        displayName: l.planetDisplayName
-          ?? deterministicNameFromId(l.planetId || `listing-${l.id}`),
-        farmDurationHours: (l.planetFarmDurationHours ?? 1) > 1 ? l.planetFarmDurationHours : null,
-        shapeId: l.shapeId ?? null,
-        planetType: l.planetType,
-        priceCurrency: parseMarketPriceCurrency(l.priceCurrency),
-      }));
-
-    return [...userListings, ...ownFromServer, ...others];
-  }, [myListings, serverListings, telegramId]);
+    return views;
+  }, [myListings, serverListings, myServerListings, telegramId]);
 
   const filtered = useMemo(() => {
     if (filter === "all") return allDisplayListings;
-    return allDisplayListings.filter((l) => labMarketPathForPlanet({
-      shapeId: l.shapeId,
-      displayName: l.displayName,
-      rate: l.rate,
-    }) === filter);
+    return allDisplayListings.filter((l) => {
+      const path = l.marketPath ?? labMarketPathForPlanet({
+        shapeId: resolveLabShapeIdFromPlanet({
+          shapeId: l.shapeId,
+          displayName: l.displayName,
+        }) ?? l.shapeId,
+        displayName: l.displayName,
+        rate: l.rate,
+      });
+      return path === filter;
+    });
   }, [allDisplayListings, filter]);
 
   const handleBuyServer = async (
@@ -433,7 +534,16 @@ export function MarketPage({
                         } as MarketListing);
                       }
                     }}
-                    onUnlist={undefined}
+                    onUnlist={
+                      listing.isOwn
+                        ? () => {
+                            const planetId = listing.planetId
+                              || myListings.find((p) => p.serverListingId === listing.serverId)?.id
+                              || myListings.find((p) => p.id === listing.id)?.id;
+                            if (planetId) onUnlist(planetId);
+                          }
+                        : undefined
+                    }
                     onShare={
                       listing.serverId != null && listing.isOwn
                         ? () => handleShare(listing.serverId as number)

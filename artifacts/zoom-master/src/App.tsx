@@ -141,6 +141,7 @@ function AppShellWithState() {
   // via a `mkt_<listingId>` start_param, jump straight to the Market tab and
   // pass the listing's server id down so MarketPage scrolls to + highlights it.
   const [marketFocusId, setMarketFocusId] = useState<number | null>(null);
+  const [marketRevealKey, setMarketRevealKey] = useState(0);
   useEffect(() => {
     try {
       let sp = (window as unknown as {
@@ -182,7 +183,7 @@ function AppShellWithState() {
   const {
     state, setState, craft, beginLabForge, skipForge, claimCraft, redeemCode,
     pvpAddPlanet, pvpRemovePlanet,
-    collectPlanet, burnPlanet, renamePlanetLocal,
+    collectPlanet, burnPlanet,
     startFarming, stopFarming, repairPlanet, upgradePlanetFarmDuration, upgradeSunFarmDuration, upgradeCollectionFarmDuration,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     claimDaily, startSunFarming, stopSunFarming, burnSun, unlockSlot,
@@ -855,7 +856,11 @@ function AppShellWithState() {
                   onStartSunFarming={startSunFarming}
                   onStopSunFarming={stopSunFarming}
                   onBurnSun={burnSun}
-                  onSell={listPlanet}
+                  onSell={(id, price, currency) => {
+                    listPlanet(id, price, currency);
+                    setMarketRevealKey((n) => n + 1);
+                    setTab("market");
+                  }}
                   onUnlist={unlistPlanet}
                   onRepair={repairPlanet}
                   stardustBalance={stardust.balance}
@@ -926,18 +931,6 @@ function AppShellWithState() {
                       state.craftsCompleted ?? 0,
                     );
                   }}
-                  onRename={(planetId, displayName, _newStardustBalance) => {
-                    // Patch the planet in local state — the debounced
-                    // /regular-planets/save will mirror it to the server.
-                    renamePlanetLocal(planetId, displayName);
-                    // Pull the fresh stardust balance from the server so
-                    // the top-bar counter immediately shows the post-debit
-                    // value (the rename endpoint also returned the new
-                    // balance, but a refresh keeps everything in lockstep
-                    // with any other stardust spend that may have raced).
-                    void _newStardustBalance;
-                    void stardust.refresh();
-                  }}
                 />
               )}
               {t === "market" && (
@@ -959,6 +952,7 @@ function AppShellWithState() {
                   onUnlistItem={unlistItem}
                   focusListingId={marketFocusId}
                   onFocusConsumed={() => setMarketFocusId(null)}
+                  revealKey={marketRevealKey}
                 />
               )}
               {t === "earn" && (
@@ -1241,7 +1235,20 @@ function AppShellWithState() {
       </nav>
       )}
       {studioOpen && state.telegramId && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 90, background: "#000" }}>
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 90,
+            background: "#000",
+            boxSizing: "border-box",
+            display: "flex",
+            flexDirection: "column",
+            paddingTop: `calc(env(safe-area-inset-top, 0px) + ${tgSafeTop}px)`,
+            paddingBottom: "env(safe-area-inset-bottom, 0px)",
+            overflow: "hidden",
+          }}
+        >
           <VoxelStudioPage
             telegramId={state.telegramId}
             stardustBalance={state.stardustBalance || 0}

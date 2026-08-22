@@ -38,10 +38,10 @@ function mixHex(hex: string, target: { r: number; g: number; b: number }, amount
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 
-function buildPathSegments(): PathSegment[] {
+function buildPathSegments(zoomLabel = "$ZOOM", stardustLabel = "★ STARDUST"): PathSegment[] {
   const entries: { path: LabForgePath; label: string; color: string }[] = [
-    { path: "zoom", label: "$ZOOM", color: "#7bed9f" },
-    { path: "stardust", label: "★ STARDUST", color: "#ffd740" },
+    { path: "zoom", label: zoomLabel, color: "#7bed9f" },
+    { path: "stardust", label: stardustLabel, color: "#ffd740" },
   ];
   const span = 360 / entries.length;
   const phaseOffset = -span / 2;
@@ -88,15 +88,22 @@ interface Props {
   targetPath: LabForgePath;
   onComplete: () => void;
   size?: number;
+  zoomLabel?: string;
+  stardustLabel?: string;
 }
 
 export const ForgePathWheel = memo(function ForgePathWheel({
   targetPath,
   onComplete,
   size = 340,
+  zoomLabel,
+  stardustLabel,
 }: Props) {
   const { t } = useT();
-  const segments = useMemo(() => buildPathSegments(), []);
+  const segments = useMemo(
+    () => buildPathSegments(zoomLabel, stardustLabel),
+    [zoomLabel, stardustLabel],
+  );
   const [rotation, setRotation] = useState(0);
   const [spinning, setSpinning] = useState(false);
   const [landed, setLanded] = useState(false);

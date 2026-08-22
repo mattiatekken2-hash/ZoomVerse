@@ -183,7 +183,7 @@ function asPlanetArray(raw: unknown): Array<Record<string, unknown>> {
 
 /**
  * Permanently upgrade a planet's farm duration (stored in planetsJson).
- * Charges the GRAM cost from the user's ton_balance deposit balance.
+ * Charges GRAM from deposit first, then earned (ton_balance).
  * The upgrade persists even when the planet is listed/sold on the market.
  */
 router.post("/farm/upgrade-duration", async (req, res) => {
@@ -203,13 +203,14 @@ router.post("/farm/upgrade-duration", async (req, res) => {
   try {
     const result = await db.transaction(async (tx) => {
       const rows = await tx.execute(sql`
-        SELECT ton_balance, planets_json FROM users WHERE telegram_id = ${telegramId} FOR UPDATE
+        SELECT ton_balance, deposit_balance, planets_json FROM users WHERE telegram_id = ${telegramId} FOR UPDATE
       `);
       const row = (rows as unknown as { rows: Array<Record<string, unknown>> }).rows[0];
       if (!row) return { ok: false, error: "User not found" };
 
       const tonBalance = Number(row["ton_balance"] ?? 0);
-      if (tonBalance < cost) return { ok: false, error: "Insufficient GRAM balance" };
+      const depositBalance = Number(row["deposit_balance"] ?? 0);
+      if (depositBalance + tonBalance < cost) return { ok: false, error: "Insufficient GRAM balance" };
 
       const planets = asPlanetArray(row["planets_json"]);
       const idx = planets.findIndex((p) => String(p["id"] ?? "") === planetId);
@@ -225,16 +226,24 @@ router.post("/farm/upgrade-duration", async (req, res) => {
         return { ok: false, error: "Planet not found" };
       }
 
+      const fromDeposit = Math.min(depositBalance, cost);
+      const fromEarned = +(cost - fromDeposit).toFixed(6);
+
       await tx.execute(sql`
         UPDATE users
-           SET ton_balance    = ton_balance - ${cost},
-               balance_epoch  = balance_epoch + 1,
-               planets_json   = ${JSON.stringify(planets)}::jsonb
+           SET deposit_balance = deposit_balance - ${fromDeposit},
+               ton_balance     = ton_balance - ${fromEarned},
+               balance_epoch   = balance_epoch + 1,
+               planets_json    = ${JSON.stringify(planets)}::jsonb
          WHERE telegram_id = ${telegramId}
-           AND ton_balance  >= ${cost}
+           AND (deposit_balance + ton_balance) >= ${cost}
       `);
 
-      return { ok: true, newTonBalance: tonBalance - cost };
+      return {
+        ok: true,
+        newTonBalance: +(tonBalance - fromEarned).toFixed(6),
+        newDepositBalance: +(depositBalance - fromDeposit).toFixed(6),
+      };
     });
 
     res.json(result);

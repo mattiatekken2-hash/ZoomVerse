@@ -1,7 +1,6 @@
 import type { Planet } from "../hooks/useGameState";
 import { getPlanetDisplayColors } from "../hooks/useGameState";
-import { isLabStardustShapeId, isLabZoomShapeId, LAB_ZOOM_DISPLAY_NAME } from "@workspace/game-models";
-import { labStardustDisplayNameFor } from "../utils/labForgeShape";
+import { labModelDisplayName, isLabStardustShapeId } from "@workspace/game-models";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 
@@ -14,13 +13,7 @@ interface LabModelRevealCardProps {
 export function LabModelRevealCard({ planet, pathLabel }: LabModelRevealCardProps) {
   const colors = getPlanetDisplayColors(planet);
   const shapeId = planet.shapeId ?? "";
-  const economyTitle = isLabZoomShapeId(shapeId)
-    ? LAB_ZOOM_DISPLAY_NAME[shapeId]
-    : labStardustDisplayNameFor(shapeId);
-  const explicit = (planet.displayName ?? "").trim();
-  const title = explicit === "Street Scene" && economyTitle
-    ? economyTitle
-    : explicit || economyTitle || pathLabel;
+  const title = labModelDisplayName(planet) || planet.displayName || pathLabel;
   const isStardust = isLabStardustShapeId(shapeId);
   const rateUnit = isStardust ? "★" : "$ZOOM";
   const rateValue = planet.rate >= 1

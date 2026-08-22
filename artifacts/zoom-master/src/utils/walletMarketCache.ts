@@ -48,6 +48,23 @@ export function readWalletMarketCacheForDisplay(): WalletMarketCache {
   };
 }
 
+/**
+ * Push a live ZOOM quote into the wallet cache so the unit price and
+ * holdings value track the chart without waiting for the next prefetch.
+ */
+export function publishWalletZoomPrice(price: number, chartPrices?: number[]) {
+  if (!Number.isFinite(price) || price <= 0) return;
+  const series = (chartPrices ?? [])
+    .filter((v): v is number => Number.isFinite(v) && v > 0);
+  if (series.length >= 1) series.push(price);
+  writeWalletMarketCache({
+    zoomPriceGram: price,
+    zoomChange24hPct: series.length >= 2
+      ? chartSeriesChangePct(series)
+      : readWalletMarketCacheForDisplay().zoomChange24hPct,
+  });
+}
+
 function writeWalletMarketCache(partial: Partial<WalletMarketCache>) {
   const prev = readWalletMarketCacheForDisplay();
   const next: WalletMarketCache = {
@@ -70,7 +87,7 @@ export function subscribeWalletMarketCache(onUpdate: () => void): () => void {
 }
 
 let prefetchInFlight: Promise<void> | null = null;
-const PREFETCH_MIN_MS = 5_000;
+const PREFETCH_MIN_MS = 1_000;
 
 /** Fetch TON + ZOOM + Stardust indices + chart % in parallel and cache for the wallet. */
 export async function prefetchWalletMarket(): Promise<void> {

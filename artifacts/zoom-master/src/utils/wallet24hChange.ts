@@ -79,13 +79,14 @@ export function chartIconScale(_changePct?: number | null): number {
 }
 
 /**
- * Live ZOOM price in GRAM. Genesis is 0.000001 — show enough decimals to
- * reveal bumps, but cap at 9 so the wallet under-icon stays readable
- * (12 dp overflowed the row).
+ * Live ZOOM price in GRAM. Wallet under-icon uses a fixed 8dp so ticks
+ * match the chart instead of collapsing to a frozen 0.000001.
  */
-export function formatZoomChartPrice(p: number | null | undefined): string {
+export function formatZoomChartPrice(p: number | null | undefined, compact = false): string {
   if (p == null || !Number.isFinite(p) || p <= 0) return "—";
-  if (p < 0.001) return p.toPrecision(2).replace(/e\+?/, "e");
+  if (p < 0.0001) {
+    return p.toFixed(compact ? 8 : 10);
+  }
   if (p < 1) return p.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
   return p.toFixed(2);
 }

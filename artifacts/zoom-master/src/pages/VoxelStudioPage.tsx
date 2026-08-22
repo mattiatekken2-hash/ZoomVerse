@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FORGE_CLAY } from "@workspace/game-models";
 import { VoxelStudioCanvas } from "../components/VoxelStudioCanvas";
 import { LabSpaceBackground } from "../components/LabSpaceBackground";
+import { useT } from "../i18n/LanguageContext";
 import {
   buyVoxelStudioSlot,
   createStudioProject,
@@ -31,7 +33,21 @@ function formatDate(ms: number) {
   }
 }
 
+const STUDIO_PALETTE = [
+  FORGE_CLAY,
+  0xffffff,
+  0x1a1a1e,
+  0xe53935,
+  0xff8c00,
+  0xffd740,
+  0x43a047,
+  0x1e88e5,
+  0x26c6da,
+  0x8e24aa,
+] as const;
+
 export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedProjectId, onClose, onStardustSpent }: Props) {
+  const { t } = useT();
   const [state, setState] = useState<VoxelStudioState>({ extraSlots: 0, projects: [] });
   const [activeId, setActiveId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -39,12 +55,22 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
   const [ready, setReady] = useState(false);
   const [nameOpen, setNameOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
-  const [stagePx, setStagePx] = useState(280);
-  const stageHostRef = useRef<HTMLDivElement>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paintColor, setPaintColor] = useState<number | null>(null);
 
   const persist = useCallback((next: VoxelStudioState) => {
     setState(next);
     void saveVoxelStudio(telegramId, next);
+  }, [telegramId]);
+
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const readyRef = useRef(ready);
+  readyRef.current = ready;
+
+  const persistNow = useCallback(async () => {
+    if (!readyRef.current) return;
+    await saveVoxelStudio(telegramId, stateRef.current);
   }, [telegramId]);
 
   const flash = (text: string) => {
@@ -87,19 +113,22 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
     return () => { cancelled = true; };
   }, [telegramId, seedTitle, seedProjectId, createAndOpen]);
 
-  useLayoutEffect(() => {
-    const el = stageHostRef.current;
-    if (!el) return;
-    const apply = () => {
-      const w = el.clientWidth;
-      const h = el.clientHeight;
-      setStagePx(Math.max(200, Math.round(Math.min(w, h))));
+  useEffect(() => {
+    const flush = () => {
+      if (!readyRef.current) return;
+      void saveVoxelStudio(telegramId, stateRef.current);
     };
-    apply();
-    const ro = new ResizeObserver(apply);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [ready, activeId]);
+    const onHide = () => { if (document.hidden) flush(); };
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", flush);
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+      document.removeEventListener("visibilitychange", onHide);
+      flush();
+    };
+  }, [telegramId]);
 
   const slots = studioSlotCount(state);
   const active = state.projects.find((p) => p.id === activeId) ?? null;
@@ -122,6 +151,13 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
     const idx = active.voxels.findIndex((x) => x.x === v.x && x.y === v.y && x.z === v.z);
     if (idx < 0) return;
     patchActive(active.voxels.filter((_, i) => i !== idx));
+  };
+
+  const handlePaint = (v: VoxelCoord) => {
+    if (!active || paintColor == null) return;
+    patchActive(active.voxels.map((x) => (
+      x.x === v.x && x.y === v.y && x.z === v.z ? { ...x, color: paintColor } : x
+    )));
   };
 
   const handleUndo = () => {
@@ -166,6 +202,7 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
       style={{
         position: "relative",
         height: "100%",
+        flex: 1,
         minHeight: 0,
         background: "#000",
       }}
@@ -174,33 +211,109 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
       <div className="relative z-10 flex flex-col h-full min-h-0">
         <header
           className="flex-shrink-0 px-3 pb-2 flex items-center gap-2"
-          style={{ paddingTop: "max(10px, env(safe-area-inset-top, 0px))" }}
+          style={{
+            paddingTop: 10,
+            position: "relative",
+            zIndex: 20,
+          }}
         >
           <button
             type="button"
-            onClick={onClose}
-            className="px-3 py-2 rounded-xl text-[11px] font-black uppercase"
-            style={{ background: "rgba(0,0,0,0.55)", color: "#fff", border: "1px solid rgba(255,255,255,0.16)" }}
+            onClick={() => {
+              void (async () => {
+                await persistNow();
+                onClose();
+              })();
+            }}
+            aria-label={t("common.close")}
+            className="px-3 rounded-xl text-[11px] font-black uppercase"
+            style={{
+              minHeight: 44,
+              minWidth: 44,
+              background: "rgba(0,0,0,0.55)",
+              color: "#fff",
+              border: "1px solid rgba(255,255,255,0.16)",
+            }}
           >
-            Back
+            {t("common.close")}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void persistNow().then(() => flash("Saved"));
+            }}
+            className="px-3 rounded-xl text-[11px] font-black uppercase"
+            style={{
+              minHeight: 44,
+              background: "rgba(52,211,153,0.16)",
+              color: "#34d399",
+              border: "1px solid rgba(52,211,153,0.4)",
+            }}
+          >
+            Save
           </button>
           <div className="flex-1 min-w-0">
             <div className="font-black text-sm truncate" style={{ color: "#E8ECF4" }}>
               {active?.title || "Create your model"}
             </div>
             <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.42)" }}>
-              1 tap = 1 voxel · hold to erase · gray clay
+              {paintColor != null
+                ? "tap a voxel to paint · Build to add cubes"
+                : "1 tap = 1 voxel · hold to erase · Colors to paint"}
             </div>
           </div>
           {active && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  if (paintColor != null) {
+                    setPaintColor(null);
+                    setPaletteOpen(false);
+                  } else {
+                    setPaletteOpen((open) => !open);
+                  }
+                }}
+                className="px-3 rounded-xl text-[11px] font-black uppercase"
+                style={{
+                  minHeight: 44,
+                  background: paintColor != null ? "rgba(255,215,64,0.16)" : "rgba(0,0,0,0.55)",
+                  color: paintColor != null ? "#ffd740" : "#fff",
+                  border: paintColor != null ? "1px solid rgba(255,215,64,0.4)" : "1px solid rgba(255,255,255,0.16)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                {paintColor != null ? (
+                  <>
+                    <span
+                      style={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: 3,
+                        background: `#${paintColor.toString(16).padStart(6, "0")}`,
+                        border: "1px solid rgba(255,255,255,0.35)",
+                      }}
+                    />
+                    Build
+                  </>
+                ) : "Colors"}
+              </button>
             <button
               type="button"
               onClick={handleUndo}
-              className="px-3 py-2 rounded-xl text-[11px] font-black uppercase"
-              style={{ background: "rgba(0,0,0,0.55)", color: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.12)" }}
+              className="px-3 rounded-xl text-[11px] font-black uppercase"
+              style={{
+                minHeight: 44,
+                background: "rgba(0,0,0,0.55)",
+                color: "rgba(255,255,255,0.75)",
+                border: "1px solid rgba(255,255,255,0.12)",
+              }}
             >
               Undo
             </button>
+            </>
           )}
         </header>
 
@@ -210,14 +323,70 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
           </div>
         )}
 
-        <div
-          ref={stageHostRef}
-          className="flex-1 min-h-0 relative flex items-center justify-center"
-        >
+        <div className="flex-1 min-h-0 relative overflow-hidden">
           {ready && active ? (
-            <div style={{ width: stagePx, height: stagePx }}>
-              <VoxelStudioCanvas voxels={active.voxels} onAdd={handleAdd} onRemove={handleRemove} />
+            <>
+            <div style={{ position: "absolute", inset: 0 }}>
+              <VoxelStudioCanvas
+                voxels={active.voxels}
+                onAdd={handleAdd}
+                onRemove={handleRemove}
+                onPaint={handlePaint}
+                paintColor={paintColor}
+              />
             </div>
+            {paletteOpen && (
+              <div
+                className="absolute left-3 right-3 z-30 rounded-2xl p-3"
+                style={{
+                  bottom: 12,
+                  background: "rgba(8,10,18,0.92)",
+                  border: "1px solid rgba(255,255,255,0.16)",
+                  backdropFilter: "blur(12px)",
+                }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-[10px] font-black uppercase" style={{ color: "rgba(255,255,255,0.55)", letterSpacing: "0.12em" }}>
+                    Palette
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaintColor(null);
+                      setPaletteOpen(false);
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase"
+                    style={{ background: "rgba(255,255,255,0.08)", color: "#fff", border: "1px solid rgba(255,255,255,0.14)" }}
+                  >
+                    Build
+                  </button>
+                </div>
+                <div className="grid grid-cols-5 gap-2">
+                  {STUDIO_PALETTE.map((hex) => {
+                    const selected = paintColor === hex;
+                    return (
+                      <button
+                        key={hex}
+                        type="button"
+                        onClick={() => {
+                          setPaintColor(hex);
+                          setPaletteOpen(false);
+                        }}
+                        aria-label={`color ${hex.toString(16)}`}
+                        style={{
+                          height: 36,
+                          borderRadius: 10,
+                          background: `#${hex.toString(16).padStart(6, "0")}`,
+                          border: selected ? "2px solid #ffd740" : "1px solid rgba(255,255,255,0.28)",
+                          boxShadow: selected ? "0 0 10px rgba(255,215,64,0.45)" : "none",
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            </>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color: "rgba(255,255,255,0.4)" }}>
               {ready ? "Pick or create a slot below" : "Loading…"}

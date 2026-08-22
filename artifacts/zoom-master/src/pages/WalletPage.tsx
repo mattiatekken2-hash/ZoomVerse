@@ -19,7 +19,7 @@ import {
 } from "../utils/gramMarket";
 import { formatChangePct, formatGramValueFull, formatZoomChartPrice, formatStardustChartIndex, formatGramChartUsd } from "../utils/wallet24hChange";
 
-const LIVE_POLL_MS = 12_000;
+const LIVE_POLL_MS = 5_000;
 
 /** Lively white-sky blue for the GRAM wallet card. */
 const GRAM_CELESTE = {
@@ -35,7 +35,7 @@ const GRAM_CELESTE = {
 /** Match GramWalletIcon footprint in the GRAM card (28–32px). */
 const BALANCE_ICON_BOX = 42;
 const BALANCE_ICON_SIZE = 30;
-/** Fixed left column — icons stay on one axis; % sits left under the emoji. */
+/** Fixed left column — same width as the emoji box so values sit under the icon. */
 const BALANCE_LEFT_COL = BALANCE_ICON_BOX;
 /** Green tint for GRAM value under asset logos. */
 const GRAM_SUB_VALUE_GREEN = "#34d399";
@@ -73,7 +73,10 @@ function formatZoom(n: number): string {
 function formatUsdFromGram(gramValue: number | null, tonPrice: number | null, loading: boolean): string {
   if (loading) return "···";
   if (gramValue == null || tonPrice == null || !Number.isFinite(gramValue) || gramValue <= 0) return "—";
-  return `$${(gramValue * tonPrice).toFixed(2)}`;
+  const usd = gramValue * tonPrice;
+  if (usd < 0.01) return `$${usd.toFixed(6)}`;
+  if (usd < 1) return `$${usd.toFixed(4)}`;
+  return `$${usd.toFixed(2)}`;
 }
 
 export function WalletPage({
@@ -192,7 +195,7 @@ export function WalletPage({
     : null;
   // Under-icon: live chart unit (ZOOM micro-GRAM, Stardust index, GRAM = TON USD).
   // Icons stay fixed size — % change is text-only under the icon.
-  const zoomIconValue = formatZoomChartPrice(zoomPriceGram);
+  const zoomIconValue = formatZoomChartPrice(zoomPriceGram, true);
   const stardustIconValue = formatStardustChartIndex(stardustIndex);
   const gramIconValue = formatGramChartUsd(tonPrice);
   const redStarGramValue = redStarBalance > 0 ? redStarBalance * REDSTAR_GRAM_PER_UNIT : null;
@@ -454,7 +457,6 @@ export function WalletPage({
             changePct={zoomChangePct}
             iconSubValue={zoomIconValue}
             onClick={() => setZoomMarketOpen(true)}
-            hint={t("walletPage.zoomHint")}
             data-testid="wallet-zoom-balance"
           />
           <BalanceRow
@@ -469,7 +471,6 @@ export function WalletPage({
             changePct={stardustChangePct}
             iconSubValue={stardustIconValue}
             onClick={() => setStardustMarketOpen(true)}
-            hint={t("walletPage.stardustHint")}
           />
           <BalanceRow
             icon={<WalletStarIcon variant="redstar" size={BALANCE_ICON_SIZE} />}
@@ -689,24 +690,28 @@ function BalanceRow({
               style={{
                 display: "flex",
                 flexDirection: "column",
-                alignItems: "flex-start",
+                alignItems: "center",
                 gap: 1,
                 lineHeight: 1.15,
-                width: BALANCE_ICON_SIZE,
+                width: BALANCE_ICON_BOX,
                 marginLeft: 0,
-                overflow: "visible",
+                overflow: "hidden",
               }}
             >
               {iconSubValue && (
                 <div
+                  title={iconSubValue}
                   style={{
-                    fontSize: 8,
+                    fontSize: 6,
                     fontWeight: 700,
                     color: "rgba(255,255,255,0.55)",
                     fontVariantNumeric: "tabular-nums",
-                    textAlign: "left",
-                    letterSpacing: "0.01em",
+                    textAlign: "center",
+                    letterSpacing: "-0.03em",
                     whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    maxWidth: "100%",
                   }}
                 >
                   {iconSubValue}
@@ -723,7 +728,7 @@ function BalanceRow({
                         ? "rgba(255,100,100,0.75)"
                         : "rgba(255,255,255,0.35)",
                     fontVariantNumeric: "tabular-nums",
-                    textAlign: "left",
+                    textAlign: "center",
                     letterSpacing: "0.02em",
                     whiteSpace: "nowrap",
                   }}

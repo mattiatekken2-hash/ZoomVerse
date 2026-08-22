@@ -321,8 +321,8 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
           data-testid="lab-ton-app-vote"
           className="absolute z-30 flex items-center justify-center active:scale-95 pointer-events-auto"
           style={{
-            left: 52,
-            top: "max(56px, calc(env(safe-area-inset-top, 0px) + 50px))",
+            left: 6,
+            top: "max(102px, calc(env(safe-area-inset-top, 0px) + 96px))",
             width: 40,
             height: 40,
             borderRadius: "50%",

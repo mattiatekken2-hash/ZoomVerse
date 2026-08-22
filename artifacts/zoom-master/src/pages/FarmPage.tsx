@@ -3,10 +3,9 @@ import type { CollectibleItem } from "../utils/collectibleConfig";
 import { FarmInventoryCard } from "../components/FarmInventoryCard";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
-import { PLANET_CONFIG, isFarmActive } from "../hooks/useGameState";
+import { isFarmActive, farmSlotUsedCount } from "../hooks/useGameState";
 import { buyShopItemFromDeposit } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
-import { PlanetRenameModal } from "../components/PlanetRenameModal";
 import PvPModal from "../components/PvPModal";
 import { getPlanetDisplayName } from "../utils/planetNames";
 import { isLabForgeGeneratorPlanet, MARKET_PRICE_BOUNDS, marketPriceLabel, suggestMarketPrice, isMarketPriceInRange, type MarketPriceCurrency } from "@workspace/game-models";
@@ -30,9 +29,6 @@ interface FarmPageProps {
   onUnlist: (id: string) => void;
   onRepair?: (id: string) => { ok: boolean; reason?: string };
   stardustBalance?: number;
-  // Called after a successful rename so App can patch local state and
-  // refresh the displayed stardust balance.
-  onRename: (planetId: string, displayName: string, newStardustBalance: number) => void;
   // Collectible items inventory.
   items?: CollectibleItem[];
   onSellItem?: (itemId: string, price: number) => void;
@@ -100,7 +96,7 @@ interface SellPopup {
 export function FarmPage({
   planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId,
   onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun,
-  onSell, onUnlist, onRepair, stardustBalance = 0, onRename,
+  onSell, onUnlist, onRepair, stardustBalance = 0,
   items: _items = [], onSellItem: _onSellItem, onUnlistItem: _onUnlistItem, onFlushPlanets, tonBalance = 0,
   onUpgradeDuration, onUpgradeSunDuration,
   depositBalance = 0,
@@ -197,7 +193,6 @@ export function FarmPage({
   const [sellCurrency, setSellCurrency] = useState<MarketPriceCurrency>("gram");
   const [slotBuying, setSlotBuying] = useState(false);
   const [defectMsg, setDefectMsg] = useState<string | null>(null);
-  const [renamePlanet, setRenamePlanet] = useState<Planet | null>(null);
   const [pvpPlanet, setPvPPlanet] = useState<Planet | null>(null);
   const [detailPlanet, setDetailPlanet] = useState<Planet | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -223,14 +218,14 @@ export function FarmPage({
   };
 
   const openSellPopup = (planet: Planet) => {
-    // Safe lookup: PLANET_CONFIG covers every known rarity but we
-    // defensively fall back to the bare planet name so a future or
-    // legacy rarity that lands in `planets` (rendered through the
-    // FarmPage fallback group) cannot crash the sell popup.
-    const cfg = PLANET_CONFIG[planet.name];
     const suggested = suggestMarketPrice(planet.rate, "gram");
     setSellCurrency("gram");
-    setSellPopup({ planetId: planet.id, planetName: cfg?.label ?? planet.name, planetColor: planet.color, rate: planet.rate });
+    setSellPopup({
+      planetId: planet.id,
+      planetName: getPlanetDisplayName(planet),
+      planetColor: planet.color,
+      rate: planet.rate,
+    });
     setSellPrice(String(suggested));
     setTimeout(() => inputRef.current?.focus(), 100);
   };
@@ -394,7 +389,6 @@ export function FarmPage({
                 onCardClick={() => setDetailPlanet(planet)}
                 onStartFarm={handleStartOrReactivate}
                 onUnlist={() => onUnlist(planet.id)}
-                onRename={telegramId && !isListed ? () => setRenamePlanet(planet) : undefined}
               />
             );
           })}
@@ -586,16 +580,6 @@ export function FarmPage({
         </div>
       )}
 
-      {renamePlanet && telegramId && (
-        <PlanetRenameModal
-          planet={renamePlanet}
-          telegramId={telegramId}
-          onClose={() => setRenamePlanet(null)}
-          onRenamed={(planetId, displayName, newStardustBalance) => {
-            onRename(planetId, displayName, newStardustBalance);
-          }}
-        />
-      )}
       {/* PvP active badge — always English, visible to everyone while in queue/match */}
       {pvpPlanet && (
         <div
@@ -648,11 +632,20 @@ export function FarmPage({
           telegramId={telegramId}
           stardustBalance={stardustBalance}
           tonBalance={tonBalance}
+          depositBalance={depositBalance}
           planets={planets}
           maxSlots={maxSlots}
           onClose={() => setDetailPlanet(null)}
           onStartFarming={(id) => onStartFarming(id)}
-          onPvP={(p) => { setDetailPlanet(null); setPvPPlanet(p); }}
+          onPvP={(p) => {
+            if (farmSlotUsedCount(planets) >= maxSlots) {
+              setDefectMsg("Need a free farm slot for PvP");
+              setTimeout(() => setDefectMsg(null), 1800);
+              return;
+            }
+            setDetailPlanet(null);
+            setPvPPlanet(p);
+          }}
           onSell={(p) => { setDetailPlanet(null); openSellPopup(p); }}
           onBurn={onBurn}
           onUnlist={(id: string) => onUnlist(id)}
