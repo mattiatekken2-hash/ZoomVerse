@@ -37,6 +37,10 @@ export function preloadLabGlb(shapeId: string): Promise<THREE.Object3D> {
     );
   });
   templates.set(key, promise);
+  promise.catch(() => {
+    templates.delete(key);
+    readyKeys.delete(key);
+  });
   return promise;
 }
 

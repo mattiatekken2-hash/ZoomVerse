@@ -28,19 +28,11 @@ const PlanetRow = z
     isFarmingActive: z.boolean().optional(),
     marketPrice: z.number().nullable().optional(),
     craftCost: z.number().optional(),
-    serverListingId: z.number().int().optional(),
+    serverListingId: z.number().int().optional().nullable(),
     slotIndex: z.number().int().nullable().optional(),
-    // Optional user-chosen name from /planets/rename. Length is bounded
-    // here as a defense-in-depth check on incoming /regular-planets/save
-    // payloads; the rename endpoint itself enforces stricter rules.
-    displayName: z.string().max(64).optional(),
+    displayName: z.string().max(64).optional().nullable(),
     shapeId: z.string().max(64).optional().nullable(),
-    // CS:GO-style cosmetic perfection score in [0, 1], 3 decimals.
-    // Server uses the FIRST value it sees per planet id (server-merge
-    // below); subsequent saves can't change it. Out-of-range values are
-    // sanitized to undefined and the server falls back to the
-    // deterministic-from-id seed.
-    float: z.number().finite().min(0).max(1).optional(),
+    float: z.number().finite().min(0).max(1).optional().nullable(),
   })
   .passthrough();
 
@@ -344,9 +336,9 @@ router.post("/regular-planets/save", async (req, res) => {
       // `isFarmingActive=false` (a listed planet must always be
       // paused so /farm/settle never credits ZOOM for it).
       const storedListing = storedListingById.get(id);
-      if (storedListing?.isListedInMarket) {
-        // Only pin when the server already has it listed — never overwrite
-        // an in-flight optimistic list with a stale "not listed" snapshot.
+      if (storedListing?.isListedInMarket && storedListing.serverListingId != null) {
+        // Only pin a real listing (has serverListingId). A ghost
+        // isListedInMarket=true with no row blocks /market/list forever.
         out.isListedInMarket = true;
         if (storedListing.serverListingId !== undefined) {
           out.serverListingId = storedListing.serverListingId;

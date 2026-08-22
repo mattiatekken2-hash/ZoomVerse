@@ -223,30 +223,18 @@ export function getForgeBlueprint(parts: MeshPart[]): { voxels: VoxelCell[]; ste
 export function meshPartsToFullShapeVoxels(parts: MeshPart[]): { voxels: VoxelCell[]; step: number } {
   if (parts.length === 0) return { voxels: [], step: FORGE_VOXEL_SIZE };
 
-  const MIN = 160;
-  const MAX = 720;
-  let step = 0.10;
+  const MIN = 180;
+  const HARD_MAX = 3600;
+  let step = 0.07;
   let best = collectVoxels(parts, step);
 
-  for (let i = 0; i < 14; i++) {
-    const count = best.length;
-    if (count >= MIN && count <= MAX) break;
-    step *= count > MAX ? 1.12 : 0.88;
-    if (step < 0.045) {
-      best = collectVoxels(parts, 0.045);
-      step = 0.045;
-      break;
-    }
-    if (step > 0.22) {
-      best = collectVoxels(parts, 0.22);
-      step = 0.22;
-      break;
-    }
+  for (let i = 0; i < 12 && best.length < MIN && step > 0.042; i++) {
+    step *= 0.88;
     best = collectVoxels(parts, step);
   }
 
-  while (best.length > MAX && step < 0.28) {
-    step *= 1.08;
+  while (best.length > HARD_MAX && step < 0.14) {
+    step *= 1.05;
     best = collectVoxels(parts, step);
   }
 

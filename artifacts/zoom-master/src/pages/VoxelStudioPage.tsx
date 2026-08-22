@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { VoxelStudioCanvas } from "../components/VoxelStudioCanvas";
 import { LabSpaceBackground } from "../components/LabSpaceBackground";
 import {
@@ -37,10 +37,33 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [nameOpen, setNameOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [stagePx, setStagePx] = useState(280);
+  const stageHostRef = useRef<HTMLDivElement>(null);
 
   const persist = useCallback((next: VoxelStudioState) => {
     setState(next);
     void saveVoxelStudio(telegramId, next);
+  }, [telegramId]);
+
+  const flash = (text: string) => {
+    setMsg(text);
+    window.setTimeout(() => setMsg(null), 2200);
+  };
+
+  const createAndOpen = useCallback((title: string, from: VoxelStudioState) => {
+    const slots = studioSlotCount(from);
+    if (from.projects.length >= slots) {
+      flash("No free slots — buy one below");
+      if (from.projects[0]) setActiveId(from.projects[0].id);
+      return from;
+    }
+    const project = createStudioProject(title);
+    const next = { ...from, projects: [...from.projects, project] };
+    void saveVoxelStudio(telegramId, next);
+    setActiveId(project.id);
+    return next;
   }, [telegramId]);
 
   useEffect(() => {
@@ -50,11 +73,11 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
       let next = loaded;
       if (seedProjectId && loaded.projects.some((p) => p.id === seedProjectId)) {
         setActiveId(seedProjectId);
-      } else if (seedTitle && loaded.projects.length < studioSlotCount(loaded)) {
-        const project = createStudioProject(seedTitle);
-        next = { ...loaded, projects: [...loaded.projects, project] };
-        void saveVoxelStudio(telegramId, next);
-        setActiveId(project.id);
+      } else if (seedTitle) {
+        next = createAndOpen(seedTitle, loaded);
+        setState(next);
+        setReady(true);
+        return;
       } else if (loaded.projects[0]) {
         setActiveId(loaded.projects[0].id);
       }
@@ -62,7 +85,21 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
       setReady(true);
     });
     return () => { cancelled = true; };
-  }, [telegramId, seedTitle, seedProjectId]);
+  }, [telegramId, seedTitle, seedProjectId, createAndOpen]);
+
+  useLayoutEffect(() => {
+    const el = stageHostRef.current;
+    if (!el) return;
+    const apply = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      setStagePx(Math.max(200, Math.round(Math.min(w, h))));
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ready, activeId]);
 
   const slots = studioSlotCount(state);
   const active = state.projects.find((p) => p.id === activeId) ?? null;
@@ -80,24 +117,29 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
     patchActive([...active.voxels, v]);
   };
 
+  const handleRemove = (v: VoxelCoord) => {
+    if (!active || active.voxels.length <= 1) return;
+    const idx = active.voxels.findIndex((x) => x.x === v.x && x.y === v.y && x.z === v.z);
+    if (idx < 0) return;
+    patchActive(active.voxels.filter((_, i) => i !== idx));
+  };
+
   const handleUndo = () => {
-    if (!active || active.voxels.length <= 25) return;
+    if (!active || active.voxels.length <= 1) return;
     patchActive(active.voxels.slice(0, -1));
   };
 
   const handleBuySlot = async () => {
     if (busy || slots >= VOXEL_STUDIO_MAX_SLOTS) return;
     if (stardustBalance < VOXEL_STUDIO_SLOT_STARDUST) {
-      setMsg(`Need ${VOXEL_STUDIO_SLOT_STARDUST} ★`);
-      window.setTimeout(() => setMsg(null), 2200);
+      flash(`Need ${VOXEL_STUDIO_SLOT_STARDUST} ★`);
       return;
     }
     setBusy(true);
     const res = await buyVoxelStudioSlot(telegramId);
     setBusy(false);
     if (!res.ok) {
-      setMsg(res.error || "Could not buy slot");
-      window.setTimeout(() => setMsg(null), 2200);
+      flash(res.error || "Could not buy slot");
       return;
     }
     persist({ ...state, extraSlots: res.extraSlots ?? state.extraSlots + 1 });
@@ -109,6 +151,14 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
     const n = Math.max(0, slots - state.projects.length);
     return Array.from({ length: n }, (_, i) => i);
   }, [slots, state.projects.length]);
+
+  const submitNew = () => {
+    const title = nameDraft.trim() || "Untitled";
+    setNameOpen(false);
+    setNameDraft("");
+    const next = createAndOpen(title, state);
+    setState(next);
+  };
 
   return (
     <div
@@ -139,7 +189,7 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
               {active?.title || "Create your model"}
             </div>
             <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.42)" }}>
-              1 tap = 1 voxel · zoom & rotate · gray clay
+              1 tap = 1 voxel · hold to erase · gray clay
             </div>
           </div>
           {active && (
@@ -160,10 +210,13 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
           </div>
         )}
 
-        <div className="flex-1 min-h-0 relative flex items-center justify-center">
+        <div
+          ref={stageHostRef}
+          className="flex-1 min-h-0 relative flex items-center justify-center"
+        >
           {ready && active ? (
-            <div style={{ width: "100%", height: "100%" }}>
-              <VoxelStudioCanvas voxels={active.voxels} onAdd={handleAdd} />
+            <div style={{ width: stagePx, height: stagePx }}>
+              <VoxelStudioCanvas voxels={active.voxels} onAdd={handleAdd} onRemove={handleRemove} />
             </div>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color: "rgba(255,255,255,0.4)" }}>
@@ -194,11 +247,8 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
                 key={`empty-${i}`}
                 type="button"
                 onClick={() => {
-                  const title = window.prompt("Model title", "My model");
-                  if (!title) return;
-                  const project = createStudioProject(title);
-                  persist({ ...state, projects: [...state.projects, project] });
-                  setActiveId(project.id);
+                  setNameDraft("");
+                  setNameOpen(true);
                 }}
                 className="flex-shrink-0 rounded-2xl flex flex-col items-center justify-center"
                 style={{
@@ -235,6 +285,58 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
           </div>
         </nav>
       </div>
+
+      {nameOpen && (
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center px-6"
+          style={{ background: "rgba(0,0,0,0.72)" }}
+          onClick={() => setNameOpen(false)}
+        >
+          <div
+            className="w-full rounded-2xl p-4"
+            style={{
+              maxWidth: 320,
+              background: "rgba(8,10,16,0.96)",
+              border: "1px solid rgba(255,255,255,0.14)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="font-black text-sm mb-1" style={{ color: "#E8ECF4" }}>New model</div>
+            <div className="text-[11px] mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
+              Starts from the gray base square.
+            </div>
+            <input
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value.slice(0, 32))}
+              placeholder="Title"
+              className="w-full rounded-xl px-3 py-3 text-sm font-bold outline-none mb-3"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", color: "#fff" }}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitNew();
+              }}
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="flex-1 py-2.5 rounded-xl text-xs font-black"
+                style={{ color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.1)" }}
+                onClick={() => setNameOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="flex-1 py-2.5 rounded-xl text-xs font-black"
+                style={{ background: "#fff", color: "#060810" }}
+                onClick={submitNew}
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

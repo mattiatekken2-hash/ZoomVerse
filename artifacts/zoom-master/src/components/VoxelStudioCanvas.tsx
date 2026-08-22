@@ -90,17 +90,21 @@ function worldCenter(list: VoxelCoord[]): THREE.Vector3 {
 export function VoxelStudioCanvas({
   voxels,
   onAdd,
+  onRemove,
   preview,
 }: {
   voxels: VoxelCoord[];
   onAdd?: (v: VoxelCoord) => void;
+  onRemove?: (v: VoxelCoord) => void;
   preview?: boolean;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const voxelsRef = useRef(voxels);
   const onAddRef = useRef(onAdd);
+  const onRemoveRef = useRef(onRemove);
   voxelsRef.current = voxels;
   onAddRef.current = onAdd;
+  onRemoveRef.current = onRemove;
   const syncRef = useRef<(next: VoxelCoord[]) => void>(() => {});
 
   const handleHostClick = useCallback(() => {
@@ -113,7 +117,7 @@ export function VoxelStudioCanvas({
 
     const scene = new THREE.Scene();
     scene.background = null;
-    const camera = new THREE.PerspectiveCamera(preview ? 42 : 46, 1, 0.08, 40);
+    const camera = new THREE.PerspectiveCamera(preview ? 42 : 38, 1, 0.08, 40);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -154,7 +158,8 @@ export function VoxelStudioCanvas({
     const dummy = new THREE.Object3D();
     const focus = new THREE.Vector3();
     const camDir = new THREE.Vector3(1.35, 0.95, 1.7).normalize();
-    let dist = preview ? 1.85 : 2.85;
+    let dist = preview ? 1.85 : 2.8;
+    let distUser = false;
 
     const applyCam = () => {
       camera.position.copy(camDir).multiplyScalar(dist).add(focus);
@@ -184,6 +189,16 @@ export function VoxelStudioCanvas({
       posAttr.needsUpdate = true;
 
       focus.copy(worldCenter(list));
+      if (!preview && list.length > 0 && !distUser) {
+        let maxR = 0.4;
+        for (const v of list) {
+          const dx = v.x * VOXEL - focus.x;
+          const dy = v.y * VOXEL - focus.y;
+          const dz = v.z * VOXEL - focus.z;
+          maxR = Math.max(maxR, Math.sqrt(dx * dx + dy * dy + dz * dz));
+        }
+        dist = Math.min(6.2, Math.max(1.35, maxR * 4.2));
+      }
       applyCam();
     };
     syncRef.current = sync;
@@ -218,13 +233,51 @@ export function VoxelStudioCanvas({
 
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
+    let holdTimer: number | null = null;
+    let holdFired = false;
+    let holdTarget: VoxelCoord | null = null;
+
+    const clearHold = () => {
+      if (holdTimer !== null) {
+        window.clearTimeout(holdTimer);
+        holdTimer = null;
+      }
+    };
+
+    const hitAt = (clientX: number, clientY: number) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return null;
+      pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObject(mesh);
+      const hit = hits[0];
+      if (!hit || hit.instanceId == null) return null;
+      const src = voxelsRef.current[hit.instanceId];
+      if (!src) return null;
+      return { src, hit };
+    };
 
     const onPointerDown = (e: PointerEvent) => {
       dragging = true;
       moved = 0;
+      holdFired = false;
+      holdTarget = null;
       lastX = e.clientX;
       lastY = e.clientY;
       host.setPointerCapture(e.pointerId);
+      if (preview) return;
+      const found = hitAt(e.clientX, e.clientY);
+      holdTarget = found?.src ?? null;
+      if (!holdTarget || !onRemoveRef.current) return;
+      holdTimer = window.setTimeout(() => {
+        holdTimer = null;
+        if (!holdTarget || moved > 10) return;
+        if (voxelsRef.current.length <= 1) return;
+        holdFired = true;
+        onRemoveRef.current?.(holdTarget);
+        try { navigator.vibrate?.(12); } catch { /* */ }
+      }, 380);
     };
     const onPointerMove = (e: PointerEvent) => {
       if (!dragging) return;
@@ -233,41 +286,42 @@ export function VoxelStudioCanvas({
       lastX = e.clientX;
       lastY = e.clientY;
       moved += Math.abs(dx) + Math.abs(dy);
+      if (moved > 10) clearHold();
       theta -= dx * 0.008;
       phi = Math.min(Math.PI - 0.12, Math.max(0.18, phi - dy * 0.008));
     };
     const onPointerUp = (e: PointerEvent) => {
       dragging = false;
-      if (preview || moved > 8 || !onAddRef.current) return;
-      const rect = renderer.domElement.getBoundingClientRect();
-      pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(pointer, camera);
-      const hits = raycaster.intersectObject(mesh);
-      const hit = hits[0];
-      if (!hit || hit.instanceId == null) return;
-      const list = voxelsRef.current;
-      const src = list[hit.instanceId];
-      if (!src) return;
-      const nrm = hit.face?.normal ?? new THREE.Vector3(0, 1, 0);
+      clearHold();
+      if (preview || holdFired || moved > 8 || !onAddRef.current) return;
+      const found = hitAt(e.clientX, e.clientY);
+      if (!found) return;
+      const nrm = found.hit.face?.normal ?? new THREE.Vector3(0, 1, 0);
       const next: VoxelCoord = {
-        x: src.x + Math.round(nrm.x),
-        y: src.y + Math.round(nrm.y),
-        z: src.z + Math.round(nrm.z),
+        x: found.src.x + Math.round(nrm.x),
+        y: found.src.y + Math.round(nrm.y),
+        z: found.src.z + Math.round(nrm.z),
       };
+      const list = voxelsRef.current;
       const occ = new Set(list.map(vkey));
       if (occ.has(vkey(next)) || list.length >= MAX_VOXELS) return;
       onAddRef.current(next);
     };
+    const onPointerCancel = () => {
+      dragging = false;
+      clearHold();
+    };
     const onWheel = (e: WheelEvent) => {
       if (preview) return;
       e.preventDefault();
+      distUser = true;
       dist = Math.min(6.2, Math.max(1.05, dist + e.deltaY * 0.004));
     };
 
     host.addEventListener("pointerdown", onPointerDown);
     host.addEventListener("pointermove", onPointerMove);
     host.addEventListener("pointerup", onPointerUp);
+    host.addEventListener("pointercancel", onPointerCancel);
     host.addEventListener("wheel", onWheel, { passive: false });
 
     let raf = 0;
@@ -285,7 +339,9 @@ export function VoxelStudioCanvas({
       host.removeEventListener("pointerdown", onPointerDown);
       host.removeEventListener("pointermove", onPointerMove);
       host.removeEventListener("pointerup", onPointerUp);
+      host.removeEventListener("pointercancel", onPointerCancel);
       host.removeEventListener("wheel", onWheel);
+      if (holdTimer !== null) window.clearTimeout(holdTimer);
       geo.dispose();
       mat.dispose();
       edgeGeo.dispose();

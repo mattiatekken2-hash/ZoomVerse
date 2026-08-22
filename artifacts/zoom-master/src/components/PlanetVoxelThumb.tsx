@@ -176,11 +176,13 @@ export function PlanetVoxelThumb({
 
   const [glGen, setGlGen] = useState(0);
   const [glbFailed, setGlbFailed] = useState(false);
+  const glbTriesRef = useRef(0);
 
   const displayColors = getPlanetDisplayColors(planet);
   const displayFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
 
   useEffect(() => {
+    glbTriesRef.current = 0;
     setGlbFailed(false);
   }, [planet.id, planet.shapeId]);
 
@@ -279,10 +281,17 @@ export function PlanetVoxelThumb({
   }, [suspendGl, inView, delayReady, releaseSlot]);
 
   const handleGlError = useCallback(() => {
-    releaseSlot();
+    glbTriesRef.current += 1;
+    if (glbTriesRef.current <= 2) {
+      setGlGen((g) => g + 1);
+      return;
+    }
     setGlbFailed(true);
+  }, []);
+
+  const handleContextLost = useCallback(() => {
     setGlGen((g) => g + 1);
-  }, [releaseSlot]);
+  }, []);
 
   const showGl = !suspendGl && inView && delayReady && hasSlot;
   const useHiQuality = hiQuality ?? size >= 80;
@@ -325,8 +334,8 @@ export function PlanetVoxelThumb({
             autoSpin={animate}
             performanceMode
             hiQuality={useHiQuality && size >= 96}
-            onGlFailed={handleGlError}
-            onGlContextLost={handleGlError}
+            onGlFailed={handleContextLost}
+            onGlContextLost={handleContextLost}
           />
         )
       ) : (

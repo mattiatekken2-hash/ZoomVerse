@@ -2146,15 +2146,9 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           edgeScratch,
         );
       } else {
-      const vMat = planetShowcase
-        ? new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            vertexColors: true,
-            toneMapped: false,
-          })
-        : new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            vertexColors: true,
+      const vMat = new THREE.MeshBasicMaterial({
+            color: labForgeBackdrop ? FORGE_CLAY : 0xffffff,
+            vertexColors: !labForgeBackdrop,
             toneMapped: false,
           });
       voxelInst = new THREE.InstancedMesh(boxGeo, vMat, n);
@@ -2243,11 +2237,13 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           group.add(glowInst);
         }
       } else {
+      const clayCol = new THREE.Color(FORGE_CLAY);
       for (let vi = 0; vi < n; vi++) {
         voxelDummy.position.set(0, -999, 0);
         voxelDummy.scale.set(0, 0, 0);
         voxelDummy.updateMatrix();
         voxelInst.setMatrixAt(vi, voxelDummy.matrix);
+        if (labForgeBackdrop) voxelInst.setColorAt(vi, clayCol);
       }
       voxelInst.count = 0;
       voxelInst.instanceMatrix.needsUpdate = true;
@@ -2751,8 +2747,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
             ? Math.min(1, Math.max(0, (sinceDrop - particleLandMs()) / 200))
             : 1;
           const dropEase = dropT * dropT * (3 - 2 * dropT);
-          const forgePaintModel = labForgeBackdrop && !isForgeSphere;
-          const useClayGrey = !forgePaintModel && paintT <= 0.001 && !sealing;
+          const assemblingClay = labForgeBackdrop && !st.revealed;
+          const useClayGrey = assemblingClay || (!labForgeBackdrop && paintT <= 0.001 && !sealing);
           const shapeMorphT = isForgeSphere && !premiumPlanetShowcase
             ? (labCollectibleShowcase || st.revealed || sealing ? 1 : labForgeMorphT(assembly))
             : 0;
@@ -2860,8 +2856,12 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
             voxelDummy.updateMatrix();
             voxMesh.setMatrixAt(visibleCount, voxelDummy.matrix);
 
-            if (forgePaintModel || (!useClayGrey && paintT > 0)) {
-              if (forgePaintModel) {
+            if (useClayGrey) {
+              mixed.setHex(FORGE_CLAY);
+              voxMesh.setColorAt(visibleCount, mixed);
+              colorsDirty = true;
+            } else if (paintT > 0) {
+              if (labForgeBackdrop && !isForgeSphere) {
                 painted.set(v.color || FORGE_CLAY_HEX);
               } else {
                 showcaseVoxelColor(
@@ -2875,7 +2875,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
                   st.displayFloat,
                 );
               }
-              if (!forgePaintModel && paintT < 1) {
+              if (paintT < 1 && !(labForgeBackdrop && !isForgeSphere)) {
                 mixed.copy(forgeClayTone(i)).lerp(painted, paintT);
               } else {
                 mixed.copy(painted);

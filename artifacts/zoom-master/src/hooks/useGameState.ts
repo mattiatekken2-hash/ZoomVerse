@@ -4749,10 +4749,8 @@ export function useGameState() {
           prev.planets as unknown as Array<Record<string, unknown>>,
           claimedSnap,
           prev.craftsCompleted,
-        ).then((saved) => {
-          if (!saved) {
-            return { ok: false as const, error: "Could not sync inventory before listing" };
-          }
+        ).catch(() => false).then((saved) => {
+          void saved;
           return listOnMarket({
             sellerTelegramId: telegramId,
             sellerName: firstName ?? undefined,
@@ -4764,20 +4762,27 @@ export function useGameState() {
             displayName: planet.displayName,
             priceCurrency: currency,
           });
-        }).then((result) => {
-          if (result.ok && result.listing) {
+        }).then(async (result) => {
+          let listing = result.ok ? result.listing : undefined;
+          if (!listing && /already listed|previously listed/i.test(result.error ?? "")) {
+            try {
+              const mine = await fetchMyMarketListings(telegramId);
+              listing = mine.find((l) => l.planetId === planet.id && l.status === "active");
+            } catch { /* keep listing undefined */ }
+          }
+          if (listing) {
             setState((s) => ({
               ...s,
               planets: s.planets.map((p) =>
-                p.id === id ? { ...p, serverListingId: result.listing!.id, marketCurrency: currency } : p
+                p.id === id ? { ...p, isListedInMarket: true, isFarmingActive: false, marketPrice: price, marketCurrency: currency, serverListingId: listing!.id } : p
               ),
             }));
             upsertMarketListing({
-              ...result.listing,
-              priceCurrency: result.listing.priceCurrency ?? currency,
-              shapeId: result.listing.shapeId ?? planet.shapeId ?? null,
-              planetDisplayName: result.listing.planetDisplayName ?? planet.displayName ?? null,
-              lastActivatedAt: result.listing.lastActivatedAt ?? new Date().toISOString(),
+              ...listing,
+              priceCurrency: listing.priceCurrency ?? currency,
+              shapeId: listing.shapeId ?? planet.shapeId ?? null,
+              planetDisplayName: listing.planetDisplayName ?? planet.displayName ?? null,
+              lastActivatedAt: listing.lastActivatedAt ?? new Date().toISOString(),
             });
             void refreshMarketListings();
             try { window.dispatchEvent(new Event("zoom-data-refresh")); } catch { /**/ }

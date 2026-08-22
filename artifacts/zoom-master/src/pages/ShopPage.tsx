@@ -35,15 +35,15 @@ const EXTRA_SLOT_ITEM: ShopItem = {
   starsPrice: 0, tonPrice: 0.25, color: "#ff3355", icon: "+", type: "slot",
 };
 
-// $ZOOM packs — GRAM / Stars / Stardust. Rate rises with pack size (4k→7k ZOOM/GRAM).
+// $ZOOM packs — GRAM / Stars / Stardust. Rate rises with pack size (~1.3k→2.8k ZOOM/GRAM).
 // 500 $ZOOM = 1 Stardust-model forge. Stars = 100★ per GRAM.
 const ZOOM_PACKS: ShopItem[] = [
-  { id: "zoom_spark",  title: "ZOOM Spark",  desc: "Instant +200 $ZOOM",    starsPrice: 5,   tonPrice: 0.05, zoomAmount: 200,   color: "#9EC5E8", icon: "Z", type: "zoom_pack" },
-  { id: "zoom_boost",  title: "ZOOM Boost",  desc: "Instant +500 $ZOOM",    starsPrice: 10,  tonPrice: 0.10, zoomAmount: 500,   color: "#7dd3fc", icon: "Z", type: "zoom_pack" },
-  { id: "zoom_pulse",  title: "ZOOM Pulse",  desc: "Instant +1,400 $ZOOM",  starsPrice: 25,  tonPrice: 0.25, zoomAmount: 1400,  color: "#67e8f9", icon: "Z", type: "zoom_pack" },
-  { id: "zoom_core",   title: "ZOOM Core",   desc: "Instant +3,000 $ZOOM",  starsPrice: 50,  tonPrice: 0.50, zoomAmount: 3000,  color: "#22d3ee", icon: "Z", type: "zoom_pack" },
-  { id: "zoom_nova",   title: "ZOOM Nova",   desc: "Instant +6,500 $ZOOM",  starsPrice: 100, tonPrice: 1.00, zoomAmount: 6500,  color: "#38bdf8", icon: "Z", type: "zoom_pack" },
-  { id: "zoom_galaxy", title: "ZOOM Galaxy", desc: "Instant +14,000 $ZOOM", starsPrice: 200, tonPrice: 2.00, zoomAmount: 14000, color: "#818cf8", icon: "Z", type: "zoom_pack" },
+  { id: "zoom_spark",  title: "ZOOM Spark",  desc: "Instant +200 $ZOOM",    starsPrice: 15,  tonPrice: 0.15, zoomAmount: 200,   color: "#9EC5E8", icon: "Z", type: "zoom_pack" },
+  { id: "zoom_boost",  title: "ZOOM Boost",  desc: "Instant +500 $ZOOM",    starsPrice: 25,  tonPrice: 0.25, zoomAmount: 500,   color: "#7dd3fc", icon: "Z", type: "zoom_pack" },
+  { id: "zoom_pulse",  title: "ZOOM Pulse",  desc: "Instant +1,400 $ZOOM",  starsPrice: 60,  tonPrice: 0.60, zoomAmount: 1400,  color: "#67e8f9", icon: "Z", type: "zoom_pack" },
+  { id: "zoom_core",   title: "ZOOM Core",   desc: "Instant +3,000 $ZOOM",  starsPrice: 120, tonPrice: 1.20, zoomAmount: 3000,  color: "#22d3ee", icon: "Z", type: "zoom_pack" },
+  { id: "zoom_nova",   title: "ZOOM Nova",   desc: "Instant +6,500 $ZOOM",  starsPrice: 250, tonPrice: 2.50, zoomAmount: 6500,  color: "#38bdf8", icon: "Z", type: "zoom_pack" },
+  { id: "zoom_galaxy", title: "ZOOM Galaxy", desc: "Instant +14,000 $ZOOM", starsPrice: 500, tonPrice: 5.00, zoomAmount: 14000, color: "#818cf8", icon: "Z", type: "zoom_pack" },
 ];
 
 interface StockInfo { sold: number; remaining: number; max: number; }

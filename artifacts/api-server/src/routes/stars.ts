@@ -178,13 +178,13 @@ const STARS_CATALOG: StarsItem[] = [
   // so the create-invoice/webhook guards reject any Stars-path attempt.
   { id: "extra_slot", title: "Extra Slot", description: "Unlock 1 additional planet slot", starsPrice: 0, tonPrice: 0.25, itemType: "slot" },
   // $ZOOM packs — GRAM / Stars / Stardust. Rate rises with pack size
-  // (4k→7k ZOOM per GRAM). 500 $ZOOM = 1 Stardust-model forge.
-  { id: "zoom_spark",  title: "ZOOM Spark",  description: "Instant +200 $ZOOM",    starsPrice: 5,   tonPrice: 0.05, zoomAmount: 200,   itemType: "zoom_pack" },
-  { id: "zoom_boost",  title: "ZOOM Boost",  description: "Instant +500 $ZOOM",    starsPrice: 10,  tonPrice: 0.10, zoomAmount: 500,   itemType: "zoom_pack" },
-  { id: "zoom_pulse",  title: "ZOOM Pulse",  description: "Instant +1,400 $ZOOM",  starsPrice: 25,  tonPrice: 0.25, zoomAmount: 1400,  itemType: "zoom_pack" },
-  { id: "zoom_core",   title: "ZOOM Core",   description: "Instant +3,000 $ZOOM",  starsPrice: 50,  tonPrice: 0.50, zoomAmount: 3000,  itemType: "zoom_pack" },
-  { id: "zoom_nova",   title: "ZOOM Nova",   description: "Instant +6,500 $ZOOM",  starsPrice: 100, tonPrice: 1.00, zoomAmount: 6500,  itemType: "zoom_pack" },
-  { id: "zoom_galaxy", title: "ZOOM Galaxy", description: "Instant +14,000 $ZOOM", starsPrice: 200, tonPrice: 2.00, zoomAmount: 14000, itemType: "zoom_pack" },
+  // (~1.3k→2.8k ZOOM per GRAM). 500 $ZOOM = 1 Stardust-model forge.
+  { id: "zoom_spark",  title: "ZOOM Spark",  description: "Instant +200 $ZOOM",    starsPrice: 15,  tonPrice: 0.15, zoomAmount: 200,   itemType: "zoom_pack" },
+  { id: "zoom_boost",  title: "ZOOM Boost",  description: "Instant +500 $ZOOM",    starsPrice: 25,  tonPrice: 0.25, zoomAmount: 500,   itemType: "zoom_pack" },
+  { id: "zoom_pulse",  title: "ZOOM Pulse",  description: "Instant +1,400 $ZOOM",  starsPrice: 60,  tonPrice: 0.60, zoomAmount: 1400,  itemType: "zoom_pack" },
+  { id: "zoom_core",   title: "ZOOM Core",   description: "Instant +3,000 $ZOOM",  starsPrice: 120, tonPrice: 1.20, zoomAmount: 3000,  itemType: "zoom_pack" },
+  { id: "zoom_nova",   title: "ZOOM Nova",   description: "Instant +6,500 $ZOOM",  starsPrice: 250, tonPrice: 2.50, zoomAmount: 6500,  itemType: "zoom_pack" },
+  { id: "zoom_galaxy", title: "ZOOM Galaxy", description: "Instant +14,000 $ZOOM", starsPrice: 500, tonPrice: 5.00, zoomAmount: 14000, itemType: "zoom_pack" },
   { id: "wheel_spin_1",  title: "1 Wheel Spin",   description: "1 spin on the Fortune Wheel",   starsPrice: 50,  tonPrice: 0.5, zoomAmount: 1,  itemType: "wheel_spin" },
   { id: "wheel_spin_5",  title: "5 Wheel Spins",  description: "5 spins on the Fortune Wheel — 20% off",  starsPrice: 200, tonPrice: 2.0, zoomAmount: 5,  itemType: "wheel_spin" },
   { id: "wheel_spin_10", title: "10 Wheel Spins", description: "10 spins on the Fortune Wheel — 30% off", starsPrice: 350, tonPrice: 3.5, zoomAmount: 10, itemType: "wheel_spin" },

@@ -12,6 +12,13 @@ import {
   deterministicFloatFromId,
   sanitizeIncomingFloat,
 } from "../lib/planetFloat";
+import {
+  isLabZoomShapeId,
+  resolveLabShapeIdFromPlanet,
+  resolveLabStardustShapeId,
+  LAB_ZOOM_FARM_RATE,
+  LAB_STARDUST_FARM_RATE,
+} from "@workspace/game-models";
 
 type MarketPriceCurrency = "gram" | "zoom" | "stardust";
 const MARKET_BOUNDS: Record<MarketPriceCurrency, { min: number; max: number }> = {
@@ -25,6 +32,12 @@ function parseMarketPriceCurrency(v: unknown): MarketPriceCurrency {
 function isMarketPriceInRange(price: number, currency: MarketPriceCurrency): boolean {
   const b = MARKET_BOUNDS[currency];
   return Number.isFinite(price) && price >= b.min && price <= b.max;
+}
+
+function canonicalLabFarmRate(shapeId: string | null | undefined): number | null {
+  if (isLabZoomShapeId(shapeId)) return LAB_ZOOM_FARM_RATE[shapeId];
+  const sd = resolveLabStardustShapeId(shapeId);
+  return sd ? LAB_STARDUST_FARM_RATE[sd] : null;
 }
 
 const router: IRouter = Router();
@@ -241,23 +254,83 @@ router.post("/market/list", async (req, res) => {
       return;
     }
 
-    const planets = Array.isArray(seller.planetsJson) ? (seller.planetsJson as Array<Record<string, unknown>>) : [];
-    const planet = planets.find((p) => p && typeof p === "object" && p["id"] === planetId);
+    let planets = Array.isArray(seller.planetsJson) ? (seller.planetsJson as Array<Record<string, unknown>>) : [];
+    let planet = planets.find((p) => p && typeof p === "object" && p["id"] === planetId);
+
+    const existingActive = await txDb
+      .select()
+      .from(marketListingsTable)
+      .where(and(
+        eq(marketListingsTable.sellerTelegramId, sellerTelegramId),
+        eq(marketListingsTable.planetId, planetId),
+        eq(marketListingsTable.status, "active"),
+      ))
+      .limit(1);
+    if (existingActive[0]) {
+      await client.query("COMMIT");
+      res.json({
+        ok: true,
+        listing: { ...existingActive[0], priceCurrency: parseMarketPriceCurrency(existingActive[0].priceCurrency) },
+      });
+      return;
+    }
+
+    const resolvedShape = resolveLabShapeIdFromPlanet({
+      shapeId: (typeof planet?.["shapeId"] === "string" ? planet["shapeId"] : bodyShapeId) as string | undefined,
+      displayName: (typeof planet?.["displayName"] === "string" ? planet["displayName"] : bodyDisplayName) as string | undefined,
+    });
+    const canonRate = canonicalLabFarmRate(resolvedShape);
+
     if (!planet) {
-      await client.query("ROLLBACK");
-      res.status(400).json({ error: "Planet not found in your inventory" });
-      return;
+      // Lab model exists on the client but never landed in planets_json
+      // (failed /save, stale fence). Accept a verified Lab snapshot so SELL
+      // still creates a real marketplace row.
+      if (!resolvedShape || canonRate == null || planetType !== "BASIC") {
+        await client.query("ROLLBACK");
+        res.status(400).json({ error: "Planet not found in your inventory" });
+        return;
+      }
+      if (Math.abs(Number(planetRate) - canonRate) > 0.05) {
+        await client.query("ROLLBACK");
+        res.status(400).json({ error: "Planet type or rate mismatch" });
+        return;
+      }
+      planet = {
+        id: planetId,
+        name: "BASIC",
+        rate: canonRate,
+        shapeId: resolvedShape,
+        displayName: typeof bodyDisplayName === "string" && bodyDisplayName.trim()
+          ? bodyDisplayName.trim().slice(0, 64)
+          : resolvedShape,
+        isListedInMarket: false,
+        isFarmingActive: false,
+        marketPrice: null,
+        createdAt: Date.now(),
+        farmStartedAt: 0,
+        lastCollectedAt: 0,
+        farmDurationHours: 1,
+      };
+      planets = [...planets, planet];
+      await client.query(
+        `UPDATE users SET planets_json = $2::jsonb, planets_updated_at_ms = GREATEST(planets_updated_at_ms, $3::bigint) WHERE telegram_id = $1`,
+        [sellerTelegramId, JSON.stringify(planets), Date.now()],
+      );
+    } else {
+      const storedName = String(planet["name"] ?? "");
+      const storedRate = Number(planet["rate"]);
+      const rateOk = Number.isFinite(storedRate) && (
+        Math.abs(storedRate - planetRate) <= 0.05
+        || (canonRate != null && Math.abs(planetRate - canonRate) <= 0.05)
+      );
+      if (storedName !== planetType || !rateOk) {
+        await client.query("ROLLBACK");
+        res.status(400).json({ error: "Planet type or rate mismatch" });
+        return;
+      }
     }
-    if (planet["name"] !== planetType || Math.abs(Number(planet["rate"]) - planetRate) > 0.0001) {
-      await client.query("ROLLBACK");
-      res.status(400).json({ error: "Planet type or rate mismatch" });
-      return;
-    }
-    if (planet["isListedInMarket"] === true) {
-      await client.query("ROLLBACK");
-      res.status(409).json({ error: "Planet already listed" });
-      return;
-    }
+    // Ghost isListedInMarket (optimistic save, no listing row) is ignored —
+    // we already returned if an active listing exists.
     // NOTE: we no longer reject when `isFarmingActive === true`. Listing
     // a planet PAUSES its 24h farming cycle (see pausedAt logic in the
     // client + the planets_json patch below). The previous rejection
@@ -337,22 +410,31 @@ router.post("/market/list", async (req, res) => {
           modelId: modelIdSnapshot,
           shapeId: shapeIdSnapshot,
           price,
+          priceCurrency,
           status: "active",
           lastActivatedAt: new Date(),
         })
         .returning();
       listing = inserted;
-      await client.query(
-        `UPDATE market_listings SET price_currency = $1 WHERE id = $2`,
-        [priceCurrency, listing!.id],
-      );
     } catch (err: unknown) {
       await client.query("ROLLBACK");
-      // Postgres unique_violation. The unique partial index fires when
-      // the seller already has an active or sold listing for this exact
-      // planetId — i.e. they're trying to double-list or re-list a sold
-      // planet. Reject with 409 so the client can show a clear message.
       if (typeof err === "object" && err !== null && "code" in err && (err as { code: string }).code === "23505") {
+        const [dup] = await db
+          .select()
+          .from(marketListingsTable)
+          .where(and(
+            eq(marketListingsTable.sellerTelegramId, sellerTelegramId),
+            eq(marketListingsTable.planetId, planetId),
+            eq(marketListingsTable.status, "active"),
+          ))
+          .limit(1);
+        if (dup) {
+          res.json({
+            ok: true,
+            listing: { ...dup, priceCurrency: parseMarketPriceCurrency(dup.priceCurrency) },
+          });
+          return;
+        }
         res.status(409).json({ error: "This planet was previously listed and cannot be sold again" });
         return;
       }
@@ -405,7 +487,7 @@ router.post("/market/list", async (req, res) => {
     // Cooldown keyed on sellerTelegramId so a single user can't pump the
     // price by repeatedly listing in tight loops.
     bumpZoomPriceFireAndForget("market_list", sellerTelegramId);
-    res.json({ ok: true, listing });
+    res.json({ ok: true, listing: { ...listing, priceCurrency } });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("[market/list] error:", err);
