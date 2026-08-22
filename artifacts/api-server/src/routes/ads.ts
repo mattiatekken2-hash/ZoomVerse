@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { recordHistoryAsync } from "../lib/history";
 
 const router = Router();
 
@@ -119,6 +120,16 @@ router.post("/earn/weekly-redstar/claim", async (req, res) => {
         newRedStarBalance: newRedStar,
       };
     });
+
+    if (result.ok) {
+      recordHistoryAsync({
+        telegramId,
+        kind: "weekly_redstar",
+        delta: WEEKLY_REDSTAR_REWARD,
+        currency: "redstar",
+        meta: { day: result.cycleDay },
+      });
+    }
 
     res.json(result);
   } catch (err) {

@@ -15,6 +15,7 @@ const STARDUST_KINDS = new Set([
   "stardust_convert",
   "stardust_convert_out",
   "stardust_purchase",
+  "daily_claim",
 ]);
 
 const GRAM_KINDS = new Set([
@@ -28,6 +29,7 @@ const GRAM_KINDS = new Set([
 
 const REDSTAR_KINDS = new Set([
   "redstar_claim",
+  "weekly_redstar",
   "weekly_redstar_claim",
   "pvp_redstar_prize",
 ]);

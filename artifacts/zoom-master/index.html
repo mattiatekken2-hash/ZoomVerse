@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>ZOOM MASTER</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preload" as="image" href="/assets/zoom-cube-icon.png?v=4" />
+    <link rel="preload" as="image" href="/assets/gram-diamond-icon.svg" />
     <!-- Non-blocking fonts — never delay first paint / JS boot -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -127,7 +129,11 @@
   </head>
   <body class="zoom-splash-on">
     <div id="splash-screen" role="status" aria-label="Season 3 loading">
-      <div class="splash-inner">
+        <div class="splash-inner">
+        <div style="display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:8px">
+          <img src="/assets/zoom-cube-icon.png?v=4" width="52" height="52" alt="ZOOM" fetchpriority="high" decoding="sync" style="display:block;object-fit:contain" />
+          <img src="/assets/gram-diamond-icon.svg" width="52" height="52" alt="GRAM" fetchpriority="high" decoding="sync" style="display:block;object-fit:contain" />
+        </div>
         <div class="splash-spinner" aria-hidden="true"></div>
         <div class="splash-title">Season 3</div>
         <div class="splash-sub">Loading…</div>
@@ -153,17 +159,6 @@
           try {
             var saved = localStorage.getItem("zoom-lang");
             if (saved && SPLASH_SUB[saved]) return saved;
-          } catch (e) {}
-          try {
-            var tg = window.Telegram && window.Telegram.WebApp;
-            var code = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.language_code)
-              || (navigator.language || "");
-            var norm = (code || "").toLowerCase().slice(0, 2);
-            if (norm === "it") return "it";
-            if (norm === "es") return "es";
-            if (norm === "fil" || norm === "tl") return "fil";
-            if (norm === "ru") return "ru";
-            if (norm === "uk") return "uk";
           } catch (e) {}
           return "en";
         }

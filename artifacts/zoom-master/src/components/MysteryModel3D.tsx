@@ -1224,6 +1224,14 @@ function applyProfileToMaterial(
   }
 }
 
+/** Fill all but the closing voxels until progress hits 1, then place every remaining cube. */
+function forgePlacedTarget(progress: number, n: number): number {
+  if (n <= 0) return 0;
+  const p = Math.min(1, Math.max(0, progress));
+  if (p >= 1 - 1e-9) return n;
+  return Math.min(n - 1, Math.max(0, Math.round(p * n)));
+}
+
 export interface ForgeMeshHandle {
   /** Screen-space targets (canvas center origin) for parts currently assembling. */
   getPartScreenTargets: (maxCount?: number) => Array<{ x: number; y: number; strength?: number }>;
@@ -1520,10 +1528,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       return;
     }
 
-    const targetPlaced = Math.min(
-      n,
-      Math.round(Math.min(1, Math.max(0, progress)) * n),
-    );
+    const targetPlaced = forgePlacedTarget(progress, n);
     const currentPlaced = placedMaskRef.current.filter(Boolean).length;
     if (currentPlaced >= targetPlaced) {
       forgeRestorePendingRef.current = false;
@@ -1557,50 +1562,66 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       const renderer = rendererRef.current;
       if (!camera || !group || !renderer) return;
 
-      const morphT = labForgeMorphT(assemblyRef.current);
-      const vec = tapPickScratch.current;
-      let bestIdx = -1;
-      let bestScore = Infinity;
+      const n = list.length;
+      const already = placed.filter(Boolean).length;
+      const target = forgePlacedTarget(stateRef.current.progress, n);
+      if (already >= target) return;
 
-      if (point && Number.isFinite(point.x) && Number.isFinite(point.y)) {
-        const w = renderer.domElement.clientWidth;
-        const h = renderer.domElement.clientHeight;
-        if (w > 0 && h > 0) {
-          const ndc = new THREE.Vector2(point.x / (w / 2), -point.y / (h / 2));
-          raycasterRef.current.setFromCamera(ndc, camera);
-          const camWorld = new THREE.Vector3();
-          camera.getWorldPosition(camWorld);
-          const groupWorld = new THREE.Vector3();
-          group.getWorldPosition(groupWorld);
-          for (let i = 0; i < list.length; i++) {
-            if (placed[i]) continue;
-            resolveForgeVoxelPosition(list[i]!, morphT, vec);
-            const world = vec.clone();
-            group.localToWorld(world);
-            const normal = world.clone().sub(groupWorld);
-            const nLen = normal.length();
-            if (nLen < 1e-6) continue;
-            normal.multiplyScalar(1 / nLen);
-            const toCam = camWorld.clone().sub(world).normalize();
-            if (normal.dot(toCam) < 0.12) continue;
-            const dist = raycasterRef.current.ray.distanceToPoint(world);
-            if (dist < bestScore) {
-              bestScore = dist;
-              bestIdx = i;
+      const morphT = labForgeMorphT(assemblyRef.current);
+      const sequentialBuild = !list.some((v) => v.morphX !== undefined);
+      const vec = tapPickScratch.current;
+      const pickNext = (useRay: boolean): number => {
+        if (sequentialBuild) return placed.findIndex((p) => !p);
+        let bestIdx = -1;
+        let bestScore = Infinity;
+        if (useRay && point && Number.isFinite(point.x) && Number.isFinite(point.y)) {
+          const w = renderer.domElement.clientWidth;
+          const h = renderer.domElement.clientHeight;
+          if (w > 0 && h > 0) {
+            const ndc = new THREE.Vector2(point.x / (w / 2), -point.y / (h / 2));
+            raycasterRef.current.setFromCamera(ndc, camera);
+            const camWorld = new THREE.Vector3();
+            camera.getWorldPosition(camWorld);
+            const groupWorld = new THREE.Vector3();
+            group.getWorldPosition(groupWorld);
+            for (let i = 0; i < list.length; i++) {
+              if (placed[i]) continue;
+              resolveForgeVoxelPosition(list[i]!, morphT, vec);
+              const world = vec.clone();
+              group.localToWorld(world);
+              const normal = world.clone().sub(groupWorld);
+              const nLen = normal.length();
+              if (nLen < 1e-6) continue;
+              normal.multiplyScalar(1 / nLen);
+              const toCam = camWorld.clone().sub(world).normalize();
+              if (normal.dot(toCam) < 0.12) continue;
+              const dist = raycasterRef.current.ray.distanceToPoint(world);
+              if (dist < bestScore) {
+                bestScore = dist;
+                bestIdx = i;
+              }
             }
           }
         }
-      }
+        if (bestIdx < 0) bestIdx = placed.findIndex((p) => !p);
+        return bestIdx;
+      };
 
-      if (bestIdx < 0) {
-        bestIdx = placed.findIndex((p) => !p);
-      }
-      if (bestIdx >= 0 && !placed[bestIdx]) {
+      const startMs = performance.now();
+      let placedNow = 0;
+      const closing = target >= n;
+      const remain = Math.max(1, target - already);
+      const gap = closing ? Math.min(12, 480 / remain) : 18;
+      for (let k = already; k < target; k++) {
+        const bestIdx = pickNext(placedNow === 0);
+        if (bestIdx < 0 || placed[bestIdx]) break;
         placed[bestIdx] = true;
-        forgeRestorePendingRef.current = false;
-        const startMs = performance.now();
         lastPlacedIdxRef.current = bestIdx;
-        flyInStartByIdxRef.current.set(bestIdx, startMs);
+        flyInStartByIdxRef.current.set(bestIdx, startMs + placedNow * gap);
+        placedNow += 1;
+      }
+      if (placedNow > 0) {
+        forgeRestorePendingRef.current = false;
         dropAnimStartRef.current = startMs;
       }
     },
@@ -2002,19 +2023,13 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     forgeSphereRadiusRef.current = forgeSphereRadius;
     placedMaskRef.current = new Array(forgeVoxels.length).fill(false);
     if (labForgeBackdrop && interactive && !planetShowcase && forgeVoxels.length > 0) {
-      const initialPlaced = Math.min(
-        forgeVoxels.length,
-        Math.round(Math.min(1, Math.max(0, progress)) * forgeVoxels.length),
-      );
+      const initialPlaced = forgePlacedTarget(progress, forgeVoxels.length);
       for (let i = 0; i < initialPlaced; i++) {
         placedMaskRef.current[i] = true;
       }
     }
     const restoreTarget = labForgeBackdrop && interactive && !planetShowcase && forgeVoxels.length > 0
-      ? Math.min(
-          forgeVoxels.length,
-          Math.round(Math.min(1, Math.max(0, progress)) * forgeVoxels.length),
-        )
+      ? forgePlacedTarget(progress, forgeVoxels.length)
       : 0;
     forgeRestorePendingRef.current = restoreTarget > placedMaskRef.current.filter(Boolean).length;
     // Seeded / restored voxels must appear settled — fly-in only on new taps.
@@ -2138,7 +2153,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
             toneMapped: false,
           })
         : new THREE.MeshBasicMaterial({
-            color: FORGE_CLAY,
+            color: 0xffffff,
+            vertexColors: true,
             toneMapped: false,
           });
       voxelInst = new THREE.InstancedMesh(boxGeo, vMat, n);
@@ -2428,10 +2444,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const useLabTapPlacement = labForgeBackdrop && interactive && !planetShowcase;
     let lastPlacedVoxels = useLabTapPlacement
       ? placedMaskRef.current.filter(Boolean).length
-      : Math.min(
-          forgeVoxels.length,
-          Math.round(Math.min(1, Math.max(0, progress)) * forgeVoxels.length),
-        );
+      : forgePlacedTarget(progress, forgeVoxels.length);
     let dropAnimStart = performance.now() - 300;
     let sealT = 0;
     let revealPaintT = 0;
@@ -2498,12 +2511,12 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
       if (useVoxelForge && !sealing && !inForgeSequence) {
         const placed = useLabTapPlacement
           ? placedMaskRef.current.filter(Boolean).length
-          : Math.min(forgeVoxels.length, Math.round(targetP * forgeVoxels.length));
+          : forgePlacedTarget(targetP, forgeVoxels.length);
         if (useLabTapPlacement) {
           if (forgeRestorePendingRef.current) {
             const restoreTarget = Math.min(
               forgeVoxels.length,
-              Math.round(Math.min(1, Math.max(0, st.progress)) * forgeVoxels.length),
+              forgePlacedTarget(st.progress, forgeVoxels.length),
             );
             const currentPlaced = placedMaskRef.current.filter(Boolean).length;
             if (currentPlaced < restoreTarget) {
@@ -2738,7 +2751,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
             ? Math.min(1, Math.max(0, (sinceDrop - particleLandMs()) / 200))
             : 1;
           const dropEase = dropT * dropT * (3 - 2 * dropT);
-          const useClayGrey = paintT <= 0.001 && !sealing;
+          const forgePaintModel = labForgeBackdrop && !isForgeSphere;
+          const useClayGrey = !forgePaintModel && paintT <= 0.001 && !sealing;
           const shapeMorphT = isForgeSphere && !premiumPlanetShowcase
             ? (labCollectibleShowcase || st.revealed || sealing ? 1 : labForgeMorphT(assembly))
             : 0;
@@ -2846,18 +2860,22 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
             voxelDummy.updateMatrix();
             voxMesh.setMatrixAt(visibleCount, voxelDummy.matrix);
 
-            if (!useClayGrey && paintT > 0) {
-              showcaseVoxelColor(
-                v,
-                voxelStepRef.current,
-                forgeSphereRadius,
-                st.primaryColor,
-                st.accentColor,
-                painted,
-                st.planetRarity,
-                st.displayFloat,
-              );
-              if (paintT < 1) {
+            if (forgePaintModel || (!useClayGrey && paintT > 0)) {
+              if (forgePaintModel) {
+                painted.set(v.color || FORGE_CLAY_HEX);
+              } else {
+                showcaseVoxelColor(
+                  v,
+                  voxelStepRef.current,
+                  forgeSphereRadius,
+                  st.primaryColor,
+                  st.accentColor,
+                  painted,
+                  st.planetRarity,
+                  st.displayFloat,
+                );
+              }
+              if (!forgePaintModel && paintT < 1) {
                 mixed.copy(forgeClayTone(i)).lerp(painted, paintT);
               } else {
                 mixed.copy(painted);

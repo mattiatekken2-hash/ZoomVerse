@@ -60,7 +60,10 @@ export const LAB_STARDUST_COLORS: Record<LabStardustShapeId, { color: string; gl
   [LAB_STARDUST_POT_SHAPE_ID]: { color: "#ffd740", glowColor: "#ffc107" },
 };
 
+/** Fallback tap count — live Lab models use voxel length (1 tap = 1 cube). */
 export const LAB_MODEL_FORGE_GOAL = 257;
+/** @deprecated Lab models no longer pack to a fixed voxel budget. */
+export const LAB_MODEL_FORGE_VOXEL_COUNT = 480;
 export const LAB_STARDUST_FORGE_ZOOM_COST = 500;
 export const LAB_ZOOM_FORGE_STARDUST_COST = 3;
 /** @deprecated Use LAB_MODEL_FORGE_GOAL */
@@ -101,10 +104,45 @@ export function labMarketPathForShapeId(shapeId: string | null | undefined): Lab
   return null;
 }
 
-export function isLabForgeGeneratorPlanet(planet: { shapeId?: string | null }): boolean {
-  return !!planet.shapeId && (
-    isLabZoomShapeId(planet.shapeId) || isLabStardustShapeId(planet.shapeId)
-  );
+export function labMarketPathForPlanet(planet: {
+  shapeId?: string | null;
+  displayName?: string | null;
+  rate?: number | null;
+}): LabMarketPath {
+  const fromShape = labMarketPathForShapeId(planet.shapeId);
+  if (fromShape) return fromShape;
+  const n = (planet.displayName || "").trim().toLowerCase();
+  if (n === "pizza" || n === "flower" || n === "dollar") return "zoom";
+  if (n === "onigiri" || n === "island home" || n === "stardust pot") return "stardust";
+  if (typeof planet.rate === "number" && Number.isFinite(planet.rate) && planet.rate > 0) {
+    return planet.rate >= 1 ? "zoom" : "stardust";
+  }
+  return "zoom";
+}
+
+export function isLabForgeGeneratorPlanet(planet: { shapeId?: string | null; displayName?: string | null }): boolean {
+  return !!resolveLabShapeIdFromPlanet(planet);
+}
+
+const DISPLAY_NAME_TO_SHAPE: Record<string, string> = {
+  pizza: LAB_PIZZA_SHAPE_ID,
+  flower: LAB_FLOWER_SHAPE_ID,
+  dollar: LAB_DOLLAR_SHAPE_ID,
+  onigiri: LAB_ONIGIRI_SHAPE_ID,
+  "island home": LAB_ISLAND_HOME_SHAPE_ID,
+  "stardust pot": LAB_STARDUST_POT_SHAPE_ID,
+};
+
+/** Recover Lab shape id from listing/planet even if displayName was renamed later. */
+export function resolveLabShapeIdFromPlanet(planet: {
+  shapeId?: string | null;
+  displayName?: string | null;
+}): string | null {
+  if (isLabZoomShapeId(planet.shapeId)) return planet.shapeId;
+  const stardust = resolveLabStardustShapeId(planet.shapeId);
+  if (stardust) return stardust;
+  const n = (planet.displayName || "").trim().toLowerCase();
+  return DISPLAY_NAME_TO_SHAPE[n] ?? null;
 }
 
 /** localStorage key — set to "1" before the next Lab forge to force pizza. */
@@ -130,14 +168,14 @@ export function enableNextLabForgePizza(): void {
   } catch { /**/ }
 }
 
-/** Dev wipe — strip legacy farm inventory unless explicitly set to "off". */
+/** Dev wipe — only when explicitly set to "1". Default off so models never vanish. */
 export const LAB_DEV_WIPE_STATE_KEY = "zoom-lab-dev-wipe-active";
 
 export function isLabDevWipeActive(): boolean {
   try {
-    return localStorage.getItem(LAB_DEV_WIPE_STATE_KEY) !== "off";
+    return localStorage.getItem(LAB_DEV_WIPE_STATE_KEY) === "1";
   } catch {
-    return true;
+    return false;
   }
 }
 

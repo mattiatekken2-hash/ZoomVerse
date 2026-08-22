@@ -18,7 +18,7 @@ import {
   type GramChartPoint,
 } from "../utils/gramMarket";
 
-const REFRESH_MS = 15_000;
+const REFRESH_MS = 5_000;
 
 interface Props {
   gramBalance: number;
@@ -57,7 +57,7 @@ export function GramChartModal({
   }, []);
 
   const refresh = useCallback(async () => {
-    const snap = await fetchGramMarketSnapshot();
+    const snap = await fetchGramMarketSnapshot({ force: true });
     if (snap.points.length >= 2) setPoints(snap.points);
     if (snap.priceUsd != null && Number.isFinite(snap.priceUsd)) {
       setPrice(snap.priceUsd);

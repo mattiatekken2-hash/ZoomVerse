@@ -171,6 +171,40 @@ function stardustPot(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
   ];
 }
 
+/** Clay-forge silhouette — real look comes from onigiri.glb at reveal. */
+function onigiri(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const rice = "#f3eee4";
+  const nori = "#1a2a20";
+  const filling = a || "#e53935";
+  return [
+    pt("base", "sphere", 0, 0.16, 0, 0.36, 0.2, 0.3, rice, { profile: "food" }),
+    pt("mid", "sphere", 0, 0.36, 0, 0.28, 0.22, 0.24, rice, { profile: "food" }),
+    pt("top", "sphere", 0, 0.54, 0, 0.18, 0.16, 0.16, rice, { profile: "food" }),
+    pt("peak", "cone", 0, 0.68, 0, 0.14, 0.18, 0.14, rice, { profile: "food" }),
+    pt("noriFront", "box", 0, 0.22, 0.18, 0.4, 0.3, 0.07, nori, { profile: "food" }),
+    pt("noriWrap", "box", 0, 0.2, 0, 0.38, 0.26, 0.22, nori, { profile: "food" }),
+    pt("fill", "sphere", 0, 0.34, 0.2, 0.06, 0.05, 0.04, filling, { profile: "food_glossy" }),
+  ];
+}
+
+/** Clay-forge silhouette — real look comes from island_home.glb at reveal. */
+function islandHome(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const sand = "#f4d03f";
+  const water = "#3d9ee8";
+  const wood = "#8d6e63";
+  const roof = a || "#ff9100";
+  return [
+    pt("water", "cyl", 0, 0.04, 0, 0.5, 0.06, 0.5, water, { profile: "liquid" }),
+    pt("island", "sphere", 0, 0.14, 0, 0.34, 0.14, 0.34, sand, { profile: "food" }),
+    pt("house", "box", 0, 0.32, 0, 0.22, 0.18, 0.18, wood, { rough: 0.55 }),
+    pt("roof", "cone", 0, 0.48, 0, 0.18, 0.16, 0.18, roof, { profile: "food" }),
+    pt("palm", "cyl", 0.22, 0.28, 0.08, 0.03, 0.28, 0.03, "#6d4c41"),
+    pt("leaf1", "box", 0.28, 0.44, 0.08, 0.16, 0.03, 0.08, C.GREEN, { rz: 0.4 }),
+    pt("leaf2", "box", 0.16, 0.44, 0.08, 0.16, 0.03, 0.08, C.GREEN, { rz: -0.4 }),
+    pt("door", "box", 0, 0.28, 0.1, 0.06, 0.1, 0.02, "#5d4037"),
+  ];
+}
+
 /** Clay-forge silhouette only — real look comes from flower.glb (untouched). */
 function flower(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
   const petal = a || "#ff8fab";
@@ -217,7 +251,7 @@ export const FOOD_DRINK_SHAPES: ShapeEntry[] = [
   { id: "milk_carton", name: "Milk Carton", category: "food", build: milkCarton },
   { id: "energy_drink", name: "Energy Drink", category: "food", build: energyDrink },
   { id: "stardust_pot", name: "Stardust Pot", category: "food", build: stardustPot },
-  { id: "onigiri", name: "Onigiri", category: "food", build: stardustPot },
-  { id: "street_scene", name: "Onigiri", category: "food", build: stardustPot },
-  { id: "island_home", name: "Island Home", category: "food", build: stardustPot },
+  { id: "onigiri", name: "Onigiri", category: "food", build: onigiri },
+  { id: "street_scene", name: "Onigiri", category: "food", build: onigiri },
+  { id: "island_home", name: "Island Home", category: "food", build: islandHome },
 ];

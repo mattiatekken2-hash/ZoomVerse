@@ -7,6 +7,12 @@ const STARS_CATALOG_MAP: Record<string, { itemType: string; zoomAmount?: number;
   legend_pack:   { itemType: "bundle",          zoomAmount: 25000, id: "legend_pack" },
   the_sun:       { itemType: "sun",                                 id: "the_sun" },
   extra_slot:    { itemType: "slot",                                id: "extra_slot" },
+  zoom_spark:    { itemType: "zoom_pack",       zoomAmount: 200,    id: "zoom_spark" },
+  zoom_boost:    { itemType: "zoom_pack",       zoomAmount: 500,    id: "zoom_boost" },
+  zoom_pulse:    { itemType: "zoom_pack",       zoomAmount: 1400,   id: "zoom_pulse" },
+  zoom_core:     { itemType: "zoom_pack",       zoomAmount: 3000,   id: "zoom_core" },
+  zoom_nova:     { itemType: "zoom_pack",       zoomAmount: 6500,   id: "zoom_nova" },
+  zoom_galaxy:   { itemType: "zoom_pack",       zoomAmount: 14000,  id: "zoom_galaxy" },
   wheel_spin_1:  { itemType: "wheel_spin",      zoomAmount: 1,     id: "wheel_spin_1" },
   wheel_spin_5:  { itemType: "wheel_spin",      zoomAmount: 5,     id: "wheel_spin_5" },
   wheel_spin_10: { itemType: "wheel_spin",      zoomAmount: 10,    id: "wheel_spin_10" },
@@ -82,6 +88,13 @@ export async function reconcilePendingStarPayment(
           : "bonusEpic";
         await tx.update(usersTable)
           .set({ [planetCol]: sql`${usersTable[planetCol as "bonusBasic"]} + 1` })
+          .where(eq(usersTable.telegramId, telegramId));
+      } else if (item.itemType === "zoom_pack" && item.zoomAmount) {
+        await tx.update(usersTable)
+          .set({
+            zoomBalance: sql`${usersTable.zoomBalance} + ${item.zoomAmount}`,
+            balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+          })
           .where(eq(usersTable.telegramId, telegramId));
       } else if (item.itemType === "sun") {
         const result = await tx.execute(sql`

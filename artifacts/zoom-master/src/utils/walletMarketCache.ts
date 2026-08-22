@@ -70,9 +70,14 @@ export function subscribeWalletMarketCache(onUpdate: () => void): () => void {
 }
 
 let prefetchInFlight: Promise<void> | null = null;
+const PREFETCH_MIN_MS = 5_000;
 
 /** Fetch TON + ZOOM + Stardust indices + chart % in parallel and cache for the wallet. */
 export async function prefetchWalletMarket(): Promise<void> {
+  const cached = readWalletMarketCache();
+  if (cached && Date.now() - cached.at < PREFETCH_MIN_MS && cached.zoomPriceGram != null) {
+    return;
+  }
   if (prefetchInFlight) return prefetchInFlight;
   prefetchInFlight = (async () => {
     try {

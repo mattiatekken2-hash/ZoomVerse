@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, invalidateTasksCache, bumpTasksPlanetsBuilt, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
-import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, type LabForgePath } from "@workspace/game-models";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, fetchMyMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, invalidateTasksCache, bumpTasksPlanetsBuilt, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
+import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, resolveLabShapeIdFromPlanet, type LabForgePath } from "@workspace/game-models";
 import { normalizeLabForgeShapeId } from "../utils/labForgeShape";
-import { refreshMarketListings } from "../store/globalStore";
+import { refreshMarketListings, upsertMarketListing } from "../store/globalStore";
 import type { EquipmentItem, EquipmentCategory, EquipmentRarity } from "../utils/equipmentConfig";
 import type { CollectibleItem } from "../utils/collectibleConfig";
 import { getEquipmentTotalRate, getEquipmentReactivationFee, EQUIPMENT_CYCLE_MS } from "../utils/equipmentConfig";
@@ -100,6 +100,9 @@ export interface Planet {
   isListedInMarket: boolean;
   isFarmingActive: boolean;
   marketPrice: number | null;
+  marketCurrency?: "gram" | "zoom" | "stardust";
+  /** Client stamp when listed — drives the 1h My List timer before the server row lands. */
+  marketListedAt?: number;
   craftCost: number;
   serverListingId?: number;
   // Only used by White Collection planets. null = in inventory, 0..3 = placed in that slot (immutable).
@@ -1278,6 +1281,17 @@ function applyGramConvertCeilingTon(ton: number, epoch: number): number {
   return Math.min(ton, g.ton);
 }
 
+/** Spend GRAM from deposit first, then earned (tonBalance). No 50/50 split. */
+function spendGramWallets(deposit: number, earned: number, amount: number): { depositBalance: number; tonBalance: number } {
+  const need = Math.max(0, amount);
+  const fromDeposit = Math.min(Math.max(0, deposit), need);
+  const fromEarned = Math.max(0, need - fromDeposit);
+  return {
+    depositBalance: +(Math.max(0, deposit - fromDeposit)).toFixed(6),
+    tonBalance: +(Math.max(0, earned - fromEarned)).toFixed(6),
+  };
+}
+
 function adoptServerGramBalances(
   holder: StateRefHolder,
   tonBalance: number,
@@ -1847,6 +1861,11 @@ function makeLabGeneratorPlanet(path: LabForgePath, shapeId: string): Planet {
   };
 }
 
+/** Farm occupancy: listed models sit in Market inventory, not Farm slots. */
+export function farmSlotUsedCount(planets: Planet[]): number {
+  return planets.filter((p) => isLabForgeGeneratorPlanet(p) && !p.isListedInMarket).length;
+}
+
 const MODEL_RARITY_TO_PLANET: Record<string, PlanetType> = {
   BASIC: "BASIC",
   RARE: "RARE",
@@ -1920,7 +1939,7 @@ export function isLegacyCatalogModelPlanet(planet: Pick<Planet, "modelId">): boo
 }
 
 function stripLegacyCatalogModels(planets: Planet[]): Planet[] {
-  return planets.filter((p) => !isLegacyCatalogModelPlanet(p));
+  return planets.filter((p) => isLabForgeGeneratorPlanet(p) || !isLegacyCatalogModelPlanet(p));
 }
 
 /** Lab economy — THE SUN must never appear in Farm (server grants re-add it otherwise). */
@@ -2720,20 +2739,25 @@ export function useGameState() {
             //      migrated values back to the server.
             // Lab economy: drop BASIC…GOLD spheres — keep only ZOOM/Stardust generators.
             const nowMs = serverNow();
+            const serverPlanets = stripLegacyCatalogModels(
+              (serverRegular.planets as unknown as Planet[])
+                .map(migrateLegacyNeverStartedPlanet)
+                .map((p) => applyDailyCollectMigration(p, nowMs))
+                .map(applyModelRarityColors)
+                .map((serverP) => {
+                const clientP = stateRef.current.planets.find(
+                  (cp) => cp.id === serverP.id,
+                );
+                return mergeServerPlanetWithClient(serverP, clientP);
+              }),
+            ).filter(isLabForgeGeneratorPlanet);
+            const serverIds = new Set(serverPlanets.map((p) => p.id));
+            const localOnly = stateRef.current.planets.filter(
+              (p) => isLabForgeGeneratorPlanet(p) && !serverIds.has(p.id),
+            );
             updated = {
               ...updated,
-              planets: stripLegacyCatalogModels(
-                (serverRegular.planets as unknown as Planet[])
-                  .map(migrateLegacyNeverStartedPlanet)
-                  .map((p) => applyDailyCollectMigration(p, nowMs))
-                  .map(applyModelRarityColors)
-                  .map((serverP) => {
-                  const clientP = stateRef.current.planets.find(
-                    (cp) => cp.id === serverP.id,
-                  );
-                  return mergeServerPlanetWithClient(serverP, clientP);
-                }),
-              ).filter(isLabForgeGeneratorPlanet),
+              planets: [...serverPlanets, ...localOnly],
             };
           } else {
             updated = {
@@ -4086,6 +4110,10 @@ export function useGameState() {
     if (current.pendingModel || current.pendingPlanet || current.forgeRolling) {
       return { ok: false, reason: "busy" };
     }
+    if (farmSlotUsedCount(current.planets) >= current.maxSlots) {
+      try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: "Slots full", ok: false } })); } catch { /**/ }
+      return { ok: false, reason: "slots_full" };
+    }
     if (current.labForgePath) {
       return { ok: false, reason: "already_forging" };
     }
@@ -4208,7 +4236,7 @@ export function useGameState() {
 
     setState((prev) => {
       if (!prev.pendingPlanet) { outcome = { ok: false, reason: "Nothing to claim" }; return prev; }
-      if (prev.planets.length >= prev.maxSlots) {
+      if (farmSlotUsedCount(prev.planets) >= prev.maxSlots) {
         outcome = { ok: false, reason: "Slots full" };
         try { window.dispatchEvent(new CustomEvent("zoom-toast", { detail: { text: "Slots full", ok: false } })); } catch { /**/ }
         return prev;
@@ -4234,8 +4262,24 @@ export function useGameState() {
 
     if (outcome.ok && claimedName) {
       const { telegramId: tid } = getTelegramContext();
+      const snap = stateRef.current;
       if (tid) {
-        const builtNow = stateRef.current.craftsCompleted;
+        void saveRegularPlanets(
+          tid,
+          snap.planets as unknown as Array<Record<string, unknown>>,
+          {
+            basic: snap.claimedBonusBasic ?? 0,
+            rare: snap.claimedBonusRare ?? 0,
+            epic: snap.claimedBonusEpic ?? 0,
+            gold: snap.claimedBonusGold ?? 0,
+            mythic: snap.claimedBonusMythic ?? 0,
+            plasma: snap.claimedBonusPlasma ?? 0,
+            v1: snap.claimedBonusV1 ?? 0,
+            v1NftPlatinum: snap.claimedBonusV1NftPlatinum ?? 0,
+          },
+          snap.craftsCompleted,
+        );
+        const builtNow = snap.craftsCompleted;
         invalidateTasksCache(tid);
         bumpTasksPlanetsBuilt(tid, builtNow);
         void recordCraft(tid, claimedName, claimedCost).then(() => {
@@ -4670,7 +4714,7 @@ export function useGameState() {
     });
   }, []);
 
-  const listPlanet = useCallback((id: string, price: number) => {
+  const listPlanet = useCallback((id: string, price: number, currency: "gram" | "zoom" | "stardust" = "gram") => {
     setState((prev) => {
       const planet = prev.planets.find((p) => p.id === id);
       if (!planet) return prev;
@@ -4712,25 +4756,31 @@ export function useGameState() {
           return listOnMarket({
             sellerTelegramId: telegramId,
             sellerName: firstName ?? undefined,
-            // Pass the local planet id so the server can verify ownership
-            // against users.planets_json. Without it the server will reject
-            // the listing with 400 "Planet not found in your inventory".
             planetId: planet.id,
             planetType: planet.name,
             planetRate: planet.rate,
             price,
-            shapeId: planet.shapeId,
+            shapeId: planet.shapeId || resolveLabShapeIdFromPlanet(planet) || undefined,
             displayName: planet.displayName,
+            priceCurrency: currency,
           });
         }).then((result) => {
           if (result.ok && result.listing) {
             setState((s) => ({
               ...s,
               planets: s.planets.map((p) =>
-                p.id === id ? { ...p, serverListingId: result.listing!.id } : p
+                p.id === id ? { ...p, serverListingId: result.listing!.id, marketCurrency: currency } : p
               ),
             }));
+            upsertMarketListing({
+              ...result.listing,
+              priceCurrency: result.listing.priceCurrency ?? currency,
+              shapeId: result.listing.shapeId ?? planet.shapeId ?? null,
+              planetDisplayName: result.listing.planetDisplayName ?? planet.displayName ?? null,
+              lastActivatedAt: result.listing.lastActivatedAt ?? new Date().toISOString(),
+            });
             void refreshMarketListings();
+            try { window.dispatchEvent(new Event("zoom-data-refresh")); } catch { /**/ }
           } else {
             // Server rejected the listing (e.g. 409 "already listed",
             // 409 "previously sold", 400 "type/rate mismatch"). Revert
@@ -4747,6 +4797,8 @@ export function useGameState() {
                       ...p,
                       isListedInMarket: false,
                       marketPrice: null,
+                      marketCurrency: undefined,
+                      marketListedAt: undefined,
                       serverListingId: undefined,
                       isFarmingActive: prevIsFarmingActive,
                       pausedAt: prevPausedAt,
@@ -4770,6 +4822,8 @@ export function useGameState() {
                     ...p,
                     isListedInMarket: false,
                     marketPrice: null,
+                    marketCurrency: undefined,
+                    marketListedAt: undefined,
                     serverListingId: undefined,
                     isFarmingActive: prevIsFarmingActive,
                     pausedAt: prevPausedAt,
@@ -4789,7 +4843,7 @@ export function useGameState() {
         ...prev,
         planets: prev.planets.map((p) =>
           p.id === id
-            ? { ...p, isListedInMarket: true, isFarmingActive: false, marketPrice: price, pausedAt: pauseStamp }
+            ? { ...p, isListedInMarket: true, isFarmingActive: false, marketPrice: price, marketCurrency: currency, marketListedAt: Date.now(), pausedAt: pauseStamp }
             : p
         ),
       };
@@ -4884,6 +4938,8 @@ export function useGameState() {
             ...p,
             isListedInMarket: false,
             marketPrice: null,
+            marketCurrency: undefined,
+            marketListedAt: undefined,
             serverListingId: undefined,
             isFarmingActive: wasActiveCycle,
             farmStartedAt: newFarmStartedAt,
@@ -4956,44 +5012,60 @@ export function useGameState() {
     pricePaid: number,
     planetFloat?: number | null,
     model?: { modelId?: string | null; shapeId?: string | null; modelName?: string | null } | null,
+    opts?: { currency?: "gram" | "zoom" | "stardust"; listingId?: number },
   ) => {
-    const cfg = PLANET_CONFIG[planetType];
+    const cfg = PLANET_CONFIG[planetType] ?? PLANET_CONFIG.BASIC;
     const now = serverNow();
     const modelId = model?.modelId || undefined;
     const def = modelId ? getModelById(modelId) : undefined;
+    const shapeId = model?.shapeId || def?.shapeId;
+    const zoomShape = isLabZoomShapeId(shapeId) ? shapeId : null;
+    const stardustShape = resolveLabStardustShapeId(shapeId);
+    const colors = zoomShape
+      ? LAB_ZOOM_COLORS[zoomShape]
+      : stardustShape
+        ? LAB_STARDUST_COLORS[stardustShape]
+        : { color: cfg.color, glowColor: cfg.glowColor };
     const newPlanet: Planet = {
-      id: `bought-${Date.now()}-${Math.random().toString(36).substring(2)}`,
+      id: opts?.listingId != null ? `bought-${opts.listingId}` : `bought-${now}`,
       name: planetType,
       rate: planetRate,
-      color: cfg.color,
-      glowColor: cfg.glowColor,
+      color: colors.color,
+      glowColor: colors.glowColor,
       createdAt: now,
-      // Same as buyPlanet — never-started until first user-triggered START.
       farmStartedAt: 0,
       lastCollectedAt: 0,
       isListedInMarket: false,
       isFarmingActive: false,
       marketPrice: null,
       craftCost: pricePaid,
-      // Carry the listing's snapshotted float onto the buyer's new
-      // planet so the perfection score the buyer saw on the marketplace
-      // card persists (CS:GO-style: you bought THIS specific float).
-      // Fall back to a fresh random if the listing didn't carry one.
       float: typeof planetFloat === "number" && Number.isFinite(planetFloat)
         ? planetFloat
         : generateRandomFloat(),
       modelId,
       modelName: model?.modelName || def?.name,
-      shapeId: model?.shapeId || def?.shapeId,
+      shapeId,
+      displayName: model?.modelName || def?.name,
+      durability: 100,
+      durabilityUpdatedAt: 0,
+      farmDurationHours: 1,
     };
+    const currency = opts?.currency ?? "gram";
     setState((prev) => {
-      // 50/50 split: buyer pays half from deposit_balance and half from
-      // earned_balance (tonBalance), mirroring the server-side debit.
-      const half = +(pricePaid * 0.5).toFixed(6);
+      if (prev.planets.some((p) => p.id === newPlanet.id)) return prev;
+      const gramSpend = currency === "gram"
+        ? spendGramWallets(prev.depositBalance || 0, prev.tonBalance || 0, pricePaid)
+        : { depositBalance: prev.depositBalance, tonBalance: prev.tonBalance };
       const updated = {
         ...prev,
-        depositBalance: +((prev.depositBalance || 0) - half).toFixed(6),
-        tonBalance: +(Math.max(0, (prev.tonBalance || 0) - half)).toFixed(6),
+        depositBalance: gramSpend.depositBalance,
+        tonBalance: gramSpend.tonBalance,
+        balance: currency === "zoom"
+          ? +(Math.max(0, (prev.balance || 0) - pricePaid)).toFixed(6)
+          : prev.balance,
+        stardustBalance: currency === "stardust"
+          ? Math.max(0, (prev.stardustBalance || 0) - pricePaid)
+          : prev.stardustBalance,
         planets: [...prev.planets, newPlanet],
       };
       stateRef.current = updated;
@@ -5034,7 +5106,11 @@ export function useGameState() {
       );
       if (myListed.length === 0) return;
       try {
-        const active = await fetchMarketListings();
+        const { telegramId: meId } = getTelegramContext();
+        const [active, mine] = await Promise.all([
+          fetchMarketListings(),
+          meId ? fetchMyMarketListings(meId) : Promise.resolve([]),
+        ]);
         if (cancelled) return;
         // Safety guard: if the server returns ZERO active listings while
         // we have ANY locally-listed planet, treat the response as
@@ -5044,8 +5120,8 @@ export function useGameState() {
         // between two 30s polls — AND no other player having ANY active
         // listing in the entire market — is effectively zero. Real money
         // is at stake; we'd rather miss a sync than destroy a planet.
-        if (active.length === 0) return;
-        const activeIds = new Set(active.map((l) => l.id));
+        if (active.length === 0 && mine.length === 0) return;
+        const activeIds = new Set([...active, ...mine].map((l) => l.id));
         const goneIds = new Set(
           myListed
             .filter((p) => !activeIds.has(p.serverListingId as number))
@@ -5947,11 +6023,9 @@ export function useGameState() {
     const tid = stateRef.current.telegramId;
     if (!tid) return { success: false, reason: "Not logged in" };
     if (listing.kind !== "equipment") return { success: false, reason: "Not an equipment listing" };
-    // Equipment buys go through the same TON marketplace endpoint as planets:
-    // buyer pays 50% from deposit_balance and 50% from earned_balance (tonBalance).
-    const half = +(listing.price * 0.5).toFixed(6);
-    if ((stateRef.current.depositBalance || 0) < half || (stateRef.current.tonBalance || 0) < half) {
-      return { success: false, reason: "Insufficient balance: need 50% deposit + 50% earned" };
+    const price = listing.price;
+    if ((stateRef.current.depositBalance || 0) + (stateRef.current.tonBalance || 0) < price) {
+      return { success: false, reason: "Not enough GRAM" };
     }
     const result = await buyFromMarket(tid, listing.id);
     if (!result.ok) return { success: false, reason: result.error ?? "Purchase failed" };
@@ -5974,14 +6048,12 @@ export function useGameState() {
       isFarmingActive: false,
     };
     setState((prev) => {
-      // 50/50 split: half from deposit_balance, half from earned_balance
-      // (tonBalance), mirroring the server-side debit. Use the price actually
-      // charged by the server when echoed back.
-      const paidHalf = +((result.pricePaid ?? listing.price) * 0.5).toFixed(6);
+      const paid = result.pricePaid ?? listing.price;
+      const gramSpend = spendGramWallets(prev.depositBalance || 0, prev.tonBalance || 0, paid);
       return {
         ...prev,
-        depositBalance: +((prev.depositBalance || 0) - paidHalf).toFixed(6),
-        tonBalance: +(Math.max(0, (prev.tonBalance || 0) - paidHalf)).toFixed(6),
+        depositBalance: gramSpend.depositBalance,
+        tonBalance: gramSpend.tonBalance,
         equipment: [...(prev.equipment || []), newItem],
       };
     });
@@ -6221,18 +6293,20 @@ export function useGameState() {
     const tid = stateRef.current.telegramId;
     if (!tid) return { success: false, reason: "Not logged in" };
     if (listing.kind !== "item") return { success: false, reason: "Not an item listing" };
-    const half = +(listing.price * 0.5).toFixed(6);
-    if ((stateRef.current.depositBalance || 0) < half || (stateRef.current.tonBalance || 0) < half) {
-      return { success: false, reason: "Insufficient balance: need 50% deposit + 50% earned" };
+    const price = listing.price;
+    if ((stateRef.current.depositBalance || 0) + (stateRef.current.tonBalance || 0) < price) {
+      return { success: false, reason: "Not enough GRAM" };
     }
     const result = await buyFromMarket(tid, listing.id);
     if (!result.ok) return { success: false, reason: result.error ?? "Purchase failed" };
     // Mint the item locally
-    const paidHalf = +((result.pricePaid ?? listing.price) * 0.5).toFixed(6);
-    setState((prev) => ({
+    const paid = result.pricePaid ?? listing.price;
+    setState((prev) => {
+      const gramSpend = spendGramWallets(prev.depositBalance || 0, prev.tonBalance || 0, paid);
+      return {
       ...prev,
-      depositBalance: +((prev.depositBalance || 0) - paidHalf).toFixed(6),
-      tonBalance: +(Math.max(0, (prev.tonBalance || 0) - paidHalf)).toFixed(6),
+      depositBalance: gramSpend.depositBalance,
+      tonBalance: gramSpend.tonBalance,
       items: [
         ...(prev.items ?? []),
         {
@@ -6247,7 +6321,8 @@ export function useGameState() {
           isListedInMarket: false,
         },
       ],
-    }));
+    };
+    });
     void refreshMarketListings();
     return { success: true };
   }, []);

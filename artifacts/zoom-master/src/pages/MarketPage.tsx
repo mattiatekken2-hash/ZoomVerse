@@ -7,7 +7,8 @@ import { useGlobalStore, pushMarketSale, refreshMarketListings } from "../store/
 import { getPlanetDisplayName, deterministicNameFromId } from "../utils/planetNames";
 import { useT } from "../i18n/LanguageContext";
 import {
-  labMarketPathForShapeId,
+  labMarketPathForPlanet,
+  parseMarketPriceCurrency,
   type LabMarketPath,
 } from "@workspace/game-models";
 
@@ -16,6 +17,8 @@ type MarketFilter = "all" | LabMarketPath;
 interface MarketPageProps {
   depositBalance: number;
   earnedBalance: number;
+  zoomBalance?: number;
+  stardustBalance?: number;
   myListings: Planet[];
   maxSlots: number;
   telegramId: string | null;
@@ -27,6 +30,7 @@ interface MarketPageProps {
     pricePaid: number,
     planetFloat?: number | null,
     model?: { modelId?: string | null; shapeId?: string | null; modelName?: string | null } | null,
+    opts?: { currency?: "gram" | "zoom" | "stardust"; listingId?: number },
   ) => void;
   /** @deprecated Lab market no longer lists equipment */
   onBuyEquipment?: (listing: unknown) => Promise<{ success: boolean; reason?: string }>;
@@ -50,6 +54,8 @@ const FILTERS: { id: MarketFilter; label: string; hint: string }[] = [
 export function MarketPage({
   depositBalance,
   earnedBalance,
+  zoomBalance = 0,
+  stardustBalance = 0,
   myListings,
   maxSlots,
   telegramId,
@@ -67,7 +73,7 @@ export function MarketPage({
   const sales = useGlobalStore((s) => s.marketSales);
   const initialized = useGlobalStore((s) => s.initialized);
   const loading = !initialized && serverListings.length === 0;
-  const [tab, setTab] = useState<"listings" | "activity">("listings");
+  const [tab, setTab] = useState<"listings" | "mine" | "activity">("listings");
   const [pulseId, setPulseId] = useState<number | null>(null);
   const [sharingId, setSharingId] = useState<number | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
@@ -108,6 +114,7 @@ export function MarketPage({
 
   useEffect(() => {
     if (!visible) return;
+    void refreshMarketListings();
     const close = openMarketActivityStream((sale) => {
       pushMarketSale(sale);
       setPulseId(sale.id);
@@ -124,7 +131,7 @@ export function MarketPage({
     );
 
     const userListings: MarketPlanetListingView[] = myListings
-      .filter((p) => p.isListedInMarket && p.marketPrice && labMarketPathForShapeId(p.shapeId))
+      .filter((p) => p.isListedInMarket && p.marketPrice)
       .map((p) => ({
         id: p.id,
         price: p.marketPrice!,
@@ -135,6 +142,8 @@ export function MarketPage({
         displayName: p.displayName || getPlanetDisplayName(p),
         farmDurationHours: (p.farmDurationHours ?? 1) > 1 ? p.farmDurationHours : null,
         shapeId: p.shapeId ?? null,
+        planetType: p.name,
+        priceCurrency: p.marketCurrency ?? "gram",
       }));
 
     const ownLocalServerIds = new Set(
@@ -146,7 +155,6 @@ export function MarketPage({
     const ownFromServer: MarketPlanetListingView[] = serverListings
       .filter((l) => l.kind !== "equipment" && l.kind !== "item")
       .filter((l) => l.sellerTelegramId === telegramId)
-      .filter((l) => labMarketPathForShapeId(l.shapeId))
       .filter((l) => !ownLocalServerIds.has(l.id))
       .map((l) => ({
         id: `server-own-${l.id}`,
@@ -159,12 +167,13 @@ export function MarketPage({
           ?? deterministicNameFromId(l.planetId || `listing-${l.id}`),
         farmDurationHours: (l.planetFarmDurationHours ?? 1) > 1 ? l.planetFarmDurationHours : null,
         shapeId: l.shapeId ?? null,
+        planetType: l.planetType,
+        priceCurrency: parseMarketPriceCurrency(l.priceCurrency),
       }));
 
     const others: MarketPlanetListingView[] = serverListings
       .filter((l) => l.kind !== "equipment" && l.kind !== "item")
       .filter((l) => l.sellerTelegramId !== telegramId)
-      .filter((l) => labMarketPathForShapeId(l.shapeId))
       .map((l) => ({
         id: `server-${l.id}`,
         price: l.price,
@@ -176,6 +185,8 @@ export function MarketPage({
           ?? deterministicNameFromId(l.planetId || `listing-${l.id}`),
         farmDurationHours: (l.planetFarmDurationHours ?? 1) > 1 ? l.planetFarmDurationHours : null,
         shapeId: l.shapeId ?? null,
+        planetType: l.planetType,
+        priceCurrency: parseMarketPriceCurrency(l.priceCurrency),
       }));
 
     return [...userListings, ...ownFromServer, ...others];
@@ -183,7 +194,11 @@ export function MarketPage({
 
   const filtered = useMemo(() => {
     if (filter === "all") return allDisplayListings;
-    return allDisplayListings.filter((l) => labMarketPathForShapeId(l.shapeId) === filter);
+    return allDisplayListings.filter((l) => labMarketPathForPlanet({
+      shapeId: l.shapeId,
+      displayName: l.displayName,
+      rate: l.rate,
+    }) === filter);
   }, [allDisplayListings, filter]);
 
   const handleBuyServer = async (
@@ -195,11 +210,24 @@ export function MarketPage({
     model?: { modelId?: string | null; shapeId?: string | null; modelName?: string | null } | null,
   ) => {
     if (!telegramId) return;
-    if (depositBalance < price * 0.5 || earnedBalance < price * 0.5) {
-      showToast("Need 50% deposit + 50% earned GRAM", false);
+    const currency = parseMarketPriceCurrency(
+      allDisplayListings.find((l) => l.serverId === serverId)?.priceCurrency,
+    );
+    if (currency === "gram") {
+      if (depositBalance + earnedBalance < price) {
+        showToast("Not enough GRAM", false);
+        return;
+      }
+    } else if (currency === "zoom") {
+      if (zoomBalance < price) {
+        showToast("Not enough $ZOOM", false);
+        return;
+      }
+    } else if (stardustBalance < price) {
+      showToast("Not enough ★ Stardust", false);
       return;
     }
-    if (myListings.length >= maxSlots) {
+    if (myListings.filter((p) => !p.isListedInMarket).length >= maxSlots) {
       showToast("No free farm slots", false);
       return;
     }
@@ -211,7 +239,12 @@ export function MarketPage({
         shapeId: result.shapeId ?? model?.shapeId,
         modelName: result.modelName ?? model?.modelName,
       };
-      onServerBuyComplete(planetType, planetRate, price, finalFloat, modelMeta);
+      const boughtType = (result.planetType as PlanetType) || planetType;
+      const boughtRate = typeof result.planetRate === "number" ? result.planetRate : planetRate;
+      onServerBuyComplete(boughtType, boughtRate, result.pricePaid ?? price, finalFloat, modelMeta, {
+        currency,
+        listingId: serverId,
+      });
       void refreshMarketListings();
       showToast(`${modelMeta.modelName || "Model"} added to Farm`, true);
     } else {
@@ -228,7 +261,10 @@ export function MarketPage({
   };
 
   const activityViews: MarketPlanetListingView[] = sales
-    .filter((s) => labMarketPathForShapeId((s as MarketSale & { shapeId?: string | null }).shapeId))
+    .filter((s) => labMarketPathForPlanet({
+      shapeId: (s as MarketSale & { shapeId?: string | null }).shapeId,
+      displayName: (s as MarketSale & { planetDisplayName?: string | null }).planetDisplayName,
+    }))
     .map((s) => {
       const ago = Math.max(0, Math.floor((Date.now() - s.soldAt) / 1000));
       const agoLabel = ago < 60 ? `${ago}s ago` : ago < 3600 ? `${Math.floor(ago / 60)}m ago` : `${Math.floor(ago / 3600)}h ago`;
@@ -267,6 +303,16 @@ export function MarketPage({
           <button
             type="button"
             role="tab"
+            aria-selected={tab === "mine"}
+            onClick={() => setTab("mine")}
+            className={`lab-market__tab${tab === "mine" ? " is-active" : ""}`}
+            data-testid="tab-my-list"
+          >
+            My List
+          </button>
+          <button
+            type="button"
+            role="tab"
             aria-selected={tab === "activity"}
             onClick={() => setTab("activity")}
             className={`lab-market__tab lab-market__tab--live${tab === "activity" ? " is-active" : ""}`}
@@ -279,7 +325,15 @@ export function MarketPage({
       </header>
 
       <div className="flex-1 overflow-y-auto px-4 pb-5 lab-market__scroll">
-        {tab === "activity" ? (
+        {tab === "mine" ? (
+          <MyMarketListingsWidget
+            telegramId={telegramId}
+            myPlanets={myListings}
+            onUnlist={onUnlist}
+            visible={visible}
+            maxSlots={maxSlots}
+          />
+        ) : tab === "activity" ? (
           <div className="lab-market__grid">
             {activityViews.length === 0 && (
               <div className="lab-market__empty">
@@ -304,13 +358,6 @@ export function MarketPage({
           </div>
         ) : (
           <>
-            <MyMarketListingsWidget
-              telegramId={telegramId}
-              myPlanets={myListings}
-              onUnlist={onUnlist}
-              visible={visible}
-            />
-
             <div className="lab-market__filters" role="tablist" aria-label="Market path">
               {FILTERS.map((f) => (
                 <button
@@ -341,10 +388,16 @@ export function MarketPage({
 
             <div className="lab-market__grid">
               {filtered.map((listing) => {
+                const currency = parseMarketPriceCurrency(listing.priceCurrency);
+                const canAfford =
+                  currency === "gram"
+                    ? depositBalance + earnedBalance >= listing.price
+                    : currency === "zoom"
+                      ? zoomBalance >= listing.price
+                      : stardustBalance >= listing.price;
                 const canBuy =
                   !listing.isOwn &&
-                  depositBalance >= listing.price * 0.5 &&
-                  earnedBalance >= listing.price * 0.5 &&
+                  canAfford &&
                   myListings.filter((p) => !p.isListedInMarket).length < maxSlots;
                 const isFocused = listing.serverId != null && highlightId === listing.serverId;
                 return (
@@ -359,7 +412,7 @@ export function MarketPage({
                       if (listing.serverId) {
                         handleBuyServer(
                           listing.serverId,
-                          "BASIC",
+                          (listing.planetType as PlanetType) || "BASIC",
                           listing.rate,
                           listing.price,
                           null,
@@ -380,7 +433,7 @@ export function MarketPage({
                         } as MarketListing);
                       }
                     }}
-                    onUnlist={() => onUnlist(listing.id)}
+                    onUnlist={undefined}
                     onShare={
                       listing.serverId != null && listing.isOwn
                         ? () => handleShare(listing.serverId as number)

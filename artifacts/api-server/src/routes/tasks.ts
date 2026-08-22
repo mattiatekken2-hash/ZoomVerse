@@ -3,6 +3,7 @@ import { db, usersTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { VerifiedTgUser } from "../lib/telegram-auth";
+import { recordHistoryAsync } from "../lib/history";
 import { requireTelegramAuth } from "../lib/telegram-auth";
 
 // Local helper — the global Express.Request augmentation declared in
@@ -254,7 +255,7 @@ router.post("/tasks/claim", async (req, res) => {
   }
   const { telegramId, taskId } = parsed.data;
   const task = TASKS_BY_ID[taskId];
-  if (!task) {
+  if (!task || taskId.startsWith("planets_")) {
     res.status(400).json({ ok: false, error: "UNKNOWN_TASK" });
     return;
   }
@@ -451,6 +452,13 @@ router.post("/tasks/claim", async (req, res) => {
     console.log(
       `[tasks/claim] ${telegramId} claimed ${taskId} (+${rewardZoom} ZOOM, +${rewardSpins} spins, +${rewardStardust} stardust)`,
     );
+
+    if (rewardZoom > 0) {
+      recordHistoryAsync({ telegramId, kind: "task_claim", delta: rewardZoom, currency: "zoom", meta: { taskId } });
+    }
+    if (rewardStardust > 0) {
+      recordHistoryAsync({ telegramId, kind: "task_claim", delta: rewardStardust, currency: "stardust", meta: { taskId } });
+    }
 
     res.json({
       ok: true,

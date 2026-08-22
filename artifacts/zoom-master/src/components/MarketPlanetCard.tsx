@@ -6,7 +6,10 @@ import {
   isLabStardustShapeId,
   isLabZoomShapeId,
   resolveLabStardustShapeId,
-  labMarketPathForShapeId,
+  resolveLabShapeIdFromPlanet,
+  labMarketPathForPlanet,
+  formatMarketListingPrice,
+  parseMarketPriceCurrency,
   type LabMarketPath,
 } from "@workspace/game-models";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
@@ -37,6 +40,8 @@ export interface MarketPlanetListingView {
   farmDurationHours?: number | null;
   modelId?: string | null;
   shapeId?: string | null;
+  planetType?: string | null;
+  priceCurrency?: "gram" | "zoom" | "stardust" | null;
 }
 
 interface Props {
@@ -46,7 +51,7 @@ interface Props {
   highlighted?: boolean;
   suspendGl?: boolean;
   onBuy: () => void;
-  onUnlist: () => void;
+  onUnlist?: () => void;
   onShare?: () => void;
   statusText?: string;
 }
@@ -82,13 +87,21 @@ export function MarketPlanetCard({
   onShare,
   statusText,
 }: Props) {
-  const path = labMarketPathForShapeId(listing.shapeId);
-  if (!path) return null;
+  const path = labMarketPathForPlanet({
+    shapeId: listing.shapeId,
+    displayName: listing.displayName,
+    rate: listing.rate,
+  });
 
   const theme = PATH_THEME[path];
   const accent = theme.accent;
   const title = resolveTitle(listing, path);
   const rate = resolveRate(listing, path);
+
+  const shapeId = resolveLabShapeIdFromPlanet({
+    shapeId: listing.shapeId,
+    displayName: listing.displayName,
+  }) ?? listing.shapeId ?? undefined;
 
   const fakePlanet = {
     id: listing.id,
@@ -104,7 +117,7 @@ export function MarketPlanetCard({
     isFarmingActive: false,
     marketPrice: listing.price,
     displayName: title,
-    shapeId: listing.shapeId ?? undefined,
+    shapeId,
   };
 
   return (
@@ -121,7 +134,7 @@ export function MarketPlanetCard({
     >
       <div className="lab-market-card__stage">
         <div className="lab-market-card__orb" aria-hidden>
-          <PlanetVoxelThumb planet={fakePlanet} size={132} animate suspendGl={suspendGl} />
+          <PlanetVoxelThumb planet={fakePlanet} size={132} animate eager suspendGl={suspendGl} />
         </div>
         <span className="lab-market-card__path">{theme.label}</span>
       </div>
@@ -132,7 +145,7 @@ export function MarketPlanetCard({
           <span className="lab-market-card__yield">
             +{rate.toLocaleString(undefined, { maximumFractionDigits: 2 })} {theme.yieldUnit}
           </span>
-          <span className="lab-market-card__price">{listing.price.toFixed(2)} GRAM</span>
+          <span className="lab-market-card__price">{formatMarketListingPrice(listing.price, parseMarketPriceCurrency(listing.priceCurrency))}</span>
         </div>
         <p className="lab-market-card__seller">
           {listing.isOwn ? "Your listing" : listing.seller}
@@ -154,9 +167,13 @@ export function MarketPlanetCard({
                   {sharing ? "…" : "Share"}
                 </button>
               )}
-              <button type="button" onClick={onUnlist} className="lab-market-card__delist">
-                Delist
-              </button>
+              {onUnlist ? (
+                <button type="button" onClick={onUnlist} className="lab-market-card__delist">
+                  Delist
+                </button>
+              ) : (
+                <div className="lab-market-card__status">Online</div>
+              )}
             </>
           ) : (
             <button

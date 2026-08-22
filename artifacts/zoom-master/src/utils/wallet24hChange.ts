@@ -85,12 +85,9 @@ export function chartIconScale(_changePct?: number | null): number {
  */
 export function formatZoomChartPrice(p: number | null | undefined): string {
   if (p == null || !Number.isFinite(p) || p <= 0) return "—";
-  if (p < 0.0001) {
-    return p.toFixed(9).replace(/0+$/, "").replace(/\.$/, "");
-  }
-  if (p < 0.01) return p.toFixed(6);
-  if (p < 1) return p.toFixed(4);
-  return p.toFixed(3);
+  if (p < 0.001) return p.toPrecision(2).replace(/e\+?/, "e");
+  if (p < 1) return p.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+  return p.toFixed(2);
 }
 
 /** Stardust chart index — genesis is 1.000000. */

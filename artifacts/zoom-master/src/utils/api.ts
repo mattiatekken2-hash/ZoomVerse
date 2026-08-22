@@ -2761,6 +2761,7 @@ export interface ServerMarketListing {
   modelId?: string | null;
   shapeId?: string | null;
   price: number;
+  priceCurrency?: "gram" | "zoom" | "stardust" | null;
   status: string;
   createdAt: string;
   lastActivatedAt?: string | null;
@@ -2803,7 +2804,7 @@ export async function fetchMyMarketListings(telegramId: string): Promise<ServerM
 export async function reactivateMarketListing(
   sellerTelegramId: string,
   listingId: number,
-): Promise<{ ok: boolean; expiresAt?: number; remainingMs?: number; error?: string }> {
+): Promise<{ ok: boolean; expiresAt?: number; remainingMs?: number; feeZoom?: number; error?: string }> {
   try {
     const res = await fetch(`${API_BASE}/market/reactivate`, {
       method: "POST",
@@ -2818,6 +2819,7 @@ export async function reactivateMarketListing(
       ok: true,
       expiresAt: typeof data.expiresAt === "number" ? data.expiresAt : undefined,
       remainingMs: typeof data.remainingMs === "number" ? data.remainingMs : undefined,
+      feeZoom: typeof data.feeZoom === "number" ? data.feeZoom : undefined,
     };
   } catch {
     return { ok: false, error: "Network error" };
@@ -2837,6 +2839,7 @@ export async function listOnMarket(params: {
   /** Lab forge shape (pizza/flower/dollar/stardust_pot) — snapshotted on the listing. */
   shapeId?: string;
   displayName?: string;
+  priceCurrency?: "gram" | "zoom" | "stardust";
 }): Promise<{ ok: boolean; listing?: ServerMarketListing; error?: string }> {
   try {
     const res = await fetch(`${API_BASE}/market/list`, {

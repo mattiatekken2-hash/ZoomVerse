@@ -177,6 +177,14 @@ const STARS_CATALOG: StarsItem[] = [
   // already owned (see SLOT_PRICE_LADDER_TON below). starsPrice is set to 0
   // so the create-invoice/webhook guards reject any Stars-path attempt.
   { id: "extra_slot", title: "Extra Slot", description: "Unlock 1 additional planet slot", starsPrice: 0, tonPrice: 0.25, itemType: "slot" },
+  // $ZOOM packs — GRAM / Stars / Stardust. Rate rises with pack size
+  // (4k→7k ZOOM per GRAM). 500 $ZOOM = 1 Stardust-model forge.
+  { id: "zoom_spark",  title: "ZOOM Spark",  description: "Instant +200 $ZOOM",    starsPrice: 5,   tonPrice: 0.05, zoomAmount: 200,   itemType: "zoom_pack" },
+  { id: "zoom_boost",  title: "ZOOM Boost",  description: "Instant +500 $ZOOM",    starsPrice: 10,  tonPrice: 0.10, zoomAmount: 500,   itemType: "zoom_pack" },
+  { id: "zoom_pulse",  title: "ZOOM Pulse",  description: "Instant +1,400 $ZOOM",  starsPrice: 25,  tonPrice: 0.25, zoomAmount: 1400,  itemType: "zoom_pack" },
+  { id: "zoom_core",   title: "ZOOM Core",   description: "Instant +3,000 $ZOOM",  starsPrice: 50,  tonPrice: 0.50, zoomAmount: 3000,  itemType: "zoom_pack" },
+  { id: "zoom_nova",   title: "ZOOM Nova",   description: "Instant +6,500 $ZOOM",  starsPrice: 100, tonPrice: 1.00, zoomAmount: 6500,  itemType: "zoom_pack" },
+  { id: "zoom_galaxy", title: "ZOOM Galaxy", description: "Instant +14,000 $ZOOM", starsPrice: 200, tonPrice: 2.00, zoomAmount: 14000, itemType: "zoom_pack" },
   { id: "wheel_spin_1",  title: "1 Wheel Spin",   description: "1 spin on the Fortune Wheel",   starsPrice: 50,  tonPrice: 0.5, zoomAmount: 1,  itemType: "wheel_spin" },
   { id: "wheel_spin_5",  title: "5 Wheel Spins",  description: "5 spins on the Fortune Wheel — 20% off",  starsPrice: 200, tonPrice: 2.0, zoomAmount: 5,  itemType: "wheel_spin" },
   { id: "wheel_spin_10", title: "10 Wheel Spins", description: "10 spins on the Fortune Wheel — 30% off", starsPrice: 350, tonPrice: 3.5, zoomAmount: 10, itemType: "wheel_spin" },
@@ -228,7 +236,7 @@ const STARS_CATALOG: StarsItem[] = [
   // ai client di nascondere/disabilitare il pulsante Stars). Max 5 globali
   // gestiti atomicamente in creditUserTx. NON inserito nelle drop-table del
   // Lab (PLANET_CONFIG.V1_NFT.chance = 0).
-  { id: "v1_nft_platinum", title: "V1 NFT Platinum Edition", description: "Limited NFT · only 5 ever · 275 $ZOOM/h", starsPrice: 0, tonPrice: 20, itemType: "v1_nft_platinum" },
+  { id: "v1_nft_platinum", title: "V1 NFT Platinum Edition", description: "Limited NFT · only 5 ever · 275 $ZOOM/h", starsPrice: 2000, tonPrice: 20, itemType: "v1_nft_platinum" },
 ];
 
 const MYSTERY_BOX_SUN_GLOBAL_CAP = 50;
@@ -459,6 +467,13 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string,
       .set({
         [planetType]: sql`${usersTable[planetType]} + 1`,
         [obtainedCol]: sql`${usersTable[obtainedCol as keyof typeof usersTable.$inferSelect] as never} + 1`,
+      })
+      .where(eq(usersTable.telegramId, telegramId));
+  } else if (item.itemType === "zoom_pack" && item.zoomAmount) {
+    await tx.update(usersTable)
+      .set({
+        zoomBalance: sql`${usersTable.zoomBalance} + ${item.zoomAmount}`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
       .where(eq(usersTable.telegramId, telegramId));
   } else if (item.itemType === "sun") {
@@ -889,6 +904,15 @@ async function atomicCreditIfPending(txnId: number, paymentId: string, item: Sta
       itemType: item.itemType,
     },
   });
+  if (item.itemType === "zoom_pack" && item.zoomAmount) {
+    recordHistoryAsync({
+      telegramId,
+      kind: "shop_zoom_pack",
+      delta: item.zoomAmount,
+      currency: "zoom",
+      meta: { txnId, itemId: item.id, itemName: item.title },
+    });
+  }
 
   // Fire-and-forget admin notification on every successful Stars purchase.
   // Lets the owner see in real time when payments land (and notice when
@@ -957,11 +981,9 @@ router.post("/stars/create-invoice", async (req, res) => {
     return;
   }
 
-  // TON-ONLY items: V1 NFT Platinum, Extra Slot e qualsiasi item con
-  // starsPrice<=0 si pagano ESCLUSIVAMENTE in TON. Difesa server-side:
-  // rifiuta qualsiasi tentativo di create-invoice in Stars.
-  if (item.itemType === "v1_nft_platinum" || item.itemType === "slot" || item.starsPrice <= 0) {
-    res.status(400).json({ error: "This item is TON-only and cannot be purchased with Stars" });
+  // Extra Slot is deposit-GRAM only. V1 NFT Platinum can be bought with Stars.
+  if (item.itemType === "slot" || item.starsPrice <= 0) {
+    res.status(400).json({ error: "This item cannot be purchased with Stars" });
     return;
   }
 
@@ -1165,6 +1187,7 @@ router.post("/shop/buy-deposit", async (req, res) => {
       const [user] = await tx
         .select({
           depositBalance: usersTable.depositBalance,
+          tonBalance: usersTable.tonBalance,
           bonusSlots: usersTable.bonusSlots,
         })
         .from(usersTable)
@@ -1182,8 +1205,16 @@ router.post("/shop/buy-deposit", async (req, res) => {
         ? getSlotPriceTon(user.bonusSlots ?? 0)
         : item.tonPrice;
 
-      const bal = user.depositBalance ?? 0;
-      if (bal < effectivePrice) throw new Error("INSUFFICIENT_DEPOSIT");
+      const deposit = user.depositBalance ?? 0;
+      const earned = user.tonBalance ?? 0;
+      // Extra slot + $ZOOM packs: any GRAM (deposit first, then earned).
+      const useCombinedGram = item.id === "extra_slot" || item.itemType === "zoom_pack";
+      const spendable = useCombinedGram ? deposit + earned : deposit;
+      if (spendable < effectivePrice) {
+        throw new Error(useCombinedGram ? "INSUFFICIENT_GRAM" : "INSUFFICIENT_DEPOSIT");
+      }
+      const fromDeposit = Math.min(deposit, effectivePrice);
+      const fromEarned = +(effectivePrice - fromDeposit).toFixed(6);
 
       const [txn] = await tx.insert(transactionsTable).values({
         telegramId,
@@ -1198,7 +1229,12 @@ router.post("/shop/buy-deposit", async (req, res) => {
       }).returning();
 
       await tx.update(usersTable)
-        .set({ depositBalance: sql`${usersTable.depositBalance} - ${effectivePrice}` })
+        .set({
+          depositBalance: sql`${usersTable.depositBalance} - ${fromDeposit}`,
+          ...(fromEarned > 0
+            ? { tonBalance: sql`${usersTable.tonBalance} - ${fromEarned}` }
+            : {}),
+        })
         .where(eq(usersTable.telegramId, telegramId));
 
       const creditRes = await creditUserTx(
@@ -1229,6 +1265,15 @@ router.post("/shop/buy-deposit", async (req, res) => {
         source: "deposit",
       },
     });
+    if (item.itemType === "zoom_pack" && item.zoomAmount) {
+      recordHistoryAsync({
+        telegramId,
+        kind: "shop_zoom_pack",
+        delta: item.zoomAmount,
+        currency: "zoom",
+        meta: { txnId: result.txnId, itemId: item.id, itemName: item.title },
+      });
+    }
 
     res.json({
       ok: true,
@@ -1239,6 +1284,10 @@ router.post("/shop/buy-deposit", async (req, res) => {
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    if (msg === "INSUFFICIENT_GRAM") {
+      res.status(400).json({ error: "Need 0.25 GRAM (deposit or earned)" });
+      return;
+    }
     if (msg === "INSUFFICIENT_DEPOSIT") {
       res.status(400).json({ error: "Saldo deposito TON insufficiente. Deposita TON dal wallet per acquistare." });
       return;
@@ -1279,6 +1328,11 @@ router.post("/shop/buy-stardust", async (req, res) => {
   if (!item) { res.status(404).json({ error: "Item not found" }); return; }
   if (!(item.tonPrice > 0)) {
     res.status(400).json({ error: "Item is not purchasable with STARDUST" });
+    return;
+  }
+
+  if (item.itemType === "slot") {
+    res.status(400).json({ error: "Extra Slot is paid in GRAM" });
     return;
   }
 
@@ -1357,6 +1411,15 @@ router.post("/shop/buy-stardust", async (req, res) => {
         gramEquivalent: result.effectiveGram,
       },
     });
+    if (item.itemType === "zoom_pack" && item.zoomAmount) {
+      recordHistoryAsync({
+        telegramId,
+        kind: "shop_zoom_pack",
+        delta: item.zoomAmount,
+        currency: "zoom",
+        meta: { txnId: result.txnId, itemId: item.id, itemName: item.title },
+      });
+    }
 
     res.json({
       ok: true,
@@ -1776,7 +1839,7 @@ router.post("/stars/webhook", async (req, res) => {
       if (item) {
         // Defense-in-depth: items TON-only non devono mai essere accreditati via Stars,
         // anche se per qualche motivo arriva un successful_payment per loro.
-        if (item.itemType === "v1_nft_platinum" || item.itemType === "slot" || item.starsPrice <= 0) {
+        if (item.itemType === "slot" || item.starsPrice <= 0) {
           console.error(`[stars/webhook] REJECTED Stars payment for TON-only item ${item.id} txn=${payloadData.txnId}`);
         } else {
           await atomicCreditIfPending(payloadData.txnId, payment.telegram_payment_charge_id, item, payloadData.telegramId);
@@ -1827,12 +1890,11 @@ async function creditDepositIfPending(txnId: number, paymentId: string, telegram
       .returning();
     if (updated.length === 0) return; // already completed or failed
     didFlip = true;
-    // Deposits credit the DEPOSIT balance (spendable only in the Shop), NOT
-    // the earned balance (withdrawable). This is the keystone of the
-    // deposit/earned split: external funds never become withdrawable, only
-    // spendable in-game.
     await tx.update(usersTable)
-      .set({ depositBalance: sql`${usersTable.depositBalance} + ${amount}` })
+      .set({
+        tonBalance: sql`${usersTable.tonBalance} + ${amount}`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
       .where(eq(usersTable.telegramId, telegramId));
   });
   return didFlip;

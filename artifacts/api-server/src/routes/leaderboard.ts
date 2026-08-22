@@ -78,13 +78,15 @@ router.post("/balance/sync", async (req, res) => {
       .insert(usersTable)
       .values({
         telegramId,
-        zoomBalance,
-        tonBalance: tb,
+        // New players start at 0 $ZOOM — the 30 ★ grant is the on-ramp
+        // (ZOOM models cost 3 ★). Do not take the client's local default
+        // (historically 300) or the farm loop never starts.
+        zoomBalance: 0,
+        tonBalance: 0,
         firstName: firstName ?? null,
         username: normalizedUsername,
         photoUrl: photoUrl ?? null,
         referralCount: 0,
-        // Default starting balances for new players
         stardustBalance: 30,
         redStarBalance: 5,
       })

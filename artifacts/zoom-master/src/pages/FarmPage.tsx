@@ -4,12 +4,12 @@ import { FarmInventoryCard } from "../components/FarmInventoryCard";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
 import { PLANET_CONFIG, isFarmActive } from "../hooks/useGameState";
-import { WalletPopup } from "../components/WalletPopup";
+import { buyShopItemFromDeposit } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 import { PlanetRenameModal } from "../components/PlanetRenameModal";
 import PvPModal from "../components/PvPModal";
 import { getPlanetDisplayName } from "../utils/planetNames";
-import { isLabForgeGeneratorPlanet } from "@workspace/game-models";
+import { isLabForgeGeneratorPlanet, MARKET_PRICE_BOUNDS, marketPriceLabel, suggestMarketPrice, isMarketPriceInRange, type MarketPriceCurrency } from "@workspace/game-models";
 
 interface FarmPageProps {
   planets: Planet[];
@@ -26,7 +26,7 @@ interface FarmPageProps {
   onStartSunFarming: () => { ok: boolean; reason?: string };
   onStopSunFarming: () => void;
   onBurnSun: () => void;
-  onSell: (id: string, price: number) => void;
+  onSell: (id: string, price: number, currency?: "gram" | "zoom" | "stardust") => void;
   onUnlist: (id: string) => void;
   onRepair?: (id: string) => { ok: boolean; reason?: string };
   stardustBalance?: number;
@@ -45,6 +45,8 @@ interface FarmPageProps {
   onUpgradeDuration?: (planetId: string, durationHours: number) => Promise<{ ok: boolean; error?: string }>;
   /** Permanently upgrade the SUN's farm-cycle duration; charges GRAM from EARNED GRAM. */
   onUpgradeSunDuration?: (durationHours: number) => Promise<{ ok: boolean; error?: string }>;
+  depositBalance?: number;
+  onSlotUnlocked?: () => void;
   /** GRAM-farming collections (White, Earth, Black, Supernova, REDSTAR). */
   whiteCollectionUnlocked?: boolean;
   whiteCollectionBundles?: number;
@@ -91,6 +93,7 @@ interface SellPopup {
   planetId: string;
   planetName: string;
   planetColor: string;
+  rate: number;
 }
 
 
@@ -100,6 +103,8 @@ export function FarmPage({
   onSell, onUnlist, onRepair, stardustBalance = 0, onRename,
   items: _items = [], onSellItem: _onSellItem, onUnlistItem: _onUnlistItem, onFlushPlanets, tonBalance = 0,
   onUpgradeDuration, onUpgradeSunDuration,
+  depositBalance = 0,
+  onSlotUnlocked,
   whiteCollectionUnlocked = false,
   whiteCollectionBundles = 0,
   whitePlanets = [],
@@ -189,7 +194,8 @@ export function FarmPage({
   const [confirmBurn, setConfirmBurn] = useState<string | null>(null);
   const [sellPopup, setSellPopup] = useState<SellPopup | null>(null);
   const [sellPrice, setSellPrice] = useState("");
-  const [slotWalletOpen, setSlotWalletOpen] = useState(false);
+  const [sellCurrency, setSellCurrency] = useState<MarketPriceCurrency>("gram");
+  const [slotBuying, setSlotBuying] = useState(false);
   const [defectMsg, setDefectMsg] = useState<string | null>(null);
   const [renamePlanet, setRenamePlanet] = useState<Planet | null>(null);
   const [pvpPlanet, setPvPPlanet] = useState<Planet | null>(null);
@@ -222,9 +228,9 @@ export function FarmPage({
     // legacy rarity that lands in `planets` (rendered through the
     // FarmPage fallback group) cannot crash the sell popup.
     const cfg = PLANET_CONFIG[planet.name];
-    // Suggested price in TON: cap between 0.25 and 10.0
-    const suggested = Math.min(10.0, Math.max(0.25, +(planet.craftCost * 0.01).toFixed(2)));
-    setSellPopup({ planetId: planet.id, planetName: cfg?.label ?? planet.name, planetColor: planet.color });
+    const suggested = suggestMarketPrice(planet.rate, "gram");
+    setSellCurrency("gram");
+    setSellPopup({ planetId: planet.id, planetName: cfg?.label ?? planet.name, planetColor: planet.color, rate: planet.rate });
     setSellPrice(String(suggested));
     setTimeout(() => inputRef.current?.focus(), 100);
   };
@@ -233,13 +239,13 @@ export function FarmPage({
     if (!sellPopup) return;
     const price = parseFloat(sellPrice);
     if (!price || price <= 0) return;
-    // Price cap enforcement client-side: 0.25 – 10.0 TON
-    if (price < 0.25 || price > 10.0) {
-      setDefectMsg(t("farm.priceRangeError"));
+    if (!isMarketPriceInRange(price, sellCurrency)) {
+      const b = MARKET_PRICE_BOUNDS[sellCurrency];
+      setDefectMsg(`Price must be ${b.min}–${b.max} ${marketPriceLabel(sellCurrency)}`);
       setTimeout(() => setDefectMsg(null), 3000);
       return;
     }
-    onSell(sellPopup.planetId, price);
+    onSell(sellPopup.planetId, price, sellCurrency);
     setSellPopup(null);
     setSellPrice("");
   };
@@ -282,8 +288,8 @@ export function FarmPage({
             <h2 className="font-black text-lg tracking-tight">{t("farm.myPlanets")}</h2>
             <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
               {totalRate > 0
-                ? `${labPlanets.length}/${maxSlots} ${t("farm.slots") || "slots"}`
-                : `${labPlanets.length}/${maxSlots} · ${t("farm.noActive")}`}
+                ? `${farmGenerators.length}/${maxSlots} ${t("farm.slots") || "slots"}`
+                : `${farmGenerators.length}/${maxSlots} · ${t("farm.noActive")}`}
             </p>
           </div>
           {totalRate > 0 && (
@@ -381,8 +387,8 @@ export function FarmPage({
                 key={planet.id}
                 planet={planet}
                 variant="grid"
-                suspendGl={!!detailPlanet || !visible}
-                eagerThumb={visible}
+                suspendGl={!!detailPlanet}
+                eagerThumb
                 glDelayMs={0}
                 testId={`planet-card-${planet.id}`}
                 onCardClick={() => setDetailPlanet(planet)}
@@ -392,34 +398,92 @@ export function FarmPage({
               />
             );
           })}
-          </div>{/* end 2-col grid */}
-
-          {Array.from({ length: Math.max(0, maxSlots - labPlanets.length) }).map((_, i) => (
+          {Array.from({ length: Math.max(0, maxSlots - farmGenerators.length) }).map((_, i) => (
             <div
               key={`empty-${i}`}
-              className="rounded-2xl border border-dashed flex flex-col items-center justify-center py-10 gap-3"
+              className="farm-inventory-card"
               style={{
-                borderColor: "rgba(255,255,255,0.07)",
-                minHeight: 140,
-                contain: "layout style paint",
-              } as React.CSSProperties}
+                minHeight: 308,
+                borderRadius: 16,
+                border: "1.5px solid rgba(158,197,232,0.22)",
+                background: "#08080c",
+                boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+              }}
               data-testid={`slot-empty-${i}`}
             >
-              <div style={{ fontSize: 32, opacity: 0.15 }}>◌</div>
-              <div className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.2)" }}>{t("farm.emptySlot")}</div>
+              <div
+                style={{
+                  flex: 1,
+                  minHeight: 188,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "linear-gradient(180deg, rgba(158,197,232,0.16) 0%, rgba(158,197,232,0.04) 55%, #08080c 100%)",
+                }}
+              >
+                <div style={{ fontSize: 44, fontWeight: 200, color: "rgba(255,255,255,0.32)", lineHeight: 1 }}>+</div>
+              </div>
             </div>
           ))}
-
           <div
-            className="rounded-2xl border border-dashed flex flex-col items-center justify-center py-8 gap-2"
-            style={{ borderColor: "rgba(255,215,0,0.22)", background: "rgba(255,215,0,0.025)", cursor: "pointer", minHeight: 100, userSelect: "none" }}
+            className="farm-inventory-card"
+            style={{
+              minHeight: 308,
+              borderRadius: 16,
+              border: "1.5px solid rgba(255,215,0,0.38)",
+              background: "#08080c",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+              cursor: slotBuying ? "wait" : "pointer",
+              userSelect: "none",
+              opacity: slotBuying ? 0.7 : 1,
+            }}
             data-testid="slot-locked"
-            onClick={() => setSlotWalletOpen(true)}
+            onClick={async () => {
+              if (slotBuying) return;
+              if (!telegramId) {
+                setDefectMsg("Open from Telegram to unlock");
+                setTimeout(() => setDefectMsg(null), 2500);
+                return;
+              }
+              if (depositBalance + tonBalance < 0.25) {
+                setDefectMsg("Need 0.25 GRAM");
+                setTimeout(() => setDefectMsg(null), 2500);
+                return;
+              }
+              setSlotBuying(true);
+              const res = await buyShopItemFromDeposit(telegramId, "extra_slot");
+              setSlotBuying(false);
+              if (res.ok) {
+                onSlotUnlocked?.();
+                window.dispatchEvent(new Event("zoom-data-refresh"));
+              } else {
+                setDefectMsg(res.error || "Unlock failed");
+                setTimeout(() => setDefectMsg(null), 2800);
+              }
+            }}
           >
-            <div style={{ fontSize: 20, opacity: 0.6 }}>🔒</div>
-            <div className="font-bold text-xs tracking-widest uppercase" style={{ color: "rgba(255,215,0,0.65)" }}>0.25 GRAM</div>
-            <div className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>to unlock slot</div>
+            <div
+              style={{
+                flex: 1,
+                minHeight: 188,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "linear-gradient(180deg, rgba(255,215,0,0.18) 0%, rgba(255,215,0,0.05) 55%, #08080c 100%)",
+              }}
+            >
+              <div style={{ fontSize: 44, fontWeight: 200, color: "rgba(255,215,0,0.85)", lineHeight: 1 }}>+</div>
+            </div>
           </div>
+          </div>{/* end 2-col grid */}
 
         {farmGenerators.length === 0 && (
           <div className="text-center text-xs py-4" style={{ color: "rgba(255,255,255,0.22)" }}>
@@ -441,36 +505,59 @@ export function FarmPage({
             className="w-full glass-strong rounded-t-3xl px-5 pt-6 pb-8"
             style={{ boxShadow: `0 -20px 60px ${sellPopup.planetColor}20` }}
           >
-            <div className="flex items-center gap-3 mb-5">
+            <div className="flex items-center gap-3 mb-4">
               <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ background: sellPopup.planetColor, boxShadow: `0 0 10px ${sellPopup.planetColor}` }} />
               <div className="font-black text-base" style={{ color: sellPopup.planetColor }}>
-                List {sellPopup.planetName} Planet
+                List {sellPopup.planetName}
               </div>
             </div>
-            <div className="text-xs mb-4" style={{ color: "rgba(255,255,255,0.4)" }}>
-              {t("farm.sellPriceHint")}
+            <div className="flex gap-2 mb-4">
+              {(["gram", "zoom", "stardust"] as const).map((c) => {
+                const active = sellCurrency === c;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => {
+                      setSellCurrency(c);
+                      setSellPrice(String(suggestMarketPrice(sellPopup.rate, c)));
+                    }}
+                    className="flex-1 py-2 rounded-xl text-[11px] font-black tracking-wider"
+                    style={{
+                      background: active ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)",
+                      color: active ? "#fff" : "rgba(255,255,255,0.4)",
+                      border: active ? `1px solid ${sellPopup.planetColor}88` : "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    {marketPriceLabel(c)}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.4)" }}>
+              Min {MARKET_PRICE_BOUNDS[sellCurrency].min} – max {MARKET_PRICE_BOUNDS[sellCurrency].max} {marketPriceLabel(sellCurrency)} · 10% fee
             </div>
             <div className="relative mb-2">
               <input
                 ref={inputRef}
                 type="number"
-                min={0.25}
-                max={10.0}
-                step={0.01}
+                min={MARKET_PRICE_BOUNDS[sellCurrency].min}
+                max={MARKET_PRICE_BOUNDS[sellCurrency].max}
+                step={MARKET_PRICE_BOUNDS[sellCurrency].step}
                 value={sellPrice}
                 onChange={(e) => setSellPrice(e.target.value)}
-                className="w-full rounded-xl px-4 py-4 text-xl font-black pr-20 outline-none"
+                className="w-full rounded-xl px-4 py-4 text-xl font-black pr-24 outline-none"
                 style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${sellPopup.planetColor}44`, color: "white", caretColor: sellPopup.planetColor }}
                 placeholder={t("farm.enterPrice")}
                 inputMode="decimal"
               />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "rgba(255,255,255,0.35)" }}>
-                GRAM
+                {marketPriceLabel(sellCurrency)}
               </span>
             </div>
             {sellPrice && parseFloat(sellPrice) > 0 && (
               <div className="text-xs mb-4 px-1" style={{ color: "rgba(255,255,255,0.35)" }}>
-                {t("farm.netReceive", { n: ((parseFloat(sellPrice) || 0) * 0.9).toFixed(3) })}
+                You receive ~{(parseFloat(sellPrice) * 0.9).toFixed(sellCurrency === "gram" ? 3 : 1)} {marketPriceLabel(sellCurrency)}
               </div>
             )}
             <div className="flex gap-3 mt-4">
@@ -492,22 +579,13 @@ export function FarmPage({
                 onClick={confirmSell}
                 data-testid="btn-confirm-sell"
               >
-                List for {sellPrice ? parseFloat(sellPrice).toFixed(3) : "—"} GRAM
+                List for {sellPrice ? parseFloat(sellPrice) : "—"} {marketPriceLabel(sellCurrency)}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Slot unlock */}
-      <WalletPopup
-        isOpen={slotWalletOpen}
-        amount="0.25 GRAM"
-        purpose="Unlock Farm Slot"
-        instruction="Send GRAM to this address to unlock your slot."
-        copyLabel="Copy Link"
-        onClose={() => setSlotWalletOpen(false)}
-      />
       {renamePlanet && telegramId && (
         <PlanetRenameModal
           planet={renamePlanet}

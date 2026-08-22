@@ -47,6 +47,7 @@ const REASON_KEY_MAP: Record<string, string> = {
   "The server refused to list this planet.": "game.listingRejectedPlanet",
   "The server refused to list this item.": "game.listingRejectedItem",
   "Insufficient balance: need 50% deposit + 50% earned": "market.insufficientBalance",
+  "Not enough GRAM": "market.insufficientBalance",
   "Payment failed": "shop.paymentFailed",
   "Payment cancelled": "shop.paymentCancelled",
   "Payment error": "shop.paymentError",

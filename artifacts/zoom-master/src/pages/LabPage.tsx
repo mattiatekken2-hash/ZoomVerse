@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import { PlanetCanvas, ForgeProgressBar, type ForgePhase } from "../components/PlanetCanvas";
-import { AutoTapWidget } from "../components/AutoTapWidget";
+import { AutoTapWidget, useAutoTapHold } from "../components/AutoTapWidget";
 import { SettingsMenu } from "../components/SettingsMenu";
 import { ShoppingBag } from "lucide-react";
 
@@ -15,6 +15,7 @@ import type { Planet } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
 import { preloadLabForgePickerGlbs } from "../utils/labGlbPreload";
 import { useT } from "../i18n/LanguageContext";
+import { loadVoxelStudio, type VoxelStudioProject } from "../utils/voxelStudioStore";
 
 
 interface LabPageProps {
@@ -33,6 +34,7 @@ interface LabPageProps {
   onBeginLabForge: (path: LabForgePath) => { ok: boolean; reason?: string };
   onClaim: () => void;
   onOpenShop?: () => void;
+  onOpenStudio?: (opts?: { title?: string; projectId?: string }) => void;
   muted?: boolean;
   setMuted?: (next: boolean | ((prev: boolean) => boolean)) => void;
   visible?: boolean;
@@ -60,7 +62,7 @@ function openExternalUrl(url: string) {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
-export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, labForgeShapeId = null, labForgePath = null, hasAutoTap, stardustBalance, telegramId, onCraft, onBeginLabForge, onClaim, onOpenShop, muted = false, setMuted, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, labForgeShapeId = null, labForgePath = null, hasAutoTap, stardustBalance, telegramId, onCraft, onBeginLabForge, onClaim, onOpenShop, onOpenStudio, muted = false, setMuted, visible = true }: LabPageProps) {
   const { t } = useT();
   const [forgePickerOpen, setForgePickerOpen] = useState(false);
   const [floats, setFloats] = useState<FloatMsg[]>([]);
@@ -78,6 +80,9 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
   const claimTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const waitingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showClaim, setShowClaim] = useState(false);
+  const [studioTitleOpen, setStudioTitleOpen] = useState(false);
+  const [studioTitle, setStudioTitle] = useState("");
+  const [studioSaves, setStudioSaves] = useState<VoxelStudioProject[]>([]);
   const FORGE_COMPLETE_MS = 1800;
 
   useEffect(() => {
@@ -111,16 +116,13 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
   }, [pendingPlanet, forgePhase]);
 
   const handleWheelComplete = useCallback(() => {
-    setForgePhase("flash");
+    setForgePhase("revealed");
     if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
-    flashTimerRef.current = setTimeout(() => {
-      setForgePhase("revealed");
-      flashTimerRef.current = null;
-      if (claimTimerRef.current) clearTimeout(claimTimerRef.current);
-      claimTimerRef.current = setTimeout(() => {
-        setShowClaim(true);
-      }, 2200);
-    }, 380);
+    flashTimerRef.current = null;
+    if (claimTimerRef.current) clearTimeout(claimTimerRef.current);
+    claimTimerRef.current = setTimeout(() => {
+      setShowClaim(true);
+    }, 900);
   }, []);
 
   // (moved below addFloat — see the effect at ~line 185)
@@ -185,14 +187,15 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
     if (!canTapForge) return;
     if (opts?.haptic !== false) hapticLight();
     const result = onCraft(stardustBalance);
-    if (result.completed) return;
     if (opts?.particles !== false) {
       setTapRelaxed(opts?.relaxed !== false);
       setTapSignal((n) => n + 1);
     }
+    if (result.completed) return;
   }, [canTapForge, onCraft, stardustBalance]);
 
   const handleForgeButton = useCallback(() => {
+    if ((window as unknown as { __zoomOrientLock?: boolean }).__zoomOrientLock) return;
     if (isForgingActive) {
       handleCraft({ relaxed: true, haptic: true });
       return;
@@ -203,11 +206,29 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
     }
   }, [isForgingActive, canOpenForgePicker, handleCraft]);
 
+  const { startHold, stopHold, holding } = useAutoTapHold({
+    enabled: hasAutoTap && isForgingActive,
+    canCraft: canTapForge,
+    onTap: () => handleCraft({ relaxed: true, haptic: false }),
+  });
+
+  useEffect(() => {
+    const lock = () => {
+      (window as unknown as { __zoomOrientLock?: boolean }).__zoomOrientLock = true;
+      window.setTimeout(() => {
+        (window as unknown as { __zoomOrientLock?: boolean }).__zoomOrientLock = false;
+      }, 1800);
+    };
+    window.addEventListener("orientationchange", lock);
+    return () => window.removeEventListener("orientationchange", lock);
+  }, []);
+
   useEffect(() => {
     if (visible) preloadLabForgePickerGlbs();
   }, [visible]);
 
   const handleSelectForgePath = useCallback((path: LabForgePath) => {
+    if ((window as unknown as { __zoomOrientLock?: boolean }).__zoomOrientLock) return;
     hapticLight();
     const result = onBeginLabForge(path);
     setForgePickerOpen(false);
@@ -215,6 +236,8 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
       setFloats((prev) => [...prev, { id: ++floatIdRef.current, text: "Need 500 $ZOOM", color: "#ff6b6b" }]);
     } else if (!result.ok && result.reason === "no_stardust") {
       setFloats((prev) => [...prev, { id: ++floatIdRef.current, text: t("lab.noStardust"), color: "#ff6b6b" }]);
+    } else if (!result.ok && result.reason === "slots_full") {
+      setFloats((prev) => [...prev, { id: ++floatIdRef.current, text: t("common.slotsFull"), color: "#ff6b6b" }]);
     }
   }, [onBeginLabForge, t]);
 
@@ -235,9 +258,7 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
     <div className="relative h-full overflow-hidden">
       <AutoTapWidget
         hasAutoTap={hasAutoTap}
-        canCraft={canTapForge}
         telegramId={telegramId}
-        onTap={() => handleCraft({ relaxed: true })}
       />
 
       <div className="absolute inset-0">
@@ -257,9 +278,40 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
           forgeRolling={forgeRolling}
           chromeBottomOffset={bottomChromeOffset}
           suppressProgressBar
-          visible={visible && forgePhase !== "revealed"}
+          visible={visible && !pendingPlanet}
         />
         </ForgeUiErrorBoundary>
+
+        <button
+          type="button"
+          onClick={() => {
+            setStudioTitle("");
+            setStudioTitleOpen(true);
+            if (telegramId) {
+              void loadVoxelStudio(telegramId).then((s) => setStudioSaves(s.projects));
+            }
+          }}
+          aria-label="Create your model"
+          title="Create your model"
+          className="absolute z-30 flex items-center justify-center active:scale-95 pointer-events-auto"
+          style={{
+            left: 6,
+            top: "max(56px, calc(env(safe-area-inset-top, 0px) + 50px))",
+            width: 40,
+            height: 40,
+            borderRadius: "50%",
+            background: "rgba(0, 0, 0, 0.62)",
+            border: "1px solid rgba(255, 255, 255, 0.2)",
+            backdropFilter: "blur(10px)",
+            cursor: "pointer",
+            padding: 0,
+            color: "#E8ECF4",
+            fontSize: 18,
+            fontWeight: 800,
+          }}
+        >
+          ▦
+        </button>
 
         <button
           type="button"
@@ -269,7 +321,7 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
           data-testid="lab-ton-app-vote"
           className="absolute z-30 flex items-center justify-center active:scale-95 pointer-events-auto"
           style={{
-            left: 6,
+            left: 52,
             top: "max(56px, calc(env(safe-area-inset-top, 0px) + 50px))",
             width: 40,
             height: 40,
@@ -405,16 +457,6 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
           </ForgeUiErrorBoundary>
         )}
 
-        {pendingPlanet && forgePhase === "flash" && (
-          <div
-            className="absolute inset-0 forge-flash pointer-events-none"
-            style={{
-              zIndex: 46,
-              background: `radial-gradient(circle at 50% 50%, ${(labForgePath === "zoom" ? "#7bed9f" : labForgePath === "stardust" ? "#ffd740" : pendingPlanet.color)}88 0%, rgba(255,255,255,0.35) 28%, transparent 68%)`,
-            }}
-          />
-        )}
-
         {pendingPlanet && forgePhase === "revealed" && (
           <ForgeUiErrorBoundary label="Reveal error">
           <div className="lab-forge-reveal-overlay">
@@ -484,7 +526,37 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
           {!pendingPlanet && (
             <button
               className="btn-craft pointer-events-auto"
-              onClick={handleForgeButton}
+              onClick={(e) => {
+                if (hasAutoTap && isForgingActive) {
+                  e.preventDefault();
+                  return;
+                }
+                handleForgeButton();
+              }}
+              onPointerDown={(e) => {
+                if (!hasAutoTap || !isForgingActive || e.button !== 0) return;
+                e.preventDefault();
+                try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /**/ }
+                startHold(e.pointerId);
+              }}
+              onPointerUp={(e) => {
+                if (!hasAutoTap) return;
+                stopHold(e.pointerId);
+                try {
+                  if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+                    e.currentTarget.releasePointerCapture(e.pointerId);
+                  }
+                } catch { /**/ }
+              }}
+              onPointerCancel={(e) => {
+                if (!hasAutoTap) return;
+                stopHold(e.pointerId);
+              }}
+              onLostPointerCapture={(e) => {
+                if (!hasAutoTap) return;
+                stopHold(e.pointerId);
+              }}
+              onContextMenu={(e) => e.preventDefault()}
               disabled={!canTapForge && !canOpenForgePicker}
               data-no-global-haptic
               data-testid="button-craft"
@@ -495,12 +567,19 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
                 alignItems: "center",
                 justifyContent: "center",
                 gap: 8,
+                touchAction: hasAutoTap && isForgingActive ? "none" : undefined,
+                userSelect: "none",
+                WebkitUserSelect: "none",
                 ...((canTapForge || canOpenForgePicker)
                   ? {
-                      background: "#000000",
+                      background: holding ? "#111827" : "#000000",
                       color: "#ffffff",
-                      border: "1px solid rgba(255,255,255,0.18)",
-                      boxShadow: "0 3px 12px rgba(0,0,0,0.35)",
+                      border: holding
+                        ? "1px solid rgba(255,255,255,0.42)"
+                        : "1px solid rgba(255,255,255,0.18)",
+                      boxShadow: holding
+                        ? "0 0 18px rgba(200,220,255,0.28)"
+                        : "0 3px 12px rgba(0,0,0,0.35)",
                     }
                   : {}),
               }}
@@ -512,6 +591,82 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
         </div>
 
       </div>
+
+      {studioTitleOpen && (
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center px-6"
+          style={{ background: "rgba(0,0,0,0.72)" }}
+          onClick={() => setStudioTitleOpen(false)}
+        >
+          <div
+            className="w-full rounded-2xl p-4"
+            style={{
+              maxWidth: 320,
+              background: "rgba(8,10,16,0.96)",
+              border: "1px solid rgba(255,255,255,0.14)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="font-black text-sm mb-1" style={{ color: "#E8ECF4" }}>Create your model</div>
+            <div className="text-[11px] mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
+              {studioSaves.length > 0
+                ? "Open a saved project or start a new one."
+                : "Name it, then sculpt gray voxels on the base square."}
+            </div>
+            {studioSaves.length > 0 && (
+              <div className="flex flex-col gap-1.5 mb-3 max-h-40 overflow-y-auto">
+                {studioSaves.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="w-full text-left px-3 py-2 rounded-xl"
+                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)" }}
+                    onClick={() => {
+                      setStudioTitleOpen(false);
+                      onOpenStudio?.({ projectId: p.id });
+                    }}
+                  >
+                    <div className="text-[12px] font-black truncate" style={{ color: "#E8ECF4" }}>{p.title}</div>
+                    <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>
+                      {p.voxels.length} voxels · continue
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            <input
+              value={studioTitle}
+              onChange={(e) => setStudioTitle(e.target.value.slice(0, 32))}
+              placeholder={studioSaves.length > 0 ? "New title" : "Title"}
+              className="w-full rounded-xl px-3 py-3 text-sm font-bold outline-none mb-3"
+              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", color: "#fff" }}
+              autoFocus={studioSaves.length === 0}
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="flex-1 py-2.5 rounded-xl text-xs font-black"
+                style={{ color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.1)" }}
+                onClick={() => setStudioTitleOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="flex-1 py-2.5 rounded-xl text-xs font-black"
+                style={{ background: "#fff", color: "#060810" }}
+                onClick={() => {
+                  const title = studioTitle.trim() || "Untitled";
+                  setStudioTitleOpen(false);
+                  onOpenStudio?.({ title });
+                }}
+              >
+                {studioSaves.length > 0 ? "New" : "Create"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

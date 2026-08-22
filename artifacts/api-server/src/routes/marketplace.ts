@@ -13,7 +13,23 @@ import {
   sanitizeIncomingFloat,
 } from "../lib/planetFloat";
 
+type MarketPriceCurrency = "gram" | "zoom" | "stardust";
+const MARKET_BOUNDS: Record<MarketPriceCurrency, { min: number; max: number }> = {
+  gram: { min: 0.05, max: 2 },
+  zoom: { min: 8, max: 400 },
+  stardust: { min: 1, max: 25 },
+};
+function parseMarketPriceCurrency(v: unknown): MarketPriceCurrency {
+  return v === "zoom" || v === "stardust" ? v : "gram";
+}
+function isMarketPriceInRange(price: number, currency: MarketPriceCurrency): boolean {
+  const b = MARKET_BOUNDS[currency];
+  return Number.isFinite(price) && price >= b.min && price <= b.max;
+}
+
 const router: IRouter = Router();
+
+void pool.query(`ALTER TABLE market_listings ADD COLUMN IF NOT EXISTS price_currency text NOT NULL DEFAULT 'gram'`).catch(() => {});
 
 router.get("/market/sales", async (_req, res) => {
   try {
@@ -81,16 +97,38 @@ const TON_MAX = 10.0;
 /** Public shop shelf — listing auto-hides after this unless seller reactivates. */
 export const MARKET_LISTING_TTL_MS = 60 * 60 * 1000;
 
-function listingShelfDeadline(listing: { lastActivatedAt?: Date | string | null; createdAt?: Date | string | null }): number {
-  const raw = listing.lastActivatedAt ?? listing.createdAt;
+function listingTimeMs(listing: {
+  lastActivatedAt?: Date | string | null;
+  createdAt?: Date | string | null;
+  last_activated_at?: Date | string | null;
+  created_at?: Date | string | null;
+}): number {
+  const raw = listing.lastActivatedAt ?? listing.createdAt ?? listing.last_activated_at ?? listing.created_at;
   if (!raw) return 0;
   const t = raw instanceof Date ? raw.getTime() : new Date(raw).getTime();
-  return Number.isFinite(t) ? t + MARKET_LISTING_TTL_MS : 0;
+  return Number.isFinite(t) ? t : 0;
 }
 
-function isListingOnShelf(listing: { lastActivatedAt?: Date | string | null; createdAt?: Date | string | null }, now = Date.now()): boolean {
-  const deadline = listingShelfDeadline(listing);
-  return deadline > 0 && now < deadline;
+function listingShelfDeadline(listing: {
+  lastActivatedAt?: Date | string | null;
+  createdAt?: Date | string | null;
+  last_activated_at?: Date | string | null;
+  created_at?: Date | string | null;
+}): number {
+  const t = listingTimeMs(listing);
+  return t > 0 ? t + MARKET_LISTING_TTL_MS : 0;
+}
+
+function isListingOnShelf(listing: {
+  lastActivatedAt?: Date | string | null;
+  createdAt?: Date | string | null;
+  last_activated_at?: Date | string | null;
+  created_at?: Date | string | null;
+}, now = Date.now()): boolean {
+  const t = listingTimeMs(listing);
+  // Active rows with missing timestamps must still appear in LISTINGS.
+  if (t <= 0) return true;
+  return now < t + MARKET_LISTING_TTL_MS;
 }
 
 const ListBody = z.object({
@@ -106,6 +144,7 @@ const ListBody = z.object({
   planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1", "V1_NFT", "MUSHROOM", "NOVA"]),
   planetRate: z.number().positive(),
   price: z.number().positive(),
+  priceCurrency: z.enum(["gram", "zoom", "stardust"]).optional(),
   // Lab generators: client may send shapeId so the Market card/widget
   // still render even if planets_json is momentarily missing the field.
   shapeId: z.string().min(1).max(32).optional(),
@@ -159,11 +198,12 @@ router.post("/market/list", async (req, res) => {
     price,
     shapeId: bodyShapeId,
     displayName: bodyDisplayName,
+    priceCurrency: bodyPriceCurrency,
   } = parsed.data;
 
-  // Price cap: 0.25 – 10.0 TON per any planet
-  if (price < TON_MIN || price > TON_MAX) {
-    res.status(400).json({ error: `Prezzo deve essere tra ${TON_MIN} e ${TON_MAX} TON` });
+  const priceCurrency = parseMarketPriceCurrency(bodyPriceCurrency);
+  if (!isMarketPriceInRange(price, priceCurrency)) {
+    res.status(400).json({ error: `Price out of range for ${priceCurrency}` });
     return;
   }
 
@@ -302,6 +342,10 @@ router.post("/market/list", async (req, res) => {
         })
         .returning();
       listing = inserted;
+      await client.query(
+        `UPDATE market_listings SET price_currency = $1 WHERE id = $2`,
+        [priceCurrency, listing!.id],
+      );
     } catch (err: unknown) {
       await client.query("ROLLBACK");
       // Postgres unique_violation. The unique partial index fires when
@@ -337,6 +381,7 @@ router.post("/market/list", async (req, res) => {
                 'isListedInMarket', true,
                 'serverListingId', $3::int,
                 'marketPrice', $4::real,
+                'marketCurrency', $6::text,
                 'isFarmingActive', false,
                 'pausedAt', CASE
                   WHEN (p->>'isFarmingActive')::boolean IS TRUE THEN $5::bigint
@@ -351,7 +396,7 @@ router.post("/market/list", async (req, res) => {
        ),
        planets_updated_at_ms = GREATEST(planets_updated_at_ms, $5::bigint)
        WHERE telegram_id = $1`,
-      [sellerTelegramId, planetId, listing!.id, price, nowMs],
+      [sellerTelegramId, planetId, listing!.id, price, nowMs, priceCurrency],
     );
 
     await client.query("COMMIT");
@@ -602,6 +647,23 @@ router.post("/market/reactivate", async (req, res) => {
       res.status(404).json({ error: "Listing not found" });
       return;
     }
+    const feeZoom = Math.max(1, Math.ceil(Number(row.planetRate ?? 1)));
+    const [seller] = await db
+      .select({ zoom: usersTable.zoomBalance })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, sellerTelegramId))
+      .limit(1);
+    if ((Number(seller?.zoom ?? 0)) < feeZoom) {
+      res.status(409).json({ error: `Need ${feeZoom} $ZOOM to reactivate` });
+      return;
+    }
+    await db
+      .update(usersTable)
+      .set({
+        zoomBalance: sql`${usersTable.zoomBalance} - ${feeZoom}`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+      })
+      .where(eq(usersTable.telegramId, sellerTelegramId));
     const now = new Date();
     const [updated] = await db
       .update(marketListingsTable)
@@ -609,11 +671,19 @@ router.post("/market/reactivate", async (req, res) => {
       .where(eq(marketListingsTable.id, listingId))
       .returning();
     const expiresAt = listingShelfDeadline(updated ?? { lastActivatedAt: now, createdAt: now });
+    recordHistoryAsync({
+      telegramId: sellerTelegramId,
+      kind: "market_reactivate",
+      delta: -feeZoom,
+      currency: "zoom",
+      meta: { listingId, feeZoom },
+    });
     res.json({
       ok: true,
       listing: updated,
       expiresAt,
       remainingMs: Math.max(0, expiresAt - Date.now()),
+      feeZoom,
     });
   } catch (err) {
     console.error("[market/reactivate] error:", err);
@@ -731,21 +801,19 @@ router.post("/market/buy", async (req, res) => {
       return;
     }
 
-    // Buyer pays the price 50/50 across both wallets:
-    //   - 50% from deposit_balance (depositBalance)
-    //   - 50% from earned_balance  (tonBalance — column kept as ton_balance)
-    // Seller receives the price minus a 10% fee, credited 100% to their
-    // deposit_balance (their earned_balance is never touched). The 10% fee
-    // goes to the admin wallet as before.
-    const buyerDepositShare = +((listing.price as number) * 0.5).toFixed(6);
-    const buyerEarnedShare = +((listing.price as number) * 0.5).toFixed(6);
-    // Total actually debited from the buyer (sum of both rounded halves).
-    // Conserve value exactly: admin takes 10% of the buyer's total and the
-    // seller gets the remainder, so seller + admin == buyer debit (no
-    // mint/burn drift from independent rounding).
-    const totalDebit = +(buyerDepositShare + buyerEarnedShare).toFixed(6);
-    const adminShare = +(totalDebit * 0.1).toFixed(6);
-    const sellerShare = +(totalDebit - adminShare).toFixed(6);
+    const payCurRow = await client.query<{ price_currency: string | null }>(
+      `SELECT price_currency FROM market_listings WHERE id = $1`,
+      [listingId],
+    );
+    const payCurrency: MarketPriceCurrency = parseMarketPriceCurrency(payCurRow.rows[0]?.price_currency);
+    const priceAmt = Number(listing.price);
+    const totalDebit = payCurrency === "stardust"
+      ? Math.round(priceAmt)
+      : +priceAmt.toFixed(6);
+    const adminShare = payCurrency === "stardust"
+      ? Math.max(0, Math.round(totalDebit * 0.1))
+      : +(totalDebit * 0.1).toFixed(6);
+    const sellerShare = +(totalDebit - adminShare).toFixed(payCurrency === "stardust" ? 0 : 6);
 
     const updated = await txDb.update(marketListingsTable)
       .set({ status: "sold", buyerTelegramId, soldAt: new Date() })
@@ -758,37 +826,63 @@ router.post("/market/buy", async (req, res) => {
       return;
     }
 
-    // Atomic, race-safe debit from the buyer: 50% from deposit_balance AND
-    // 50% from earned_balance (tonBalance), in a single UPDATE. Both balance
-    // guards are in the WHERE clause, so if EITHER wallet is short the row
-    // doesn't match, nothing is debited and we roll back. depositBalance is
-    // one-way (external deposits only), so a negative balance is a real-money
-    // loss path — the guards prevent it.
-    const debited = await txDb.update(usersTable)
-      .set({
-        depositBalance: sql`${usersTable.depositBalance} - ${buyerDepositShare}`,
-        tonBalance: sql`${usersTable.tonBalance} - ${buyerEarnedShare}`,
-      })
-      .where(and(
-        eq(usersTable.telegramId, buyerTelegramId),
-        sql`${usersTable.depositBalance} >= ${buyerDepositShare}`,
-        sql`${usersTable.tonBalance} >= ${buyerEarnedShare}`,
-        sql`${usersTable.isDisabled} = false`,
-      ))
-      .returning({ id: usersTable.telegramId });
+    let debited: { id: string }[] = [];
+    if (payCurrency === "gram") {
+      // Full price from combined GRAM (deposit first, then earned). No 50/50 split.
+      debited = await txDb.update(usersTable)
+        .set({
+          depositBalance: sql`${usersTable.depositBalance} - LEAST(COALESCE(${usersTable.depositBalance}, 0), ${totalDebit})`,
+          tonBalance: sql`${usersTable.tonBalance} - GREATEST(0, ${totalDebit} - LEAST(COALESCE(${usersTable.depositBalance}, 0), ${totalDebit}))`,
+        })
+        .where(and(
+          eq(usersTable.telegramId, buyerTelegramId),
+          sql`COALESCE(${usersTable.depositBalance}, 0) + COALESCE(${usersTable.tonBalance}, 0) >= ${totalDebit}`,
+          sql`${usersTable.isDisabled} = false`,
+        ))
+        .returning({ id: usersTable.telegramId });
+    } else if (payCurrency === "zoom") {
+      debited = await txDb.update(usersTable)
+        .set({
+          zoomBalance: sql`${usersTable.zoomBalance} - ${totalDebit}`,
+          balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
+        })
+        .where(and(
+          eq(usersTable.telegramId, buyerTelegramId),
+          sql`${usersTable.zoomBalance} >= ${totalDebit}`,
+          sql`${usersTable.isDisabled} = false`,
+        ))
+        .returning({ id: usersTable.telegramId });
+    } else {
+      debited = await txDb.update(usersTable)
+        .set({
+          stardustBalance: sql`${usersTable.stardustBalance} - ${totalDebit}`,
+        })
+        .where(and(
+          eq(usersTable.telegramId, buyerTelegramId),
+          sql`${usersTable.stardustBalance} >= ${totalDebit}`,
+          sql`${usersTable.isDisabled} = false`,
+        ))
+        .returning({ id: usersTable.telegramId });
+    }
 
     if (debited.length === 0) {
       await client.query("ROLLBACK");
-      res.status(400).json({ error: "Insufficient balance: need 50% deposit + 50% earned, or account disabled" });
+      const need =
+        payCurrency === "gram" ? "Not enough GRAM"
+          : payCurrency === "zoom" ? "Not enough $ZOOM"
+            : "Not enough ★ Stardust";
+      res.status(400).json({ error: need });
       return;
     }
 
-    // Credit seller's deposit_balance with the full net (price - 10% fee).
-    // The seller's earned_balance (tonBalance) is intentionally NOT touched.
+    const sellerSet =
+      payCurrency === "gram"
+        ? { tonBalance: sql`${usersTable.tonBalance} + ${sellerShare}` }
+        : payCurrency === "zoom"
+          ? { zoomBalance: sql`${usersTable.zoomBalance} + ${sellerShare}`, balanceEpoch: sql`${usersTable.balanceEpoch} + 1` }
+          : { stardustBalance: sql`${usersTable.stardustBalance} + ${sellerShare}` };
     const credited = await txDb.update(usersTable)
-      .set({
-        depositBalance: sql`${usersTable.depositBalance} + ${sellerShare}`,
-      })
+      .set(sellerSet)
       .where(and(
         eq(usersTable.telegramId, listing.sellerTelegramId),
         sql`${usersTable.isDisabled} = false`,
@@ -800,12 +894,13 @@ router.post("/market/buy", async (req, res) => {
       return;
     }
 
-    // Credit 10% commission to admin personal wallet.
     const ADMIN_ID = "8144744644";
+    const adminCol =
+      payCurrency === "zoom" ? "zoom_balance"
+        : payCurrency === "stardust" ? "stardust_balance"
+          : "ton_balance";
     await client.query(
-      `UPDATE users
-       SET ton_balance = ton_balance + $1
-       WHERE telegram_id = $2 AND is_disabled = false`,
+      `UPDATE users SET ${adminCol} = ${adminCol} + $1 WHERE telegram_id = $2 AND is_disabled = false`,
       [adminShare, ADMIN_ID],
     );
 
@@ -911,6 +1006,36 @@ router.post("/market/buy", async (req, res) => {
          planets_updated_at_ms = GREATEST(planets_updated_at_ms, $3::bigint)
          WHERE telegram_id = $1`,
         [listing.sellerTelegramId, listing.planetId, nowMs],
+      );
+
+      const buyerPlanet = {
+        id: `bought-${listing.id}-${nowMs}`,
+        name: listing.planetType || "BASIC",
+        rate: Number(listing.planetRate ?? 0),
+        color: "#7bed9f",
+        glowColor: "#2ed573",
+        createdAt: nowMs,
+        farmStartedAt: 0,
+        lastCollectedAt: 0,
+        isListedInMarket: false,
+        isFarmingActive: false,
+        marketPrice: null,
+        craftCost: Number(listing.price ?? 0),
+        shapeId: listing.shapeId ?? null,
+        displayName: listing.planetDisplayName ?? null,
+        modelId: listing.modelId ?? null,
+        modelName: listing.planetDisplayName ?? null,
+        float: typeof listing.planetFloat === "number" ? listing.planetFloat : 0.5,
+        durability: 100,
+        durabilityUpdatedAt: nowMs,
+        farmDurationHours: listing.planetFarmDurationHours ?? 1,
+      };
+      await client.query(
+        `UPDATE users
+         SET planets_json = COALESCE(planets_json, '[]'::jsonb) || $2::jsonb,
+             planets_updated_at_ms = GREATEST(planets_updated_at_ms, $3::bigint)
+         WHERE telegram_id = $1`,
+        [buyerTelegramId, JSON.stringify([buyerPlanet]), nowMs],
       );
 
       // Buyer: also increment lifetime obtained counter for the planet type.

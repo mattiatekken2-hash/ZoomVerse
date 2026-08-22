@@ -1,6 +1,6 @@
 import { useEffect, useState, memo } from "react";
 import { fetchLabRankState, type LabRankState } from "../utils/api";
-import trophyPx from "../assets/lab-rank-trophy.png";
+import { GramDiamondIcon } from "./GramDiamondIcon";
 
 const CYAN = "#00d4ff";
 const ACCENT = "#4dd4ff";
@@ -80,7 +80,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
   return (
     <>
       <style>{`
-        @keyframes lrFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+        @keyframes lrFloat { 0%,100% { transform: translateY(0) rotateX(8deg) rotateY(-12deg); } 50% { transform: translateY(-8px) rotateX(12deg) rotateY(12deg); } }
         @keyframes lrGlow {
           0%,100% { box-shadow: 0 0 12px ${CYAN}88, 0 0 22px ${CYAN}33; }
           50%     { box-shadow: 0 0 20px ${CYAN}cc, 0 0 38px ${CYAN}55; }
@@ -95,21 +95,43 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
           100% { transform: scale(1); opacity: 0.75; }
         }
         .lr-tile { animation: lrGlow 2.6s ease-in-out infinite; }
-        .lr-img { animation: lrFloat 3s ease-in-out infinite; }
-        .lr-pulse { animation: lrPulse 4s ease-in-out infinite; }
+        .lr-img { animation: lrFloat 3.4s ease-in-out infinite; transform-style: preserve-3d; }
+        @keyframes lrNamePulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.04); }
+        }
+        @keyframes lrTopFly {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-6px); }
+        }
+        @keyframes lrRing {
+          0% { transform: translate(-50%, -50%) rotateX(68deg) rotateZ(0deg); opacity: 0.55; }
+          100% { transform: translate(-50%, -50%) rotateX(68deg) rotateZ(360deg); opacity: 0.85; }
+        }
+        @keyframes lrHeroSpin {
+          0% { transform: rotateY(-18deg) rotateX(12deg); }
+          50% { transform: rotateY(18deg) rotateX(8deg); }
+          100% { transform: rotateY(-18deg) rotateX(12deg); }
+        }
       `}</style>
 
       <div
+        onClick={() => setOpen(true)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setOpen(true); }}
         style={shopMode ? {
           position: "relative",
           width: "100%",
           display: "flex",
           alignItems: "center",
-          gap: 12,
-          padding: "10px 14px",
-          borderRadius: 14,
-          background: "rgba(12,24,32,0.88)",
-          border: `1px solid ${CYAN}44`,
+          gap: 14,
+          padding: "14px 16px",
+          borderRadius: 18,
+          background: "linear-gradient(155deg, rgba(14,22,36,0.96), rgba(6,10,18,0.98))",
+          border: "1px solid rgba(0,212,255,0.28)",
+          boxShadow: "0 8px 24px rgba(0,8,20,0.35)",
+          cursor: "pointer",
         } : {
           position: "fixed",
           left: 12,
@@ -121,18 +143,23 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
         }}
       >
         <button
-          onClick={() => setOpen(true)}
+          onClick={(e) => { e.stopPropagation(); setOpen(true); }}
           aria-label="Craft Leaderboard"
           className="lr-tile"
           style={{
-            width: 60,
-            height: 60,
-            borderRadius: 14,
-            background: "rgba(20,12,4,0.85)",
+            position: "relative",
+            width: shopMode ? 56 : 60,
+            height: shopMode ? 56 : 60,
+            borderRadius: 16,
+            background: "rgba(8,14,24,0.92)",
             border: `1.5px solid ${CYAN}88`,
-            padding: 4,
+            padding: 6,
             cursor: "pointer",
+            flexShrink: 0,
             WebkitTapHighlightColor: "transparent",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
           data-testid="button-lab-rank"
         >
@@ -144,17 +171,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
               filter: `drop-shadow(0 0 8px ${CYAN}aa)`,
             }}
           >
-            <img
-              src={trophyPx}
-              alt=""
-              style={{
-                width: "84%",
-                height: "84%",
-                objectFit: "contain",
-                imageRendering: "pixelated",
-                filter: "hue-rotate(140deg) saturate(2.2)",
-              }}
-            />
+            <GramDiamondIcon size={shopMode ? 34 : 32} />
           </div>
           {userRank != null && userRank <= 100 && (
             <span
@@ -168,10 +185,10 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
                 padding: "0 5px",
                 borderRadius: 9,
                 background: CYAN,
-                color: "#1a0d00",
+                color: "#041018",
                 fontSize: 10,
                 fontWeight: 900,
-                border: "2px solid rgba(8,4,0,0.95)",
+                border: "2px solid rgba(4,8,16,0.95)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -182,6 +199,19 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
             </span>
           )}
         </button>
+        {shopMode ? (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.16em", color: "rgba(0,212,255,0.7)", textTransform: "uppercase" }}>
+              Hub
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 900, color: "#E8ECF4", letterSpacing: "0.04em", marginTop: 2 }}>
+              Craft Leaderboard
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(232,236,244,0.55)", marginTop: 4 }}>
+              {userRank != null ? `Rank #${userRank}` : "Unranked"} · {userPoints.toLocaleString()} pts · {pool} GRAM
+            </div>
+          </div>
+        ) : (
         <span
           className="lr-pulse"
           style={{
@@ -193,8 +223,9 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
             whiteSpace: "nowrap",
           }}
         >
-          {pool} TON
+          {pool} GRAM
         </span>
+        )}
       </div>
 
       {open && (
@@ -223,9 +254,9 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
               overflowY: "auto",
               WebkitOverflowScrolling: "touch",
               background:
-                "linear-gradient(180deg, rgba(20,12,4,0.97), rgba(8,4,0,0.99))",
-              border: `1px solid ${CYAN}55`,
-              boxShadow: `0 0 40px ${CYAN}33`,
+                "radial-gradient(120% 80% at 50% -10%, rgba(0,180,255,0.22), transparent 55%), linear-gradient(180deg, #071018 0%, #04080e 100%)",
+              border: `1px solid ${CYAN}40`,
+              boxShadow: `0 24px 80px rgba(0,0,0,0.55), 0 0 60px ${CYAN}22`,
               borderRadius: 18,
               padding: 22,
               color: "#fff",
@@ -242,7 +273,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
                 height: 32,
                 borderRadius: 8,
                 border: `1px solid ${CYAN}44`,
-                background: "rgba(255,215,0,0.08)",
+                background: "rgba(0,212,255,0.08)",
                 color: ACCENT,
                 fontSize: 16,
                 fontWeight: 900,
@@ -253,33 +284,70 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
               ✕
             </button>
 
-            <div style={{ textAlign: "center", marginBottom: 14 }}>
-              <img
-                src={trophyPx}
-                alt=""
+            <div style={{ textAlign: "center", marginBottom: 18, perspective: 900 }}>
+              <div
                 style={{
-                  width: 56,
-                  height: 56,
-                  objectFit: "contain",
-                  imageRendering: "pixelated",
-                  marginBottom: 4,
-                  filter: `drop-shadow(0 0 10px ${CYAN}88)`,
+                  position: "relative",
+                  height: 132,
+                  margin: "0 auto 10px",
+                  maxWidth: 220,
                 }}
-              />
+              >
+                <div
+                  aria-hidden
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    top: "62%",
+                    width: 150,
+                    height: 150,
+                    borderRadius: "50%",
+                    border: `1.5px solid ${CYAN}55`,
+                    animation: "lrRing 10s linear infinite",
+                    boxShadow: `0 0 24px ${CYAN}33`,
+                  }}
+                />
+                <div
+                  aria-hidden
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    top: "62%",
+                    width: 104,
+                    height: 104,
+                    borderRadius: "50%",
+                    border: "1px dashed rgba(255,255,255,0.18)",
+                    animation: "lrRing 16s linear infinite reverse",
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    top: 18,
+                    transform: "translateX(-50%)",
+                    animation: "lrHeroSpin 5.5s ease-in-out infinite",
+                    filter: `drop-shadow(0 12px 28px ${CYAN}66)`,
+                  }}
+                >
+                  <GramDiamondIcon size={86} />
+                </div>
+              </div>
               <div
                 style={{
                   fontFamily: "'Orbitron', 'Inter', sans-serif",
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: 900,
-                  letterSpacing: "0.18em",
-                  color: ACCENT,
+                  letterSpacing: "0.22em",
+                  color: "#E8FBFF",
                   textTransform: "uppercase",
+                  textShadow: `0 0 18px ${CYAN}66`,
                 }}
               >
                 Craft Leaderboard
               </div>
-              <div style={{ fontSize: 11, color: "rgba(255,236,112,0.7)", marginTop: 4 }}>
-                Free for everyone · +1 point for every planet you craft
+              <div style={{ fontSize: 11, color: "rgba(180,230,255,0.62)", marginTop: 6 }}>
+                +1 point per model forged · free for everyone
               </div>
             </div>
 
@@ -288,8 +356,8 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
               style={{
                 padding: "12px 14px",
                 borderRadius: 14,
-                background: "rgba(255,215,0,0.06)",
-                border: `1px solid ${CYAN}33`,
+                background: "rgba(0,212,255,0.06)",
+                border: `1px solid ${CYAN}28`,
                 marginBottom: 14,
                 textAlign: "center",
               }}
@@ -348,7 +416,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
                 style={{
                   padding: 10,
                   borderRadius: 10,
-                  background: "rgba(255,215,0,0.05)",
+                  background: "rgba(0,212,255,0.06)",
                   border: `1px solid ${CYAN}22`,
                   textAlign: "center",
                 }}
@@ -364,7 +432,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
                   Prize Pool
                 </div>
                 <div style={{ fontSize: 18, fontWeight: 900, color: ACCENT, marginTop: 2 }}>
-                  {pool} TON
+                  {pool} GRAM
                 </div>
                 <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Top 30</div>
               </div>
@@ -372,7 +440,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
                 style={{
                   padding: 10,
                   borderRadius: 10,
-                  background: "rgba(255,215,0,0.05)",
+                  background: "rgba(0,212,255,0.06)",
                   border: `1px solid ${CYAN}22`,
                   textAlign: "center",
                 }}
@@ -396,7 +464,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
                 style={{
                   padding: 10,
                   borderRadius: 10,
-                  background: "rgba(255,215,0,0.05)",
+                  background: "rgba(0,212,255,0.06)",
                   border: `1px solid ${CYAN}22`,
                   textAlign: "center",
                 }}
@@ -438,18 +506,18 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
                   marginBottom: 6,
                 }}
               >
-                PRIZES · {pool} TON TO TOP 30
+                PRIZES · {pool} GRAM TO TOP 30
               </div>
               <div style={{ fontSize: 11, color: "#fff", lineHeight: 1.8 }}>
                 {prizes.map((p) => (
                   <div key={p.label} style={{ display: "flex", justifyContent: "space-between" }}>
                     <span style={{ color: ACCENT, fontWeight: 800 }}>{p.label}</span>
-                    <span>{p.ton} TON{p.label.includes("–") ? " each" : ""}</span>
+                    <span>{p.ton} GRAM{p.label.includes("–") ? " each" : ""}</span>
                   </div>
                 ))}
               </div>
               <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginTop: 6 }}>
-                Prizes are credited automatically to your withdrawable Earned TON balance when the season ends.
+                Prizes credit your GRAM wallet when the season ends.
               </div>
             </div>
 
@@ -482,6 +550,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
                   return (
                     <div
                       key={r.telegramId}
+                      className={r.rank === 1 ? "lr-top1" : r.rank <= 10 ? "lr-top10" : undefined}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -489,10 +558,20 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
                         fontSize: 11,
                         padding: "5px 6px",
                         borderRadius: 6,
-                        background: isMe ? "rgba(255,215,0,0.10)" : "transparent",
-                        border: isMe ? `1px solid ${CYAN}44` : "1px solid transparent",
+                        background: r.rank === 1
+                          ? "linear-gradient(90deg, rgba(255,215,64,0.18), rgba(0,212,255,0.08))"
+                          : isMe ? "rgba(255,215,0,0.10)" : "transparent",
+                        border: r.rank === 1
+                          ? `1px solid ${CYAN}88`
+                          : isMe ? `1px solid ${CYAN}44` : "1px solid transparent",
                         color: r.rank === 1 ? ACCENT : "#fff",
                         fontWeight: r.rank <= 30 ? 800 : 600,
+                        animation: r.rank === 1
+                          ? "lrTopFly 2.2s ease-in-out infinite"
+                          : r.rank <= 10
+                            ? "lrNamePulse 1.8s ease-in-out infinite"
+                            : undefined,
+                        position: "relative",
                       }}
                     >
                       <span style={{ minWidth: 24, textAlign: "center" }}>{rankEmoji}</span>
@@ -555,7 +634,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
                             padding: "2px 6px",
                           }}
                         >
-                          {r.tonPrize} TON
+                          {r.tonPrize} GRAM
                         </span>
                       )}
                     </div>

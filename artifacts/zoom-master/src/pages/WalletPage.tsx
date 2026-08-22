@@ -64,9 +64,10 @@ function seededRange(seed: string, min: number, max: number): number {
 }
 
 function formatZoom(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + "M";
-  if (n >= 20_000) return (n / 1_000).toFixed(1) + "K";
-  return n.toLocaleString();
+  const v = Math.floor(Number(n) || 0);
+  if (v >= 1_000_000) return (v / 1_000_000).toFixed(2) + "M";
+  if (v >= 20_000) return (v / 1_000).toFixed(1) + "K";
+  return v.toLocaleString();
 }
 
 function formatUsdFromGram(gramValue: number | null, tonPrice: number | null, loading: boolean): string {
@@ -111,9 +112,7 @@ export function WalletPage({
   const [stardustChangePct, setStardustChangePct] = useState<number | null>(() =>
     initialMarket.stardustChange24hPct,
   );
-  const [gramChangePct, setGramChangePct] = useState<number | null>(() =>
-    readGramMarketCache().change24hPct,
-  );
+  const [gramChangePct, setGramChangePct] = useState<number | null>(null);
 
   const applyMarketCache = useCallback(() => {
     const cached = readWalletMarketCacheForDisplay();
@@ -155,7 +154,6 @@ export function WalletPage({
 
   useEffect(() => {
     if (!visible) return;
-    applyMarketCache();
     applyGramMarket();
     void prefetchWalletMarket();
     void fetchGramMarketSnapshot();
@@ -165,7 +163,7 @@ export function WalletPage({
       void fetchGramMarketSnapshot();
     }, LIVE_POLL_MS);
     return () => window.clearInterval(id);
-  }, [visible, applyMarketCache, applyGramMarket]);
+  }, [visible, applyGramMarket]);
 
   useEffect(() => {
     const onRefresh = () => {
@@ -180,16 +178,14 @@ export function WalletPage({
     const onTabActive = (e: Event) => {
       const nextTab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
       if (nextTab !== "wallet") return;
-      applyMarketCache();
       applyGramMarket();
-      void prefetchWalletMarket();
-      void fetchGramMarketSnapshot();
     };
     window.addEventListener("zoom-tab-active", onTabActive);
     return () => window.removeEventListener("zoom-tab-active", onTabActive);
-  }, [applyMarketCache, applyGramMarket]);
+  }, [applyGramMarket]);
 
-  const usdtValue = tonPrice !== null ? (tonBalance * tonPrice).toFixed(2) : null;
+  const gramTotal = Math.max(0, (tonBalance || 0) + (depositBalance || 0));
+  const usdtValue = tonPrice !== null ? (gramTotal * tonPrice).toFixed(2) : null;
   const zoomGramValue = zoomPriceGram != null && balance > 0 ? balance * zoomPriceGram : null;
   const stardustGramValue = liveStardustBalance > 0
     ? (liveStardustBalance * stardustIndex) / 100
@@ -300,7 +296,7 @@ export function WalletPage({
           <div style={{ minWidth: 0 }}>
             <div
               style={{
-                fontSize: tonBalance >= 1000 ? 28 : 34,
+                fontSize: gramTotal >= 1000 ? 28 : 34,
                 fontWeight: 900,
                 color: GRAM_CELESTE.main,
                 lineHeight: 1.1,
@@ -328,7 +324,7 @@ export function WalletPage({
                     display: "inline-flex",
                   }}
                 >
-                  <GramWalletIcon size={tonBalance >= 1000 ? 28 : 32} />
+                  <GramWalletIcon size={gramTotal >= 1000 ? 28 : 32} />
                 </span>
                 <span
                   style={{
@@ -343,26 +339,26 @@ export function WalletPage({
                 >
                   {gramIconValue}
                 </span>
-                {gramChangePct != null && (
-                  <span
+                <span
                     style={{
                       fontSize: 8,
                       fontWeight: 800,
-                      color: gramChangePct > 0
-                        ? "rgba(0,255,140,0.75)"
-                        : gramChangePct < 0
-                          ? "rgba(255,100,100,0.75)"
-                          : "rgba(255,255,255,0.35)",
+                      color: gramChangePct == null
+                        ? "rgba(255,255,255,0.28)"
+                        : gramChangePct > 0
+                          ? "rgba(0,255,140,0.75)"
+                          : gramChangePct < 0
+                            ? "rgba(255,100,100,0.75)"
+                            : "rgba(255,255,255,0.35)",
                       fontVariantNumeric: "tabular-nums",
                       lineHeight: 1.1,
                     }}
                   >
-                    {formatChangePct(gramChangePct)}
+                    {gramChangePct == null ? "···" : formatChangePct(gramChangePct)}
                   </span>
-                )}
               </span>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {tonBalance.toFixed(4)}
+                {gramTotal.toFixed(4)}
               </span>
             </div>
           </div>
@@ -422,8 +418,8 @@ export function WalletPage({
       {gramChartOpen && (
         <GramChartModal
           key="gram-chart-modal"
-          gramBalance={tonBalance}
-          depositBalance={depositBalance}
+          gramBalance={gramTotal}
+          depositBalance={0}
           initialPrice={tonPrice}
           onClose={() => setGramChartOpen(false)}
           onPriceUpdate={handleGramPriceUpdate}

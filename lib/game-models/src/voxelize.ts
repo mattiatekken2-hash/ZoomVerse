@@ -215,7 +215,53 @@ export function getForgeBlueprint(parts: MeshPart[]): { voxels: VoxelCell[]; ste
   return { voxels, step, goal: Math.max(1, voxels.length) };
 }
 
-/** Lab shape forge — densify or trim procedural mesh voxels to an exact tap goal. */
+/**
+ * Lab clay forge — keep the real mesh silhouette.
+ * Never stride-trim or clone-pad (those punch holes / blob the shape).
+ * Tap goal = voxel count (1 tap = 1 cube).
+ */
+export function meshPartsToFullShapeVoxels(parts: MeshPart[]): { voxels: VoxelCell[]; step: number } {
+  if (parts.length === 0) return { voxels: [], step: FORGE_VOXEL_SIZE };
+
+  const MIN = 160;
+  const MAX = 720;
+  let step = 0.10;
+  let best = collectVoxels(parts, step);
+
+  for (let i = 0; i < 14; i++) {
+    const count = best.length;
+    if (count >= MIN && count <= MAX) break;
+    step *= count > MAX ? 1.12 : 0.88;
+    if (step < 0.045) {
+      best = collectVoxels(parts, 0.045);
+      step = 0.045;
+      break;
+    }
+    if (step > 0.22) {
+      best = collectVoxels(parts, 0.22);
+      step = 0.22;
+      break;
+    }
+    best = collectVoxels(parts, step);
+  }
+
+  while (best.length > MAX && step < 0.28) {
+    step *= 1.08;
+    best = collectVoxels(parts, step);
+  }
+
+  best.sort((a, b) => {
+    const dy = a.y - b.y;
+    if (Math.abs(dy) > 1e-6) return dy;
+    const da = a.x * a.x + a.z * a.z;
+    const db = b.x * b.x + b.z * b.z;
+    return da - db || a.x - b.x || a.z - b.z;
+  });
+
+  return { voxels: best.map((v, i) => ({ ...v, id: `v${i}` })), step };
+}
+
+/** @deprecated Hole-punching densify — use meshPartsToFullShapeVoxels for Lab models. */
 export function meshPartsToGoalVoxels(
   parts: MeshPart[],
   targetGoal: number,

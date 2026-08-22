@@ -39,6 +39,7 @@ import comboRouter, { ensureComboClaims } from "./combo";
 import adsRouter from "./ads";
 import itemsRouter from "./items";
 import modelsRouter from "./models";
+import voxelStudioRouter from "./voxel-studio";
 
 // Boot-time DDL: ensure combo tracking column exists (idempotent).
 void ensureComboClaims();
@@ -148,6 +149,8 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/ton/confirm",
       "/shop/buy-deposit",
       "/shop/buy-stardust",
+      "/voxel-studio/save",
+      "/voxel-studio/buy-slot",
       "/stardust/convert-deposit",
       "/stardust/convert-to-gram",
       "/room-invites/send",
@@ -371,5 +374,6 @@ router.use(comboRouter);
 router.use(adsRouter);
 router.use(itemsRouter);
 router.use(modelsRouter);
+router.use(voxelStudioRouter);
 
 export default router;

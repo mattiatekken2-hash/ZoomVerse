@@ -3,6 +3,7 @@ import type { FeedEvent, Planet } from "../hooks/useGameState";
 import { useGlobalStore } from "../store/globalStore";
 import { useT } from "../i18n/LanguageContext";
 import { TrophyIcon } from "../components/icons/GameIcons";
+import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
 import { isLabStardustShapeId, isLabZoomShapeId } from "@workspace/game-models";
 
 interface RankPageProps {
@@ -177,7 +178,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                 <div className="w-2 h-2 rounded-full" style={{ background: "#9EC5E8", boxShadow: "0 0 6px rgba(158,197,232,0.75)" }} />
                 <span className="font-black text-sm tracking-wide" style={{ color: "#E8ECF4" }}>{t("rank.liveSeasonRank")}</span>
               </div>
-              <span className="text-[10px] font-bold uppercase" style={{ color: "rgba(255,255,255,0.35)" }}>{t("rank.walletSync")}</span>
+              <span />
             </div>
             <div className="flex flex-col gap-1.5">
               {loadingLb && leaderboard.length === 0 && (
@@ -188,18 +189,25 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
               )}
               {leaderboard.slice(0, 10).map((entry) => {
                 const isUser = !!telegramId && entry.telegramId === telegramId;
+                const top3 = entry.rank <= 3;
                 return (
                   <div
                     key={entry.telegramId}
                     className="rounded-xl border flex items-center gap-3 px-3 py-2 transition-all"
                     style={{
-                      borderColor: isUser ? "rgba(158,197,232,0.28)" : "rgba(255,255,255,0.05)",
-                      background: isUser ? "rgba(158,197,232,0.08)" : "rgba(255,255,255,0.02)",
+                      borderColor: top3 ? "rgba(255,215,64,0.45)" : isUser ? "rgba(158,197,232,0.28)" : "rgba(255,255,255,0.05)",
+                      background: top3 ? "rgba(255,215,64,0.08)" : isUser ? "rgba(158,197,232,0.08)" : "rgba(255,255,255,0.02)",
+                      boxShadow: top3 ? "0 0 14px rgba(255,215,64,0.18)" : undefined,
                     }}
                   >
                     <div className="font-black text-sm w-7 text-center flex-shrink-0" style={{ color: isUser ? "#E8ECF4" : "rgba(255,255,255,0.28)" }}>
                       #{entry.rank}
                     </div>
+                    {top3 && (
+                      <span className="rank-zoom-badge" title="Top 3">
+                        <ZoomCubeIcon size={18} />
+                      </span>
+                    )}
                     {entry.photoUrl ? (
                       <img
                         src={entry.photoUrl}

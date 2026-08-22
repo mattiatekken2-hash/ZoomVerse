@@ -1,11 +1,11 @@
 import { useEffect, useState, memo, useRef } from "react";
-import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import {
   fetchV1NftPlatinumStock,
-  confirmTonPurchase,
   pollTxnUntilFinal,
   fetchV1NftStardustStatus,
   claimV1NftStardust,
+  createStarsInvoice,
+  buyShopItemFromStardust,
   type V1NftPlatinumStock,
   type V1NftStardustStatus,
 } from "../utils/api";
@@ -29,16 +29,13 @@ function fmtCountdown(secs: number): string {
 // Su acquisto riuscito triggera "zoom-data-refresh" così useGameState
 // ri-fetcha grants e materializza il pianeta V1_NFT in inventory.
 
-const WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
-
 interface Props {
   telegramId: string | null;
   shopMode?: boolean;
+  payMode?: "stars" | "stardust";
 }
 
-function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
-  const [tonConnectUI] = useTonConnectUI();
-  const connectedAddress = useTonAddress();
+function V1NftWidgetBase({ telegramId, shopMode = false, payMode = "stars" }: Props) {
   const [open, setOpen] = useState(false);
   const [stock, setStock] = useState<V1NftPlatinumStock | null>(null);
   const [buying, setBuying] = useState(false);
@@ -111,57 +108,45 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
   const handleBuy = async () => {
     if (disabled) return;
     if (!telegramId) { setMessage("Telegram ID missing"); return; }
-    if (!connectedAddress) {
-      tonConnectUI.openModal();
-      setMessage("Connect your wallet first");
-      return;
-    }
     setBuying(true);
     try {
-      const tonPrice = 20;
-      const nanotons = BigInt(Math.round(tonPrice * 1e9)).toString();
-      const txResult = await tonConnectUI.sendTransaction({
-        validUntil: Math.floor(Date.now() / 1000) + 300,
-        messages: [{ address: WALLET, amount: nanotons }],
-      });
-      const boc = txResult.boc || "";
-      const confirmResult = await confirmTonPurchase(telegramId, "v1_nft_platinum", connectedAddress, tonPrice, boc);
-      if (confirmResult.alreadyCredited) {
-        setMessage("V1 NFT purchased!");
-        window.dispatchEvent(new Event("zoom-data-refresh"));
-      } else if (confirmResult.pending && confirmResult.txnId) {
-        setMessage("Verifying payment on-chain…");
-        const final = await pollTxnUntilFinal(confirmResult.txnId);
-        if (final?.status === "completed") {
-          setMessage("V1 NFT purchased!");
+      if (payMode === "stardust") {
+        const res = await buyShopItemFromStardust(telegramId, "v1_nft_platinum");
+        if (res.ok) {
+          setMessage("V1 NFT purchased with Stardust!");
           window.dispatchEvent(new Event("zoom-data-refresh"));
-        } else if (final?.status === "failed") {
-          setMessage("Payment not detected. Contact support if GRAM was sent.");
+          window.dispatchEvent(new Event("stardust-refresh"));
         } else {
-          setMessage("Awaiting confirmation. The NFT will appear once verified.");
-          window.dispatchEvent(new Event("zoom-data-refresh"));
-          setTimeout(() => window.dispatchEvent(new Event("zoom-data-refresh")), 90_000);
-          setTimeout(() => window.dispatchEvent(new Event("zoom-data-refresh")), 150_000);
+          setMessage(res.error || "Purchase failed");
         }
-      } else if (confirmResult.ok) {
-        setMessage("V1 NFT purchased!");
-        window.dispatchEvent(new Event("zoom-data-refresh"));
-      } else {
-        setMessage(confirmResult.error || "Credit failed");
+        return;
       }
-      // refresh stock after attempt
-      const s = await fetchV1NftPlatinumStock();
-      if (aliveRef.current) setStock(s);
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      if (errMsg.includes("cancel") || errMsg.includes("reject") || errMsg.includes("Interrupted")) {
-        setMessage("Payment cancelled");
-      } else {
-        setMessage("GRAM payment failed");
-        console.error("[v1nft] sendTransaction error:", err);
+      const result = await createStarsInvoice(telegramId, "v1_nft_platinum");
+      if (result.error) {
+        setMessage(result.error);
+        return;
       }
+      if (result.invoiceUrl) {
+        const webApp = (window as unknown as { Telegram?: { WebApp?: { openInvoice?: (url: string, cb?: (status: string) => void) => void } } }).Telegram?.WebApp;
+        if (webApp?.openInvoice) {
+          webApp.openInvoice(result.invoiceUrl, async (status) => {
+            if (status === "paid" && result.txnId) {
+              const final = await pollTxnUntilFinal(result.txnId, { maxMs: 60_000, intervalMs: 2000 });
+              setMessage(final?.status === "completed" ? "V1 NFT purchased!" : "Payment pending");
+              window.dispatchEvent(new Event("zoom-data-refresh"));
+            } else {
+              setMessage(status === "cancelled" ? "Cancelled" : "Payment not completed");
+            }
+          });
+        } else {
+          window.open(result.invoiceUrl, "_blank");
+        }
+      }
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Purchase failed");
+    } finally {
+      if (aliveRef.current) setBuying(false);
     }
-    if (aliveRef.current) setBuying(false);
   };
 
   return (
@@ -199,12 +184,12 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 900, color: "#cfe4ff", fontSize: 14, letterSpacing: "0.04em" }}>V1 NFT PLATINUM</div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", marginTop: 3 }}>
-                {stock ? `${stock.remaining}/${stock.max} left · ` : ""}20 GRAM · 275 $ZOOM/h
+                {stock ? `${stock.remaining}/${stock.max} left · ` : ""}⭐ 2000 / ★ Stardust · 275 $ZOOM/h
               </div>
             </div>
           </div>
           <div style={{ borderTop: "1px solid rgba(202,225,255,0.22)", padding: "10px 16px", textAlign: "center", fontWeight: 900, color: "#cfe4ff", fontSize: 12, letterSpacing: "0.06em" }}>
-            BUY — 20 GRAM →
+            BUY — {payMode === "stars" ? "⭐ 2000" : "★ STARDUST"} →
           </div>
         </div>
       ) : (
@@ -293,7 +278,7 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
             }}>
               {[
                 { label: "Yield", value: "275 $ZOOM/h" },
-                { label: "Price", value: "20 GRAM" },
+                { label: "Price", value: payMode === "stars" ? "⭐ 2000" : "★ Stardust" },
                 { label: "Global stock", value: stock ? `${stock.remaining}/${stock.max}` : "5/5" },
                 { label: "Per-user", value: "Unlimited" },
               ].map((row) => (
@@ -374,7 +359,7 @@ function V1NftWidgetBase({ telegramId, shopMode = false }: Props) {
               }}
               data-testid="button-v1-nft-buy"
             >
-              {soldOut ? "SOLD OUT" : buying ? "PROCESSING…" : "BUY — 20 GRAM"}
+              {soldOut ? "SOLD OUT" : buying ? "PROCESSING…" : (payMode === "stars" ? "BUY — ⭐ 2000" : "BUY — ★ STARDUST")}
             </button>
 
             <button

@@ -1,5 +1,6 @@
 import { memo, useState, useCallback } from "react";
 import { haptic } from "../utils/haptic";
+import { ZoomCubeIcon } from "./ZoomCubeIcon";
 
 const STORE_GOLD = "#ffd700";
 const STORE_GLOW = "#ffe44d";
@@ -61,7 +62,9 @@ function ComingSoonOverlay({ onClose }: { onClose: () => void }) {
           borderRadius: 20, padding: 32, textAlign: "center",
         }}
       >
-        <div style={{ fontSize: 52, marginBottom: 12, lineHeight: 1 }}>🚀</div>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 12 }}>
+          <ZoomCubeIcon size={56} />
+        </div>
         <div style={{
           fontFamily: "'Orbitron', 'Inter', sans-serif",
           fontSize: 20, fontWeight: 900, letterSpacing: "0.16em",
@@ -159,8 +162,8 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
 
       {/* ── Floating button ── */}
       <button
-        onClick={() => { haptic(); setOpen(true); }}
-        aria-label="ZOOM Store"
+        onClick={() => { /* coming soon */ }}
+        aria-label="ZOOM Store coming soon"
         className="zs-btn-tile"
         style={shopMode ? {
           width: "100%",
@@ -171,7 +174,9 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
           borderRadius: 14,
           background: "rgba(18,14,0,0.88)",
           border: `1px solid ${STORE_GOLD}55`,
-          cursor: "pointer",
+          cursor: "default",
+          position: "relative",
+          overflow: "hidden",
           textAlign: "left" as const,
         } : {
           position: "fixed",
@@ -183,7 +188,7 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
           background: "rgba(18,14,0,0.88)",
           border: `1.5px solid ${STORE_GOLD}66`,
           padding: 4,
-          cursor: "pointer",
+          cursor: "default",
           zIndex: 40,
           WebkitTapHighlightColor: "transparent",
         }}
@@ -238,6 +243,30 @@ function ZoomStoreWidgetBase({ shopMode = false }: { shopMode?: boolean }) {
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 2 }}>Official merch · $ZOOM</div>
           </div>
         )}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 2,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(6,4,0,0.72)",
+            backdropFilter: "blur(2px)",
+            pointerEvents: "auto",
+            gap: 6,
+          }}
+        >
+          <ZoomCubeIcon size={22} />
+          <span style={{
+            fontFamily: "'Orbitron', 'Inter', sans-serif",
+            fontSize: shopMode ? 11 : 7,
+            fontWeight: 900,
+            letterSpacing: "0.14em",
+            color: STORE_GOLD,
+          }}>COMING SOON</span>
+        </div>
       </button>
 
       {/* ── Store modal — outer overlay scrolls ── */}

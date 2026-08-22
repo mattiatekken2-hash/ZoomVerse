@@ -8,7 +8,7 @@ const router: IRouter = Router();
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Rewards in STARDUST, one per day (D1–D7). No cycle multiplier.
 // Pizza forge = 3 ★. Week ≈ 18 ★ (~6 pizzas) — helper, not Lab bypass.
-const BASE_REWARDS = [1, 1, 2, 2, 3, 4, 5];
+const BASE_REWARDS = [1, 2, 3, 4, 5, 6, 7];
 
 function rewardForDay(dayIndex: number): number {
   return BASE_REWARDS[Math.max(0, Math.min(6, dayIndex))] ?? 1;
@@ -85,7 +85,7 @@ router.post("/daily/claim", async (req, res) => {
   try {
     await db
       .insert(usersTable)
-      .values({ telegramId, firstName: firstName ?? null, zoomBalance: 0 })
+      .values({ telegramId, firstName: firstName ?? null, zoomBalance: 0, stardustBalance: 30, redStarBalance: 5 })
       .onConflictDoNothing();
 
     const [u] = await db

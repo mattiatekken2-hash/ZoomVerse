@@ -6,6 +6,7 @@ import {
   fetchSeasonEpoch,
   fetchDailyStatus,
   fetchMarketListings,
+  fetchMyMarketListings,
   fetchMarketSales,
   fetchTotalPool,
   type LeaderboardEntry,
@@ -197,10 +198,30 @@ export function applyDailyClaimResult(payload: DailyStatus & { ok?: boolean }) {
   });
 }
 
+/** Merge a listing so ALL / STARDUST / My List update immediately after sell. */
+export function upsertMarketListing(listing: ServerMarketListing) {
+  const id = listing.id;
+  const planetId = listing.planetId ?? null;
+  const rest = state.marketListings.filter((l) => l.id !== id && !(planetId && l.planetId === planetId));
+  set({ marketListings: [listing, ...rest] });
+}
+
 /** Force a market listings refresh (used after a buy/sell). */
 export async function refreshMarketListings() {
   try {
     const m = await fetchMarketListings();
-    set({ marketListings: m });
+    const mine = currentTelegramId ? await fetchMyMarketListings(currentTelegramId) : [];
+    const byId = new Map<number, ServerMarketListing>();
+    for (const row of [...m, ...mine]) {
+      if (typeof row?.id === "number") byId.set(row.id, row);
+    }
+    const merged = [...byId.values()];
+    const serverIds = new Set(merged.map((l) => l.id));
+    const pending = state.marketListings.filter((l) => {
+      if (serverIds.has(l.id)) return false;
+      const t = l.lastActivatedAt ? new Date(l.lastActivatedAt).getTime() : 0;
+      return Number.isFinite(t) && Date.now() - t < 120_000;
+    });
+    set({ marketListings: [...pending, ...merged] });
   } catch { /**/ }
 }

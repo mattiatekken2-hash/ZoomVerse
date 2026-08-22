@@ -476,6 +476,7 @@ export const marketListingsTable = pgTable("market_listings", {
   // Lab generators use fractional rates (e.g. pizza 3.5 $ZOOM/h).
   planetRate: real("planet_rate"),
   price: real("price").notNull(),
+  priceCurrency: text("price_currency").notNull().default("gram"),
   status: text("status").notNull().default("active"),
   buyerTelegramId: text("buyer_telegram_id"),
   // Equipment snapshot. Anchored to a specific item in the seller's

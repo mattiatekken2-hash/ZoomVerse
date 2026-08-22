@@ -48,6 +48,14 @@ function HallOfFameWidgetBase({ telegramId: _telegramId, shopMode = false }: Pro
           0%,100% { transform: translateY(0); }
           50%     { transform: translateY(-3px); }
         }
+        @keyframes hof-pulse {
+          0%,100% { transform: scale(1); }
+          50% { transform: scale(1.03); }
+        }
+        @keyframes hof-fly {
+          0%,100% { transform: translateY(0); }
+          50% { transform: translateY(-7px); }
+        }
         .hof-pixel { image-rendering: pixelated; }
       `}</style>
 
@@ -180,8 +188,15 @@ function HallOfFameWidgetBase({ telegramId: _telegramId, shopMode = false }: Pro
                         gap: 10,
                         padding: "8px 10px",
                         borderRadius: 10,
-                        background: isPodium ? "rgba(255,210,63,0.06)" : "rgba(255,255,255,0.03)",
+                        background: e.rank === 1
+                          ? "linear-gradient(90deg, rgba(255,210,63,0.16), rgba(255,255,255,0.04))"
+                          : isPodium ? "rgba(255,210,63,0.06)" : "rgba(255,255,255,0.03)",
                         border: `1px solid ${isPodium ? "rgba(255,210,63,0.25)" : "rgba(255,255,255,0.08)"}`,
+                        animation: e.rank === 1
+                          ? "hof-fly 2.2s ease-in-out infinite"
+                          : e.rank <= 10
+                            ? "hof-pulse 1.8s ease-in-out infinite"
+                            : undefined,
                       }}
                       data-testid={`hof-row-${e.rank}`}
                     >

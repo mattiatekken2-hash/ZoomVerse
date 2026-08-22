@@ -1,8 +1,12 @@
 /**
- * Live GRAM (= TON) USD market — shared by Wallet card + GramChartModal
- * so the % under the emoji matches the real chart (first→last of ~24h history).
+ * Live GRAM (= TON) USD market — Wallet % uses Binance 24hr ticker, not a
+ * frozen first→last candle ratio (that could sit on -0.25% for hours).
  */
 import { fetchTonPrice, readCachedTonPriceAllowStale } from "./tonPrice";
+
+const API_BASE =
+  (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") ||
+  `${typeof window !== "undefined" ? window.location.origin : ""}/api`;
 
 export interface GramChartPoint {
   t: number;
@@ -12,12 +16,14 @@ export interface GramChartPoint {
 
 export interface GramMarketSnapshot {
   priceUsd: number | null;
-  /** Real ~24h change from chart first→last (Binance TONUSDT / CoinGecko). */
+  /** Live 24h % from Binance ticker/24hr (TONUSDT), CoinGecko fallback. */
   change24hPct: number | null;
   points: GramChartPoint[];
 }
 
-const CACHE_TTL_MS = 60_000;
+const CACHE_TTL_MS = 15_000;
+/** Do not paint a % older than this — avoids a stuck -0.25% after a failed fetch. */
+const STALE_PCT_MS = 90_000;
 const EVENT = "zoom-gram-market-update";
 
 const cache: {
@@ -40,7 +46,7 @@ function formatTime(ts: number): string {
   }
 }
 
-/** % from chart open → close (same math as the GRAM modal header). */
+/** % from chart open → close (header fallback only). */
 export function gramChartChangePct(points: Array<{ price: number }>): number | null {
   if (points.length < 2) return null;
   const first = points[0]?.price;
@@ -49,7 +55,7 @@ export function gramChartChangePct(points: Array<{ price: number }>): number | n
   return ((last! - first!) / first!) * 100;
 }
 
-function downsample(points: GramChartPoint[], maxPoints = 64): GramChartPoint[] {
+function downsample(points: GramChartPoint[], maxPoints = 90): GramChartPoint[] {
   if (points.length <= maxPoints) return points;
   const step = Math.ceil(points.length / maxPoints);
   const out: GramChartPoint[] = [];
@@ -59,10 +65,27 @@ function downsample(points: GramChartPoint[], maxPoints = 64): GramChartPoint[] 
   return out;
 }
 
+async function fetchBinance24h(): Promise<{ price: number; pct: number } | null> {
+  try {
+    const res = await fetch(
+      "https://api.binance.com/api/v3/ticker/24hr?symbol=TONUSDT",
+      { signal: AbortSignal.timeout(8000), cache: "no-store" },
+    );
+    if (!res.ok) return null;
+    const data = await res.json() as { lastPrice?: string; priceChangePercent?: string };
+    const price = parseFloat(data.lastPrice ?? "");
+    const pct = parseFloat(data.priceChangePercent ?? "");
+    if (!Number.isFinite(price) || price <= 0) return null;
+    return { price, pct: Number.isFinite(pct) ? pct : NaN };
+  } catch {
+    return null;
+  }
+}
+
 async function fetchBinanceHistory(): Promise<GramChartPoint[]> {
   try {
     const res = await fetch(
-      "https://api.binance.com/api/v3/klines?symbol=TONUSDT&interval=15m&limit=96",
+      "https://api.binance.com/api/v3/klines?symbol=TONUSDT&interval=1m&limit=120",
       { signal: AbortSignal.timeout(10000), cache: "no-store" },
     );
     if (!res.ok) return [];
@@ -75,21 +98,6 @@ async function fetchBinanceHistory(): Promise<GramChartPoint[]> {
     }).filter((p) => Number.isFinite(p.price) && p.price > 0);
   } catch {
     return [];
-  }
-}
-
-async function fetchBinancePrice(): Promise<number | null> {
-  try {
-    const res = await fetch(
-      "https://api.binance.com/api/v3/ticker/price?symbol=TONUSDT",
-      { signal: AbortSignal.timeout(8000), cache: "no-store" },
-    );
-    if (!res.ok) return null;
-    const data = await res.json() as { price?: string };
-    const p = parseFloat(data.price ?? "");
-    return Number.isFinite(p) && p > 0 ? p : null;
-  } catch {
-    return null;
   }
 }
 
@@ -111,7 +119,7 @@ async function fetchCoinGeckoHistory(): Promise<GramChartPoint[]> {
   }
 }
 
-function writeCache(snap: Omit<GramMarketSnapshot, never>) {
+function writeCache(snap: GramMarketSnapshot) {
   cache.priceUsd = snap.priceUsd;
   cache.change24hPct = snap.change24hPct;
   if (snap.points.length >= 2) cache.points = snap.points;
@@ -121,12 +129,13 @@ function writeCache(snap: Omit<GramMarketSnapshot, never>) {
   } catch { /**/ }
 }
 
-/** Instant paint from last fetch (may be stale within TTL). */
+/** Instant paint from last fetch — % only if still fresh. */
 export function readGramMarketCache(): GramMarketSnapshot {
-  const fresh = Date.now() - cache.fetchedAt <= CACHE_TTL_MS;
+  const age = Date.now() - cache.fetchedAt;
+  const pctOk = cache.fetchedAt > 0 && age <= STALE_PCT_MS;
   return {
     priceUsd: cache.priceUsd ?? readCachedTonPriceAllowStale(),
-    change24hPct: fresh || cache.change24hPct != null ? cache.change24hPct : null,
+    change24hPct: pctOk ? cache.change24hPct : null,
     points: cache.points,
   };
 }
@@ -138,17 +147,59 @@ export function subscribeGramMarket(onUpdate: () => void): () => void {
 
 let inFlight: Promise<GramMarketSnapshot> | null = null;
 
-/** Fetch live TON/USD + ~24h chart; % = chart first→last (real market move). */
-export async function fetchGramMarketSnapshot(): Promise<GramMarketSnapshot> {
+function appendLivePoint(points: GramChartPoint[], livePrice: number | null): GramChartPoint[] {
+  if (livePrice == null || !(livePrice > 0)) return points;
+  const now = Date.now();
+  const next = { t: now, price: livePrice, label: formatTime(now) };
+  if (points.length === 0) return [next];
+  const last = points[points.length - 1]!;
+  if (now - last.t < 8_000) return [...points.slice(0, -1), next];
+  return [...points, next];
+}
+
+/** Fetch live TON/USD + 24h ticker % (not a stuck candle ratio). */
+export async function fetchGramMarketSnapshot(opts?: { force?: boolean }): Promise<GramMarketSnapshot> {
   if (inFlight) return inFlight;
+  if (!opts?.force && Date.now() - cache.fetchedAt < CACHE_TTL_MS && cache.change24hPct != null && cache.points.length >= 2) {
+    return readGramMarketCache();
+  }
   inFlight = (async () => {
     try {
-      let points: GramChartPoint[] = [];
-      const [binancePrice, binanceHist] = await Promise.all([
-        fetchBinancePrice(),
+      try {
+        const proxied = await fetch(`${API_BASE}/economy/gram-market`, {
+          signal: AbortSignal.timeout(12000),
+          cache: "no-store",
+        });
+        if (proxied.ok) {
+          const data = await proxied.json() as {
+            priceUsd?: number | null;
+            change24hPct?: number | null;
+            points?: Array<{ t: number; price: number }>;
+          };
+          const rawPts = (data.points ?? [])
+            .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.price) && p.price > 0)
+            .map((p) => ({ t: p.t, price: p.price, label: formatTime(p.t) }));
+          const priceUsd =
+            (typeof data.priceUsd === "number" && data.priceUsd > 0 ? data.priceUsd : null)
+            ?? (await fetchTonPrice())
+            ?? readCachedTonPriceAllowStale();
+          const points = appendLivePoint(rawPts.length >= 2 ? downsample(rawPts) : cache.points, priceUsd);
+          const change24hPct =
+            typeof data.change24hPct === "number" && Number.isFinite(data.change24hPct)
+              ? data.change24hPct
+              : gramChartChangePct(points);
+          const snap: GramMarketSnapshot = { priceUsd, change24hPct, points };
+          writeCache(snap);
+          return snap;
+        }
+      } catch { /* fall through to direct Binance */ }
+
+      const [ticker, binanceHist] = await Promise.all([
+        fetchBinance24h(),
         fetchBinanceHistory(),
       ]);
 
+      let points: GramChartPoint[] = [];
       if (binanceHist.length >= 2) {
         points = downsample(binanceHist);
       } else {
@@ -157,30 +208,19 @@ export async function fetchGramMarketSnapshot(): Promise<GramMarketSnapshot> {
       }
 
       const priceUsd =
-        binancePrice
+        ticker?.price
         ?? (await fetchTonPrice())
         ?? readCachedTonPriceAllowStale();
 
-      // Prefer chart last close for %; if we have a fresher spot, append it so
-      // the % tracks the live tip of the real GRAM chart.
-      let pctPoints = points;
-      if (
-        points.length >= 2
-        && priceUsd != null
-        && Number.isFinite(priceUsd)
-        && Math.abs(priceUsd - points[points.length - 1]!.price) / points[points.length - 1]!.price > 0.00005
-      ) {
-        pctPoints = [
-          ...points,
-          { t: Date.now(), price: priceUsd, label: formatTime(Date.now()) },
-        ];
-      }
+      const change24hPct =
+        ticker != null && Number.isFinite(ticker.pct)
+          ? ticker.pct
+          : gramChartChangePct(points);
 
-      const change24hPct = gramChartChangePct(pctPoints);
       const snap: GramMarketSnapshot = {
         priceUsd,
         change24hPct,
-        points: pctPoints.length >= 2 ? pctPoints : points,
+        points: appendLivePoint(points.length >= 2 ? points : cache.points, priceUsd),
       };
       writeCache(snap);
       return snap;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Planet } from "../hooks/useGameState";
 import { getPlanetDisplayColors } from "../hooks/useGameState";
-import { FORGE_SPHERE_SHAPE_ID, isLabForgeGeneratorPlanet, labForgeShapeHasGlbReveal } from "@workspace/game-models";
+import { FORGE_SPHERE_SHAPE_ID, labForgeShapeHasGlbReveal, resolveLabShapeIdFromPlanet } from "@workspace/game-models";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { ObjectThumb } from "./MysteryModel3D";
 import { LabGlbViewer } from "./LabGlbViewer";
@@ -224,7 +224,6 @@ export function PlanetVoxelThumb({
       const tab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
       if (tab === "farm") {
         setInView(true);
-        setGlGen((g) => g + 1);
       }
     };
     window.addEventListener("zoom-tab-active", onTab);
@@ -280,23 +279,18 @@ export function PlanetVoxelThumb({
   }, [suspendGl, inView, delayReady, releaseSlot]);
 
   const handleGlError = useCallback(() => {
-    if (isLabForgeGeneratorPlanet(planet) && labForgeShapeHasGlbReveal(planet.shapeId)) {
-      setGlGen((g) => g + 1);
-      return;
-    }
     releaseSlot();
     setGlbFailed(true);
     setGlGen((g) => g + 1);
-  }, [releaseSlot, planet]);
+  }, [releaseSlot]);
 
   const showGl = !suspendGl && inView && delayReady && hasSlot;
   const useHiQuality = hiQuality ?? size >= 80;
-  const thumbShapeId = planet.shapeId && planet.shapeId.length > 0
-    ? planet.shapeId
-    : FORGE_SPHERE_SHAPE_ID;
+  const resolvedShape = resolveLabShapeIdFromPlanet(planet);
+  const thumbShapeId = resolvedShape
+    || (planet.shapeId && planet.shapeId.length > 0 ? planet.shapeId : FORGE_SPHERE_SHAPE_ID);
   const hasLabGlb = labForgeShapeHasGlbReveal(thumbShapeId);
-  const labGen = isLabForgeGeneratorPlanet(planet);
-  const useLabGlb = hasLabGlb && (labGen || !glbFailed);
+  const useLabGlb = hasLabGlb && !glbFailed;
 
   return (
     <div

@@ -67,7 +67,7 @@ async function checkAndCreditMilestones(telegramId: string) {
           balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
         } : {}),
         ...(totalGram > 0 ? {
-          depositBalance: sql`${usersTable.depositBalance} + ${totalGram}`,
+          tonBalance: sql`${usersTable.tonBalance} + ${totalGram}`,
         } : {}),
         claimedMilestones: setToString(claimed),
       })
@@ -165,7 +165,7 @@ router.post("/referral/register", async (req, res) => {
           telegramId: referredBy,
           referralCount: 1,
           stardustBalance: REFERRAL_STARDUST,
-          depositBalance: REFERRAL_TON_DEPOSIT,
+          tonBalance: REFERRAL_TON_DEPOSIT,
           dailyReferralCount: 1,
           dailyReferralDayKey: today,
         })
@@ -174,7 +174,7 @@ router.post("/referral/register", async (req, res) => {
           set: {
             referralCount: sql`${usersTable.referralCount} + 1`,
             stardustBalance: sql`${usersTable.stardustBalance} + ${REFERRAL_STARDUST}`,
-            depositBalance: sql`${usersTable.depositBalance} + ${REFERRAL_TON_DEPOSIT}`,
+            tonBalance: sql`${usersTable.tonBalance} + ${REFERRAL_TON_DEPOSIT}`,
             dailyReferralCount: sql`CASE WHEN ${usersTable.dailyReferralDayKey} = ${today} THEN ${usersTable.dailyReferralCount} + 1 ELSE 1 END`,
             dailyReferralDayKey: today,
           },

@@ -1,8 +1,8 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { MysteryModel3D, type ForgeMeshHandle } from "./MysteryModel3D";
-import { FORGE_CLAY_HEX, FORGE_SPHERE_SHAPE_ID, getMeshParts, resolveLabForgeShapeId } from "@workspace/game-models";
+import { FORGE_CLAY_HEX, FORGE_SPHERE_SHAPE_ID, getMeshParts, resolveLabForgeShapeId, LAB_ZOOM_COLORS, LAB_STARDUST_COLORS, isLabZoomShapeId, resolveLabStardustShapeId } from "@workspace/game-models";
 import type { Planet } from "../hooks/useGameState";
-import { getRarityColorsForModel, PLANET_CONFIG } from "../hooks/useGameState";
+import { PLANET_CONFIG } from "../hooks/useGameState";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { useT } from "../i18n/LanguageContext";
 
@@ -34,6 +34,13 @@ interface PlanetCanvasProps {
   labForgeShapeId?: string | null;
   /** Active lab dual-forge path (zoom / stardust). */
   labForgePath?: import("@workspace/game-models").LabForgePath | null;
+}
+
+function labForgePaint(shapeId: string): { color: string; glowColor: string } {
+  if (isLabZoomShapeId(shapeId)) return LAB_ZOOM_COLORS[shapeId];
+  const sd = resolveLabStardustShapeId(shapeId);
+  if (sd) return LAB_STARDUST_COLORS[sd];
+  return { color: "#e8e4dc", glowColor: "#c8c4bc" };
 }
 
 const DEFAULT_ACCENT = "#8892b0";
@@ -387,9 +394,9 @@ export function PlanetCanvas({
   const labForgeRevealActive = !!pendingPlanet && !!labForgeShapeId;
   /** Grey voxels while tapping; stay visible through reveal except during wheel. */
   const showForgeBuildMesh = (isCrafting && forgePlanetBuild)
-    || (labForgeRevealActive && forgePhase !== "wheel");
+    || (labForgeRevealActive && forgePhase !== "wheel" && forgePhase !== "flash" && forgePhase !== "revealed");
   const showCompletedForgeMesh = showForgeBuildMesh;
-  const hideForgeCanvasDuringWheel = labForgeRevealActive && forgePhase === "wheel";
+  const hideForgeCanvasDuringWheel = labForgeRevealActive;
   const forgeRarity = pendingPlanet?.name ?? craftRarity;
   const showVoxelLayer = showForgeBuildMesh;
   /** Lab backdrop — keep WebGL alive for the full Lab session (idle, forge, reveal, claim). */
@@ -406,10 +413,6 @@ export function PlanetCanvas({
   const forgeRevealPhase: ForgePhase = pendingPlanet
     ? (forgePhase === "flash" || forgePhase === "revealed" ? forgePhase : "idle")
     : "idle";
-  const labClayForge = !!(labForgePath || labForgeRevealActive || (isCrafting && labForgeShapeId));
-  const rarityPaint = livePlanet && !labClayForge ? getRarityColorsForModel(livePlanet.name) : undefined;
-  const meshPrimary = labClayForge ? FORGE_CLAY_HEX : (rarityPaint?.color ?? FORGE_CLAY_HEX);
-  const meshAccent = labClayForge ? DEFAULT_ACCENT : (rarityPaint?.accentHex ?? DEFAULT_ACCENT);
   const displayAccent = DEFAULT_ACCENT;
   const forgeDisplayFloat = livePlanet && isFloatablePlanet(livePlanet)
     ? getDisplayFloat(livePlanet)
@@ -419,6 +422,9 @@ export function PlanetCanvas({
   const activeLabShapeId = useCustomLabShape
     ? resolveLabForgeShapeId(labForgeShapeId)
     : FORGE_SPHERE_SHAPE_ID;
+  const forgePaint = labForgePaint(activeLabShapeId);
+  const meshPrimary = forgePaint.color;
+  const meshAccent = forgePaint.glowColor;
   const isLabSphereForge = activeLabShapeId === FORGE_SPHERE_SHAPE_ID;
   const forgeShapeId = showLabBackdrop || showVoxelLayer ? activeLabShapeId : undefined;
   const objectParts = useMemo(() => {
@@ -454,6 +460,7 @@ export function PlanetCanvas({
       const w = el.clientWidth;
       if (w <= 1 || h <= 1) return;
       if (backdrop) {
+        if (isActiveCraft || pendingPlanet || forgePhase === "wheel") return;
         if (viewportRef.current.w !== w || viewportRef.current.h !== h) {
           viewportRef.current = { w, h };
           setViewport({ w, h });
@@ -475,10 +482,10 @@ export function PlanetCanvas({
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [backdrop]);
+  }, [backdrop, isActiveCraft, pendingPlanet, forgePhase]);
 
   useLayoutEffect(() => {
-    if (isActiveCraft || pendingPlanet) {
+    if (isActiveCraft || pendingPlanet || forgePhase === "wheel") {
       if (craftSizeLockRef.current == null) {
         craftSizeLockRef.current = sizeRef.current;
       }
@@ -588,7 +595,7 @@ export function PlanetCanvas({
               viewportHeight={viewport.h}
               onTap={onPunch && showVoxelLayer && isForging && !forgeRolling ? handleModelTap : undefined}
               autoSpin
-              interactive={isForging && !forgeRolling}
+              interactive={(isForging && !forgeRolling) || (labForgeRevealActive && forgePhase !== "wheel" && forgePhase !== "flash" && forgePhase !== "revealed")}
               forgeVoxelBuild={true}
               forgeRevealPhase={forgeRevealPhase}
               forgeTapRelaxed={tapRelaxed}

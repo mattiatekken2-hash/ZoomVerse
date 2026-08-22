@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback, memo } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import { confirmTonPurchase, pollTxnUntilFinal } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
-import { LightningBoltIcon } from "./LightningBoltIcon";
 
 const WALLET = "UQB7vku7fJS196hYJa86PjQW9rq0Q7hzyqH97Ki5hJHesIdr";
 const PRICE_TON = 3;
@@ -10,31 +9,25 @@ const TAPS_PER_SECOND = 10;
 
 interface AutoTapWidgetProps {
   hasAutoTap: boolean;
-  canCraft: boolean;
   telegramId: string | null;
-  onTap: () => void;
 }
 
-function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapWidgetProps) {
-  const { t } = useT();
-  const [tonConnectUI] = useTonConnectUI();
-  const connectedAddress = useTonAddress();
-  const [showBuy, setShowBuy] = useState(false);
-  const [buying, setBuying] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+/** Hold START BUILD to auto-tap at 10/s. No-ops when auto-tap is not owned. */
+export function useAutoTapHold(opts: {
+  enabled: boolean;
+  canCraft: boolean;
+  onTap: () => void;
+}) {
+  const { enabled, canCraft, onTap } = opts;
   const [holding, setHolding] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const activePointerRef = useRef<number | null>(null);
   const onTapRef = useRef(onTap);
   const canCraftRef = useRef(canCraft);
+  const enabledRef = useRef(enabled);
   onTapRef.current = onTap;
   canCraftRef.current = canCraft;
-
-  useEffect(() => {
-    if (!message) return;
-    const t = setTimeout(() => setMessage(null), 3000);
-    return () => clearTimeout(t);
-  }, [message]);
+  enabledRef.current = enabled;
 
   const stopHold = useCallback((pointerId?: number) => {
     if (pointerId != null && activePointerRef.current != null && activePointerRef.current !== pointerId) {
@@ -49,10 +42,10 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
   }, []);
 
   const startHold = useCallback((pointerId: number) => {
+    if (!enabledRef.current) return;
     if (intervalRef.current) return;
     activePointerRef.current = pointerId;
     setHolding(true);
-    // Fire one tap immediately, then continue at TAPS_PER_SECOND.
     if (canCraftRef.current) onTapRef.current();
     intervalRef.current = setInterval(() => {
       if (!canCraftRef.current) return;
@@ -63,8 +56,8 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
   useEffect(() => () => stopHold(), [stopHold]);
 
   useEffect(() => {
-    if (!canCraft) stopHold();
-  }, [canCraft, stopHold]);
+    if (!canCraft || !enabled) stopHold();
+  }, [canCraft, enabled, stopHold]);
 
   useEffect(() => {
     const onVis = () => { if (document.hidden) stopHold(); };
@@ -72,10 +65,29 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [stopHold]);
 
+  return { startHold, stopHold, holding };
+}
+
+function AutoTapWidgetBase({ hasAutoTap, telegramId }: AutoTapWidgetProps) {
+  const { t } = useT();
+  const [tonConnectUI] = useTonConnectUI();
+  const connectedAddress = useTonAddress();
+  const [showBuy, setShowBuy] = useState(false);
+  const [buying, setBuying] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!message) return;
+    const tmr = setTimeout(() => setMessage(null), 3000);
+    return () => clearTimeout(tmr);
+  }, [message]);
+
   const handleClick = () => {
     if (!hasAutoTap) {
       setShowBuy(true);
+      return;
     }
+    setMessage(t("autoTap.holdHint"));
   };
 
   const handleBuy = async () => {
@@ -125,77 +137,64 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
     setBuying(false);
   };
 
-  const ringColor = hasAutoTap
-    ? (holding ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.38)")
-    : "rgba(255,255,255,0.22)";
-  const dim = !canCraft;
-  const boltGlow = hasAutoTap ? (holding ? 1 : 0.75) : 0.35;
-  const boltOpacity = hasAutoTap ? 1 : 0.72;
-
   return (
     <>
       <button
+        type="button"
         onClick={handleClick}
         data-no-global-haptic
-        onPointerDown={(e) => {
-          if (!hasAutoTap || e.button !== 0) return;
-          e.preventDefault();
-          try {
-            e.currentTarget.setPointerCapture(e.pointerId);
-          } catch { /**/ }
-          startHold(e.pointerId);
-        }}
-        onPointerUp={(e) => {
-          if (!hasAutoTap) return;
-          stopHold(e.pointerId);
-          try {
-            if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
-              e.currentTarget.releasePointerCapture(e.pointerId);
-            }
-          } catch { /**/ }
-        }}
-        onPointerCancel={(e) => {
-          if (!hasAutoTap) return;
-          stopHold(e.pointerId);
-        }}
-        onLostPointerCapture={(e) => {
-          if (!hasAutoTap) return;
-          stopHold(e.pointerId);
-        }}
-        onContextMenu={(e) => e.preventDefault()}
         className="active:scale-95"
         style={{
           position: "fixed",
-          // Immersive Lab: nav overlays the canvas — sit just above the forge row.
-          left: 12,
-          bottom: "calc(env(safe-area-inset-bottom, 0px) + 78px + 120px)",
-          width: 52,
-          height: 52,
-          borderRadius: "50%",
-          background: holding
-            ? "radial-gradient(circle, rgba(200,220,255,0.28), rgba(120,150,200,0.08))"
-            : "radial-gradient(circle, rgba(20,28,48,0.92), rgba(6,8,16,0.88))",
-          border: `1.5px solid ${ringColor}`,
-          boxShadow: holding
-            ? "0 0 24px rgba(200,220,255,0.45), inset 0 0 12px rgba(255,255,255,0.12)"
-            : `0 0 12px ${ringColor}, inset 0 0 6px rgba(255,255,255,0.04)`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          left: 10,
+          bottom: "calc(env(safe-area-inset-bottom, 0px) + 78px + 118px)",
+          height: 34,
+          padding: "0 11px",
+          borderRadius: 999,
+          background: hasAutoTap
+            ? "rgba(0, 0, 0, 0.72)"
+            : "rgba(8, 10, 18, 0.88)",
+          border: hasAutoTap
+            ? "1px solid rgba(0, 230, 118, 0.45)"
+            : "1px solid rgba(255,255,255,0.22)",
+          color: hasAutoTap ? "#69f0ae" : "#E8ECF4",
+          fontSize: 10,
+          fontWeight: 900,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
           cursor: "pointer",
-          touchAction: "none",
-          userSelect: "none",
-          WebkitUserSelect: "none",
-          WebkitTouchCallout: "none",
-          opacity: dim ? 0.55 : 1,
-          transition: "opacity 0.2s, box-shadow 0.15s",
           zIndex: 40,
+          boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+          backdropFilter: "blur(10px)",
         }}
         data-testid="button-auto-tap"
         aria-label={hasAutoTap ? t("autoTap.holdAria") : t("autoTap.buyAria")}
       >
-        <LightningBoltIcon size={28} glow={boltGlow} opacity={boltOpacity} />
+        {t("autoTap.pill")}
+        {hasAutoTap ? " ✓" : ""}
       </button>
+
+      {message && !showBuy && (
+        <div
+          style={{
+            position: "fixed",
+            left: 10,
+            bottom: "calc(env(safe-area-inset-bottom, 0px) + 78px + 156px)",
+            zIndex: 41,
+            maxWidth: 180,
+            padding: "6px 10px",
+            borderRadius: 10,
+            background: "rgba(8,10,18,0.92)",
+            border: "1px solid rgba(255,255,255,0.16)",
+            color: "rgba(232,236,244,0.85)",
+            fontSize: 10,
+            fontWeight: 700,
+            lineHeight: 1.35,
+          }}
+        >
+          {message}
+        </div>
+      )}
 
       {showBuy && (
         <div
@@ -224,9 +223,6 @@ function AutoTapWidgetBase({ hasAutoTap, canCraft, telegramId, onTap }: AutoTapW
               textAlign: "center",
             }}
           >
-            <div style={{ marginBottom: 8, lineHeight: 1, display: "flex", justifyContent: "center" }}>
-              <LightningBoltIcon size={52} glow={0.9} />
-            </div>
             <div className="font-black text-lg tracking-wider" style={{ color: "#E8ECF4", marginBottom: 4 }}>
               {t("autoTap.title")}
             </div>

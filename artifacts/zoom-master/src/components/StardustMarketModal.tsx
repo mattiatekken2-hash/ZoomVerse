@@ -25,7 +25,7 @@ import { gramToStardustPreview } from "../utils/stardustMarket";
 import { GramDiamondIcon } from "./GramDiamondIcon";
 import { useT } from "../i18n/LanguageContext";
 
-const REFRESH_MS = 12_000;
+const REFRESH_MS = 5_000;
 const CYAN = "#9EC5E8";
 
 interface Props {
@@ -121,16 +121,40 @@ export function StardustMarketModal({
   }, [refresh]);
 
   const chartData = useMemo(() => {
-    const mapped = points.map((pt) => ({ t: pt.t, index: pt.index, label: formatTime(pt.t) }));
+    const mapped = points
+      .map((pt) => {
+        const idx = Number.isFinite(pt.index) && pt.index > 0
+          ? pt.index
+          : (Number.isFinite(pt.p) && pt.p > 0 ? pt.p / 1e6 : 0);
+        return { t: pt.t, index: idx, label: formatTime(pt.t) };
+      })
+      .filter((pt) => Number.isFinite(pt.index) && pt.index > 0);
+    const live = index > 0 ? index : genesis;
+    if (live > 0) {
+      const now = Date.now();
+      const last = mapped[mapped.length - 1];
+      if (!last || now - last.t > 2_000) {
+        mapped.push({ t: now, index: live, label: formatTime(now) });
+      } else {
+        mapped[mapped.length - 1] = { t: now, index: live, label: formatTime(now) };
+      }
+    }
+    if (mapped.length === 0 && live > 0) {
+      const now = Date.now();
+      return [
+        { t: now - 3_600_000, index: live, label: formatTime(now - 3_600_000) },
+        { t: now, index: live, label: formatTime(now) },
+      ];
+    }
     if (mapped.length === 1) {
-      const only = mapped[0];
+      const only = mapped[0]!;
       return [
         { ...only, t: only.t - 3_600_000, label: formatTime(only.t - 3_600_000) },
         only,
       ];
     }
     return mapped;
-  }, [points]);
+  }, [points, index, genesis]);
 
   const handleStake = async () => {
     if (!telegramId || busy) return;

@@ -10,6 +10,7 @@ import { getPlanetDisplayName } from "../utils/planetNames";
 import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
+import { WalletStarIcon } from "./WalletStarIcon";
 import { useT } from "../i18n/LanguageContext";
 import { isLabForgeGeneratorPlanet, isLabStardustShapeId } from "@workspace/game-models";
 
@@ -254,14 +255,18 @@ export function FarmInventoryCard({
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: compact ? 10 : 11 }}>
               <span style={{ color: "rgba(255,255,255,0.42)", fontWeight: 600 }}>{t("farm.farmLabel")}</span>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#fff", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
-                {!isStardustYield && <ZoomCubeIcon size={yieldIconSize} />}
+                {isStardustYield
+                  ? <WalletStarIcon variant="stardust" size={yieldIconSize} />
+                  : <ZoomCubeIcon size={yieldIconSize} />}
                 {cycleLabel} / {farmHours}H
               </span>
             </div>
           )}
           <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 4, fontSize: compact ? 10 : 11 }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "rgba(255,255,255,0.88)", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
-              {!isStardustYield && <ZoomCubeIcon size={yieldIconSize} />}
+              {isStardustYield
+                ? <WalletStarIcon variant="stardust" size={yieldIconSize} />
+                : <ZoomCubeIcon size={yieldIconSize} />}
               {hourLabel} / H
             </span>
           </div>

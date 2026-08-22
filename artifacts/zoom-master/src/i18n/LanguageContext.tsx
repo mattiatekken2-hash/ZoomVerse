@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { translate, type Lang, LANGS } from "./translations";
 import { setI18nLang } from "./gameMessage";
-import { setUserLanguage as apiSetUserLanguage, fetchUserLanguage } from "../utils/api";
+import { setUserLanguage as apiSetUserLanguage } from "../utils/api";
 
 type Ctx = {
   lang: Lang;
@@ -20,19 +20,6 @@ function readInitial(): Lang {
     const v = localStorage.getItem(STORAGE_KEY);
     if (v && ALL_LANGS.includes(v as Lang)) return v as Lang;
   } catch { /**/ }
-  // Auto-detect from Telegram WebApp / browser
-  try {
-    const code =
-      (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { language_code?: string } } } } })
-        .Telegram?.WebApp?.initDataUnsafe?.user?.language_code ||
-      (typeof navigator !== "undefined" ? navigator.language : "");
-    const norm = (code || "").toLowerCase().slice(0, 2);
-    if (norm === "it") return "it";
-    if (norm === "es") return "es";
-    if (norm === "fil" || norm === "tl") return "fil";
-    if (norm === "ru") return "ru";
-    if (norm === "uk") return "uk";
-  } catch { /**/ }
   return "en";
 }
 
@@ -48,28 +35,13 @@ function getTelegramId(): string | undefined {
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(readInitial);
 
-  // Pull stored language from server only when localStorage is empty.
-  // localStorage is treated as authoritative once the user has picked, so we
-  // never get a flicker (local → flip to server) on subsequent mounts.
-  const [hydratedFromServer, setHydratedFromServer] = useState(false);
+  // First visit is always English. Persist it so Telegram / server language
+  // cannot flip the UI on first open. Users change language in Settings.
   useEffect(() => {
-    if (hydratedFromServer) return;
-    let hasLocal = false;
-    try { hasLocal = !!localStorage.getItem(STORAGE_KEY); } catch { /**/ }
-    if (hasLocal) { setHydratedFromServer(true); return; }
-    const tid = getTelegramId();
-    if (!tid) return;
-    let alive = true;
-    fetchUserLanguage(tid).then((serverLang) => {
-      if (!alive) return;
-      if (serverLang && ALL_LANGS.includes(serverLang as Lang)) {
-        setLangState(serverLang);
-        try { localStorage.setItem(STORAGE_KEY, serverLang); } catch { /**/ }
-      }
-      setHydratedFromServer(true);
-    }).catch(() => setHydratedFromServer(true));
-    return () => { alive = false; };
-  }, [hydratedFromServer]);
+    try {
+      if (!localStorage.getItem(STORAGE_KEY)) localStorage.setItem(STORAGE_KEY, "en");
+    } catch { /**/ }
+  }, []);
 
   useEffect(() => {
     setI18nLang(lang);

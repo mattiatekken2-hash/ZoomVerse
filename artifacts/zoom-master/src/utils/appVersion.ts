@@ -50,7 +50,12 @@ function forceReload(latest: string): void {
   }
 }
 
+let lastCheckAt = 0;
+
 async function checkOnce(): Promise<void> {
+  const now = Date.now();
+  if (now - lastCheckAt < 120_000) return;
+  lastCheckAt = now;
   try {
     const url = `${import.meta.env.BASE_URL}version.json?ts=${Date.now()}`;
     const res = await fetch(url, { cache: "no-store" });
@@ -81,8 +86,11 @@ export function initVersionCheck(): void {
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) void checkOnce();
   });
-  window.addEventListener("focus", () => void checkOnce());
+  window.addEventListener("focus", () => {
+    if (Date.now() - lastCheckAt < 180_000) return;
+    void checkOnce();
+  });
   setInterval(() => {
     if (!document.hidden) void checkOnce();
-  }, 60_000);
+  }, 5 * 60_000);
 }

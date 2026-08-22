@@ -22,7 +22,7 @@ import { ZoomCubeIcon } from "./ZoomCubeIcon";
 import { useT } from "../i18n/LanguageContext";
 import { formatZoomChartPrice } from "../utils/wallet24hChange";
 
-const REFRESH_MS = 12_000;
+const REFRESH_MS = 5_000;
 const CYAN = "#9EC5E8";
 const GOLD = "#ffd740";
 
@@ -98,20 +98,40 @@ export function ZoomMarketModal({ balance, onClose }: Props) {
   }, [refresh]);
 
   const chartData = useMemo(() => {
-    const mapped = points.map((pt) => ({
-      t: pt.t,
-      price: pt.price,
-      label: formatTime(pt.t),
-    }));
+    const mapped = points
+      .map((pt) => {
+        const price = Number.isFinite(pt.price) && pt.price > 0
+          ? pt.price
+          : (Number.isFinite(pt.p) && pt.p > 0 ? (pt.p > 10 ? pt.p / 1e9 : pt.p) : 0);
+        return { t: pt.t, price, label: formatTime(pt.t) };
+      })
+      .filter((pt) => Number.isFinite(pt.price) && pt.price > 0);
+    const live = price > 0 ? price : genesis;
+    if (live > 0) {
+      const now = Date.now();
+      const last = mapped[mapped.length - 1];
+      if (!last || now - last.t > 2_000) {
+        mapped.push({ t: now, price: live, label: formatTime(now) });
+      } else {
+        mapped[mapped.length - 1] = { t: now, price: live, label: formatTime(now) };
+      }
+    }
+    if (mapped.length === 0 && live > 0) {
+      const now = Date.now();
+      return [
+        { t: now - 3_600_000, price: live, label: formatTime(now - 3_600_000) },
+        { t: now, price: live, label: formatTime(now) },
+      ];
+    }
     if (mapped.length === 1) {
-      const only = mapped[0];
+      const only = mapped[0]!;
       return [
         { ...only, t: only.t - 3_600_000, label: formatTime(only.t - 3_600_000) },
         only,
       ];
     }
     return mapped;
-  }, [points]);
+  }, [points, price, genesis]);
 
   const yDomain = useMemo((): [number, number] | ["auto", "auto"] => {
     if (chartData.length < 2) return ["auto", "auto"];

@@ -100,6 +100,9 @@ const en: Dict = {
   "history.kind.stardust_convert": "Stardust converted",
   "history.kind.stardust_convert_out": "Stardust sent to pool",
   "history.kind.gram_convert_in": "GRAM received from pool",
+  "history.kind.task_claim": "Earn task",
+  "history.kind.weekly_redstar": "Earn Redstar",
+  "history.kind.market_reactivate": "Market reactivate",
 
   // maintenance
   "maint.title": "UNDER MAINTENANCE",
@@ -202,8 +205,10 @@ const en: Dict = {
 
   // auto-tap
   "autoTap.title": "AUTO-TAP",
-  "autoTap.desc": "Hold the widget to auto-tap the FORGE PLANET. One-time purchase.",
-  "autoTap.holdAria": "Hold to auto-tap",
+  "autoTap.pill": "Auto Tap",
+  "autoTap.desc": "Buy Auto Tap, then hold START BUILD to auto-tap. One-time purchase.",
+  "autoTap.holdHint": "Hold START BUILD to auto-tap",
+  "autoTap.holdAria": "Hold START BUILD to auto-tap",
   "autoTap.buyAria": "Buy Auto-Tap",
   "autoTap.unlocked": "Auto-Tap unlocked!",
   "autoTap.buyBtn": "BUY — {n} GRAM",
@@ -454,7 +459,7 @@ const en: Dict = {
   "lab.planetBroken": "PLANET BROKEN",
   "lab.brokenBody": "The {kind} planet shattered during forging.",
   "lab.tryAgainNext": "Try again with the next attempt.",
-  "lab.claimPlanet": "CLAIM PLANET",
+  "lab.claimPlanet": "CLAIM MODEL",
   "splash.loading": "Loading…",
   "splash.subtitle": "Enter the game",
   "lab.forgeComplete": "FORGE COMPLETE",
@@ -656,6 +661,9 @@ const it: Dict = {
   "history.kind.stardust_convert": "Stardust convertita",
   "history.kind.stardust_convert_out": "Stardust inviata al pool",
   "history.kind.gram_convert_in": "GRAM ricevuti dal pool",
+  "history.kind.task_claim": "Task Earn",
+  "history.kind.weekly_redstar": "Earn Redstar",
+  "history.kind.market_reactivate": "Riattivazione market",
 
 
   "maint.title": "MANUTENZIONE IN CORSO",
@@ -751,8 +759,10 @@ const it: Dict = {
   "rename.confirm": "CONFERMA",
 
   "autoTap.title": "AUTO-TAP",
-  "autoTap.desc": "Tieni premuto il widget per auto-tap su FORGE PLANET. Acquisto unico.",
-  "autoTap.holdAria": "Tieni premuto per auto-tap",
+  "autoTap.pill": "Auto Tap",
+  "autoTap.desc": "Compra Auto Tap, poi tieni premuto START BUILD per auto-tap. Acquisto unico.",
+  "autoTap.holdHint": "Tieni premuto START BUILD per auto-tap",
+  "autoTap.holdAria": "Tieni premuto START BUILD per auto-tap",
   "autoTap.buyAria": "Compra Auto-Tap",
   "autoTap.unlocked": "Auto-Tap sbloccato!",
   "autoTap.buyBtn": "COMPRA — {n} GRAM",
@@ -1005,7 +1015,7 @@ const it: Dict = {
   "lab.planetBroken": "PIANETA ROTTO",
   "lab.brokenBody": "Il pianeta {kind} si è frantumato durante la forgiatura.",
   "lab.tryAgainNext": "Riprova con il prossimo tentativo.",
-  "lab.claimPlanet": "RITIRA PIANETA",
+  "lab.claimPlanet": "RITIRA MODELLO",
   "splash.loading": "Caricamento…",
   "splash.subtitle": "Entra in gioco",
   "lab.forgeComplete": "FORGIA COMPLETA",
@@ -1203,6 +1213,9 @@ const ru: Dict = {
   "history.kind.stardust_convert": "Конвертация пыли",
   "history.kind.stardust_convert_out": "Пыль отправлена в пул",
   "history.kind.gram_convert_in": "GRAM получено из пула",
+  "history.kind.task_claim": "Задание Earn",
+  "history.kind.weekly_redstar": "Earn Redstar",
+  "history.kind.market_reactivate": "Реактивация маркета",
 
 
   "maint.title": "ТЕХНИЧЕСКИЕ РАБОТЫ",
@@ -1298,8 +1311,10 @@ const ru: Dict = {
   "rename.confirm": "ПОДТВЕРДИТЬ",
 
   "autoTap.title": "АВТО-ТАП",
-  "autoTap.desc": "Удерживайте виджет для авто-тапа на FORGE PLANET. Разовая покупка.",
-  "autoTap.holdAria": "Удерживайте для авто-тапа",
+  "autoTap.pill": "Auto Tap",
+  "autoTap.desc": "Купите Auto Tap, затем удерживайте START BUILD для авто-тапа. Разовая покупка.",
+  "autoTap.holdHint": "Удерживайте START BUILD для авто-тапа",
+  "autoTap.holdAria": "Удерживайте START BUILD для авто-тапа",
   "autoTap.buyAria": "Купить Авто-Тап",
   "autoTap.unlocked": "Авто-Тап разблокирован!",
   "autoTap.buyBtn": "КУПИТИ — {n} GRAM",
@@ -1528,7 +1543,7 @@ const ru: Dict = {
   "lab.planetBroken": "ПЛАНЕТА РАЗБИТА",
   "lab.brokenBody": "Планета {kind} разрушилась при ковке.",
   "lab.tryAgainNext": "Попробуйте ещё раз при следующей попытке.",
-  "lab.claimPlanet": "ЗАБРАТЬ ПЛАНЕТУ",
+  "lab.claimPlanet": "ЗАБРАТЬ МОДЕЛЬ",
   "splash.loading": "Загрузка…",
   "splash.subtitle": "Войти в игру",
   "lab.forgeComplete": "КОВКА ЗАВЕРШЕНА",
@@ -1725,6 +1740,9 @@ const uk: Dict = {
   "history.kind.stardust_convert": "Конвертація пилу",
   "history.kind.stardust_convert_out": "Пил надіслано в пул",
   "history.kind.gram_convert_in": "GRAM отримано з пулу",
+  "history.kind.task_claim": "Завдання Earn",
+  "history.kind.weekly_redstar": "Earn Redstar",
+  "history.kind.market_reactivate": "Реактивація маркету",
 
 
   "maint.title": "ТЕХНІЧНІ РОБОТИ",
@@ -1820,8 +1838,10 @@ const uk: Dict = {
   "rename.confirm": "ПІДТВЕРДИТИ",
 
   "autoTap.title": "АВТО-ТАП",
-  "autoTap.desc": "Утримуйте віджет для авто-тапу на FORGE PLANET. Разова покупка.",
-  "autoTap.holdAria": "Утримуйте для авто-тапу",
+  "autoTap.pill": "Auto Tap",
+  "autoTap.desc": "Купіть Auto Tap, потім утримуйте START BUILD для авто-тапу. Разова покупка.",
+  "autoTap.holdHint": "Утримуйте START BUILD для авто-тапу",
+  "autoTap.holdAria": "Утримуйте START BUILD для авто-тапу",
   "autoTap.buyAria": "Купити Авто-Тап",
   "autoTap.unlocked": "Авто-Тап розблоковано!",
   "autoTap.buyBtn": "КУПИТИ — {n} TON",
@@ -2050,7 +2070,7 @@ const uk: Dict = {
   "lab.planetBroken": "ПЛАНЕТА РОЗБИТА",
   "lab.brokenBody": "Планета {kind} зруйнувалася під час кування.",
   "lab.tryAgainNext": "Спробуйте знову з наступною спробою.",
-  "lab.claimPlanet": "ЗАБРАТИ ПЛАНЕТУ",
+  "lab.claimPlanet": "ЗАБРАТИ МОДЕЛЬ",
   "splash.loading": "Завантаження…",
   "splash.subtitle": "Увійти в гру",
   "lab.forgeComplete": "КУВАННЯ ЗАВЕРШЕНО",

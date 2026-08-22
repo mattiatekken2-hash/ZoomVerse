@@ -19,6 +19,7 @@ export {
   LAB_ZOOM_COLORS,
   LAB_STARDUST_COLORS,
   LAB_MODEL_FORGE_GOAL,
+  LAB_MODEL_FORGE_VOXEL_COUNT,
   LAB_STARDUST_FORGE_ZOOM_COST,
   LAB_ZOOM_FORGE_STARDUST_COST,
   LAB_PIZZA_FORGE_GOAL,
@@ -28,7 +29,9 @@ export {
   normalizeLabForgeShapeId,
   labStardustDisplayNameFor,
   labMarketPathForShapeId,
+  labMarketPathForPlanet,
   isLabForgeGeneratorPlanet,
+  resolveLabShapeIdFromPlanet,
   LAB_FORGE_TEST_PIZZA_KEY,
   readLabForgeTestPizzaFlag,
   clearLabForgeTestPizzaFlag,
@@ -48,16 +51,14 @@ import { getMeshParts } from "./meshes.js";
 import {
   FORGE_CLAY_HEX,
   getForgeBlueprint,
-  meshPartsToGoalVoxels,
+  meshPartsToFullShapeVoxels,
   type VoxelCell,
 } from "./voxelize.js";
 import {
   FORGE_SPHERE_SHAPE_ID,
-  forgeSphereTapGoal,
   getForgeSphereBlueprint,
 } from "./voxel-sphere-blueprint.js";
 import {
-  LAB_MODEL_FORGE_GOAL,
   isLabStardustShapeId,
   isLabZoomShapeId,
   resolveLabStardustShapeId,
@@ -75,17 +76,22 @@ function isLabModelShape(shapeId: string): boolean {
   return isLabZoomShapeId(shapeId) || isLabStardustShapeId(shapeId);
 }
 
+function voxelCloudRadius(voxels: VoxelCell[], step: number): number {
+  let max = 4;
+  const s = Math.max(step, 0.01);
+  for (const v of voxels) {
+    const r = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) / s;
+    if (r > max) max = r;
+  }
+  return Math.max(3, Math.ceil(max));
+}
+
 export function getLabForgeShapeTapGoal(
   shapeId: string,
   primary = FORGE_CLAY_HEX,
   accent = "#888888",
 ): number {
-  if (shapeId === FORGE_SPHERE_SHAPE_ID) return forgeSphereTapGoal();
-  const parts = getMeshParts(shapeId, primary, accent);
-  if (isLabModelShape(shapeId)) {
-    return meshPartsToGoalVoxels(parts, LAB_MODEL_FORGE_GOAL).goal;
-  }
-  return getForgeBlueprint(parts).goal;
+  return getLabForgeShapeVoxels(shapeId, primary, accent).goal;
 }
 
 export function getLabForgeShapeVoxels(
@@ -99,11 +105,17 @@ export function getLabForgeShapeVoxels(
   }
   const parts = getMeshParts(shapeId, primary, accent);
   if (isLabModelShape(shapeId)) {
-    const packed = meshPartsToGoalVoxels(parts, LAB_MODEL_FORGE_GOAL);
-    return { ...packed, radius: 4 };
+    const packed = meshPartsToFullShapeVoxels(parts);
+    const goal = Math.max(1, packed.voxels.length);
+    return {
+      voxels: packed.voxels,
+      step: packed.step,
+      goal,
+      radius: voxelCloudRadius(packed.voxels, packed.step),
+    };
   }
   const bp = getForgeBlueprint(parts);
-  return { voxels: bp.voxels, step: bp.step, goal: bp.goal, radius: 4 };
+  return { voxels: bp.voxels, step: bp.step, goal: bp.goal, radius: voxelCloudRadius(bp.voxels, bp.step) };
 }
 
 export function labForgeShapeHasGlbReveal(shapeId: string | null | undefined): boolean {

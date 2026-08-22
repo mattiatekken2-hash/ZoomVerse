@@ -8,6 +8,7 @@ import { NebulaBackground } from "./components/NebulaBackground";
 import { LabSpaceBackground } from "./components/LabSpaceBackground";
 import { MaintenanceScreen } from "./components/MaintenanceScreen";
 import { LabPage } from "./pages/LabPage";
+import { VoxelStudioPage } from "./pages/VoxelStudioPage";
 import { FarmPage } from "./pages/FarmPage";
 import { MarketPage } from "./pages/MarketPage";
 import { EarnPage } from "./pages/EarnPage";
@@ -131,6 +132,9 @@ export default function App() {
 
 function AppShellWithState() {
   const [tab, setTab] = useState<Tab>("lab");
+  const [studioOpen, setStudioOpen] = useState(false);
+  const [studioSeedTitle, setStudioSeedTitle] = useState<string | null>(null);
+  const [studioSeedProjectId, setStudioSeedProjectId] = useState<string | null>(null);
   const { t } = useT();
 
   // Deep-link focus (Feature 2 — Planet Sharing). When the mini app is opened
@@ -181,7 +185,7 @@ function AppShellWithState() {
     collectPlanet, burnPlanet, renamePlanetLocal,
     startFarming, stopFarming, repairPlanet, upgradePlanetFarmDuration, upgradeSunFarmDuration, upgradeCollectionFarmDuration,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
-    claimDaily, startSunFarming, stopSunFarming, burnSun,
+    claimDaily, startSunFarming, stopSunFarming, burnSun, unlockSlot,
     placeWhitePlanet, reactivateWhitePlanet, markWhitePlanetReactivated, collectWhitePlanet,
     placeEarthPlanet, reactivateEarthPlanet, markEarthPlanetReactivated, collectEarthPlanet,
     placeBlackPlanet, reactivateBlackPlanet, markBlackPlanetReactivated, collectBlackPlanet,
@@ -410,13 +414,39 @@ function AppShellWithState() {
     !state.forgeRolling,
   );
   const visitedEarnRef = useRef(false);
+  const visitedTabsRef = useRef<Set<Tab>>(new Set(["lab"]));
+  const [tgSafeTop, setTgSafeTop] = useState(0);
+
+  useEffect(() => {
+    const readInset = () => {
+      try {
+        const tg = (window as unknown as {
+          Telegram?: { WebApp?: {
+            initData?: string;
+            ready?: () => void;
+            safeAreaInset?: { top?: number };
+            contentSafeAreaInset?: { top?: number };
+          } };
+        }).Telegram?.WebApp;
+        tg?.ready?.();
+        const content = Number(tg?.contentSafeAreaInset?.top ?? 0);
+        const safe = Number(tg?.safeAreaInset?.top ?? 0);
+        const inTelegram = !!(tg?.initData);
+        const extra = inTelegram ? Math.max(content, safe, 72) : Math.max(content, safe, 0);
+        setTgSafeTop(extra);
+        document.documentElement.style.setProperty("--tg-content-top", `${extra}px`);
+      } catch { /**/ }
+    };
+    readInset();
+    window.addEventListener("resize", readInset);
+    return () => window.removeEventListener("resize", readInset);
+  }, []);
 
   const switchTab = (nextTab: Tab) => {
-    if (nextTab === "wallet") void prefetchWalletMarket();
+    visitedTabsRef.current.add(nextTab);
     setTab(nextTab);
     window.dispatchEvent(new CustomEvent("zoom-tab-active", { detail: { tab: nextTab } }));
-    // Throttle: only fire global refresh if user hasn't switched in last 4s.
-    // Pages that need fresh data on activation listen to "zoom-tab-active" with their tab id.
+    if (nextTab === "wallet") return;
     const now = Date.now();
     const last = (window as unknown as { __zoomLastRefresh?: number }).__zoomLastRefresh || 0;
     if (now - last > 4000) {
@@ -742,7 +772,7 @@ function AppShellWithState() {
         style={{
           height: "100dvh",
           background: "#000000",
-          paddingTop: tab === "lab" ? 0 : "env(safe-area-inset-top, 0px)",
+          paddingTop: tab === "lab" ? 0 : `calc(env(safe-area-inset-top, 0px) + ${tgSafeTop}px)`,
           paddingBottom: tab === "lab" ? 0 : "env(safe-area-inset-bottom, 0px)",
         }}
       >
@@ -765,17 +795,19 @@ function AppShellWithState() {
           // updates the FORGED counter (unmounting made Earn look "stuck").
           const keepEarnAlive = t === "earn" && (isActiveTab || visitedEarnRef.current);
           if (t === "earn" && isActiveTab) visitedEarnRef.current = true;
-          if (!isActiveTab && !isHiddenLabForge && !keepEarnAlive) return null;
+          if (isActiveTab) visitedTabsRef.current.add(t);
+          const keepVisited = t !== "shop" && visitedTabsRef.current.has(t);
+          if (!isActiveTab && !isHiddenLabForge && !keepEarnAlive && !keepVisited) return null;
           return (
             <div
               key={t}
               style={{
                 position: "absolute",
                 inset: 0,
-                display: "flex",
+                display: isActiveTab ? "flex" : "none",
                 flexDirection: "column",
                 overflow: "hidden",
-                visibility: isActiveTab ? "visible" : "hidden",
+                zIndex: isActiveTab ? 2 : 0,
                 pointerEvents: isActiveTab ? "auto" : "none",
               }}
             >
@@ -796,6 +828,11 @@ function AppShellWithState() {
                   onBeginLabForge={beginLabForge}
                   onClaim={claimCraft}
                   onOpenShop={() => switchTab("shop")}
+                  onOpenStudio={(opts) => {
+                    setStudioSeedTitle(opts?.title ?? null);
+                    setStudioSeedProjectId(opts?.projectId ?? null);
+                    setStudioOpen(true);
+                  }}
                   muted={muted}
                   setMuted={setMuted}
                   visible={isActiveTab}
@@ -823,6 +860,8 @@ function AppShellWithState() {
                   onRepair={repairPlanet}
                   stardustBalance={stardust.balance}
                   tonBalance={state.tonBalance || 0}
+                  depositBalance={state.depositBalance || 0}
+                  onSlotUnlocked={unlockSlot}
                   onUpgradeDuration={upgradePlanetFarmDuration}
                   onUpgradeSunDuration={upgradeSunFarmDuration}
                   whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
@@ -906,6 +945,8 @@ function AppShellWithState() {
                   visible={tab === "market"}
                   depositBalance={state.depositBalance || 0}
                   earnedBalance={state.tonBalance || 0}
+                  zoomBalance={state.balance}
+                  stardustBalance={state.stardustBalance || 0}
                   myListings={state.planets}
                   maxSlots={state.maxSlots}
                   telegramId={state.telegramId}
@@ -955,6 +996,7 @@ function AppShellWithState() {
                   balance={state.balance}
                   stardustBalance={state.stardustBalance || 0}
                   depositBalance={state.depositBalance || 0}
+                  tonBalance={state.tonBalance || 0}
                   hasSun={!!state.sun?.isOwned}
                   telegramId={state.telegramId}
                   sunCount={state.sunCount || 0}
@@ -1125,6 +1167,7 @@ function AppShellWithState() {
       )}
 
 
+      {!studioOpen && (
       <nav
         className="flex-shrink-0 relative z-20"
         style={tab === "lab" ? {
@@ -1196,6 +1239,25 @@ function AppShellWithState() {
           })}
         </div>
       </nav>
+      )}
+      {studioOpen && state.telegramId && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 90, background: "#000" }}>
+          <VoxelStudioPage
+            telegramId={state.telegramId}
+            stardustBalance={state.stardustBalance || 0}
+            seedTitle={studioSeedTitle}
+            seedProjectId={studioSeedProjectId}
+            onClose={() => {
+              setStudioOpen(false);
+              setStudioSeedTitle(null);
+              setStudioSeedProjectId(null);
+            }}
+            onStardustSpent={(n) => {
+              setState((s) => ({ ...s, stardustBalance: n }));
+            }}
+          />
+        </div>
+      )}
       {globalToast && (
         <div
           className="fixed left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-xs font-black tracking-widest"

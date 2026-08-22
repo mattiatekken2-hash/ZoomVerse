@@ -58,4 +58,67 @@ router.get("/economy/history", async (_req, res) => {
   }
 });
 
+/** Live TON/USD (= GRAM) chart — 24h % from Binance ticker (live), candles for the chart. */
+router.get("/economy/gram-market", async (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const [histRes, tickerRes] = await Promise.all([
+      fetch(
+        "https://api.binance.com/api/v3/klines?symbol=TONUSDT&interval=1m&limit=120",
+        { signal: AbortSignal.timeout(10000) },
+      ).catch(() => null),
+      fetch(
+        "https://api.binance.com/api/v3/ticker/24hr?symbol=TONUSDT",
+        { signal: AbortSignal.timeout(8000) },
+      ).catch(() => null),
+    ]);
+    let points: Array<{ t: number; price: number }> = [];
+    if (histRes?.ok) {
+      const rows = await histRes.json() as Array<[number, string, string, string, string]>;
+      if (Array.isArray(rows)) {
+        points = rows.map((row) => ({ t: Number(row[0]), price: parseFloat(row[4]) }))
+          .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.price) && p.price > 0);
+      }
+    }
+    if (points.length < 2) {
+      const cg = await fetch(
+        "https://api.coingecko.com/api/v3/coins/the-open-network/market_chart?vs_currency=usd&days=1",
+        { signal: AbortSignal.timeout(10000) },
+      ).catch(() => null);
+      if (cg?.ok) {
+        const data = await cg.json() as { prices?: [number, number][] };
+        points = (data.prices ?? []).map(([t, price]) => ({ t, price }))
+          .filter((p) => Number.isFinite(p.price) && p.price > 0);
+      }
+    }
+    let priceUsd: number | null = null;
+    let change24hPct: number | null = null;
+    if (tickerRes?.ok) {
+      const data = await tickerRes.json() as { lastPrice?: string; priceChangePercent?: string };
+      const last = parseFloat(data.lastPrice ?? "");
+      const pct = parseFloat(data.priceChangePercent ?? "");
+      if (Number.isFinite(last) && last > 0) priceUsd = last;
+      if (Number.isFinite(pct)) change24hPct = pct;
+    }
+    if (priceUsd == null && points.length) priceUsd = points[points.length - 1]!.price;
+    if (priceUsd != null && Number.isFinite(priceUsd) && priceUsd > 0) {
+      const now = Date.now();
+      const last = points[points.length - 1];
+      if (!last || now - last.t > 5_000) {
+        points = [...points, { t: now, price: priceUsd }];
+      } else {
+        points = [...points.slice(0, -1), { t: now, price: priceUsd }];
+      }
+    }
+    if (change24hPct == null && points.length >= 2) {
+      const first = points[0]!.price;
+      const last = priceUsd ?? points[points.length - 1]!.price;
+      if (first > 0) change24hPct = ((last - first) / first) * 100;
+    }
+    res.json({ priceUsd, change24hPct, points });
+  } catch {
+    res.json({ priceUsd: null, change24hPct: null, points: [] });
+  }
+});
+
 export default router;

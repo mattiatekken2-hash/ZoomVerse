@@ -34,6 +34,7 @@ const PlanetRow = z
     // here as a defense-in-depth check on incoming /regular-planets/save
     // payloads; the rename endpoint itself enforces stricter rules.
     displayName: z.string().max(64).optional(),
+    shapeId: z.string().max(64).optional().nullable(),
     // CS:GO-style cosmetic perfection score in [0, 1], 3 decimals.
     // Server uses the FIRST value it sees per planet id (server-merge
     // below); subsequent saves can't change it. Out-of-range values are
@@ -310,7 +311,9 @@ router.post("/regular-planets/save", async (req, res) => {
       const out: Record<string, unknown> = { ...rest };
       // displayName: pin to stored if any (paid action, /save can't mutate it).
       const storedName = storedNamesById.get(id);
+      const incomingName = typeof _ignoredDn === "string" ? _ignoredDn.trim() : "";
       if (storedName) out.displayName = storedName;
+      else if (incomingName) out.displayName = incomingName;
       // float: pin to stored if any; otherwise (first save for this
       // planet) accept an in-range incoming value; otherwise (legacy
       // planet, no incoming) seed deterministically from id so the
@@ -341,8 +344,10 @@ router.post("/regular-planets/save", async (req, res) => {
       // `isFarmingActive=false` (a listed planet must always be
       // paused so /farm/settle never credits ZOOM for it).
       const storedListing = storedListingById.get(id);
-      if (storedListing) {
-        out.isListedInMarket = storedListing.isListedInMarket;
+      if (storedListing?.isListedInMarket) {
+        // Only pin when the server already has it listed — never overwrite
+        // an in-flight optimistic list with a stale "not listed" snapshot.
+        out.isListedInMarket = true;
         if (storedListing.serverListingId !== undefined) {
           out.serverListingId = storedListing.serverListingId;
         } else {
@@ -350,9 +355,7 @@ router.post("/regular-planets/save", async (req, res) => {
         }
         out.marketPrice = storedListing.marketPrice;
         out.pausedAt = storedListing.pausedAt;
-        if (storedListing.isListedInMarket) {
-          out.isFarmingActive = false;
-        }
+        out.isFarmingActive = false;
       }
       return out;
     });
