@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, fetchMyMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, invalidateTasksCache, bumpTasksPlanetsBuilt, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
-import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, resolveLabShapeIdFromPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, labModelDisplayName, type LabForgePath } from "@workspace/game-models";
+import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, labForgeChromeForPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, resolveLabShapeIdFromPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, labModelDisplayName, type LabForgePath } from "@workspace/game-models";
 import { normalizeLabForgeShapeId } from "../utils/labForgeShape";
 import { refreshMarketListings, upsertMarketListing, removeMarketListingByPlanetId } from "../store/globalStore";
 import { applyRemovedPlanetTombstones, markPlanetBurned, markPlanetDelisted, clearPlanetDelisted } from "../utils/removedPlanets";
@@ -1928,20 +1928,21 @@ export function getRarityColorsForModel(rarityOrPlanetType: string): {
   };
 }
 
-/** Lab 3D + Farm cards — palette from final planet rarity (BASIC grey, RARE blue, …). */
-export function getPlanetDisplayColors(planet: Pick<Planet, "name" | "color" | "glowColor" | "modelId" | "shapeId">): {
+/** Lab 3D + Farm cards — Lab models use shape chrome; others use rarity. */
+export function getPlanetDisplayColors(planet: Pick<Planet, "name" | "color" | "glowColor" | "modelId" | "shapeId" | "displayName">): {
   color: string;
   glowColor: string;
   accentHex: string;
 } {
-  // Lab generators carry their own palette (pizza / flower / dollar / pot).
-  if (isLabForgeGeneratorPlanet(planet) && planet.color && planet.glowColor) {
-    return { color: planet.color, glowColor: planet.glowColor, accentHex: planet.glowColor };
+  const labChrome = labForgeChromeForPlanet(planet);
+  if (labChrome) {
+    return { color: labChrome.color, glowColor: labChrome.glowColor, accentHex: labChrome.glowColor };
   }
   return getRarityColorsForModel(planet.name);
 }
 
 function applyModelRarityColors(planet: Planet): Planet {
+  if (isLabForgeGeneratorPlanet(planet)) return planet;
   if (!planet.modelId) return planet;
   const { color, glowColor } = getRarityColorsForModel(planet.name);
   if (planet.color === color && planet.glowColor === glowColor) return planet;

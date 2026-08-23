@@ -185,6 +185,19 @@ export function isLabForgeGeneratorPlanet(planet: { shapeId?: string | null; dis
   return !!resolveLabShapeIdFromPlanet(planet);
 }
 
+/** Farm / Market chrome — shape palette, never BASIC grey. */
+export function labForgeChromeForPlanet(planet: {
+  shapeId?: string | null;
+  displayName?: string | null;
+}): { color: string; glowColor: string } | null {
+  const shapeId = resolveLabShapeIdFromPlanet(planet);
+  if (!shapeId) return null;
+  if (isLabZoomShapeId(shapeId)) return LAB_ZOOM_COLORS[shapeId];
+  const stardustId = resolveLabStardustShapeId(shapeId);
+  if (stardustId) return LAB_STARDUST_COLORS[stardustId];
+  return null;
+}
+
 const DISPLAY_NAME_TO_SHAPE: Record<string, string> = {
   pizza: LAB_PIZZA_SHAPE_ID,
   "pizza slice": LAB_PIZZA_SHAPE_ID,

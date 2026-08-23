@@ -230,6 +230,43 @@ const MARKET_SHARE_THREAD_ID = Number(process.env["MARKET_SHARE_THREAD_ID"] || "
  * Prefers an uploaded looping GIF of the exact GLB; falls back to a remote
  * animation URL. sendAnimation autoplays muted GIF/MP4 on loop.
  */
+async function telegramMethod(
+  method: string,
+  payload: FormData | Record<string, unknown>,
+): Promise<boolean> {
+  const isForm = payload instanceof FormData;
+  const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
+    method: "POST",
+    headers: isForm ? undefined : { "Content-Type": "application/json" },
+    body: isForm ? payload : JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({})) as { ok?: boolean; description?: string };
+  // Telegram returns HTTP 200 with { ok: false } for most Bot API errors.
+  if (!data.ok) {
+    logger.warn({ method, status: res.status, description: data.description }, "[notify] telegram method failed");
+    return false;
+  }
+  return true;
+}
+
+function marketShareMarkup(buttonText: string, buttonUrl: string) {
+  return JSON.stringify({
+    inline_keyboard: [[{ text: buttonText, url: buttonUrl }]],
+  });
+}
+
+function marketShareTextBody(caption: string, markup: string): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    chat_id: MARKET_SHARE_CHAT_ID,
+    text: caption,
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+    reply_markup: JSON.parse(markup),
+  };
+  if (MARKET_SHARE_THREAD_ID) body["message_thread_id"] = MARKET_SHARE_THREAD_ID;
+  return body;
+}
+
 export async function sendMarketShareToGroup(params: {
   animationUrl?: string;
   animationGif?: Buffer;
@@ -241,11 +278,8 @@ export async function sendMarketShareToGroup(params: {
     logger.warn("[notify] BOT_TOKEN not set — skipping market share");
     return false;
   }
-  const markup = JSON.stringify({
-    inline_keyboard: [[{ text: params.buttonText, url: params.buttonUrl }]],
-  });
+  const markup = marketShareMarkup(params.buttonText, params.buttonUrl);
   try {
-    let res: Response;
     if (params.animationGif && params.animationGif.length > 32) {
       const form = new FormData();
       form.append("chat_id", MARKET_SHARE_CHAT_ID);
@@ -253,15 +287,14 @@ export async function sendMarketShareToGroup(params: {
       form.append("caption", params.caption);
       form.append("parse_mode", "HTML");
       form.append("reply_markup", markup);
-      form.append(
-        "animation",
-        new Blob([new Uint8Array(params.animationGif)], { type: "image/gif" }),
-        "model-spin.gif",
-      );
-      res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendAnimation`, {
-        method: "POST",
-        body: form,
-      });
+      const bytes = new Uint8Array(params.animationGif);
+      const file = typeof File !== "undefined"
+        ? new File([bytes], "model-spin.gif", { type: "image/gif" })
+        : new Blob([bytes], { type: "image/gif" });
+      form.append("animation", file, "model-spin.gif");
+      const gifOk = await telegramMethod("sendAnimation", form);
+      if (gifOk) return true;
+      logger.warn("[notify] market share GIF rejected — falling back to text");
     } else if (params.animationUrl) {
       const body: Record<string, unknown> = {
         chat_id: MARKET_SHARE_CHAT_ID,
@@ -271,32 +304,12 @@ export async function sendMarketShareToGroup(params: {
         reply_markup: JSON.parse(markup),
       };
       if (MARKET_SHARE_THREAD_ID) body["message_thread_id"] = MARKET_SHARE_THREAD_ID;
-      res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendAnimation`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-    } else {
-      const body: Record<string, unknown> = {
-        chat_id: MARKET_SHARE_CHAT_ID,
-        text: params.caption,
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-        reply_markup: JSON.parse(markup),
-      };
-      if (MARKET_SHARE_THREAD_ID) body["message_thread_id"] = MARKET_SHARE_THREAD_ID;
-      res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      const animOk = await telegramMethod("sendAnimation", body);
+      if (animOk) return true;
+      logger.warn("[notify] market share animation URL rejected — falling back to text");
     }
-    if (!res.ok) {
-      const responseBody = await res.text().catch(() => "");
-      logger.warn({ status: res.status, responseBody }, "[notify] market share send non-OK");
-      return false;
-    }
-    return true;
+
+    return telegramMethod("sendMessage", marketShareTextBody(params.caption, markup));
   } catch (err) {
     logger.warn({ err }, "[notify] market share send failed");
     return false;

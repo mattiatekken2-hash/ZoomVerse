@@ -38,6 +38,7 @@ export {
   labMarketPathForShapeId,
   labMarketPathForPlanet,
   isLabForgeGeneratorPlanet,
+  labForgeChromeForPlanet,
   resolveLabShapeIdFromPlanet,
   labModelDisplayName,
   LAB_FORGE_TEST_PIZZA_KEY,

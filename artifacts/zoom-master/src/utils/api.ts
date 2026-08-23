@@ -2940,7 +2940,12 @@ export async function shareListing(
         shapeId: extra?.shapeId || undefined,
       }),
     });
-    return res.json();
+    const data = await res.json().catch(() => ({})) as { ok?: boolean; deepLink?: string; error?: string };
+    return {
+      ok: res.ok && data.ok === true,
+      deepLink: data.deepLink,
+      error: data.error,
+    };
   } catch {
     return { ok: false, error: "Network error" };
   }

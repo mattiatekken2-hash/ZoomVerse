@@ -133,11 +133,17 @@ export function MarketPage({
       const listing = allDisplayListings.find((l) => l.serverId === serverId);
       const shapeId = listing?.shapeId || null;
       let animationGifBase64: string | undefined;
-      if (shapeId && labForgeShapeHasGlbReveal(shapeId)) {
-        animationGifBase64 = (await captureMarketGlbLoopGif(shapeId)) ?? undefined;
+      try {
+        if (shapeId && labForgeShapeHasGlbReveal(shapeId)) {
+          animationGifBase64 = (await captureMarketGlbLoopGif(shapeId)) ?? undefined;
+        }
+      } catch (err) {
+        console.warn("[market-share] gif capture failed, posting without animation", err);
       }
       const res = await shareListing(telegramId, serverId, { animationGifBase64, shapeId });
       showToast(res.ok ? t("market.shareSuccess") : t("market.shareFailed"), res.ok);
+    } catch {
+      showToast(t("market.shareFailed"), false);
     } finally {
       setSharingId(null);
     }

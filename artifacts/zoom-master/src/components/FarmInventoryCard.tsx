@@ -9,7 +9,7 @@ import { getPlanetDisplayName } from "../utils/planetNames";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 import { useT } from "../i18n/LanguageContext";
-import { labMarketPathForPlanet, type LabMarketPath } from "@workspace/game-models";
+import { labForgeChromeForPlanet, labMarketPathForPlanet, type LabMarketPath } from "@workspace/game-models";
 
 export type FarmCardVariant = "grid" | "compact";
 
@@ -79,8 +79,9 @@ export function FarmInventoryCard({
     ? "stardust"
     : labMarketPathForPlanet(planet);
   const theme = PATH_THEME[path] ?? PATH_THEME.zoom;
-  const accent = theme.accent;
-  const glow = theme.glow;
+  const chrome = labForgeChromeForPlanet(planet);
+  const accent = chrome?.color ?? theme.accent;
+  const glow = chrome?.glowColor ?? theme.glow;
   const reactivateColor = accent;
   const title = getPlanetDisplayName(planet);
   const hourRate = planet.name === "MUSHROOM" ? 5 : planet.rate;
