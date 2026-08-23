@@ -158,7 +158,11 @@ export function MarketPlanetCard({
           <PlanetVoxelThumb planet={fakePlanet} size={132} animate eager suspendGl={suspendGl} />
         </div>
         <span className="lab-market-card__path">
-          {path === "zoom" && <ZoomCubeIcon size={11} />}
+          {path === "zoom" && (
+            <span className="lab-market-card__zoom-mark">
+              <ZoomCubeIcon size={14} />
+            </span>
+          )}
           {theme.label}
         </span>
       </div>

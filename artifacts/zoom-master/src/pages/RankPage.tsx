@@ -30,8 +30,12 @@ function formatZoom(amount: number): string {
   return Math.floor(amount).toLocaleString();
 }
 
+function isPlaceholderRankName(name: string | null | undefined): boolean {
+  const n = (name ?? "").trim();
+  return !n || /^player$/i.test(n);
+}
+
 export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSpent: _totalTonSpent, feedEvents: _feedEvents, telegramId, planets = [], visible }: RankPageProps) {
-  void telegramId;
   void visible;
   void seasonPoolEarned;
   void activeFarmRate;
@@ -47,6 +51,13 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
   const initialized = useGlobalStore((s) => s.initialized);
   const seasonStart = seasonEpoch && seasonEpoch > 0 ? seasonEpoch : DEFAULT_SEASON_START;
   const loadingLb = !initialized && leaderboard.length === 0;
+  const visibleLeaderboard = useMemo(() => {
+    return leaderboard.filter((entry) => {
+      const isUser = !!telegramId && entry.telegramId === telegramId;
+      if (isUser) return true;
+      return !isPlaceholderRankName(entry.firstName);
+    });
+  }, [leaderboard, telegramId]);
 
   const labRarityCounts = useMemo(() => {
     const crafted = profile?.crafted as Record<string, number> | undefined;
@@ -181,15 +192,18 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
               <span />
             </div>
             <div className="flex flex-col gap-1.5">
-              {loadingLb && leaderboard.length === 0 && (
+              {loadingLb && visibleLeaderboard.length === 0 && (
                 <div className="text-xs text-center py-3" style={{ color: "rgba(255,255,255,0.2)" }}>{t("common.loading")}</div>
               )}
-              {!loadingLb && leaderboard.length === 0 && (
+              {!loadingLb && visibleLeaderboard.length === 0 && (
                 <div className="text-xs text-center py-3" style={{ color: "rgba(255,255,255,0.2)" }}>{t("rank.noPlayers")}</div>
               )}
-              {leaderboard.slice(0, 10).map((entry) => {
+              {visibleLeaderboard.slice(0, 10).map((entry) => {
                 const isUser = !!telegramId && entry.telegramId === telegramId;
                 const top3 = entry.rank <= 3;
+                const displayName = isPlaceholderRankName(entry.firstName)
+                  ? (isUser ? t("rank.you2") : "")
+                  : entry.firstName;
                 return (
                   <div
                     key={entry.telegramId}
@@ -217,17 +231,12 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                         referrerPolicy="no-referrer"
                         onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                       />
-                    ) : (
-                      <div
-                        className="rounded-full flex items-center justify-center flex-shrink-0 font-black text-xs"
-                        style={{ width: 32, height: 32, background: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.6)" }}
-                      >
-                        {entry.firstName.charAt(0).toUpperCase()}
-                      </div>
-                    )}
+                    ) : null}
                     <div className={isUser ? "flex-1 font-black text-sm" : "flex-1 font-bold text-sm"} style={{ color: isUser ? "#E8ECF4" : "rgba(255,255,255,0.58)" }}>
-                      {entry.firstName}
-                      {isUser && <span className="text-xs opacity-40 ml-1">{t("rank.you")}</span>}
+                      {displayName}
+                      {isUser && !isPlaceholderRankName(entry.firstName) && (
+                        <span className="text-xs opacity-40 ml-1">{t("rank.you")}</span>
+                      )}
                     </div>
                     <div className="text-xs font-black tabular-nums" style={{ color: isUser ? "#9EC5E8" : "rgba(255,255,255,0.42)" }}>
                       {t("rank.zoomBalance", { n: formatZoom(entry.zoomBalance) })}
@@ -235,7 +244,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                   </div>
                 );
               })}
-              {telegramId && leaderboard.length > 0 && !leaderboard.some(e => e.telegramId === telegramId) && (
+              {telegramId && visibleLeaderboard.length > 0 && !visibleLeaderboard.some(e => e.telegramId === telegramId) && (
                 <div
                   className="rounded-xl border flex items-center gap-3 px-3 py-2 mt-1"
                   style={{ borderColor: "rgba(158,197,232,0.15)", background: "rgba(158,197,232,0.04)" }}

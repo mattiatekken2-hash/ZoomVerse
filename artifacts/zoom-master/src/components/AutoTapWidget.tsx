@@ -75,6 +75,16 @@ function AutoTapWidgetBase({ hasAutoTap, telegramId }: AutoTapWidgetProps) {
   const [showBuy, setShowBuy] = useState(false);
   const [buying, setBuying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [craftBoardOpen, setCraftBoardOpen] = useState(false);
+
+  useEffect(() => {
+    const onBoard = (e: Event) => {
+      const open = Boolean((e as CustomEvent<{ open?: boolean }>).detail?.open);
+      setCraftBoardOpen(open);
+    };
+    window.addEventListener("zoom-craft-board", onBoard);
+    return () => window.removeEventListener("zoom-craft-board", onBoard);
+  }, []);
 
   useEffect(() => {
     if (!message) return;
@@ -137,6 +147,8 @@ function AutoTapWidgetBase({ hasAutoTap, telegramId }: AutoTapWidgetProps) {
     setBuying(false);
   };
 
+  if (craftBoardOpen) return null;
+
   return (
     <>
       <button
@@ -151,21 +163,16 @@ function AutoTapWidgetBase({ hasAutoTap, telegramId }: AutoTapWidgetProps) {
           height: 34,
           padding: "0 11px",
           borderRadius: 999,
-          background: hasAutoTap
-            ? "rgba(0, 0, 0, 0.72)"
-            : "rgba(8, 10, 18, 0.88)",
-          border: hasAutoTap
-            ? "1px solid rgba(0, 230, 118, 0.45)"
-            : "1px solid rgba(255,255,255,0.22)",
-          color: hasAutoTap ? "#69f0ae" : "#E8ECF4",
+          background: "#ffffff",
+          border: "1px solid rgba(255,255,255,0.92)",
+          color: "#0c1018",
           fontSize: 10,
           fontWeight: 900,
           letterSpacing: "0.08em",
           textTransform: "uppercase",
           cursor: "pointer",
           zIndex: 40,
-          boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
-          backdropFilter: "blur(10px)",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.28)",
         }}
         data-testid="button-auto-tap"
         aria-label={hasAutoTap ? t("autoTap.holdAria") : t("autoTap.buyAria")}
