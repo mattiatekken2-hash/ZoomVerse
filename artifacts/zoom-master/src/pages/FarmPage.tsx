@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { CollectibleItem } from "../utils/collectibleConfig";
 import { FarmInventoryCard } from "../components/FarmInventoryCard";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
@@ -8,7 +8,8 @@ import { buyShopItemFromDeposit } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 import PvPModal from "../components/PvPModal";
 import { getPlanetDisplayName } from "../utils/planetNames";
-import { isLabForgeGeneratorPlanet, MARKET_PRICE_BOUNDS, marketPriceLabel, suggestMarketPrice, isMarketPriceInRange, type MarketPriceCurrency } from "@workspace/game-models";
+import { isLabForgeGeneratorPlanet, labForgeShapeHasGlbReveal, resolveLabShapeIdFromPlanet, MARKET_PRICE_BOUNDS, marketPriceLabel, suggestMarketPrice, isMarketPriceInRange, type MarketPriceCurrency } from "@workspace/game-models";
+import { preloadLabGlbBatch } from "../utils/labGlbCache";
 
 interface FarmPageProps {
   planets: Planet[];
@@ -187,6 +188,16 @@ export function FarmPage({
   // Lab economy — only ZOOM / Stardust generators in Farm (no spheres, no SUN).
   const labPlanets = planets.filter(isLabForgeGeneratorPlanet);
   const farmGenerators = labPlanets.filter((p) => !p.isListedInMarket);
+
+  const farmGlbKey = farmGenerators.map((p) => p.id).join(",");
+  useEffect(() => {
+    const ids = [...new Set(
+      farmGenerators
+        .map((p) => resolveLabShapeIdFromPlanet(p) ?? p.shapeId)
+        .filter((id): id is string => !!id && labForgeShapeHasGlbReveal(id)),
+    )];
+    if (ids.length > 0) void preloadLabGlbBatch(ids);
+  }, [farmGlbKey]);
   void sun;
   void sunCount;
   void onStartSunFarming;
@@ -354,7 +365,7 @@ export function FarmPage({
         <div className="flex flex-col gap-3">
 
           <div className="lab-market__grid">
-          {farmGenerators.map((planet) => {
+          {farmGenerators.map((planet, index) => {
             const isListed = planet.isListedInMarket;
 
             const handleStartOrReactivate = () => {
@@ -371,8 +382,6 @@ export function FarmPage({
                 key={planet.id}
                 planet={planet}
                 variant="grid"
-                suspendGl={!!detailPlanet}
-                eagerThumb
                 glDelayMs={0}
                 testId={`planet-card-${planet.id}`}
                 onCardClick={() => setDetailPlanet(planet)}

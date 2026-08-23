@@ -16,6 +16,7 @@ import type { Planet } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
 import { preloadLabForgePickerGlbs } from "../utils/labGlbPreload";
 import { useT } from "../i18n/LanguageContext";
+import { formatZoomInt } from "../utils/formatNumber";
 import { loadVoxelStudio, type VoxelStudioProject } from "../utils/voxelStudioStore";
 
 
@@ -380,7 +381,7 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
               style={{ color: "#ffffff", letterSpacing: "0.06em" }}
             >
               <ZoomCubeIcon size={18} />
-              {Math.floor(balance).toLocaleString()}
+              {formatZoomInt(balance)}
             </span>
           </div>
           <button

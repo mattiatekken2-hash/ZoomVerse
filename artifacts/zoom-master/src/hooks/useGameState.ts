@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, fetchMyMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, invalidateTasksCache, bumpTasksPlanetsBuilt, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
-import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, resolveLabShapeIdFromPlanet, labMarketPathForPlanet, labModelDisplayName, type LabForgePath } from "@workspace/game-models";
+import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, resolveLabShapeIdFromPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, labModelDisplayName, type LabForgePath } from "@workspace/game-models";
 import { normalizeLabForgeShapeId } from "../utils/labForgeShape";
 import { refreshMarketListings, upsertMarketListing, removeMarketListingByPlanetId } from "../store/globalStore";
 import { applyRemovedPlanetTombstones, markPlanetBurned, markPlanetDelisted, clearPlanetDelisted } from "../utils/removedPlanets";
@@ -11,7 +11,8 @@ import { getEquipmentTotalRate, getEquipmentReactivationFee, EQUIPMENT_CYCLE_MS 
 export type ZoomModel = ZoomModelApiShape;
 
 import { generateRandomFloat } from "../utils/planetFloat";
-import { getBrowserDevTelegramId, DEV_TG_ID_STORAGE_KEY } from "../utils/telegram";
+import { getBrowserDevTelegramId, DEV_TG_ID_STORAGE_KEY, persistTelegramId } from "../utils/telegram";
+import { commitStickyWalletBalance } from "./useStickyWalletBalance";
 import { toast } from "./use-toast";
 
 // Server-authoritative clock: every farming/idle-income time check is computed
@@ -807,11 +808,11 @@ function getTelegramContext(): { telegramId: string | null; startParam: string |
     const webApp = (window as unknown as { Telegram?: { WebApp?: { initDataUnsafe?: { user?: { id?: number; first_name?: string; username?: string; photo_url?: string }; start_param?: string }; initData?: string } } }).Telegram?.WebApp;
     const unsafe = webApp?.initDataUnsafe;
     let telegramId: string | null = unsafe?.user?.id ? String(unsafe.user.id) : null;
-    if (!telegramId) {
+    if (telegramId) {
+      persistTelegramId(telegramId);
+    } else {
       telegramId = getBrowserDevTelegramId();
-      if (telegramId) {
-        try { localStorage.setItem(DEV_TG_ID_STORAGE_KEY, telegramId); } catch { /**/ }
-      }
+      if (telegramId) persistTelegramId(telegramId);
     }
     const firstName = unsafe?.user?.first_name ?? (telegramId && !unsafe?.user?.id ? "Dev" : null);
     const username = unsafe?.user?.username ?? null;
@@ -1393,6 +1394,7 @@ function reconcileFromSyncResponse(
     }
     _lastSyncedBalance = res.zoomBalance;
     _pendingSyncBalance = -1;
+    commitStickyWalletBalance("zoom", res.zoomBalance);
     try {
       window.dispatchEvent(new CustomEvent("zoom-server-balance-snap", {
         detail: { balance: res.zoomBalance, epoch: res.balanceEpoch },
@@ -2056,10 +2058,18 @@ function migrateLegacyNeverStartedPlanet<T extends Planet>(p: T): T {
 }
 
 /** Keep optimistic farm start / listing state when server sync is behind local save. */
+function keepClientGlbShape(merged: Planet, clientP: Planet | undefined): Planet {
+  const clientShape = clientP?.shapeId;
+  if (clientShape && labForgeShapeHasGlbReveal(clientShape)) {
+    return { ...merged, shapeId: clientShape };
+  }
+  return merged;
+}
+
 function mergeServerPlanetWithClient(serverP: Planet, clientP: Planet | undefined): Planet {
   if (!clientP) return migrateStreetSceneToOnigiri(serverP);
   if (clientP.isListedInMarket) {
-    return migrateStreetSceneToOnigiri({
+    return keepClientGlbShape(migrateStreetSceneToOnigiri({
       ...serverP,
       isListedInMarket: true,
       isFarmingActive: false,
@@ -2069,13 +2079,13 @@ function mergeServerPlanetWithClient(serverP: Planet, clientP: Planet | undefine
       serverListingId: clientP.serverListingId ?? serverP.serverListingId,
       shapeId: clientP.shapeId || serverP.shapeId,
       pausedAt: clientP.pausedAt ?? serverP.pausedAt,
-    });
+    }), clientP);
   }
   if (clientP.isFarmingActive && !serverP.isFarmingActive) {
     const clientStart = clientP.farmStartedAt ?? 0;
     const serverStart = serverP.farmStartedAt ?? 0;
     if (clientStart >= serverStart) {
-      return migrateStreetSceneToOnigiri({
+      return keepClientGlbShape(migrateStreetSceneToOnigiri({
         ...serverP,
         isFarmingActive: true,
         farmStartedAt: clientP.farmStartedAt,
@@ -2083,23 +2093,23 @@ function mergeServerPlanetWithClient(serverP: Planet, clientP: Planet | undefine
         pausedAt: clientP.pausedAt ?? 0,
         durability: 100,
         durabilityUpdatedAt: 0,
-      });
+      }), clientP);
     }
   }
   if (clientP.isFarmingActive && serverP.isFarmingActive) {
     const clientEff = Math.max(clientP.farmStartedAt ?? 0, clientP.lastCollectedAt ?? 0);
     const serverEff = Math.max(serverP.farmStartedAt ?? 0, serverP.lastCollectedAt ?? 0);
     if (clientEff > serverEff) {
-      return migrateStreetSceneToOnigiri({
+      return keepClientGlbShape(migrateStreetSceneToOnigiri({
         ...serverP,
         farmStartedAt: clientP.farmStartedAt,
         lastCollectedAt: clientP.lastCollectedAt,
         pausedAt: clientP.pausedAt ?? 0,
-      });
+      }), clientP);
     }
   }
   if (!clientP.isListedInMarket && serverP.isListedInMarket) {
-    return migrateStreetSceneToOnigiri({
+    return keepClientGlbShape(migrateStreetSceneToOnigiri({
       ...serverP,
       isListedInMarket: false,
       isFarmingActive: clientP.isFarmingActive,
@@ -2113,9 +2123,9 @@ function mergeServerPlanetWithClient(serverP: Planet, clientP: Planet | undefine
       shapeId: clientP.shapeId || serverP.shapeId,
       color: clientP.color || serverP.color,
       glowColor: clientP.glowColor || serverP.glowColor,
-    });
+    }), clientP);
   }
-  return migrateStreetSceneToOnigiri(serverP);
+  return keepClientGlbShape(migrateStreetSceneToOnigiri(serverP), clientP);
 }
 
 /**
@@ -2574,9 +2584,12 @@ export function useGameState() {
       const epochAdvanced = serverEpoch > localEpoch;
       void epochAdvanced;
       const serverUserExists = !!balanceRecord?.exists || !!settleRes.exists;
-      const finalBalance = wasFreshLoad && serverUserExists
+      // Server is the only value that matches Telegram ↔ PC. Local grant
+      // (700) or a stale device snapshot must not win via Math.max — that
+      // was painting low then high, and pushing the wrong balance upstream.
+      const finalBalance = serverUserExists
         ? serverBalance
-        : Math.max(localBalance, serverBalance);
+        : localBalance;
 
       setCurrentBalanceEpoch(serverEpoch);
       // Pull authoritative GRAM from /grants before any /balance/sync so stale
@@ -2615,7 +2628,7 @@ export function useGameState() {
         // overwrite a lower authoritative server balance via the next
         // /balance/sync (epoch-equal CASE branch takes the client value).
         void serverEpoch;
-        const newBalance = (wasFreshLoad && serverUserExists)
+        const newBalance = serverUserExists
           ? finalBalance
           : Math.max(prev.balance, finalBalance);
         let updated = {
@@ -2827,6 +2840,7 @@ export function useGameState() {
           ...updated,
           maxSlots: Math.max(INITIAL_STATE.maxSlots, INITIAL_STATE.maxSlots + grants.bonusSlots),
           hasAutoTap: !!grants.hasAutoTap,
+          redStarBalance: Math.max(updated.redStarBalance ?? 0, Number(grants.redStarBalance ?? 0) || 0),
           whiteCollectionUnlocked: !!grants.whiteCollectionUnlocked || serverBundles > 0,
           whiteCollectionBundles: serverBundles,
           earthCollectionUnlocked: !!grants.earthCollectionUnlocked || serverEarthBundles > 0,
@@ -3347,6 +3361,7 @@ export function useGameState() {
           ...updated,
           maxSlots: Math.max(INITIAL_STATE.maxSlots, INITIAL_STATE.maxSlots + grants.bonusSlots),
           hasAutoTap: !!grants.hasAutoTap,
+          redStarBalance: Math.max(updated.redStarBalance ?? 0, Number(grants.redStarBalance ?? 0) || 0),
           whiteCollectionUnlocked: !!grants.whiteCollectionUnlocked || serverBundles2 > 0,
           whiteCollectionBundles: serverBundles2,
           earthCollectionUnlocked: !!grants.earthCollectionUnlocked || serverEarthBundles2 > 0,

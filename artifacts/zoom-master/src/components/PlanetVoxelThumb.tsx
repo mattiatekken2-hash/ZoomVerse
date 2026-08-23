@@ -6,6 +6,7 @@ import { getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { ObjectThumb } from "./MysteryModel3D";
 import { LabGlbViewer } from "./LabGlbViewer";
 import { FARM_GLB_SPIN_RATE, LAB_GLB_SPIN_RATE } from "../utils/labGlbScene";
+import { preloadLabGlb } from "../utils/labGlbCache";
 
 function SunVoxelPlaceholder({ size }: { size: number }) {
   const cube = size * 0.52;
@@ -175,16 +176,17 @@ export function PlanetVoxelThumb({
   const [delayReady, setDelayReady] = useState(glDelayMs <= 0);
 
   const [glGen, setGlGen] = useState(0);
-  const [glbFailed, setGlbFailed] = useState(false);
+  const [glBlocked, setGlBlocked] = useState(false);
   const glbTriesRef = useRef(0);
+  const lockedGlbShapeRef = useRef<string | null>(null);
 
   const displayColors = getPlanetDisplayColors(planet);
   const displayFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
 
   useEffect(() => {
     glbTriesRef.current = 0;
-    setGlbFailed(false);
-  }, [planet.id, planet.shapeId]);
+    lockedGlbShapeRef.current = null;
+  }, [planet.id]);
 
   useEffect(() => {
     if (eager) {
@@ -195,7 +197,7 @@ export function PlanetVoxelThumb({
     if (!el) return;
     const io = new IntersectionObserver(
       ([entry]) => setInView(entry?.isIntersecting ?? false),
-      { rootMargin: "180px 0px", threshold: 0.06 },
+      { rootMargin: "120px 0px 900px 0px", threshold: 0 },
     );
     io.observe(el);
     return () => io.disconnect();
@@ -222,15 +224,12 @@ export function PlanetVoxelThumb({
   }, [suspendGl, eager]);
 
   useEffect(() => {
-    const onTab = (e: Event) => {
-      const tab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
-      if (tab === "farm" || tab === "market") {
-        setInView(true);
-      }
-    };
-    window.addEventListener("zoom-tab-active", onTab);
-    return () => window.removeEventListener("zoom-tab-active", onTab);
-  }, []);
+    if (!inView) return;
+    const resolved = resolveLabShapeIdFromPlanet(planet);
+    const id = resolved
+      || (planet.shapeId && planet.shapeId.length > 0 ? planet.shapeId : FORGE_SPHERE_SHAPE_ID);
+    if (labForgeShapeHasGlbReveal(id)) void preloadLabGlb(id);
+  }, [inView, planet]);
 
   useEffect(() => {
     if (!inView || glDelayMs <= 0) {
@@ -250,7 +249,14 @@ export function PlanetVoxelThumb({
   }, []);
 
   useEffect(() => {
-    if (!inView || !delayReady) {
+    if (glBlocked) {
+      const t = window.setTimeout(() => setGlBlocked(false), 400);
+      return () => window.clearTimeout(t);
+    }
+  }, [glBlocked]);
+
+  useEffect(() => {
+    if (!inView || !delayReady || glBlocked) {
       releaseSlot();
       return;
     }
@@ -278,19 +284,15 @@ export function PlanetVoxelThumb({
       if (idx >= 0) planetThumbWaiters.splice(idx, 1);
       releaseSlot();
     };
-  }, [inView, delayReady, releaseSlot]);
+  }, [inView, delayReady, glBlocked, releaseSlot]);
 
   const handleGlError = useCallback(() => {
-    glbTriesRef.current += 1;
-    if (glbTriesRef.current <= 2) {
-      setGlGen((g) => g + 1);
-      return;
-    }
-    setGlbFailed(true);
-  }, []);
+    setGlBlocked(true);
+    releaseSlot();
+  }, [releaseSlot]);
 
   const handleContextLost = useCallback(() => {
-    setGlGen((g) => g + 1);
+    /* WebGL restore is handled inside LabGlbViewer. Do not remount. */
   }, []);
 
   const showGl = inView && delayReady && hasSlot;
@@ -298,8 +300,12 @@ export function PlanetVoxelThumb({
   const resolvedShape = resolveLabShapeIdFromPlanet(planet);
   const thumbShapeId = resolvedShape
     || (planet.shapeId && planet.shapeId.length > 0 ? planet.shapeId : FORGE_SPHERE_SHAPE_ID);
-  const hasLabGlb = labForgeShapeHasGlbReveal(thumbShapeId);
-  const useLabGlb = hasLabGlb && !glbFailed;
+  if (labForgeShapeHasGlbReveal(thumbShapeId)) {
+    lockedGlbShapeRef.current = thumbShapeId;
+  }
+  const displayShapeId = lockedGlbShapeRef.current ?? thumbShapeId;
+  const hasLabGlb = labForgeShapeHasGlbReveal(displayShapeId);
+  const useLabGlb = hasLabGlb;
 
   return (
     <div
@@ -312,8 +318,8 @@ export function PlanetVoxelThumb({
         <div style={{ width: size, height: size, visibility: suspendGl ? "hidden" : "visible" }}>
         {useLabGlb ? (
           <LabGlbViewer
-            key={`${planet.id}-${thumbShapeId}-${glGen}`}
-            shapeId={thumbShapeId}
+            key={`${planet.id}-${displayShapeId}-${glGen}`}
+            shapeId={displayShapeId}
             size={size}
             autoSpin={animate && !suspendGl}
             chrome="none"

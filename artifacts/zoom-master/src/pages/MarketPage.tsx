@@ -7,6 +7,8 @@ import { useGlobalStore, pushMarketSale, refreshMarketListings, upsertMarketList
 import { isPlanetBurned, isPlanetDelisted } from "../utils/removedPlanets";
 import { getPlanetDisplayName, deterministicNameFromId } from "../utils/planetNames";
 import { useT } from "../i18n/LanguageContext";
+import { captureMarketGlbLoopGif } from "../utils/captureMarketGlbLoop";
+import { labForgeShapeHasGlbReveal } from "@workspace/game-models";
 import {
   labMarketPathForPlanet,
   labModelDisplayName,
@@ -128,7 +130,13 @@ export function MarketPage({
     if (!telegramId || sharingId != null) return;
     setSharingId(serverId);
     try {
-      const res = await shareListing(telegramId, serverId);
+      const listing = allDisplayListings.find((l) => l.serverId === serverId);
+      const shapeId = listing?.shapeId || null;
+      let animationGifBase64: string | undefined;
+      if (shapeId && labForgeShapeHasGlbReveal(shapeId)) {
+        animationGifBase64 = (await captureMarketGlbLoopGif(shapeId)) ?? undefined;
+      }
+      const res = await shareListing(telegramId, serverId, { animationGifBase64, shapeId });
       showToast(res.ok ? t("market.shareSuccess") : t("market.shareFailed"), res.ok);
     } finally {
       setSharingId(null);

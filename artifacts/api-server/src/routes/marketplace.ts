@@ -1508,7 +1508,24 @@ const lastShareAtByUser = new Map<string, number>();
 const ShareBody = z.object({
   telegramId: z.string().min(1),
   listingId: z.number().int().positive(),
+  animationGifBase64: z.string().max(2_800_000).optional(),
+  shapeId: z.string().max(48).optional(),
 });
+
+const gifCacheByShape = new Map<string, Buffer>();
+
+function decodeGifB64(raw: string | undefined): Buffer | null {
+  if (!raw) return null;
+  const cleaned = raw.replace(/^data:image\/gif;base64,/i, "").replace(/\s/g, "");
+  try {
+    const buf = Buffer.from(cleaned, "base64");
+    if (buf.length < 32 || buf.length > 1_800_000) return null;
+    if (buf.toString("ascii", 0, 3) !== "GIF") return null;
+    return buf;
+  } catch {
+    return null;
+  }
+}
 
 router.post("/market/share", async (req, res) => {
   const parsed = ShareBody.safeParse(req.body);
@@ -1547,14 +1564,6 @@ router.post("/market/share", async (req, res) => {
     return;
   }
 
-  const base = publicAssetBaseUrl();
-  if (!base) {
-    lastShareAtByUser.delete(cooldownKey);
-    req.log.warn("[market/share] no public base url — cannot build animation url");
-    res.status(503).json({ error: "Sharing unavailable" });
-    return;
-  }
-
   // Fetch seller's display name for the caption (non-critical — skip silently on failure).
   let sellerDisplay: string | null = null;
   try {
@@ -1568,29 +1577,32 @@ router.post("/market/share", async (req, res) => {
       : (sellerInfo?.firstName || null);
   } catch { /**/ }
 
-  const family = planetVideoFamily(listing.planetType);
-  const animationUrl = `${base}/planets/${family}.mp4`;
+  const shapeId = listing.shapeId || parsed.data.shapeId || null;
+  let animationGif = decodeGifB64(parsed.data.animationGifBase64);
+  if (!animationGif && shapeId) animationGif = gifCacheByShape.get(shapeId) ?? null;
+  if (animationGif && shapeId) gifCacheByShape.set(shapeId, animationGif);
+
   const deepLink = `https://t.me/${BOT_USERNAME}?startapp=mkt_${listing.id}`;
 
-  const displayName = listing.planetDisplayName || `${listing.planetType} Planet`;
+  const displayName = listing.planetDisplayName || shapeId || "Model";
   const rate = listing.planetRate != null ? Number(listing.planetRate) : null;
-  const floatVal = typeof listing.planetFloat === "number" ? listing.planetFloat : null;
+  const pathLabel = shapeId && isLabZoomShapeId(shapeId) ? "ZOOM" : "STARDUST";
+  const currency = String(listing.priceCurrency || "gram").toUpperCase();
 
   const lines: string[] = [];
-  lines.push(`🪐 <b>${escapeHtml(displayName)}</b>`);
-  lines.push(`✨ Rarità: <b>${escapeHtml(listing.planetType)}</b>`);
-  if (rate != null) lines.push(`⚡ +${rate.toLocaleString("en-US")} $ZOOM/hr`);
-  if (floatVal != null) lines.push(`🎚 Float: <b>${floatVal.toFixed(4)}</b>`);
-  lines.push(`💎 Prezzo: <b>${Number(listing.price).toLocaleString("en-US")} TON</b>`);
+  lines.push(`🧱 <b>${escapeHtml(displayName)}</b>`);
+  lines.push(`✨ ${pathLabel} model`);
+  if (rate != null) lines.push(`⚡ +${rate.toLocaleString("en-US")} /h`);
+  lines.push(`💎 Prezzo: <b>${Number(listing.price).toLocaleString("en-US")} ${escapeHtml(currency)}</b>`);
   if (sellerDisplay) lines.push(`👤 Venditore: <b>${escapeHtml(sellerDisplay)}</b>`);
   lines.push("");
-  lines.push("👇 Aprilo nel Mercato per acquistarlo");
+  lines.push("👇 Aprilo nel Market P2P per acquistarlo");
   const caption = lines.join("\n");
 
   const sent = await sendMarketShareToGroup({
-    animationUrl,
+    animationGif: animationGif ?? undefined,
     caption,
-    buttonText: "🛒 Apri nel Mercato",
+    buttonText: "🛒 Apri nel Market P2P",
     buttonUrl: deepLink,
   });
 

@@ -30,7 +30,7 @@ import { SPLASH_MS } from "./utils/bootSplash";
 import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
 import { prefetchWalletMarket } from "./utils/walletMarketCache";
-import { rememberStickyWalletBalance } from "./hooks/useStickyWalletBalance";
+import { rememberStickyWalletBalance, setStickyWalletAccount } from "./hooks/useStickyWalletBalance";
 import { prefetchCombo } from "./utils/comboCache";
 import { initVersionCheck } from "./utils/appVersion";
 
@@ -274,6 +274,9 @@ function AppShellWithState() {
       if (d.type === "ton") {
         setState((prev) => ({ ...prev, tonBalance: (prev.tonBalance || 0) + n }));
       }
+      if (d.type === "redstar") {
+        setState((prev) => ({ ...prev, redStarBalance: (prev.redStarBalance || 0) + n }));
+      }
     };
     const onDec = (e: Event) => {
       const d = (e as CustomEvent<{ type: string; amount: number }>).detail;
@@ -285,6 +288,9 @@ function AppShellWithState() {
       }
       if (d.type === "ton") {
         setState((prev) => ({ ...prev, tonBalance: Math.max(0, (prev.tonBalance || 0) - n) }));
+      }
+      if (d.type === "redstar") {
+        setState((prev) => ({ ...prev, redStarBalance: Math.max(0, (prev.redStarBalance || 0) - n) }));
       }
     };
     const onStardustRefresh = () => { void stardust.refresh(); };
@@ -419,6 +425,10 @@ function AppShellWithState() {
   const visitedEarnRef = useRef(false);
   const visitedTabsRef = useRef<Set<Tab>>(new Set(["lab", "wallet"]));
 
+  useEffect(() => {
+    setStickyWalletAccount(state.telegramId);
+  }, [state.telegramId]);
+
   // Keep last-good wallet amounts even while Wallet is hidden, so a grants/sync
   // dip cannot paint zeros the next time the user opens the tab.
   useEffect(() => {
@@ -486,7 +496,7 @@ function AppShellWithState() {
     // "grainy / lo-fi" texture, even with a minimal source→gain chain.
     // Bypassing it lets the OS audio renderer play the 320 kbps MP3 at
     // native quality. Fades are done by animating `audio.volume`.
-    const audio = new Audio(`${import.meta.env.BASE_URL}bgm.mp3`);
+    const audio = new Audio(`${import.meta.env.BASE_URL}bgm.mp3?v=20`);
     audio.loop = true;
     audio.preload = "auto";
     audio.volume = mutedRef.current ? 0 : 0;

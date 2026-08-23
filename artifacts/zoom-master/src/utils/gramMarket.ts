@@ -2,7 +2,6 @@
  * Live GRAM (= TON) USD market — Wallet % uses Binance 24hr ticker, not a
  * frozen first→last candle ratio (that could sit on -0.25% for hours).
  */
-import { fetchTonPrice, readCachedTonPriceAllowStale } from "./tonPrice";
 
 const API_BASE =
   (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") ||
@@ -124,7 +123,7 @@ async function fetchCoinGeckoHistory(): Promise<GramChartPoint[]> {
   }
 }
 
-const STORAGE_KEY = "zoom-gram-market-v1";
+const STORAGE_KEY = "zoom-gram-market-v2";
 
 function hydrateCacheFromStorage() {
   try {
@@ -184,12 +183,17 @@ function writeCache(snap: GramMarketSnapshot) {
   } catch { /**/ }
 }
 
+/** Binance/GRAM spot only — never CoinGecko fallback (that caused USDT flashes). */
+export function readGramSpotUsd(): number | null {
+  return typeof cache.priceUsd === "number" && cache.priceUsd > 0 ? cache.priceUsd : null;
+}
+
 /** Instant paint from last fetch — % only if still fresh. */
 export function readGramMarketCache(): GramMarketSnapshot {
   const age = Date.now() - cache.fetchedAt;
   const pctOk = cache.fetchedAt > 0 && age <= STALE_PCT_MS;
   return {
-    priceUsd: cache.priceUsd ?? readCachedTonPriceAllowStale(),
+    priceUsd: cache.priceUsd,
     change24hPct: pctOk ? cache.change24hPct : null,
     points: cache.points,
   };
@@ -235,9 +239,7 @@ export async function fetchGramMarketSnapshot(opts?: { force?: boolean }): Promi
             .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.price) && p.price > 0)
             .map((p) => ({ t: p.t, price: p.price, label: formatTime(p.t) }));
           const priceUsd =
-            (typeof data.priceUsd === "number" && data.priceUsd > 0 ? data.priceUsd : null)
-            ?? (await fetchTonPrice())
-            ?? readCachedTonPriceAllowStale();
+            typeof data.priceUsd === "number" && data.priceUsd > 0 ? data.priceUsd : null;
           const points = ensureChartPoints(rawPts.length >= 2 ? downsample(rawPts) : [], priceUsd);
           const change24hPct =
             typeof data.change24hPct === "number" && Number.isFinite(data.change24hPct)
@@ -264,10 +266,7 @@ export async function fetchGramMarketSnapshot(opts?: { force?: boolean }): Promi
         if (cg.length >= 2) points = downsample(cg);
       }
 
-      const priceUsd =
-        ticker?.price
-        ?? (await fetchTonPrice())
-        ?? readCachedTonPriceAllowStale();
+      const priceUsd = ticker?.price ?? null;
 
       const change24hPct =
         ticker != null && Number.isFinite(ticker.pct)

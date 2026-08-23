@@ -639,9 +639,10 @@ export interface Grants {
   weeklyRedStarDay?: number;
   weeklyRedStarClaimedToday?: boolean;
   weeklyRedStarReward?: number;
+  redStarBalance?: number;
 }
 
-const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusNova: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, stellaRossaCollectionUnlocked: false, stellaRossaCollectionBundles: 0, totalPlanetsBuilt: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0, sunFarmDurationHours: 1, collectionFarmDurationHours: 1, whiteFarmDurationHours: 1, earthFarmDurationHours: 1, blackFarmDurationHours: 1, supernovaFarmDurationHours: 1, stellaRossaFarmDurationHours: 1, weeklyRedStarDay: 1, weeklyRedStarClaimedToday: false, weeklyRedStarReward: 5 };
+const EMPTY_GRANTS: Grants = { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusNova: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, stellaRossaCollectionUnlocked: false, stellaRossaCollectionBundles: 0, totalPlanetsBuilt: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0, sunFarmDurationHours: 1, collectionFarmDurationHours: 1, whiteFarmDurationHours: 1, earthFarmDurationHours: 1, blackFarmDurationHours: 1, supernovaFarmDurationHours: 1, stellaRossaFarmDurationHours: 1, weeklyRedStarDay: 1, weeklyRedStarClaimedToday: false, weeklyRedStarReward: 5, redStarBalance: 0 };
 
 /**
  * Claim the daily REDSTAR bonus (5 ★ per day, 7-day cycle).
@@ -1657,7 +1658,7 @@ export async function adminCreditRedStar(adminId: string, telegramId: string, am
     const res = await fetch(`${API_BASE}/admin/credit-redstar`, {
       method: "POST",
       headers: apiHeaders(),
-      body: JSON.stringify({ adminId, telegramId, amount }),
+      body: JSON.stringify(withInitData({ adminId, telegramId, amount })),
     });
     return res.ok;
   } catch { return false; }
@@ -1668,7 +1669,7 @@ export async function adminRemoveRedStar(adminId: string, telegramId: string, am
     const res = await fetch(`${API_BASE}/admin/remove-redstar`, {
       method: "POST",
       headers: apiHeaders(),
-      body: JSON.stringify({ adminId, telegramId, amount }),
+      body: JSON.stringify(withInitData({ adminId, telegramId, amount })),
     });
     return res.ok;
   } catch { return false; }
@@ -2919,7 +2920,11 @@ export async function buyFromMarket(buyerTelegramId: string, listingId: number):
 // Ask the server to post a listing to the community group (looping planet
 // animation + stats + deep-link button). Returns ok plus the generated deep
 // link, or an error string the UI surfaces in a toast.
-export async function shareListing(telegramId: string, listingId: number): Promise<{
+export async function shareListing(
+  telegramId: string,
+  listingId: number,
+  extra?: { animationGifBase64?: string; shapeId?: string | null },
+): Promise<{
   ok: boolean;
   deepLink?: string;
   error?: string;
@@ -2928,7 +2933,12 @@ export async function shareListing(telegramId: string, listingId: number): Promi
     const res = await fetch(`${API_BASE}/market/share`, {
       method: "POST",
       headers: apiHeaders(),
-      body: JSON.stringify({ telegramId, listingId }),
+      body: JSON.stringify({
+        telegramId,
+        listingId,
+        animationGifBase64: extra?.animationGifBase64,
+        shapeId: extra?.shapeId || undefined,
+      }),
     });
     return res.json();
   } catch {

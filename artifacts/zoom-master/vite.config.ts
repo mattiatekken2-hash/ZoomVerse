@@ -6,7 +6,7 @@ import fs from "fs";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 const rawPort = process.env.PORT;
-const port = rawPort ? Number(rawPort) : 3000;
+const port = rawPort ? Number(rawPort) : 3001;
 const basePath = process.env.BASE_PATH || "/";
 
 // Unique stamp for this build. Baked into the bundle as `__BUILD_VERSION__`
@@ -89,6 +89,7 @@ export default defineConfig({
   },
   server: {
     port,
+    strictPort: true,
     host: "0.0.0.0",
     allowedHosts: true,
     proxy: {

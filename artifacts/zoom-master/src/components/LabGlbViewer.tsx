@@ -77,7 +77,6 @@ function LabGlbViewerBase({
       renderer = new THREE.WebGLRenderer({
         antialias: true,
         alpha: embedded,
-        premultipliedAlpha: false,
         powerPreference: "high-performance",
       });
     } catch {
@@ -90,10 +89,13 @@ function LabGlbViewerBase({
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
-    if (embedded) {
-      renderer.setClearColor(0x000000, 0);
-    }
-    mount.appendChild(renderer.domElement);
+    renderer.setClearColor(0x000000, embedded ? 0 : 1);
+    renderer.domElement.style.display = "block";
+    renderer.domElement.style.width = `${size}px`;
+    renderer.domElement.style.height = `${size}px`;
+    renderer.domElement.style.background = "transparent";
+    renderer.domElement.style.visibility = "hidden";
+    // Attach only after the GLB is on screen — empty canvases paint as white squares.
 
     let controls: OrbitControls | null = null;
     let dragging = false;
@@ -115,10 +117,30 @@ function LabGlbViewerBase({
       renderer.domElement.style.pointerEvents = "none";
     }
 
+    const draw = () => renderer.render(scene, camera);
+    let contextDead = false;
+    const dropCanvas = () => {
+      renderer.domElement.style.visibility = "hidden";
+      if (renderer.domElement.parentNode === mount) {
+        mount.removeChild(renderer.domElement);
+      }
+    };
+    const showCanvas = () => {
+      if (disposed || contextDead || spinGroup.children.length === 0) return;
+      const gl = renderer.getContext();
+      if (gl.isContextLost()) return;
+      if (renderer.domElement.parentNode !== mount) {
+        mount.appendChild(renderer.domElement);
+      }
+      renderer.domElement.style.visibility = "visible";
+    };
+
     const onContextLost = (e: Event) => {
       e.preventDefault();
-      disposed = true;
+      if (contextDead) return;
+      contextDead = true;
       cancelAnimationFrame(frameId);
+      dropCanvas();
       onGlFailedRef.current?.();
     };
     renderer.domElement.addEventListener("webglcontextlost", onContextLost);
@@ -135,8 +157,6 @@ function LabGlbViewerBase({
     fill.position.set(-2.5, 1.2, -1.4);
     scene.add(fill);
 
-    const draw = () => renderer.render(scene, camera);
-
     let loadAttempt = 0;
     let loadTimer: number | null = null;
 
@@ -151,6 +171,21 @@ function LabGlbViewerBase({
         disposeSceneObject(child);
       });
     };
+
+    function animate() {
+      if (disposed || contextDead) return;
+      spinGroup.position.y = 0;
+      spinGroup.rotation.x = 0;
+      spinGroup.rotation.z = 0;
+      if (interactive && controls) {
+        controls.update();
+        if (autoSpin && !dragging) spinGroup.rotation.y += spinRate;
+      } else if (autoSpin) {
+        spinGroup.rotation.y += spinRate;
+      }
+      draw();
+      frameId = requestAnimationFrame(animate);
+    }
 
     const placeModel = (model: THREE.Object3D) => {
       clearModel();
@@ -170,6 +205,8 @@ function LabGlbViewerBase({
       camera.lookAt(0, 0, 0);
       controls?.update();
       draw();
+      showCanvas();
+      if (!frameId) animate();
     };
 
     const tryLoad = () => {
@@ -190,22 +227,6 @@ function LabGlbViewerBase({
     };
     tryLoad();
 
-    const animate = () => {
-      if (disposed) return;
-      spinGroup.position.y = 0;
-      spinGroup.rotation.x = 0;
-      spinGroup.rotation.z = 0;
-      if (interactive && controls) {
-        controls.update();
-        if (autoSpin && !dragging) spinGroup.rotation.y += spinRate;
-      } else if (autoSpin) {
-        spinGroup.rotation.y += spinRate;
-      }
-      draw();
-      frameId = requestAnimationFrame(animate);
-    };
-    animate();
-
     return () => {
       disposed = true;
       if (loadTimer !== null) window.clearTimeout(loadTimer);
@@ -213,8 +234,8 @@ function LabGlbViewerBase({
       controls?.dispose();
       renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
       clearModel();
-      envTex?.dispose?.();
-      pmrem?.dispose?.();
+      envTex?.dispose();
+      pmrem?.dispose();
       renderer.dispose();
       if (renderer.domElement.parentNode === mount) {
         mount.removeChild(renderer.domElement);

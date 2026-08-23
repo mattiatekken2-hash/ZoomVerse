@@ -7,5 +7,7 @@ export function isLowEndDevice(): boolean {
 }
 
 export function planetThumbGlBudget(): number {
-  return isLowEndDevice() ? 12 : 24;
+  // Desktop Chrome dies around 8 WebGL contexts (white/gray canvases).
+  // Farm grid only needs the on-screen orbs.
+  return isLowEndDevice() ? 4 : 8;
 }

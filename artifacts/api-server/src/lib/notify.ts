@@ -128,6 +128,44 @@ export async function notifyAdminPurchase(params: {
 }
 
 /**
+ * Notify the admin on their personal bot chat when a GRAM (TON) deposit
+ * is verified on-chain and credited in-app.
+ */
+export async function notifyAdminGramDeposit(params: {
+  txnId: number;
+  amountTon: number;
+  telegramId: string;
+  username?: string | null;
+  firstName?: string | null;
+  destinationWallet: string;
+}): Promise<void> {
+  if (!BOT_TOKEN) return;
+  const who = params.username
+    ? `@${params.username}`
+    : (params.firstName || params.telegramId);
+  const text =
+    `💎 <b>Deposito GRAM</b>\n` +
+    `\u2003• Importo: <b>${params.amountTon.toFixed(4)} GRAM</b>\n` +
+    `\u2003• Wallet progetto: <code>${params.destinationWallet}</code>\n` +
+    `\u2003• Utente: ${who} (ID: <code>${params.telegramId}</code>)\n` +
+    `\u2003• Txn: #${params.txnId}`;
+  try {
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: ADMIN_NOTIFY_CHAT_ID,
+        text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+      }),
+    });
+  } catch (err) {
+    logger.warn({ err, txnId: params.txnId }, "[notify] admin GRAM deposit notify failed");
+  }
+}
+
+/**
  * Notify the admin on their personal bot chat when a new withdrawal
  * request arrives. Includes inline buttons so the admin can approve
  * or reject directly from Telegram without opening the web dashboard.
@@ -188,17 +226,13 @@ const MARKET_SHARE_CHAT_ID = process.env["MARKET_SHARE_CHAT_ID"] || "@ZoomVerse_
 const MARKET_SHARE_THREAD_ID = Number(process.env["MARKET_SHARE_THREAD_ID"] || "7406") || undefined;
 
 /**
- * Post a marketplace listing to the community group: a looping animation of the
- * rotating planet (sendAnimation autoplays muted mp4/gif on loop), the planet
- * data as an HTML caption, and an inline URL button carrying the deep link back
- * into the Mini App's market view.
- *
- * Returns false (and logs) on any failure so the caller can surface a friendly
- * error instead of throwing. The bot must be a member of the target chat with
- * permission to send media.
+ * Post a marketplace listing to Market P2P (t.me/ZoomVerse_Chat/7406).
+ * Prefers an uploaded looping GIF of the exact GLB; falls back to a remote
+ * animation URL. sendAnimation autoplays muted GIF/MP4 on loop.
  */
 export async function sendMarketShareToGroup(params: {
-  animationUrl: string;
+  animationUrl?: string;
+  animationGif?: Buffer;
   caption: string;
   buttonText: string;
   buttonUrl: string;
@@ -207,30 +241,64 @@ export async function sendMarketShareToGroup(params: {
     logger.warn("[notify] BOT_TOKEN not set — skipping market share");
     return false;
   }
+  const markup = JSON.stringify({
+    inline_keyboard: [[{ text: params.buttonText, url: params.buttonUrl }]],
+  });
   try {
-    const body: Record<string, unknown> = {
-      chat_id: MARKET_SHARE_CHAT_ID,
-      animation: params.animationUrl,
-      caption: params.caption,
-      parse_mode: "HTML",
-      reply_markup: {
-        inline_keyboard: [[{ text: params.buttonText, url: params.buttonUrl }]],
-      },
-    };
-    if (MARKET_SHARE_THREAD_ID) body["message_thread_id"] = MARKET_SHARE_THREAD_ID;
-    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendAnimation`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    let res: Response;
+    if (params.animationGif && params.animationGif.length > 32) {
+      const form = new FormData();
+      form.append("chat_id", MARKET_SHARE_CHAT_ID);
+      if (MARKET_SHARE_THREAD_ID) form.append("message_thread_id", String(MARKET_SHARE_THREAD_ID));
+      form.append("caption", params.caption);
+      form.append("parse_mode", "HTML");
+      form.append("reply_markup", markup);
+      form.append(
+        "animation",
+        new Blob([new Uint8Array(params.animationGif)], { type: "image/gif" }),
+        "model-spin.gif",
+      );
+      res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendAnimation`, {
+        method: "POST",
+        body: form,
+      });
+    } else if (params.animationUrl) {
+      const body: Record<string, unknown> = {
+        chat_id: MARKET_SHARE_CHAT_ID,
+        animation: params.animationUrl,
+        caption: params.caption,
+        parse_mode: "HTML",
+        reply_markup: JSON.parse(markup),
+      };
+      if (MARKET_SHARE_THREAD_ID) body["message_thread_id"] = MARKET_SHARE_THREAD_ID;
+      res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendAnimation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } else {
+      const body: Record<string, unknown> = {
+        chat_id: MARKET_SHARE_CHAT_ID,
+        text: params.caption,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+        reply_markup: JSON.parse(markup),
+      };
+      if (MARKET_SHARE_THREAD_ID) body["message_thread_id"] = MARKET_SHARE_THREAD_ID;
+      res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    }
     if (!res.ok) {
       const responseBody = await res.text().catch(() => "");
-      logger.warn({ status: res.status, responseBody }, "[notify] market share sendAnimation non-OK");
+      logger.warn({ status: res.status, responseBody }, "[notify] market share send non-OK");
       return false;
     }
     return true;
   } catch (err) {
-    logger.warn({ err }, "[notify] market share sendAnimation failed");
+    logger.warn({ err }, "[notify] market share send failed");
     return false;
   }
 }
@@ -270,12 +338,10 @@ export async function sendAlienChannelMessage(text: string): Promise<boolean> {
 }
 
 /**
- * Post a message to the withdrawals announcement chat / forum topic.
- * Used after a withdrawal is approved so the community sees the payout.
- *
- * If posting to the specific topic fails (e.g. the topic is closed / locked),
- * automatically retries by posting to the main group without the thread ID so
- * the announcement is never silently lost.
+ * Post a message to the WITHDRAWALS forum topic
+ * (https://t.me/ZoomVerse_Chat/7207). Never falls back to the main group:
+ * if the topic post fails we log it so the payout isn't announced in the
+ * wrong thread.
  */
 export async function sendWithdrawalChannelMessage(text: string): Promise<boolean> {
   if (!BOT_TOKEN) {
@@ -283,39 +349,29 @@ export async function sendWithdrawalChannelMessage(text: string): Promise<boolea
     return false;
   }
 
-  const send = async (withThread: boolean): Promise<{ ok: boolean; desc?: string }> => {
-    const body: Record<string, unknown> = {
-      chat_id: WITHDRAWALS_CHAT_ID,
-      text,
-      parse_mode: "HTML",
-      disable_web_page_preview: true,
-    };
-    if (withThread && WITHDRAWALS_THREAD_ID) body["message_thread_id"] = WITHDRAWALS_THREAD_ID;
-    try {
-      const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json().catch(() => ({})) as { ok?: boolean; description?: string };
-      return { ok: !!data.ok, desc: data.description };
-    } catch (err) {
-      return { ok: false, desc: String(err) };
-    }
+  const body: Record<string, unknown> = {
+    chat_id: WITHDRAWALS_CHAT_ID,
+    text,
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
   };
+  if (WITHDRAWALS_THREAD_ID) body["message_thread_id"] = WITHDRAWALS_THREAD_ID;
 
-  // First attempt: post to the configured topic thread.
-  const first = await send(true);
-  if (first.ok) return true;
-
-  logger.warn({ desc: first.desc }, "[notify] channel sendMessage to topic failed — retrying without thread_id");
-
-  // Fallback: post to the main group (no thread), so the announcement is
-  // never silently dropped even if the topic is closed or the bot lacks
-  // permission to post in it.
-  const fallback = await send(false);
-  if (fallback.ok) return true;
-
-  logger.warn({ desc: fallback.desc }, "[notify] channel sendMessage fallback also failed");
-  return false;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({})) as { ok?: boolean; description?: string };
+    if (data.ok) return true;
+    logger.warn(
+      { desc: data.description, chat: WITHDRAWALS_CHAT_ID, thread: WITHDRAWALS_THREAD_ID },
+      "[notify] withdrawal topic sendMessage failed",
+    );
+    return false;
+  } catch (err) {
+    logger.warn({ err }, "[notify] withdrawal topic sendMessage error");
+    return false;
+  }
 }

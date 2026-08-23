@@ -11,7 +11,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { readGlobal, readNotifiedExpiresAtMs, writeNotifiedExpiresAtMs, advanceGlobal } from "./routes/merchant";
 import { ensureDatabaseReady } from "./lib/ensure-db";
 
-const FARM_FULL_MESSAGE = "⚡ Your Farm is full! Collect your TON and restart the engines to keep earning.";
+const FARM_FULL_MESSAGE = "⚡ Your Farm is full! Collect your TON.";
 
 const rawPort = process.env["PORT"];
 
@@ -200,7 +200,7 @@ function startFarmNotificationCron() {
       const rows = await fetchPendingFarmNotifications(500);
       if (rows.length === 0) return;
       // Group all pending cycles by user so we send ONE consolidated message
-      // per user per tick, no matter how many planets are full. This prevents
+      // per user per tick, no matter how many models are full. This prevents
       // the "8 messages in 4 minutes" spam when several bundles ripen together.
       const byUser = new Map<string, typeof rows>();
       for (const row of rows) {
@@ -213,7 +213,7 @@ function startFarmNotificationCron() {
         const message =
           count === 1
             ? FARM_FULL_MESSAGE
-            : `⚡ ${count} of your planets are ready! Collect your TON and restart the engines to keep earning.`;
+            : `⚡ ${count} of your models are ready! Collect your TON.`;
         const ok = await sendBotMessage(telegramId, message);
         // Always mark notified — even on failure (403/blocked) — so we don't
         // hammer Telegram on every cron tick for users who blocked the bot.
@@ -578,34 +578,38 @@ async function registerTelegramWebhook() {
     return;
   }
 
-  // ONLY the published deployment may touch the Telegram webhook. In a Replit
-  // dev workspace `REPLIT_DOMAINS` points at a SHORT-LIVED preview hostname
-  // (e.g. *.janeway.replit.dev / *.repl.run); calling setWebhook from dev
-  // overwrites production with that ephemeral URL, Telegram then receives
-  // 500 errors and queues `successful_payment` updates that are never
-  // processed — silently breaking every Stars purchase until the next prod
-  // restart. `REPLIT_DEPLOYMENT === "1"` is the canonical signal that we're
-  // running inside the published deployment (NODE_ENV is unreliable: it is
-  // empty in this dev workspace). Belt-and-suspenders: also refuse to
-  // register if the resolved domain still looks like an ephemeral preview.
-  if (process.env["REPLIT_DEPLOYMENT"] !== "1") {
-    logger.info("Skipping webhook registration: not running in published deployment (production webhook preserved)");
-    return;
+  // Prefer an explicit production webhook URL (Vercel / custom domain).
+  // Otherwise only the published Replit deployment may call setWebhook —
+  // a local/preview process with the same BOT_TOKEN would steal Telegram
+  // updates and break Stars purchases + withdrawal approve/reject buttons.
+  const explicitWebhookUrl = (process.env["TELEGRAM_WEBHOOK_URL"] || "").trim();
+  let webhookUrl = explicitWebhookUrl;
+
+  if (!webhookUrl) {
+    if (process.env["REPLIT_DEPLOYMENT"] !== "1") {
+      logger.info("Skipping webhook registration: not running in published deployment (production webhook preserved)");
+      return;
+    }
+
+    const deployDomain = process.env["REPLIT_DOMAINS"]?.split(",")[0];
+
+    if (!deployDomain) {
+      logger.warn("No domain available for webhook registration");
+      return;
+    }
+
+    if (deployDomain.includes(".janeway.") || deployDomain.includes(".repl.run") || deployDomain.includes(".replit.dev")) {
+      logger.warn({ deployDomain }, "Refusing to register webhook on what looks like an ephemeral preview domain (production webhook preserved)");
+      return;
+    }
+
+    webhookUrl = `https://${deployDomain}/api/stars/webhook`;
   }
 
-  const deployDomain = process.env["REPLIT_DOMAINS"]?.split(",")[0];
-
-  if (!deployDomain) {
-    logger.warn("No domain available for webhook registration");
+  if (!webhookUrl.startsWith("https://")) {
+    logger.warn({ webhookUrl }, "Refusing to register non-https Telegram webhook URL");
     return;
   }
-
-  if (deployDomain.includes(".janeway.") || deployDomain.includes(".repl.run") || deployDomain.includes(".replit.dev")) {
-    logger.warn({ deployDomain }, "Refusing to register webhook on what looks like an ephemeral preview domain (production webhook preserved)");
-    return;
-  }
-
-  const webhookUrl = `https://${deployDomain}/api/stars/webhook`;
   const secretToken = process.env["TELEGRAM_WEBHOOK_SECRET"] || "";
 
   try {

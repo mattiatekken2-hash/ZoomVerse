@@ -122,7 +122,8 @@ export function MarketPlanetCard({
     displayName: listing.displayName,
   }) ?? listing.shapeId ?? undefined;
   const chrome = chromeForShape(shapeId, path);
-  const accent = chrome.color;
+  const accent = theme.accent;
+  const glow = theme.glow;
 
   const fakePlanet = {
     id: listing.id,
@@ -147,7 +148,7 @@ export function MarketPlanetCard({
       className={`lab-market-card${highlighted ? " lab-market-card--focus" : ""}`}
       style={{
         ["--mkt-accent" as string]: accent,
-        ["--mkt-glow" as string]: chrome.glowColor,
+        ["--mkt-glow" as string]: glow,
         ["--mkt-accent-a" as string]: rgba(accent, 0.22),
       }}
       data-testid={`listing-${listing.id}`}

@@ -4,7 +4,7 @@ import { appSettingsTable, collectionPlanetsTable, tonWithdrawalsTable } from "@
 import { eq, sql, and } from "drizzle-orm";
 import { Cell, Address } from "@ton/core";
 import { broadcastBoxOpen } from "../lib/activityBus";
-import { sendWithdrawalChannelMessage, notifyAdminWithdrawalRequest, sendBotMessage } from "../lib/notify";
+import { sendWithdrawalChannelMessage, notifyAdminWithdrawalRequest, sendBotMessage, notifyAdminGramDeposit } from "../lib/notify";
 import { logger } from "../lib/logger";
 import { registerLottoTicketPurchase } from "./lottery";
 import { recordHistoryAsync } from "../lib/history";
@@ -1892,11 +1892,23 @@ async function creditDepositIfPending(txnId: number, paymentId: string, telegram
     didFlip = true;
     await tx.update(usersTable)
       .set({
-        tonBalance: sql`${usersTable.tonBalance} + ${amount}`,
+        depositBalance: sql`${usersTable.depositBalance} + ${amount}`,
         balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
       .where(eq(usersTable.telegramId, telegramId));
   });
+  if (didFlip) {
+    const [u] = await db.select({ uname: usersTable.username, first: usersTable.firstName })
+      .from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
+    void notifyAdminGramDeposit({
+      txnId,
+      amountTon: amount,
+      telegramId,
+      username: u?.uname ?? null,
+      firstName: u?.first ?? null,
+      destinationWallet: TON_WALLET,
+    });
+  }
   return didFlip;
 }
 

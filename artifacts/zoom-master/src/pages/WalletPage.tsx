@@ -19,8 +19,10 @@ import {
 import {
   fetchGramMarketSnapshot,
   readGramMarketCache,
+  readGramSpotUsd,
   subscribeGramMarket,
 } from "../utils/gramMarket";
+import { pickWalletTonUsd, lockTonUsd, getLockedTonUsd, paintFrozenGramUsdt } from "../utils/displayTonUsd";
 import { formatChangePct, formatGramValueFull, formatZoomChartPrice, formatStardustChartIndex, formatGramChartUsd } from "../utils/wallet24hChange";
 
 const LIVE_POLL_MS = 5_000;
@@ -68,7 +70,8 @@ function seededRange(seed: string, min: number, max: number): number {
 }
 
 function formatZoom(n: number): string {
-  const v = Math.floor(Number(n) || 0);
+  const v = Math.floor(Number.isFinite(n) ? n : 0);
+  if (v < 0) return "0";
   if (v >= 1_000_000) return (v / 1_000_000).toFixed(2) + "M";
   if (v >= 20_000) return (v / 1_000).toFixed(1) + "K";
   return v.toLocaleString();
@@ -105,8 +108,9 @@ export function WalletPage({
 }: WalletPageProps) {
   const { t } = useT();
   const initialMarket = readWalletMarketCacheForDisplay();
-  const [tonPrice, setTonPrice] = useState<number | null>(initialMarket.tonPriceUsd);
-  const [priceLoading, setPriceLoading] = useState(initialMarket.tonPriceUsd == null);
+  const initialTonUsd = pickWalletTonUsd();
+  const [tonPrice, setTonPrice] = useState<number | null>(initialTonUsd);
+  const [priceLoading, setPriceLoading] = useState(initialTonUsd == null);
   const [stardustMarketOpen, setStardustMarketOpen] = useState(false);
   const [zoomMarketOpen, setZoomMarketOpen] = useState(false);
   const [gramChartOpen, setGramChartOpen] = useState(false);
@@ -121,12 +125,17 @@ export function WalletPage({
   );
   const [gramChangePct, setGramChangePct] = useState<number | null>(null);
 
+  const commitTonUsd = useCallback((usd: number) => {
+    const locked = lockTonUsd(usd);
+    if (locked == null) return;
+    setTonPrice(locked);
+    setPriceLoading(false);
+  }, []);
+
   const applyMarketCache = useCallback(() => {
     const cached = readWalletMarketCacheForDisplay();
-    if (cached.tonPriceUsd != null) {
-      setTonPrice(cached.tonPriceUsd);
-      setPriceLoading(false);
-    }
+    // CoinGecko TON/USD must not overwrite the GRAM USDT column — that
+    // was the Rank↔Wallet flash ($127 then $135). TON/USD is Gram/Binance only.
     if (cached.zoomPriceGram != null) {
       setZoomPriceGram(cached.zoomPriceGram);
     }
@@ -142,15 +151,13 @@ export function WalletPage({
   }, []);
 
   const applyGramMarket = useCallback(() => {
+    const spot = readGramSpotUsd();
+    if (spot != null) commitTonUsd(spot);
     const gram = readGramMarketCache();
-    if (gram.priceUsd != null) {
-      setTonPrice(gram.priceUsd);
-      setPriceLoading(false);
-    }
     if (gram.change24hPct != null && Number.isFinite(gram.change24hPct)) {
       setGramChangePct(gram.change24hPct);
     }
-  }, []);
+  }, [commitTonUsd]);
 
   useEffect(() => {
     setLiveStardustBalance(stardustBalance);
@@ -160,36 +167,34 @@ export function WalletPage({
   useEffect(() => subscribeGramMarket(applyGramMarket), [applyGramMarket]);
 
   useEffect(() => {
-    if (!visible) return;
+    const locked = getLockedTonUsd();
+    if (locked != null) {
+      setTonPrice(locked);
+      setPriceLoading(false);
+      return;
+    }
     applyGramMarket();
+    void fetchGramMarketSnapshot().then(() => applyGramMarket());
+  }, [applyGramMarket]);
+
+  useEffect(() => {
+    if (!visible) return;
     void prefetchWalletMarket();
-    void fetchGramMarketSnapshot();
+    if (getLockedTonUsd() == null) void fetchGramMarketSnapshot();
     const id = window.setInterval(() => {
       if (document.hidden) return;
       void prefetchWalletMarket();
-      void fetchGramMarketSnapshot();
     }, LIVE_POLL_MS);
     return () => window.clearInterval(id);
-  }, [visible, applyGramMarket]);
+  }, [visible]);
 
   useEffect(() => {
     const onRefresh = () => {
       void prefetchWalletMarket();
-      void fetchGramMarketSnapshot();
     };
     window.addEventListener("zoom-data-refresh", onRefresh);
     return () => window.removeEventListener("zoom-data-refresh", onRefresh);
   }, []);
-
-  useEffect(() => {
-    const onTabActive = (e: Event) => {
-      const nextTab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
-      if (nextTab !== "wallet") return;
-      applyGramMarket();
-    };
-    window.addEventListener("zoom-tab-active", onTabActive);
-    return () => window.removeEventListener("zoom-tab-active", onTabActive);
-  }, [applyGramMarket]);
 
   const gramTotal = Math.max(0, (tonBalance || 0) + (depositBalance || 0));
   const shownGramTotal = useStickyWalletBalance(gramTotal, "gram");
@@ -197,7 +202,7 @@ export function WalletPage({
   const shownStardustBalance = useStickyWalletBalance(liveStardustBalance, "stardust");
   const shownRedStarBalance = useStickyWalletBalance(redStarBalance, "redStar");
   const shownNftStarBalance = useStickyWalletBalance(nftStarBalance, "nftStar");
-  const usdtValue = tonPrice !== null ? (shownGramTotal * tonPrice).toFixed(2) : null;
+  const usdtValue = paintFrozenGramUsdt(shownGramTotal, tonPrice);
   const zoomGramValue = zoomPriceGram != null && shownZoomBalance > 0 ? shownZoomBalance * zoomPriceGram : null;
   const stardustGramValue = shownStardustBalance > 0
     ? (shownStardustBalance * stardustIndex) / 100
@@ -226,12 +231,11 @@ export function WalletPage({
   }, [telegramId]);
 
   const handleGramPriceUpdate = useCallback((p: number, change24hPct: number | null) => {
-    setTonPrice(p);
-    setPriceLoading(false);
+    commitTonUsd(p);
     if (change24hPct != null && Number.isFinite(change24hPct)) {
       setGramChangePct(change24hPct);
     }
-  }, []);
+  }, [commitTonUsd]);
 
   return (
     <div
@@ -618,7 +622,6 @@ function BalanceRow({
   priceLoading,
   changePct,
   iconSubValue,
-  referenceOnly,
   onClick,
   hint,
   "data-testid": dataTestId,
@@ -640,12 +643,11 @@ function BalanceRow({
 }) {
   const { t } = useT();
   const interactive = !!onClick;
-  // Under-icon always shows chart unit + % (no GRAM). Right column keeps USD.
+  // Under-icon always shows chart unit + % (no GRAM). Right column is USDT.
   const iconPctLabel = changePct != null ? formatChangePct(changePct) : "";
   const pctPositive = (changePct ?? 0) > 0;
   const pctNegative = (changePct ?? 0) < 0;
   const usdLabel = formatUsdFromGram(gramValue ?? null, tonPrice ?? null, !!priceLoading);
-  const usdHeader = referenceOnly ? "walletPage.approxUsdRef" : "walletPage.approxUsd";
 
   return (
     <div
@@ -785,7 +787,7 @@ function BalanceRow({
         </div>
       </div>
 
-      {/* Right — live USD */}
+      {/* Right — live USDT */}
       <div style={{ textAlign: "right", flexShrink: 0, paddingTop: 2 }}>
         <div
           style={{
@@ -797,7 +799,7 @@ function BalanceRow({
             marginBottom: 2,
           }}
         >
-          {t(usdHeader)}
+          {t("walletPage.approxUsdt")}
         </div>
         <div
           style={{

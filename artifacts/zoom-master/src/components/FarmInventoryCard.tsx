@@ -2,7 +2,6 @@ import type { Planet } from "../hooks/useGameState";
 import {
   formatDuration,
   getFarmTimeRemaining,
-  getPlanetDisplayColors,
   isFarmActive,
   isFarmExpired,
 } from "../hooks/useGameState";
@@ -80,9 +79,8 @@ export function FarmInventoryCard({
     ? "stardust"
     : labMarketPathForPlanet(planet);
   const theme = PATH_THEME[path] ?? PATH_THEME.zoom;
-  const displayColors = getPlanetDisplayColors(planet);
-  const accent = displayColors.color || theme.accent;
-  const glow = displayColors.glowColor || theme.glow;
+  const accent = theme.accent;
+  const glow = theme.glow;
   const reactivateColor = accent;
   const title = getPlanetDisplayName(planet);
   const hourRate = planet.name === "MUSHROOM" ? 5 : planet.rate;
@@ -111,7 +109,6 @@ export function FarmInventoryCard({
         <div
           className="lab-market-card__orb"
           aria-hidden
-          style={expired ? { filter: "grayscale(1) brightness(0.5)" } : undefined}
         >
           <PlanetVoxelThumb
             planet={planet}

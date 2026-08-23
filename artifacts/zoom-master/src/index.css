@@ -2518,8 +2518,19 @@ body.animations-paused * {
 .planet-voxel-thumb canvas,
 .planet-voxel-thumb--hifi canvas {
   display: block;
+  background: transparent !important;
+  max-width: 100%;
+  max-height: 100%;
+}
+.planet-voxel-thumb--hifi canvas {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+}
+.lab-market-card__orb canvas {
+  width: 100% !important;
+  height: 100% !important;
+  background: transparent !important;
+  image-rendering: auto;
 }
 .object-thumb canvas {
   display: block;
@@ -2845,6 +2856,8 @@ body.animations-paused * {
   transform: translateX(-50%);
   width: 132px;
   height: 132px;
+  overflow: hidden;
+  background: transparent;
   animation: lab-market-float 4.2s ease-in-out infinite;
 }
 .lab-market-card__path {

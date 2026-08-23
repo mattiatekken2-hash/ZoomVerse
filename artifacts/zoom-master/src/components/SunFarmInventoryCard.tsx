@@ -91,8 +91,6 @@ export function SunFarmInventoryCard({
             transform: "translateX(-50%)",
             width: orbThumb,
             height: orbThumb,
-            filter: expired ? "grayscale(1) brightness(0.5)" : undefined,
-            transition: "filter 0.3s",
           }}
         >
           <SunFarmThumb size={orbThumb} animate={active || expired} suspendGl={suspendGl} />

@@ -1,85 +1,118 @@
 import { useEffect, useRef, useState } from "react";
+import { NEW_PLAYER_ZOOM_GRANT } from "@workspace/game-models";
+import { finiteNumber } from "../utils/formatNumber";
 
 /**
- * Last-good wallet amounts. Survives Wallet remounts so opening the tab
- * never paints 0 / a stale grant while /grants or /balance/sync is in flight.
+ * Last-good wallet amounts, keyed by Telegram id so PC and Mini App
+ * cannot paint another account's snapshot. Survives Wallet remounts.
+ *
+ * Rules:
+ *  - Raise instantly (farm, grants, hydrate).
+ *  - Never auto-commit a downward flash (0, starter grant, in-flight sync).
+ *  - Downward only when live is a real spend / server value (not a ghost).
  */
-const STORAGE_KEY = "zoom-wallet-last-good-v1";
-const HOLD_DOWN_MS = 2_000;
+const STORAGE_KEY = "zoom-wallet-last-good-v2";
 
 export type StickyWalletKey = "zoom" | "gram" | "stardust" | "redStar" | "nftStar";
 
-type Snapshot = Partial<Record<StickyWalletKey, number>>;
+type AccountSnap = Partial<Record<StickyWalletKey, number>>;
+type Store = Record<string, AccountSnap>;
 
-let memory: Snapshot = {};
+const ACCOUNT_FALLBACK = "_";
+
+let store: Store = {};
 let loaded = false;
+let activeAccount = ACCOUNT_FALLBACK;
 
-function loadMemory() {
+function loadStore() {
   if (loaded) return;
   loaded = true;
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return;
-    const parsed = JSON.parse(raw) as Snapshot;
-    if (parsed && typeof parsed === "object") memory = parsed;
+    const parsed = JSON.parse(raw) as Store;
+    if (parsed && typeof parsed === "object") store = parsed;
   } catch { /**/ }
 }
 
 function persist() {
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(memory));
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(store));
   } catch { /**/ }
 }
 
-export function peekStickyWalletBalance(key: StickyWalletKey): number | null {
-  loadMemory();
-  const v = memory[key];
+function bucket(accountId?: string | null): AccountSnap {
+  loadStore();
+  const id = accountId && /^\d{5,12}$/.test(accountId) ? accountId : activeAccount;
+  if (!store[id]) store[id] = {};
+  return store[id];
+}
+
+export function setStickyWalletAccount(telegramId: string | null | undefined) {
+  loadStore();
+  if (telegramId && /^\d{5,12}$/.test(telegramId)) activeAccount = telegramId;
+}
+
+function isGhostZoom(value: number, shown: number): boolean {
+  if (value <= 0 && shown > 0) return true;
+  if (value === NEW_PLAYER_ZOOM_GRANT && shown > value + 1) return true;
+  return false;
+}
+
+function isGhostAmount(key: StickyWalletKey, value: number, shown: number): boolean {
+  if (value <= 0 && shown > 0) return true;
+  if (key === "zoom" && isGhostZoom(value, shown)) return true;
+  return false;
+}
+
+export function peekStickyWalletBalance(key: StickyWalletKey, accountId?: string | null): number | null {
+  const v = bucket(accountId)[key];
   return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
 }
 
 /** Raise the last-good watermark. Never used to flash a lower value. */
-export function rememberStickyWalletBalance(key: StickyWalletKey, value: number) {
-  loadMemory();
-  if (!Number.isFinite(value) || value <= 0) return;
-  const prev = memory[key];
-  if (prev == null || value > prev + 1e-12) {
-    memory[key] = value;
+export function rememberStickyWalletBalance(key: StickyWalletKey, value: number, accountId?: string | null) {
+  const v = finiteNumber(value, -1);
+  if (v <= 0) return;
+  const snap = bucket(accountId);
+  const prev = snap[key];
+  if (key === "zoom" && isGhostZoom(v, prev ?? 0) && prev != null && prev > v) return;
+  if (prev == null || v > prev + 1e-12) {
+    snap[key] = v;
     persist();
   }
 }
 
 /** Accept a real spend / server snap (downward allowed). */
-export function commitStickyWalletBalance(key: StickyWalletKey, value: number) {
-  loadMemory();
-  if (!Number.isFinite(value) || value < 0) return;
-  memory[key] = value;
+export function commitStickyWalletBalance(key: StickyWalletKey, value: number, accountId?: string | null) {
+  const v = finiteNumber(value, -1);
+  if (v < 0) return;
+  bucket(accountId)[key] = v;
   persist();
 }
 
 /**
- * Paint the last confirmed balance immediately. Ignore short downward
- * flashes (tab switch, grants poll, in-flight sync). Raise instantly.
+ * Paint the last confirmed balance immediately. Ignore ghost dips
+ * (0, starter grant, tab switch). Raise instantly. Never timeout-commit down.
  */
 export function useStickyWalletBalance(
   live: number,
   key: StickyWalletKey,
-  holdMs = HOLD_DOWN_MS,
+  _holdMs?: number,
 ): number {
-  loadMemory();
+  loadStore();
   const [shown, setShown] = useState(() => {
-    const v = Number.isFinite(live) && live >= 0 ? live : 0;
+    const v = finiteNumber(live, 0);
     const last = peekStickyWalletBalance(key);
     if (last != null && last > v) return last;
-    if (v > 0) rememberStickyWalletBalance(key, v);
-    return v;
+    if (v > 0 && !isGhostAmount(key, v, last ?? 0)) rememberStickyWalletBalance(key, v);
+    return last != null && last > v ? last : Math.max(0, v);
   });
   const shownRef = useRef(shown);
   shownRef.current = shown;
-  const liveRef = useRef(live);
-  liveRef.current = live;
 
   useEffect(() => {
-    const v = Number(live);
+    const v = finiteNumber(live, NaN);
     if (!Number.isFinite(v) || v < 0) return;
 
     if (v + 1e-12 >= shownRef.current) {
@@ -88,14 +121,11 @@ export function useStickyWalletBalance(
       return;
     }
 
-    const t = window.setTimeout(() => {
-      const latest = Number(liveRef.current);
-      if (!Number.isFinite(latest) || latest < 0) return;
-      commitStickyWalletBalance(key, latest);
-      setShown(latest);
-    }, holdMs);
-    return () => window.clearTimeout(t);
-  }, [live, key, holdMs]);
+    if (isGhostAmount(key, v, shownRef.current)) return;
+
+    commitStickyWalletBalance(key, v);
+    setShown(v);
+  }, [live, key]);
 
   return shown;
 }
