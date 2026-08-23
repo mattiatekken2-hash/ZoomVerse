@@ -579,6 +579,7 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
               disabled={!canTapForge && !canOpenForgePicker}
               data-no-global-haptic
               data-testid="button-craft"
+              data-tutorial="forge"
               style={{
                 flex: 1,
                 width: "auto",

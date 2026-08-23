@@ -803,7 +803,7 @@ function PixelAvatarBase({
 
               <button
                 className="pixel-modal-btn primary"
-                style={{ width: "100%", marginBottom: 10 }}
+                style={{ width: "100%", marginBottom: 10, display: "none" }}
                 onClick={handleDeposit}
               >
                 DEPOSIT GRAM

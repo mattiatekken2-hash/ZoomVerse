@@ -2,17 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { createStarsInvoice, confirmStarsPurchase, buyShopItemFromStardust, buyShopItemFromDeposit, fetchSunStock, pollTxnUntilFinal, fetchHomeState, fetchSlotPrice, fetchStardustMarketPrice, type SunStock, type HomeState, type SlotPriceInfo } from "../utils/api";
 import { stardustShopPrice } from "../utils/stardustMarket";
 import { useT } from "../i18n/LanguageContext";
-import { ZoomStoreWidget } from "../components/ZoomStoreWidget";
 import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
 import { GramDiamondIcon } from "../components/GramDiamondIcon";
 import { patchShopPrefetch, readShopPrefetch } from "../utils/shopPrefetch";
 
 const CYAN = "#9EC5E8";
-const SHOP_TABS = [
-  { id: "lab" as const, label: "Lab", short: "LAB", color: "#a855f7", icon: "zoom" },
-  { id: "bundles" as const, label: "Bundles", short: "PACK", color: CYAN, icon: "zoom" },
-  { id: "items" as const, label: "Items", short: "ITEM", color: "#c471ed", icon: "zoom" },
-];
 
 interface ShopItem {
   id: string;
@@ -123,7 +117,6 @@ export function ShopPage({
   // - exclusive: SUN (e in futuro altri NFT/limited shop items)
   // - items: bundle pacchetti + extra slot (consumabili "in-game")
   // - resources: stardust top-ups + computer/plant (currency e item stardust)
-  const [shopTab, setShopTab] = useState<"bundles" | "items" | "lab">("lab");
 
   useEffect(() => {
     setLiveStardustBalance(stardustBalanceProp);
@@ -476,69 +469,8 @@ export function ShopPage({
         )}
       </div>
 
-      <div className="flex-shrink-0 px-4 py-3 overflow-x-auto" style={{ background: "rgba(6,8,16,0.55)" }}>
-        <div className="flex gap-2 min-w-max">
-          {SHOP_TABS.map((tab) => {
-            const active = shopTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setShopTab(tab.id)}
-                className="px-3 py-2 rounded-xl text-[11px] font-black tracking-wider transition-all active:scale-95 flex items-center gap-1.5"
-                style={{
-                  background: active ? `${tab.color}18` : "rgba(255,255,255,0.03)",
-                  color: active ? tab.color : "rgba(255,255,255,0.40)",
-                  border: active ? `1px solid ${tab.color}55` : "1px solid rgba(255,255,255,0.06)",
-                  boxShadow: active ? `0 0 16px ${tab.color}22` : "none",
-                }}
-                data-testid={`tab-shop-${tab.id}`}
-              >
-                <span style={{ fontSize: 13, lineHeight: 1, display: "flex" }}>
-                  <ZoomCubeIcon size={14} />
-                </span>
-                <span>{tab.short}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="flex flex-col gap-3">
-          {shopTab === "bundles" && (<>
-          <div
-            className="rounded-2xl p-8 border relative overflow-hidden flex flex-col items-center justify-center text-center"
-            style={{
-              borderColor: "rgba(158,197,232,0.22)",
-              background: "linear-gradient(160deg, rgba(8,12,20,0.92), rgba(4,6,12,0.98))",
-              minHeight: 280,
-              boxShadow: "inset 0 0 48px rgba(0,0,0,0.45)",
-            }}
-          >
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{ background: "rgba(0,0,0,0.55)", backdropFilter: "blur(2px)" }}
-            />
-            <div className="relative z-10 flex flex-col items-center gap-3 px-4">
-              <ZoomCubeIcon size={56} />
-              <div className="font-black text-xl tracking-widest uppercase" style={{ color: CYAN }}>
-                {t("shop.comingSoon")}
-              </div>
-              <div className="text-xs font-semibold" style={{ color: "rgba(255,255,255,0.42)", maxWidth: 280, lineHeight: 1.5 }}>
-                {t("shop.comingSoonHint")}
-              </div>
-            </div>
-          </div>
-          </>)}
-
-          {shopTab === "lab" && (<>
-          <div className="font-black text-sm tracking-widest uppercase mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-            {t("shop.section.labMerch")}
-          </div>
-          <ZoomStoreWidget shopMode />
-          </>)}
-
-          {shopTab === "items" && (<>
           <div className="font-black text-sm tracking-widest uppercase mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
             {t("shop.section.packsItems")}
           </div>
@@ -652,7 +584,6 @@ export function ShopPage({
               </div>
             );
           })()}
-          </>)}
         </div>
       </div>
     </div>
