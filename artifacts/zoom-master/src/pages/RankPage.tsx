@@ -35,6 +35,18 @@ function isPlaceholderRankName(name: string | null | undefined): boolean {
   return !n || /^player$/i.test(n);
 }
 
+function getTelegramFirstName(): string | null {
+  try {
+    const user = (window as unknown as {
+      Telegram?: { WebApp?: { initDataUnsafe?: { user?: { first_name?: string } } } };
+    }).Telegram?.WebApp?.initDataUnsafe?.user;
+    const name = typeof user?.first_name === "string" ? user.first_name.trim() : "";
+    return name || null;
+  } catch {
+    return null;
+  }
+}
+
 export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSpent: _totalTonSpent, feedEvents: _feedEvents, telegramId, planets = [], visible }: RankPageProps) {
   void visible;
   void seasonPoolEarned;
@@ -52,12 +64,36 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
   const seasonStart = seasonEpoch && seasonEpoch > 0 ? seasonEpoch : DEFAULT_SEASON_START;
   const loadingLb = !initialized && leaderboard.length === 0;
   const visibleLeaderboard = useMemo(() => {
-    return leaderboard.filter((entry) => {
-      const isUser = !!telegramId && entry.telegramId === telegramId;
-      if (isUser) return true;
-      return !isPlaceholderRankName(entry.firstName);
-    });
-  }, [leaderboard, telegramId]);
+    const tgName = getTelegramFirstName();
+    const rows = leaderboard
+      .filter((entry) => {
+        if (telegramId && entry.telegramId === telegramId) return true;
+        return !isPlaceholderRankName(entry.firstName);
+      })
+      .map((entry) => {
+        if (
+          telegramId &&
+          entry.telegramId === telegramId &&
+          isPlaceholderRankName(entry.firstName) &&
+          tgName
+        ) {
+          return { ...entry, firstName: tgName };
+        }
+        return entry;
+      });
+    if (telegramId && balance > 0 && !rows.some((e) => e.telegramId === telegramId)) {
+      rows.push({
+        rank: 0,
+        telegramId,
+        firstName: tgName || "",
+        photoUrl: null,
+        zoomBalance: balance,
+      });
+    }
+    return rows
+      .sort((a, b) => b.zoomBalance - a.zoomBalance)
+      .map((entry, index) => ({ ...entry, rank: index + 1 }));
+  }, [leaderboard, telegramId, balance]);
 
   const labRarityCounts = useMemo(() => {
     const crafted = profile?.crafted as Record<string, number> | undefined;
@@ -202,7 +238,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                 const isUser = !!telegramId && entry.telegramId === telegramId;
                 const top3 = entry.rank <= 3;
                 const displayName = isPlaceholderRankName(entry.firstName)
-                  ? (isUser ? t("rank.you2") : "")
+                  ? (isUser ? (getTelegramFirstName() || t("rank.you2")) : "")
                   : entry.firstName;
                 return (
                   <div
@@ -244,18 +280,6 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                   </div>
                 );
               })}
-              {telegramId && visibleLeaderboard.length > 0 && !visibleLeaderboard.some(e => e.telegramId === telegramId) && (
-                <div
-                  className="rounded-xl border flex items-center gap-3 px-3 py-2 mt-1"
-                  style={{ borderColor: "rgba(158,197,232,0.15)", background: "rgba(158,197,232,0.04)" }}
-                >
-                  <div className="font-black text-sm w-7 text-center flex-shrink-0" style={{ color: "rgba(232,236,244,0.5)" }}>—</div>
-                  <div className="flex-1 font-black text-sm opacity-60" style={{ color: "#E8ECF4" }}>{t("rank.you2")}</div>
-                  <div className="text-xs font-black tabular-nums" style={{ color: "rgba(158,197,232,0.65)" }}>
-                    {t("rank.zoomBalance", { n: formatZoom(balance) })}
-                  </div>
-                </div>
-              )}
             </div>
             <div className="text-[10px] mt-2 leading-relaxed" style={{ color: "rgba(255,255,255,0.25)" }}>
               {t("rank.top10desc")}
