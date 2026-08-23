@@ -10,6 +10,7 @@ import { LabModelRevealCard } from "../components/LabModelRevealCard";
 import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
 import { ForgeUiErrorBoundary } from "../components/ForgeUiErrorBoundary";
 import { GramDiamondIcon } from "../components/GramDiamondIcon";
+import { LabRankWidget } from "../components/LabRankWidget";
 import type { LabForgePath } from "@workspace/game-models";
 import type { Planet } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
@@ -30,6 +31,7 @@ interface LabPageProps {
   hasAutoTap: boolean;
   stardustBalance: number;
   telegramId: string | null;
+  sunCount?: number;
   onCraft: (availableStardust?: number) => { completed: boolean; tapsLeft?: number };
   onBeginLabForge: (path: LabForgePath) => { ok: boolean; reason?: string };
   onClaim: () => void;
@@ -62,7 +64,7 @@ function openExternalUrl(url: string) {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
-export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, labForgeShapeId = null, labForgePath = null, hasAutoTap, stardustBalance, telegramId, onCraft, onBeginLabForge, onClaim, onOpenShop, onOpenStudio, muted = false, setMuted, visible = true }: LabPageProps) {
+export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, labForgeShapeId = null, labForgePath = null, hasAutoTap, stardustBalance, telegramId, sunCount = 0, onCraft, onBeginLabForge, onClaim, onOpenShop, onOpenStudio, muted = false, setMuted, visible = true }: LabPageProps) {
   const { t } = useT();
   const [forgePickerOpen, setForgePickerOpen] = useState(false);
   const [floats, setFloats] = useState<FloatMsg[]>([]);
@@ -209,7 +211,7 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
   const { startHold, stopHold, holding } = useAutoTapHold({
     enabled: hasAutoTap && isForgingActive,
     canCraft: canTapForge,
-    onTap: () => handleCraft({ relaxed: true, haptic: false }),
+    onTap: () => handleCraft({ relaxed: true, haptic: true }),
   });
 
   useEffect(() => {
@@ -338,6 +340,21 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
         >
           <GramDiamondIcon size={22} />
         </button>
+
+        <div
+          className="absolute z-30 pointer-events-auto"
+          style={{
+            right: 6,
+            top: "max(102px, calc(env(safe-area-inset-top, 0px) + 96px))",
+          }}
+        >
+          <LabRankWidget
+            telegramId={telegramId}
+            sunCount={sunCount}
+            balance={balance}
+            headerMode
+          />
+        </div>
 
         <div
           className="absolute left-0 right-0 z-30 flex items-center justify-center gap-2 px-3 pointer-events-none"

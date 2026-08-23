@@ -8,6 +8,7 @@ import {
 } from "../hooks/useGameState";
 import { getPlanetDisplayName } from "../utils/planetNames";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
+import { ZoomCubeIcon } from "./ZoomCubeIcon";
 import { useT } from "../i18n/LanguageContext";
 import { labMarketPathForPlanet, type LabMarketPath } from "@workspace/game-models";
 
@@ -35,7 +36,7 @@ interface FarmInventoryCardProps {
 }
 
 const PATH_THEME: Record<LabMarketPath, { accent: string; glow: string; label: string; yieldUnit: string }> = {
-  zoom: { accent: "#7bed9f", glow: "#2ed573", label: "$ZOOM", yieldUnit: "$ZOOM/h" },
+  zoom: { accent: "#7bed9f", glow: "#2ed573", label: "ZOOM", yieldUnit: "ZOOM/h" },
   stardust: { accent: "#ffd740", glow: "#ffc107", label: "★ STARDUST", yieldUnit: "★/h" },
 };
 
@@ -79,7 +80,10 @@ export function FarmInventoryCard({
     ? "stardust"
     : labMarketPathForPlanet(planet);
   const theme = PATH_THEME[path] ?? PATH_THEME.zoom;
-  const reactivateColor = getPlanetDisplayColors(planet).color;
+  const displayColors = getPlanetDisplayColors(planet);
+  const accent = displayColors.color || theme.accent;
+  const glow = displayColors.glowColor || theme.glow;
+  const reactivateColor = accent;
   const title = getPlanetDisplayName(planet);
   const hourRate = planet.name === "MUSHROOM" ? 5 : planet.rate;
   const cycleTotal = planet.name === "MUSHROOM" ? 5 : planet.rate * farmHours;
@@ -90,9 +94,9 @@ export function FarmInventoryCard({
     <article
       className={`lab-market-card farm-inventory-card${compact ? " lab-market-card--compact" : ""}${className ? ` ${className}` : ""}`}
       style={{
-        ["--mkt-accent" as string]: theme.accent,
-        ["--mkt-glow" as string]: theme.glow,
-        ["--mkt-accent-a" as string]: rgba(theme.accent, 0.22),
+        ["--mkt-accent" as string]: accent,
+        ["--mkt-glow" as string]: glow,
+        ["--mkt-accent-a" as string]: rgba(accent, 0.22),
         ["--farm-reactivate" as string]: reactivateColor,
         cursor: onCardClick ? "pointer" : undefined,
         width: compact ? 268 : "100%",
@@ -124,13 +128,17 @@ export function FarmInventoryCard({
             </span>
           )}
         </div>
-        <span className="lab-market-card__path">{theme.label}</span>
+        <span className="lab-market-card__path">
+          {path === "zoom" && <ZoomCubeIcon size={11} />}
+          {theme.label}
+        </span>
       </div>
 
       <div className="lab-market-card__body">
         <h3 className="lab-market-card__title">{title}</h3>
         <div className="lab-market-card__meta">
           <span className="lab-market-card__yield">
+            {path === "zoom" && <ZoomCubeIcon size={11} />}
             +{formatYieldAmount(hourRate)} {theme.yieldUnit}
           </span>
           {showCycle && (

@@ -365,7 +365,7 @@ export function FarmPage({
         <div className="flex flex-col gap-3">
 
           <div className="lab-market__grid">
-          {farmGenerators.map((planet, cardIndex) => {
+          {farmGenerators.map((planet) => {
             const isListed = planet.isListedInMarket;
 
             const handleStartOrReactivate = () => {
@@ -383,8 +383,8 @@ export function FarmPage({
                 planet={planet}
                 variant="grid"
                 suspendGl={!!detailPlanet}
-                eagerThumb={false}
-                glDelayMs={cardIndex * 70}
+                eagerThumb
+                glDelayMs={0}
                 testId={`planet-card-${planet.id}`}
                 onCardClick={() => setDetailPlanet(planet)}
                 onStartFarm={handleStartOrReactivate}

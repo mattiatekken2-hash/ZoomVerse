@@ -152,13 +152,16 @@ export function VoxelStudioCanvas({
 
     const gridPivot = preview ? null : addLabGrid(scene);
 
+    const modelPivot = new THREE.Group();
+    scene.add(modelPivot);
+
     const cube = VOXEL * CUBE_FILL;
     const geo = new THREE.BoxGeometry(cube, cube, cube);
     const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
     const mesh = new THREE.InstancedMesh(geo, mat, MAX_VOXELS);
     mesh.frustumCulled = false;
     mesh.castShadow = false;
-    scene.add(mesh);
+    modelPivot.add(mesh);
     const tint = new THREE.Color();
 
     const edgeVertCount = UNIT_BOX_EDGES.length / 3;
@@ -171,7 +174,7 @@ export function VoxelStudioCanvas({
     );
     edges.frustumCulled = false;
     edges.renderOrder = 2;
-    scene.add(edges);
+    modelPivot.add(edges);
 
     const dummy = new THREE.Object3D();
     const focus = new THREE.Vector3();
@@ -225,20 +228,15 @@ export function VoxelStudioCanvas({
     syncRef.current = sync;
     sync(voxelsRef.current);
 
-    let theta = Math.atan2(camDir.x, camDir.z);
-    let phi = Math.acos(Math.min(1, Math.max(-1, camDir.y)));
+    let theta = 0;
+    let phi = 0;
     let dragging = false;
     let lastX = 0;
     let lastY = 0;
     let moved = 0;
 
     const orbitCam = () => {
-      camera.position.set(
-        focus.x + dist * Math.sin(phi) * Math.sin(theta),
-        focus.y + dist * Math.cos(phi),
-        focus.z + dist * Math.sin(phi) * Math.cos(theta),
-      );
-      camera.lookAt(focus);
+      applyCam();
     };
 
     const resize = () => {
@@ -342,7 +340,8 @@ export function VoxelStudioCanvas({
       moved += Math.abs(dx) + Math.abs(dy);
       if (moved > 10) clearHold();
       theta -= dx * 0.008;
-      phi = Math.min(Math.PI - 0.12, Math.max(0.18, phi - dy * 0.008));
+      phi = Math.min(0.85, Math.max(-0.85, phi - dy * 0.008));
+      modelPivot.rotation.set(phi, theta, 0);
     };
     const onPointerUp = (e: PointerEvent) => {
       pointers.delete(e.pointerId);
@@ -403,9 +402,10 @@ export function VoxelStudioCanvas({
     const tick = (now: number) => {
       const dt = Math.min(32, now - lastFrame);
       lastFrame = now;
-      if (preview) theta += 0.006;
-      if (gridPivot) {
-        gridPivot.rotation.y += (Math.PI * 2 * dt) / 100_000;
+      void dt;
+      if (preview) {
+        theta += 0.006;
+        modelPivot.rotation.set(phi, theta, 0);
       }
       orbitCam();
       renderer.render(scene, camera);

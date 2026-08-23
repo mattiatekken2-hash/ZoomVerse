@@ -10,6 +10,7 @@ interface Props {
   sunCount: number;
   balance: number;
   shopMode?: boolean;
+  headerMode?: boolean;
 }
 
 function formatCountdown(ms: number): { d: number; h: number; m: number; s: number } {
@@ -26,7 +27,7 @@ function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: Props) {
+function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, headerMode = false }: Props) {
   // sunCount/balance kept for prop compatibility — craft leaderboard is now free.
   void sunCount;
   void balance;
@@ -120,7 +121,12 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
         role="button"
         tabIndex={0}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setOpen(true); }}
-        style={shopMode ? {
+        style={headerMode ? {
+          position: "relative",
+          width: 40,
+          height: 40,
+          cursor: "pointer",
+        } : shopMode ? {
           position: "relative",
           width: "100%",
           display: "flex",
@@ -148,9 +154,9 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
           className="lr-tile"
           style={{
             position: "relative",
-            width: shopMode ? 56 : 60,
-            height: shopMode ? 56 : 60,
-            borderRadius: 16,
+            width: headerMode ? 40 : shopMode ? 56 : 60,
+            height: headerMode ? 40 : shopMode ? 56 : 60,
+            borderRadius: headerMode ? "50%" : 16,
             background: "rgba(8,14,24,0.92)",
             border: `1.5px solid ${CYAN}88`,
             padding: 6,
@@ -171,7 +177,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
               filter: `drop-shadow(0 0 8px ${CYAN}aa)`,
             }}
           >
-            <GramDiamondIcon size={shopMode ? 34 : 32} />
+            <GramDiamondIcon size={headerMode ? 22 : shopMode ? 34 : 32} />
           </div>
           {userRank != null && userRank <= 100 && (
             <span
@@ -199,7 +205,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false }: 
             </span>
           )}
         </button>
-        {shopMode ? (
+        {headerMode ? null : shopMode ? (
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.16em", color: "rgba(0,212,255,0.7)", textTransform: "uppercase" }}>
               Hub

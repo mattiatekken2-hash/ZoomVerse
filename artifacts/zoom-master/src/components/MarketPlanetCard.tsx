@@ -1,8 +1,10 @@
 import {
   LAB_STARDUST_DISPLAY_NAME,
   LAB_STARDUST_FARM_RATE,
+  LAB_STARDUST_COLORS,
   LAB_ZOOM_DISPLAY_NAME,
   LAB_ZOOM_FARM_RATE,
+  LAB_ZOOM_COLORS,
   isLabStardustShapeId,
   isLabZoomShapeId,
   resolveLabStardustShapeId,
@@ -14,6 +16,7 @@ import {
   type LabMarketPath,
 } from "@workspace/game-models";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
+import { ZoomCubeIcon } from "./ZoomCubeIcon";
 
 function rgba(hex: string, alpha: number): string {
   const h = hex.replace("#", "");
@@ -23,9 +26,18 @@ function rgba(hex: string, alpha: number): string {
 }
 
 const PATH_THEME: Record<LabMarketPath, { accent: string; glow: string; label: string; yieldUnit: string }> = {
-  zoom: { accent: "#7bed9f", glow: "#2ed573", label: "$ZOOM", yieldUnit: "$ZOOM/h" },
+  zoom: { accent: "#7bed9f", glow: "#2ed573", label: "ZOOM", yieldUnit: "ZOOM/h" },
   stardust: { accent: "#ffd740", glow: "#ffc107", label: "★ STARDUST", yieldUnit: "★/h" },
 };
+
+function chromeForShape(shapeId: string | undefined, path: LabMarketPath): { color: string; glowColor: string } {
+  if (shapeId && isLabZoomShapeId(shapeId)) return LAB_ZOOM_COLORS[shapeId];
+  const stardustId = resolveLabStardustShapeId(shapeId);
+  if (stardustId) return LAB_STARDUST_COLORS[stardustId];
+  return path === "stardust"
+    ? { color: "#ffd740", glowColor: "#ffc107" }
+    : { color: "#7bed9f", glowColor: "#2ed573" };
+}
 
 export interface MarketPlanetListingView {
   id: string;
@@ -102,7 +114,6 @@ export function MarketPlanetCard({
   });
 
   const theme = PATH_THEME[path] ?? PATH_THEME.zoom;
-  const accent = theme.accent;
   const title = resolveTitle(listing, path);
   const rate = resolveRate(listing, path);
 
@@ -110,12 +121,14 @@ export function MarketPlanetCard({
     shapeId: listing.shapeId,
     displayName: listing.displayName,
   }) ?? listing.shapeId ?? undefined;
+  const chrome = chromeForShape(shapeId, path);
+  const accent = chrome.color;
 
   const fakePlanet = {
     id: listing.id,
     name: "BASIC" as const,
-    color: accent,
-    glowColor: theme.glow,
+    color: chrome.color,
+    glowColor: chrome.glowColor,
     rate,
     craftCost: 0,
     createdAt: 0,
@@ -134,7 +147,7 @@ export function MarketPlanetCard({
       className={`lab-market-card${highlighted ? " lab-market-card--focus" : ""}`}
       style={{
         ["--mkt-accent" as string]: accent,
-        ["--mkt-glow" as string]: theme.glow,
+        ["--mkt-glow" as string]: chrome.glowColor,
         ["--mkt-accent-a" as string]: rgba(accent, 0.22),
       }}
       data-testid={`listing-${listing.id}`}
@@ -144,13 +157,17 @@ export function MarketPlanetCard({
         <div className="lab-market-card__orb" aria-hidden>
           <PlanetVoxelThumb planet={fakePlanet} size={132} animate eager suspendGl={suspendGl} />
         </div>
-        <span className="lab-market-card__path">{theme.label}</span>
+        <span className="lab-market-card__path">
+          {path === "zoom" && <ZoomCubeIcon size={11} />}
+          {theme.label}
+        </span>
       </div>
 
       <div className="lab-market-card__body">
         <h3 className="lab-market-card__title">{title}</h3>
         <div className="lab-market-card__meta">
           <span className="lab-market-card__yield">
+            {path === "zoom" && <ZoomCubeIcon size={11} />}
             +{rate.toLocaleString(undefined, { maximumFractionDigits: 2 })} {theme.yieldUnit}
           </span>
           <span className="lab-market-card__price">{formatMarketListingPrice(listing.price, parseMarketPriceCurrency(listing.priceCurrency))}</span>

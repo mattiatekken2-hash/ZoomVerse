@@ -1104,9 +1104,15 @@ function loadState(): GameState {
           labForgeShapeId: null,
           labForgePath: null,
         };
-        const forgingNow = !!(base.labForgePath || base.pendingPlanet);
         const savedShape = (parsed as unknown as Record<string, unknown>).labForgeShapeId;
         const savedPath = (parsed as unknown as Record<string, unknown>).labForgePath;
+        const forgingNow = !!(
+          savedPath
+          || savedShape
+          || parsed.pendingPlanet
+          || parsed.forgePlanetBuild
+          || (typeof parsed.taps === "number" && parsed.taps > 0)
+        );
         // Lab economy — Farm keeps only ZOOM/Stardust generators (no BASIC…GOLD spheres).
         base.planets = base.planets.filter(isLabForgeGeneratorPlanet);
         if (isLabDevWipeActive() || consumeLabDevFarmResetOnce()) {
@@ -2091,6 +2097,23 @@ function mergeServerPlanetWithClient(serverP: Planet, clientP: Planet | undefine
         pausedAt: clientP.pausedAt ?? 0,
       });
     }
+  }
+  if (!clientP.isListedInMarket && serverP.isListedInMarket) {
+    return migrateStreetSceneToOnigiri({
+      ...serverP,
+      isListedInMarket: false,
+      isFarmingActive: clientP.isFarmingActive,
+      farmStartedAt: clientP.farmStartedAt,
+      lastCollectedAt: clientP.lastCollectedAt,
+      pausedAt: clientP.pausedAt,
+      marketPrice: null,
+      marketCurrency: undefined,
+      marketListedAt: undefined,
+      serverListingId: undefined,
+      shapeId: clientP.shapeId || serverP.shapeId,
+      color: clientP.color || serverP.color,
+      glowColor: clientP.glowColor || serverP.glowColor,
+    });
   }
   return migrateStreetSceneToOnigiri(serverP);
 }
@@ -4977,10 +5000,11 @@ export function useGameState() {
           const newLastCollectedAt = pauseShift > 0 && (p.lastCollectedAt || 0) > 0
             ? (p.lastCollectedAt || 0) + pauseShift
             : (p.lastCollectedAt || 0);
-          // Auto-resume only if a valid cycle still has time remaining.
-          const effStart = Math.max(newFarmStartedAt, newLastCollectedAt);
-          const cycleActive = effStart > 0 && (effStart + FARM_DURATION_MS) > now;
-          const wasActiveCycle = pauseShift > 0 && cycleActive;
+          const durationMs = getPlanetFarmDurationMs(p);
+          const remaining = newFarmStartedAt > 0
+            ? (newFarmStartedAt + durationMs) - now
+            : 0;
+          const resumeFarm = pauseShift > 0 && remaining > 0;
           return {
             ...p,
             isListedInMarket: false,
@@ -4988,10 +5012,10 @@ export function useGameState() {
             marketCurrency: undefined,
             marketListedAt: undefined,
             serverListingId: undefined,
-            isFarmingActive: wasActiveCycle,
+            isFarmingActive: resumeFarm,
             farmStartedAt: newFarmStartedAt,
             lastCollectedAt: newLastCollectedAt,
-            pausedAt: wasActiveCycle ? undefined : p.pausedAt,
+            pausedAt: resumeFarm ? undefined : (pauseShift > 0 ? undefined : p.pausedAt),
             durability: 100,
             durabilityUpdatedAt: 0,
           };
@@ -5018,6 +5042,7 @@ export function useGameState() {
             stateRef.current.craftsCompleted,
           );
         };
+        persist();
         if (telegramId) {
           void delistFromMarket(
             telegramId,
@@ -5026,12 +5051,11 @@ export function useGameState() {
               : null,
             id,
           ).then(() => {
-            persist();
             void refreshMarketListings(telegramId);
+            try { window.dispatchEvent(new Event("zoom-data-refresh")); } catch { /**/ }
           });
-        } else {
-          persist();
         }
+        try { window.dispatchEvent(new Event("zoom-data-refresh")); } catch { /**/ }
       }
       return updated;
     });
