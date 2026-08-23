@@ -162,7 +162,7 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
         </p>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 items-stretch">
+      <div className="lab-market__grid">
         {extraLocal.map((planet) => (
             <FarmInventoryCard
               key={`local-${planet.id}`}

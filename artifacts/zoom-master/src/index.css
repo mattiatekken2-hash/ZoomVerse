@@ -2935,6 +2935,11 @@ body.animations-paused * {
   color: #ffd700;
   background: rgba(255, 215, 0, 0.08);
 }
+.lab-market-card__delist:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  color: rgba(255, 255, 255, 0.4);
+}
 .lab-market-card__share {
   border: 1px solid rgba(0, 180, 255, 0.3);
   color: #36c5ff;
@@ -2946,6 +2951,51 @@ body.animations-paused * {
   color: rgba(255, 255, 255, 0.55);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.lab-market-card__reactivate {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid color-mix(in srgb, var(--mkt-accent) 55%, transparent);
+  color: var(--mkt-accent);
+  background: color-mix(in srgb, var(--mkt-accent) 10%, transparent);
+}
+.lab-market-card__reactivate-cost {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  opacity: 0.8;
+}
+.lab-market-card--compact .lab-market-card__stage {
+  height: 148px;
+}
+.lab-market-card--compact .lab-market-card__orb {
+  width: 112px;
+  height: 112px;
+  top: 14px;
+}
+.lab-market-card--empty,
+.lab-market-card--locked {
+  min-height: 276px;
+}
+.lab-market-card--empty:active {
+  transform: none;
+}
+.lab-market-card--empty .lab-market-card__stage,
+.lab-market-card--locked .lab-market-card__stage {
+  flex: 1;
+  min-height: 168px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lab-market-card__plus {
+  font-size: 44px;
+  font-weight: 200;
+  line-height: 1;
+  color: color-mix(in srgb, var(--mkt-accent) 70%, #fff);
 }
 
 @keyframes lab-market-pulse {

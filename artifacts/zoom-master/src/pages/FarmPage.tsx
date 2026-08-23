@@ -364,7 +364,7 @@ export function FarmPage({
       >
         <div className="flex flex-col gap-3">
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="lab-market__grid">
           {farmGenerators.map((planet, cardIndex) => {
             const isListed = planet.isListedInMarket;
 
@@ -393,47 +393,27 @@ export function FarmPage({
             );
           })}
           {Array.from({ length: Math.max(0, maxSlots - farmGenerators.length) }).map((_, i) => (
-            <div
+            <article
               key={`empty-${i}`}
-              className="farm-inventory-card"
+              className="lab-market-card lab-market-card--empty farm-inventory-card"
               style={{
-                minHeight: 308,
-                borderRadius: 16,
-                border: "1.5px solid rgba(158,197,232,0.22)",
-                background: "#08080c",
-                boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
+                ["--mkt-accent" as string]: "#9ec5e8",
+                ["--mkt-glow" as string]: "#9ec5e8",
+                ["--mkt-accent-a" as string]: "rgba(158,197,232,0.12)",
               }}
               data-testid={`slot-empty-${i}`}
             >
-              <div
-                style={{
-                  flex: 1,
-                  minHeight: 188,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: "linear-gradient(180deg, rgba(158,197,232,0.16) 0%, rgba(158,197,232,0.04) 55%, #08080c 100%)",
-                }}
-              >
-                <div style={{ fontSize: 44, fontWeight: 200, color: "rgba(255,255,255,0.32)", lineHeight: 1 }}>+</div>
+              <div className="lab-market-card__stage">
+                <div className="lab-market-card__plus" aria-hidden>+</div>
               </div>
-            </div>
+            </article>
           ))}
-          <div
-            className="farm-inventory-card"
+          <article
+            className="lab-market-card lab-market-card--locked farm-inventory-card"
             style={{
-              minHeight: 308,
-              borderRadius: 16,
-              border: "1.5px solid rgba(255,215,0,0.38)",
-              background: "#08080c",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
-              overflow: "hidden",
-              display: "flex",
-              flexDirection: "column",
+              ["--mkt-accent" as string]: "#ffd700",
+              ["--mkt-glow" as string]: "#ffee58",
+              ["--mkt-accent-a" as string]: "rgba(255,215,0,0.18)",
               cursor: slotBuying ? "wait" : "pointer",
               userSelect: "none",
               opacity: slotBuying ? 0.7 : 1,
@@ -463,20 +443,10 @@ export function FarmPage({
               }
             }}
           >
-            <div
-              style={{
-                flex: 1,
-                minHeight: 188,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "linear-gradient(180deg, rgba(255,215,0,0.18) 0%, rgba(255,215,0,0.05) 55%, #08080c 100%)",
-              }}
-            >
-              <div style={{ fontSize: 44, fontWeight: 200, color: "rgba(255,215,0,0.85)", lineHeight: 1 }}>+</div>
+            <div className="lab-market-card__stage">
+              <div className="lab-market-card__plus" aria-hidden>+</div>
             </div>
-          </div>
+          </article>
           </div>{/* end 2-col grid */}
 
         {farmGenerators.length === 0 && (
