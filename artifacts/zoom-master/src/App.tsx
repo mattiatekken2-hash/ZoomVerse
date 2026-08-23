@@ -30,6 +30,7 @@ import { SPLASH_MS } from "./utils/bootSplash";
 import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
 import { prefetchWalletMarket } from "./utils/walletMarketCache";
+import { rememberStickyWalletBalance } from "./hooks/useStickyWalletBalance";
 import { prefetchCombo } from "./utils/comboCache";
 import { initVersionCheck } from "./utils/appVersion";
 
@@ -416,7 +417,24 @@ function AppShellWithState() {
     !state.forgeRolling,
   );
   const visitedEarnRef = useRef(false);
-  const visitedTabsRef = useRef<Set<Tab>>(new Set(["lab"]));
+  const visitedTabsRef = useRef<Set<Tab>>(new Set(["lab", "wallet"]));
+
+  // Keep last-good wallet amounts even while Wallet is hidden, so a grants/sync
+  // dip cannot paint zeros the next time the user opens the tab.
+  useEffect(() => {
+    rememberStickyWalletBalance("zoom", state.balance || 0);
+    rememberStickyWalletBalance("gram", Math.max(0, (state.tonBalance || 0) + (state.depositBalance || 0)));
+    rememberStickyWalletBalance("stardust", state.stardustBalance || 0);
+    rememberStickyWalletBalance("redStar", state.redStarBalance || 0);
+    rememberStickyWalletBalance("nftStar", state.nftStarBalance || 0);
+  }, [
+    state.balance,
+    state.tonBalance,
+    state.depositBalance,
+    state.stardustBalance,
+    state.redStarBalance,
+    state.nftStarBalance,
+  ]);
   const [tgSafeTop, setTgSafeTop] = useState(0);
 
   useEffect(() => {
@@ -791,7 +809,7 @@ function AppShellWithState() {
           const keepEarnAlive = t === "earn" && (isActiveTab || visitedEarnRef.current);
           if (t === "earn" && isActiveTab) visitedEarnRef.current = true;
           if (isActiveTab) visitedTabsRef.current.add(t);
-          const keepVisited = t !== "shop" && visitedTabsRef.current.has(t);
+          const keepVisited = t !== "shop" && (t === "wallet" || visitedTabsRef.current.has(t));
           if (!isActiveTab && !isHiddenLabForge && !keepEarnAlive && !keepVisited) return null;
           return (
             <div

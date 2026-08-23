@@ -1,4 +1,8 @@
-import { useMemo, useEffect, useState, useCallback, useRef, type ReactNode } from "react";
+import { useMemo, useEffect, useState, useCallback, type ReactNode } from "react";
+import {
+  commitStickyWalletBalance,
+  useStickyWalletBalance,
+} from "../hooks/useStickyWalletBalance";
 import { Lock } from "lucide-react";
 import { GramWalletPanel, GramWalletIcon, GramWalletConnectButton, type TonWalletProps } from "../components/TonWalletWidget";
 import { StardustMarketModal } from "../components/StardustMarketModal";
@@ -79,22 +83,6 @@ function formatUsdFromGram(gramValue: number | null, tonPrice: number | null, lo
   return `$${usd.toFixed(2)}`;
 }
 
-/** Ignore brief downward flashes (tab switch / in-flight sync) so the wallet does not bounce. */
-function useHeldValue(value: number, holdMs = 500): number {
-  const [shown, setShown] = useState(value);
-  const latest = useRef(value);
-  latest.current = value;
-  useEffect(() => {
-    if (value + 1e-9 >= shown) {
-      setShown(value);
-      return;
-    }
-    const t = window.setTimeout(() => setShown(latest.current), holdMs);
-    return () => window.clearTimeout(t);
-  }, [value, shown, holdMs]);
-  return shown;
-}
-
 export function WalletPage({
   tonBalance,
   depositBalance,
@@ -145,8 +133,8 @@ export function WalletPage({
     if (cached.zoomChange24hPct != null && Number.isFinite(cached.zoomChange24hPct)) {
       setZoomChangePct(cached.zoomChange24hPct);
     }
-    if (Number.isFinite(cached.stardustIndex)) {
-      setStardustIndex(cached.stardustIndex);
+    if (Number.isFinite(cached.stardustIndex) && cached.stardustIndex > 0) {
+      setStardustIndex((prev) => (cached.stardustIndex === 1 && prev > 1 ? prev : cached.stardustIndex));
     }
     if (cached.stardustChange24hPct != null && Number.isFinite(cached.stardustChange24hPct)) {
       setStardustChangePct(cached.stardustChange24hPct);
@@ -204,9 +192,11 @@ export function WalletPage({
   }, [applyGramMarket]);
 
   const gramTotal = Math.max(0, (tonBalance || 0) + (depositBalance || 0));
-  const shownGramTotal = useHeldValue(gramTotal);
-  const shownZoomBalance = useHeldValue(balance);
-  const shownStardustBalance = useHeldValue(liveStardustBalance);
+  const shownGramTotal = useStickyWalletBalance(gramTotal, "gram");
+  const shownZoomBalance = useStickyWalletBalance(balance, "zoom");
+  const shownStardustBalance = useStickyWalletBalance(liveStardustBalance, "stardust");
+  const shownRedStarBalance = useStickyWalletBalance(redStarBalance, "redStar");
+  const shownNftStarBalance = useStickyWalletBalance(nftStarBalance, "nftStar");
   const usdtValue = tonPrice !== null ? (shownGramTotal * tonPrice).toFixed(2) : null;
   const zoomGramValue = zoomPriceGram != null && shownZoomBalance > 0 ? shownZoomBalance * zoomPriceGram : null;
   const stardustGramValue = shownStardustBalance > 0
@@ -217,12 +207,12 @@ export function WalletPage({
   const zoomIconValue = formatZoomChartPrice(zoomPriceGram, true);
   const stardustIconValue = formatStardustChartIndex(stardustIndex);
   const gramIconValue = formatGramChartUsd(tonPrice);
-  const redStarGramValue = redStarBalance > 0 ? redStarBalance * REDSTAR_GRAM_PER_UNIT : null;
-  const nftStarGramValue = nftStarBalance > 0 ? nftStarBalance * NFTSTAR_GRAM_PER_UNIT : null;
-  const redStarIconValue = redStarBalance > 0 && redStarGramValue != null
+  const redStarGramValue = shownRedStarBalance > 0 ? shownRedStarBalance * REDSTAR_GRAM_PER_UNIT : null;
+  const nftStarGramValue = shownNftStarBalance > 0 ? shownNftStarBalance * NFTSTAR_GRAM_PER_UNIT : null;
+  const redStarIconValue = shownRedStarBalance > 0 && redStarGramValue != null
     ? formatGramValueFull(redStarGramValue)
     : formatGramValueFull(REDSTAR_GRAM_PER_UNIT);
-  const nftStarIconValue = nftStarBalance > 0 && nftStarGramValue != null
+  const nftStarIconValue = shownNftStarBalance > 0 && nftStarGramValue != null
     ? formatGramValueFull(nftStarGramValue)
     : formatGramValueFull(NFTSTAR_GRAM_PER_UNIT);
   const priceLabel = tonPrice !== null
@@ -494,7 +484,7 @@ export function WalletPage({
           <BalanceRow
             icon={<WalletStarIcon variant="redstar" size={BALANCE_ICON_SIZE} />}
             label={t("resources.redStar")}
-            value={redStarBalance.toLocaleString()}
+            value={shownRedStarBalance.toLocaleString()}
             color="#ff4444"
             iconColor="#ff4444"
             gramValue={redStarGramValue}
@@ -507,7 +497,7 @@ export function WalletPage({
           <BalanceRow
             icon={<WalletStarIcon variant="nftstar" size={BALANCE_ICON_SIZE} />}
             label={t("resources.nftStar")}
-            value={nftStarBalance.toLocaleString()}
+            value={shownNftStarBalance.toLocaleString()}
             color="#a0a0a8"
             iconColor="#a0a0a8"
             gramValue={nftStarGramValue}
@@ -606,7 +596,10 @@ export function WalletPage({
           depositBalance={depositBalance}
           earnedGramBalance={tonBalance}
           onClose={() => setStardustMarketOpen(false)}
-          onBalanceChange={setLiveStardustBalance}
+          onBalanceChange={(next) => {
+            commitStickyWalletBalance("stardust", next);
+            setLiveStardustBalance(next);
+          }}
         />
       )}
     </div>

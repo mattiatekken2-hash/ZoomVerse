@@ -4009,8 +4009,21 @@ export function useGameState() {
   }, []);
 
   useEffect(() => {
+    // iOS / Telegram WebView often fires a hidden→visible flicker when
+    // swapping tabs that hide a WebGL canvas (Lab). That used to pull
+    // /grants + zoom-data-refresh and snap GRAM/ZOOM down, then back up.
+    let hiddenSince = 0;
+    const REAL_BACKGROUND_MS = 2_000;
+
     const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenSince = Date.now();
+        return;
+      }
       if (document.visibilityState !== "visible") return;
+      const awayMs = hiddenSince > 0 ? Date.now() - hiddenSince : 0;
+      hiddenSince = 0;
+      if (awayMs < REAL_BACKGROUND_MS) return;
 
       const localNow = serverNow();
       setState((prev) => settleFarmingState(prev, localNow));
