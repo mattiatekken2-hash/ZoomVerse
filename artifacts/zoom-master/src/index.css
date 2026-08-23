@@ -2952,21 +2952,36 @@ body.animations-paused * {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
-.lab-market-card__reactivate {
+.farm-inventory-card__reactivate {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
-  border: 1px solid color-mix(in srgb, var(--mkt-accent) 55%, transparent);
-  color: var(--mkt-accent);
-  background: color-mix(in srgb, var(--mkt-accent) 10%, transparent);
+  width: 100%;
+  border-radius: 12px;
+  padding: 14px 0;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1.5px solid color-mix(in srgb, var(--farm-reactivate, var(--mkt-accent)) 65%, transparent);
+  color: var(--farm-reactivate, var(--mkt-accent));
 }
-.lab-market-card__reactivate-cost {
+.farm-inventory-card__reactivate-cost {
   font-size: 8px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  opacity: 0.8;
+  opacity: 0.85;
+}
+.lab-market-card--compact .farm-inventory-card__reactivate {
+  padding: 9px 0;
+  font-size: 10px;
+}
+.lab-market-card--compact .farm-inventory-card__reactivate-cost {
+  font-size: 7px;
 }
 .lab-market-card--compact .lab-market-card__stage {
   height: 148px;

@@ -2,6 +2,7 @@ import type { Planet } from "../hooks/useGameState";
 import {
   formatDuration,
   getFarmTimeRemaining,
+  getPlanetDisplayColors,
   isFarmActive,
   isFarmExpired,
 } from "../hooks/useGameState";
@@ -78,6 +79,7 @@ export function FarmInventoryCard({
     ? "stardust"
     : labMarketPathForPlanet(planet);
   const theme = PATH_THEME[path] ?? PATH_THEME.zoom;
+  const reactivateColor = getPlanetDisplayColors(planet).color;
   const title = getPlanetDisplayName(planet);
   const hourRate = planet.name === "MUSHROOM" ? 5 : planet.rate;
   const cycleTotal = planet.name === "MUSHROOM" ? 5 : planet.rate * farmHours;
@@ -91,6 +93,7 @@ export function FarmInventoryCard({
         ["--mkt-accent" as string]: theme.accent,
         ["--mkt-glow" as string]: theme.glow,
         ["--mkt-accent-a" as string]: rgba(theme.accent, 0.22),
+        ["--farm-reactivate" as string]: reactivateColor,
         cursor: onCardClick ? "pointer" : undefined,
         width: compact ? 268 : "100%",
         maxWidth: compact ? 268 : undefined,
@@ -165,7 +168,7 @@ export function FarmInventoryCard({
             ) : expired ? (
               <button
                 type="button"
-                className="lab-market-card__reactivate"
+                className="farm-inventory-card__reactivate"
                 onClick={(e) => {
                   e.stopPropagation();
                   onStartFarm?.();
@@ -173,7 +176,7 @@ export function FarmInventoryCard({
                 data-testid={`btn-reactivate-${planet.id}`}
               >
                 <span>{t("farm.reactivate").toUpperCase()}</span>
-                <span className="lab-market-card__reactivate-cost">{t("farm.reactivateCost")}</span>
+                <span className="farm-inventory-card__reactivate-cost">{t("farm.reactivateCost")}</span>
               </button>
             ) : (
               <button
