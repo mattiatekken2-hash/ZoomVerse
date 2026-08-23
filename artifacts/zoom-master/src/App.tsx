@@ -825,6 +825,7 @@ function AppShellWithState() {
                   hasAutoTap={!!state.hasAutoTap}
                   stardustBalance={state.stardustBalance || 0}
                   telegramId={state.telegramId}
+                  sunCount={state.sunCount ?? 0}
                   onCraft={craft}
                   onBeginLabForge={beginLabForge}
                   onClaim={claimCraft}

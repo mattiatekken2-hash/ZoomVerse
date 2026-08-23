@@ -114,7 +114,7 @@ export function getLabForgeShapeVoxels(
     const packed = meshPartsToFullShapeVoxels(parts);
     const goal = Math.max(1, packed.voxels.length);
     return {
-      voxels: packed.voxels.map((v) => ({ ...v, color: FORGE_CLAY_HEX })),
+      voxels: packed.voxels,
       step: packed.step,
       goal,
       radius: voxelCloudRadius(packed.voxels, packed.step),

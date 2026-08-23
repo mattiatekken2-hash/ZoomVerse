@@ -2,17 +2,16 @@ import { useState, useEffect, useRef } from "react";
 import { createStarsInvoice, confirmStarsPurchase, buyShopItemFromStardust, buyShopItemFromDeposit, fetchSunStock, pollTxnUntilFinal, fetchHomeState, fetchSlotPrice, fetchStardustMarketPrice, type SunStock, type HomeState, type SlotPriceInfo } from "../utils/api";
 import { stardustShopPrice } from "../utils/stardustMarket";
 import { useT } from "../i18n/LanguageContext";
-import { LabRankWidget } from "../components/LabRankWidget";
 import { ZoomStoreWidget } from "../components/ZoomStoreWidget";
 import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
+import { GramDiamondIcon } from "../components/GramDiamondIcon";
 import { patchShopPrefetch, readShopPrefetch } from "../utils/shopPrefetch";
 
 const CYAN = "#9EC5E8";
 const SHOP_TABS = [
-  { id: "lab" as const, label: "Lab", short: "LAB", color: "#a855f7", icon: "⚗" },
-  { id: "hub" as const, label: "Hub", short: "HUB", color: "#00d4ff", icon: "◎" },
-  { id: "bundles" as const, label: "Bundles", short: "PACK", color: CYAN, icon: "◈" },
-  { id: "items" as const, label: "Items", short: "ITEM", color: "#c471ed", icon: "◇" },
+  { id: "lab" as const, label: "Lab", short: "LAB", color: "#a855f7", icon: "zoom" },
+  { id: "bundles" as const, label: "Bundles", short: "PACK", color: CYAN, icon: "zoom" },
+  { id: "items" as const, label: "Items", short: "ITEM", color: "#c471ed", icon: "zoom" },
 ];
 
 interface ShopItem {
@@ -108,6 +107,8 @@ export function ShopPage({
   onStellaClaimDaily,
 }: ShopPageProps) {
   const { t } = useT();
+  void sunCount;
+  void balance;
   const shopPrefetch = readShopPrefetch(telegramId);
   const [buying, setBuying] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -122,7 +123,7 @@ export function ShopPage({
   // - exclusive: SUN (e in futuro altri NFT/limited shop items)
   // - items: bundle pacchetti + extra slot (consumabili "in-game")
   // - resources: stardust top-ups + computer/plant (currency e item stardust)
-  const [shopTab, setShopTab] = useState<"bundles" | "items" | "lab" | "hub">("lab");
+  const [shopTab, setShopTab] = useState<"bundles" | "items" | "lab">("lab");
 
   useEffect(() => {
     setLiveStardustBalance(stardustBalanceProp);
@@ -450,7 +451,10 @@ export function ShopPage({
               boxShadow: payMode === "gram" ? "0 0 14px rgba(158,197,232,0.12)" : "none",
             }}
           >
-            {t("shop.payGram")}
+            <span className="inline-flex items-center justify-center gap-1">
+              <GramDiamondIcon size={12} />
+              {t("shop.payGram")}
+            </span>
           </button>
           <button
             onClick={() => setPayMode("stardust")}
@@ -490,7 +494,7 @@ export function ShopPage({
                 data-testid={`tab-shop-${tab.id}`}
               >
                 <span style={{ fontSize: 13, lineHeight: 1, display: "flex" }}>
-                  {tab.id === "bundles" ? <ZoomCubeIcon size={14} /> : tab.icon}
+                  <ZoomCubeIcon size={14} />
                 </span>
                 <span>{tab.short}</span>
               </button>
@@ -532,10 +536,6 @@ export function ShopPage({
             {t("shop.section.labMerch")}
           </div>
           <ZoomStoreWidget shopMode />
-          </>)}
-
-          {shopTab === "hub" && (<>
-          <LabRankWidget telegramId={telegramId ?? null} sunCount={sunCount} balance={balance} shopMode />
           </>)}
 
           {shopTab === "items" && (<>

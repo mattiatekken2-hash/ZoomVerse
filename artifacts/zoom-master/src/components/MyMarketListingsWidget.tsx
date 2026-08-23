@@ -15,6 +15,10 @@ import {
   labMarketPathForPlanet,
   labModelDisplayName,
   resolveLabShapeIdFromPlanet,
+  LAB_ZOOM_COLORS,
+  LAB_STARDUST_COLORS,
+  isLabZoomShapeId,
+  resolveLabStardustShapeId,
 } from "@workspace/game-models";
 
 interface Props {
@@ -46,15 +50,30 @@ function planetFromListing(listing: ServerMarketListing, local: Planet | undefin
     shapeId: listing.shapeId,
     displayName: listing.planetDisplayName,
   }) ?? listing.shapeId ?? undefined;
-  if (local) return { ...local, shapeId: local.shapeId || shapeId, isListedInMarket: true, marketPrice: listing.price };
+  const stardustId = resolveLabStardustShapeId(shapeId);
+  const chrome = shapeId && isLabZoomShapeId(shapeId)
+    ? LAB_ZOOM_COLORS[shapeId]
+    : stardustId
+      ? LAB_STARDUST_COLORS[stardustId]
+      : path === "stardust"
+        ? { color: "#ffd740", glowColor: "#ffc107" }
+        : { color: "#7bed9f", glowColor: "#2ed573" };
+  if (local) return {
+    ...local,
+    shapeId: local.shapeId || shapeId,
+    isListedInMarket: true,
+    marketPrice: listing.price,
+    color: local.color || chrome.color,
+    glowColor: local.glowColor || chrome.glowColor,
+  };
   return {
     id: listing.planetId || `listing-${listing.id}`,
     name: "BASIC",
     displayName: labelFor(listing),
     shapeId,
     rate: Number(listing.planetRate ?? 0),
-    color: path === "stardust" ? "#ffd740" : "#7bed9f",
-    glowColor: path === "stardust" ? "#ffc107" : "#2ed573",
+    color: chrome.color,
+    glowColor: chrome.glowColor,
     createdAt: Date.now(),
     farmStartedAt: 0,
     lastCollectedAt: 0,
@@ -138,7 +157,8 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
       ?? myPlanets.find((p) => p.serverListingId === listing.id)?.id;
     if (!planetId) return;
     onUnlist(planetId);
-    window.setTimeout(() => { void reload(); }, 600);
+    setRows((prev) => prev.filter((r) => r.id !== listing.id && r.planetId !== planetId));
+    window.setTimeout(() => { void reload(); }, 400);
   };
 
   return (

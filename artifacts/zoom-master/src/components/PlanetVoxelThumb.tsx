@@ -224,7 +224,7 @@ export function PlanetVoxelThumb({
   useEffect(() => {
     const onTab = (e: Event) => {
       const tab = (e as CustomEvent<{ tab?: string }>).detail?.tab;
-      if (tab === "farm") {
+      if (tab === "farm" || tab === "market") {
         setInView(true);
       }
     };
@@ -250,7 +250,7 @@ export function PlanetVoxelThumb({
   }, []);
 
   useEffect(() => {
-    if (suspendGl || !inView || !delayReady) {
+    if (!inView || !delayReady) {
       releaseSlot();
       return;
     }
@@ -264,7 +264,7 @@ export function PlanetVoxelThumb({
 
     let cancelled = false;
     const retry = () => {
-      if (cancelled || hasSlotRef.current || suspendGl || !inView || !delayReady) return;
+      if (cancelled || hasSlotRef.current || !inView || !delayReady) return;
       if (acquirePlanetThumbGl()) {
         hasSlotRef.current = true;
         setHasSlot(true);
@@ -278,7 +278,7 @@ export function PlanetVoxelThumb({
       if (idx >= 0) planetThumbWaiters.splice(idx, 1);
       releaseSlot();
     };
-  }, [suspendGl, inView, delayReady, releaseSlot]);
+  }, [inView, delayReady, releaseSlot]);
 
   const handleGlError = useCallback(() => {
     glbTriesRef.current += 1;
@@ -293,7 +293,7 @@ export function PlanetVoxelThumb({
     setGlGen((g) => g + 1);
   }, []);
 
-  const showGl = !suspendGl && inView && delayReady && hasSlot;
+  const showGl = inView && delayReady && hasSlot;
   const useHiQuality = hiQuality ?? size >= 80;
   const resolvedShape = resolveLabShapeIdFromPlanet(planet);
   const thumbShapeId = resolvedShape
@@ -309,12 +309,13 @@ export function PlanetVoxelThumb({
       data-testid="planet-voxel-thumb"
     >
       {showGl ? (
-        useLabGlb ? (
+        <div style={{ width: size, height: size, visibility: suspendGl ? "hidden" : "visible" }}>
+        {useLabGlb ? (
           <LabGlbViewer
             key={`${planet.id}-${thumbShapeId}-${glGen}`}
             shapeId={thumbShapeId}
             size={size}
-            autoSpin={animate}
+            autoSpin={animate && !suspendGl}
             chrome="none"
             showGrid={showLabForgeGrid}
             interactive={labGlbInteractive}
@@ -331,20 +332,16 @@ export function PlanetVoxelThumb({
             displayFloat={displayFloat}
             planetId={planet.id}
             size={size}
-            autoSpin={animate}
+            autoSpin={animate && !suspendGl}
             performanceMode
             hiQuality={useHiQuality && size >= 96}
             onGlFailed={handleContextLost}
             onGlContextLost={handleContextLost}
           />
-        )
+        )}
+        </div>
       ) : (
-        <VoxelPlanetPlaceholder
-          size={size}
-          color={displayColors.color}
-          accent={displayColors.glowColor || displayColors.accentHex}
-          isSun={(planet.name as string) === "SUN"}
-        />
+        <div style={{ width: size, height: size, flexShrink: 0 }} aria-hidden />
       )}
     </div>
   );

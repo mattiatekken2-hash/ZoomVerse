@@ -2747,8 +2747,8 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
             ? Math.min(1, Math.max(0, (sinceDrop - particleLandMs()) / 200))
             : 1;
           const dropEase = dropT * dropT * (3 - 2 * dropT);
-          const assemblingClay = labForgeBackdrop && !st.revealed;
-          const useClayGrey = assemblingClay || (!labForgeBackdrop && paintT <= 0.001 && !sealing);
+          const assemblingClay = false;
+          const useClayGrey = false;
           const shapeMorphT = isForgeSphere && !premiumPlanetShowcase
             ? (labCollectibleShowcase || st.revealed || sealing ? 1 : labForgeMorphT(assembly))
             : 0;

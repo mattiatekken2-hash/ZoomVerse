@@ -423,8 +423,8 @@ export function PlanetCanvas({
     ? resolveLabForgeShapeId(labForgeShapeId)
     : FORGE_SPHERE_SHAPE_ID;
   const forgePaint = labForgePaint(activeLabShapeId);
-  const meshPrimary = isCrafting && !pendingPlanet ? FORGE_CLAY_HEX : forgePaint.color;
-  const meshAccent = isCrafting && !pendingPlanet ? "#909090" : forgePaint.glowColor;
+  const meshPrimary = forgePaint.color;
+  const meshAccent = forgePaint.glowColor;
   const isLabSphereForge = activeLabShapeId === FORGE_SPHERE_SHAPE_ID;
   const forgeShapeId = showLabBackdrop || showVoxelLayer ? activeLabShapeId : undefined;
   const objectParts = useMemo(() => {
