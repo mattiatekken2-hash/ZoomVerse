@@ -81,6 +81,10 @@ interface FarmPageProps {
   onCollectStellaRossaPlanet?: (planetId: string) => void;
   onMarkStellaRossaPlanetReactivated?: (planetId: string) => { ok: boolean; reason?: string };
   onUpgradeCollectionDuration?: (collectionType: "white" | "earth" | "black" | "supernova" | "stella_rossa", hours: number) => Promise<{ ok: boolean; error?: string }>;
+  /** Jump to Market tab (real sell flow — replaces coming-soon teasers). */
+  onOpenMarket?: () => void;
+  /** Open Voxel Studio (create — the actual Zoom loop). */
+  onOpenStudio?: () => void;
   /** False when another tab is active — releases Farm WebGL contexts for Lab. */
   visible?: boolean;
 }
@@ -138,6 +142,8 @@ export function FarmPage({
   onCollectStellaRossaPlanet,
   onMarkStellaRossaPlanetReactivated,
   onUpgradeCollectionDuration,
+  onOpenMarket,
+  onOpenStudio,
   visible = true,
 }: FarmPageProps) {
   void whiteCollectionUnlocked;
@@ -272,13 +278,8 @@ export function FarmPage({
         </div>
       )}
       <div className="px-5 pt-4 pb-2 flex-shrink-0">
-        {/* Row 1: title + slots subtitle on the left, live +ZOOM/hr
-            chip on the right. The previous layout crammed STAKING,
-            COLLECTION and the rate chip together which forced "My
-            Planets" to wrap. We now hoist the two teaser buttons to
-            their own row underneath so all three pills sit cleanly
-            on a single line at every viewport width. */}
-        <div className="flex items-center justify-between gap-3">
+        {/* Row 1: title + rate. Shortcuts underneath jump to real features. */}
+        <div className="flex items-center justify-between gap-3" data-tutorial="farm-board">
           <div className="min-w-0">
             <h2 className="font-black text-lg tracking-tight">{t("farm.myPlanets")}</h2>
             <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
@@ -298,49 +299,37 @@ export function FarmPage({
           )}
         </div>
 
-        {/* Row 2: STAKING + COLLECTION pills (coming soon) */}
+        {/* Row 2: real actions — sell on Market, create in Studio */}
         <div className="flex items-center gap-2 mt-2 flex-wrap">
           <button
             type="button"
-            aria-disabled="true"
-            aria-label={`${t("farm.staking")} — ${t("shop.comingSoon")}`}
-            data-testid="btn-staking"
+            onClick={() => onOpenMarket?.()}
+            aria-label={t("farm.openMarket")}
+            data-testid="btn-open-market"
             className="px-3 py-1.5 rounded-full text-xs font-black tracking-wide"
             style={{
-              background: "linear-gradient(135deg, rgba(120,140,180,0.18) 0%, rgba(60,72,96,0.14) 100%)",
-              border: "1px solid rgba(180,200,230,0.22)",
-              color: "rgba(220,230,245,0.85)",
-              filter: "grayscale(0.35)",
-              opacity: 0.85,
-              cursor: "default",
+              background: "linear-gradient(135deg, rgba(158,197,232,0.22) 0%, rgba(60,72,96,0.16) 100%)",
+              border: "1px solid rgba(158,197,232,0.35)",
+              color: "#d7e8f8",
               letterSpacing: 0.5,
             }}
           >
-            <span className="flex flex-col items-center leading-tight gap-0.5">
-              <span>{t("farm.staking")}</span>
-              <span className="text-[9px] font-bold tracking-wide opacity-55 uppercase">{t("shop.comingSoon")}</span>
-            </span>
+            {t("farm.openMarket")}
           </button>
           <button
             type="button"
-            aria-disabled="true"
-            aria-label={`${t("farm.collection")} — ${t("shop.comingSoon")}`}
-            data-testid="btn-collection"
+            onClick={() => onOpenStudio?.()}
+            aria-label={t("farm.openStudio")}
+            data-testid="btn-open-studio"
             className="px-3 py-1.5 rounded-full text-xs font-black tracking-wide"
             style={{
-              background: "linear-gradient(135deg, rgba(120,140,180,0.18) 0%, rgba(60,72,96,0.14) 100%)",
-              border: "1px solid rgba(180,200,230,0.22)",
-              color: "rgba(220,230,245,0.85)",
-              filter: "grayscale(0.35)",
-              opacity: 0.85,
-              cursor: "default",
+              background: "linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(60,72,96,0.16) 100%)",
+              border: "1px solid rgba(255,255,255,0.18)",
+              color: "#f4f7ff",
               letterSpacing: 0.5,
             }}
           >
-            <span className="flex flex-col items-center leading-tight gap-0.5">
-              <span>{t("farm.collection")}</span>
-              <span className="text-[9px] font-bold tracking-wide opacity-55 uppercase">{t("shop.comingSoon")}</span>
-            </span>
+            {t("farm.openStudio")}
           </button>
         </div>
       </div>

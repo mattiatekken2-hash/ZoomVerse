@@ -579,6 +579,19 @@ const en: Dict = {
   "farm.marketLabel": "Market",
   "farm.emptySlot": "Empty Slot",
   "farm.enterPrice": "Enter price",
+  "farm.openStudio": "STUDIO",
+  "farm.openMarket": "MARKET",
+
+  "guide.step": "{n} / {max}",
+  "guide.skip": "SKIP",
+  "guide.next": "NEXT",
+  "guide.openMarket": "OPEN MARKET",
+  "guide.forgeTitle": "Create your first model",
+  "guide.forgeBody": "Tap FORGE, pick ZOOM, then tap the cube until the model is ready. That model is yours.",
+  "guide.farmTitle": "This is your Farm",
+  "guide.farmBody": "Tap START on the card. While it farms, it earns $ZOOM even if you close the app.",
+  "guide.marketTitle": "Sell it on Market",
+  "guide.marketBody": "Other players buy models here. List yours from the card, or open Market from the bar below.",
 };
 
 // Italian
@@ -1131,6 +1144,18 @@ const it: Dict = {
   "farm.marketLabel": "Mercato",
   "farm.emptySlot": "Slot Vuoto",
   "farm.enterPrice": "Inserisci prezzo",
+  "farm.openStudio": "STUDIO",
+  "farm.openMarket": "MERCATO",
+  "guide.step": "{n} / {max}",
+  "guide.skip": "SALTA",
+  "guide.next": "AVANTI",
+  "guide.openMarket": "APRI MERCATO",
+  "guide.forgeTitle": "Crea il tuo primo modello",
+  "guide.forgeBody": "Tocca FORGE, scegli ZOOM, poi tocca il cubo finché il modello è pronto. È tuo.",
+  "guide.farmTitle": "Questa è la Farm",
+  "guide.farmBody": "Tocca START sulla card. Mentre farmà, guadagni $ZOOM anche a app chiusa.",
+  "guide.marketTitle": "Vendilo sul Market",
+  "guide.marketBody": "Qui gli altri giocatori comprano i modelli. Mettilo in vendita dalla card, o apri Market dalla barra sotto.",
 };
 
 // Russian

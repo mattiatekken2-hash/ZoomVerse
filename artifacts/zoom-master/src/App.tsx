@@ -25,6 +25,7 @@ import { GramDiamondIcon } from "./components/GramDiamondIcon";
 import { ZoomCubeIcon } from "./components/ZoomCubeIcon";
 import { WalletPage } from "./pages/WalletPage";
 import { hideHtmlSplash } from "./components/SplashScreen";
+import { FirstRunGuide } from "./components/FirstRunGuide";
 import { SPLASH_MS } from "./utils/bootSplash";
 import { fetchTonPrice } from "./utils/tonPrice";
 import { prefetchShopData } from "./utils/shopPrefetch";
@@ -907,6 +908,12 @@ function AppShellWithState() {
                   onCollectStellaRossaPlanet={collectStellaRossaPlanet}
                   onMarkStellaRossaPlanetReactivated={markStellaRossaPlanetReactivated}
                   onUpgradeCollectionDuration={upgradeCollectionFarmDuration}
+                  onOpenMarket={() => switchTab("market")}
+                  onOpenStudio={() => {
+                    setStudioSeedTitle(null);
+                    setStudioSeedProjectId(null);
+                    setStudioOpen(true);
+                  }}
                   items={items}
                   onSellItem={listItem}
                   onUnlistItem={unlistItem}
@@ -1191,6 +1198,7 @@ function AppShellWithState() {
                 className="flex-1 flex flex-col items-center justify-center gap-0.5 relative"
                 onClick={() => switchTab(item.id)}
                 data-testid={`nav-${item.id}`}
+                data-tutorial={item.id === "market" ? "nav-market" : undefined}
                 style={{ color: isActive ? "#E8ECF4" : "rgba(255,255,255,0.45)" }}
               >
                 {isActive && (
@@ -1265,6 +1273,13 @@ function AppShellWithState() {
             }}
           />
         </div>
+      )}
+      {!studioOpen && (
+        <FirstRunGuide
+          planetCount={state.planets.length}
+          tab={tab}
+          onGoTab={(next) => switchTab(next)}
+        />
       )}
       {globalToast && (
         <div

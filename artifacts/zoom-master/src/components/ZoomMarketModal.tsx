@@ -1,5 +1,5 @@
 /**
- * ZoomMarketModal — compact $ZOOM price chart + staking (coming soon).
+ * ZoomMarketModal — compact $ZOOM price chart (Wallet → ZOOM S2 row).
  * Opens from Wallet when tapping the ZOOM S2 balance row.
  * Layout mirrors StardustMarketModal; price data from the Economy APIs.
  */
@@ -77,10 +77,7 @@ export function ZoomMarketModal({ balance, onClose }: Props) {
   const [price, setPrice] = useState(0);
   const [genesis, setGenesis] = useState(0);
   const [points, setPoints] = useState<EconomyChartPoint[]>([]);
-  const [amount, setAmount] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<"chart" | "stake">("chart");
 
   const refresh = useCallback(async () => {
     const [p, h] = await Promise.all([fetchEconomyPrice(), fetchEconomyHistory()]);
@@ -155,16 +152,6 @@ export function ZoomMarketModal({ balance, onClose }: Props) {
   const currentPrice = price > 0 ? price : genesis;
   const pctChange = genesis > 0 ? ((currentPrice - genesis) / genesis) * 100 : 0;
   const portfolio = Number.isFinite(balance) ? balance * currentPrice : 0;
-
-  const showComingSoon = () => {
-    setMsg(t("shop.comingSoon"));
-  };
-
-  const inputStyle = {
-    background: "rgba(0,0,0,0.35)",
-    border: "1px solid rgba(255,215,64,0.22)",
-    color: "#fff8e0",
-  } as const;
 
   return createPortal(
     <div
@@ -257,102 +244,19 @@ export function ZoomMarketModal({ balance, onClose }: Props) {
           )}
         </div>
 
-        {/* Tab toggle */}
-        <div className="px-4 pt-2 pb-2 flex gap-2 flex-shrink-0">
-          {(["chart", "stake"] as const).map((id) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => {
-                setTab(id);
-                setMsg(null);
-              }}
-              className="flex-1 py-2 rounded-lg text-[10px] font-black tracking-wider uppercase"
-              style={{
-                background: tab === id
-                  ? (id === "chart" ? "rgba(158,197,232,0.12)" : "rgba(255,215,64,0.12)")
-                  : "rgba(255,255,255,0.04)",
-                border: tab === id
-                  ? `1px solid ${id === "chart" ? "rgba(158,197,232,0.30)" : "rgba(255,215,64,0.30)"}`
-                  : "1px solid rgba(255,255,255,0.06)",
-                color: tab === id ? (id === "chart" ? CYAN : GOLD) : "rgba(255,255,255,0.35)",
-              }}
-            >
-              {id === "chart" ? t("zoomMarket.tabLive") : t("zoomMarket.tabStake")}
-            </button>
-          ))}
-        </div>
-
-        {/* Action panel */}
+        {/* How the live price works — no fake stake form */}
         <div className="px-4 pb-4 flex-1 overflow-y-auto min-h-0">
-          {tab === "chart" ? (
-            <div
-              className="rounded-xl p-3 text-[11px] leading-relaxed"
-              style={{
-                background: "rgba(158,197,232,0.06)",
-                border: "1px solid rgba(158,197,232,0.15)",
-                color: "rgba(220,235,255,0.7)",
-              }}
-            >
-              <span style={{ color: CYAN, fontWeight: 800 }}>{t("zoomMarket.howTitle")}</span>{" "}
-              {t("zoomMarket.howBody")}
-            </div>
-          ) : (
-            <div className="rounded-xl p-3" style={{ background: "rgba(255,215,64,0.05)", border: "1px solid rgba(255,215,64,0.15)" }}>
-              <div className="flex justify-between mb-2 text-[10px]">
-                <span style={{ color: "rgba(255,255,255,0.4)" }}>{t("zoomMarket.walletLabel")}</span>
-                <span style={{ color: GOLD, fontWeight: 800 }}>{formatZoom(balance)} $ZOOM</span>
-              </div>
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="number"
-                  min={1}
-                  placeholder={t("zoomMarket.stakePlaceholder")}
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="flex-1 rounded-lg px-3 py-2 text-sm font-bold"
-                  style={inputStyle}
-                />
-                <button
-                  type="button"
-                  onClick={() => setAmount(String(Math.floor(balance)))}
-                  className="px-3 rounded-lg text-[10px] font-black"
-                  style={{ background: "rgba(255,215,64,0.10)", color: GOLD, border: "1px solid rgba(255,215,64,0.22)" }}
-                >
-                  {t("common.max")}
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={showComingSoon}
-                  className="flex-1 py-2.5 rounded-lg text-xs font-black"
-                  style={{ background: "linear-gradient(135deg, #ffd740, #ffb300)", color: "#1a1000" }}
-                  data-testid="zoom-stake-btn"
-                >
-                  {t("zoomMarket.stakeBtn")}
-                </button>
-                <button
-                  type="button"
-                  onClick={showComingSoon}
-                  className="flex-1 py-2.5 rounded-lg text-xs font-black"
-                  style={{
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    color: "rgba(255,255,255,0.75)",
-                  }}
-                  data-testid="zoom-unstake-btn"
-                >
-                  {t("zoomMarket.withdraw")}
-                </button>
-              </div>
-              {msg && (
-                <div className="mt-2 text-center text-[10px] font-bold uppercase tracking-wider" style={{ color: GOLD }}>
-                  {msg}
-                </div>
-              )}
-            </div>
-          )}
+          <div
+            className="rounded-xl p-3 text-[11px] leading-relaxed"
+            style={{
+              background: "rgba(158,197,232,0.06)",
+              border: "1px solid rgba(158,197,232,0.15)",
+              color: "rgba(220,235,255,0.7)",
+            }}
+          >
+            <span style={{ color: CYAN, fontWeight: 800 }}>{t("zoomMarket.howTitle")}</span>{" "}
+            {t("zoomMarket.howBody")}
+          </div>
         </div>
       </div>
     </div>,
