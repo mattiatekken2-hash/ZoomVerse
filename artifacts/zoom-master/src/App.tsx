@@ -448,13 +448,6 @@ function AppShellWithState() {
     visitedTabsRef.current.add(nextTab);
     setTab(nextTab);
     window.dispatchEvent(new CustomEvent("zoom-tab-active", { detail: { tab: nextTab } }));
-    if (nextTab === "wallet") return;
-    const now = Date.now();
-    const last = (window as unknown as { __zoomLastRefresh?: number }).__zoomLastRefresh || 0;
-    if (now - last > 4000) {
-      (window as unknown as { __zoomLastRefresh?: number }).__zoomLastRefresh = now;
-      window.dispatchEvent(new Event("zoom-data-refresh"));
-    }
   };
 
   const audioRef = useRef<HTMLAudioElement | null>(null);

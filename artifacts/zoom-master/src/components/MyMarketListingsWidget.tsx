@@ -6,7 +6,7 @@ import {
   fetchMyMarketListings,
   type ServerMarketListing,
 } from "../utils/api";
-import { isPlanetBurned } from "../utils/removedPlanets";
+import { isPlanetBurned, isPlanetDelisted } from "../utils/removedPlanets";
 import { useGlobalStore } from "../store/globalStore";
 import { FarmInventoryCard } from "./FarmInventoryCard";
 import type { Planet } from "../hooks/useGameState";
@@ -104,7 +104,7 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
       return;
     }
     const list = await fetchMyMarketListings(telegramId);
-    setRows(list);
+    setRows(list.filter((r) => !r.planetId || !isPlanetDelisted(telegramId, r.planetId)));
     setLoaded(true);
   }, [telegramId]);
 
@@ -122,6 +122,7 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
 
   const extraLocal = myPlanets.filter((p) => {
     if (!p.isListedInMarket) return false;
+    if (isPlanetDelisted(telegramId, p.id) || isPlanetBurned(telegramId, p.id)) return false;
     return !rows.some((r) => r.id === p.serverListingId || r.planetId === p.id)
       && !storeListings.some((r) => r.planetId === p.id && r.sellerTelegramId === telegramId);
   });
@@ -129,13 +130,13 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
   const displayRows: ServerMarketListing[] = (() => {
     const byKey = new Map<string, ServerMarketListing>();
     for (const r of rows) {
-      if (r.planetId && isPlanetBurned(telegramId, r.planetId)) continue;
+      if (r.planetId && (isPlanetBurned(telegramId, r.planetId) || isPlanetDelisted(telegramId, r.planetId))) continue;
       byKey.set(String(r.planetId || r.id), r);
     }
     for (const r of storeListings) {
       if (r.sellerTelegramId !== telegramId) continue;
       if (r.kind === "equipment" || r.kind === "item") continue;
-      if (r.planetId && isPlanetBurned(telegramId, r.planetId)) continue;
+      if (r.planetId && (isPlanetBurned(telegramId, r.planetId) || isPlanetDelisted(telegramId, r.planetId))) continue;
       const key = String(r.planetId || r.id);
       if (!byKey.has(key)) byKey.set(key, r);
     }
@@ -158,7 +159,6 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
     if (!planetId) return;
     onUnlist(planetId);
     setRows((prev) => prev.filter((r) => r.id !== listing.id && r.planetId !== planetId));
-    window.setTimeout(() => { void reload(); }, 400);
   };
 
   return (

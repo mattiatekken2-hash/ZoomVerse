@@ -4993,18 +4993,23 @@ export function useGameState() {
           // remaining farm window is fully preserved — same math as the
           // pause-preserving resume in startFarming (line ~3972).
           const now = serverNow();
-          const pauseShift = (p.pausedAt && p.pausedAt > 0)
-            ? Math.max(0, now - p.pausedAt)
-            : 0;
-          const newFarmStartedAt = pauseShift > 0 ? (p.farmStartedAt || 0) + pauseShift : (p.farmStartedAt || 0);
-          const newLastCollectedAt = pauseShift > 0 && (p.lastCollectedAt || 0) > 0
+          // Pause start: listing always stamps pausedAt when the planet was
+          // farming, and always stamps marketListedAt. Use either so an
+          // instant DELIST (pauseShift would otherwise be 0) still keeps
+          // the remaining window and does not look expired / grey.
+          const pauseStart = (p.pausedAt && p.pausedAt > 0)
+            ? p.pausedAt
+            : (p.marketListedAt && p.marketListedAt > 0 ? p.marketListedAt : 0);
+          const pauseShift = pauseStart > 0 ? Math.max(0, now - pauseStart) : 0;
+          const newFarmStartedAt = (p.farmStartedAt || 0) + pauseShift;
+          const newLastCollectedAt = (p.lastCollectedAt || 0) > 0
             ? (p.lastCollectedAt || 0) + pauseShift
             : (p.lastCollectedAt || 0);
           const durationMs = getPlanetFarmDurationMs(p);
-          const remaining = newFarmStartedAt > 0
-            ? (newFarmStartedAt + durationMs) - now
-            : 0;
-          const resumeFarm = pauseShift > 0 && remaining > 0;
+          const start = Math.max(newFarmStartedAt, newLastCollectedAt);
+          const remaining = start > 0 ? (start + durationMs) - now : 0;
+          const hadCycle = (p.farmStartedAt || 0) > 0 || (p.lastCollectedAt || 0) > 0;
+          const resumeFarm = hadCycle && remaining > 0;
           return {
             ...p,
             isListedInMarket: false,
@@ -5055,7 +5060,6 @@ export function useGameState() {
             try { window.dispatchEvent(new Event("zoom-data-refresh")); } catch { /**/ }
           });
         }
-        try { window.dispatchEvent(new Event("zoom-data-refresh")); } catch { /**/ }
       }
       return updated;
     });

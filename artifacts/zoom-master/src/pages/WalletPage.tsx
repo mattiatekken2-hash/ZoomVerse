@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState, useCallback, type ReactNode } from "react";
+import { useMemo, useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 import { Lock } from "lucide-react";
 import { GramWalletPanel, GramWalletIcon, GramWalletConnectButton, type TonWalletProps } from "../components/TonWalletWidget";
 import { StardustMarketModal } from "../components/StardustMarketModal";
@@ -77,6 +77,22 @@ function formatUsdFromGram(gramValue: number | null, tonPrice: number | null, lo
   if (usd < 0.01) return `$${usd.toFixed(6)}`;
   if (usd < 1) return `$${usd.toFixed(4)}`;
   return `$${usd.toFixed(2)}`;
+}
+
+/** Ignore brief downward flashes (tab switch / in-flight sync) so the wallet does not bounce. */
+function useHeldValue(value: number, holdMs = 500): number {
+  const [shown, setShown] = useState(value);
+  const latest = useRef(value);
+  latest.current = value;
+  useEffect(() => {
+    if (value + 1e-9 >= shown) {
+      setShown(value);
+      return;
+    }
+    const t = window.setTimeout(() => setShown(latest.current), holdMs);
+    return () => window.clearTimeout(t);
+  }, [value, shown, holdMs]);
+  return shown;
 }
 
 export function WalletPage({
@@ -188,10 +204,13 @@ export function WalletPage({
   }, [applyGramMarket]);
 
   const gramTotal = Math.max(0, (tonBalance || 0) + (depositBalance || 0));
-  const usdtValue = tonPrice !== null ? (gramTotal * tonPrice).toFixed(2) : null;
-  const zoomGramValue = zoomPriceGram != null && balance > 0 ? balance * zoomPriceGram : null;
-  const stardustGramValue = liveStardustBalance > 0
-    ? (liveStardustBalance * stardustIndex) / 100
+  const shownGramTotal = useHeldValue(gramTotal);
+  const shownZoomBalance = useHeldValue(balance);
+  const shownStardustBalance = useHeldValue(liveStardustBalance);
+  const usdtValue = tonPrice !== null ? (shownGramTotal * tonPrice).toFixed(2) : null;
+  const zoomGramValue = zoomPriceGram != null && shownZoomBalance > 0 ? shownZoomBalance * zoomPriceGram : null;
+  const stardustGramValue = shownStardustBalance > 0
+    ? (shownStardustBalance * stardustIndex) / 100
     : null;
   // Under-icon: live chart unit (ZOOM micro-GRAM, Stardust index, GRAM = TON USD).
   // Icons stay fixed size — % change is text-only under the icon.
@@ -299,7 +318,7 @@ export function WalletPage({
           <div style={{ minWidth: 0 }}>
             <div
               style={{
-                fontSize: gramTotal >= 1000 ? 28 : 34,
+                fontSize: shownGramTotal >= 1000 ? 28 : 34,
                 fontWeight: 900,
                 color: GRAM_CELESTE.main,
                 lineHeight: 1.1,
@@ -327,7 +346,7 @@ export function WalletPage({
                     display: "inline-flex",
                   }}
                 >
-                  <GramWalletIcon size={gramTotal >= 1000 ? 28 : 32} />
+                  <GramWalletIcon size={shownGramTotal >= 1000 ? 28 : 32} />
                 </span>
                 <span
                   style={{
@@ -361,7 +380,7 @@ export function WalletPage({
                   </span>
               </span>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {gramTotal.toFixed(4)}
+                {shownGramTotal.toFixed(4)}
               </span>
             </div>
           </div>
@@ -421,7 +440,7 @@ export function WalletPage({
       {gramChartOpen && (
         <GramChartModal
           key="gram-chart-modal"
-          gramBalance={gramTotal}
+          gramBalance={shownGramTotal}
           depositBalance={0}
           initialPrice={tonPrice}
           onClose={() => setGramChartOpen(false)}
@@ -449,7 +468,7 @@ export function WalletPage({
           <BalanceRow
             icon={<ZoomCubeIcon size={BALANCE_ICON_SIZE} />}
             label={t("walletPage.zoomS2")}
-            value={formatZoom(balance)}
+            value={formatZoom(shownZoomBalance)}
             color="#ffd740"
             gramValue={zoomGramValue}
             tonPrice={tonPrice}
@@ -462,7 +481,7 @@ export function WalletPage({
           <BalanceRow
             icon={<WalletStarIcon variant="stardust" size={BALANCE_ICON_SIZE} />}
             label={t("resources.stardust")}
-            value={formatZoom(liveStardustBalance)}
+            value={formatZoom(shownStardustBalance)}
             color="#ffd740"
             iconColor="#ffd740"
             gramValue={stardustGramValue}
@@ -583,7 +602,7 @@ export function WalletPage({
       {stardustMarketOpen && (
         <StardustMarketModal
           telegramId={telegramId ?? null}
-          walletBalance={liveStardustBalance}
+          walletBalance={shownStardustBalance}
           depositBalance={depositBalance}
           earnedGramBalance={tonBalance}
           onClose={() => setStardustMarketOpen(false)}

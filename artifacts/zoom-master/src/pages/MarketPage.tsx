@@ -4,7 +4,7 @@ import { MyMarketListingsWidget } from "../components/MyMarketListingsWidget";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
 import { buyFromMarket, shareListing, openMarketActivityStream, fetchMyMarketListings, type MarketSale, type ServerMarketListing } from "../utils/api";
 import { useGlobalStore, pushMarketSale, refreshMarketListings, upsertMarketListing } from "../store/globalStore";
-import { isPlanetBurned } from "../utils/removedPlanets";
+import { isPlanetBurned, isPlanetDelisted } from "../utils/removedPlanets";
 import { getPlanetDisplayName, deterministicNameFromId } from "../utils/planetNames";
 import { useT } from "../i18n/LanguageContext";
 import {
@@ -183,8 +183,9 @@ export function MarketPage({
     const loadMine = async () => {
       const mine = await fetchMyMarketListings(telegramId);
       if (cancelled) return;
-      setMyServerListings(mine);
-      for (const row of mine) upsertMarketListing(row);
+      const visibleMine = mine.filter((row) => !row.planetId || !isPlanetDelisted(telegramId, row.planetId));
+      setMyServerListings(visibleMine);
+      for (const row of visibleMine) upsertMarketListing(row);
     };
     void loadMine();
     const timer = window.setInterval(() => { void loadMine(); }, 8000);
@@ -210,7 +211,9 @@ export function MarketPage({
 
   const allDisplayListings = useMemo(() => {
     const localByPlanet = new Map(myListings.map((p) => [p.id, p]));
-    const listedPlanets = myListings.filter((p) => p.isListedInMarket);
+    const listedPlanets = myListings.filter(
+      (p) => p.isListedInMarket && !isPlanetDelisted(telegramId, p.id),
+    );
     const views: MarketPlanetListingView[] = [];
     const seenServer = new Set<number>();
     const seenPlanet = new Set<string>();
@@ -247,6 +250,7 @@ export function MarketPage({
       if (l.kind === "equipment" || l.kind === "item") return;
       if (l.status && l.status !== "active") return;
       if (l.planetId && isPlanetBurned(telegramId, l.planetId)) return;
+      if (l.planetId && isPlanetDelisted(telegramId, l.planetId)) return;
       const id = Number(l.id);
       if (Number.isFinite(id) && id > 0 && seenServer.has(id)) return;
       if (l.planetId && seenPlanet.has(l.planetId)) {

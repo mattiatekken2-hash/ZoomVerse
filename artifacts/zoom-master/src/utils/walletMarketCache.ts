@@ -124,11 +124,11 @@ export async function prefetchWalletMarket(): Promise<void> {
       }
 
       writeWalletMarketCache({
-        tonPriceUsd: ton,
-        zoomPriceGram: liveZoom,
+        tonPriceUsd: ton && ton > 0 ? ton : undefined,
+        zoomPriceGram: liveZoom != null && liveZoom > 0 ? liveZoom : undefined,
         stardustIndex: liveStardust,
-        zoomChange24hPct: chartSeriesChangePct(zoomPrices),
-        stardustChange24hPct: chartSeriesChangePct(stardustIndexes),
+        zoomChange24hPct: zoomPrices.length >= 2 ? (chartSeriesChangePct(zoomPrices) ?? undefined) : undefined,
+        stardustChange24hPct: stardustIndexes.length >= 2 ? (chartSeriesChangePct(stardustIndexes) ?? undefined) : undefined,
       });
     } finally {
       prefetchInFlight = null;

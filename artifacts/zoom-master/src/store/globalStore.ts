@@ -1,4 +1,5 @@
 import { useEffect, useSyncExternalStore } from "react";
+import { isPlanetBurned, isPlanetDelisted } from "../utils/removedPlanets";
 import {
   fetchLeaderboard,
   fetchGlobalPool,
@@ -235,7 +236,11 @@ export async function refreshMarketListings(telegramId?: string | null) {
       if (!Number.isFinite(id)) continue;
       byId.set(id, { ...row, id });
     }
-    const merged = [...byId.values()];
+    const merged = [...byId.values()].filter((l) => {
+      if (!l.planetId) return true;
+      if (isPlanetBurned(tid, l.planetId) || isPlanetDelisted(tid, l.planetId)) return false;
+      return true;
+    });
     const serverIds = new Set(merged.map((l) => l.id));
     const serverPlanetIds = new Set(merged.map((l) => l.planetId).filter(Boolean));
     const pending = state.marketListings.filter((l) => {

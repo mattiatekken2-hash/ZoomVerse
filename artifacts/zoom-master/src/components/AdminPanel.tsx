@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { haptic } from "../utils/haptic";
+import { replayFirstRunGuide } from "./FirstRunGuide";
 import { isBrowserDevSession } from "../utils/telegram";
 import {
   adminCreditZoom,
@@ -479,6 +480,34 @@ export function AdminPanel({ telegramId }: Props) {
 
               {/* Content */}
               <div style={{ padding: "16px 20px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    haptic();
+                    replayFirstRunGuide();
+                    setOpen(false);
+                  }}
+                  data-testid="admin-replay-tutorial"
+                  style={{
+                    width: "100%",
+                    padding: "11px 12px",
+                    borderRadius: 12,
+                    border: "1px solid rgba(158,197,232,0.35)",
+                    background: "rgba(158,197,232,0.1)",
+                    color: "#c5ddf4",
+                    fontSize: 12,
+                    fontWeight: 900,
+                    letterSpacing: "0.08em",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  📘 Rivedi tutorial
+                  <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0, color: "rgba(255,255,255,0.42)", marginTop: 3 }}>
+                    Lo riapre sul tuo account senza azzerare nulla
+                  </div>
+                </button>
 
                 {/* MAINTENANCE MODE */}
                 <div
