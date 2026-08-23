@@ -1,5 +1,5 @@
 /** ZOOM cube logo — transparent PNG, cropped like GramDiamondIcon. */
-const ZOOM_CUBE_SRC = "/assets/zoom-cube-icon.png?v=4";
+const ZOOM_CUBE_SRC = "/assets/zoom-cube-icon.png?v=5";
 
 interface ZoomCubeIconProps {
   size?: number;
@@ -17,6 +17,7 @@ export function ZoomCubeIcon({ size = 18 }: ZoomCubeIconProps) {
         height: size,
         flexShrink: 0,
         lineHeight: 0,
+        background: "transparent",
       }}
       aria-hidden
     >
@@ -32,6 +33,7 @@ export function ZoomCubeIcon({ size = 18 }: ZoomCubeIconProps) {
           height: size,
           objectFit: "contain",
           objectPosition: "center center",
+          background: "transparent",
         }}
       />
     </span>

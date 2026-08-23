@@ -171,7 +171,7 @@ export function MarketPlanetCard({
         <h3 className="lab-market-card__title">{title}</h3>
         <div className="lab-market-card__meta">
           <span className="lab-market-card__yield">
-            {path === "zoom" && <ZoomCubeIcon size={11} />}
+            {path === "zoom" && <ZoomCubeIcon size={14} />}
             +{rate.toLocaleString(undefined, { maximumFractionDigits: 2 })} {theme.yieldUnit}
           </span>
           <span className="lab-market-card__price">{formatMarketListingPrice(listing.price, parseMarketPriceCurrency(listing.priceCurrency))}</span>
