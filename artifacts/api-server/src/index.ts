@@ -11,7 +11,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { readGlobal, readNotifiedExpiresAtMs, writeNotifiedExpiresAtMs, advanceGlobal } from "./routes/merchant";
 import { ensureDatabaseReady } from "./lib/ensure-db";
 
-const FARM_FULL_MESSAGE = "⚡ Your Farm is full! Collect your TON.";
+const FARM_FULL_MESSAGE = "⚡ Your Farm is full! Collect your Models.";
 
 const rawPort = process.env["PORT"];
 
@@ -213,7 +213,7 @@ function startFarmNotificationCron() {
         const message =
           count === 1
             ? FARM_FULL_MESSAGE
-            : `⚡ ${count} of your models are ready! Collect your TON.`;
+            : `⚡ ${count} of your models are ready! Collect your Models.`;
         const ok = await sendBotMessage(telegramId, message);
         // Always mark notified — even on failure (403/blocked) — so we don't
         // hammer Telegram on every cron tick for users who blocked the bot.
