@@ -160,6 +160,7 @@ router.get("/leaderboard", async (_req, res) => {
       .select({
         telegramId: usersTable.telegramId,
         firstName: usersTable.firstName,
+        username: usersTable.username,
         photoUrl: usersTable.photoUrl,
         zoomBalance: usersTable.zoomBalance,
       })
@@ -168,13 +169,23 @@ router.get("/leaderboard", async (_req, res) => {
       .orderBy(desc(usersTable.zoomBalance))
       .limit(100);
 
-    const leaderboard = rows.map((row, index) => ({
-      rank: index + 1,
-      telegramId: row.telegramId,
-      firstName: row.firstName || "Player",
-      photoUrl: row.photoUrl || null,
-      zoomBalance: row.zoomBalance,
-    }));
+    const leaderboard = rows
+      .map((row) => {
+        const firstName = (row.firstName || "").trim();
+        const username = (row.username || "").trim();
+        const displayName = firstName || (username ? `@${username}` : "");
+        return {
+          telegramId: row.telegramId,
+          firstName: displayName,
+          photoUrl: row.photoUrl || null,
+          zoomBalance: row.zoomBalance,
+        };
+      })
+      .filter((row) => row.firstName.length > 0 || !!row.photoUrl)
+      .map((row, index) => ({
+        rank: index + 1,
+        ...row,
+      }));
 
     res.json({ leaderboard });
   } catch (err) {

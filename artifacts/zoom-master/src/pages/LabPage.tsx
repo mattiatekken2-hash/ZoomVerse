@@ -258,10 +258,12 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
 
   return (
     <div className="relative h-full overflow-hidden">
-      <AutoTapWidget
-        hasAutoTap={hasAutoTap}
-        telegramId={telegramId}
-      />
+      {visible && (
+        <AutoTapWidget
+          hasAutoTap={hasAutoTap}
+          telegramId={telegramId}
+        />
+      )}
 
       <div className="absolute inset-0">
         <ForgeUiErrorBoundary label="3D forge error">

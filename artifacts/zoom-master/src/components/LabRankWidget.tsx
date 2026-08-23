@@ -1,4 +1,5 @@
 import { useEffect, useState, memo } from "react";
+import { createPortal } from "react-dom";
 import { fetchLabRankState, type LabRankState } from "../utils/api";
 import { GramDiamondIcon } from "./GramDiamondIcon";
 
@@ -52,6 +53,13 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [telegramId]);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("zoom-craft-board", { detail: { open } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent("zoom-craft-board", { detail: { open: false } }));
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -234,7 +242,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
         )}
       </div>
 
-      {open && (
+      {open && createPortal(
         <div
           onClick={(e) => {
             if (e.target === e.currentTarget) setOpen(false);
@@ -649,7 +657,8 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
