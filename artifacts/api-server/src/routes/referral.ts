@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
+import { NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT } from "@workspace/game-models";
 
 const router: IRouter = Router();
 
@@ -113,7 +114,8 @@ router.post("/referral/register", async (req, res) => {
         firstName: firstName ?? null,
         username: normalizedUsername,
         photoUrl: photoUrl ?? null,
-        stardustBalance: 30,
+        zoomBalance: NEW_PLAYER_ZOOM_GRANT,
+        stardustBalance: NEW_PLAYER_STARDUST_GRANT,
         redStarBalance: 5,
       })
       .onConflictDoNothing({ target: usersTable.telegramId })

@@ -86,6 +86,9 @@ export const LAB_MODEL_FORGE_GOAL = 257;
 export const LAB_MODEL_FORGE_VOXEL_COUNT = 480;
 export const LAB_STARDUST_FORGE_ZOOM_COST = 500;
 export const LAB_ZOOM_FORGE_STARDUST_COST = 3;
+/** Brand-new accounts only. Existing rows are never backfilled. */
+export const NEW_PLAYER_ZOOM_GRANT = 700;
+export const NEW_PLAYER_STARDUST_GRANT = 5;
 /** @deprecated Use LAB_MODEL_FORGE_GOAL */
 export const LAB_PIZZA_FORGE_GOAL = LAB_MODEL_FORGE_GOAL;
 

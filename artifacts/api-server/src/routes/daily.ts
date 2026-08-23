@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, usersTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { recordHistoryAsync } from "../lib/history";
+import { NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT } from "@workspace/game-models";
 
 const router: IRouter = Router();
 
@@ -85,7 +86,13 @@ router.post("/daily/claim", async (req, res) => {
   try {
     await db
       .insert(usersTable)
-      .values({ telegramId, firstName: firstName ?? null, zoomBalance: 0, stardustBalance: 30, redStarBalance: 5 })
+      .values({
+        telegramId,
+        firstName: firstName ?? null,
+        zoomBalance: NEW_PLAYER_ZOOM_GRANT,
+        stardustBalance: NEW_PLAYER_STARDUST_GRANT,
+        redStarBalance: 5,
+      })
       .onConflictDoNothing();
 
     const [u] = await db
