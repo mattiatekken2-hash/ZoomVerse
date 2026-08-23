@@ -5,6 +5,7 @@ import { z } from "zod";
 import { bumpZoomPriceFireAndForget } from "../lib/zoomPrice";
 import { recordHistoryAsync } from "../lib/history";
 import { getOrCreateActiveLabRound } from "./labRanking";
+import { NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT } from "@workspace/game-models";
 
 const router: IRouter = Router();
 
@@ -78,16 +79,16 @@ router.post("/balance/sync", async (req, res) => {
       .insert(usersTable)
       .values({
         telegramId,
-        // New players start at 0 $ZOOM — the 30 ★ grant is the on-ramp
-        // (ZOOM models cost 3 ★). Do not take the client's local default
-        // (historically 300) or the farm loop never starts.
-        zoomBalance: 0,
+        // New accounts only (ON CONFLICT does not re-grant). One ZOOM forge
+        // (3 ★) plus a 2 ★ cushion, and one Stardust forge (500 $ZOOM) plus
+        // a 200 $ZOOM cushion. Never take the client's local default.
+        zoomBalance: NEW_PLAYER_ZOOM_GRANT,
         tonBalance: 0,
         firstName: firstName ?? null,
         username: normalizedUsername,
         photoUrl: photoUrl ?? null,
         referralCount: 0,
-        stardustBalance: 30,
+        stardustBalance: NEW_PLAYER_STARDUST_GRANT,
         redStarBalance: 5,
       })
       .onConflictDoUpdate({
