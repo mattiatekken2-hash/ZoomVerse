@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { MysteryModel3D, type ForgeMeshHandle } from "./MysteryModel3D";
+import { LabGridBackground } from "./LabGridBackground";
 import { FORGE_CLAY_HEX, FORGE_SPHERE_SHAPE_ID, getMeshParts, resolveLabForgeShapeId, LAB_ZOOM_COLORS, LAB_STARDUST_COLORS, isLabZoomShapeId, resolveLabStardustShapeId } from "@workspace/game-models";
 import type { Planet } from "../hooks/useGameState";
 import { PLANET_CONFIG } from "../hooks/useGameState";
@@ -551,8 +552,9 @@ export function PlanetCanvas({
   return (
     <div
       ref={containerRef}
-      className={backdrop ? "absolute inset-0" : "relative w-full h-full flex flex-col items-center justify-center"}
+      className={backdrop ? "absolute inset-0 overflow-hidden" : "relative w-full h-full flex flex-col items-center justify-center overflow-hidden"}
     >
+      <LabGridBackground />
       <div
         className={backdrop ? "absolute inset-0 flex items-center justify-center" : "flex items-center justify-center"}
         style={{

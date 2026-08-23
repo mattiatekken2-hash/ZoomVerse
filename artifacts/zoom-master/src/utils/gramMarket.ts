@@ -66,39 +66,44 @@ function downsample(points: GramChartPoint[], maxPoints = 90): GramChartPoint[] 
 }
 
 async function fetchBinance24h(): Promise<{ price: number; pct: number } | null> {
-  try {
-    const res = await fetch(
-      "https://api.binance.com/api/v3/ticker/24hr?symbol=TONUSDT",
-      { signal: AbortSignal.timeout(8000), cache: "no-store" },
-    );
-    if (!res.ok) return null;
-    const data = await res.json() as { lastPrice?: string; priceChangePercent?: string };
-    const price = parseFloat(data.lastPrice ?? "");
-    const pct = parseFloat(data.priceChangePercent ?? "");
-    if (!Number.isFinite(price) || price <= 0) return null;
-    return { price, pct: Number.isFinite(pct) ? pct : NaN };
-  } catch {
-    return null;
+  const urls = [
+    "https://api.binance.com/api/v3/ticker/24hr?symbol=TONUSDT",
+    "https://data-api.binance.vision/api/v3/ticker/24hr?symbol=TONUSDT",
+  ];
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000), cache: "no-store" });
+      if (!res.ok) continue;
+      const data = await res.json() as { lastPrice?: string; priceChangePercent?: string };
+      const price = parseFloat(data.lastPrice ?? "");
+      const pct = parseFloat(data.priceChangePercent ?? "");
+      if (!Number.isFinite(price) || price <= 0) continue;
+      return { price, pct: Number.isFinite(pct) ? pct : NaN };
+    } catch { /* try next */ }
   }
+  return null;
 }
 
 async function fetchBinanceHistory(): Promise<GramChartPoint[]> {
-  try {
-    const res = await fetch(
-      "https://api.binance.com/api/v3/klines?symbol=TONUSDT&interval=1m&limit=120",
-      { signal: AbortSignal.timeout(10000), cache: "no-store" },
-    );
-    if (!res.ok) return [];
-    const rows = await res.json() as Array<[number, string, string, string, string]>;
-    if (!Array.isArray(rows) || rows.length < 2) return [];
-    return rows.map((row) => {
-      const t = Number(row[0]);
-      const price = parseFloat(row[4]);
-      return { t, price, label: formatTime(t) };
-    }).filter((p) => Number.isFinite(p.price) && p.price > 0);
-  } catch {
-    return [];
+  const urls = [
+    "https://api.binance.com/api/v3/klines?symbol=TONUSDT&interval=1m&limit=120",
+    "https://data-api.binance.vision/api/v3/klines?symbol=TONUSDT&interval=1m&limit=120",
+  ];
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000), cache: "no-store" });
+      if (!res.ok) continue;
+      const rows = await res.json() as Array<[number, string, string, string, string]>;
+      if (!Array.isArray(rows) || rows.length < 2) continue;
+      const points = rows.map((row) => {
+        const t = Number(row[0]);
+        const price = parseFloat(row[4]);
+        return { t, price, label: formatTime(t) };
+      }).filter((p) => Number.isFinite(p.price) && p.price > 0);
+      if (points.length >= 2) return points;
+    } catch { /* try next */ }
   }
+  return [];
 }
 
 async function fetchCoinGeckoHistory(): Promise<GramChartPoint[]> {
@@ -119,11 +124,61 @@ async function fetchCoinGeckoHistory(): Promise<GramChartPoint[]> {
   }
 }
 
+const STORAGE_KEY = "zoom-gram-market-v1";
+
+function hydrateCacheFromStorage() {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as {
+      priceUsd?: number | null;
+      change24hPct?: number | null;
+      points?: GramChartPoint[];
+      fetchedAt?: number;
+    };
+    if (Array.isArray(parsed.points) && parsed.points.length >= 2) {
+      cache.points = parsed.points;
+      if (typeof parsed.priceUsd === "number" && parsed.priceUsd > 0) cache.priceUsd = parsed.priceUsd;
+      if (typeof parsed.change24hPct === "number" && Number.isFinite(parsed.change24hPct)) {
+        cache.change24hPct = parsed.change24hPct;
+      }
+      cache.fetchedAt = typeof parsed.fetchedAt === "number" ? parsed.fetchedAt : 1;
+    }
+  } catch { /**/ }
+}
+hydrateCacheFromStorage();
+
+function persistCache() {
+  try {
+    if (cache.points.length < 2) return;
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+      priceUsd: cache.priceUsd,
+      change24hPct: cache.change24hPct,
+      points: cache.points,
+      fetchedAt: cache.fetchedAt,
+    }));
+  } catch { /**/ }
+}
+
+function ensureChartPoints(points: GramChartPoint[], price: number | null): GramChartPoint[] {
+  const live = appendLivePoint(points.length >= 2 ? points : cache.points, price);
+  if (live.length >= 2) return live;
+  if (price != null && price > 0) {
+    const now = Date.now();
+    return [
+      { t: now - 3_600_000, price, label: formatTime(now - 3_600_000) },
+      { t: now, price, label: formatTime(now) },
+    ];
+  }
+  return live;
+}
+
 function writeCache(snap: GramMarketSnapshot) {
   cache.priceUsd = snap.priceUsd;
   cache.change24hPct = snap.change24hPct;
   if (snap.points.length >= 2) cache.points = snap.points;
   cache.fetchedAt = Date.now();
+  persistCache();
   try {
     window.dispatchEvent(new Event(EVENT));
   } catch { /**/ }
@@ -183,14 +238,16 @@ export async function fetchGramMarketSnapshot(opts?: { force?: boolean }): Promi
             (typeof data.priceUsd === "number" && data.priceUsd > 0 ? data.priceUsd : null)
             ?? (await fetchTonPrice())
             ?? readCachedTonPriceAllowStale();
-          const points = appendLivePoint(rawPts.length >= 2 ? downsample(rawPts) : cache.points, priceUsd);
+          const points = ensureChartPoints(rawPts.length >= 2 ? downsample(rawPts) : [], priceUsd);
           const change24hPct =
             typeof data.change24hPct === "number" && Number.isFinite(data.change24hPct)
               ? data.change24hPct
               : gramChartChangePct(points);
-          const snap: GramMarketSnapshot = { priceUsd, change24hPct, points };
-          writeCache(snap);
-          return snap;
+          if (points.length >= 2 || priceUsd != null) {
+            const snap: GramMarketSnapshot = { priceUsd, change24hPct, points };
+            writeCache(snap);
+            if (points.length >= 2) return snap;
+          }
         }
       } catch { /* fall through to direct Binance */ }
 
@@ -220,7 +277,7 @@ export async function fetchGramMarketSnapshot(opts?: { force?: boolean }): Promi
       const snap: GramMarketSnapshot = {
         priceUsd,
         change24hPct,
-        points: appendLivePoint(points.length >= 2 ? points : cache.points, priceUsd),
+        points: ensureChartPoints(points, priceUsd),
       };
       writeCache(snap);
       return snap;

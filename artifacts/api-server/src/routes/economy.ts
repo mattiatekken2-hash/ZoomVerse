@@ -81,6 +81,19 @@ router.get("/economy/gram-market", async (_req, res) => {
       }
     }
     if (points.length < 2) {
+      const vision = await fetch(
+        "https://data-api.binance.vision/api/v3/klines?symbol=TONUSDT&interval=1m&limit=120",
+        { signal: AbortSignal.timeout(10000) },
+      ).catch(() => null);
+      if (vision?.ok) {
+        const rows = await vision.json() as Array<[number, string, string, string, string]>;
+        if (Array.isArray(rows)) {
+          points = rows.map((row) => ({ t: Number(row[0]), price: parseFloat(row[4]) }))
+            .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.price) && p.price > 0);
+        }
+      }
+    }
+    if (points.length < 2) {
       const cg = await fetch(
         "https://api.coingecko.com/api/v3/coins/the-open-network/market_chart?vs_currency=usd&days=1",
         { signal: AbortSignal.timeout(10000) },
