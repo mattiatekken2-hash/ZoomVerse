@@ -142,7 +142,7 @@ export function FarmInventoryCard({
         <h3 className="lab-market-card__title">{title}</h3>
         <div className="lab-market-card__meta">
           <span className="lab-market-card__yield">
-            {path === "zoom" && <ZoomCubeIcon size={11} />}
+            {path === "zoom" && <ZoomCubeIcon size={14} />}
             +{formatYieldAmount(hourRate)} {theme.yieldUnit}
           </span>
           {showCycle && (
