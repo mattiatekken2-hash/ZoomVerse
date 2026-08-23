@@ -134,11 +134,11 @@ function ForgePathPickerBase({
               costLabel={`${LAB_ZOOM_FORGE_STARDUST_COST} ★`}
               yieldLabel="2.6–5.0 /h"
               enabled={canZoom}
-              accent="#1aa85a"
-              border="rgba(46,213,115,0.42)"
-              bgA="rgba(255,255,255,1)"
-              glow="rgba(46,213,115,0.16)"
-              badgeBg="rgba(255,255,255,1)"
+              accent="#7bed9f"
+              border="rgba(255,255,255,0.82)"
+              bgA="rgba(10,11,16,1)"
+              glow="rgba(255,255,255,0.08)"
+              badgeBg="transparent"
               onSelect={onSelect}
             />
             <PathCard
@@ -149,11 +149,11 @@ function ForgePathPickerBase({
               costLabel={`${LAB_STARDUST_FORGE_ZOOM_COST} $ZOOM`}
               yieldLabel="0.20–0.36 ★/h"
               enabled={canStardust}
-              accent="#c79200"
-              border="rgba(201,146,0,0.38)"
-              bgA="rgba(255,255,255,1)"
-              glow="rgba(255,215,64,0.16)"
-              badgeBg="rgba(255,255,255,1)"
+              accent="#ffd740"
+              border="rgba(255,255,255,0.62)"
+              bgA="rgba(10,11,16,1)"
+              glow="rgba(255,255,255,0.06)"
+              badgeBg="transparent"
               onSelect={onSelect}
             />
           </div>

@@ -150,7 +150,7 @@ export function VoxelStudioCanvas({
     fill.position.set(-3, 2, -4);
     scene.add(fill);
 
-    if (!preview) addLabGrid(scene);
+    const gridPivot = preview ? null : addLabGrid(scene);
 
     const cube = VOXEL * CUBE_FILL;
     const geo = new THREE.BoxGeometry(cube, cube, cube);
@@ -394,8 +394,12 @@ export function VoxelStudioCanvas({
     host.addEventListener("wheel", onWheel, { passive: false });
 
     let raf = 0;
-    const tick = () => {
+    let lastFrame = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min(32, now - lastFrame);
+      lastFrame = now;
       if (preview) theta += 0.006;
+      if (gridPivot) gridPivot.rotation.y += (Math.PI * 2 * dt) / 100_000;
       orbitCam();
       renderer.render(scene, camera);
       raf = requestAnimationFrame(tick);

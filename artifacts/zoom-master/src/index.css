@@ -1333,12 +1333,11 @@ body.animations-paused * {
   padding: 0 14px 16px;
   border-radius: 22px 22px 18px 18px;
   background:
-    linear-gradient(180deg, #ffffff 0%, #f5f7fb 52%, #eef1f7 100%);
-  border: 1.5px solid rgba(255, 255, 255, 0.92);
+    linear-gradient(180deg, #12141a 0%, #0a0b10 52%, #07080c 100%);
+  border: 1.5px solid rgba(255, 255, 255, 0.88);
   box-shadow:
-    0 0 0 1px rgba(12, 16, 24, 0.06) inset,
-    0 18px 48px rgba(0, 0, 0, 0.42),
-    0 0 0 1px rgba(255, 255, 255, 0.35);
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+    0 18px 48px rgba(0, 0, 0, 0.55);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   overflow: hidden;
@@ -1349,16 +1348,15 @@ body.animations-paused * {
   top: 0;
   left: 0;
   right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, rgba(46, 213, 115, 0.9) 0%, rgba(123, 237, 159, 0.7) 32%, rgba(255, 215, 64, 0.7) 68%, rgba(255, 193, 7, 0.9) 100%);
+  height: 1.5px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.35) 50%, rgba(255, 255, 255, 0.92) 100%);
   pointer-events: none;
 }
 .lab-forge-picker-top {
   margin: 0 -14px 12px;
   padding: 14px 14px 12px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(245, 247, 251, 0.4) 100%);
-  border-bottom: 1px solid rgba(12, 16, 24, 0.08);
+  background: transparent;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow: none;
 }
 .lab-forge-picker-head {
@@ -1372,14 +1370,14 @@ body.animations-paused * {
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.2em;
-  color: rgba(12, 16, 24, 0.48);
+  color: rgba(255, 255, 255, 0.55);
   text-transform: uppercase;
 }
 .lab-forge-picker-title {
   font-size: 15px;
   font-weight: 900;
   letter-spacing: 0.06em;
-  color: #0c1018;
+  color: #ffffff;
   margin-bottom: 8px;
   padding: 0 2px;
 }
@@ -1404,23 +1402,23 @@ body.animations-paused * {
 .lab-forge-picker-dual__sep {
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, rgba(46, 213, 115, 0.55), rgba(255, 215, 64, 0.55));
-  opacity: 0.85;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.55));
+  opacity: 0.9;
 }
 .lab-forge-picker-close {
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  border: 1px solid rgba(12, 16, 24, 0.12);
-  background: #ffffff;
-  color: rgba(12, 16, 24, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: transparent;
+  color: #ffffff;
   font-size: 16px;
   line-height: 1;
   display: grid;
   place-items: center;
   cursor: pointer;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(12, 16, 24, 0.08);
+  box-shadow: none;
 }
 .lab-forge-picker-grid {
   display: grid;
@@ -1455,35 +1453,27 @@ body.animations-paused * {
   gap: 8px;
   padding: 12px 10px 14px;
   border-radius: 16px;
-  border: 1.5px solid var(--lab-path-border, rgba(12, 16, 24, 0.12));
-  background: #ffffff;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.9) inset,
-    0 8px 22px rgba(12, 16, 24, 0.08);
+  border: 1.5px solid rgba(255, 255, 255, 0.72);
+  background: #0a0b10;
+  box-shadow: none;
 }
 .lab-forge-path-card--zoom .lab-forge-path-card__inner {
-  background: linear-gradient(180deg, #ffffff 0%, #f3fbf6 100%);
-  border-color: rgba(46, 213, 115, 0.42);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.95) inset,
-    0 8px 22px rgba(46, 213, 115, 0.12),
-    0 0 0 1px rgba(46, 213, 115, 0.08);
+  background: #0a0b10;
+  border-color: rgba(255, 255, 255, 0.82);
+  box-shadow: none;
 }
 .lab-forge-path-card--stardust .lab-forge-path-card__inner {
-  background: linear-gradient(180deg, #ffffff 0%, #fffaf0 100%);
-  border-color: rgba(201, 146, 0, 0.38);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.95) inset,
-    0 8px 22px rgba(201, 146, 0, 0.1),
-    0 0 0 1px rgba(255, 215, 64, 0.08);
+  background: #0a0b10;
+  border-color: rgba(255, 255, 255, 0.62);
+  box-shadow: none;
 }
 .lab-forge-path-card__inner::before {
   content: "";
   position: absolute;
   inset: 6px;
   border-radius: 12px;
-  border: 1px solid var(--lab-path-border, rgba(12, 16, 24, 0.08));
-  opacity: 0.7;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  opacity: 1;
   pointer-events: none;
 }
 .lab-forge-path-card__badge {
@@ -1491,12 +1481,12 @@ body.animations-paused * {
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.14em;
-  color: var(--lab-path-accent, #0c1018);
+  color: var(--lab-path-accent, #ffffff);
   padding: 4px 8px;
   border-radius: 999px;
-  background: #ffffff;
-  border: 1px solid var(--lab-path-border, rgba(12, 16, 24, 0.12));
-  box-shadow: 0 2px 8px rgba(12, 16, 24, 0.06);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: none;
   position: relative;
   z-index: 1;
 }
@@ -1522,7 +1512,7 @@ body.animations-paused * {
 .lab-forge-path-card__name {
   font-size: 13px;
   font-weight: 900;
-  color: #0c1018;
+  color: #ffffff;
   letter-spacing: 0.02em;
   line-height: 1.25;
   text-align: center;
@@ -1536,22 +1526,22 @@ body.animations-paused * {
 .lab-forge-path-chip {
   font-size: 10px;
   font-weight: 700;
-  color: rgba(12, 16, 24, 0.72);
+  color: rgba(255, 255, 255, 0.88);
   padding: 5px 8px;
   border-radius: 8px;
-  background: #ffffff;
-  border: 1px solid var(--lab-path-border, rgba(12, 16, 24, 0.12));
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.45);
   font-variant-numeric: tabular-nums;
   position: relative;
   z-index: 1;
 }
 .lab-forge-path-card--zoom .lab-forge-path-chip {
-  color: #148a4a;
-  border-color: rgba(46, 213, 115, 0.38);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.55);
 }
 .lab-forge-path-card--stardust .lab-forge-path-chip {
-  color: #a07800;
-  border-color: rgba(201, 146, 0, 0.38);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.45);
 }
 
 .lab-reveal-card {
@@ -2877,11 +2867,11 @@ body.animations-paused * {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 7px;
-  background: #08080c;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  width: 16px;
+  height: 16px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   flex-shrink: 0;
 }
 .lab-market-card__body {

@@ -169,23 +169,18 @@ router.get("/leaderboard", async (_req, res) => {
       .orderBy(desc(usersTable.zoomBalance))
       .limit(100);
 
-    const leaderboard = rows
-      .map((row) => {
-        const firstName = (row.firstName || "").trim();
-        const username = (row.username || "").trim();
-        const displayName = firstName || (username ? `@${username}` : "");
-        return {
-          telegramId: row.telegramId,
-          firstName: displayName,
-          photoUrl: row.photoUrl || null,
-          zoomBalance: row.zoomBalance,
-        };
-      })
-      .filter((row) => row.firstName.length > 0 || !!row.photoUrl)
-      .map((row, index) => ({
+    const leaderboard = rows.map((row, index) => {
+      const firstName = (row.firstName || "").trim();
+      const username = (row.username || "").trim();
+      const displayName = firstName || (username ? `@${username}` : "");
+      return {
         rank: index + 1,
-        ...row,
-      }));
+        telegramId: row.telegramId,
+        firstName: displayName,
+        photoUrl: row.photoUrl || null,
+        zoomBalance: row.zoomBalance,
+      };
+    });
 
     res.json({ leaderboard });
   } catch (err) {
