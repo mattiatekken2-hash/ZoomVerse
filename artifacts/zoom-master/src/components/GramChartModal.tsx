@@ -82,11 +82,12 @@ export function GramChartModal({
   const usdtValue = price != null ? totalGram * price : null;
   const chartData = useMemo(() => {
     if (points.length >= 2) return points;
-    if (points.length === 1 && price != null) {
-      const only = points[0]!;
+    if (price != null && price > 0) {
+      const now = Date.now();
+      const open = points[0]?.price ?? price;
       return [
-        { ...only, t: only.t - 3_600_000, label: only.label },
-        { ...only, price, label: t("gramChart.now") },
+        { t: now - 3_600_000, price: open, label: t("gramChart.now") },
+        { t: now, price, label: t("gramChart.now") },
       ];
     }
     return [];
