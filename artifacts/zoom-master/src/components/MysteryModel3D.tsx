@@ -967,6 +967,35 @@ function seedLabAmbientCubes(): { voxels: VoxelCell[]; cubes: LabAmbientCube[]; 
 function addForgeSpaceGrid(scene: THREE.Scene, maxDim: number): THREE.Object3D[] {
   const extras: THREE.Object3D[] = [];
 
+  // Same floor + back wall as Create your model (fixed size). A maxDim-scaled
+  // GridHelper vanished at screen center and read as a wall through the Lab.
+  const span = 4.8;
+  const cells = 22;
+  const tuneGrid = (grid: THREE.GridHelper, opacity: number) => {
+    const mats = Array.isArray(grid.material) ? grid.material : [grid.material];
+    for (const m of mats) {
+      m.transparent = true;
+      m.opacity = opacity;
+      m.depthWrite = false;
+    }
+    grid.renderOrder = -10;
+  };
+
+  const floorGrid = new THREE.GridHelper(span, cells, 0xb8c0cc, 0x6a7280);
+  tuneGrid(floorGrid, 0.38);
+  floorGrid.position.y = -1.35;
+  scene.add(floorGrid);
+  extras.push(floorGrid);
+
+  // Behind the floating cubes (they reach z ≈ ±3). z = -1.35 cut through
+  // the cluster and read as a wall in the middle of the Lab.
+  const backGrid = new THREE.GridHelper(span, cells, 0xa0a8b8, 0x505868);
+  tuneGrid(backGrid, 0.2);
+  backGrid.rotation.x = Math.PI / 2;
+  backGrid.position.set(0, -0.15, -3.55);
+  scene.add(backGrid);
+  extras.push(backGrid);
+
   const starGeo = new THREE.BufferGeometry();
   const starCount = 120;
   const starPos = new Float32Array(starCount * 3);
