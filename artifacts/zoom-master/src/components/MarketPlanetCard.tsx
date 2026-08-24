@@ -15,6 +15,7 @@ import {
   parseMarketPriceCurrency,
   type LabMarketPath,
 } from "@workspace/game-models";
+import { useGlThumbsPaused } from "../utils/glThumbGate";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 
@@ -116,6 +117,8 @@ export function MarketPlanetCard({
   const theme = PATH_THEME[path] ?? PATH_THEME.zoom;
   const title = resolveTitle(listing, path);
   const rate = resolveRate(listing, path);
+  const glPaused = useGlThumbsPaused();
+  const hideGl = suspendGl || glPaused;
 
   const shapeId = resolveLabShapeIdFromPlanet({
     shapeId: listing.shapeId,
@@ -156,7 +159,11 @@ export function MarketPlanetCard({
     >
       <div className="lab-market-card__stage">
         <div className="lab-market-card__orb" aria-hidden>
-          <PlanetVoxelThumb planet={fakePlanet} size={132} animate eager suspendGl={suspendGl} />
+          {hideGl ? (
+            <div style={{ width: 132, height: 132, flexShrink: 0 }} aria-hidden />
+          ) : (
+            <PlanetVoxelThumb planet={fakePlanet} size={132} animate eager />
+          )}
         </div>
         <span className="lab-market-card__path">
           {path === "zoom" && (

@@ -312,22 +312,22 @@ function weightedPick<T extends string>(entries: readonly { id: T; weight: numbe
 export function pickRandomLabZoomShapeId(): LabZoomShapeId {
   if (readLabForgeTestPizzaFlag()) return LAB_PIZZA_SHAPE_ID;
   return weightedPick([
-    { id: LAB_PIZZA_SHAPE_ID, weight: 48 },
-    { id: LAB_FLOWER_SHAPE_ID, weight: 14 },
-    { id: LAB_DOLLAR_SHAPE_ID, weight: 10 },
-    { id: LAB_CREEPER_SHAPE_ID, weight: 14 },
-    { id: LAB_CHEST_SHAPE_ID, weight: 14 },
+    { id: LAB_PIZZA_SHAPE_ID, weight: 45 },
+    { id: LAB_FLOWER_SHAPE_ID, weight: 16 },
+    { id: LAB_DOLLAR_SHAPE_ID, weight: 13 },
+    { id: LAB_CREEPER_SHAPE_ID, weight: 13 },
+    { id: LAB_CHEST_SHAPE_ID, weight: 13 },
   ] as const);
 }
 
 /** Stardust pot is common; steve / chicken farm higher and drop less often. */
 export function pickRandomLabStardustShapeId(): LabStardustShapeId {
   return weightedPick([
-    { id: LAB_STARDUST_POT_SHAPE_ID, weight: 48 },
-    { id: LAB_ONIGIRI_SHAPE_ID, weight: 12 },
-    { id: LAB_ISLAND_HOME_SHAPE_ID, weight: 10 },
-    { id: LAB_STEVE_SHAPE_ID, weight: 15 },
-    { id: LAB_CHICKEN_SHAPE_ID, weight: 15 },
+    { id: LAB_STARDUST_POT_SHAPE_ID, weight: 45 },
+    { id: LAB_ONIGIRI_SHAPE_ID, weight: 16 },
+    { id: LAB_ISLAND_HOME_SHAPE_ID, weight: 13 },
+    { id: LAB_STEVE_SHAPE_ID, weight: 13 },
+    { id: LAB_CHICKEN_SHAPE_ID, weight: 13 },
   ] as const);
 }
 

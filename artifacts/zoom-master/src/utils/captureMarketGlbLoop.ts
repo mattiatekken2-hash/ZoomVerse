@@ -11,6 +11,7 @@ import { labForgeShapeHasGlbReveal } from "@workspace/game-models";
 import { cloneLabGlbTemplate, preloadLabGlb } from "./labGlbCache";
 import { LAB_GLB_FIT_SIZE, addForgeSpaceGrid, fitGlbToCenter } from "./labGlbScene";
 import { encodeLoopingGif, gifToBase64 } from "./gifLoopEncoder";
+import { withGlThumbsPaused } from "./glThumbGate";
 
 const SIZE = 320;
 const FRAMES = 24;
@@ -53,6 +54,10 @@ function nextFrame(): Promise<void> {
 
 export async function captureMarketGlbLoopGif(shapeId: string): Promise<string | null> {
   if (!labForgeShapeHasGlbReveal(shapeId)) return null;
+  return withGlThumbsPaused(() => captureMarketGlbLoopGifInner(shapeId));
+}
+
+async function captureMarketGlbLoopGifInner(shapeId: string): Promise<string | null> {
 
   const template = await preloadLabGlb(shapeId);
   const model = cloneLabGlbTemplate(template);
@@ -69,9 +74,9 @@ export async function captureMarketGlbLoopGif(shapeId: string): Promise<string |
     "top:0",
     `width:${SIZE}px`,
     `height:${SIZE}px`,
-    "opacity:0.02",
+    "opacity:0.12",
     "pointer-events:none",
-    "z-index:0",
+    "z-index:2",
   ].join(";");
   document.body.appendChild(canvas);
 
@@ -91,36 +96,37 @@ export async function captureMarketGlbLoopGif(shapeId: string): Promise<string |
     renderer.setSize(SIZE, SIZE, false);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.25;
-    renderer.setClearColor(0x12161f, 1);
+    renderer.toneMappingExposure = 1.55;
+    renderer.setClearColor(0x3a4a62, 1);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x12161f);
+    scene.background = new THREE.Color(0x3a4a62);
 
     pmrem = new THREE.PMREMGenerator(renderer);
     envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = envTex;
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.85));
-    const key = new THREE.DirectionalLight(0xffffff, 1.55);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.15));
+    const key = new THREE.DirectionalLight(0xffffff, 2.1);
     key.position.set(2.2, 3.4, 2.8);
     scene.add(key);
-    const fill = new THREE.DirectionalLight(0xc8d4ff, 0.7);
+    const fill = new THREE.DirectionalLight(0xe8f0ff, 1.05);
     fill.position.set(-2.5, 1.2, -1.4);
     scene.add(fill);
-    const rim = new THREE.DirectionalLight(0xfff4e0, 0.45);
+    const rim = new THREE.DirectionalLight(0xfff4e0, 0.85);
     rim.position.set(0, 2.2, -3.2);
     scene.add(rim);
 
     const spinGroup = new THREE.Group();
     scene.add(spinGroup);
     const fitted = fitGlbToCenter(model, LAB_GLB_FIT_SIZE);
+    model.scale.multiplyScalar(1.45);
     spinGroup.add(model);
     addForgeSpaceGrid(scene, fitted);
 
-    const camera = new THREE.PerspectiveCamera(36, 1, 0.05, 5000);
-    const camDir = new THREE.Vector3(1.2, 0.82, 1.55).normalize();
-    const camDist = fitted * 2.35;
+    const camera = new THREE.PerspectiveCamera(32, 1, 0.05, 5000);
+    const camDir = new THREE.Vector3(1.05, 0.72, 1.35).normalize();
+    const camDist = fitted * 1.72;
     camera.position.copy(camDir.multiplyScalar(camDist));
     camera.near = camDist * 0.02;
     camera.far = camDist * 12;
@@ -129,6 +135,8 @@ export async function captureMarketGlbLoopGif(shapeId: string): Promise<string |
 
     renderer.compile(scene, camera);
     renderer.render(scene, camera);
+    await nextFrame();
+    await nextFrame();
     await nextFrame();
     await nextFrame();
 

@@ -1,6 +1,7 @@
 import { useEffect, useState, memo } from "react";
 import { createPortal } from "react-dom";
 import { fetchLabRankState, type LabRankState } from "../utils/api";
+import { GramDiamondIcon } from "./GramDiamondIcon";
 
 const CYAN = "#00d4ff";
 const ACCENT = "#4dd4ff";
@@ -88,20 +89,16 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
   return (
     <>
       <style>{`
-        @keyframes lrGlow {
-          0%,100% { box-shadow: 0 0 12px ${CYAN}88, 0 0 22px ${CYAN}33; }
-          50%     { box-shadow: 0 0 20px ${CYAN}cc, 0 0 38px ${CYAN}55; }
-        }
         @keyframes lrPulse {
           0%, 82% { transform: rotate(0deg) scale(1); }
-          86% { transform: rotate(-18deg) scale(1.12); }
-          90% { transform: rotate(18deg) scale(1.12); }
-          94% { transform: rotate(-10deg) scale(1.06); }
-          97% { transform: rotate(10deg) scale(1.04); }
+          86% { transform: rotate(-14deg) scale(1.06); }
+          90% { transform: rotate(14deg) scale(1.06); }
+          94% { transform: rotate(-8deg) scale(1.03); }
+          97% { transform: rotate(8deg) scale(1.02); }
           100% { transform: rotate(0deg) scale(1); }
         }
-        .lr-tile { animation: lrGlow 2.6s ease-in-out infinite; }
-        .lr-emoji { display: block; animation: lrPulse 3s ease-in-out infinite; transform-origin: 50% 80%; }
+        .lr-tile { overflow: hidden; contain: paint; }
+        .lr-emoji { display: flex; align-items: center; justify-content: center; animation: lrPulse 3s ease-in-out infinite; transform-origin: 50% 50%; will-change: transform; }
         @keyframes lrRing {
           0% { transform: translate(-50%, -50%) rotateX(68deg) rotateZ(0deg); opacity: 0.55; }
           100% { transform: translate(-50%, -50%) rotateX(68deg) rotateZ(360deg); opacity: 0.85; }
@@ -171,12 +168,10 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
             style={{
               width: "100%", height: "100%",
               display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: headerMode ? 20 : shopMode ? 28 : 26,
               lineHeight: 1,
-              filter: `drop-shadow(0 0 8px ${CYAN}aa)`,
             }}
           >
-            🧪
+            <GramDiamondIcon size={headerMode ? 22 : shopMode ? 30 : 28} />
           </div>
           {userRank != null && userRank <= 100 && (
             <span
@@ -251,6 +246,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
           data-testid="modal-lab-rank"
         >
           <div
+            onClick={(e) => e.stopPropagation()}
             style={{
               position: "relative",
               width: "100%",
@@ -268,22 +264,25 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
             }}
           >
             <button
-              onClick={() => setOpen(false)}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setOpen(false); }}
               aria-label="Close"
               style={{
                 position: "absolute",
-                top: 12,
-                right: 12,
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                border: `1px solid ${CYAN}44`,
-                background: "rgba(0,212,255,0.08)",
+                top: 10,
+                right: 10,
+                zIndex: 40,
+                width: 44,
+                height: 44,
+                borderRadius: 10,
+                border: `1px solid ${CYAN}55`,
+                background: "rgba(4,12,20,0.92)",
                 color: ACCENT,
-                fontSize: 16,
+                fontSize: 18,
                 fontWeight: 900,
                 cursor: "pointer",
                 lineHeight: 1,
+                pointerEvents: "auto",
               }}
             >
               ✕
@@ -294,13 +293,13 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
                 className="lr-emoji"
                 aria-hidden
                 style={{
-                  fontSize: 56,
-                  lineHeight: 1,
-                  filter: `drop-shadow(0 0 16px ${CYAN}aa)`,
+                  width: 72,
+                  height: 72,
                   margin: "4px auto 8px",
+                  filter: `drop-shadow(0 0 14px ${CYAN}88)`,
                 }}
               >
-                🧪
+                <GramDiamondIcon size={64} />
               </div>
               <div
                 style={{

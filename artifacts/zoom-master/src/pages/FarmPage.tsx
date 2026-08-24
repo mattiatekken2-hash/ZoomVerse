@@ -383,7 +383,7 @@ export function FarmPage({
                 planet={planet}
                 variant="grid"
                 glDelayMs={0}
-                suspendGl={!!liveDetailPlanet}
+                suspendGl={liveDetailPlanet?.id === planet.id}
                 testId={`planet-card-${planet.id}`}
                 onCardClick={() => setDetailPlanet(planet)}
                 onStartFarm={handleStartOrReactivate}

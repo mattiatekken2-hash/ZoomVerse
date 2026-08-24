@@ -1,3 +1,4 @@
+import { useGlThumbsPaused } from "../utils/glThumbGate";
 import type { Planet } from "../hooks/useGameState";
 import {
   formatDuration,
@@ -67,6 +68,8 @@ export function FarmInventoryCard({
   listedActionDisabled = false,
 }: FarmInventoryCardProps) {
   const { t } = useT();
+  const glPaused = useGlThumbsPaused();
+  const hideGl = suspendGl || glPaused;
   const compact = variant === "compact";
   const active = isFarmActive(planet);
   const expired = isFarmExpired(planet);
@@ -111,7 +114,7 @@ export function FarmInventoryCard({
           className="lab-market-card__orb"
           aria-hidden
         >
-          {suspendGl ? (
+          {hideGl ? (
             <div style={{ width: orbSize, height: orbSize, flexShrink: 0 }} aria-hidden />
           ) : (
             <PlanetVoxelThumb
