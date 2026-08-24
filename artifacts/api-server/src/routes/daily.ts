@@ -3,6 +3,7 @@ import { db, usersTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { recordHistoryAsync } from "../lib/history";
 import { NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT } from "@workspace/game-models";
+import { persistableFirstName } from "../lib/playerName";
 
 const router: IRouter = Router();
 
@@ -88,7 +89,7 @@ router.post("/daily/claim", async (req, res) => {
       .insert(usersTable)
       .values({
         telegramId,
-        firstName: firstName ?? null,
+        firstName: persistableFirstName(firstName),
         zoomBalance: NEW_PLAYER_ZOOM_GRANT,
         stardustBalance: NEW_PLAYER_STARDUST_GRANT,
         redStarBalance: 5,

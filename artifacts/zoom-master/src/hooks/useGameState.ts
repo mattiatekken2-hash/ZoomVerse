@@ -814,7 +814,9 @@ function getTelegramContext(): { telegramId: string | null; startParam: string |
       telegramId = getBrowserDevTelegramId();
       if (telegramId) persistTelegramId(telegramId);
     }
-    const firstName = unsafe?.user?.first_name ?? (telegramId && !unsafe?.user?.id ? "Dev" : null);
+    const firstName = typeof unsafe?.user?.first_name === "string" && unsafe.user.first_name.trim()
+      ? unsafe.user.first_name.trim()
+      : null;
     const username = unsafe?.user?.username ?? null;
     const photoUrl = unsafe?.user?.photo_url ?? null;
 

@@ -3,6 +3,7 @@ import { db, usersTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT } from "@workspace/game-models";
+import { persistableFirstName } from "../lib/playerName";
 
 const router: IRouter = Router();
 
@@ -96,6 +97,7 @@ router.post("/referral/register", async (req, res) => {
 
   const { telegramId, referredBy, firstName, username, photoUrl } = parsed.data;
   const normalizedUsername = username ? username.replace(/^@/, "").toLowerCase() : null;
+  const safeFirstName = persistableFirstName(firstName);
 
   console.log(`[register] telegramId=${telegramId} username=${normalizedUsername ?? "none"} referredBy=${referredBy ?? "none"}`);
 
@@ -111,7 +113,7 @@ router.post("/referral/register", async (req, res) => {
         telegramId,
         referredBy: referredBy ?? null,
         referralCount: 0,
-        firstName: firstName ?? null,
+        firstName: safeFirstName,
         username: normalizedUsername,
         photoUrl: photoUrl ?? null,
         zoomBalance: NEW_PLAYER_ZOOM_GRANT,
@@ -125,10 +127,10 @@ router.post("/referral/register", async (req, res) => {
 
     // For existing users, refresh first_name/username/photoUrl separately so we keep
     // those columns up to date without affecting the new/existing detection.
-    if (!isNew && (firstName || normalizedUsername || photoUrl)) {
+    if (!isNew && (safeFirstName || normalizedUsername || photoUrl)) {
       await db.update(usersTable)
         .set({
-          ...(firstName ? { firstName } : {}),
+          ...(safeFirstName ? { firstName: safeFirstName } : {}),
           ...(normalizedUsername ? { username: normalizedUsername } : {}),
           ...(photoUrl ? { photoUrl } : {}),
         })
