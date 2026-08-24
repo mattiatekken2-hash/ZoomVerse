@@ -292,16 +292,18 @@ export async function sendMarketShareToGroup(params: {
   }
   const markup = marketShareMarkup(params.buttonText, params.buttonUrl);
   try {
-    if (params.animationGif && params.animationGif.length > 32) {
+    if (params.animationGif && params.animationGif.length > 800) {
       const form = new FormData();
       form.append("chat_id", MARKET_SHARE_CHAT_ID);
       if (MARKET_SHARE_THREAD_ID) form.append("message_thread_id", String(MARKET_SHARE_THREAD_ID));
       form.append("caption", params.caption);
       form.append("parse_mode", "HTML");
       form.append("reply_markup", markup);
+      form.append("width", "256");
+      form.append("height", "256");
       const bytes = new Uint8Array(params.animationGif);
-      const blob = new Blob([bytes], { type: "image/gif" });
-      form.append("animation", blob, "model-spin.gif");
+      const file = new File([bytes], "model-spin.gif", { type: "image/gif" });
+      form.append("animation", file, "model-spin.gif");
       const gifOk = await telegramMethod("sendAnimation", form);
       if (gifOk) return true;
       logger.warn("[notify] market share GIF rejected — falling back to text");
