@@ -59,6 +59,13 @@ function buildPalette(frames: Uint8ClampedArray[], colorCount: number): Uint8Arr
     palette[i * 3 + 1] = g;
     palette[i * 3 + 2] = b;
   }
+  // Unused slots default to 0,0,0 which steals dark model pixels.
+  for (let i = used; i < colorCount; i++) {
+    const src = (i % used) * 3;
+    palette[i * 3] = palette[src]!;
+    palette[i * 3 + 1] = palette[src + 1]!;
+    palette[i * 3 + 2] = palette[src + 2]!;
+  }
   return palette;
 }
 

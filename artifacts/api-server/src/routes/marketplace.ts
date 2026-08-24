@@ -1512,14 +1512,12 @@ const ShareBody = z.object({
   shapeId: z.string().max(48).optional(),
 });
 
-const gifCacheByShape = new Map<string, Buffer>();
-
 function decodeGifB64(raw: string | undefined): Buffer | null {
   if (!raw) return null;
   const cleaned = raw.replace(/^data:image\/gif;base64,/i, "").replace(/\s/g, "");
   try {
     const buf = Buffer.from(cleaned, "base64");
-    if (buf.length < 800 || buf.length > 2_400_000) return null;
+    if (buf.length < 1200 || buf.length > 2_400_000) return null;
     if (buf.toString("ascii", 0, 3) !== "GIF") return null;
     return buf;
   } catch {
@@ -1578,9 +1576,7 @@ router.post("/market/share", async (req, res) => {
   } catch { /**/ }
 
   const shapeId = listing.shapeId || parsed.data.shapeId || null;
-  let animationGif = decodeGifB64(parsed.data.animationGifBase64);
-  if (!animationGif && shapeId) animationGif = gifCacheByShape.get(shapeId) ?? null;
-  if (animationGif && shapeId) gifCacheByShape.set(shapeId, animationGif);
+  const animationGif = decodeGifB64(parsed.data.animationGifBase64);
 
   const deepLink = `https://t.me/${BOT_USERNAME}?startapp=mkt_${listing.id}`;
 
