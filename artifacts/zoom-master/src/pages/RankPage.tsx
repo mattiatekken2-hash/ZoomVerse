@@ -81,15 +81,6 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
         }
         return entry;
       });
-    if (telegramId && balance > 0 && !rows.some((e) => e.telegramId === telegramId)) {
-      rows.push({
-        rank: 0,
-        telegramId,
-        firstName: tgName || "",
-        photoUrl: null,
-        zoomBalance: balance,
-      });
-    }
     return rows
       .sort((a, b) => b.zoomBalance - a.zoomBalance)
       .map((entry, index) => ({ ...entry, rank: index + 1 }));

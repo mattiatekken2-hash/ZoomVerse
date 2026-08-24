@@ -9,6 +9,8 @@ export const usersTable = pgTable("users", {
   referredBy: text("referred_by"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   zoomBalance: real("zoom_balance").notNull().default(0),
+  /** ZOOM at last live-season rank reset. Rank lists the delta only. */
+  seasonZoomStart: real("season_zoom_start").notNull().default(0),
   balanceEpoch: integer("balance_epoch").notNull().default(0),
   firstName: text("first_name"),
   username: text("username"),

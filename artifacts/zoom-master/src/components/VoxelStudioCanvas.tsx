@@ -402,7 +402,6 @@ export function VoxelStudioCanvas({
       const dt = Math.min(32, now - lastFrame);
       lastFrame = now;
       if (preview) theta += 0.006;
-      if (gridPivot) gridPivot.rotation.y += (Math.PI * 2 * dt) / 100_000;
       orbitCam();
       renderer.render(scene, camera);
       raf = requestAnimationFrame(tick);

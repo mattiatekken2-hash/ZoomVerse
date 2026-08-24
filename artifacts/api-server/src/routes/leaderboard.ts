@@ -83,6 +83,7 @@ router.post("/balance/sync", async (req, res) => {
         // (3 ★) plus a 2 ★ cushion, and one Stardust forge (500 $ZOOM) plus
         // a 200 $ZOOM cushion. Never take the client's local default.
         zoomBalance: NEW_PLAYER_ZOOM_GRANT,
+        seasonZoomStart: NEW_PLAYER_ZOOM_GRANT,
         tonBalance: 0,
         firstName: firstName ?? null,
         username: normalizedUsername,
@@ -157,17 +158,18 @@ router.post("/balance/sync", async (req, res) => {
 
 router.get("/leaderboard", async (_req, res) => {
   try {
+    const seasonDelta = sql`GREATEST(0, ${usersTable.zoomBalance} - COALESCE(${usersTable.seasonZoomStart}, 0))`;
     const rows = await db
       .select({
         telegramId: usersTable.telegramId,
         firstName: usersTable.firstName,
         username: usersTable.username,
         photoUrl: usersTable.photoUrl,
-        zoomBalance: usersTable.zoomBalance,
+        zoomBalance: seasonDelta.as("zoom_balance"),
       })
       .from(usersTable)
-      .where(sql`${usersTable.zoomBalance} > 0 AND ${usersTable.isDisabled} = false`)
-      .orderBy(desc(usersTable.zoomBalance))
+      .where(sql`${seasonDelta} > 0 AND ${usersTable.isDisabled} = false`)
+      .orderBy(sql`${seasonDelta} DESC`)
       .limit(100);
 
     const leaderboard = rows.map((row, index) => {

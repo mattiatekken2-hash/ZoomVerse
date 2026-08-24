@@ -1,11 +1,13 @@
 import { db } from "@workspace/db";
 import { appSettingsTable } from "@workspace/db/schema";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { logger } from "./logger";
 
 /** Season 3 anchor — matches RankPage / ExchangeWidget fallback. */
 export const DEFAULT_SEASON_EPOCH_MS = Date.UTC(2026, 7, 24);
 const PREV_SEASON_3_EPOCH_MS = Date.UTC(2026, 7, 15);
+/** Bump this to take a new rank snapshot (clears LIVE SEASON RANK names). */
+const SEASON_RANK_SNAPSHOT_MS = Date.UTC(2026, 7, 24, 3);
 
 async function usersTableReady(): Promise<boolean> {
   try {
@@ -31,6 +33,34 @@ async function seedDefaults(): Promise<void> {
     `);
   } catch (err) {
     logger.warn({ err }, "[ensure-db] season_epoch seed skipped");
+  }
+
+  try {
+    await db.execute(sql`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS season_zoom_start real NOT NULL DEFAULT 0
+    `);
+    await db
+      .insert(appSettingsTable)
+      .values({ key: "season_rank_snapshot", valueNum: 0 })
+      .onConflictDoNothing();
+    const [snapRow] = await db
+      .select({ valueNum: appSettingsTable.valueNum })
+      .from(appSettingsTable)
+      .where(eq(appSettingsTable.key, "season_rank_snapshot"))
+      .limit(1);
+    if ((snapRow?.valueNum ?? 0) < SEASON_RANK_SNAPSHOT_MS) {
+      await db.execute(sql`
+        UPDATE users SET season_zoom_start = COALESCE(zoom_balance, 0)
+      `);
+      await db
+        .update(appSettingsTable)
+        .set({ valueNum: SEASON_RANK_SNAPSHOT_MS, updatedAt: new Date() })
+        .where(eq(appSettingsTable.key, "season_rank_snapshot"));
+      logger.info("[ensure-db] live season rank snapshot taken — board cleared");
+    }
+  } catch (err) {
+    logger.warn({ err }, "[ensure-db] season rank snapshot skipped");
   }
 }
 

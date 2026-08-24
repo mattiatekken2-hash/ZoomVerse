@@ -2470,8 +2470,7 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
       for (const extra of groundExtras) {
         if (extra.userData?.isForgeGridPivot) {
-          // One full turn every ~100s — slow, ambient Lab drift.
-          extra.rotation.y += (Math.PI * 2 * dt) / 100_000;
+          extra.rotation.y = 0;
         }
       }
 
