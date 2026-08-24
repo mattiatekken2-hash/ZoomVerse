@@ -14,8 +14,8 @@ import { encodeLoopingGif, gifToBase64 } from "./gifLoopEncoder";
 import { withGlThumbsPaused } from "./glThumbGate";
 
 const SIZE = 320;
-const FRAMES = 24;
-const DELAY_CS = 6; // 60ms × 24 = 1.44s / revolution
+const FRAMES = 36;
+const DELAY_CS = 5; // 50ms × 36 = 1.8s / revolution — close to Lab reveal spin
 
 function cloneMaterialsForCapture(root: THREE.Object3D) {
   root.traverse((node) => {
@@ -96,37 +96,43 @@ async function captureMarketGlbLoopGifInner(shapeId: string): Promise<string | n
     renderer.setSize(SIZE, SIZE, false);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.55;
-    renderer.setClearColor(0x3a4a62, 1);
+    renderer.toneMappingExposure = 1.05;
+    renderer.setClearColor(0x060810, 1);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x3a4a62);
+    scene.background = new THREE.Color(0x060810);
 
     pmrem = new THREE.PMREMGenerator(renderer);
     envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = envTex;
 
-    scene.add(new THREE.AmbientLight(0xffffff, 1.15));
-    const key = new THREE.DirectionalLight(0xffffff, 2.1);
+    // Same lights as LabGlbViewer reveal (end-of-taps screen).
+    scene.add(new THREE.AmbientLight(0xffffff, 0.48));
+    const key = new THREE.DirectionalLight(0xffffff, 1.15);
     key.position.set(2.2, 3.4, 2.8);
     scene.add(key);
-    const fill = new THREE.DirectionalLight(0xe8f0ff, 1.05);
+    const fill = new THREE.DirectionalLight(0xaabbee, 0.42);
     fill.position.set(-2.5, 1.2, -1.4);
     scene.add(fill);
-    const rim = new THREE.DirectionalLight(0xfff4e0, 0.85);
-    rim.position.set(0, 2.2, -3.2);
-    scene.add(rim);
 
     const spinGroup = new THREE.Group();
     scene.add(spinGroup);
     const fitted = fitGlbToCenter(model, LAB_GLB_FIT_SIZE);
-    model.scale.multiplyScalar(1.45);
     spinGroup.add(model);
-    addForgeSpaceGrid(scene, fitted);
+    const gridExtras = addForgeSpaceGrid(scene, fitted);
+    for (const obj of gridExtras) {
+      if (!(obj instanceof THREE.GridHelper)) continue;
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const m of mats) {
+        m.transparent = true;
+        m.opacity = Math.min(0.82, (m.opacity ?? 0.3) + 0.28);
+        m.needsUpdate = true;
+      }
+    }
 
-    const camera = new THREE.PerspectiveCamera(32, 1, 0.05, 5000);
-    const camDir = new THREE.Vector3(1.05, 0.72, 1.35).normalize();
-    const camDist = fitted * 1.72;
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 5000);
+    const camDir = new THREE.Vector3(1.35, 0.95, 1.7).normalize();
+    const camDist = fitted * 2.85;
     camera.position.copy(camDir.multiplyScalar(camDist));
     camera.near = camDist * 0.02;
     camera.far = camDist * 12;

@@ -42,7 +42,7 @@ function buildPalette(frames: Uint8ClampedArray[], colorCount: number): Uint8Arr
       const key = rgb565(px[i]!, px[i + 1]!, px[i + 2]!);
       // Background navy dominates the frame. Down-weight it so model colors
       // actually get GIF palette slots (otherwise the mesh vanishes).
-      hist[key]! += luma565(key) < 90 ? 0.12 : 1;
+      hist[key]! += luma565(key) < 48 ? 0.06 : 1;
     }
   }
   const ranked: Array<{ k: number; n: number }> = [];
