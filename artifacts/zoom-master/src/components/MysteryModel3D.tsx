@@ -7,7 +7,7 @@ import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 import { FORGE_CLAY, FORGE_CLAY_HEX, FORGE_VOXEL_SIZE, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, FORGE_SPHERE_SHAPE_ID, getForgeSphereBlueprint, getLabForgeShapeVoxels, isLabCollectibleVoxelRarity, labForgeMorphT, labForgeShapeHasGlbReveal, showcaseVoxelHex, getShowcaseVoxelHex, getShowcasePaletteForRarity, getShowcaseRarityStyle, quantizeToShowcasePalette, isBattleScarVoxel, shouldPlanetShowRing, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
 import { FLOAT_PLANET_TYPES } from "../utils/planetFloat";
 import { isLowEndDevice } from "../utils/deviceTier";
-import { fitGlbToCenter, LAB_GLB_FIT_SIZE } from "../utils/labGlbScene";
+import { fitGlbToCenter, FORGE_FLOOR_SPIN_PER_MS, LAB_GLB_FIT_SIZE } from "../utils/labGlbScene";
 
 const DEFAULT_PARTS = mysteryKitParts();
 
@@ -691,6 +691,7 @@ function isGlassPart(part: MeshPart): boolean {
 }
 
 function setupRenderer(renderer: THREE.WebGLRenderer, showcase: boolean): void {
+  renderer.debug.checkShaderErrors = false;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   if (showcase) {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -985,12 +986,6 @@ function addForgeSpaceGrid(scene: THREE.Scene, maxDim: number): THREE.Object3D[]
   tuneGrid(floorGrid, 0.38);
   floorGrid.position.y = -maxDim * 0.46;
   gridPivot.add(floorGrid);
-
-  const backGrid = new THREE.GridHelper(span, cells, 0xa0a8b8, 0x505868);
-  tuneGrid(backGrid, 0.2);
-  backGrid.rotation.z = Math.PI / 2;
-  backGrid.position.set(-maxDim * 1.05, maxDim * 0.05, 0);
-  gridPivot.add(backGrid);
 
   scene.add(gridPivot);
   extras.push(gridPivot);
@@ -2462,11 +2457,17 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     const forgePosScratch = new THREE.Vector3();
 
     const animate = (now: number) => {
+      if (disposed || document.hidden || !sceneActiveRef.current) {
+        frameId = 0;
+        return;
+      }
       frameId = requestAnimationFrame(animate);
-      if (document.hidden || !sceneActiveRef.current) return;
 
       const dt = Math.min(32, now - lastFrame);
       lastFrame = now;
+      for (const extra of groundExtras) {
+        if (extra.userData?.isForgeGridPivot) extra.rotation.y += FORGE_FLOOR_SPIN_PER_MS * dt;
+      }
 
       const st = stateRef.current;
       const revealPhase = forgeRevealPhaseRef.current;
@@ -3031,8 +3032,16 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
     animate(performance.now());
     draw(camera);
 
+    const onVis = () => {
+      if (document.hidden || disposed || frameId) return;
+      lastFrame = performance.now();
+      animate(lastFrame);
+    };
+    document.addEventListener("visibilitychange", onVis);
+
     return () => {
       disposed = true;
+      document.removeEventListener("visibilitychange", onVis);
       cancelAnimationFrame(frameId);
       try {
         pixelPass?.dispose?.();

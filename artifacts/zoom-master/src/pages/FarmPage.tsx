@@ -4,7 +4,7 @@ import { FarmInventoryCard } from "../components/FarmInventoryCard";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
 import { isFarmActive, farmSlotUsedCount } from "../hooks/useGameState";
-import { buyShopItemFromDeposit } from "../utils/api";
+import { buyShopItemFromDeposit, syncActiveFarms } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 import PvPModal from "../components/PvPModal";
 import { getPlanetDisplayName } from "../utils/planetNames";
@@ -198,6 +198,26 @@ export function FarmPage({
     )];
     if (ids.length > 0) void preloadLabGlbBatch(ids);
   }, [farmGlbKey]);
+
+  useEffect(() => {
+    if (!telegramId) return;
+    const push = () => {
+      const active = planets
+        .filter((p) => isFarmActive(p) && !p.isListedInMarket && p.farmStartedAt > 0)
+        .map((p) => ({
+          id: p.id,
+          type: p.name,
+          farmDurationHours: p.farmDurationHours ?? 1,
+          farmStartedAt: p.farmStartedAt,
+        }));
+      if (active.length === 0) return;
+      syncActiveFarms(telegramId, active);
+    };
+    push();
+    const onVis = () => { if (!document.hidden) push(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [telegramId, farmGlbKey, planets]);
   void sun;
   void sunCount;
   void onStartSunFarming;

@@ -1,5 +1,18 @@
 import * as THREE from "three";
 
+/**
+ * Vertical forge wall only — floor stays put.
+ * Angled behind-left like the old “muro laterale”, short enough that it
+ * never swings in front of the camera.
+ */
+export function poseForgeSideWall(backGrid: THREE.Object3D, maxDim: number) {
+  backGrid.rotation.set(Math.PI / 2, 0.82, 0);
+  backGrid.position.set(-maxDim * 0.95, maxDim * 0.05, -maxDim * 1.2);
+}
+
+/** Slow floor spin (rad / ms) — same in Lab and Create your model. Time-based so 120 Hz stays smooth, not faster. */
+export const FORGE_FLOOR_SPIN_PER_MS = 0.00012;
+
 /** Target max axis length after fit — same in picker, reveal card, and forge morph. */
 export const LAB_GLB_FIT_SIZE = 1.65;
 
@@ -70,15 +83,9 @@ export function addForgeSpaceGrid(scene: THREE.Scene, maxDim: number): THREE.Obj
   const floorGrid = new THREE.GridHelper(span, cells, 0xb8c0cc, 0x6a7280);
   tuneGrid(floorGrid, 0.38);
   floorGrid.position.y = -maxDim * 0.46;
+  floorGrid.userData.isForgeFloor = true;
   scene.add(floorGrid);
   extras.push(floorGrid);
-
-  const backGrid = new THREE.GridHelper(span, cells, 0xa0a8b8, 0x505868);
-  tuneGrid(backGrid, 0.2);
-  backGrid.rotation.z = Math.PI / 2;
-  backGrid.position.set(-maxDim * 1.05, maxDim * 0.05, 0);
-  scene.add(backGrid);
-  extras.push(backGrid);
 
   const starGeo = new THREE.BufferGeometry();
   const starCount = 120;

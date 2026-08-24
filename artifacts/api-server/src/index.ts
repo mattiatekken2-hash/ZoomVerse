@@ -1,7 +1,7 @@
 import http from "node:http";
 import app from "./app";
 import { logger } from "./lib/logger";
-import { sendBotMessage, sendAlienChannelMessage } from "./lib/notify";
+import { sendBotMessageStatus, sendAlienChannelMessage } from "./lib/notify";
 import { fetchPendingFarmNotifications, markFarmNotified } from "./routes/farm";
 import { runScheduledLotteryDrawTick } from "./routes/lottery";
 import { runScheduledLabSettlementTick } from "./routes/labRanking";
@@ -214,11 +214,14 @@ function startFarmNotificationCron() {
           count === 1
             ? FARM_FULL_MESSAGE
             : `⚡ ${count} of your models are ready! Collect your Models.`;
-        const ok = await sendBotMessage(telegramId, message);
-        // Always mark notified — even on failure (403/blocked) — so we don't
-        // hammer Telegram on every cron tick for users who blocked the bot.
-        // Pass each row's expiresAt so we don't accidentally stamp a freshly
-        // reactivated cycle (same id, new expiresAt) as already notified.
+        const result = await sendBotMessageStatus(telegramId, message);
+        // Only stamp notified when Telegram accepted the message, or the user
+        // blocked the bot (403) — otherwise retry next minute so a missing
+        // BOT_TOKEN / network blip doesn't silently eat the reminder.
+        if (result === "fail") {
+          logger.warn({ telegramId, count }, "[farm-cron] send failed — will retry");
+          continue;
+        }
         await Promise.all(
           userRows.map((row) =>
             markFarmNotified(row.id, row.expiresAt).catch((e) =>
@@ -226,7 +229,7 @@ function startFarmNotificationCron() {
             ),
           ),
         );
-        if (ok) logger.info({ telegramId, count }, "[farm-cron] sent consolidated farm-full notification");
+        if (result === "ok") logger.info({ telegramId, count }, "[farm-cron] sent consolidated farm-full notification");
       }
     } catch (err) {
       logger.warn({ err }, "[farm-cron] tick failed");

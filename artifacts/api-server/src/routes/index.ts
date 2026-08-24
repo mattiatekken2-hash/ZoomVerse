@@ -95,6 +95,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/farm/collect",
       "/farm/stop",
       "/farm/settle",
+      "/farm/sync-active",
       "/balance/sync",
       "/craft/record",
       "/lab-rank/buy-ticket",

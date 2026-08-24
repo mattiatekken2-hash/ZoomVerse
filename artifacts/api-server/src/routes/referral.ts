@@ -356,7 +356,7 @@ router.post("/referral/debug", (req, res) => {
   const { telegramId, initData, initDataUnsafe, startParam, localStorageParam, href, hash, search } = req.body as Record<string, string>;
   console.log(`[debug] id=${telegramId} startParam=${startParam ?? "null"} ls=${localStorageParam ?? "null"}`);
   console.log(`[debug] href=${href ?? "n/a"} hash=${hash ?? "n/a"} search=${search ?? "n/a"}`);
-  console.log(`[debug] initData=${initData ?? "empty"}`);
+  console.log(`[debug] initData=${initData ? "[redacted]" : "empty"}`);
   res.json({ received: true });
 });
 

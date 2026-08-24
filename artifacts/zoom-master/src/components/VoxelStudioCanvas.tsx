@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { FORGE_CLAY, FORGE_VOXEL_SIZE } from "@workspace/game-models";
 import type { VoxelCoord } from "../utils/voxelStudioStore";
 import { hapticLight } from "../utils/haptic";
+import { FORGE_FLOOR_SPIN_PER_MS } from "../utils/labGlbScene";
 
 /** Same cube fill + edge as Lab forge voxels in MysteryModel3D. */
 const CUBE_FILL = 0.98;
@@ -34,13 +35,14 @@ function addLabGrid(scene: THREE.Scene): THREE.Group {
   tuneGrid(floorGrid, 0.38);
   floorGrid.position.y = -1.25;
   gridPivot.add(floorGrid);
+  scene.add(gridPivot);
 
+  // Side wall stays put — only the floor spins (same as old Lab).
   const backGrid = new THREE.GridHelper(span, cells, 0xa0a8b8, 0x505868);
   tuneGrid(backGrid, 0.2);
   backGrid.rotation.x = Math.PI / 2;
   backGrid.position.set(0, -0.55, -1.35);
-  gridPivot.add(backGrid);
-  scene.add(gridPivot);
+  scene.add(backGrid);
 
   const starGeo = new THREE.BufferGeometry();
   const starCount = 90;
@@ -131,7 +133,8 @@ export function VoxelStudioCanvas({
     scene.background = null;
     const camera = new THREE.PerspectiveCamera(preview ? 42 : 42, 1, 0.08, 40);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+    renderer.debug.checkShaderErrors = false;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x000000, 0);
     const canvas = renderer.domElement;
@@ -398,17 +401,33 @@ export function VoxelStudioCanvas({
 
     let raf = 0;
     let lastFrame = performance.now();
+    let alive = true;
     const tick = (now: number) => {
+      if (!alive) return;
+      if (document.hidden) {
+        raf = 0;
+        return;
+      }
       const dt = Math.min(32, now - lastFrame);
       lastFrame = now;
-      if (preview) theta += 0.006;
+      if (gridPivot) gridPivot.rotation.y += FORGE_FLOOR_SPIN_PER_MS * dt;
+      if (preview) theta += 0.00036 * dt;
       orbitCam();
       renderer.render(scene, camera);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
+    const onVis = () => {
+      if (!document.hidden && !raf && alive) {
+        lastFrame = performance.now();
+        raf = requestAnimationFrame(tick);
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
 
     return () => {
+      alive = false;
+      document.removeEventListener("visibilitychange", onVis);
       cancelAnimationFrame(raf);
       ro.disconnect();
       host.removeEventListener("pointerdown", onPointerDown);

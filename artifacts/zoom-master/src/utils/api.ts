@@ -79,6 +79,20 @@ export function notifyFarmStart(telegramId: string, planetId: string, planetType
   }).catch(() => { /* ignore */ });
 }
 
+/** Re-register active farm cycles so the personal-bot timer DM can fire. */
+export function syncActiveFarms(
+  telegramId: string,
+  planets: Array<{ id: string; type: string; farmDurationHours?: number; farmStartedAt: number }>,
+): void {
+  if (!telegramId || planets.length === 0) return;
+  fetch(`${API_BASE}/farm/sync-active`, {
+    method: "POST",
+    headers: apiHeaders(),
+    body: JSON.stringify({ telegramId, planets }),
+    keepalive: true,
+  }).catch(() => { /* ignore */ });
+}
+
 /**
  * Reactivate an expired planet's farm cycle by spending 1 REDSTAR.
  * Server validates the REDSTAR balance, deducts it, and resets the cycle.

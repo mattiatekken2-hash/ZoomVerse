@@ -401,6 +401,70 @@ router.post("/farm/stop", async (req, res) => {
   }
 });
 
+const SyncActiveBody = z.object({
+  telegramId: z.string().min(1),
+  planets: z.array(z.object({
+    id: z.string().min(1),
+    type: z.string().min(1),
+    farmDurationHours: z.number().int().positive().max(24).optional(),
+    farmStartedAt: z.number().int().positive(),
+  })).max(80),
+});
+
+/**
+ * Re-register every currently farming model so the "timer ended" bot DM
+ * still fires if /farm/start was lost (offline, 401, keepalive drop).
+ */
+router.post("/farm/sync-active", async (req, res) => {
+  const parsed = SyncActiveBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body" });
+    return;
+  }
+  const { telegramId, planets } = parsed.data;
+  try {
+    for (const p of planets) {
+      const hours = p.farmDurationHours ?? 1;
+      const durationMs = hours * 60 * 60 * 1000;
+      const started = new Date(p.farmStartedAt);
+      const expiresAt = new Date(p.farmStartedAt + durationMs);
+      const [existing] = await db
+        .select({
+          id: farmCyclesTable.id,
+          expiresAt: farmCyclesTable.expiresAt,
+        })
+        .from(farmCyclesTable)
+        .where(and(eq(farmCyclesTable.telegramId, telegramId), eq(farmCyclesTable.planetId, p.id)))
+        .limit(1);
+      const sameCycle = existing?.expiresAt
+        && Math.abs(existing.expiresAt.getTime() - expiresAt.getTime()) < 120_000;
+      await db
+        .insert(farmCyclesTable)
+        .values({
+          telegramId,
+          planetId: p.id,
+          planetType: p.type,
+          isWhite: false,
+          activatedAt: started,
+          expiresAt,
+        })
+        .onConflictDoUpdate({
+          target: [farmCyclesTable.telegramId, farmCyclesTable.planetId],
+          set: {
+            planetType: p.type,
+            activatedAt: started,
+            expiresAt,
+            ...(sameCycle ? {} : { collectedAt: null, notifiedAt: null }),
+          },
+        });
+    }
+    res.json({ ok: true, count: planets.length });
+  } catch (err) {
+    console.error("[farm/sync-active] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 export default router;
 export { BASE_FARM_DURATION_MS as FARM_DURATION_MS };
 

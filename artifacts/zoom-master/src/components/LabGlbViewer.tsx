@@ -5,6 +5,7 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { labForgeShapeHasGlbReveal } from "@workspace/game-models";
 import { cloneLabGlbTemplate, preloadLabGlb } from "../utils/labGlbCache";
 import {
+  FORGE_FLOOR_SPIN_PER_MS,
   LAB_GLB_FIT_SIZE,
   LAB_GLB_SPIN_RATE,
   addForgeSpaceGrid,
@@ -85,6 +86,7 @@ function LabGlbViewerBase({
     }
 
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.debug.checkShaderErrors = false;
     renderer.setSize(size, size);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -172,16 +174,26 @@ function LabGlbViewerBase({
       });
     };
 
-    function animate() {
+    let lastFrame = performance.now();
+    function animate(now: number) {
       if (disposed || contextDead) return;
+      if (document.hidden) {
+        frameId = 0;
+        return;
+      }
+      const dt = Math.min(32, now - lastFrame);
+      lastFrame = now;
       spinGroup.position.y = 0;
       spinGroup.rotation.x = 0;
       spinGroup.rotation.z = 0;
       if (interactive && controls) {
         controls.update();
-        if (autoSpin && !dragging) spinGroup.rotation.y += spinRate;
+        if (autoSpin && !dragging) spinGroup.rotation.y += spinRate * (dt / 16.67);
       } else if (autoSpin) {
-        spinGroup.rotation.y += spinRate;
+        spinGroup.rotation.y += spinRate * (dt / 16.67);
+      }
+      for (const extra of gridExtras) {
+        if (extra.userData?.isForgeFloor) extra.rotation.y += FORGE_FLOOR_SPIN_PER_MS * dt;
       }
       draw();
       frameId = requestAnimationFrame(animate);
@@ -206,7 +218,7 @@ function LabGlbViewerBase({
       controls?.update();
       draw();
       showCanvas();
-      if (!frameId) animate();
+      if (!frameId) animate(performance.now());
     };
 
     const tryLoad = () => {
@@ -227,8 +239,16 @@ function LabGlbViewerBase({
     };
     tryLoad();
 
+    const onVis = () => {
+      if (document.hidden || disposed || frameId) return;
+      lastFrame = performance.now();
+      animate(lastFrame);
+    };
+    document.addEventListener("visibilitychange", onVis);
+
     return () => {
       disposed = true;
+      document.removeEventListener("visibilitychange", onVis);
       if (loadTimer !== null) window.clearTimeout(loadTimer);
       cancelAnimationFrame(frameId);
       controls?.dispose();
