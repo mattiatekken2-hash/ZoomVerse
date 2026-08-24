@@ -987,15 +987,6 @@ function addForgeSpaceGrid(scene: THREE.Scene, maxDim: number): THREE.Object3D[]
   scene.add(floorGrid);
   extras.push(floorGrid);
 
-  // Behind the floating cubes (they reach z ≈ ±3). z = -1.35 cut through
-  // the cluster and read as a wall in the middle of the Lab.
-  const backGrid = new THREE.GridHelper(span, cells, 0xa0a8b8, 0x505868);
-  tuneGrid(backGrid, 0.2);
-  backGrid.rotation.x = Math.PI / 2;
-  backGrid.position.set(0, -0.15, -3.55);
-  scene.add(backGrid);
-  extras.push(backGrid);
-
   const starGeo = new THREE.BufferGeometry();
   const starCount = 120;
   const starPos = new Float32Array(starCount * 3);
