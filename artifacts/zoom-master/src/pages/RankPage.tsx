@@ -30,9 +30,10 @@ function formatZoom(amount: number): string {
   return Math.floor(amount).toLocaleString();
 }
 
+/** Empty, generic, or the old browser-dev fallback — not a real Telegram name. */
 function isPlaceholderRankName(name: string | null | undefined): boolean {
   const n = (name ?? "").trim();
-  return !n || /^player$/i.test(n);
+  return !n || /^player$/i.test(n) || /^dev$/i.test(n);
 }
 
 function getTelegramFirstName(): string | null {

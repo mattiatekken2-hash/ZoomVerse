@@ -115,16 +115,38 @@ export function ZoomMarketModal({ balance, onClose }: Props) {
           </button>
         </div>
 
-        {/* Live DexScreener chart */}
+        {/* Live DexScreener chart — overlay our cube on their missing token image. */}
         <div className="px-3 flex-shrink-0">
-          <iframe
-            src={ZMC_DEXSCREENER_EMBED}
-            width="100%"
-            height="400px"
-            title={t("zoomMarket.chartTitle")}
-            style={{ border: 0, borderRadius: "12px" }}
-            data-testid="zmc-dexscreener"
-          />
+          <div className="relative overflow-hidden" style={{ borderRadius: 12 }}>
+            <iframe
+              src={ZMC_DEXSCREENER_EMBED}
+              width="100%"
+              height="400px"
+              title={t("zoomMarket.chartTitle")}
+              style={{ border: 0, borderRadius: 12, display: "block" }}
+              data-testid="zmc-dexscreener"
+            />
+            <div
+              aria-hidden
+              data-testid="zmc-dex-logo"
+              style={{
+                position: "absolute",
+                top: 11,
+                left: 12,
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                background: "#11141c",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                pointerEvents: "none",
+                zIndex: 2,
+              }}
+            >
+              <ZoomCubeIcon size={26} />
+            </div>
+          </div>
         </div>
 
         {/* Compra / Vendi $ZMC → STON.fi */}

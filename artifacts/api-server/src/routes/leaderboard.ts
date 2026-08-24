@@ -6,6 +6,7 @@ import { bumpZoomPriceFireAndForget } from "../lib/zoomPrice";
 import { recordHistoryAsync } from "../lib/history";
 import { getOrCreateActiveLabRound } from "./labRanking";
 import { NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT } from "@workspace/game-models";
+import { persistableFirstName } from "../lib/playerName";
 
 const router: IRouter = Router();
 
@@ -55,6 +56,7 @@ router.post("/balance/sync", async (req, res) => {
 
   const { telegramId, firstName, username, photoUrl, zoomBalance, tonBalance, stardustBalance, redStarBalance, clientEpoch } = parsed.data;
   const normalizedUsername = username ? username.replace(/^@/, "").toLowerCase() : null;
+  const safeFirstName = persistableFirstName(firstName);
 
   // Track this user as online (in-memory, best-effort).
   markOnline(telegramId);
@@ -85,7 +87,7 @@ router.post("/balance/sync", async (req, res) => {
         zoomBalance: NEW_PLAYER_ZOOM_GRANT,
         seasonZoomStart: NEW_PLAYER_ZOOM_GRANT,
         tonBalance: 0,
-        firstName: firstName ?? null,
+        firstName: safeFirstName,
         username: normalizedUsername,
         photoUrl: photoUrl ?? null,
         referralCount: 0,
@@ -129,7 +131,7 @@ router.post("/balance/sync", async (req, res) => {
                 redStarBalance: sql`GREATEST(${usersTable.redStarBalance}, ${redStarBalance})`,
               }
             : {}),
-          ...(firstName ? { firstName } : {}),
+          ...(safeFirstName ? { firstName: safeFirstName } : {}),
           ...(normalizedUsername ? { username: normalizedUsername } : {}),
           ...(photoUrl ? { photoUrl } : {}),
         },
@@ -172,7 +174,7 @@ router.get("/leaderboard", async (_req, res) => {
       .limit(100);
 
     const leaderboard = rows.map((row, index) => {
-      const firstName = (row.firstName || "").trim();
+      const firstName = persistableFirstName(row.firstName) ?? "";
       const username = (row.username || "").trim();
       const displayName = firstName || (username ? `@${username}` : "");
       return {
