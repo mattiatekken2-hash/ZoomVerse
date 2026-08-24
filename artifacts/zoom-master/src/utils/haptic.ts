@@ -1,5 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+let lastHapticAt = 0;
+const HAPTIC_GAP_MS = 40;
+
+function tooSoon() {
+  const now = performance.now();
+  if (now - lastHapticAt < HAPTIC_GAP_MS) return true;
+  lastHapticAt = now;
+  return false;
+}
+
 function tgHaptic() {
   return (window as any)?.Telegram?.WebApp?.HapticFeedback ?? null;
 }
@@ -11,12 +21,13 @@ function vibrateMs(ms: number) {
 }
 
 function impact(style: "light" | "medium" | "heavy") {
+  if (tooSoon()) return;
   const hf = tgHaptic();
   if (hf) {
-    try { hf.impactOccurred(style); } catch { /**/ }
     try { hf.selectionChanged?.(); } catch { /**/ }
+    try { hf.impactOccurred(style); } catch { /**/ }
   }
-  vibrateMs(style === "light" ? 12 : style === "medium" ? 18 : 28);
+  vibrateMs(style === "light" ? 8 : style === "medium" ? 16 : 26);
 }
 
 export function hapticLight() {

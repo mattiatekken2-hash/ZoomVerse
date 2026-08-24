@@ -28,11 +28,21 @@ function nearestIndex(r: number, g: number, b: number, palette: Uint8Array, coun
   return best;
 }
 
+function luma565(k: number): number {
+  const r = (k >> 8) & 0xf8;
+  const g = (k >> 3) & 0xfc;
+  const b = (k << 3) & 0xf8;
+  return r * 3 + g * 6 + b;
+}
+
 function buildPalette(frames: Uint8ClampedArray[], colorCount: number): Uint8Array {
-  const hist = new Uint32Array(65536);
+  const hist = new Float64Array(65536);
   for (const px of frames) {
-    for (let i = 0; i < px.length; i += 16) {
-      hist[rgb565(px[i]!, px[i + 1]!, px[i + 2]!)]++;
+    for (let i = 0; i < px.length; i += 4) {
+      const key = rgb565(px[i]!, px[i + 1]!, px[i + 2]!);
+      // Background navy dominates the frame. Down-weight it so model colors
+      // actually get GIF palette slots (otherwise the mesh vanishes).
+      hist[key]! += luma565(key) < 90 ? 0.12 : 1;
     }
   }
   const ranked: Array<{ k: number; n: number }> = [];

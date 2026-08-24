@@ -1,7 +1,6 @@
 import { useEffect, useState, memo } from "react";
 import { createPortal } from "react-dom";
 import { fetchLabRankState, type LabRankState } from "../utils/api";
-import { GramDiamondIcon } from "./GramDiamondIcon";
 
 const CYAN = "#00d4ff";
 const ACCENT = "#4dd4ff";
@@ -74,7 +73,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
 
   // Live 1s ticker for the countdown timer.
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 5000);
+    const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
 
@@ -82,37 +81,27 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
   const pool = state?.poolTon ?? 200;
   const userPoints = state?.userPoints ?? 0;
   const userRank = state?.userRank ?? null;
-  const prizes = state?.prizes ?? [];
   const endsAtMs = state?.endsAt ? new Date(state.endsAt).getTime() : null;
   const remaining = endsAtMs != null ? formatCountdown(endsAtMs - now) : null;
+  const board = state?.top100 ?? [];
 
   return (
     <>
       <style>{`
-        @keyframes lrFloat { 0%,100% { transform: translateY(0) rotateX(8deg) rotateY(-12deg); } 50% { transform: translateY(-8px) rotateX(12deg) rotateY(12deg); } }
         @keyframes lrGlow {
           0%,100% { box-shadow: 0 0 12px ${CYAN}88, 0 0 22px ${CYAN}33; }
           50%     { box-shadow: 0 0 20px ${CYAN}cc, 0 0 38px ${CYAN}55; }
         }
         @keyframes lrPulse {
-          0%, 85% { transform: scale(1); opacity: 0.75; }
-          87% { transform: scale(1.12) rotate(-2deg); opacity: 1; }
-          89% { transform: scale(1.12) rotate(2deg); }
-          91% { transform: scale(1.12) rotate(-2deg); }
-          93% { transform: scale(1.12) rotate(2deg); }
-          95% { transform: scale(1); opacity: 0.75; }
-          100% { transform: scale(1); opacity: 0.75; }
+          0%, 82% { transform: rotate(0deg) scale(1); }
+          86% { transform: rotate(-18deg) scale(1.12); }
+          90% { transform: rotate(18deg) scale(1.12); }
+          94% { transform: rotate(-10deg) scale(1.06); }
+          97% { transform: rotate(10deg) scale(1.04); }
+          100% { transform: rotate(0deg) scale(1); }
         }
         .lr-tile { animation: lrGlow 2.6s ease-in-out infinite; }
-        .lr-img { animation: lrFloat 3.4s ease-in-out infinite; transform-style: preserve-3d; }
-        @keyframes lrNamePulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.04); }
-        }
-        @keyframes lrTopFly {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-6px); }
-        }
+        .lr-emoji { display: block; animation: lrPulse 3s ease-in-out infinite; transform-origin: 50% 80%; }
         @keyframes lrRing {
           0% { transform: translate(-50%, -50%) rotateX(68deg) rotateZ(0deg); opacity: 0.55; }
           100% { transform: translate(-50%, -50%) rotateX(68deg) rotateZ(360deg); opacity: 0.85; }
@@ -178,14 +167,16 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
           data-testid="button-lab-rank"
         >
           <div
-            className="lr-img"
+            className="lr-emoji"
             style={{
               width: "100%", height: "100%",
               display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: headerMode ? 20 : shopMode ? 28 : 26,
+              lineHeight: 1,
               filter: `drop-shadow(0 0 8px ${CYAN}aa)`,
             }}
           >
-            <GramDiamondIcon size={headerMode ? 22 : shopMode ? 34 : 32} />
+            🧪
           </div>
           {userRank != null && userRank <= 100 && (
             <span
@@ -298,54 +289,18 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
               ✕
             </button>
 
-            <div style={{ textAlign: "center", marginBottom: 18, perspective: 900 }}>
+            <div style={{ textAlign: "center", marginBottom: 14 }}>
               <div
+                className="lr-emoji"
+                aria-hidden
                 style={{
-                  position: "relative",
-                  height: 132,
-                  margin: "0 auto 10px",
-                  maxWidth: 220,
+                  fontSize: 56,
+                  lineHeight: 1,
+                  filter: `drop-shadow(0 0 16px ${CYAN}aa)`,
+                  margin: "4px auto 8px",
                 }}
               >
-                <div
-                  aria-hidden
-                  style={{
-                    position: "absolute",
-                    left: "50%",
-                    top: "62%",
-                    width: 150,
-                    height: 150,
-                    borderRadius: "50%",
-                    border: `1.5px solid ${CYAN}55`,
-                    animation: "lrRing 10s linear infinite",
-                    boxShadow: `0 0 24px ${CYAN}33`,
-                  }}
-                />
-                <div
-                  aria-hidden
-                  style={{
-                    position: "absolute",
-                    left: "50%",
-                    top: "62%",
-                    width: 104,
-                    height: 104,
-                    borderRadius: "50%",
-                    border: "1px dashed rgba(255,255,255,0.18)",
-                    animation: "lrRing 16s linear infinite reverse",
-                  }}
-                />
-                <div
-                  style={{
-                    position: "absolute",
-                    left: "50%",
-                    top: 18,
-                    transform: "translateX(-50%)",
-                    animation: "lrHeroSpin 5.5s ease-in-out infinite",
-                    filter: `drop-shadow(0 12px 28px ${CYAN}66)`,
-                  }}
-                >
-                  <GramDiamondIcon size={86} />
-                </div>
+                🧪
               </div>
               <div
                 style={{
@@ -365,177 +320,90 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
               </div>
             </div>
 
-            {/* Countdown timer */}
             <div
               style={{
-                padding: "12px 14px",
                 borderRadius: 14,
-                background: "rgba(0,212,255,0.06)",
+                background: "rgba(0,212,255,0.05)",
                 border: `1px solid ${CYAN}28`,
-                marginBottom: 14,
-                textAlign: "center",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 9,
-                  color: "rgba(255,255,255,0.5)",
-                  letterSpacing: "0.12em",
-                  textTransform: "uppercase",
-                  marginBottom: 6,
-                }}
-              >
-                Season ends in
-              </div>
-              {remaining ? (
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    gap: 10,
-                    fontFamily: "'Orbitron', 'Inter', sans-serif",
-                  }}
-                  data-testid="text-lab-rank-countdown"
-                >
-                  {[
-                    { v: remaining.d, l: "D" },
-                    { v: remaining.h, l: "H" },
-                    { v: remaining.m, l: "M" },
-                    { v: remaining.s, l: "S" },
-                  ].map((seg) => (
-                    <div key={seg.l} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                      <span style={{ fontSize: 22, fontWeight: 900, color: ACCENT }}>
-                        {seg.l === "D" ? seg.v : pad(seg.v)}
-                      </span>
-                      <span style={{ fontSize: 8, color: "rgba(255,255,255,0.4)", letterSpacing: "0.1em" }}>
-                        {seg.l}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.6)" }}>—</div>
-              )}
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr",
-                gap: 8,
-                marginBottom: 14,
-              }}
-            >
-              <div
-                style={{
-                  padding: 10,
-                  borderRadius: 10,
-                  background: "rgba(0,212,255,0.06)",
-                  border: `1px solid ${CYAN}22`,
-                  textAlign: "center",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 9,
-                    color: "rgba(255,255,255,0.5)",
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Prize Pool
-                </div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: ACCENT, marginTop: 2 }}>
-                  {pool} GRAM
-                </div>
-                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Top 30</div>
-              </div>
-              <div
-                style={{
-                  padding: 10,
-                  borderRadius: 10,
-                  background: "rgba(0,212,255,0.06)",
-                  border: `1px solid ${CYAN}22`,
-                  textAlign: "center",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 9,
-                    color: "rgba(255,255,255,0.5)",
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Players
-                </div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: "#fff", marginTop: 2 }}>
-                  {participants}
-                </div>
-                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>In season</div>
-              </div>
-              <div
-                style={{
-                  padding: 10,
-                  borderRadius: 10,
-                  background: "rgba(0,212,255,0.06)",
-                  border: `1px solid ${CYAN}22`,
-                  textAlign: "center",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 9,
-                    color: "rgba(255,255,255,0.5)",
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Your Points
-                </div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: "#fff", marginTop: 2 }}>
-                  {userPoints}
-                </div>
-                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>
-                  {userRank != null && userRank <= 100 ? `#${userRank}` : "—"}
-                </div>
-              </div>
-            </div>
-
-            {/* Prize map */}
-            <div
-              style={{
-                padding: 10,
-                borderRadius: 10,
-                background: "rgba(255,255,255,0.02)",
-                border: "1px solid rgba(255,255,255,0.06)",
                 marginBottom: 12,
+                overflow: "hidden",
               }}
             >
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "rgba(255,255,255,0.45)",
-                  letterSpacing: "0.08em",
-                  marginBottom: 6,
-                }}
-              >
-                PRIZES · {pool} GRAM TO TOP 30
-              </div>
-              <div style={{ fontSize: 11, color: "#fff", lineHeight: 1.8 }}>
-                {prizes.map((p) => (
-                  <div key={p.label} style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ color: ACCENT, fontWeight: 800 }}>{p.label}</span>
-                    <span>{p.ton} GRAM{p.label.includes("–") ? " each" : ""}</span>
+              <div style={{ padding: "10px 12px", textAlign: "center", borderBottom: `1px solid ${CYAN}18` }}>
+                <div
+                  style={{
+                    fontSize: 9,
+                    color: "rgba(255,255,255,0.5)",
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    marginBottom: 4,
+                  }}
+                >
+                  Ends in
+                </div>
+                {remaining ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "center",
+                      gap: 10,
+                      fontFamily: "'Orbitron', 'Inter', sans-serif",
+                    }}
+                    data-testid="text-lab-rank-countdown"
+                  >
+                    {[
+                      { v: remaining.d, l: "D" },
+                      { v: remaining.h, l: "H" },
+                      { v: remaining.m, l: "M" },
+                      { v: remaining.s, l: "S" },
+                    ].map((seg) => (
+                      <div key={seg.l} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                        <span style={{ fontSize: 20, fontWeight: 900, color: ACCENT }}>
+                          {seg.l === "D" ? seg.v : pad(seg.v)}
+                        </span>
+                        <span style={{ fontSize: 8, color: "rgba(255,255,255,0.4)", letterSpacing: "0.1em" }}>
+                          {seg.l}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                ) : (
+                  <div style={{ fontSize: 14, fontWeight: 800, color: "rgba(255,255,255,0.6)" }}>—</div>
+                )}
               </div>
-              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", marginTop: 6 }}>
-                Prizes credit your GRAM wallet when the season ends.
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr" }}>
+                <div style={{ padding: "10px 6px", textAlign: "center", borderRight: `1px solid ${CYAN}18` }}>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.45)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Prize pool
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: ACCENT, marginTop: 2 }}>
+                    {pool}
+                  </div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.38)" }}>GRAM</div>
+                </div>
+                <div style={{ padding: "10px 6px", textAlign: "center", borderRight: `1px solid ${CYAN}18` }}>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.45)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Players
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: "#fff", marginTop: 2 }}>
+                    {participants}
+                  </div>
+                </div>
+                <div style={{ padding: "10px 6px", textAlign: "center" }}>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.45)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                    Your points
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: "#fff", marginTop: 2 }}>
+                    {userPoints}
+                  </div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.38)" }}>
+                    {userRank != null && userRank <= 100 ? `#${userRank}` : "—"}
+                  </div>
+                </div>
               </div>
             </div>
 
-            {state?.top100 && state.top100.length > 0 && (
+            {board.length > 0 && (
               <div
                 style={{
                   display: "flex",
@@ -557,41 +425,51 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
                 >
                   TOP 100
                 </div>
-                {state.top100.map((r) => {
+                {board.map((r) => {
                   const isMe = telegramId === r.telegramId;
-                  const rankEmoji = r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : `#${r.rank}`;
-                  const hasPrize = r.rank <= 30 && r.tonPrize > 0;
+                  const medal = r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : null;
+                  const photo = r.photoUrl;
+                  const pts = r.labPoints;
+                  const stripe = r.rank === 1
+                    ? "linear-gradient(90deg, rgba(255,210,70,0.22), rgba(8,16,24,0.4))"
+                    : r.rank === 2
+                      ? "linear-gradient(90deg, rgba(196,210,230,0.16), rgba(8,16,24,0.35))"
+                      : r.rank === 3
+                        ? "linear-gradient(90deg, rgba(205,140,70,0.16), rgba(8,16,24,0.35))"
+                        : isMe
+                          ? "rgba(0,212,255,0.10)"
+                          : "rgba(255,255,255,0.03)";
                   return (
                     <div
                       key={r.telegramId}
-                      className={r.rank === 1 ? "lr-top1" : r.rank <= 10 ? "lr-top10" : undefined}
                       style={{
                         display: "flex",
                         alignItems: "center",
                         gap: 8,
                         fontSize: 11,
-                        padding: "5px 6px",
-                        borderRadius: 6,
-                        background: r.rank === 1
-                          ? "linear-gradient(90deg, rgba(255,215,64,0.18), rgba(0,212,255,0.08))"
-                          : isMe ? "rgba(255,215,0,0.10)" : "transparent",
-                        border: r.rank === 1
-                          ? `1px solid ${CYAN}88`
-                          : isMe ? `1px solid ${CYAN}44` : "1px solid transparent",
-                        color: r.rank === 1 ? ACCENT : "#fff",
+                        padding: "7px 8px",
+                        borderRadius: 10,
+                        background: stripe,
+                        border: r.rank <= 3
+                          ? `1px solid ${r.rank === 1 ? "rgba(255,210,70,0.45)" : "rgba(255,255,255,0.12)"}`
+                          : isMe ? `1px solid ${CYAN}55` : "1px solid rgba(255,255,255,0.05)",
+                        color: "#fff",
                         fontWeight: r.rank <= 30 ? 800 : 600,
-                        animation: r.rank === 1
-                          ? "lrTopFly 2.2s ease-in-out infinite"
-                          : r.rank <= 10
-                            ? "lrNamePulse 1.8s ease-in-out infinite"
-                            : undefined,
                         position: "relative",
                       }}
                     >
-                      <span style={{ minWidth: 24, textAlign: "center" }}>{rankEmoji}</span>
-                      {r.photoUrl ? (
+                      <span style={{
+                        minWidth: 28,
+                        textAlign: "center",
+                        fontFamily: "'Orbitron', 'Inter', sans-serif",
+                        fontSize: medal ? 14 : 10,
+                        color: r.rank <= 3 ? ACCENT : "rgba(255,255,255,0.45)",
+                      }}>
+                        {medal ?? `#${r.rank}`}
+                      </span>
+                      {photo ? (
                         <img
-                          src={r.photoUrl}
+                          src={photo}
                           alt=""
                           referrerPolicy="no-referrer"
                           onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
@@ -634,23 +512,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
                         {r.name}
                         {isMe ? " (you)" : ""}
                       </span>
-                      <span style={{ whiteSpace: "nowrap" }}>{r.labPoints} pt</span>
-                      {hasPrize && (
-                        <span
-                          style={{
-                            whiteSpace: "nowrap",
-                            fontSize: 10,
-                            fontWeight: 900,
-                            color: "#ffd700",
-                            background: "rgba(255,215,0,0.15)",
-                            border: "1px solid rgba(255,215,0,0.35)",
-                            borderRadius: 6,
-                            padding: "2px 6px",
-                          }}
-                        >
-                          {r.tonPrize} GRAM
-                        </span>
-                      )}
+                      <span style={{ whiteSpace: "nowrap" }}>{pts} pt</span>
                     </div>
                   );
                 })}

@@ -18,7 +18,7 @@ interface RankPageProps {
 }
 
 const SEASON_DURATION_MS = 90 * 24 * 60 * 60 * 1000;
-const DEFAULT_SEASON_START = new Date("2026-08-15T00:00:00.000Z").getTime();
+const DEFAULT_SEASON_START = new Date("2026-08-24T00:00:00.000Z").getTime();
 const TOTAL_SEASONS = 6;
 
 function getSeasonProgress(now: number, seasonStart: number): number {

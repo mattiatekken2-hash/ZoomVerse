@@ -1,4 +1,4 @@
-import { memo, useEffect } from "react";
+import { memo, useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   LAB_STARDUST_SHAPE_IDS,
@@ -8,7 +8,17 @@ import {
   type LabForgePath,
 } from "@workspace/game-models";
 import { LabForgeGlbCycler } from "./LabForgeGlbCycler";
+import { ZoomCubeIcon } from "./ZoomCubeIcon";
 import { preloadLabForgePickerGlbs } from "../utils/labGlbPreload";
+
+function ZoomMark({ size = 13 }: { size?: number }) {
+  return (
+    <span className="lab-forge-zoom-mark">
+      <ZoomCubeIcon size={size} />
+      <span>ZOOM</span>
+    </span>
+  );
+}
 
 interface ForgePathPickerProps {
   stardustBalance: number;
@@ -22,7 +32,7 @@ interface PathCardProps {
   shapeIds: readonly string[];
   badge: string;
   name: string;
-  costLabel: string;
+  costLabel: ReactNode;
   yieldLabel: string;
   enabled: boolean;
   accent: string;
@@ -64,7 +74,9 @@ function PathCard({
     >
       <div className="lab-forge-path-card__inner">
         <div className="lab-forge-path-card__glow" aria-hidden />
-        <span className="lab-forge-path-card__badge">{badge}</span>
+        <span className="lab-forge-path-card__badge">
+          {path === "zoom" ? <ZoomMark size={11} /> : badge}
+        </span>
         <div className="lab-forge-path-card__stage">
           <LabForgeGlbCycler
             shapeIds={shapeIds}
@@ -118,8 +130,13 @@ function ForgePathPickerBase({
               </button>
             </div>
             <div className="lab-forge-picker-title">Choose your model</div>
+            <div className="lab-forge-picker-title-logo" aria-hidden>
+              <ZoomCubeIcon size={22} />
+            </div>
             <div className="lab-forge-picker-dual" aria-hidden>
-              <span className="lab-forge-picker-dual__zoom">$ZOOM</span>
+              <span className="lab-forge-picker-dual__zoom">
+                <ZoomMark size={12} />
+              </span>
               <span className="lab-forge-picker-dual__sep" />
               <span className="lab-forge-picker-dual__star">★ STARDUST</span>
             </div>
@@ -146,7 +163,12 @@ function ForgePathPickerBase({
               shapeIds={LAB_STARDUST_SHAPE_IDS}
               badge="★ STARDUST"
               name="Pot · Steve · Chicken · Onigiri · Island"
-              costLabel={`${LAB_STARDUST_FORGE_ZOOM_COST} $ZOOM`}
+              costLabel={
+                <span className="lab-forge-path-chip-zoom">
+                  {LAB_STARDUST_FORGE_ZOOM_COST}{" "}
+                  <ZoomMark size={11} />
+                </span>
+              }
               yieldLabel="0.20–0.36 ★/h"
               enabled={canStardust}
               accent="#ffd740"

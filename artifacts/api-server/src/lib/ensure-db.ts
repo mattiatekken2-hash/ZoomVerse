@@ -4,8 +4,8 @@ import { sql } from "drizzle-orm";
 import { logger } from "./logger";
 
 /** Season 3 anchor — matches RankPage / ExchangeWidget fallback. */
-export const DEFAULT_SEASON_EPOCH_MS = Date.UTC(2026, 7, 15);
-const SEASON_2_EPOCH_MS = Date.UTC(2026, 3, 14);
+export const DEFAULT_SEASON_EPOCH_MS = Date.UTC(2026, 7, 24);
+const PREV_SEASON_3_EPOCH_MS = Date.UTC(2026, 7, 15);
 
 async function usersTableReady(): Promise<boolean> {
   try {
@@ -27,7 +27,7 @@ async function seedDefaults(): Promise<void> {
          SET value_num = ${DEFAULT_SEASON_EPOCH_MS},
              updated_at = NOW()
        WHERE key = 'season_epoch'
-         AND value_num <= ${SEASON_2_EPOCH_MS}
+         AND value_num <= ${PREV_SEASON_3_EPOCH_MS}
     `);
   } catch (err) {
     logger.warn({ err }, "[ensure-db] season_epoch seed skipped");

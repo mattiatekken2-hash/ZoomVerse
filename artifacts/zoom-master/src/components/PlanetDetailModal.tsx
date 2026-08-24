@@ -4,7 +4,7 @@
 
  */
 
-import { useState, type CSSProperties } from "react";
+import { useState, useEffect, type CSSProperties } from "react";
 
 import { createPortal } from "react-dom";
 
@@ -158,11 +158,27 @@ export function PlanetDetailModal({
 
   const [upgrading, setUpgrading] = useState(false);
 
+  const [detailGlReady, setDetailGlReady] = useState(false);
+
 
 
   const gramBalance = (tonBalance || 0) + (depositBalance || 0);
 
   const livePlanet = planets.find((p) => p.id === planet.id) ?? planet;
+
+  useEffect(() => {
+    setDetailGlReady(false);
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setDetailGlReady(true));
+    });
+    const fallback = window.setTimeout(() => setDetailGlReady(true), 160);
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+      window.clearTimeout(fallback);
+    };
+  }, [livePlanet.id]);
 
 
 
@@ -425,7 +441,11 @@ export function PlanetDetailModal({
 
         <div className="mb-4 flex flex-col items-center gap-3">
 
+          {detailGlReady ? (
+
           <PlanetVoxelThumb
+
+            key={`detail-gl-${livePlanet.id}`}
 
             planet={livePlanet}
 
@@ -442,6 +462,12 @@ export function PlanetDetailModal({
             labGlbInteractive={isLabGlbDetail}
 
           />
+
+          ) : (
+
+          <div style={{ width: detailThumbSize, height: detailThumbSize, flexShrink: 0 }} aria-hidden />
+
+          )}
 
 
 

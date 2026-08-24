@@ -111,15 +111,18 @@ export function FarmInventoryCard({
           className="lab-market-card__orb"
           aria-hidden
         >
-          <PlanetVoxelThumb
-            planet={planet}
-            size={orbSize}
-            animate
-            suspendGl={suspendGl}
-            eager={eagerThumb}
-            glDelayMs={glDelayMs}
-            hiQuality={false}
-          />
+          {suspendGl ? (
+            <div style={{ width: orbSize, height: orbSize, flexShrink: 0 }} aria-hidden />
+          ) : (
+            <PlanetVoxelThumb
+              planet={planet}
+              size={orbSize}
+              animate
+              eager={eagerThumb}
+              glDelayMs={glDelayMs}
+              hiQuality={false}
+            />
+          )}
           {isPlatinumNft && (
             <span className="nft-badge absolute" style={{ top: -4, left: -4 }} aria-label="NFT">
               NFT

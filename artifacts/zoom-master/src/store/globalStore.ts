@@ -78,7 +78,7 @@ async function refreshAll(telegramId: string | null) {
   try {
     const tasks: Promise<void>[] = [
       fetchSeasonEpoch().then((e) => {
-        const fallback = new Date("2026-08-15T00:00:00.000Z").getTime();
+        const fallback = new Date("2026-08-24T00:00:00.000Z").getTime();
         set({ seasonEpoch: e && e > 0 ? e : fallback });
       }).catch(() => {}),
       fetchLeaderboard().then((lb) => set({ leaderboard: lb })).catch(() => {}),

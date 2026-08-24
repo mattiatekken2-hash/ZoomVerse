@@ -1378,8 +1378,28 @@ body.animations-paused * {
   font-weight: 900;
   letter-spacing: 0.06em;
   color: #ffffff;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   padding: 0 2px;
+}
+.lab-forge-picker-title-logo {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 8px;
+  filter: drop-shadow(0 0 10px rgba(123, 237, 159, 0.35));
+}
+.lab-forge-zoom-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1;
+}
+.lab-forge-zoom-mark span {
+  letter-spacing: 0.12em;
+}
+.lab-forge-path-chip-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .lab-forge-picker-dual {
   display: flex;
@@ -1392,6 +1412,8 @@ body.animations-paused * {
   font-weight: 800;
   letter-spacing: 0.14em;
   color: #1aa85a;
+  display: inline-flex;
+  align-items: center;
 }
 .lab-forge-picker-dual__star {
   font-size: 10px;

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import * as THREE from "three";
 import { FORGE_CLAY, FORGE_VOXEL_SIZE } from "@workspace/game-models";
 import type { VoxelCoord } from "../utils/voxelStudioStore";
+import { hapticLight } from "../utils/haptic";
 
 /** Same cube fill + edge as Lab forge voxels in MysteryModel3D. */
 const CUBE_FILL = 0.98;
@@ -317,7 +318,7 @@ export function VoxelStudioCanvas({
         if (voxelsRef.current.length <= 1) return;
         holdFired = true;
         onRemoveRef.current?.(holdTarget);
-        try { navigator.vibrate?.(12); } catch { /* */ }
+        hapticLight();
       }, 380);
     };
     const onPointerMove = (e: PointerEvent) => {
@@ -353,6 +354,7 @@ export function VoxelStudioCanvas({
         const paint = paintColorRef.current;
         if (paint != null && onPaintRef.current) {
           onPaintRef.current({ ...found.src, color: paint });
+          hapticLight();
           return;
         }
         if (!onAddRef.current) return;
@@ -366,6 +368,7 @@ export function VoxelStudioCanvas({
         const occ = new Set(list.map(vkey));
         if (occ.has(vkey(next)) || list.length >= MAX_VOXELS) return;
         onAddRef.current(next);
+        hapticLight();
         return;
       }
       dragging = false;
