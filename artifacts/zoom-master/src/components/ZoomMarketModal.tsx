@@ -1,60 +1,28 @@
 /**
- * ZoomMarketModal — compact $ZOOM price chart (Wallet → ZOOM S2 row).
- * Opens from Wallet when tapping the ZOOM S2 balance row.
- * Layout mirrors StardustMarketModal; price data from the Economy APIs.
+ * ZoomMarketModal — Wallet → ZOOM S2 row.
+ * Live $ZMC chart (DexScreener) + STON.fi buy/sell. Layout matches the
+ * existing market sheet (header, wallet row, how-it-works note).
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  Area,
-  AreaChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
-  fetchEconomyHistory,
-  fetchEconomyPrice,
-  type EconomyChartPoint,
-} from "../utils/api";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 import { useT } from "../i18n/LanguageContext";
-import { formatZoomChartPrice } from "../utils/wallet24hChange";
-import { publishWalletZoomPrice } from "../utils/walletMarketCache";
+import {
+  ZMC_DEXSCREENER_EMBED,
+  ZMC_JETTON_ADDRESS,
+  ZMC_STONFI_BUY,
+  ZMC_STONFI_SELL,
+  ZMC_TICKER,
+  copyText,
+  openExternalUrl,
+} from "../utils/zmcToken";
 
-const REFRESH_MS = 5_000;
 const CYAN = "#9EC5E8";
 const GOLD = "#ffd740";
 
 interface Props {
   balance: number;
   onClose: () => void;
-}
-
-function formatPrice(p: number): string {
-  if (!Number.isFinite(p) || p <= 0) return "0";
-  // Portfolio can be larger than micro unit prices.
-  if (p >= 0.0001) {
-    if (p < 0.01) return p.toFixed(6);
-    if (p < 1) return p.toFixed(4);
-    if (p < 10) return p.toFixed(3);
-    return p.toFixed(2);
-  }
-  return formatZoomChartPrice(p);
-}
-
-/** Compact Y-axis ticks — avoid "0001" clutter on micro prices. */
-function formatAxisPrice(p: number): string {
-  if (!Number.isFinite(p) || p <= 0) return "0";
-  if (p < 1e-5) return formatZoomChartPrice(p);
-  if (p < 0.01) return p.toFixed(6).replace(/0+$/, "").replace(/\.$/, "");
-  if (p < 1) return p.toFixed(4);
-  return p.toFixed(3);
-}
-
-function fmtGram(p: number): string {
-  return `${formatPrice(p)} GRAM`;
 }
 
 function formatZoom(n: number): string {
@@ -64,94 +32,16 @@ function formatZoom(n: number): string {
   return n.toLocaleString();
 }
 
-function formatTime(ts: number): string {
-  try {
-    return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return "";
-  }
-}
-
 export function ZoomMarketModal({ balance, onClose }: Props) {
   const { t } = useT();
-  const [price, setPrice] = useState(0);
-  const [genesis, setGenesis] = useState(0);
-  const [points, setPoints] = useState<EconomyChartPoint[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
 
-  const refresh = useCallback(async () => {
-    const [p, h] = await Promise.all([fetchEconomyPrice(), fetchEconomyHistory()]);
-    if (p && Number.isFinite(p.price)) {
-      setPrice(p.price);
-      if (Number.isFinite(p.genesisPrice)) setGenesis(p.genesisPrice);
-      const hist = (h?.points ?? [])
-        .map((pt) => pt.price)
-        .filter((v): v is number => Number.isFinite(v) && v > 0);
-      publishWalletZoomPrice(p.price, hist);
-    }
-    if (h?.points?.length) setPoints(h.points);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-    const id = window.setInterval(() => { void refresh(); }, REFRESH_MS);
-    return () => window.clearInterval(id);
-  }, [refresh]);
-
-  const chartData = useMemo(() => {
-    const mapped = points
-      .map((pt) => {
-        const price = Number.isFinite(pt.price) && pt.price > 0
-          ? pt.price
-          : (Number.isFinite(pt.p) && pt.p > 0 ? (pt.p > 10 ? pt.p / 1e9 : pt.p) : 0);
-        return { t: pt.t, price, label: formatTime(pt.t) };
-      })
-      .filter((pt) => Number.isFinite(pt.price) && pt.price > 0);
-    const live = price > 0 ? price : genesis;
-    if (live > 0) {
-      const now = Date.now();
-      const last = mapped[mapped.length - 1];
-      if (!last || now - last.t > 2_000) {
-        mapped.push({ t: now, price: live, label: formatTime(now) });
-      } else {
-        mapped[mapped.length - 1] = { t: now, price: live, label: formatTime(now) };
-      }
-    }
-    if (mapped.length === 0 && live > 0) {
-      const now = Date.now();
-      return [
-        { t: now - 3_600_000, price: live, label: formatTime(now - 3_600_000) },
-        { t: now, price: live, label: formatTime(now) },
-      ];
-    }
-    if (mapped.length === 1) {
-      const only = mapped[0]!;
-      return [
-        { ...only, t: only.t - 3_600_000, label: formatTime(only.t - 3_600_000) },
-        only,
-      ];
-    }
-    return mapped;
-  }, [points, price, genesis]);
-
-  const yDomain = useMemo((): [number, number] | ["auto", "auto"] => {
-    if (chartData.length < 2) return ["auto", "auto"];
-    const vals = chartData.map((d) => d.price).filter((n) => Number.isFinite(n) && n > 0);
-    if (vals.length < 2) return ["auto", "auto"];
-    const min = Math.min(...vals);
-    const max = Math.max(...vals);
-    if (max <= min) {
-      const pad = Math.max(min * 0.002, 1e-9);
-      return [Math.max(0, min - pad), max + pad];
-    }
-    const pad = (max - min) * 0.08;
-    return [Math.max(0, min - pad), max + pad];
-  }, [chartData]);
-
-  const currentPrice = price > 0 ? price : genesis;
-  const pctChange = genesis > 0 ? ((currentPrice - genesis) / genesis) * 100 : 0;
-  const portfolio = Number.isFinite(balance) ? balance * currentPrice : 0;
+  const handleCopyCa = async () => {
+    const ok = await copyText(ZMC_JETTON_ADDRESS);
+    if (!ok) return;
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2000);
+  };
 
   return createPortal(
     <div
@@ -181,7 +71,7 @@ export function ZoomMarketModal({ balance, onClose }: Props) {
               style={{ fontSize: 20, fontWeight: 900, color: GOLD, marginTop: 2 }}
             >
               <ZoomCubeIcon size={22} />
-              <span style={{ fontVariantNumeric: "tabular-nums" }}>{fmtGram(currentPrice)}</span>
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>${ZMC_TICKER}</span>
             </div>
           </div>
           <button
@@ -200,51 +90,85 @@ export function ZoomMarketModal({ balance, onClose }: Props) {
           </button>
         </div>
 
-        {/* Compact stats row */}
-        <div className="px-4 pb-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-bold flex-shrink-0">
-          <span style={{ color: pctChange >= 0 ? "#69f0ae" : "#ff8a80" }}>
-            {pctChange >= 0 ? "+" : ""}{pctChange.toFixed(2)}%
-          </span>
+        {/* Compact stats + copy CA */}
+        <div className="px-4 pb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold flex-shrink-0">
           <span style={{ color: GOLD }}>{t("zoomMarket.wallet", { n: formatZoom(balance) })}</span>
-          <span style={{ color: CYAN }}>{t("zoomMarket.portfolio", { n: formatPrice(portfolio) })}</span>
+          <button
+            type="button"
+            onClick={() => void handleCopyCa()}
+            data-testid="zmc-copy-ca"
+            aria-label={t("zoomMarket.copyCa")}
+            style={{
+              padding: "4px 10px",
+              borderRadius: 999,
+              border: `1px solid ${copied ? "rgba(105,240,174,0.45)" : "rgba(158,197,232,0.35)"}`,
+              background: copied ? "rgba(105,240,174,0.12)" : "rgba(158,197,232,0.10)",
+              color: copied ? "#69f0ae" : CYAN,
+              fontSize: 10,
+              fontWeight: 900,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              cursor: "pointer",
+            }}
+          >
+            {copied ? t("zoomMarket.copyCaDone") : t("zoomMarket.copyCa")}
+          </button>
         </div>
 
-        {/* Chart — compact (Stardust-style) */}
-        <div className="px-3 flex-shrink-0" style={{ height: 110 }}>
-          {chartData.length >= 2 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="zoomMarketChartFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={GOLD} stopOpacity={0.28} />
-                    <stop offset="100%" stopColor={GOLD} stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="label" tick={{ fill: "rgba(255,255,255,0.22)", fontSize: 8 }} axisLine={false} tickLine={false} />
-                <YAxis
-                  domain={yDomain}
-                  tick={{ fill: "rgba(255,255,255,0.22)", fontSize: 8 }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={40}
-                  tickCount={4}
-                  tickFormatter={(v) => formatAxisPrice(Number(v))}
-                />
-                <Tooltip
-                  contentStyle={{ background: "#0c1018", border: "1px solid rgba(255,215,64,0.25)", borderRadius: 8, fontSize: 10 }}
-                  formatter={(v: number) => [fmtGram(v), t("zoomMarket.priceLabel")]}
-                />
-                <Area type="monotone" dataKey="price" stroke={GOLD} strokeWidth={1.5} fill="url(#zoomMarketChartFill)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex items-center justify-center h-full text-[10px] text-center px-2" style={{ color: "rgba(255,255,255,0.32)" }}>
-              {loading ? t("zoomMarket.loadingChart") : t("zoomMarket.emptyChart")}
-            </div>
-          )}
+        {/* Live DexScreener chart */}
+        <div className="px-3 flex-shrink-0">
+          <iframe
+            src={ZMC_DEXSCREENER_EMBED}
+            width="100%"
+            height="400px"
+            title={t("zoomMarket.chartTitle")}
+            style={{ border: 0, borderRadius: "12px" }}
+            data-testid="zmc-dexscreener"
+          />
         </div>
 
-        {/* How the live price works — no fake stake form */}
+        {/* Compra / Vendi $ZMC → STON.fi */}
+        <div className="px-4 pt-3 pb-2 flex gap-2 flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => openExternalUrl(ZMC_STONFI_BUY)}
+            data-testid="zmc-buy"
+            className="flex-1 active:scale-[0.98] transition-transform"
+            style={{
+              padding: "11px 12px",
+              borderRadius: 12,
+              border: "1px solid rgba(105,240,174,0.35)",
+              background: "linear-gradient(180deg, rgba(105,240,174,0.18), rgba(105,240,174,0.06))",
+              color: "#69f0ae",
+              fontSize: 12,
+              fontWeight: 900,
+              letterSpacing: "0.04em",
+              cursor: "pointer",
+            }}
+          >
+            {t("zoomMarket.buyZmc")}
+          </button>
+          <button
+            type="button"
+            onClick={() => openExternalUrl(ZMC_STONFI_SELL)}
+            data-testid="zmc-sell"
+            className="flex-1 active:scale-[0.98] transition-transform"
+            style={{
+              padding: "11px 12px",
+              borderRadius: 12,
+              border: "1px solid rgba(255,138,128,0.35)",
+              background: "linear-gradient(180deg, rgba(255,138,128,0.16), rgba(255,138,128,0.05))",
+              color: "#ff8a80",
+              fontSize: 12,
+              fontWeight: 900,
+              letterSpacing: "0.04em",
+              cursor: "pointer",
+            }}
+          >
+            {t("zoomMarket.sellZmc")}
+          </button>
+        </div>
+
         <div className="px-4 pb-4 flex-1 overflow-y-auto min-h-0">
           <div
             className="rounded-xl p-3 text-[11px] leading-relaxed"

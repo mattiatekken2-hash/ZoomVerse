@@ -91,6 +91,8 @@ export function GramWalletConnectButton() {
       type="button"
       onClick={() => tonConnectUI.openModal()}
       className="mx-auto flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+      title={walletAddress || t("wallet.connect")}
+      aria-label={walletAddress ? walletAddress : t("wallet.connect")}
       style={{
         padding: "10px 18px",
         borderRadius: 999,
