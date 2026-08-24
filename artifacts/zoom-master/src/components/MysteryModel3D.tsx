@@ -809,6 +809,12 @@ function forgeClayTone(index: number): THREE.Color {
 }
 
 const LAB_AMBIENT_CUBE_COUNT = 14;
+/** Idle Lab drift — ~half the old speed so cubes feel heavy, not frantic. */
+const LAB_IDLE_MOTION_SCALE = 0.42;
+/** Lower, closer idle camera so the floor grid fills more of the screen. */
+const LAB_IDLE_CAM_DIR = new THREE.Vector3(1.48, 0.46, 1.92).normalize();
+const LAB_IDLE_CAM_DIST = 0.4;
+const LAB_IDLE_CAM_LOOK_Y = -0.48;
 
 interface LabAmbientCube {
   px: number;
@@ -847,8 +853,8 @@ function triggerLabAmbientBurst(cubes: LabAmbientCube[]): void {
 
 /** Relaxing drift with occasional cluster-in / breathe-out cycles. */
 function updateLabAmbientPhysics(cubes: LabAmbientCube[], dt: number, now: number, burstUntil: number): void {
-  const waveA = 0.5 + 0.5 * Math.sin(now * 0.00026 + 1.37);
-  const waveB = 0.5 + 0.5 * Math.sin(now * 0.00015 + 2.85);
+  const waveA = 0.5 + 0.5 * Math.sin(now * 0.00026 * LAB_IDLE_MOTION_SCALE + 1.37);
+  const waveB = 0.5 + 0.5 * Math.sin(now * 0.00015 * LAB_IDLE_MOTION_SCALE + 2.85);
   const clusterT = Math.pow(Math.min(1, Math.max(0, waveA * 0.58 + waveB * 0.42)), 1.4);
 
   const bounds = 3.35;
@@ -860,7 +866,7 @@ function updateLabAmbientPhysics(cubes: LabAmbientCube[], dt: number, now: numbe
 
   for (let i = 0; i < cubes.length; i++) {
     const c = cubes[i]!;
-    const orbitT = now * 0.0009 * c.orbitSpeed + c.phase;
+    const orbitT = now * 0.0009 * LAB_IDLE_MOTION_SCALE * c.orbitSpeed + c.phase;
     const targetX = c.homeX + Math.cos(orbitT + c.orbitA) * c.orbitR;
     const targetY = c.homeY + Math.sin(orbitT * 0.82 + c.orbitB) * c.orbitRy;
     const targetZ = c.homeZ + Math.sin(orbitT + c.orbitA * 0.7) * c.orbitR;
@@ -900,9 +906,9 @@ function updateLabAmbientPhysics(cubes: LabAmbientCube[], dt: number, now: numbe
       o.vz -= (dz / d) * push;
     }
 
-    c.px += c.vx * dt * 0.02;
-    c.py += c.vy * dt * 0.02;
-    c.pz += c.vz * dt * 0.02;
+    c.px += c.vx * dt * 0.02 * LAB_IDLE_MOTION_SCALE;
+    c.py += c.vy * dt * 0.02 * LAB_IDLE_MOTION_SCALE;
+    c.pz += c.vz * dt * 0.02 * LAB_IDLE_MOTION_SCALE;
 
     if (Math.abs(c.px) > bounds) {
       c.px = Math.sign(c.px) * bounds;
@@ -920,9 +926,9 @@ function updateLabAmbientPhysics(cubes: LabAmbientCube[], dt: number, now: numbe
     c.vx *= 0.9988;
     c.vy *= 0.9988;
     c.vz *= 0.9988;
-    c.rx += c.spinX * dt;
-    c.ry += c.spinY * dt;
-    c.rz += c.spinZ * dt;
+    c.rx += c.spinX * dt * LAB_IDLE_MOTION_SCALE;
+    c.ry += c.spinY * dt * LAB_IDLE_MOTION_SCALE;
+    c.rz += c.spinZ * dt * LAB_IDLE_MOTION_SCALE;
   }
 }
 
@@ -946,9 +952,9 @@ function seedLabAmbientCubes(): { voxels: VoxelCell[]; cubes: LabAmbientCube[]; 
       rx: Math.random() * Math.PI,
       ry: Math.random() * Math.PI,
       rz: Math.random() * Math.PI,
-      spinX: (Math.random() - 0.5) * 0.0014,
-      spinY: (Math.random() - 0.5) * 0.0018,
-      spinZ: (Math.random() - 0.5) * 0.0014,
+      spinX: (Math.random() - 0.5) * 0.0007,
+      spinY: (Math.random() - 0.5) * 0.00085,
+      spinZ: (Math.random() - 0.5) * 0.0007,
       phase: Math.random() * Math.PI * 2,
       toneIdx: i % 4,
       homeX: px,
@@ -958,7 +964,7 @@ function seedLabAmbientCubes(): { voxels: VoxelCell[]; cubes: LabAmbientCube[]; 
       orbitRy: 0.22 + Math.random() * 0.48,
       orbitA: Math.random() * Math.PI * 2,
       orbitB: Math.random() * Math.PI * 2,
-      orbitSpeed: 0.55 + Math.random() * 0.95,
+      orbitSpeed: 0.32 + Math.random() * 0.48,
     });
   }
   return { voxels, cubes, radius: 2.8 };
@@ -969,8 +975,8 @@ function addForgeSpaceGrid(scene: THREE.Scene, maxDim: number): THREE.Object3D[]
 
   // Same floor + back wall as Create your model (fixed size). A maxDim-scaled
   // GridHelper vanished at screen center and read as a wall through the Lab.
-  const span = 4.8;
-  const cells = 22;
+  const span = 6.4;
+  const cells = 26;
   const tuneGrid = (grid: THREE.GridHelper, opacity: number) => {
     const mats = Array.isArray(grid.material) ? grid.material : [grid.material];
     for (const m of mats) {
@@ -2614,14 +2620,14 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
           for (let i = 0; i < ambientCubes.length; i++) {
             const c = ambientCubes[i]!;
 
-            const pulse = 0.9 + Math.sin(now * 0.0015 + c.phase) * 0.06;
+            const pulse = 0.9 + Math.sin(now * 0.00065 + c.phase) * 0.05;
             voxelDummy.position.set(c.px, c.py, c.pz);
             voxelDummy.rotation.set(c.rx, c.ry, c.rz);
             voxelDummy.scale.setScalar(pulse);
             voxelDummy.updateMatrix();
             voxMesh.setMatrixAt(i, voxelDummy.matrix);
             voxMat.color.set(FORGE_CLAY);
-            voxMat.opacity = 0.78 + Math.sin(now * 0.0018 + c.phase) * 0.1;
+            voxMat.opacity = 0.78 + Math.sin(now * 0.0008 + c.phase) * 0.08;
             if (edgePosBuf) {
               const base = i * edgeVertCount * 3;
               for (let j = 0; j < edgeVertCount; j++) {
@@ -2646,10 +2652,10 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
             edgeLines.geometry.attributes.position!.needsUpdate = true;
           }
 
-          const camPulse = 1 + Math.sin(now * 0.00075) * 0.07;
+          const camPulse = 1 + Math.sin(now * 0.00032) * 0.03;
           if (idleCamAuto && !dragging) {
-            camera.position.copy(labForgeCamDir).multiplyScalar(labForgeCamFar * 0.52 * camPulse);
-            camera.lookAt(0, 0, 0);
+            camera.position.copy(LAB_IDLE_CAM_DIR).multiplyScalar(labForgeCamFar * LAB_IDLE_CAM_DIST * camPulse);
+            camera.lookAt(0, LAB_IDLE_CAM_LOOK_Y, 0);
           }
           touchedMesh = true;
         } else if (inForgeRevealPaint) {
