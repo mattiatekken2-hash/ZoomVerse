@@ -302,8 +302,8 @@ export async function sendMarketShareToGroup(params: {
       form.append("width", "256");
       form.append("height", "256");
       const bytes = new Uint8Array(params.animationGif);
-      const file = new File([bytes], "model-spin.gif", { type: "image/gif" });
-      form.append("animation", file, "model-spin.gif");
+      const blob = new Blob([bytes], { type: "image/gif" });
+      form.append("animation", blob, "model-spin.gif");
       const gifOk = await telegramMethod("sendAnimation", form);
       if (gifOk) return true;
       logger.warn("[notify] market share GIF rejected — falling back to text");

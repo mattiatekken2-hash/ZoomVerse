@@ -1,9 +1,9 @@
 /**
  * Market P2P SHARE GIF of the Lab GLB.
  *
- * Do not snapshot the on-screen canvas: Farm/Market thumbs use alpha:true, so
- * readPixels of the drawing buffer is premultiplied transparent black — Telegram
- * then shows a black GIF. Render into an opaque WebGLRenderTarget instead.
+ * Market thumbs use alpha:true. Snapshotting that screen buffer is premultiplied
+ * black — Telegram then shows no model. Capture into an opaque FBO instead,
+ * using the live viewer that already has the GLB loaded.
  */
 import * as THREE from "three";
 import { labForgeShapeHasGlbReveal } from "@workspace/game-models";
@@ -65,6 +65,9 @@ function renderSpinFrames(
   const prevExp = renderer.toneMappingExposure;
   const prevBg = scene.background;
   const prevTarget = renderer.getRenderTarget();
+  const prevPr = renderer.getPixelRatio();
+  const prevSize = new THREE.Vector2();
+  renderer.getSize(prevSize);
   const bg = new THREE.Color(STAGE);
   const target = new THREE.WebGLRenderTarget(SIZE, SIZE, {
     type: THREE.UnsignedByteType,
@@ -77,8 +80,10 @@ function renderSpinFrames(
   try {
     renderer.toneMapping = THREE.NoToneMapping;
     renderer.toneMappingExposure = 1;
+    renderer.setPixelRatio(1);
     scene.background = bg;
     renderer.setRenderTarget(target);
+    renderer.setViewport(0, 0, SIZE, SIZE);
     const stage = { r: 30, g: 42, b: 61 };
 
     for (let i = 0; i < FRAMES; i++) {
@@ -92,6 +97,9 @@ function renderSpinFrames(
   } finally {
     spinGroup.rotation.y = savedY;
     renderer.setRenderTarget(prevTarget);
+    renderer.setPixelRatio(prevPr);
+    renderer.setSize(prevSize.x, prevSize.y, false);
+    renderer.setViewport(0, 0, prevSize.x * prevPr, prevSize.y * prevPr);
     renderer.toneMapping = prevTone;
     renderer.toneMappingExposure = prevExp;
     scene.background = prevBg;
@@ -135,55 +143,17 @@ function toUnlitMaterials(root: THREE.Object3D) {
   });
 }
 
-function snapshotCanvas(glCanvas: HTMLCanvasElement): Uint8ClampedArray {
-  const dst = document.createElement("canvas");
-  dst.width = SIZE;
-  dst.height = SIZE;
-  const ctx = dst.getContext("2d");
-  if (!ctx) return new Uint8ClampedArray(SIZE * SIZE * 4);
-  ctx.fillStyle = "#1e2a3d";
-  ctx.fillRect(0, 0, SIZE, SIZE);
-  ctx.drawImage(glCanvas, 0, 0, SIZE, SIZE);
-  return ctx.getImageData(0, 0, SIZE, SIZE).data;
-}
-
-async function snapshotPng(glCanvas: HTMLCanvasElement): Promise<Uint8ClampedArray> {
-  const png = glCanvas.toDataURL("image/png");
-  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("png snapshot failed"));
-    image.src = png;
-  });
-  const dst = document.createElement("canvas");
-  dst.width = SIZE;
-  dst.height = SIZE;
-  const ctx = dst.getContext("2d");
-  if (!ctx) return snapshotCanvas(glCanvas);
-  ctx.fillStyle = "#1e2a3d";
-  ctx.fillRect(0, 0, SIZE, SIZE);
-  ctx.drawImage(img, 0, 0, SIZE, SIZE);
-  return ctx.getImageData(0, 0, SIZE, SIZE).data;
-}
-
 async function captureFromLiveHandle(handle: LabGlbCaptureHandle): Promise<string | null> {
   handle.paused = true;
-  const savedY = handle.spinGroup.rotation.y;
   try {
     await nextFrame();
-    const frames: Uint8ClampedArray[] = [];
-    for (let i = 0; i < FRAMES; i++) {
-      handle.spinGroup.rotation.y = (i / FRAMES) * Math.PI * 2;
-      handle.renderer.setRenderTarget(null);
-      handle.renderer.render(handle.scene, handle.camera);
-      frames.push(await snapshotPng(handle.renderer.domElement));
-    }
+    await nextFrame();
+    const frames = renderSpinFrames(handle.renderer, handle.scene, handle.camera, handle.spinGroup);
     return encodeIfValid(frames);
   } catch (err) {
     console.warn("[market-share] live glb capture failed", err);
     return null;
   } finally {
-    handle.spinGroup.rotation.y = savedY;
     handle.paused = false;
     try {
       handle.renderer.setRenderTarget(null);
@@ -200,7 +170,16 @@ async function captureDedicated(shapeId: string): Promise<string | null> {
   const canvas = document.createElement("canvas");
   canvas.width = SIZE;
   canvas.height = SIZE;
-  canvas.style.cssText = "position:fixed;left:0;top:0;width:256px;height:256px;opacity:0;pointer-events:none;z-index:1";
+  canvas.style.cssText = [
+    "position:fixed",
+    "left:8px",
+    "top:8px",
+    "width:256px",
+    "height:256px",
+    "opacity:0.18",
+    "pointer-events:none",
+    "z-index:2",
+  ].join(";");
   document.body.appendChild(canvas);
 
   let renderer: THREE.WebGLRenderer | null = null;
