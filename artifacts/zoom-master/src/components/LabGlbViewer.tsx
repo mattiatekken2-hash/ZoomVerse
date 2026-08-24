@@ -4,6 +4,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { labForgeShapeHasGlbReveal } from "@workspace/game-models";
 import { cloneLabGlbTemplate, preloadLabGlb } from "../utils/labGlbCache";
+import { registerLabGlbCapture, type LabGlbCaptureHandle } from "../utils/labGlbCaptureRegistry";
 import {
   LAB_GLB_FIT_SIZE,
   LAB_GLB_SPIN_RATE,
@@ -77,6 +78,7 @@ function LabGlbViewerBase({
       renderer = new THREE.WebGLRenderer({
         antialias: true,
         alpha: embedded,
+        preserveDrawingBuffer: true,
         powerPreference: "high-performance",
       });
     } catch {
@@ -173,11 +175,25 @@ function LabGlbViewerBase({
       });
     };
 
+    const captureHandle: LabGlbCaptureHandle = {
+      shapeId,
+      renderer,
+      scene,
+      camera,
+      spinGroup,
+      paused: false,
+    };
+    const unregisterCapture = registerLabGlbCapture(captureHandle);
+
     let lastFrame = performance.now();
     function animate(now: number) {
       if (disposed || contextDead) return;
       if (document.hidden) {
         frameId = 0;
+        return;
+      }
+      if (captureHandle.paused) {
+        frameId = requestAnimationFrame(animate);
         return;
       }
       const dt = Math.min(32, now - lastFrame);
@@ -244,6 +260,7 @@ function LabGlbViewerBase({
 
     return () => {
       disposed = true;
+      unregisterCapture();
       document.removeEventListener("visibilitychange", onVis);
       if (loadTimer !== null) window.clearTimeout(loadTimer);
       cancelAnimationFrame(frameId);
