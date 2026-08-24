@@ -1519,7 +1519,7 @@ function decodeGifB64(raw: string | undefined): Buffer | null {
   const cleaned = raw.replace(/^data:image\/gif;base64,/i, "").replace(/\s/g, "");
   try {
     const buf = Buffer.from(cleaned, "base64");
-    if (buf.length < 32 || buf.length > 1_800_000) return null;
+    if (buf.length < 32 || buf.length > 2_400_000) return null;
     if (buf.toString("ascii", 0, 3) !== "GIF") return null;
     return buf;
   } catch {

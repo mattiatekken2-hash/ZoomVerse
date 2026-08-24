@@ -1,5 +1,5 @@
 /**
- * Offscreen capture of a Lab GLB spinning on the forge grid — used only for
+ * Offscreen capture of a Lab GLB spinning on a dark stage — used only for
  * Market P2P share. Does not touch LabGlbViewer / farm thumbs.
  *
  * One full 360° with the duplicate end-angle omitted so Telegram's GIF loop
@@ -9,13 +9,14 @@ import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { labForgeShapeHasGlbReveal } from "@workspace/game-models";
 import { cloneLabGlbTemplate, preloadLabGlb } from "./labGlbCache";
-import { LAB_GLB_FIT_SIZE, addForgeSpaceGrid, fitGlbToCenter } from "./labGlbScene";
+import { LAB_GLB_FIT_SIZE, fitGlbToCenter } from "./labGlbScene";
 import { encodeLoopingGif, gifToBase64 } from "./gifLoopEncoder";
 import { withGlThumbsPaused } from "./glThumbGate";
 
-const SIZE = 320;
-const FRAMES = 36;
-const DELAY_CS = 5; // 50ms × 36 = 1.8s / revolution — close to Lab reveal spin
+// Compact square so Telegram shows a small spinning model, not a huge card.
+const SIZE = 192;
+const FRAMES = 24;
+const DELAY_CS = 6; // 60ms × 24 = 1.44s / revolution
 
 function cloneMaterialsForCapture(root: THREE.Object3D) {
   root.traverse((node) => {
@@ -70,11 +71,11 @@ async function captureMarketGlbLoopGifInner(shapeId: string): Promise<string | n
   // fully off-screen canvases, which produced a dark GIF with no model.
   canvas.style.cssText = [
     "position:fixed",
-    "left:0",
-    "top:0",
+    "left:8px",
+    "top:8px",
     `width:${SIZE}px`,
     `height:${SIZE}px`,
-    "opacity:0.12",
+    "opacity:0.2",
     "pointer-events:none",
     "z-index:2",
   ].join(";");
@@ -119,20 +120,10 @@ async function captureMarketGlbLoopGifInner(shapeId: string): Promise<string | n
     scene.add(spinGroup);
     const fitted = fitGlbToCenter(model, LAB_GLB_FIT_SIZE);
     spinGroup.add(model);
-    const gridExtras = addForgeSpaceGrid(scene, fitted);
-    for (const obj of gridExtras) {
-      if (!(obj instanceof THREE.GridHelper)) continue;
-      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-      for (const m of mats) {
-        m.transparent = true;
-        m.opacity = Math.min(0.82, (m.opacity ?? 0.3) + 0.28);
-        m.needsUpdate = true;
-      }
-    }
 
     const camera = new THREE.PerspectiveCamera(38, 1, 0.05, 5000);
     const camDir = new THREE.Vector3(1.35, 0.95, 1.7).normalize();
-    const camDist = fitted * 2.85;
+    const camDist = fitted * 4.5;
     camera.position.copy(camDir.multiplyScalar(camDist));
     camera.near = camDist * 0.02;
     camera.far = camDist * 12;
@@ -141,6 +132,8 @@ async function captureMarketGlbLoopGifInner(shapeId: string): Promise<string | n
 
     renderer.compile(scene, camera);
     renderer.render(scene, camera);
+    await nextFrame();
+    await nextFrame();
     await nextFrame();
     await nextFrame();
     await nextFrame();
@@ -161,6 +154,7 @@ async function captureMarketGlbLoopGifInner(shapeId: string): Promise<string | n
     }
 
     const gif = encodeLoopingGif(SIZE, SIZE, frames, DELAY_CS);
+    if (gif.byteLength < 64 || gif.byteLength > 1_600_000) return null;
     return gifToBase64(gif);
   } catch (err) {
     console.warn("[market-share] glb loop capture failed", err);

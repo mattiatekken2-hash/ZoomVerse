@@ -7,7 +7,7 @@ import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 import { FORGE_CLAY, FORGE_CLAY_HEX, FORGE_VOXEL_SIZE, getMeshParts, getShapeGlbUrl, meshPartsToVoxels, mysteryKitParts, FORGE_SPHERE_SHAPE_ID, getForgeSphereBlueprint, getLabForgeShapeVoxels, isLabCollectibleVoxelRarity, labForgeMorphT, labForgeShapeHasGlbReveal, showcaseVoxelHex, getShowcaseVoxelHex, getShowcasePaletteForRarity, getShowcaseRarityStyle, quantizeToShowcasePalette, isBattleScarVoxel, shouldPlanetShowRing, type MaterialProfile, type MeshPart, type VoxelCell } from "@workspace/game-models";
 import { FLOAT_PLANET_TYPES } from "../utils/planetFloat";
 import { isLowEndDevice } from "../utils/deviceTier";
-import { fitGlbToCenter, FORGE_FLOOR_SPIN_PER_MS, LAB_GLB_FIT_SIZE } from "../utils/labGlbScene";
+import { fitGlbToCenter, LAB_GLB_FIT_SIZE } from "../utils/labGlbScene";
 
 const DEFAULT_PARTS = mysteryKitParts();
 
@@ -966,29 +966,6 @@ function seedLabAmbientCubes(): { voxels: VoxelCell[]; cubes: LabAmbientCube[]; 
 
 function addForgeSpaceGrid(scene: THREE.Scene, maxDim: number): THREE.Object3D[] {
   const extras: THREE.Object3D[] = [];
-  const span = maxDim * 3.6;
-  const cells = 22;
-
-  const tuneGrid = (grid: THREE.GridHelper, opacity: number) => {
-    const mats = Array.isArray(grid.material) ? grid.material : [grid.material];
-    for (const m of mats) {
-      m.transparent = true;
-      m.opacity = opacity;
-      m.depthWrite = false;
-    }
-    grid.renderOrder = -10;
-  };
-
-  const gridPivot = new THREE.Group();
-  gridPivot.userData.isForgeGridPivot = true;
-
-  const floorGrid = new THREE.GridHelper(span, cells, 0xb8c0cc, 0x6a7280);
-  tuneGrid(floorGrid, 0.38);
-  floorGrid.position.y = -maxDim * 0.46;
-  gridPivot.add(floorGrid);
-
-  scene.add(gridPivot);
-  extras.push(gridPivot);
 
   const starGeo = new THREE.BufferGeometry();
   const starCount = 120;
@@ -2465,10 +2442,6 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
       const dt = Math.min(32, now - lastFrame);
       lastFrame = now;
-      for (const extra of groundExtras) {
-        if (extra.userData?.isForgeGridPivot) extra.rotation.y += FORGE_FLOOR_SPIN_PER_MS * dt;
-      }
-
       const st = stateRef.current;
       const revealPhase = forgeRevealPhaseRef.current;
       if (revealPhase === "idle" && lastRevealPhase !== "idle") {

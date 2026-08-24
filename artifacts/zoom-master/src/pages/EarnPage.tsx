@@ -497,9 +497,18 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                   <div className="text-[8px] font-bold" style={{ color: isClaimed ? "#00e676" : isNext ? "#9EC5E8" : "rgba(255,255,255,0.4)" }}>
                     D{dayNum}
                   </div>
-                  <div className="text-[11px] font-black mt-0.5 tabular-nums" style={{ color: isClaimed ? "#00e676" : isNext ? "#fff" : "rgba(255,255,255,0.6)" }}>
+                  <div
+                    className="text-[11px] font-black mt-0.5 tabular-nums"
+                    style={{
+                      color: isClaimed ? "#00e676" : isNext ? "#fff" : "rgba(255,255,255,0.6)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 3,
+                    }}
+                  >
                     {Math.round(amt)}
-                    <span style={{ color: "#ffd740", fontSize: 9 }}>★</span>
+                    <span style={{ color: "#ffd740", fontSize: 9, marginLeft: 2, position: "relative", left: 2, lineHeight: 1 }}>★</span>
                   </div>
                   {isClaimed && <div className="text-[8px] leading-none" style={{ color: "#00e676" }}>✓</div>}
                 </div>

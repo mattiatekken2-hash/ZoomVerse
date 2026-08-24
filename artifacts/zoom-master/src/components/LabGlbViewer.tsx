@@ -5,7 +5,6 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { labForgeShapeHasGlbReveal } from "@workspace/game-models";
 import { cloneLabGlbTemplate, preloadLabGlb } from "../utils/labGlbCache";
 import {
-  FORGE_FLOOR_SPIN_PER_MS,
   LAB_GLB_FIT_SIZE,
   LAB_GLB_SPIN_RATE,
   addForgeSpaceGrid,
@@ -191,9 +190,6 @@ function LabGlbViewerBase({
         if (autoSpin && !dragging) spinGroup.rotation.y += spinRate * (dt / 16.67);
       } else if (autoSpin) {
         spinGroup.rotation.y += spinRate * (dt / 16.67);
-      }
-      for (const extra of gridExtras) {
-        if (extra.userData?.isForgeFloor) extra.rotation.y += FORGE_FLOOR_SPIN_PER_MS * dt;
       }
       draw();
       frameId = requestAnimationFrame(animate);

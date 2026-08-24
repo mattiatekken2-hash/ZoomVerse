@@ -67,26 +67,9 @@ export function glbTriangleCount(root: THREE.Object3D): number {
 
 export function addForgeSpaceGrid(scene: THREE.Scene, maxDim: number): THREE.Object3D[] {
   const extras: THREE.Object3D[] = [];
-  const span = maxDim * 3.6;
-  const cells = 22;
 
-  const tuneGrid = (grid: THREE.GridHelper, opacity: number) => {
-    const mats = Array.isArray(grid.material) ? grid.material : [grid.material];
-    for (const m of mats) {
-      m.transparent = true;
-      m.opacity = opacity;
-      m.depthWrite = false;
-    }
-    grid.renderOrder = -10;
-  };
-
-  const floorGrid = new THREE.GridHelper(span, cells, 0xb8c0cc, 0x6a7280);
-  tuneGrid(floorGrid, 0.38);
-  floorGrid.position.y = -maxDim * 0.46;
-  floorGrid.userData.isForgeFloor = true;
-  scene.add(floorGrid);
-  extras.push(floorGrid);
-
+  // Lab: no floor/wall GridHelper. A perspective floor's vanishing point sits
+  // in the middle of the canvas and reads as a grid through the model.
   const starGeo = new THREE.BufferGeometry();
   const starCount = 120;
   const starPos = new Float32Array(starCount * 3);

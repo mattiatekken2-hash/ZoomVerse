@@ -6,8 +6,9 @@ import { logger } from "./logger";
 /** Season 3 anchor — matches RankPage / ExchangeWidget fallback. */
 export const DEFAULT_SEASON_EPOCH_MS = Date.UTC(2026, 7, 24);
 const PREV_SEASON_3_EPOCH_MS = Date.UTC(2026, 7, 15);
-/** Bump this to take a new rank snapshot (clears LIVE SEASON RANK names). */
-const SEASON_RANK_SNAPSHOT_MS = Date.UTC(2026, 7, 24, 3);
+/** Bump this to take a new rank snapshot. 2026-08-24 16:00Z restores
+ *  LIVE SEASON RANK to current ZOOM wallets (start = 0). */
+const SEASON_RANK_SNAPSHOT_MS = Date.UTC(2026, 7, 24, 16);
 
 async function usersTableReady(): Promise<boolean> {
   try {
@@ -51,7 +52,7 @@ async function seedDefaults(): Promise<void> {
       .limit(1);
     if ((snapRow?.valueNum ?? 0) < SEASON_RANK_SNAPSHOT_MS) {
       await db.execute(sql`
-        UPDATE users SET season_zoom_start = COALESCE(zoom_balance, 0)
+        UPDATE users SET season_zoom_start = 0
       `);
       await db
         .update(appSettingsTable)

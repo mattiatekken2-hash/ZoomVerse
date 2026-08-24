@@ -158,18 +158,17 @@ router.post("/balance/sync", async (req, res) => {
 
 router.get("/leaderboard", async (_req, res) => {
   try {
-    const seasonDelta = sql`GREATEST(0, ${usersTable.zoomBalance} - COALESCE(${usersTable.seasonZoomStart}, 0))`;
     const rows = await db
       .select({
         telegramId: usersTable.telegramId,
         firstName: usersTable.firstName,
         username: usersTable.username,
         photoUrl: usersTable.photoUrl,
-        zoomBalance: seasonDelta.as("zoom_balance"),
+        zoomBalance: usersTable.zoomBalance,
       })
       .from(usersTable)
-      .where(sql`${seasonDelta} > 0 AND ${usersTable.isDisabled} = false`)
-      .orderBy(sql`${seasonDelta} DESC`)
+      .where(sql`${usersTable.zoomBalance} > 0 AND ${usersTable.isDisabled} = false`)
+      .orderBy(desc(usersTable.zoomBalance))
       .limit(100);
 
     const leaderboard = rows.map((row, index) => {
