@@ -75,8 +75,8 @@ export function addForgeSpaceGrid(scene: THREE.Scene, maxDim: number): THREE.Obj
 
   const backGrid = new THREE.GridHelper(span, cells, 0xa0a8b8, 0x505868);
   tuneGrid(backGrid, 0.2);
-  backGrid.rotation.x = Math.PI / 2;
-  backGrid.position.set(0, maxDim * 0.05, -maxDim * 1.05);
+  backGrid.rotation.z = Math.PI / 2;
+  backGrid.position.set(-maxDim * 1.05, maxDim * 0.05, 0);
   scene.add(backGrid);
   extras.push(backGrid);
 

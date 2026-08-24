@@ -988,8 +988,8 @@ function addForgeSpaceGrid(scene: THREE.Scene, maxDim: number): THREE.Object3D[]
 
   const backGrid = new THREE.GridHelper(span, cells, 0xa0a8b8, 0x505868);
   tuneGrid(backGrid, 0.2);
-  backGrid.rotation.x = Math.PI / 2;
-  backGrid.position.set(0, maxDim * 0.05, -maxDim * 1.05);
+  backGrid.rotation.z = Math.PI / 2;
+  backGrid.position.set(-maxDim * 1.05, maxDim * 0.05, 0);
   gridPivot.add(backGrid);
 
   scene.add(gridPivot);
@@ -2467,12 +2467,6 @@ export const ObjectMesh3D = forwardRef<ForgeMeshHandle, ObjectMesh3DProps>(funct
 
       const dt = Math.min(32, now - lastFrame);
       lastFrame = now;
-
-      for (const extra of groundExtras) {
-        if (extra.userData?.isForgeGridPivot) {
-          extra.rotation.y = 0;
-        }
-      }
 
       const st = stateRef.current;
       const revealPhase = forgeRevealPhaseRef.current;
