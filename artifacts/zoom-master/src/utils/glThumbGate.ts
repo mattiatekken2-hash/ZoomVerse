@@ -21,7 +21,7 @@ export function subscribeGlThumbsPause(fn: Listener): () => void {
 export async function withGlThumbsPaused<T>(fn: () => Promise<T>): Promise<T> {
   paused = true;
   listeners.forEach((l) => l());
-  await new Promise((r) => window.setTimeout(r, 160));
+  await new Promise((r) => window.setTimeout(r, 320));
   try {
     return await fn();
   } finally {
