@@ -347,8 +347,9 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
         <div
           className="absolute z-30 pointer-events-auto"
           style={{
-            right: 6,
+            right: 14,
             top: "max(102px, calc(env(safe-area-inset-top, 0px) + 96px))",
+            overflow: "visible",
           }}
         >
           <LabRankWidget

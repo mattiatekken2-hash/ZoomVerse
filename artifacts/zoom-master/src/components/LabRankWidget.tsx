@@ -97,7 +97,8 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
           97% { transform: rotate(8deg) scale(1.02); }
           100% { transform: rotate(0deg) scale(1); }
         }
-        .lr-tile { overflow: hidden; contain: paint; }
+        .lr-tile { overflow: visible; }
+        .lr-icon-clip { overflow: hidden; width: 100%; height: 100%; border-radius: inherit; display: flex; align-items: center; justify-content: center; }
         .lr-emoji { display: flex; align-items: center; justify-content: center; animation: lrPulse 3s ease-in-out infinite; transform-origin: 50% 50%; will-change: transform; }
         @keyframes lrRing {
           0% { transform: translate(-50%, -50%) rotateX(68deg) rotateZ(0deg); opacity: 0.55; }
@@ -117,9 +118,10 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setOpen(true); }}
         style={headerMode ? {
           position: "relative",
-          width: 40,
-          height: 40,
+          width: 52,
+          height: 48,
           cursor: "pointer",
+          overflow: "visible",
         } : shopMode ? {
           position: "relative",
           width: "100%",
@@ -163,36 +165,42 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
           }}
           data-testid="button-lab-rank"
         >
-          <div
-            className="lr-emoji"
-            style={{
-              width: "100%", height: "100%",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              lineHeight: 1,
-            }}
-          >
-            <GramDiamondIcon size={headerMode ? 22 : shopMode ? 30 : 28} />
+          <div className="lr-icon-clip">
+            <div
+              className="lr-emoji"
+              style={{
+                width: "100%", height: "100%",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                lineHeight: 1,
+              }}
+            >
+              <GramDiamondIcon size={headerMode ? 22 : shopMode ? 30 : 28} />
+            </div>
           </div>
           {userRank != null && userRank <= 100 && (
             <span
               aria-hidden="true"
               style={{
                 position: "absolute",
-                top: -6,
-                right: -6,
-                minWidth: 22,
-                height: 18,
-                padding: "0 5px",
-                borderRadius: 9,
-                background: CYAN,
+                top: headerMode ? -7 : -6,
+                right: headerMode ? -14 : -6,
+                zIndex: 3,
+                minWidth: headerMode ? 28 : 22,
+                height: headerMode ? 20 : 18,
+                padding: headerMode ? "0 6px" : "0 5px",
+                borderRadius: 999,
+                background: "#ffe566",
                 color: "#041018",
-                fontSize: 10,
+                fontSize: headerMode ? 11 : 10,
                 fontWeight: 900,
-                border: "2px solid rgba(4,8,16,0.95)",
+                border: "2px solid #041018",
+                boxShadow: `0 0 0 1px ${CYAN}, 0 2px 8px rgba(0,0,0,0.55)`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 lineHeight: 1,
+                pointerEvents: "none",
+                whiteSpace: "nowrap",
               }}
             >
               #{userRank}
