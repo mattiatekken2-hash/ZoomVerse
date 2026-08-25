@@ -16,12 +16,12 @@ export function isSyntheticTelegramId(id: string | null | undefined): boolean {
 }
 
 export const SYNTHETIC_PLAYERS = [
-  { id: `${SYNTHETIC_ID_PREFIX}01`, name: "Alex", photo: "/avatars/synth-alex.svg", zoom: 178, labPoints: 1 },
-  { id: `${SYNTHETIC_ID_PREFIX}02`, name: "Mila", photo: "/avatars/synth-mila.svg", zoom: 156, labPoints: 1 },
-  { id: `${SYNTHETIC_ID_PREFIX}03`, name: "Diego", photo: "/avatars/synth-diego.svg", zoom: 134, labPoints: 1 },
-  { id: `${SYNTHETIC_ID_PREFIX}04`, name: "Kenji", photo: "/avatars/synth-kenji.svg", zoom: 112, labPoints: 1 },
-  { id: `${SYNTHETIC_ID_PREFIX}05`, name: "Sara", photo: "/avatars/synth-sara.svg", zoom: 88, labPoints: 1 },
-  { id: `${SYNTHETIC_ID_PREFIX}06`, name: "Omar", photo: "/avatars/synth-omar.svg", zoom: 61, labPoints: 1 },
+  { id: `${SYNTHETIC_ID_PREFIX}01`, name: "Gio", photo: "/avatars/synth-alex.svg", zoom: 178, labPoints: 1 },
+  { id: `${SYNTHETIC_ID_PREFIX}02`, name: "chiara", photo: "/avatars/synth-mila.svg", zoom: 156, labPoints: 1 },
+  { id: `${SYNTHETIC_ID_PREFIX}03`, name: "Niko.", photo: "/avatars/synth-diego.svg", zoom: 134, labPoints: 1 },
+  { id: `${SYNTHETIC_ID_PREFIX}04`, name: "Lory", photo: "/avatars/synth-kenji.svg", zoom: 112, labPoints: 1 },
+  { id: `${SYNTHETIC_ID_PREFIX}05`, name: "m4rco", photo: "/avatars/synth-sara.svg", zoom: 88, labPoints: 1 },
+  { id: `${SYNTHETIC_ID_PREFIX}06`, name: "Vale", photo: "/avatars/synth-omar.svg", zoom: 61, labPoints: 1 },
 ] as const;
 
 export function syntheticPlayerCount(): number {
