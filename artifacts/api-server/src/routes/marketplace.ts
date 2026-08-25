@@ -6,7 +6,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { addClient, removeClient, broadcastSale } from "../lib/activityBus";
-import { sendBotMessage, sendMarketShareToGroup } from "../lib/notify";
+import { sendBotMessage, sendMarketShareToGroup, notifyMarketZmcSale } from "../lib/notify";
 import { bumpZoomPriceFireAndForget } from "../lib/zoomPrice";
 import { recordHistoryAsync } from "../lib/history";
 import {
@@ -2053,6 +2053,17 @@ router.post("/market/zmc/confirm", async (req, res) => {
         planetDisplayName: listing.planetDisplayName ?? null,
         modelId: listing.modelId ?? null,
       });
+      const modelName = labModelDisplayName({
+        shapeId: listing.shapeId,
+        displayName: listing.planetDisplayName,
+      }) || listing.planetDisplayName || "Lab model";
+      void notifyMarketZmcSale({
+        modelName,
+        priceZmc: Number(listing.price),
+        buyerName: buyerRow?.name || "Anon",
+        sellerName: sellerRow?.name || listing.sellerName || "Anon",
+        txHash: verified.txHash,
+      }).catch((e) => console.error("[market/zmc/confirm] channel notify failed:", e));
     } catch (e) { console.error("[market/zmc/confirm] broadcast failed:", e); }
 
     sendBotMessage(

@@ -397,6 +397,56 @@ export async function sendAlienChannelMessage(text: string): Promise<boolean> {
  * if the topic post fails we log it so the payout isn't announced in the
  * wrong thread.
  */
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function publicNick(name: string | null | undefined): string {
+  const n = (name ?? "").trim();
+  if (!n || /^player$/i.test(n) || /^dev$/i.test(n)) return "Anon";
+  return escapeHtml(n.slice(0, 32));
+}
+
+export function tonviewerTxUrl(txHash: string): string {
+  const h = txHash.replace(/^0x/i, "").trim();
+  return `https://tonviewer.com/transaction/${encodeURIComponent(h)}`;
+}
+
+export function formatMarketZmcSaleMessage(params: {
+  modelName: string;
+  priceZmc: number;
+  buyerName: string;
+  sellerName: string;
+  txHash: string;
+  test?: boolean;
+}): string {
+  const model = escapeHtml((params.modelName || "").trim() || "Lab model");
+  const price = Number(params.priceZmc);
+  const priceStr = Number.isFinite(price)
+    ? price.toLocaleString("en-US", { maximumFractionDigits: 2 })
+    : "0";
+  const url = tonviewerTxUrl(params.txHash);
+  const head = params.test ? "🧪 <b>TEST — Market $ZMC</b>" : "💠 <b>Market sale · $ZMC</b>";
+  return (
+    `${head}\n` +
+    `🗿 ${model}\n` +
+    `💵 <b>${priceStr} $ZMC</b>\n` +
+    `👤 ${publicNick(params.buyerName)} bought from ${publicNick(params.sellerName)}\n` +
+    `🔗 <a href="${url}">View on Tonviewer</a>`
+  );
+}
+
+export async function notifyMarketZmcSale(params: {
+  modelName: string;
+  priceZmc: number;
+  buyerName: string;
+  sellerName: string;
+  txHash: string;
+  test?: boolean;
+}): Promise<boolean> {
+  return sendWithdrawalChannelMessage(formatMarketZmcSaleMessage(params));
+}
+
 export async function sendWithdrawalChannelMessage(text: string): Promise<boolean> {
   if (!BOT_TOKEN) {
     logger.warn("[notify] BOT_TOKEN not set — skipping channel send");
