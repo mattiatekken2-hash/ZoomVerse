@@ -1,16 +1,21 @@
 import { Router, type IRouter } from "express";
-import { db } from "@workspace/db";
-import { labRoundsTable, usersTable } from "@workspace/db/schema";
+import { db, usersTable } from "@workspace/db";
+import { labRoundsTable } from "@workspace/db/schema";
 import { eq, sql, desc } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { resolveTargetTelegramId } from "./admin";
+import { recordHistoryAsync } from "../lib/history";
 
 const router: IRouter = Router();
 
 const ADMIN_ID = "8144744644";
 
-// Montepremi FISSO della stagione craft: 200 TON distribuiti alla Top 30.
-export const LAB_POOL_TON = 200;
+// Montepremi FISSO: 60 ★. Forge ZOOM = 3 ★, daily Earn = 1–7 ★, invite = 2 ★.
+// #1 vince 12 ★ = 4 forge extra dopo 60 giorni — premio, non jackpot.
+export const LAB_POOL_STARDUST = 60;
+/** @deprecated alias — values are stardust, kept so existing API field names stay stable. */
+export const LAB_POOL_TON = LAB_POOL_STARDUST;
+export const LAB_POOL_ZMC = LAB_POOL_STARDUST;
 
 // Durata fissa del round: 60 giorni.
 export const LAB_ROUND_DURATION_MS = 60 * 24 * 60 * 60 * 1000;
@@ -20,28 +25,29 @@ export const LAB_ROUND_DURATION_MS = 60 * 24 * 60 * 60 * 1000;
 const LAB_SETTLE_LOCK = 7913042200;
 
 /**
- * Premio TON per rango. La somma sulla Top 30 è esattamente 200:
- *   #1=50, #2=30, #3=20, #4..10=10 (×7=70), #11..30=1.5 (×20=30).
+ * Premio ★ per rango. Somma Top 30 = 60:
+ *   #1=12, #2=8, #3=6, #4..10=2 (×7=14), #11..30=1 (×20=20).
  */
-function tonPrizeForRank(rank: number): number {
-  if (rank === 1) return 50;
-  if (rank === 2) return 30;
-  if (rank === 3) return 20;
-  if (rank >= 4 && rank <= 10) return 10;
-  if (rank >= 11 && rank <= 30) return 1.5;
+function stardustPrizeForRank(rank: number): number {
+  if (rank === 1) return 12;
+  if (rank === 2) return 8;
+  if (rank === 3) return 6;
+  if (rank >= 4 && rank <= 10) return 2;
+  if (rank >= 11 && rank <= 30) return 1;
   return 0;
 }
 
-/**
- * Ripartizione premi per la UI (label leggibile + TON per posizione).
- */
+function tonPrizeForRank(rank: number): number {
+  return stardustPrizeForRank(rank);
+}
+
 function labPrizeBreakdown(): Array<{ label: string; ton: number }> {
   return [
-    { label: "#1", ton: 50 },
-    { label: "#2", ton: 30 },
-    { label: "#3", ton: 20 },
-    { label: "#4–10", ton: 10 },
-    { label: "#11–30", ton: 1.5 },
+    { label: "#1", ton: 12 },
+    { label: "#2", ton: 8 },
+    { label: "#3", ton: 6 },
+    { label: "#4–10", ton: 2 },
+    { label: "#11–30", ton: 1 },
   ];
 }
 
@@ -123,9 +129,8 @@ type SettleOutcome =
  * Tutto in un'unica transazione protetta da advisory lock:
  *   1. Seleziona il round da chiudere (per id, oppure il round attivo —
  *      opzionalmente solo se `ends_at <= NOW()` per il path automatico).
- *   2. Classifica la Top 30 (lab_points > 0) e accredita il premio TON di
- *      ogni posizione sul saldo TON RITIRABILE del vincitore, bumpando
- *      balance_epoch così la sync client riflette l'accredito.
+ *   2. Classifica la Top 30 (lab_points > 0) e accredita il premio ★
+ *      sul saldo stardust in-app, bumpando balance_epoch.
  *   3. Registra vincitore/pool/premi sul round e lo marca 'closed'.
  *   4. Azzera lab_points di TUTTI gli utenti.
  *   5. Apre un nuovo round attivo con ends_at = NOW() + 60 giorni.
@@ -195,22 +200,22 @@ async function settleLabRoundCore(opts: {
     let prizeTotal = 0;
     for (let i = 0; i < ranking.length; i++) {
       const rank = i + 1;
-      const ton = tonPrizeForRank(rank);
-      if (ton <= 0) continue;
+      const stars = stardustPrizeForRank(rank);
+      if (stars <= 0) continue;
       const r = ranking[i]!;
       await tx
         .update(usersTable)
         .set({
-          tonBalance: sql`${usersTable.tonBalance} + ${ton}`,
+          stardustBalance: sql`${usersTable.stardustBalance} + ${stars}`,
           balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
         })
         .where(eq(usersTable.telegramId, r.telegramId));
-      credited.push({ rank, telegramId: r.telegramId, ton });
-      prizeTotal += ton;
+      credited.push({ rank, telegramId: r.telegramId, ton: stars });
+      prizeTotal += stars;
     }
 
     const winner = ranking[0] ?? null;
-    const profitTon = LAB_POOL_TON - prizeTotal;
+    const profitTon = LAB_POOL_STARDUST - prizeTotal;
 
     // Chiudi round — UPDATE gated su status='active' = idempotency.
     await tx
@@ -219,7 +224,7 @@ async function settleLabRoundCore(opts: {
         status: "closed",
         winnerTelegramId: winner?.telegramId ?? null,
         winnerLabPoints: winner ? Number(winner.labPoints || 0) : null,
-        poolTon: LAB_POOL_TON,
+        poolTon: LAB_POOL_STARDUST,
         prizeTon: prizeTotal,
         profitTon,
         closedAt: new Date(),
@@ -249,12 +254,24 @@ async function settleLabRoundCore(opts: {
             labPoints: Number(winner.labPoints || 0),
           }
         : null,
-      poolTon: LAB_POOL_TON,
+      poolTon: LAB_POOL_STARDUST,
       prizeTon: prizeTotal,
       profitTon,
       credited,
     };
   });
+}
+
+function recordLabPrizeHistory(credited: Array<{ telegramId: string; ton: number; rank: number }>): void {
+  for (const c of credited) {
+    recordHistoryAsync({
+      telegramId: c.telegramId,
+      kind: "lab_prize",
+      delta: c.ton,
+      currency: "stardust",
+      meta: { rank: c.rank },
+    });
+  }
 }
 
 /**
@@ -263,7 +280,6 @@ async function settleLabRoundCore(opts: {
  * poi — se è scaduto — esegue la routine condivisa con closedBy="system".
  */
 export async function runScheduledLabSettlementTick(): Promise<void> {
-  // Assicura l'esistenza del round attivo e il backfill di ends_at.
   await getOrCreateActiveLabRound();
 
   const [due] = await db
@@ -275,6 +291,7 @@ export async function runScheduledLabSettlementTick(): Promise<void> {
 
   const outcome = await settleLabRoundCore({ requireDue: true, closedBy: "system" });
   if (outcome.kind === "closed") {
+    recordLabPrizeHistory(outcome.credited);
     logger.info(
       {
         roundId: outcome.roundId,
@@ -289,7 +306,7 @@ export async function runScheduledLabSettlementTick(): Promise<void> {
 
 /**
  * GET /lab-rank/state?telegramId=
- * Stato pubblico del round attivo: pool fisso 200 TON, ripartizione premi
+ * Stato pubblico del round attivo: pool fisso 60 ★, ripartizione premi
  * Top 30, conto alla rovescia (ends_at), Top 100 live, punti e rank utente.
  */
 router.get("/lab-rank/state", async (req, res) => {
@@ -432,8 +449,8 @@ router.get("/admin/lab-rank/dashboard", async (req, res) => {
 /**
  * POST /admin/lab-rank/close
  * Chiusura MANUALE di fallback. Delega alla stessa routine condivisa del
- * cron automatico: accredita i premi TON alla Top 30, azzera i punti e apre
- * un nuovo round. Idempotente sull'id del round (replay-safe).
+ * cron automatico: accredita i premi ★ sul saldo stardust, azzera i punti e
+ * apre un nuovo round. Idempotente sull'id del round (replay-safe).
  */
 router.post("/admin/lab-rank/close", async (req, res) => {
   try {
@@ -451,6 +468,9 @@ router.post("/admin/lab-rank/close", async (req, res) => {
     if (result.kind === "no_round") {
       res.status(409).json({ ok: false, error: "NO_ACTIVE_ROUND_OR_ALREADY_ROTATED" });
       return;
+    }
+    if (result.kind === "closed") {
+      recordLabPrizeHistory(result.credited);
     }
     res.json({ ok: true, ...result });
   } catch (err) {

@@ -2261,20 +2261,35 @@ export interface EconomyHistoryResponse {
   genesisPrice: number;
 }
 
+let cachedEconomyPrice: EconomyPriceResponse | null = null;
+let cachedEconomyHistory: EconomyHistoryResponse | null = null;
+
+export function peekEconomyPrice(): EconomyPriceResponse | null {
+  return cachedEconomyPrice;
+}
+
+export function peekEconomyHistory(): EconomyHistoryResponse | null {
+  return cachedEconomyHistory;
+}
+
 export async function fetchEconomyPrice(): Promise<EconomyPriceResponse | null> {
   try {
     const res = await fetch(`${API_BASE}/economy/price`, { cache: "no-store" });
-    if (!res.ok) return null;
-    return (await res.json()) as EconomyPriceResponse;
-  } catch { return null; }
+    if (!res.ok) return cachedEconomyPrice;
+    const data = (await res.json()) as EconomyPriceResponse;
+    cachedEconomyPrice = data;
+    return data;
+  } catch { return cachedEconomyPrice; }
 }
 
 export async function fetchEconomyHistory(): Promise<EconomyHistoryResponse | null> {
   try {
     const res = await fetch(`${API_BASE}/economy/history`, { cache: "no-store" });
-    if (!res.ok) return null;
-    return (await res.json()) as EconomyHistoryResponse;
-  } catch { return null; }
+    if (!res.ok) return cachedEconomyHistory;
+    const data = (await res.json()) as EconomyHistoryResponse;
+    if (data?.points?.length) cachedEconomyHistory = data;
+    return data;
+  } catch { return cachedEconomyHistory; }
 }
 
 export interface StardustMarketPriceResponse {
@@ -2308,20 +2323,35 @@ export interface StardustStakeStateResponse {
   lockDaysRemaining?: number;
 }
 
+let cachedStardustPrice: StardustMarketPriceResponse | null = null;
+let cachedStardustHistory: StardustMarketHistoryResponse | null = null;
+
+export function peekStardustMarketPrice(): StardustMarketPriceResponse | null {
+  return cachedStardustPrice;
+}
+
+export function peekStardustMarketHistory(): StardustMarketHistoryResponse | null {
+  return cachedStardustHistory;
+}
+
 export async function fetchStardustMarketPrice(): Promise<StardustMarketPriceResponse | null> {
   try {
     const res = await fetch(`${API_BASE}/stardust/market/price`, { cache: "no-store" });
     if (!res.ok) return null;
-    return (await res.json()) as StardustMarketPriceResponse;
-  } catch { return null; }
+    const data = (await res.json()) as StardustMarketPriceResponse;
+    cachedStardustPrice = data;
+    return data;
+  } catch { return cachedStardustPrice; }
 }
 
 export async function fetchStardustMarketHistory(): Promise<StardustMarketHistoryResponse | null> {
   try {
     const res = await fetch(`${API_BASE}/stardust/market/history`, { cache: "no-store" });
-    if (!res.ok) return null;
-    return (await res.json()) as StardustMarketHistoryResponse;
-  } catch { return null; }
+    if (!res.ok) return cachedStardustHistory;
+    const data = (await res.json()) as StardustMarketHistoryResponse;
+    if (data?.points?.length) cachedStardustHistory = data;
+    return data;
+  } catch { return cachedStardustHistory; }
 }
 
 export async function fetchStardustStakeState(telegramId: string): Promise<StardustStakeStateResponse | null> {

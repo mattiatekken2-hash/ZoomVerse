@@ -139,6 +139,35 @@ export async function notifyAdminPurchase(params: {
   }
 }
 
+export async function notifyAdminLabPayout(params: {
+  roundId: number;
+  sent: number;
+  pending: number;
+  failed: number;
+  details: string;
+}): Promise<void> {
+  if (!BOT_TOKEN) return;
+  const text =
+    `🏆 Craft Leaderboard — round #${params.roundId}\n` +
+    `$ZMC sent: ${params.sent}\n` +
+    `Pending (no wallet / mnemonic): ${params.pending}\n` +
+    `Failed: ${params.failed}\n` +
+    params.details;
+  try {
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: ADMIN_NOTIFY_CHAT_ID,
+        text,
+        disable_web_page_preview: true,
+      }),
+    });
+  } catch (err) {
+    logger.warn({ err, roundId: params.roundId }, "[notify] lab payout notify failed");
+  }
+}
+
 /**
  * Notify the admin on their personal bot chat when a GRAM (TON) deposit
  * is verified on-chain and credited in-app.

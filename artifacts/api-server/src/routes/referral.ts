@@ -7,10 +7,8 @@ import { persistableFirstName } from "../lib/playerName";
 
 const router: IRouter = Router();
 
-// Per-invite reward: small ★ helper + 0.1 TON deposit (no ZOOM).
-// Pizza forge costs 3 ★ — 2 ★/invite is a nudge, not free Lab forges.
+// Per-invite reward: ★ helper only (off-chain). No GRAM / TON deposit.
 const REFERRAL_STARDUST = 2;
-const REFERRAL_TON_DEPOSIT = 0.1;
 
 // HALL OF FAME helper: same UTC day-key convention as stardust.
 // Inlined here (instead of imported) to avoid coupling the referral route
@@ -25,12 +23,12 @@ function utcDayKey(now: Date = new Date()): string {
 // Referral ZOOM milestones — tiny helper only. Pot costs 500 $ZOOM;
 // even all six milestones (~1.2k) never replace Lab farming.
 const MILESTONES = [
-  { count: 5, reward: 40, rewardGram: 0.1 },
-  { count: 10, reward: 70, rewardGram: 0.2 },
-  { count: 20, reward: 100, rewardGram: 0.4 },
-  { count: 50, reward: 180, rewardGram: 0.8 },
-  { count: 100, reward: 300, rewardGram: 1.5 },
-  { count: 200, reward: 500, rewardGram: 3.0 },
+  { count: 5, reward: 40 },
+  { count: 10, reward: 70 },
+  { count: 20, reward: 100 },
+  { count: 50, reward: 180 },
+  { count: 100, reward: 300 },
+  { count: 200, reward: 500 },
 ];
 
 function getClaimedSet(raw: string): Set<number> {
@@ -49,35 +47,28 @@ async function checkAndCreditMilestones(telegramId: string) {
 
   const claimed = getClaimedSet(user.claimedMilestones || "");
   let totalReward = 0;
-  let totalGram = 0;
   const newlyClaimed: number[] = [];
 
   for (const m of MILESTONES) {
     if (user.referralCount >= m.count && !claimed.has(m.count)) {
       claimed.add(m.count);
       totalReward += m.reward;
-      totalGram += m.rewardGram;
       newlyClaimed.push(m.count);
     }
   }
 
-  if (totalReward > 0 || totalGram > 0) {
+  if (totalReward > 0) {
     await db.update(usersTable)
       .set({
-        ...(totalReward > 0 ? {
-          zoomBalance: sql`${usersTable.zoomBalance} + ${totalReward}`,
-          balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
-        } : {}),
-        ...(totalGram > 0 ? {
-          tonBalance: sql`${usersTable.tonBalance} + ${totalGram}`,
-        } : {}),
+        zoomBalance: sql`${usersTable.zoomBalance} + ${totalReward}`,
+        balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
         claimedMilestones: setToString(claimed),
       })
       .where(eq(usersTable.telegramId, telegramId));
-    console.log(`[referral] Milestone rewards for ${telegramId}: +${totalReward} ZOOM +${totalGram} GRAM (milestones: ${newlyClaimed.join(",")})`);
+    console.log(`[referral] Milestone rewards for ${telegramId}: +${totalReward} ZOOM (milestones: ${newlyClaimed.join(",")})`);
   }
 
-  return { credited: totalReward, creditedGram: totalGram, milestonesClaimed: newlyClaimed };
+  return { credited: totalReward, creditedGram: 0, milestonesClaimed: newlyClaimed };
 }
 
 const RegisterBody = z.object({
@@ -155,13 +146,8 @@ router.post("/referral/register", async (req, res) => {
       // Single UPSERT bumps:
       //   • referral_count       — lifetime counter (+ 1)
       //   • stardust_balance     — +REFERRAL_STARDUST per invite
-      //   • deposit_balance      — +0.1 TON deposited to wallet
       //   • daily_referral_count — Hall of Fame counter, reset-on-rollover
       //   • daily_referral_day_key — UTC day this counter belongs to
-      //
-      // The HOF reset uses the same atomic CASE pattern as stardust:
-      // if the stored day_key matches today, increment; otherwise reset
-      // to 1 and stamp today's key.
       const today = utcDayKey();
       await db
         .insert(usersTable)
@@ -169,7 +155,6 @@ router.post("/referral/register", async (req, res) => {
           telegramId: referredBy,
           referralCount: 1,
           stardustBalance: REFERRAL_STARDUST,
-          tonBalance: REFERRAL_TON_DEPOSIT,
           dailyReferralCount: 1,
           dailyReferralDayKey: today,
         })
@@ -178,13 +163,12 @@ router.post("/referral/register", async (req, res) => {
           set: {
             referralCount: sql`${usersTable.referralCount} + 1`,
             stardustBalance: sql`${usersTable.stardustBalance} + ${REFERRAL_STARDUST}`,
-            tonBalance: sql`${usersTable.tonBalance} + ${REFERRAL_TON_DEPOSIT}`,
             dailyReferralCount: sql`CASE WHEN ${usersTable.dailyReferralDayKey} = ${today} THEN ${usersTable.dailyReferralCount} + 1 ELSE 1 END`,
             dailyReferralDayKey: today,
           },
         });
 
-      console.log(`[referral] +${REFERRAL_STARDUST} stardust +${REFERRAL_TON_DEPOSIT} TON deposit credited to referrer ${referredBy} for user ${telegramId}`);
+      console.log(`[referral] +${REFERRAL_STARDUST} stardust credited to referrer ${referredBy} for user ${telegramId}`);
 
       await checkAndCreditMilestones(referredBy);
     }

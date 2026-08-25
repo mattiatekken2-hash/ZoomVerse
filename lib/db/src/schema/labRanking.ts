@@ -10,11 +10,11 @@ import { sql } from "drizzle-orm";
  * /craft/record), iscrivendosi automaticamente al round attivo al primo
  * craft.
  *
- * Montepremi fisso di 200 TON distribuito alla Top 30 alla chiusura
- * (1°=50, 2°=30, 3°=20, 4°-10°=10, 11°-30°=1.5 — somma 200). I premi
- * vengono accreditati automaticamente sul saldo TON ritirabile di ogni
- * vincitore. Alla scadenza dei 60 giorni un cron chiude il round, paga,
- * azzera i punti di tutti e apre un nuovo round con un nuovo `ends_at`.
+ * Montepremi fisso di 60 ★ (Stardust) distribuito alla Top 30 alla chiusura
+ * (1°=12, 2°=8, 3°=6, 4°-10°=2, 11°-30°=1 — somma 60). I premi
+ * vengono accreditati automaticamente sul saldo Stardust in-app. Alla
+ * scadenza dei 60 giorni un cron chiude il round, paga, azzera i punti
+ * di tutti e apre un nuovo round con un nuovo `ends_at`.
  *
  * Race-safety: partial UNIQUE su status='active' garantisce un solo round
  * attivo alla volta (stesso pattern di lotto_rounds).

@@ -1,32 +1,31 @@
 /**
- * EconomyModal — full-screen ECONOMY panel that opens when the user taps
- * the small EconomyWidget pill on the FARM page.
- *
- * Renders a dark/neon AreaChart of the global $ZOOM price history along
- * with the current price, % change vs genesis, and the user's live
- * "portfolio value" (balance × price). Polls every 8s while open so the
- * chart and portfolio reflect activity in near-real-time without
- * hammering the server.
- *
- * No mutations — read-only view. All in-app text English to match brand
- * invariants. Recharts is already a dep of this artifact.
+ * EconomyModal — off-chain ZOOM Points chart.
+ * Wallet + Farm share this panel. Layout matches StardustMarketModal:
+ * compact sheet, gold index, 110px area chart, no convert/stake tabs.
  */
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
-import { fetchEconomyPrice, fetchEconomyHistory, type EconomyChartPoint } from "../utils/api";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import {
+  fetchEconomyPrice,
+  fetchEconomyHistory,
+  peekEconomyHistory,
+  peekEconomyPrice,
+  type EconomyChartPoint,
+} from "../utils/api";
 import { formatZoomChartPrice } from "../utils/wallet24hChange";
+import { ZoomCubeIcon } from "./ZoomCubeIcon";
+import { useT } from "../i18n/LanguageContext";
 
-// Real micro-volatility now lives on the SERVER (zoomPrice.ts:
-// randomDeltaBp signed delta around each action's base bp). The chart
-// shows ONLY the actual server-recorded points — no synthetic wiggle,
-// no per-segment noise. This is what the user asked for: an organic
-// curve driven entirely by real player activity.
-//
-// Refresh cadence: 30s while the modal is open. The price is event-
-// driven server-side (no per-second tick), so polling more often just
-// burns bandwidth without showing anything new.
 const REFRESH_MS = 30_000;
+const GOLD = "#ffd740";
 
 interface EconomyModalProps {
   onClose: () => void;
@@ -37,8 +36,6 @@ interface EconomyModalProps {
 }
 
 function formatPrice(p: number): string {
-  // Prices are denominated in GRAM. Genesis is 0.000001 — need >6 decimals
-  // so live bumps (e.g. 0.000001001863) don't freeze as "0.000001".
   if (!Number.isFinite(p) || p <= 0) return "0";
   if (p < 0.0001) return formatZoomChartPrice(p);
   if (p < 0.01) return p.toFixed(6);
@@ -47,39 +44,44 @@ function formatPrice(p: number): string {
   return p.toFixed(2);
 }
 
-function fmtTon(p: number): string {
-  return `${formatPrice(p)} GRAM`;
+function formatAxis(p: number): string {
+  if (!Number.isFinite(p) || p <= 0) return "0";
+  if (p < 0.0001) return p.toExponential(1);
+  if (p < 0.01) return p.toFixed(4);
+  if (p < 1) return p.toFixed(3);
+  return p.toFixed(2);
 }
 
-function formatNumber(n: number): string {
-  if (!Number.isFinite(n)) return "0";
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(2)}k`;
-  return n.toFixed(2);
+function formatZoomAmt(n: number): string {
+  const v = Math.floor(Number.isFinite(n) ? n : 0);
+  if (v < 0) return "0";
+  return v.toLocaleString();
 }
 
 function formatTime(ts: number): string {
   try {
-    const d = new Date(ts);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  } catch { return ""; }
+    return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "";
+  }
 }
 
 export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, initialDailyHigh }: EconomyModalProps) {
-  const [price, setPrice] = useState<number | null>(initialPrice);
-  const [genesis, setGenesis] = useState<number>(initialGenesis);
-  const [dailyHigh, setDailyHigh] = useState<number | null>(initialDailyHigh ?? null);
-  const [points, setPoints] = useState<EconomyChartPoint[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { t } = useT();
+  const cachedPrice = peekEconomyPrice();
+  const cachedHistory = peekEconomyHistory();
+  const [price, setPrice] = useState<number | null>(initialPrice ?? cachedPrice?.price ?? null);
+  const [genesis, setGenesis] = useState<number>(initialGenesis || cachedPrice?.genesisPrice || 0);
+  const [points, setPoints] = useState<EconomyChartPoint[]>(cachedHistory?.points ?? []);
+  const [loading, setLoading] = useState(!(cachedHistory?.points?.length));
+  const [chartReady, setChartReady] = useState(false);
+  void initialDailyHigh;
 
   const refresh = useCallback(async () => {
     const [p, h] = await Promise.all([fetchEconomyPrice(), fetchEconomyHistory()]);
     if (p && Number.isFinite(p.price)) {
       setPrice(p.price);
       if (Number.isFinite(p.genesisPrice)) setGenesis(p.genesisPrice);
-      if (p.dailyHighPrice != null && Number.isFinite(p.dailyHighPrice)) {
-        setDailyHigh(p.dailyHighPrice);
-      }
     }
     if (h?.points) setPoints(h.points);
     setLoading(false);
@@ -91,26 +93,22 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, i
     return () => window.clearInterval(id);
   }, [refresh]);
 
-  // Lock background scroll AND touch panning while the modal is open. We
-  // need both `overflow:hidden` (desktop / wheel) and an explicit
-  // `touch-action: none` lock (mobile / Telegram WebView) — without the
-  // latter, iOS still pans the underlying page through the overlay even
-  // though body overflow is hidden. Restored exactly on close.
   useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    const prevTouch = document.body.style.touchAction;
-    const prevHtmlOverflow = document.documentElement.style.overflow;
-    document.body.style.overflow = "hidden";
-    document.body.style.touchAction = "none";
-    document.documentElement.style.overflow = "hidden";
+    setChartReady(false);
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!cancelled) setChartReady(true);
+        });
+      });
+    }, 40);
     return () => {
-      document.body.style.overflow = prevOverflow;
-      document.body.style.touchAction = prevTouch;
-      document.documentElement.style.overflow = prevHtmlOverflow;
+      cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, []);
+  }, [loading, points.length]);
 
-  // Close on ESC for desktop / external keyboard.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -118,279 +116,149 @@ export function EconomyModal({ onClose, balance, initialPrice, initialGenesis, i
   }, [onClose]);
 
   const currentPrice = price ?? genesis;
-  const change = currentPrice > 0 && genesis > 0 ? (currentPrice - genesis) / genesis : 0;
-  const positive = change >= 0;
+  const chartData = useMemo(() => {
+    const mapped = points
+      .map((pt) => {
+        const v = Number.isFinite(pt.price) && pt.price > 0 ? pt.price : 0;
+        return { t: pt.t, price: v, label: formatTime(pt.t) };
+      })
+      .filter((pt) => Number.isFinite(pt.price) && pt.price > 0);
+    const live = currentPrice > 0 ? currentPrice : genesis;
+    if (live > 0) {
+      const now = Date.now();
+      const last = mapped[mapped.length - 1];
+      if (!last || now - last.t > 2_000) {
+        mapped.push({ t: now, price: live, label: formatTime(now) });
+      } else {
+        mapped[mapped.length - 1] = { t: now, price: live, label: formatTime(now) };
+      }
+    }
+    if (mapped.length === 0 && live > 0) {
+      const now = Date.now();
+      return [
+        { t: now - 3_600_000, price: live, label: formatTime(now - 3_600_000) },
+        { t: now, price: live, label: formatTime(now) },
+      ];
+    }
+    if (mapped.length === 1) {
+      const only = mapped[0]!;
+      return [
+        { ...only, t: only.t - 3_600_000, label: formatTime(only.t - 3_600_000) },
+        only,
+      ];
+    }
+    return mapped;
+  }, [points, currentPrice, genesis]);
+
+  const pctChange = genesis > 0 && currentPrice > 0 ? ((currentPrice - genesis) / genesis) * 100 : 0;
   const portfolio = Number.isFinite(balance) ? balance * currentPrice : 0;
 
-  // Chart-friendly data: just the REAL server points, indexed for
-  // monotonic X spacing. Volatility (the up/down wiggle) is produced on
-  // the server by the signed-random delta in zoomPrice.bumpZoomPrice —
-  // we render exactly what was recorded, no synthetic interpolation.
-  const chartData = useMemo(
-    () => points.map((pt, i) => ({ i, t: pt.t, price: pt.price, real: true })),
-    [points],
-  );
-
-  const yMin = useMemo(() => {
-    if (chartData.length === 0) return 0;
-    const min = Math.min(...chartData.map((d) => d.price));
-    return Math.max(0, min * 0.995);
-  }, [chartData]);
-  const yMax = useMemo(() => {
-    if (chartData.length === 0) return genesis * 1.5;
-    const max = Math.max(...chartData.map((d) => d.price));
-    return max * 1.005;
-  }, [chartData, genesis]);
-
-  // We render via `createPortal` straight to `document.body` so the modal
-  // escapes ancestor stacking/containing blocks (the FARM page scroll
-  // container uses `transform: translateZ(0)` + `contain: layout paint`,
-  // which would otherwise turn `position: fixed` into "fixed relative to
-  // that ancestor" — clipping the header and the × button off-screen).
-  // Touch-panning and wheel scrolling are blocked at the overlay level so
-  // the page underneath cannot move at all while the modal is open.
-  const stop = (e: React.SyntheticEvent) => { e.stopPropagation(); };
-  const blockTouch = (e: React.TouchEvent) => {
-    // Allow scrolling INSIDE the modal card, block everything else (the
-    // black overlay area surrounding the card). Cancellable to make iOS
-    // momentum-scroll respect the lock too. We compare against the
-    // overlay node so any descendant (the card or its inner elements)
-    // keeps its native scroll behaviour while the surrounding backdrop
-    // can never pan the page underneath.
-    if (e.target === e.currentTarget) e.preventDefault();
-  };
-
-  const node = (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center"
-      style={{
-        background: "rgba(0,4,12,0.82)",
-        // Belt-and-braces: prevent the overlay itself from being scrolled
-        // by the user's panning gesture.
-        overscrollBehavior: "contain",
-        touchAction: "none",
-        padding: "16px",
-      }}
-      onClick={onClose}
-      onTouchMove={blockTouch}
-      onWheel={blockTouch as unknown as (e: React.WheelEvent) => void}
+      className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center"
+      style={{ background: "rgba(4,6,12,0.88)", backdropFilter: "blur(8px)" }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
       data-testid="economy-modal"
       role="dialog"
       aria-modal="true"
       aria-labelledby="economy-modal-title"
     >
       <div
-        className="w-full max-w-sm rounded-3xl flex flex-col"
+        className="w-full max-w-md rounded-t-2xl sm:rounded-2xl overflow-hidden flex flex-col"
         style={{
-          background: "linear-gradient(180deg, rgba(4,18,32,0.98) 0%, rgba(0,8,18,0.98) 100%)",
+          background: "linear-gradient(180deg, rgba(14,18,32,0.98), rgba(8,10,22,0.99))",
           border: "1px solid rgba(158,197,232,0.28)",
-          boxShadow: "0 -8px 40px rgba(0,8,20,0.35), 0 0 60px rgba(158,197,232,0.08)",
-          maxHeight: "min(92vh, 720px)",
-          // Card allows internal vertical scroll so the content remains
-          // reachable on very small screens (iPhone SE etc.). The overlay
-          // around the card is still locked, so the page underneath cannot
-          // pan — only the card scrolls when needed. `overscroll-behavior:
-          // contain` prevents the scroll chain from bubbling to the body.
-          overflowY: "auto",
-          overscrollBehavior: "contain",
-          WebkitOverflowScrolling: "touch",
+          boxShadow: "0 -8px 40px rgba(158,197,232,0.10)",
+          maxHeight: "88vh",
         }}
-        onClick={stop}
-        onWheel={stop}
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="px-5 pt-4 pb-3 flex items-start justify-between border-b" style={{ borderColor: "rgba(158,197,232,0.14)" }}>
+        <div className="flex items-center justify-between px-4 pt-4 pb-2 flex-shrink-0">
           <div>
             <div
               id="economy-modal-title"
-              className="text-[10px] font-black tracking-widest"
-              style={{ color: "#E8ECF4", letterSpacing: 1.4 }}
+              style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.18em", color: "rgba(158,197,232,0.55)" }}
             >
-              ECONOMY
+              {t("zoomPoints.title")}
             </div>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-[11px]" style={{ color: "rgba(220,235,255,0.55)" }}>1 $ZOOM</span>
-              <span
-                className="text-2xl font-black"
-                style={{
-                  color: "#E8ECF4",
-                  textShadow: "0 0 14px rgba(200,220,255,0.35)",
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
-                {fmtTon(currentPrice)}
+            <div style={{ fontSize: 20, fontWeight: 900, color: GOLD, marginTop: 2 }}>
+              <span style={{ marginRight: 6, display: "inline-flex", verticalAlign: "middle" }}>
+                <ZoomCubeIcon size={18} />
               </span>
-              <span
-                className="text-[11px] font-bold px-1.5 py-0.5 rounded"
-                style={{
-                  background: positive ? "rgba(0,255,140,0.12)" : "rgba(255,80,80,0.12)",
-                  color: positive ? "#00ff88" : "#ff7676",
-                  border: positive
-                    ? "1px solid rgba(0,255,140,0.35)"
-                    : "1px solid rgba(255,80,80,0.35)",
-                }}
-              >
-                {positive ? "+" : ""}{(change * 100).toFixed(2)}%
-              </span>
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>{formatPrice(currentPrice)}</span>
             </div>
           </div>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); onClose(); }}
-            onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); onClose(); }}
-            aria-label="Close"
-            className="rounded-full flex items-center justify-center font-black flex-shrink-0"
-            style={{
-              width: 36,
-              height: 36,
-              background: "rgba(158,197,232,0.12)",
-              border: "1px solid rgba(158,197,232,0.35)",
-              color: "#E8ECF4",
-              fontSize: 20,
-              lineHeight: 1,
-              cursor: "pointer",
-              // Bigger hit target on mobile + force foreground so the touch
-              // is never swallowed by overlapping decorative pseudo-elements.
-              touchAction: "manipulation",
-              WebkitTapHighlightColor: "transparent",
-              position: "relative",
-              zIndex: 2,
-            }}
+            onClick={onClose}
+            aria-label={t("common.closeAria")}
             data-testid="btn-economy-close"
+            style={{
+              width: 32, height: 32, borderRadius: "50%",
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.05)",
+              color: "rgba(255,255,255,0.7)",
+              cursor: "pointer",
+            }}
           >
-            ×
+            ✕
           </button>
         </div>
 
-        {/* Chart */}
-        <div className="px-2 pt-3 pb-1" style={{ minHeight: 220 }}>
-          {loading && chartData.length === 0 ? (
-            <div className="h-[200px] flex items-center justify-center text-xs" style={{ color: "rgba(220,235,255,0.4)" }}>
-              Loading chart…
-            </div>
-          ) : chartData.length < 2 ? (
-            <div className="h-[200px] flex items-center justify-center text-xs text-center px-6" style={{ color: "rgba(220,235,255,0.5)" }}>
-              Chart starts moving as soon as players trade and farm.<br />Come back in a few minutes.
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={chartData} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
+        <div className="px-4 pb-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-bold flex-shrink-0">
+          <span style={{ color: pctChange >= 0 ? "#69f0ae" : "#ff8a80" }}>
+            {pctChange >= 0 ? "+" : ""}{pctChange.toFixed(2)}%
+          </span>
+          <span style={{ color: GOLD }}>{t("zoomPoints.wallet", { n: formatZoomAmt(balance) })}</span>
+          <span style={{ color: "rgba(255,255,255,0.35)" }}>{t("zoomPoints.portfolio", { n: formatPrice(portfolio) })}</span>
+        </div>
+
+        <div className="px-3 flex-shrink-0" style={{ height: 110, width: "100%", minWidth: 0 }}>
+          {chartReady && chartData.length >= 2 ? (
+            <ResponsiveContainer key={`zoom-chart-${chartData.length}`} width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="zoomPriceFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#9EC5E8" stopOpacity={0.55} />
-                    <stop offset="100%" stopColor="#9EC5E8" stopOpacity={0.02} />
+                  <linearGradient id="zoomPointsChartFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={GOLD} stopOpacity={0.28} />
+                    <stop offset="100%" stopColor={GOLD} stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="rgba(158,197,232,0.08)" strokeDasharray="2 4" vertical={false} />
-                <XAxis
-                  dataKey="i"
-                  hide
-                />
+                <XAxis dataKey="label" tick={{ fill: "rgba(255,255,255,0.22)", fontSize: 8 }} axisLine={false} tickLine={false} />
                 <YAxis
-                  domain={[yMin, yMax]}
-                  tick={{ fill: "rgba(220,235,255,0.45)", fontSize: 10 }}
+                  domain={["auto", "auto"]}
+                  tick={{ fill: "rgba(255,255,255,0.22)", fontSize: 8 }}
                   axisLine={false}
                   tickLine={false}
-                  width={56}
-                  tickFormatter={(v: number) => `${formatPrice(v)}`}
+                  width={36}
+                  tickFormatter={(v) => formatAxis(Number(v))}
                 />
                 <Tooltip
-                  contentStyle={{
-                    background: "rgba(0,12,24,0.95)",
-                    border: "1px solid rgba(158,197,232,0.28)",
-                    borderRadius: 10,
-                    color: "#e6f6ff",
-                    fontSize: 11,
-                  }}
-                  labelFormatter={(_label: number, payload) => {
-                    const d = payload?.[0]?.payload as { t?: number } | undefined;
-                    return d?.t ? formatTime(d.t) : "";
-                  }}
-                  formatter={(v: number) => [fmtTon(v), "1 $ZOOM"]}
+                  contentStyle={{ background: "#0c1018", border: "1px solid rgba(255,215,64,0.25)", borderRadius: 8, fontSize: 10 }}
+                  formatter={(v: number) => [formatPrice(v), t("zoomPoints.priceLabel")]}
                 />
-                {dailyHigh != null && Number.isFinite(dailyHigh) && dailyHigh > 0 && (
-                  <ReferenceLine
-                    y={dailyHigh}
-                    stroke="rgba(0,255,140,0.45)"
-                    strokeDasharray="3 3"
-                    label={{
-                      value: `Daily High ${fmtTon(dailyHigh)}`,
-                      position: "insideTopRight",
-                      fill: "rgba(0,255,140,0.85)",
-                      fontSize: 9,
-                    }}
-                  />
-                )}
-                <Area
-                  type="monotone"
-                  dataKey="price"
-                  stroke="#9EC5E8"
-                  strokeWidth={2}
-                  fill="url(#zoomPriceFill)"
-                  isAnimationActive={false}
-                  dot={false}
-                  activeDot={{ r: 3, fill: "#9EC5E8", stroke: "#001a2e", strokeWidth: 1 }}
-                />
+                <Area type="monotone" dataKey="price" stroke={GOLD} strokeWidth={1.5} fill="url(#zoomPointsChartFill)" />
               </AreaChart>
             </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-full text-[10px] text-center px-2" style={{ color: "rgba(255,255,255,0.32)" }}>
+              {loading ? t("zoomPoints.loadingChart") : t("zoomPoints.emptyChart")}
+            </div>
           )}
         </div>
 
-        {/* Stats grid */}
-        <div className="px-5 pt-2 pb-4 grid grid-cols-2 gap-2.5">
-          <Stat label="Your $ZOOM" value={formatNumber(balance)} accent="cyan" />
-          <Stat label="Portfolio Value" value={fmtTon(portfolio)} accent="green" />
-          <Stat label="Genesis Price" value={fmtTon(genesis)} accent="dim" />
-          <Stat label="Daily High" value={dailyHigh != null ? fmtTon(dailyHigh) : "—"} accent="dim" />
-        </div>
-
-        {/* Explainer */}
-        <div
-          className="mx-5 mb-4 rounded-xl px-3 py-2.5 text-[11px] leading-relaxed"
-          style={{
-            background: "rgba(0,28,48,0.45)",
-            border: "1px solid rgba(158,197,232,0.16)",
-            color: "rgba(220,235,255,0.7)",
-          }}
-        >
-          <span style={{ color: "#9EC5E8", fontWeight: 800 }}>♪ How it works.</span>{" "}
-          The $ZOOM price moves only on real player actions — market trades,
-          farming cycles and crafts. Each tick is a small organic shift, with
-          a +8% daily growth cap — price only rises from player activity.
+        <div className="px-4 pt-2 pb-4 flex-shrink-0">
+          <div className="rounded-xl p-3" style={{ background: "rgba(255,215,64,0.05)", border: "1px solid rgba(255,215,64,0.15)" }}>
+            <div className="flex justify-between text-[10px] mb-1">
+              <span style={{ color: "rgba(255,255,255,0.4)" }}>{t("zoomPoints.yourZoom")}</span>
+              <span style={{ color: GOLD, fontWeight: 800 }}>{formatZoomAmt(balance)}</span>
+            </div>
+            <div className="text-[10px] leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>
+              {t("zoomPoints.note")}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
-
-  return createPortal(node, document.body);
-}
-
-function Stat({ label, value, accent }: { label: string; value: string; accent: "cyan" | "green" | "dim" }) {
-  const color =
-    accent === "cyan" ? "#E8ECF4" :
-    accent === "green" ? "#00ff88" :
-    "rgba(220,235,255,0.85)";
-  const glow =
-    accent === "cyan" ? "0 0 8px rgba(200,220,255,0.35)" :
-    accent === "green" ? "0 0 8px rgba(0,255,140,0.45)" :
-    "none";
-  return (
-    <div
-      className="rounded-xl px-3 py-2"
-      style={{
-        background: "linear-gradient(135deg, rgba(0,28,48,0.55) 0%, rgba(0,12,24,0.85) 100%)",
-        border: "1px solid rgba(158,197,232,0.18)",
-      }}
-    >
-      <div className="text-[10px] font-bold tracking-wide" style={{ color: "rgba(220,235,255,0.45)" }}>
-        {label}
-      </div>
-      <div
-        className="text-sm font-black mt-0.5"
-        style={{ color, textShadow: glow, fontVariantNumeric: "tabular-nums" }}
-      >
-        {value}
-      </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

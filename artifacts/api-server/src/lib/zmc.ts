@@ -1,12 +1,22 @@
-import { Address, beginCell, toNano, Cell } from "@ton/core";
+import { Address, beginCell, toNano, Cell, internal, SendMode } from "@ton/core";
+import { mnemonicToWalletKey } from "@ton/crypto";
+import {
+  JettonMaster,
+  TonClient,
+  WalletContractV3R2,
+  WalletContractV4,
+  WalletContractV5R1,
+} from "@ton/ton";
 import {
   ZMC_JETTON_ADDRESS,
   TREASURY_WALLET_ADDRESS,
   parseJettonNano,
   vipLevelFromNano,
+  zmcHumanToNano,
   zmcNanoToHuman,
   type VipLevel,
 } from "@workspace/game-models";
+import { logger } from "./logger";
 
 const TONAPI_TOKEN = process.env["TONAPI_TOKEN"] || "";
 const JETTON_TRANSFER_OPCODE = 0xf8a7ea5;
@@ -209,4 +219,119 @@ export async function verifyZmcSplitTransfer(opts: {
   }
 
   return { ok: true, txHash, feeHuman: zmcNanoToHuman(opts.feeNano) };
+}
+
+function treasuryMnemonicWords(): string[] | null {
+  const raw = (process.env["TREASURY_MNEMONIC"] || "").trim();
+  if (!raw) return null;
+  const words = raw.split(/\s+/);
+  if (words.length !== 12 && words.length !== 24) return null;
+  return words;
+}
+
+export function hasTreasurySigner(): boolean {
+  return treasuryMnemonicWords() != null;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function tonClient(): TonClient {
+  return new TonClient({
+    endpoint: process.env["TONCENTER_ENDPOINT"] || "https://toncenter.com/api/v2/jsonRPC",
+    apiKey: process.env["TONCENTER_API_KEY"] || undefined,
+  });
+}
+
+type TreasuryWalletContract = WalletContractV5R1 | WalletContractV4 | WalletContractV3R2;
+
+function walletMatchingTreasury(publicKey: Buffer): TreasuryWalletContract {
+  const expected = Address.parse(treasuryWallet());
+  const candidates: TreasuryWalletContract[] = [
+    WalletContractV5R1.create({ publicKey }),
+    WalletContractV4.create({ workchain: 0, publicKey }),
+    WalletContractV3R2.create({ workchain: 0, publicKey }),
+  ];
+  const match = candidates.find((w) => w.address.equals(expected));
+  if (!match) {
+    throw new Error("TREASURY_MNEMONIC does not match TREASURY_WALLET_ADDRESS");
+  }
+  return match;
+}
+
+let sendQueue: Promise<unknown> = Promise.resolve();
+
+function enqueueTreasurySend<T>(fn: () => Promise<T>): Promise<T> {
+  const run = sendQueue.then(fn, fn);
+  sendQueue = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+export interface SendZmcResult {
+  ok: boolean;
+  txHash?: string;
+  reason?: string;
+}
+
+/**
+ * Sends on-chain $ZMC from the platform treasury to `to`.
+ * Requires TREASURY_MNEMONIC on the API host (Render). Sequential via a
+ * process-local queue so seqno cannot collide.
+ */
+export async function sendZmcFromTreasury(to: string, amountHuman: number): Promise<SendZmcResult> {
+  const words = treasuryMnemonicWords();
+  if (!words) return { ok: false, reason: "TREASURY_MNEMONIC not set" };
+  const amountNano = zmcHumanToNano(amountHuman);
+  if (amountNano <= 0n) return { ok: false, reason: "Invalid amount" };
+
+  let dest: Address;
+  try {
+    dest = Address.parse(to);
+  } catch {
+    return { ok: false, reason: "Invalid destination wallet" };
+  }
+
+  return enqueueTreasurySend(async () => {
+    try {
+      const key = await mnemonicToWalletKey(words);
+      const wallet = walletMatchingTreasury(key.publicKey);
+      const client = tonClient();
+      const opened = client.open(wallet);
+      const master = client.open(JettonMaster.create(Address.parse(zmcJettonMaster())));
+      const jettonWallet = await master.getWalletAddress(Address.parse(treasuryWallet()));
+      const payload = buildJettonTransferPayload({
+        to: dest.toString({ bounceable: true, urlSafe: true }),
+        amountNano,
+        response: treasuryWallet(),
+        queryId: BigInt(Date.now()),
+      });
+      const seqno = await opened.getSeqno();
+      await opened.sendTransfer({
+        seqno,
+        secretKey: key.secretKey,
+        messages: [
+          internal({
+            to: jettonWallet,
+            value: toNano("0.06"),
+            bounce: true,
+            body: Cell.fromBase64(payload),
+          }),
+        ],
+        sendMode: SendMode.PAY_GAS_SEPARATELY,
+      });
+      const started = Date.now();
+      while (Date.now() - started < 45_000) {
+        await sleep(1_400);
+        const next = await opened.getSeqno();
+        if (next > seqno) {
+          return { ok: true, txHash: `zmc-send:${seqno}:${next}` };
+        }
+      }
+      return { ok: false, reason: "Seqno timeout after send" };
+    } catch (err) {
+      logger.warn({ err, to, amountHuman }, "[zmc] treasury send failed");
+      return { ok: false, reason: err instanceof Error ? err.message : "Send failed" };
+    }
+  });
 }

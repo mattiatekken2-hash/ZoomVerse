@@ -2313,7 +2313,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
     if (res.ok) {
       const winnerName = res.winner?.name || "Nessun vincitore";
       const credited = res.credited?.length || 0;
-      onFeedback(`✓ Stagione chiusa · #1: ${winnerName} · ${(res.prizeTon || 0).toFixed(2)} TON accreditati a ${credited} vincitori`, true);
+      onFeedback(`✓ Stagione chiusa · #1: ${winnerName} · ${(res.prizeTon || 0).toLocaleString()} ★ accreditati a ${credited} vincitori`, true);
       refresh();
     } else {
       const msg = res.error === "NO_ACTIVE_ROUND_OR_ALREADY_ROTATED"
@@ -2342,7 +2342,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
     }
   };
 
-  const pool = dash?.poolTon ?? 200;
+  const pool = dash?.poolTon ?? 60;
   const prizes = dash?.prizes ?? [];
   const participants = dash?.round.participants ?? 0;
   const endsAt = dash?.round.endsAt ? new Date(dash.round.endsAt) : null;
@@ -2382,7 +2382,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
       }}>
         <div style={{ textAlign: "center", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
           <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Montepremi</div>
-          <div style={{ fontSize: 16, fontWeight: 900, color: "#ffd700", marginTop: 2 }}>{pool} TON</div>
+          <div style={{ fontSize: 16, fontWeight: 900, color: "#ffd700", marginTop: 2 }}>{pool.toLocaleString()} ★</div>
           <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>fisso · Top 30</div>
         </div>
         <div style={{ textAlign: "center" }}>
@@ -2401,7 +2401,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "0 4px" }}>
           {prizes.map((p) => (
             <span key={p.label} style={{ fontSize: 10, color: "rgba(255,255,255,0.7)", background: "rgba(255,215,0,0.06)", border: "1px solid rgba(255,215,0,0.15)", borderRadius: 6, padding: "2px 7px" }}>
-              <b style={{ color: "#ffd700" }}>{p.label}</b> · {p.ton} TON
+              <b style={{ color: "#ffd700" }}>{p.label}</b> · {p.ton} ★
             </span>
           ))}
         </div>
@@ -2432,7 +2432,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
                 #{r.rank} {r.name} · {r.labPoints} pt
               </span>
               <span style={{ color: r.rank === 1 ? "#ffd700" : "rgba(255,255,255,0.7)" }}>
-                {r.tonPrize > 0 ? `${r.tonPrize} TON` : "—"}
+                {r.tonPrize > 0 ? `${r.tonPrize} ★` : "—"}
               </span>
             </div>
           ))}
@@ -2462,7 +2462,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
         {closing ? "..." : confirmClose ? "⚠ CONFERMA CHIUSURA STAGIONE (tap)" : "🏁 CHIUDI STAGIONE & PAYOUT"}
       </motion.button>
       <div style={{ fontSize: 10, color: "rgba(255,255,255,0.45)", lineHeight: 1.4 }}>
-        La stagione si chiude <b style={{ color: "#ffd700" }}>automaticamente dopo 60 giorni</b>: i premi TON ({pool} TON in totale) vengono accreditati <b style={{ color: "#ffd700" }}>direttamente sul saldo Earned (ritirabile)</b> dei primi 30, i punti di tutti vengono azzerati e parte una nuova stagione. Questo pulsante è solo un fallback manuale.
+        La stagione si chiude <b style={{ color: "#ffd700" }}>automaticamente dopo 60 giorni</b>: i premi ★ ({pool.toLocaleString()} ★ in totale) vengono accreditati <b style={{ color: "#ffd700" }}>subito sul saldo Stardust</b> dei primi 30. I punti di tutti vengono azzerati e parte una nuova stagione. Questo pulsante è solo un fallback manuale.
       </div>
 
       <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
@@ -2505,7 +2505,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
                 #1: <b style={{ color: "#fff" }}>{h.winnerTelegramId || "—"}</b> ({h.winnerLabPoints ?? 0} pt)
               </div>
               <div>
-                Pool: <b style={{ color: "#fff" }}>{(h.poolTon ?? 0).toFixed(4)}</b> · Premio: <b style={{ color: "#ffd700" }}>{(h.prizeTon ?? 0).toFixed(4)} TON</b> · Profitto: <b style={{ color: "#00f264" }}>{(h.profitTon ?? 0).toFixed(4)} TON</b>
+                Pool: <b style={{ color: "#fff" }}>{(h.poolTon ?? 0).toLocaleString()}</b> · Premio: <b style={{ color: "#ffd700" }}>{(h.prizeTon ?? 0).toLocaleString()} ★</b> · Residuo: <b style={{ color: "#00f264" }}>{(h.profitTon ?? 0).toLocaleString()} ★</b>
               </div>
             </div>
           ))}

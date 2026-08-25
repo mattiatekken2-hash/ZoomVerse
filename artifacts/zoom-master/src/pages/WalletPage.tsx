@@ -7,6 +7,7 @@ import { Lock } from "lucide-react";
 import { GramWalletPanel, GramWalletConnectButton, type TonWalletProps } from "../components/TonWalletWidget";
 import { StardustMarketModal } from "../components/StardustMarketModal";
 import { ZoomMarketModal } from "../components/ZoomMarketModal";
+import { EconomyModal } from "../components/EconomyModal";
 import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
 import { WalletStarIcon } from "../components/WalletStarIcon";
 import { useT } from "../i18n/LanguageContext";
@@ -50,7 +51,7 @@ const REDSTAR_GRAM_PER_UNIT = 0.05;
 const NFTSTAR_GRAM_PER_UNIT = 0.25;
 
 interface WalletPageProps extends Omit<TonWalletProps, "onOpenWalletTab" | "labVariant"> {
-  /** ZOOM Season 2 balance */
+  /** ZOOM Season 3 balance */
   balance: number;
   stardustBalance: number;
   redStarBalance: number;
@@ -114,6 +115,7 @@ export function WalletPage({
   const [priceLoading, setPriceLoading] = useState(initialTonUsd == null);
   const [stardustMarketOpen, setStardustMarketOpen] = useState(false);
   const [zoomMarketOpen, setZoomMarketOpen] = useState(false);
+  const [zoomPointsOpen, setZoomPointsOpen] = useState(false);
   const [liveStardustBalance, setLiveStardustBalance] = useState(stardustBalance);
   const [zoomPriceGram, setZoomPriceGram] = useState<number | null>(initialMarket.zoomPriceGram);
   const [stardustIndex, setStardustIndex] = useState<number>(initialMarket.stardustIndex);
@@ -358,7 +360,7 @@ export function WalletPage({
         </button>
       </div>
 
-      {/* ── ACTIVE BALANCES: Season 2 ── */}
+      {/* ── ACTIVE BALANCES: Season 3 ── */}
       <div>
         <div
           style={{
@@ -374,7 +376,7 @@ export function WalletPage({
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {/* ZOOM S2 — cube logo, live chart unit under icon */}
+          {/* ZOOM S3 — cube logo, live off-chain chart */}
           <BalanceRow
             icon={<ZoomCubeIcon size={BALANCE_ICON_SIZE} />}
             label={t("walletPage.zoomS2")}
@@ -385,15 +387,9 @@ export function WalletPage({
             priceLoading={priceLoading}
             changePct={zoomChangePct}
             iconSubValue={zoomIconValue}
-            onClick={() => setZoomMarketOpen(true)}
+            onClick={() => setZoomPointsOpen(true)}
             data-testid="wallet-zoom-balance"
           />
-          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.32)", marginTop: -6, paddingLeft: 4 }}>
-            {t("walletPage.zoomPointsHint")}
-            {zmc.airdrop.estimatedAirdropZmc > 0
-              ? ` · ${t("walletPage.airdropEst", { n: formatZoom(zmc.airdrop.estimatedAirdropZmc) })}`
-              : ""}
-          </div>
           <BalanceRow
             icon={<WalletStarIcon variant="stardust" size={BALANCE_ICON_SIZE} />}
             label={t("resources.stardust")}
@@ -507,6 +503,15 @@ export function WalletPage({
           </div>
         </div>
       </div>
+
+      {zoomPointsOpen && (
+        <EconomyModal
+          onClose={() => setZoomPointsOpen(false)}
+          balance={shownZoomBalance}
+          initialPrice={zoomPriceGram}
+          initialGenesis={0.000001}
+        />
+      )}
 
       {zoomMarketOpen && (
         <ZoomMarketModal

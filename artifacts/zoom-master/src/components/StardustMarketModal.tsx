@@ -17,6 +17,8 @@ import {
   fetchStardustMarketHistory,
   fetchStardustMarketPrice,
   fetchStardustStakeState,
+  peekStardustMarketHistory,
+  peekStardustMarketPrice,
   stakeStardust,
   unstakeStardust,
   type StardustChartPoint,
@@ -59,10 +61,12 @@ export function StardustMarketModal({
   onBalanceChange,
 }: Props) {
   const { t } = useT();
-  const [index, setIndex] = useState(1);
-  const [genesis, setGenesis] = useState(1);
-  const [totalStaked, setTotalStaked] = useState(0);
-  const [points, setPoints] = useState<StardustChartPoint[]>([]);
+  const cachedPrice = peekStardustMarketPrice();
+  const cachedHistory = peekStardustMarketHistory();
+  const [index, setIndex] = useState(cachedPrice?.index ?? 1);
+  const [genesis, setGenesis] = useState(cachedPrice?.genesisIndex ?? 1);
+  const [totalStaked, setTotalStaked] = useState(cachedPrice?.totalStaked ?? 0);
+  const [points, setPoints] = useState<StardustChartPoint[]>(cachedHistory?.points ?? []);
   const [staked, setStaked] = useState(0);
   const [stakedValue, setStakedValue] = useState(0);
   const [pnl, setPnl] = useState(0);
@@ -75,7 +79,8 @@ export function StardustMarketModal({
   const [convertBusy, setConvertBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [convertMsg, setConvertMsg] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!(cachedHistory?.points?.length));
+  const [chartReady, setChartReady] = useState(false);
   const [canWithdraw, setCanWithdraw] = useState(false);
   const [lockDaysRemaining, setLockDaysRemaining] = useState(0);
   const [tab, setTab] = useState<"convert" | "stake">("convert");
@@ -91,10 +96,9 @@ export function StardustMarketModal({
   const convertibleGram = liveDeposit + liveEarned;
 
   const refresh = useCallback(async () => {
-    const [price, history, stake] = await Promise.all([
+    const [price, history] = await Promise.all([
       fetchStardustMarketPrice(),
       fetchStardustMarketHistory(),
-      telegramId ? fetchStardustStakeState(telegramId) : Promise.resolve(null),
     ]);
     if (price) {
       setIndex(price.index);
@@ -102,16 +106,19 @@ export function StardustMarketModal({
       setTotalStaked(price.totalStaked);
     }
     if (history?.points?.length) setPoints(history.points);
-    if (stake) {
-      setBalance(stake.balance);
-      setStaked(stake.staked);
-      setStakedValue(stake.stakedValue);
-      setPnl(stake.pnl);
-      setCanWithdraw(!!stake.canWithdraw);
-      setLockDaysRemaining(stake.lockDaysRemaining ?? 0);
-      onBalanceChange?.(stake.balance);
-    }
     setLoading(false);
+    if (telegramId) {
+      const stake = await fetchStardustStakeState(telegramId);
+      if (stake) {
+        setBalance(stake.balance);
+        setStaked(stake.staked);
+        setStakedValue(stake.stakedValue);
+        setPnl(stake.pnl);
+        setCanWithdraw(!!stake.canWithdraw);
+        setLockDaysRemaining(stake.lockDaysRemaining ?? 0);
+        onBalanceChange?.(stake.balance);
+      }
+    }
   }, [telegramId, onBalanceChange]);
 
   useEffect(() => {
@@ -119,6 +126,22 @@ export function StardustMarketModal({
     const id = window.setInterval(() => { void refresh(); }, REFRESH_MS);
     return () => window.clearInterval(id);
   }, [refresh]);
+
+  useEffect(() => {
+    setChartReady(false);
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!cancelled) setChartReady(true);
+        });
+      });
+    }, 40);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [loading, points.length]);
 
   const chartData = useMemo(() => {
     const mapped = points
@@ -309,9 +332,9 @@ export function StardustMarketModal({
         </div>
 
         {/* Chart — compact */}
-        <div className="px-3 flex-shrink-0" style={{ height: 110 }}>
-          {chartData.length >= 2 ? (
-            <ResponsiveContainer width="100%" height="100%">
+        <div className="px-3 flex-shrink-0" style={{ height: 110, width: "100%", minWidth: 0 }}>
+          {chartReady && chartData.length >= 2 ? (
+            <ResponsiveContainer key={`sd-chart-${chartData.length}`} width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
                 <defs>
                   <linearGradient id="stardustChartFill" x1="0" y1="0" x2="0" y2="1">

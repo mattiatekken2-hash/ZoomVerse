@@ -1,10 +1,18 @@
 import { useEffect, useState, memo } from "react";
 import { createPortal } from "react-dom";
 import { fetchLabRankState, type LabRankState } from "../utils/api";
-import { GramDiamondIcon } from "./GramDiamondIcon";
+import { ZoomCubeIcon } from "./ZoomCubeIcon";
 
 const CYAN = "#00d4ff";
 const ACCENT = "#4dd4ff";
+const LAB_PRIZE_POOL = 60;
+const LAB_PRIZE_BREAKDOWN = [
+  { label: "#1", ton: 12 },
+  { label: "#2", ton: 8 },
+  { label: "#3", ton: 6 },
+  { label: "#4–10", ton: 2 },
+  { label: "#11–30", ton: 1 },
+];
 
 interface Props {
   telegramId: string | null;
@@ -26,6 +34,15 @@ function formatCountdown(ms: number): { d: number; h: number; m: number; s: numb
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
+}
+
+function starPrizeForRank(rank: number): number {
+  if (rank === 1) return 12;
+  if (rank === 2) return 8;
+  if (rank === 3) return 6;
+  if (rank >= 4 && rank <= 10) return 2;
+  if (rank >= 11 && rank <= 30) return 1;
+  return 0;
 }
 
 function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, headerMode = false }: Props) {
@@ -79,7 +96,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
   }, []);
 
   const participants = state?.participants ?? 0;
-  const pool = state?.poolTon ?? 200;
+  const pool = LAB_PRIZE_POOL;
   const userPoints = state?.userPoints ?? 0;
   const userRank = state?.userRank ?? null;
   const endsAtMs = state?.endsAt ? new Date(state.endsAt).getTime() : null;
@@ -174,7 +191,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
                 lineHeight: 1,
               }}
             >
-              <GramDiamondIcon size={headerMode ? 22 : shopMode ? 30 : 28} />
+              <ZoomCubeIcon size={headerMode ? 22 : shopMode ? 30 : 28} />
             </div>
           </div>
           {userRank != null && userRank <= 100 && (
@@ -216,7 +233,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
               Craft Leaderboard
             </div>
             <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(232,236,244,0.55)", marginTop: 4 }}>
-              {userRank != null ? `Rank #${userRank}` : "Unranked"} · {userPoints.toLocaleString()} pts · {pool} GRAM
+              {userRank != null ? `Rank #${userRank}` : "Unranked"} · {userPoints.toLocaleString()} pts · {pool.toLocaleString()} ★
             </div>
           </div>
         ) : (
@@ -231,7 +248,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
             whiteSpace: "nowrap",
           }}
         >
-          {pool} GRAM
+          {pool.toLocaleString()} ★
         </span>
         )}
       </div>
@@ -307,7 +324,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
                   filter: `drop-shadow(0 0 14px ${CYAN}88)`,
                 }}
               >
-                <GramDiamondIcon size={64} />
+                <ZoomCubeIcon size={64} />
               </div>
               <div
                 style={{
@@ -384,9 +401,9 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
                     Prize pool
                   </div>
                   <div style={{ fontSize: 15, fontWeight: 900, color: ACCENT, marginTop: 2 }}>
-                    {pool}
+                    {pool.toLocaleString()}
                   </div>
-                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.38)" }}>GRAM</div>
+                  <div style={{ fontSize: 8, color: "rgba(255,255,255,0.38)" }}>★</div>
                 </div>
                 <div style={{ padding: "10px 6px", textAlign: "center", borderRight: `1px solid ${CYAN}18` }}>
                   <div style={{ fontSize: 8, color: "rgba(255,255,255,0.45)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
@@ -409,6 +426,24 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
                 </div>
               </div>
             </div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12, justifyContent: "center" }}>
+                {LAB_PRIZE_BREAKDOWN.map((p) => (
+                  <span
+                    key={p.label}
+                    style={{
+                      fontSize: 10,
+                      color: "rgba(255,255,255,0.7)",
+                      background: "rgba(0,212,255,0.06)",
+                      border: `1px solid ${CYAN}22`,
+                      borderRadius: 6,
+                      padding: "2px 7px",
+                    }}
+                  >
+                    <b style={{ color: ACCENT }}>{p.label}</b> · {p.ton} ★
+                  </span>
+                ))}
+              </div>
 
             {board.length > 0 && (
               <div
@@ -520,6 +555,11 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
                         {isMe ? " (you)" : ""}
                       </span>
                       <span style={{ whiteSpace: "nowrap" }}>{pts} pt</span>
+                      {starPrizeForRank(r.rank) > 0 && (
+                        <span style={{ whiteSpace: "nowrap", color: ACCENT, fontSize: 10 }}>
+                          {starPrizeForRank(r.rank)} ★
+                        </span>
+                      )}
                     </div>
                   );
                 })}

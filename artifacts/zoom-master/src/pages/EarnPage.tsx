@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { claimDailyReward, fetchTasksState, peekTasksState, bumpTasksPlanetsBuilt, claimTask, type TasksState, redeemServerCode, claimWeeklyRedStar, fetchWeeklyRedStarStatus } from "../utils/api";
 import { useGlobalStore, refreshDailyStatus, applyDailyClaimResult } from "../store/globalStore";
 import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
-import { GramDiamondIcon } from "../components/GramDiamondIcon";
 import { useT } from "../i18n/LanguageContext";
 import { SpaceTicketIcon, SpeedBoltIcon } from "../components/icons/GameIcons";
 
@@ -35,12 +34,12 @@ const DAILY_REWARDS_BASE = [1, 2, 3, 4, 5, 6, 7];
 
 // Must match artifacts/api-server/src/routes/referral.ts
 const MILESTONES = [
-  { count: 5, reward: 40, rewardGram: 0.1 },
-  { count: 10, reward: 70, rewardGram: 0.2 },
-  { count: 20, reward: 100, rewardGram: 0.4 },
-  { count: 50, reward: 180, rewardGram: 0.8 },
-  { count: 100, reward: 300, rewardGram: 1.5 },
-  { count: 200, reward: 500, rewardGram: 3.0 },
+  { count: 5, reward: 40 },
+  { count: 10, reward: 70 },
+  { count: 20, reward: 100 },
+  { count: 50, reward: 180 },
+  { count: 100, reward: 300 },
+  { count: 200, reward: 500 },
 ];
 
 const REFERRAL_STARDUST_PER_INVITE = 2;
@@ -761,7 +760,6 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
             <div className="font-black text-[17px] tracking-wide mt-0.5" style={{ color: "var(--earn-ink)" }}>{t("earn.referralProgram")}</div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               <span className="earn-reward-chip earn-reward-chip--gold">+{REFERRAL_STARDUST_PER_INVITE} ★ / invite</span>
-              <span className="earn-reward-chip">+0.1 TON</span>
             </div>
           </div>
 
@@ -799,8 +797,6 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                 <span style={{ color: "rgba(232,236,244,0.6)", display: "inline-flex", alignItems: "center", gap: 4 }}>
                   {nextMilestone.count} invites → +{nextMilestone.reward.toLocaleString()}
                   <ZoomCubeIcon size={12} />
-                  + {nextMilestone.rewardGram}
-                  <GramDiamondIcon size={12} />
                 </span>
                 <span className="font-bold tabular-nums" style={{ color: "var(--earn-cyan)" }}>{referralCount}/{nextMilestone.count}</span>
               </div>
@@ -830,7 +826,7 @@ export function EarnPage({ referralCode, referralCount, referralSpeedBonus, refe
                     <span className="earn-reward-chip earn-reward-chip--ok">{t("earn.claimedTick")}</span>
                   ) : (
                     <span className="earn-reward-chip" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                      +{m.reward.toLocaleString()} <ZoomCubeIcon size={11} /> · +{m.rewardGram} <GramDiamondIcon size={11} />
+                      +{m.reward.toLocaleString()} <ZoomCubeIcon size={11} />
                     </span>
                   )}
                 </div>
