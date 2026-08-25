@@ -501,7 +501,7 @@ export function ShopPage({
                   className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center font-black"
                   style={{ background: card.accent + "22", border: `1px solid ${card.accent}55`, color: card.accent }}
                 >
-                  {card.id === "pro" ? "★" : "VIP"}
+                  VIP
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">

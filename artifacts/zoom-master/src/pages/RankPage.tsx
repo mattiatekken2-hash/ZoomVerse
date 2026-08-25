@@ -275,9 +275,9 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                         <span
                           className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black tracking-wider align-middle"
                           style={{ background: "rgba(255,215,64,0.18)", color: "#ffd740", border: "1px solid rgba(255,215,64,0.45)" }}
-                          title="VIP Pro / Whale"
+                          title="VIP Pro"
                         >
-                          WHALE
+                          VIP
                         </span>
                       )}
                       {entry.vipLevel === "BASE" && (
