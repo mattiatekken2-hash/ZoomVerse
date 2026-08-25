@@ -7,6 +7,7 @@ import { recordHistoryAsync } from "../lib/history";
 import { getOrCreateActiveLabRound } from "./labRanking";
 import { NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT } from "@workspace/game-models";
 import { persistableFirstName } from "../lib/playerName";
+import { mergeSeasonLeaderboard } from "../lib/syntheticLeaderboard";
 
 const router: IRouter = Router();
 
@@ -188,7 +189,7 @@ router.get("/leaderboard", async (_req, res) => {
       };
     });
 
-    res.json({ leaderboard });
+    res.json({ leaderboard: mergeSeasonLeaderboard(leaderboard) });
   } catch (err) {
     console.error("[leaderboard] error:", err);
     res.status(500).json({ error: "Database error" });

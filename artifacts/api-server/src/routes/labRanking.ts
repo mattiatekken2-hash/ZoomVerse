@@ -5,6 +5,11 @@ import { eq, sql, desc } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { resolveTargetTelegramId } from "./admin";
 import { recordHistoryAsync } from "../lib/history";
+import {
+  isSyntheticTelegramId,
+  mergeCraftLeaderboard,
+  syntheticPlayerCount,
+} from "../lib/syntheticLeaderboard";
 
 const router: IRouter = Router();
 
@@ -98,7 +103,7 @@ async function countParticipants(roundId: number): Promise<number> {
     .select({ c: sql<number>`COUNT(*)::int` })
     .from(usersTable)
     .where(eq(usersTable.labRoundId, roundId));
-  return Number(row?.c ?? 0);
+  return Number(row?.c ?? 0) + syntheticPlayerCount();
 }
 
 type SettleOutcome =
@@ -203,6 +208,7 @@ async function settleLabRoundCore(opts: {
       const stars = stardustPrizeForRank(rank);
       if (stars <= 0) continue;
       const r = ranking[i]!;
+      if (isSyntheticTelegramId(r.telegramId)) continue;
       await tx
         .update(usersTable)
         .set({
@@ -345,14 +351,14 @@ router.get("/lab-rank/state", async (req, res) => {
       .where(sql`${usersTable.labRoundId} = ${round.id} AND ${usersTable.labPoints} > 0`)
       .orderBy(desc(usersTable.labPoints), usersTable.telegramId)
       .limit(100);
-    const top100 = rows.map((r, i) => ({
+    const top100 = mergeCraftLeaderboard(rows.map((r, i) => ({
       rank: i + 1,
       telegramId: r.telegramId,
       name: r.firstName || (r.username ? `@${r.username}` : `User ${r.telegramId.slice(-4)}`),
       labPoints: Number(r.labPoints || 0),
       photoUrl: r.photoUrl || null,
       tonPrize: tonPrizeForRank(i + 1),
-    }));
+    })), tonPrizeForRank);
 
     let userRank: number | null = null;
     if (telegramId && userPoints > 0) {
