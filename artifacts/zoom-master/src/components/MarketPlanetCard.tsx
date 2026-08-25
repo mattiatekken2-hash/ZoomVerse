@@ -1,15 +1,14 @@
 import {
   LAB_STARDUST_DISPLAY_NAME,
   LAB_STARDUST_FARM_RATE,
-  LAB_STARDUST_COLORS,
   LAB_ZOOM_DISPLAY_NAME,
   LAB_ZOOM_FARM_RATE,
-  LAB_ZOOM_COLORS,
   isLabStardustShapeId,
   isLabZoomShapeId,
   resolveLabStardustShapeId,
   resolveLabShapeIdFromPlanet,
   labMarketPathForPlanet,
+  labForgeChromeForPlanet,
   labModelDisplayName,
   formatMarketListingPrice,
   parseMarketPriceCurrency,
@@ -30,15 +29,6 @@ const PATH_THEME: Record<LabMarketPath, { accent: string; glow: string; label: s
   zoom: { accent: "#7bed9f", glow: "#2ed573", label: "ZOOM", yieldUnit: "ZOOM/h" },
   stardust: { accent: "#ffd740", glow: "#ffc107", label: "★ STARDUST", yieldUnit: "★/h" },
 };
-
-function chromeForShape(shapeId: string | undefined, path: LabMarketPath): { color: string; glowColor: string } {
-  if (shapeId && isLabZoomShapeId(shapeId)) return LAB_ZOOM_COLORS[shapeId];
-  const stardustId = resolveLabStardustShapeId(shapeId);
-  if (stardustId) return LAB_STARDUST_COLORS[stardustId];
-  return path === "stardust"
-    ? { color: "#ffd740", glowColor: "#ffc107" }
-    : { color: "#7bed9f", glowColor: "#2ed573" };
-}
 
 export interface MarketPlanetListingView {
   id: string;
@@ -120,9 +110,12 @@ export function MarketPlanetCard({
     shapeId: listing.shapeId,
     displayName: listing.displayName,
   }) ?? listing.shapeId ?? undefined;
-  const chrome = chromeForShape(shapeId, path);
-  const accent = theme.accent;
-  const glow = theme.glow;
+  const chrome = labForgeChromeForPlanet({
+    shapeId,
+    displayName: listing.displayName,
+  }) ?? { color: theme.accent, glowColor: theme.glow };
+  const accent = chrome.color;
+  const glow = chrome.glowColor;
 
   const fakePlanet = {
     id: listing.id,

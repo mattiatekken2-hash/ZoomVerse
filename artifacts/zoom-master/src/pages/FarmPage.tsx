@@ -4,7 +4,7 @@ import type { CollectibleItem } from "../utils/collectibleConfig";
 import { FarmInventoryCard } from "../components/FarmInventoryCard";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
-import { isFarmActive } from "../hooks/useGameState";
+import { getPlanetDisplayColors, isFarmActive } from "../hooks/useGameState";
 import { payShopItemWithZmc, syncActiveFarms } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 import { getPlanetDisplayName } from "../utils/planetNames";
@@ -259,10 +259,11 @@ export function FarmPage({
 
   const openSellPopup = (planet: Planet) => {
     const suggested = suggestMarketPrice(planet.rate, "zmc");
+    const colors = getPlanetDisplayColors(planet);
     setSellPopup({
       planetId: planet.id,
       planetName: getPlanetDisplayName(planet),
-      planetColor: planet.color,
+      planetColor: colors.color,
       rate: planet.rate,
     });
     setSellPrice(String(suggested));
