@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { useTonAddress } from "@tonconnect/ui-react";
 import { parseVipLevel, type VipLevel } from "@workspace/game-models";
-import { fetchZmcStatus, syncZmcWallet, type ZmcStatus } from "../utils/api";
+import {
+  fetchZmcStatus,
+  syncZmcWallet,
+  ZMC_WALLET_CLEARED_EVENT,
+  type ZmcStatus,
+} from "../utils/api";
 
 const EMPTY: ZmcStatus = {
   ok: true,
@@ -41,6 +46,12 @@ export function useZmcStatus(telegramId: string | null): ZmcStatus & { connected
       window.clearInterval(id);
     };
   }, [telegramId, address]);
+
+  useEffect(() => {
+    const onCleared = () => setStatus(EMPTY);
+    window.addEventListener(ZMC_WALLET_CLEARED_EVENT, onCleared);
+    return () => window.removeEventListener(ZMC_WALLET_CLEARED_EVENT, onCleared);
+  }, []);
 
   return {
     ...status,

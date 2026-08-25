@@ -2,13 +2,14 @@
  * TonWalletWidget — header pill showing on-chain $ZMC.
  * Wallet tab Deposit / Withdraw chips open STON.fi (buy / sell $ZMC).
  */
-import { memo, type MouseEvent } from "react";
+import { memo, useCallback, useState, type CSSProperties, type MouseEvent } from "react";
 import { useTonConnectUI, useTonAddress } from "@tonconnect/ui-react";
 import type { Planet } from "../hooks/useGameState";
 import { GramDiamondIcon } from "./GramDiamondIcon";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 import { useT } from "../i18n/LanguageContext";
 import { useZmcStatus } from "../hooks/useZmcStatus";
+import { unlinkZmcWallet, ZMC_WALLET_CLEARED_EVENT } from "../utils/api";
 import { ZMC_STONFI_BUY, ZMC_STONFI_SELL, formatZmcAmount, openExternalUrl } from "../utils/zmcToken";
 
 
@@ -42,32 +43,80 @@ interface Props {
 }
 
 /* ─── CONNECT WALLET (Wallet tab header) ─────────────────────────────────── */
-export function GramWalletConnectButton() {
+export function GramWalletConnectButton({ telegramId }: { telegramId?: string | null }) {
   const [tonConnectUI] = useTonConnectUI();
   const walletAddress = useTonAddress();
   const { t } = useT();
+  const [busy, setBusy] = useState(false);
   const NEON = "#0fd9ff";
 
-  return (
-    <button
-      type="button"
-      onClick={() => tonConnectUI.openModal()}
-      className="mx-auto flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
-      title={walletAddress || t("wallet.connect")}
-      aria-label={walletAddress ? walletAddress : t("wallet.connect")}
-      style={{
-        padding: "10px 18px",
-        borderRadius: 999,
-        background: walletAddress ? "rgba(15,217,255,0.10)" : "linear-gradient(135deg, rgba(15,217,255,0.18), rgba(0,170,255,0.10))",
-        border: `1px solid ${walletAddress ? `${NEON}55` : `${NEON}44`}`,
-        boxShadow: walletAddress ? `0 0 16px ${NEON}18` : `0 0 20px ${NEON}22`,
-        cursor: "pointer",
-        maxWidth: "100%",
-      }}
-      data-testid="wallet-connect-button"
-    >
-      {walletAddress ? (
-        <>
+  const clearLinkedWallet = useCallback(async () => {
+    if (telegramId) {
+      await unlinkZmcWallet(telegramId);
+    }
+    window.dispatchEvent(new Event(ZMC_WALLET_CLEARED_EVENT));
+    try {
+      await tonConnectUI.disconnect();
+    } catch { /**/ }
+  }, [telegramId, tonConnectUI]);
+
+  const handleDisconnect = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await clearLinkedWallet();
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, clearLinkedWallet]);
+
+  const handleChange = useCallback(async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await clearLinkedWallet();
+      await tonConnectUI.openModal();
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, clearLinkedWallet, tonConnectUI]);
+
+  const chipStyle = (color: string, filled = false): CSSProperties => ({
+    padding: "8px 12px",
+    borderRadius: 999,
+    fontSize: 10,
+    fontWeight: 900,
+    letterSpacing: "0.10em",
+    textTransform: "uppercase" as const,
+    cursor: busy ? "not-allowed" : "pointer",
+    opacity: busy ? 0.55 : 1,
+    border: `1px solid ${color}55`,
+    background: filled ? `${color}22` : `${color}14`,
+    color,
+    boxShadow: `0 0 12px ${color}18`,
+  });
+
+  if (walletAddress) {
+    return (
+      <div
+        className="flex items-center justify-center gap-2 flex-wrap"
+        data-testid="wallet-connected-row"
+      >
+        <div
+          title={walletAddress}
+          aria-label={walletAddress}
+          style={{
+            padding: "8px 14px",
+            borderRadius: 999,
+            background: "rgba(15,217,255,0.10)",
+            border: `1px solid ${NEON}55`,
+            boxShadow: `0 0 16px ${NEON}18`,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            maxWidth: "100%",
+          }}
+        >
           <span
             style={{
               width: 8,
@@ -89,23 +138,61 @@ export function GramWalletConnectButton() {
           >
             {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}
           </span>
-        </>
-      ) : (
-        <>
-          <ZoomCubeIcon size={18} />
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 900,
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: NEON,
-            }}
-          >
-            {t("wallet.connect")}
-          </span>
-        </>
-      )}
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleDisconnect()}
+          disabled={busy}
+          data-testid="wallet-disconnect-button"
+          aria-label={t("wallet.disconnect")}
+          style={chipStyle("#ff8a80")}
+        >
+          {t("wallet.disconnect")}
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleChange()}
+          disabled={busy}
+          data-testid="wallet-change-button"
+          aria-label={t("wallet.changeWallet")}
+          style={chipStyle(NEON, true)}
+        >
+          {t("wallet.changeWallet")}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => tonConnectUI.openModal()}
+      className="mx-auto flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+      title={t("wallet.connect")}
+      aria-label={t("wallet.connect")}
+      style={{
+        padding: "10px 18px",
+        borderRadius: 999,
+        background: "linear-gradient(135deg, rgba(15,217,255,0.18), rgba(0,170,255,0.10))",
+        border: `1px solid ${NEON}44`,
+        boxShadow: `0 0 20px ${NEON}22`,
+        cursor: "pointer",
+        maxWidth: "100%",
+      }}
+      data-testid="wallet-connect-button"
+    >
+      <ZoomCubeIcon size={18} />
+      <span
+        style={{
+          fontSize: 11,
+          fontWeight: 900,
+          letterSpacing: "0.14em",
+          textTransform: "uppercase",
+          color: NEON,
+        }}
+      >
+        {t("wallet.connect")}
+      </span>
     </button>
   );
 }

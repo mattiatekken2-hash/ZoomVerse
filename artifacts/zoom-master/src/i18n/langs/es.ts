@@ -497,6 +497,8 @@ export const es: Record<string, string> = {
   "common.closeAria": "Cerrar",
   "common.max": "MAX",
   "wallet.connect": "Conectar Wallet",
+  "wallet.disconnect": "Desconectar",
+  "wallet.changeWallet": "Cambiar",
   "wallet.deposit": "Depositar",
   "wallet.history": "History",
   "wallet.withdraw": "Retirar",

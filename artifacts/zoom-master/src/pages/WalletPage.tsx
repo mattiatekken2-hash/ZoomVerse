@@ -225,7 +225,7 @@ export function WalletPage({
     >
       {/* ── CONNECT WALLET (Telegram / TonConnect) ── */}
       <div className="flex justify-center pt-1 pb-1">
-        <GramWalletConnectButton />
+        <GramWalletConnectButton telegramId={telegramId} />
       </div>
 
       {/* ── MAIN BALANCE: $ZMC + STON.fi deposit/withdraw chips ── */}

@@ -2980,6 +2980,23 @@ export async function syncZmcWallet(telegramId: string, walletAddress: string): 
   }
 }
 
+export const ZMC_WALLET_CLEARED_EVENT = "zoom-zmc-wallet-cleared";
+
+export async function unlinkZmcWallet(telegramId: string): Promise<ZmcStatus | null> {
+  try {
+    const res = await fetch(`${API_BASE}/zmc/unlink`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.ok ? data as ZmcStatus : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchZmcBuyIntent(
   buyerTelegramId: string,
   listingId: number,

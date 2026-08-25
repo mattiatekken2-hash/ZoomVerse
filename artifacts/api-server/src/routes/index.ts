@@ -163,6 +163,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/obtained/record",
       "/earn/weekly-redstar/claim",
       "/zmc/sync",
+      "/zmc/unlink",
       "/farm/reactivate",
     ],
     bindField: "telegramId",

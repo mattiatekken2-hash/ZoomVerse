@@ -130,4 +130,49 @@ router.post("/zmc/sync", async (req, res) => {
   }
 });
 
+const UnlinkBody = z.object({
+  telegramId: z.string().min(1),
+});
+
+router.post("/zmc/unlink", async (req, res) => {
+  const parsed = UnlinkBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body" });
+    return;
+  }
+  const { telegramId } = parsed.data;
+  try {
+    await db
+      .update(usersTable)
+      .set({
+        tonWalletAddress: null,
+        vipLevel: "NONE",
+        zmcBalanceNano: "0",
+      })
+      .where(eq(usersTable.telegramId, telegramId));
+
+    const [user] = await db
+      .select({ zoomBalance: usersTable.zoomBalance })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, telegramId))
+      .limit(1);
+
+    const treasuryZmc = await treasuryZmcTotal();
+    const globalPoints = await globalZoomPoints();
+    const userPoints = Number(user?.zoomBalance ?? 0) || 0;
+
+    res.json({
+      ok: true,
+      walletAddress: null,
+      vipLevel: "NONE",
+      zmcBalanceNano: "0",
+      zmcBalance: 0,
+      airdrop: airdropPayload(userPoints, globalPoints, treasuryZmc),
+    });
+  } catch (err) {
+    console.error("[zmc/unlink] error:", err);
+    res.status(500).json({ error: "Failed to unlink wallet" });
+  }
+});
+
 export default router;

@@ -495,6 +495,8 @@ export const fil: Record<string, string> = {
   "common.closeAria": "Isara",
   "common.max": "MAX",
   "wallet.connect": "I-connect ang Wallet",
+  "wallet.disconnect": "I-disconnect",
+  "wallet.changeWallet": "Palitan",
   "wallet.deposit": "Mag-deposit",
   "wallet.history": "History",
   "wallet.withdraw": "Mag-withdraw",
