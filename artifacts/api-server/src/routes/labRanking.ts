@@ -8,6 +8,7 @@ import { recordHistoryAsync } from "../lib/history";
 import {
   isSyntheticTelegramId,
   mergeCraftLeaderboard,
+  syntheticCraftAbove,
   syntheticPlayerCount,
 } from "../lib/syntheticLeaderboard";
 
@@ -362,14 +363,20 @@ router.get("/lab-rank/state", async (req, res) => {
 
     let userRank: number | null = null;
     if (telegramId && userPoints > 0) {
-      const [rk] = await db
-        .select({ c: sql<number>`COUNT(*)::int` })
-        .from(usersTable)
-        .where(sql`${usersTable.labRoundId} = ${round.id}
-          AND ${usersTable.labPoints} > 0
-          AND (${usersTable.labPoints} > ${userPoints}
-               OR (${usersTable.labPoints} = ${userPoints} AND ${usersTable.telegramId} < ${telegramId}))`);
-      userRank = Number(rk?.c ?? 0) + 1;
+      const mergedIdx = top100.findIndex((r) => r.telegramId === telegramId);
+      if (mergedIdx >= 0) {
+        userRank = top100[mergedIdx].rank;
+      } else {
+        const [rk] = await db
+          .select({ c: sql<number>`COUNT(*)::int` })
+          .from(usersTable)
+          .where(sql`${usersTable.labRoundId} = ${round.id}
+            AND ${usersTable.labPoints} > 0
+            AND (${usersTable.labPoints} > ${userPoints}
+                 OR (${usersTable.labPoints} = ${userPoints} AND ${usersTable.telegramId} < ${telegramId}))`);
+        const synthAbove = syntheticCraftAbove(userPoints, telegramId);
+        userRank = Number(rk?.c ?? 0) + 1 + synthAbove;
+      }
     }
 
     res.set("Cache-Control", "no-store");
