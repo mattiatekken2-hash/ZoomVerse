@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, fetchMyMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, invalidateTasksCache, bumpTasksPlanetsBuilt, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
-import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, labForgeChromeForPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, resolveLabShapeIdFromPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, labModelDisplayName, type LabForgePath } from "@workspace/game-models";
+import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, labForgeChromeForPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, resolveLabShapeIdFromPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, labModelDisplayName, resumePlanetFarmAfterMarketPause, type LabForgePath } from "@workspace/game-models";
 import { normalizeLabForgeShapeId } from "../utils/labForgeShape";
 import { refreshMarketListings, upsertMarketListing, removeMarketListingByPlanetId } from "../store/globalStore";
 import { applyRemovedPlanetTombstones, markPlanetBurned, markPlanetDelisted, clearPlanetDelisted } from "../utils/removedPlanets";
@@ -2070,7 +2070,13 @@ function keepClientGlbShape(merged: Planet, clientP: Planet | undefined): Planet
 }
 
 function mergeServerPlanetWithClient(serverP: Planet, clientP: Planet | undefined): Planet {
-  if (!clientP) return migrateStreetSceneToOnigiri(serverP);
+  if (!clientP) {
+    return migrateStreetSceneToOnigiri(
+      serverP.isListedInMarket
+        ? serverP
+        : resumePlanetFarmAfterMarketPause(serverP, serverNow()),
+    );
+  }
   if (clientP.isListedInMarket) {
     return keepClientGlbShape(migrateStreetSceneToOnigiri({
       ...serverP,
@@ -2084,12 +2090,15 @@ function mergeServerPlanetWithClient(serverP: Planet, clientP: Planet | undefine
       pausedAt: clientP.pausedAt ?? serverP.pausedAt,
     }), clientP);
   }
-  if (clientP.isFarmingActive && !serverP.isFarmingActive) {
+  const serverBase = serverP.isListedInMarket
+    ? serverP
+    : resumePlanetFarmAfterMarketPause(serverP, serverNow());
+  if (clientP.isFarmingActive && !serverBase.isFarmingActive) {
     const clientStart = clientP.farmStartedAt ?? 0;
-    const serverStart = serverP.farmStartedAt ?? 0;
+    const serverStart = serverBase.farmStartedAt ?? 0;
     if (clientStart >= serverStart) {
       return keepClientGlbShape(migrateStreetSceneToOnigiri({
-        ...serverP,
+        ...serverBase,
         isFarmingActive: true,
         farmStartedAt: clientP.farmStartedAt,
         lastCollectedAt: clientP.lastCollectedAt,
@@ -2099,12 +2108,12 @@ function mergeServerPlanetWithClient(serverP: Planet, clientP: Planet | undefine
       }), clientP);
     }
   }
-  if (clientP.isFarmingActive && serverP.isFarmingActive) {
+  if (clientP.isFarmingActive && serverBase.isFarmingActive) {
     const clientEff = Math.max(clientP.farmStartedAt ?? 0, clientP.lastCollectedAt ?? 0);
-    const serverEff = Math.max(serverP.farmStartedAt ?? 0, serverP.lastCollectedAt ?? 0);
+    const serverEff = Math.max(serverBase.farmStartedAt ?? 0, serverBase.lastCollectedAt ?? 0);
     if (clientEff > serverEff) {
       return keepClientGlbShape(migrateStreetSceneToOnigiri({
-        ...serverP,
+        ...serverBase,
         farmStartedAt: clientP.farmStartedAt,
         lastCollectedAt: clientP.lastCollectedAt,
         pausedAt: clientP.pausedAt ?? 0,
@@ -2112,23 +2121,28 @@ function mergeServerPlanetWithClient(serverP: Planet, clientP: Planet | undefine
     }
   }
   if (!clientP.isListedInMarket && serverP.isListedInMarket) {
+    const resumed = resumePlanetFarmAfterMarketPause(
+      { ...serverP, isListedInMarket: false },
+      serverNow(),
+    );
+    const preferClient = clientP.isFarmingActive
+      && (clientP.farmStartedAt ?? 0) >= (resumed.farmStartedAt ?? 0);
     return keepClientGlbShape(migrateStreetSceneToOnigiri({
-      ...serverP,
-      isListedInMarket: false,
-      isFarmingActive: clientP.isFarmingActive,
-      farmStartedAt: clientP.farmStartedAt,
-      lastCollectedAt: clientP.lastCollectedAt,
-      pausedAt: clientP.pausedAt,
-      marketPrice: null,
-      marketCurrency: undefined,
-      marketListedAt: undefined,
-      serverListingId: undefined,
+      ...(preferClient
+        ? {
+            ...resumed,
+            isFarmingActive: true,
+            farmStartedAt: clientP.farmStartedAt,
+            lastCollectedAt: clientP.lastCollectedAt,
+            pausedAt: 0,
+          }
+        : resumed),
       shapeId: clientP.shapeId || serverP.shapeId,
       color: clientP.color || serverP.color,
       glowColor: clientP.glowColor || serverP.glowColor,
     }), clientP);
   }
-  return keepClientGlbShape(migrateStreetSceneToOnigiri(serverP), clientP);
+  return keepClientGlbShape(migrateStreetSceneToOnigiri(serverBase), clientP);
 }
 
 /**
@@ -2149,11 +2163,12 @@ export function effectiveFarmStart(planet: Planet): number {
 }
 
 export function isFarmActive(planet: Planet): boolean {
-  if (!planet.isFarmingActive) return false;
   if (planet.isListedInMarket) return false;
-  const start = effectiveFarmStart(planet);
+  const view = resumePlanetFarmAfterMarketPause(planet, serverNow());
+  if (!view.isFarmingActive) return false;
+  const start = effectiveFarmStart(view);
   if (start <= 0) return false;
-  return serverNow() - start <= getPlanetFarmDurationMs(planet);
+  return serverNow() - start <= getPlanetFarmDurationMs(view);
 }
 
 /** Returns the SUN's farm-cycle duration in ms (upgraded value, minimum 1h). */
@@ -2170,9 +2185,12 @@ export function isSunActive(sun: SunState): boolean {
 }
 
 export function getFarmTimeRemaining(planet: Planet): number {
-  const start = effectiveFarmStart(planet);
+  const view = planet.isListedInMarket
+    ? planet
+    : resumePlanetFarmAfterMarketPause(planet, serverNow());
+  const start = effectiveFarmStart(view);
   if (start <= 0) return 0;
-  return Math.max(0, start + getPlanetFarmDurationMs(planet) - serverNow());
+  return Math.max(0, start + getPlanetFarmDurationMs(view) - serverNow());
 }
 
 /**
@@ -2181,9 +2199,10 @@ export function getFarmTimeRemaining(planet: Planet): number {
  */
 export function isFarmExpired(planet: Planet): boolean {
   if (planet.isListedInMarket) return false;
-  const start = effectiveFarmStart(planet);
+  const view = resumePlanetFarmAfterMarketPause(planet, serverNow());
+  const start = effectiveFarmStart(view);
   if (start <= 0) return false;
-  return serverNow() - start > getPlanetFarmDurationMs(planet);
+  return serverNow() - start > getPlanetFarmDurationMs(view);
 }
 
 export function getReactivationFee(planet: Planet): number {
@@ -4772,6 +4791,8 @@ export function useGameState() {
       if (!planet) return prev;
       const prevIsFarmingActive = !!planet.isFarmingActive;
       const prevPausedAt = planet.pausedAt ?? 0;
+      const pauseStamp = prevIsFarmingActive ? serverNow() : prevPausedAt;
+      const listedAt = Date.now();
       const { telegramId, firstName, username, photoUrl } = getTelegramContext();
       const shapeId = resolveLabShapeIdFromPlanet(planet) || planet.shapeId || undefined;
       void username;
@@ -4822,6 +4843,8 @@ export function useGameState() {
               isFarmingActive: false,
               marketPrice: price,
               marketCurrency: currency,
+              marketListedAt: listedAt,
+              pausedAt: pauseStamp,
               shapeId: shapeId ?? p.shapeId,
               displayName: canonName ?? p.displayName,
             }
@@ -4837,6 +4860,8 @@ export function useGameState() {
                 isFarmingActive: false,
                 marketPrice: price,
                 marketCurrency: currency,
+                marketListedAt: p.marketListedAt ?? listedAt,
+                pausedAt: p.pausedAt ?? pauseStamp,
                 serverListingId: listing.id,
                 shapeId: shapeId ?? p.shapeId,
                 displayName: canonName ?? p.displayName,
@@ -4933,7 +4958,6 @@ export function useGameState() {
           }
         })();
       }
-      const pauseStamp = prevIsFarmingActive ? serverNow() : prevPausedAt;
       const updated = {
         ...prev,
         planets: prev.planets.map((p) =>
@@ -4944,7 +4968,7 @@ export function useGameState() {
                 isFarmingActive: false,
                 marketPrice: price,
                 marketCurrency: currency,
-                marketListedAt: Date.now(),
+                marketListedAt: listedAt,
                 pausedAt: pauseStamp,
                 shapeId: shapeId ?? p.shapeId,
                 displayName: labModelDisplayName({ shapeId: shapeId ?? p.shapeId, displayName: p.displayName }) ?? p.displayName,
@@ -5020,39 +5044,9 @@ export function useGameState() {
         ...prev,
         planets: prev.planets.map((p) => {
           if (p.id !== id) return p;
-          // If the planet was paused mid-cycle when listed (pausedAt > 0),
-          // shift both cycle timestamps forward by the pause duration so the
-          // remaining farm window is fully preserved — same math as the
-          // pause-preserving resume in startFarming (line ~3972).
-          const now = serverNow();
-          // Pause start: listing always stamps pausedAt when the planet was
-          // farming, and always stamps marketListedAt. Use either so an
-          // instant DELIST (pauseShift would otherwise be 0) still keeps
-          // the remaining window and does not look expired / grey.
-          const pauseStart = (p.pausedAt && p.pausedAt > 0)
-            ? p.pausedAt
-            : (p.marketListedAt && p.marketListedAt > 0 ? p.marketListedAt : 0);
-          const pauseShift = pauseStart > 0 ? Math.max(0, now - pauseStart) : 0;
-          const newFarmStartedAt = (p.farmStartedAt || 0) + pauseShift;
-          const newLastCollectedAt = (p.lastCollectedAt || 0) > 0
-            ? (p.lastCollectedAt || 0) + pauseShift
-            : (p.lastCollectedAt || 0);
-          const durationMs = getPlanetFarmDurationMs(p);
-          const start = Math.max(newFarmStartedAt, newLastCollectedAt);
-          const remaining = start > 0 ? (start + durationMs) - now : 0;
-          const hadCycle = (p.farmStartedAt || 0) > 0 || (p.lastCollectedAt || 0) > 0;
-          const resumeFarm = hadCycle && remaining > 0;
+          const resumed = resumePlanetFarmAfterMarketPause(p, serverNow());
           return {
-            ...p,
-            isListedInMarket: false,
-            marketPrice: null,
-            marketCurrency: undefined,
-            marketListedAt: undefined,
-            serverListingId: undefined,
-            isFarmingActive: resumeFarm,
-            farmStartedAt: newFarmStartedAt,
-            lastCollectedAt: newLastCollectedAt,
-            pausedAt: resumeFarm ? undefined : (pauseShift > 0 ? undefined : p.pausedAt),
+            ...resumed,
             durability: 100,
             durabilityUpdatedAt: 0,
           };
@@ -5079,7 +5073,6 @@ export function useGameState() {
             stateRef.current.craftsCompleted,
           );
         };
-        persist();
         if (telegramId) {
           void delistFromMarket(
             telegramId,
@@ -5088,9 +5081,12 @@ export function useGameState() {
               : null,
             id,
           ).then(() => {
+            persist();
             void refreshMarketListings(telegramId);
             try { window.dispatchEvent(new Event("zoom-data-refresh")); } catch { /**/ }
           });
+        } else {
+          persist();
         }
       }
       return updated;

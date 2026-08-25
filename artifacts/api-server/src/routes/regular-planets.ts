@@ -273,6 +273,9 @@ router.post("/regular-planets/save", async (req, res) => {
       serverListingId: number | undefined;
       marketPrice: number | null;
       pausedAt: number;
+      marketListedAt: number;
+      farmStartedAt: number;
+      lastCollectedAt: number;
     }>();
     for (const p of existingPlanets) {
       if (p && typeof p === "object") {
@@ -292,6 +295,9 @@ router.post("/regular-planets/save", async (req, res) => {
           serverListingId: typeof obj.serverListingId === "number" ? obj.serverListingId : undefined,
           marketPrice: typeof obj.marketPrice === "number" ? obj.marketPrice : null,
           pausedAt: typeof obj.pausedAt === "number" && Number.isFinite(obj.pausedAt) ? obj.pausedAt : 0,
+          marketListedAt: typeof obj.marketListedAt === "number" && Number.isFinite(obj.marketListedAt) ? obj.marketListedAt : 0,
+          farmStartedAt: typeof obj.farmStartedAt === "number" && Number.isFinite(obj.farmStartedAt) ? obj.farmStartedAt : 0,
+          lastCollectedAt: typeof obj.lastCollectedAt === "number" && Number.isFinite(obj.lastCollectedAt) ? obj.lastCollectedAt : 0,
         });
       }
     }
@@ -347,6 +353,11 @@ router.post("/regular-planets/save", async (req, res) => {
         }
         out.marketPrice = storedListing.marketPrice;
         out.pausedAt = storedListing.pausedAt;
+        if (storedListing.marketListedAt > 0) {
+          out.marketListedAt = storedListing.marketListedAt;
+        }
+        out.farmStartedAt = storedListing.farmStartedAt;
+        out.lastCollectedAt = storedListing.lastCollectedAt;
         out.isFarmingActive = false;
       }
       return out;

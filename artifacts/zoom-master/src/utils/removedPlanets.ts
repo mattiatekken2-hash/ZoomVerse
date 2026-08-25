@@ -1,3 +1,5 @@
+import { resumePlanetFarmAfterMarketPause } from "@workspace/game-models";
+
 /** Persist burns / delists so a stale server snapshot cannot resurrect them. */
 
 const PREFIX = "zoom-removed-planets-v1:";
@@ -73,7 +75,18 @@ export function isPlanetDelisted(telegramId: string | null | undefined, planetId
   return !!read(telegramId).delisted[planetId];
 }
 
-export function applyRemovedPlanetTombstones<T extends { id: string; isListedInMarket?: boolean; serverListingId?: number; marketPrice?: number | null }>(
+export function applyRemovedPlanetTombstones<T extends {
+  id: string;
+  isListedInMarket?: boolean;
+  serverListingId?: number;
+  marketPrice?: number | null;
+  farmStartedAt?: number;
+  lastCollectedAt?: number;
+  isFarmingActive?: boolean;
+  pausedAt?: number;
+  marketListedAt?: number;
+  farmDurationHours?: number;
+}>(
   telegramId: string | null | undefined,
   planets: T[],
 ): T[] {
@@ -83,11 +96,19 @@ export function applyRemovedPlanetTombstones<T extends { id: string; isListedInM
     .filter((p) => !stone.burned[p.id])
     .map((p) => {
       if (!stone.delisted[p.id]) return p;
-      return {
+      const pausedAt = typeof p.pausedAt === "number" ? p.pausedAt : 0;
+      const marketListedAt = typeof p.marketListedAt === "number" ? p.marketListedAt : 0;
+      if (!p.isListedInMarket && pausedAt <= 0 && marketListedAt <= 0) {
+        return {
+          ...p,
+          isListedInMarket: false,
+          serverListingId: undefined,
+          marketPrice: null,
+        };
+      }
+      return resumePlanetFarmAfterMarketPause({
         ...p,
-        isListedInMarket: false,
-        serverListingId: undefined,
-        marketPrice: null,
-      };
+        isListedInMarket: true,
+      }, Date.now());
     });
 }

@@ -10,5 +10,6 @@ export * from "./glb-assets.js";
  * (explicit, not `export *` from economy) so Vite resolves pickRandom.
  */
 export * from "./forge-lab.js";
+export * from "./farm-pause.js";
 export * from "./market-price.js";
 export * from "./zmc-economy.js";

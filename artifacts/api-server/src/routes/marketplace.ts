@@ -26,6 +26,8 @@ import {
   isMarketPriceInRange,
   zmcHumanToNano,
   splitMarketFeeNano,
+  resumePlanetFarmAfterMarketPause,
+  listingPauseStartMs,
   type MarketPriceCurrency,
 } from "@workspace/game-models";
 import { toNano } from "@ton/core";
@@ -533,14 +535,10 @@ router.post("/market/list", async (req, res) => {
     // listing row (with its unique constraint) is the actual source of
     // truth for ownership.
     const nowMs = Date.now();
-    // Stamp the listing on planets_json AND simultaneously pause the
-    // 24h farming cycle (isFarmingActive=false, pausedAt=nowMs). The
-    // pause stamp is what startFarming uses on resume to shift the
-    // cycle anchor by the pause duration so the user gets back the
-    // exact remaining time. We only set pausedAt if the planet was
-    // actually farming (CASE on the prior isFarmingActive); otherwise
-    // we preserve any existing pausedAt (don't overwrite an earlier
-    // pause stamp from a previous list/delist round-trip).
+    // Stamp the listing on planets_json AND pause the farm cycle
+    // (isFarmingActive=false, pausedAt + marketListedAt = now). Delist
+    // shifts farmStartedAt by (now - pause) so remaining time is kept.
+    // Keep an existing pausedAt so a list/save race cannot zero it.
     await client.query(
       `UPDATE users
        SET planets_json = COALESCE(
@@ -552,9 +550,11 @@ router.post("/market/list", async (req, res) => {
                 'marketPrice', $4::real,
                 'marketCurrency', $6::text,
                 'isFarmingActive', false,
+                'marketListedAt', $5::bigint,
                 'pausedAt', CASE
-                  WHEN (p->>'isFarmingActive')::boolean IS TRUE THEN $5::bigint
-                  ELSE COALESCE((p->>'pausedAt')::bigint, 0)
+                  WHEN COALESCE((p->>'pausedAt')::bigint, 0) > 0
+                    THEN COALESCE((p->>'pausedAt')::bigint, 0)
+                  ELSE $5::bigint
                 END
               )
               ELSE p
@@ -1409,10 +1409,9 @@ router.post("/market/delist", async (req, res) => {
       return;
     }
 
-    // Sync planets_json: clear isListedInMarket + serverListingId +
-    // marketPrice on the matching planet so the seller's UI shows it
-    // back in the inventory on next refresh. Same best-effort caveat
-    // as in /market/list. Skipped for legacy listings (planetId null).
+    // Resume the paused farm cycle on the seller's planet: shift
+    // farmStartedAt / lastCollectedAt by the listing duration so Farm
+    // continues the same window instead of showing REACTIVATE.
     const delisted = result[0]!;
     if (delisted.kind === "item" && delisted.equipmentId) {
       const nowMs = Date.now();
@@ -1452,22 +1451,26 @@ router.post("/market/delist", async (req, res) => {
       );
     } else if (delisted.planetId) {
       const nowMs = Date.now();
-      await client.query(
-        `UPDATE users
-         SET planets_json = COALESCE(
-           (SELECT jsonb_agg(
-              CASE WHEN p->>'id' = $2
-                THEN (p - 'serverListingId' - 'marketPrice') || jsonb_build_object('isListedInMarket', false)
-                ELSE p
-              END
-            )
-            FROM jsonb_array_elements(planets_json) p),
-           '[]'::jsonb
-         ),
-         planets_updated_at_ms = GREATEST(planets_updated_at_ms, $3::bigint)
-         WHERE telegram_id = $1`,
-        [sellerTelegramId, delisted.planetId, nowMs],
+      const pauseStartMs = listingPauseStartMs(delisted);
+      const sel = await client.query(
+        `SELECT planets_json FROM users WHERE telegram_id = $1 FOR UPDATE`,
+        [sellerTelegramId],
       );
+      const raw = sel.rows[0]?.planets_json;
+      if (Array.isArray(raw)) {
+        const next = (raw as Array<Record<string, unknown>>).map((p) => {
+          if (!p || typeof p !== "object") return p;
+          if (String(p.id ?? "") !== String(delisted.planetId)) return p;
+          return resumePlanetFarmAfterMarketPause(p, nowMs, pauseStartMs);
+        });
+        await client.query(
+          `UPDATE users
+           SET planets_json = $2::jsonb,
+               planets_updated_at_ms = GREATEST(planets_updated_at_ms, $3::bigint)
+           WHERE telegram_id = $1`,
+          [sellerTelegramId, JSON.stringify(next), nowMs],
+        );
+      }
     }
 
     await client.query("COMMIT");
