@@ -73,7 +73,8 @@ const nextBtnStyle: CSSProperties = {
  * 3. Market tab — that's where you sell
  * 4. $ZMC — official ecosystem currency on STON.fi
  *
- * Replay (admin) walks all 4 steps with NEXT even if the player already has models.
+ * Replay (admin) walks all 4 steps even if the player already has models.
+ * Every step always has SKIP + NEXT (forge used to hide NEXT on first run).
  */
 export function FirstRunGuide({ planetCount, tab, onGoTab }: Props) {
   const { t } = useT();
@@ -226,7 +227,7 @@ export function FirstRunGuide({ planetCount, tab, onGoTab }: Props) {
           >
             {t("guide.skip")}
           </button>
-          {step === "forge" && replay && (
+          {step === "forge" && (
             <button
               type="button"
               onClick={() => {
@@ -234,6 +235,7 @@ export function FirstRunGuide({ planetCount, tab, onGoTab }: Props) {
                 setStep("farm");
               }}
               style={nextBtnStyle}
+              data-testid="guide-next"
             >
               {t("guide.next")}
             </button>
