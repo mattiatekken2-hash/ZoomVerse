@@ -40,10 +40,10 @@ function pvpLeaderboardDayKey(now: Date = new Date()): string {
 const QueueBody = z.object({
   telegramId: z.string().min(1),
   planetId: z.string().min(1),
-  planetName: z.string().min(1),
-  planetRarity: z.string().min(1),
-  planetRate: z.number().min(0),
-  planetFloat: z.number().min(0).max(1).optional(),
+  planetName: z.string().optional(),
+  planetRarity: z.string().optional(),
+  planetRate: z.number().finite().optional(),
+  planetFloat: z.number().finite().nullish(),
 });
 
 router.post("/pvp/queue", async (req, res) => {
@@ -52,7 +52,7 @@ router.post("/pvp/queue", async (req, res) => {
     res.status(400).json({ ok: false, error: "Invalid body" });
     return;
   }
-  const { telegramId, planetId, planetName, planetRarity, planetRate, planetFloat } = parsed.data;
+  const { telegramId, planetId } = parsed.data;
 
   try {
     // Verify ownership and eligibility
@@ -84,16 +84,14 @@ router.post("/pvp/queue", async (req, res) => {
       return;
     }
 
-    // Eligible: not listed, not in a collection slot. Farming models are allowed.
-    // Winner takes the opponent's model, so the challenger needs a free farm slot.
+    // Eligible: not listed. Farming models can duel. Winner takes the
+    // opponent's model, so the challenger needs a free farm slot.
     const isListed = planet["isListedInMarket"] === true;
-    const hasSlot = planet["slotIndex"] != null;
-
-    if (isListed || hasSlot) {
+    if (isListed) {
       res.status(409).json({
         ok: false,
         error: "NOT_ELIGIBLE",
-        reason: isListed ? "LISTED" : "IN_SLOT",
+        reason: "LISTED",
       });
       return;
     }

@@ -4143,23 +4143,12 @@ export interface PvPQueueResult {
 export async function pvpQueue(
   telegramId: string,
   planetId: string,
-  planetName: string,
-  planetRarity: string,
-  planetRate: number,
-  planetFloat?: number | null,
 ): Promise<PvPQueueResult> {
   try {
     const res = await fetch(`${API_BASE}/pvp/queue`, {
       method: "POST",
       headers: apiHeaders(),
-      body: JSON.stringify({
-        telegramId,
-        planetId,
-        planetName,
-        planetRarity,
-        planetRate,
-        planetFloat,
-      }),
+      body: JSON.stringify({ telegramId, planetId }),
     });
     const j = await res.json().catch(() => ({}));
     return j as PvPQueueResult;

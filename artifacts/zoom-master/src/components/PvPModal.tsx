@@ -165,14 +165,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
     // verify ownership in planets_json even for freshly-crafted planets.
     try { await onBeforeQueue?.(); } catch { /* non-blocking */ }
 
-    const result = await pvpQueue(
-      telegramId,
-      planet.id,
-      planet.name,
-      planet.name,
-      planet.rate,
-      typeof planet.float === "number" ? planet.float : null,
-    );
+    const result = await pvpQueue(telegramId, planet.id);
     if (!aliveRef.current) return;
 
     if (!result.ok) {
@@ -577,7 +570,11 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
                   ? "Need a free farm slot to play PvP"
                   : error === "BATTLE_CANCELLED"
                     ? "The battle was cancelled — the opponent didn't confirm in time."
-                    : error}
+                    : error === "Invalid body" || error === "PLANET_NOT_FOUND"
+                      ? "This model can't enter PvP yet. Close and try again."
+                      : error === "ALREADY_IN_QUEUE" || error === "ALREADY_IN_BATTLE"
+                        ? "Already in PvP — close and wait, or cancel the other search."
+                        : error}
             </div>
             <button
               onClick={() => {

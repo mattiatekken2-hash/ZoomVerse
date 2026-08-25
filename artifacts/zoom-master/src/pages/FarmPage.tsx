@@ -4,7 +4,7 @@ import type { CollectibleItem } from "../utils/collectibleConfig";
 import { FarmInventoryCard } from "../components/FarmInventoryCard";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
-import { isFarmActive, farmSlotUsedCount } from "../hooks/useGameState";
+import { isFarmActive } from "../hooks/useGameState";
 import { payShopItemWithZmc, syncActiveFarms } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 import PvPModal from "../components/PvPModal";
@@ -634,11 +634,6 @@ export function FarmPage({
           onClose={() => setDetailPlanet(null)}
           onStartFarming={(id) => onStartFarming(id, vipLevel)}
           onPvP={(p) => {
-            if (farmSlotUsedCount(planets) >= maxSlots) {
-              setDefectMsg("Need a free farm slot for PvP");
-              setTimeout(() => setDefectMsg(null), 1800);
-              return;
-            }
             setDetailPlanet(null);
             setPvPPlanet(p);
           }}

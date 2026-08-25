@@ -30,8 +30,6 @@ import {
 
   getNextFarmCycleTier,
 
-  farmSlotUsedCount,
-
 } from "../hooks/useGameState";
 
 import { getPlanetDisplayName } from "../utils/planetNames";
@@ -126,7 +124,7 @@ export function PlanetDetailModal({
 
   depositBalance = 0,
 
-  maxSlots,
+  maxSlots: _maxSlots,
 
   planets,
 
@@ -165,6 +163,7 @@ export function PlanetDetailModal({
   const gramBalance = (tonBalance || 0) + (depositBalance || 0);
 
   const livePlanet = planets.find((p) => p.id === planet.id) ?? planet;
+  void _maxSlots;
 
   useEffect(() => {
     setDetailGlReady(false);
@@ -327,9 +326,7 @@ export function PlanetDetailModal({
 
   const primaryDisabled = durability <= 0 || isListed || (active && !expired);
 
-  const slotsFull = farmSlotUsedCount(planets) >= maxSlots;
-
-  const pvpEligible = !isListed && livePlanet.slotIndex == null && !slotsFull && !!telegramId;
+  const pvpEligible = !isListed && !!telegramId;
 
   const canUpgradeCycle = !!onUpgradeDuration
 
