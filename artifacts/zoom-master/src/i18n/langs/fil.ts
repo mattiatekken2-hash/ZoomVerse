@@ -825,4 +825,7 @@ export const fil: Record<string, string> = {
   "lab.tonAppVoteAria": "Bumoto sa TON App",
   "lab.tonAppBadgeAlt": "Rank ng Zoom Bot sa TON App",
   "lab.rarityWheelNext": "Paparating ang rarity wheel…",
+  "guide.zmcTitle": "Tuklasin ang $ZMC",
+  "guide.zmcBody": "Ang $ZMC ang opisyal na currency ng Zoom ecosystem. I-swap at kunin ito sa STON.fi, tapos gamitin sa Shop, Market, at VIP.",
+  "guide.zmcStonfi": "KUMUHA NG $ZMC SA STON.FI",
 };

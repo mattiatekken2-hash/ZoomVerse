@@ -819,4 +819,7 @@ export const es: Record<string, string> = {
   "wheel.spinning": "Girando…",
   "planetDetail.cycleShort": "ciclo",
   "planetDetail.repairBtn": "REPARAR · {n} ★",
+  "guide.zmcTitle": "Descubre $ZMC",
+  "guide.zmcBody": "$ZMC es la moneda oficial del ecosistema Zoom. Cámbiala y consíguela en STON.fi, luego úsala en Shop, Market y VIP.",
+  "guide.zmcStonfi": "OBTÉN $ZMC EN STON.FI",
 };

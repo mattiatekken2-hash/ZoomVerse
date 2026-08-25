@@ -1,11 +1,12 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { useT } from "../i18n/LanguageContext";
+import { ZMC_STONFI_BUY, openExternalUrl } from "../utils/zmcToken";
 
 const STORAGE_KEY = "zoom-first-run-v1";
 const REPLAY_KEY = "zoom-first-run-replay";
 export const REPLAY_TUTORIAL_EVENT = "zoom-replay-tutorial";
 
-export type FirstRunStep = "forge" | "farm" | "market";
+export type FirstRunStep = "forge" | "farm" | "market" | "zmc";
 
 function readDone(): boolean {
   try {
@@ -36,7 +37,7 @@ function writeReplay(on: boolean) {
   } catch { /**/ }
 }
 
-/** Replay the 3-step guide without wiping inventory. Safe with existing models. */
+/** Replay the 4-step guide without wiping inventory. Safe with existing models. */
 export function replayFirstRunGuide() {
   try {
     localStorage.removeItem(STORAGE_KEY);
@@ -66,12 +67,13 @@ const nextBtnStyle: CSSProperties = {
 };
 
 /**
- * 3 real actions, no slideshow:
+ * 4 real actions, no slideshow:
  * 1. Lab — tap FORGE
  * 2. Farm — see your model / START
  * 3. Market tab — that's where you sell
+ * 4. $ZMC — official ecosystem currency on STON.fi
  *
- * Replay (admin) walks all 3 steps with NEXT even if the player already has models.
+ * Replay (admin) walks all 4 steps with NEXT even if the player already has models.
  */
 export function FirstRunGuide({ planetCount, tab, onGoTab }: Props) {
   const { t } = useT();
@@ -126,10 +128,7 @@ export function FirstRunGuide({ planetCount, tab, onGoTab }: Props) {
   useEffect(() => {
     if (replay) return;
     if (step === "market" && tab === "market") {
-      writeDone();
-      writeReplay(false);
-      setReplay(false);
-      setStep("off");
+      setStep("zmc");
     }
   }, [step, tab, replay]);
 
@@ -147,9 +146,11 @@ export function FirstRunGuide({ planetCount, tab, onGoTab }: Props) {
       ? { title: t("guide.forgeTitle"), body: t("guide.forgeBody") }
       : step === "farm"
         ? { title: t("guide.farmTitle"), body: t("guide.farmBody") }
-        : { title: t("guide.marketTitle"), body: t("guide.marketBody") };
+        : step === "market"
+          ? { title: t("guide.marketTitle"), body: t("guide.marketBody") }
+          : { title: t("guide.zmcTitle"), body: t("guide.zmcBody") };
 
-  const n = step === "forge" ? 1 : step === "farm" ? 2 : 3;
+  const n = step === "forge" ? 1 : step === "farm" ? 2 : step === "market" ? 3 : 4;
   const maskBottom = step === "market" ? 78 : step === "forge" ? 148 : 0;
 
   return (
@@ -190,7 +191,7 @@ export function FirstRunGuide({ planetCount, tab, onGoTab }: Props) {
         }}
       >
         <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.16em", color: "rgba(158,197,232,0.7)", marginBottom: 6 }}>
-          {t("guide.step", { n, max: 3 })}
+          {t("guide.step", { n, max: 4 })}
         </div>
         <div style={{ fontSize: 16, fontWeight: 900, color: "#f4f7ff", letterSpacing: "0.02em" }}>
           {copy.title}
@@ -198,6 +199,15 @@ export function FirstRunGuide({ planetCount, tab, onGoTab }: Props) {
         <div style={{ fontSize: 13, lineHeight: 1.45, color: "rgba(255,255,255,0.62)", marginTop: 6 }}>
           {copy.body}
         </div>
+        {step === "zmc" && (
+          <button
+            type="button"
+            onClick={() => openExternalUrl(ZMC_STONFI_BUY)}
+            style={{ ...nextBtnStyle, width: "100%", marginTop: 14, flex: "none" }}
+          >
+            {t("guide.zmcStonfi")}
+          </button>
+        )}
         <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
           <button
             type="button"
@@ -242,11 +252,20 @@ export function FirstRunGuide({ planetCount, tab, onGoTab }: Props) {
               type="button"
               onClick={() => {
                 onGoTab("market");
-                finish();
+                setStep("zmc");
               }}
               style={nextBtnStyle}
             >
               {t("guide.openMarket")}
+            </button>
+          )}
+          {step === "zmc" && (
+            <button
+              type="button"
+              onClick={finish}
+              style={nextBtnStyle}
+            >
+              {t("guide.next")}
             </button>
           )}
         </div>

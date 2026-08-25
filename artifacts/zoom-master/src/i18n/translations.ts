@@ -593,6 +593,9 @@ const en: Dict = {
   "guide.farmBody": "Tap START on the card. While it farms, it earns $ZOOM even if you close the app.",
   "guide.marketTitle": "Sell it on Market",
   "guide.marketBody": "Other players buy models here. List yours from the card, or open Market from the bar below.",
+  "guide.zmcTitle": "Discover $ZMC",
+  "guide.zmcBody": "$ZMC is the official currency of the Zoom ecosystem. Swap TON for $ZMC on STON.fi, then use it in Shop, Market, and VIP.",
+  "guide.zmcStonfi": "GET $ZMC ON STON.FI",
 };
 
 // Italian
@@ -1158,6 +1161,9 @@ const it: Dict = {
   "guide.farmBody": "Tocca START sulla card. Mentre farmà, guadagni $ZOOM anche a app chiusa.",
   "guide.marketTitle": "Vendilo sul Market",
   "guide.marketBody": "Qui gli altri giocatori comprano i modelli. Mettilo in vendita dalla card, o apri Market dalla barra sotto.",
+  "guide.zmcTitle": "Scopri $ZMC",
+  "guide.zmcBody": "$ZMC è la valuta ufficiale dell'ecosistema Zoom. Scambiala e ottienila su STON.fi, poi usala in Shop, Market e VIP.",
+  "guide.zmcStonfi": "OTTIENI $ZMC SU STON.FI",
 };
 
 // Russian
@@ -1686,6 +1692,9 @@ const ru: Dict = {
   "farm.marketLabel": "Рынок",
   "farm.emptySlot": "Пустой Слот",
   "farm.enterPrice": "Введите цену",
+  "guide.zmcTitle": "Открой $ZMC",
+  "guide.zmcBody": "$ZMC — официальная валюта экосистемы Zoom. Обменяй TON на $ZMC на STON.fi и используй её в Shop, Market и VIP.",
+  "guide.zmcStonfi": "КУПИТЬ $ZMC НА STON.FI",
 };
 
 // Ukrainian
@@ -2215,6 +2224,9 @@ const uk: Dict = {
   "farm.marketLabel": "Ринок",
   "farm.emptySlot": "Порожній Слот",
   "farm.enterPrice": "Введіть ціну",
+  "guide.zmcTitle": "Відкрий $ZMC",
+  "guide.zmcBody": "$ZMC — офіційна валюта екосистеми Zoom. Обміняй TON на $ZMC на STON.fi і використовуй її в Shop, Market і VIP.",
+  "guide.zmcStonfi": "КУПИТИ $ZMC НА STON.FI",
 };
 
 export const DICTS: Record<Lang, Dict> = {
