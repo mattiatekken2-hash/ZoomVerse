@@ -1,14 +1,21 @@
 import { Router, type IRouter } from "express";
-import { db, transactionsTable, usersTable } from "@workspace/db";
+import { db, transactionsTable, usersTable, treasuryLedgerTable } from "@workspace/db";
 import { appSettingsTable, collectionPlanetsTable, tonWithdrawalsTable } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
-import { Cell, Address } from "@ton/core";
+import { Cell, Address, toNano } from "@ton/core";
+import { zmcHumanToNano } from "@workspace/game-models";
 import { broadcastBoxOpen } from "../lib/activityBus";
 import { sendWithdrawalChannelMessage, notifyAdminWithdrawalRequest, sendBotMessage, notifyAdminGramDeposit } from "../lib/notify";
 import { logger } from "../lib/logger";
 import { registerLottoTicketPurchase } from "./lottery";
 import { recordHistoryAsync } from "../lib/history";
 import { bumpStardustIndex, getStardustIndexMicro, stardustPriceForGram } from "../lib/stardustPrice";
+import {
+  buildJettonTransferPayload,
+  fetchZmcJettonWallet,
+  treasuryWallet,
+  verifyZmcTreasuryTransfer,
+} from "../lib/zmc";
 
 const router: IRouter = Router();
 
@@ -173,12 +180,11 @@ const STARS_CATALOG: StarsItem[] = [
   { id: "explorer_pack", title: "Explorer Pack", description: "8,000 $ZOOM + 1 Rare Planet", starsPrice: 150, tonPrice: 1.5, zoomAmount: 8000, itemType: "bundle" },
   { id: "legend_pack", title: "Legend Pack", description: "25,000 $ZOOM + 1 Epic Planet", starsPrice: 400, tonPrice: 4.0, zoomAmount: 25000, itemType: "bundle" },
   { id: "the_sun", title: "THE SUN", description: "Exclusive limited-edition star — 1000 $ZOOM/hr", starsPrice: 1000, tonPrice: 10, itemType: "sun" },
-  // Extra Slot pricing is DYNAMIC and TON-ONLY: price escalates per slot
-  // already owned (see SLOT_PRICE_LADDER_TON below). starsPrice is set to 0
-  // so the create-invoice/webhook guards reject any Stars-path attempt.
+  // Extra Slot is $ZMC-only (on-chain → treasury). starsPrice 0 so Stars
+  // invoice/webhook cannot credit it. Price = getSlotPriceTon × 100.
   { id: "extra_slot", title: "Extra Slot", description: "Unlock 1 additional planet slot", starsPrice: 0, tonPrice: 0.25, itemType: "slot" },
-  // $ZOOM packs — GRAM / Stars / Stardust. Rate rises with pack size
-  // (~1.3k→2.8k ZOOM per GRAM). 500 $ZOOM = 1 Stardust-model forge.
+  // $ZOOM packs — Stars / on-chain $ZMC (→ treasury) / Stardust.
+  // $ZMC price = GRAM tonPrice × 100 (1 GRAM ≈ 100 $ZMC).
   { id: "zoom_spark",  title: "ZOOM Spark",  description: "Instant +200 $ZOOM",    starsPrice: 15,  tonPrice: 0.15, zoomAmount: 200,   itemType: "zoom_pack" },
   { id: "zoom_boost",  title: "ZOOM Boost",  description: "Instant +500 $ZOOM",    starsPrice: 25,  tonPrice: 0.25, zoomAmount: 500,   itemType: "zoom_pack" },
   { id: "zoom_pulse",  title: "ZOOM Pulse",  description: "Instant +1,400 $ZOOM",  starsPrice: 60,  tonPrice: 0.60, zoomAmount: 1400,  itemType: "zoom_pack" },
@@ -343,6 +349,18 @@ async function applyMysteryAward(award: MysteryAward, telegramId: string): Promi
 
 function findItem(itemId: string): StarsItem | undefined {
   return STARS_CATALOG.find((i) => i.id === itemId);
+}
+
+/** Peg used for shop $ZMC items: 1 GRAM ≈ 100 $ZMC. */
+const GRAM_TO_ZMC = 100;
+
+function isZmcShopItem(item: StarsItem): boolean {
+  return item.itemType === "zoom_pack" || item.id === "extra_slot";
+}
+
+function zmcPriceForItem(item: StarsItem, bonusSlots = 0): number {
+  const gram = item.id === "extra_slot" ? getSlotPriceTon(bonusSlots) : item.tonPrice;
+  return Math.round(gram * GRAM_TO_ZMC);
 }
 
 // `tx` is intentionally typed loosely (`any`) because Drizzle's PgTransaction
@@ -1168,6 +1186,14 @@ router.post("/shop/buy-deposit", async (req, res) => {
 
   const item = findItem(itemId);
   if (!item) { res.status(404).json({ error: "Item not found" }); return; }
+  if (item.itemType === "zoom_pack") {
+    res.status(400).json({ error: "ZOOM packs are paid in Stars, $ZMC, or Stardust" });
+    return;
+  }
+  if (item.id === "extra_slot") {
+    res.status(400).json({ error: "Extra Slot is paid in $ZMC" });
+    return;
+  }
   if (!(item.tonPrice > 0)) {
     res.status(400).json({ error: "Item is not purchasable with TON" });
     return;
@@ -1207,8 +1233,8 @@ router.post("/shop/buy-deposit", async (req, res) => {
 
       const deposit = user.depositBalance ?? 0;
       const earned = user.tonBalance ?? 0;
-      // Extra slot + $ZOOM packs: any GRAM (deposit first, then earned).
-      const useCombinedGram = item.id === "extra_slot" || item.itemType === "zoom_pack";
+      // Extra slot: any GRAM (deposit first, then earned). ZOOM packs are $ZMC.
+      const useCombinedGram = item.id === "extra_slot";
       const spendable = useCombinedGram ? deposit + earned : deposit;
       if (spendable < effectivePrice) {
         throw new Error(useCombinedGram ? "INSUFFICIENT_GRAM" : "INSUFFICIENT_DEPOSIT");
@@ -1332,7 +1358,7 @@ router.post("/shop/buy-stardust", async (req, res) => {
   }
 
   if (item.itemType === "slot") {
-    res.status(400).json({ error: "Extra Slot is paid in GRAM" });
+    res.status(400).json({ error: "Extra Slot is paid in $ZMC" });
     return;
   }
 
@@ -1996,6 +2022,239 @@ router.post("/ton/deposit/confirm", async (req, res) => {
   await db.update(transactionsTable).set({ status: "failed" })
     .where(and(eq(transactionsTable.id, txnId), eq(transactionsTable.status, "pending")));
   res.json({ ok: false, status: "failed", error: v.reason });
+});
+
+/**
+ * Shop ZOOM packs and Extra Slot paid in on-chain $ZMC. 100% of the jetton
+ * goes to treasury (sink).
+ */
+router.post("/shop/zmc/intent", async (req, res) => {
+  const { telegramId, itemId, walletAddress } = req.body as {
+    telegramId?: string;
+    itemId?: string;
+    walletAddress?: string;
+  };
+  if (!telegramId || !itemId || !walletAddress) {
+    res.status(400).json({ error: "Missing telegramId, itemId, or walletAddress" });
+    return;
+  }
+
+  const item = findItem(itemId);
+  if (!item || !isZmcShopItem(item)) {
+    res.status(400).json({ error: "This item is not purchasable with $ZMC" });
+    return;
+  }
+
+  try {
+    const [user] = await db
+      .select({ isDisabled: usersTable.isDisabled, bonusSlots: usersTable.bonusSlots })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, telegramId))
+      .limit(1);
+    if (user?.isDisabled) {
+      res.status(403).json({ error: "Account disabled" });
+      return;
+    }
+
+    const jettonWallet = await fetchZmcJettonWallet(walletAddress);
+    if (!jettonWallet) {
+      res.status(400).json({ error: "No $ZMC wallet. Buy $ZMC on STON.fi first." });
+      return;
+    }
+
+    const priceZmc = zmcPriceForItem(item, user?.bonusSlots ?? 0);
+    const amountNano = zmcHumanToNano(priceZmc);
+    if (amountNano <= 0n) {
+      res.status(400).json({ error: "Invalid $ZMC price" });
+      return;
+    }
+    if (jettonWallet.balanceNano < amountNano) {
+      res.status(400).json({ error: "Not enough $ZMC in connected wallet" });
+      return;
+    }
+
+    const treasuryDest = treasuryWallet();
+    const messages = [
+      {
+        address: jettonWallet.walletAddress,
+        amount: toNano("0.08").toString(),
+        payload: buildJettonTransferPayload({
+          to: treasuryDest,
+          amountNano,
+          response: walletAddress,
+          queryId: BigInt(Date.now()),
+        }),
+      },
+    ];
+
+    res.json({
+      ok: true,
+      itemId: item.id,
+      priceZmc,
+      amountNano: amountNano.toString(),
+      treasuryWallet: treasuryDest,
+      messages,
+    });
+  } catch (err) {
+    console.error("[shop/zmc/intent] error:", err);
+    res.status(500).json({ error: "Failed to build $ZMC transfer" });
+  }
+});
+
+router.post("/shop/zmc/confirm", async (req, res) => {
+  const { telegramId, itemId, walletAddress, boc } = req.body as {
+    telegramId?: string;
+    itemId?: string;
+    walletAddress?: string;
+    boc?: string;
+  };
+  if (!telegramId || !itemId || !walletAddress || !boc) {
+    res.status(400).json({ error: "Missing telegramId, itemId, walletAddress, or boc" });
+    return;
+  }
+
+  const item = findItem(itemId);
+  if (!item || !isZmcShopItem(item)) {
+    res.status(400).json({ error: "This item is not purchasable with $ZMC" });
+    return;
+  }
+
+  const [peek] = await db
+    .select({ bonusSlots: usersTable.bonusSlots })
+    .from(usersTable)
+    .where(eq(usersTable.telegramId, telegramId))
+    .limit(1);
+  const priceZmc = zmcPriceForItem(item, peek?.bonusSlots ?? 0);
+  const amountNano = zmcHumanToNano(priceZmc);
+
+  let verified: Awaited<ReturnType<typeof verifyZmcTreasuryTransfer>> | null = null;
+  const waits = [0, 2000, 4000, 6000, 8000];
+  for (const wait of waits) {
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    verified = await verifyZmcTreasuryTransfer({
+      boc,
+      buyerWallet: walletAddress,
+      amountNano,
+    });
+    if (verified.ok) break;
+    if (!verified.retriable) break;
+  }
+  if (!verified || !verified.ok) {
+    res.status(verified && !verified.retriable ? 400 : 202).json({
+      ok: false,
+      pending: !verified || verified.retriable,
+      error: verified?.reason ?? "On-chain $ZMC transfer not confirmed",
+    });
+    return;
+  }
+
+  const txHash = verified.txHash;
+  const amountHuman = verified.feeHuman;
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [user] = await tx
+        .select({ isDisabled: usersTable.isDisabled, bonusSlots: usersTable.bonusSlots })
+        .from(usersTable)
+        .where(eq(usersTable.telegramId, telegramId))
+        .for("update")
+        .limit(1);
+      if (!user) throw new Error("USER_NOT_FOUND");
+      if (user.isDisabled) throw new Error("ACCOUNT_DISABLED");
+      if (zmcPriceForItem(item, user.bonusSlots ?? 0) !== priceZmc) {
+        throw new Error("PRICE_CHANGED");
+      }
+
+      const [existing] = await tx
+        .select({ id: treasuryLedgerTable.id })
+        .from(treasuryLedgerTable)
+        .where(eq(treasuryLedgerTable.txHash, txHash))
+        .limit(1);
+      if (existing) {
+        return { alreadyCredited: true as const, txnId: 0 };
+      }
+
+      try {
+        await tx.insert(treasuryLedgerTable).values({
+          txHash,
+          type: item.id === "extra_slot" ? "shop_extra_slot" : "shop_zoom_pack",
+          amountZmc: amountHuman,
+          userId: telegramId,
+        });
+      } catch (err: unknown) {
+        const code = typeof err === "object" && err && "code" in err ? (err as { code: string }).code : "";
+        if (code === "23505") return { alreadyCredited: true as const, txnId: 0 };
+        throw err;
+      }
+
+      const [txn] = await tx.insert(transactionsTable).values({
+        telegramId,
+        type: item.itemType,
+        currency: "ZMC",
+        amount: item.zoomAmount || 0,
+        tonAmount: priceZmc,
+        itemId: item.id,
+        itemName: item.title,
+        status: "completed",
+        telegramPaymentId: `zmc_shop_${txHash}`,
+      }).returning();
+
+      await creditUserTx(tx, item, telegramId, txn.id);
+      return { alreadyCredited: false as const, txnId: txn.id };
+    });
+
+    if (!result.alreadyCredited) {
+      recordHistoryAsync({
+        telegramId,
+        kind: "ton_purchase",
+        delta: -priceZmc,
+        currency: "zmc",
+        meta: {
+          txnId: result.txnId,
+          itemId: item.id,
+          itemName: item.title,
+          itemType: item.itemType,
+          source: "zmc",
+          txHash,
+        },
+      });
+      if (item.zoomAmount) {
+        recordHistoryAsync({
+          telegramId,
+          kind: "shop_zoom_pack",
+          delta: item.zoomAmount,
+          currency: "zoom",
+          meta: { txnId: result.txnId, itemId: item.id, itemName: item.title },
+        });
+      }
+    }
+
+    res.json({
+      ok: true,
+      alreadyCredited: result.alreadyCredited,
+      txnId: result.txnId || undefined,
+      itemId: item.id,
+      itemName: item.title,
+      zoomAmount: item.zoomAmount,
+      priceZmc,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg === "USER_NOT_FOUND") {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    if (msg === "ACCOUNT_DISABLED") {
+      res.status(403).json({ error: "Account disabled" });
+      return;
+    }
+    if (msg === "PRICE_CHANGED") {
+      res.status(409).json({ error: "Price changed — retry the purchase" });
+      return;
+    }
+    console.error("[shop/zmc/confirm] error:", err);
+    res.status(500).json({ error: "Internal error" });
+  }
 });
 
 export default router;

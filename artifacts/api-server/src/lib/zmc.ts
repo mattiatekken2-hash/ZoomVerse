@@ -221,6 +221,76 @@ export async function verifyZmcSplitTransfer(opts: {
   return { ok: true, txHash, feeHuman: zmcNanoToHuman(opts.feeNano) };
 }
 
+/**
+ * Confirms a single $ZMC jetton transfer from the buyer wallet to treasury
+ * (shop ZOOM packs — 100% sink, no seller split).
+ */
+export async function verifyZmcTreasuryTransfer(opts: {
+  boc: string;
+  buyerWallet: string;
+  amountNano: bigint;
+}): Promise<ZmcSplitVerifyOk | ZmcSplitVerifyFail> {
+  const msgHash = msgHashFromBoc(opts.boc);
+  if (!msgHash) return { ok: false, reason: "Invalid BOC", retriable: false };
+
+  const txRes = await tonapiGet(`/v2/blockchain/messages/${msgHash}/transaction`);
+  if (txRes.status === 404 || !txRes.ok) {
+    return { ok: false, reason: "Tx not yet on-chain", retriable: true };
+  }
+  const tx = txRes.json as { hash?: string; success?: boolean };
+  if (tx.success === false) return { ok: false, reason: "Tx failed on-chain", retriable: false };
+  const txHash = typeof tx.hash === "string" && tx.hash ? tx.hash : msgHash;
+
+  const eventsRes = await tonapiGet(
+    `/v2/accounts/${encodeURIComponent(opts.buyerWallet)}/events?limit=20`,
+  );
+  if (!eventsRes.ok || !eventsRes.json || typeof eventsRes.json !== "object") {
+    return { ok: false, reason: "Events not ready", retriable: true };
+  }
+  const payload = eventsRes.json as { events?: TonApiEvent[] };
+  const events = Array.isArray(payload.events) ? payload.events : [];
+  const masterRaw = toRawAddress(zmcJettonMaster());
+  const treasuryRaw = toRawAddress(treasuryWallet());
+
+  let sawTreasury = false;
+  for (const ev of events) {
+    for (const action of ev.actions ?? []) {
+      if (action.type !== "JettonTransfer") continue;
+      if (action.status && action.status !== "ok") continue;
+      const jt = action.JettonTransfer;
+      if (!jt) continue;
+      const jettonAddr = jt.jetton?.address;
+      if (jettonAddr) {
+        try {
+          if (toRawAddress(jettonAddr) !== masterRaw) continue;
+        } catch {
+          continue;
+        }
+      }
+      const amount = parseJettonNano(jt.amount);
+      const dest = jt.recipient?.address;
+      if (!dest) continue;
+      let destRaw: string;
+      try {
+        destRaw = toRawAddress(dest);
+      } catch {
+        continue;
+      }
+      if (destRaw === treasuryRaw && amount === opts.amountNano) {
+        sawTreasury = true;
+        break;
+      }
+    }
+    if (sawTreasury) break;
+  }
+
+  if (!sawTreasury) {
+    return { ok: false, reason: "Treasury $ZMC transfer not found on-chain yet", retriable: true };
+  }
+
+  return { ok: true, txHash, feeHuman: zmcNanoToHuman(opts.amountNano) };
+}
+
 function treasuryMnemonicWords(): string[] | null {
   const raw = (process.env["TREASURY_MNEMONIC"] || "").trim();
   if (!raw) return null;

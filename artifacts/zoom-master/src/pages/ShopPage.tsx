@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { createStarsInvoice, confirmStarsPurchase, buyShopItemFromStardust, buyShopItemFromDeposit, fetchSunStock, pollTxnUntilFinal, fetchHomeState, fetchSlotPrice, fetchStardustMarketPrice, type SunStock, type HomeState, type SlotPriceInfo } from "../utils/api";
+import { useTonAddress, useTonConnectUI } from "@tonconnect/ui-react";
+import { createStarsInvoice, confirmStarsPurchase, buyShopItemFromStardust, fetchSunStock, pollTxnUntilFinal, fetchHomeState, fetchSlotPrice, fetchStardustMarketPrice, payShopItemWithZmc, type SunStock, type HomeState, type SlotPriceInfo } from "../utils/api";
 import { stardustShopPrice } from "../utils/stardustMarket";
 import { useT } from "../i18n/LanguageContext";
 import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
-import { GramDiamondIcon } from "../components/GramDiamondIcon";
 import { patchShopPrefetch, readShopPrefetch } from "../utils/shopPrefetch";
 import { useZmcStatus } from "../hooks/useZmcStatus";
 import { ZMC_STONFI_BUY, openExternalUrl } from "../utils/zmcToken";
@@ -24,15 +24,17 @@ interface ShopItem {
 }
 
 
-// Extra Slot is rendered as its own card with a dynamic price
-// (escalates per slot already owned, capped at 3 TON).
+// Extra Slot — $ZMC on-chain to treasury (0.25 GRAM peg × 100 = 25 $ZMC).
 const EXTRA_SLOT_ITEM: ShopItem = {
   id: "extra_slot", title: "Extra Slot", desc: "Unlock 1 additional planet slot",
   starsPrice: 0, tonPrice: 0.25, color: "#ff3355", icon: "+", type: "slot",
 };
 
-// $ZOOM packs — GRAM / Stars / Stardust. Rate rises with pack size (~1.3k→2.8k ZOOM/GRAM).
-// 500 $ZOOM = 1 Stardust-model forge. Stars = 100★ per GRAM.
+// $ZOOM packs — Stars / $ZMC (on-chain → treasury) / Stardust.
+// $ZMC price = GRAM tonPrice × 100 (1 GRAM ≈ 100 $ZMC).
+const GRAM_TO_ZMC = 100;
+const zmcPriceForItem = (item: ShopItem) => Math.round(item.tonPrice * GRAM_TO_ZMC);
+
 const ZOOM_PACKS: ShopItem[] = [
   { id: "zoom_spark",  title: "ZOOM Spark",  desc: "Instant +200 $ZOOM",    starsPrice: 15,  tonPrice: 0.15, zoomAmount: 200,   color: "#9EC5E8", icon: "Z", type: "zoom_pack" },
   { id: "zoom_boost",  title: "ZOOM Boost",  desc: "Instant +500 $ZOOM",    starsPrice: 25,  tonPrice: 0.25, zoomAmount: 500,   color: "#7dd3fc", icon: "Z", type: "zoom_pack" },
@@ -41,20 +43,6 @@ const ZOOM_PACKS: ShopItem[] = [
   { id: "zoom_nova",   title: "ZOOM Nova",   desc: "Instant +6,500 $ZOOM",  starsPrice: 250, tonPrice: 2.50, zoomAmount: 6500,  color: "#38bdf8", icon: "Z", type: "zoom_pack" },
   { id: "zoom_galaxy", title: "ZOOM Galaxy", desc: "Instant +14,000 $ZOOM", starsPrice: 500, tonPrice: 5.00, zoomAmount: 14000, color: "#818cf8", icon: "Z", type: "zoom_pack" },
 ];
-
-interface StockInfo { sold: number; remaining: number; max: number; }
-
-// Collection bundles — moved into the SHOP (BUNDLES tab). Paid in Stars or TON
-// via the same pay-mode toggle as the SUN, both routed through the shop's
-// Stars-invoice / TON-deposit flow. `id` matches the backend STARS_CATALOG
-// itemType so handleStarsBuy/handleTonBuy work unchanged. `priceStars` mirrors
-// the backend STARS_CATALOG (100 Stars = 1 TON ratio, with earth's override).
-const COLLECTIONS = [
-  { key: "white", id: "white_collection", titleKey: "whiteColl.title", color: "#39ff7e", color2: "#0fd9ff", priceTon: 20, priceStars: 2000, requiresSun: true, userCap: 10, stockEndpoint: "api/white-collection/stock", tags: ["4 exclusive slots", "3.3 GRAM/month", "Requires SUN", "Limited edition"] },
-  { key: "earth", id: "earth_collection", titleKey: "earthColl.title", color: "#3b82f6", color2: "#22c55e", priceTon: 5, priceStars: 700, requiresSun: true, userCap: 0, stockEndpoint: "api/earth-collection/stock", tags: ["4 earth slots", "~0.51 GRAM/mo", "Requires SUN", "Public GRAM payout"] },
-  { key: "black", id: "black_collection", titleKey: "blackColl.title", color: "#7b2fff", color2: "#c084fc", priceTon: 40, priceStars: 4000, requiresSun: false, userCap: 0, stockEndpoint: "api/black-collection/stock", tags: ["4 black slots", "10 GRAM/month", "On-chain payout", "No SUN required"] },
-  { key: "supernova", id: "supernova_collection", titleKey: "supernovaColl.title", color: "#ffd700", color2: "#fde047", priceTon: 12, priceStars: 1200, requiresSun: false, userCap: 0, stockEndpoint: "api/supernova-collection/stock", tags: ["4 yellow stars", "1.5 GRAM/30d", "Limited 50 bundles", "No SUN required"] },
-] as const;
 
 interface ShopPageProps {
   balance: number;
@@ -90,32 +78,47 @@ export function ShopPage({
   hasSun: _hasSun,
   telegramId,
   sunCount,
-  whiteCollectionUnlocked,
-  whiteCollectionBundles,
-  earthCollectionUnlocked,
-  earthCollectionBundles,
-  blackCollectionUnlocked,
-  blackCollectionBundles,
-  supernovaCollectionUnlocked,
-  supernovaCollectionBundles,
-  stellaRossaCollectionUnlocked = false,
-  stellaRossaCollectionBundles = 0,
-  stellaLastClaimAt = 0,
-  onStellaClaimDaily,
+  whiteCollectionUnlocked: _whiteCollectionUnlocked,
+  whiteCollectionBundles: _whiteCollectionBundles,
+  earthCollectionUnlocked: _earthCollectionUnlocked,
+  earthCollectionBundles: _earthCollectionBundles,
+  blackCollectionUnlocked: _blackCollectionUnlocked,
+  blackCollectionBundles: _blackCollectionBundles,
+  supernovaCollectionUnlocked: _supernovaCollectionUnlocked,
+  supernovaCollectionBundles: _supernovaCollectionBundles,
+  stellaRossaCollectionUnlocked: _stellaRossaCollectionUnlocked = false,
+  stellaRossaCollectionBundles: _stellaRossaCollectionBundles = 0,
+  stellaLastClaimAt: _stellaLastClaimAt = 0,
+  onStellaClaimDaily: _onStellaClaimDaily,
 }: ShopPageProps) {
   const { t } = useT();
   void sunCount;
   void balance;
-  const { vipLevel } = useZmcStatus(telegramId ?? null);
+  void depositBalance;
+  void tonBalance;
+  void _whiteCollectionUnlocked;
+  void _whiteCollectionBundles;
+  void _earthCollectionUnlocked;
+  void _earthCollectionBundles;
+  void _blackCollectionUnlocked;
+  void _blackCollectionBundles;
+  void _supernovaCollectionUnlocked;
+  void _supernovaCollectionBundles;
+  void _stellaRossaCollectionUnlocked;
+  void _stellaRossaCollectionBundles;
+  void _stellaLastClaimAt;
+  void _onStellaClaimDaily;
+  const walletAddress = useTonAddress();
+  const [tonConnectUI] = useTonConnectUI();
+  const { vipLevel, zmcBalance, connected } = useZmcStatus(telegramId ?? null);
   const shopPrefetch = readShopPrefetch(telegramId);
   const [buying, setBuying] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [payMode, setPayMode] = useState<"stars" | "stardust" | "gram">("stars");
+  const [payMode, setPayMode] = useState<"stars" | "zmc" | "stardust">("stars");
   const [stardustIndex, setStardustIndex] = useState(shopPrefetch?.stardustIndex ?? 1);
   const [liveStardustBalance, setLiveStardustBalance] = useState(stardustBalanceProp);
   const [sunStock, setSunStock] = useState<SunStock | null>(shopPrefetch?.sunStock ?? null);
   const [slotPrice, setSlotPrice] = useState<SlotPriceInfo | null>(shopPrefetch?.slotPrice ?? null);
-  const [collStocks, setCollStocks] = useState<Record<string, StockInfo | null>>(shopPrefetch?.collStocks ?? {});
   const [home, setHome] = useState<HomeState | null>(shopPrefetch?.home ?? null);
   // Shop categories: tabs per organizzare i prodotti.
   // - exclusive: SUN (e in futuro altri NFT/limited shop items)
@@ -144,7 +147,6 @@ export function ShopPage({
       if (cached.sunStock) setSunStock(cached.sunStock);
       if (cached.slotPrice) setSlotPrice(cached.slotPrice);
       if (cached.home) setHome(cached.home);
-      if (Object.keys(cached.collStocks).length > 0) setCollStocks(cached.collStocks);
       if (Number.isFinite(cached.stardustIndex)) setStardustIndex(cached.stardustIndex);
     };
     applyCache();
@@ -157,26 +159,6 @@ export function ShopPage({
 
   const stardustPriceForItem = (item: ShopItem) =>
     stardustShopPrice(gramPriceForItem(item), stardustIndex);
-  const refreshCollStocks = async () => {
-    const entries = await Promise.all(
-      COLLECTIONS.map(async (c) => {
-        try {
-          const r = await fetch(`${import.meta.env.BASE_URL}${c.stockEndpoint}`);
-          if (r.ok) return [c.key, (await r.json()) as StockInfo] as const;
-        } catch { /* ignore */ }
-        return [c.key, null] as const;
-      }),
-    );
-    setCollStocks(Object.fromEntries(entries));
-    patchShopPrefetch(telegramId, { collStocks: Object.fromEntries(entries) });
-  };
-  // Ownership map for the BUNDLES tab badges and per-user caps.
-  const collOwned: Record<string, { unlocked: boolean; bundles: number }> = {
-    white: { unlocked: whiteCollectionUnlocked, bundles: whiteCollectionBundles },
-    earth: { unlocked: earthCollectionUnlocked, bundles: earthCollectionBundles },
-    black: { unlocked: blackCollectionUnlocked, bundles: blackCollectionBundles },
-    supernova: { unlocked: supernovaCollectionUnlocked, bundles: supernovaCollectionBundles },
-  };
 
   const refreshSunStock = async () => {
     if (!telegramId) return;
@@ -209,15 +191,13 @@ export function ShopPage({
     refreshSunStock();
     refreshHome();
     refreshSlotPrice();
-    refreshCollStocks();
     const id = setInterval(() => {
       if (document.hidden) return;
       refreshSunStock();
       refreshHome();
       refreshSlotPrice();
-      refreshCollStocks();
     }, 20000);
-    const onRefresh = () => { refreshHome(); refreshSlotPrice(); refreshCollStocks(); };
+    const onRefresh = () => { refreshHome(); refreshSlotPrice(); };
     window.addEventListener("zoom-data-refresh", onRefresh);
     return () => {
       clearInterval(id);
@@ -239,6 +219,7 @@ export function ShopPage({
   void sunSoldOut;
   void sunUserMaxed;
   void sunDisabled;
+  void home;
 
   // Track pending refresh timers so we can cancel them on unmount and
   // avoid background network traffic if the user navigates away.
@@ -344,40 +325,47 @@ export function ShopPage({
     }
   };
 
-  const purchaseItem = async (item: ShopItem) => {
-    if (item.id === "extra_slot") {
-      if (!telegramId) { setMessage(t("shop.telegramIdMissing")); return; }
-      if (depositBalance + tonBalance < 0.25) {
-        setMessage("Need 0.25 GRAM");
-        return;
-      }
-      setBuying(item.id);
-      const res = await buyShopItemFromDeposit(telegramId, "extra_slot");
-      setBuying(null);
-      if (res.ok) {
-        setMessage("Extra slot unlocked (−0.25 GRAM)");
-        triggerDataRefresh();
-        refreshSlotPrice();
-      } else {
-        setMessage(res.error || "Need 0.25 GRAM");
-      }
+  const handleZmcBuy = async (item: ShopItem) => {
+    if (!telegramId) { setMessage(t("shop.telegramIdMissing")); return; }
+    if (!connected || !walletAddress) {
+      setMessage(t("shop.connectWalletForZmc"));
       return;
     }
-    if (item.type === "zoom_pack" && payMode === "gram") {
-      if (!telegramId) { setMessage(t("shop.telegramIdMissing")); return; }
-      if (depositBalance + tonBalance < item.tonPrice) {
-        setMessage(`Need ${item.tonPrice.toFixed(2)} GRAM`);
+    const price = zmcPriceForItem(item);
+    if (zmcBalance < price) {
+      setMessage(t("shop.needZmc", { n: String(price) }));
+      return;
+    }
+    setBuying(item.id);
+    try {
+      const result = await payShopItemWithZmc({
+        telegramId,
+        itemId: item.id,
+        walletAddress,
+        sendTransaction: (tx) => tonConnectUI.sendTransaction(tx),
+      });
+      if (result.pending) {
+        setMessage(t("shop.zmcPending"));
+        triggerDataRefresh();
         return;
       }
-      setBuying(item.id);
-      const res = await buyShopItemFromDeposit(telegramId, item.id);
-      setBuying(null);
-      if (res.ok) {
-        setMessage(`${item.title} purchased! (−${item.tonPrice.toFixed(2)} GRAM)`);
+      if (result.ok) {
+        setMessage(`${item.title} purchased! (−${(result.priceZmc ?? price).toLocaleString()} $ZMC)`);
         triggerDataRefresh();
+        if (item.id === "extra_slot") refreshSlotPrice();
       } else {
-        setMessage(res.error || `Need ${item.tonPrice.toFixed(2)} GRAM`);
+        setMessage(result.error || t("shop.purchaseFailed"));
       }
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : t("shop.paymentCancelled"));
+    } finally {
+      setBuying(null);
+    }
+  };
+
+  const purchaseItem = async (item: ShopItem) => {
+    if (item.id === "extra_slot" || (item.type === "zoom_pack" && payMode === "zmc")) {
+      await handleZmcBuy(item);
       return;
     }
     if (payMode === "stars") await handleStarsBuy(item);
@@ -439,18 +427,18 @@ export function ShopPage({
             {t("shop.payStars")}
           </button>
           <button
-            onClick={() => setPayMode("gram")}
+            onClick={() => setPayMode("zmc")}
             className="flex-1 py-2.5 rounded-lg text-[10px] font-black tracking-wider transition-all active:scale-[0.98]"
             style={{
-              background: payMode === "gram" ? "linear-gradient(135deg, rgba(158,197,232,0.22), rgba(56,189,248,0.10))" : "transparent",
-              color: payMode === "gram" ? CYAN : "rgba(255,255,255,0.35)",
-              border: payMode === "gram" ? "1px solid rgba(158,197,232,0.35)" : "1px solid transparent",
-              boxShadow: payMode === "gram" ? "0 0 14px rgba(158,197,232,0.12)" : "none",
+              background: payMode === "zmc" ? "linear-gradient(135deg, rgba(158,197,232,0.22), rgba(56,189,248,0.10))" : "transparent",
+              color: payMode === "zmc" ? CYAN : "rgba(255,255,255,0.35)",
+              border: payMode === "zmc" ? "1px solid rgba(158,197,232,0.35)" : "1px solid transparent",
+              boxShadow: payMode === "zmc" ? "0 0 14px rgba(158,197,232,0.12)" : "none",
             }}
           >
             <span className="inline-flex items-center justify-center gap-1">
-              <GramDiamondIcon size={12} />
-              {t("shop.payGram")}
+              <ZoomCubeIcon size={12} />
+              {t("shop.payZmc")}
             </span>
           </button>
           <button
@@ -469,6 +457,11 @@ export function ShopPage({
         {payMode === "stardust" && (
           <div className="mt-2 text-[10px] font-bold text-center" style={{ color: "rgba(158,197,232,0.55)" }}>
             {t("shop.stardustIndexNote", { n: stardustIndex.toFixed(3) })}
+          </div>
+        )}
+        {payMode === "zmc" && (
+          <div className="mt-2 text-[10px] font-bold text-center" style={{ color: "rgba(158,197,232,0.55)" }}>
+            {t("shop.zmcNote")}
           </div>
         )}
       </div>
@@ -547,13 +540,14 @@ export function ShopPage({
 
           {ZOOM_PACKS.map((item) => {
             const sdCost = stardustPriceForItem(item);
+            const zmcCost = zmcPriceForItem(item);
             const priceLabel = payMode === "stars"
               ? `${item.starsPrice} ⭐`
-              : payMode === "gram"
-                ? `${item.tonPrice.toFixed(2)} GRAM`
+              : payMode === "zmc"
+                ? `${zmcCost.toLocaleString()} $ZMC`
                 : `${sdCost.toLocaleString()} ★`;
-            const priceSub = payMode === "stars" ? "STARS" : payMode === "gram" ? "GRAM" : "STARDUST";
-            const priceColor = payMode === "stars" ? "#ffd700" : payMode === "gram" ? CYAN : "#ffd740";
+            const priceSub = payMode === "stars" ? "STARS" : payMode === "zmc" ? "$ZMC" : "STARDUST";
+            const priceColor = payMode === "stars" ? "#ffd700" : payMode === "zmc" ? CYAN : "#ffd740";
             return (
               <div
                 key={item.id}
@@ -601,12 +595,11 @@ export function ShopPage({
             );
           })}
 
-          {payMode !== "stars" && (() => {
+          {(() => {
             const item = EXTRA_SLOT_ITEM;
             const gramPrice = slotPrice?.nextPriceTon ?? item.tonPrice;
+            const zmcCost = Math.round(gramPrice * GRAM_TO_ZMC);
             const owned = slotPrice?.bonusSlots ?? 0;
-            const maxPrice = slotPrice?.maxPriceTon ?? 1;
-            const atCap = gramPrice >= maxPrice;
             return (
               <div
                 key={item.id}
@@ -623,16 +616,15 @@ export function ShopPage({
                   <div className="flex-1 min-w-0">
                     <div className="font-black text-sm" style={{ color: item.color }}>{item.title}</div>
                     <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-                      Unlock 1 extra Farm slot · 0.25 GRAM
+                      Unlock 1 extra Farm slot · {zmcCost} $ZMC
                     </div>
                     <div className="text-[10px] mt-1 font-bold tracking-wider" style={{ color: "rgba(255,51,85,0.7)" }}>
                       {owned > 0 ? `Extra slots owned: ${owned}` : "First extra slot"}
-                      {atCap ? " · max price" : ""}
                     </div>
                   </div>
                   <div className="flex-shrink-0 text-right">
-                    <div className="font-black text-base" style={{ color: "#9EC5E8" }}>{gramPrice.toFixed(2)}</div>
-                    <div className="text-xs opacity-70" style={{ color: "#9EC5E8" }}>GRAM</div>
+                    <div className="font-black text-base" style={{ color: CYAN }}>{zmcCost.toLocaleString()}</div>
+                    <div className="text-xs opacity-70" style={{ color: CYAN }}>$ZMC</div>
                   </div>
                 </div>
                 <div style={{ borderTop: `1px solid ${item.color}15` }}>
@@ -647,8 +639,8 @@ export function ShopPage({
                     }}
                   >
                     {buying === item.id
-                      ? "Processing..."
-                      : `BUY — ${gramPrice.toFixed(2)} GRAM`}
+                      ? t("shop.processing")
+                      : `BUY — ${zmcCost.toLocaleString()} $ZMC`}
                   </button>
                 </div>
               </div>

@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from "react";
-import { useTonAddress } from "@tonconnect/ui-react";
+import { useTonAddress, useTonConnectUI } from "@tonconnect/ui-react";
 import type { CollectibleItem } from "../utils/collectibleConfig";
 import { FarmInventoryCard } from "../components/FarmInventoryCard";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
 import { isFarmActive, farmSlotUsedCount } from "../hooks/useGameState";
-import { buyShopItemFromDeposit, syncActiveFarms } from "../utils/api";
+import { payShopItemWithZmc, syncActiveFarms } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 import PvPModal from "../components/PvPModal";
 import { getPlanetDisplayName } from "../utils/planetNames";
@@ -235,7 +235,8 @@ export function FarmPage({
   const [detailPlanet, setDetailPlanet] = useState<Planet | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const sellerWallet = useTonAddress();
-  const { vipLevel } = useZmcStatus(telegramId);
+  const [tonConnectUI] = useTonConnectUI();
+  const { vipLevel, zmcBalance, connected } = useZmcStatus(telegramId);
   void _items;
   void _onSellItem;
   void _onUnlistItem;
@@ -453,20 +454,41 @@ export function FarmPage({
                 setTimeout(() => setDefectMsg(null), 2500);
                 return;
               }
-              if (depositBalance + tonBalance < 0.25) {
-                setDefectMsg("Need 0.25 GRAM");
+              if (!connected || !sellerWallet) {
+                setDefectMsg("Connect TON wallet in Wallet to pay with $ZMC");
+                setTimeout(() => setDefectMsg(null), 2500);
+                return;
+              }
+              if (zmcBalance < 25) {
+                setDefectMsg("Need 25 $ZMC");
                 setTimeout(() => setDefectMsg(null), 2500);
                 return;
               }
               setSlotBuying(true);
-              const res = await buyShopItemFromDeposit(telegramId, "extra_slot");
-              setSlotBuying(false);
-              if (res.ok) {
-                onSlotUnlocked?.();
-                window.dispatchEvent(new Event("zoom-data-refresh"));
-              } else {
-                setDefectMsg(res.error || "Unlock failed");
+              try {
+                const res = await payShopItemWithZmc({
+                  telegramId,
+                  itemId: "extra_slot",
+                  walletAddress: sellerWallet,
+                  sendTransaction: (tx) => tonConnectUI.sendTransaction(tx),
+                });
+                if (res.pending) {
+                  setDefectMsg("Waiting for on-chain $ZMC confirmation…");
+                  setTimeout(() => setDefectMsg(null), 4000);
+                  return;
+                }
+                if (res.ok) {
+                  onSlotUnlocked?.();
+                  window.dispatchEvent(new Event("zoom-data-refresh"));
+                } else {
+                  setDefectMsg(res.error || "Unlock failed");
+                  setTimeout(() => setDefectMsg(null), 2800);
+                }
+              } catch (err) {
+                setDefectMsg(err instanceof Error ? err.message : "TON Connect cancelled");
                 setTimeout(() => setDefectMsg(null), 2800);
+              } finally {
+                setSlotBuying(false);
               }
             }}
           >

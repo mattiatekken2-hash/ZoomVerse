@@ -3077,6 +3077,87 @@ export async function confirmZmcMarketBuy(params: {
   }
 }
 
+export async function fetchShopZmcIntent(
+  telegramId: string,
+  itemId: string,
+  walletAddress: string,
+): Promise<{ ok: boolean; messages?: Array<{ address: string; amount: string; payload: string }>; priceZmc?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/shop/zmc/intent`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, itemId, walletAddress }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: typeof data?.error === "string" ? data.error : `HTTP ${res.status}` };
+    return data;
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function confirmShopZmcBuy(params: {
+  telegramId: string;
+  itemId: string;
+  walletAddress: string;
+  boc: string;
+}): Promise<{
+  ok: boolean;
+  pending?: boolean;
+  alreadyCredited?: boolean;
+  itemName?: string;
+  zoomAmount?: number;
+  priceZmc?: number;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(`${API_BASE}/shop/zmc/confirm`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(params),
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ...data, ok: !!data?.ok && (res.ok || data?.alreadyCredited) };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function payShopItemWithZmc(opts: {
+  telegramId: string;
+  itemId: string;
+  walletAddress: string;
+  sendTransaction: (tx: {
+    validUntil: number;
+    messages: Array<{ address: string; amount: string; payload: string }>;
+  }) => Promise<{ boc: string }>;
+}): Promise<{ ok: boolean; pending?: boolean; priceZmc?: number; itemName?: string; error?: string }> {
+  const intent = await fetchShopZmcIntent(opts.telegramId, opts.itemId, opts.walletAddress);
+  if (!intent.ok || !intent.messages?.length) {
+    return { ok: false, error: intent.error ?? "Cannot build $ZMC payment" };
+  }
+  const txResult = await opts.sendTransaction({
+    validUntil: Math.floor(Date.now() / 1000) + 300,
+    messages: intent.messages,
+  });
+  let result = await confirmShopZmcBuy({
+    telegramId: opts.telegramId,
+    itemId: opts.itemId,
+    walletAddress: opts.walletAddress,
+    boc: txResult.boc,
+  });
+  for (let i = 0; i < 4 && result.pending; i++) {
+    await new Promise((r) => setTimeout(r, 4000));
+    result = await confirmShopZmcBuy({
+      telegramId: opts.telegramId,
+      itemId: opts.itemId,
+      walletAddress: opts.walletAddress,
+      boc: txResult.boc,
+    });
+  }
+  return result;
+}
+
 // Ask the server to post a listing to the community group (looping planet
 // animation + stats + deep-link button). Returns ok plus the generated deep
 // link, or an error string the UI surfaces in a toast.

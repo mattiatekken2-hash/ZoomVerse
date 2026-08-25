@@ -151,6 +151,8 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/ton/confirm",
       "/shop/buy-deposit",
       "/shop/buy-stardust",
+      "/shop/zmc/intent",
+      "/shop/zmc/confirm",
       "/voxel-studio/save",
       "/voxel-studio/buy-slot",
       "/stardust/convert-deposit",
