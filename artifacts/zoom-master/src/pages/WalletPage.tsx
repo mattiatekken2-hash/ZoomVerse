@@ -524,8 +524,6 @@ export function WalletPage({
         <StardustMarketModal
           telegramId={telegramId ?? null}
           walletBalance={shownStardustBalance}
-          depositBalance={depositBalance}
-          earnedGramBalance={tonBalance}
           onClose={() => setStardustMarketOpen(false)}
           onBalanceChange={(next) => {
             commitStickyWalletBalance("stardust", next);

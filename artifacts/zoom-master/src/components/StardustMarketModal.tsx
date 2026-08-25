@@ -1,5 +1,5 @@
 /**
- * StardustMarketModal — compact STARDUST index, chart, convert & stake.
+ * StardustMarketModal — compact STARDUST index, chart, and stake.
  * Opens from Wallet when tapping the STARDUST balance row.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -13,7 +13,6 @@ import {
   YAxis,
 } from "recharts";
 import {
-  convertDepositToStardust,
   fetchStardustMarketHistory,
   fetchStardustMarketPrice,
   fetchStardustStakeState,
@@ -23,8 +22,6 @@ import {
   unstakeStardust,
   type StardustChartPoint,
 } from "../utils/api";
-import { gramToStardustPreview } from "../utils/stardustMarket";
-import { GramDiamondIcon } from "./GramDiamondIcon";
 import { useT } from "../i18n/LanguageContext";
 
 const REFRESH_MS = 5_000;
@@ -33,8 +30,6 @@ const CYAN = "#9EC5E8";
 interface Props {
   telegramId: string | null;
   walletBalance: number;
-  depositBalance: number;
-  earnedGramBalance: number;
   onClose: () => void;
   onBalanceChange?: (balance: number) => void;
 }
@@ -55,8 +50,6 @@ function formatTime(ts: number): string {
 export function StardustMarketModal({
   telegramId,
   walletBalance,
-  depositBalance,
-  earnedGramBalance,
   onClose,
   onBalanceChange,
 }: Props) {
@@ -71,29 +64,13 @@ export function StardustMarketModal({
   const [stakedValue, setStakedValue] = useState(0);
   const [pnl, setPnl] = useState(0);
   const [balance, setBalance] = useState(walletBalance);
-  const [liveDeposit, setLiveDeposit] = useState(depositBalance);
-  const [liveEarned, setLiveEarned] = useState(earnedGramBalance);
   const [amount, setAmount] = useState("");
-  const [convertGram, setConvertGram] = useState("");
   const [busy, setBusy] = useState(false);
-  const [convertBusy, setConvertBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [convertMsg, setConvertMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(!(cachedHistory?.points?.length));
   const [chartReady, setChartReady] = useState(false);
   const [canWithdraw, setCanWithdraw] = useState(false);
   const [lockDaysRemaining, setLockDaysRemaining] = useState(0);
-  const [tab, setTab] = useState<"convert" | "stake">("convert");
-
-  useEffect(() => {
-    setLiveDeposit(depositBalance);
-  }, [depositBalance]);
-
-  useEffect(() => {
-    setLiveEarned(earnedGramBalance);
-  }, [earnedGramBalance]);
-
-  const convertibleGram = liveDeposit + liveEarned;
 
   const refresh = useCallback(async () => {
     const [price, history] = await Promise.all([
@@ -226,50 +203,6 @@ export function StardustMarketModal({
     void refresh();
   };
 
-  const convertPreview = useMemo(() => {
-    const g = parseFloat(convertGram);
-    if (!Number.isFinite(g) || g <= 0) return 0;
-    return gramToStardustPreview(g, index);
-  }, [convertGram, index]);
-
-  const handleConvert = async () => {
-    if (!telegramId || convertBusy) return;
-    const g = parseFloat(convertGram);
-    if (!Number.isFinite(g) || g <= 0) {
-      setConvertMsg(t("stardustMarket.invalidGram"));
-      return;
-    }
-    if (g > convertibleGram) {
-      setConvertMsg(t("stardustMarket.notEnoughGram", { n: convertibleGram.toFixed(4) }));
-      return;
-    }
-    setConvertBusy(true);
-    setConvertMsg(null);
-    const res = await convertDepositToStardust(telegramId, g);
-    setConvertBusy(false);
-    if (!res.ok) {
-      setConvertMsg(res.error ?? t("stardustMarket.convertFailed"));
-      return;
-    }
-    setConvertGram("");
-    setConvertMsg(t("stardustMarket.convertSuccess", { n: (res.stardustReceived ?? 0).toLocaleString() }));
-    if (typeof res.stardustBalance === "number") {
-      setBalance(res.stardustBalance);
-      onBalanceChange?.(res.stardustBalance);
-    }
-    if (typeof res.depositBalance === "number") setLiveDeposit(res.depositBalance);
-    if (typeof res.tonBalance === "number") setLiveEarned(res.tonBalance);
-    window.dispatchEvent(new CustomEvent("zoom-gram-balance-snap", {
-      detail: {
-        depositBalance: res.depositBalance,
-        tonBalance: res.tonBalance,
-        balanceEpoch: res.balanceEpoch,
-      },
-    }));
-    window.dispatchEvent(new CustomEvent("stardust-refresh"));
-    void refresh();
-  };
-
   const pctChange = genesis > 0 ? ((index - genesis) / genesis) * 100 : 0;
 
   const inputStyle = {
@@ -365,139 +298,69 @@ export function StardustMarketModal({
           )}
         </div>
 
-        {/* Tab toggle */}
-        <div className="px-4 pt-2 pb-2 flex gap-2 flex-shrink-0">
-          {(["convert", "stake"] as const).map((id) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setTab(id)}
-              className="flex-1 py-2 rounded-lg text-[10px] font-black tracking-wider uppercase"
-              style={{
-                background: tab === id ? (id === "convert" ? "rgba(0,136,255,0.15)" : "rgba(255,215,64,0.12)") : "rgba(255,255,255,0.04)",
-                border: tab === id ? `1px solid ${id === "convert" ? "rgba(0,136,255,0.35)" : "rgba(255,215,64,0.30)"}` : "1px solid rgba(255,255,255,0.06)",
-                color: tab === id ? (id === "convert" ? "#0088ff" : "#ffd740") : "rgba(255,255,255,0.35)",
-              }}
-            >
-              {id === "convert" ? t("stardustMarket.tabConvert") : t("stardustMarket.tabStake")}
-            </button>
-          ))}
-        </div>
-
-        {/* Action panel */}
-        <div className="px-4 pb-4 flex-1 overflow-y-auto min-h-0">
-          {tab === "convert" ? (
-            <div className="rounded-xl p-3" style={{ background: "rgba(0,136,255,0.06)", border: "1px solid rgba(0,136,255,0.15)" }}>
-              <div className="flex items-center justify-between mb-2 text-[10px]">
-                <span className="flex items-center gap-1.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-                  <GramDiamondIcon size={14} /> {t("stardustMarket.available")}
-                </span>
-                <span style={{ color: "#0088ff", fontWeight: 800 }}>{convertibleGram.toFixed(4)} GRAM</span>
-              </div>
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="number"
-                  min={0.01}
-                  step={0.01}
-                  placeholder={t("stardustMarket.gramPlaceholder")}
-                  value={convertGram}
-                  onChange={(e) => setConvertGram(e.target.value)}
-                  className="flex-1 rounded-lg px-3 py-2 text-sm font-bold"
-                  style={inputStyle}
-                />
-                <button
-                  type="button"
-                  disabled={convertBusy || convertibleGram <= 0}
-                  onClick={() => setConvertGram(String(Math.max(0.01, Math.floor(convertibleGram * 100) / 100)))}
-                  className="px-3 rounded-lg text-[10px] font-black"
-                  style={{ background: "rgba(0,136,255,0.12)", color: "#0088ff", border: "1px solid rgba(0,136,255,0.22)" }}
-                >
-                  {t("common.max")}
-                </button>
-              </div>
-              {convertPreview > 0 && (
-                <div className="text-[10px] font-bold mb-2" style={{ color: "rgba(255,215,64,0.75)" }}>
-                  ≈ {convertPreview.toLocaleString()} ★
-                </div>
-              )}
+        {/* Stake */}
+        <div className="px-4 pt-2 pb-4 flex-1 overflow-y-auto min-h-0">
+          <div className="rounded-xl p-3" style={{ background: "rgba(255,215,64,0.05)", border: "1px solid rgba(255,215,64,0.15)" }}>
+            <div className="flex justify-between mb-2 text-[10px]">
+              <span style={{ color: "rgba(255,255,255,0.4)" }}>{t("stardustMarket.walletLabel")}</span>
+              <span style={{ color: "#ffd740", fontWeight: 800 }}>{balance.toLocaleString()} ★</span>
+            </div>
+            <div className="text-[10px] mb-2" style={{ color: pnl >= 0 ? "#69f0ae" : "#ff8a80" }}>
+              {t("stardustMarket.pnlLocked", {
+                pnl: `${pnl >= 0 ? "+" : ""}${pnl.toLocaleString()}`,
+                n: staked.toLocaleString(),
+              })}
+            </div>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="number"
+                min={1}
+                placeholder={t("stardustMarket.stakePlaceholder")}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="flex-1 rounded-lg px-3 py-2 text-sm font-bold"
+                style={{ ...inputStyle, border: "1px solid rgba(255,215,64,0.22)" }}
+              />
               <button
                 type="button"
-                disabled={convertBusy || !telegramId}
-                onClick={() => { void handleConvert(); }}
-                className="w-full py-2.5 rounded-lg text-xs font-black"
-                style={{ background: "linear-gradient(135deg, #0088ff, #0066cc)", color: "#fff" }}
+                disabled={busy || !telegramId}
+                onClick={() => setAmount(String(balance))}
+                className="px-3 rounded-lg text-[10px] font-black"
+                style={{ background: "rgba(255,215,64,0.10)", color: "#ffd740", border: "1px solid rgba(255,215,64,0.22)" }}
               >
-                {t("stardustMarket.convertBtn")}
+                {t("common.max")}
               </button>
-              {convertMsg && (
-                <div className="mt-2 text-center text-[10px] font-bold" style={{ color: convertMsg.startsWith("✓") ? "#69f0ae" : "#ff8a80" }}>
-                  {convertMsg}
-                </div>
-              )}
             </div>
-          ) : (
-            <div className="rounded-xl p-3" style={{ background: "rgba(255,215,64,0.05)", border: "1px solid rgba(255,215,64,0.15)" }}>
-              <div className="flex justify-between mb-2 text-[10px]">
-                <span style={{ color: "rgba(255,255,255,0.4)" }}>{t("stardustMarket.walletLabel")}</span>
-                <span style={{ color: "#ffd740", fontWeight: 800 }}>{balance.toLocaleString()} ★</span>
-              </div>
-              <div className="text-[10px] mb-2" style={{ color: pnl >= 0 ? "#69f0ae" : "#ff8a80" }}>
-                {t("stardustMarket.pnlLocked", {
-                  pnl: `${pnl >= 0 ? "+" : ""}${pnl.toLocaleString()}`,
-                  n: staked.toLocaleString(),
-                })}
-              </div>
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="number"
-                  min={1}
-                  placeholder={t("stardustMarket.stakePlaceholder")}
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="flex-1 rounded-lg px-3 py-2 text-sm font-bold"
-                  style={{ ...inputStyle, border: "1px solid rgba(255,215,64,0.22)" }}
-                />
-                <button
-                  type="button"
-                  disabled={busy || !telegramId}
-                  onClick={() => setAmount(String(balance))}
-                  className="px-3 rounded-lg text-[10px] font-black"
-                  style={{ background: "rgba(255,215,64,0.10)", color: "#ffd740", border: "1px solid rgba(255,215,64,0.22)" }}
-                >
-                  {t("common.max")}
-                </button>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={busy || !telegramId}
-                  onClick={() => { void handleStake(); }}
-                  className="flex-1 py-2.5 rounded-lg text-xs font-black"
-                  style={{ background: "linear-gradient(135deg, #ffd740, #ffb300)", color: "#1a1000" }}
-                >
-                  {t("stardustMarket.stakeBtn")}
-                </button>
-                <button
-                  type="button"
-                  disabled={busy || !telegramId || staked <= 0 || !canWithdraw}
-                  onClick={() => { void handleUnstakeAll(); }}
-                  className="flex-1 py-2.5 rounded-lg text-xs font-black"
-                  style={{
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    color: canWithdraw ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.35)",
-                  }}
-                >
-                  {staked <= 0 ? t("stardustMarket.withdraw") : canWithdraw ? t("stardustMarket.withdrawAll") : t("stardustMarket.lockDays", { n: lockDaysRemaining })}
-                </button>
-              </div>
-              {msg && (
-                <div className="mt-2 text-center text-[10px] font-bold" style={{ color: msg.startsWith("✓") ? "#69f0ae" : "#ff8a80" }}>
-                  {msg}
-                </div>
-              )}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={busy || !telegramId}
+                onClick={() => { void handleStake(); }}
+                className="flex-1 py-2.5 rounded-lg text-xs font-black"
+                style={{ background: "linear-gradient(135deg, #ffd740, #ffb300)", color: "#1a1000" }}
+              >
+                {t("stardustMarket.stakeBtn")}
+              </button>
+              <button
+                type="button"
+                disabled={busy || !telegramId || staked <= 0 || !canWithdraw}
+                onClick={() => { void handleUnstakeAll(); }}
+                className="flex-1 py-2.5 rounded-lg text-xs font-black"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  color: canWithdraw ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.35)",
+                }}
+              >
+                {staked <= 0 ? t("stardustMarket.withdraw") : canWithdraw ? t("stardustMarket.withdrawAll") : t("stardustMarket.lockDays", { n: lockDaysRemaining })}
+              </button>
             </div>
-          )}
+            {msg && (
+              <div className="mt-2 text-center text-[10px] font-bold" style={{ color: msg.startsWith("✓") ? "#69f0ae" : "#ff8a80" }}>
+                {msg}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>,
