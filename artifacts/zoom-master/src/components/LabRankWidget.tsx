@@ -267,6 +267,8 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "center",
+            overflowY: "auto",
+            WebkitOverflowScrolling: "touch",
             padding: "calc(env(safe-area-inset-top, 0px) + 130px) 14px calc(env(safe-area-inset-bottom, 0px) + 80px)",
           }}
           data-testid="modal-lab-rank"
@@ -277,9 +279,8 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
               position: "relative",
               width: "100%",
               maxWidth: 440,
-              maxHeight: "calc(100vh - 220px)",
-              overflowY: "auto",
-              WebkitOverflowScrolling: "touch",
+              maxHeight: "none",
+              overflow: "visible",
               background:
                 "radial-gradient(120% 80% at 50% -10%, rgba(0,180,255,0.22), transparent 55%), linear-gradient(180deg, #071018 0%, #04080e 100%)",
               border: `1px solid ${CYAN}40`,

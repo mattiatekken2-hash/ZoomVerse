@@ -201,7 +201,6 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
     methods: ["GET"],
     paths: [
       "/lottery/state",
-      "/lab-rank/state",
       "/referral/friends",
       "/room-invites/inbox",
       "/room-invites/visitors",

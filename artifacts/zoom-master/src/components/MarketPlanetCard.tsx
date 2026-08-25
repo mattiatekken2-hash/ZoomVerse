@@ -151,7 +151,7 @@ export function MarketPlanetCard({
           {hideGl ? (
             <div style={{ width: 132, height: 132, flexShrink: 0 }} aria-hidden />
           ) : (
-            <PlanetVoxelThumb planet={fakePlanet} size={132} animate eager />
+            <PlanetVoxelThumb planet={fakePlanet} size={132} animate />
           )}
         </div>
         <span className="lab-market-card__path">
