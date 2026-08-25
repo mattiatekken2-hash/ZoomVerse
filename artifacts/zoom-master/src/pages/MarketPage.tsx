@@ -410,21 +410,27 @@ export function MarketPage({
   };
 
   const activityViews: MarketPlanetListingView[] = sales
-    .filter((s) => labMarketPathForPlanet({
-      shapeId: (s as MarketSale & { shapeId?: string | null }).shapeId,
-      displayName: (s as MarketSale & { planetDisplayName?: string | null }).planetDisplayName,
-    }))
+    .filter((s) => s.kind !== "equipment" && s.kind !== "item")
     .map((s) => {
+      const classified = classifyListing({
+        shapeId: s.shapeId,
+        displayName: s.planetDisplayName,
+        rate: s.planetRate,
+      });
       const ago = Math.max(0, Math.floor((Date.now() - s.soldAt) / 1000));
       const agoLabel = ago < 60 ? `${ago}s ago` : ago < 3600 ? `${Math.floor(ago / 60)}m ago` : `${Math.floor(ago / 3600)}h ago`;
       return {
         id: `sale-${s.id}`,
         price: s.price,
-        rate: s.planetRate,
+        rate: classified.rate || s.planetRate,
         seller: s.sellerName,
         isOwn: false,
-        displayName: deterministicNameFromId(`sale-${s.id}`),
-        shapeId: (s as MarketSale & { shapeId?: string | null }).shapeId ?? null,
+        displayName: classified.displayName,
+        shapeId: classified.shapeId,
+        modelId: s.modelId ?? null,
+        marketPath: classified.marketPath,
+        priceCurrency: parseMarketPriceCurrency(s.priceCurrency),
+        planetType: s.planetType,
         _status: `${s.buyerName} bought · ${agoLabel}`,
         _pulse: pulseId === s.id,
         _saleId: s.id,

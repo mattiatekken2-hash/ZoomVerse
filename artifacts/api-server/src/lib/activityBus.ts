@@ -5,7 +5,7 @@ export interface MarketSaleEvent {
   // 'planet' (default, legacy) or 'equipment'. Lets the live-activity
   // feed render the correct card variant — planet orb vs pixel-art
   // equipment icon — without joining back to the listing row.
-  kind?: "planet" | "equipment";
+  kind?: "planet" | "equipment" | "item";
   // Planet fields — populated when kind='planet'. Nullable for equipment
   // sales so the SSE payload stays one consistent shape.
   planetType: string | null;
@@ -25,6 +25,11 @@ export interface MarketSaleEvent {
   // the buyer saw on the marketplace card. Null for non-floatable types
   // (Earth/SUN/V1_NFT) or legacy listings without a stored snapshot.
   planetFloat?: number | null;
+  /** Lab model identity — live feed must show Flower, not a generic planet. */
+  shapeId?: string | null;
+  planetDisplayName?: string | null;
+  modelId?: string | null;
+  priceCurrency?: string | null;
 }
 
 export interface BoxOpenEvent {

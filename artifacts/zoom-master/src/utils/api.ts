@@ -2701,17 +2701,18 @@ export async function claimDailyReward(telegramId: string, firstName?: string): 
 
 export interface MarketSale {
   id: number;
-  planetType: "BASIC" | "RARE" | "EPIC" | "GOLD";
+  kind?: "planet" | "equipment" | "item" | null;
+  planetType: "BASIC" | "RARE" | "EPIC" | "GOLD" | string | null;
   planetRate: number;
   price: number;
   sellerName: string;
   buyerName: string;
   soldAt: number;
-  // CS:GO-style perfection score snapshotted from the listing. Null for
-  // non-floatable types (Earth/SUN/V1_NFT) or legacy sales without a
-  // stored snapshot — in that case the UI falls back to the
-  // deterministic-from-id helper.
   planetFloat?: number | null;
+  shapeId?: string | null;
+  planetDisplayName?: string | null;
+  modelId?: string | null;
+  priceCurrency?: "zmc" | "gram" | "zoom" | "stardust" | null;
 }
 
 export async function fetchMarketSales(): Promise<MarketSale[]> {
