@@ -15,14 +15,20 @@ export function isSyntheticTelegramId(id: string | null | undefined): boolean {
   return typeof id === "string" && id.startsWith(SYNTHETIC_ID_PREFIX);
 }
 
-export const SYNTHETIC_PLAYERS = [
-  { id: `${SYNTHETIC_ID_PREFIX}01`, name: "Gio", photo: "/avatars/synth-alex.svg", zoom: 178, labPoints: 1 },
-  { id: `${SYNTHETIC_ID_PREFIX}02`, name: "chiara", photo: "/avatars/synth-mila.svg", zoom: 156, labPoints: 1 },
-  { id: `${SYNTHETIC_ID_PREFIX}03`, name: "Niko.", photo: "/avatars/synth-diego.svg", zoom: 134, labPoints: 1 },
-  { id: `${SYNTHETIC_ID_PREFIX}04`, name: "Lory", photo: "/avatars/synth-kenji.svg", zoom: 112, labPoints: 1 },
-  { id: `${SYNTHETIC_ID_PREFIX}05`, name: "m4rco", photo: "/avatars/synth-sara.svg", zoom: 88, labPoints: 1 },
-  { id: `${SYNTHETIC_ID_PREFIX}06`, name: "Vale", photo: "/avatars/synth-omar.svg", zoom: 61, labPoints: 1 },
-] as const;
+export const SYNTHETIC_PLAYERS: ReadonlyArray<{
+  id: string;
+  name: string;
+  photo: string | null;
+  zoom: number;
+  labPoints: number;
+}> = [
+  { id: `${SYNTHETIC_ID_PREFIX}01`, name: "Gio", photo: null, zoom: 178, labPoints: 1 },
+  { id: `${SYNTHETIC_ID_PREFIX}02`, name: "chiara", photo: "/avatars/synth-chiara.svg", zoom: 156, labPoints: 1 },
+  { id: `${SYNTHETIC_ID_PREFIX}03`, name: "Niko.", photo: null, zoom: 134, labPoints: 1 },
+  { id: `${SYNTHETIC_ID_PREFIX}04`, name: "Lory", photo: "/avatars/synth-lory.svg", zoom: 112, labPoints: 1 },
+  { id: `${SYNTHETIC_ID_PREFIX}05`, name: "m4rco", photo: null, zoom: 88, labPoints: 1 },
+  { id: `${SYNTHETIC_ID_PREFIX}06`, name: "Vale", photo: "/avatars/synth-vale.svg", zoom: 61, labPoints: 1 },
+];
 
 export function syntheticPlayerCount(): number {
   return SYNTHETIC_LEADERBOARD_ENABLED ? SYNTHETIC_PLAYERS.length : 0;
