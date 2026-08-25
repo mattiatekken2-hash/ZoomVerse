@@ -5,6 +5,9 @@ import { useT } from "../i18n/LanguageContext";
 import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
 import { GramDiamondIcon } from "../components/GramDiamondIcon";
 import { patchShopPrefetch, readShopPrefetch } from "../utils/shopPrefetch";
+import { useZmcStatus } from "../hooks/useZmcStatus";
+import { ZMC_STONFI_BUY, openExternalUrl } from "../utils/zmcToken";
+import { VIP_BASE_THRESHOLD, VIP_PRO_THRESHOLD } from "@workspace/game-models";
 
 const CYAN = "#9EC5E8";
 
@@ -103,6 +106,7 @@ export function ShopPage({
   const { t } = useT();
   void sunCount;
   void balance;
+  const { vipLevel } = useZmcStatus(telegramId ?? null);
   const shopPrefetch = readShopPrefetch(telegramId);
   const [buying, setBuying] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -472,6 +476,72 @@ export function ShopPage({
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="flex flex-col gap-3">
           <div className="font-black text-sm tracking-widest uppercase mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
+            VIP · $ZMC
+          </div>
+          {([
+            {
+              id: "base" as const,
+              title: "VIP Base",
+              hold: VIP_BASE_THRESHOLD,
+              perk: t("shop.vipBasePerk"),
+              active: vipLevel === "BASE" || vipLevel === "PRO",
+              buyLabel: t("shop.vipBaseCta"),
+              accent: "#c0c8d8",
+            },
+            {
+              id: "pro" as const,
+              title: "VIP Pro / Whale",
+              hold: VIP_PRO_THRESHOLD,
+              perk: t("shop.vipProPerk"),
+              active: vipLevel === "PRO",
+              buyLabel: t("shop.vipProCta"),
+              accent: "#ffd740",
+            },
+          ]).map((card) => (
+            <div
+              key={card.id}
+              className="rounded-2xl border overflow-hidden"
+              style={{ borderColor: card.accent + "40", background: card.accent + "08" }}
+            >
+              <div className="flex items-start gap-4 p-4">
+                <div
+                  className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center font-black"
+                  style={{ background: card.accent + "22", border: `1px solid ${card.accent}55`, color: card.accent }}
+                >
+                  {card.id === "pro" ? "★" : "VIP"}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <div className="font-black text-sm" style={{ color: card.accent }}>{card.title}</div>
+                    {card.active && (
+                      <span
+                        className="text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full"
+                        style={{ background: "rgba(46,213,115,0.18)", color: "#7bed9f", border: "1px solid rgba(46,213,115,0.35)" }}
+                      >
+                        {t("shop.vipActive")}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.5)" }}>{card.perk}</div>
+                  <div className="text-[10px] mt-1 font-bold" style={{ color: "rgba(255,255,255,0.32)" }}>
+                    {card.hold.toLocaleString()} $ZMC
+                  </div>
+                </div>
+              </div>
+              {!card.active && (
+                <button
+                  type="button"
+                  onClick={() => openExternalUrl(ZMC_STONFI_BUY)}
+                  className="w-full py-3 font-black text-xs tracking-wider uppercase"
+                  style={{ background: card.accent + "14", color: card.accent, borderTop: `1px solid ${card.accent}22` }}
+                >
+                  {card.buyLabel}
+                </button>
+              )}
+            </div>
+          ))}
+
+          <div className="font-black text-sm tracking-widest uppercase mb-1 mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
             {t("shop.section.packsItems")}
           </div>
 

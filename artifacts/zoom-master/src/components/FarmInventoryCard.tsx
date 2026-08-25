@@ -33,6 +33,7 @@ interface FarmInventoryCardProps {
   listedActionLabel?: string;
   /** Disable Remove when Farm slots are full. */
   listedActionDisabled?: boolean;
+  vipLevel?: "NONE" | "BASE" | "PRO";
 }
 
 const PATH_THEME: Record<LabMarketPath, { accent: string; glow: string; label: string; yieldUnit: string }> = {
@@ -66,6 +67,7 @@ export function FarmInventoryCard({
   hideActions = false,
   listedActionLabel,
   listedActionDisabled = false,
+  vipLevel = "NONE",
 }: FarmInventoryCardProps) {
   const { t } = useT();
   const glPaused = useGlThumbsPaused();
@@ -191,8 +193,10 @@ export function FarmInventoryCard({
                 }}
                 data-testid={`btn-reactivate-${planet.id}`}
               >
-                <span>{t("farm.reactivate").toUpperCase()}</span>
-                <span className="farm-inventory-card__reactivate-cost">{t("farm.reactivateCost")}</span>
+                <span>{vipLevel === "PRO" ? t("farm.reactivateFreeVipPro") : t("farm.reactivate").toUpperCase()}</span>
+                <span className="farm-inventory-card__reactivate-cost">
+                  {vipLevel === "PRO" ? t("farm.reactivateCostVipPro") : t("farm.reactivateCost")}
+                </span>
               </button>
             ) : (
               <button

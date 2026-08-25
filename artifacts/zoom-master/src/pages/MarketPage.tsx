@@ -1,14 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
+import { useTonAddress, useTonConnectUI } from "@tonconnect/ui-react";
 import { MarketPlanetCard, type MarketPlanetListingView } from "../components/MarketPlanetCard";
 import { MyMarketListingsWidget } from "../components/MyMarketListingsWidget";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
-import { buyFromMarket, shareListing, openMarketActivityStream, fetchMyMarketListings, type MarketSale, type ServerMarketListing } from "../utils/api";
+import { buyFromMarket, openMarketActivityStream, fetchMyMarketListings, fetchZmcBuyIntent, confirmZmcMarketBuy, type MarketSale, type ServerMarketListing } from "../utils/api";
 import { useGlobalStore, pushMarketSale, refreshMarketListings, upsertMarketListing } from "../store/globalStore";
 import { isPlanetBurned, isPlanetDelisted } from "../utils/removedPlanets";
 import { getPlanetDisplayName, deterministicNameFromId } from "../utils/planetNames";
 import { useT } from "../i18n/LanguageContext";
-import { captureMarketGlbLoopGif } from "../utils/captureMarketGlbLoop";
-import { labForgeShapeHasGlbReveal } from "@workspace/game-models";
 import {
   labMarketPathForPlanet,
   labModelDisplayName,
@@ -35,7 +34,7 @@ interface MarketPageProps {
     pricePaid: number,
     planetFloat?: number | null,
     model?: { modelId?: string | null; shapeId?: string | null; modelName?: string | null } | null,
-    opts?: { currency?: "gram" | "zoom" | "stardust"; listingId?: number },
+    opts?: { currency?: "zmc" | "gram" | "zoom" | "stardust"; listingId?: number },
   ) => void;
   /** @deprecated Lab market no longer lists equipment */
   onBuyEquipment?: (listing: unknown) => Promise<{ success: boolean; reason?: string }>;
@@ -109,6 +108,8 @@ export function MarketPage({
   revealKey = 0,
 }: MarketPageProps) {
   const { t } = useT();
+  const walletAddress = useTonAddress();
+  const [tonConnectUI] = useTonConnectUI();
   const [filter, setFilter] = useState<MarketFilter>("all");
   const [toast, setToast] = useState<Toast | null>(null);
   const serverListings = useGlobalStore((s) => s.marketListings);
@@ -116,7 +117,6 @@ export function MarketPage({
   const initialized = useGlobalStore((s) => s.initialized);
   const [tab, setTab] = useState<"listings" | "mine" | "activity">("listings");
   const [pulseId, setPulseId] = useState<number | null>(null);
-  const [sharingId, setSharingId] = useState<number | null>(null);
   const [highlightId, setHighlightId] = useState<number | null>(null);
   const [myServerListings, setMyServerListings] = useState<ServerMarketListing[]>([]);
   const loading = !initialized && serverListings.length === 0 && myServerListings.length === 0;
@@ -124,29 +124,6 @@ export function MarketPage({
   const showToast = (text: string, ok: boolean) => {
     setToast({ text, ok });
     setTimeout(() => setToast(null), 2500);
-  };
-
-  const handleShare = async (serverId: number) => {
-    if (!telegramId || sharingId != null) return;
-    setSharingId(serverId);
-    try {
-      const listing = allDisplayListings.find((l) => l.serverId === serverId);
-      const shapeId = listing?.shapeId || null;
-      let animationGifBase64: string | undefined;
-      try {
-        if (shapeId && labForgeShapeHasGlbReveal(shapeId)) {
-          animationGifBase64 = (await captureMarketGlbLoopGif(shapeId)) ?? undefined;
-        }
-      } catch (err) {
-        console.warn("[market-share] gif capture failed, posting without animation", err);
-      }
-      const res = await shareListing(telegramId, serverId, { animationGifBase64, shapeId });
-      showToast(res.ok ? t("market.shareSuccess") : t("market.shareFailed"), res.ok);
-    } catch {
-      showToast(t("market.shareFailed"), false);
-    } finally {
-      setSharingId(null);
-    }
   };
 
   useEffect(() => {
@@ -254,7 +231,7 @@ export function MarketPage({
         farmDurationHours: (p.farmDurationHours ?? 1) > 1 ? p.farmDurationHours : null,
         shapeId: classified.shapeId,
         planetType: p.name,
-        priceCurrency: p.marketCurrency ?? "gram",
+        priceCurrency: p.marketCurrency ?? "zmc",
         marketPath: classified.marketPath,
         planetId: p.id,
       });
@@ -342,7 +319,12 @@ export function MarketPage({
     const currency = parseMarketPriceCurrency(
       allDisplayListings.find((l) => l.serverId === serverId)?.priceCurrency,
     );
-    if (currency === "gram") {
+    if (currency === "zmc") {
+      if (!walletAddress) {
+        showToast("Connect TON wallet to pay in $ZMC", false);
+        return;
+      }
+    } else if (currency === "gram") {
       if (depositBalance + earnedBalance < price) {
         showToast("Not enough GRAM", false);
         return;
@@ -360,7 +342,45 @@ export function MarketPage({
       showToast("No free farm slots", false);
       return;
     }
-    const result = await buyFromMarket(telegramId, serverId);
+
+    let result: Awaited<ReturnType<typeof buyFromMarket>> & { pending?: boolean };
+    if (currency === "zmc") {
+      const intent = await fetchZmcBuyIntent(telegramId, serverId, walletAddress);
+      if (!intent.ok || !intent.messages?.length) {
+        showToast(intent.error ?? "Cannot build $ZMC payment", false);
+        return;
+      }
+      try {
+        const txResult = await tonConnectUI.sendTransaction({
+          validUntil: Math.floor(Date.now() / 1000) + 300,
+          messages: intent.messages,
+        });
+        result = await confirmZmcMarketBuy({
+          buyerTelegramId: telegramId,
+          listingId: serverId,
+          walletAddress,
+          boc: txResult.boc,
+        });
+        for (let i = 0; i < 4 && result.pending; i++) {
+          await new Promise((r) => setTimeout(r, 4000));
+          result = await confirmZmcMarketBuy({
+            buyerTelegramId: telegramId,
+            listingId: serverId,
+            walletAddress,
+            boc: txResult.boc,
+          });
+        }
+        if (result.pending) {
+          showToast("Waiting for on-chain $ZMC confirmation… retry from Market shortly", false);
+          return;
+        }
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : "TON Connect cancelled", false);
+        return;
+      }
+    } else {
+      result = await buyFromMarket(telegramId, serverId);
+    }
     if (result.ok) {
       const finalFloat = typeof result.planetFloat === "number" ? result.planetFloat : planetFloat;
       const modelMeta = {
@@ -416,7 +436,7 @@ export function MarketPage({
       <header className="lab-market__header px-5 pt-4 pb-3 flex-shrink-0">
         <p className="lab-market__kicker">P2P · Generators</p>
         <h2 className="lab-market__title">{t("market.title")}</h2>
-        <p className="lab-market__sub">Buy or sell Lab models that farm $ZOOM or ★ Stardust.</p>
+        <p className="lab-market__sub">Buy or sell Lab models in $ZMC. 5% platform fee to treasury.</p>
 
         <div className="lab-market__tabs" role="tablist">
           <button
@@ -519,7 +539,9 @@ export function MarketPage({
               {filtered.map((listing) => {
                 const currency = parseMarketPriceCurrency(listing.priceCurrency);
                 const canAfford =
-                  currency === "gram"
+                  currency === "zmc"
+                    ? true
+                    : currency === "gram"
                     ? depositBalance + earnedBalance >= listing.price
                     : currency === "zoom"
                       ? zoomBalance >= listing.price
@@ -536,7 +558,6 @@ export function MarketPage({
                     canBuy={canBuy}
                     highlighted={isFocused}
                     suspendGl={!visible}
-                    sharing={sharingId === listing.serverId}
                     onBuy={() => {
                       if (listing.serverId) {
                         handleBuyServer(
@@ -570,11 +591,6 @@ export function MarketPage({
                               || myListings.find((p) => p.id === listing.id)?.id;
                             if (planetId) onUnlist(planetId);
                           }
-                        : undefined
-                    }
-                    onShare={
-                      listing.serverId != null && listing.isOwn
-                        ? () => handleShare(listing.serverId as number)
                         : undefined
                     }
                   />

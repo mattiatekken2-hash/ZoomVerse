@@ -116,19 +116,28 @@ router.post("/farm/reactivate", async (req, res) => {
 
   try {
     const result = await db.transaction(async (tx) => {
-      // Atomically deduct 1 redstar — only succeeds if balance >= 1.
-      const rows = await tx.execute(sql`
-        UPDATE users
-           SET red_star_balance = red_star_balance - 1
-         WHERE telegram_id = ${telegramId}
-           AND red_star_balance >= 1
-        RETURNING red_star_balance
-      `);
-      const updated = (rows as unknown as { rows: Array<{ red_star_balance: number }> }).rows;
-      if (!updated || updated.length === 0) {
-        return null; // insufficient REDSTAR
+      const [vipRow] = await tx
+        .select({ vipLevel: usersTable.vipLevel, redStarBalance: usersTable.redStarBalance })
+        .from(usersTable)
+        .where(eq(usersTable.telegramId, telegramId))
+        .limit(1);
+      const isPro = (vipRow?.vipLevel ?? "NONE") === "PRO";
+
+      let newRedStarBalance = vipRow?.redStarBalance ?? 0;
+      if (!isPro) {
+        const rows = await tx.execute(sql`
+          UPDATE users
+             SET red_star_balance = red_star_balance - 1
+           WHERE telegram_id = ${telegramId}
+             AND red_star_balance >= 1
+          RETURNING red_star_balance
+        `);
+        const updated = (rows as unknown as { rows: Array<{ red_star_balance: number }> }).rows;
+        if (!updated || updated.length === 0) {
+          return null;
+        }
+        newRedStarBalance = updated[0]!.red_star_balance;
       }
-      const newRedStarBalance = updated[0]!.red_star_balance;
 
       // Upsert farm cycle with the (possibly upgraded) duration.
       await tx

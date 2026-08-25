@@ -276,6 +276,13 @@ export const usersTable = pgTable("users", {
   // ─────────────────────────────────────────────────────────────────────
   isDisabled: boolean("is_disabled").notNull().default(false),
 
+  // Connected TON wallet (user-friendly) + cached on-chain $ZMC VIP.
+  // Refreshed when the Mini App syncs via TON Connect; never mixed with
+  // off-chain ZOOM Points (`zoom_balance`).
+  tonWalletAddress: text("ton_wallet_address"),
+  vipLevel: text("vip_level").notNull().default("NONE"),
+  zmcBalanceNano: text("zmc_balance_nano").notNull().default("0"),
+
   // Monotonic write-time used to fence out stale saves of `planets_json`.
   // The save endpoint rejects any incoming write whose `client_write_at_ms`
   // is <= the stored value. Using the client's clock is fine because a
@@ -478,7 +485,8 @@ export const marketListingsTable = pgTable("market_listings", {
   // Lab generators use fractional rates (e.g. pizza 3.5 $ZOOM/h).
   planetRate: real("planet_rate"),
   price: real("price").notNull(),
-  priceCurrency: text("price_currency").notNull().default("gram"),
+  priceCurrency: text("price_currency").notNull().default("zmc"),
+  sellerWalletAddress: text("seller_wallet_address"),
   status: text("status").notNull().default("active"),
   buyerTelegramId: text("buyer_telegram_id"),
   // Equipment snapshot. Anchored to a specific item in the seller's

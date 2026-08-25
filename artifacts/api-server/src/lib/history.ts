@@ -15,6 +15,7 @@ export type HistoryCurrency =
   | "stars"
   | "spins"
   | "planet"
+  | "zmc"
   | "none";
 
 export interface RecordHistoryParams {

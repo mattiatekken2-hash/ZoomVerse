@@ -63,6 +63,38 @@ async function seedDefaults(): Promise<void> {
   } catch (err) {
     logger.warn({ err }, "[ensure-db] season rank snapshot skipped");
   }
+
+  try {
+    await db.execute(sql`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS ton_wallet_address text,
+        ADD COLUMN IF NOT EXISTS vip_level text NOT NULL DEFAULT 'NONE',
+        ADD COLUMN IF NOT EXISTS zmc_balance_nano text NOT NULL DEFAULT '0'
+    `);
+    await db.execute(sql`
+      ALTER TABLE market_listings
+        ADD COLUMN IF NOT EXISTS seller_wallet_address text
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS treasury_ledger (
+        id serial PRIMARY KEY,
+        tx_hash text NOT NULL,
+        type text NOT NULL,
+        amount_zmc real NOT NULL,
+        user_id text,
+        timestamp timestamp NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_treasury_tx_hash ON treasury_ledger (tx_hash)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_treasury_user ON treasury_ledger (user_id)
+    `);
+    logger.info("[ensure-db] treasury ledger / VIP / seller wallet columns OK");
+  } catch (err) {
+    logger.warn({ err }, "[ensure-db] treasury/VIP schema skipped");
+  }
 }
 
 /**

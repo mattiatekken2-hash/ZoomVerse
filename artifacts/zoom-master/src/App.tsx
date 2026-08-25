@@ -879,8 +879,8 @@ function AppShellWithState() {
                   onStartSunFarming={startSunFarming}
                   onStopSunFarming={stopSunFarming}
                   onBurnSun={burnSun}
-                  onSell={(id, price, currency) => {
-                    listPlanet(id, price, currency);
+                  onSell={(id, price, currency, sellerWallet) => {
+                    listPlanet(id, price, currency, sellerWallet);
                     setMarketRevealKey((n) => n + 1);
                     setTab("market");
                   }}

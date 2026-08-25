@@ -2055,6 +2055,7 @@ export interface LeaderboardEntry {
   firstName: string;
   photoUrl: string | null;
   zoomBalance: number;
+  vipLevel?: "NONE" | "BASE" | "PRO" | null;
 }
 
 export interface StarsCatalogItem {
@@ -2778,7 +2779,7 @@ export interface ServerMarketListing {
   /** Client/server Lab path so All / $ZOOM / ★ Stardust filters stay in sync. */
   marketPath?: "zoom" | "stardust" | null;
   price: number;
-  priceCurrency?: "gram" | "zoom" | "stardust" | null;
+  priceCurrency?: "zmc" | "gram" | "zoom" | "stardust" | null;
   status: string;
   createdAt: string;
   lastActivatedAt?: string | null;
@@ -2803,7 +2804,7 @@ function normalizeMarketListing(raw: ServerMarketListing & Record<string, unknow
     planetRate: Number.isFinite(planetRate as number) ? planetRate : raw.planetRate ?? null,
     planetId: (raw.planetId ?? raw.planet_id ?? null) as string | null,
     sellerTelegramId: String(raw.sellerTelegramId ?? raw.seller_telegram_id ?? "").trim(),
-    priceCurrency: (raw.priceCurrency ?? raw.price_currency ?? "gram") as ServerMarketListing["priceCurrency"],
+    priceCurrency: (raw.priceCurrency ?? raw.price_currency ?? "zmc") as ServerMarketListing["priceCurrency"],
     marketPath: raw.marketPath === "stardust" || raw.marketPath === "zoom" ? raw.marketPath : null,
     status: String(raw.status ?? "active"),
   };
@@ -2878,7 +2879,8 @@ export async function listOnMarket(params: {
   /** Lab forge shape (pizza/flower/dollar/stardust_pot) — snapshotted on the listing. */
   shapeId?: string;
   displayName?: string;
-  priceCurrency?: "gram" | "zoom" | "stardust";
+  priceCurrency?: "zmc" | "gram" | "zoom" | "stardust";
+  sellerWalletAddress?: string;
 }): Promise<{ ok: boolean; listing?: ServerMarketListing; error?: string }> {
   try {
     const res = await fetch(`${API_BASE}/market/list`, {
@@ -2926,6 +2928,103 @@ export async function buyFromMarket(buyerTelegramId: string, listingId: number):
       body: JSON.stringify({ buyerTelegramId, listingId }),
     });
     return res.json();
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export interface ZmcAirdropPreview {
+  zoomPoints: number;
+  totalGlobalZoomPoints: number;
+  treasuryZmc: number;
+  totalAirdropPool: number;
+  estimatedAirdropZmc: number;
+}
+
+export interface ZmcStatus {
+  ok: boolean;
+  vipLevel: "NONE" | "BASE" | "PRO";
+  zmcBalance: number;
+  zmcBalanceNano: string;
+  walletAddress: string | null;
+  airdrop: ZmcAirdropPreview;
+  error?: string;
+}
+
+export async function fetchZmcStatus(telegramId: string): Promise<ZmcStatus | null> {
+  try {
+    const res = await fetch(`${API_BASE}/zmc/status/${encodeURIComponent(telegramId)}`, {
+      headers: apiHeaders(),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.ok ? data as ZmcStatus : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function syncZmcWallet(telegramId: string, walletAddress: string): Promise<ZmcStatus | null> {
+  try {
+    const res = await fetch(`${API_BASE}/zmc/sync`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, walletAddress }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.ok ? data as ZmcStatus : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchZmcBuyIntent(
+  buyerTelegramId: string,
+  listingId: number,
+  walletAddress: string,
+): Promise<{ ok: boolean; messages?: Array<{ address: string; amount: string; payload: string }>; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/market/zmc/intent`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ buyerTelegramId, listingId, walletAddress }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: typeof data?.error === "string" ? data.error : `HTTP ${res.status}` };
+    return data;
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function confirmZmcMarketBuy(params: {
+  buyerTelegramId: string;
+  listingId: number;
+  walletAddress: string;
+  boc: string;
+}): Promise<{
+  ok: boolean;
+  pending?: boolean;
+  kind?: "planet" | "equipment" | "item";
+  planetType?: string | null;
+  planetRate?: number | null;
+  pricePaid?: number;
+  planetFloat?: number | null;
+  modelId?: string | null;
+  shapeId?: string | null;
+  modelName?: string | null;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(`${API_BASE}/market/zmc/confirm`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(params),
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ...data, ok: !!data?.ok && res.ok };
   } catch {
     return { ok: false, error: "Network error" };
   }

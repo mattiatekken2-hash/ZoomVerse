@@ -4,10 +4,9 @@ import {
   useStickyWalletBalance,
 } from "../hooks/useStickyWalletBalance";
 import { Lock } from "lucide-react";
-import { GramWalletPanel, GramWalletIcon, GramWalletConnectButton, type TonWalletProps } from "../components/TonWalletWidget";
+import { GramWalletPanel, GramWalletConnectButton, type TonWalletProps } from "../components/TonWalletWidget";
 import { StardustMarketModal } from "../components/StardustMarketModal";
 import { ZoomMarketModal } from "../components/ZoomMarketModal";
-import { GramChartModal } from "../components/GramChartModal";
 import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
 import { WalletStarIcon } from "../components/WalletStarIcon";
 import { useT } from "../i18n/LanguageContext";
@@ -18,16 +17,17 @@ import {
 } from "../utils/walletMarketCache";
 import {
   fetchGramMarketSnapshot,
-  readGramMarketCache,
   readGramSpotUsd,
   subscribeGramMarket,
 } from "../utils/gramMarket";
-import { pickWalletTonUsd, lockTonUsd, getLockedTonUsd, paintFrozenGramUsdt } from "../utils/displayTonUsd";
-import { formatChangePct, formatGramValueFull, formatZoomChartPrice, formatStardustChartIndex, formatGramChartUsd } from "../utils/wallet24hChange";
+import { pickWalletTonUsd, lockTonUsd, getLockedTonUsd } from "../utils/displayTonUsd";
+import { formatChangePct, formatGramValueFull, formatZoomChartPrice, formatStardustChartIndex } from "../utils/wallet24hChange";
+import { useZmcStatus } from "../hooks/useZmcStatus";
+import { formatZmcAmount } from "../utils/zmcToken";
 
 const LIVE_POLL_MS = 5_000;
 
-/** Lively white-sky blue for the GRAM wallet card. */
+/** Lively cyan for the $ZMC wallet card. */
 const GRAM_CELESTE = {
   main: "#C8EEFF",
   label: "rgba(200, 235, 255, 0.62)",
@@ -107,13 +107,13 @@ export function WalletPage({
   visible = true,
 }: WalletPageProps) {
   const { t } = useT();
+  const zmc = useZmcStatus(telegramId);
   const initialMarket = readWalletMarketCacheForDisplay();
   const initialTonUsd = pickWalletTonUsd();
   const [tonPrice, setTonPrice] = useState<number | null>(initialTonUsd);
   const [priceLoading, setPriceLoading] = useState(initialTonUsd == null);
   const [stardustMarketOpen, setStardustMarketOpen] = useState(false);
   const [zoomMarketOpen, setZoomMarketOpen] = useState(false);
-  const [gramChartOpen, setGramChartOpen] = useState(false);
   const [liveStardustBalance, setLiveStardustBalance] = useState(stardustBalance);
   const [zoomPriceGram, setZoomPriceGram] = useState<number | null>(initialMarket.zoomPriceGram);
   const [stardustIndex, setStardustIndex] = useState<number>(initialMarket.stardustIndex);
@@ -123,7 +123,6 @@ export function WalletPage({
   const [stardustChangePct, setStardustChangePct] = useState<number | null>(() =>
     initialMarket.stardustChange24hPct,
   );
-  const [gramChangePct, setGramChangePct] = useState<number | null>(null);
 
   const commitTonUsd = useCallback((usd: number) => {
     const locked = lockTonUsd(usd);
@@ -153,10 +152,6 @@ export function WalletPage({
   const applyGramMarket = useCallback(() => {
     const spot = readGramSpotUsd();
     if (spot != null) commitTonUsd(spot);
-    const gram = readGramMarketCache();
-    if (gram.change24hPct != null && Number.isFinite(gram.change24hPct)) {
-      setGramChangePct(gram.change24hPct);
-    }
   }, [commitTonUsd]);
 
   useEffect(() => {
@@ -196,22 +191,18 @@ export function WalletPage({
     return () => window.removeEventListener("zoom-data-refresh", onRefresh);
   }, []);
 
-  const gramTotal = Math.max(0, (tonBalance || 0) + (depositBalance || 0));
-  const shownGramTotal = useStickyWalletBalance(gramTotal, "gram");
   const shownZoomBalance = useStickyWalletBalance(balance, "zoom");
   const shownStardustBalance = useStickyWalletBalance(liveStardustBalance, "stardust");
   const shownRedStarBalance = useStickyWalletBalance(redStarBalance, "redStar");
   const shownNftStarBalance = useStickyWalletBalance(nftStarBalance, "nftStar");
-  const usdtValue = paintFrozenGramUsdt(shownGramTotal, tonPrice);
+  const zmcShown = zmc.connected || zmc.zmcBalance > 0 ? formatZmcAmount(zmc.zmcBalance) : "—";
+  const zmcVipLabel = zmc.vipLevel === "PRO" ? "VIP PRO" : zmc.vipLevel === "BASE" ? "VIP BASE" : "ON-CHAIN";
   const zoomGramValue = zoomPriceGram != null && shownZoomBalance > 0 ? shownZoomBalance * zoomPriceGram : null;
   const stardustGramValue = shownStardustBalance > 0
     ? (shownStardustBalance * stardustIndex) / 100
     : null;
-  // Under-icon: live chart unit (ZOOM micro-GRAM, Stardust index, GRAM = TON USD).
-  // Icons stay fixed size — % change is text-only under the icon.
   const zoomIconValue = formatZoomChartPrice(zoomPriceGram, true);
   const stardustIconValue = formatStardustChartIndex(stardustIndex);
-  const gramIconValue = formatGramChartUsd(tonPrice);
   const redStarGramValue = shownRedStarBalance > 0 ? shownRedStarBalance * REDSTAR_GRAM_PER_UNIT : null;
   const nftStarGramValue = shownNftStarBalance > 0 ? shownNftStarBalance * NFTSTAR_GRAM_PER_UNIT : null;
   const redStarIconValue = shownRedStarBalance > 0 && redStarGramValue != null
@@ -220,22 +211,12 @@ export function WalletPage({
   const nftStarIconValue = shownNftStarBalance > 0 && nftStarGramValue != null
     ? formatGramValueFull(nftStarGramValue)
     : formatGramValueFull(NFTSTAR_GRAM_PER_UNIT);
-  const priceLabel = tonPrice !== null
-    ? t("walletPage.liveRate", { price: tonPrice.toFixed(2) })
-    : t("walletPage.loadingRate");
 
   // Stable vault amount between 5 000 000 and 18 000 000
   const vaultZoom = useMemo(() => {
     const seed = telegramId ?? "default_seed_vault";
     return seededRange(seed, 5_000_000, 18_000_000);
   }, [telegramId]);
-
-  const handleGramPriceUpdate = useCallback((p: number, change24hPct: number | null) => {
-    commitTonUsd(p);
-    if (change24hPct != null && Number.isFinite(change24hPct)) {
-      setGramChangePct(change24hPct);
-    }
-  }, [commitTonUsd]);
 
   return (
     <div
@@ -247,7 +228,7 @@ export function WalletPage({
         <GramWalletConnectButton />
       </div>
 
-      {/* ── MAIN BALANCE: GRAM + deposit/withdraw chips overlaid ── */}
+      {/* ── MAIN BALANCE: $ZMC + STON.fi deposit/withdraw chips ── */}
       <div style={{ position: "relative" }}>
         <GramWalletPanel
           overlay
@@ -280,11 +261,10 @@ export function WalletPage({
             WebkitUserSelect: "none",
             userSelect: "none",
           }}
-          onClick={() => setGramChartOpen(true)}
-          data-testid="gram-balance-card"
+          onClick={() => setZoomMarketOpen(true)}
+          data-testid="zmc-balance-card"
           aria-label={t("walletPage.openChartAria")}
         >
-        {/* Label row */}
         <div
           style={{
             fontSize: 9,
@@ -300,7 +280,6 @@ export function WalletPage({
           {t("walletPage.gramBalance")}
         </div>
 
-        {/* Amount row — grid keeps GRAM and USDT from overlapping */}
         <div
           style={{
             display: "grid",
@@ -312,7 +291,7 @@ export function WalletPage({
           <div style={{ minWidth: 0 }}>
             <div
               style={{
-                fontSize: shownGramTotal >= 1000 ? 28 : 34,
+                fontSize: 32,
                 fontWeight: 900,
                 color: GRAM_CELESTE.main,
                 lineHeight: 1.1,
@@ -326,55 +305,9 @@ export function WalletPage({
                 overflow: "hidden",
               }}
             >
-              <span
-                style={{
-                  display: "inline-flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 2,
-                  flexShrink: 0,
-                }}
-              >
-                <span
-                  style={{
-                    display: "inline-flex",
-                  }}
-                >
-                  <GramWalletIcon size={shownGramTotal >= 1000 ? 28 : 32} />
-                </span>
-                <span
-                  style={{
-                    fontSize: 8,
-                    fontWeight: 700,
-                    color: "rgba(255,255,255,0.55)",
-                    fontVariantNumeric: "tabular-nums",
-                    letterSpacing: "0.01em",
-                    whiteSpace: "nowrap",
-                    lineHeight: 1.1,
-                  }}
-                >
-                  {gramIconValue}
-                </span>
-                <span
-                    style={{
-                      fontSize: 8,
-                      fontWeight: 800,
-                      color: gramChangePct == null
-                        ? "rgba(255,255,255,0.28)"
-                        : gramChangePct > 0
-                          ? "rgba(0,255,140,0.75)"
-                          : gramChangePct < 0
-                            ? "rgba(255,100,100,0.75)"
-                            : "rgba(255,255,255,0.35)",
-                      fontVariantNumeric: "tabular-nums",
-                      lineHeight: 1.1,
-                    }}
-                  >
-                    {gramChangePct == null ? "···" : formatChangePct(gramChangePct)}
-                  </span>
-              </span>
+              <ZoomCubeIcon size={32} />
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {shownGramTotal.toFixed(4)}
+                {zmcShown}
               </span>
             </div>
           </div>
@@ -390,28 +323,22 @@ export function WalletPage({
                 marginBottom: 2,
               }}
             >
-              {t("walletPage.approxUsdt")}
+              $ZMC
             </div>
             <div
               style={{
-                fontSize: 18,
+                fontSize: 13,
                 fontWeight: 900,
-                color: priceLoading ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.65)",
-                fontVariantNumeric: "tabular-nums",
-                letterSpacing: "-0.01em",
+                color: "rgba(255,255,255,0.65)",
+                letterSpacing: "0.04em",
                 whiteSpace: "nowrap",
               }}
             >
-              {priceLoading
-                ? "···"
-                : usdtValue !== null
-                  ? `$${usdtValue}`
-                  : "—"}
+              {zmcVipLabel}
             </div>
           </div>
         </div>
 
-        {/* Divider + price note */}
         <div
           style={{
             height: 1,
@@ -426,21 +353,10 @@ export function WalletPage({
             letterSpacing: "0.06em",
           }}
         >
-          {priceLabel} · {t("walletPage.tapForChart")}
+          {t("walletPage.zmcHeroHint")}
         </div>
         </button>
       </div>
-
-      {gramChartOpen && (
-        <GramChartModal
-          key="gram-chart-modal"
-          gramBalance={shownGramTotal}
-          depositBalance={0}
-          initialPrice={tonPrice}
-          onClose={() => setGramChartOpen(false)}
-          onPriceUpdate={handleGramPriceUpdate}
-        />
-      )}
 
       {/* ── ACTIVE BALANCES: Season 2 ── */}
       <div>
@@ -472,6 +388,12 @@ export function WalletPage({
             onClick={() => setZoomMarketOpen(true)}
             data-testid="wallet-zoom-balance"
           />
+          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.32)", marginTop: -6, paddingLeft: 4 }}>
+            {t("walletPage.zoomPointsHint")}
+            {zmc.airdrop.estimatedAirdropZmc > 0
+              ? ` · ${t("walletPage.airdropEst", { n: formatZoom(zmc.airdrop.estimatedAirdropZmc) })}`
+              : ""}
+          </div>
           <BalanceRow
             icon={<WalletStarIcon variant="stardust" size={BALANCE_ICON_SIZE} />}
             label={t("resources.stardust")}
@@ -588,7 +510,7 @@ export function WalletPage({
 
       {zoomMarketOpen && (
         <ZoomMarketModal
-          balance={balance}
+          balance={zmc.zmcBalance}
           onClose={() => setZoomMarketOpen(false)}
         />
       )}

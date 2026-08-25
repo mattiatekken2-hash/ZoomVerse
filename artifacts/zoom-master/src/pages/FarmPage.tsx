@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useTonAddress } from "@tonconnect/ui-react";
 import type { CollectibleItem } from "../utils/collectibleConfig";
 import { FarmInventoryCard } from "../components/FarmInventoryCard";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
@@ -8,8 +9,9 @@ import { buyShopItemFromDeposit, syncActiveFarms } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 import PvPModal from "../components/PvPModal";
 import { getPlanetDisplayName } from "../utils/planetNames";
-import { isLabForgeGeneratorPlanet, labForgeShapeHasGlbReveal, resolveLabShapeIdFromPlanet, MARKET_PRICE_BOUNDS, marketPriceLabel, suggestMarketPrice, isMarketPriceInRange, type MarketPriceCurrency } from "@workspace/game-models";
+import { isLabForgeGeneratorPlanet, labForgeShapeHasGlbReveal, resolveLabShapeIdFromPlanet, MARKET_PRICE_BOUNDS, suggestMarketPrice, isMarketPriceInRange } from "@workspace/game-models";
 import { preloadLabGlbBatch } from "../utils/labGlbCache";
+import { useZmcStatus } from "../hooks/useZmcStatus";
 
 interface FarmPageProps {
   planets: Planet[];
@@ -21,12 +23,12 @@ interface FarmPageProps {
   telegramId: string | null;
   onCollect: (id: string) => { defect: boolean };
   onBurn: (id: string) => void;
-  onStartFarming: (id: string) => { ok: boolean; reason?: string };
+  onStartFarming: (id: string, vipLevel?: "NONE" | "BASE" | "PRO") => { ok: boolean; reason?: string };
   onStopFarming: (id: string) => void;
   onStartSunFarming: () => { ok: boolean; reason?: string };
   onStopSunFarming: () => void;
   onBurnSun: () => void;
-  onSell: (id: string, price: number, currency?: "gram" | "zoom" | "stardust") => void;
+  onSell: (id: string, price: number, currency?: "zmc" | "gram" | "zoom" | "stardust", sellerWalletAddress?: string) => void;
   onUnlist: (id: string) => void;
   onRepair?: (id: string) => { ok: boolean; reason?: string };
   stardustBalance?: number;
@@ -227,12 +229,13 @@ export function FarmPage({
   const [confirmBurn, setConfirmBurn] = useState<string | null>(null);
   const [sellPopup, setSellPopup] = useState<SellPopup | null>(null);
   const [sellPrice, setSellPrice] = useState("");
-  const [sellCurrency, setSellCurrency] = useState<MarketPriceCurrency>("gram");
   const [slotBuying, setSlotBuying] = useState(false);
   const [defectMsg, setDefectMsg] = useState<string | null>(null);
   const [pvpPlanet, setPvPPlanet] = useState<Planet | null>(null);
   const [detailPlanet, setDetailPlanet] = useState<Planet | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const sellerWallet = useTonAddress();
+  const { vipLevel } = useZmcStatus(telegramId);
   void _items;
   void _onSellItem;
   void _onUnlistItem;
@@ -255,8 +258,7 @@ export function FarmPage({
   };
 
   const openSellPopup = (planet: Planet) => {
-    const suggested = suggestMarketPrice(planet.rate, "gram");
-    setSellCurrency("gram");
+    const suggested = suggestMarketPrice(planet.rate, "zmc");
     setSellPopup({
       planetId: planet.id,
       planetName: getPlanetDisplayName(planet),
@@ -271,13 +273,18 @@ export function FarmPage({
     if (!sellPopup) return;
     const price = parseFloat(sellPrice);
     if (!price || price <= 0) return;
-    if (!isMarketPriceInRange(price, sellCurrency)) {
-      const b = MARKET_PRICE_BOUNDS[sellCurrency];
-      setDefectMsg(`Price must be ${b.min}–${b.max} ${marketPriceLabel(sellCurrency)}`);
+    if (!isMarketPriceInRange(price, "zmc")) {
+      const b = MARKET_PRICE_BOUNDS.zmc;
+      setDefectMsg(`Price must be ${b.min}–${b.max.toLocaleString()} $ZMC`);
       setTimeout(() => setDefectMsg(null), 3000);
       return;
     }
-    onSell(sellPopup.planetId, price, sellCurrency);
+    if (!sellerWallet) {
+      setDefectMsg("Connect TON wallet to list in $ZMC");
+      setTimeout(() => setDefectMsg(null), 3000);
+      return;
+    }
+    onSell(sellPopup.planetId, price, "zmc", sellerWallet);
     setSellPopup(null);
     setSellPrice("");
   };
@@ -390,7 +397,7 @@ export function FarmPage({
 
             const handleStartOrReactivate = () => {
               if (isListed) return;
-              const res = onStartFarming(planet.id);
+              const res = onStartFarming(planet.id, vipLevel);
               if (!res.ok) {
                 setDefectMsg(res.reason ?? t("farm.cannotStartFarming"));
                 setTimeout(() => setDefectMsg(null), 1800);
@@ -408,6 +415,7 @@ export function FarmPage({
                 onCardClick={() => setDetailPlanet(planet)}
                 onStartFarm={handleStartOrReactivate}
                 onUnlist={() => onUnlist(planet.id)}
+                vipLevel={vipLevel}
               />
             );
           })}
@@ -494,39 +502,16 @@ export function FarmPage({
                 List {sellPopup.planetName}
               </div>
             </div>
-            <div className="flex gap-2 mb-4">
-              {(["gram", "zoom", "stardust"] as const).map((c) => {
-                const active = sellCurrency === c;
-                return (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => {
-                      setSellCurrency(c);
-                      setSellPrice(String(suggestMarketPrice(sellPopup.rate, c)));
-                    }}
-                    className="flex-1 py-2 rounded-xl text-[11px] font-black tracking-wider"
-                    style={{
-                      background: active ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)",
-                      color: active ? "#fff" : "rgba(255,255,255,0.4)",
-                      border: active ? `1px solid ${sellPopup.planetColor}88` : "1px solid rgba(255,255,255,0.08)",
-                    }}
-                  >
-                    {marketPriceLabel(c)}
-                  </button>
-                );
-              })}
-            </div>
             <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.4)" }}>
-              Min {MARKET_PRICE_BOUNDS[sellCurrency].min} – max {MARKET_PRICE_BOUNDS[sellCurrency].max} {marketPriceLabel(sellCurrency)} · 10% fee
+              Price in $ZMC · 5% fee to treasury (you receive 95%)
             </div>
             <div className="relative mb-2">
               <input
                 ref={inputRef}
                 type="number"
-                min={MARKET_PRICE_BOUNDS[sellCurrency].min}
-                max={MARKET_PRICE_BOUNDS[sellCurrency].max}
-                step={MARKET_PRICE_BOUNDS[sellCurrency].step}
+                min={MARKET_PRICE_BOUNDS.zmc.min}
+                max={MARKET_PRICE_BOUNDS.zmc.max}
+                step={MARKET_PRICE_BOUNDS.zmc.step}
                 value={sellPrice}
                 onChange={(e) => setSellPrice(e.target.value)}
                 className="w-full rounded-xl px-4 py-4 text-xl font-black pr-24 outline-none"
@@ -535,12 +520,12 @@ export function FarmPage({
                 inputMode="decimal"
               />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "rgba(255,255,255,0.35)" }}>
-                {marketPriceLabel(sellCurrency)}
+                $ZMC
               </span>
             </div>
             {sellPrice && parseFloat(sellPrice) > 0 && (
               <div className="text-xs mb-4 px-1" style={{ color: "rgba(255,255,255,0.35)" }}>
-                You receive ~{(parseFloat(sellPrice) * 0.9).toFixed(sellCurrency === "gram" ? 3 : 1)} {marketPriceLabel(sellCurrency)}
+                You receive ~{Math.round(parseFloat(sellPrice) * 0.95).toLocaleString()} $ZMC
               </div>
             )}
             <div className="flex gap-3 mt-4">
@@ -562,7 +547,7 @@ export function FarmPage({
                 onClick={confirmSell}
                 data-testid="btn-confirm-sell"
               >
-                List for {sellPrice ? parseFloat(sellPrice) : "—"} {marketPriceLabel(sellCurrency)}
+                List for {sellPrice ? parseFloat(sellPrice).toLocaleString() : "—"} $ZMC
               </button>
             </div>
           </div>
@@ -625,7 +610,7 @@ export function FarmPage({
           planets={planets}
           maxSlots={maxSlots}
           onClose={() => setDetailPlanet(null)}
-          onStartFarming={(id) => onStartFarming(id)}
+          onStartFarming={(id) => onStartFarming(id, vipLevel)}
           onPvP={(p) => {
             if (farmSlotUsedCount(planets) >= maxSlots) {
               setDefectMsg("Need a free farm slot for PvP");

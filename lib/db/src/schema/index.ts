@@ -7,3 +7,4 @@ export * from "./roomInvites";
 export * from "./redeemCodes";
 export * from "./history";
 export * from "./pvp";
+export * from "./treasury";

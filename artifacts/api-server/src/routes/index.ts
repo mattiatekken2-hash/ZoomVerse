@@ -40,6 +40,7 @@ import adsRouter from "./ads";
 import itemsRouter from "./items";
 import modelsRouter from "./models";
 import voxelStudioRouter from "./voxel-studio";
+import zmcRouter from "./zmc";
 
 // Boot-time DDL: ensure combo tracking column exists (idempotent).
 void ensureComboClaims();
@@ -161,6 +162,8 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/ton/deposit/confirm",
       "/obtained/record",
       "/earn/weekly-redstar/claim",
+      "/zmc/sync",
+      "/farm/reactivate",
     ],
     bindField: "telegramId",
   },
@@ -173,7 +176,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
   // Marketplace — buyer-initiated actions bind to buyerTelegramId
   {
     methods: ["POST"],
-    paths: ["/market/buy"],
+    paths: ["/market/buy", "/market/zmc/intent", "/market/zmc/confirm"],
     bindField: "buyerTelegramId",
   },
   // Marketplace — sharing a listing to the community group. Bind to telegramId
@@ -378,5 +381,6 @@ router.use(adsRouter);
 router.use(itemsRouter);
 router.use(modelsRouter);
 router.use(voxelStudioRouter);
+router.use(zmcRouter);
 
 export default router;

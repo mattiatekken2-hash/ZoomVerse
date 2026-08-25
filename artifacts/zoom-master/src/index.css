@@ -2967,7 +2967,6 @@ body.animations-paused * {
 }
 .lab-market-card__buy,
 .lab-market-card__delist,
-.lab-market-card__share,
 .lab-market-card__status {
   border-radius: 12px;
   font-size: 11px;
@@ -2995,11 +2994,6 @@ body.animations-paused * {
   opacity: 0.4;
   cursor: not-allowed;
   color: rgba(255, 255, 255, 0.4);
-}
-.lab-market-card__share {
-  border: 1px solid rgba(0, 180, 255, 0.3);
-  color: #36c5ff;
-  background: rgba(0, 180, 255, 0.08);
 }
 .lab-market-card__status {
   flex: 1;

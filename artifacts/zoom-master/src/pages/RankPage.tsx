@@ -271,6 +271,24 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                     ) : null}
                     <div className={isUser ? "flex-1 font-black text-sm" : "flex-1 font-bold text-sm"} style={{ color: isUser ? "#E8ECF4" : "rgba(255,255,255,0.58)" }}>
                       {displayName}
+                      {entry.vipLevel === "PRO" && (
+                        <span
+                          className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black tracking-wider align-middle"
+                          style={{ background: "rgba(255,215,64,0.18)", color: "#ffd740", border: "1px solid rgba(255,215,64,0.45)" }}
+                          title="VIP Pro / Whale"
+                        >
+                          WHALE
+                        </span>
+                      )}
+                      {entry.vipLevel === "BASE" && (
+                        <span
+                          className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black tracking-wider align-middle"
+                          style={{ background: "rgba(192,200,216,0.16)", color: "#c8d0dc", border: "1px solid rgba(192,200,216,0.4)" }}
+                          title="VIP Base"
+                        >
+                          VIP
+                        </span>
+                      )}
                       {isUser && !isPlaceholderRankName(entry.firstName) && (
                         <span className="text-xs opacity-40 ml-1">{t("rank.you")}</span>
                       )}

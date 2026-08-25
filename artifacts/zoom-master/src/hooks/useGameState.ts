@@ -102,7 +102,7 @@ export interface Planet {
   isListedInMarket: boolean;
   isFarmingActive: boolean;
   marketPrice: number | null;
-  marketCurrency?: "gram" | "zoom" | "stardust";
+  marketCurrency?: "zmc" | "gram" | "zoom" | "stardust";
   /** Client stamp when listed — drives the 1h My List timer before the server row lands. */
   marketListedAt?: number;
   craftCost: number;
@@ -4649,7 +4649,7 @@ export function useGameState() {
     });
   }, []);
 
-  const startFarming = useCallback((id: string): { ok: boolean; reason?: string } => {
+  const startFarming = useCallback((id: string, vipLevel: "NONE" | "BASE" | "PRO" = "NONE"): { ok: boolean; reason?: string } => {
     let outcome: { ok: boolean; reason?: string } = { ok: true };
     setState((prev) => {
       const planet = prev.planets.find((p) => p.id === id);
@@ -4672,7 +4672,7 @@ export function useGameState() {
       const expired = wasStarted && now - eff > getPlanetFarmDurationMs(planet);
       const isReactivation = wasStarted && expired;
       // Reactivation now costs 1 REDSTAR (not $ZOOM). First-time start is free.
-      const redStarCost = isReactivation ? 1 : 0;
+      const redStarCost = isReactivation ? (vipLevel === "PRO" ? 0 : 1) : 0;
       if (redStarCost > 0 && (prev.redStarBalance ?? 0) < redStarCost) {
         outcome = { ok: false, reason: "Need 1 ★ Redstar to reactivate" };
         return prev;
@@ -4766,7 +4766,7 @@ export function useGameState() {
     });
   }, []);
 
-  const listPlanet = useCallback((id: string, price: number, currency: "gram" | "zoom" | "stardust" = "gram") => {
+  const listPlanet = useCallback((id: string, price: number, currency: "zmc" | "gram" | "zoom" | "stardust" = "zmc", sellerWalletAddress?: string) => {
     setState((prev) => {
       const planet = prev.planets.find((p) => p.id === id);
       if (!planet) return prev;
@@ -4895,6 +4895,7 @@ export function useGameState() {
           shapeId,
           displayName: canonName ?? undefined,
           priceCurrency: currency,
+          sellerWalletAddress,
         };
 
         void (async () => {
@@ -5154,7 +5155,7 @@ export function useGameState() {
     pricePaid: number,
     planetFloat?: number | null,
     model?: { modelId?: string | null; shapeId?: string | null; modelName?: string | null } | null,
-    opts?: { currency?: "gram" | "zoom" | "stardust"; listingId?: number },
+    opts?: { currency?: "zmc" | "gram" | "zoom" | "stardust"; listingId?: number },
   ) => {
     const cfg = PLANET_CONFIG[planetType] ?? PLANET_CONFIG.BASIC;
     const now = serverNow();

@@ -1,5 +1,7 @@
 import { Router, type IRouter } from "express";
-import { db, pool, usersTable, marketListingsTable } from "@workspace/db";
+import { db, pool, usersTable, marketListingsTable, treasuryLedgerTable } from "@workspace/db";
+import type { MarketListing } from "@workspace/db/schema";
+import type { PoolClient } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -20,21 +22,20 @@ import {
   LAB_ZOOM_FARM_RATE,
   LAB_STARDUST_FARM_RATE,
   labModelDisplayName,
+  parseMarketPriceCurrency,
+  isMarketPriceInRange,
+  zmcHumanToNano,
+  splitMarketFeeNano,
+  type MarketPriceCurrency,
 } from "@workspace/game-models";
-
-type MarketPriceCurrency = "gram" | "zoom" | "stardust";
-const MARKET_BOUNDS: Record<MarketPriceCurrency, { min: number; max: number }> = {
-  gram: { min: 0.05, max: 2 },
-  zoom: { min: 8, max: 400 },
-  stardust: { min: 1, max: 25 },
-};
-function parseMarketPriceCurrency(v: unknown): MarketPriceCurrency {
-  return v === "zoom" || v === "stardust" ? v : "gram";
-}
-function isMarketPriceInRange(price: number, currency: MarketPriceCurrency): boolean {
-  const b = MARKET_BOUNDS[currency];
-  return Number.isFinite(price) && price >= b.min && price <= b.max;
-}
+import { toNano } from "@ton/core";
+import {
+  buildJettonTransferPayload,
+  fetchZmcJettonWallet,
+  friendlyAddress,
+  treasuryWallet,
+  verifyZmcSplitTransfer,
+} from "../lib/zmc";
 
 function canonicalLabFarmRate(shapeId: string | null | undefined): number | null {
   if (isLabZoomShapeId(shapeId)) return LAB_ZOOM_FARM_RATE[shapeId];
@@ -44,7 +45,8 @@ function canonicalLabFarmRate(shapeId: string | null | undefined): number | null
 
 const router: IRouter = Router();
 
-void pool.query(`ALTER TABLE market_listings ADD COLUMN IF NOT EXISTS price_currency text NOT NULL DEFAULT 'gram'`).catch(() => {});
+void pool.query(`ALTER TABLE market_listings ADD COLUMN IF NOT EXISTS price_currency text NOT NULL DEFAULT 'zmc'`).catch(() => {});
+void pool.query(`ALTER TABLE market_listings ADD COLUMN IF NOT EXISTS seller_wallet_address text`).catch(() => {});
 void pool.query(`DROP INDEX IF EXISTS uq_market_seller_planet_active_sold`).catch(() => {});
 void pool.query(`
   CREATE UNIQUE INDEX IF NOT EXISTS uq_market_seller_planet_active
@@ -165,7 +167,8 @@ const ListBody = z.object({
   planetType: z.enum(["BASIC", "RARE", "EPIC", "MYTHIC", "PLASMA", "GOLD", "V1", "V1_NFT", "MUSHROOM", "NOVA"]),
   planetRate: z.number().positive(),
   price: z.number().positive(),
-  priceCurrency: z.enum(["gram", "zoom", "stardust"]).optional(),
+  priceCurrency: z.enum(["zmc", "gram", "zoom", "stardust"]).optional(),
+  sellerWalletAddress: z.string().min(10).max(128).optional(),
   // Lab generators: client may send shapeId so the Market card/widget
   // still render even if planets_json is momentarily missing the field.
   shapeId: z.string().min(1).max(32).optional(),
@@ -220,12 +223,27 @@ router.post("/market/list", async (req, res) => {
     shapeId: bodyShapeId,
     displayName: bodyDisplayName,
     priceCurrency: bodyPriceCurrency,
+    sellerWalletAddress: bodySellerWallet,
   } = parsed.data;
 
-  const priceCurrency = parseMarketPriceCurrency(bodyPriceCurrency);
+  const priceCurrency = "zmc";
   if (!isMarketPriceInRange(price, priceCurrency)) {
-    res.status(400).json({ error: `Price out of range for ${priceCurrency}` });
+    res.status(400).json({ error: `Price out of range for $ZMC` });
     return;
+  }
+
+  let sellerWallet: string | null = null;
+  if (priceCurrency === "zmc") {
+    if (!bodySellerWallet) {
+      res.status(400).json({ error: "Connect TON wallet to list in $ZMC" });
+      return;
+    }
+    try {
+      sellerWallet = friendlyAddress(bodySellerWallet);
+    } catch {
+      res.status(400).json({ error: "Invalid seller TON wallet" });
+      return;
+    }
   }
 
   // Block disabled accounts from creating new listings. Cheap pre-check
@@ -429,6 +447,7 @@ router.post("/market/list", async (req, res) => {
           shapeId: shapeIdSnapshot,
           price,
           priceCurrency,
+          sellerWalletAddress: sellerWallet,
           status: "active",
           lastActivatedAt: new Date(),
         })
@@ -985,6 +1004,11 @@ router.post("/market/buy", async (req, res) => {
       [listingId],
     );
     const payCurrency: MarketPriceCurrency = parseMarketPriceCurrency(payCurRow.rows[0]?.price_currency);
+    if (payCurrency === "zmc") {
+      await client.query("ROLLBACK");
+      res.status(400).json({ error: "Pay this listing with TonConnect $ZMC" });
+      return;
+    }
     const priceAmt = Number(listing.price);
     const totalDebit = payCurrency === "stardust"
       ? Math.round(priceAmt)
@@ -1610,6 +1634,449 @@ router.post("/market/share", async (req, res) => {
   }
 
   res.json({ ok: true, deepLink });
+});
+
+async function applyMarketSaleInventory(
+  client: PoolClient,
+  listing: MarketListing,
+  buyerTelegramId: string,
+): Promise<{ buyerEquipmentId: string | null; isEquipmentListing: boolean; isItemListing: boolean }> {
+  const isEquipmentListing = listing.kind === "equipment";
+  const isItemListing = listing.kind === "item";
+  let buyerEquipmentId: string | null = null;
+  if (isItemListing && listing.equipmentId) {
+    const nowMs = Date.now();
+    await client.query(
+      `UPDATE users
+       SET items_json = COALESCE(
+         (SELECT jsonb_agg(e) FROM jsonb_array_elements(items_json) e WHERE e->>'id' != $2),
+         '[]'::jsonb
+       ),
+       items_updated_at_ms = GREATEST(items_updated_at_ms, $3::bigint)
+       WHERE telegram_id = $1`,
+      [listing.sellerTelegramId, listing.equipmentId, nowMs],
+    );
+    buyerEquipmentId = `item-mkt-${listing.id}-${nowMs}`;
+    const newItem = {
+      id: buyerEquipmentId,
+      type: listing.equipmentCategory,
+      rarity: listing.equipmentRarity,
+      rate: listing.equipmentRate,
+      createdAt: nowMs,
+      isListedInMarket: false,
+    };
+    await client.query(
+      `UPDATE users
+       SET items_json = COALESCE(items_json, '[]'::jsonb) || $2::jsonb,
+           items_updated_at_ms = GREATEST(items_updated_at_ms, $3::bigint)
+       WHERE telegram_id = $1`,
+      [buyerTelegramId, JSON.stringify([newItem]), nowMs],
+    );
+  } else if (isEquipmentListing && listing.equipmentId) {
+    const nowMs = Date.now();
+    await client.query(
+      `UPDATE users
+       SET equipment_json = COALESCE(
+         (SELECT jsonb_agg(e) FROM jsonb_array_elements(equipment_json) e WHERE e->>'id' != $2),
+         '[]'::jsonb
+       ),
+       equipment_updated_at_ms = GREATEST(equipment_updated_at_ms, $3::bigint)
+       WHERE telegram_id = $1`,
+      [listing.sellerTelegramId, listing.equipmentId, nowMs],
+    );
+    buyerEquipmentId = `mkt-${listing.id}-${nowMs}`;
+    const newItem = {
+      id: buyerEquipmentId,
+      category: listing.equipmentCategory,
+      rarity: listing.equipmentRarity,
+      rate: listing.equipmentRate,
+      createdAt: nowMs,
+      isFarmingActive: false,
+      farmStartedAt: 0,
+      lastCollectedAt: 0,
+      pausedAt: 0,
+      isListedInMarket: false,
+    };
+    await client.query(
+      `UPDATE users
+       SET equipment_json = COALESCE(equipment_json, '[]'::jsonb) || $2::jsonb,
+           equipment_updated_at_ms = GREATEST(equipment_updated_at_ms, $3::bigint)
+       WHERE telegram_id = $1`,
+      [buyerTelegramId, JSON.stringify([newItem]), nowMs],
+    );
+  } else if (listing.planetId) {
+    const nowMs = Date.now();
+    const planetTypeUpper = String(listing.planetType ?? "").toUpperCase();
+    const obtainedCol =
+      planetTypeUpper === "BASIC" ? "total_obtained_basic"
+        : planetTypeUpper === "RARE" ? "total_obtained_rare"
+        : planetTypeUpper === "EPIC" ? "total_obtained_epic"
+        : planetTypeUpper === "MYTHIC" ? "total_obtained_mythic"
+        : planetTypeUpper === "PLASMA" ? "total_obtained_plasma"
+        : planetTypeUpper === "GOLD" ? "total_obtained_gold"
+        : planetTypeUpper === "V1" ? "total_obtained_v1"
+        : null;
+
+    await client.query(
+      `UPDATE users
+       SET planets_json = COALESCE(
+         (SELECT jsonb_agg(p) FROM jsonb_array_elements(planets_json) p WHERE p->>'id' != $2),
+         '[]'::jsonb
+       ),
+       planets_updated_at_ms = GREATEST(planets_updated_at_ms, $3::bigint)
+       WHERE telegram_id = $1`,
+      [listing.sellerTelegramId, listing.planetId, nowMs],
+    );
+
+    const buyerPlanet = {
+      id: `bought-${listing.id}-${nowMs}`,
+      name: listing.planetType || "BASIC",
+      rate: Number(listing.planetRate ?? 0),
+      color: "#7bed9f",
+      glowColor: "#2ed573",
+      createdAt: nowMs,
+      farmStartedAt: 0,
+      lastCollectedAt: 0,
+      isListedInMarket: false,
+      isFarmingActive: false,
+      marketPrice: null,
+      craftCost: Number(listing.price ?? 0),
+      shapeId: listing.shapeId ?? null,
+      displayName: listing.planetDisplayName ?? null,
+      modelId: listing.modelId ?? null,
+      modelName: listing.planetDisplayName ?? null,
+      float: typeof listing.planetFloat === "number" ? listing.planetFloat : 0.5,
+      durability: 100,
+      durabilityUpdatedAt: nowMs,
+      farmDurationHours: listing.planetFarmDurationHours ?? 1,
+    };
+    await client.query(
+      `UPDATE users
+       SET planets_json = COALESCE(planets_json, '[]'::jsonb) || $2::jsonb,
+           planets_updated_at_ms = GREATEST(planets_updated_at_ms, $3::bigint)
+       WHERE telegram_id = $1`,
+      [buyerTelegramId, JSON.stringify([buyerPlanet]), nowMs],
+    );
+
+    if (obtainedCol) {
+      await client.query(
+        `UPDATE users SET ${obtainedCol} = ${obtainedCol} + 1 WHERE telegram_id = $1`,
+        [buyerTelegramId],
+      );
+    }
+  }
+  return { buyerEquipmentId, isEquipmentListing, isItemListing };
+}
+
+const ZmcIntentBody = z.object({
+  buyerTelegramId: z.string().min(1),
+  listingId: z.number().int().positive(),
+  walletAddress: z.string().min(10).max(128),
+});
+
+router.post("/market/zmc/intent", async (req, res) => {
+  const parsed = ZmcIntentBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body" });
+    return;
+  }
+  const { buyerTelegramId, listingId, walletAddress } = parsed.data;
+
+  try {
+    const [listing] = await db
+      .select()
+      .from(marketListingsTable)
+      .where(and(eq(marketListingsTable.id, listingId), eq(marketListingsTable.status, "active")))
+      .limit(1);
+    if (!listing) {
+      res.status(404).json({ error: "Listing not found or already sold" });
+      return;
+    }
+    if (listing.sellerTelegramId === buyerTelegramId) {
+      res.status(400).json({ error: "Cannot buy your own listing" });
+      return;
+    }
+    const currency = parseMarketPriceCurrency(listing.priceCurrency);
+    if (currency !== "zmc") {
+      res.status(400).json({ error: "This listing is not priced in $ZMC" });
+      return;
+    }
+    if (!listing.sellerWalletAddress) {
+      res.status(400).json({ error: "Seller has no TON wallet on this listing" });
+      return;
+    }
+
+    const [buyerFlag] = await db
+      .select({ isDisabled: usersTable.isDisabled })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, buyerTelegramId))
+      .limit(1);
+    if (buyerFlag?.isDisabled) {
+      res.status(403).json({ error: "Account disabled" });
+      return;
+    }
+
+    const jettonWallet = await fetchZmcJettonWallet(walletAddress);
+    if (!jettonWallet) {
+      res.status(400).json({ error: "No $ZMC wallet. Buy $ZMC on STON.fi first." });
+      return;
+    }
+
+    const totalNano = zmcHumanToNano(Number(listing.price));
+    if (totalNano <= 0n) {
+      res.status(400).json({ error: "Invalid $ZMC price" });
+      return;
+    }
+    if (jettonWallet.balanceNano < totalNano) {
+      res.status(400).json({ error: "Not enough $ZMC in connected wallet" });
+      return;
+    }
+
+    const { sellerNano, feeNano } = splitMarketFeeNano(totalNano);
+    const queryBase = BigInt(Date.now());
+    const gas = toNano("0.08").toString();
+    const sellerDest = friendlyAddress(listing.sellerWalletAddress);
+    const treasuryDest = treasuryWallet();
+
+    const messages = [
+      {
+        address: jettonWallet.walletAddress,
+        amount: gas,
+        payload: buildJettonTransferPayload({
+          to: sellerDest,
+          amountNano: sellerNano,
+          response: walletAddress,
+          queryId: queryBase,
+        }),
+      },
+      {
+        address: jettonWallet.walletAddress,
+        amount: gas,
+        payload: buildJettonTransferPayload({
+          to: treasuryDest,
+          amountNano: feeNano,
+          response: walletAddress,
+          queryId: queryBase + 1n,
+        }),
+      },
+    ];
+
+    res.json({
+      ok: true,
+      listingId,
+      priceZmc: Number(listing.price),
+      sellerNano: sellerNano.toString(),
+      feeNano: feeNano.toString(),
+      sellerWallet: sellerDest,
+      treasuryWallet: treasuryDest,
+      messages,
+    });
+  } catch (err) {
+    console.error("[market/zmc/intent] error:", err);
+    res.status(500).json({ error: "Failed to build $ZMC transfer" });
+  }
+});
+
+const ZmcConfirmBody = z.object({
+  buyerTelegramId: z.string().min(1),
+  listingId: z.number().int().positive(),
+  walletAddress: z.string().min(10).max(128),
+  boc: z.string().min(20),
+});
+
+router.post("/market/zmc/confirm", async (req, res) => {
+  const parsed = ZmcConfirmBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body" });
+    return;
+  }
+  const { buyerTelegramId, listingId, walletAddress, boc } = parsed.data;
+
+  const [listingPeek] = await db
+    .select()
+    .from(marketListingsTable)
+    .where(eq(marketListingsTable.id, listingId))
+    .limit(1);
+  if (!listingPeek) {
+    res.status(404).json({ error: "Listing not found" });
+    return;
+  }
+  if (listingPeek.status === "sold" && listingPeek.buyerTelegramId === buyerTelegramId) {
+    res.json({
+      ok: true,
+      alreadyCredited: true,
+      kind: listingPeek.kind === "item" ? "item" : listingPeek.kind === "equipment" ? "equipment" : "planet",
+      planetType: listingPeek.planetType,
+      planetRate: listingPeek.planetRate,
+      pricePaid: listingPeek.price,
+      modelId: listingPeek.modelId,
+      shapeId: listingPeek.shapeId,
+      modelName: listingPeek.planetDisplayName,
+      planetFloat: listingPeek.planetFloat,
+    });
+    return;
+  }
+  if (listingPeek.status !== "active") {
+    res.status(404).json({ error: "Listing not found or already sold" });
+    return;
+  }
+  if (parseMarketPriceCurrency(listingPeek.priceCurrency) !== "zmc") {
+    res.status(400).json({ error: "This listing is not priced in $ZMC" });
+    return;
+  }
+  if (!listingPeek.sellerWalletAddress) {
+    res.status(400).json({ error: "Seller has no TON wallet on this listing" });
+    return;
+  }
+  if (listingPeek.sellerTelegramId === buyerTelegramId) {
+    res.status(400).json({ error: "Cannot buy your own listing" });
+    return;
+  }
+
+  const totalNano = zmcHumanToNano(Number(listingPeek.price));
+  const { sellerNano, feeNano } = splitMarketFeeNano(totalNano);
+
+  let verified: Awaited<ReturnType<typeof verifyZmcSplitTransfer>> | null = null;
+  const waits = [0, 2000, 4000, 6000, 8000];
+  for (const wait of waits) {
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+    verified = await verifyZmcSplitTransfer({
+      boc,
+      buyerWallet: walletAddress,
+      sellerWallet: listingPeek.sellerWalletAddress,
+      sellerNano,
+      feeNano,
+    });
+    if (verified.ok) break;
+    if (!verified.retriable) break;
+  }
+  if (!verified || !verified.ok) {
+    res.status(verified && !verified.retriable ? 400 : 202).json({
+      ok: false,
+      pending: !verified || verified.retriable,
+      error: verified?.reason ?? "On-chain $ZMC transfer not confirmed",
+    });
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const txDb = drizzle(client);
+
+    const [aId, bId] = buyerTelegramId < listingPeek.sellerTelegramId
+      ? [buyerTelegramId, listingPeek.sellerTelegramId]
+      : [listingPeek.sellerTelegramId, buyerTelegramId];
+    await client.query(
+      `SELECT telegram_id FROM users WHERE telegram_id IN ($1, $2) ORDER BY telegram_id FOR UPDATE`,
+      [aId, bId],
+    );
+
+    const [buyerInfo, sellerInfo] = await Promise.all([
+      txDb.select({
+        referredBy: usersTable.referredBy,
+        isDisabled: usersTable.isDisabled,
+      }).from(usersTable).where(eq(usersTable.telegramId, buyerTelegramId)).limit(1),
+      txDb.select({
+        referredBy: usersTable.referredBy,
+        isDisabled: usersTable.isDisabled,
+      }).from(usersTable).where(eq(usersTable.telegramId, listingPeek.sellerTelegramId)).limit(1),
+    ]);
+    if (buyerInfo[0]?.isDisabled || sellerInfo[0]?.isDisabled) {
+      await client.query("ROLLBACK");
+      res.status(403).json({ error: "Account disabled" });
+      return;
+    }
+
+    const updated = await txDb.update(marketListingsTable)
+      .set({ status: "sold", buyerTelegramId, soldAt: new Date() })
+      .where(and(eq(marketListingsTable.id, listingId), eq(marketListingsTable.status, "active")))
+      .returning();
+    if (updated.length === 0) {
+      await client.query("ROLLBACK");
+      res.status(409).json({ error: "Listing already sold" });
+      return;
+    }
+    const listing = updated[0]!;
+
+    const inv = await applyMarketSaleInventory(client, listing, buyerTelegramId);
+
+    try {
+      await txDb.insert(treasuryLedgerTable).values({
+        txHash: verified.txHash,
+        type: "market_fee",
+        amountZmc: verified.feeHuman,
+        userId: buyerTelegramId,
+      });
+    } catch (err: unknown) {
+      const code = typeof err === "object" && err && "code" in err ? (err as { code: string }).code : "";
+      if (code !== "23505") throw err;
+      await client.query("ROLLBACK");
+      res.json({ ok: true, alreadyCredited: true, listingId });
+      return;
+    }
+
+    await client.query("COMMIT");
+
+    try {
+      const [sellerRow] = await db.select({ name: usersTable.firstName }).from(usersTable).where(eq(usersTable.telegramId, listing.sellerTelegramId)).limit(1);
+      const [buyerRow] = await db.select({ name: usersTable.firstName }).from(usersTable).where(eq(usersTable.telegramId, buyerTelegramId)).limit(1);
+      broadcastSale({
+        id: listing.id,
+        kind: inv.isEquipmentListing ? "equipment" : "planet",
+        planetType: listing.planetType,
+        planetRate: listing.planetRate,
+        equipmentCategory: listing.equipmentCategory,
+        equipmentRarity: listing.equipmentRarity,
+        equipmentRate: listing.equipmentRate,
+        price: listing.price,
+        sellerName: sellerRow?.name || listing.sellerName || "Anon",
+        buyerName: buyerRow?.name || "Anon",
+        soldAt: Date.now(),
+        planetFloat: typeof listing.planetFloat === "number" ? listing.planetFloat : null,
+      });
+    } catch (e) { console.error("[market/zmc/confirm] broadcast failed:", e); }
+
+    sendBotMessage(
+      listing.sellerTelegramId,
+      "💰 Great news! One of your models has been sold for $ZMC.",
+    ).catch((e) => console.error("[market/zmc/confirm] seller notify failed:", e));
+
+    recordHistoryAsync({
+      telegramId: buyerTelegramId,
+      kind: "market_buy",
+      delta: -Number(listing.price),
+      currency: "zmc",
+      meta: { listingId: listing.id, planetType: listing.planetType, price: listing.price, txHash: verified.txHash },
+    });
+    recordHistoryAsync({
+      telegramId: listing.sellerTelegramId,
+      kind: "market_sale",
+      delta: Number(listing.price) * 0.95,
+      currency: "zmc",
+      meta: { listingId: listing.id, planetType: listing.planetType, price: listing.price, txHash: verified.txHash },
+    });
+
+    res.json({
+      ok: true,
+      kind: inv.isItemListing ? "item" : inv.isEquipmentListing ? "equipment" : "planet",
+      planetType: listing.planetType,
+      planetRate: listing.planetRate,
+      pricePaid: listing.price,
+      modelId: listing.modelId,
+      shapeId: listing.shapeId,
+      modelName: listing.planetDisplayName,
+      planetFloat: listing.planetFloat,
+      equipmentId: inv.buyerEquipmentId,
+      txHash: verified.txHash,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[market/zmc/confirm] error:", err);
+    res.status(500).json({ error: "Database error" });
+  } finally {
+    client.release();
+  }
 });
 
 export default router;

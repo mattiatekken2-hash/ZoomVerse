@@ -11,3 +11,4 @@ export * from "./glb-assets.js";
  */
 export * from "./forge-lab.js";
 export * from "./market-price.js";
+export * from "./zmc-economy.js";

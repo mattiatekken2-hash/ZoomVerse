@@ -1,6 +1,7 @@
 /**
  * Official on-chain $ZMC (Zoom) jetton on TON — DexScreener + STON.fi.
- * In-game $ZOOM balances stay separate; this is the listed token.
+ * Off-chain ZOOM Points (`zoom_balance`) stay separate and only size the
+ * seasonal airdrop. $ZMC is P2P Market, VIP holding, and treasury fees.
  */
 export const ZMC_NAME = "Zoom";
 export const ZMC_TICKER = "ZMC";
@@ -16,6 +17,15 @@ export const ZMC_STONFI_BUY =
 /** $ZMC → TON on STON.fi (same pair, reversed) */
 export const ZMC_STONFI_SELL =
   `https://app.ston.fi/swap?chartVisible=false&ft=${ZMC_JETTON_ADDRESS}&tt=TON`;
+
+export function formatZmcAmount(n: number): string {
+  const v = Number.isFinite(n) ? n : 0;
+  if (v <= 0) return "0";
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M`;
+  if (v >= 10_000) return `${(v / 1_000).toFixed(1)}K`;
+  if (v >= 100) return Math.floor(v).toLocaleString();
+  return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
 
 export function openExternalUrl(url: string) {
   try {

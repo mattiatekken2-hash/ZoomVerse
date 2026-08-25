@@ -55,7 +55,7 @@ export interface MarketPlanetListingView {
   modelId?: string | null;
   shapeId?: string | null;
   planetType?: string | null;
-  priceCurrency?: "gram" | "zoom" | "stardust" | null;
+  priceCurrency?: "zmc" | "gram" | "zoom" | "stardust" | null;
   marketPath?: LabMarketPath | null;
   planetId?: string | null;
 }
@@ -63,12 +63,10 @@ export interface MarketPlanetListingView {
 interface Props {
   listing: MarketPlanetListingView;
   canBuy: boolean;
-  sharing?: boolean;
   highlighted?: boolean;
   suspendGl?: boolean;
   onBuy: () => void;
   onUnlist?: () => void;
-  onShare?: () => void;
   statusText?: string;
 }
 
@@ -100,12 +98,10 @@ function resolveRate(listing: MarketPlanetListingView, path: LabMarketPath): num
 export function MarketPlanetCard({
   listing,
   canBuy,
-  sharing = false,
   highlighted = false,
   suspendGl = false,
   onBuy,
   onUnlist,
-  onShare,
   statusText,
 }: Props) {
   const path = listing.marketPath ?? labMarketPathForPlanet({
@@ -193,17 +189,6 @@ export function MarketPlanetCard({
             <div className="lab-market-card__status">{statusText}</div>
           ) : listing.isOwn ? (
             <>
-              {listing.serverId != null && onShare && (
-                <button
-                  type="button"
-                  disabled={sharing}
-                  onClick={onShare}
-                  className="lab-market-card__share"
-                  aria-label="Share listing"
-                >
-                  {sharing ? "…" : "Share"}
-                </button>
-              )}
               {onUnlist ? (
                 <button type="button" onClick={onUnlist} className="lab-market-card__delist">
                   Delist
