@@ -7,7 +7,6 @@ import type { Planet, SunState } from "../hooks/useGameState";
 import { isFarmActive } from "../hooks/useGameState";
 import { payShopItemWithZmc, syncActiveFarms } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
-import PvPModal from "../components/PvPModal";
 import { getPlanetDisplayName } from "../utils/planetNames";
 import { isLabForgeGeneratorPlanet, labForgeShapeHasGlbReveal, resolveLabShapeIdFromPlanet, MARKET_PRICE_BOUNDS, suggestMarketPrice, isMarketPriceInRange } from "@workspace/game-models";
 import { preloadLabGlbBatch } from "../utils/labGlbCache";
@@ -104,7 +103,7 @@ export function FarmPage({
   planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId,
   onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun,
   onSell, onUnlist, onRepair, stardustBalance = 0,
-  items: _items = [], onSellItem: _onSellItem, onUnlistItem: _onUnlistItem, onFlushPlanets, tonBalance = 0,
+  items: _items = [], onSellItem: _onSellItem, onUnlistItem: _onUnlistItem, onFlushPlanets: _onFlushPlanets, tonBalance = 0,
   onUpgradeDuration, onUpgradeSunDuration,
   depositBalance = 0,
   onSlotUnlocked,
@@ -231,7 +230,6 @@ export function FarmPage({
   const [sellPrice, setSellPrice] = useState("");
   const [slotBuying, setSlotBuying] = useState(false);
   const [defectMsg, setDefectMsg] = useState<string | null>(null);
-  const [pvpPlanet, setPvPPlanet] = useState<Planet | null>(null);
   const [detailPlanet, setDetailPlanet] = useState<Planet | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const sellerWallet = useTonAddress();
@@ -240,6 +238,7 @@ export function FarmPage({
   void _items;
   void _onSellItem;
   void _onUnlistItem;
+  void _onFlushPlanets;
 
   // Daily-collect removed — planets now farm autonomously for the full 24h
   // cycle and then need a $ZOOM reactivation, with no manual collect step.
@@ -576,52 +575,6 @@ export function FarmPage({
         </div>
       )}
 
-      {/* PvP active badge — always English, visible to everyone while in queue/match */}
-      {pvpPlanet && (
-        <div
-          style={{
-            position: "fixed",
-            top: 14,
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "6px 16px",
-            borderRadius: 20,
-            background: "linear-gradient(90deg, rgba(14,22,36,0.94), rgba(20,32,48,0.94))",
-            border: "1px solid rgba(158,197,232,0.45)",
-            boxShadow: "0 0 18px rgba(158,197,232,0.35)",
-            animation: "pvp-fighter-pulse 1.4s ease-in-out infinite",
-            pointerEvents: "none",
-          }}
-        >
-          <span style={{ fontSize: 14 }}>⚔️</span>
-          <span style={{ fontSize: 11, fontWeight: 900, color: "#9EC5E8", letterSpacing: 1.5, textTransform: "uppercase" }}>
-            {t("farm.pvpActive")}
-          </span>
-          <span style={{ fontSize: 14 }}>⚔️</span>
-          <style>{`
-            @keyframes pvp-fighter-pulse {
-              0%,100% { box-shadow: 0 0 14px rgba(158,197,232,0.35); }
-              50%      { box-shadow: 0 0 28px rgba(158,197,232,0.55); }
-            }
-          `}</style>
-        </div>
-      )}
-      {pvpPlanet && telegramId && (
-        <PvPModal
-          open={!!pvpPlanet}
-          onClose={() => setPvPPlanet(null)}
-          telegramId={telegramId}
-          planet={pvpPlanet}
-          onPlanetTransferred={() => {
-            window.dispatchEvent(new Event("planets-refresh"));
-          }}
-          onBeforeQueue={onFlushPlanets}
-        />
-      )}
       {liveDetailPlanet && (
         <PlanetDetailModal
           planet={liveDetailPlanet}
@@ -633,10 +586,6 @@ export function FarmPage({
           maxSlots={maxSlots}
           onClose={() => setDetailPlanet(null)}
           onStartFarming={(id) => onStartFarming(id, vipLevel)}
-          onPvP={(p) => {
-            setDetailPlanet(null);
-            setPvPPlanet(p);
-          }}
           onSell={(p) => { setDetailPlanet(null); openSellPopup(p); }}
           onBurn={onBurn}
           onUnlist={(id: string) => onUnlist(id)}

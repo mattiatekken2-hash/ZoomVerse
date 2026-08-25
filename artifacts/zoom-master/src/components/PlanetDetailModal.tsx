@@ -68,8 +68,6 @@ interface Props {
 
   onSell: (planet: Planet) => void;
 
-  onPvP?: (planet: Planet) => void;
-
   onUnlist?: (id: string) => void;
 
   onRepair?: (id: string) => { ok: boolean; reason?: string };
@@ -116,7 +114,7 @@ export function PlanetDetailModal({
 
   planet,
 
-  telegramId,
+  telegramId: _telegramId,
 
   stardustBalance = 0,
 
@@ -135,8 +133,6 @@ export function PlanetDetailModal({
   onBurn,
 
   onSell,
-
-  onPvP,
 
   onUnlist,
 
@@ -164,6 +160,7 @@ export function PlanetDetailModal({
 
   const livePlanet = planets.find((p) => p.id === planet.id) ?? planet;
   void _maxSlots;
+  void _telegramId;
 
   useEffect(() => {
     setDetailGlReady(false);
@@ -325,8 +322,6 @@ export function PlanetDetailModal({
 
 
   const primaryDisabled = durability <= 0 || isListed || (active && !expired);
-
-  const pvpEligible = !isListed && !!telegramId;
 
   const canUpgradeCycle = !!onUpgradeDuration
 
@@ -751,30 +746,6 @@ export function PlanetDetailModal({
         {!isListed && (
 
           <div style={{ display: "flex", gap: 8 }}>
-
-            <button
-
-              type="button"
-
-              disabled={!pvpEligible}
-
-              onClick={() => pvpEligible && onPvP?.(livePlanet)}
-
-              style={{
-
-                ...ghostBtn,
-
-                opacity: pvpEligible ? 1 : 0.35,
-
-                cursor: pvpEligible ? "pointer" : "not-allowed",
-
-              }}
-
-            >
-
-              {t("nav.pvp")}
-
-            </button>
 
             <button
 
