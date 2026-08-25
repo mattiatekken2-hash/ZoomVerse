@@ -3,10 +3,10 @@ import { useTonAddress, useTonConnectUI } from "@tonconnect/ui-react";
 import { MarketPlanetCard, type MarketPlanetListingView } from "../components/MarketPlanetCard";
 import { MyMarketListingsWidget } from "../components/MyMarketListingsWidget";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
-import { buyFromMarket, openMarketActivityStream, fetchMyMarketListings, fetchZmcBuyIntent, confirmZmcMarketBuy, type MarketSale, type ServerMarketListing } from "../utils/api";
+import { buyFromMarket, openMarketActivityStream, fetchMyMarketListings, fetchZmcBuyIntent, confirmZmcMarketBuy, type ServerMarketListing } from "../utils/api";
 import { useGlobalStore, pushMarketSale, refreshMarketListings, upsertMarketListing } from "../store/globalStore";
 import { isPlanetBurned, isPlanetDelisted } from "../utils/removedPlanets";
-import { getPlanetDisplayName, deterministicNameFromId } from "../utils/planetNames";
+import { getPlanetDisplayName } from "../utils/planetNames";
 import { useT } from "../i18n/LanguageContext";
 import {
   labMarketPathForPlanet,
@@ -275,7 +275,7 @@ export function MarketPage({
         serverId: Number.isFinite(id) && id > 0 ? id : undefined,
         displayName: classified.displayName
           || l.planetDisplayName
-          || deterministicNameFromId(l.planetId || `listing-${id}`),
+          || "Model",
         farmDurationHours: (l.planetFarmDurationHours ?? 1) > 1 ? l.planetFarmDurationHours : null,
         shapeId: classified.shapeId,
         planetType: l.planetType,
@@ -410,26 +410,33 @@ export function MarketPage({
   };
 
   const activityViews: MarketPlanetListingView[] = sales
-    .filter((s) => labMarketPathForPlanet({
-      shapeId: (s as MarketSale & { shapeId?: string | null }).shapeId,
-      displayName: (s as MarketSale & { planetDisplayName?: string | null }).planetDisplayName,
-    }))
+    .filter((s) => (s.kind ?? "planet") === "planet")
     .map((s) => {
+      const classified = classifyListing({
+        shapeId: s.shapeId ?? null,
+        displayName: s.planetDisplayName ?? null,
+        rate: s.planetRate ?? 0,
+      });
+      if (!classified.shapeId) return null;
       const ago = Math.max(0, Math.floor((Date.now() - s.soldAt) / 1000));
       const agoLabel = ago < 60 ? `${ago}s ago` : ago < 3600 ? `${Math.floor(ago / 60)}m ago` : `${Math.floor(ago / 3600)}h ago`;
       return {
         id: `sale-${s.id}`,
         price: s.price,
-        rate: s.planetRate,
+        rate: classified.rate,
         seller: s.sellerName,
         isOwn: false,
-        displayName: deterministicNameFromId(`sale-${s.id}`),
-        shapeId: (s as MarketSale & { shapeId?: string | null }).shapeId ?? null,
+        displayName: classified.displayName,
+        shapeId: classified.shapeId,
+        marketPath: classified.marketPath,
+        priceCurrency: parseMarketPriceCurrency(s.priceCurrency),
+        modelId: s.modelId ?? null,
         _status: `${s.buyerName} bought · ${agoLabel}`,
         _pulse: pulseId === s.id,
         _saleId: s.id,
       } as MarketPlanetListingView & { _status: string; _pulse: boolean; _saleId: number };
-    });
+    })
+    .filter((v): v is MarketPlanetListingView & { _status: string; _pulse: boolean; _saleId: number } => v != null);
 
   return (
     <div className="lab-market flex flex-col h-full relative">

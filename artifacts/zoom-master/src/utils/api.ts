@@ -2701,9 +2701,11 @@ export async function claimDailyReward(telegramId: string, firstName?: string): 
 
 export interface MarketSale {
   id: number;
-  planetType: "BASIC" | "RARE" | "EPIC" | "GOLD";
-  planetRate: number;
+  kind?: "planet" | "equipment" | "item";
+  planetType: "BASIC" | "RARE" | "EPIC" | "GOLD" | string | null;
+  planetRate: number | null;
   price: number;
+  priceCurrency?: string | null;
   sellerName: string;
   buyerName: string;
   soldAt: number;
@@ -2712,6 +2714,19 @@ export interface MarketSale {
   // stored snapshot — in that case the UI falls back to the
   // deterministic-from-id helper.
   planetFloat?: number | null;
+  shapeId?: string | null;
+  planetDisplayName?: string | null;
+  modelId?: string | null;
+}
+
+function normalizeMarketSale(raw: MarketSale & Record<string, unknown>): MarketSale {
+  return {
+    ...raw,
+    shapeId: (raw.shapeId ?? raw.shape_id ?? null) as string | null,
+    planetDisplayName: (raw.planetDisplayName ?? raw.planet_display_name ?? null) as string | null,
+    modelId: (raw.modelId ?? raw.model_id ?? null) as string | null,
+    priceCurrency: (raw.priceCurrency ?? raw.price_currency ?? "zmc") as string | null,
+  };
 }
 
 export async function fetchMarketSales(): Promise<MarketSale[]> {
@@ -2719,7 +2734,8 @@ export async function fetchMarketSales(): Promise<MarketSale[]> {
     const res = await fetch(`${API_BASE}/market/sales?t=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return [];
     const data = await res.json();
-    return Array.isArray(data.sales) ? data.sales : [];
+    const rows = Array.isArray(data.sales) ? data.sales : [];
+    return rows.map((s: MarketSale & Record<string, unknown>) => normalizeMarketSale(s));
   } catch { return []; }
 }
 
@@ -2733,7 +2749,9 @@ export function openMarketActivityStream(onSale: (sale: MarketSale) => void): ()
     try {
       es = new EventSource(`${API_BASE}/market/activity/stream`);
       es.addEventListener("sale", (e) => {
-        try { onSale(JSON.parse((e as MessageEvent).data)); } catch { /* */ }
+        try {
+          onSale(normalizeMarketSale(JSON.parse((e as MessageEvent).data)));
+        } catch { /* */ }
       });
       es.onerror = () => {
         try { es?.close(); } catch { /* */ }

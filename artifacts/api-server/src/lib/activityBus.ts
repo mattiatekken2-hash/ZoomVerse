@@ -25,6 +25,11 @@ export interface MarketSaleEvent {
   // the buyer saw on the marketplace card. Null for non-floatable types
   // (Earth/SUN/V1_NFT) or legacy listings without a stored snapshot.
   planetFloat?: number | null;
+  /** Lab GLB identity — LIVE must show this model, never a generated name. */
+  shapeId?: string | null;
+  planetDisplayName?: string | null;
+  modelId?: string | null;
+  priceCurrency?: string | null;
 }
 
 export interface BoxOpenEvent {

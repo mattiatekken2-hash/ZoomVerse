@@ -60,7 +60,8 @@ router.get("/market/sales", async (_req, res) => {
   try {
     const rows = await db.execute(sql`
       SELECT m.id, m.kind, m.planet_type, m.planet_rate, m.price, m.sold_at,
-             m.planet_float,
+             m.planet_float, m.shape_id, m.planet_display_name, m.model_id,
+             m.price_currency,
              m.equipment_category, m.equipment_rarity, m.equipment_rate,
              COALESCE(s.first_name, m.seller_name, 'Anon') AS seller_name,
              COALESCE(b.first_name, 'Anon') AS buyer_name
@@ -76,6 +77,8 @@ router.get("/market/sales", async (_req, res) => {
       const planetFloat = typeof rawFloat === "number"
         ? rawFloat
         : (rawFloat != null && Number.isFinite(Number(rawFloat)) ? Number(rawFloat) : null);
+      const shapeId = r.shape_id == null ? null : String(r.shape_id);
+      const planetDisplayName = r.planet_display_name == null ? null : String(r.planet_display_name);
       return {
         id: Number(r.id),
         kind: (r.kind === "equipment" ? "equipment" : r.kind === "item" ? "item" : "planet") as "planet" | "equipment" | "item",
@@ -85,10 +88,14 @@ router.get("/market/sales", async (_req, res) => {
         equipmentRarity: r.equipment_rarity == null ? null : String(r.equipment_rarity),
         equipmentRate: r.equipment_rate == null ? null : Number(r.equipment_rate),
         price: Number(r.price),
+        priceCurrency: r.price_currency == null ? "zmc" : String(r.price_currency),
         sellerName: String(r.seller_name),
         buyerName: String(r.buyer_name),
         soldAt: r.sold_at instanceof Date ? r.sold_at.getTime() : new Date(r.sold_at).getTime(),
         planetFloat,
+        shapeId,
+        planetDisplayName,
+        modelId: r.model_id == null ? null : String(r.model_id),
       };
     });
     res.json({ sales });
@@ -1264,12 +1271,16 @@ router.post("/market/buy", async (req, res) => {
         equipmentRarity: listing.equipmentRarity,
         equipmentRate: listing.equipmentRate,
         price: listing.price,
+        priceCurrency: listing.priceCurrency ?? "zmc",
         sellerName: sellerInfo?.name || listing.sellerName || "Anon",
         buyerName: buyerInfo?.name || "Anon",
         soldAt: Date.now(),
         // Carry the listing's snapshotted Float so the live-activity
         // feed shows the SAME perfection score the buyer paid for.
         planetFloat: typeof listing.planetFloat === "number" ? listing.planetFloat : null,
+        shapeId: listing.shapeId ?? null,
+        planetDisplayName: listing.planetDisplayName ?? null,
+        modelId: listing.modelId ?? null,
       });
     } catch (e) { console.error("[market/buy] broadcast failed:", e); }
 
@@ -2033,10 +2044,14 @@ router.post("/market/zmc/confirm", async (req, res) => {
         equipmentRarity: listing.equipmentRarity,
         equipmentRate: listing.equipmentRate,
         price: listing.price,
+        priceCurrency: listing.priceCurrency ?? "zmc",
         sellerName: sellerRow?.name || listing.sellerName || "Anon",
         buyerName: buyerRow?.name || "Anon",
         soldAt: Date.now(),
         planetFloat: typeof listing.planetFloat === "number" ? listing.planetFloat : null,
+        shapeId: listing.shapeId ?? null,
+        planetDisplayName: listing.planetDisplayName ?? null,
+        modelId: listing.modelId ?? null,
       });
     } catch (e) { console.error("[market/zmc/confirm] broadcast failed:", e); }
 
