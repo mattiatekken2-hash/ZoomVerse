@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, memo } from "react";
 import type { Planet } from "../hooks/useGameState";
-import { PLANET_CONFIG, farmSlotUsedCount } from "../hooks/useGameState";
+import { PLANET_CONFIG } from "../hooks/useGameState";
 import { fetchPvpLobby, type PvpLobbyEntry } from "../utils/api";
 import PvPModal from "../components/PvPModal";
 import { PlanetOrb } from "../components/PlanetOrb";
@@ -14,18 +14,14 @@ interface Props {
   maxSlots?: number;
 }
 
-function PvpLobbyPageBase({ telegramId, planets, onFlushPlanets, onPlanetTransferred, visible, maxSlots = 2 }: Props) {
+function PvpLobbyPageBase({ telegramId, planets, onFlushPlanets, onPlanetTransferred, visible }: Props) {
   const [selected, setSelected] = useState<Planet | null>(null);
   const [pvpPlanet, setPvpPlanet] = useState<Planet | null>(null);
   const [lobbyEntries, setLobbyEntries] = useState<PvpLobbyEntry[]>([]);
   const [onlineCount, setOnlineCount] = useState(0);
   const [loadingLobby, setLoadingLobby] = useState(false);
 
-  // All owned models except listed / collection-slot ones. Farming is allowed.
-  const availablePlanets = planets.filter(
-    (p) => !p.isListedInMarket && p.slotIndex == null,
-  );
-  const slotsFull = farmSlotUsedCount(planets) >= maxSlots;
+  const availablePlanets = planets.filter((p) => !p.isListedInMarket);
 
   const refreshLobby = useCallback(async () => {
     setLoadingLobby(true);
@@ -56,13 +52,13 @@ function PvpLobbyPageBase({ telegramId, planets, onFlushPlanets, onPlanetTransfe
   }, [availablePlanets.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = () => {
-    if (!selected || !telegramId || slotsFull) return;
+    if (!selected || !telegramId) return;
     setPvpPlanet(selected);
   };
 
   const handleChallenge = (entry: PvpLobbyEntry) => {
     void entry;
-    if (!selected || !telegramId || slotsFull) return;
+    if (!selected || !telegramId) return;
     setPvpPlanet(selected);
   };
 
@@ -175,7 +171,7 @@ function PvpLobbyPageBase({ telegramId, planets, onFlushPlanets, onPlanetTransfe
                     key={p.id}
                     onClick={() => {
                       setSelected(p);
-                      if (telegramId && !slotsFull) setPvpPlanet(p);
+                      if (telegramId) setPvpPlanet(p);
                     }}
                     style={{
                       flexShrink: 0,
@@ -240,25 +236,25 @@ function PvpLobbyPageBase({ telegramId, planets, onFlushPlanets, onPlanetTransfe
         <div style={{ marginTop: 16 }}>
           <button
             onClick={handleSearch}
-            disabled={!selected || !telegramId || slotsFull}
+            disabled={!selected || !telegramId}
             style={{
               width: "100%",
               padding: "15px 0",
               borderRadius: 16,
               border: "none",
-              background: selected && telegramId && !slotsFull
+              background: selected && telegramId
                 ? "linear-gradient(135deg, #c81024, #ff3355)"
                 : "rgba(255,255,255,0.06)",
-              color: selected && telegramId && !slotsFull ? "#fff" : "rgba(255,255,255,0.3)",
+              color: selected && telegramId ? "#fff" : "rgba(255,255,255,0.3)",
               fontSize: 14,
               fontWeight: 900,
               letterSpacing: 2,
-              cursor: selected && telegramId && !slotsFull ? "pointer" : "default",
-              animation: selected && telegramId && !slotsFull ? "pvp-lobby-glow 2s ease-in-out infinite" : "none",
+              cursor: selected && telegramId ? "pointer" : "default",
+              animation: selected && telegramId ? "pvp-lobby-glow 2s ease-in-out infinite" : "none",
               transition: "all 200ms",
             }}
           >
-            {slotsFull ? "NEED A FREE FARM SLOT" : "⚔️ CERCA PARTITA"}
+            ⚔️ CERCA PARTITA
           </button>
         </div>
 

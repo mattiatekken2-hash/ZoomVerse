@@ -12,8 +12,8 @@ import {
   getRarityWeight,
   type PlanetEntry,
 } from "../lib/pvpEngine";
-import { db, usersTable } from "@workspace/db";
-import { eq, desc, sql } from "drizzle-orm";
+import { db, usersTable, marketListingsTable } from "@workspace/db";
+import { and, eq, desc, sql } from "drizzle-orm";
 import { isLabForgeGeneratorPlanet } from "@workspace/game-models";
 
 const router: IRouter = Router();
@@ -84,9 +84,20 @@ router.post("/pvp/queue", async (req, res) => {
       return;
     }
 
-    // Eligible: not listed. Farming models can duel. Winner takes the
-    // opponent's model, so the challenger needs a free farm slot.
-    const isListed = planet["isListedInMarket"] === true;
+    // Eligible: not listed (flag or a live marketplace row). Farming can duel.
+    const activeListings = await db
+      .select({ planetId: marketListingsTable.planetId })
+      .from(marketListingsTable)
+      .where(and(
+        eq(marketListingsTable.sellerTelegramId, telegramId),
+        eq(marketListingsTable.status, "active"),
+      ));
+    const listedIds = new Set(
+      activeListings.map((r) => r.planetId).filter((id): id is string => !!id),
+    );
+    const isListed = planet["isListedInMarket"] === true
+      || planet["serverListingId"] != null
+      || listedIds.has(planetId);
     if (isListed) {
       res.status(409).json({
         ok: false,
@@ -96,16 +107,30 @@ router.post("/pvp/queue", async (req, res) => {
       return;
     }
 
+    // Winner keeps their staked model and receives the opponent's, so we
+    // only count OTHER unlisted lab models. The staked one is already in
+    // inventory — treating it as filling the last slot was a false SLOTS_FULL
+    // while Farm still showed empty cards (listed ghosts / duplicates).
     const maxSlots = 2 + Math.max(0, Number(user.bonusSlots) || 0);
-    const usedSlots = planets.filter((p) => (
-      p && typeof p === "object"
-      && p["isListedInMarket"] !== true
-      && isLabForgeGeneratorPlanet({
+    const seenIds = new Set<string>();
+    let otherOccupying = 0;
+    for (const p of planets) {
+      if (!p || typeof p !== "object") continue;
+      const id = typeof p["id"] === "string" ? p["id"] : "";
+      if (id) {
+        if (id === planetId || seenIds.has(id)) continue;
+        seenIds.add(id);
+      }
+      if (listedIds.has(id)) continue;
+      if (p["isListedInMarket"] === true) continue;
+      if (p["serverListingId"] != null) continue;
+      if (!isLabForgeGeneratorPlanet({
         shapeId: typeof p["shapeId"] === "string" ? p["shapeId"] : null,
         displayName: typeof p["displayName"] === "string" ? p["displayName"] : null,
-      })
-    )).length;
-    if (usedSlots >= maxSlots) {
+      })) continue;
+      otherOccupying += 1;
+    }
+    if (otherOccupying >= maxSlots) {
       res.status(409).json({ ok: false, error: "SLOTS_FULL" });
       return;
     }

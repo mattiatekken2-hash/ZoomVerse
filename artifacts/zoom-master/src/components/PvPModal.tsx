@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   pvpQueue,
   pvpLeaveQueue,
@@ -191,7 +192,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
       // In queue, start polling
       startPolling();
     }
-  }, [telegramId, open, planet, maybeResolve, startPolling]);
+  }, [telegramId, open, planet, maybeResolve, startPolling, onBeforeQueue]);
 
   const handleConfirm = async () => {
     if (!telegramId || !battle?.battleId) return;
@@ -338,15 +339,27 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center"
+      className="fixed inset-0 z-[11000] flex items-center justify-center"
+      style={{
+        background: "rgba(4,6,12,0.78)",
+        padding: "max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px))",
+        boxSizing: "border-box",
+      }}
       onClick={(e) => { if (e.target === e.currentTarget) handleCancel(); }}
     >
+      <style>{`
+        @keyframes pvp-search-spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
       <div
-        className="relative mx-3 w-full"
+        className="relative w-full"
         style={{
           maxWidth: phase === "roulette" ? 440 : 384,
+          maxHeight: "100%",
+          overflowY: "auto",
           background: "linear-gradient(135deg, rgba(20,12,30,0.95), rgba(10,6,18,0.98))",
           border: `1px solid ${CYAN_BORDER}`,
           boxShadow: `0 0 40px ${CYAN_GLOW}`,
@@ -375,8 +388,15 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
               <PlanetVoxelThumb planet={planet} size={88} animate eager />
             </div>
             <div
-              className="w-12 h-12 rounded-full border-2 border-t-transparent mx-auto mb-4 animate-spin"
-              style={{ borderColor: `${CYAN} transparent transparent transparent` }}
+              style={{
+                width: 48,
+                height: 48,
+                margin: "0 auto 16px",
+                borderRadius: "50%",
+                border: "3px solid rgba(158,197,232,0.22)",
+                borderTopColor: CYAN,
+                animation: "pvp-search-spin 0.75s linear infinite",
+              }}
             />
             <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.6)" }}>
               Searching for opponent...
@@ -567,7 +587,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
               {error === "NOT_ELIGIBLE"
                 ? "This planet is not eligible for PvP"
                 : error === "SLOTS_FULL"
-                  ? "Need a free farm slot to play PvP"
+                  ? "Need a free farm slot to keep a PvP prize"
                   : error === "BATTLE_CANCELLED"
                     ? "The battle was cancelled — the opponent didn't confirm in time."
                     : error === "Invalid body" || error === "PLANET_NOT_FOUND"
@@ -593,6 +613,7 @@ export default function PvPModal({ open, onClose, telegramId, planet, onPlanetTr
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
