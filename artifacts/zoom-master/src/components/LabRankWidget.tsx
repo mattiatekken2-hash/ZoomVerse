@@ -2,6 +2,7 @@ import { useEffect, useState, memo } from "react";
 import { createPortal } from "react-dom";
 import { fetchLabRankState, type LabRankState } from "../utils/api";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
+import { TelegramAvatar } from "./TelegramAvatar";
 
 const CYAN = "#00d4ff";
 const ACCENT = "#4dd4ff";
@@ -509,40 +510,12 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
                       }}>
                         {medal ?? `#${r.rank}`}
                       </span>
-                      {photo ? (
-                        <img
-                          src={photo}
-                          alt=""
-                          referrerPolicy="no-referrer"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: "50%",
-                            objectFit: "cover",
-                            border: "2px solid rgba(255,255,255,0.25)",
-                            flexShrink: 0,
-                          }}
-                        />
-                      ) : (
-                        <div
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: "50%",
-                            background: "rgba(255,255,255,0.12)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 12,
-                            fontWeight: 900,
-                            color: "rgba(255,255,255,0.6)",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {r.name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
+                      <TelegramAvatar
+                        photoUrl={photo}
+                        name={r.name}
+                        seed={r.telegramId}
+                        size={28}
+                      />
                       <span
                         style={{
                           overflow: "hidden",

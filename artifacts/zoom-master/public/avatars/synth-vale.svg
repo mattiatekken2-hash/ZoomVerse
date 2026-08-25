@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
-  <rect width="128" height="128" fill="#1a1030"/>
-  <circle cx="40" cy="36" r="10" fill="#ff66aa" opacity="0.7"/>
-  <circle cx="96" cy="88" r="28" fill="#6a4cff" opacity="0.45"/>
-  <path d="M12 110c24-40 52-24 72-48 16-18 28-8 44-22v88H12z" fill="#ffdd55"/>
-  <text x="18" y="108" font-size="28" font-family="Arial Black, sans-serif" fill="#1a1030">V</text>
-</svg>

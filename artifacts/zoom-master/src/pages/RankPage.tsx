@@ -4,6 +4,7 @@ import { useGlobalStore } from "../store/globalStore";
 import { useT } from "../i18n/LanguageContext";
 import { TrophyIcon } from "../components/icons/GameIcons";
 import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
+import { TelegramAvatar } from "../components/TelegramAvatar";
 import { isLabStardustShapeId, isLabZoomShapeId } from "@workspace/game-models";
 
 interface RankPageProps {
@@ -259,16 +260,12 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                         <ZoomCubeIcon size={18} />
                       </span>
                     )}
-                    {entry.photoUrl ? (
-                      <img
-                        src={entry.photoUrl}
-                        alt=""
-                        className="rounded-full object-cover flex-shrink-0"
-                        style={{ width: 32, height: 32, border: "2px solid rgba(255,255,255,0.2)" }}
-                        referrerPolicy="no-referrer"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                      />
-                    ) : null}
+                    <TelegramAvatar
+                      photoUrl={entry.photoUrl}
+                      name={displayName || entry.firstName}
+                      seed={entry.telegramId}
+                      size={32}
+                    />
                     <div className={isUser ? "flex-1 font-black text-sm" : "flex-1 font-bold text-sm"} style={{ color: isUser ? "#E8ECF4" : "rgba(255,255,255,0.58)" }}>
                       {displayName}
                       {entry.vipLevel === "PRO" && (

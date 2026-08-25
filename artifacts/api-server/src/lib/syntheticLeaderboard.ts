@@ -23,11 +23,11 @@ export const SYNTHETIC_PLAYERS: ReadonlyArray<{
   labPoints: number;
 }> = [
   { id: `${SYNTHETIC_ID_PREFIX}01`, name: "Gio", photo: null, zoom: 178, labPoints: 1 },
-  { id: `${SYNTHETIC_ID_PREFIX}02`, name: "chiara", photo: "/avatars/synth-chiara.svg", zoom: 156, labPoints: 1 },
+  { id: `${SYNTHETIC_ID_PREFIX}02`, name: "chiara", photo: "/avatars/synth-lion.jpg", zoom: 156, labPoints: 1 },
   { id: `${SYNTHETIC_ID_PREFIX}03`, name: "Niko.", photo: null, zoom: 134, labPoints: 1 },
-  { id: `${SYNTHETIC_ID_PREFIX}04`, name: "Lory", photo: "/avatars/synth-lory.svg", zoom: 112, labPoints: 1 },
+  { id: `${SYNTHETIC_ID_PREFIX}04`, name: "Lory", photo: "/avatars/synth-pc.jpg", zoom: 112, labPoints: 1 },
   { id: `${SYNTHETIC_ID_PREFIX}05`, name: "m4rco", photo: null, zoom: 88, labPoints: 1 },
-  { id: `${SYNTHETIC_ID_PREFIX}06`, name: "Vale", photo: "/avatars/synth-vale.svg", zoom: 61, labPoints: 1 },
+  { id: `${SYNTHETIC_ID_PREFIX}06`, name: "Vale", photo: "/avatars/synth-dog.jpg", zoom: 61, labPoints: 1 },
 ];
 
 export function syntheticPlayerCount(): number {
