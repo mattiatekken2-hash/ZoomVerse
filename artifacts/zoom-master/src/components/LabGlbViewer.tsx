@@ -8,6 +8,7 @@ import { registerLabGlbCapture, type LabGlbCaptureHandle } from "../utils/labGlb
 import {
   LAB_GLB_FIT_SIZE,
   LAB_GLB_SPIN_RATE,
+  FORGE_FLOOR_SPIN_PER_MS,
   addForgeSpaceGrid,
   disposeSceneObject,
   fitGlbToCenter,
@@ -201,6 +202,9 @@ function LabGlbViewerBase({
       spinGroup.position.y = 0;
       spinGroup.rotation.x = 0;
       spinGroup.rotation.z = 0;
+      for (const obj of gridExtras) {
+        if (obj.userData.isForgeGridPivot) obj.rotation.y += FORGE_FLOOR_SPIN_PER_MS * dt;
+      }
       if (interactive && controls) {
         controls.update();
         if (autoSpin && !dragging) spinGroup.rotation.y += spinRate * (dt / 16.67);

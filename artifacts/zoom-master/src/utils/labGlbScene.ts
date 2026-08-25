@@ -82,11 +82,14 @@ export function addForgeSpaceGrid(scene: THREE.Scene, maxDim: number): THREE.Obj
     grid.renderOrder = -10;
   };
 
+  const gridPivot = new THREE.Group();
+  gridPivot.userData.isForgeGridPivot = true;
   const floorGrid = new THREE.GridHelper(span, cells, 0xb8c0cc, 0x6a7280);
   tuneGrid(floorGrid, 0.38);
   floorGrid.position.y = -1.35;
-  scene.add(floorGrid);
-  extras.push(floorGrid);
+  gridPivot.add(floorGrid);
+  scene.add(gridPivot);
+  extras.push(gridPivot);
 
   const backGrid = new THREE.GridHelper(span, cells, 0xa0a8b8, 0x505868);
   tuneGrid(backGrid, 0.2);
