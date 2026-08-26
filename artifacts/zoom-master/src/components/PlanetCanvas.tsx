@@ -460,11 +460,17 @@ export function PlanetCanvas({
       const w = el.clientWidth;
       if (w <= 1 || h <= 1) return;
       if (backdrop) {
-        if (isActiveCraft || pendingPlanet || forgePhase === "wheel") return;
-        if (viewportRef.current.w !== w || viewportRef.current.h !== h) {
-          viewportRef.current = { w, h };
-          setViewport({ w, h });
+        const firstMeasure = viewportRef.current.w <= 1 || viewportRef.current.h <= 1;
+        const craftingLock = isActiveCraft || !!pendingPlanet || forgePhase === "wheel";
+        // Mid-forge cold start: isActiveCraft is already true, so we still
+        // need one viewport measure or WebGL never mounts (black Lab, no voxels).
+        if (firstMeasure || !craftingLock) {
+          if (viewportRef.current.w !== w || viewportRef.current.h !== h) {
+            viewportRef.current = { w, h };
+            setViewport({ w, h });
+          }
         }
+        if (craftingLock) return;
         if (craftSizeLockRef.current != null) return;
         const next = Math.round(Math.min(w, h));
         if (Math.abs(next - sizeRef.current) < 1) return;
