@@ -5,11 +5,19 @@ export const LAB_FLOWER_SHAPE_ID = "flower";
 export const LAB_DOLLAR_SHAPE_ID = "dollar";
 export const LAB_CREEPER_SHAPE_ID = "creeper";
 export const LAB_CHEST_SHAPE_ID = "chest";
+export const LAB_HONEY_SHAPE_ID = "honey";
+export const LAB_HORSEA_SHAPE_ID = "horsea";
+export const LAB_SUSHI_SHAPE_ID = "sushi";
+export const LAB_HOUSE_SHAPE_ID = "lab_house";
 export const LAB_STARDUST_POT_SHAPE_ID = "stardust_pot";
 export const LAB_ONIGIRI_SHAPE_ID = "onigiri";
 export const LAB_ISLAND_HOME_SHAPE_ID = "island_home";
 export const LAB_STEVE_SHAPE_ID = "steve";
 export const LAB_CHICKEN_SHAPE_ID = "chicken";
+export const LAB_SLIME_SHAPE_ID = "slime";
+export const LAB_POKEBALL_SHAPE_ID = "lab_pokeball";
+export const LAB_DODGE_SHAPE_ID = "dodge";
+export const LAB_AK47_SHAPE_ID = "ak47";
 
 export const LAB_ZOOM_SHAPE_IDS = [
   LAB_PIZZA_SHAPE_ID,
@@ -17,6 +25,10 @@ export const LAB_ZOOM_SHAPE_IDS = [
   LAB_DOLLAR_SHAPE_ID,
   LAB_CREEPER_SHAPE_ID,
   LAB_CHEST_SHAPE_ID,
+  LAB_HONEY_SHAPE_ID,
+  LAB_HORSEA_SHAPE_ID,
+  LAB_SUSHI_SHAPE_ID,
+  LAB_HOUSE_SHAPE_ID,
 ] as const;
 
 export const LAB_STARDUST_SHAPE_IDS = [
@@ -25,6 +37,10 @@ export const LAB_STARDUST_SHAPE_IDS = [
   LAB_STARDUST_POT_SHAPE_ID,
   LAB_STEVE_SHAPE_ID,
   LAB_CHICKEN_SHAPE_ID,
+  LAB_SLIME_SHAPE_ID,
+  LAB_POKEBALL_SHAPE_ID,
+  LAB_DODGE_SHAPE_ID,
+  LAB_AK47_SHAPE_ID,
 ] as const;
 
 export type LabZoomShapeId = (typeof LAB_ZOOM_SHAPE_IDS)[number];
@@ -38,6 +54,10 @@ export const LAB_ZOOM_FARM_RATE: Record<LabZoomShapeId, number> = {
   [LAB_DOLLAR_SHAPE_ID]: 4.2,
   [LAB_CREEPER_SHAPE_ID]: 4.8,
   [LAB_CHEST_SHAPE_ID]: 5.0,
+  [LAB_HONEY_SHAPE_ID]: 5.2,
+  [LAB_HORSEA_SHAPE_ID]: 5.3,
+  [LAB_SUSHI_SHAPE_ID]: 5.4,
+  [LAB_HOUSE_SHAPE_ID]: 5.6,
 };
 
 export const LAB_STARDUST_FARM_RATE: Record<LabStardustShapeId, number> = {
@@ -46,6 +66,10 @@ export const LAB_STARDUST_FARM_RATE: Record<LabStardustShapeId, number> = {
   [LAB_STARDUST_POT_SHAPE_ID]: 0.20,
   [LAB_STEVE_SHAPE_ID]: 0.34,
   [LAB_CHICKEN_SHAPE_ID]: 0.36,
+  [LAB_SLIME_SHAPE_ID]: 0.38,
+  [LAB_POKEBALL_SHAPE_ID]: 0.39,
+  [LAB_DODGE_SHAPE_ID]: 0.40,
+  [LAB_AK47_SHAPE_ID]: 0.42,
 };
 
 export const LAB_ZOOM_DISPLAY_NAME: Record<LabZoomShapeId, string> = {
@@ -54,6 +78,10 @@ export const LAB_ZOOM_DISPLAY_NAME: Record<LabZoomShapeId, string> = {
   [LAB_DOLLAR_SHAPE_ID]: "Dollar",
   [LAB_CREEPER_SHAPE_ID]: "Creeper",
   [LAB_CHEST_SHAPE_ID]: "Chest",
+  [LAB_HONEY_SHAPE_ID]: "Honey",
+  [LAB_HORSEA_SHAPE_ID]: "Horsea",
+  [LAB_SUSHI_SHAPE_ID]: "Sushi",
+  [LAB_HOUSE_SHAPE_ID]: "House",
 };
 
 export const LAB_STARDUST_DISPLAY_NAME: Record<LabStardustShapeId, string> = {
@@ -62,6 +90,10 @@ export const LAB_STARDUST_DISPLAY_NAME: Record<LabStardustShapeId, string> = {
   [LAB_STARDUST_POT_SHAPE_ID]: "Stardust Pot",
   [LAB_STEVE_SHAPE_ID]: "Steve",
   [LAB_CHICKEN_SHAPE_ID]: "Chicken",
+  [LAB_SLIME_SHAPE_ID]: "Slime",
+  [LAB_POKEBALL_SHAPE_ID]: "Pokeball",
+  [LAB_DODGE_SHAPE_ID]: "Dodge",
+  [LAB_AK47_SHAPE_ID]: "AK-47 Asimov",
 };
 
 export const LAB_ZOOM_COLORS: Record<LabZoomShapeId, { color: string; glowColor: string }> = {
@@ -70,6 +102,10 @@ export const LAB_ZOOM_COLORS: Record<LabZoomShapeId, { color: string; glowColor:
   [LAB_DOLLAR_SHAPE_ID]: { color: "#ffe066", glowColor: "#ffd43b" },
   [LAB_CREEPER_SHAPE_ID]: { color: "#5dbe2f", glowColor: "#3d8c1a" },
   [LAB_CHEST_SHAPE_ID]: { color: "#c48a3a", glowColor: "#8d5a20" },
+  [LAB_HONEY_SHAPE_ID]: { color: "#e8b84a", glowColor: "#c9922a" },
+  [LAB_HORSEA_SHAPE_ID]: { color: "#4fc3f7", glowColor: "#0288d1" },
+  [LAB_SUSHI_SHAPE_ID]: { color: "#ff8a80", glowColor: "#ffab91" },
+  [LAB_HOUSE_SHAPE_ID]: { color: "#ef9a58", glowColor: "#5b8def" },
 };
 
 export const LAB_STARDUST_COLORS: Record<LabStardustShapeId, { color: string; glowColor: string }> = {
@@ -78,6 +114,10 @@ export const LAB_STARDUST_COLORS: Record<LabStardustShapeId, { color: string; gl
   [LAB_STARDUST_POT_SHAPE_ID]: { color: "#ffd740", glowColor: "#ffc107" },
   [LAB_STEVE_SHAPE_ID]: { color: "#5b8def", glowColor: "#3d6bc4" },
   [LAB_CHICKEN_SHAPE_ID]: { color: "#f0e6c8", glowColor: "#e8c547" },
+  [LAB_SLIME_SHAPE_ID]: { color: "#76ff03", glowColor: "#64dd17" },
+  [LAB_POKEBALL_SHAPE_ID]: { color: "#e53935", glowColor: "#ff5252" },
+  [LAB_DODGE_SHAPE_ID]: { color: "#37474f", glowColor: "#ff6f00" },
+  [LAB_AK47_SHAPE_ID]: { color: "#c9a227", glowColor: "#212121" },
 };
 
 /** Fallback tap count — live Lab models use voxel length (1 tap = 1 cube). */
@@ -144,15 +184,21 @@ function labMarketPathFromDisplayName(displayName: string | null | undefined): L
   if (!n) return null;
   if (
     n === "pizza" || n === "flower" || n === "dollar" || n === "creeper" || n === "chest"
+    || n === "honey" || n === "horsea" || n === "sushi" || n === "house" || n === "lab_house"
     || n.includes("pizza") || n.includes("flower") || n.includes("dollar")
     || n.includes("creeper") || n.includes("chest")
+    || n.includes("honey") || n.includes("horsea") || n.includes("sushi")
+    || n === "house"
   ) {
     return "zoom";
   }
   if (
     n === "onigiri" || n === "island home" || n === "stardust pot" || n === "steve" || n === "chicken"
+    || n === "slime" || n === "dodge" || n === "ak-47 asimov" || n === "ak47" || n === "lab_pokeball"
     || n.includes("onigiri") || n.includes("island") || (n.includes("stardust") && n.includes("pot"))
     || n.includes("steve") || n.includes("chicken")
+    || n.includes("slime") || n.includes("dodge")
+    || n.includes("asimov") || n.includes("ak-47")
   ) {
     return "stardust";
   }
@@ -205,6 +251,11 @@ const DISPLAY_NAME_TO_SHAPE: Record<string, string> = {
   dollar: LAB_DOLLAR_SHAPE_ID,
   creeper: LAB_CREEPER_SHAPE_ID,
   chest: LAB_CHEST_SHAPE_ID,
+  honey: LAB_HONEY_SHAPE_ID,
+  horsea: LAB_HORSEA_SHAPE_ID,
+  sushi: LAB_SUSHI_SHAPE_ID,
+  house: LAB_HOUSE_SHAPE_ID,
+  lab_house: LAB_HOUSE_SHAPE_ID,
   onigiri: LAB_ONIGIRI_SHAPE_ID,
   "island home": LAB_ISLAND_HOME_SHAPE_ID,
   island_home: LAB_ISLAND_HOME_SHAPE_ID,
@@ -212,6 +263,13 @@ const DISPLAY_NAME_TO_SHAPE: Record<string, string> = {
   stardust_pot: LAB_STARDUST_POT_SHAPE_ID,
   steve: LAB_STEVE_SHAPE_ID,
   chicken: LAB_CHICKEN_SHAPE_ID,
+  slime: LAB_SLIME_SHAPE_ID,
+  "slime soup": LAB_SLIME_SHAPE_ID,
+  lab_pokeball: LAB_POKEBALL_SHAPE_ID,
+  dodge: LAB_DODGE_SHAPE_ID,
+  "ak-47 asimov": LAB_AK47_SHAPE_ID,
+  ak47: LAB_AK47_SHAPE_ID,
+  "ak-47": LAB_AK47_SHAPE_ID,
 };
 
 /** Recover Lab shape id from listing/planet even if displayName was renamed later. */
@@ -230,11 +288,18 @@ export function resolveLabShapeIdFromPlanet(planet: {
   if (n.includes("dollar")) return LAB_DOLLAR_SHAPE_ID;
   if (n.includes("creeper")) return LAB_CREEPER_SHAPE_ID;
   if (n.includes("chest")) return LAB_CHEST_SHAPE_ID;
+  if (n.includes("honey")) return LAB_HONEY_SHAPE_ID;
+  if (n.includes("horsea")) return LAB_HORSEA_SHAPE_ID;
+  if (n.includes("sushi")) return LAB_SUSHI_SHAPE_ID;
+  if (n === "house") return LAB_HOUSE_SHAPE_ID;
   if (n.includes("onigiri")) return LAB_ONIGIRI_SHAPE_ID;
   if (n.includes("island")) return LAB_ISLAND_HOME_SHAPE_ID;
   if (n.includes("stardust") && n.includes("pot")) return LAB_STARDUST_POT_SHAPE_ID;
   if (n.includes("steve")) return LAB_STEVE_SHAPE_ID;
   if (n.includes("chicken")) return LAB_CHICKEN_SHAPE_ID;
+  if (n.includes("slime")) return LAB_SLIME_SHAPE_ID;
+  if (n.includes("dodge")) return LAB_DODGE_SHAPE_ID;
+  if (n.includes("asimov") || n.includes("ak-47") || n === "ak47") return LAB_AK47_SHAPE_ID;
   return null;
 }
 
@@ -308,7 +373,7 @@ function weightedPick<T extends string>(entries: readonly { id: T; weight: numbe
   return entries[entries.length - 1]!.id;
 }
 
-/** Pizza is common; creeper/chest farm higher and drop less often. */
+/** Pizza is common; higher-rate models drop less often. */
 export function pickRandomLabZoomShapeId(): LabZoomShapeId {
   if (readLabForgeTestPizzaFlag()) return LAB_PIZZA_SHAPE_ID;
   return weightedPick([
@@ -317,10 +382,14 @@ export function pickRandomLabZoomShapeId(): LabZoomShapeId {
     { id: LAB_DOLLAR_SHAPE_ID, weight: 13 },
     { id: LAB_CREEPER_SHAPE_ID, weight: 13 },
     { id: LAB_CHEST_SHAPE_ID, weight: 13 },
+    { id: LAB_HONEY_SHAPE_ID, weight: 10 },
+    { id: LAB_HORSEA_SHAPE_ID, weight: 10 },
+    { id: LAB_SUSHI_SHAPE_ID, weight: 10 },
+    { id: LAB_HOUSE_SHAPE_ID, weight: 10 },
   ] as const);
 }
 
-/** Stardust pot is common; steve / chicken farm higher and drop less often. */
+/** Stardust pot is common; higher-rate models drop less often. */
 export function pickRandomLabStardustShapeId(): LabStardustShapeId {
   return weightedPick([
     { id: LAB_STARDUST_POT_SHAPE_ID, weight: 45 },
@@ -328,6 +397,10 @@ export function pickRandomLabStardustShapeId(): LabStardustShapeId {
     { id: LAB_ISLAND_HOME_SHAPE_ID, weight: 13 },
     { id: LAB_STEVE_SHAPE_ID, weight: 13 },
     { id: LAB_CHICKEN_SHAPE_ID, weight: 13 },
+    { id: LAB_SLIME_SHAPE_ID, weight: 10 },
+    { id: LAB_POKEBALL_SHAPE_ID, weight: 10 },
+    { id: LAB_DODGE_SHAPE_ID, weight: 10 },
+    { id: LAB_AK47_SHAPE_ID, weight: 10 },
   ] as const);
 }
 

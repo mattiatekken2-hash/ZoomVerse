@@ -281,6 +281,91 @@ function chicken(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
   ];
 }
 
+/** Clay-forge silhouette only — real look comes from honey.glb (untouched). */
+function honey(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const mustard = a || "#e8b84a";
+  return [
+    pt("bowl", "cyl", 0, 0.12, 0, 0.22, 0.1, 0.2, "#c9922a", { rough: 0.45 }),
+    pt("blob", "sphere", 0, 0.28, 0, 0.2, 0.2, 0.2, mustard, { profile: "food" }),
+    pt("drip", "box", 0.12, 0.18, 0.08, 0.06, 0.16, 0.06, mustard, { profile: "food" }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from horsea.glb (untouched). */
+function horsea(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const blue = a || "#4fc3f7";
+  return [
+    pt("body", "sphere", 0, 0.28, 0, 0.18, 0.18, 0.18, blue, { rough: 0.45 }),
+    pt("snout", "box", 0, 0.34, 0.16, 0.06, 0.06, 0.16, blue, { rough: 0.4 }),
+    pt("tail", "box", 0, 0.16, -0.12, 0.08, 0.16, 0.08, "#0288d1", { rough: 0.5 }),
+    pt("fin", "box", 0, 0.42, -0.04, 0.04, 0.12, 0.1, "#81d4fa", { rough: 0.45 }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from lab_sushi.glb (untouched). */
+function sushi(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const rice = a || "#fff8e1";
+  return [
+    pt("rice", "box", 0, 0.14, 0, 0.32, 0.14, 0.18, rice, { profile: "food" }),
+    pt("fish", "box", 0, 0.24, 0, 0.34, 0.08, 0.2, "#ff8a80", { profile: "food" }),
+    pt("wrap", "box", 0, 0.2, 0, 0.08, 0.16, 0.2, "#2e7d32", { rough: 0.55 }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from house.glb (untouched). */
+function house(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const wall = a || "#ef9a58";
+  return [
+    pt("base", "box", 0, 0.2, 0, 0.36, 0.32, 0.28, wall, { rough: 0.55 }),
+    pt("roof", "box", 0, 0.42, 0, 0.4, 0.12, 0.32, "#8d4a2a", { rough: 0.6 }),
+    pt("door", "box", 0, 0.14, 0.15, 0.1, 0.16, 0.02, "#5b8def", { rough: 0.4 }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from slime.glb (untouched). */
+function slime(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const goo = a || "#76ff03";
+  return [
+    pt("blob", "sphere", 0, 0.22, 0, 0.24, 0.24, 0.24, goo, { profile: "liquid" }),
+    pt("eyeL", "box", -0.08, 0.28, 0.16, 0.06, 0.06, 0.04, "#111", { rough: 0.4 }),
+    pt("eyeR", "box", 0.08, 0.28, 0.16, 0.06, 0.06, 0.04, "#111", { rough: 0.4 }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from pokeball.glb (untouched). */
+function pokeball(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const red = a || "#e53935";
+  return [
+    pt("top", "sphere", 0, 0.3, 0, 0.22, 0.22, 0.22, red, { profile: "metal" }),
+    pt("band", "box", 0, 0.26, 0, 0.46, 0.04, 0.46, "#111", { rough: 0.4 }),
+    pt("button", "sphere", 0, 0.26, 0.2, 0.06, 0.06, 0.06, "#fafafa", { profile: "metal" }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from dodge.glb (untouched). */
+function dodge(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const body = a || "#37474f";
+  return [
+    pt("chassis", "box", 0, 0.16, 0, 0.5, 0.12, 0.22, body, { rough: 0.45 }),
+    pt("cabin", "box", -0.04, 0.28, 0, 0.22, 0.12, 0.2, "#90a4ae", { profile: "glass" }),
+    pt("wheelFL", "cyl", -0.16, 0.08, 0.12, 0.06, 0.04, 0.06, "#111", { profile: "rubber" }),
+    pt("wheelFR", "cyl", -0.16, 0.08, -0.12, 0.06, 0.04, 0.06, "#111", { profile: "rubber" }),
+    pt("wheelRL", "cyl", 0.16, 0.08, 0.12, 0.06, 0.04, 0.06, "#111", { profile: "rubber" }),
+    pt("wheelRR", "cyl", 0.16, 0.08, -0.12, 0.06, 0.04, 0.06, "#111", { profile: "rubber" }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from ak47.glb (untouched). */
+function ak47(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const gold = a || "#c9a227";
+  return [
+    pt("receiver", "box", 0, 0.22, 0, 0.36, 0.1, 0.08, gold, { profile: "metal", metal: 0.55 }),
+    pt("barrel", "box", 0.28, 0.24, 0, 0.28, 0.04, 0.04, "#212121", { profile: "metal" }),
+    pt("stock", "box", -0.26, 0.2, 0, 0.16, 0.08, 0.08, "#5d4037", { rough: 0.6 }),
+    pt("mag", "box", -0.04, 0.1, 0, 0.08, 0.16, 0.04, "#212121", { profile: "metal" }),
+  ];
+}
+
 export const FOOD_DRINK_SHAPES: ShapeEntry[] = [
   { id: "banana", name: "Banana", category: "food", build: banana },
   { id: "apple", name: "Red Apple", category: "food", build: apple },
@@ -308,4 +393,12 @@ export const FOOD_DRINK_SHAPES: ShapeEntry[] = [
   { id: "island_home", name: "Island Home", category: "food", build: islandHome },
   { id: "steve", name: "Steve", category: "food", build: steve },
   { id: "chicken", name: "Chicken", category: "food", build: chicken },
+  { id: "honey", name: "Honey", category: "food", build: honey },
+  { id: "horsea", name: "Horsea", category: "food", build: horsea },
+  { id: "sushi", name: "Sushi", category: "food", build: sushi },
+  { id: "lab_house", name: "House", category: "food", build: house },
+  { id: "slime", name: "Slime", category: "food", build: slime },
+  { id: "lab_pokeball", name: "Pokeball", category: "food", build: pokeball },
+  { id: "dodge", name: "Dodge", category: "food", build: dodge },
+  { id: "ak47", name: "AK-47 Asimov", category: "food", build: ak47 },
 ];

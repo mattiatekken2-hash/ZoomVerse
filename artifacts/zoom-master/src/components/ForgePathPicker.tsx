@@ -149,7 +149,7 @@ function ForgePathPickerBase({
               badge="$ZOOM"
               name="Pizza · Creeper · Chest · Flower · Dollar"
               costLabel={`${LAB_ZOOM_FORGE_STARDUST_COST} ★`}
-              yieldLabel="2.6–5.0 /h"
+              yieldLabel="2.6–5.6 /h"
               enabled={canZoom}
               accent="#7bed9f"
               border="rgba(255,255,255,0.82)"
@@ -169,7 +169,7 @@ function ForgePathPickerBase({
                   <ZoomMark size={11} />
                 </span>
               }
-              yieldLabel="0.20–0.36 ★/h"
+              yieldLabel="0.20–0.42 ★/h"
               enabled={canStardust}
               accent="#ffd740"
               border="rgba(255,255,255,0.62)"
