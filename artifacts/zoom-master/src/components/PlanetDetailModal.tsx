@@ -14,8 +14,6 @@ import {
 
   REPAIR_STARDUST_COST,
 
-  FARM_UPGRADE_COSTS,
-
   PLANET_CONFIG,
 
   getPlanetDisplayColors,
@@ -28,7 +26,7 @@ import {
 
   formatDuration,
 
-  getNextFarmCycleTier,
+  getPlanetFarmDurationHours,
 
 } from "../hooks/useGameState";
 
@@ -52,10 +50,6 @@ interface Props {
 
   stardustBalance?: number;
 
-  tonBalance?: number;
-
-  depositBalance?: number;
-
   maxSlots: number;
 
   planets: Planet[];
@@ -71,8 +65,6 @@ interface Props {
   onUnlist?: (id: string) => void;
 
   onRepair?: (id: string) => { ok: boolean; reason?: string };
-
-  onUpgradeDuration?: (planetId: string, durationHours: number) => Promise<{ ok: boolean; error?: string }>;
 
 }
 
@@ -118,10 +110,6 @@ export function PlanetDetailModal({
 
   stardustBalance = 0,
 
-  tonBalance = 0,
-
-  depositBalance = 0,
-
   maxSlots: _maxSlots,
 
   planets,
@@ -138,8 +126,6 @@ export function PlanetDetailModal({
 
   onRepair,
 
-  onUpgradeDuration,
-
 }: Props) {
 
   const { t, lang } = useT();
@@ -148,15 +134,9 @@ export function PlanetDetailModal({
 
   const [defectMsg, setDefectMsg] = useState<string | null>(null);
 
-  const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null);
-
-  const [upgrading, setUpgrading] = useState(false);
-
   const [detailGlReady, setDetailGlReady] = useState(false);
 
 
-
-  const gramBalance = (tonBalance || 0) + (depositBalance || 0);
 
   const livePlanet = planets.find((p) => p.id === planet.id) ?? planet;
   void _maxSlots;
@@ -192,11 +172,7 @@ export function PlanetDetailModal({
 
   const canRepair = stardustBalance >= repairCost;
 
-  const farmHours = livePlanet.farmDurationHours ?? 1;
-
-  const nextCycleTier = getNextFarmCycleTier(farmHours);
-
-  const nextCycleCost = nextCycleTier != null ? FARM_UPGRADE_COSTS[nextCycleTier] : undefined;
+  const farmHours = getPlanetFarmDurationHours(livePlanet);
 
   const active = isFarmActive(livePlanet);
 
@@ -281,30 +257,6 @@ export function PlanetDetailModal({
 
 
 
-  const handleUpgradeCycle = async () => {
-
-    if (!onUpgradeDuration || nextCycleTier == null || upgrading) return;
-
-    setUpgrading(true);
-
-    setUpgradeMsg(null);
-
-    const r = await onUpgradeDuration(livePlanet.id, nextCycleTier);
-
-    setUpgrading(false);
-
-    setUpgradeMsg(r.ok ? t("planetDetail.upgraded", { n: nextCycleTier }) : (r.error ?? t("planetDetail.failed")));
-
-    if (r.ok) {
-
-      window.setTimeout(() => setUpgradeMsg(null), 2200);
-
-    }
-
-  };
-
-
-
   const primaryLabel = (() => {
 
     if (durability <= 0) return t("planetDetail.frozenRepair");
@@ -322,16 +274,6 @@ export function PlanetDetailModal({
 
 
   const primaryDisabled = durability <= 0 || isListed || (active && !expired);
-
-  const canUpgradeCycle = !!onUpgradeDuration
-
-    && !isListed
-
-    && livePlanet.name !== "MUSHROOM"
-
-    && nextCycleTier != null
-
-    && nextCycleCost != null;
 
 
 
@@ -652,90 +594,6 @@ export function PlanetDetailModal({
           >
 
             {defectMsg}
-
-          </div>
-
-        )}
-
-
-
-        {canUpgradeCycle && (
-
-          <div className="mb-3 flex flex-col items-center gap-2">
-
-            <button
-
-              type="button"
-
-              disabled={upgrading || gramBalance < nextCycleCost!}
-
-              onClick={handleUpgradeCycle}
-
-              style={{
-
-                width: "100%",
-
-                maxWidth: 280,
-
-                padding: "11px 16px",
-
-                borderRadius: 12,
-
-                border: `1px solid rgba(${rgb},0.35)`,
-
-                background: gramBalance >= nextCycleCost!
-
-                  ? `rgba(${rgb},0.14)`
-
-                  : "rgba(255,255,255,0.03)",
-
-                color: gramBalance >= nextCycleCost! ? accent : "rgba(255,255,255,0.35)",
-
-                fontSize: 13,
-
-                fontWeight: 900,
-
-                letterSpacing: "0.04em",
-
-                cursor: upgrading || gramBalance < nextCycleCost! ? "not-allowed" : "pointer",
-
-                opacity: upgrading ? 0.6 : 1,
-
-              }}
-
-            >
-
-              {upgrading
-
-                ? "…"
-
-                : `${nextCycleTier}h · ${nextCycleCost} GRAM`}
-
-            </button>
-
-            {upgradeMsg && (
-
-              <div
-
-                style={{
-
-                  fontSize: 10,
-
-                  fontWeight: 700,
-
-                  color: upgradeMsg.startsWith("✓") ? "#00e676" : "#ff5252",
-
-                  textAlign: "center",
-
-                }}
-
-              >
-
-                {upgradeMsg}
-
-              </div>
-
-            )}
 
           </div>
 

@@ -19,6 +19,7 @@ import {
   LAB_STARDUST_COLORS,
   isLabZoomShapeId,
   resolveLabStardustShapeId,
+  LAB_GLB_FARM_HOURS,
 } from "@workspace/game-models";
 
 interface Props {
@@ -84,7 +85,7 @@ function planetFromListing(listing: ServerMarketListing, local: Planet | undefin
     float: 0.5,
     durability: 100,
     durabilityUpdatedAt: 0,
-    farmDurationHours: 1,
+    farmDurationHours: LAB_GLB_FARM_HOURS,
     serverListingId: listing.id,
   };
 }

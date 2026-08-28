@@ -2024,6 +2024,167 @@ router.post("/ton/deposit/confirm", async (req, res) => {
   res.json({ ok: false, status: "failed", error: v.reason });
 });
 
+type ShopZmcBalances = {
+  zoomBalance: number;
+  bonusSlots: number;
+  balanceEpoch: number;
+};
+
+async function readShopZmcBalances(telegramId: string): Promise<ShopZmcBalances> {
+  const [row] = await db
+    .select({
+      zoomBalance: usersTable.zoomBalance,
+      bonusSlots: usersTable.bonusSlots,
+      balanceEpoch: usersTable.balanceEpoch,
+    })
+    .from(usersTable)
+    .where(eq(usersTable.telegramId, telegramId))
+    .limit(1);
+  return {
+    zoomBalance: Number(row?.zoomBalance ?? 0),
+    bonusSlots: Number(row?.bonusSlots ?? 0),
+    balanceEpoch: Number(row?.balanceEpoch ?? 0),
+  };
+}
+
+async function applyVerifiedShopZmcCredit(opts: {
+  telegramId: string;
+  item: StarsItem;
+  txHash: string;
+  amountHuman: number;
+  priceZmc: number;
+}): Promise<{ alreadyCredited: boolean; txnId: number } & ShopZmcBalances> {
+  const { telegramId, item, txHash, amountHuman, priceZmc } = opts;
+  const result = await db.transaction(async (tx) => {
+    const [user] = await tx
+      .select({ isDisabled: usersTable.isDisabled, bonusSlots: usersTable.bonusSlots })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, telegramId))
+      .for("update")
+      .limit(1);
+    if (!user) throw new Error("USER_NOT_FOUND");
+    if (user.isDisabled) throw new Error("ACCOUNT_DISABLED");
+    if (zmcPriceForItem(item, user.bonusSlots ?? 0) !== priceZmc) {
+      throw new Error("PRICE_CHANGED");
+    }
+
+    const [existing] = await tx
+      .select({ id: treasuryLedgerTable.id })
+      .from(treasuryLedgerTable)
+      .where(eq(treasuryLedgerTable.txHash, txHash))
+      .limit(1);
+    if (existing) {
+      return { alreadyCredited: true as const, txnId: 0 };
+    }
+
+    try {
+      await tx.insert(treasuryLedgerTable).values({
+        txHash,
+        type: item.id === "extra_slot" ? "shop_extra_slot" : "shop_zoom_pack",
+        amountZmc: amountHuman,
+        userId: telegramId,
+      });
+    } catch (err: unknown) {
+      const code = typeof err === "object" && err && "code" in err ? (err as { code: string }).code : "";
+      if (code === "23505") return { alreadyCredited: true as const, txnId: 0 };
+      throw err;
+    }
+
+    const [txn] = await tx.insert(transactionsTable).values({
+      telegramId,
+      type: item.itemType,
+      currency: "ZMC",
+      amount: item.zoomAmount || 0,
+      tonAmount: priceZmc,
+      itemId: item.id,
+      itemName: item.title,
+      status: "completed",
+      telegramPaymentId: `zmc_shop_${txHash}`,
+    }).returning();
+
+    await creditUserTx(tx, item, telegramId, txn.id);
+    return { alreadyCredited: false as const, txnId: txn.id };
+  });
+
+  const bal = await readShopZmcBalances(telegramId);
+  return { ...result, ...bal };
+}
+
+const shopZmcBgInFlight = new Set<string>();
+
+function backgroundVerifyShopZmc(opts: {
+  telegramId: string;
+  item: StarsItem;
+  walletAddress: string;
+  boc: string;
+  amountNano: bigint;
+  priceZmc: number;
+}): void {
+  const key = `${opts.telegramId}:${opts.item.id}:${opts.boc.slice(0, 48)}`;
+  if (shopZmcBgInFlight.has(key)) return;
+  shopZmcBgInFlight.add(key);
+  void (async () => {
+    try {
+      const attempts = [5_000, 8_000, 12_000, 18_000, 25_000, 30_000, 30_000, 30_000];
+      for (const wait of attempts) {
+        await new Promise((r) => setTimeout(r, wait));
+        const verified = await verifyZmcTreasuryTransfer({
+          boc: opts.boc,
+          buyerWallet: opts.walletAddress,
+          amountNano: opts.amountNano,
+        });
+        if (!verified.ok) {
+          if (!verified.retriable) {
+            console.warn(`[shop/zmc-bg] not retriable for ${opts.telegramId} ${opts.item.id}: ${verified.reason}`);
+            return;
+          }
+          continue;
+        }
+        const credited = await applyVerifiedShopZmcCredit({
+          telegramId: opts.telegramId,
+          item: opts.item,
+          txHash: verified.txHash,
+          amountHuman: verified.feeHuman,
+          priceZmc: opts.priceZmc,
+        });
+        if (!credited.alreadyCredited) {
+          recordHistoryAsync({
+            telegramId: opts.telegramId,
+            kind: "ton_purchase",
+            delta: -opts.priceZmc,
+            currency: "zmc",
+            meta: {
+              txnId: credited.txnId,
+              itemId: opts.item.id,
+              itemName: opts.item.title,
+              itemType: opts.item.itemType,
+              source: "zmc",
+              txHash: verified.txHash,
+              bg: true,
+            },
+          });
+          if (opts.item.zoomAmount) {
+            recordHistoryAsync({
+              telegramId: opts.telegramId,
+              kind: "shop_zoom_pack",
+              delta: opts.item.zoomAmount,
+              currency: "zoom",
+              meta: { txnId: credited.txnId, itemId: opts.item.id, itemName: opts.item.title, bg: true },
+            });
+          }
+          console.log(`[shop/zmc-bg] credited ${opts.item.id} to ${opts.telegramId} zoom=${credited.zoomBalance}`);
+        }
+        return;
+      }
+      console.warn(`[shop/zmc-bg] timed out for ${opts.telegramId} ${opts.item.id}`);
+    } catch (err) {
+      console.error("[shop/zmc-bg] error:", err);
+    } finally {
+      shopZmcBgInFlight.delete(key);
+    }
+  })();
+}
+
 /**
  * Shop ZOOM packs and Extra Slot paid in on-chain $ZMC. 100% of the jetton
  * goes to treasury (sink).
@@ -2140,67 +2301,32 @@ router.post("/shop/zmc/confirm", async (req, res) => {
     if (!verified.retriable) break;
   }
   if (!verified || !verified.ok) {
+    const pending = !verified || verified.retriable;
+    if (pending) {
+      backgroundVerifyShopZmc({
+        telegramId,
+        item,
+        walletAddress,
+        boc,
+        amountNano,
+        priceZmc,
+      });
+    }
     res.status(verified && !verified.retriable ? 400 : 202).json({
       ok: false,
-      pending: !verified || verified.retriable,
+      pending,
       error: verified?.reason ?? "On-chain $ZMC transfer not confirmed",
     });
     return;
   }
 
-  const txHash = verified.txHash;
-  const amountHuman = verified.feeHuman;
-
   try {
-    const result = await db.transaction(async (tx) => {
-      const [user] = await tx
-        .select({ isDisabled: usersTable.isDisabled, bonusSlots: usersTable.bonusSlots })
-        .from(usersTable)
-        .where(eq(usersTable.telegramId, telegramId))
-        .for("update")
-        .limit(1);
-      if (!user) throw new Error("USER_NOT_FOUND");
-      if (user.isDisabled) throw new Error("ACCOUNT_DISABLED");
-      if (zmcPriceForItem(item, user.bonusSlots ?? 0) !== priceZmc) {
-        throw new Error("PRICE_CHANGED");
-      }
-
-      const [existing] = await tx
-        .select({ id: treasuryLedgerTable.id })
-        .from(treasuryLedgerTable)
-        .where(eq(treasuryLedgerTable.txHash, txHash))
-        .limit(1);
-      if (existing) {
-        return { alreadyCredited: true as const, txnId: 0 };
-      }
-
-      try {
-        await tx.insert(treasuryLedgerTable).values({
-          txHash,
-          type: item.id === "extra_slot" ? "shop_extra_slot" : "shop_zoom_pack",
-          amountZmc: amountHuman,
-          userId: telegramId,
-        });
-      } catch (err: unknown) {
-        const code = typeof err === "object" && err && "code" in err ? (err as { code: string }).code : "";
-        if (code === "23505") return { alreadyCredited: true as const, txnId: 0 };
-        throw err;
-      }
-
-      const [txn] = await tx.insert(transactionsTable).values({
-        telegramId,
-        type: item.itemType,
-        currency: "ZMC",
-        amount: item.zoomAmount || 0,
-        tonAmount: priceZmc,
-        itemId: item.id,
-        itemName: item.title,
-        status: "completed",
-        telegramPaymentId: `zmc_shop_${txHash}`,
-      }).returning();
-
-      await creditUserTx(tx, item, telegramId, txn.id);
-      return { alreadyCredited: false as const, txnId: txn.id };
+    const result = await applyVerifiedShopZmcCredit({
+      telegramId,
+      item,
+      txHash: verified.txHash,
+      amountHuman: verified.feeHuman,
+      priceZmc,
     });
 
     if (!result.alreadyCredited) {
@@ -2215,7 +2341,7 @@ router.post("/shop/zmc/confirm", async (req, res) => {
           itemName: item.title,
           itemType: item.itemType,
           source: "zmc",
-          txHash,
+          txHash: verified.txHash,
         },
       });
       if (item.zoomAmount) {
@@ -2236,6 +2362,9 @@ router.post("/shop/zmc/confirm", async (req, res) => {
       itemId: item.id,
       itemName: item.title,
       zoomAmount: item.zoomAmount,
+      zoomBalance: result.zoomBalance,
+      bonusSlots: result.bonusSlots,
+      balanceEpoch: result.balanceEpoch,
       priceZmc,
     });
   } catch (err) {

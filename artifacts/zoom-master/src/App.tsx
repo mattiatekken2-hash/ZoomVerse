@@ -186,7 +186,7 @@ function AppShellWithState() {
     state, setState, craft, beginLabForge, skipForge, claimCraft, redeemCode,
     pvpAddPlanet, pvpRemovePlanet,
     collectPlanet, burnPlanet,
-    startFarming, stopFarming, repairPlanet, upgradePlanetFarmDuration, upgradeSunFarmDuration, upgradeCollectionFarmDuration,
+    startFarming, stopFarming, repairPlanet, upgradeSunFarmDuration, upgradeCollectionFarmDuration,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     claimDaily, startSunFarming, stopSunFarming, burnSun, unlockSlot,
     placeWhitePlanet, reactivateWhitePlanet, markWhitePlanetReactivated, collectWhitePlanet,
@@ -230,28 +230,22 @@ function AppShellWithState() {
   const stardustCapReachedRef = useRef(stardustCapReached);
   useEffect(() => { stardustCapReachedRef.current = stardustCapReached; }, [stardustCapReached]);
 
-  // One-shot init + periodic up-sync: when the server-side stardust state
-  // first arrives, seed the local GameState if it still holds the default 0.
-  // Afterwards, only snap UPWARD (server grants, admin credits) — never
-  // overwrite downwards, because local crafts deduct immediately.
+  // One-shot init + periodic up-sync. Server is source of truth for admin
+  // grants; local crafts deduct immediately so we never snap DOWN from this
+  // poll (a stale in-flight /stardust/state used to overwrite a just-applied
+  // admin credit, then /balance/sync LEAST-clobber the DB row).
   const stardustInitDoneRef = useRef(false);
   useEffect(() => {
     if (!stardust.ready) return;
     setState((prev) => {
-      // First time ever: adopt server value unconditionally.
       if (!stardustInitDoneRef.current) {
         stardustInitDoneRef.current = true;
-        if (prev.stardustBalance === 0 && stardust.balance > 0) {
+        if (stardust.balance !== prev.stardustBalance) {
           return { ...prev, stardustBalance: stardust.balance };
         }
         return prev;
       }
-      // Subsequent syncs: adopt server when not mid-forge (craft deducts locally).
-      const forging = prev.forgePlanetBuild || prev.labForgePath || prev.pendingPlanet;
-      if (!forging && stardust.balance !== prev.stardustBalance) {
-        return { ...prev, stardustBalance: stardust.balance };
-      }
-      if (forging && stardust.balance > prev.stardustBalance) {
+      if (stardust.balance > (prev.stardustBalance || 0)) {
         return { ...prev, stardustBalance: stardust.balance };
       }
       return prev;
@@ -890,7 +884,6 @@ function AppShellWithState() {
                   tonBalance={state.tonBalance || 0}
                   depositBalance={state.depositBalance || 0}
                   onSlotUnlocked={unlockSlot}
-                  onUpgradeDuration={upgradePlanetFarmDuration}
                   onUpgradeSunDuration={upgradeSunFarmDuration}
                   whiteCollectionUnlocked={!!state.whiteCollectionUnlocked}
                   whiteCollectionBundles={Number(state.whiteCollectionBundles) || 0}

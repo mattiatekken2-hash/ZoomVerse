@@ -3,6 +3,7 @@ import type { Planet } from "../hooks/useGameState";
 import {
   formatDuration,
   getFarmTimeRemaining,
+  getPlanetFarmDurationHours,
   isFarmActive,
   isFarmExpired,
 } from "../hooks/useGameState";
@@ -77,7 +78,7 @@ export function FarmInventoryCard({
   const expired = isFarmExpired(planet);
   const isListed = planet.isListedInMarket;
   const remaining = getFarmTimeRemaining(planet);
-  const farmHours = planet.farmDurationHours ?? 1;
+  const farmHours = getPlanetFarmDurationHours(planet);
   const isPlatinumNft = planet.name === "V1_NFT";
 
   const path: LabMarketPath = planet.name === "MUSHROOM"

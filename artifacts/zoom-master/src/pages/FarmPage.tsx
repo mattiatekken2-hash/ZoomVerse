@@ -4,7 +4,7 @@ import type { CollectibleItem } from "../utils/collectibleConfig";
 import { FarmInventoryCard } from "../components/FarmInventoryCard";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
 import type { Planet, SunState } from "../hooks/useGameState";
-import { getPlanetDisplayColors, isFarmActive } from "../hooks/useGameState";
+import { getPlanetDisplayColors, isFarmActive, getPlanetFarmDurationHours } from "../hooks/useGameState";
 import { payShopItemWithZmc, syncActiveFarms } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 import { getPlanetDisplayName } from "../utils/planetNames";
@@ -37,10 +37,8 @@ interface FarmPageProps {
   onUnlistItem?: (itemId: string) => void;
   /** Flush pending planet save before entering PvP queue. */
   onFlushPlanets?: () => Promise<void>;
-  /** User's current GRAM deposit balance (shown in upgrade UI). */
+  /** User's current GRAM deposit balance. */
   tonBalance?: number;
-  /** Permanently upgrade a planet's farm duration; charges GRAM from deposit. */
-  onUpgradeDuration?: (planetId: string, durationHours: number) => Promise<{ ok: boolean; error?: string }>;
   /** Permanently upgrade the SUN's farm-cycle duration; charges GRAM from EARNED GRAM. */
   onUpgradeSunDuration?: (durationHours: number) => Promise<{ ok: boolean; error?: string }>;
   depositBalance?: number;
@@ -104,7 +102,7 @@ export function FarmPage({
   onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun,
   onSell, onUnlist, onRepair, stardustBalance = 0,
   items: _items = [], onSellItem: _onSellItem, onUnlistItem: _onUnlistItem, onFlushPlanets: _onFlushPlanets, tonBalance = 0,
-  onUpgradeDuration, onUpgradeSunDuration,
+  onUpgradeSunDuration,
   depositBalance = 0,
   onSlotUnlocked,
   whiteCollectionUnlocked = false,
@@ -208,7 +206,7 @@ export function FarmPage({
         .map((p) => ({
           id: p.id,
           type: p.name,
-          farmDurationHours: p.farmDurationHours ?? 1,
+          farmDurationHours: getPlanetFarmDurationHours(p),
           farmStartedAt: p.farmStartedAt,
         }));
       if (active.length === 0) return;
@@ -581,8 +579,6 @@ export function FarmPage({
           planet={liveDetailPlanet}
           telegramId={telegramId}
           stardustBalance={stardustBalance}
-          tonBalance={tonBalance}
-          depositBalance={depositBalance}
           planets={planets}
           maxSlots={maxSlots}
           onClose={() => setDetailPlanet(null)}
@@ -597,7 +593,6 @@ export function FarmPage({
                 return r;
               }
             : undefined}
-          onUpgradeDuration={onUpgradeDuration}
         />
       )}
     </div>

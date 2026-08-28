@@ -3,11 +3,12 @@ import { db, farmCyclesTable, usersTable } from "@workspace/db";
 import { and, eq, isNull, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { bumpZoomPriceFireAndForget } from "../lib/zoomPrice";
+import { LAB_GLB_FARM_HOURS } from "@workspace/game-models";
 
 const router: IRouter = Router();
 
-// Default farm cycle = 1 hour. Users can upgrade per-planet up to 24h.
-const BASE_FARM_DURATION_MS = 1 * 60 * 60 * 1000;
+// Lab GLB models farm a fixed 24h cycle (duration upgrades retired).
+const BASE_FARM_DURATION_MS = LAB_GLB_FARM_HOURS * 60 * 60 * 1000;
 
 // Cost table (GRAM / TON) for permanent per-planet farm-duration upgrades.
 const UPGRADE_COSTS: Record<number, number> = {
@@ -45,8 +46,8 @@ router.post("/farm/start", async (req, res) => {
     res.status(400).json({ error: "Invalid body" });
     return;
   }
-  const { telegramId, planetId, planetType, isWhite, farmDurationHours } = parsed.data;
-  const durationMs = (farmDurationHours ?? 1) * 60 * 60 * 1000;
+  const { telegramId, planetId, planetType, isWhite } = parsed.data;
+  const durationMs = BASE_FARM_DURATION_MS;
   const now = new Date();
   const expiresAt = new Date(now.getTime() + durationMs);
   try {
@@ -109,8 +110,8 @@ router.post("/farm/reactivate", async (req, res) => {
     res.status(400).json({ error: "Invalid body" });
     return;
   }
-  const { telegramId, planetId, planetType, farmDurationHours } = parsed.data;
-  const durationMs = (farmDurationHours ?? 1) * 60 * 60 * 1000;
+  const { telegramId, planetId, planetType } = parsed.data;
+  const durationMs = BASE_FARM_DURATION_MS;
   const now = new Date();
   const expiresAt = new Date(now.getTime() + durationMs);
 
@@ -177,23 +178,9 @@ const UpgradeDurationBody = z.object({
   planet: z.record(z.unknown()).optional(),
 });
 
-function asPlanetArray(raw: unknown): Array<Record<string, unknown>> {
-  if (Array.isArray(raw)) return raw as Array<Record<string, unknown>>;
-  if (typeof raw === "string") {
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      return Array.isArray(parsed) ? parsed as Array<Record<string, unknown>> : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
-}
-
 /**
- * Permanently upgrade a planet's farm duration (stored in planetsJson).
- * Charges GRAM from deposit first, then earned (ton_balance).
- * The upgrade persists even when the planet is listed/sold on the market.
+ * Duration upgrades on Lab GLB models are retired — every model farms 24h.
+ * No-op: does not charge GRAM and does not rewrite planets_json.
  */
 router.post("/farm/upgrade-duration", async (req, res) => {
   const parsed = UpgradeDurationBody.safeParse(req.body);
@@ -201,65 +188,7 @@ router.post("/farm/upgrade-duration", async (req, res) => {
     res.status(400).json({ error: "Invalid body" });
     return;
   }
-  const { telegramId, planetId, durationHours, planet: planetSnap } = parsed.data;
-
-  if (!VALID_DURATIONS.has(durationHours)) {
-    res.status(400).json({ error: "Invalid duration" });
-    return;
-  }
-  const cost = UPGRADE_COSTS[durationHours]!;
-
-  try {
-    const result = await db.transaction(async (tx) => {
-      const rows = await tx.execute(sql`
-        SELECT ton_balance, deposit_balance, planets_json FROM users WHERE telegram_id = ${telegramId} FOR UPDATE
-      `);
-      const row = (rows as unknown as { rows: Array<Record<string, unknown>> }).rows[0];
-      if (!row) return { ok: false, error: "User not found" };
-
-      const tonBalance = Number(row["ton_balance"] ?? 0);
-      const depositBalance = Number(row["deposit_balance"] ?? 0);
-      if (depositBalance + tonBalance < cost) return { ok: false, error: "Insufficient GRAM balance" };
-
-      const planets = asPlanetArray(row["planets_json"]);
-      const idx = planets.findIndex((p) => String(p["id"] ?? "") === planetId);
-      if (idx >= 0) {
-        const currentHours = Math.max(1, Number(planets[idx]["farmDurationHours"] ?? 1));
-        if (durationHours < currentHours) {
-          return { ok: false, error: "Cannot downgrade cycle" };
-        }
-        planets[idx] = { ...planets[idx], farmDurationHours: durationHours };
-      } else if (planetSnap && String(planetSnap["id"] ?? "") === planetId) {
-        planets.push({ ...planetSnap, id: planetId, farmDurationHours: durationHours });
-      } else {
-        return { ok: false, error: "Planet not found" };
-      }
-
-      const fromDeposit = Math.min(depositBalance, cost);
-      const fromEarned = +(cost - fromDeposit).toFixed(6);
-
-      await tx.execute(sql`
-        UPDATE users
-           SET deposit_balance = deposit_balance - ${fromDeposit},
-               ton_balance     = ton_balance - ${fromEarned},
-               balance_epoch   = balance_epoch + 1,
-               planets_json    = ${JSON.stringify(planets)}::jsonb
-         WHERE telegram_id = ${telegramId}
-           AND (deposit_balance + ton_balance) >= ${cost}
-      `);
-
-      return {
-        ok: true,
-        newTonBalance: +(tonBalance - fromEarned).toFixed(6),
-        newDepositBalance: +(depositBalance - fromDeposit).toFixed(6),
-      };
-    });
-
-    res.json(result);
-  } catch (err) {
-    console.error("[farm/upgrade-duration] error:", err);
-    res.status(500).json({ error: "Database error" });
-  }
+  res.json({ ok: true, durationHours: LAB_GLB_FARM_HOURS, retired: true });
 });
 
 const CollectionReactivateBody = z.object({
@@ -433,8 +362,7 @@ router.post("/farm/sync-active", async (req, res) => {
   const { telegramId, planets } = parsed.data;
   try {
     for (const p of planets) {
-      const hours = p.farmDurationHours ?? 1;
-      const durationMs = hours * 60 * 60 * 1000;
+      const durationMs = BASE_FARM_DURATION_MS;
       const started = new Date(p.farmStartedAt);
       const expiresAt = new Date(p.farmStartedAt + durationMs);
       const [existing] = await db

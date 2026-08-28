@@ -28,10 +28,9 @@ export interface UseStardust {
 }
 
 /**
- * Stardust state hook. Backend is source of truth (so the daily cap and the
- * SUN-ownership gate cannot be bypassed by editing localStorage). We hydrate
- * once when telegramId becomes available, then re-hydrate every 5 min in
- * case other tabs/sessions also collected.
+ * Stardust state hook. Backend is source of truth (daily cap). Hydrate when
+ * telegramId is available, then poll every 30s and on global refresh events
+ * so admin credits show up without waiting 5 minutes.
  */
 export function useStardust(telegramId: string | null): UseStardust {
   const [state, setState] = useState<StardustState>(EMPTY);
@@ -47,9 +46,26 @@ export function useStardust(telegramId: string | null): UseStardust {
 
   useEffect(() => {
     if (!telegramId) return;
-    refresh();
-    const id = setInterval(refresh, 5 * 60 * 1000);
-    return () => clearInterval(id);
+    void refresh();
+    const id = window.setInterval(() => {
+      if (document.hidden) return;
+      void refresh();
+    }, 30_000);
+    const onRefresh = () => { void refresh(); };
+    window.addEventListener("zoom-data-refresh", onRefresh);
+    window.addEventListener("stardust-refresh", onRefresh);
+    window.addEventListener("zoom-admin-refresh", onRefresh);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("zoom-data-refresh", onRefresh);
+      window.removeEventListener("stardust-refresh", onRefresh);
+      window.removeEventListener("zoom-admin-refresh", onRefresh);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [telegramId, refresh]);
 
   const collect = useCallback(async (): Promise<StardustCollectResult> => {
@@ -62,16 +78,12 @@ export function useStardust(telegramId: string | null): UseStardust {
     inFlightRef.current = true;
     try {
       const res = await collectStardustOnServer(telegramId);
-      // Always reflect the server-returned counters, even on failure — they
-      // tell us the authoritative balance/today/global at the moment the
-      // request was processed.
       setState((prev) => ({
         ...prev,
         balance: res.balance,
         today: res.today,
         dailyCap: res.dailyCap,
         globalTotal: res.globalTotal,
-        // Server only updates hasSun via the state endpoint, so leave it.
       }));
       return res;
     } finally {

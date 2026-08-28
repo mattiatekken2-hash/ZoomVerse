@@ -1,5 +1,5 @@
 import type { Planet } from "../hooks/useGameState";
-import { getPlanetDisplayColors } from "../hooks/useGameState";
+import { getPlanetDisplayColors, getPlanetFarmDurationHours } from "../hooks/useGameState";
 import { labModelDisplayName, isLabStardustShapeId } from "@workspace/game-models";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
@@ -19,7 +19,7 @@ export function LabModelRevealCard({ planet, pathLabel }: LabModelRevealCardProp
   const rateValue = planet.rate >= 1
     ? planet.rate.toLocaleString()
     : String(planet.rate);
-  const farmHours = planet.farmDurationHours ?? 1;
+  const farmHours = getPlanetFarmDurationHours(planet);
   const cycleTotal = Math.round(planet.rate * farmHours);
 
   return (

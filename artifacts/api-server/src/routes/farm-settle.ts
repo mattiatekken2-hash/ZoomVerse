@@ -3,13 +3,12 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { EQUIPMENT_RATE_SERVER } from "./equipment";
+import { LAB_GLB_FARM_HOURS } from "@workspace/game-models";
 
 const router: IRouter = Router();
 
-// Mirrors client constants (artifacts/zoom-master/src/hooks/useGameState.ts).
-// Base planet farm cycle = 1h (upgradeable per-planet via farmDurationHours).
-// SUN farm window also 1h. Equipment stays on the legacy 24h window.
-const BASE_FARM_DURATION_MS = 1 * 60 * 60 * 1000;   // regular planets (default)
+// Lab GLB farm cycle is a fixed 24h window (duration upgrades retired).
+const BASE_FARM_DURATION_MS = LAB_GLB_FARM_HOURS * 60 * 60 * 1000;
 const SUN_FARM_DURATION_MS  = 1 * 60 * 60 * 1000;   // SUN cycle
 const EQUIPMENT_FARM_DURATION_MS = 24 * 60 * 60 * 1000; // equipment stays 24h
 const DAILY_COLLECT_MS = 24 * 60 * 60 * 1000;
@@ -188,10 +187,8 @@ router.post("/farm/settle", async (req, res) => {
         const effectiveStart = Math.max(farmStartedAt, lastCollectedAt);
         // Never-started planet (both timestamps still at 0) — skip.
         if (effectiveStart <= 0) continue;
-        // Per-planet farm duration: use farmDurationHours if present (upgrade
-        // system), otherwise default to 1h.
-        const farmDurationHours = Number((p as Record<string, unknown>)["farmDurationHours"] ?? 1);
-        const planetFarmDurationMs = Math.max(1, farmDurationHours) * 60 * 60 * 1000;
+        // Lab GLB models farm a fixed 24h cycle (duration upgrades retired).
+        const planetFarmDurationMs = BASE_FARM_DURATION_MS;
         const start = Math.max(watermark, effectiveStart);
         const end = Math.min(now, effectiveStart + planetFarmDurationMs);
         if (end > start) {

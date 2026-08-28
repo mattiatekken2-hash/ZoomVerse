@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, fetchMyMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeFarmDuration, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, invalidateTasksCache, bumpTasksPlanetsBuilt, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
-import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, labForgeChromeForPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, resolveLabShapeIdFromPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, labModelDisplayName, resumePlanetFarmAfterMarketPause, type LabForgePath } from "@workspace/game-models";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, fetchMyMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, invalidateTasksCache, bumpTasksPlanetsBuilt, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
+import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, labForgeChromeForPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, resolveLabShapeIdFromPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, labModelDisplayName, resumePlanetFarmAfterMarketPause, LAB_GLB_FARM_HOURS, type LabForgePath } from "@workspace/game-models";
 import { normalizeLabForgeShapeId } from "../utils/labForgeShape";
 import { refreshMarketListings, upsertMarketListing, removeMarketListingByPlanetId } from "../store/globalStore";
 import { applyRemovedPlanetTombstones, markPlanetBurned, markPlanetDelisted, clearPlanetDelisted } from "../utils/removedPlanets";
@@ -766,13 +766,18 @@ const LEGACY_COLLECT_WINDOW_MS = 24 * 60 * 60 * 1000;
 const DAILY_COLLECT_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Returns the farm-cycle duration in ms for a given planet.
- * Reads planet.farmDurationHours (1–24, defaults to 1).
- * All farm timing functions MUST use this instead of FARM_DURATION_MS
- * so that per-planet upgrades are respected.
+ * Lab GLB models always farm 24h (upgrades retired). Collection planets
+ * keep their stored hours.
  */
+export function getPlanetFarmDurationHours(planet: Planet): number {
+  if (isLabForgeGeneratorPlanet(planet) || labForgeShapeHasGlbReveal(planet.shapeId)) {
+    return LAB_GLB_FARM_HOURS;
+  }
+  return Math.max(1, planet.farmDurationHours ?? 1);
+}
+
 export function getPlanetFarmDurationMs(planet: Planet): number {
-  return Math.max(1, planet.farmDurationHours ?? 1) * 60 * 60 * 1000;
+  return getPlanetFarmDurationHours(planet) * 60 * 60 * 1000;
 }
 
 // Cost table (GRAM) for farm-duration upgrades — mirrors the server table.
@@ -1801,7 +1806,7 @@ function makePlanet(rarity: PlanetType): Planet {
     float: generateRandomFloat(),
     durability: 100,
     durabilityUpdatedAt: 0,
-    farmDurationHours: 1,
+    farmDurationHours: LAB_GLB_FARM_HOURS,
   };
 }
 
@@ -1829,7 +1834,7 @@ function makeLabGeneratorPlanet(path: LabForgePath, shapeId: string): Planet {
       float: generateRandomFloat(),
       durability: 100,
       durabilityUpdatedAt: 0,
-      farmDurationHours: 1,
+      farmDurationHours: LAB_GLB_FARM_HOURS,
     };
   }
   if (isLabStardustShapeId(shapeId)) {
@@ -1853,7 +1858,7 @@ function makeLabGeneratorPlanet(path: LabForgePath, shapeId: string): Planet {
       float: generateRandomFloat(),
       durability: 100,
       durabilityUpdatedAt: 0,
-      farmDurationHours: 1,
+      farmDurationHours: LAB_GLB_FARM_HOURS,
     };
   }
   return {
@@ -1874,7 +1879,7 @@ function makeLabGeneratorPlanet(path: LabForgePath, shapeId: string): Planet {
     float: generateRandomFloat(),
     durability: 100,
     durabilityUpdatedAt: 0,
-    farmDurationHours: 1,
+    farmDurationHours: LAB_GLB_FARM_HOURS,
   };
 }
 
@@ -1986,7 +1991,7 @@ function makePlanetFromModel(model: ZoomModel, craftCost: number): Planet {
     float: generateRandomFloat(),
     durability: 100,
     durabilityUpdatedAt: 0,
-    farmDurationHours: 1,
+    farmDurationHours: LAB_GLB_FARM_HOURS,
     modelId: model.modelId,
     modelName: model.name,
     shapeId: model.shapeId || getModelById(model.modelId)?.shapeId,
@@ -3663,6 +3668,7 @@ export function useGameState() {
       if (grants) applyGrants(grants);
     };
 
+    void doSync();
     const interval = setInterval(doSync, 30_000);
 
     const handleAdminRefresh = async () => {
@@ -4763,9 +4769,9 @@ export function useGameState() {
           updated.craftsCompleted,
         );
         if (isReactivation) {
-          notifyFarmReactivate(prev.telegramId, id, planet.name, planet.farmDurationHours ?? 1);
+          notifyFarmReactivate(prev.telegramId, id, planet.name, getPlanetFarmDurationHours(planet));
         } else {
-          notifyFarmStart(prev.telegramId, id, planet.name, false, planet.farmDurationHours ?? 1);
+          notifyFarmStart(prev.telegramId, id, planet.name, false, getPlanetFarmDurationHours(planet));
         }
       }
       return updated;
@@ -5187,7 +5193,7 @@ export function useGameState() {
       displayName: model?.modelName || def?.name,
       durability: 100,
       durabilityUpdatedAt: 0,
-      farmDurationHours: 1,
+      farmDurationHours: LAB_GLB_FARM_HOURS,
     };
     const currency = opts?.currency ?? "gram";
     setState((prev) => {
@@ -6249,50 +6255,14 @@ export function useGameState() {
   }, []);
 
   /**
-   * Permanently upgrade a planet's farm-duration tier by paying GRAM from
-   * the user's deposit balance. Updates local state immediately on success.
+   * Duration upgrades on Lab GLB models are retired — every model farms 24h.
    */
   const upgradePlanetFarmDuration = useCallback(async (
-    planetId: string,
-    durationHours: number,
+    _planetId: string,
+    _durationHours: number,
   ): Promise<{ ok: boolean; error?: string }> => {
-    const tid = state.telegramId;
-    if (!tid) return { ok: false, error: "Not logged in" };
-    const planet = state.planets.find((p) => p.id === planetId) ?? null;
-    if (!planet) return { ok: false, error: "Planet not found" };
-    await saveRegularPlanets(
-      tid,
-      state.planets as unknown as Array<Record<string, unknown>>,
-      {
-        basic: state.claimedBonusBasic ?? 0,
-        rare: state.claimedBonusRare ?? 0,
-        epic: state.claimedBonusEpic ?? 0,
-        gold: state.claimedBonusGold ?? 0,
-        mythic: state.claimedBonusMythic ?? 0,
-        plasma: state.claimedBonusPlasma ?? 0,
-        v1: state.claimedBonusV1 ?? 0,
-        v1NftPlatinum: state.claimedBonusV1NftPlatinum ?? 0,
-      },
-      state.craftsCompleted,
-    );
-    const result = await upgradeFarmDuration(
-      tid,
-      planetId,
-      durationHours,
-      planet as unknown as Record<string, unknown>,
-    );
-    if (result.ok) {
-      setState((prev) => ({
-        ...prev,
-        tonBalance: typeof result.newTonBalance === "number" ? result.newTonBalance : prev.tonBalance,
-        depositBalance: typeof result.newDepositBalance === "number" ? result.newDepositBalance : prev.depositBalance,
-        planets: prev.planets.map((p) =>
-          p.id === planetId ? { ...p, farmDurationHours: durationHours } : p,
-        ),
-      }));
-    }
-    return result;
-  }, [state.telegramId, state.planets, state.claimedBonusBasic, state.claimedBonusRare, state.claimedBonusEpic, state.claimedBonusGold, state.claimedBonusMythic, state.claimedBonusPlasma, state.claimedBonusV1, state.claimedBonusV1NftPlatinum, state.craftsCompleted]);
+    return { ok: false, error: "Farm cycle is fixed at 24h" };
+  }, []);
 
   /** Permanently upgrade farm-cycle duration for ONE specific collection. Charges GRAM from EARNED GRAM. */
   const upgradeCollectionFarmDuration = useCallback(async (

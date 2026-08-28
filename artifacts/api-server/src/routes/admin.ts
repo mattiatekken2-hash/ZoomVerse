@@ -1202,7 +1202,19 @@ router.post("/admin/credit-stardust", async (req, res) => {
           balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
         },
       });
-    res.json({ ok: true });
+    const [row] = await db
+      .select({
+        stardustBalance: usersTable.stardustBalance,
+        balanceEpoch: usersTable.balanceEpoch,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, telegramId))
+      .limit(1);
+    res.json({
+      ok: true,
+      stardustBalance: row?.stardustBalance ?? amount,
+      balanceEpoch: row?.balanceEpoch ?? 1,
+    });
     recordHistoryAsync({
       telegramId,
       kind: "admin_reward",

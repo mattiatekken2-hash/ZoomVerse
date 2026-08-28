@@ -347,10 +347,23 @@ export function ShopPage({
       if (result.pending) {
         setMessage(t("shop.zmcPending"));
         triggerDataRefresh();
+        scheduleRefresh(8_000);
+        scheduleRefresh(25_000);
+        scheduleRefresh(60_000);
+        scheduleRefresh(120_000);
         return;
       }
       if (result.ok) {
         setMessage(`${item.title} purchased! (−${(result.priceZmc ?? price).toLocaleString()} $ZMC)`);
+        if (typeof result.zoomBalance === "number") {
+          window.dispatchEvent(new CustomEvent("zoom-server-balance-snap", {
+            detail: { balance: result.zoomBalance, epoch: result.balanceEpoch ?? 0 },
+          }));
+        } else if (typeof result.zoomAmount === "number" && result.zoomAmount > 0) {
+          window.dispatchEvent(new CustomEvent("zoom-credit-local", {
+            detail: { amount: result.zoomAmount },
+          }));
+        }
         triggerDataRefresh();
         if (item.id === "extra_slot") refreshSlotPrice();
       } else {

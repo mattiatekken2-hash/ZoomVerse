@@ -3125,6 +3125,9 @@ export async function confirmShopZmcBuy(params: {
   alreadyCredited?: boolean;
   itemName?: string;
   zoomAmount?: number;
+  zoomBalance?: number;
+  bonusSlots?: number;
+  balanceEpoch?: number;
   priceZmc?: number;
   error?: string;
 }> {
@@ -3149,7 +3152,18 @@ export async function payShopItemWithZmc(opts: {
     validUntil: number;
     messages: Array<{ address: string; amount: string; payload: string }>;
   }) => Promise<{ boc: string }>;
-}): Promise<{ ok: boolean; pending?: boolean; priceZmc?: number; itemName?: string; error?: string }> {
+}): Promise<{
+  ok: boolean;
+  pending?: boolean;
+  alreadyCredited?: boolean;
+  priceZmc?: number;
+  itemName?: string;
+  zoomAmount?: number;
+  zoomBalance?: number;
+  bonusSlots?: number;
+  balanceEpoch?: number;
+  error?: string;
+}> {
   const intent = await fetchShopZmcIntent(opts.telegramId, opts.itemId, opts.walletAddress);
   if (!intent.ok || !intent.messages?.length) {
     return { ok: false, error: intent.error ?? "Cannot build $ZMC payment" };
@@ -3164,8 +3178,8 @@ export async function payShopItemWithZmc(opts: {
     walletAddress: opts.walletAddress,
     boc: txResult.boc,
   });
-  for (let i = 0; i < 4 && result.pending; i++) {
-    await new Promise((r) => setTimeout(r, 4000));
+  for (let i = 0; i < 8 && result.pending; i++) {
+    await new Promise((r) => setTimeout(r, 5000));
     result = await confirmShopZmcBuy({
       telegramId: opts.telegramId,
       itemId: opts.itemId,

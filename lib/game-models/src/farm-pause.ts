@@ -4,6 +4,9 @@
  * remaining time is preserved and the Farm card does not show REACTIVATE.
  */
 
+/** Lab GLB farm models — fixed 24h cycle, no duration upgrades. */
+export const LAB_GLB_FARM_HOURS = 24;
+
 export type FarmCyclePauseFields = {
   farmStartedAt?: number | null;
   lastCollectedAt?: number | null;
@@ -21,8 +24,8 @@ function n(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-export function farmDurationMsForPlanet(planet: FarmCyclePauseFields): number {
-  return Math.max(1, n(planet.farmDurationHours) || 1) * 60 * 60 * 1000;
+export function farmDurationMsForPlanet(_planet: FarmCyclePauseFields): number {
+  return LAB_GLB_FARM_HOURS * 60 * 60 * 1000;
 }
 
 /**
