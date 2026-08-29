@@ -1,14 +1,16 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useTonAddress, useTonConnectUI } from "@tonconnect/ui-react";
 import type { CollectibleItem } from "../utils/collectibleConfig";
 import { FarmInventoryCard } from "../components/FarmInventoryCard";
 import { PlanetDetailModal } from "../components/PlanetDetailModal";
+import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
+import { WalletStarIcon } from "../components/WalletStarIcon";
 import type { Planet, SunState } from "../hooks/useGameState";
 import { getPlanetDisplayColors, isFarmActive, getPlanetFarmDurationHours } from "../hooks/useGameState";
 import { payShopItemWithZmc, syncActiveFarms } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 import { getPlanetDisplayName } from "../utils/planetNames";
-import { isLabForgeGeneratorPlanet, labForgeShapeHasGlbReveal, resolveLabShapeIdFromPlanet, MARKET_PRICE_BOUNDS, suggestMarketPrice, isMarketPriceInRange } from "@workspace/game-models";
+import { isLabForgeGeneratorPlanet, isLabStardustFarmPlanet, labForgeShapeHasGlbReveal, resolveLabShapeIdFromPlanet, MARKET_PRICE_BOUNDS, suggestMarketPrice, isMarketPriceInRange } from "@workspace/game-models";
 import { preloadLabGlbBatch } from "../utils/labGlbCache";
 import { useZmcStatus } from "../hooks/useZmcStatus";
 
@@ -94,6 +96,41 @@ interface SellPopup {
   planetName: string;
   planetColor: string;
   rate: number;
+}
+
+function formatFarmHourRate(n: number, maxFrac: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "0";
+  return n.toLocaleString(undefined, { maximumFractionDigits: maxFrac, minimumFractionDigits: 0 });
+}
+
+function FarmHourChip({
+  testId,
+  color,
+  glow,
+  icon,
+  value,
+}: {
+  testId: string;
+  color: string;
+  glow: string;
+  icon: ReactNode;
+  value: string;
+}) {
+  return (
+    <div
+      className="glass-neon flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold flex-shrink-0"
+      style={{
+        color,
+        textShadow: `0 0 10px ${glow}`,
+        border: `1px solid ${glow}`,
+        boxShadow: `0 0 12px ${glow}`,
+      }}
+      data-testid={testId}
+    >
+      {icon}
+      <span style={{ fontVariantNumeric: "tabular-nums", letterSpacing: 0.2 }}>+{value}/hr</span>
+    </div>
+  );
 }
 
 
@@ -243,7 +280,13 @@ export function FarmPage({
   // `onCollect` prop is retained for legacy compatibility but never invoked.
   void onCollect;
 
-  const totalRate = farmGenerators.filter(isFarmActive).reduce((a, p) => a + p.rate, 0);
+  const zoomRate = farmGenerators
+    .filter((p) => isFarmActive(p) && !isLabStardustFarmPlanet(p))
+    .reduce((a, p) => a + p.rate, 0);
+  const stardustRate = farmGenerators
+    .filter((p) => isFarmActive(p) && isLabStardustFarmPlanet(p))
+    .reduce((a, p) => a + p.rate, 0);
+  const anyFarmActive = zoomRate > 0 || stardustRate > 0;
 
   const handleBurnClick = (id: string) => {
     if (confirmBurn === id) {
@@ -320,20 +363,27 @@ export function FarmPage({
           <div className="min-w-0">
             <h2 className="font-black text-lg tracking-tight">{t("farm.myPlanets")}</h2>
             <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-              {totalRate > 0
+              {anyFarmActive
                 ? `${farmGenerators.length}/${maxSlots} ${t("farm.slots") || "slots"}`
                 : `${farmGenerators.length}/${maxSlots} · ${t("farm.noActive")}`}
             </p>
           </div>
-          {totalRate > 0 && (
-            <div
-              className="glass-neon px-3 py-1.5 rounded-full text-xs font-bold flex-shrink-0"
-              style={{ color: "#9EC5E8", textShadow: "0 0 10px rgba(158,197,232,0.45)" }}
-              data-testid="total-farm-rate"
-            >
-              +{Math.floor(totalRate).toLocaleString()}/hr
-            </div>
-          )}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <FarmHourChip
+              testId="total-farm-rate"
+              color="#9EC5E8"
+              glow="rgba(158,197,232,0.35)"
+              icon={<ZoomCubeIcon size={14} />}
+              value={formatFarmHourRate(zoomRate, 1)}
+            />
+            <FarmHourChip
+              testId="total-farm-stardust-rate"
+              color="#ffd740"
+              glow="rgba(255,215,64,0.32)"
+              icon={<WalletStarIcon variant="stardust" size={14} />}
+              value={formatFarmHourRate(stardustRate, 2)}
+            />
+          </div>
         </div>
 
         {/* Row 2: real actions — sell on Market, create in Studio */}
