@@ -11,6 +11,7 @@ import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
 import { ForgeUiErrorBoundary } from "../components/ForgeUiErrorBoundary";
 import { GramDiamondIcon } from "../components/GramDiamondIcon";
 import { LabRankWidget } from "../components/LabRankWidget";
+import { ZmcAirdropWidget } from "../components/ZmcAirdropWidget";
 import type { LabForgePath } from "@workspace/game-models";
 import type { Planet } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
@@ -350,6 +351,10 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
             right: 14,
             top: "max(102px, calc(env(safe-area-inset-top, 0px) + 96px))",
             overflow: "visible",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            gap: 8,
           }}
         >
           <LabRankWidget
@@ -358,6 +363,7 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
             balance={balance}
             headerMode
           />
+          <ZmcAirdropWidget telegramId={telegramId} />
         </div>
 
         <div

@@ -237,14 +237,14 @@ router.post("/market/list", async (req, res) => {
 
   const priceCurrency = "zmc";
   if (!isMarketPriceInRange(price, priceCurrency)) {
-    res.status(400).json({ error: `Price out of range for $ZMC` });
+    res.status(400).json({ error: `Price out of range for ZMC` });
     return;
   }
 
   let sellerWallet: string | null = null;
   if (priceCurrency === "zmc") {
     if (!bodySellerWallet) {
-      res.status(400).json({ error: "Connect TON wallet to list in $ZMC" });
+      res.status(400).json({ error: "Connect TON wallet to list in ZMC" });
       return;
     }
     try {
@@ -1013,7 +1013,7 @@ router.post("/market/buy", async (req, res) => {
     const payCurrency: MarketPriceCurrency = parseMarketPriceCurrency(payCurRow.rows[0]?.price_currency);
     if (payCurrency === "zmc") {
       await client.query("ROLLBACK");
-      res.status(400).json({ error: "Pay this listing with TonConnect $ZMC" });
+      res.status(400).json({ error: "Pay this listing with TonConnect ZMC" });
       return;
     }
     const priceAmt = Number(listing.price);
@@ -1812,7 +1812,7 @@ router.post("/market/zmc/intent", async (req, res) => {
     }
     const currency = parseMarketPriceCurrency(listing.priceCurrency);
     if (currency !== "zmc") {
-      res.status(400).json({ error: "This listing is not priced in $ZMC" });
+      res.status(400).json({ error: "This listing is not priced in ZMC" });
       return;
     }
     if (!listing.sellerWalletAddress) {
@@ -1832,17 +1832,17 @@ router.post("/market/zmc/intent", async (req, res) => {
 
     const jettonWallet = await fetchZmcJettonWallet(walletAddress);
     if (!jettonWallet) {
-      res.status(400).json({ error: "No $ZMC wallet. Buy $ZMC on STON.fi first." });
+      res.status(400).json({ error: "No ZMC wallet. Buy ZMC on STON.fi first." });
       return;
     }
 
     const totalNano = zmcHumanToNano(Number(listing.price));
     if (totalNano <= 0n) {
-      res.status(400).json({ error: "Invalid $ZMC price" });
+      res.status(400).json({ error: "Invalid ZMC price" });
       return;
     }
     if (jettonWallet.balanceNano < totalNano) {
-      res.status(400).json({ error: "Not enough $ZMC in connected wallet" });
+      res.status(400).json({ error: "Not enough ZMC in connected wallet" });
       return;
     }
 
@@ -1887,7 +1887,7 @@ router.post("/market/zmc/intent", async (req, res) => {
     });
   } catch (err) {
     console.error("[market/zmc/intent] error:", err);
-    res.status(500).json({ error: "Failed to build $ZMC transfer" });
+    res.status(500).json({ error: "Failed to build ZMC transfer" });
   }
 });
 
@@ -1935,7 +1935,7 @@ router.post("/market/zmc/confirm", async (req, res) => {
     return;
   }
   if (parseMarketPriceCurrency(listingPeek.priceCurrency) !== "zmc") {
-    res.status(400).json({ error: "This listing is not priced in $ZMC" });
+    res.status(400).json({ error: "This listing is not priced in ZMC" });
     return;
   }
   if (!listingPeek.sellerWalletAddress) {
@@ -1968,7 +1968,7 @@ router.post("/market/zmc/confirm", async (req, res) => {
     res.status(verified && !verified.retriable ? 400 : 202).json({
       ok: false,
       pending: !verified || verified.retriable,
-      error: verified?.reason ?? "On-chain $ZMC transfer not confirmed",
+      error: verified?.reason ?? "On-chain ZMC transfer not confirmed",
     });
     return;
   }
@@ -2068,7 +2068,7 @@ router.post("/market/zmc/confirm", async (req, res) => {
 
     sendBotMessage(
       listing.sellerTelegramId,
-      "💰 Great news! One of your models has been sold for $ZMC.",
+      "💰 Great news! One of your models has been sold for ZMC.",
     ).catch((e) => console.error("[market/zmc/confirm] seller notify failed:", e));
 
     recordHistoryAsync({

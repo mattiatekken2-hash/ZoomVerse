@@ -24,14 +24,14 @@ interface ShopItem {
 }
 
 
-// Extra Slot — $ZMC on-chain to treasury (0.25 GRAM peg × 100 = 25 $ZMC).
+// Extra Slot — ZMC on-chain to treasury (0.25 GRAM peg × 100 = 25 ZMC).
 const EXTRA_SLOT_ITEM: ShopItem = {
   id: "extra_slot", title: "Extra Slot", desc: "Unlock 1 additional planet slot",
   starsPrice: 0, tonPrice: 0.25, color: "#ff3355", icon: "+", type: "slot",
 };
 
-// $ZOOM packs — Stars / $ZMC (on-chain → treasury) / Stardust.
-// $ZMC price = GRAM tonPrice × 100 (1 GRAM ≈ 100 $ZMC).
+// $ZOOM packs — Stars / ZMC (on-chain → treasury) / Stardust.
+// ZMC price = GRAM tonPrice × 100 (1 GRAM ≈ 100 ZMC).
 const GRAM_TO_ZMC = 100;
 const zmcPriceForItem = (item: ShopItem) => Math.round(item.tonPrice * GRAM_TO_ZMC);
 
@@ -354,7 +354,7 @@ export function ShopPage({
         return;
       }
       if (result.ok) {
-        setMessage(`${item.title} purchased! (−${(result.priceZmc ?? price).toLocaleString()} $ZMC)`);
+        setMessage(`${item.title} purchased! (−${(result.priceZmc ?? price).toLocaleString()} ZMC)`);
         if (typeof result.zoomBalance === "number") {
           window.dispatchEvent(new CustomEvent("zoom-server-balance-snap", {
             detail: { balance: result.zoomBalance, epoch: result.balanceEpoch ?? 0 },
@@ -482,7 +482,7 @@ export function ShopPage({
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="flex flex-col gap-3">
           <div className="font-black text-sm tracking-widest uppercase mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
-            VIP · $ZMC
+            VIP · ZMC
           </div>
           {([
             {
@@ -530,7 +530,7 @@ export function ShopPage({
                   </div>
                   <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.5)" }}>{card.perk}</div>
                   <div className="text-[10px] mt-1 font-bold" style={{ color: "rgba(255,255,255,0.32)" }}>
-                    {card.hold.toLocaleString()} $ZMC
+                    {card.hold.toLocaleString()} ZMC
                   </div>
                 </div>
               </div>
@@ -557,9 +557,9 @@ export function ShopPage({
             const priceLabel = payMode === "stars"
               ? `${item.starsPrice} ⭐`
               : payMode === "zmc"
-                ? `${zmcCost.toLocaleString()} $ZMC`
+                ? `${zmcCost.toLocaleString()} ZMC`
                 : `${sdCost.toLocaleString()} ★`;
-            const priceSub = payMode === "stars" ? "STARS" : payMode === "zmc" ? "$ZMC" : "STARDUST";
+            const priceSub = payMode === "stars" ? "STARS" : payMode === "zmc" ? "ZMC" : "STARDUST";
             const priceColor = payMode === "stars" ? "#ffd700" : payMode === "zmc" ? CYAN : "#ffd740";
             return (
               <div
@@ -629,7 +629,7 @@ export function ShopPage({
                   <div className="flex-1 min-w-0">
                     <div className="font-black text-sm" style={{ color: item.color }}>{item.title}</div>
                     <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.45)" }}>
-                      Unlock 1 extra Farm slot · {zmcCost} $ZMC
+                      Unlock 1 extra Farm slot · {zmcCost} ZMC
                     </div>
                     <div className="text-[10px] mt-1 font-bold tracking-wider" style={{ color: "rgba(255,51,85,0.7)" }}>
                       {owned > 0 ? `Extra slots owned: ${owned}` : "First extra slot"}
@@ -637,7 +637,7 @@ export function ShopPage({
                   </div>
                   <div className="flex-shrink-0 text-right">
                     <div className="font-black text-base" style={{ color: CYAN }}>{zmcCost.toLocaleString()}</div>
-                    <div className="text-xs opacity-70" style={{ color: CYAN }}>$ZMC</div>
+                    <div className="text-xs opacity-70" style={{ color: CYAN }}>ZMC</div>
                   </div>
                 </div>
                 <div style={{ borderTop: `1px solid ${item.color}15` }}>
@@ -653,7 +653,7 @@ export function ShopPage({
                   >
                     {buying === item.id
                       ? t("shop.processing")
-                      : `BUY — ${zmcCost.toLocaleString()} $ZMC`}
+                      : `BUY — ${zmcCost.toLocaleString()} ZMC`}
                   </button>
                 </div>
               </div>

@@ -20,7 +20,7 @@ export function parseMarketPriceCurrency(v: unknown): MarketPriceCurrency {
 }
 
 export function marketPriceLabel(currency: MarketPriceCurrency): string {
-  if (currency === "zmc") return "$ZMC";
+  if (currency === "zmc") return "ZMC";
   if (currency === "zoom") return "$ZOOM";
   if (currency === "stardust") return "★";
   return "GRAM";
@@ -29,7 +29,7 @@ export function marketPriceLabel(currency: MarketPriceCurrency): string {
 export function formatMarketListingPrice(price: number, currency: MarketPriceCurrency): string {
   const n = Number(price);
   if (!Number.isFinite(n)) return "—";
-  if (currency === "zmc") return `${Math.round(n).toLocaleString()} $ZMC`;
+  if (currency === "zmc") return `${Math.round(n).toLocaleString()} ZMC`;
   if (currency === "gram") return `${n.toFixed(2)} GRAM`;
   if (currency === "zoom") return `${Math.round(n).toLocaleString()} $ZOOM`;
   return `${Math.round(n)} ★`;

@@ -285,7 +285,7 @@ export async function verifyZmcTreasuryTransfer(opts: {
   }
 
   if (!sawTreasury) {
-    return { ok: false, reason: "Treasury $ZMC transfer not found on-chain yet", retriable: true };
+    return { ok: false, reason: "Treasury ZMC transfer not found on-chain yet", retriable: true };
   }
 
   return { ok: true, txHash, feeHuman: zmcNanoToHuman(opts.amountNano) };
@@ -349,11 +349,16 @@ export interface SendZmcResult {
  * Requires TREASURY_MNEMONIC on the API host (Render). Sequential via a
  * process-local queue so seqno cannot collide.
  */
-export async function sendZmcFromTreasury(to: string, amountHuman: number): Promise<SendZmcResult> {
+export async function sendZmcFromTreasury(
+  to: string,
+  amountHuman: number,
+  opts?: { waitSeqno?: boolean },
+): Promise<SendZmcResult> {
   const words = treasuryMnemonicWords();
   if (!words) return { ok: false, reason: "TREASURY_MNEMONIC not set" };
   const amountNano = zmcHumanToNano(amountHuman);
   if (amountNano <= 0n) return { ok: false, reason: "Invalid amount" };
+  const waitSeqno = opts?.waitSeqno !== false;
 
   let dest: Address;
   try {
@@ -390,6 +395,9 @@ export async function sendZmcFromTreasury(to: string, amountHuman: number): Prom
         ],
         sendMode: SendMode.PAY_GAS_SEPARATELY,
       });
+      if (!waitSeqno) {
+        return { ok: true, txHash: `zmc-send:${seqno}:queued` };
+      }
       const started = Date.now();
       while (Date.now() - started < 45_000) {
         await sleep(1_400);

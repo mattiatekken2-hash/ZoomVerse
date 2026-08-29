@@ -127,7 +127,7 @@ router.post("/zmc/sync", async (req, res) => {
     });
   } catch (err) {
     console.error("[zmc/sync] error:", err);
-    res.status(500).json({ error: "Failed to read on-chain $ZMC" });
+    res.status(500).json({ error: "Failed to read on-chain ZMC" });
   }
 });
 

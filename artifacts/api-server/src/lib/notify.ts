@@ -149,7 +149,7 @@ export async function notifyAdminLabPayout(params: {
   if (!BOT_TOKEN) return;
   const text =
     `🏆 Craft Leaderboard — round #${params.roundId}\n` +
-    `$ZMC sent: ${params.sent}\n` +
+    `ZMC sent: ${params.sent}\n` +
     `Pending (no wallet / mnemonic): ${params.pending}\n` +
     `Failed: ${params.failed}\n` +
     params.details;
@@ -426,11 +426,11 @@ export function formatMarketZmcSaleMessage(params: {
     ? price.toLocaleString("en-US", { maximumFractionDigits: 2 })
     : "0";
   const url = tonviewerTxUrl(params.txHash);
-  const head = params.test ? "🧪 <b>TEST — Market $ZMC</b>" : "💠 <b>Market sale · $ZMC</b>";
+  const head = params.test ? "🧪 <b>TEST — Market ZMC</b>" : "💠 <b>Market sale · ZMC</b>";
   return (
     `${head}\n` +
     `🗿 ${model}\n` +
-    `💵 <b>${priceStr} $ZMC</b>\n` +
+    `💵 <b>${priceStr} ZMC</b>\n` +
     `👤 ${publicNick(params.buyerName)} bought from ${publicNick(params.sellerName)}\n` +
     `🔗 <a href="${url}">View on Tonviewer</a>`
   );

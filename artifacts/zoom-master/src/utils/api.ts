@@ -1316,6 +1316,102 @@ export async function fetchLabRankState(telegramId: string): Promise<LabRankStat
   }
 }
 
+export type ZmcAirdropSocialId = "discord" | "x" | "youtube" | "instagram" | "tiktok";
+
+export interface ZmcAirdropState {
+  remaining: number;
+  total: number;
+  claimGross: number;
+  payout: number;
+  fee: number;
+  exhausted: boolean;
+  claimed: boolean;
+  pending: boolean;
+  eligible: boolean;
+  missing: string[];
+  checkin: { streak: number; need: number; checkedInToday: boolean; done: boolean };
+  social: Record<ZmcAirdropSocialId, boolean>;
+  hold: { min: number; days: number; held: number; startedAtMs: number; done: boolean };
+  crafts: { have: number; need: number; done: boolean };
+  sales: { have: number; need: number; done: boolean };
+  wallet: string | null;
+  payoutZmc: number | null;
+}
+
+export async function fetchZmcAirdropState(telegramId: string): Promise<ZmcAirdropState | null> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/zmc-airdrop/state?telegramId=${encodeURIComponent(telegramId)}&t=${Date.now()}`,
+      { cache: "no-store", headers: apiHeaders() },
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as ZmcAirdropState;
+  } catch {
+    return null;
+  }
+}
+
+export async function postZmcAirdropCheckin(telegramId: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/zmc-airdrop/checkin`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(withInitData({ telegramId })),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: parseApiError(data, res.status, "Check-in failed") };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function postZmcAirdropSocial(
+  telegramId: string,
+  network: ZmcAirdropSocialId,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/zmc-airdrop/social`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(withInitData({ telegramId, network })),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: parseApiError(data, res.status, "Could not save") };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function postZmcAirdropClaim(telegramId: string): Promise<{
+  ok: boolean;
+  payout?: number;
+  fee?: number;
+  remaining?: number;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(`${API_BASE}/zmc-airdrop/claim`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(withInitData({ telegramId })),
+    });
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      return { ok: false, error: parseApiError(data, res.status, "Claim failed") };
+    }
+    return {
+      ok: true,
+      payout: typeof data.payout === "number" ? data.payout : undefined,
+      fee: typeof data.fee === "number" ? data.fee : undefined,
+      remaining: typeof data.remaining === "number" ? data.remaining : undefined,
+    };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
 export interface LabRankAdminDashboard {
   round: { id: number; createdAt: string; endsAt: string | null; participants: number };
   poolTon: number;
@@ -3190,7 +3286,7 @@ export async function payShopItemWithZmc(opts: {
 }> {
   const intent = await fetchShopZmcIntent(opts.telegramId, opts.itemId, opts.walletAddress);
   if (!intent.ok || !intent.messages?.length) {
-    return { ok: false, error: intent.error ?? "Cannot build $ZMC payment" };
+    return { ok: false, error: intent.error ?? "Cannot build ZMC payment" };
   }
   const txResult = await opts.sendTransaction({
     validUntil: Math.floor(Date.now() / 1000) + 300,

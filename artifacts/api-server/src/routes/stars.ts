@@ -180,11 +180,11 @@ const STARS_CATALOG: StarsItem[] = [
   { id: "explorer_pack", title: "Explorer Pack", description: "8,000 $ZOOM + 1 Rare Planet", starsPrice: 150, tonPrice: 1.5, zoomAmount: 8000, itemType: "bundle" },
   { id: "legend_pack", title: "Legend Pack", description: "25,000 $ZOOM + 1 Epic Planet", starsPrice: 400, tonPrice: 4.0, zoomAmount: 25000, itemType: "bundle" },
   { id: "the_sun", title: "THE SUN", description: "Exclusive limited-edition star — 1000 $ZOOM/hr", starsPrice: 1000, tonPrice: 10, itemType: "sun" },
-  // Extra Slot is $ZMC-only (on-chain → treasury). starsPrice 0 so Stars
+  // Extra Slot is ZMC-only (on-chain → treasury). starsPrice 0 so Stars
   // invoice/webhook cannot credit it. Price = getSlotPriceTon × 100.
   { id: "extra_slot", title: "Extra Slot", description: "Unlock 1 additional planet slot", starsPrice: 0, tonPrice: 0.25, itemType: "slot" },
-  // $ZOOM packs — Stars / on-chain $ZMC (→ treasury) / Stardust.
-  // $ZMC price = GRAM tonPrice × 100 (1 GRAM ≈ 100 $ZMC).
+  // $ZOOM packs — Stars / on-chain ZMC (→ treasury) / Stardust.
+  // ZMC price = GRAM tonPrice × 100 (1 GRAM ≈ 100 ZMC).
   { id: "zoom_spark",  title: "ZOOM Spark",  description: "Instant +200 $ZOOM",    starsPrice: 15,  tonPrice: 0.15, zoomAmount: 200,   itemType: "zoom_pack" },
   { id: "zoom_boost",  title: "ZOOM Boost",  description: "Instant +500 $ZOOM",    starsPrice: 25,  tonPrice: 0.25, zoomAmount: 500,   itemType: "zoom_pack" },
   { id: "zoom_pulse",  title: "ZOOM Pulse",  description: "Instant +1,400 $ZOOM",  starsPrice: 60,  tonPrice: 0.60, zoomAmount: 1400,  itemType: "zoom_pack" },
@@ -351,7 +351,7 @@ function findItem(itemId: string): StarsItem | undefined {
   return STARS_CATALOG.find((i) => i.id === itemId);
 }
 
-/** Peg used for shop $ZMC items: 1 GRAM ≈ 100 $ZMC. */
+/** Peg used for shop ZMC items: 1 GRAM ≈ 100 ZMC. */
 const GRAM_TO_ZMC = 100;
 
 function isZmcShopItem(item: StarsItem): boolean {
@@ -1187,11 +1187,11 @@ router.post("/shop/buy-deposit", async (req, res) => {
   const item = findItem(itemId);
   if (!item) { res.status(404).json({ error: "Item not found" }); return; }
   if (item.itemType === "zoom_pack") {
-    res.status(400).json({ error: "ZOOM packs are paid in Stars, $ZMC, or Stardust" });
+    res.status(400).json({ error: "ZOOM packs are paid in Stars, ZMC, or Stardust" });
     return;
   }
   if (item.id === "extra_slot") {
-    res.status(400).json({ error: "Extra Slot is paid in $ZMC" });
+    res.status(400).json({ error: "Extra Slot is paid in ZMC" });
     return;
   }
   if (!(item.tonPrice > 0)) {
@@ -1233,7 +1233,7 @@ router.post("/shop/buy-deposit", async (req, res) => {
 
       const deposit = user.depositBalance ?? 0;
       const earned = user.tonBalance ?? 0;
-      // Extra slot: any GRAM (deposit first, then earned). ZOOM packs are $ZMC.
+      // Extra slot: any GRAM (deposit first, then earned). ZOOM packs are ZMC.
       const useCombinedGram = item.id === "extra_slot";
       const spendable = useCombinedGram ? deposit + earned : deposit;
       if (spendable < effectivePrice) {
@@ -1358,7 +1358,7 @@ router.post("/shop/buy-stardust", async (req, res) => {
   }
 
   if (item.itemType === "slot") {
-    res.status(400).json({ error: "Extra Slot is paid in $ZMC" });
+    res.status(400).json({ error: "Extra Slot is paid in ZMC" });
     return;
   }
 
@@ -2186,7 +2186,7 @@ function backgroundVerifyShopZmc(opts: {
 }
 
 /**
- * Shop ZOOM packs and Extra Slot paid in on-chain $ZMC. 100% of the jetton
+ * Shop ZOOM packs and Extra Slot paid in on-chain ZMC. 100% of the jetton
  * goes to treasury (sink).
  */
 router.post("/shop/zmc/intent", async (req, res) => {
@@ -2202,7 +2202,7 @@ router.post("/shop/zmc/intent", async (req, res) => {
 
   const item = findItem(itemId);
   if (!item || !isZmcShopItem(item)) {
-    res.status(400).json({ error: "This item is not purchasable with $ZMC" });
+    res.status(400).json({ error: "This item is not purchasable with ZMC" });
     return;
   }
 
@@ -2219,18 +2219,18 @@ router.post("/shop/zmc/intent", async (req, res) => {
 
     const jettonWallet = await fetchZmcJettonWallet(walletAddress);
     if (!jettonWallet) {
-      res.status(400).json({ error: "No $ZMC wallet. Buy $ZMC on STON.fi first." });
+      res.status(400).json({ error: "No ZMC wallet. Buy ZMC on STON.fi first." });
       return;
     }
 
     const priceZmc = zmcPriceForItem(item, user?.bonusSlots ?? 0);
     const amountNano = zmcHumanToNano(priceZmc);
     if (amountNano <= 0n) {
-      res.status(400).json({ error: "Invalid $ZMC price" });
+      res.status(400).json({ error: "Invalid ZMC price" });
       return;
     }
     if (jettonWallet.balanceNano < amountNano) {
-      res.status(400).json({ error: "Not enough $ZMC in connected wallet" });
+      res.status(400).json({ error: "Not enough ZMC in connected wallet" });
       return;
     }
 
@@ -2258,7 +2258,7 @@ router.post("/shop/zmc/intent", async (req, res) => {
     });
   } catch (err) {
     console.error("[shop/zmc/intent] error:", err);
-    res.status(500).json({ error: "Failed to build $ZMC transfer" });
+    res.status(500).json({ error: "Failed to build ZMC transfer" });
   }
 });
 
@@ -2276,7 +2276,7 @@ router.post("/shop/zmc/confirm", async (req, res) => {
 
   const item = findItem(itemId);
   if (!item || !isZmcShopItem(item)) {
-    res.status(400).json({ error: "This item is not purchasable with $ZMC" });
+    res.status(400).json({ error: "This item is not purchasable with ZMC" });
     return;
   }
 
@@ -2315,7 +2315,7 @@ router.post("/shop/zmc/confirm", async (req, res) => {
     res.status(verified && !verified.retriable ? 400 : 202).json({
       ok: false,
       pending,
-      error: verified?.reason ?? "On-chain $ZMC transfer not confirmed",
+      error: verified?.reason ?? "On-chain ZMC transfer not confirmed",
     });
     return;
   }

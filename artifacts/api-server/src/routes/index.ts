@@ -41,9 +41,11 @@ import itemsRouter from "./items";
 import modelsRouter from "./models";
 import voxelStudioRouter from "./voxel-studio";
 import zmcRouter from "./zmc";
+import zmcAirdropRouter, { ensureZmcTaskAirdrop } from "./zmcAirdrop";
 
 // Boot-time DDL: ensure combo tracking column exists (idempotent).
 void ensureComboClaims();
+void ensureZmcTaskAirdrop();
 
 const router: IRouter = Router();
 
@@ -166,6 +168,9 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/earn/weekly-redstar/claim",
       "/zmc/sync",
       "/zmc/unlink",
+      "/zmc-airdrop/checkin",
+      "/zmc-airdrop/social",
+      "/zmc-airdrop/claim",
       "/farm/reactivate",
     ],
     bindField: "telegramId",
@@ -384,5 +389,6 @@ router.use(itemsRouter);
 router.use(modelsRouter);
 router.use(voxelStudioRouter);
 router.use(zmcRouter);
+router.use(zmcAirdropRouter);
 
 export default router;

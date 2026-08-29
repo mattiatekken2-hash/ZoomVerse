@@ -69,6 +69,21 @@ function sameTelegram(a?: string | null, b?: string | null): boolean {
   return x.length > 0 && x === y;
 }
 
+function listingMatchesQuery(listing: MarketPlanetListingView, raw: string): boolean {
+  const q = raw.trim().toLowerCase();
+  if (!q) return true;
+  const idToken = q.replace(/^#/, "").replace(/^zv[-_\s]?/, "");
+  if (/^\d+$/.test(idToken) && listing.serverId != null && String(listing.serverId) === idToken) {
+    return true;
+  }
+  const name = (listing.displayName || "").toLowerCase();
+  const shape = (listing.shapeId || "").toLowerCase().replace(/_/g, " ");
+  const seller = (listing.seller || "").toLowerCase();
+  const code = listing.serverId != null ? `#${listing.serverId}` : "";
+  const hay = `${name} ${shape} ${seller} ${code}`;
+  return hay.includes(q) || name.replace(/\s+/g, "").includes(q.replace(/\s+/g, ""));
+}
+
 function classifyListing(
   raw: {
     shapeId?: string | null;
@@ -118,6 +133,7 @@ export function MarketPage({
   const [tonConnectUI] = useTonConnectUI();
   const [filter, setFilter] = useState<MarketFilter>("all");
   const [priceSort, setPriceSort] = useState<PriceSort>("low");
+  const [query, setQuery] = useState("");
   const [toast, setToast] = useState<Toast | null>(null);
   const serverListings = useGlobalStore((s) => s.marketListings);
   const sales = useGlobalStore((s) => s.marketSales);
@@ -313,9 +329,12 @@ export function MarketPage({
           });
           return path === filter;
         });
+    const searched = query.trim()
+      ? rows.filter((l) => listingMatchesQuery(l, query))
+      : rows;
     const dir = priceSort === "low" ? 1 : -1;
-    return [...rows].sort((a, b) => (Number(a.price) - Number(b.price)) * dir);
-  }, [allDisplayListings, filter, priceSort]);
+    return [...searched].sort((a, b) => (Number(a.price) - Number(b.price)) * dir);
+  }, [allDisplayListings, filter, priceSort, query]);
 
   const handleBuyServer = async (
     serverId: number,
@@ -331,7 +350,7 @@ export function MarketPage({
     );
     if (currency === "zmc") {
       if (!walletAddress) {
-        showToast("Connect TON wallet to pay in $ZMC", false);
+        showToast("Connect TON wallet to pay in ZMC", false);
         return;
       }
     } else if (currency === "gram") {
@@ -357,7 +376,7 @@ export function MarketPage({
     if (currency === "zmc") {
       const intent = await fetchZmcBuyIntent(telegramId, serverId, walletAddress);
       if (!intent.ok || !intent.messages?.length) {
-        showToast(intent.error ?? "Cannot build $ZMC payment", false);
+        showToast(intent.error ?? "Cannot build ZMC payment", false);
         return;
       }
       try {
@@ -381,7 +400,7 @@ export function MarketPage({
           });
         }
         if (result.pending) {
-          showToast("Waiting for on-chain $ZMC confirmation… retry from Market shortly", false);
+          showToast("Waiting for on-chain ZMC confirmation… retry from Market shortly", false);
           return;
         }
       } catch (err) {
@@ -453,7 +472,7 @@ export function MarketPage({
       <header className="lab-market__header px-5 pt-4 pb-3 flex-shrink-0">
         <p className="lab-market__kicker">P2P · Generators</p>
         <h2 className="lab-market__title">{t("market.title")}</h2>
-        <p className="lab-market__sub">Buy or sell Lab models in $ZMC. 5% platform fee to treasury.</p>
+        <p className="lab-market__sub">Buy or sell Lab models in ZMC. 5% platform fee to treasury.</p>
 
         <div className="lab-market__tabs" role="tablist">
           <button
@@ -540,22 +559,35 @@ export function MarketPage({
                 </button>
               ))}
             </div>
-            <div className="lab-market__sorts" role="tablist" aria-label="Price order">
-              {PRICE_SORTS.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={priceSort === s.id}
-                  aria-label={s.label}
-                  title={s.label}
-                  onClick={() => setPriceSort(s.id)}
-                  className={`lab-market__sort-dot${priceSort === s.id ? " is-active" : ""}`}
-                  data-testid={`sort-price-${s.id}`}
-                >
-                  {s.glyph}
-                </button>
-              ))}
+            <div className="lab-market__toolbar">
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search name or #id"
+                aria-label="Search market listings"
+                className="lab-market__search"
+                data-testid="market-search"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <div className="lab-market__sorts" role="tablist" aria-label="Price order">
+                {PRICE_SORTS.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={priceSort === s.id}
+                    aria-label={s.label}
+                    title={s.label}
+                    onClick={() => setPriceSort(s.id)}
+                    className={`lab-market__sort-dot${priceSort === s.id ? " is-active" : ""}`}
+                    data-testid={`sort-price-${s.id}`}
+                  >
+                    {s.glyph}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {loading && filtered.length === 0 && (
@@ -564,8 +596,16 @@ export function MarketPage({
 
             {!loading && filtered.length === 0 && (
               <div className="lab-market__empty">
-                <p>No {filter === "all" ? "" : filter === "zoom" ? "$ZOOM " : "★ Stardust "}listings yet.</p>
-                <p className="lab-market__empty-hint">Forge in the Lab, then list from Farm.</p>
+                <p>
+                  {query.trim()
+                    ? `No listings match “${query.trim()}”.`
+                    : `No ${filter === "all" ? "" : filter === "zoom" ? "$ZOOM " : "★ Stardust "}listings yet.`}
+                </p>
+                <p className="lab-market__empty-hint">
+                  {query.trim()
+                    ? "Try the model name or the listing #id."
+                    : "Forge in the Lab, then list from Farm."}
+                </p>
               </div>
             )}
 

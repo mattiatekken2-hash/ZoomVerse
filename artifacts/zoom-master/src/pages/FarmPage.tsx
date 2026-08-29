@@ -317,12 +317,12 @@ export function FarmPage({
     if (!price || price <= 0) return;
     if (!isMarketPriceInRange(price, "zmc")) {
       const b = MARKET_PRICE_BOUNDS.zmc;
-      setDefectMsg(`Price must be ${b.min}–${b.max.toLocaleString()} $ZMC`);
+      setDefectMsg(`Price must be ${b.min}–${b.max.toLocaleString()} ZMC`);
       setTimeout(() => setDefectMsg(null), 3000);
       return;
     }
     if (!sellerWallet) {
-      setDefectMsg("Connect TON wallet to list in $ZMC");
+      setDefectMsg("Connect TON wallet to list in ZMC");
       setTimeout(() => setDefectMsg(null), 3000);
       return;
     }
@@ -503,12 +503,12 @@ export function FarmPage({
                 return;
               }
               if (!connected || !sellerWallet) {
-                setDefectMsg("Connect TON wallet in Wallet to pay with $ZMC");
+                setDefectMsg("Connect TON wallet in Wallet to pay with ZMC");
                 setTimeout(() => setDefectMsg(null), 2500);
                 return;
               }
               if (zmcBalance < 25) {
-                setDefectMsg("Need 25 $ZMC");
+                setDefectMsg("Need 25 ZMC");
                 setTimeout(() => setDefectMsg(null), 2500);
                 return;
               }
@@ -521,7 +521,7 @@ export function FarmPage({
                   sendTransaction: (tx) => tonConnectUI.sendTransaction(tx),
                 });
                 if (res.pending) {
-                  setDefectMsg("Waiting for on-chain $ZMC confirmation…");
+                  setDefectMsg("Waiting for on-chain ZMC confirmation…");
                   setTimeout(() => setDefectMsg(null), 4000);
                   return;
                 }
@@ -573,7 +573,7 @@ export function FarmPage({
               </div>
             </div>
             <div className="text-xs mb-3" style={{ color: "rgba(255,255,255,0.4)" }}>
-              Price in $ZMC · 5% fee to treasury (you receive 95%)
+              Price in ZMC · 5% fee to treasury (you receive 95%)
             </div>
             <div className="relative mb-2">
               <input
@@ -590,12 +590,12 @@ export function FarmPage({
                 inputMode="decimal"
               />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold" style={{ color: "rgba(255,255,255,0.35)" }}>
-                $ZMC
+                ZMC
               </span>
             </div>
             {sellPrice && parseFloat(sellPrice) > 0 && (
               <div className="text-xs mb-4 px-1" style={{ color: "rgba(255,255,255,0.35)" }}>
-                You receive ~{Math.round(parseFloat(sellPrice) * 0.95).toLocaleString()} $ZMC
+                You receive ~{Math.round(parseFloat(sellPrice) * 0.95).toLocaleString()} ZMC
               </div>
             )}
             <div className="flex gap-3 mt-4">
@@ -617,7 +617,7 @@ export function FarmPage({
                 onClick={confirmSell}
                 data-testid="btn-confirm-sell"
               >
-                List for {sellPrice ? parseFloat(sellPrice).toLocaleString() : "—"} $ZMC
+                List for {sellPrice ? parseFloat(sellPrice).toLocaleString() : "—"} ZMC
               </button>
             </div>
           </div>

@@ -165,7 +165,12 @@ export function MarketPlanetCard({
       </div>
 
       <div className="lab-market-card__body">
-        <h3 className="lab-market-card__title">{title}</h3>
+        <h3 className="lab-market-card__title">
+          <span className="lab-market-card__name">{title}</span>
+          {listing.serverId != null && listing.serverId > 0 && (
+            <span className="lab-market-card__code">#{listing.serverId}</span>
+          )}
+        </h3>
         <div className="lab-market-card__meta">
           <span className="lab-market-card__yield">
             {path === "zoom" && <ZoomCubeIcon size={14} />}

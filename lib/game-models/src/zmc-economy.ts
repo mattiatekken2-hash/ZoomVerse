@@ -31,6 +31,22 @@ export const ZMC_SEASON_AIRDROP_BASE = 4_000_000;
 export const MARKET_P2P_FEE_BPS = 500;
 export const MARKET_P2P_FEE_PERCENT = 5;
 
+/** Lab task airdrop (first tranche). Claim is on-chain $ZMC from treasury. */
+export const ZMC_TASK_AIRDROP_POOL = 200_000;
+export const ZMC_TASK_AIRDROP_CLAIM = 10_000;
+export const ZMC_TASK_AIRDROP_FEE_BPS = 500;
+export const ZMC_TASK_HOLD_MIN = 10_000;
+export const ZMC_TASK_HOLD_DAYS = 15;
+export const ZMC_TASK_CHECKIN_DAYS = 7;
+export const ZMC_TASK_CRAFTS_MIN = 50;
+export const ZMC_TASK_SALES_MIN = 10;
+
+export function zmcTaskAirdropSplit(gross: number): { payout: number; fee: number } {
+  const g = Math.max(0, Math.floor(gross));
+  const fee = Math.floor((g * ZMC_TASK_AIRDROP_FEE_BPS) / 10_000);
+  return { payout: g - fee, fee };
+}
+
 /**
  * On-chain VIP holding (human $ZMC). Fixed bags, not a % of supply:
  *   BASE = 1,000  (~0.001% of 100M)

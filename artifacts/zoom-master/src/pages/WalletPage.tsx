@@ -30,7 +30,7 @@ import { formatZmcAmount } from "../utils/zmcToken";
 
 const LIVE_POLL_MS = 5_000;
 
-/** Lively cyan for the $ZMC wallet card. */
+/** Lively cyan for the ZMC wallet card. */
 const GRAM_CELESTE = {
   main: "#C8EEFF",
   label: "rgba(200, 235, 255, 0.62)",
@@ -235,7 +235,7 @@ export function WalletPage({
         <GramWalletConnectButton telegramId={telegramId} />
       </div>
 
-      {/* ── MAIN BALANCE: $ZMC + STON.fi deposit/withdraw chips ── */}
+      {/* ── MAIN BALANCE: ZMC + STON.fi deposit/withdraw chips ── */}
       <div style={{ position: "relative" }}>
         <GramWalletPanel
           overlay
@@ -330,7 +330,7 @@ export function WalletPage({
                 marginBottom: 2,
               }}
             >
-              $ZMC
+              ZMC
             </div>
             <div
               style={{
