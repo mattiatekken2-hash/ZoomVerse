@@ -230,23 +230,17 @@ function AppShellWithState() {
   const stardustCapReachedRef = useRef(stardustCapReached);
   useEffect(() => { stardustCapReachedRef.current = stardustCapReached; }, [stardustCapReached]);
 
-  // One-shot init + periodic up-sync. Server is source of truth for admin
-  // grants; local crafts deduct immediately so we never snap DOWN from this
-  // poll (a stale in-flight /stardust/state used to overwrite a just-applied
-  // admin credit, then /balance/sync LEAST-clobber the DB row).
-  const stardustInitDoneRef = useRef(false);
+  // Periodic up-sync from /stardust/state (admin grants, star collect).
+  // Never snap DOWN: this poll races behind /farm/settle and does not
+  // include Lab stardust-farm preview. A replace-on-init used to wipe
+  // farmed ★ (and the wallet USDT) on every app restart.
   useEffect(() => {
     if (!stardust.ready) return;
     setState((prev) => {
-      if (!stardustInitDoneRef.current) {
-        stardustInitDoneRef.current = true;
-        if (stardust.balance !== prev.stardustBalance) {
-          return { ...prev, stardustBalance: stardust.balance };
-        }
-        return prev;
-      }
-      if (stardust.balance > (prev.stardustBalance || 0)) {
-        return { ...prev, stardustBalance: stardust.balance };
+      const preview = Math.max(0, prev.stardustFarmPreview || 0);
+      const fromServer = Math.max(0, stardust.balance) + preview;
+      if (fromServer > (prev.stardustBalance || 0) + 1e-12) {
+        return { ...prev, stardustBalance: fromServer };
       }
       return prev;
     });

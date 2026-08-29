@@ -3,7 +3,14 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { EQUIPMENT_RATE_SERVER } from "./equipment";
-import { LAB_GLB_FARM_HOURS, isLabStardustFarmPlanet, labMarketPathForPlanet } from "@workspace/game-models";
+import {
+  LAB_GLB_FARM_HOURS,
+  LAB_STARDUST_FARM_RATE,
+  isLabStardustFarmPlanet,
+  labMarketPathForPlanet,
+  resolveLabShapeIdFromPlanet,
+  resolveLabStardustShapeId,
+} from "@workspace/game-models";
 
 const router: IRouter = Router();
 
@@ -48,6 +55,49 @@ function planetText(v: unknown): string | null {
 function num(v: unknown): number {
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+function queryRows(sel: unknown): Record<string, unknown>[] {
+  if (Array.isArray(sel)) return sel as Record<string, unknown>[];
+  const rows = (sel as { rows?: unknown } | null)?.rows;
+  return Array.isArray(rows) ? (rows as Record<string, unknown>[]) : [];
+}
+
+function jsonArray<T>(v: unknown): T[] {
+  if (Array.isArray(v)) return v as T[];
+  if (typeof v === "string" && v.length > 0) {
+    try {
+      const parsed = JSON.parse(v) as unknown;
+      return Array.isArray(parsed) ? (parsed as T[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function isFlagOn(v: unknown): boolean {
+  return v === true || v === 1 || v === "true";
+}
+
+function planetIsStardustFarm(p: PlanetRow, rate: number): boolean {
+  const shapeId = planetText(p.shapeId);
+  const displayName = planetText(p.displayName);
+  if (isLabStardustFarmPlanet({ shapeId, displayName })) return true;
+  return labMarketPathForPlanet({ shapeId, displayName, rate }) === "stardust";
+}
+
+function stardustCardRate(p: PlanetRow, fallbackRate: number): number {
+  const resolved = resolveLabStardustShapeId(
+    resolveLabShapeIdFromPlanet({
+      shapeId: planetText(p.shapeId),
+      displayName: planetText(p.displayName),
+    }),
+  );
+  if (resolved && typeof LAB_STARDUST_FARM_RATE[resolved] === "number") {
+    return LAB_STARDUST_FARM_RATE[resolved];
+  }
+  return fallbackRate;
 }
 
 /**
@@ -111,7 +161,7 @@ router.post("/farm/settle", async (req, res) => {
          WHERE telegram_id = ${telegramId}
          FOR UPDATE
       `);
-      const rows = (sel as unknown as { rows: Record<string, unknown>[] }).rows;
+      const rows = queryRows(sel);
       if (!rows || rows.length === 0) {
         // No user row yet (lazy-created on first /balance/sync). Nothing to
         // credit. Return ok: false so the client can retry after the row is
@@ -128,14 +178,14 @@ router.post("/farm/settle", async (req, res) => {
         };
       }
       const row = rows[0]!;
-      const serverLastSettled = num(row["last_farming_settled_at_ms"]);
-      const zoomBalance = num(row["zoom_balance"]);
-      const stardustBalance = num(row["stardust_balance"]);
-      const balanceEpoch = num(row["balance_epoch"]);
-      const sunCount = num(row["sun_count"]);
-      const sunStarted = num(row["sun_farm_started_at_ms"]);
-      const sunCollected = num(row["sun_last_collected_at_ms"]);
-      const referredBy = row["referred_by"];
+      const serverLastSettled = num(row["last_farming_settled_at_ms"] ?? row["lastFarmingSettledAtMs"]);
+      const zoomBalance = num(row["zoom_balance"] ?? row["zoomBalance"]);
+      const stardustBalance = num(row["stardust_balance"] ?? row["stardustBalance"]);
+      const balanceEpoch = num(row["balance_epoch"] ?? row["balanceEpoch"]);
+      const sunCount = num(row["sun_count"] ?? row["sunCount"]);
+      const sunStarted = num(row["sun_farm_started_at_ms"] ?? row["sunFarmStartedAtMs"]);
+      const sunCollected = num(row["sun_last_collected_at_ms"] ?? row["sunLastCollectedAtMs"]);
+      const referredBy = row["referred_by"] ?? row["referredBy"];
       const speedMultiplier = referredBy ? 1 + REFERRAL_SPEED_BONUS : 1;
 
       // Watermark floor for the per-planet "start" computation. We always
@@ -168,18 +218,15 @@ router.post("/farm/settle", async (req, res) => {
       let stardustEarned = 0;
 
       // ─── Planets ───
-      const planetsField = row["planets_json"];
-      const planets: PlanetRow[] = Array.isArray(planetsField)
-        ? (planetsField as PlanetRow[])
-        : [];
+      const planets: PlanetRow[] = jsonArray<PlanetRow>(row["planets_json"] ?? row["planetsJson"]);
       for (const p of planets) {
         if (!p || typeof p !== "object") continue;
-        if (!p.isFarmingActive) continue;
-        if (p.isListedInMarket) continue;
+        if (!isFlagOn(p.isFarmingActive)) continue;
+        if (isFlagOn(p.isListedInMarket)) continue;
         // MUSHROOM planets earn NFTSTAR (client-side currency) — skip from ZOOM credit.
         if (String((p as Record<string, unknown>)["name"] ?? "").toUpperCase() === "MUSHROOM") continue;
-        const rate = num(p.rate);
-        if (rate <= 0) continue;
+        const jsonRate = num(p.rate);
+        if (jsonRate <= 0) continue;
         const farmStartedAt = num(p.farmStartedAt);
         const lastCollectedAt = num(p.lastCollectedAt);
         // Daily-collect removed: cycle is anchored to a single 24h block.
@@ -195,14 +242,8 @@ router.post("/farm/settle", async (req, res) => {
         if (effectiveStart <= 0) continue;
         // Lab GLB models farm a fixed 24h cycle (duration upgrades retired).
         const planetFarmDurationMs = BASE_FARM_DURATION_MS;
-        const stardustFarm = isLabStardustFarmPlanet({
-          shapeId: planetText(p.shapeId),
-          displayName: planetText(p.displayName),
-        }) || labMarketPathForPlanet({
-          shapeId: planetText(p.shapeId),
-          displayName: planetText(p.displayName),
-          rate,
-        }) === "stardust";
+        const stardustFarm = planetIsStardustFarm(p, jsonRate);
+        const rate = stardustFarm ? stardustCardRate(p, jsonRate) : jsonRate;
         const start = Math.max(stardustFarm ? stardustWatermark : zoomWatermark, effectiveStart);
         const end = Math.min(now, effectiveStart + planetFarmDurationMs);
         if (end > start) {
@@ -218,14 +259,11 @@ router.post("/farm/settle", async (req, res) => {
       // Mirror per-planet 24h-cycle accrual. Server-canonical
       // rate table — any tampered client `rate` was already stripped on
       // /equipment/save, but we re-derive here as belt-and-suspenders.
-      const equipmentField = row["equipment_json"];
-      const equipment: Array<Record<string, unknown>> = Array.isArray(equipmentField)
-        ? (equipmentField as Array<Record<string, unknown>>)
-        : [];
+      const equipment: Array<Record<string, unknown>> = jsonArray<Record<string, unknown>>(row["equipment_json"] ?? row["equipmentJson"]);
       for (const e of equipment) {
         if (!e || typeof e !== "object") continue;
-        if (!e["isFarmingActive"]) continue;
-        if (e["isListedInMarket"]) continue;
+        if (!isFlagOn(e["isFarmingActive"])) continue;
+        if (isFlagOn(e["isListedInMarket"])) continue;
         const category = String(e["category"] || "");
         const rarity = String(e["rarity"] || "");
         const canon =
@@ -255,13 +293,10 @@ router.post("/farm/settle", async (req, res) => {
         GUITAR: 90, ARTIFACT: 105, ROBOT: 115,
         CRYSTAL: 160, TROPHY: 175, BOOK: 200,
       };
-      const itemsField = row["items_json"];
-      const items: Array<Record<string, unknown>> = Array.isArray(itemsField)
-        ? (itemsField as Array<Record<string, unknown>>)
-        : [];
+      const items: Array<Record<string, unknown>> = jsonArray<Record<string, unknown>>(row["items_json"] ?? row["itemsJson"]);
       for (const item of items) {
         if (!item || typeof item !== "object") continue;
-        if (item["isListedInMarket"]) continue;
+        if (isFlagOn(item["isListedInMarket"])) continue;
         const itemType = String(item["type"] || "");
         const canon = ITEM_RATE_SERVER[itemType];
         const rate = typeof canon === "number" ? canon : num(item["rate"]);
@@ -311,9 +346,9 @@ router.post("/farm/settle", async (req, res) => {
       // If credited == 0 we leave the epoch alone so heartbeat calls don't
       // generate a flood of unnecessary epoch bumps that would force every
       // client to snap to the same value they already have.
-      // Stardust-only credits do not bump epoch: /balance/sync LEAST-merges ★
-      // and the client replaces its local farm preview with stardustCredited.
-      const epochBump = credited > 0 ? 1 : 0;
+      // Bump epoch on ZOOM *or* ★ credit so a racing /balance/sync LEAST
+      // (pre-credit persistable) cannot undo the farm yield we just wrote.
+      const epochBump = credited > 0 || stardustCredited > 0 ? 1 : 0;
 
       // Conditional UPDATE: only land if no concurrent call already moved
       // the watermark past `serverLastSettled`. With FOR UPDATE this should

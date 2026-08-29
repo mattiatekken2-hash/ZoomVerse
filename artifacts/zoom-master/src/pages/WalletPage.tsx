@@ -21,6 +21,7 @@ import {
   readGramSpotUsd,
   subscribeGramMarket,
 } from "../utils/gramMarket";
+import { displayStardustIndex } from "../utils/stardustMarket";
 import { pickWalletTonUsd, lockTonUsd, getLockedTonUsd } from "../utils/displayTonUsd";
 import { formatChangePct, formatGramValueFull, formatZoomChartPrice, formatStardustChartIndex } from "../utils/wallet24hChange";
 import { useZmcStatus } from "../hooks/useZmcStatus";
@@ -118,7 +119,7 @@ export function WalletPage({
   const [zoomPointsOpen, setZoomPointsOpen] = useState(false);
   const [liveStardustBalance, setLiveStardustBalance] = useState(stardustBalance);
   const [zoomPriceGram, setZoomPriceGram] = useState<number | null>(initialMarket.zoomPriceGram);
-  const [stardustIndex, setStardustIndex] = useState<number>(initialMarket.stardustIndex);
+  const [stardustIndex, setStardustIndex] = useState<number>(displayStardustIndex(initialMarket.stardustIndex));
   const [zoomChangePct, setZoomChangePct] = useState<number | null>(() =>
     initialMarket.zoomChange24hPct,
   );
@@ -144,7 +145,8 @@ export function WalletPage({
       setZoomChangePct(cached.zoomChange24hPct);
     }
     if (Number.isFinite(cached.stardustIndex) && cached.stardustIndex > 0) {
-      setStardustIndex((prev) => (cached.stardustIndex === 1 && prev > 1 ? prev : cached.stardustIndex));
+      const next = displayStardustIndex(cached.stardustIndex);
+      setStardustIndex((prev) => (next === 1 && prev > 1 ? prev : next));
     }
     if (cached.stardustChange24hPct != null && Number.isFinite(cached.stardustChange24hPct)) {
       setStardustChangePct(cached.stardustChange24hPct);
@@ -200,11 +202,12 @@ export function WalletPage({
   const zmcShown = zmc.connected || zmc.zmcBalance > 0 ? formatZmcAmount(zmc.zmcBalance) : "—";
   const zmcVipLabel = zmc.vipLevel === "PRO" ? "VIP PRO" : zmc.vipLevel === "BASE" ? "VIP BASE" : "ON-CHAIN";
   const zoomGramValue = zoomPriceGram != null && shownZoomBalance > 0 ? shownZoomBalance * zoomPriceGram : null;
+  const stardustIndexSafe = displayStardustIndex(stardustIndex);
   const stardustGramValue = shownStardustBalance > 0
-    ? (shownStardustBalance * stardustIndex) / 100
+    ? (shownStardustBalance * stardustIndexSafe) / 100
     : null;
   const zoomIconValue = formatZoomChartPrice(zoomPriceGram, true);
-  const stardustIconValue = formatStardustChartIndex(stardustIndex);
+  const stardustIconValue = formatStardustChartIndex(stardustIndexSafe);
   const redStarGramValue = shownRedStarBalance > 0 ? shownRedStarBalance * REDSTAR_GRAM_PER_UNIT : null;
   const nftStarGramValue = shownNftStarBalance > 0 ? shownNftStarBalance * NFTSTAR_GRAM_PER_UNIT : null;
   const redStarIconValue = shownRedStarBalance > 0 && redStarGramValue != null

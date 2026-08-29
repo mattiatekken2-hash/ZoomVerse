@@ -20,3 +20,10 @@ export function stardustToGramPreview(stardustAmount: number, index: number): nu
   const gram = nominal * STARDUST_TO_GRAM_SPREAD;
   return Math.max(0, Math.round(gram * 1_000_000) / 1_000_000);
 }
+
+/** Wallet/shop index is 1.0–10.0. Guard against leaked micro-units (index * 1e6). */
+export function displayStardustIndex(n: number | null | undefined): number {
+  if (n == null || !Number.isFinite(n) || n <= 0) return 1;
+  const index = n >= 1000 ? n / 1_000_000 : n;
+  return Math.min(10, Math.max(0.25, index));
+}

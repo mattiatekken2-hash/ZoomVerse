@@ -10,7 +10,7 @@ import { getPlanetDisplayColors, isFarmActive, getPlanetFarmDurationHours } from
 import { payShopItemWithZmc, syncActiveFarms } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 import { getPlanetDisplayName } from "../utils/planetNames";
-import { isLabForgeGeneratorPlanet, isLabStardustFarmPlanet, labForgeShapeHasGlbReveal, resolveLabShapeIdFromPlanet, MARKET_PRICE_BOUNDS, suggestMarketPrice, isMarketPriceInRange } from "@workspace/game-models";
+import { isLabForgeGeneratorPlanet, isLabStardustFarmPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, resolveLabShapeIdFromPlanet, MARKET_PRICE_BOUNDS, suggestMarketPrice, isMarketPriceInRange } from "@workspace/game-models";
 import { preloadLabGlbBatch } from "../utils/labGlbCache";
 import { useZmcStatus } from "../hooks/useZmcStatus";
 
@@ -281,10 +281,10 @@ export function FarmPage({
   void onCollect;
 
   const zoomRate = farmGenerators
-    .filter((p) => isFarmActive(p) && !isLabStardustFarmPlanet(p))
+    .filter((p) => isFarmActive(p) && labMarketPathForPlanet(p) !== "stardust")
     .reduce((a, p) => a + p.rate, 0);
   const stardustRate = farmGenerators
-    .filter((p) => isFarmActive(p) && isLabStardustFarmPlanet(p))
+    .filter((p) => isFarmActive(p) && (isLabStardustFarmPlanet(p) || labMarketPathForPlanet(p) === "stardust"))
     .reduce((a, p) => a + p.rate, 0);
   const anyFarmActive = zoomRate > 0 || stardustRate > 0;
 

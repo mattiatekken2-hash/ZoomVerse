@@ -1521,10 +1521,20 @@ function hudStardustFromServer(serverStardust: number, preview: number): number 
 
 function applyStardustFarmSettle<T extends Pick<GameState, "stardustBalance" | "stardustFarmPreview">>(
   state: T,
-  settleRes: { exists: boolean; stardustCredited: number },
+  settleRes: { exists: boolean; stardustCredited: number; stardustBalance?: number },
 ): T {
   if (!settleRes.exists) return state;
   const credited = Math.max(0, settleRes.stardustCredited || 0);
+  const serverBal = typeof settleRes.stardustBalance === "number" ? Math.max(0, settleRes.stardustBalance) : null;
+  if (credited > 0 && serverBal != null) {
+    const local = Math.max(0, state.stardustBalance || 0);
+    const hud = Math.max(serverBal, local);
+    return {
+      ...state,
+      stardustBalance: hud,
+      stardustFarmPreview: Math.max(0, hud - serverBal),
+    };
+  }
   // credited === 0: do NOT strip preview — that was the wallet bounce
   // (★ and USDT up on the 1s tick, then down on /farm/settle).
   if (credited <= 0) return state;
@@ -2355,7 +2365,10 @@ function settleFarmingState(state: GameState, now: number): GameState {
           if (planet.name === "MUSHROOM") {
             const MUSHROOM_NFTSTAR_PER_CYCLE = 5;
             nftStarEarned += (MUSHROOM_NFTSTAR_PER_CYCLE / planetFarmMs) * (end - start) * speedMultiplier;
-          } else if (isLabStardustFarmPlanet(planet)) {
+          } else if (
+            isLabStardustFarmPlanet(planet)
+            || labMarketPathForPlanet(planet) === "stardust"
+          ) {
             stardustEarned += (planet.rate / 3_600_000) * (end - start) * speedMultiplier;
           } else {
             earned += (planet.rate / 3_600_000) * (end - start) * speedMultiplier;
@@ -2721,7 +2734,34 @@ export function useGameState() {
           weeklyRedStarDay: Math.min(7, Math.max(1, Number(grants.weeklyRedStarDay ?? 1))),
           weeklyRedStarClaimedToday: !!grants.weeklyRedStarClaimedToday,
         };
-        updated = applyStardustFarmSettle(updated, settleRes);
+        const snapStardustFromSettle =
+          settleRes.exists
+          && typeof settleRes.stardustBalance === "number"
+          && (settleRes.stardustCredited > 0 || wasFreshLoad);
+        if (snapStardustFromSettle) {
+          updated = {
+            ...updated,
+            stardustBalance: Math.max(0, settleRes.stardustBalance),
+            stardustFarmPreview: 0,
+          };
+        } else if (settleRes.exists && typeof settleRes.stardustBalance === "number") {
+          // Same-device re-entry: keep local farm ticks on the HUD, but mark
+          // them as preview so /balance/sync LEAST cannot persist or drain
+          // them. /farm/settle credits the real yield going forward.
+          const serverBal = Math.max(0, settleRes.stardustBalance);
+          const localBal = Math.max(0, updated.stardustBalance || 0);
+          if (serverBal > localBal + 1e-12) {
+            updated = { ...updated, stardustBalance: serverBal, stardustFarmPreview: 0 };
+          } else {
+            updated = {
+              ...updated,
+              stardustBalance: localBal,
+              stardustFarmPreview: Math.max(0, localBal - serverBal),
+            };
+          }
+        } else {
+          updated = applyStardustFarmSettle(updated, settleRes);
+        }
 
         // ─── GRANTS-DERIVED HYDRATION (gated on a successful /grants fetch) ───
         // Wrapping this entire block in `if (grantsOk)` is the second half of
@@ -3667,7 +3707,7 @@ export function useGameState() {
           stateRef.current = next;
           return next;
         });
-        if (settleRes.credited > 0) {
+        if (settleRes.credited > 0 || settleRes.stardustCredited > 0) {
           setCurrentBalanceEpoch(settleRes.balanceEpoch);
         }
       }
@@ -4134,6 +4174,9 @@ export function useGameState() {
               stateRef.current = next;
               return next;
             });
+            if (settleRes.credited > 0 || settleRes.stardustCredited > 0) {
+              setCurrentBalanceEpoch(settleRes.balanceEpoch);
+            }
           }
 
           window.dispatchEvent(new Event("zoom-data-refresh"));
