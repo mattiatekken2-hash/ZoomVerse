@@ -2804,6 +2804,36 @@ body.animations-paused * {
   background: linear-gradient(160deg, rgba(255, 215, 64, 0.14), rgba(8, 10, 16, 0.7));
 }
 .lab-market__filter--stardust.is-active .lab-market__filter-label { color: #ffd740; }
+.lab-market__sorts {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  margin: -8px 2px 12px;
+}
+.lab-market__sort-dot {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(8, 10, 16, 0.7);
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+.lab-market__sort-dot.is-active {
+  border-color: rgba(158, 197, 232, 0.5);
+  background: rgba(158, 197, 232, 0.16);
+  color: #c8eeff;
+  box-shadow: 0 0 12px rgba(158, 197, 232, 0.18);
+}
 .lab-market__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

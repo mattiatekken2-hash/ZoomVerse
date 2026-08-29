@@ -14,6 +14,14 @@ export function gramToStardustPreview(gramAmount: number, index: number): number
 /** Reverse convert spread — users receive 85% of nominal GRAM value. */
 export const STARDUST_TO_GRAM_SPREAD = 0.85;
 
+export const STARDUST_STAKE_BONUS_BPS = 800;
+
+export function stardustStakePayout(staked: number): number {
+  const n = Math.max(0, Math.floor(staked));
+  if (n <= 0) return 0;
+  return Math.floor((n * (10_000 + STARDUST_STAKE_BONUS_BPS)) / 10_000);
+}
+
 export function stardustToGramPreview(stardustAmount: number, index: number): number {
   const i = Math.max(0.25, index);
   const nominal = (stardustAmount * i) / STARDUST_PER_GRAM_BASE;

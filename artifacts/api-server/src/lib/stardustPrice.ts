@@ -237,20 +237,19 @@ export async function bumpStardustIndex(action: keyof typeof ACTION_BP): Promise
   }
 }
 
-/** Staked notional tracks the live index, but appreciation above entry is damped (20%). */
-export const STAKED_INDEX_GAIN_FACTOR = 0.20;
+/** Staked notional is principal. Mature withdraw pays a fixed bonus (not index PnL). */
+export const STARDUST_STAKE_LOCK_MS = 30 * 24 * 60 * 60 * 1000;
+/** +8% of principal, paid only when withdrawing after the 30-day lock. */
+export const STARDUST_STAKE_BONUS_BPS = 800;
 
-export function stardustValueAtIndex(staked: number, stakeIndexMicro: number, indexMicro: number): number {
-  if (staked <= 0) return 0;
-  const basis = stakeIndexMicro > 0 ? stakeIndexMicro : STARDUST_GENESIS_MICRO;
-  const live = clampIndexMicro(indexMicro);
-  if (live <= basis) {
-    return Math.max(0, Math.floor((staked * live) / basis));
-  }
-  const basisF = basis / STARDUST_SCALE;
-  const liveF = live / STARDUST_SCALE;
-  const dampedF = basisF + (liveF - basisF) * STAKED_INDEX_GAIN_FACTOR;
-  return Math.max(0, Math.floor(staked * (dampedF / basisF)));
+export function stardustStakePayout(staked: number): number {
+  const n = Math.max(0, Math.floor(staked));
+  if (n <= 0) return 0;
+  return Math.floor((n * (10_000 + STARDUST_STAKE_BONUS_BPS)) / 10_000);
+}
+
+export function stardustValueAtIndex(staked: number, _stakeIndexMicro?: number, _indexMicro?: number): number {
+  return Math.max(0, Math.floor(staked));
 }
 
 export async function readGlobalStakedTotal(): Promise<number> {

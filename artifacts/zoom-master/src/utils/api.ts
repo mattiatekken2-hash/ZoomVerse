@@ -2321,6 +2321,8 @@ export interface StardustStakeStateResponse {
   staked: number;
   stakeIndexMicro: number;
   stakedValue: number;
+  maturityPayout?: number;
+  bonusBps?: number;
   index: number;
   pnl: number;
   lockedUntilMs?: number;
@@ -2330,6 +2332,8 @@ export interface StardustStakeStateResponse {
 
 let cachedStardustPrice: StardustMarketPriceResponse | null = null;
 let cachedStardustHistory: StardustMarketHistoryResponse | null = null;
+let cachedStardustStake: StardustStakeStateResponse | null = null;
+let cachedStardustStakeId: string | null = null;
 
 export function peekStardustMarketPrice(): StardustMarketPriceResponse | null {
   return cachedStardustPrice;
@@ -2337,6 +2341,18 @@ export function peekStardustMarketPrice(): StardustMarketPriceResponse | null {
 
 export function peekStardustMarketHistory(): StardustMarketHistoryResponse | null {
   return cachedStardustHistory;
+}
+
+export function peekStardustStakeState(telegramId?: string | null): StardustStakeStateResponse | null {
+  if (!telegramId || cachedStardustStakeId !== telegramId) return null;
+  return cachedStardustStake;
+}
+
+/** Warm price + chart + stake so the wallet tap paints immediately. */
+export function prefetchStardustSheet(telegramId?: string | null): void {
+  void fetchStardustMarketPrice();
+  void fetchStardustMarketHistory();
+  if (telegramId) void fetchStardustStakeState(telegramId);
 }
 
 export async function fetchStardustMarketPrice(): Promise<StardustMarketPriceResponse | null> {
@@ -2366,8 +2382,11 @@ export async function fetchStardustStakeState(telegramId: string): Promise<Stard
       { cache: "no-store" },
     );
     if (!res.ok) return null;
-    return (await res.json()) as StardustStakeStateResponse;
-  } catch { return null; }
+    const data = (await res.json()) as StardustStakeStateResponse;
+    cachedStardustStake = data;
+    cachedStardustStakeId = telegramId;
+    return data;
+  } catch { return cachedStardustStakeId === telegramId ? cachedStardustStake : null; }
 }
 
 export async function stakeStardust(

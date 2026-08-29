@@ -12,7 +12,9 @@ import {
   getStardustIndexMicro,
   normalizeStardustChartPoints,
   readGlobalStakedTotal,
-  stardustValueAtIndex,
+  stardustStakePayout,
+  STARDUST_STAKE_LOCK_MS,
+  STARDUST_STAKE_BONUS_BPS,
   gramToStardust,
   stardustToGram,
   STARDUST_PER_GRAM_BASE,
@@ -21,7 +23,7 @@ import {
 
 const router: IRouter = Router();
 
-const STAKE_LOCK_MS = 30 * 24 * 60 * 60 * 1000;
+const STAKE_LOCK_MS = STARDUST_STAKE_LOCK_MS;
 
 const DAILY_CAP = 25;
 const GLOBAL_KEY = "stardust_global_total";
@@ -464,7 +466,7 @@ router.get("/stardust/stake/state", async (req, res) => {
 
     const staked = Number(u?.staked ?? 0);
     const stakeIndex = Number(u?.stakeIndex ?? STARDUST_GENESIS_MICRO);
-    const stakedValue = stardustValueAtIndex(staked, stakeIndex, indexMicro);
+    const maturityPayout = stardustStakePayout(staked);
     const lockedUntilMs = Number(u?.stakeLockedUntilMs ?? 0);
     const now = Date.now();
 
@@ -472,9 +474,11 @@ router.get("/stardust/stake/state", async (req, res) => {
       balance: Number(u?.balance ?? 0),
       staked,
       stakeIndexMicro: stakeIndex,
-      stakedValue,
+      stakedValue: staked,
+      maturityPayout,
+      bonusBps: STARDUST_STAKE_BONUS_BPS,
       index: indexMicro / STARDUST_SCALE,
-      pnl: stakedValue - staked,
+      pnl: maturityPayout - staked,
       lockedUntilMs,
       canWithdraw: staked > 0 && now >= lockedUntilMs,
       lockDaysRemaining: lockedUntilMs > now ? Math.ceil((lockedUntilMs - now) / (24 * 60 * 60 * 1000)) : 0,
@@ -543,17 +547,15 @@ router.post("/stardust/stake", async (req, res) => {
     if (!upd) return res.status(402).json({ ok: false, error: "Insufficient stardust" });
 
     void bumpStardustIndex("stake");
-    const stakedValue = stardustValueAtIndex(
-      Number(upd.staked ?? 0),
-      Number(upd.stakeIndex ?? STARDUST_GENESIS_MICRO),
-      indexMicro,
-    );
+    const stakedNow = Number(upd.staked ?? 0);
 
     res.json({
       ok: true,
       balance: Number(upd.balance ?? 0),
-      staked: Number(upd.staked ?? 0),
-      stakedValue,
+      staked: stakedNow,
+      stakedValue: stakedNow,
+      maturityPayout: stardustStakePayout(stakedNow),
+      bonusBps: STARDUST_STAKE_BONUS_BPS,
       index: indexMicro / STARDUST_SCALE,
       lockedUntilMs: lockUntil,
       canWithdraw: false,
@@ -611,7 +613,7 @@ router.post("/stardust/unstake", async (req, res) => {
 
     const stakeIndex = Number(u.stakeIndex ?? STARDUST_GENESIS_MICRO);
     const unstakeUnits = amount ? Math.min(amount, staked) : staked;
-    const payout = stardustValueAtIndex(unstakeUnits, stakeIndex, indexMicro);
+    const payout = stardustStakePayout(unstakeUnits);
     const remaining = staked - unstakeUnits;
 
     const [upd] = await db

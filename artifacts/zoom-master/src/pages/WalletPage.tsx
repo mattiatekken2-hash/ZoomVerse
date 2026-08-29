@@ -21,6 +21,7 @@ import {
   readGramSpotUsd,
   subscribeGramMarket,
 } from "../utils/gramMarket";
+import { prefetchStardustSheet } from "../utils/api";
 import { displayStardustIndex } from "../utils/stardustMarket";
 import { pickWalletTonUsd, lockTonUsd, getLockedTonUsd } from "../utils/displayTonUsd";
 import { formatChangePct, formatGramValueFull, formatZoomChartPrice, formatStardustChartIndex } from "../utils/wallet24hChange";
@@ -179,13 +180,14 @@ export function WalletPage({
   useEffect(() => {
     if (!visible) return;
     void prefetchWalletMarket();
+    prefetchStardustSheet(telegramId);
     if (getLockedTonUsd() == null) void fetchGramMarketSnapshot();
     const id = window.setInterval(() => {
       if (document.hidden) return;
       void prefetchWalletMarket();
     }, LIVE_POLL_MS);
     return () => window.clearInterval(id);
-  }, [visible]);
+  }, [visible, telegramId]);
 
   useEffect(() => {
     const onRefresh = () => {
@@ -379,7 +381,7 @@ export function WalletPage({
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {/* ZOOM S3 — cube logo, live off-chain chart */}
+          {/* ZOOM S3 — season points, not a tradeable market */}
           <BalanceRow
             icon={<ZoomCubeIcon size={BALANCE_ICON_SIZE} />}
             label={t("walletPage.zoomS2")}

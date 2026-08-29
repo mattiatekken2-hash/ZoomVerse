@@ -18,13 +18,15 @@ import {
   fetchStardustStakeState,
   peekStardustMarketHistory,
   peekStardustMarketPrice,
+  peekStardustStakeState,
   stakeStardust,
   unstakeStardust,
   type StardustChartPoint,
 } from "../utils/api";
+import { stardustStakePayout } from "../utils/stardustMarket";
 import { useT } from "../i18n/LanguageContext";
 
-const REFRESH_MS = 5_000;
+const REFRESH_MS = 30_000;
 const CYAN = "#9EC5E8";
 
 interface Props {
@@ -56,69 +58,49 @@ export function StardustMarketModal({
   const { t } = useT();
   const cachedPrice = peekStardustMarketPrice();
   const cachedHistory = peekStardustMarketHistory();
+  const cachedStake = peekStardustStakeState(telegramId);
   const [index, setIndex] = useState(cachedPrice?.index ?? 1);
   const [genesis, setGenesis] = useState(cachedPrice?.genesisIndex ?? 1);
-  const [totalStaked, setTotalStaked] = useState(cachedPrice?.totalStaked ?? 0);
   const [points, setPoints] = useState<StardustChartPoint[]>(cachedHistory?.points ?? []);
-  const [staked, setStaked] = useState(0);
-  const [stakedValue, setStakedValue] = useState(0);
-  const [pnl, setPnl] = useState(0);
-  const [balance, setBalance] = useState(walletBalance);
+  const [staked, setStaked] = useState(cachedStake?.staked ?? 0);
+  const [maturityPayout, setMaturityPayout] = useState(
+    cachedStake?.maturityPayout ?? stardustStakePayout(cachedStake?.staked ?? 0),
+  );
+  const [balance, setBalance] = useState(cachedStake?.balance ?? walletBalance);
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [loading, setLoading] = useState(!(cachedHistory?.points?.length));
-  const [chartReady, setChartReady] = useState(false);
-  const [canWithdraw, setCanWithdraw] = useState(false);
-  const [lockDaysRemaining, setLockDaysRemaining] = useState(0);
+  const [canWithdraw, setCanWithdraw] = useState(!!cachedStake?.canWithdraw);
+  const [lockDaysRemaining, setLockDaysRemaining] = useState(cachedStake?.lockDaysRemaining ?? 0);
+
+  const applyStake = useCallback((stake: NonNullable<ReturnType<typeof peekStardustStakeState>>) => {
+    setBalance(stake.balance);
+    setStaked(stake.staked);
+    setMaturityPayout(stake.maturityPayout ?? stardustStakePayout(stake.staked));
+    setCanWithdraw(!!stake.canWithdraw);
+    setLockDaysRemaining(stake.lockDaysRemaining ?? 0);
+    onBalanceChange?.(stake.balance);
+  }, [onBalanceChange]);
 
   const refresh = useCallback(async () => {
-    const [price, history] = await Promise.all([
+    const [price, history, stake] = await Promise.all([
       fetchStardustMarketPrice(),
       fetchStardustMarketHistory(),
+      telegramId ? fetchStardustStakeState(telegramId) : Promise.resolve(null),
     ]);
     if (price) {
       setIndex(price.index);
       setGenesis(price.genesisIndex);
-      setTotalStaked(price.totalStaked);
     }
     if (history?.points?.length) setPoints(history.points);
-    setLoading(false);
-    if (telegramId) {
-      const stake = await fetchStardustStakeState(telegramId);
-      if (stake) {
-        setBalance(stake.balance);
-        setStaked(stake.staked);
-        setStakedValue(stake.stakedValue);
-        setPnl(stake.pnl);
-        setCanWithdraw(!!stake.canWithdraw);
-        setLockDaysRemaining(stake.lockDaysRemaining ?? 0);
-        onBalanceChange?.(stake.balance);
-      }
-    }
-  }, [telegramId, onBalanceChange]);
+    if (stake) applyStake(stake);
+  }, [telegramId, applyStake]);
 
   useEffect(() => {
     void refresh();
     const id = window.setInterval(() => { void refresh(); }, REFRESH_MS);
     return () => window.clearInterval(id);
   }, [refresh]);
-
-  useEffect(() => {
-    setChartReady(false);
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (!cancelled) setChartReady(true);
-        });
-      });
-    }, 40);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [loading, points.length]);
 
   const chartData = useMemo(() => {
     const mapped = points
@@ -203,7 +185,7 @@ export function StardustMarketModal({
     void refresh();
   };
 
-  const pctChange = genesis > 0 ? ((index - genesis) / genesis) * 100 : 0;
+  const withdrawPreview = maturityPayout > 0 ? maturityPayout : stardustStakePayout(staked);
 
   const inputStyle = {
     background: "rgba(0,0,0,0.35)",
@@ -256,18 +238,15 @@ export function StardustMarketModal({
 
         {/* Compact stats row */}
         <div className="px-4 pb-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-bold flex-shrink-0">
-          <span style={{ color: pctChange >= 0 ? "#69f0ae" : "#ff8a80" }}>
-            {pctChange >= 0 ? "+" : ""}{pctChange.toFixed(2)}%
-          </span>
-          <span style={{ color: "rgba(255,255,255,0.35)" }}>{t("stardustMarket.pool", { n: totalStaked.toLocaleString() })}</span>
-          <span style={{ color: "#ffd740" }}>{t("stardustMarket.wallet", { n: balance.toLocaleString() })}</span>
-          <span style={{ color: CYAN }}>{t("stardustMarket.staked", { n: stakedValue.toLocaleString() })}</span>
+          {staked > 0 && (
+            <span style={{ color: CYAN }}>{t("stardustMarket.staked", { n: staked.toLocaleString() })}</span>
+          )}
         </div>
 
         {/* Chart — compact */}
         <div className="px-3 flex-shrink-0" style={{ height: 110, width: "100%", minWidth: 0 }}>
-          {chartReady && chartData.length >= 2 ? (
-            <ResponsiveContainer key={`sd-chart-${chartData.length}`} width="100%" height="100%">
+          {chartData.length >= 2 ? (
+            <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
                 <defs>
                   <linearGradient id="stardustChartFill" x1="0" y1="0" x2="0" y2="1">
@@ -292,9 +271,7 @@ export function StardustMarketModal({
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex items-center justify-center h-full text-[10px] text-center px-2" style={{ color: "rgba(255,255,255,0.32)" }}>
-              {loading ? t("stardustMarket.loadingChart") : t("stardustMarket.emptyChart")}
-            </div>
+            <div className="flex items-center justify-center h-full" />
           )}
         </div>
 
@@ -302,15 +279,14 @@ export function StardustMarketModal({
         <div className="px-4 pt-2 pb-4 flex-1 overflow-y-auto min-h-0">
           <div className="rounded-xl p-3" style={{ background: "rgba(255,215,64,0.05)", border: "1px solid rgba(255,215,64,0.15)" }}>
             <div className="flex justify-between mb-2 text-[10px]">
-              <span style={{ color: "rgba(255,255,255,0.4)" }}>{t("stardustMarket.walletLabel")}</span>
+              <span style={{ color: "rgba(255,255,255,0.4)" }}>{t("stardustMarket.stakeTerm")}</span>
               <span style={{ color: "#ffd740", fontWeight: 800 }}>{balance.toLocaleString()} ★</span>
             </div>
-            <div className="text-[10px] mb-2" style={{ color: pnl >= 0 ? "#69f0ae" : "#ff8a80" }}>
-              {t("stardustMarket.pnlLocked", {
-                pnl: `${pnl >= 0 ? "+" : ""}${pnl.toLocaleString()}`,
-                n: staked.toLocaleString(),
-              })}
-            </div>
+            {staked > 0 && (
+              <div className="text-[10px] mb-2 font-bold" style={{ color: "#69f0ae" }}>
+                {t("stardustMarket.maturityPayout", { n: withdrawPreview.toLocaleString() })}
+              </div>
+            )}
             <div className="flex gap-2 mb-2">
               <input
                 type="number"

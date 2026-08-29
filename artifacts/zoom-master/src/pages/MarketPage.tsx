@@ -17,6 +17,7 @@ import {
 } from "@workspace/game-models";
 
 type MarketFilter = "all" | LabMarketPath;
+type PriceSort = "low" | "high";
 
 interface MarketPageProps {
   depositBalance: number;
@@ -55,6 +56,11 @@ const FILTERS: { id: MarketFilter; label: string; hint: string }[] = [
   { id: "all", label: "All", hint: "Everything" },
   { id: "zoom", label: "$ZOOM", hint: "Farm ZOOM" },
   { id: "stardust", label: "★ Stardust", hint: "Farm ★" },
+];
+
+const PRICE_SORTS: { id: PriceSort; glyph: string; label: string }[] = [
+  { id: "low", glyph: "↓", label: "Low to high" },
+  { id: "high", glyph: "↑", label: "High to low" },
 ];
 
 function sameTelegram(a?: string | null, b?: string | null): boolean {
@@ -111,6 +117,7 @@ export function MarketPage({
   const walletAddress = useTonAddress();
   const [tonConnectUI] = useTonConnectUI();
   const [filter, setFilter] = useState<MarketFilter>("all");
+  const [priceSort, setPriceSort] = useState<PriceSort>("low");
   const [toast, setToast] = useState<Toast | null>(null);
   const serverListings = useGlobalStore((s) => s.marketListings);
   const sales = useGlobalStore((s) => s.marketSales);
@@ -293,19 +300,22 @@ export function MarketPage({
   }, [myListings, serverListings, myServerListings, telegramId]);
 
   const filtered = useMemo(() => {
-    if (filter === "all") return allDisplayListings;
-    return allDisplayListings.filter((l) => {
-      const path = l.marketPath ?? labMarketPathForPlanet({
-        shapeId: resolveLabShapeIdFromPlanet({
-          shapeId: l.shapeId,
-          displayName: l.displayName,
-        }) ?? l.shapeId,
-        displayName: l.displayName,
-        rate: l.rate,
-      });
-      return path === filter;
-    });
-  }, [allDisplayListings, filter]);
+    const rows = filter === "all"
+      ? allDisplayListings
+      : allDisplayListings.filter((l) => {
+          const path = l.marketPath ?? labMarketPathForPlanet({
+            shapeId: resolveLabShapeIdFromPlanet({
+              shapeId: l.shapeId,
+              displayName: l.displayName,
+            }) ?? l.shapeId,
+            displayName: l.displayName,
+            rate: l.rate,
+          });
+          return path === filter;
+        });
+    const dir = priceSort === "low" ? 1 : -1;
+    return [...rows].sort((a, b) => (Number(a.price) - Number(b.price)) * dir);
+  }, [allDisplayListings, filter, priceSort]);
 
   const handleBuyServer = async (
     serverId: number,
@@ -527,6 +537,23 @@ export function MarketPage({
                 >
                   <span className="lab-market__filter-label">{f.label}</span>
                   <span className="lab-market__filter-hint">{f.hint}</span>
+                </button>
+              ))}
+            </div>
+            <div className="lab-market__sorts" role="tablist" aria-label="Price order">
+              {PRICE_SORTS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={priceSort === s.id}
+                  aria-label={s.label}
+                  title={s.label}
+                  onClick={() => setPriceSort(s.id)}
+                  className={`lab-market__sort-dot${priceSort === s.id ? " is-active" : ""}`}
+                  data-testid={`sort-price-${s.id}`}
+                >
+                  {s.glyph}
                 </button>
               ))}
             </div>
