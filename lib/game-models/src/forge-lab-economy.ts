@@ -194,10 +194,10 @@ function labMarketPathFromDisplayName(displayName: string | null | undefined): L
   }
   if (
     n === "onigiri" || n === "island home" || n === "stardust pot" || n === "steve" || n === "chicken"
-    || n === "slime" || n === "dodge" || n === "ak-47 asimov" || n === "ak47" || n === "lab_pokeball"
+    || n === "slime" || n === "pokeball" || n === "dodge" || n === "ak-47 asimov" || n === "ak47" || n === "lab_pokeball"
     || n.includes("onigiri") || n.includes("island") || (n.includes("stardust") && n.includes("pot"))
     || n.includes("steve") || n.includes("chicken")
-    || n.includes("slime") || n.includes("dodge")
+    || n.includes("slime") || n.includes("pokeball") || n.includes("dodge")
     || n.includes("asimov") || n.includes("ak-47")
   ) {
     return "stardust";
@@ -275,6 +275,7 @@ const DISPLAY_NAME_TO_SHAPE: Record<string, string> = {
   slime: LAB_SLIME_SHAPE_ID,
   "slime soup": LAB_SLIME_SHAPE_ID,
   lab_pokeball: LAB_POKEBALL_SHAPE_ID,
+  pokeball: LAB_POKEBALL_SHAPE_ID,
   dodge: LAB_DODGE_SHAPE_ID,
   "ak-47 asimov": LAB_AK47_SHAPE_ID,
   ak47: LAB_AK47_SHAPE_ID,
@@ -307,6 +308,7 @@ export function resolveLabShapeIdFromPlanet(planet: {
   if (n.includes("steve")) return LAB_STEVE_SHAPE_ID;
   if (n.includes("chicken")) return LAB_CHICKEN_SHAPE_ID;
   if (n.includes("slime")) return LAB_SLIME_SHAPE_ID;
+  if (n.includes("pokeball") || n.includes("poke ball")) return LAB_POKEBALL_SHAPE_ID;
   if (n.includes("dodge")) return LAB_DODGE_SHAPE_ID;
   if (n.includes("asimov") || n.includes("ak-47") || n === "ak47") return LAB_AK47_SHAPE_ID;
   return null;

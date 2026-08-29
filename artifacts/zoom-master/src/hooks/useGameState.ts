@@ -1430,10 +1430,10 @@ function reconcileFromSyncResponse(
     }
     if (typeof res.stardustBalance === "number") {
       if (_stateRefHolder) {
+        const preview = _stateRefHolder.current.stardustFarmPreview || 0;
         _stateRefHolder.current = {
           ..._stateRefHolder.current,
-          stardustBalance: res.stardustBalance,
-          stardustFarmPreview: 0,
+          stardustBalance: hudStardustFromServer(res.stardustBalance, preview),
         };
       }
       try {
@@ -1457,10 +1457,10 @@ function reconcileFromSyncResponse(
     Date.now() >= _stardustSnapSuppressUntil
   ) {
     if (_stateRefHolder) {
+      const preview = _stateRefHolder.current.stardustFarmPreview || 0;
       _stateRefHolder.current = {
         ..._stateRefHolder.current,
-        stardustBalance: res.stardustBalance,
-        stardustFarmPreview: 0,
+        stardustBalance: hudStardustFromServer(res.stardustBalance, preview),
       };
     }
     try {
@@ -1478,10 +1478,10 @@ function reconcileFromSyncResponse(
     (res.stardustBalance ?? 0) < (sentStardustBalance ?? 0)
   ) {
     if (_stateRefHolder) {
+      const preview = _stateRefHolder.current.stardustFarmPreview || 0;
       _stateRefHolder.current = {
         ..._stateRefHolder.current,
-        stardustBalance: res.stardustBalance,
-        stardustFarmPreview: 0,
+        stardustBalance: hudStardustFromServer(res.stardustBalance, preview),
       };
     }
     try {
@@ -1514,14 +1514,21 @@ function persistableStardust(state: Pick<GameState, "stardustBalance" | "stardus
   return Math.max(0, (state.stardustBalance || 0) - (state.stardustFarmPreview || 0));
 }
 
+/** Server wallet is persistable ★ only. Keep the live farm preview on the HUD. */
+function hudStardustFromServer(serverStardust: number, preview: number): number {
+  return Math.max(0, serverStardust) + Math.max(0, preview);
+}
+
 function applyStardustFarmSettle<T extends Pick<GameState, "stardustBalance" | "stardustFarmPreview">>(
   state: T,
   settleRes: { exists: boolean; stardustCredited: number },
 ): T {
   if (!settleRes.exists) return state;
-  const preview = Math.max(0, state.stardustFarmPreview || 0);
   const credited = Math.max(0, settleRes.stardustCredited || 0);
-  if (preview <= 0 && credited <= 0) return state;
+  // credited === 0: do NOT strip preview — that was the wallet bounce
+  // (★ and USDT up on the 1s tick, then down on /farm/settle).
+  if (credited <= 0) return state;
+  const preview = Math.max(0, state.stardustFarmPreview || 0);
   return {
     ...state,
     stardustBalance: Math.max(0, (state.stardustBalance || 0) - preview + credited),
@@ -3835,15 +3842,19 @@ export function useGameState() {
     const handleServerStardustSnap = (e: Event) => {
       const detail = (e as CustomEvent<{ stardustBalance: number; epoch: number }>).detail;
       if (!detail || typeof detail.stardustBalance !== "number") return;
-      const newStardust = Math.max(0, detail.stardustBalance);
+      const preview = Math.max(0, stateRef.current.stardustFarmPreview || 0);
+      const newStardust = hudStardustFromServer(detail.stardustBalance, preview);
       const newEpoch = Math.max(stateRef.current.lastBalanceEpoch ?? 0, detail.epoch ?? 0);
       setCurrentBalanceEpoch(newEpoch);
-      stateRef.current = { ...stateRef.current, stardustBalance: newStardust, stardustFarmPreview: 0, lastBalanceEpoch: newEpoch };
+      stateRef.current = {
+        ...stateRef.current,
+        stardustBalance: newStardust,
+        lastBalanceEpoch: newEpoch,
+      };
       saveState(stateRef.current);
       setState((prev) => ({
         ...prev,
         stardustBalance: newStardust,
-        stardustFarmPreview: 0,
         lastBalanceEpoch: newEpoch,
       }));
     };

@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { EQUIPMENT_RATE_SERVER } from "./equipment";
-import { LAB_GLB_FARM_HOURS, isLabStardustFarmPlanet } from "@workspace/game-models";
+import { LAB_GLB_FARM_HOURS, isLabStardustFarmPlanet, labMarketPathForPlanet } from "@workspace/game-models";
 
 const router: IRouter = Router();
 
@@ -198,7 +198,11 @@ router.post("/farm/settle", async (req, res) => {
         const stardustFarm = isLabStardustFarmPlanet({
           shapeId: planetText(p.shapeId),
           displayName: planetText(p.displayName),
-        });
+        }) || labMarketPathForPlanet({
+          shapeId: planetText(p.shapeId),
+          displayName: planetText(p.displayName),
+          rate,
+        }) === "stardust";
         const start = Math.max(stardustFarm ? stardustWatermark : zoomWatermark, effectiveStart);
         const end = Math.min(now, effectiveStart + planetFarmDurationMs);
         if (end > start) {
