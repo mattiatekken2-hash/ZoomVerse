@@ -188,17 +188,13 @@ router.post("/farm/settle", async (req, res) => {
       const referredBy = row["referred_by"] ?? row["referredBy"];
       const speedMultiplier = referredBy ? 1 + REFERRAL_SPEED_BONUS : 1;
 
-      // Watermark floor for the per-planet "start" computation. We always
-      // take the max of:
-      //  - the server's own previous watermark (what we already credited)
-      //  - the client's last local settle (covers the deploy-day migration
-      //    so we never credit a period the client already credited)
-      // For brand-new users both are 0, and the per-planet
-      // start = max(0, farmStartedAt, lastCollectedAt) naturally falls back
-      // to "since the cycle started", which is the correct behavior.
-      const zoomWatermark = Math.max(serverLastSettled, clientFloor);
-      // Stardust ignores the client floor: /balance/sync uses LEAST for ★
-      // so local ticks cannot persist. Credit from the server watermark only.
+      // Both paths credit from the server watermark only.
+      // The client HUD ticks locally and advances `lastFarmingSettledAt`
+      // before /farm/settle. Using that as a ZOOM floor made the window
+      // empty (credited=0), then wallet hydration snapped S3 back to 0.
+      // Stardust already ignored the client floor for the same reason.
+      void clientFloor;
+      const zoomWatermark = serverLastSettled;
       const stardustWatermark = serverLastSettled;
 
       if (zoomWatermark >= now && stardustWatermark >= now) {

@@ -3695,11 +3695,12 @@ export function useGameState() {
             lastFarmingSettledAt: Math.max(prev.lastFarmingSettledAt || 0, settleRes.settledAtMs),
           };
           if (settleRes.credited > 0) {
+            const settledBal = Math.max(prev.balance, Math.floor(settleRes.balance));
             next = {
               ...next,
-              balance: prev.balance + settleRes.credited,
-              totalEarned: prev.totalEarned + settleRes.credited,
-              seasonPoolEarned: prev.seasonPoolEarned + settleRes.credited,
+              balance: settledBal,
+              totalEarned: prev.totalEarned + Math.max(0, settledBal - prev.balance),
+              seasonPoolEarned: prev.seasonPoolEarned + Math.max(0, settledBal - prev.balance),
               lastBalanceEpoch: Math.max(prev.lastBalanceEpoch || 0, settleRes.balanceEpoch),
             };
           }
