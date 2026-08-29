@@ -160,6 +160,10 @@ const en: Dict = {
   "market.ago.s": "{n}s ago",
   "market.ago.m": "{n}m ago",
   "market.ago.h": "{n}h ago",
+  "market.searchPlaceholder": "Search name or #id",
+  "market.searchAria": "Search market listings",
+  "market.noMatch": "No listings match “{q}”.",
+  "market.noMatchHint": "Try the model name or the listing #id.",
 
   // common
   "common.close": "Close",
@@ -735,6 +739,10 @@ const it: Dict = {
   "market.ago.s": "{n}s fa",
   "market.ago.m": "{n}m fa",
   "market.ago.h": "{n}h fa",
+  "market.searchPlaceholder": "Cerca nome o #id",
+  "market.searchAria": "Cerca inserzioni del market",
+  "market.noMatch": "Nessuna inserzione per “{q}”.",
+  "market.noMatchHint": "Prova il nome del modello o il #id.",
 
   "common.close": "Chiudi",
   "common.confirm": "Conferma",
@@ -1303,6 +1311,10 @@ const ru: Dict = {
   "market.ago.s": "{n}с назад",
   "market.ago.m": "{n}м назад",
   "market.ago.h": "{n}ч назад",
+  "market.searchPlaceholder": "Поиск: имя или #id",
+  "market.searchAria": "Поиск лотов на рынке",
+  "market.noMatch": "Нет лотов по запросу “{q}”.",
+  "market.noMatchHint": "Попробуйте имя модели или #id лота.",
 
   "common.close": "Закрыть",
   "common.confirm": "Подтвердить",
@@ -1834,6 +1846,10 @@ const uk: Dict = {
   "market.ago.s": "{n}с тому",
   "market.ago.m": "{n}хв тому",
   "market.ago.h": "{n}год тому",
+  "market.searchPlaceholder": "Пошук: ім’я або #id",
+  "market.searchAria": "Пошук лотів на ринку",
+  "market.noMatch": "Немає лотів за запитом “{q}”.",
+  "market.noMatchHint": "Спробуйте назву моделі або #id лота.",
 
   "common.close": "Закрити",
   "common.confirm": "Підтвердити",

@@ -564,8 +564,8 @@ export function MarketPage({
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search name or #id"
-                aria-label="Search market listings"
+                placeholder={t("market.searchPlaceholder")}
+                aria-label={t("market.searchAria")}
                 className="lab-market__search"
                 data-testid="market-search"
                 autoComplete="off"
@@ -591,21 +591,19 @@ export function MarketPage({
             </div>
 
             {loading && filtered.length === 0 && (
-              <div className="lab-market__empty"><p>Loading marketplace…</p></div>
+              <div className="lab-market__empty"><p>{t("market.loading")}</p></div>
             )}
 
             {!loading && filtered.length === 0 && (
               <div className="lab-market__empty">
-                <p>
-                  {query.trim()
-                    ? `No listings match “${query.trim()}”.`
-                    : `No ${filter === "all" ? "" : filter === "zoom" ? "$ZOOM " : "★ Stardust "}listings yet.`}
-                </p>
-                <p className="lab-market__empty-hint">
-                  {query.trim()
-                    ? "Try the model name or the listing #id."
-                    : "Forge in the Lab, then list from Farm."}
-                </p>
+                {query.trim() ? (
+                  <>
+                    <p>{t("market.noMatch", { q: query.trim() })}</p>
+                    <p className="lab-market__empty-hint">{t("market.noMatchHint")}</p>
+                  </>
+                ) : (
+                  <p>{t("market.empty")}</p>
+                )}
               </div>
             )}
 
