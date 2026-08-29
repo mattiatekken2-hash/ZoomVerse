@@ -1383,6 +1383,7 @@ export const LOCALE_EXTRAS: Record<Lang, Dict> = {
     "airdrop.social.instagram": "Instagram",
     "airdrop.social.tiktok": "TikTok",
   },
+  fil: {
     "game.nothingToClaim": "Nothing to claim",
     "game.slotsFullBonus": "Free up a slot to receive your bonus: {items}",
     "api.error.tgAuthRequired": "Reopen from Telegram to authorize",
