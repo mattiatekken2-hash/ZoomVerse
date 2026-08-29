@@ -105,7 +105,8 @@ export const usersTable = pgTable("users", {
   // utility is intentionally hidden until a future event/release). Players
   // collect floating yellow stars in the Lab, gated by SUN ownership and a
   // per-UTC-day cap to defeat farming bots.
-  stardustBalance: integer("stardust_balance").notNull().default(0),
+  // real: Lab stardust farms yield 0.20–0.42 ★/h (fractional). Spends stay whole.
+  stardustBalance: real("stardust_balance").notNull().default(0),
   stardustToday: integer("stardust_today").notNull().default(0),
   // REDSTAR — third in-game currency. Server-authoritative; currently credited
   // by admin only. Future gameplay mechanics (crafting, trading, events) will

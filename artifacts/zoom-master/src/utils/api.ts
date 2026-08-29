@@ -221,9 +221,8 @@ export function notifyFarmStop(telegramId: string, planetId: string): void {
  * Server-authoritative offline farming settlement.
  *
  * Reads the user's persisted planets + SUN cycle on the server and credits
- * any $ZOOM that accrued since the last server-side settle (capped at the
- * standard 24h farm / 24h collect window, exactly like the client-side
- * `settleFarmingState`). Idempotent — the server uses GREATEST() on the
+ * $ZOOM and Lab ★-path stardust that accrued since the last server-side
+ * settle (capped at the standard 24h farm window). Idempotent — the server uses GREATEST() on the
  * watermark so concurrent / repeated calls never double-credit the same
  * elapsed period.
  *
@@ -244,7 +243,9 @@ export async function settleOfflineFarming(params: {
   ok: boolean;
   exists: boolean;
   credited: number;
+  stardustCredited: number;
   balance: number;
+  stardustBalance: number;
   balanceEpoch: number;
   settledAtMs: number;
 }> {
@@ -252,7 +253,9 @@ export async function settleOfflineFarming(params: {
     ok: false,
     exists: false,
     credited: 0,
+    stardustCredited: 0,
     balance: 0,
+    stardustBalance: 0,
     balanceEpoch: 0,
     settledAtMs: Date.now(),
   };
@@ -272,7 +275,9 @@ export async function settleOfflineFarming(params: {
       ok: !!j["ok"],
       exists: !!j["exists"],
       credited: Math.max(0, Number(j["credited"] ?? 0)),
+      stardustCredited: Math.max(0, Number(j["stardustCredited"] ?? 0)),
       balance: Math.max(0, Number(j["balance"] ?? 0)),
+      stardustBalance: Math.max(0, Number(j["stardustBalance"] ?? 0)),
       balanceEpoch: Math.max(0, Number(j["balanceEpoch"] ?? 0)),
       settledAtMs: Math.max(0, Number(j["settledAtMs"] ?? Date.now())),
     };

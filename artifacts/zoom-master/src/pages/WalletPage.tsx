@@ -432,7 +432,7 @@ export function WalletPage({
         </div>
       </div>
 
-      {/* ── VAULT: Season 1 Legacy & Airdrop ── */}
+      {/* ── VAULT: Season 3 ── */}
       <div>
         <div
           style={{

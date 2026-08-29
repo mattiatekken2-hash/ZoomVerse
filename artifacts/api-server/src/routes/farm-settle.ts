@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { EQUIPMENT_RATE_SERVER } from "./equipment";
-import { LAB_GLB_FARM_HOURS } from "@workspace/game-models";
+import { LAB_GLB_FARM_HOURS, isLabStardustFarmPlanet } from "@workspace/game-models";
 
 const router: IRouter = Router();
 
@@ -18,15 +18,6 @@ const SUN_RATE_PER_HOUR = 1000;
 // for any user whose referredBy is set). We mirror it here so the server-side
 // credit matches what the client would have computed had it been online.
 const REFERRAL_SPEED_BONUS = 0.10;
-// Mirror the client's per-tick "dynamic bonus" — every client tick adds
-// `planet.rate + Math.random() * DYNAMIC_BONUS_MAX` ZOOM/hour for each
-// regular planet (NOT for SUN). Over many ticks the expected value of the
-// random term is `DYNAMIC_BONUS_MAX / 2`, so we add that fixed offset on
-// the server to keep long-running offline accrual statistically equivalent
-// to what the user would have earned online. SUN intentionally omitted —
-// matches client which uses raw `SUN_CONFIG.rate` without a bonus.
-const DYNAMIC_BONUS_MAX = 10;
-const DYNAMIC_BONUS_AVG = DYNAMIC_BONUS_MAX / 2;
 
 const SettleBody = z.object({
   telegramId: z.string().min(1),
@@ -40,11 +31,18 @@ const SettleBody = z.object({
 
 interface PlanetRow {
   id?: unknown;
+  name?: unknown;
   rate?: unknown;
+  shapeId?: unknown;
+  displayName?: unknown;
   farmStartedAt?: unknown;
   lastCollectedAt?: unknown;
   isFarmingActive?: unknown;
   isListedInMarket?: unknown;
+}
+
+function planetText(v: unknown): string | null {
+  return typeof v === "string" && v.length > 0 ? v : null;
 }
 
 function num(v: unknown): number {
@@ -56,9 +54,10 @@ function num(v: unknown): number {
  * Server-authoritative offline accrual.
  *
  * Reads the user's persisted planet array (`planets_json`) and SUN cycle
- * timestamps, computes how much $ZOOM has accrued since
- * `last_farming_settled_at_ms`, and atomically credits the new amount to
- * `zoom_balance`. Locks the user row with `FOR UPDATE` so concurrent calls
+ * timestamps, computes how much $ZOOM / ★ stardust has accrued since
+ * `last_farming_settled_at_ms`, and atomically credits $ZOOM to
+ * `zoom_balance` and Lab stardust-path models to `stardust_balance`.
+ * Locks the user row with `FOR UPDATE` so concurrent calls
  * (multiple tabs / retries) cannot double-credit the same elapsed period.
  *
  * Per-planet formula (matches client `settleFarmingState` after the
@@ -98,6 +97,7 @@ router.post("/farm/settle", async (req, res) => {
     const out = await db.transaction(async (tx) => {
       const sel = await tx.execute(sql`
         SELECT zoom_balance,
+               stardust_balance,
                balance_epoch,
                last_farming_settled_at_ms,
                planets_json,
@@ -120,7 +120,9 @@ router.post("/farm/settle", async (req, res) => {
           ok: false,
           exists: false,
           credited: 0,
+          stardustCredited: 0,
           balance: 0,
+          stardustBalance: 0,
           balanceEpoch: 0,
           settledAtMs: now,
         };
@@ -128,6 +130,7 @@ router.post("/farm/settle", async (req, res) => {
       const row = rows[0]!;
       const serverLastSettled = num(row["last_farming_settled_at_ms"]);
       const zoomBalance = num(row["zoom_balance"]);
+      const stardustBalance = num(row["stardust_balance"]);
       const balanceEpoch = num(row["balance_epoch"]);
       const sunCount = num(row["sun_count"]);
       const sunStarted = num(row["sun_farm_started_at_ms"]);
@@ -143,23 +146,26 @@ router.post("/farm/settle", async (req, res) => {
       // For brand-new users both are 0, and the per-planet
       // start = max(0, farmStartedAt, lastCollectedAt) naturally falls back
       // to "since the cycle started", which is the correct behavior.
-      const watermark = Math.max(serverLastSettled, clientFloor);
+      const zoomWatermark = Math.max(serverLastSettled, clientFloor);
+      // Stardust ignores the client floor: /balance/sync uses LEAST for ★
+      // so local ticks cannot persist. Credit from the server watermark only.
+      const stardustWatermark = serverLastSettled;
 
-      if (watermark >= now) {
-        // Clock already past now (clock skew or repeated call within 1ms):
-        // nothing to credit, but still bump the watermark so subsequent
-        // calls can advance it.
+      if (zoomWatermark >= now && stardustWatermark >= now) {
         return {
           ok: true,
           exists: true,
           credited: 0,
+          stardustCredited: 0,
           balance: zoomBalance,
+          stardustBalance,
           balanceEpoch,
           settledAtMs: serverLastSettled,
         };
       }
 
       let earned = 0;
+      let stardustEarned = 0;
 
       // ─── Planets ───
       const planetsField = row["planets_json"];
@@ -189,19 +195,23 @@ router.post("/farm/settle", async (req, res) => {
         if (effectiveStart <= 0) continue;
         // Lab GLB models farm a fixed 24h cycle (duration upgrades retired).
         const planetFarmDurationMs = BASE_FARM_DURATION_MS;
-        const start = Math.max(watermark, effectiveStart);
+        const stardustFarm = isLabStardustFarmPlanet({
+          shapeId: planetText(p.shapeId),
+          displayName: planetText(p.displayName),
+        });
+        const start = Math.max(stardustFarm ? stardustWatermark : zoomWatermark, effectiveStart);
         const end = Math.min(now, effectiveStart + planetFarmDurationMs);
         if (end > start) {
-          // Dynamic bonus average — see DYNAMIC_BONUS_AVG comment above.
-          const effectiveRate = rate + DYNAMIC_BONUS_AVG;
-          earned += (effectiveRate / 3_600_000) * (end - start) * speedMultiplier;
+          if (stardustFarm) {
+            stardustEarned += (rate / 3_600_000) * (end - start) * speedMultiplier;
+          } else {
+            earned += (rate / 3_600_000) * (end - start) * speedMultiplier;
+          }
         }
       }
 
       // ─── Equipment ───
-      // Mirror per-planet 24h-cycle accrual, minus the DYNAMIC_BONUS_AVG
-      // (equipment has no client-side per-tick random bonus, so no offset
-      // is needed to keep client and server in sync). Server-canonical
+      // Mirror per-planet 24h-cycle accrual. Server-canonical
       // rate table — any tampered client `rate` was already stripped on
       // /equipment/save, but we re-derive here as belt-and-suspenders.
       const equipmentField = row["equipment_json"];
@@ -222,7 +232,7 @@ router.post("/farm/settle", async (req, res) => {
         const lastCollectedAt = num(e["lastCollectedAt"]);
         const effectiveStart = Math.max(farmStartedAt, lastCollectedAt);
         if (effectiveStart <= 0) continue;
-        const start = Math.max(watermark, effectiveStart);
+        const start = Math.max(zoomWatermark, effectiveStart);
         const end = Math.min(now, effectiveStart + EQUIPMENT_FARM_DURATION_MS);
         if (end > start) {
           earned += (rate / 3_600_000) * (end - start) * speedMultiplier;
@@ -254,7 +264,7 @@ router.post("/farm/settle", async (req, res) => {
         if (rate <= 0) continue;
         const createdAt = num(item["createdAt"]);
         if (createdAt <= 0) continue;
-        const start = Math.max(watermark, createdAt);
+        const start = Math.max(zoomWatermark, createdAt);
         const end = now;
         if (end > start) {
           earned += (rate / 3_600_000) * (end - start) * speedMultiplier;
@@ -267,7 +277,7 @@ router.post("/farm/settle", async (req, res) => {
       // regular planets. The collect window keeps the old DAILY_COLLECT_MS
       // as a secondary cap (SUN still requires a manual collect).
       if (sunCount > 0 && sunStarted > 0) {
-        const start = Math.max(watermark, sunStarted, sunCollected);
+        const start = Math.max(zoomWatermark, sunStarted, sunCollected);
         const end = Math.min(
           now,
           sunStarted + SUN_FARM_DURATION_MS,
@@ -284,6 +294,7 @@ router.post("/farm/settle", async (req, res) => {
       // Defensive: never credit a negative amount, never write a watermark
       // older than the one already stored.
       const credited = Math.max(0, earned);
+      const stardustCredited = Math.max(0, stardustEarned);
       const newWatermark = Math.max(serverLastSettled, now);
 
       // RACE FIX (May 2026): when we actually credit something, bump
@@ -296,6 +307,8 @@ router.post("/farm/settle", async (req, res) => {
       // If credited == 0 we leave the epoch alone so heartbeat calls don't
       // generate a flood of unnecessary epoch bumps that would force every
       // client to snap to the same value they already have.
+      // Stardust-only credits do not bump epoch: /balance/sync LEAST-merges ★
+      // and the client replaces its local farm preview with stardustCredited.
       const epochBump = credited > 0 ? 1 : 0;
 
       // Conditional UPDATE: only land if no concurrent call already moved
@@ -305,6 +318,7 @@ router.post("/farm/settle", async (req, res) => {
       await tx.execute(sql`
         UPDATE users
            SET zoom_balance = zoom_balance + ${credited},
+               stardust_balance = stardust_balance + ${stardustCredited},
                balance_epoch = balance_epoch + ${epochBump},
                last_farming_settled_at_ms = GREATEST(last_farming_settled_at_ms, ${newWatermark})
          WHERE telegram_id = ${telegramId}
@@ -314,7 +328,9 @@ router.post("/farm/settle", async (req, res) => {
         ok: true,
         exists: true,
         credited,
+        stardustCredited,
         balance: zoomBalance + credited,
+        stardustBalance: stardustBalance + stardustCredited,
         balanceEpoch: balanceEpoch + epochBump,
         settledAtMs: newWatermark,
       };

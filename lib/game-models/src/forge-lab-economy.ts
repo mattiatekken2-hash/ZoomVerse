@@ -231,6 +231,15 @@ export function isLabForgeGeneratorPlanet(planet: { shapeId?: string | null; dis
   return !!resolveLabShapeIdFromPlanet(planet);
 }
 
+/** Lab stardust-path GLB — farms ★ into the stardust wallet, never $ZOOM. */
+export function isLabStardustFarmPlanet(planet: {
+  shapeId?: string | null;
+  displayName?: string | null;
+}): boolean {
+  const id = resolveLabShapeIdFromPlanet(planet);
+  return !!id && isLabStardustShapeId(id);
+}
+
 /** Farm / Market chrome — shape palette, never BASIC grey. */
 export function labForgeChromeForPlanet(planet: {
   shapeId?: string | null;

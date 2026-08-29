@@ -46,6 +46,7 @@ export {
   labMarketPathForShapeId,
   labMarketPathForPlanet,
   isLabForgeGeneratorPlanet,
+  isLabStardustFarmPlanet,
   labForgeChromeForPlanet,
   resolveLabShapeIdFromPlanet,
   labModelDisplayName,

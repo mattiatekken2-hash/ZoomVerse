@@ -27,6 +27,7 @@ async function globalZoomPoints(): Promise<number> {
   return Number(row?.total ?? 0) || 0;
 }
 
+/** Wallet estimate: share of the 4M treasury airdrop + fee ledger. DEX lock excluded. */
 function airdropPayload(
   userPoints: number,
   globalPoints: number,

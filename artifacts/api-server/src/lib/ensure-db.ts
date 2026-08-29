@@ -95,6 +95,15 @@ async function seedDefaults(): Promise<void> {
   } catch (err) {
     logger.warn({ err }, "[ensure-db] treasury/VIP schema skipped");
   }
+
+  try {
+    await db.execute(sql`
+      ALTER TABLE users
+        ALTER COLUMN stardust_balance TYPE real USING stardust_balance::real
+    `);
+  } catch (err) {
+    logger.warn({ err }, "[ensure-db] stardust_balance real migrate skipped");
+  }
 }
 
 /**

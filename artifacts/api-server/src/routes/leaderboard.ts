@@ -43,7 +43,7 @@ const SyncBody = z.object({
   photoUrl: z.string().nullish(),
   zoomBalance: z.number().min(0),
   tonBalance: z.number().min(0).optional(),
-  stardustBalance: z.number().int().min(0).optional(),
+  stardustBalance: z.number().min(0).optional(),
   redStarBalance: z.number().int().min(0).optional(),
   clientEpoch: z.number().int().nonnegative().optional(),
 });

@@ -5,6 +5,9 @@ import { pgTable, text, integer, timestamp, real, serial, uniqueIndex, index } f
  * other on-chain credits). `amount_zmc` is human $ZMC (9-decimal jetton
  * converted down). `tx_hash` is unique so a replayed confirm cannot
  * double-count the same chain event.
+ *
+ * The 4M TGE airdrop reserve sits in the same treasury wallet on-chain;
+ * this ledger only records fee inflows that add on top of that base.
  */
 export const treasuryLedgerTable = pgTable("treasury_ledger", {
   id: serial("id").primaryKey(),

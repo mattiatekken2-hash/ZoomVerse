@@ -1,8 +1,13 @@
 /**
  * On-chain $ZMC (Jetton) vs off-chain ZOOM Points.
  *
+ * Supply (human $ZMC, matches the minted jetton):
+ *   100M total
+ *    20M locked forever in the STON.fi DEX pool — never used for airdrop
+ *     4M reserved in the project treasury wallet for the TGE airdrop
+ *
  * ZOOM Points (`users.zoom_balance`) never leave the Mini App. They only
- * size each player's share of the Season 6 / TGE airdrop.
+ * size each player's share of that 4M (+ later treasury-ledger inflows).
  * $ZMC is the Jetton used for P2P Market, VIP holding, and treasury fees.
  */
 
@@ -12,9 +17,14 @@ export const TREASURY_WALLET_ADDRESS = "UQACCgAx0Fj924WvzsoyIDwJiE3nEvIraZuyvCsD
 export const ZMC_DECIMALS = 9;
 export const ZMC_SCALE = 10n ** 9n;
 
-/** Documented total supply (human $ZMC). */
-export const ZMC_TOTAL_SUPPLY = 20_000_000;
-/** Season airdrop base = 20% of total supply. */
+/** On-chain minted supply (human $ZMC). */
+export const ZMC_TOTAL_SUPPLY = 100_000_000;
+/** Permanently locked in the DEX LP — not part of the airdrop. */
+export const ZMC_DEX_LOCKED_SUPPLY = 20_000_000;
+/**
+ * TGE airdrop base held in the treasury wallet (4% of total supply).
+ * Paid manually at TGE from that wallet; the Mini App only estimates shares.
+ */
 export const ZMC_SEASON_AIRDROP_BASE = 4_000_000;
 
 /** P2P platform fee: 5% of listing price → treasury, 95% → seller. */
@@ -22,10 +32,9 @@ export const MARKET_P2P_FEE_BPS = 500;
 export const MARKET_P2P_FEE_PERCENT = 5;
 
 /**
- * On-chain VIP holding (human $ZMC). Kept well under total supply so
- * anyone can buy the bag on STON.fi:
- *   BASE = 1,000  (~0.005% of 20M)
- *   PRO  = 10,000 (~0.05% of 20M)
+ * On-chain VIP holding (human $ZMC). Fixed bags, not a % of supply:
+ *   BASE = 1,000  (~0.001% of 100M)
+ *   PRO  = 10,000 (~0.01% of 100M)
  */
 export const VIP_BASE_THRESHOLD = 1_000;
 export const VIP_PRO_THRESHOLD = 10_000;
@@ -87,7 +96,8 @@ export function vipLevelFromNano(balanceNano: bigint): VipLevel {
 
 /**
  * User_Airdrop_ZMC = (User_ZOOM_Points / Total_Global_ZOOM_Points)
- *                  * (20% of Total Supply + treasury ledger)
+ *                  * (4M treasury airdrop reserve + treasury ledger fees)
+ * The 20M DEX lock is never added to this pool.
  */
 export function computeUserAirdropZmc(
   userZoomPoints: number,

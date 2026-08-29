@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, fetchMyMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, invalidateTasksCache, bumpTasksPlanetsBuilt, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
-import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, labForgeChromeForPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, resolveLabShapeIdFromPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, labModelDisplayName, resumePlanetFarmAfterMarketPause, LAB_GLB_FARM_HOURS, type LabForgePath } from "@workspace/game-models";
+import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, isLabStardustFarmPlanet, labForgeChromeForPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, resolveLabShapeIdFromPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, labModelDisplayName, resumePlanetFarmAfterMarketPause, LAB_GLB_FARM_HOURS, type LabForgePath } from "@workspace/game-models";
 import { normalizeLabForgeShapeId } from "../utils/labForgeShape";
 import { refreshMarketListings, upsertMarketListing, removeMarketListingByPlanetId } from "../store/globalStore";
 import { applyRemovedPlanetTombstones, markPlanetBurned, markPlanetDelisted, clearPlanetDelisted } from "../utils/removedPlanets";
@@ -291,6 +291,8 @@ export interface GameState {
   // deposit → spend in-game).
   depositBalance: number;
   stardustBalance: number;
+  /** Unpersisted Lab ★ farm delta since last /farm/settle (stripped from /balance/sync). */
+  stardustFarmPreview: number;
   // REDSTAR — third in-game currency. Server-authoritative; credited by admin
   // only until future gameplay mechanics are added. Never decremented client-side.
   redStarBalance: number;
@@ -918,6 +920,7 @@ const INITIAL_STATE: GameState = {
   tonBalance: 0,
   depositBalance: 0,
   stardustBalance: NEW_PLAYER_STARDUST_GRANT,
+  stardustFarmPreview: 0,
   redStarBalance: 0,
   nftStarBalance: 0,
   // Default to 0 (not serverNow()) so a brand-new device / cleared cache is
@@ -1107,6 +1110,7 @@ function loadState(): GameState {
           tonBalance: parsed.tonBalance ?? 0,
           depositBalance: (parsed as unknown as Record<string, unknown>).depositBalance as number ?? 0,
           stardustBalance: (parsed as unknown as Record<string, unknown>).stardustBalance as number ?? 0,
+          stardustFarmPreview: (parsed as unknown as Record<string, unknown>).stardustFarmPreview as number ?? 0,
           redStarBalance: (parsed as unknown as Record<string, unknown>).redStarBalance as number ?? 0,
           nftStarBalance: (parsed as unknown as Record<string, unknown>).nftStarBalance as number ?? 0,
           labForgeShapeId: null,
@@ -1426,7 +1430,11 @@ function reconcileFromSyncResponse(
     }
     if (typeof res.stardustBalance === "number") {
       if (_stateRefHolder) {
-        _stateRefHolder.current = { ..._stateRefHolder.current, stardustBalance: res.stardustBalance };
+        _stateRefHolder.current = {
+          ..._stateRefHolder.current,
+          stardustBalance: res.stardustBalance,
+          stardustFarmPreview: 0,
+        };
       }
       try {
         window.dispatchEvent(new CustomEvent("zoom-server-stardust-snap", {
@@ -1449,7 +1457,11 @@ function reconcileFromSyncResponse(
     Date.now() >= _stardustSnapSuppressUntil
   ) {
     if (_stateRefHolder) {
-      _stateRefHolder.current = { ..._stateRefHolder.current, stardustBalance: res.stardustBalance };
+      _stateRefHolder.current = {
+        ..._stateRefHolder.current,
+        stardustBalance: res.stardustBalance,
+        stardustFarmPreview: 0,
+      };
     }
     try {
       window.dispatchEvent(new CustomEvent("zoom-server-stardust-snap", {
@@ -1466,7 +1478,11 @@ function reconcileFromSyncResponse(
     (res.stardustBalance ?? 0) < (sentStardustBalance ?? 0)
   ) {
     if (_stateRefHolder) {
-      _stateRefHolder.current = { ..._stateRefHolder.current, stardustBalance: res.stardustBalance };
+      _stateRefHolder.current = {
+        ..._stateRefHolder.current,
+        stardustBalance: res.stardustBalance,
+        stardustFarmPreview: 0,
+      };
     }
     try {
       window.dispatchEvent(new CustomEvent("zoom-server-stardust-snap", {
@@ -1494,6 +1510,25 @@ function reconcileFromSyncResponse(
   setCurrentBalanceEpoch(res.balanceEpoch);
 }
 
+function persistableStardust(state: Pick<GameState, "stardustBalance" | "stardustFarmPreview">): number {
+  return Math.max(0, (state.stardustBalance || 0) - (state.stardustFarmPreview || 0));
+}
+
+function applyStardustFarmSettle<T extends Pick<GameState, "stardustBalance" | "stardustFarmPreview">>(
+  state: T,
+  settleRes: { exists: boolean; stardustCredited: number },
+): T {
+  if (!settleRes.exists) return state;
+  const preview = Math.max(0, state.stardustFarmPreview || 0);
+  const credited = Math.max(0, settleRes.stardustCredited || 0);
+  if (preview <= 0 && credited <= 0) return state;
+  return {
+    ...state,
+    stardustBalance: Math.max(0, (state.stardustBalance || 0) - preview + credited),
+    stardustFarmPreview: 0,
+  };
+}
+
 function immediateSyncToServer(state: GameState) {
   const { telegramId } = getTelegramContext();
   if (!telegramId || !_balancesHydrated) return;
@@ -1518,7 +1553,7 @@ function immediateSyncToServer(state: GameState) {
   const photoUrl = ctx_.photoUrl;
   const sentEpoch = _currentBalanceEpoch;
   const sentTon = Math.max(0, state.tonBalance || 0);
-  const sentStardust = Math.floor(state.stardustBalance || 0);
+  const sentStardust = persistableStardust(state);
   const sentRedStar = Math.floor(state.redStarBalance || 0);
   syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: balance, tonBalance: sentTon, stardustBalance: sentStardust, redStarBalance: sentRedStar, clientEpoch: sentEpoch })
     .then((res) => {
@@ -2287,54 +2322,39 @@ export function formatDuration(ms: number): string {
 }
 
 const DEFECT_CHANCE = 0.04;
-const DYNAMIC_BONUS_MAX = 10;
-// Server's deterministic bonus is the AVERAGE of the old random range
-// (artifacts/api-server/src/routes/farm-settle.ts → DYNAMIC_BONUS_AVG =
-// DYNAMIC_BONUS_MAX / 2 = 5). Mirroring the same constant here keeps the
-// client's offline-earnings preview EXACTLY equal to what the server credits,
-// so the visible balance never bounces on app open.
-const DYNAMIC_BONUS_AVG = DYNAMIC_BONUS_MAX / 2;
 
 function settleFarmingState(state: GameState, now: number): GameState {
   const from = state.lastFarmingSettledAt || now;
   if (now <= from) return state;
 
   const speedMultiplier = 1 + (state.referralSpeedBonus || 0);
-  let earned = 0;
-  let nftStarEarned = 0;
+      let earned = 0;
+      let nftStarEarned = 0;
+      let stardustEarned = 0;
 
-  for (const planet of state.planets) {
-    if (!planet.isFarmingActive || planet.isListedInMarket) continue;
-    // Daily-collect removed: cycle window is the single 24h block starting at
-    // effectiveFarmStart (= max(farmStartedAt, lastCollectedAt) so pre-deploy
-    // planets that had already been collected get fresh 24h from the last
-    // collect — see effectiveFarmStart() docstring).
-    const eff = effectiveFarmStart(planet);
-    if (eff <= 0) continue;
-    const planetFarmMs = getPlanetFarmDurationMs(planet);
-    const start = Math.max(from, eff);
-    const end = Math.min(now, eff + planetFarmMs);
-    if (end > start) {
-      // IMPORTANT: must stay deterministic and EXACTLY match the server formula
-      // in artifacts/api-server/src/routes/farm-settle.ts (line 188:
-      // `effectiveRate = rate + DYNAMIC_BONUS_AVG`). Previously this used
-      // `planet.rate + Math.random() * DYNAMIC_BONUS_MAX`, which made the
-      // client over-estimate offline earnings on app open: balance jumped
-      // (e.g. 59662 → 60500), then `/farm/settle` returned the deterministic
-      // server total (60362) and the epoch-advance snap pulled the UI DOWN.
-      // Using the same `+ DYNAMIC_BONUS_AVG` constant on both sides keeps the
-      // preview exactly equal to the credit, so the visible balance never
-      // moves backwards on open.
-      // MUSHROOM planets earn exactly 5 NFTSTAR per full cycle (no DYNAMIC_BONUS).
-      if (planet.name === "MUSHROOM") {
-        const MUSHROOM_NFTSTAR_PER_CYCLE = 5;
-        nftStarEarned += (MUSHROOM_NFTSTAR_PER_CYCLE / planetFarmMs) * (end - start) * speedMultiplier;
-      } else {
-        const effectiveRate = planet.rate + DYNAMIC_BONUS_AVG;
-        earned += (effectiveRate / 3_600_000) * (end - start) * speedMultiplier;
+      for (const planet of state.planets) {
+        if (!planet.isFarmingActive || planet.isListedInMarket) continue;
+        // Daily-collect removed: cycle window is the single 24h block starting at
+        // effectiveFarmStart (= max(farmStartedAt, lastCollectedAt) so pre-deploy
+        // planets that had already been collected get fresh 24h from the last
+        // collect — see effectiveFarmStart() docstring).
+        const eff = effectiveFarmStart(planet);
+        if (eff <= 0) continue;
+        const planetFarmMs = getPlanetFarmDurationMs(planet);
+        const start = Math.max(from, eff);
+        const end = Math.min(now, eff + planetFarmMs);
+        if (end > start) {
+          // Rate on the Farm card only — client and /farm/settle must match.
+          if (planet.name === "MUSHROOM") {
+            const MUSHROOM_NFTSTAR_PER_CYCLE = 5;
+            nftStarEarned += (MUSHROOM_NFTSTAR_PER_CYCLE / planetFarmMs) * (end - start) * speedMultiplier;
+          } else if (isLabStardustFarmPlanet(planet)) {
+            stardustEarned += (planet.rate / 3_600_000) * (end - start) * speedMultiplier;
+          } else {
+            earned += (planet.rate / 3_600_000) * (end - start) * speedMultiplier;
+          }
+        }
       }
-    }
-  }
 
   // White Collection planets earn TON (not ZOOM) and accumulate into tonBalance
   // when the user presses COLLECT. Real-time pending TON for display is computed
@@ -2352,8 +2372,7 @@ function settleFarmingState(state: GameState, now: number): GameState {
 
   // Equipment items follow the same 24h farming-cycle window as planets:
   // user activates, item earns for 24h, then needs Reactivate. Mirrors
-  // the server formula in farm-settle.ts (no DYNAMIC_BONUS since
-  // equipment has no per-tick random bonus on the client).
+  // the server formula in farm-settle.ts.
   for (const item of state.equipment || []) {
     if (!item.isFarmingActive || item.isListedInMarket) continue;
     const eff = Math.max(item.farmStartedAt || 0, item.lastCollectedAt || 0);
@@ -2365,7 +2384,7 @@ function settleFarmingState(state: GameState, now: number): GameState {
     }
   }
 
-  if (earned <= 0 && nftStarEarned <= 0) return state;
+  if (earned <= 0 && nftStarEarned <= 0 && stardustEarned <= 0) return state;
 
   return {
     ...state,
@@ -2373,6 +2392,10 @@ function settleFarmingState(state: GameState, now: number): GameState {
     totalEarned: earned > 0 ? state.totalEarned + earned : state.totalEarned,
     seasonPoolEarned: earned > 0 ? state.seasonPoolEarned + earned : state.seasonPoolEarned,
     nftStarBalance: nftStarEarned > 0 ? (state.nftStarBalance || 0) + nftStarEarned : (state.nftStarBalance || 0),
+    stardustBalance: stardustEarned > 0 ? (state.stardustBalance || 0) + stardustEarned : state.stardustBalance,
+    stardustFarmPreview: stardustEarned > 0
+      ? (state.stardustFarmPreview || 0) + stardustEarned
+      : (state.stardustFarmPreview || 0),
     lastFarmingSettledAt: now,
   };
 }
@@ -2691,6 +2714,7 @@ export function useGameState() {
           weeklyRedStarDay: Math.min(7, Math.max(1, Number(grants.weeklyRedStarDay ?? 1))),
           weeklyRedStarClaimedToday: !!grants.weeklyRedStarClaimedToday,
         };
+        updated = applyStardustFarmSettle(updated, settleRes);
 
         // ─── GRANTS-DERIVED HYDRATION (gated on a successful /grants fetch) ───
         // Wrapping this entire block in `if (grantsOk)` is the second half of
@@ -3202,7 +3226,7 @@ export function useGameState() {
         {
           const sent = Math.floor(updated.balance);
           const sentTon = Math.max(0, updated.tonBalance || 0);
-          const sentStardust = Math.floor(updated.stardustBalance || 0);
+          const sentStardust = persistableStardust(updated);
           {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: sent, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
             .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon, sentStardust));}
         }
@@ -3615,36 +3639,30 @@ export function useGameState() {
         clientLastSettledAtMs: _doSyncClientFloor,
       });
 
-      if (settleRes.exists && settleRes.credited > 0) {
-        // Apply the server credit locally + advance both watermark and
-        // epoch trackers BEFORE the syncBalance below, so the sync sends
-        // the post-credit balance with the post-credit epoch. The server
-        // CASE check then matches (epoch == sent) and falls through to the
-        // client value — no overwrite possible.
+      if (settleRes.exists) {
+        // Apply $ZOOM credit (if any) + replace Lab ★ farm preview with the
+        // server credit so /balance/sync LEAST cannot wipe the farm yield.
         setState((prev) => {
-          const next = {
-            ...prev,
-            balance: prev.balance + settleRes.credited,
-            totalEarned: prev.totalEarned + settleRes.credited,
-            seasonPoolEarned: prev.seasonPoolEarned + settleRes.credited,
-            lastFarmingSettledAt: Math.max(prev.lastFarmingSettledAt || 0, settleRes.settledAtMs),
-            lastBalanceEpoch: Math.max(prev.lastBalanceEpoch || 0, settleRes.balanceEpoch),
-          };
-          stateRef.current = next;
-          return next;
-        });
-        setCurrentBalanceEpoch(settleRes.balanceEpoch);
-      } else if (settleRes.exists && settleRes.settledAtMs > _doSyncClientFloor) {
-        // Heartbeat path: no credit but server's watermark advanced. Mirror
-        // it locally so the next /farm/settle short-circuits cleanly.
-        setState((prev) => {
-          const next = {
+          let next = {
             ...prev,
             lastFarmingSettledAt: Math.max(prev.lastFarmingSettledAt || 0, settleRes.settledAtMs),
           };
+          if (settleRes.credited > 0) {
+            next = {
+              ...next,
+              balance: prev.balance + settleRes.credited,
+              totalEarned: prev.totalEarned + settleRes.credited,
+              seasonPoolEarned: prev.seasonPoolEarned + settleRes.credited,
+              lastBalanceEpoch: Math.max(prev.lastBalanceEpoch || 0, settleRes.balanceEpoch),
+            };
+          }
+          next = applyStardustFarmSettle(next, settleRes);
           stateRef.current = next;
           return next;
         });
+        if (settleRes.credited > 0) {
+          setCurrentBalanceEpoch(settleRes.balanceEpoch);
+        }
       }
 
       // Fetch authoritative GRAM before /balance/sync — never push stale local ton first.
@@ -3661,7 +3679,7 @@ export function useGameState() {
       const localBalance = Math.floor(stateRef.current.balance);
       const sentEpoch = _currentBalanceEpoch;
       const sentTon = Math.max(0, stateRef.current.tonBalance || 0);
-      const sentStardust = Math.floor(stateRef.current.stardustBalance || 0);
+      const sentStardust = persistableStardust(stateRef.current);
       const syncRes = await syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: localBalance, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch });
       reconcileFromSyncResponse(localBalance, sentEpoch, syncRes, sentTon, sentStardust);
 
@@ -3713,7 +3731,7 @@ export function useGameState() {
       const { firstName, username, photoUrl } = getTelegramContext();
       const sentEpoch = _currentBalanceEpoch;
       const sentTon = Math.max(0, stateRef.current.tonBalance || 0);
-      const sentStardust = Math.floor(stateRef.current.stardustBalance || 0);
+      const sentStardust = persistableStardust(stateRef.current);
       const sentRedStar = Math.max(0, stateRef.current.redStarBalance || 0);
       const syncRes = await syncBalance({
         telegramId,
@@ -3742,7 +3760,7 @@ export function useGameState() {
         if (telegramId) {
           const sent = Math.floor(newBal);
           const sentTon = Math.max(0, prev.tonBalance || 0);
-          const sentStardust = Math.floor(prev.stardustBalance || 0);
+          const sentStardust = persistableStardust(prev);
           {const sentEpoch = _currentBalanceEpoch; syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: sent, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
             .then((r) => reconcileFromSyncResponse(sent, sentEpoch, r, sentTon, sentStardust));}
         }
@@ -3820,11 +3838,12 @@ export function useGameState() {
       const newStardust = Math.max(0, detail.stardustBalance);
       const newEpoch = Math.max(stateRef.current.lastBalanceEpoch ?? 0, detail.epoch ?? 0);
       setCurrentBalanceEpoch(newEpoch);
-      stateRef.current = { ...stateRef.current, stardustBalance: newStardust, lastBalanceEpoch: newEpoch };
+      stateRef.current = { ...stateRef.current, stardustBalance: newStardust, stardustFarmPreview: 0, lastBalanceEpoch: newEpoch };
       saveState(stateRef.current);
       setState((prev) => ({
         ...prev,
         stardustBalance: newStardust,
+        stardustFarmPreview: 0,
         lastBalanceEpoch: newEpoch,
       }));
     };
@@ -3867,7 +3886,7 @@ export function useGameState() {
         if (telegramId) {
           const sentEpoch = _currentBalanceEpoch;
           const sentTon = Math.max(0, stateRef.current.tonBalance || 0);
-          const sentStardust = Math.floor(stateRef.current.stardustBalance || 0);
+          const sentStardust = persistableStardust(stateRef.current);
           void syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: Math.floor(stateRef.current.balance), tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch })
             .then((r) => reconcileFromSyncResponse(Math.floor(stateRef.current.balance), sentEpoch, r, sentTon, sentStardust));
         }
@@ -4091,10 +4110,20 @@ export function useGameState() {
             }));
           }
 
-          void settleOfflineFarming({
+          const settleRes = await settleOfflineFarming({
             telegramId,
             clientLastSettledAtMs: Math.floor(stateRef.current.lastFarmingSettledAt || 0),
           });
+          if (settleRes.exists) {
+            setState((prev) => {
+              const next = applyStardustFarmSettle({
+                ...prev,
+                lastFarmingSettledAt: Math.max(prev.lastFarmingSettledAt || 0, settleRes.settledAtMs),
+              }, settleRes);
+              stateRef.current = next;
+              return next;
+            });
+          }
 
           window.dispatchEvent(new Event("zoom-data-refresh"));
         })();

@@ -1,7 +1,8 @@
 /**
  * Official on-chain $ZMC (Zoom) jetton on TON — DexScreener + STON.fi.
- * Off-chain ZOOM Points (`zoom_balance`) stay separate and only size the
- * seasonal airdrop. $ZMC is P2P Market, VIP holding, and treasury fees.
+ * Supply: 100M minted · 20M locked in the DEX pool · 4M in treasury for TGE.
+ * Off-chain ZOOM Points (`zoom_balance`) only size each player's share of
+ * that 4M airdrop. $ZMC is P2P Market, VIP holding, and treasury fees.
  */
 export const ZMC_NAME = "Zoom";
 export const ZMC_TICKER = "ZMC";
