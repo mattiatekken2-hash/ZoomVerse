@@ -232,18 +232,19 @@ function AppShellWithState() {
   useEffect(() => { stardustCapReachedRef.current = stardustCapReached; }, [stardustCapReached]);
 
   // Periodic up-sync from /stardust/state (admin grants, star collect).
-  // Never snap DOWN: this poll races behind /farm/settle and does not
-  // include Lab stardust-farm preview. A replace-on-init used to wipe
-  // farmed ★ (and the wallet USDT) on every app restart.
+  // Banked ★ must match the wallet chart (server). Live farm ticks stay in
+  // stardustFarmPreview and are not shown as extra wallet ★.
   useEffect(() => {
     if (!stardust.ready) return;
     setState((prev) => {
       const preview = Math.max(0, prev.stardustFarmPreview || 0);
-      const fromServer = Math.max(0, stardust.balance) + preview;
-      if (fromServer > (prev.stardustBalance || 0) + 1e-12) {
-        return { ...prev, stardustBalance: fromServer };
-      }
-      return prev;
+      const persistable = Math.max(0, (prev.stardustBalance || 0) - preview);
+      const server = Math.max(0, stardust.balance);
+      if (Math.abs(server - persistable) <= 1e-12) return prev;
+      return {
+        ...prev,
+        stardustBalance: server + preview,
+      };
     });
   }, [stardust.ready, stardust.balance]);
 
@@ -257,7 +258,6 @@ function AppShellWithState() {
       if (!d || !d.type) return;
       const n = Math.max(0, Math.floor(d.amount || 0));
       if (d.type === "stardust") {
-        setState((prev) => ({ ...prev, stardustBalance: (prev.stardustBalance || 0) + n }));
         void stardust.refresh();
       }
       if (d.type === "ton") {
@@ -423,7 +423,7 @@ function AppShellWithState() {
   useEffect(() => {
     rememberStickyWalletBalance("zoom", state.balance || 0);
     rememberStickyWalletBalance("gram", Math.max(0, (state.tonBalance || 0) + (state.depositBalance || 0)));
-    rememberStickyWalletBalance("stardust", state.stardustBalance || 0);
+    rememberStickyWalletBalance("stardust", Math.max(0, (state.stardustBalance || 0) - (state.stardustFarmPreview || 0)));
     rememberStickyWalletBalance("redStar", state.redStarBalance || 0);
     rememberStickyWalletBalance("nftStar", state.nftStarBalance || 0);
   }, [
@@ -431,6 +431,7 @@ function AppShellWithState() {
     state.tonBalance,
     state.depositBalance,
     state.stardustBalance,
+    state.stardustFarmPreview,
     state.redStarBalance,
     state.nftStarBalance,
   ]);
@@ -1047,9 +1048,17 @@ function AppShellWithState() {
                   blackPlanets={state.blackPlanets || []}
                   supernovaPlanets={state.supernovaPlanets || []}
                   balance={state.balance || 0}
-                  stardustBalance={state.stardustBalance || 0}
+                  stardustBalance={Math.max(0, (state.stardustBalance || 0) - (state.stardustFarmPreview || 0))}
                   redStarBalance={state.redStarBalance || 0}
                   nftStarBalance={state.nftStarBalance || 0}
+                  onBankedStardust={(n) => {
+                    setState((prev) => {
+                      const preview = Math.max(0, prev.stardustFarmPreview || 0);
+                      const persistable = Math.max(0, (prev.stardustBalance || 0) - preview);
+                      if (Math.abs(persistable - n) <= 1e-12) return prev;
+                      return { ...prev, stardustBalance: n + preview };
+                    });
+                  }}
                 />
               )}
             </div>

@@ -3890,19 +3890,22 @@ export function useGameState() {
     const handleServerStardustSnap = (e: Event) => {
       const detail = (e as CustomEvent<{ stardustBalance: number; epoch: number }>).detail;
       if (!detail || typeof detail.stardustBalance !== "number") return;
-      const preview = Math.max(0, stateRef.current.stardustFarmPreview || 0);
+      const epochAdvanced = (detail.epoch ?? 0) > (stateRef.current.lastBalanceEpoch ?? 0);
+      const preview = epochAdvanced ? 0 : Math.max(0, stateRef.current.stardustFarmPreview || 0);
       const newStardust = hudStardustFromServer(detail.stardustBalance, preview);
       const newEpoch = Math.max(stateRef.current.lastBalanceEpoch ?? 0, detail.epoch ?? 0);
       setCurrentBalanceEpoch(newEpoch);
       stateRef.current = {
         ...stateRef.current,
         stardustBalance: newStardust,
+        stardustFarmPreview: preview,
         lastBalanceEpoch: newEpoch,
       };
       saveState(stateRef.current);
       setState((prev) => ({
         ...prev,
         stardustBalance: newStardust,
+        stardustFarmPreview: preview,
         lastBalanceEpoch: newEpoch,
       }));
     };

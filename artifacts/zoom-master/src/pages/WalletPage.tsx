@@ -59,6 +59,8 @@ interface WalletPageProps extends Omit<TonWalletProps, "onOpenWalletTab" | "labV
   redStarBalance: number;
   nftStarBalance: number;
   onOpenHistory?: () => void;
+  /** Server banked ★ from the chart modal — keep wallet and graph in sync. */
+  onBankedStardust?: (balance: number) => void;
   visible?: boolean;
 }
 
@@ -107,6 +109,7 @@ export function WalletPage({
   redStarBalance,
   nftStarBalance,
   onOpenHistory,
+  onBankedStardust,
   visible = true,
 }: WalletPageProps) {
   const { t } = useT();
@@ -533,6 +536,7 @@ export function WalletPage({
           onBalanceChange={(next) => {
             commitStickyWalletBalance("stardust", next);
             setLiveStardustBalance(next);
+            onBankedStardust?.(next);
           }}
         />
       )}
