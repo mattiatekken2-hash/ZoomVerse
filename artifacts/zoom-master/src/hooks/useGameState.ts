@@ -1527,16 +1527,13 @@ function applyStardustFarmSettle<T extends Pick<GameState, "stardustBalance" | "
   const credited = Math.max(0, settleRes.stardustCredited || 0);
   const serverBal = typeof settleRes.stardustBalance === "number" ? Math.max(0, settleRes.stardustBalance) : null;
   if (credited > 0 && serverBal != null) {
-    const local = Math.max(0, state.stardustBalance || 0);
-    const hud = Math.max(serverBal, local);
+    // Bank the farm on the wallet. Preview restarts from this settle.
     return {
       ...state,
-      stardustBalance: hud,
-      stardustFarmPreview: Math.max(0, hud - serverBal),
+      stardustBalance: serverBal,
+      stardustFarmPreview: 0,
     };
   }
-  // credited === 0: do NOT strip preview — that was the wallet bounce
-  // (★ and USDT up on the 1s tick, then down on /farm/settle).
   if (credited <= 0) return state;
   const preview = Math.max(0, state.stardustFarmPreview || 0);
   return {
@@ -3694,27 +3691,27 @@ export function useGameState() {
       });
 
       if (settleRes.exists) {
-        // Apply $ZOOM credit (if any) + replace Lab ★ farm preview with the
-        // server credit so /balance/sync LEAST cannot wipe the farm yield.
-        setState((prev) => {
-          let next = {
-            ...prev,
-            lastFarmingSettledAt: Math.max(prev.lastFarmingSettledAt || 0, settleRes.settledAtMs),
+        // Apply $ZOOM / ★ credit on stateRef FIRST (sync), then /balance/sync.
+        // setState alone is async — sending the pre-credit persistable ★
+        // let LEAST on /balance/sync wipe the farm we just banked.
+        const prevSnap = stateRef.current;
+        let next = {
+          ...prevSnap,
+          lastFarmingSettledAt: Math.max(prevSnap.lastFarmingSettledAt || 0, settleRes.settledAtMs),
+        };
+        if (settleRes.credited > 0) {
+          const settledBal = Math.max(prevSnap.balance, Math.floor(settleRes.balance));
+          next = {
+            ...next,
+            balance: settledBal,
+            totalEarned: prevSnap.totalEarned + Math.max(0, settledBal - prevSnap.balance),
+            seasonPoolEarned: prevSnap.seasonPoolEarned + Math.max(0, settledBal - prevSnap.balance),
+            lastBalanceEpoch: Math.max(prevSnap.lastBalanceEpoch || 0, settleRes.balanceEpoch),
           };
-          if (settleRes.credited > 0) {
-            const settledBal = Math.max(prev.balance, Math.floor(settleRes.balance));
-            next = {
-              ...next,
-              balance: settledBal,
-              totalEarned: prev.totalEarned + Math.max(0, settledBal - prev.balance),
-              seasonPoolEarned: prev.seasonPoolEarned + Math.max(0, settledBal - prev.balance),
-              lastBalanceEpoch: Math.max(prev.lastBalanceEpoch || 0, settleRes.balanceEpoch),
-            };
-          }
-          next = applyStardustFarmSettle(next, settleRes);
-          stateRef.current = next;
-          return next;
-        });
+        }
+        next = applyStardustFarmSettle(next, settleRes);
+        stateRef.current = next;
+        setState(() => next);
         if (settleRes.credited > 0 || settleRes.stardustCredited > 0) {
           setCurrentBalanceEpoch(settleRes.balanceEpoch);
         }
@@ -3734,7 +3731,14 @@ export function useGameState() {
       const localBalance = Math.floor(stateRef.current.balance);
       const sentEpoch = _currentBalanceEpoch;
       const sentTon = Math.max(0, stateRef.current.tonBalance || 0);
-      const sentStardust = persistableStardust(stateRef.current);
+      let sentStardust = persistableStardust(stateRef.current);
+      if (
+        settleRes.exists
+        && settleRes.stardustCredited > 0
+        && typeof settleRes.stardustBalance === "number"
+      ) {
+        sentStardust = Math.max(sentStardust, settleRes.stardustBalance);
+      }
       const syncRes = await syncBalance({ telegramId, firstName, username, photoUrl, zoomBalance: localBalance, tonBalance: sentTon, stardustBalance: sentStardust, clientEpoch: sentEpoch });
       reconcileFromSyncResponse(localBalance, sentEpoch, syncRes, sentTon, sentStardust);
 
@@ -4177,14 +4181,13 @@ export function useGameState() {
             clientLastSettledAtMs: Math.floor(stateRef.current.lastFarmingSettledAt || 0),
           });
           if (settleRes.exists) {
-            setState((prev) => {
-              const next = applyStardustFarmSettle({
-                ...prev,
-                lastFarmingSettledAt: Math.max(prev.lastFarmingSettledAt || 0, settleRes.settledAtMs),
-              }, settleRes);
-              stateRef.current = next;
-              return next;
-            });
+            const prevSnap = stateRef.current;
+            const next = applyStardustFarmSettle({
+              ...prevSnap,
+              lastFarmingSettledAt: Math.max(prevSnap.lastFarmingSettledAt || 0, settleRes.settledAtMs),
+            }, settleRes);
+            stateRef.current = next;
+            setState(() => next);
             if (settleRes.credited > 0 || settleRes.stardustCredited > 0) {
               setCurrentBalanceEpoch(settleRes.balanceEpoch);
             }

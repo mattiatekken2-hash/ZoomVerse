@@ -222,7 +222,6 @@ router.post("/farm/settle", async (req, res) => {
         // MUSHROOM planets earn NFTSTAR (client-side currency) — skip from ZOOM credit.
         if (String((p as Record<string, unknown>)["name"] ?? "").toUpperCase() === "MUSHROOM") continue;
         const jsonRate = num(p.rate);
-        if (jsonRate <= 0) continue;
         const farmStartedAt = num(p.farmStartedAt);
         const lastCollectedAt = num(p.lastCollectedAt);
         // Daily-collect removed: cycle is anchored to a single 24h block.
@@ -239,7 +238,10 @@ router.post("/farm/settle", async (req, res) => {
         // Lab GLB models farm a fixed 24h cycle (duration upgrades retired).
         const planetFarmDurationMs = BASE_FARM_DURATION_MS;
         const stardustFarm = planetIsStardustFarm(p, jsonRate);
+        // Canonical ★ rate even when planets_json.rate is 0/stale — otherwise
+        // stardust models never credit the wallet.
         const rate = stardustFarm ? stardustCardRate(p, jsonRate) : jsonRate;
+        if (rate <= 0) continue;
         const start = Math.max(stardustFarm ? stardustWatermark : zoomWatermark, effectiveStart);
         const end = Math.min(now, effectiveStart + planetFarmDurationMs);
         if (end > start) {

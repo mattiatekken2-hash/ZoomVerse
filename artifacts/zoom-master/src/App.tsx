@@ -232,15 +232,14 @@ function AppShellWithState() {
   useEffect(() => { stardustCapReachedRef.current = stardustCapReached; }, [stardustCapReached]);
 
   // Periodic up-sync from /stardust/state (admin grants, star collect).
-  // Banked ★ must match the wallet chart (server). Live farm ticks stay in
-  // stardustFarmPreview and are not shown as extra wallet ★.
+  // Only RAISE banked ★ — never pull the wallet down over live farm ticks.
   useEffect(() => {
     if (!stardust.ready) return;
     setState((prev) => {
       const preview = Math.max(0, prev.stardustFarmPreview || 0);
       const persistable = Math.max(0, (prev.stardustBalance || 0) - preview);
       const server = Math.max(0, stardust.balance);
-      if (Math.abs(server - persistable) <= 1e-12) return prev;
+      if (server <= persistable + 1e-12) return prev;
       return {
         ...prev,
         stardustBalance: server + preview,
@@ -423,7 +422,7 @@ function AppShellWithState() {
   useEffect(() => {
     rememberStickyWalletBalance("zoom", state.balance || 0);
     rememberStickyWalletBalance("gram", Math.max(0, (state.tonBalance || 0) + (state.depositBalance || 0)));
-    rememberStickyWalletBalance("stardust", Math.max(0, (state.stardustBalance || 0) - (state.stardustFarmPreview || 0)));
+    rememberStickyWalletBalance("stardust", state.stardustBalance || 0);
     rememberStickyWalletBalance("redStar", state.redStarBalance || 0);
     rememberStickyWalletBalance("nftStar", state.nftStarBalance || 0);
   }, [
@@ -1048,15 +1047,18 @@ function AppShellWithState() {
                   blackPlanets={state.blackPlanets || []}
                   supernovaPlanets={state.supernovaPlanets || []}
                   balance={state.balance || 0}
-                  stardustBalance={Math.max(0, (state.stardustBalance || 0) - (state.stardustFarmPreview || 0))}
+                  stardustBalance={state.stardustBalance || 0}
                   redStarBalance={state.redStarBalance || 0}
                   nftStarBalance={state.nftStarBalance || 0}
                   onBankedStardust={(n) => {
                     setState((prev) => {
                       const preview = Math.max(0, prev.stardustFarmPreview || 0);
                       const persistable = Math.max(0, (prev.stardustBalance || 0) - preview);
-                      if (Math.abs(persistable - n) <= 1e-12) return prev;
-                      return { ...prev, stardustBalance: n + preview };
+                      if (n + 1e-12 >= persistable) {
+                        if (Math.abs(n - persistable) <= 1e-12) return prev;
+                        return { ...prev, stardustBalance: n + preview };
+                      }
+                      return { ...prev, stardustBalance: n, stardustFarmPreview: 0 };
                     });
                   }}
                 />
