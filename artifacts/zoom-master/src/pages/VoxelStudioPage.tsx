@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FORGE_CLAY } from "@workspace/game-models";
 import { VoxelStudioCanvas } from "../components/VoxelStudioCanvas";
 import { LabSpaceBackground } from "../components/LabSpaceBackground";
+import { StudioGalleryPanel } from "../components/StudioGalleryPanel";
 import { useT } from "../i18n/LanguageContext";
 import {
   buyVoxelStudioSlot,
@@ -57,6 +58,7 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
   const [nameDraft, setNameDraft] = useState("");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paintColor, setPaintColor] = useState<number | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
 
   const persist = useCallback((next: VoxelStudioState) => {
     setState(next);
@@ -252,6 +254,19 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
           >
             Save
           </button>
+          <button
+            type="button"
+            onClick={() => setGalleryOpen(true)}
+            className="px-3 rounded-xl text-[11px] font-black uppercase"
+            style={{
+              minHeight: 44,
+              background: "rgba(255,215,64,0.14)",
+              color: "#ffd740",
+              border: "1px solid rgba(255,215,64,0.35)",
+            }}
+          >
+            {t("studio.gallery.btn")}
+          </button>
           <div className="flex-1 min-w-0">
             <div className="font-black text-sm truncate" style={{ color: "#E8ECF4" }}>
               {active?.title || "Create your model"}
@@ -324,7 +339,15 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
         )}
 
         <div className="flex-1 min-h-0 relative overflow-hidden">
-          {ready && active ? (
+          {galleryOpen ? (
+            <StudioGalleryPanel
+              telegramId={telegramId}
+              active={active}
+              onFlash={flash}
+              onFlush={persistNow}
+              onClose={() => setGalleryOpen(false)}
+            />
+          ) : ready && active ? (
             <>
             <div style={{ position: "absolute", inset: 0 }}>
               <VoxelStudioCanvas
@@ -394,6 +417,7 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
           )}
         </div>
 
+        {!galleryOpen && (
         <nav
           className="flex-shrink-0"
           style={{
@@ -453,6 +477,7 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
             )}
           </div>
         </nav>
+        )}
       </div>
 
       {nameOpen && (

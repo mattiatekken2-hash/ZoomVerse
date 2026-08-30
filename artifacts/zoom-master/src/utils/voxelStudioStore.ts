@@ -147,3 +147,102 @@ export function createStudioProject(title: string): VoxelStudioProject {
     voxels: makeBaseVoxels(),
   };
 }
+
+export interface StudioGalleryListing {
+  id: number;
+  projectId: string;
+  title: string;
+  voxels: VoxelCoord[];
+  status: string;
+  voteCount: number;
+  author: string;
+  mine: boolean;
+}
+
+export async function fetchStudioGallery(telegramId: string): Promise<{ listings: StudioGalleryListing[]; holdZmc: number }> {
+  try {
+    const res = await fetch(`${API_BASE}/studio-gallery?telegramId=${encodeURIComponent(telegramId)}`, {
+      headers: apiHeaders(),
+      cache: "no-store",
+    });
+    const data = await res.json().catch(() => ({}));
+    return {
+      listings: Array.isArray(data.listings) ? data.listings : [],
+      holdZmc: Number(data.holdZmc) || 100_000,
+    };
+  } catch {
+    return { listings: [], holdZmc: 100_000 };
+  }
+}
+
+export async function exposeStudioGallery(
+  telegramId: string,
+  projectId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/studio-gallery/expose`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, projectId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: typeof data.error === "string" ? data.error : "Could not expose" };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function unpublishStudioGallery(
+  telegramId: string,
+  listingId: number,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/studio-gallery/unpublish`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, listingId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: typeof data.error === "string" ? data.error : "Could not unpublish" };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function reportStudioGallery(
+  telegramId: string,
+  listingId: number,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/studio-gallery/report`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, listingId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: typeof data.error === "string" ? data.error : "Could not report" };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function voteStudioGallery(
+  telegramId: string,
+  listingId: number,
+): Promise<{ ok: boolean; voteCount?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/studio-gallery/vote`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, listingId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: typeof data.error === "string" ? data.error : "Could not vote" };
+    return { ok: true, voteCount: Number(data.voteCount) || 0 };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}

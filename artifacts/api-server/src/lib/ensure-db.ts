@@ -136,6 +136,46 @@ async function seedDefaults(): Promise<void> {
 
   try {
     await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS studio_gallery (
+        id serial PRIMARY KEY,
+        telegram_id text NOT NULL,
+        project_id text NOT NULL,
+        title text NOT NULL,
+        voxels jsonb NOT NULL DEFAULT '[]'::jsonb,
+        status text NOT NULL DEFAULT 'public',
+        vote_count integer NOT NULL DEFAULT 0,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        updated_at timestamptz NOT NULL DEFAULT NOW(),
+        UNIQUE (telegram_id, project_id)
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS idx_studio_gallery_public
+        ON studio_gallery (status, vote_count DESC, id DESC)
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS studio_gallery_reports (
+        listing_id integer NOT NULL REFERENCES studio_gallery(id) ON DELETE CASCADE,
+        reporter_id text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (listing_id, reporter_id)
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS studio_gallery_votes (
+        listing_id integer NOT NULL REFERENCES studio_gallery(id) ON DELETE CASCADE,
+        voter_id text NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (listing_id, voter_id)
+      )
+    `);
+    logger.info("[ensure-db] studio gallery tables OK");
+  } catch (err) {
+    logger.warn({ err }, "[ensure-db] studio gallery schema skipped");
+  }
+
+  try {
+    await db.execute(sql`
       ALTER TABLE users
         ALTER COLUMN stardust_balance TYPE real USING stardust_balance::real
     `);

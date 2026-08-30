@@ -40,6 +40,7 @@ import adsRouter from "./ads";
 import itemsRouter from "./items";
 import modelsRouter from "./models";
 import voxelStudioRouter from "./voxel-studio";
+import studioGalleryRouter from "./studio-gallery";
 import zmcRouter from "./zmc";
 import zmcAirdropRouter, { ensureZmcTaskAirdrop } from "./zmcAirdrop";
 
@@ -157,6 +158,10 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/shop/zmc/confirm",
       "/voxel-studio/save",
       "/voxel-studio/buy-slot",
+      "/studio-gallery/expose",
+      "/studio-gallery/unpublish",
+      "/studio-gallery/report",
+      "/studio-gallery/vote",
       "/stardust/convert-deposit",
       "/stardust/convert-to-gram",
       "/room-invites/send",
@@ -388,6 +393,7 @@ router.use(adsRouter);
 router.use(itemsRouter);
 router.use(modelsRouter);
 router.use(voxelStudioRouter);
+router.use(studioGalleryRouter);
 router.use(zmcRouter);
 router.use(zmcAirdropRouter);
 

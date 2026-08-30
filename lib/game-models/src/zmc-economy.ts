@@ -68,6 +68,9 @@ export function isVipProPassActive(untilMs: number | null | undefined, nowMs = D
   return Number.isFinite(until) && until > nowMs;
 }
 
+/** Linked-wallet ZMC required to expose a Studio piece on the in-app board. */
+export const STUDIO_GALLERY_HOLD_ZMC = 100_000;
+
 export type VipLevel = "NONE" | "BASE" | "PRO";
 
 export function isVipLevel(v: unknown): v is VipLevel {
