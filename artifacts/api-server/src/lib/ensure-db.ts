@@ -1,6 +1,7 @@
 import { db } from "@workspace/db";
 import { appSettingsTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
+import { VIP_PRO_PASS_GIFT_UNTIL_KEY, VIP_PRO_PASS_LAUNCH_GIFTED_KEY, VIP_PRO_PASS_MS } from "@workspace/game-models";
 import { logger } from "./logger";
 
 /** Season 3 anchor — matches RankPage / ExchangeWidget fallback. */
@@ -69,7 +70,9 @@ async function seedDefaults(): Promise<void> {
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS ton_wallet_address text,
         ADD COLUMN IF NOT EXISTS vip_level text NOT NULL DEFAULT 'NONE',
-        ADD COLUMN IF NOT EXISTS zmc_balance_nano text NOT NULL DEFAULT '0'
+        ADD COLUMN IF NOT EXISTS zmc_balance_nano text NOT NULL DEFAULT '0',
+        ADD COLUMN IF NOT EXISTS vip_pro_pass_until_ms bigint NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS vip_pro_pass_gifted boolean NOT NULL DEFAULT false
     `);
     await db.execute(sql`
       ALTER TABLE market_listings
@@ -94,6 +97,41 @@ async function seedDefaults(): Promise<void> {
     logger.info("[ensure-db] treasury ledger / VIP / seller wallet columns OK");
   } catch (err) {
     logger.warn({ err }, "[ensure-db] treasury/VIP schema skipped");
+  }
+
+  try {
+    const now = Date.now();
+    const giftUntil = now + VIP_PRO_PASS_MS;
+    await db
+      .insert(appSettingsTable)
+      .values({ key: VIP_PRO_PASS_GIFT_UNTIL_KEY, valueNum: giftUntil })
+      .onConflictDoNothing();
+    await db
+      .insert(appSettingsTable)
+      .values({ key: VIP_PRO_PASS_LAUNCH_GIFTED_KEY, valueNum: 0 })
+      .onConflictDoNothing();
+    const [giftedFlag] = await db
+      .select({ valueNum: appSettingsTable.valueNum })
+      .from(appSettingsTable)
+      .where(eq(appSettingsTable.key, VIP_PRO_PASS_LAUNCH_GIFTED_KEY))
+      .limit(1);
+    if ((giftedFlag?.valueNum ?? 0) < 1) {
+      const granted = await db.execute(sql`
+        UPDATE users
+        SET vip_pro_pass_until_ms =
+              GREATEST(COALESCE(vip_pro_pass_until_ms, 0), ${now}) + ${VIP_PRO_PASS_MS},
+            vip_pro_pass_gifted = true
+        WHERE vip_level = 'PRO'
+          AND vip_pro_pass_gifted = false
+      `);
+      await db
+        .update(appSettingsTable)
+        .set({ valueNum: 1, updatedAt: new Date() })
+        .where(eq(appSettingsTable.key, VIP_PRO_PASS_LAUNCH_GIFTED_KEY));
+      logger.info({ rowCount: granted.rowCount }, "[ensure-db] VIP PRO PASS launch gift granted to existing PRO holders");
+    }
+  } catch (err) {
+    logger.warn({ err }, "[ensure-db] VIP PRO PASS launch gift skipped");
   }
 
   try {

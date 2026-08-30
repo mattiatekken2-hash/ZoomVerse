@@ -7,7 +7,8 @@ import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
 import { patchShopPrefetch, readShopPrefetch } from "../utils/shopPrefetch";
 import { useZmcStatus } from "../hooks/useZmcStatus";
 import { ZMC_STONFI_BUY, openExternalUrl } from "../utils/zmcToken";
-import { VIP_BASE_THRESHOLD, VIP_PRO_THRESHOLD } from "@workspace/game-models";
+import { ZMC_STATUS_REFRESH_EVENT } from "../utils/api";
+import { VIP_BASE_THRESHOLD, VIP_PRO_PASS_ITEM_ID, VIP_PRO_PASS_ZMC, VIP_PRO_THRESHOLD } from "@workspace/game-models";
 
 const CYAN = "#9EC5E8";
 
@@ -20,7 +21,7 @@ interface ShopItem {
   zoomAmount?: number;
   color: string;
   icon: string;
-  type: "bundle" | "sun" | "slot" | "stardust" | "zoom_pack";
+  type: "bundle" | "sun" | "slot" | "stardust" | "zoom_pack" | "vip_pro_pass";
 }
 
 
@@ -30,10 +31,22 @@ const EXTRA_SLOT_ITEM: ShopItem = {
   starsPrice: 0, tonPrice: 0.25, color: "#ff3355", icon: "+", type: "slot",
 };
 
+const VIP_PRO_PASS_ITEM: ShopItem = {
+  id: VIP_PRO_PASS_ITEM_ID,
+  title: "VIP PRO PASS (7 Days)",
+  desc: "Unlimited farm repairs for 7 days",
+  starsPrice: 0,
+  tonPrice: 0,
+  color: "#ffd740",
+  icon: "👑",
+  type: "vip_pro_pass",
+};
+
 // $ZOOM packs — Stars / ZMC (on-chain → treasury) / Stardust.
 // ZMC price = GRAM tonPrice × 100 (1 GRAM ≈ 100 ZMC).
 const GRAM_TO_ZMC = 100;
-const zmcPriceForItem = (item: ShopItem) => Math.round(item.tonPrice * GRAM_TO_ZMC);
+const zmcPriceForItem = (item: ShopItem) =>
+  item.id === VIP_PRO_PASS_ITEM_ID ? VIP_PRO_PASS_ZMC : Math.round(item.tonPrice * GRAM_TO_ZMC);
 
 const ZOOM_PACKS: ShopItem[] = [
   { id: "zoom_spark",  title: "ZOOM Spark",  desc: "Instant +200 $ZOOM",    starsPrice: 15,  tonPrice: 0.15, zoomAmount: 200,   color: "#9EC5E8", icon: "Z", type: "zoom_pack" },
@@ -110,7 +123,7 @@ export function ShopPage({
   void _onStellaClaimDaily;
   const walletAddress = useTonAddress();
   const [tonConnectUI] = useTonConnectUI();
-  const { vipLevel, zmcBalance, connected } = useZmcStatus(telegramId ?? null);
+  const { vipLevel, zmcBalance, connected, vipProPassActive, vipProPassUntilMs } = useZmcStatus(telegramId ?? null);
   const shopPrefetch = readShopPrefetch(telegramId);
   const [buying, setBuying] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -347,6 +360,7 @@ export function ShopPage({
       if (result.pending) {
         setMessage(t("shop.zmcPending"));
         triggerDataRefresh();
+        window.dispatchEvent(new Event(ZMC_STATUS_REFRESH_EVENT));
         scheduleRefresh(8_000);
         scheduleRefresh(25_000);
         scheduleRefresh(60_000);
@@ -365,6 +379,7 @@ export function ShopPage({
           }));
         }
         triggerDataRefresh();
+        window.dispatchEvent(new Event(ZMC_STATUS_REFRESH_EVENT));
         if (item.id === "extra_slot") refreshSlotPrice();
       } else {
         setMessage(result.error || t("shop.purchaseFailed"));
@@ -377,7 +392,7 @@ export function ShopPage({
   };
 
   const purchaseItem = async (item: ShopItem) => {
-    if (item.id === "extra_slot" || (item.type === "zoom_pack" && payMode === "zmc")) {
+    if (item.id === VIP_PRO_PASS_ITEM_ID || item.id === "extra_slot" || (item.type === "zoom_pack" && payMode === "zmc")) {
       await handleZmcBuy(item);
       return;
     }
@@ -484,6 +499,56 @@ export function ShopPage({
           <div className="font-black text-sm tracking-widest uppercase mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
             VIP · ZMC
           </div>
+          {(() => {
+            const passLeftMs = Math.max(0, (vipProPassUntilMs ?? 0) - Date.now());
+            const passDays = passLeftMs > 0 ? Math.max(1, Math.ceil(passLeftMs / (24 * 60 * 60 * 1000))) : 0;
+            const passBuying = buying === VIP_PRO_PASS_ITEM_ID;
+            return (
+              <div
+                className="rounded-2xl border overflow-hidden"
+                style={{ borderColor: "#ffd74055", background: "linear-gradient(135deg, rgba(255,215,64,0.12), rgba(255,215,64,0.03))" }}
+              >
+                <div className="flex items-start gap-4 p-4">
+                  <div
+                    className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center text-lg"
+                    style={{ background: "rgba(255,215,64,0.18)", border: "1px solid rgba(255,215,64,0.40)", color: "#ffd740" }}
+                  >
+                    👑
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="font-black text-sm" style={{ color: "#ffd740" }}>{t("shop.vipProPassTitle")}</div>
+                      {vipProPassActive && (
+                        <span
+                          className="text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full"
+                          style={{ background: "rgba(46,213,115,0.18)", color: "#7bed9f", border: "1px solid rgba(46,213,115,0.35)" }}
+                        >
+                          {t("shop.vipProPassActive", { n: String(passDays) })}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.5)" }}>{t("shop.vipProPassPerk")}</div>
+                    <div className="text-[10px] mt-1 font-bold" style={{ color: "rgba(255,255,255,0.32)" }}>
+                      {VIP_PRO_PASS_ZMC.toLocaleString()} ZMC
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={passBuying}
+                  onClick={() => void purchaseItem(VIP_PRO_PASS_ITEM)}
+                  className="w-full py-3 font-black text-xs tracking-wider uppercase"
+                  style={{ background: "rgba(255,215,64,0.16)", color: "#ffd740", borderTop: "1px solid rgba(255,215,64,0.22)", opacity: passBuying ? 0.6 : 1 }}
+                >
+                  {passBuying
+                    ? t("shop.processing")
+                    : vipProPassActive
+                      ? t("shop.vipProPassExtend")
+                      : t("shop.vipProPassCta")}
+                </button>
+              </div>
+            );
+          })()}
           {([
             {
               id: "base" as const,

@@ -1,11 +1,14 @@
 import { Router, type IRouter } from "express";
-import { db, usersTable, treasuryLedgerTable } from "@workspace/db";
+import { db, usersTable, treasuryLedgerTable, appSettingsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   computeTotalAirdropPool,
   computeUserAirdropZmc,
+  isVipProPassActive,
   parseVipLevel,
+  VIP_PRO_PASS_GIFT_UNTIL_KEY,
+  VIP_PRO_PASS_MS,
   zmcNanoToHuman,
   type VipLevel,
 } from "@workspace/game-models";
@@ -27,7 +30,39 @@ async function globalZoomPoints(): Promise<number> {
   return Number(row?.total ?? 0) || 0;
 }
 
-/** Wallet estimate: share of the 4M treasury airdrop + fee ledger. DEX lock excluded. */
+function vipPassPayload(untilMs: number | null | undefined) {
+  const vipProPassUntilMs = Number(untilMs) || 0;
+  return {
+    vipProPassUntilMs,
+    vipProPassActive: isVipProPassActive(vipProPassUntilMs),
+  };
+}
+
+/** One-time 7-day pass for existing on-chain VIP PRO, during the launch window. */
+async function maybeGrantLaunchPass(telegramId: string, vipLevel: VipLevel): Promise<number | null> {
+  if (vipLevel !== "PRO") return null;
+  const [gate] = await db
+    .select({ valueNum: appSettingsTable.valueNum })
+    .from(appSettingsTable)
+    .where(eq(appSettingsTable.key, VIP_PRO_PASS_GIFT_UNTIL_KEY))
+    .limit(1);
+  const until = Number(gate?.valueNum ?? 0);
+  if (!(until > Date.now())) return null;
+
+  const now = Date.now();
+  const result = await db.execute(sql`
+    UPDATE users
+    SET vip_pro_pass_until_ms =
+          GREATEST(COALESCE(vip_pro_pass_until_ms, 0), ${now}) + ${VIP_PRO_PASS_MS},
+        vip_pro_pass_gifted = true
+    WHERE telegram_id = ${telegramId}
+      AND vip_pro_pass_gifted = false
+    RETURNING vip_pro_pass_until_ms
+  `);
+  const row = result.rows?.[0] as { vip_pro_pass_until_ms?: string | number } | undefined;
+  if (!row) return null;
+  return Number(row.vip_pro_pass_until_ms) || null;
+}
 function airdropPayload(
   userPoints: number,
   globalPoints: number,
@@ -56,6 +91,7 @@ router.get("/zmc/status/:telegramId", async (req, res) => {
         vipLevel: usersTable.vipLevel,
         zmcBalanceNano: usersTable.zmcBalanceNano,
         tonWalletAddress: usersTable.tonWalletAddress,
+        vipProPassUntilMs: usersTable.vipProPassUntilMs,
       })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
@@ -65,6 +101,8 @@ router.get("/zmc/status/:telegramId", async (req, res) => {
     const globalPoints = await globalZoomPoints();
     const userPoints = Number(user?.zoomBalance ?? 0) || 0;
     const nano = BigInt(user?.zmcBalanceNano && /^\d+$/.test(user.zmcBalanceNano) ? user.zmcBalanceNano : "0");
+    const giftedUntil = await maybeGrantLaunchPass(telegramId, parseVipLevel(user?.vipLevel));
+    const passUntil = giftedUntil ?? user?.vipProPassUntilMs;
 
     res.json({
       ok: true,
@@ -75,6 +113,7 @@ router.get("/zmc/status/:telegramId", async (req, res) => {
       vipLevel: parseVipLevel(user?.vipLevel),
       zmcBalanceNano: nano.toString(),
       zmcBalance: zmcNanoToHuman(nano),
+      ...vipPassPayload(passUntil),
       airdrop: airdropPayload(userPoints, globalPoints, treasuryZmc),
     });
   } catch (err) {
@@ -107,8 +146,13 @@ router.post("/zmc/sync", async (req, res) => {
       })
       .where(eq(usersTable.telegramId, telegramId));
 
+    await maybeGrantLaunchPass(telegramId, vipLevel);
+
     const [user] = await db
-      .select({ zoomBalance: usersTable.zoomBalance })
+      .select({
+        zoomBalance: usersTable.zoomBalance,
+        vipProPassUntilMs: usersTable.vipProPassUntilMs,
+      })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
       .limit(1);
@@ -123,6 +167,7 @@ router.post("/zmc/sync", async (req, res) => {
       vipLevel,
       zmcBalanceNano: balanceNano.toString(),
       zmcBalance: zmcNanoToHuman(balanceNano),
+      ...vipPassPayload(user?.vipProPassUntilMs),
       airdrop: airdropPayload(userPoints, globalPoints, treasuryZmc),
     });
   } catch (err) {
@@ -153,7 +198,10 @@ router.post("/zmc/unlink", async (req, res) => {
       .where(eq(usersTable.telegramId, telegramId));
 
     const [user] = await db
-      .select({ zoomBalance: usersTable.zoomBalance })
+      .select({
+        zoomBalance: usersTable.zoomBalance,
+        vipProPassUntilMs: usersTable.vipProPassUntilMs,
+      })
       .from(usersTable)
       .where(eq(usersTable.telegramId, telegramId))
       .limit(1);
@@ -168,6 +216,7 @@ router.post("/zmc/unlink", async (req, res) => {
       vipLevel: "NONE",
       zmcBalanceNano: "0",
       zmcBalance: 0,
+      ...vipPassPayload(user?.vipProPassUntilMs),
       airdrop: airdropPayload(userPoints, globalPoints, treasuryZmc),
     });
   } catch (err) {

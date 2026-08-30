@@ -3,7 +3,12 @@ import { db, transactionsTable, usersTable, treasuryLedgerTable } from "@workspa
 import { appSettingsTable, collectionPlanetsTable, tonWithdrawalsTable } from "@workspace/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { Cell, Address, toNano } from "@ton/core";
-import { zmcHumanToNano } from "@workspace/game-models";
+import {
+  zmcHumanToNano,
+  VIP_PRO_PASS_ITEM_ID,
+  VIP_PRO_PASS_ZMC,
+  VIP_PRO_PASS_MS,
+} from "@workspace/game-models";
 import { broadcastBoxOpen } from "../lib/activityBus";
 import { sendWithdrawalChannelMessage, notifyAdminWithdrawalRequest, sendBotMessage, notifyAdminGramDeposit } from "../lib/notify";
 import { logger } from "../lib/logger";
@@ -183,6 +188,9 @@ const STARS_CATALOG: StarsItem[] = [
   // Extra Slot is ZMC-only (on-chain → treasury). starsPrice 0 so Stars
   // invoice/webhook cannot credit it. Price = getSlotPriceTon × 100.
   { id: "extra_slot", title: "Extra Slot", description: "Unlock 1 additional planet slot", starsPrice: 0, tonPrice: 0.25, itemType: "slot" },
+  // VIP PRO PASS — 7 days unlimited farm repairs. ZMC-only (10,000 → treasury).
+  // Holding 10k ZMC still shows the rank badge; free repairs require this pass.
+  { id: VIP_PRO_PASS_ITEM_ID, title: "VIP PRO PASS (7 Days)", description: "Unlimited farm repairs for 7 days", starsPrice: 0, tonPrice: 0, itemType: "vip_pro_pass" },
   // $ZOOM packs — Stars / on-chain ZMC (→ treasury) / Stardust.
   // ZMC price = GRAM tonPrice × 100 (1 GRAM ≈ 100 ZMC).
   { id: "zoom_spark",  title: "ZOOM Spark",  description: "Instant +200 $ZOOM",    starsPrice: 15,  tonPrice: 0.15, zoomAmount: 200,   itemType: "zoom_pack" },
@@ -355,10 +363,11 @@ function findItem(itemId: string): StarsItem | undefined {
 const GRAM_TO_ZMC = 100;
 
 function isZmcShopItem(item: StarsItem): boolean {
-  return item.itemType === "zoom_pack" || item.id === "extra_slot";
+  return item.itemType === "zoom_pack" || item.id === "extra_slot" || item.id === VIP_PRO_PASS_ITEM_ID;
 }
 
 function zmcPriceForItem(item: StarsItem, bonusSlots = 0): number {
+  if (item.id === VIP_PRO_PASS_ITEM_ID) return VIP_PRO_PASS_ZMC;
   const gram = item.id === "extra_slot" ? getSlotPriceTon(bonusSlots) : item.tonPrice;
   return Math.round(gram * GRAM_TO_ZMC);
 }
@@ -511,6 +520,14 @@ async function creditUserTx(tx: DbExecutor, item: StarsItem, telegramId: string,
     await tx.update(usersTable)
       .set({ bonusSlots: sql`${usersTable.bonusSlots} + 1` })
       .where(eq(usersTable.telegramId, telegramId));
+  } else if (item.itemType === "vip_pro_pass") {
+    const now = Date.now();
+    await tx.execute(sql`
+      UPDATE users
+      SET vip_pro_pass_until_ms =
+        GREATEST(COALESCE(vip_pro_pass_until_ms, 0), ${now}) + ${VIP_PRO_PASS_MS}
+      WHERE telegram_id = ${telegramId}
+    `);
   } else if (item.itemType === "stardust" && item.zoomAmount) {
     // Stardust top-up bundle: zoomAmount field is reused as the stardust
     // amount to grant (avoids a schema change to StarsItem). Bumps the
@@ -1194,6 +1211,10 @@ router.post("/shop/buy-deposit", async (req, res) => {
     res.status(400).json({ error: "Extra Slot is paid in ZMC" });
     return;
   }
+  if (item.id === VIP_PRO_PASS_ITEM_ID) {
+    res.status(400).json({ error: "VIP PRO PASS is paid in ZMC" });
+    return;
+  }
   if (!(item.tonPrice > 0)) {
     res.status(400).json({ error: "Item is not purchasable with TON" });
     return;
@@ -1359,6 +1380,10 @@ router.post("/shop/buy-stardust", async (req, res) => {
 
   if (item.itemType === "slot") {
     res.status(400).json({ error: "Extra Slot is paid in ZMC" });
+    return;
+  }
+  if (item.id === VIP_PRO_PASS_ITEM_ID) {
+    res.status(400).json({ error: "VIP PRO PASS is paid in ZMC" });
     return;
   }
 
@@ -2028,6 +2053,7 @@ type ShopZmcBalances = {
   zoomBalance: number;
   bonusSlots: number;
   balanceEpoch: number;
+  vipProPassUntilMs: number;
 };
 
 async function readShopZmcBalances(telegramId: string): Promise<ShopZmcBalances> {
@@ -2036,6 +2062,7 @@ async function readShopZmcBalances(telegramId: string): Promise<ShopZmcBalances>
       zoomBalance: usersTable.zoomBalance,
       bonusSlots: usersTable.bonusSlots,
       balanceEpoch: usersTable.balanceEpoch,
+      vipProPassUntilMs: usersTable.vipProPassUntilMs,
     })
     .from(usersTable)
     .where(eq(usersTable.telegramId, telegramId))
@@ -2044,6 +2071,7 @@ async function readShopZmcBalances(telegramId: string): Promise<ShopZmcBalances>
     zoomBalance: Number(row?.zoomBalance ?? 0),
     bonusSlots: Number(row?.bonusSlots ?? 0),
     balanceEpoch: Number(row?.balanceEpoch ?? 0),
+    vipProPassUntilMs: Number(row?.vipProPassUntilMs ?? 0) || 0,
   };
 }
 
@@ -2080,7 +2108,11 @@ async function applyVerifiedShopZmcCredit(opts: {
     try {
       await tx.insert(treasuryLedgerTable).values({
         txHash,
-        type: item.id === "extra_slot" ? "shop_extra_slot" : "shop_zoom_pack",
+        type: item.id === VIP_PRO_PASS_ITEM_ID
+          ? "vip_pro_pass"
+          : item.id === "extra_slot"
+            ? "shop_extra_slot"
+            : "shop_zoom_pack",
         amountZmc: amountHuman,
         userId: telegramId,
       });
@@ -2365,6 +2397,7 @@ router.post("/shop/zmc/confirm", async (req, res) => {
       zoomBalance: result.zoomBalance,
       bonusSlots: result.bonusSlots,
       balanceEpoch: result.balanceEpoch,
+      vipProPassUntilMs: result.vipProPassUntilMs,
       priceZmc,
     });
   } catch (err) {

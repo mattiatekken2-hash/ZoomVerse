@@ -269,7 +269,8 @@ export function FarmPage({
   const inputRef = useRef<HTMLInputElement>(null);
   const sellerWallet = useTonAddress();
   const [tonConnectUI] = useTonConnectUI();
-  const { vipLevel, zmcBalance, connected } = useZmcStatus(telegramId);
+  const { zmcBalance, connected, vipProPassActive } = useZmcStatus(telegramId);
+  const farmRepairVip = vipProPassActive ? "PRO" as const : "NONE" as const;
   void _items;
   void _onSellItem;
   void _onUnlistItem;
@@ -446,7 +447,7 @@ export function FarmPage({
 
             const handleStartOrReactivate = () => {
               if (isListed) return;
-              const res = onStartFarming(planet.id, vipLevel);
+              const res = onStartFarming(planet.id, farmRepairVip);
               if (!res.ok) {
                 setDefectMsg(res.reason ?? t("farm.cannotStartFarming"));
                 setTimeout(() => setDefectMsg(null), 1800);
@@ -464,7 +465,7 @@ export function FarmPage({
                 onCardClick={() => setDetailPlanet(planet)}
                 onStartFarm={handleStartOrReactivate}
                 onUnlist={() => onUnlist(planet.id)}
-                vipLevel={vipLevel}
+                vipLevel={farmRepairVip}
               />
             );
           })}
@@ -632,7 +633,7 @@ export function FarmPage({
           planets={planets}
           maxSlots={maxSlots}
           onClose={() => setDetailPlanet(null)}
-          onStartFarming={(id) => onStartFarming(id, vipLevel)}
+          onStartFarming={(id) => onStartFarming(id, farmRepairVip)}
           onSell={(p) => { setDetailPlanet(null); openSellPopup(p); }}
           onBurn={onBurn}
           onUnlist={(id: string) => onUnlist(id)}

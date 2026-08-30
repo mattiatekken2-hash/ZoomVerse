@@ -55,6 +55,19 @@ export function zmcTaskAirdropSplit(gross: number): { payout: number; fee: numbe
 export const VIP_BASE_THRESHOLD = 1_000;
 export const VIP_PRO_THRESHOLD = 10_000;
 
+/** Shop item: 7-day unlimited farm repairs. Paid in on-chain ZMC → treasury. */
+export const VIP_PRO_PASS_ITEM_ID = "vip_pro_pass";
+export const VIP_PRO_PASS_ZMC = 10_000;
+export const VIP_PRO_PASS_MS = 7 * 24 * 60 * 60 * 1000;
+/** app_settings key: eligibility window end (ms) for the launch gift. */
+export const VIP_PRO_PASS_GIFT_UNTIL_KEY = "vip_pro_pass_gift_until_ms";
+export const VIP_PRO_PASS_LAUNCH_GIFTED_KEY = "vip_pro_pass_launch_gifted";
+
+export function isVipProPassActive(untilMs: number | null | undefined, nowMs = Date.now()): boolean {
+  const until = Number(untilMs);
+  return Number.isFinite(until) && until > nowMs;
+}
+
 export type VipLevel = "NONE" | "BASE" | "PRO";
 
 export function isVipLevel(v: unknown): v is VipLevel {

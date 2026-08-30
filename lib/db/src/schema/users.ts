@@ -283,6 +283,10 @@ export const usersTable = pgTable("users", {
   tonWalletAddress: text("ton_wallet_address"),
   vipLevel: text("vip_level").notNull().default("NONE"),
   zmcBalanceNano: text("zmc_balance_nano").notNull().default("0"),
+  /** Epoch ms until VIP PRO PASS (unlimited farm repairs) expires. 0 = none. */
+  vipProPassUntilMs: bigint("vip_pro_pass_until_ms", { mode: "number" }).notNull().default(0),
+  /** True after the launch gift (7 days) for existing on-chain VIP PRO holders. */
+  vipProPassGifted: boolean("vip_pro_pass_gifted").notNull().default(false),
 
   // Monotonic write-time used to fence out stale saves of `planets_json`.
   // The save endpoint rejects any incoming write whose `client_write_at_ms`

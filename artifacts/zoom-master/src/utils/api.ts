@@ -3115,6 +3115,8 @@ export interface ZmcStatus {
   zmcBalance: number;
   zmcBalanceNano: string;
   walletAddress: string | null;
+  vipProPassUntilMs?: number;
+  vipProPassActive?: boolean;
   airdrop: ZmcAirdropPreview;
   error?: string;
 }
@@ -3149,6 +3151,7 @@ export async function syncZmcWallet(telegramId: string, walletAddress: string): 
 }
 
 export const ZMC_WALLET_CLEARED_EVENT = "zoom-zmc-wallet-cleared";
+export const ZMC_STATUS_REFRESH_EVENT = "zoom-zmc-status-refresh";
 
 export async function unlinkZmcWallet(telegramId: string): Promise<ZmcStatus | null> {
   try {
@@ -3248,6 +3251,7 @@ export async function confirmShopZmcBuy(params: {
   zoomBalance?: number;
   bonusSlots?: number;
   balanceEpoch?: number;
+  vipProPassUntilMs?: number;
   priceZmc?: number;
   error?: string;
 }> {
