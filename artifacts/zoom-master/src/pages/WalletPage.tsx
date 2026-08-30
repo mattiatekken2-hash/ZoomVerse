@@ -205,9 +205,9 @@ export function WalletPage({
   const shownRedStarBalance = useStickyWalletBalance(redStarBalance, "redStar");
   const shownNftStarBalance = useStickyWalletBalance(nftStarBalance, "nftStar");
   const zmcShown = zmc.connected || zmc.zmcBalance > 0 ? formatZmcAmount(zmc.zmcBalance) : "—";
-  const zmcVipLabel = zmc.vipProPassActive
-    ? "PRO PASS"
-    : zmc.vipLevel === "PRO" ? "VIP PRO" : zmc.vipLevel === "BASE" ? "VIP BASE" : "ON-CHAIN";
+  const zmcVipLabel = (zmc.vipProPassActive || zmc.vipLevel === "PRO")
+    ? "VIP PRO"
+    : zmc.vipLevel === "BASE" ? "VIP BASE" : "ON-CHAIN";
   const zoomGramValue = zoomPriceGram != null && shownZoomBalance > 0 ? shownZoomBalance * zoomPriceGram : null;
   const stardustIndexSafe = displayStardustIndex(stardustIndex);
   const stardustGramValue = shownStardustBalance > 0

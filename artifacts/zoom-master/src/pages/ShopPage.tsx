@@ -8,7 +8,7 @@ import { patchShopPrefetch, readShopPrefetch } from "../utils/shopPrefetch";
 import { useZmcStatus } from "../hooks/useZmcStatus";
 import { ZMC_STONFI_BUY, openExternalUrl } from "../utils/zmcToken";
 import { ZMC_STATUS_REFRESH_EVENT } from "../utils/api";
-import { VIP_BASE_THRESHOLD, VIP_PRO_PASS_ITEM_ID, VIP_PRO_PASS_ZMC, VIP_PRO_THRESHOLD } from "@workspace/game-models";
+import { VIP_BASE_THRESHOLD, VIP_PRO_PASS_ITEM_ID, VIP_PRO_PASS_ZMC } from "@workspace/game-models";
 
 const CYAN = "#9EC5E8";
 
@@ -33,12 +33,12 @@ const EXTRA_SLOT_ITEM: ShopItem = {
 
 const VIP_PRO_PASS_ITEM: ShopItem = {
   id: VIP_PRO_PASS_ITEM_ID,
-  title: "VIP PRO PASS (7 Days)",
+  title: "VIP Pro / Whale",
   desc: "Unlimited farm repairs for 7 days",
   starsPrice: 0,
   tonPrice: 0,
   color: "#ffd740",
-  icon: "👑",
+  icon: "VIP",
   type: "vip_pro_pass",
 };
 
@@ -499,6 +499,46 @@ export function ShopPage({
           <div className="font-black text-sm tracking-widest uppercase mb-1" style={{ color: "rgba(255,255,255,0.4)" }}>
             VIP · ZMC
           </div>
+          <div
+            className="rounded-2xl border overflow-hidden"
+            style={{ borderColor: "#c0c8d840", background: "#c0c8d808" }}
+          >
+            <div className="flex items-start gap-4 p-4">
+              <div
+                className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center font-black"
+                style={{ background: "#c0c8d822", border: "1px solid #c0c8d855", color: "#c0c8d8" }}
+              >
+                VIP
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="font-black text-sm" style={{ color: "#c0c8d8" }}>VIP Base</div>
+                  {(vipLevel === "BASE" || vipLevel === "PRO") && (
+                    <span
+                      className="text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full"
+                      style={{ background: "rgba(46,213,115,0.18)", color: "#7bed9f", border: "1px solid rgba(46,213,115,0.35)" }}
+                    >
+                      {t("shop.vipActive")}
+                    </span>
+                  )}
+                </div>
+                <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.5)" }}>{t("shop.vipBasePerk")}</div>
+                <div className="text-[10px] mt-1 font-bold" style={{ color: "rgba(255,255,255,0.32)" }}>
+                  {VIP_BASE_THRESHOLD.toLocaleString()} ZMC
+                </div>
+              </div>
+            </div>
+            {!(vipLevel === "BASE" || vipLevel === "PRO") && (
+              <button
+                type="button"
+                onClick={() => openExternalUrl(ZMC_STONFI_BUY)}
+                className="w-full py-3 font-black text-xs tracking-wider uppercase"
+                style={{ background: "#c0c8d814", color: "#c0c8d8", borderTop: "1px solid #c0c8d822" }}
+              >
+                {t("shop.vipBaseCta")}
+              </button>
+            )}
+          </div>
           {(() => {
             const passLeftMs = Math.max(0, (vipProPassUntilMs ?? 0) - Date.now());
             const passDays = passLeftMs > 0 ? Math.max(1, Math.ceil(passLeftMs / (24 * 60 * 60 * 1000))) : 0;
@@ -510,14 +550,14 @@ export function ShopPage({
               >
                 <div className="flex items-start gap-4 p-4">
                   <div
-                    className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center text-lg"
+                    className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center font-black"
                     style={{ background: "rgba(255,215,64,0.18)", border: "1px solid rgba(255,215,64,0.40)", color: "#ffd740" }}
                   >
-                    👑
+                    VIP
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <div className="font-black text-sm" style={{ color: "#ffd740" }}>{t("shop.vipProPassTitle")}</div>
+                      <div className="font-black text-sm" style={{ color: "#ffd740" }}>{t("shop.vipProTitle")}</div>
                       {vipProPassActive && (
                         <span
                           className="text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full"
@@ -527,9 +567,9 @@ export function ShopPage({
                         </span>
                       )}
                     </div>
-                    <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.5)" }}>{t("shop.vipProPassPerk")}</div>
+                    <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.5)" }}>{t("shop.vipProPerk")}</div>
                     <div className="text-[10px] mt-1 font-bold" style={{ color: "rgba(255,255,255,0.32)" }}>
-                      {VIP_PRO_PASS_ZMC.toLocaleString()} ZMC
+                      {VIP_PRO_PASS_ZMC.toLocaleString()} ZMC · 7 days
                     </div>
                   </div>
                 </div>
@@ -544,73 +584,11 @@ export function ShopPage({
                     ? t("shop.processing")
                     : vipProPassActive
                       ? t("shop.vipProPassExtend")
-                      : t("shop.vipProPassCta")}
+                      : t("shop.vipProCta")}
                 </button>
               </div>
             );
           })()}
-          {([
-            {
-              id: "base" as const,
-              title: "VIP Base",
-              hold: VIP_BASE_THRESHOLD,
-              perk: t("shop.vipBasePerk"),
-              active: vipLevel === "BASE" || vipLevel === "PRO",
-              buyLabel: t("shop.vipBaseCta"),
-              accent: "#c0c8d8",
-            },
-            {
-              id: "pro" as const,
-              title: "VIP Pro / Whale",
-              hold: VIP_PRO_THRESHOLD,
-              perk: t("shop.vipProPerk"),
-              active: vipLevel === "PRO",
-              buyLabel: t("shop.vipProCta"),
-              accent: "#ffd740",
-            },
-          ]).map((card) => (
-            <div
-              key={card.id}
-              className="rounded-2xl border overflow-hidden"
-              style={{ borderColor: card.accent + "40", background: card.accent + "08" }}
-            >
-              <div className="flex items-start gap-4 p-4">
-                <div
-                  className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center font-black"
-                  style={{ background: card.accent + "22", border: `1px solid ${card.accent}55`, color: card.accent }}
-                >
-                  VIP
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <div className="font-black text-sm" style={{ color: card.accent }}>{card.title}</div>
-                    {card.active && (
-                      <span
-                        className="text-[9px] font-black tracking-widest px-2 py-0.5 rounded-full"
-                        style={{ background: "rgba(46,213,115,0.18)", color: "#7bed9f", border: "1px solid rgba(46,213,115,0.35)" }}
-                      >
-                        {t("shop.vipActive")}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.5)" }}>{card.perk}</div>
-                  <div className="text-[10px] mt-1 font-bold" style={{ color: "rgba(255,255,255,0.32)" }}>
-                    {card.hold.toLocaleString()} ZMC
-                  </div>
-                </div>
-              </div>
-              {!card.active && (
-                <button
-                  type="button"
-                  onClick={() => openExternalUrl(ZMC_STONFI_BUY)}
-                  className="w-full py-3 font-black text-xs tracking-wider uppercase"
-                  style={{ background: card.accent + "14", color: card.accent, borderTop: `1px solid ${card.accent}22` }}
-                >
-                  {card.buyLabel}
-                </button>
-              )}
-            </div>
-          ))}
 
           <div className="font-black text-sm tracking-widest uppercase mb-1 mt-2" style={{ color: "rgba(255,255,255,0.4)" }}>
             {t("shop.section.packsItems")}

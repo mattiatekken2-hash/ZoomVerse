@@ -188,9 +188,9 @@ const STARS_CATALOG: StarsItem[] = [
   // Extra Slot is ZMC-only (on-chain → treasury). starsPrice 0 so Stars
   // invoice/webhook cannot credit it. Price = getSlotPriceTon × 100.
   { id: "extra_slot", title: "Extra Slot", description: "Unlock 1 additional planet slot", starsPrice: 0, tonPrice: 0.25, itemType: "slot" },
-  // VIP PRO PASS — 7 days unlimited farm repairs. ZMC-only (10,000 → treasury).
-  // Holding 10k ZMC still shows the rank badge; free repairs require this pass.
-  { id: VIP_PRO_PASS_ITEM_ID, title: "VIP PRO PASS (7 Days)", description: "Unlimited farm repairs for 7 days", starsPrice: 0, tonPrice: 0, itemType: "vip_pro_pass" },
+  // VIP Pro / Whale — 7 days unlimited farm repairs. ZMC-only (10,000 → treasury).
+  // Holding 10k ZMC still shows the rank badge; Shop Pro is this 7-day product.
+  { id: VIP_PRO_PASS_ITEM_ID, title: "VIP Pro / Whale (7 Days)", description: "Unlimited farm repairs for 7 days", starsPrice: 0, tonPrice: 0, itemType: "vip_pro_pass" },
   // $ZOOM packs — Stars / on-chain ZMC (→ treasury) / Stardust.
   // ZMC price = GRAM tonPrice × 100 (1 GRAM ≈ 100 ZMC).
   { id: "zoom_spark",  title: "ZOOM Spark",  description: "Instant +200 $ZOOM",    starsPrice: 15,  tonPrice: 0.15, zoomAmount: 200,   itemType: "zoom_pack" },
