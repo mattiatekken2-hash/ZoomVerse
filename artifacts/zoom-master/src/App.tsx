@@ -8,6 +8,7 @@ import { NebulaBackground } from "./components/NebulaBackground";
 import { LabSpaceBackground } from "./components/LabSpaceBackground";
 import { MaintenanceScreen } from "./components/MaintenanceScreen";
 import { LabPage } from "./pages/LabPage";
+import { ForgeUiErrorBoundary } from "./components/ForgeUiErrorBoundary";
 import { VoxelStudioPage } from "./pages/VoxelStudioPage";
 import { FarmPage } from "./pages/FarmPage";
 import { MarketPage } from "./pages/MarketPage";
@@ -847,12 +848,12 @@ function AppShellWithState() {
                   }}
                   muted={muted}
                   setMuted={setMuted}
-                  visible={isActiveTab}
+                  visible={isActiveTab && !studioOpen}
                 />
               )}
               {t === "farm" && (
                 <FarmPage
-                  visible={tab === "farm"}
+                  visible={tab === "farm" && !studioOpen}
                   planets={state.planets}
                   sun={state.sun}
                   sunCount={state.sunCount}
@@ -1266,6 +1267,7 @@ function AppShellWithState() {
             overflow: "hidden",
           }}
         >
+          <ForgeUiErrorBoundary label="Studio">
           <VoxelStudioPage
             telegramId={state.telegramId}
             stardustBalance={state.stardustBalance || 0}
@@ -1280,6 +1282,7 @@ function AppShellWithState() {
               setState((s) => ({ ...s, stardustBalance: n }));
             }}
           />
+          </ForgeUiErrorBoundary>
         </div>
       )}
       {!studioOpen && (

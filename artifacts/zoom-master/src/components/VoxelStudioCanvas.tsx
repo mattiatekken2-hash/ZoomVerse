@@ -133,7 +133,12 @@ export function VoxelStudioCanvas({
     scene.background = null;
     const camera = new THREE.PerspectiveCamera(preview ? 42 : 42, 1, 0.08, 40);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: !preview, alpha: true, powerPreference: "low-power" });
+    } catch {
+      return;
+    }
     renderer.debug.checkShaderErrors = false;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setClearColor(0x000000, 0);
@@ -402,8 +407,9 @@ export function VoxelStudioCanvas({
     let raf = 0;
     let lastFrame = performance.now();
     let alive = true;
+    let glLost = false;
     const tick = (now: number) => {
-      if (!alive) return;
+      if (!alive || glLost) return;
       if (document.hidden) {
         raf = 0;
         return;
@@ -418,16 +424,35 @@ export function VoxelStudioCanvas({
     };
     raf = requestAnimationFrame(tick);
     const onVis = () => {
-      if (!document.hidden && !raf && alive) {
+      if (!document.hidden && !raf && alive && !glLost) {
+        lastFrame = performance.now();
+        raf = requestAnimationFrame(tick);
+      }
+    };
+    const onLost = (e: Event) => {
+      e.preventDefault();
+      glLost = true;
+      cancelAnimationFrame(raf);
+      raf = 0;
+    };
+    const onRestored = () => {
+      glLost = false;
+      resize();
+      sync(voxelsRef.current);
+      if (alive && !raf && !document.hidden) {
         lastFrame = performance.now();
         raf = requestAnimationFrame(tick);
       }
     };
     document.addEventListener("visibilitychange", onVis);
+    canvas.addEventListener("webglcontextlost", onLost);
+    canvas.addEventListener("webglcontextrestored", onRestored);
 
     return () => {
       alive = false;
       document.removeEventListener("visibilitychange", onVis);
+      canvas.removeEventListener("webglcontextlost", onLost);
+      canvas.removeEventListener("webglcontextrestored", onRestored);
       cancelAnimationFrame(raf);
       ro.disconnect();
       host.removeEventListener("pointerdown", onPointerDown);

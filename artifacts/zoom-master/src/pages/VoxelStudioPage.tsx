@@ -510,6 +510,53 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
   );
 }
 
+function VoxelStudioThumb2D({ voxels }: { voxels: VoxelCoord[] }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const w = 86;
+    const h = 48;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    if (voxels.length === 0) return;
+    let cx = 0;
+    let cy = 0;
+    let cz = 0;
+    for (const v of voxels) {
+      cx += v.x;
+      cy += v.y;
+      cz += v.z;
+    }
+    const n = voxels.length;
+    cx /= n;
+    cy /= n;
+    cz /= n;
+    const sorted = [...voxels].sort((a, b) => (a.x + a.z + a.y) - (b.x + b.z + b.y));
+    const ox = w / 2;
+    const oy = h * 0.62;
+    for (const v of sorted) {
+      const dx = v.x - cx;
+      const dy = v.y - cy;
+      const dz = v.z - cz;
+      const x = ox + (dx - dz) * 5.1;
+      const y = oy + (dx + dz) * 1.35 - dy * 5.4;
+      const hex = typeof v.color === "number" ? v.color : FORGE_CLAY;
+      ctx.fillStyle = `#${hex.toString(16).padStart(6, "0")}`;
+      ctx.fillRect(x - 3, y - 3, 6, 6);
+      ctx.strokeStyle = "rgba(0,0,0,0.38)";
+      ctx.lineWidth = 0.6;
+      ctx.strokeRect(x - 3, y - 3, 6, 6);
+    }
+  }, [voxels]);
+  return <canvas ref={ref} style={{ width: "100%", height: "100%", display: "block" }} />;
+}
+
 function StudioSlotThumb({
   project,
   active,
@@ -532,7 +579,7 @@ function StudioSlotThumb({
       }}
     >
       <div style={{ height: 48, pointerEvents: "none" }}>
-        <VoxelStudioCanvas voxels={project.voxels} preview />
+        <VoxelStudioThumb2D voxels={project.voxels} />
       </div>
       <div className="px-1 pb-1 text-center">
         <div className="text-[9px] font-black truncate" style={{ color: "#fff" }}>{project.title}</div>
