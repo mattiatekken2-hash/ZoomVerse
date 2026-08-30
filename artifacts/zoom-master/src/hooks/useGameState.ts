@@ -1526,8 +1526,9 @@ function applyStardustFarmSettle<T extends Pick<GameState, "stardustBalance" | "
   if (!settleRes.exists) return state;
   const credited = Math.max(0, settleRes.stardustCredited || 0);
   const serverBal = typeof settleRes.stardustBalance === "number" ? Math.max(0, settleRes.stardustBalance) : null;
-  if (credited > 0 && serverBal != null) {
-    // Bank the farm on the wallet. Preview restarts from this settle.
+  if (serverBal != null) {
+    // Wallet follows the banked server ★. Drop ghost preview so a local
+    // 61 cannot sit on top of a banked 2 after settle credited 0.
     return {
       ...state,
       stardustBalance: serverBal,
@@ -2346,8 +2347,10 @@ function settleFarmingState(state: GameState, now: number): GameState {
       let nftStarEarned = 0;
       let stardustEarned = 0;
 
-      for (const planet of state.planets) {
-        if (!planet.isFarmingActive || planet.isListedInMarket) continue;
+      for (const raw of state.planets) {
+        if (raw.isListedInMarket) continue;
+        const planet = resumePlanetFarmAfterMarketPause(raw, now);
+        if (!planet.isFarmingActive) continue;
         // Daily-collect removed: cycle window is the single 24h block starting at
         // effectiveFarmStart (= max(farmStartedAt, lastCollectedAt) so pre-deploy
         // planets that had already been collected get fresh 24h from the last
@@ -2366,7 +2369,11 @@ function settleFarmingState(state: GameState, now: number): GameState {
             isLabStardustFarmPlanet(planet)
             || labMarketPathForPlanet(planet) === "stardust"
           ) {
-            stardustEarned += (planet.rate / 3_600_000) * (end - start) * speedMultiplier;
+            const sid = resolveLabStardustShapeId(resolveLabShapeIdFromPlanet(planet));
+            const rate = sid && typeof LAB_STARDUST_FARM_RATE[sid] === "number"
+              ? LAB_STARDUST_FARM_RATE[sid]
+              : planet.rate;
+            stardustEarned += (rate / 3_600_000) * (end - start) * speedMultiplier;
           } else {
             earned += (planet.rate / 3_600_000) * (end - start) * speedMultiplier;
           }
@@ -2738,33 +2745,22 @@ export function useGameState() {
           weeklyRedStarDay: Math.min(7, Math.max(1, Number(grants.weeklyRedStarDay ?? 1))),
           weeklyRedStarClaimedToday: !!grants.weeklyRedStarClaimedToday,
         };
-        const snapStardustFromSettle =
-          settleRes.exists
-          && typeof settleRes.stardustBalance === "number"
-          && (settleRes.stardustCredited > 0 || wasFreshLoad);
-        if (snapStardustFromSettle) {
+        if (settleRes.exists && typeof settleRes.stardustBalance === "number") {
           updated = {
             ...updated,
             stardustBalance: Math.max(0, settleRes.stardustBalance),
             stardustFarmPreview: 0,
           };
-        } else if (settleRes.exists && typeof settleRes.stardustBalance === "number") {
-          // Same-device re-entry: keep local farm ticks on the HUD, but mark
-          // them as preview so /balance/sync LEAST cannot persist or drain
-          // them. /farm/settle credits the real yield going forward.
-          const serverBal = Math.max(0, settleRes.stardustBalance);
-          const localBal = Math.max(0, updated.stardustBalance || 0);
-          if (serverBal > localBal + 1e-12) {
-            updated = { ...updated, stardustBalance: serverBal, stardustFarmPreview: 0 };
-          } else {
-            updated = {
-              ...updated,
-              stardustBalance: localBal,
-              stardustFarmPreview: Math.max(0, localBal - serverBal),
-            };
-          }
         } else {
           updated = applyStardustFarmSettle(updated, settleRes);
+        }
+        // /balance/sync no longer writes ★. RAISE to the banked server
+        // amount; never keep a ghost local preview on top of it.
+        if (typeof syncRes.stardustBalance === "number") {
+          const serverBal = Math.max(0, syncRes.stardustBalance);
+          if (serverBal > (updated.stardustBalance || 0) + 1e-12) {
+            updated = { ...updated, stardustBalance: serverBal, stardustFarmPreview: 0 };
+          }
         }
 
         // ─── GRANTS-DERIVED HYDRATION (gated on a successful /grants fetch) ───

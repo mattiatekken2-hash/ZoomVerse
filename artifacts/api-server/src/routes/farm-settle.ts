@@ -10,6 +10,7 @@ import {
   labMarketPathForPlanet,
   resolveLabShapeIdFromPlanet,
   resolveLabStardustShapeId,
+  resumePlanetFarmAfterMarketPause,
 } from "@workspace/game-models";
 
 const router: IRouter = Router();
@@ -215,10 +216,13 @@ router.post("/farm/settle", async (req, res) => {
 
       // ─── Planets ───
       const planets: PlanetRow[] = jsonArray<PlanetRow>(row["planets_json"] ?? row["planetsJson"]);
-      for (const p of planets) {
-        if (!p || typeof p !== "object") continue;
+      for (const raw of planets) {
+        if (!raw || typeof raw !== "object") continue;
+        // Listed models stay paused. Delisted-but-paused rows use the same
+        // resume view as the Farm UI so ★ credits match what the card shows.
+        if (isFlagOn(raw.isListedInMarket)) continue;
+        const p = resumePlanetFarmAfterMarketPause(raw, now);
         if (!isFlagOn(p.isFarmingActive)) continue;
-        if (isFlagOn(p.isListedInMarket)) continue;
         // MUSHROOM planets earn NFTSTAR (client-side currency) — skip from ZOOM credit.
         if (String((p as Record<string, unknown>)["name"] ?? "").toUpperCase() === "MUSHROOM") continue;
         const jsonRate = num(p.rate);

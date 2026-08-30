@@ -66,21 +66,23 @@ export function StardustMarketModal({
   const [maturityPayout, setMaturityPayout] = useState(
     cachedStake?.maturityPayout ?? stardustStakePayout(cachedStake?.staked ?? 0),
   );
-  const [balance, setBalance] = useState(cachedStake?.balance ?? walletBalance);
+  const [banked, setBanked] = useState(cachedStake?.balance ?? walletBalance);
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [canWithdraw, setCanWithdraw] = useState(!!cachedStake?.canWithdraw);
   const [lockDaysRemaining, setLockDaysRemaining] = useState(cachedStake?.lockDaysRemaining ?? 0);
+  const shownWallet = Math.max(0, Number.isFinite(walletBalance) ? walletBalance : banked);
 
   const applyStake = useCallback((stake: NonNullable<ReturnType<typeof peekStardustStakeState>>) => {
-    setBalance(stake.balance);
+    setBanked(stake.balance);
     setStaked(stake.staked);
     setMaturityPayout(stake.maturityPayout ?? stardustStakePayout(stake.staked));
     setCanWithdraw(!!stake.canWithdraw);
     setLockDaysRemaining(stake.lockDaysRemaining ?? 0);
-    onBalanceChange?.(stake.balance);
-  }, [onBalanceChange]);
+    // Never push chart/server banked into the wallet HUD. The ★ label
+    // always follows `walletBalance` from the wallet row.
+  }, []);
 
   const refresh = useCallback(async () => {
     const [price, history, stake] = await Promise.all([
@@ -145,7 +147,7 @@ export function StardustMarketModal({
       setMsg(t("stardustMarket.invalidAmount"));
       return;
     }
-    if (n > balance) {
+    if (n > banked) {
       setMsg(t("stardustMarket.notEnough"));
       return;
     }
@@ -159,8 +161,8 @@ export function StardustMarketModal({
         : (res.error ?? t("stardustMarket.stakeFailed")));
       return;
     }
-    const newBalance = res.balance ?? Math.max(0, balance - n);
-    setBalance(newBalance);
+    const newBalance = res.balance ?? Math.max(0, banked - n);
+    setBanked(newBalance);
     onBalanceChange?.(newBalance);
     setAmount("");
     setMsg(t("stardustMarket.stakedSuccess", { n: n.toLocaleString() }));
@@ -179,6 +181,9 @@ export function StardustMarketModal({
       setMsg(res.error ?? t("stardustMarket.unstakeFailed"));
       return;
     }
+    const newBalance = res.balance ?? banked;
+    setBanked(newBalance);
+    onBalanceChange?.(newBalance);
     setMsg(t("stardustMarket.unstakedSuccess", { n: (res.payout ?? 0).toLocaleString() }));
     window.dispatchEvent(new CustomEvent("stardust-refresh"));
     window.dispatchEvent(new Event("zoom-data-refresh"));
@@ -280,7 +285,7 @@ export function StardustMarketModal({
           <div className="rounded-xl p-3" style={{ background: "rgba(255,215,64,0.05)", border: "1px solid rgba(255,215,64,0.15)" }}>
             <div className="flex justify-between mb-2 text-[10px]">
               <span style={{ color: "rgba(255,255,255,0.4)" }}>{t("stardustMarket.stakeTerm")}</span>
-              <span style={{ color: "#ffd740", fontWeight: 800 }}>{balance.toLocaleString()} ★</span>
+              <span style={{ color: "#ffd740", fontWeight: 800 }}>{shownWallet.toLocaleString()} ★</span>
             </div>
             {staked > 0 && (
               <div className="text-[10px] mb-2 font-bold" style={{ color: "#69f0ae" }}>
@@ -300,7 +305,7 @@ export function StardustMarketModal({
               <button
                 type="button"
                 disabled={busy || !telegramId}
-                onClick={() => setAmount(String(balance))}
+                onClick={() => setAmount(String(Math.max(0, Math.floor(banked))))}
                 className="px-3 rounded-lg text-[10px] font-black"
                 style={{ background: "rgba(255,215,64,0.10)", color: "#ffd740", border: "1px solid rgba(255,215,64,0.22)" }}
               >

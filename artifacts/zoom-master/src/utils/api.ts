@@ -2474,7 +2474,7 @@ export async function fetchStardustMarketHistory(): Promise<StardustMarketHistor
 export async function fetchStardustStakeState(telegramId: string): Promise<StardustStakeStateResponse | null> {
   try {
     const res = await fetch(
-      `${API_BASE}/stardust/stake/state?telegramId=${encodeURIComponent(telegramId)}`,
+      `${API_BASE}/stardust/stake/state?telegramId=${encodeURIComponent(telegramId)}&t=${Date.now()}`,
       { cache: "no-store" },
     );
     if (!res.ok) return null;

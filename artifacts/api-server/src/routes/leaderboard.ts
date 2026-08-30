@@ -55,7 +55,7 @@ router.post("/balance/sync", async (req, res) => {
     return;
   }
 
-  const { telegramId, firstName, username, photoUrl, zoomBalance, tonBalance, stardustBalance, redStarBalance, clientEpoch } = parsed.data;
+  const { telegramId, firstName, username, photoUrl, zoomBalance, tonBalance, redStarBalance, clientEpoch } = parsed.data;
   const normalizedUsername = username ? username.replace(/^@/, "").toLowerCase() : null;
   const safeFirstName = persistableFirstName(firstName);
 
@@ -117,16 +117,13 @@ router.post("/balance/sync", async (req, res) => {
                 tonBalance: sql`CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.tonBalance} WHEN ${tb} + 1e-12 < ${usersTable.tonBalance} THEN GREATEST(0, ${tb}) ELSE GREATEST(${usersTable.tonBalance}, ${tb}) END`,
               }
             : {}),
-          ...(typeof stardustBalance === "number"
-            ? {
-                // LEAST (not GREATEST): when epochs match the client may still
-                // hold a stale pre-stake wallet balance. GREATEST would undo
-                // /stardust/stake by writing the old balance back while
-                // stardust_staked stays locked. LEAST allows client-side
-                // spends (lab craft) and blocks stale snap-ups.
-                stardustBalance: sql`CASE WHEN ${usersTable.balanceEpoch} > ${ce} THEN ${usersTable.stardustBalance} ELSE LEAST(${usersTable.stardustBalance}, GREATEST(0, ${stardustBalance})) END`,
-              }
-            : {}),
+          // ★ is server-authoritative. Farm settle, collect, stake, shop,
+          // and admin already write `stardust_balance`. Never LEAST/GREATEST
+          // from the client: a stale persistable (HUD 2 vs banked 97) was
+          // wiping farm credits, and GREATEST would undo /stardust/stake.
+          // The response still returns the live server balance so the HUD
+          // can raise. `stardustBalance` remains on the request body only
+          // so older clients keep working.
           ...(typeof redStarBalance === "number"
             ? {
                 redStarBalance: sql`GREATEST(${usersTable.redStarBalance}, ${redStarBalance})`,

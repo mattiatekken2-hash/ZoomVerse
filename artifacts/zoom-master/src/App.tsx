@@ -231,18 +231,24 @@ function AppShellWithState() {
   const stardustCapReachedRef = useRef(stardustCapReached);
   useEffect(() => { stardustCapReachedRef.current = stardustCapReached; }, [stardustCapReached]);
 
-  // Periodic up-sync from /stardust/state (admin grants, star collect).
-  // Only RAISE banked ★ — never pull the wallet down over live farm ticks.
+  // Align wallet ★ to /stardust/state. A huge preview on a matching
+  // persistable (61 = 2 banked + 59 ghost) is dropped so wallet = chart.
   useEffect(() => {
     if (!stardust.ready) return;
     setState((prev) => {
+      const server = Math.max(0, stardust.balance);
       const preview = Math.max(0, prev.stardustFarmPreview || 0);
       const persistable = Math.max(0, (prev.stardustBalance || 0) - preview);
-      const server = Math.max(0, stardust.balance);
-      if (server <= persistable + 1e-12) return prev;
+      const hud = server + (Math.abs(persistable - server) <= 1e-12 && preview <= 1 ? preview : 0);
+      const nextPreview = Math.abs(persistable - server) <= 1e-12 && preview <= 1 ? preview : 0;
+      if (Math.abs((prev.stardustBalance || 0) - hud) <= 1e-12
+        && Math.abs((prev.stardustFarmPreview || 0) - nextPreview) <= 1e-12) {
+        return prev;
+      }
       return {
         ...prev,
-        stardustBalance: server + preview,
+        stardustBalance: hud,
+        stardustFarmPreview: nextPreview,
       };
     });
   }, [stardust.ready, stardust.balance]);
@@ -1054,11 +1060,10 @@ function AppShellWithState() {
                     setState((prev) => {
                       const preview = Math.max(0, prev.stardustFarmPreview || 0);
                       const persistable = Math.max(0, (prev.stardustBalance || 0) - preview);
-                      if (n + 1e-12 >= persistable) {
-                        if (Math.abs(n - persistable) <= 1e-12) return prev;
-                        return { ...prev, stardustBalance: n + preview };
-                      }
-                      return { ...prev, stardustBalance: n, stardustFarmPreview: 0 };
+                      const banked = Math.max(0, n);
+                      if (Math.abs(banked - persistable) <= 1e-12) return prev;
+                      // Stake/unstake change banked ★ only. Keep live farm ticks.
+                      return { ...prev, stardustBalance: banked + preview };
                     });
                   }}
                 />
