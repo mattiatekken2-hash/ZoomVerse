@@ -366,6 +366,47 @@ function ak47(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
   ];
 }
 
+/** Clay-forge silhouette only — real look comes from laptop.glb (untouched). */
+function laptop(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const body = a || "#90caf9";
+  return [
+    pt("base", "box", 0, 0.08, 0, 0.42, 0.04, 0.28, body, { profile: "metal" }),
+    pt("lid", "box", 0, 0.26, -0.1, 0.42, 0.24, 0.02, "#42a5f5", { profile: "glass", rx: -0.35 }),
+    pt("kbd", "box", 0, 0.1, 0.02, 0.34, 0.01, 0.18, "#1565c0", { rough: 0.5 }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from evenano.glb (untouched). */
+function evenano(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const body = a || "#26c6da";
+  return [
+    pt("cube", "box", 0, 0.24, 0, 0.36, 0.36, 0.36, body, { profile: "metal" }),
+    pt("core", "box", 0, 0.24, 0, 0.16, 0.16, 0.16, "#00838f", { profile: "glass" }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from capybara.glb (untouched). */
+function capybara(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const fur = a || "#c4a574";
+  return [
+    pt("body", "box", 0, 0.16, 0, 0.36, 0.18, 0.2, fur, { rough: 0.7 }),
+    pt("head", "box", 0.2, 0.22, 0, 0.16, 0.14, 0.16, fur, { rough: 0.7 }),
+    pt("legFL", "box", -0.1, 0.06, 0.08, 0.06, 0.1, 0.06, "#8d6e63", { rough: 0.7 }),
+    pt("legFR", "box", -0.1, 0.06, -0.08, 0.06, 0.1, 0.06, "#8d6e63", { rough: 0.7 }),
+    pt("legRL", "box", 0.1, 0.06, 0.08, 0.06, 0.1, 0.06, "#8d6e63", { rough: 0.7 }),
+    pt("legRR", "box", 0.1, 0.06, -0.08, 0.06, 0.1, 0.06, "#8d6e63", { rough: 0.7 }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from question_block.glb (untouched). */
+function questionBlock(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const gold = a || "#ffc107";
+  return [
+    pt("block", "box", 0, 0.24, 0, 0.36, 0.36, 0.36, gold, { profile: "metal" }),
+    pt("mark", "box", 0, 0.26, 0.19, 0.08, 0.16, 0.02, "#5d4037", { rough: 0.4 }),
+  ];
+}
+
 export const FOOD_DRINK_SHAPES: ShapeEntry[] = [
   { id: "banana", name: "Banana", category: "food", build: banana },
   { id: "apple", name: "Red Apple", category: "food", build: apple },
@@ -401,4 +442,8 @@ export const FOOD_DRINK_SHAPES: ShapeEntry[] = [
   { id: "lab_pokeball", name: "Pokeball", category: "food", build: pokeball },
   { id: "dodge", name: "Dodge", category: "food", build: dodge },
   { id: "ak47", name: "AK-47 Asimov", category: "food", build: ak47 },
+  { id: "lab_laptop", name: "Laptop", category: "food", build: laptop },
+  { id: "evenano", name: "Evenano Block", category: "food", build: evenano },
+  { id: "capybara", name: "Capybara", category: "food", build: capybara },
+  { id: "question_block", name: "Question Block", category: "food", build: questionBlock },
 ];

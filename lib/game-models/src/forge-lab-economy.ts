@@ -18,6 +18,10 @@ export const LAB_SLIME_SHAPE_ID = "slime";
 export const LAB_POKEBALL_SHAPE_ID = "lab_pokeball";
 export const LAB_DODGE_SHAPE_ID = "dodge";
 export const LAB_AK47_SHAPE_ID = "ak47";
+export const LAB_LAPTOP_SHAPE_ID = "lab_laptop";
+export const LAB_EVENANO_SHAPE_ID = "evenano";
+export const LAB_CAPYBARA_SHAPE_ID = "capybara";
+export const LAB_QUESTION_BLOCK_SHAPE_ID = "question_block";
 
 export const LAB_ZOOM_SHAPE_IDS = [
   LAB_PIZZA_SHAPE_ID,
@@ -29,6 +33,8 @@ export const LAB_ZOOM_SHAPE_IDS = [
   LAB_HORSEA_SHAPE_ID,
   LAB_SUSHI_SHAPE_ID,
   LAB_HOUSE_SHAPE_ID,
+  LAB_EVENANO_SHAPE_ID,
+  LAB_LAPTOP_SHAPE_ID,
 ] as const;
 
 export const LAB_STARDUST_SHAPE_IDS = [
@@ -41,6 +47,8 @@ export const LAB_STARDUST_SHAPE_IDS = [
   LAB_POKEBALL_SHAPE_ID,
   LAB_DODGE_SHAPE_ID,
   LAB_AK47_SHAPE_ID,
+  LAB_CAPYBARA_SHAPE_ID,
+  LAB_QUESTION_BLOCK_SHAPE_ID,
 ] as const;
 
 export type LabZoomShapeId = (typeof LAB_ZOOM_SHAPE_IDS)[number];
@@ -58,6 +66,8 @@ export const LAB_ZOOM_FARM_RATE: Record<LabZoomShapeId, number> = {
   [LAB_HORSEA_SHAPE_ID]: 5.3,
   [LAB_SUSHI_SHAPE_ID]: 5.4,
   [LAB_HOUSE_SHAPE_ID]: 5.6,
+  [LAB_EVENANO_SHAPE_ID]: 4.9,
+  [LAB_LAPTOP_SHAPE_ID]: 5.1,
 };
 
 export const LAB_STARDUST_FARM_RATE: Record<LabStardustShapeId, number> = {
@@ -70,6 +80,8 @@ export const LAB_STARDUST_FARM_RATE: Record<LabStardustShapeId, number> = {
   [LAB_POKEBALL_SHAPE_ID]: 0.39,
   [LAB_DODGE_SHAPE_ID]: 0.40,
   [LAB_AK47_SHAPE_ID]: 0.42,
+  [LAB_CAPYBARA_SHAPE_ID]: 0.35,
+  [LAB_QUESTION_BLOCK_SHAPE_ID]: 0.37,
 };
 
 export const LAB_ZOOM_DISPLAY_NAME: Record<LabZoomShapeId, string> = {
@@ -82,6 +94,8 @@ export const LAB_ZOOM_DISPLAY_NAME: Record<LabZoomShapeId, string> = {
   [LAB_HORSEA_SHAPE_ID]: "Horsea",
   [LAB_SUSHI_SHAPE_ID]: "Sushi",
   [LAB_HOUSE_SHAPE_ID]: "House",
+  [LAB_EVENANO_SHAPE_ID]: "Evenano Block",
+  [LAB_LAPTOP_SHAPE_ID]: "Laptop",
 };
 
 export const LAB_STARDUST_DISPLAY_NAME: Record<LabStardustShapeId, string> = {
@@ -94,6 +108,8 @@ export const LAB_STARDUST_DISPLAY_NAME: Record<LabStardustShapeId, string> = {
   [LAB_POKEBALL_SHAPE_ID]: "Pokeball",
   [LAB_DODGE_SHAPE_ID]: "Dodge",
   [LAB_AK47_SHAPE_ID]: "AK-47 Asimov",
+  [LAB_CAPYBARA_SHAPE_ID]: "Capybara",
+  [LAB_QUESTION_BLOCK_SHAPE_ID]: "Question Block",
 };
 
 export const LAB_ZOOM_COLORS: Record<LabZoomShapeId, { color: string; glowColor: string }> = {
@@ -106,6 +122,8 @@ export const LAB_ZOOM_COLORS: Record<LabZoomShapeId, { color: string; glowColor:
   [LAB_HORSEA_SHAPE_ID]: { color: "#4fc3f7", glowColor: "#0288d1" },
   [LAB_SUSHI_SHAPE_ID]: { color: "#ff8a80", glowColor: "#ffab91" },
   [LAB_HOUSE_SHAPE_ID]: { color: "#ef9a58", glowColor: "#5b8def" },
+  [LAB_EVENANO_SHAPE_ID]: { color: "#26c6da", glowColor: "#00838f" },
+  [LAB_LAPTOP_SHAPE_ID]: { color: "#90caf9", glowColor: "#42a5f5" },
 };
 
 export const LAB_STARDUST_COLORS: Record<LabStardustShapeId, { color: string; glowColor: string }> = {
@@ -118,6 +136,8 @@ export const LAB_STARDUST_COLORS: Record<LabStardustShapeId, { color: string; gl
   [LAB_POKEBALL_SHAPE_ID]: { color: "#e53935", glowColor: "#ff5252" },
   [LAB_DODGE_SHAPE_ID]: { color: "#37474f", glowColor: "#ff6f00" },
   [LAB_AK47_SHAPE_ID]: { color: "#c9a227", glowColor: "#212121" },
+  [LAB_CAPYBARA_SHAPE_ID]: { color: "#c4a574", glowColor: "#8d6e63" },
+  [LAB_QUESTION_BLOCK_SHAPE_ID]: { color: "#ffc107", glowColor: "#ff9800" },
 };
 
 /** Fallback tap count — live Lab models use voxel length (1 tap = 1 cube). */
@@ -188,7 +208,8 @@ function labMarketPathFromDisplayName(displayName: string | null | undefined): L
     || n.includes("pizza") || n.includes("flower") || n.includes("dollar")
     || n.includes("creeper") || n.includes("chest")
     || n.includes("honey") || n.includes("horsea") || n.includes("sushi")
-    || n === "house"
+    || n === "house" || n === "laptop" || n === "lab_laptop" || n.includes("laptop")
+    || n === "evenano" || n === "evenano block" || n.includes("evenano")
   ) {
     return "zoom";
   }
@@ -199,6 +220,8 @@ function labMarketPathFromDisplayName(displayName: string | null | undefined): L
     || n.includes("steve") || n.includes("chicken")
     || n.includes("slime") || n.includes("pokeball") || n.includes("dodge")
     || n.includes("asimov") || n.includes("ak-47")
+    || n === "capybara" || n.includes("capybara")
+    || n === "question block" || n.includes("question block") || n.includes("mario")
   ) {
     return "stardust";
   }
@@ -280,6 +303,15 @@ const DISPLAY_NAME_TO_SHAPE: Record<string, string> = {
   "ak-47 asimov": LAB_AK47_SHAPE_ID,
   ak47: LAB_AK47_SHAPE_ID,
   "ak-47": LAB_AK47_SHAPE_ID,
+  laptop: LAB_LAPTOP_SHAPE_ID,
+  lab_laptop: LAB_LAPTOP_SHAPE_ID,
+  evenano: LAB_EVENANO_SHAPE_ID,
+  "evenano block": LAB_EVENANO_SHAPE_ID,
+  evenanoblock: LAB_EVENANO_SHAPE_ID,
+  capybara: LAB_CAPYBARA_SHAPE_ID,
+  "question block": LAB_QUESTION_BLOCK_SHAPE_ID,
+  question_block: LAB_QUESTION_BLOCK_SHAPE_ID,
+  "mario block": LAB_QUESTION_BLOCK_SHAPE_ID,
 };
 
 /** Recover Lab shape id from listing/planet even if displayName was renamed later. */
@@ -311,6 +343,10 @@ export function resolveLabShapeIdFromPlanet(planet: {
   if (n.includes("pokeball") || n.includes("poke ball")) return LAB_POKEBALL_SHAPE_ID;
   if (n.includes("dodge")) return LAB_DODGE_SHAPE_ID;
   if (n.includes("asimov") || n.includes("ak-47") || n === "ak47") return LAB_AK47_SHAPE_ID;
+  if (n.includes("laptop")) return LAB_LAPTOP_SHAPE_ID;
+  if (n.includes("evenano")) return LAB_EVENANO_SHAPE_ID;
+  if (n.includes("capybara")) return LAB_CAPYBARA_SHAPE_ID;
+  if (n.includes("question") || n.includes("mario")) return LAB_QUESTION_BLOCK_SHAPE_ID;
   return null;
 }
 
@@ -397,6 +433,8 @@ export function pickRandomLabZoomShapeId(): LabZoomShapeId {
     { id: LAB_HORSEA_SHAPE_ID, weight: 10 },
     { id: LAB_SUSHI_SHAPE_ID, weight: 10 },
     { id: LAB_HOUSE_SHAPE_ID, weight: 10 },
+    { id: LAB_EVENANO_SHAPE_ID, weight: 10 },
+    { id: LAB_LAPTOP_SHAPE_ID, weight: 10 },
   ] as const);
 }
 
@@ -412,6 +450,8 @@ export function pickRandomLabStardustShapeId(): LabStardustShapeId {
     { id: LAB_POKEBALL_SHAPE_ID, weight: 10 },
     { id: LAB_DODGE_SHAPE_ID, weight: 10 },
     { id: LAB_AK47_SHAPE_ID, weight: 10 },
+    { id: LAB_CAPYBARA_SHAPE_ID, weight: 10 },
+    { id: LAB_QUESTION_BLOCK_SHAPE_ID, weight: 10 },
   ] as const);
 }
 

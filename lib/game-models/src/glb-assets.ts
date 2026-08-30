@@ -29,10 +29,14 @@ export const SHAPE_GLB_ASSETS: Partial<Record<string, string>> = {
   lab_pokeball: "/models/pokeball.glb",
   dodge: "/models/dodge.glb",
   ak47: "/models/ak47.glb",
+  lab_laptop: "/models/laptop.glb",
+  evenano: "/models/evenano.glb",
+  capybara: "/models/capybara.glb",
+  question_block: "/models/question_block.glb",
 };
 
 /** Bust stale CDN / Telegram cache when Lab GLB assets are replaced. */
-const LAB_GLB_CACHE_BUST = "20260828a";
+const LAB_GLB_CACHE_BUST = "20260831a";
 
 const LAB_GLB_SHAPE_IDS = new Set([
   "pizza",
@@ -54,6 +58,10 @@ const LAB_GLB_SHAPE_IDS = new Set([
   "lab_pokeball",
   "dodge",
   "ak47",
+  "lab_laptop",
+  "evenano",
+  "capybara",
+  "question_block",
 ]);
 
 export function getShapeGlbUrl(shapeId: string): string | null {

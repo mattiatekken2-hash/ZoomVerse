@@ -77,10 +77,16 @@ function listingMatchesQuery(listing: MarketPlanetListingView, raw: string): boo
     return true;
   }
   const name = (listing.displayName || "").toLowerCase();
-  const shape = (listing.shapeId || "").toLowerCase().replace(/_/g, " ");
+  const shapeIdRaw = (listing.shapeId || "").toLowerCase();
+  const shape = shapeIdRaw.replace(/_/g, " ");
   const seller = (listing.seller || "").toLowerCase();
   const code = listing.serverId != null ? `#${listing.serverId}` : "";
-  const hay = `${name} ${shape} ${seller} ${code}`;
+  const compact = shapeIdRaw.replace(/_/g, "");
+  const withoutLab = shapeIdRaw.replace(/^lab_/, "").replace(/_/g, "");
+  const shapeTags = shapeIdRaw
+    ? `#${shapeIdRaw} #${compact}${withoutLab && withoutLab !== compact ? ` #${withoutLab}` : ""}`
+    : "";
+  const hay = `${name} ${shape} ${seller} ${code} ${shapeTags}`;
   return hay.includes(q) || name.replace(/\s+/g, "").includes(q.replace(/\s+/g, ""));
 }
 
