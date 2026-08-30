@@ -2652,14 +2652,21 @@ export function useGameState() {
       //    locally-higher balance overwrite a freshly admin-removed lower
       //    server balance on re-entry — admin can re-apply if needed.
       const epochAdvanced = serverEpoch > localEpoch;
-      void epochAdvanced;
       const serverUserExists = !!balanceRecord?.exists || !!settleRes.exists;
-      // Server is the only value that matches Telegram ↔ PC. Local grant
-      // (700) or a stale device snapshot must not win via Math.max — that
-      // was painting low then high, and pushing the wrong balance upstream.
-      const finalBalance = serverUserExists
-        ? serverBalance
-        : localBalance;
+      // Same-device re-entry: never snap ZOOM S3 down. The HUD ticks farm
+      // yield locally; if /farm/settle credited 0 (race, watermark) the
+      // server can still hold the previous value (e.g. 100) while local
+      // already shows 402. Taking server verbatim was wiping that yield
+      // on every Telegram close/reopen.
+      // Fresh device / cleared storage: take the server (blocks the
+      // default-grant overwrite). Epoch bump (admin credit): take server
+      // so the grant is visible; spends already wrote the lower client
+      // value at the same epoch, so localStorage matches.
+      const finalBalance = !serverUserExists
+        ? localBalance
+        : (wasFreshLoad || epochAdvanced)
+          ? Math.floor(serverBalance)
+          : Math.max(localBalance, Math.floor(serverBalance));
 
       setCurrentBalanceEpoch(serverEpoch);
       // Pull authoritative GRAM from /grants before any /balance/sync so stale
@@ -2698,8 +2705,8 @@ export function useGameState() {
         // overwrite a lower authoritative server balance via the next
         // /balance/sync (epoch-equal CASE branch takes the client value).
         void serverEpoch;
-        const newBalance = serverUserExists
-          ? finalBalance
+        const newBalance = (wasFreshLoad || epochAdvanced) && serverUserExists
+          ? Math.floor(finalBalance)
           : Math.max(prev.balance, finalBalance);
         let updated = {
           ...prev,
