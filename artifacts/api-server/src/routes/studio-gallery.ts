@@ -37,9 +37,29 @@ void pool.query(`
     listing_id integer NOT NULL REFERENCES studio_gallery(id) ON DELETE CASCADE,
     voter_id text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT NOW(),
-    PRIMARY KEY (listing_id, voter_id)
+    month_key text NOT NULL DEFAULT to_char(NOW(), 'YYYY-MM'),
+    PRIMARY KEY (listing_id, voter_id, month_key)
   );
 `).catch(() => {});
+
+void pool.query(`
+  ALTER TABLE studio_gallery_votes ADD COLUMN IF NOT EXISTS month_key text;
+  UPDATE studio_gallery_votes
+     SET month_key = to_char(created_at, 'YYYY-MM')
+   WHERE month_key IS NULL;
+`).catch(() => {});
+
+void pool.query(`
+  DO $$ BEGIN
+    ALTER TABLE studio_gallery_votes DROP CONSTRAINT IF EXISTS studio_gallery_votes_pkey;
+    UPDATE studio_gallery_votes SET month_key = to_char(COALESCE(created_at, NOW()), 'YYYY-MM') WHERE month_key IS NULL;
+    ALTER TABLE studio_gallery_votes ALTER COLUMN month_key SET DEFAULT to_char(NOW(), 'YYYY-MM');
+    ALTER TABLE studio_gallery_votes ALTER COLUMN month_key SET NOT NULL;
+    ALTER TABLE studio_gallery_votes ADD PRIMARY KEY (listing_id, voter_id, month_key);
+  EXCEPTION WHEN OTHERS THEN NULL;
+  END $$;
+`).catch(() => {});
+
 
 type GalleryRow = {
   id: number;
@@ -49,8 +69,15 @@ type GalleryRow = {
   voxels: unknown;
   status: string;
   vote_count: number;
+  month_count?: number | string;
+  voted?: boolean;
   first_name: string | null;
 };
+
+function monthKeyUtc(): string {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
 
 function mapListing(row: GalleryRow, viewerId?: string) {
   return {
@@ -59,32 +86,74 @@ function mapListing(row: GalleryRow, viewerId?: string) {
     title: row.title,
     voxels: Array.isArray(row.voxels) ? row.voxels : [],
     status: row.status,
-    voteCount: Number(row.vote_count) || 0,
+    voteCount: Number(row.month_count ?? row.vote_count) || 0,
+    voted: !!row.voted,
     author: (row.first_name || "Player").slice(0, 24),
     mine: viewerId ? row.telegram_id === viewerId : false,
   };
 }
 
+const LIST_SQL = `
+  SELECT g.id, g.telegram_id, g.project_id, g.title, g.voxels, g.status, g.vote_count,
+         u.first_name,
+         COALESCE(mv.month_count, 0)::int AS month_count,
+         (my.listing_id IS NOT NULL) AS voted
+  FROM studio_gallery g
+  LEFT JOIN users u ON u.telegram_id = g.telegram_id
+  LEFT JOIN (
+    SELECT listing_id, COUNT(*)::int AS month_count
+    FROM studio_gallery_votes
+    WHERE month_key = $2
+    GROUP BY listing_id
+  ) mv ON mv.listing_id = g.id
+  LEFT JOIN studio_gallery_votes my
+    ON my.listing_id = g.id AND my.voter_id = $1 AND my.month_key = $2
+`;
+
 router.get("/studio-gallery", async (req, res) => {
   const viewerId = String(req.query.telegramId || "").trim();
+  const month = monthKeyUtc();
   try {
     const rows = await pool.query<GalleryRow>(
-      `SELECT g.id, g.telegram_id, g.project_id, g.title, g.voxels, g.status, g.vote_count,
-              u.first_name
-       FROM studio_gallery g
-       LEFT JOIN users u ON u.telegram_id = g.telegram_id
+      `${LIST_SQL}
        WHERE g.status = 'public'
-       ORDER BY g.vote_count DESC, g.id DESC
+       ORDER BY COALESCE(mv.month_count, 0) DESC, g.id DESC
        LIMIT 60`,
+      [viewerId || "", month],
     );
+    const listings = rows.rows.map((r) => mapListing(r, viewerId || undefined));
+    const top3 = listings.filter((l) => l.voteCount > 0).slice(0, 3);
     res.json({
       ok: true,
       holdZmc: STUDIO_GALLERY_HOLD_ZMC,
-      listings: rows.rows.map((r) => mapListing(r, viewerId || undefined)),
+      monthKey: month,
+      listings,
+      top3,
     });
   } catch (err) {
     console.error("[studio-gallery list]", err);
-    res.json({ ok: true, holdZmc: STUDIO_GALLERY_HOLD_ZMC, listings: [] });
+    try {
+      const rows = await pool.query<GalleryRow>(
+        `SELECT g.id, g.telegram_id, g.project_id, g.title, g.voxels, g.status, g.vote_count,
+                u.first_name
+         FROM studio_gallery g
+         LEFT JOIN users u ON u.telegram_id = g.telegram_id
+         WHERE g.status = 'public'
+         ORDER BY g.vote_count DESC, g.id DESC
+         LIMIT 60`,
+      );
+      const listings = rows.rows.map((r) => mapListing(r, viewerId || undefined));
+      res.json({
+        ok: true,
+        holdZmc: STUDIO_GALLERY_HOLD_ZMC,
+        monthKey: month,
+        listings,
+        top3: listings.filter((l) => l.voteCount > 0).slice(0, 3),
+      });
+    } catch (err2) {
+      console.error("[studio-gallery list fallback]", err2);
+      res.json({ ok: true, holdZmc: STUDIO_GALLERY_HOLD_ZMC, monthKey: month, listings: [], top3: [] });
+    }
   }
 });
 
@@ -279,23 +348,40 @@ router.post("/studio-gallery/vote", async (req, res) => {
       return;
     }
     const ins = await client.query(
-      `INSERT INTO studio_gallery_votes (listing_id, voter_id)
-       VALUES ($1, $2)
+      `INSERT INTO studio_gallery_votes (listing_id, voter_id, month_key)
+       VALUES ($1, $2, $3)
        ON CONFLICT DO NOTHING
        RETURNING listing_id`,
-      [listingId, telegramId],
+      [listingId, telegramId, monthKeyUtc()],
     );
-    let votes = Number(row.vote_count) || 0;
     if (ins.rows.length > 0) {
-      const upd = await client.query<{ vote_count: number }>(
+      await client.query(
         `UPDATE studio_gallery SET vote_count = vote_count + 1, updated_at = NOW()
-         WHERE id = $1 RETURNING vote_count`,
+         WHERE id = $1`,
         [listingId],
       );
-      votes = Number(upd.rows[0]?.vote_count ?? votes + 1);
     }
+    const month = monthKeyUtc();
+    const counted = await client.query<{ c: string }>(
+      `SELECT COUNT(*)::text AS c FROM studio_gallery_votes WHERE listing_id = $1 AND month_key = $2`,
+      [listingId, month],
+    );
+    const votes = Number(counted.rows[0]?.c) || 0;
+    const top = await client.query<GalleryRow>(
+      `${LIST_SQL}
+       WHERE g.status = 'public'
+       ORDER BY COALESCE(mv.month_count, 0) DESC, g.id DESC
+       LIMIT 3`,
+      [telegramId, month],
+    );
     await client.query("COMMIT");
-    res.json({ ok: true, voteCount: votes, already: ins.rows.length === 0 });
+    res.json({
+      ok: true,
+      voteCount: votes,
+      already: ins.rows.length === 0,
+      voted: true,
+      top3: top.rows.filter((r) => Number(r.month_count) > 0).map((r) => mapListing(r, telegramId)),
+    });
   } catch (err) {
     try { await client.query("ROLLBACK"); } catch { /**/ }
     console.error("[studio-gallery vote]", err);

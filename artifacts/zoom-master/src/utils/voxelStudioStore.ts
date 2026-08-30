@@ -155,11 +155,17 @@ export interface StudioGalleryListing {
   voxels: VoxelCoord[];
   status: string;
   voteCount: number;
+  voted?: boolean;
   author: string;
   mine: boolean;
 }
 
-export async function fetchStudioGallery(telegramId: string): Promise<{ listings: StudioGalleryListing[]; holdZmc: number }> {
+export async function fetchStudioGallery(telegramId: string): Promise<{
+  listings: StudioGalleryListing[];
+  top3: StudioGalleryListing[];
+  holdZmc: number;
+  monthKey: string;
+}> {
   try {
     const res = await fetch(`${API_BASE}/studio-gallery?telegramId=${encodeURIComponent(telegramId)}`, {
       headers: apiHeaders(),
@@ -168,10 +174,12 @@ export async function fetchStudioGallery(telegramId: string): Promise<{ listings
     const data = await res.json().catch(() => ({}));
     return {
       listings: Array.isArray(data.listings) ? data.listings : [],
+      top3: Array.isArray(data.top3) ? data.top3 : [],
       holdZmc: Number(data.holdZmc) || 100_000,
+      monthKey: typeof data.monthKey === "string" ? data.monthKey : "",
     };
   } catch {
-    return { listings: [], holdZmc: 100_000 };
+    return { listings: [], top3: [], holdZmc: 100_000, monthKey: "" };
   }
 }
 
@@ -232,7 +240,7 @@ export async function reportStudioGallery(
 export async function voteStudioGallery(
   telegramId: string,
   listingId: number,
-): Promise<{ ok: boolean; voteCount?: number; error?: string }> {
+): Promise<{ ok: boolean; voteCount?: number; top3?: StudioGalleryListing[]; error?: string }> {
   try {
     const res = await fetch(`${API_BASE}/studio-gallery/vote`, {
       method: "POST",
@@ -241,7 +249,11 @@ export async function voteStudioGallery(
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, error: typeof data.error === "string" ? data.error : "Could not vote" };
-    return { ok: true, voteCount: Number(data.voteCount) || 0 };
+    return {
+      ok: true,
+      voteCount: Number(data.voteCount) || 0,
+      top3: Array.isArray(data.top3) ? data.top3 : undefined,
+    };
   } catch {
     return { ok: false, error: "Network error" };
   }

@@ -93,32 +93,62 @@ function worldCenter(list: VoxelCoord[]): THREE.Vector3 {
   return new THREE.Vector3((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2);
 }
 
+function voxelKey(v: VoxelCoord) {
+  return `${v.x},${v.y},${v.z}`;
+}
+
+function fitCamDist(list: VoxelCoord[], far: boolean): number {
+  if (list.length === 0) return far ? 5.4 : 3.2;
+  const focus = worldCenter(list);
+  let maxR = 0.4;
+  for (const v of list) {
+    const dx = v.x * VOXEL - focus.x;
+    const dy = v.y * VOXEL - focus.y;
+    const dz = v.z * VOXEL - focus.z;
+    maxR = Math.max(maxR, Math.sqrt(dx * dx + dy * dy + dz * dz));
+  }
+  if (far) return Math.min(9.8, Math.max(4.6, maxR * 8.2 + 2.4));
+  return Math.min(7.6, Math.max(2.8, maxR * 5.6 + 1.5));
+}
+
 export function VoxelStudioCanvas({
   voxels,
   onAdd,
   onRemove,
   onPaint,
+  onSelect,
   paintColor,
   preview,
+  eraseMode,
+  selected,
 }: {
   voxels: VoxelCoord[];
   onAdd?: (v: VoxelCoord) => void;
   onRemove?: (v: VoxelCoord) => void;
   onPaint?: (v: VoxelCoord) => void;
+  onSelect?: (v: VoxelCoord | null) => void;
   paintColor?: number | null;
   preview?: boolean;
+  eraseMode?: boolean;
+  selected?: VoxelCoord | null;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const voxelsRef = useRef(voxels);
   const onAddRef = useRef(onAdd);
   const onRemoveRef = useRef(onRemove);
   const onPaintRef = useRef(onPaint);
+  const onSelectRef = useRef(onSelect);
   const paintColorRef = useRef(paintColor);
+  const eraseModeRef = useRef(!!eraseMode);
+  const selectedRef = useRef<VoxelCoord | null>(selected ?? null);
   voxelsRef.current = voxels;
   onAddRef.current = onAdd;
   onRemoveRef.current = onRemove;
   onPaintRef.current = onPaint;
+  onSelectRef.current = onSelect;
   paintColorRef.current = paintColor;
+  eraseModeRef.current = !!eraseMode;
+  selectedRef.current = selected ?? null;
   const syncRef = useRef<(next: VoxelCoord[]) => void>(() => {});
 
   const handleHostClick = useCallback(() => {
@@ -131,11 +161,11 @@ export function VoxelStudioCanvas({
 
     const scene = new THREE.Scene();
     scene.background = null;
-    const camera = new THREE.PerspectiveCamera(preview ? 42 : 42, 1, 0.08, 40);
+    const camera = new THREE.PerspectiveCamera(42, 1, 0.08, 80);
 
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: !preview, alpha: true, powerPreference: "low-power" });
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power" });
     } catch {
       return;
     }
@@ -185,7 +215,7 @@ export function VoxelStudioCanvas({
     const dummy = new THREE.Object3D();
     const focus = new THREE.Vector3();
     const camDir = new THREE.Vector3(1.35, 0.95, 1.7).normalize();
-    let dist = preview ? 1.85 : 3.2;
+    let dist = fitCamDist(voxelsRef.current, !!preview);
     let distUser = false;
     let theta = Math.atan2(camDir.x, camDir.z);
     let phi = Math.acos(Math.min(1, Math.max(-1, camDir.y)));
@@ -205,10 +235,12 @@ export function VoxelStudioCanvas({
         const v = list[i]!;
         dummy.position.set(v.x * VOXEL, v.y * VOXEL, v.z * VOXEL);
         dummy.rotation.set(0, 0, 0);
-        dummy.scale.setScalar(1);
+        const sel = selectedRef.current;
+        const isSel = !!sel && voxelKey(sel) === voxelKey(v);
+        dummy.scale.setScalar(isSel ? 1.16 : 1);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
-        tint.setHex(typeof v.color === "number" ? v.color : FORGE_CLAY);
+        tint.setHex(isSel ? 0xffd740 : (typeof v.color === "number" ? v.color : FORGE_CLAY));
         mesh.setColorAt(i, tint);
         const base = i * UNIT_BOX_EDGES.length;
         for (let j = 0; j < UNIT_BOX_EDGES.length; j += 3) {
@@ -225,15 +257,8 @@ export function VoxelStudioCanvas({
       posAttr.needsUpdate = true;
 
       focus.copy(worldCenter(list));
-      if (!preview && list.length > 0 && !distUser) {
-        let maxR = 0.4;
-        for (const v of list) {
-          const dx = v.x * VOXEL - focus.x;
-          const dy = v.y * VOXEL - focus.y;
-          const dz = v.z * VOXEL - focus.z;
-          maxR = Math.max(maxR, Math.sqrt(dx * dx + dy * dy + dz * dz));
-        }
-        dist = Math.min(6.2, Math.max(2.4, maxR * 5.4 + 1.35));
+      if (list.length > 0 && !distUser) {
+        dist = fitCamDist(list, !!preview);
       }
       orbitCam();
     };
@@ -316,7 +341,7 @@ export function VoxelStudioCanvas({
       lastX = e.clientX;
       lastY = e.clientY;
       host.setPointerCapture(e.pointerId);
-      if (preview) return;
+      if (preview || eraseModeRef.current) return;
       const found = hitAt(e.clientX, e.clientY);
       holdTarget = found?.src ?? null;
       if (!holdTarget || !onRemoveRef.current) return;
@@ -334,7 +359,7 @@ export function VoxelStudioCanvas({
       if (pinching && pointers.size >= 2) {
         const d = pinchDistance();
         if (d > 0 && pinchStartDist > 0) {
-          dist = Math.min(6.2, Math.max(1.05, pinchStartCamDist * (pinchStartDist / d)));
+          dist = Math.min(10.4, Math.max(1.05, pinchStartCamDist * (pinchStartDist / d)));
         }
         return;
       }
@@ -356,8 +381,14 @@ export function VoxelStudioCanvas({
         const skipAdd = pinchUsed;
         pinchUsed = false;
         clearHold();
-        if (preview || holdFired || skipAdd || moved > 8) return;
+        if (holdFired || skipAdd || moved > 8) return;
+        if (preview) return;
         const found = hitAt(e.clientX, e.clientY);
+        if (eraseModeRef.current) {
+          onSelectRef.current?.(found?.src ?? null);
+          if (found) hapticLight();
+          return;
+        }
         if (!found) return;
         const paint = paintColorRef.current;
         if (paint != null && onPaintRef.current) {
@@ -392,10 +423,9 @@ export function VoxelStudioCanvas({
       clearHold();
     };
     const onWheel = (e: WheelEvent) => {
-      if (preview) return;
       e.preventDefault();
       distUser = true;
-      dist = Math.min(6.2, Math.max(1.05, dist + e.deltaY * 0.004));
+      dist = Math.min(10.4, Math.max(1.05, dist + e.deltaY * 0.004));
     };
 
     host.addEventListener("pointerdown", onPointerDown);
@@ -471,7 +501,7 @@ export function VoxelStudioCanvas({
 
   useEffect(() => {
     syncRef.current(voxels);
-  }, [voxels]);
+  }, [voxels, selected]);
 
   return (
     <div

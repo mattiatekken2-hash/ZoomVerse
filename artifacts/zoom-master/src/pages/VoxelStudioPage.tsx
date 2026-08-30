@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { FORGE_CLAY } from "@workspace/game-models";
 import { VoxelStudioCanvas } from "../components/VoxelStudioCanvas";
 import { LabSpaceBackground } from "../components/LabSpaceBackground";
 import { StudioGalleryPanel } from "../components/StudioGalleryPanel";
+import { StudioVoxelThumb } from "../components/StudioVoxelThumb";
 import { useT } from "../i18n/LanguageContext";
 import {
   buyVoxelStudioSlot,
@@ -26,14 +27,6 @@ interface Props {
   onStardustSpent?: (next: number) => void;
 }
 
-function formatDate(ms: number) {
-  try {
-    return new Date(ms).toLocaleDateString(undefined, { day: "2-digit", month: "short" });
-  } catch {
-    return "";
-  }
-}
-
 const STUDIO_PALETTE = [
   FORGE_CLAY,
   0xffffff,
@@ -47,6 +40,40 @@ const STUDIO_PALETTE = [
   0x8e24aa,
 ] as const;
 
+function CircleBtn({
+  children,
+  onClick,
+  ariaLabel,
+  gold,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  ariaLabel: string;
+  gold?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      onClick={onClick}
+      className="flex items-center justify-center font-black"
+      style={{
+        width: 44,
+        height: 44,
+        borderRadius: 999,
+        background: gold ? "rgba(255,215,64,0.16)" : "rgba(8,10,18,0.82)",
+        color: gold ? "#ffd740" : "#fff",
+        border: gold ? "1.5px solid rgba(255,215,64,0.5)" : "1px solid rgba(255,255,255,0.18)",
+        boxShadow: "0 6px 16px rgba(0,0,0,0.4)",
+        backdropFilter: "blur(10px)",
+        fontSize: 14,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedProjectId, onClose, onStardustSpent }: Props) {
   const { t } = useT();
   const [state, setState] = useState<VoxelStudioState>({ extraSlots: 0, projects: [] });
@@ -59,6 +86,9 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [paintColor, setPaintColor] = useState<number | null>(null);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [eraseMode, setEraseMode] = useState(false);
+  const [selected, setSelected] = useState<VoxelCoord | null>(null);
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   const persist = useCallback((next: VoxelStudioState) => {
     setState(next);
@@ -153,6 +183,14 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
     const idx = active.voxels.findIndex((x) => x.x === v.x && x.y === v.y && x.z === v.z);
     if (idx < 0) return;
     patchActive(active.voxels.filter((_, i) => i !== idx));
+    if (selected && selected.x === v.x && selected.y === v.y && selected.z === v.z) {
+      setSelected(null);
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    if (!selected) return;
+    handleRemove(selected);
   };
 
   const handlePaint = (v: VoxelCoord) => {
@@ -198,6 +236,42 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
     setState(next);
   };
 
+  const fabTools: { id: string; glyph: string; label: string; color: string; deg: number }[] = [
+    { id: "save", glyph: "✓", label: t("studio.save"), color: "#34d399", deg: 140 },
+    { id: "colors", glyph: "●", label: t("studio.colors"), color: "#ffd740", deg: 175 },
+    { id: "undo", glyph: "↩", label: t("studio.undo"), color: "#90caf9", deg: 210 },
+    { id: "erase", glyph: "⌫", label: t("studio.erase"), color: "#ff8a8a", deg: 105 },
+  ];
+
+  const runTool = (id: string) => {
+    if (id === "save") {
+      void persistNow().then(() => flash(t("studio.saved")));
+      setToolsOpen(false);
+      return;
+    }
+    if (id === "undo") {
+      handleUndo();
+      return;
+    }
+    if (id === "colors") {
+      setEraseMode(false);
+      setSelected(null);
+      setPaintColor(null);
+      setPaletteOpen((open) => !open);
+      setToolsOpen(false);
+      return;
+    }
+    if (id === "erase") {
+      setPaintColor(null);
+      setPaletteOpen(false);
+      setEraseMode((on) => {
+        if (on) setSelected(null);
+        return !on;
+      });
+      setToolsOpen(false);
+    }
+  };
+
   return (
     <div
       className="flex flex-col"
@@ -211,228 +285,245 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
     >
       <LabSpaceBackground />
       <div className="relative z-10 flex flex-col h-full min-h-0">
-        <header
-          className="flex-shrink-0 px-3 pb-2 flex items-center gap-2"
-          style={{
-            paddingTop: 10,
-            position: "relative",
-            zIndex: 20,
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              void (async () => {
-                await persistNow();
-                onClose();
-              })();
-            }}
-            aria-label={t("common.close")}
-            className="px-3 rounded-xl text-[11px] font-black uppercase"
-            style={{
-              minHeight: 44,
-              minWidth: 44,
-              background: "rgba(0,0,0,0.55)",
-              color: "#fff",
-              border: "1px solid rgba(255,255,255,0.16)",
-            }}
-          >
-            {t("common.close")}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              void persistNow().then(() => flash("Saved"));
-            }}
-            className="px-3 rounded-xl text-[11px] font-black uppercase"
-            style={{
-              minHeight: 44,
-              background: "rgba(52,211,153,0.16)",
-              color: "#34d399",
-              border: "1px solid rgba(52,211,153,0.4)",
-            }}
-          >
-            Save
-          </button>
-          <button
-            type="button"
-            onClick={() => setGalleryOpen(true)}
-            className="px-3 rounded-xl text-[11px] font-black uppercase"
-            style={{
-              minHeight: 44,
-              background: "rgba(255,215,64,0.14)",
-              color: "#ffd740",
-              border: "1px solid rgba(255,215,64,0.35)",
-            }}
-          >
-            {t("studio.gallery.btn")}
-          </button>
-          <div className="flex-1 min-w-0">
-            <div className="font-black text-sm truncate" style={{ color: "#E8ECF4" }}>
-              {active?.title || "Create your model"}
-            </div>
-            <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.42)" }}>
-              {paintColor != null
-                ? "tap a voxel to paint · Build to add cubes"
-                : "1 tap = 1 voxel · hold to erase · Colors to paint"}
-            </div>
-          </div>
-          {active && (
-            <>
-              <button
-                type="button"
-                onClick={() => {
-                  if (paintColor != null) {
-                    setPaintColor(null);
-                    setPaletteOpen(false);
-                  } else {
-                    setPaletteOpen((open) => !open);
-                  }
-                }}
-                className="px-3 rounded-xl text-[11px] font-black uppercase"
-                style={{
-                  minHeight: 44,
-                  background: paintColor != null ? "rgba(255,215,64,0.16)" : "rgba(0,0,0,0.55)",
-                  color: paintColor != null ? "#ffd740" : "#fff",
-                  border: paintColor != null ? "1px solid rgba(255,215,64,0.4)" : "1px solid rgba(255,255,255,0.16)",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                {paintColor != null ? (
-                  <>
-                    <span
-                      style={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: 3,
-                        background: `#${paintColor.toString(16).padStart(6, "0")}`,
-                        border: "1px solid rgba(255,255,255,0.35)",
-                      }}
-                    />
-                    Build
-                  </>
-                ) : "Colors"}
-              </button>
-            <button
-              type="button"
-              onClick={handleUndo}
-              className="px-3 rounded-xl text-[11px] font-black uppercase"
-              style={{
-                minHeight: 44,
-                background: "rgba(0,0,0,0.55)",
-                color: "rgba(255,255,255,0.75)",
-                border: "1px solid rgba(255,255,255,0.12)",
-              }}
-            >
-              Undo
-            </button>
-            </>
-          )}
-        </header>
-
-        {msg && (
-          <div className="mx-4 mb-2 rounded-xl px-3 py-2 text-center text-xs font-bold" style={{ background: "rgba(255,215,64,0.12)", color: "#ffd740" }}>
-            {msg}
-          </div>
-        )}
-
+        {galleryOpen ? (
+          <StudioGalleryPanel
+            telegramId={telegramId}
+            active={active}
+            onFlash={flash}
+            onFlush={persistNow}
+            onClose={() => setGalleryOpen(false)}
+          />
+        ) : (
+        <>
         <div className="flex-1 min-h-0 relative overflow-hidden">
-          {galleryOpen ? (
-            <StudioGalleryPanel
-              telegramId={telegramId}
-              active={active}
-              onFlash={flash}
-              onFlush={persistNow}
-              onClose={() => setGalleryOpen(false)}
-            />
-          ) : ready && active ? (
-            <>
+          {ready && active ? (
             <div style={{ position: "absolute", inset: 0 }}>
               <VoxelStudioCanvas
                 voxels={active.voxels}
                 onAdd={handleAdd}
                 onRemove={handleRemove}
                 onPaint={handlePaint}
+                onSelect={setSelected}
                 paintColor={paintColor}
+                eraseMode={eraseMode}
+                selected={selected}
               />
             </div>
-            {paletteOpen && (
-              <div
-                className="absolute left-3 right-3 z-30 rounded-2xl p-3"
-                style={{
-                  bottom: 12,
-                  background: "rgba(8,10,18,0.92)",
-                  border: "1px solid rgba(255,255,255,0.16)",
-                  backdropFilter: "blur(12px)",
-                }}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-[10px] font-black uppercase" style={{ color: "rgba(255,255,255,0.55)", letterSpacing: "0.12em" }}>
-                    Palette
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPaintColor(null);
-                      setPaletteOpen(false);
-                    }}
-                    className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase"
-                    style={{ background: "rgba(255,255,255,0.08)", color: "#fff", border: "1px solid rgba(255,255,255,0.14)" }}
-                  >
-                    Build
-                  </button>
-                </div>
-                <div className="grid grid-cols-5 gap-2">
-                  {STUDIO_PALETTE.map((hex) => {
-                    const selected = paintColor === hex;
-                    return (
-                      <button
-                        key={hex}
-                        type="button"
-                        onClick={() => {
-                          setPaintColor(hex);
-                          setPaletteOpen(false);
-                        }}
-                        aria-label={`color ${hex.toString(16)}`}
-                        style={{
-                          height: 36,
-                          borderRadius: 10,
-                          background: `#${hex.toString(16).padStart(6, "0")}`,
-                          border: selected ? "2px solid #ffd740" : "1px solid rgba(255,255,255,0.28)",
-                          boxShadow: selected ? "0 0 10px rgba(255,215,64,0.45)" : "none",
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-            </>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color: "rgba(255,255,255,0.4)" }}>
-              {ready ? "Pick or create a slot below" : "Loading…"}
+              {ready ? t("studio.pickSlot") : "Loading…"}
+            </div>
+          )}
+
+          <div
+            className="absolute left-3 z-30"
+            style={{ top: "max(8px, env(safe-area-inset-top, 0px))" }}
+          >
+            <CircleBtn
+              ariaLabel={t("common.close")}
+              onClick={() => {
+                void (async () => {
+                  await persistNow();
+                  onClose();
+                })();
+              }}
+            >
+              ✕
+            </CircleBtn>
+          </div>
+          <div
+            className="absolute left-1/2 z-30"
+            style={{ top: "max(12px, calc(env(safe-area-inset-top, 0px) + 6px))", transform: "translateX(-50%)", maxWidth: "46%" }}
+          >
+            <div
+              className="truncate px-3 py-1.5 rounded-full text-[11px] font-black text-center"
+              style={{
+                background: "rgba(6,8,14,0.72)",
+                border: "1px solid rgba(255,255,255,0.16)",
+                color: "#E8ECF4",
+                backdropFilter: "blur(10px)",
+              }}
+            >
+              {active?.title || t("studio.create")}
+            </div>
+          </div>
+          <div
+            className="absolute right-3 z-30"
+            style={{ top: "max(8px, env(safe-area-inset-top, 0px))" }}
+          >
+            <CircleBtn
+              ariaLabel={t("studio.gallery.btn")}
+              gold
+              onClick={() => {
+                setToolsOpen(false);
+                setPaletteOpen(false);
+                setGalleryOpen(true);
+              }}
+            >
+              ★
+            </CircleBtn>
+          </div>
+
+          {msg && (
+            <div
+              className="absolute left-1/2 z-30 rounded-full px-4 py-2 text-center text-[11px] font-bold"
+              style={{
+                top: 58,
+                transform: "translateX(-50%)",
+                background: "rgba(255,215,64,0.16)",
+                color: "#ffd740",
+                border: "1px solid rgba(255,215,64,0.35)",
+              }}
+            >
+              {msg}
+            </div>
+          )}
+
+          {paletteOpen && (
+            <div
+              className="absolute z-30"
+              style={{
+                right: 16,
+                bottom: 168,
+                width: 168,
+                padding: 10,
+                borderRadius: 999,
+                background: "rgba(8,10,18,0.92)",
+                border: "1px solid rgba(255,255,255,0.16)",
+                backdropFilter: "blur(12px)",
+              }}
+            >
+              <div className="flex flex-wrap justify-center gap-1.5">
+                {STUDIO_PALETTE.map((hex) => {
+                  const on = paintColor === hex;
+                  return (
+                    <button
+                      key={hex}
+                      type="button"
+                      onClick={() => {
+                        setPaintColor(hex);
+                        setEraseMode(false);
+                      }}
+                      aria-label={`color ${hex.toString(16)}`}
+                      style={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: 999,
+                        background: `#${hex.toString(16).padStart(6, "0")}`,
+                        border: on ? "2px solid #ffd740" : "1px solid rgba(255,255,255,0.28)",
+                        boxShadow: on ? "0 0 10px rgba(255,215,64,0.45)" : "none",
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {active && (
+            <div
+              className="absolute z-30"
+              style={{
+                right: 14,
+                bottom: 108,
+                width: 56,
+                height: 56,
+              }}
+            >
+              {toolsOpen && fabTools.map((tool) => {
+                const rad = (tool.deg * Math.PI) / 180;
+                const r = 78;
+                const x = Math.cos(rad) * r;
+                const y = -Math.sin(rad) * r;
+                const lit = (tool.id === "erase" && eraseMode) || (tool.id === "colors" && paletteOpen);
+                return (
+                  <button
+                    key={tool.id}
+                    type="button"
+                    aria-label={tool.label}
+                    onClick={() => runTool(tool.id)}
+                    className="absolute flex items-center justify-center font-black"
+                    style={{
+                      width: 46,
+                      height: 46,
+                      borderRadius: 999,
+                      left: 5 + x,
+                      top: 5 + y,
+                      background: "rgba(8,10,18,0.94)",
+                      color: tool.color,
+                      border: lit ? `1.5px solid ${tool.color}` : "1px solid rgba(255,255,255,0.16)",
+                      fontSize: 16,
+                      boxShadow: "0 6px 16px rgba(0,0,0,0.45)",
+                    }}
+                  >
+                    {tool.glyph}
+                  </button>
+                );
+              })}
+              {eraseMode && selected && (
+                <button
+                  type="button"
+                  onClick={handleDeleteSelected}
+                  className="absolute flex items-center justify-center font-black"
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 999,
+                    right: 70,
+                    top: 2,
+                    background: "rgba(180,40,40,0.92)",
+                    color: "#fff",
+                    border: "1.5px solid #ff8a8a",
+                    fontSize: 10,
+                    boxShadow: "0 0 16px rgba(255,80,80,0.35)",
+                  }}
+                >
+                  {t("studio.delete")}
+                </button>
+              )}
+              <button
+                type="button"
+                aria-label={t("studio.tools")}
+                onClick={() => setToolsOpen((open) => !open)}
+                className="absolute flex items-center justify-center font-black"
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 999,
+                  left: 0,
+                  top: 0,
+                  background: eraseMode ? "rgba(180,40,40,0.9)" : "rgba(8,10,18,0.92)",
+                  color: eraseMode ? "#fff" : "#ffd740",
+                  border: eraseMode ? "1.5px solid #ff8a8a" : "1.5px solid rgba(255,215,64,0.55)",
+                  fontSize: toolsOpen ? 18 : 22,
+                  boxShadow: "0 8px 22px rgba(0,0,0,0.5)",
+                }}
+              >
+                {toolsOpen ? "✕" : "✦"}
+              </button>
             </div>
           )}
         </div>
 
-        {!galleryOpen && (
         <nav
           className="flex-shrink-0"
           style={{
-            paddingBottom: "max(14px, calc(env(safe-area-inset-bottom, 0px) + 10px))",
-            paddingTop: 8,
-            background: "linear-gradient(to top, rgba(0,0,0,0.94) 0%, rgba(0,0,0,0.62) 72%, transparent 100%)",
+            paddingBottom: "max(10px, calc(env(safe-area-inset-bottom, 0px) + 8px))",
+            paddingTop: 6,
+            background: "linear-gradient(to top, rgba(0,0,0,0.94) 0%, rgba(0,0,0,0.5) 80%, transparent 100%)",
           }}
         >
-          <div className="flex items-stretch justify-center gap-2 px-3 overflow-x-auto" style={{ WebkitOverflowScrolling: "touch", minHeight: 92 }}>
+          <div className="flex items-stretch justify-center gap-2 px-3 overflow-x-auto" style={{ WebkitOverflowScrolling: "touch", minHeight: 76 }}>
             {state.projects.map((p) => (
               <StudioSlotThumb
                 key={p.id}
                 project={p}
                 active={p.id === activeId}
-                onSelect={() => setActiveId(p.id)}
+                onSelect={() => {
+                  setActiveId(p.id);
+                  setSelected(null);
+                  setEraseMode(false);
+                }}
               />
             ))}
             {placeholders.map((i) => (
@@ -443,10 +534,11 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
                   setNameDraft("");
                   setNameOpen(true);
                 }}
-                className="flex-shrink-0 rounded-2xl flex flex-col items-center justify-center"
+                className="flex-shrink-0 flex items-center justify-center"
                 style={{
-                  width: 78,
-                  height: 78,
+                  width: 64,
+                  height: 64,
+                  borderRadius: 999,
                   background: "rgba(255,255,255,0.04)",
                   border: "1px dashed rgba(255,255,255,0.18)",
                   color: "rgba(255,255,255,0.45)",
@@ -462,21 +554,23 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
                 type="button"
                 onClick={() => void handleBuySlot()}
                 disabled={busy}
-                className="flex-shrink-0 rounded-2xl px-2 flex flex-col items-center justify-center"
+                className="flex-shrink-0 flex flex-col items-center justify-center"
                 style={{
-                  width: 78,
-                  height: 78,
+                  width: 64,
+                  height: 64,
+                  borderRadius: 999,
                   background: "rgba(255,215,64,0.08)",
                   border: "1px solid rgba(255,215,64,0.28)",
                   color: "#ffd740",
                 }}
               >
-                <span className="text-[10px] font-black">SLOT</span>
-                <span className="text-[11px] font-black">{VOXEL_STUDIO_SLOT_STARDUST} ★</span>
+                <span className="text-[8px] font-black">SLOT</span>
+                <span className="text-[10px] font-black">{VOXEL_STUDIO_SLOT_STARDUST} ★</span>
               </button>
             )}
           </div>
         </nav>
+        </>
         )}
       </div>
 
@@ -535,53 +629,6 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
   );
 }
 
-function VoxelStudioThumb2D({ voxels }: { voxels: VoxelCoord[] }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const w = 86;
-    const h = 48;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(h * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
-    if (voxels.length === 0) return;
-    let cx = 0;
-    let cy = 0;
-    let cz = 0;
-    for (const v of voxels) {
-      cx += v.x;
-      cy += v.y;
-      cz += v.z;
-    }
-    const n = voxels.length;
-    cx /= n;
-    cy /= n;
-    cz /= n;
-    const sorted = [...voxels].sort((a, b) => (a.x + a.z + a.y) - (b.x + b.z + b.y));
-    const ox = w / 2;
-    const oy = h * 0.62;
-    for (const v of sorted) {
-      const dx = v.x - cx;
-      const dy = v.y - cy;
-      const dz = v.z - cz;
-      const x = ox + (dx - dz) * 5.1;
-      const y = oy + (dx + dz) * 1.35 - dy * 5.4;
-      const hex = typeof v.color === "number" ? v.color : FORGE_CLAY;
-      ctx.fillStyle = `#${hex.toString(16).padStart(6, "0")}`;
-      ctx.fillRect(x - 3, y - 3, 6, 6);
-      ctx.strokeStyle = "rgba(0,0,0,0.38)";
-      ctx.lineWidth = 0.6;
-      ctx.strokeRect(x - 3, y - 3, 6, 6);
-    }
-  }, [voxels]);
-  return <canvas ref={ref} style={{ width: "100%", height: "100%", display: "block" }} />;
-}
-
 function StudioSlotThumb({
   project,
   active,
@@ -595,20 +642,17 @@ function StudioSlotThumb({
     <button
       type="button"
       onClick={onSelect}
-      className="flex-shrink-0 rounded-2xl overflow-hidden"
+      className="flex-shrink-0 overflow-hidden"
       style={{
-        width: 86,
-        height: 78,
-        border: active ? "1px solid rgba(255,255,255,0.55)" : "1px solid rgba(255,255,255,0.12)",
-        background: "rgba(0,0,0,0.45)",
+        width: 64,
+        height: 64,
+        borderRadius: 999,
+        border: active ? "2px solid #ffd740" : "1px solid rgba(255,255,255,0.16)",
+        background: "rgba(0,0,0,0.5)",
       }}
     >
-      <div style={{ height: 48, pointerEvents: "none" }}>
-        <VoxelStudioThumb2D voxels={project.voxels} />
-      </div>
-      <div className="px-1 pb-1 text-center">
-        <div className="text-[9px] font-black truncate" style={{ color: "#fff" }}>{project.title}</div>
-        <div className="text-[8px]" style={{ color: "rgba(255,255,255,0.4)" }}>{formatDate(project.createdAt)}</div>
+      <div style={{ width: "100%", height: "100%", pointerEvents: "none" }}>
+        <StudioVoxelThumb voxels={project.voxels} />
       </div>
     </button>
   );

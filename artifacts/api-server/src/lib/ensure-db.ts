@@ -166,8 +166,12 @@ async function seedDefaults(): Promise<void> {
         listing_id integer NOT NULL REFERENCES studio_gallery(id) ON DELETE CASCADE,
         voter_id text NOT NULL,
         created_at timestamptz NOT NULL DEFAULT NOW(),
-        PRIMARY KEY (listing_id, voter_id)
+        month_key text NOT NULL DEFAULT to_char(NOW(), 'YYYY-MM'),
+        PRIMARY KEY (listing_id, voter_id, month_key)
       )
+    `);
+    await db.execute(sql`
+      ALTER TABLE studio_gallery_votes ADD COLUMN IF NOT EXISTS month_key text
     `);
     logger.info("[ensure-db] studio gallery tables OK");
   } catch (err) {
