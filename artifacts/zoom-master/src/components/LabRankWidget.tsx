@@ -6,13 +6,14 @@ import { TelegramAvatar } from "./TelegramAvatar";
 
 const CYAN = "#00d4ff";
 const ACCENT = "#4dd4ff";
-const LAB_PRIZE_POOL = 60;
+const LAB_PRIZE_POOL = 100;
 const LAB_PRIZE_BREAKDOWN = [
   { label: "#1", ton: 12 },
   { label: "#2", ton: 8 },
   { label: "#3", ton: 6 },
   { label: "#4–10", ton: 2 },
-  { label: "#11–30", ton: 1 },
+  { label: "#11–30", ton: 2 },
+  { label: "#31–50", ton: 1 },
 ];
 
 interface Props {
@@ -42,7 +43,8 @@ function starPrizeForRank(rank: number): number {
   if (rank === 2) return 8;
   if (rank === 3) return 6;
   if (rank >= 4 && rank <= 10) return 2;
-  if (rank >= 11 && rank <= 30) return 1;
+  if (rank >= 11 && rank <= 30) return 2;
+  if (rank >= 31 && rank <= 50) return 1;
   return 0;
 }
 
@@ -498,7 +500,7 @@ function LabRankWidgetBase({ telegramId, sunCount, balance, shopMode = false, he
                           ? `1px solid ${r.rank === 1 ? "rgba(255,210,70,0.45)" : "rgba(255,255,255,0.12)"}`
                           : isMe ? `1px solid ${CYAN}55` : "1px solid rgba(255,255,255,0.05)",
                         color: "#fff",
-                        fontWeight: r.rank <= 30 ? 800 : 600,
+                        fontWeight: r.rank <= 50 ? 800 : 600,
                         position: "relative",
                       }}
                     >

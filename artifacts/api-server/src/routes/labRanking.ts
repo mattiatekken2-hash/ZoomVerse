@@ -16,9 +16,9 @@ const router: IRouter = Router();
 
 const ADMIN_ID = "8144744644";
 
-// Montepremi FISSO: 60 ★. Forge ZOOM = 3 ★, daily Earn = 1–7 ★, invite = 2 ★.
+// Montepremi FISSO: 100 ★. Forge ZOOM = 3 ★, daily Earn = 1–7 ★, invite = 2 ★.
 // #1 vince 12 ★ = 4 forge extra dopo 60 giorni — premio, non jackpot.
-export const LAB_POOL_STARDUST = 60;
+export const LAB_POOL_STARDUST = 100;
 /** @deprecated alias — values are stardust, kept so existing API field names stay stable. */
 export const LAB_POOL_TON = LAB_POOL_STARDUST;
 export const LAB_POOL_ZMC = LAB_POOL_STARDUST;
@@ -31,15 +31,16 @@ export const LAB_ROUND_DURATION_MS = 60 * 24 * 60 * 60 * 1000;
 const LAB_SETTLE_LOCK = 7913042200;
 
 /**
- * Premio ★ per rango. Somma Top 30 = 60:
- *   #1=12, #2=8, #3=6, #4..10=2 (×7=14), #11..30=1 (×20=20).
+ * Premio ★ per rango. Somma Top 50 = 100:
+ *   #1=12, #2=8, #3=6, #4..10=2 (×7=14), #11..30=2 (×20=40), #31..50=1 (×20=20).
  */
 function stardustPrizeForRank(rank: number): number {
   if (rank === 1) return 12;
   if (rank === 2) return 8;
   if (rank === 3) return 6;
   if (rank >= 4 && rank <= 10) return 2;
-  if (rank >= 11 && rank <= 30) return 1;
+  if (rank >= 11 && rank <= 30) return 2;
+  if (rank >= 31 && rank <= 50) return 1;
   return 0;
 }
 
@@ -53,7 +54,8 @@ function labPrizeBreakdown(): Array<{ label: string; ton: number }> {
     { label: "#2", ton: 8 },
     { label: "#3", ton: 6 },
     { label: "#4–10", ton: 2 },
-    { label: "#11–30", ton: 1 },
+    { label: "#11–30", ton: 2 },
+    { label: "#31–50", ton: 1 },
   ];
 }
 
@@ -135,7 +137,7 @@ type SettleOutcome =
  * Tutto in un'unica transazione protetta da advisory lock:
  *   1. Seleziona il round da chiudere (per id, oppure il round attivo —
  *      opzionalmente solo se `ends_at <= NOW()` per il path automatico).
- *   2. Classifica la Top 30 (lab_points > 0) e accredita il premio ★
+ *   2. Classifica la Top 50 (lab_points > 0) e accredita il premio ★
  *      sul saldo stardust in-app, bumpando balance_epoch.
  *   3. Registra vincitore/pool/premi sul round e lo marca 'closed'.
  *   4. Azzera lab_points di TUTTI gli utenti.
@@ -188,7 +190,7 @@ async function settleLabRoundCore(opts: {
 
     if (!round) return { kind: "no_round" };
 
-    // Top 30 del round (solo chi ha almeno 1 punto). Tie-break deterministico
+    // Top 50 del round (solo chi ha almeno 1 punto). Tie-break deterministico
     // su telegram_id per un ordinamento stabile dei premi.
     const ranking = await tx
       .select({
@@ -200,7 +202,7 @@ async function settleLabRoundCore(opts: {
       .from(usersTable)
       .where(sql`${usersTable.labRoundId} = ${round.id} AND ${usersTable.labPoints} > 0`)
       .orderBy(desc(usersTable.labPoints), usersTable.telegramId)
-      .limit(30);
+      .limit(50);
 
     const credited: Array<{ rank: number; telegramId: string; ton: number }> = [];
     let prizeTotal = 0;
@@ -313,8 +315,8 @@ export async function runScheduledLabSettlementTick(): Promise<void> {
 
 /**
  * GET /lab-rank/state?telegramId=
- * Stato pubblico del round attivo: pool fisso 60 ★, ripartizione premi
- * Top 30, conto alla rovescia (ends_at), Top 100 live, punti e rank utente.
+ * Stato pubblico del round attivo: pool fisso 100 ★, ripartizione premi
+ * Top 50, conto alla rovescia (ends_at), Top 100 live, punti e rank utente.
  */
 router.get("/lab-rank/state", async (req, res) => {
   try {
@@ -398,7 +400,7 @@ router.get("/lab-rank/state", async (req, res) => {
 
 /**
  * GET /admin/lab-rank/dashboard?adminId=
- * Pannello admin: round attivo, conto alla rovescia, current leader, Top 30
+ * Pannello admin: round attivo, conto alla rovescia, current leader, Top 50
  * con premio TON per posizione e storico round chiusi.
  */
 router.get("/admin/lab-rank/dashboard", async (req, res) => {
@@ -418,7 +420,7 @@ router.get("/admin/lab-rank/dashboard", async (req, res) => {
       .from(usersTable)
       .where(sql`${usersTable.labRoundId} = ${round.id} AND ${usersTable.labPoints} > 0`)
       .orderBy(desc(usersTable.labPoints), usersTable.telegramId)
-      .limit(30);
+      .limit(50);
 
     const history = await db
       .select()

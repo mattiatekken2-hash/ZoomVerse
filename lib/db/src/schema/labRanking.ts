@@ -10,8 +10,8 @@ import { sql } from "drizzle-orm";
  * /craft/record), iscrivendosi automaticamente al round attivo al primo
  * craft.
  *
- * Montepremi fisso di 60 ★ (Stardust) distribuito alla Top 30 alla chiusura
- * (1°=12, 2°=8, 3°=6, 4°-10°=2, 11°-30°=1 — somma 60). I premi
+ * Montepremi fisso di 100 ★ (Stardust) distribuito alla Top 50 alla chiusura
+ * (1°=12, 2°=8, 3°=6, 4°-10°=2, 11°-30°=2, 31°-50°=1 — somma 100). I premi
  * vengono accreditati automaticamente sul saldo Stardust in-app. Alla
  * scadenza dei 60 giorni un cron chiude il round, paga, azzera i punti
  * di tutti e apre un nuovo round con un nuovo `ends_at`.

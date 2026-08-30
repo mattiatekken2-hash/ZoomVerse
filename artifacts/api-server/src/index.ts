@@ -161,7 +161,7 @@ function startLotteryDrawCron() {
 /**
  * Cron della Classifica Craft (Lab). Ogni 60 secondi controlla se il round
  * attivo ha `ends_at <= NOW()`; in tal caso esegue il settlement automatico
- * (accredito premi TON alla Top 30 sul saldo ritirabile, reset punti, apertura
+ * (accredito premi ★ alla Top 50 sul saldo Stardust, reset punti, apertura
  * nuovo round +60 giorni). Single-flight per evitare overlap se il DB è lento.
  */
 function startLabSettlementCron() {

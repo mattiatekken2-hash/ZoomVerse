@@ -2342,7 +2342,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
     }
   };
 
-  const pool = dash?.poolTon ?? 60;
+  const pool = dash?.poolTon ?? 100;
   const prizes = dash?.prizes ?? [];
   const participants = dash?.round.participants ?? 0;
   const endsAt = dash?.round.endsAt ? new Date(dash.round.endsAt) : null;
@@ -2383,7 +2383,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
         <div style={{ textAlign: "center", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
           <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Montepremi</div>
           <div style={{ fontSize: 16, fontWeight: 900, color: "#ffd700", marginTop: 2 }}>{pool.toLocaleString()} ★</div>
-          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>fisso · Top 30</div>
+          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.4)" }}>fisso · Top 50</div>
         </div>
         <div style={{ textAlign: "center" }}>
           <div style={{ fontSize: 9, color: "rgba(255,255,255,0.5)", letterSpacing: "0.08em", textTransform: "uppercase" }}>Giocatori</div>
@@ -2425,7 +2425,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
 
       {dash && dash.top30.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 200, overflowY: "auto", padding: 8, borderRadius: 8, background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
-          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", marginBottom: 2 }}>TOP 30 — ANTEPRIMA PAYOUT</div>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em", marginBottom: 2 }}>TOP 50 — ANTEPRIMA PAYOUT</div>
           {dash.top30.map((r) => (
             <div key={r.telegramId} style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#fff", padding: "3px 4px" }}>
               <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }}>
