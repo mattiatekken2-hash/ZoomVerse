@@ -2,7 +2,7 @@ import http from "node:http";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { sendBotMessageStatus, sendAlienChannelMessage } from "./lib/notify";
-import { fetchPendingFarmNotifications, markFarmNotified } from "./routes/farm";
+import { fetchPendingFarmNotifications, lastFarmNotifiedAtByUser, stampFarmNotified } from "./routes/farm";
 import { runScheduledLotteryDrawTick } from "./routes/lottery";
 import { runScheduledLabSettlementTick } from "./routes/labRanking";
 import { purgeExpiredHistory } from "./lib/history";
@@ -12,6 +12,8 @@ import { readGlobal, readNotifiedExpiresAtMs, writeNotifiedExpiresAtMs, advanceG
 import { ensureDatabaseReady } from "./lib/ensure-db";
 
 const FARM_FULL_MESSAGE = "⚡ Your Farm is full! Collect your Models.";
+/** Max one farm-full Telegram DM per player per 12h (staggered Lab models). */
+const FARM_NOTIFY_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 
 const rawPort = process.env["PORT"];
 
@@ -208,7 +210,19 @@ function startFarmNotificationCron() {
         list.push(row);
         byUser.set(row.telegramId, list);
       }
+      const lastByUser = await lastFarmNotifiedAtByUser([...byUser.keys()]);
+      const now = Date.now();
       for (const [telegramId, userRows] of byUser) {
+        const ids = userRows.map((row) => row.id);
+        const last = lastByUser.get(telegramId);
+        if (last && now - last.getTime() < FARM_NOTIFY_COOLDOWN_MS) {
+          // Already reminded this player recently — absorb newly-ripe models
+          // into that ping instead of dripping another DM every hour.
+          await stampFarmNotified(ids).catch((e) =>
+            logger.warn({ err: e, telegramId }, "[farm-cron] cooldown stamp failed"),
+          );
+          continue;
+        }
         const count = userRows.length;
         const message =
           count === 1
@@ -222,12 +236,8 @@ function startFarmNotificationCron() {
           logger.warn({ telegramId, count }, "[farm-cron] send failed — will retry");
           continue;
         }
-        await Promise.all(
-          userRows.map((row) =>
-            markFarmNotified(row.id, row.expiresAt).catch((e) =>
-              logger.warn({ err: e, id: row.id }, "[farm-cron] markNotified failed"),
-            ),
-          ),
+        await stampFarmNotified(ids).catch((e) =>
+          logger.warn({ err: e, telegramId }, "[farm-cron] stampNotified failed"),
         );
         if (result === "ok") logger.info({ telegramId, count }, "[farm-cron] sent consolidated farm-full notification");
       }

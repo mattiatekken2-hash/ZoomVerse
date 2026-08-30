@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, farmCyclesTable, usersTable } from "@workspace/db";
-import { and, eq, isNull, lte, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { bumpZoomPriceFireAndForget } from "../lib/zoomPrice";
 import { LAB_GLB_FARM_HOURS } from "@workspace/game-models";
@@ -420,12 +420,54 @@ export async function fetchPendingFarmNotifications(limit = 100) {
     .limit(limit);
 }
 
-export async function markFarmNotified(id: number, expectedExpiresAt: Date) {
+/**
+ * Last time we already DMed this user about a ripe farm cycle.
+ * Used as a per-user cooldown so staggered models don't drip-feed Telegram.
+ */
+export async function lastFarmNotifiedAtByUser(
+  telegramIds: string[],
+): Promise<Map<string, Date>> {
+  const map = new Map<string, Date>();
+  if (telegramIds.length === 0) return map;
+  const rows = await db
+    .select({
+      telegramId: farmCyclesTable.telegramId,
+      last: sql<Date | null>`MAX(${farmCyclesTable.notifiedAt})`.as("last"),
+    })
+    .from(farmCyclesTable)
+    .where(inArray(farmCyclesTable.telegramId, telegramIds))
+    .groupBy(farmCyclesTable.telegramId);
+  for (const r of rows) {
+    if (r.last) map.set(r.telegramId, new Date(r.last));
+  }
+  return map;
+}
+
+/**
+ * Stamp ripe cycles as notified. Match on id + still-pending, NOT on exact
+ * expires_at equality — JS Date vs PG timestamp rounding used to miss the
+ * UPDATE, so the cron re-sent the same DM every 60s.
+ *
+ * `expires_at <= NOW()` keeps a restart race safe: if the player started a
+ * new cycle between send and stamp, the new expires_at is in the future and
+ * we leave notified_at null so that cycle can remind later.
+ */
+export async function stampFarmNotified(ids: number[]): Promise<void> {
+  if (ids.length === 0) return;
   await db
     .update(farmCyclesTable)
     .set({ notifiedAt: new Date() })
-    .where(sql`${farmCyclesTable.id} = ${id}
-        AND ${farmCyclesTable.notifiedAt} IS NULL
-        AND ${farmCyclesTable.collectedAt} IS NULL
-        AND ${farmCyclesTable.expiresAt} = ${expectedExpiresAt}`);
+    .where(
+      and(
+        inArray(farmCyclesTable.id, ids),
+        isNull(farmCyclesTable.notifiedAt),
+        isNull(farmCyclesTable.collectedAt),
+        lte(farmCyclesTable.expiresAt, new Date()),
+      ),
+    );
+}
+
+/** @deprecated use stampFarmNotified */
+export async function markFarmNotified(id: number, _expectedExpiresAt?: Date) {
+  await stampFarmNotified([id]);
 }
