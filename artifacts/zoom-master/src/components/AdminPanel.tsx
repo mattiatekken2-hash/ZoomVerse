@@ -26,6 +26,7 @@ import {
   adminGrantV1,
   adminGrantV1Nft,
   adminGrantAutoTap,
+  adminGrantStudioBadge,
   adminGrantEquipment,
   adminTestWithdrawalChannel,
   adminFetchWithdrawals,
@@ -120,7 +121,7 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "black" | "revoke-white" | "revoke-earth" | "revoke-black" | "autotap" | "test-wd-chan" | "v1" | "v1nft" | "rec-stars" | "wh-info" | "grant-equipment" | "supernova" | "revoke-supernova" | "stella-rossa" | "revoke-stella-rossa" | "clear-planet-market" | "clear-equipment-market" | "force-merchant" | "labpoints" | "broadcast" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "black" | "revoke-white" | "revoke-earth" | "revoke-black" | "autotap" | "studiobadge" | "test-wd-chan" | "v1" | "v1nft" | "rec-stars" | "wh-info" | "grant-equipment" | "supernova" | "revoke-supernova" | "stella-rossa" | "revoke-stella-rossa" | "clear-planet-market" | "clear-equipment-market" | "force-merchant" | "labpoints" | "broadcast" | null>(null);
   const [eqCategory, setEqCategory] = useState<EqCategory>("HELMET");
   const [eqRarity, setEqRarity] = useState<EqRarity>("BASIC");
   const [confirmBulkNebo, setConfirmBulkNebo] = useState(false);
@@ -1121,6 +1122,36 @@ export function AdminPanel({ telegramId }: Props) {
                   }}
                 >
                   {loading === "autotap" ? "..." : "⚡ GRANT AUTO-TAP"}
+                </motion.button>
+
+                <motion.button
+                  whileTap={{ scale: 0.93 }}
+                  onClick={async () => {
+                    haptic();
+                    const id = targetId.trim() || ADMIN_ID;
+                    setLoading("studiobadge");
+                    const ok = await adminGrantStudioBadge(telegramId, id);
+                    setLoading(null);
+                    if (ok) window.dispatchEvent(new Event("zoom-admin-refresh"));
+                    showFeedback(ok ? `✓ Badge STUDIO 30g a ID ${id}` : `✗ Errore per ID ${id}`, ok);
+                  }}
+                  disabled={loading !== null}
+                  style={{
+                    padding: "11px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(255,215,64,0.4)",
+                    background: "rgba(255,215,64,0.1)",
+                    color: "#ffd740",
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    cursor: "pointer",
+                    opacity: loading !== null ? 0.5 : 1,
+                    transition: "opacity 0.15s",
+                    boxShadow: "0 0 14px rgba(255,215,64,0.15)",
+                  }}
+                >
+                  {loading === "studiobadge" ? "..." : "✦ GRANT STUDIO BADGE (30g)"}
                 </motion.button>
 
                 {/* ── EQUIPMENT GRANT ── */}

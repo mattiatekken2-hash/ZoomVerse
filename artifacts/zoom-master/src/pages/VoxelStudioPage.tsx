@@ -400,7 +400,7 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
             <div
               className="absolute left-1/2 z-30 rounded-full px-4 py-2 text-center text-[11px] font-bold"
               style={{
-                top: 58,
+                top: "max(96px, calc(env(safe-area-inset-top, 0px) + 88px))",
                 transform: "translateX(-50%)",
                 background: "rgba(255,215,64,0.16)",
                 color: "#ffd740",

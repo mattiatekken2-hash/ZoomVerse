@@ -392,6 +392,32 @@ router.post("/admin/grant-auto-tap", async (req, res) => {
   }
 });
 
+const STUDIO_BADGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+router.post("/admin/grant-studio-badge", async (req, res) => {
+  const parsed = GrantAutoTapBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+
+  const telegramId = await resolveTargetTelegramId(parsed.data.telegramId);
+  if (!telegramId) return res.status(404).json({ error: "User not found" });
+
+  const until = Date.now() + STUDIO_BADGE_MS;
+  try {
+    await db
+      .insert(usersTable)
+      .values({ telegramId, zoomBalance: 0, referralCount: 0, studioBadgeUntilMs: until })
+      .onConflictDoUpdate({
+        target: usersTable.telegramId,
+        set: { studioBadgeUntilMs: until },
+      });
+    res.json({ ok: true, studioBadgeUntilMs: until });
+  } catch (err) {
+    console.error("[admin/grant-studio-badge] error:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 router.post("/admin/unlock-white-collection", async (req, res) => {
   const parsed = UnlockWhiteCollectionBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Invalid body" });

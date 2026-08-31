@@ -282,6 +282,8 @@ export const usersTable = pgTable("users", {
   // off-chain ZOOM Points (`zoom_balance`).
   tonWalletAddress: text("ton_wallet_address"),
   vipLevel: text("vip_level").notNull().default("NONE"),
+  /** Studio gallery TOP 3 badge on Live Season Rank. 0 = none; ms timestamp = visible until. */
+  studioBadgeUntilMs: bigint("studio_badge_until_ms", { mode: "number" }).notNull().default(0),
   zmcBalanceNano: text("zmc_balance_nano").notNull().default("0"),
   /** Epoch ms until VIP PRO PASS (unlimited farm repairs) expires. 0 = none. */
   vipProPassUntilMs: bigint("vip_pro_pass_until_ms", { mode: "number" }).notNull().default(0),

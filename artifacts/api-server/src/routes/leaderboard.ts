@@ -166,6 +166,7 @@ router.get("/leaderboard", async (_req, res) => {
         photoUrl: usersTable.photoUrl,
         zoomBalance: usersTable.zoomBalance,
         vipLevel: usersTable.vipLevel,
+        studioBadgeUntilMs: usersTable.studioBadgeUntilMs,
       })
       .from(usersTable)
       .where(sql`${usersTable.zoomBalance} > 0 AND ${usersTable.isDisabled} = false`)
@@ -183,6 +184,7 @@ router.get("/leaderboard", async (_req, res) => {
         photoUrl: row.photoUrl || null,
         zoomBalance: row.zoomBalance,
         vipLevel: row.vipLevel === "PRO" || row.vipLevel === "BASE" ? row.vipLevel : "NONE",
+        studioBadge: Number(row.studioBadgeUntilMs ?? 0) > Date.now(),
       };
     });
 

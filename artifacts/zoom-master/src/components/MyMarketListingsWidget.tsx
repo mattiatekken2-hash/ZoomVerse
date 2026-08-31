@@ -1,16 +1,21 @@
 /**
- * Private seller inventory — listed models stay on Market until sold or removed.
+ * Seller inventory on Market. Public All hides after 1h; cards stay here
+ * with a timer. Relist fee is $ZOOM S3 on My List only — not Farm.
  */
 import { useCallback, useEffect, useState } from "react";
 import {
   fetchMyMarketListings,
+  reactivateMarketListing,
+  MARKET_LISTING_TTL_MS,
+  MARKET_RELIST_FEE_ZOOM,
   type ServerMarketListing,
 } from "../utils/api";
 import { isPlanetBurned, isPlanetDelisted } from "../utils/removedPlanets";
-import { useGlobalStore } from "../store/globalStore";
+import { useGlobalStore, upsertMarketListing } from "../store/globalStore";
 import { FarmInventoryCard } from "./FarmInventoryCard";
 import type { Planet } from "../hooks/useGameState";
 import { farmSlotUsedCount } from "../hooks/useGameState";
+import { useT } from "../i18n/LanguageContext";
 import {
   labMarketPathForPlanet,
   labModelDisplayName,
@@ -91,9 +96,12 @@ function planetFromListing(listing: ServerMarketListing, local: Planet | undefin
 }
 
 export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visible = true, maxSlots = 2 }: Props) {
+  const { t } = useT();
   const [rows, setRows] = useState<ServerMarketListing[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [now, setNow] = useState(Date.now());
+  const [busyId, setBusyId] = useState<number | null>(null);
   const storeListings = useGlobalStore((s) => s.marketListings);
 
   const slotsFull = farmSlotUsedCount(myPlanets) >= maxSlots;
@@ -115,8 +123,10 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
     const onRefresh = () => { void reload(); };
     window.addEventListener("zoom-data-refresh", onRefresh);
     const id = window.setInterval(() => { void reload(); }, 12_000);
+    const tick = window.setInterval(() => setNow(Date.now()), 1000);
     return () => {
       window.clearInterval(id);
+      window.clearInterval(tick);
       window.removeEventListener("zoom-data-refresh", onRefresh);
     };
   }, [visible, reload]);
@@ -162,12 +172,49 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
     setRows((prev) => prev.filter((r) => r.id !== listing.id && r.planetId !== planetId));
   };
 
+  const handleRelist = async (listing: ServerMarketListing) => {
+    if (!telegramId || busyId != null) return;
+    setBusyId(listing.id);
+    const res = await reactivateMarketListing(telegramId, listing.id);
+    setBusyId(null);
+    if (!res.ok) {
+      setMsg(res.error || t("market.relistFail"));
+      window.setTimeout(() => setMsg(null), 2800);
+      return;
+    }
+    const nextExpires = res.expiresAt ?? (Date.now() + MARKET_LISTING_TTL_MS);
+    const patched: ServerMarketListing = {
+      ...listing,
+      expired: false,
+      expiresAt: nextExpires,
+      remainingMs: res.remainingMs ?? MARKET_LISTING_TTL_MS,
+    };
+    setRows((prev) => prev.map((r) => (r.id === listing.id ? patched : r)));
+    upsertMarketListing(patched);
+    if (typeof res.zoomBalance === "number") {
+      try {
+        window.dispatchEvent(new CustomEvent("zoom-server-balance-snap", {
+          detail: { balance: res.zoomBalance, epoch: res.balanceEpoch ?? 0 },
+        }));
+      } catch { /**/ }
+    }
+    try { window.dispatchEvent(new Event("zoom-data-refresh")); } catch { /**/ }
+  };
+
+  const shelfOf = (listing: ServerMarketListing, listedAt?: number) => {
+    const exp = listing.expiresAt && listing.expiresAt > 0
+      ? listing.expiresAt
+      : (listedAt && listedAt > 0 ? listedAt + MARKET_LISTING_TTL_MS : 0);
+    const remaining = exp > 0 ? Math.max(0, exp - now) : Math.max(0, listing.remainingMs ?? 0);
+    return { remaining, expired: listing.expired === true || (exp > 0 && now >= exp) };
+  };
+
   return (
     <section className="pb-4" data-testid="my-market-listings-widget">
       <div className="mb-3">
         <h3 className="font-black text-base" style={{ color: "#E8ECF4" }}>My List</h3>
         <p className="text-[11px] mt-1" style={{ color: "rgba(255,255,255,0.42)" }}>
-          Your listed models stay on All / $ZOOM / ★ Stardust until someone buys or you remove them.
+          Listed models sit on All for 1 hour. After that they stay here — tap to relist for {MARKET_RELIST_FEE_ZOOM} $ZOOM S3.
         </p>
       </div>
 
@@ -184,7 +231,10 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
       ) : null}
 
       <div className="lab-market__grid">
-        {extraLocal.map((planet) => (
+        {extraLocal.map((planet) => {
+          const listedAt = planet.marketListedAt ?? 0;
+          const remaining = listedAt > 0 ? Math.max(0, listedAt + MARKET_LISTING_TTL_MS - now) : MARKET_LISTING_TTL_MS;
+          return (
             <FarmInventoryCard
               key={`local-${planet.id}`}
               planet={planet}
@@ -194,13 +244,18 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
               onUnlist={slotsFull ? undefined : () => onUnlist(planet.id)}
               listedActionDisabled={slotsFull}
               listedActionLabel={slotsFull ? "Slots full" : "Remove"}
+              shelfRemainingMs={remaining}
+              shelfExpired={remaining <= 0}
             />
-        ))}
+          );
+        })}
         {displayRows.map((listing) => {
           const planet =
             myPlanets.find((p) => p.serverListingId === listing.id)
             ?? myPlanets.find((p) => p.id === listing.planetId);
           const cardPlanet = planetFromListing(listing, planet);
+          const shelf = shelfOf(listing, planet?.marketListedAt);
+          const canRelist = shelf.expired;
 
           return (
             <FarmInventoryCard
@@ -212,6 +267,12 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
               onUnlist={slotsFull ? undefined : () => handleDelist(listing)}
               listedActionDisabled={slotsFull}
               listedActionLabel={slotsFull ? "Slots full" : "Remove"}
+              shelfRemainingMs={shelf.remaining}
+              shelfExpired={shelf.expired}
+              onRelist={canRelist ? () => void handleRelist(listing) : undefined}
+              relistBusy={busyId === listing.id}
+              relistFeeLabel={t("market.relistFee", { n: MARKET_RELIST_FEE_ZOOM })}
+              onCardClick={canRelist ? () => void handleRelist(listing) : undefined}
             />
           );
         })}

@@ -128,6 +128,8 @@ const TON_MIN = 0.25;
 const TON_MAX = 10.0;
 /** Public shop shelf — listing auto-hides after this unless seller reactivates. */
 export const MARKET_LISTING_TTL_MS = 60 * 60 * 1000;
+/** Relist from My List only — $ZOOM S3. Never charged on Farm cards. */
+export const MARKET_RELIST_FEE_ZOOM = 50;
 
 function listingTimeMs(listing: {
   lastActivatedAt?: Date | string | null;
@@ -764,7 +766,8 @@ router.get("/market/listings", async (_req, res) => {
       .orderBy(desc(marketListingsTable.createdAt))
       .limit(200);
 
-    const listings = rows.map((r) => {
+    const now = Date.now();
+    const listings = rows.filter((r) => isListingOnShelf(r, now)).map((r) => {
       const planetDisplayName = labModelDisplayName({
         shapeId: r.shapeId,
         displayName: r.planetDisplayName,
@@ -815,7 +818,7 @@ router.get("/market/my-listings/:telegramId", async (req, res) => {
           ...r,
           planetDisplayName,
           expiresAt,
-          expired: false,
+          expired: expiresAt > 0 && now >= expiresAt,
           remainingMs: expiresAt > 0 ? Math.max(0, expiresAt - now) : 0,
           marketPath: labMarketPathForPlanet({
             shapeId: r.shapeId,
@@ -858,23 +861,31 @@ router.post("/market/reactivate", async (req, res) => {
       res.status(404).json({ error: "Listing not found" });
       return;
     }
-    const feeZoom = Math.max(1, Math.ceil(Number(row.planetRate ?? 1)));
+    const feeZoom = MARKET_RELIST_FEE_ZOOM;
     const [seller] = await db
       .select({ zoom: usersTable.zoomBalance })
       .from(usersTable)
       .where(eq(usersTable.telegramId, sellerTelegramId))
       .limit(1);
     if ((Number(seller?.zoom ?? 0)) < feeZoom) {
-      res.status(409).json({ error: `Need ${feeZoom} $ZOOM to reactivate` });
+      res.status(409).json({ error: `Need ${feeZoom} $ZOOM S3 to relist` });
       return;
     }
-    await db
+    const [paid] = await db
       .update(usersTable)
       .set({
         zoomBalance: sql`${usersTable.zoomBalance} - ${feeZoom}`,
         balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
-      .where(eq(usersTable.telegramId, sellerTelegramId));
+      .where(and(
+        eq(usersTable.telegramId, sellerTelegramId),
+        sql`${usersTable.zoomBalance} >= ${feeZoom}`,
+      ))
+      .returning({ zoomBalance: usersTable.zoomBalance, balanceEpoch: usersTable.balanceEpoch });
+    if (!paid) {
+      res.status(409).json({ error: `Need ${feeZoom} $ZOOM S3 to relist` });
+      return;
+    }
     const now = new Date();
     const [updated] = await db
       .update(marketListingsTable)
@@ -895,6 +906,8 @@ router.post("/market/reactivate", async (req, res) => {
       expiresAt,
       remainingMs: Math.max(0, expiresAt - Date.now()),
       feeZoom,
+      zoomBalance: paid.zoomBalance,
+      balanceEpoch: paid.balanceEpoch,
     });
   } catch (err) {
     console.error("[market/reactivate] error:", err);

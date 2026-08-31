@@ -34,6 +34,12 @@ interface FarmInventoryCardProps {
   listedActionLabel?: string;
   /** Disable Remove when Farm slots are full. */
   listedActionDisabled?: boolean;
+  /** My List only: 1h shop-shelf countdown. Never set on Farm cards. */
+  shelfRemainingMs?: number;
+  shelfExpired?: boolean;
+  onRelist?: () => void;
+  relistBusy?: boolean;
+  relistFeeLabel?: string;
   vipLevel?: "NONE" | "BASE" | "PRO";
 }
 
@@ -54,6 +60,15 @@ function formatYieldAmount(n: number): string {
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
+function formatShelfClock(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
 export function FarmInventoryCard({
   planet,
   variant = "grid",
@@ -68,6 +83,11 @@ export function FarmInventoryCard({
   hideActions = false,
   listedActionLabel,
   listedActionDisabled = false,
+  shelfRemainingMs,
+  shelfExpired = false,
+  onRelist,
+  relistBusy = false,
+  relistFeeLabel,
   vipLevel = "NONE",
 }: FarmInventoryCardProps) {
   const { t } = useT();
@@ -169,21 +189,51 @@ export function FarmInventoryCard({
                 {formatDuration(remaining)}
               </div>
             ) : isListed ? (
-              <button
-                type="button"
-                disabled={listedActionDisabled || !onUnlist}
-                className="lab-market-card__delist"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (listedActionDisabled) return;
-                  onUnlist?.();
-                }}
-                data-testid={`btn-unlist-${planet.id}`}
-              >
-                {listedActionDisabled
-                  ? (listedActionLabel ?? "Slots full").toUpperCase()
-                  : (listedActionLabel ?? t("farm.delist")).toUpperCase()}
-              </button>
+              <div className="flex flex-col gap-1.5 w-full">
+                {shelfRemainingMs != null && !shelfExpired && (
+                  <div
+                    className="lab-market-card__status"
+                    style={{ fontVariantNumeric: "tabular-nums" }}
+                  >
+                    {t("market.shelfLive", { t: formatShelfClock(shelfRemainingMs) })}
+                  </div>
+                )}
+                {shelfExpired && onRelist && (
+                  <button
+                    type="button"
+                    disabled={relistBusy}
+                    className="lab-market-card__buy"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (relistBusy) return;
+                      onRelist();
+                    }}
+                  >
+                    <span>{t("market.relist").toUpperCase()}</span>
+                    {relistFeeLabel ? (
+                      <span className="farm-inventory-card__reactivate-cost">{relistFeeLabel}</span>
+                    ) : null}
+                  </button>
+                )}
+                {shelfExpired && !onRelist && (
+                  <div className="lab-market-card__status">{t("market.shelfExpired")}</div>
+                )}
+                <button
+                  type="button"
+                  disabled={listedActionDisabled || !onUnlist}
+                  className="lab-market-card__delist"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (listedActionDisabled) return;
+                    onUnlist?.();
+                  }}
+                  data-testid={`btn-unlist-${planet.id}`}
+                >
+                  {listedActionDisabled
+                    ? (listedActionLabel ?? "Slots full").toUpperCase()
+                    : (listedActionLabel ?? t("farm.delist")).toUpperCase()}
+                </button>
+              </div>
             ) : expired ? (
               <button
                 type="button"

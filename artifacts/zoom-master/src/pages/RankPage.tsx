@@ -286,6 +286,15 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                           VIP
                         </span>
                       )}
+                      {entry.studioBadge && (
+                        <span
+                          className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-black tracking-wider align-middle"
+                          style={{ background: "rgba(255,215,64,0.16)", color: "#ffe082", border: "1px solid rgba(255,215,64,0.45)" }}
+                          title="Studio TOP 3"
+                        >
+                          STUDIO
+                        </span>
+                      )}
                       {isUser && !isPlaceholderRankName(entry.firstName) && (
                         <span className="text-xs opacity-40 ml-1">{t("rank.you")}</span>
                       )}

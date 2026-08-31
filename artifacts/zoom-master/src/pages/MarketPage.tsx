@@ -3,7 +3,7 @@ import { useTonAddress, useTonConnectUI } from "@tonconnect/ui-react";
 import { MarketPlanetCard, type MarketPlanetListingView } from "../components/MarketPlanetCard";
 import { MyMarketListingsWidget } from "../components/MyMarketListingsWidget";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
-import { buyFromMarket, openMarketActivityStream, fetchMyMarketListings, fetchZmcBuyIntent, confirmZmcMarketBuy, type ServerMarketListing } from "../utils/api";
+import { buyFromMarket, openMarketActivityStream, fetchMyMarketListings, fetchZmcBuyIntent, confirmZmcMarketBuy, isMarketListingOnShelf, MARKET_LISTING_TTL_MS, type ServerMarketListing } from "../utils/api";
 import { useGlobalStore, pushMarketSale, refreshMarketListings, upsertMarketListing } from "../store/globalStore";
 import { isPlanetBurned, isPlanetDelisted } from "../utils/removedPlanets";
 import { getPlanetDisplayName } from "../utils/planetNames";
@@ -205,7 +205,9 @@ export function MarketPage({
       if (cancelled) return;
       const visibleMine = mine.filter((row) => !row.planetId || !isPlanetDelisted(telegramId, row.planetId));
       setMyServerListings(visibleMine);
-      for (const row of visibleMine) upsertMarketListing(row);
+      for (const row of visibleMine) {
+        if (isMarketListingOnShelf(row)) upsertMarketListing(row);
+      }
     };
     void loadMine();
     const timer = window.setInterval(() => { void loadMine(); }, 8000);
@@ -314,8 +316,16 @@ export function MarketPage({
       });
     };
 
-    for (const p of listedPlanets) pushPlanet(p);
-    for (const row of myServerListings) pushFromServer(row, true);
+    for (const p of listedPlanets) {
+      const mine = myServerListings.find((r) => r.planetId === p.id || r.id === p.serverListingId);
+      if (mine && !isMarketListingOnShelf(mine)) continue;
+      if (!mine && (p.marketListedAt ?? 0) > 0 && Date.now() >= (p.marketListedAt ?? 0) + MARKET_LISTING_TTL_MS) continue;
+      pushPlanet(p);
+    }
+    for (const row of myServerListings) {
+      if (!isMarketListingOnShelf(row)) continue;
+      pushFromServer(row, true);
+    }
     for (const row of serverListings) pushFromServer(row, false);
 
     return views;

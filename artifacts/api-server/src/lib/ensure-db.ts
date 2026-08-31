@@ -94,9 +94,13 @@ async function seedDefaults(): Promise<void> {
     await db.execute(sql`
       CREATE INDEX IF NOT EXISTS idx_treasury_user ON treasury_ledger (user_id)
     `);
-    logger.info("[ensure-db] treasury ledger / VIP / seller wallet columns OK");
+    await db.execute(sql`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS studio_badge_until_ms bigint NOT NULL DEFAULT 0
+    `);
+    logger.info("[ensure-db] studio badge column OK");
   } catch (err) {
-    logger.warn({ err }, "[ensure-db] treasury/VIP schema skipped");
+    logger.warn({ err }, "[ensure-db] studio badge column skipped");
   }
 
   try {

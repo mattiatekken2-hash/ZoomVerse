@@ -6,6 +6,10 @@ const CUBE_FILL = 0.98;
 const VOXEL = FORGE_VOXEL_SIZE;
 const EDGE = 0x454545;
 const MAX_VOXELS = 900;
+/** ~40s per turn — same “slow card” feel as Farm slots. */
+const SPIN_PER_MS = 0.000156;
+const Y_AXIS = new THREE.Vector3(0, 1, 0);
+const BASE_CAM = new THREE.Vector3(1.35, 0.95, 1.7).normalize();
 
 const UNIT_BOX_EDGES = (() => {
   const h = 0.5;
@@ -32,10 +36,22 @@ type Shared = {
   tint: THREE.Color;
   cube: number;
   edgeVertCount: number;
+  camDir: THREE.Vector3;
+};
+
+type ThumbJob = {
+  canvas: HTMLCanvasElement;
+  voxels: VoxelCoord[];
+  cssW: number;
+  cssH: number;
+  visible: boolean;
 };
 
 let shared: Shared | null = null;
-let chain: Promise<void> = Promise.resolve();
+const jobs = new Map<HTMLCanvasElement, ThumbJob>();
+let raf = 0;
+let loopOn = false;
+let paintCursor = 0;
 
 function worldCenter(list: VoxelCoord[]): THREE.Vector3 {
   if (list.length === 0) return new THREE.Vector3(0, 0, 0);
@@ -98,6 +114,7 @@ function ensure(): Shared | null {
       tint: new THREE.Color(),
       cube,
       edgeVertCount,
+      camDir: new THREE.Vector3(),
     };
     return shared;
   } catch {
@@ -105,15 +122,14 @@ function ensure(): Shared | null {
   }
 }
 
-function paintNow(canvas: HTMLCanvasElement, voxels: VoxelCoord[], cssW: number, cssH: number) {
+function paintNow(canvas: HTMLCanvasElement, voxels: VoxelCoord[], cssW: number, cssH: number, yaw: number) {
   const s = ensure();
   const ctx = canvas.getContext("2d");
   if (!s || !ctx) return;
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const w = Math.max(1, Math.round(Math.max(1, cssW) * dpr));
-  const h = Math.max(1, Math.round(Math.max(1, cssH) * dpr));
-  canvas.width = w;
-  canvas.height = h;
+  const w = Math.max(1, Math.round(Math.max(1, cssW)));
+  const h = Math.max(1, Math.round(Math.max(1, cssH)));
+  if (canvas.width !== w) canvas.width = w;
+  if (canvas.height !== h) canvas.height = h;
   s.renderer.setPixelRatio(1);
   s.renderer.setSize(w, h, false);
   s.camera.aspect = w / h;
@@ -152,24 +168,101 @@ function paintNow(canvas: HTMLCanvasElement, voxels: VoxelCoord[], cssW: number,
     maxR = Math.max(maxR, Math.sqrt(dx * dx + dy * dy + dz * dz));
   }
   const dist = Math.min(9.8, Math.max(4.6, maxR * 8.2 + 2.4));
-  const camDir = new THREE.Vector3(1.35, 0.95, 1.7).normalize();
-  s.camera.position.copy(camDir).multiplyScalar(dist).add(focus);
+  s.camDir.copy(BASE_CAM).applyAxisAngle(Y_AXIS, yaw);
+  s.camera.position.copy(s.camDir).multiplyScalar(dist).add(focus);
   s.camera.lookAt(focus);
   s.renderer.render(s.scene, s.camera);
   ctx.clearRect(0, 0, w, h);
   ctx.drawImage(s.renderer.domElement, 0, 0, w, h);
 }
 
-/** Same Studio cubes/lighting, one shared WebGL context → 2D canvas (no extra GL per card). */
-export function paintStudioVoxelThumb(
-  canvas: HTMLCanvasElement,
-  voxels: VoxelCoord[],
-  cssW: number,
-  cssH: number,
-): Promise<void> {
-  const job = chain.then(() => {
-    paintNow(canvas, voxels, cssW, cssH);
-  }).catch(() => { /* keep queue alive */ });
-  chain = job;
-  return job;
+function stopLoop() {
+  if (raf) cancelAnimationFrame(raf);
+  raf = 0;
+  loopOn = false;
+}
+
+function tick(now: number) {
+  if (!loopOn) return;
+  if (document.hidden || jobs.size === 0) {
+    stopLoop();
+    return;
+  }
+  const yaw = now * SPIN_PER_MS;
+  const visible: ThumbJob[] = [];
+  for (const job of jobs.values()) {
+    if (job.visible && job.cssW >= 2 && job.cssH >= 2) visible.push(job);
+  }
+  if (visible.length === 0) {
+    raf = 0;
+    return;
+  }
+  const budget = Math.min(visible.length, 6);
+  for (let i = 0; i < budget; i++) {
+    const job = visible[(paintCursor + i) % visible.length]!;
+    paintNow(job.canvas, job.voxels, job.cssW, job.cssH, yaw);
+  }
+  paintCursor = (paintCursor + budget) % visible.length;
+  raf = requestAnimationFrame(tick);
+}
+
+function ensureLoop() {
+  if (loopOn && raf) return;
+  loopOn = true;
+  raf = requestAnimationFrame(tick);
+}
+
+function onVis() {
+  if (!document.hidden && jobs.size > 0) ensureLoop();
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", onVis);
+}
+
+function syncSize(job: ThumbJob) {
+  const r = job.canvas.getBoundingClientRect();
+  job.cssW = Math.max(8, r.width);
+  job.cssH = Math.max(8, r.height);
+}
+
+/** Live slow-spin thumb: one shared WebGL context, blit to each 2D canvas. */
+export function attachStudioVoxelThumb(canvas: HTMLCanvasElement, voxels: VoxelCoord[]): () => void {
+  const job: ThumbJob = {
+    canvas,
+    voxels,
+    cssW: 8,
+    cssH: 8,
+    visible: true,
+  };
+  syncSize(job);
+  jobs.set(canvas, job);
+
+  const ro = new ResizeObserver(() => {
+    syncSize(job);
+    ensureLoop();
+  });
+  ro.observe(canvas);
+
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.target === canvas) job.visible = e.isIntersecting && e.intersectionRatio > 0.02;
+    }
+    if (job.visible) ensureLoop();
+  }, { root: null, rootMargin: "48px", threshold: [0, 0.02, 0.1] });
+  io.observe(canvas);
+
+  ensureLoop();
+
+  return () => {
+    jobs.delete(canvas);
+    ro.disconnect();
+    io.disconnect();
+    if (jobs.size === 0) stopLoop();
+  };
+}
+
+export function updateStudioVoxelThumb(canvas: HTMLCanvasElement, voxels: VoxelCoord[]) {
+  const job = jobs.get(canvas);
+  if (job) job.voxels = voxels;
 }

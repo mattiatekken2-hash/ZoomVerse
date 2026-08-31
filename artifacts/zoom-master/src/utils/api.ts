@@ -1204,6 +1204,17 @@ export async function adminGrantAutoTap(adminId: string, telegramId: string): Pr
   } catch { return false; }
 }
 
+export async function adminGrantStudioBadge(adminId: string, telegramId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/grant-studio-badge`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, telegramId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 // === LOTTO STELLARE ===
 
 export interface LottoBundle {
@@ -2157,6 +2168,7 @@ export interface LeaderboardEntry {
   photoUrl: string | null;
   zoomBalance: number;
   vipLevel?: "NONE" | "BASE" | "PRO" | null;
+  studioBadge?: boolean;
 }
 
 export interface StarsCatalogItem {
@@ -2957,6 +2969,17 @@ export interface ServerMarketListing {
 }
 
 export const MARKET_LISTING_TTL_MS = 60 * 60 * 1000;
+export const MARKET_RELIST_FEE_ZOOM = 50;
+
+export function isMarketListingOnShelf(
+  listing: Pick<ServerMarketListing, "expired" | "remainingMs" | "expiresAt">,
+  now = Date.now(),
+): boolean {
+  if (listing.expired === true) return false;
+  if (typeof listing.remainingMs === "number") return listing.remainingMs > 0;
+  if (typeof listing.expiresAt === "number" && listing.expiresAt > 0) return now < listing.expiresAt;
+  return true;
+}
 
 function normalizeMarketListing(raw: ServerMarketListing & Record<string, unknown>): ServerMarketListing {
   const shapeId = (raw.shapeId ?? raw.shape_id ?? null) as string | null;
@@ -2975,6 +2998,9 @@ function normalizeMarketListing(raw: ServerMarketListing & Record<string, unknow
     priceCurrency: (raw.priceCurrency ?? raw.price_currency ?? "zmc") as ServerMarketListing["priceCurrency"],
     marketPath: raw.marketPath === "stardust" || raw.marketPath === "zoom" ? raw.marketPath : null,
     status: String(raw.status ?? "active"),
+    expiresAt: typeof raw.expiresAt === "number" ? raw.expiresAt : (typeof raw.expires_at === "number" ? raw.expires_at : undefined),
+    expired: raw.expired === true,
+    remainingMs: typeof raw.remainingMs === "number" ? raw.remainingMs : (typeof raw.remaining_ms === "number" ? raw.remaining_ms : undefined),
   };
 }
 
@@ -3012,7 +3038,7 @@ export async function fetchMyMarketListings(telegramId: string): Promise<ServerM
 export async function reactivateMarketListing(
   sellerTelegramId: string,
   listingId: number,
-): Promise<{ ok: boolean; expiresAt?: number; remainingMs?: number; feeZoom?: number; error?: string }> {
+): Promise<{ ok: boolean; expiresAt?: number; remainingMs?: number; feeZoom?: number; zoomBalance?: number; balanceEpoch?: number; error?: string }> {
   try {
     const res = await fetch(`${API_BASE}/market/reactivate`, {
       method: "POST",
@@ -3028,6 +3054,8 @@ export async function reactivateMarketListing(
       expiresAt: typeof data.expiresAt === "number" ? data.expiresAt : undefined,
       remainingMs: typeof data.remainingMs === "number" ? data.remainingMs : undefined,
       feeZoom: typeof data.feeZoom === "number" ? data.feeZoom : undefined,
+      zoomBalance: typeof data.zoomBalance === "number" ? data.zoomBalance : undefined,
+      balanceEpoch: typeof data.balanceEpoch === "number" ? data.balanceEpoch : undefined,
     };
   } catch {
     return { ok: false, error: "Network error" };

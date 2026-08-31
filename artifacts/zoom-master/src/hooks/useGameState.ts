@@ -2745,21 +2745,34 @@ export function useGameState() {
           weeklyRedStarDay: Math.min(7, Math.max(1, Number(grants.weeklyRedStarDay ?? 1))),
           weeklyRedStarClaimedToday: !!grants.weeklyRedStarClaimedToday,
         };
-        if (settleRes.exists && typeof settleRes.stardustBalance === "number") {
-          updated = {
-            ...updated,
-            stardustBalance: Math.max(0, settleRes.stardustBalance),
-            stardustFarmPreview: 0,
-          };
-        } else {
-          updated = applyStardustFarmSettle(updated, settleRes);
-        }
-        // /balance/sync no longer writes ★. RAISE to the banked server
-        // amount; never keep a ghost local preview on top of it.
-        if (typeof syncRes.stardustBalance === "number") {
-          const serverBal = Math.max(0, syncRes.stardustBalance);
-          if (serverBal > (updated.stardustBalance || 0) + 1e-12) {
+        // Same-device re-entry: never snap ★ down. HUD ticks farm yield
+        // locally; /balance/sync does not write ★, so the server can still
+        // hold the starter grant while the wallet already shows the farmed
+        // amount. Taking server verbatim was resetting ★ on every close.
+        // Fresh device: take the server (blocks the default-grant overwrite).
+        {
+          const localHud = Math.max(0, prev.stardustBalance || 0);
+          const localPreview = Math.max(0, prev.stardustFarmPreview || 0);
+          const serverBal = typeof settleRes.stardustBalance === "number"
+            ? Math.max(0, settleRes.stardustBalance)
+            : (typeof syncRes.stardustBalance === "number" ? Math.max(0, syncRes.stardustBalance) : 0);
+          if (wasFreshLoad && settleRes.exists) {
             updated = { ...updated, stardustBalance: serverBal, stardustFarmPreview: 0 };
+          } else if (settleRes.exists) {
+            const kept = Math.max(localHud, serverBal);
+            updated = {
+              ...updated,
+              stardustBalance: kept,
+              stardustFarmPreview: serverBal + 1e-12 >= kept ? 0 : localPreview,
+            };
+          } else {
+            updated = applyStardustFarmSettle(updated, settleRes);
+          }
+          if (typeof syncRes.stardustBalance === "number") {
+            const syncBal = Math.max(0, syncRes.stardustBalance);
+            if (syncBal > (updated.stardustBalance || 0) + 1e-12) {
+              updated = { ...updated, stardustBalance: syncBal, stardustFarmPreview: 0 };
+            }
           }
         }
 
@@ -3892,7 +3905,8 @@ export function useGameState() {
       if (!detail || typeof detail.stardustBalance !== "number") return;
       const epochAdvanced = (detail.epoch ?? 0) > (stateRef.current.lastBalanceEpoch ?? 0);
       const preview = epochAdvanced ? 0 : Math.max(0, stateRef.current.stardustFarmPreview || 0);
-      const newStardust = hudStardustFromServer(detail.stardustBalance, preview);
+      const incoming = hudStardustFromServer(detail.stardustBalance, preview);
+      const newStardust = Math.max(stateRef.current.stardustBalance || 0, incoming);
       const newEpoch = Math.max(stateRef.current.lastBalanceEpoch ?? 0, detail.epoch ?? 0);
       setCurrentBalanceEpoch(newEpoch);
       stateRef.current = {

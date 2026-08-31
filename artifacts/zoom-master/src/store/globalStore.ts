@@ -10,6 +10,7 @@ import {
   fetchMyMarketListings,
   fetchMarketSales,
   fetchTotalPool,
+  isMarketListingOnShelf,
   type LeaderboardEntry,
   type UserProfile,
   type DailyStatus,
@@ -234,6 +235,7 @@ export async function refreshMarketListings(telegramId?: string | null) {
     for (const row of [...publicRes, ...mine]) {
       const id = Number(row?.id);
       if (!Number.isFinite(id)) continue;
+      if (!isMarketListingOnShelf(row)) continue;
       byId.set(id, { ...row, id });
     }
     const merged = [...byId.values()].filter((l) => {
