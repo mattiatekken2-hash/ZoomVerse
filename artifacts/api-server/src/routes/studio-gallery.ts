@@ -251,22 +251,39 @@ router.post("/studio-gallery/expose", async (req, res) => {
 router.post("/studio-gallery/unpublish", async (req, res) => {
   const parsed = z.object({
     telegramId: z.string().min(1),
-    listingId: z.number().int().positive(),
+    listingId: z.coerce.number().int().positive(),
   }).safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid body" });
     return;
   }
   const { telegramId, listingId } = parsed.data;
+  const client = await pool.connect();
   try {
-    await pool.query(
-      `DELETE FROM studio_gallery WHERE id = $1 AND telegram_id = $2 AND status <> 'hidden'`,
+    await client.query("BEGIN");
+    const owned = await client.query<{ id: number }>(
+      `SELECT id FROM studio_gallery WHERE id = $1 AND telegram_id = $2 FOR UPDATE`,
       [listingId, telegramId],
     );
-    res.json({ ok: true });
+    if (!owned.rows[0]) {
+      await client.query("ROLLBACK");
+      res.status(404).json({ error: "Listing not found" });
+      return;
+    }
+    await client.query(`DELETE FROM studio_gallery_votes WHERE listing_id = $1`, [listingId]);
+    await client.query(`DELETE FROM studio_gallery_reports WHERE listing_id = $1`, [listingId]);
+    const del = await client.query(
+      `DELETE FROM studio_gallery WHERE id = $1 AND telegram_id = $2`,
+      [listingId, telegramId],
+    );
+    await client.query("COMMIT");
+    res.json({ ok: true, removed: del.rowCount ?? 0 });
   } catch (err) {
+    try { await client.query("ROLLBACK"); } catch { /**/ }
     console.error("[studio-gallery unpublish]", err);
     res.status(500).json({ error: "Database error" });
+  } finally {
+    client.release();
   }
 });
 

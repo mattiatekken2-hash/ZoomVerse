@@ -126,11 +126,11 @@ export function VoxelStudioCanvas({
   onAdd?: (v: VoxelCoord) => void;
   onRemove?: (v: VoxelCoord) => void;
   onPaint?: (v: VoxelCoord) => void;
-  onSelect?: (v: VoxelCoord | null) => void;
+  onSelect?: (v: VoxelCoord) => void;
   paintColor?: number | null;
   preview?: boolean;
   eraseMode?: boolean;
-  selected?: VoxelCoord | null;
+  selected?: VoxelCoord[];
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const voxelsRef = useRef(voxels);
@@ -140,7 +140,7 @@ export function VoxelStudioCanvas({
   const onSelectRef = useRef(onSelect);
   const paintColorRef = useRef(paintColor);
   const eraseModeRef = useRef(!!eraseMode);
-  const selectedRef = useRef<VoxelCoord | null>(selected ?? null);
+  const selectedRef = useRef<VoxelCoord[]>(selected ?? []);
   voxelsRef.current = voxels;
   onAddRef.current = onAdd;
   onRemoveRef.current = onRemove;
@@ -148,7 +148,7 @@ export function VoxelStudioCanvas({
   onSelectRef.current = onSelect;
   paintColorRef.current = paintColor;
   eraseModeRef.current = !!eraseMode;
-  selectedRef.current = selected ?? null;
+  selectedRef.current = selected ?? [];
   const syncRef = useRef<(next: VoxelCoord[]) => void>(() => {});
 
   const handleHostClick = useCallback(() => {
@@ -236,7 +236,7 @@ export function VoxelStudioCanvas({
         dummy.position.set(v.x * VOXEL, v.y * VOXEL, v.z * VOXEL);
         dummy.rotation.set(0, 0, 0);
         const sel = selectedRef.current;
-        const isSel = !!sel && voxelKey(sel) === voxelKey(v);
+        const isSel = sel.some((s) => voxelKey(s) === voxelKey(v));
         dummy.scale.setScalar(isSel ? 1.16 : 1);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
@@ -385,8 +385,10 @@ export function VoxelStudioCanvas({
         if (preview) return;
         const found = hitAt(e.clientX, e.clientY);
         if (eraseModeRef.current) {
-          onSelectRef.current?.(found?.src ?? null);
-          if (found) hapticLight();
+          if (found) {
+            onSelectRef.current?.(found.src);
+            hapticLight();
+          }
           return;
         }
         if (!found) return;

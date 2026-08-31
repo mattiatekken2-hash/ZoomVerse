@@ -155,7 +155,10 @@ export function StudioGalleryPanel({
       onFlash(res.error || t("studio.gallery.unpublishFail"));
       return;
     }
+    setListings((prev) => prev.filter((p) => p.id !== item.id));
+    setTop3((prev) => prev.filter((p) => p.id !== item.id));
     setOpen(null);
+    onFlash(t("studio.gallery.unpublished"));
     void reload();
   };
 
@@ -424,6 +427,26 @@ export function StudioGalleryPanel({
                 {t("studio.gallery.report")}
               </button>
               </>
+            )}
+            {open.mine && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void unpublish(open)}
+                className="flex items-center justify-center font-black"
+                style={{
+                  height: 44,
+                  padding: "0 12px",
+                  borderRadius: 999,
+                  background: "rgba(255,255,255,0.1)",
+                  color: "#fff",
+                  border: "1px solid rgba(255,255,255,0.22)",
+                  fontSize: 10,
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {t("studio.gallery.unpublish")}
+              </button>
             )}
           </div>
           <div className="flex-1 min-h-0 relative">

@@ -102,7 +102,7 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
   const [paintColor, setPaintColor] = useState<number | null>(null);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [eraseMode, setEraseMode] = useState(false);
-  const [selected, setSelected] = useState<VoxelCoord | null>(null);
+  const [selected, setSelected] = useState<VoxelCoord[]>([]);
   const [toolsOpen, setToolsOpen] = useState(false);
 
   const persist = useCallback((next: VoxelStudioState) => {
@@ -198,14 +198,31 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
     const idx = active.voxels.findIndex((x) => x.x === v.x && x.y === v.y && x.z === v.z);
     if (idx < 0) return;
     patchActive(active.voxels.filter((_, i) => i !== idx));
-    if (selected && selected.x === v.x && selected.y === v.y && selected.z === v.z) {
-      setSelected(null);
-    }
+    setSelected((prev) => prev.filter((s) => !(s.x === v.x && s.y === v.y && s.z === v.z)));
+  };
+
+  const toggleSelected = (v: VoxelCoord) => {
+    setSelected((prev) => {
+      const key = `${v.x},${v.y},${v.z}`;
+      if (prev.some((s) => `${s.x},${s.y},${s.z}` === key)) {
+        return prev.filter((s) => `${s.x},${s.y},${s.z}` !== key);
+      }
+      return [...prev, v];
+    });
   };
 
   const handleDeleteSelected = () => {
-    if (!selected) return;
-    handleRemove(selected);
+    if (!active || selected.length === 0) return;
+    const drop = new Set(selected.map((s) => `${s.x},${s.y},${s.z}`));
+    const next = active.voxels.filter((x) => !drop.has(`${x.x},${x.y},${x.z}`));
+    if (next.length < 1) {
+      const keep = active.voxels[0];
+      if (!keep) return;
+      patchActive([keep]);
+    } else {
+      patchActive(next);
+    }
+    setSelected([]);
   };
 
   const handlePaint = (v: VoxelCoord) => {
@@ -270,7 +287,7 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
     }
     if (id === "colors") {
       setEraseMode(false);
-      setSelected(null);
+      setSelected([]);
       setPaintColor(null);
       setPaletteOpen((open) => !open);
       setToolsOpen(false);
@@ -280,7 +297,7 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
       setPaintColor(null);
       setPaletteOpen(false);
       setEraseMode((on) => {
-        if (on) setSelected(null);
+        if (on) setSelected([]);
         return !on;
       });
       setToolsOpen(false);
@@ -318,7 +335,7 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
                 onAdd={handleAdd}
                 onRemove={handleRemove}
                 onPaint={handlePaint}
-                onSelect={setSelected}
+                onSelect={toggleSelected}
                 paintColor={paintColor}
                 eraseMode={eraseMode}
                 selected={selected}
@@ -479,7 +496,7 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
                   </button>
                 );
               })}
-              {eraseMode && selected && (
+              {eraseMode && selected.length > 0 && (
                 <button
                   type="button"
                   onClick={handleDeleteSelected}
@@ -497,7 +514,7 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
                     boxShadow: "0 0 16px rgba(255,80,80,0.35)",
                   }}
                 >
-                  {t("studio.delete")}
+                  {t("studio.delete")} {selected.length}
                 </button>
               )}
               <button
@@ -540,7 +557,7 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
                 active={p.id === activeId}
                 onSelect={() => {
                   setActiveId(p.id);
-                  setSelected(null);
+                  setSelected([]);
                   setEraseMode(false);
                 }}
               />
