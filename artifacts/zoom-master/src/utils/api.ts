@@ -3086,13 +3086,24 @@ export async function reactivateMarketListing(
   sellerTelegramId: string,
   listingId?: number | null,
   planetId?: string | null,
+  identity?: { shapeId?: string | null; displayName?: string | null },
 ): Promise<{ ok: boolean; expiresAt?: number; remainingMs?: number; feeZoom?: number; zoomBalance?: number; balanceEpoch?: number; error?: string }> {
   try {
     const id = Number(listingId);
-    const body: { sellerTelegramId: string; listingId?: number; planetId?: string } = { sellerTelegramId };
-    if (Number.isFinite(id) && id > 0) body.listingId = id;
+    const body: {
+      sellerTelegramId: string;
+      listingId?: number;
+      planetId?: string;
+      shapeId?: string;
+      displayName?: string;
+    } = { sellerTelegramId };
+    if (Number.isFinite(id) && id > 0 && id < 1_000_000_000) body.listingId = id;
     const pid = typeof planetId === "string" ? planetId.trim() : "";
     if (pid) body.planetId = pid;
+    const shapeId = typeof identity?.shapeId === "string" ? identity.shapeId.trim() : "";
+    if (shapeId) body.shapeId = shapeId.slice(0, 32);
+    const displayName = typeof identity?.displayName === "string" ? identity.displayName.trim() : "";
+    if (displayName) body.displayName = displayName.slice(0, 64);
     const res = await fetch(`${API_BASE}/market/reactivate`, {
       method: "POST",
       headers: apiHeaders(),

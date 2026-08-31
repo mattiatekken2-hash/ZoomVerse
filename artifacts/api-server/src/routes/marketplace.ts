@@ -3,7 +3,7 @@ import { db, pool, usersTable, marketListingsTable, treasuryLedgerTable } from "
 import type { MarketListing } from "@workspace/db/schema";
 import type { PoolClient } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { addClient, removeClient, broadcastSale } from "../lib/activityBus";
 import { sendBotMessage, sendMarketShareToGroup, notifyMarketZmcSale } from "../lib/notify";
@@ -130,6 +130,22 @@ const TON_MAX = 10.0;
 export const MARKET_LISTING_TTL_MS = 60 * 60 * 1000;
 /** Relist from My List only — $ZOOM S3. Never charged on Farm cards. */
 export const MARKET_RELIST_FEE_ZOOM = 50;
+
+/** Serial listing ids never look like Date.now() (~1.7e12) or planet timestamps. */
+const PLAUSIBLE_LISTING_ID_MAX = 1_000_000_000;
+
+function isPlausibleListingId(id: number | null | undefined): id is number {
+  return typeof id === "number" && Number.isInteger(id) && id > 0 && id < PLAUSIBLE_LISTING_ID_MAX;
+}
+
+function sellerIdCandidates(claimed: string, verifiedId?: string | null): string[] {
+  const ids = new Set<string>();
+  const a = claimed.trim();
+  if (a) ids.add(a);
+  const b = String(verifiedId ?? "").trim();
+  if (b) ids.add(b);
+  return [...ids];
+}
 
 function listingTimeMs(listing: {
   lastActivatedAt?: Date | string | null;
@@ -838,9 +854,73 @@ const ReactivateBody = z.object({
   sellerTelegramId: z.string().min(1),
   listingId: z.coerce.number().int().positive().optional(),
   planetId: z.string().min(1).max(128).optional(),
-}).refine((d) => d.listingId != null || !!d.planetId, {
-  message: "listingId or planetId required",
+  shapeId: z.string().min(1).max(32).optional(),
+  displayName: z.string().min(1).max(64).optional(),
+}).refine((d) => d.listingId != null || !!d.planetId || !!d.shapeId || !!d.displayName, {
+  message: "listingId, planetId, shapeId or displayName required",
 });
+
+async function findSellerActiveListing(opts: {
+  sellerIds: string[];
+  listingId?: number;
+  planetId?: string;
+  shapeId?: string;
+  displayName?: string;
+}): Promise<typeof marketListingsTable.$inferSelect | undefined> {
+  if (opts.sellerIds.length === 0) return undefined;
+  const sellerFilter = opts.sellerIds.length === 1
+    ? eq(marketListingsTable.sellerTelegramId, opts.sellerIds[0]!)
+    : inArray(marketListingsTable.sellerTelegramId, opts.sellerIds);
+  const active = and(sellerFilter, eq(marketListingsTable.status, "active"));
+
+  if (isPlausibleListingId(opts.listingId)) {
+    const [row] = await db
+      .select()
+      .from(marketListingsTable)
+      .where(and(active, eq(marketListingsTable.id, opts.listingId)))
+      .limit(1);
+    if (row) return row;
+  }
+
+  const planetId = opts.planetId?.trim();
+  if (planetId) {
+    const [row] = await db
+      .select()
+      .from(marketListingsTable)
+      .where(and(active, eq(marketListingsTable.planetId, planetId)))
+      .limit(1);
+    if (row) return row;
+  }
+
+  const rows = await db
+    .select()
+    .from(marketListingsTable)
+    .where(active)
+    .orderBy(desc(marketListingsTable.createdAt))
+    .limit(100);
+
+  const shape = (opts.shapeId || "").trim().toLowerCase();
+  const name = (opts.displayName || "").trim().toLowerCase();
+  const nameOf = (r: (typeof rows)[number]) => (
+    labModelDisplayName({ shapeId: r.shapeId, displayName: r.planetDisplayName })
+    || r.planetDisplayName
+    || ""
+  ).trim().toLowerCase();
+
+  if (shape) {
+    const byShape = rows.filter((r) => (r.shapeId || "").trim().toLowerCase() === shape);
+    if (byShape.length === 1) return byShape[0];
+    if (name) {
+      const named = byShape.filter((r) => nameOf(r) === name);
+      if (named.length === 1) return named[0];
+    }
+  }
+  if (name) {
+    const named = rows.filter((r) => nameOf(r) === name);
+    if (named.length === 1) return named[0];
+  }
+  return undefined;
+}
 
 /** Reset the 1h shop shelf clock so the listing shows again. */
 router.post("/market/reactivate", async (req, res) => {
@@ -849,41 +929,27 @@ router.post("/market/reactivate", async (req, res) => {
     res.status(400).json({ error: "Invalid body" });
     return;
   }
-  const { sellerTelegramId, listingId, planetId } = parsed.data;
+  const { sellerTelegramId, listingId, planetId, shapeId, displayName } = parsed.data;
   try {
-    let row: typeof marketListingsTable.$inferSelect | undefined;
-    if (listingId != null) {
-      [row] = await db
-        .select()
-        .from(marketListingsTable)
-        .where(and(
-          eq(marketListingsTable.id, listingId),
-          eq(marketListingsTable.sellerTelegramId, sellerTelegramId),
-          eq(marketListingsTable.status, "active"),
-        ))
-        .limit(1);
-    }
-    if (!row && planetId) {
-      [row] = await db
-        .select()
-        .from(marketListingsTable)
-        .where(and(
-          eq(marketListingsTable.planetId, planetId),
-          eq(marketListingsTable.sellerTelegramId, sellerTelegramId),
-          eq(marketListingsTable.status, "active"),
-        ))
-        .limit(1);
-    }
+    const verifiedId = (req as { tgUser?: { id?: string } | null }).tgUser?.id;
+    const row = await findSellerActiveListing({
+      sellerIds: sellerIdCandidates(sellerTelegramId, verifiedId),
+      listingId,
+      planetId,
+      shapeId,
+      displayName,
+    });
     if (!row) {
       res.status(404).json({ error: "Listing not found" });
       return;
     }
     const resolvedListingId = row.id;
+    const ownerId = row.sellerTelegramId;
     const feeZoom = MARKET_RELIST_FEE_ZOOM;
     const [seller] = await db
       .select({ zoom: usersTable.zoomBalance })
       .from(usersTable)
-      .where(eq(usersTable.telegramId, sellerTelegramId))
+      .where(eq(usersTable.telegramId, ownerId))
       .limit(1);
     if ((Number(seller?.zoom ?? 0)) < feeZoom) {
       res.status(409).json({ error: `Need ${feeZoom} $ZOOM S3 to relist` });
@@ -896,7 +962,7 @@ router.post("/market/reactivate", async (req, res) => {
         balanceEpoch: sql`${usersTable.balanceEpoch} + 1`,
       })
       .where(and(
-        eq(usersTable.telegramId, sellerTelegramId),
+        eq(usersTable.telegramId, ownerId),
         sql`${usersTable.zoomBalance} >= ${feeZoom}`,
       ))
       .returning({ zoomBalance: usersTable.zoomBalance, balanceEpoch: usersTable.balanceEpoch });
@@ -912,7 +978,7 @@ router.post("/market/reactivate", async (req, res) => {
       .returning();
     const expiresAt = listingShelfDeadline(updated ?? { lastActivatedAt: now, createdAt: now });
     recordHistoryAsync({
-      telegramId: sellerTelegramId,
+      telegramId: ownerId,
       kind: "market_reactivate",
       delta: -feeZoom,
       currency: "zoom",

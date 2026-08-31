@@ -37,17 +37,79 @@ interface Props {
 
 function listingNumId(id: unknown): number {
   const n = Number(id);
-  return Number.isFinite(n) && n > 0 ? n : 0;
+  return Number.isFinite(n) && n > 0 && n < 1_000_000_000 ? n : 0;
+}
+
+function listingShape(listing: Pick<ServerMarketListing, "shapeId" | "planetDisplayName">, planet?: Planet | null): string {
+  return (
+    resolveLabShapeIdFromPlanet({
+      shapeId: listing.shapeId || planet?.shapeId,
+      displayName: listing.planetDisplayName || planet?.displayName,
+    })
+    || listing.shapeId
+    || planet?.shapeId
+    || ""
+  ).trim().toLowerCase();
+}
+
+function listingName(listing: Pick<ServerMarketListing, "shapeId" | "planetDisplayName">, planet?: Planet | null): string {
+  return (
+    labModelDisplayName({
+      shapeId: listing.shapeId || planet?.shapeId,
+      displayName: listing.planetDisplayName || planet?.displayName,
+    })
+    || listing.planetDisplayName
+    || planet?.displayName
+    || ""
+  ).trim().toLowerCase();
 }
 
 function sameListingRef(
-  listing: Pick<ServerMarketListing, "id" | "planetId">,
-  planet: Pick<Planet, "id" | "serverListingId">,
+  listing: Pick<ServerMarketListing, "id" | "planetId" | "shapeId" | "planetDisplayName">,
+  planet: Pick<Planet, "id" | "serverListingId" | "shapeId" | "displayName">,
 ): boolean {
   const sid = listingNumId(planet.serverListingId);
   const lid = listingNumId(listing.id);
   if (sid > 0 && lid === sid) return true;
-  return !!listing.planetId && listing.planetId === planet.id;
+  if (listing.planetId && listing.planetId === planet.id) return true;
+  const shape = listingShape(listing, planet);
+  const name = listingName(listing, planet);
+  if (shape && (listing.shapeId || "").trim().toLowerCase() === shape && name) {
+    if (listingName(listing) === name) return true;
+  }
+  return false;
+}
+
+function resolveMineListing(
+  mine: ServerMarketListing[],
+  listing: Partial<ServerMarketListing>,
+  planet?: Planet | null,
+): ServerMarketListing | undefined {
+  const lid = listingNumId(listing.id);
+  if (lid > 0) {
+    const byId = mine.find((l) => listingNumId(l.id) === lid);
+    if (byId) return byId;
+  }
+  const pid = (listing.planetId || planet?.id || "").trim();
+  if (pid) {
+    const byPlanet = mine.find((l) => (l.planetId || "") === pid);
+    if (byPlanet) return byPlanet;
+  }
+  const shape = listingShape(listing, planet);
+  const name = listingName(listing, planet);
+  if (shape) {
+    const byShape = mine.filter((l) => (l.shapeId || "").trim().toLowerCase() === shape);
+    if (byShape.length === 1) return byShape[0];
+    if (name) {
+      const named = byShape.filter((l) => listingName(l).toLowerCase() === name);
+      if (named.length === 1) return named[0];
+    }
+  }
+  if (name) {
+    const named = mine.filter((l) => listingName(l).toLowerCase() === name);
+    if (named.length === 1) return named[0];
+  }
+  return undefined;
 }
 
 function labelFor(listing: ServerMarketListing): string {
@@ -192,23 +254,27 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
     setRows((prev) => prev.filter((r) => listingNumId(r.id) !== lid && r.planetId !== planetId));
   };
 
-  const handleRelist = async (listing: Partial<ServerMarketListing> & { id?: number }, planetId?: string) => {
+  const handleRelist = async (listing: Partial<ServerMarketListing> & { id?: number }, planet?: Planet | null) => {
     if (!telegramId || busyId != null) return;
-    const pid = (planetId || listing.planetId || "").trim();
-    let listingId = listingNumId(listing.id);
-    setBusyId(listingId || -1);
-    if (listingId <= 0 && pid) {
-      const mine = await fetchMyMarketListings(telegramId);
-      const found = mine.find((l) => l.planetId === pid && l.status !== "sold");
-      listingId = listingNumId(found?.id);
-      if (found) {
-        setRows((prev) => {
-          const rest = prev.filter((r) => listingNumId(r.id) !== listingId && r.planetId !== pid);
-          return [found, ...rest];
-        });
-      }
+    const pid = (planet?.id || listing.planetId || "").trim();
+    setBusyId(listingNumId(listing.id) || -1);
+    const mine = await fetchMyMarketListings(telegramId);
+    const resolved = resolveMineListing(mine, listing, planet);
+    if (resolved) {
+      setRows((prev) => {
+        const lid = listingNumId(resolved.id);
+        const rest = prev.filter((r) => listingNumId(r.id) !== lid && r.planetId !== resolved.planetId);
+        return [resolved, ...rest];
+      });
     }
-    const res = await reactivateMarketListing(telegramId, listingId || undefined, pid || undefined);
+    const listingId = listingNumId(resolved?.id) || listingNumId(listing.id);
+    const planetId = (resolved?.planetId || pid || "").trim();
+    const shapeId = resolved?.shapeId || listing.shapeId || planet?.shapeId || undefined;
+    const displayName = resolved?.planetDisplayName || listing.planetDisplayName || planet?.displayName || undefined;
+    const res = await reactivateMarketListing(telegramId, listingId || undefined, planetId || undefined, {
+      shapeId,
+      displayName,
+    });
     setBusyId(null);
     if (!res.ok) {
       setMsg(res.error || t("market.relistFail"));
@@ -279,7 +345,12 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
             : MARKET_LISTING_TTL_MS;
           const expired = remaining <= 0;
           const sid = listingNumId(planet.serverListingId);
-          const relist = () => void handleRelist({ id: sid, planetId: planet.id }, planet.id);
+          const relist = () => void handleRelist({
+            id: sid,
+            planetId: planet.id,
+            shapeId: planet.shapeId,
+            planetDisplayName: planet.displayName,
+          }, planet);
           return (
             <FarmInventoryCard
               key={`local-${planet.id}`}
@@ -303,7 +374,8 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
           const lid = listingNumId(listing.id);
           const planet =
             myPlanets.find((p) => listingNumId(p.serverListingId) === lid)
-            ?? myPlanets.find((p) => p.id === listing.planetId);
+            ?? myPlanets.find((p) => p.id === listing.planetId)
+            ?? myPlanets.find((p) => sameListingRef(listing, p));
           const cardPlanet = planetFromListing(listing, planet);
           const shelf = shelfOf(listing, planet?.marketListedAt);
           const hold = (listing.planetId && holdUntil[listing.planetId])
@@ -311,7 +383,7 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
             || 0;
           const remaining = Math.max(shelf.remaining, hold > now ? hold - now : 0);
           const canRelist = remaining <= 0 && shelf.expired;
-          const relist = () => void handleRelist(listing, planet?.id || listing.planetId || undefined);
+          const relist = () => void handleRelist(listing, planet);
 
           return (
             <FarmInventoryCard
