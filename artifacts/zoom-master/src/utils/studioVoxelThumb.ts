@@ -21,6 +21,50 @@ const UNIT_BOX_EDGES = (() => {
   return out;
 })();
 
+function addLabGrid(scene: THREE.Scene) {
+  const span = 4.8;
+  const cells = 22;
+  const tuneGrid = (grid: THREE.GridHelper, opacity: number) => {
+    const mats = Array.isArray(grid.material) ? grid.material : [grid.material];
+    for (const m of mats) {
+      m.transparent = true;
+      m.opacity = opacity;
+      m.depthWrite = false;
+    }
+    grid.renderOrder = -10;
+  };
+
+  const gridPivot = new THREE.Group();
+  const floorGrid = new THREE.GridHelper(span, cells, 0xb8c0cc, 0x6a7280);
+  tuneGrid(floorGrid, 0.38);
+  floorGrid.position.y = -1.25;
+  gridPivot.add(floorGrid);
+  scene.add(gridPivot);
+
+  const backGrid = new THREE.GridHelper(span, cells, 0xa0a8b8, 0x505868);
+  tuneGrid(backGrid, 0.2);
+  backGrid.rotation.x = Math.PI / 2;
+  backGrid.position.set(0, -0.55, -1.35);
+  scene.add(backGrid);
+
+  const starGeo = new THREE.BufferGeometry();
+  const starCount = 90;
+  const starPos = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount; i++) {
+    const r = 1.8 + Math.random() * 2.6;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    starPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+    starPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta) * 0.55;
+    starPos[i * 3 + 2] = r * Math.cos(phi);
+  }
+  starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
+  scene.add(new THREE.Points(
+    starGeo,
+    new THREE.PointsMaterial({ color: 0xc8d0dc, size: 0.018, transparent: true, opacity: 0.55 }),
+  ));
+}
+
 type Shared = {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
@@ -69,6 +113,7 @@ function ensure(): Shared | null {
     const fill = new THREE.DirectionalLight(0xffffff, 0.35);
     fill.position.set(-3, 2, -4);
     scene.add(fill);
+    addLabGrid(scene);
     const cube = VOXEL * CUBE_FILL;
     const geo = new THREE.BoxGeometry(cube, cube, cube);
     const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
@@ -151,10 +196,10 @@ function paintNow(canvas: HTMLCanvasElement, voxels: VoxelCoord[], cssW: number,
     const dz = v.z * VOXEL - focus.z;
     maxR = Math.max(maxR, Math.sqrt(dx * dx + dy * dy + dz * dz));
   }
-  const dist = Math.min(9.8, Math.max(4.6, maxR * 8.2 + 2.4));
+  const dist = Math.min(9.8, Math.max(4.8, maxR * 8.2 + 2.6));
   const camDir = new THREE.Vector3(1.35, 0.95, 1.7).normalize();
   s.camera.position.copy(camDir).multiplyScalar(dist).add(focus);
-  s.camera.lookAt(focus);
+  s.camera.lookAt(focus.x, Math.min(focus.y, -0.15), focus.z);
   s.renderer.render(s.scene, s.camera);
   ctx.clearRect(0, 0, w, h);
   ctx.drawImage(s.renderer.domElement, 0, 0, w, h);
