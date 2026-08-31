@@ -4,6 +4,7 @@ import { VoxelStudioCanvas } from "../components/VoxelStudioCanvas";
 import { LabSpaceBackground } from "../components/LabSpaceBackground";
 import { StudioGalleryPanel } from "../components/StudioGalleryPanel";
 import { StudioVoxelThumb } from "../components/StudioVoxelThumb";
+import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
 import { useT } from "../i18n/LanguageContext";
 import {
   buyVoxelStudioSlot,
@@ -30,14 +31,28 @@ interface Props {
 const STUDIO_PALETTE = [
   FORGE_CLAY,
   0xffffff,
-  0x1a1a1e,
-  0xe53935,
-  0xff8c00,
+  0x121018,
+  0x2a2e38,
   0xffd740,
-  0x43a047,
-  0x1e88e5,
+  0xffab00,
+  0x00d4ff,
+  0x2979ff,
+  0x7c4dff,
+  0xff2d95,
+  0xe53935,
+  0xff6e40,
+  0x00e676,
+  0xc6ff00,
   0x26c6da,
-  0x8e24aa,
+  0x80d8ff,
+  0xf48fb1,
+  0xe8a0bf,
+  0xcfd8dc,
+  0x8d6e63,
+  0xbf360c,
+  0x304ffe,
+  0x69f0ae,
+  0xffe082,
 ] as const;
 
 function CircleBtn({
@@ -360,7 +375,7 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
                 setGalleryOpen(true);
               }}
             >
-              ★
+              <ZoomCubeIcon size={22} />
             </CircleBtn>
           </div>
 
@@ -383,17 +398,21 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
             <div
               className="absolute z-30"
               style={{
-                right: 16,
+                right: 12,
                 bottom: 168,
-                width: 168,
-                padding: 10,
-                borderRadius: 999,
-                background: "rgba(8,10,18,0.92)",
-                border: "1px solid rgba(255,255,255,0.16)",
-                backdropFilter: "blur(12px)",
+                width: 196,
+                padding: 12,
+                borderRadius: 22,
+                background: "rgba(8,10,18,0.94)",
+                border: "1px solid rgba(255,215,64,0.22)",
+                backdropFilter: "blur(14px)",
+                boxShadow: "0 12px 32px rgba(0,0,0,0.5)",
               }}
             >
-              <div className="flex flex-wrap justify-center gap-1.5">
+              <div className="text-[9px] font-black uppercase mb-2 text-center" style={{ color: "rgba(255,215,64,0.7)", letterSpacing: "0.16em" }}>
+                {t("studio.colors")}
+              </div>
+              <div className="grid grid-cols-6 gap-1.5">
                 {STUDIO_PALETTE.map((hex) => {
                   const on = paintColor === hex;
                   return (
@@ -406,11 +425,11 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
                       }}
                       aria-label={`color ${hex.toString(16)}`}
                       style={{
-                        width: 26,
-                        height: 26,
-                        borderRadius: 999,
+                        width: 24,
+                        height: 24,
+                        borderRadius: 8,
                         background: `#${hex.toString(16).padStart(6, "0")}`,
-                        border: on ? "2px solid #ffd740" : "1px solid rgba(255,255,255,0.28)",
+                        border: on ? "2px solid #ffd740" : "1px solid rgba(255,255,255,0.22)",
                         boxShadow: on ? "0 0 10px rgba(255,215,64,0.45)" : "none",
                       }}
                     />
@@ -577,28 +596,53 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
       {nameOpen && (
         <div
           className="absolute inset-0 z-50 flex items-center justify-center px-6"
-          style={{ background: "rgba(0,0,0,0.72)" }}
+          style={{ background: "rgba(0,0,0,0.78)" }}
           onClick={() => setNameOpen(false)}
         >
           <div
-            className="w-full rounded-2xl p-4"
+            className="w-full p-5"
             style={{
-              maxWidth: 320,
-              background: "rgba(8,10,16,0.96)",
-              border: "1px solid rgba(255,255,255,0.14)",
+              maxWidth: 340,
+              borderRadius: 28,
+              background: "radial-gradient(circle at 50% 0%, rgba(255,215,64,0.14), rgba(8,10,16,0.98) 42%)",
+              border: "1px solid rgba(255,215,64,0.28)",
+              boxShadow: "0 18px 50px rgba(0,0,0,0.55)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="font-black text-sm mb-1" style={{ color: "#E8ECF4" }}>New model</div>
-            <div className="text-[11px] mb-3" style={{ color: "rgba(255,255,255,0.45)" }}>
-              Starts from the gray base square.
+            <div className="flex justify-center mb-3">
+              <div
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: 16,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "rgba(255,215,64,0.12)",
+                  border: "1px solid rgba(255,215,64,0.35)",
+                }}
+              >
+                <ZoomCubeIcon size={28} />
+              </div>
+            </div>
+            <div className="font-black text-base text-center mb-1" style={{ color: "#E8ECF4" }}>
+              {t("studio.create")}
+            </div>
+            <div className="text-[11px] text-center mb-4" style={{ color: "rgba(255,255,255,0.42)" }}>
+              {t("studio.createHint")}
             </div>
             <input
               value={nameDraft}
               onChange={(e) => setNameDraft(e.target.value.slice(0, 32))}
-              placeholder="Title"
-              className="w-full rounded-xl px-3 py-3 text-sm font-bold outline-none mb-3"
-              style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", color: "#fff" }}
+              placeholder={t("studio.newTitle")}
+              className="w-full px-4 py-3 text-sm font-bold outline-none mb-4"
+              style={{
+                borderRadius: 16,
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.16)",
+                color: "#fff",
+              }}
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter") submitNew();
@@ -607,19 +651,27 @@ export function VoxelStudioPage({ telegramId, stardustBalance, seedTitle, seedPr
             <div className="flex gap-2">
               <button
                 type="button"
-                className="flex-1 py-2.5 rounded-xl text-xs font-black"
-                style={{ color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.1)" }}
+                className="flex-1 py-3 text-xs font-black"
+                style={{
+                  borderRadius: 999,
+                  color: "rgba(255,255,255,0.5)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                }}
                 onClick={() => setNameOpen(false)}
               >
-                Cancel
+                {t("studio.cancel")}
               </button>
               <button
                 type="button"
-                className="flex-1 py-2.5 rounded-xl text-xs font-black"
-                style={{ background: "#fff", color: "#060810" }}
+                className="flex-1 py-3 text-xs font-black"
+                style={{
+                  borderRadius: 999,
+                  background: "#ffd740",
+                  color: "#14120a",
+                }}
                 onClick={submitNew}
               >
-                Create
+                {t("studio.createCta")}
               </button>
             </div>
           </div>

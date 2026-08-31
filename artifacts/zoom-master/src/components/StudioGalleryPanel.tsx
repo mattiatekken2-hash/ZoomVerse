@@ -14,7 +14,54 @@ import {
   type VoxelStudioProject,
 } from "../utils/voxelStudioStore";
 
-const MEDALS = ["🥇", "🥈", "🥉"] as const;
+const RANK_METAL = [
+  { ring: "#ffe566", inner: "#c9a227", glow: "rgba(255,215,64,0.5)", fg: "#14120a" },
+  { ring: "#e8eef8", inner: "#8a93a8", glow: "rgba(200,210,230,0.4)", fg: "#141820" },
+  { ring: "#e08a4a", inner: "#8a4a22", glow: "rgba(224,138,74,0.45)", fg: "#1a1008" },
+] as const;
+
+function StudioRankMark({ rank }: { rank: 0 | 1 | 2 }) {
+  const m = RANK_METAL[rank];
+  return (
+    <div
+      aria-hidden
+      style={{
+        width: 30,
+        height: 30,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        filter: `drop-shadow(0 0 8px ${m.glow})`,
+      }}
+    >
+      <div
+        style={{
+          width: 22,
+          height: 22,
+          transform: "rotate(45deg)",
+          borderRadius: 5,
+          background: `linear-gradient(145deg, ${m.ring} 0%, ${m.inner} 72%)`,
+          border: `1.5px solid ${m.ring}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <span
+          style={{
+            transform: "rotate(-45deg)",
+            fontSize: 11,
+            fontWeight: 900,
+            color: m.fg,
+            lineHeight: 1,
+          }}
+        >
+          {rank + 1}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export function StudioGalleryPanel({
   telegramId,
@@ -297,7 +344,7 @@ export function StudioGalleryPanel({
                     className="flex flex-col items-center"
                     style={{ opacity: item ? 1 : 0.55 }}
                   >
-                    <div className="text-lg mb-1">{MEDALS[rank]}</div>
+                    <div className="mb-1"><StudioRankMark rank={rank as 0 | 1 | 2} /></div>
                     <div
                       className="overflow-hidden"
                       style={{
@@ -339,6 +386,7 @@ export function StudioGalleryPanel({
               <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.42)" }}>{open.author} · ❤️ {open.voteCount}</div>
             </div>
             {!open.mine && (
+              <>
               <button
                 type="button"
                 disabled={busy || open.voted}
@@ -356,6 +404,26 @@ export function StudioGalleryPanel({
               >
                 {open.voted ? "❤️" : "🤍"} {open.voteCount}
               </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void report(open)}
+                aria-label={t("studio.gallery.report")}
+                className="flex items-center justify-center font-black"
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 999,
+                  background: "rgba(255,80,80,0.16)",
+                  color: "#ff8a8a",
+                  border: "1px solid rgba(255,80,80,0.4)",
+                  fontSize: 10,
+                  letterSpacing: "0.04em",
+                }}
+              >
+                {t("studio.gallery.report")}
+              </button>
+              </>
             )}
           </div>
           <div className="flex-1 min-h-0 relative">
