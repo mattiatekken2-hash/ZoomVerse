@@ -48,6 +48,10 @@ import {
   adminRemoveSpins,
   adminResetSeason,
   adminForceDelist,
+  adminFetchStudioGallery,
+  adminHideStudioGallery,
+  adminRestoreStudioGallery,
+  type AdminStudioGalleryListing,
   adminClearPlanetMarket,
   adminClearEquipmentMarket,
   adminForceMerchantSpawn,
@@ -121,12 +125,14 @@ export function AdminPanel({ telegramId }: Props) {
   const [planetType, setPlanetType] = useState<PlanetChoice>("BASIC");
   const [globalAmount, setGlobalAmount] = useState("");
   const [feedback, setFeedback] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "black" | "revoke-white" | "revoke-earth" | "revoke-black" | "autotap" | "studiobadge" | "test-wd-chan" | "v1" | "v1nft" | "rec-stars" | "wh-info" | "grant-equipment" | "supernova" | "revoke-supernova" | "stella-rossa" | "revoke-stella-rossa" | "clear-planet-market" | "clear-equipment-market" | "force-merchant" | "labpoints" | "broadcast" | null>(null);
+  const [loading, setLoading] = useState<ActionType | "global" | "reset" | "delist" | "disable" | "enable" | "bulk-nebo" | "white" | "earth" | "black" | "revoke-white" | "revoke-earth" | "revoke-black" | "autotap" | "studiobadge" | "test-wd-chan" | "v1" | "v1nft" | "rec-stars" | "wh-info" | "grant-equipment" | "supernova" | "revoke-supernova" | "stella-rossa" | "revoke-stella-rossa" | "clear-planet-market" | "clear-equipment-market" | "force-merchant" | "labpoints" | "broadcast" | "studio-gallery" | null>(null);
   const [eqCategory, setEqCategory] = useState<EqCategory>("HELMET");
   const [eqRarity, setEqRarity] = useState<EqRarity>("BASIC");
   const [confirmBulkNebo, setConfirmBulkNebo] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [delistId, setDelistId] = useState("");
+  const [studioGalleryAdmin, setStudioGalleryAdmin] = useState<AdminStudioGalleryListing[]>([]);
+  const [studioGalleryLoading, setStudioGalleryLoading] = useState(false);
   const [broadcastText, setBroadcastText] = useState("");
   const [broadcastResult, setBroadcastResult] = useState<{ sent: number; skipped: number } | null>(null);
   const [disableId, setDisableId] = useState("");
@@ -139,6 +145,16 @@ export function AdminPanel({ telegramId }: Props) {
   const [maintMessage, setMaintMessage] = useState("We're upgrading the game. Back online shortly.");
   const [maintLoading, setMaintLoading] = useState(false);
   const [merchantStatus, setMerchantStatus] = useState<{ active: boolean; expiresAt?: string; nextAt?: string; remainingSec?: number }>({ active: false });
+
+  const refreshStudioGalleryAdmin = useCallback(async () => {
+    setStudioGalleryLoading(true);
+    try {
+      const list = await adminFetchStudioGallery(telegramId);
+      setStudioGalleryAdmin(list);
+    } finally {
+      setStudioGalleryLoading(false);
+    }
+  }, [telegramId]);
 
   const refreshPendingWithdrawals = useCallback(async () => {
     const list = await adminFetchWithdrawals(telegramId, "pending");
@@ -173,8 +189,9 @@ export function AdminPanel({ telegramId }: Props) {
       refreshMaintenance();
       refreshTopPlayers();
       refreshMerchantStatus();
+      refreshStudioGalleryAdmin();
     }
-  }, [open, telegramId, refreshPendingWithdrawals, refreshMaintenance, refreshTopPlayers, refreshMerchantStatus]);
+  }, [open, telegramId, refreshPendingWithdrawals, refreshMaintenance, refreshTopPlayers, refreshMerchantStatus, refreshStudioGalleryAdmin]);
 
   useEffect(() => {
     if (!open || !isAdminId(telegramId)) return;
@@ -1685,6 +1702,111 @@ export function AdminPanel({ telegramId }: Props) {
                   >
                     {loading === "delist" ? "..." : "🗑 DELIST"}
                   </motion.button>
+                </div>
+
+                <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />
+
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", letterSpacing: "0.08em" }}>
+                    STUDIO GALLERY — NASCONDI / RIPRISTINA
+                  </div>
+                  <motion.button
+                    whileTap={{ scale: 0.93 }}
+                    onClick={() => { haptic(); refreshStudioGalleryAdmin(); }}
+                    disabled={studioGalleryLoading}
+                    style={{
+                      padding: "2px 8px",
+                      borderRadius: 8,
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      background: "rgba(255,255,255,0.04)",
+                      color: "rgba(255,255,255,0.7)",
+                      fontSize: 9,
+                      fontWeight: 700,
+                      letterSpacing: "0.05em",
+                      cursor: "pointer",
+                      opacity: studioGalleryLoading ? 0.5 : 1,
+                    }}
+                  >
+                    {studioGalleryLoading ? "..." : "↻ REFRESH"}
+                  </motion.button>
+                </div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", lineHeight: 1.35 }}>
+                  Hide toglie dalla vetrina. Restore la rimette. Il file resta allo Studio del creatore.
+                </div>
+                <div
+                  style={{
+                    maxHeight: 260,
+                    overflowY: "auto",
+                    borderRadius: 10,
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    background: "rgba(0,0,0,0.2)",
+                  }}
+                >
+                  {studioGalleryLoading && studioGalleryAdmin.length === 0 ? (
+                    <div style={{ padding: 10, fontSize: 11, color: "rgba(255,255,255,0.4)", textAlign: "center" }}>
+                      Caricamento…
+                    </div>
+                  ) : studioGalleryAdmin.length === 0 ? (
+                    <div style={{ padding: 10, fontSize: 11, color: "rgba(255,255,255,0.4)", textAlign: "center" }}>
+                      Nessuna opera in gallery
+                    </div>
+                  ) : studioGalleryAdmin.map((item) => {
+                    const hidden = item.status === "hidden";
+                    return (
+                      <div
+                        key={item.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "8px 10px",
+                          borderBottom: "1px solid rgba(255,255,255,0.05)",
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            #{item.id} {item.title || "Untitled"}
+                          </div>
+                          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {item.author} · {item.telegramId} · ♥ {item.voteCount} · {hidden ? "HIDDEN" : "PUBLIC"}
+                          </div>
+                        </div>
+                        <motion.button
+                          whileTap={{ scale: 0.93 }}
+                          onClick={async () => {
+                            haptic();
+                            setLoading("studio-gallery");
+                            const ok = hidden
+                              ? await adminRestoreStudioGallery(telegramId, item.id)
+                              : await adminHideStudioGallery(telegramId, item.id);
+                            setLoading(null);
+                            if (ok) {
+                              await refreshStudioGalleryAdmin();
+                              showFeedback(ok && hidden ? `✓ #${item.id} ripristinato` : `✓ #${item.id} nascosto`, true);
+                            } else {
+                              showFeedback(`✗ #${item.id} fallito`, false);
+                            }
+                          }}
+                          disabled={loading !== null}
+                          style={{
+                            flexShrink: 0,
+                            padding: "6px 10px",
+                            borderRadius: 8,
+                            border: hidden ? "1px solid rgba(80,220,140,0.35)" : "1px solid rgba(255,80,80,0.35)",
+                            background: hidden ? "rgba(80,220,140,0.12)" : "rgba(255,80,80,0.12)",
+                            color: hidden ? "#7dffb0" : "#ff8a8a",
+                            fontSize: 9,
+                            fontWeight: 800,
+                            letterSpacing: "0.04em",
+                            cursor: "pointer",
+                            opacity: loading !== null ? 0.5 : 1,
+                          }}
+                        >
+                          {hidden ? "RESTORE" : "HIDE"}
+                        </motion.button>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0" }} />

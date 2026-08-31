@@ -219,24 +219,6 @@ export async function unpublishStudioGallery(
   }
 }
 
-export async function reportStudioGallery(
-  telegramId: string,
-  listingId: number,
-): Promise<{ ok: boolean; error?: string }> {
-  try {
-    const res = await fetch(`${API_BASE}/studio-gallery/report`, {
-      method: "POST",
-      headers: apiHeaders(),
-      body: JSON.stringify({ telegramId, listingId }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: typeof data.error === "string" ? data.error : "Could not report" };
-    return { ok: true };
-  } catch {
-    return { ok: false, error: "Network error" };
-  }
-}
-
 export async function voteStudioGallery(
   telegramId: string,
   listingId: number,

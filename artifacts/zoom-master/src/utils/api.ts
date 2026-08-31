@@ -1935,6 +1935,53 @@ export async function adminForceDelist(adminId: string, listingId: number): Prom
   } catch { return false; }
 }
 
+export interface AdminStudioGalleryListing {
+  id: number;
+  projectId: string;
+  title: string;
+  status: string;
+  voteCount: number;
+  author: string;
+  telegramId: string;
+  updatedAt: string;
+}
+
+export async function adminFetchStudioGallery(adminId: string): Promise<AdminStudioGalleryListing[]> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/admin/studio-gallery?adminId=${encodeURIComponent(adminId)}&t=${Date.now()}`,
+      { cache: "no-store", headers: apiHeaders() },
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.listings) ? data.listings as AdminStudioGalleryListing[] : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function adminHideStudioGallery(adminId: string, listingId: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/studio-gallery/hide`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, listingId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+export async function adminRestoreStudioGallery(adminId: string, listingId: number): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/studio-gallery/restore`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ adminId, listingId }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
 export async function adminFetchMerchantStatus(adminId: string): Promise<{ active: boolean; expiresAt?: string; nextAt?: string; remainingSec?: number }> {
   try {
     const res = await fetch(`${API_BASE}/admin/merchant-status?adminId=${encodeURIComponent(adminId)}`, { cache: "no-store", headers: apiHeaders() });

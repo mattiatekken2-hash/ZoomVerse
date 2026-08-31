@@ -287,53 +287,8 @@ router.post("/studio-gallery/unpublish", async (req, res) => {
   }
 });
 
-router.post("/studio-gallery/report", async (req, res) => {
-  const parsed = z.object({
-    telegramId: z.string().min(1),
-    listingId: z.number().int().positive(),
-  }).safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid body" });
-    return;
-  }
-  const { telegramId, listingId } = parsed.data;
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const listing = await client.query<{ telegram_id: string; status: string }>(
-      `SELECT telegram_id, status FROM studio_gallery WHERE id = $1 FOR UPDATE`,
-      [listingId],
-    );
-    const row = listing.rows[0];
-    if (!row) {
-      await client.query("ROLLBACK");
-      res.status(404).json({ error: "Not found" });
-      return;
-    }
-    if (row.telegram_id === telegramId) {
-      await client.query("ROLLBACK");
-      res.status(400).json({ error: "Cannot report your own piece" });
-      return;
-    }
-    await client.query(
-      `INSERT INTO studio_gallery_reports (listing_id, reporter_id)
-       VALUES ($1, $2)
-       ON CONFLICT DO NOTHING`,
-      [listingId, telegramId],
-    );
-    await client.query(
-      `UPDATE studio_gallery SET status = 'hidden', updated_at = NOW() WHERE id = $1`,
-      [listingId],
-    );
-    await client.query("COMMIT");
-    res.json({ ok: true, hidden: true });
-  } catch (err) {
-    try { await client.query("ROLLBACK"); } catch { /**/ }
-    console.error("[studio-gallery report]", err);
-    res.status(500).json({ error: "Database error" });
-  } finally {
-    client.release();
-  }
+router.post("/studio-gallery/report", async (_req, res) => {
+  res.status(403).json({ error: "Reporting is admin-only" });
 });
 
 router.post("/studio-gallery/vote", async (req, res) => {

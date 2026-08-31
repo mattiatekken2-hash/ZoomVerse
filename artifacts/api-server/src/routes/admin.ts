@@ -1358,6 +1358,91 @@ router.post("/admin/force-delist", async (req, res) => {
   }
 });
 
+const StudioGalleryModBody = z.object({
+  adminId: z.string(),
+  listingId: z.number().int().positive(),
+});
+
+type AdminStudioGalleryRow = {
+  id: number;
+  telegram_id: string;
+  project_id: string;
+  title: string;
+  status: string;
+  vote_count: number;
+  first_name: string | null;
+  updated_at: Date | string;
+};
+
+function mapAdminStudioListing(row: AdminStudioGalleryRow) {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    title: row.title,
+    status: row.status,
+    voteCount: Number(row.vote_count) || 0,
+    author: (row.first_name || "Player").slice(0, 24),
+    telegramId: row.telegram_id,
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+  };
+}
+
+router.get("/admin/studio-gallery", async (req, res) => {
+  if (!req.tgUser || !isAdmin(req.tgUser.id)) return res.status(403).json({ error: "Forbidden" });
+  try {
+    const rows = await pool.query<AdminStudioGalleryRow>(
+      `SELECT g.id, g.telegram_id, g.project_id, g.title, g.status, g.vote_count, g.updated_at,
+              u.first_name
+       FROM studio_gallery g
+       LEFT JOIN users u ON u.telegram_id = g.telegram_id
+       ORDER BY CASE WHEN g.status = 'hidden' THEN 0 ELSE 1 END, g.updated_at DESC
+       LIMIT 80`,
+    );
+    res.json({ ok: true, listings: rows.rows.map(mapAdminStudioListing) });
+  } catch (err) {
+    console.error("[admin/studio-gallery]", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/studio-gallery/hide", async (req, res) => {
+  const parsed = StudioGalleryModBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+  try {
+    const result = await pool.query<{ id: number }>(
+      `UPDATE studio_gallery SET status = 'hidden', updated_at = NOW()
+       WHERE id = $1 AND status = 'public'
+       RETURNING id`,
+      [parsed.data.listingId],
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: "Listing not found or already hidden" });
+    res.json({ ok: true, hidden: true, id: result.rows[0].id });
+  } catch (err) {
+    console.error("[admin/studio-gallery/hide]", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
+router.post("/admin/studio-gallery/restore", async (req, res) => {
+  const parsed = StudioGalleryModBody.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Invalid body" });
+  if (!isAdmin(parsed.data.adminId)) return res.status(403).json({ error: "Forbidden" });
+  try {
+    const result = await pool.query<{ id: number }>(
+      `UPDATE studio_gallery SET status = 'public', updated_at = NOW()
+       WHERE id = $1 AND status = 'hidden'
+       RETURNING id`,
+      [parsed.data.listingId],
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: "Listing not found or not hidden" });
+    res.json({ ok: true, restored: true, id: result.rows[0].id });
+  } catch (err) {
+    console.error("[admin/studio-gallery/restore]", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
+
 // ─── CLEAR EQUIPMENT MARKETPLACE ────────────────────────────────────────────
 // Admin-only bulk delist: mark every active equipment listing as 'delisted'
 // and sync the seller's equipment_json so the items return to inventory.

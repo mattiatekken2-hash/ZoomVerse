@@ -7,7 +7,6 @@ import { useT } from "../i18n/LanguageContext";
 import {
   exposeStudioGallery,
   fetchStudioGallery,
-  reportStudioGallery,
   unpublishStudioGallery,
   voteStudioGallery,
   type StudioGalleryListing,
@@ -168,20 +167,6 @@ export function StudioGalleryPanel({
       return;
     }
     applyVote(item, res.voteCount ?? item.voteCount + 1, res.top3);
-  };
-
-  const report = async (item: StudioGalleryListing) => {
-    if (busy || item.mine) return;
-    setBusy(true);
-    const res = await reportStudioGallery(telegramId, item.id);
-    setBusy(false);
-    if (!res.ok) {
-      onFlash(res.error || t("studio.gallery.reportFail"));
-      return;
-    }
-    onFlash(t("studio.gallery.reported"));
-    setOpen(null);
-    void reload();
   };
 
   const unpublish = async (item: StudioGalleryListing) => {
@@ -438,7 +423,6 @@ export function StudioGalleryPanel({
               </div>
             </div>
             {!open.mine && (
-              <>
               <button
                 type="button"
                 disabled={busy || open.voted}
@@ -456,55 +440,24 @@ export function StudioGalleryPanel({
               >
                 <StudioHeart on={!!open.voted} size={15} /> {open.voteCount}
               </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void report(open)}
-                aria-label={t("studio.gallery.report")}
-                className="flex items-center justify-center font-black"
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 999,
-                  background: "rgba(255,80,80,0.16)",
-                  color: "#ff8a8a",
-                  border: "1px solid rgba(255,80,80,0.4)",
-                  fontSize: 10,
-                  letterSpacing: "0.04em",
-                }}
-              >
-                {t("studio.gallery.report")}
-              </button>
-              </>
             )}
           </div>
           <div className="flex-1 min-h-0 relative">
             <VoxelStudioCanvas voxels={open.voxels} preview />
           </div>
+          {open.mine && (
           <div className="flex-shrink-0 px-3 pt-2 flex gap-2" style={{ paddingBottom: "max(14px, calc(env(safe-area-inset-bottom, 0px) + 10px))" }}>
-            {!open.mine && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void report(open)}
-                className="flex-1 py-3 rounded-full text-[11px] font-black uppercase"
-                style={{ background: "rgba(255,80,80,0.12)", color: "#ff8a8a", border: "1px solid rgba(255,80,80,0.3)" }}
-              >
-                {t("studio.gallery.report")}
-              </button>
-            )}
-            {open.mine && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void unpublish(open)}
-                className="flex-1 py-3 rounded-full text-[11px] font-black uppercase"
-                style={{ background: "rgba(255,255,255,0.08)", color: "#fff", border: "1px solid rgba(255,255,255,0.16)" }}
-              >
-                {t("studio.gallery.unpublish")}
-              </button>
-            )}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void unpublish(open)}
+              className="flex-1 py-3 rounded-full text-[11px] font-black uppercase"
+              style={{ background: "rgba(255,255,255,0.08)", color: "#fff", border: "1px solid rgba(255,255,255,0.16)" }}
+            >
+              {t("studio.gallery.unpublish")}
+            </button>
           </div>
+          )}
         </div>
       )}
     </div>
