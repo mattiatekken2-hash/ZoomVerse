@@ -836,7 +836,10 @@ router.get("/market/my-listings/:telegramId", async (req, res) => {
 
 const ReactivateBody = z.object({
   sellerTelegramId: z.string().min(1),
-  listingId: z.number().int().positive(),
+  listingId: z.coerce.number().int().positive().optional(),
+  planetId: z.string().min(1).max(128).optional(),
+}).refine((d) => d.listingId != null || !!d.planetId, {
+  message: "listingId or planetId required",
 });
 
 /** Reset the 1h shop shelf clock so the listing shows again. */
@@ -846,21 +849,36 @@ router.post("/market/reactivate", async (req, res) => {
     res.status(400).json({ error: "Invalid body" });
     return;
   }
-  const { sellerTelegramId, listingId } = parsed.data;
+  const { sellerTelegramId, listingId, planetId } = parsed.data;
   try {
-    const [row] = await db
-      .select()
-      .from(marketListingsTable)
-      .where(and(
-        eq(marketListingsTable.id, listingId),
-        eq(marketListingsTable.sellerTelegramId, sellerTelegramId),
-        eq(marketListingsTable.status, "active"),
-      ))
-      .limit(1);
+    let row: typeof marketListingsTable.$inferSelect | undefined;
+    if (listingId != null) {
+      [row] = await db
+        .select()
+        .from(marketListingsTable)
+        .where(and(
+          eq(marketListingsTable.id, listingId),
+          eq(marketListingsTable.sellerTelegramId, sellerTelegramId),
+          eq(marketListingsTable.status, "active"),
+        ))
+        .limit(1);
+    }
+    if (!row && planetId) {
+      [row] = await db
+        .select()
+        .from(marketListingsTable)
+        .where(and(
+          eq(marketListingsTable.planetId, planetId),
+          eq(marketListingsTable.sellerTelegramId, sellerTelegramId),
+          eq(marketListingsTable.status, "active"),
+        ))
+        .limit(1);
+    }
     if (!row) {
       res.status(404).json({ error: "Listing not found" });
       return;
     }
+    const resolvedListingId = row.id;
     const feeZoom = MARKET_RELIST_FEE_ZOOM;
     const [seller] = await db
       .select({ zoom: usersTable.zoomBalance })
@@ -890,7 +908,7 @@ router.post("/market/reactivate", async (req, res) => {
     const [updated] = await db
       .update(marketListingsTable)
       .set({ lastActivatedAt: now })
-      .where(eq(marketListingsTable.id, listingId))
+      .where(eq(marketListingsTable.id, resolvedListingId))
       .returning();
     const expiresAt = listingShelfDeadline(updated ?? { lastActivatedAt: now, createdAt: now });
     recordHistoryAsync({
@@ -898,7 +916,7 @@ router.post("/market/reactivate", async (req, res) => {
       kind: "market_reactivate",
       delta: -feeZoom,
       currency: "zoom",
-      meta: { listingId, feeZoom },
+      meta: { listingId: resolvedListingId, feeZoom },
     });
     res.json({
       ok: true,

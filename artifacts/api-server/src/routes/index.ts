@@ -182,7 +182,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
   // Marketplace — seller-initiated actions bind to sellerTelegramId
   {
     methods: ["POST"],
-    paths: ["/market/list", "/market/list-equipment", "/market/list-item", "/market/delist"],
+    paths: ["/market/list", "/market/list-equipment", "/market/list-item", "/market/delist", "/market/reactivate"],
     bindField: "sellerTelegramId",
   },
   // Marketplace — buyer-initiated actions bind to buyerTelegramId

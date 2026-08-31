@@ -35,6 +35,21 @@ interface Props {
   maxSlots?: number;
 }
 
+function listingNumId(id: unknown): number {
+  const n = Number(id);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+function sameListingRef(
+  listing: Pick<ServerMarketListing, "id" | "planetId">,
+  planet: Pick<Planet, "id" | "serverListingId">,
+): boolean {
+  const sid = listingNumId(planet.serverListingId);
+  const lid = listingNumId(listing.id);
+  if (sid > 0 && lid === sid) return true;
+  return !!listing.planetId && listing.planetId === planet.id;
+}
+
 function labelFor(listing: ServerMarketListing): string {
   return labModelDisplayName({
     shapeId: listing.shapeId,
@@ -102,6 +117,7 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
   const [msg, setMsg] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [holdUntil, setHoldUntil] = useState<Record<string, number>>({});
   const storeListings = useGlobalStore((s) => s.marketListings);
 
   const slotsFull = farmSlotUsedCount(myPlanets) >= maxSlots;
@@ -134,8 +150,11 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
   const extraLocal = myPlanets.filter((p) => {
     if (!p.isListedInMarket) return false;
     if (isPlanetDelisted(telegramId, p.id) || isPlanetBurned(telegramId, p.id)) return false;
-    return !rows.some((r) => r.id === p.serverListingId || r.planetId === p.id)
-      && !storeListings.some((r) => r.planetId === p.id && r.sellerTelegramId === telegramId);
+    const inRows = rows.some((r) => sameListingRef(r, p));
+    const inStore = storeListings.some((r) =>
+      r.sellerTelegramId === telegramId && sameListingRef(r, p),
+    );
+    return !inRows && !inStore;
   });
 
   const displayRows: ServerMarketListing[] = (() => {
@@ -164,18 +183,32 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
       window.setTimeout(() => setMsg(null), 2800);
       return;
     }
+    const lid = listingNumId(listing.id);
     const planetId =
       listing.planetId
-      ?? myPlanets.find((p) => p.serverListingId === listing.id)?.id;
+      ?? myPlanets.find((p) => listingNumId(p.serverListingId) === lid)?.id;
     if (!planetId) return;
     onUnlist(planetId);
-    setRows((prev) => prev.filter((r) => r.id !== listing.id && r.planetId !== planetId));
+    setRows((prev) => prev.filter((r) => listingNumId(r.id) !== lid && r.planetId !== planetId));
   };
 
-  const handleRelist = async (listing: ServerMarketListing) => {
+  const handleRelist = async (listing: Partial<ServerMarketListing> & { id?: number }, planetId?: string) => {
     if (!telegramId || busyId != null) return;
-    setBusyId(listing.id);
-    const res = await reactivateMarketListing(telegramId, listing.id);
+    const pid = (planetId || listing.planetId || "").trim();
+    let listingId = listingNumId(listing.id);
+    setBusyId(listingId || -1);
+    if (listingId <= 0 && pid) {
+      const mine = await fetchMyMarketListings(telegramId);
+      const found = mine.find((l) => l.planetId === pid && l.status !== "sold");
+      listingId = listingNumId(found?.id);
+      if (found) {
+        setRows((prev) => {
+          const rest = prev.filter((r) => listingNumId(r.id) !== listingId && r.planetId !== pid);
+          return [found, ...rest];
+        });
+      }
+    }
+    const res = await reactivateMarketListing(telegramId, listingId || undefined, pid || undefined);
     setBusyId(null);
     if (!res.ok) {
       setMsg(res.error || t("market.relistFail"));
@@ -183,14 +216,17 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
       return;
     }
     const nextExpires = res.expiresAt ?? (Date.now() + MARKET_LISTING_TTL_MS);
-    const patched: ServerMarketListing = {
-      ...listing,
-      expired: false,
-      expiresAt: nextExpires,
-      remainingMs: res.remainingMs ?? MARKET_LISTING_TTL_MS,
-    };
-    setRows((prev) => prev.map((r) => (r.id === listing.id ? patched : r)));
-    upsertMarketListing(patched);
+    const patchedId = listingId || listingNumId(listing.id);
+    if (patchedId > 0 && typeof listing.sellerTelegramId === "string" && listing.sellerTelegramId) {
+      upsertMarketListing({
+        ...(listing as ServerMarketListing),
+        id: patchedId,
+        planetId: pid || listing.planetId || null,
+        expired: false,
+        expiresAt: nextExpires,
+        remainingMs: res.remainingMs ?? MARKET_LISTING_TTL_MS,
+      });
+    }
     if (typeof res.zoomBalance === "number") {
       try {
         window.dispatchEvent(new CustomEvent("zoom-server-balance-snap", {
@@ -199,6 +235,10 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
       } catch { /**/ }
     }
     try { window.dispatchEvent(new Event("zoom-data-refresh")); } catch { /**/ }
+    if (pid) {
+      setHoldUntil((prev) => ({ ...prev, [pid]: Date.now() + MARKET_LISTING_TTL_MS }));
+    }
+    await reload();
   };
 
   const shelfOf = (listing: ServerMarketListing, listedAt?: number) => {
@@ -233,7 +273,13 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
       <div className="lab-market__grid">
         {extraLocal.map((planet) => {
           const listedAt = planet.marketListedAt ?? 0;
-          const remaining = listedAt > 0 ? Math.max(0, listedAt + MARKET_LISTING_TTL_MS - now) : MARKET_LISTING_TTL_MS;
+          const hold = holdUntil[planet.id] ?? 0;
+          const remaining = listedAt > 0 || hold > 0
+            ? Math.max(0, listedAt + MARKET_LISTING_TTL_MS - now, hold - now)
+            : MARKET_LISTING_TTL_MS;
+          const expired = remaining <= 0;
+          const sid = listingNumId(planet.serverListingId);
+          const relist = () => void handleRelist({ id: sid, planetId: planet.id }, planet.id);
           return (
             <FarmInventoryCard
               key={`local-${planet.id}`}
@@ -245,21 +291,31 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
               listedActionDisabled={slotsFull}
               listedActionLabel={slotsFull ? "Slots full" : "Remove"}
               shelfRemainingMs={remaining}
-              shelfExpired={remaining <= 0}
+              shelfExpired={expired}
+              onRelist={expired ? relist : undefined}
+              relistBusy={busyId != null && (busyId === sid || busyId === -1)}
+              relistFeeLabel={t("market.relistFee", { n: MARKET_RELIST_FEE_ZOOM })}
+              onCardClick={expired ? relist : undefined}
             />
           );
         })}
         {displayRows.map((listing) => {
+          const lid = listingNumId(listing.id);
           const planet =
-            myPlanets.find((p) => p.serverListingId === listing.id)
+            myPlanets.find((p) => listingNumId(p.serverListingId) === lid)
             ?? myPlanets.find((p) => p.id === listing.planetId);
           const cardPlanet = planetFromListing(listing, planet);
           const shelf = shelfOf(listing, planet?.marketListedAt);
-          const canRelist = shelf.expired;
+          const hold = (listing.planetId && holdUntil[listing.planetId])
+            || (planet?.id ? holdUntil[planet.id] : 0)
+            || 0;
+          const remaining = Math.max(shelf.remaining, hold > now ? hold - now : 0);
+          const canRelist = remaining <= 0 && shelf.expired;
+          const relist = () => void handleRelist(listing, planet?.id || listing.planetId || undefined);
 
           return (
             <FarmInventoryCard
-              key={listing.id}
+              key={lid || listing.id}
               planet={cardPlanet}
               variant="grid"
               suspendGl={!visible}
@@ -267,12 +323,12 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
               onUnlist={slotsFull ? undefined : () => handleDelist(listing)}
               listedActionDisabled={slotsFull}
               listedActionLabel={slotsFull ? "Slots full" : "Remove"}
-              shelfRemainingMs={shelf.remaining}
-              shelfExpired={shelf.expired}
-              onRelist={canRelist ? () => void handleRelist(listing) : undefined}
-              relistBusy={busyId === listing.id}
+              shelfRemainingMs={remaining}
+              shelfExpired={canRelist}
+              onRelist={canRelist ? relist : undefined}
+              relistBusy={busyId != null && (busyId === lid || busyId === -1)}
               relistFeeLabel={t("market.relistFee", { n: MARKET_RELIST_FEE_ZOOM })}
-              onCardClick={canRelist ? () => void handleRelist(listing) : undefined}
+              onCardClick={canRelist ? relist : undefined}
             />
           );
         })}

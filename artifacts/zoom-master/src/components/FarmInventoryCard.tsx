@@ -198,25 +198,23 @@ export function FarmInventoryCard({
                     {t("market.shelfLive", { t: formatShelfClock(shelfRemainingMs) })}
                   </div>
                 )}
-                {shelfExpired && onRelist && (
+                {shelfExpired && (
                   <button
                     type="button"
-                    disabled={relistBusy}
+                    disabled={relistBusy || !onRelist}
                     className="lab-market-card__buy"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (relistBusy) return;
+                      if (relistBusy || !onRelist) return;
                       onRelist();
                     }}
+                    data-testid={`btn-relist-${planet.id}`}
                   >
                     <span>{t("market.relist").toUpperCase()}</span>
                     {relistFeeLabel ? (
                       <span className="farm-inventory-card__reactivate-cost">{relistFeeLabel}</span>
                     ) : null}
                   </button>
-                )}
-                {shelfExpired && !onRelist && (
-                  <div className="lab-market-card__status">{t("market.shelfExpired")}</div>
                 )}
                 <button
                   type="button"

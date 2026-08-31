@@ -3084,13 +3084,19 @@ export async function fetchMyMarketListings(telegramId: string): Promise<ServerM
 
 export async function reactivateMarketListing(
   sellerTelegramId: string,
-  listingId: number,
+  listingId?: number | null,
+  planetId?: string | null,
 ): Promise<{ ok: boolean; expiresAt?: number; remainingMs?: number; feeZoom?: number; zoomBalance?: number; balanceEpoch?: number; error?: string }> {
   try {
+    const id = Number(listingId);
+    const body: { sellerTelegramId: string; listingId?: number; planetId?: string } = { sellerTelegramId };
+    if (Number.isFinite(id) && id > 0) body.listingId = id;
+    const pid = typeof planetId === "string" ? planetId.trim() : "";
+    if (pid) body.planetId = pid;
     const res = await fetch(`${API_BASE}/market/reactivate`, {
       method: "POST",
       headers: apiHeaders(),
-      body: JSON.stringify({ sellerTelegramId, listingId }),
+      body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data?.ok) {
