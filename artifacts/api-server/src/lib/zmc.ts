@@ -109,6 +109,27 @@ export async function fetchZmcBalanceNano(owner: string): Promise<bigint> {
   return info?.balanceNano ?? 0n;
 }
 
+/** Lab airdrop hold: distinguish a real 0 from TonAPI being down (do not reset the timer). */
+export async function readZmcHoldBalance(
+  owner: string,
+): Promise<{ known: true; human: number } | { known: false }> {
+  const master = encodeURIComponent(zmcJettonMaster());
+  const account = encodeURIComponent(owner);
+  try {
+    const r = await tonapiGet(`/v2/accounts/${account}/jettons/${master}`);
+    if (r.status === 404) return { known: true, human: 0 };
+    if (!r.ok || !r.json || typeof r.json !== "object") return { known: false };
+    const data = r.json as {
+      balance?: string;
+      wallet_address?: { address?: string };
+    };
+    if (!data.wallet_address?.address) return { known: false };
+    return { known: true, human: zmcNanoToHuman(parseJettonNano(data.balance)) };
+  } catch {
+    return { known: false };
+  }
+}
+
 export function vipFromBalanceNano(nano: bigint): VipLevel {
   return vipLevelFromNano(nano);
 }

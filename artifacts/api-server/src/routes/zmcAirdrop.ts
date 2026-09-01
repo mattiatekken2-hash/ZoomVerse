@@ -16,10 +16,9 @@ import {
   ZMC_TASK_HOLD_DAYS,
   ZMC_TASK_HOLD_MIN,
   ZMC_TASK_SALES_MIN,
-  zmcNanoToHuman,
   zmcTaskAirdropSplit,
 } from "@workspace/game-models";
-import { fetchZmcBalanceNano, sendZmcFromTreasury } from "../lib/zmc";
+import { readZmcHoldBalance, sendZmcFromTreasury } from "../lib/zmc";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -177,6 +176,7 @@ function buildState(
     zmcHeld: number;
     holdStartedAtMs: number;
     wallet: string | null;
+    balanceKnown: boolean;
   },
 ) {
   const now = Date.now();
@@ -194,7 +194,14 @@ function buildState(
   const checkinDone = streak >= ZMC_TASK_CHECKIN_DAYS;
   const craftsDone = extra.crafts >= ZMC_TASK_CRAFTS_MIN;
   const salesDone = extra.sales >= ZMC_TASK_SALES_MIN;
-  const holding = extra.zmcHeld + 1e-9 >= ZMC_TASK_HOLD_MIN;
+  const holding = extra.balanceKnown
+    ? extra.zmcHeld + 1e-9 >= ZMC_TASK_HOLD_MIN
+    : extra.holdStartedAtMs > 0;
+  const displayHeld = extra.balanceKnown
+    ? extra.zmcHeld
+    : extra.holdStartedAtMs > 0
+      ? Math.max(extra.zmcHeld, ZMC_TASK_HOLD_MIN)
+      : 0;
   const holdElapsed = extra.holdStartedAtMs > 0 ? now - extra.holdStartedAtMs : 0;
   const holdDone = holding && extra.holdStartedAtMs > 0 && holdElapsed >= HOLD_MS;
   const claimed = !!progress.claimed_at && progress.claim_tx !== PENDING_TX;
@@ -231,7 +238,7 @@ function buildState(
     hold: {
       min: ZMC_TASK_HOLD_MIN,
       days: ZMC_TASK_HOLD_DAYS,
-      held: extra.zmcHeld,
+      held: displayHeld,
       startedAtMs: extra.holdStartedAtMs,
       done: holdDone,
     },
@@ -242,7 +249,13 @@ function buildState(
   };
 }
 
-async function snapshotHold(telegramId: string, held: number, prevStart: number): Promise<number> {
+async function snapshotHold(
+  telegramId: string,
+  held: number,
+  prevStart: number,
+  balanceKnown: boolean,
+): Promise<number> {
+  if (!balanceKnown) return prevStart;
   let start = prevStart;
   if (held + 1e-9 >= ZMC_TASK_HOLD_MIN) {
     if (start <= 0) start = Date.now();
@@ -272,14 +285,21 @@ async function gatherPlayer(telegramId: string) {
   ]);
   const wallet = user?.wallet ?? null;
   let zmcHeld = 0;
+  let balanceKnown = true;
   if (wallet) {
-    try {
-      zmcHeld = zmcNanoToHuman(await fetchZmcBalanceNano(wallet));
-    } catch {
-      zmcHeld = 0;
+    const read = await readZmcHoldBalance(wallet);
+    if (read.known) {
+      zmcHeld = read.human;
+    } else {
+      balanceKnown = false;
     }
   }
-  const holdStartedAtMs = await snapshotHold(telegramId, zmcHeld, progress.hold_started_at_ms);
+  const holdStartedAtMs = await snapshotHold(
+    telegramId,
+    zmcHeld,
+    progress.hold_started_at_ms,
+    balanceKnown,
+  );
   return {
     pool,
     progress: { ...progress, hold_started_at_ms: holdStartedAtMs },
@@ -288,6 +308,7 @@ async function gatherPlayer(telegramId: string) {
     zmcHeld,
     holdStartedAtMs,
     wallet,
+    balanceKnown,
   };
 }
 
@@ -305,6 +326,7 @@ router.get("/zmc-airdrop/state", async (req, res) => {
       zmcHeld: g.zmcHeld,
       holdStartedAtMs: g.holdStartedAtMs,
       wallet: g.wallet,
+      balanceKnown: g.balanceKnown,
     }));
   } catch (err) {
     logger.warn({ err }, "[zmc-airdrop] state failed");
@@ -412,6 +434,9 @@ router.post("/zmc-airdrop/claim", async (req, res) => {
       return res.status(409).json({ ok: false, error: "Airdrop esaurito" });
     }
     if (!g.wallet) return res.status(400).json({ ok: false, error: "Connect TON wallet" });
+    if (!g.balanceKnown) {
+      return res.status(503).json({ ok: false, error: "Hold balance unavailable, retry" });
+    }
 
     const state = buildState(g.progress, {
       remaining: g.pool.remaining,
@@ -421,6 +446,7 @@ router.post("/zmc-airdrop/claim", async (req, res) => {
       zmcHeld: g.zmcHeld,
       holdStartedAtMs: g.holdStartedAtMs,
       wallet: g.wallet,
+      balanceKnown: g.balanceKnown,
     });
     if (!state.eligible) {
       return res.status(400).json({ ok: false, error: "Not eligible", missing: state.missing });
