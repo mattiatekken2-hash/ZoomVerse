@@ -27,14 +27,21 @@ function fmt(n: number): string {
   return Math.max(0, Math.floor(n)).toLocaleString();
 }
 
+function holdDaysDone(s: ZmcAirdropState): number {
+  const need = Math.max(1, s.hold.days || 15);
+  if (s.hold.done) return need;
+  if (!(s.hold.startedAtMs > 0)) return 0;
+  const elapsed = Date.now() - s.hold.startedAtMs;
+  return Math.min(need, Math.max(0, Math.floor(elapsed / 86400000)));
+}
+
 function missingLabel(t: (k: string, v?: Record<string, string | number>) => string, code: string, s: ZmcAirdropState): string {
   if (code === "checkin") return t("airdrop.miss.checkin", { n: s.checkin.streak, need: s.checkin.need });
   if (code === "social") return t("airdrop.miss.social");
   if (code === "wallet") return t("airdrop.miss.wallet");
   if (code === "hold_balance") return t("airdrop.miss.holdBal", { n: fmt(s.hold.min) });
   if (code === "hold_days") {
-    const left = Math.max(1, Math.ceil((s.hold.days * 86400000 - (Date.now() - s.hold.startedAtMs)) / 86400000));
-    return t("airdrop.miss.holdDays", { n: left });
+    return t("airdrop.miss.holdDays", { have: holdDaysDone(s), need: s.hold.days });
   }
   if (code === "crafts") return t("airdrop.miss.crafts", { n: s.crafts.have, need: s.crafts.need });
   if (code === "sales") return t("airdrop.miss.sales", { n: s.sales.have, need: s.sales.need });
@@ -270,6 +277,7 @@ function ZmcAirdropWidgetBase({ telegramId }: { telegramId: string | null }) {
                 label={t("airdrop.task.hold", {
                   n: fmt(state?.hold.min ?? 10000),
                   d: state?.hold.days ?? 15,
+                  daysHave: state ? holdDaysDone(state) : 0,
                   have: fmt(state?.hold.held ?? 0),
                 })}
               />
