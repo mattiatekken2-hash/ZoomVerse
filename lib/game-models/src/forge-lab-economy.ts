@@ -22,6 +22,14 @@ export const LAB_LAPTOP_SHAPE_ID = "lab_laptop";
 export const LAB_EVENANO_SHAPE_ID = "evenano";
 export const LAB_CAPYBARA_SHAPE_ID = "capybara";
 export const LAB_QUESTION_BLOCK_SHAPE_ID = "question_block";
+export const LAB_MARLBORO_SHAPE_ID = "marlboro";
+export const LAB_PSP_SHAPE_ID = "psp";
+export const LAB_SPACE_FARM_SHAPE_ID = "space_farm";
+export const LAB_BOB_OMB_SHAPE_ID = "bob_omb";
+export const LAB_AMONG_US_SHAPE_ID = "among_us";
+export const LAB_AVOCADO_SHAPE_ID = "avocado";
+export const LAB_GAMEBOY_SHAPE_ID = "gameboy";
+export const LAB_FRUIT_ART_SHAPE_ID = "fruit_art";
 
 export const LAB_ZOOM_SHAPE_IDS = [
   LAB_PIZZA_SHAPE_ID,
@@ -35,6 +43,10 @@ export const LAB_ZOOM_SHAPE_IDS = [
   LAB_HOUSE_SHAPE_ID,
   LAB_EVENANO_SHAPE_ID,
   LAB_LAPTOP_SHAPE_ID,
+  LAB_MARLBORO_SHAPE_ID,
+  LAB_PSP_SHAPE_ID,
+  LAB_SPACE_FARM_SHAPE_ID,
+  LAB_BOB_OMB_SHAPE_ID,
 ] as const;
 
 export const LAB_STARDUST_SHAPE_IDS = [
@@ -49,6 +61,10 @@ export const LAB_STARDUST_SHAPE_IDS = [
   LAB_AK47_SHAPE_ID,
   LAB_CAPYBARA_SHAPE_ID,
   LAB_QUESTION_BLOCK_SHAPE_ID,
+  LAB_AMONG_US_SHAPE_ID,
+  LAB_AVOCADO_SHAPE_ID,
+  LAB_GAMEBOY_SHAPE_ID,
+  LAB_FRUIT_ART_SHAPE_ID,
 ] as const;
 
 export type LabZoomShapeId = (typeof LAB_ZOOM_SHAPE_IDS)[number];
@@ -68,6 +84,10 @@ export const LAB_ZOOM_FARM_RATE: Record<LabZoomShapeId, number> = {
   [LAB_HOUSE_SHAPE_ID]: 5.6,
   [LAB_EVENANO_SHAPE_ID]: 4.9,
   [LAB_LAPTOP_SHAPE_ID]: 5.1,
+  [LAB_MARLBORO_SHAPE_ID]: 4.7,
+  [LAB_PSP_SHAPE_ID]: 5.15,
+  [LAB_SPACE_FARM_SHAPE_ID]: 5.35,
+  [LAB_BOB_OMB_SHAPE_ID]: 4.95,
 };
 
 export const LAB_STARDUST_FARM_RATE: Record<LabStardustShapeId, number> = {
@@ -82,6 +102,10 @@ export const LAB_STARDUST_FARM_RATE: Record<LabStardustShapeId, number> = {
   [LAB_AK47_SHAPE_ID]: 0.42,
   [LAB_CAPYBARA_SHAPE_ID]: 0.35,
   [LAB_QUESTION_BLOCK_SHAPE_ID]: 0.37,
+  [LAB_AMONG_US_SHAPE_ID]: 0.33,
+  [LAB_AVOCADO_SHAPE_ID]: 0.31,
+  [LAB_GAMEBOY_SHAPE_ID]: 0.41,
+  [LAB_FRUIT_ART_SHAPE_ID]: 0.32,
 };
 
 export const LAB_ZOOM_DISPLAY_NAME: Record<LabZoomShapeId, string> = {
@@ -96,6 +120,10 @@ export const LAB_ZOOM_DISPLAY_NAME: Record<LabZoomShapeId, string> = {
   [LAB_HOUSE_SHAPE_ID]: "House",
   [LAB_EVENANO_SHAPE_ID]: "Evenano Block",
   [LAB_LAPTOP_SHAPE_ID]: "Laptop",
+  [LAB_MARLBORO_SHAPE_ID]: "Marlboro",
+  [LAB_PSP_SHAPE_ID]: "PSP",
+  [LAB_SPACE_FARM_SHAPE_ID]: "Space Farm",
+  [LAB_BOB_OMB_SHAPE_ID]: "Bob-omb",
 };
 
 export const LAB_STARDUST_DISPLAY_NAME: Record<LabStardustShapeId, string> = {
@@ -110,6 +138,10 @@ export const LAB_STARDUST_DISPLAY_NAME: Record<LabStardustShapeId, string> = {
   [LAB_AK47_SHAPE_ID]: "AK-47 Asimov",
   [LAB_CAPYBARA_SHAPE_ID]: "Capybara",
   [LAB_QUESTION_BLOCK_SHAPE_ID]: "Question Block",
+  [LAB_AMONG_US_SHAPE_ID]: "Among Us",
+  [LAB_AVOCADO_SHAPE_ID]: "Avocado Backpack",
+  [LAB_GAMEBOY_SHAPE_ID]: "Game Boy",
+  [LAB_FRUIT_ART_SHAPE_ID]: "Fruit Art",
 };
 
 export const LAB_ZOOM_COLORS: Record<LabZoomShapeId, { color: string; glowColor: string }> = {
@@ -124,6 +156,10 @@ export const LAB_ZOOM_COLORS: Record<LabZoomShapeId, { color: string; glowColor:
   [LAB_HOUSE_SHAPE_ID]: { color: "#ef9a58", glowColor: "#5b8def" },
   [LAB_EVENANO_SHAPE_ID]: { color: "#26c6da", glowColor: "#00838f" },
   [LAB_LAPTOP_SHAPE_ID]: { color: "#90caf9", glowColor: "#42a5f5" },
+  [LAB_MARLBORO_SHAPE_ID]: { color: "#c62828", glowColor: "#ef5350" },
+  [LAB_PSP_SHAPE_ID]: { color: "#90a4ae", glowColor: "#546e7a" },
+  [LAB_SPACE_FARM_SHAPE_ID]: { color: "#26a69a", glowColor: "#00695c" },
+  [LAB_BOB_OMB_SHAPE_ID]: { color: "#37474f", glowColor: "#ff5252" },
 };
 
 export const LAB_STARDUST_COLORS: Record<LabStardustShapeId, { color: string; glowColor: string }> = {
@@ -138,6 +174,10 @@ export const LAB_STARDUST_COLORS: Record<LabStardustShapeId, { color: string; gl
   [LAB_AK47_SHAPE_ID]: { color: "#c9a227", glowColor: "#212121" },
   [LAB_CAPYBARA_SHAPE_ID]: { color: "#c4a574", glowColor: "#8d6e63" },
   [LAB_QUESTION_BLOCK_SHAPE_ID]: { color: "#ffc107", glowColor: "#ff9800" },
+  [LAB_AMONG_US_SHAPE_ID]: { color: "#e53935", glowColor: "#ff1744" },
+  [LAB_AVOCADO_SHAPE_ID]: { color: "#7cb342", glowColor: "#558b2f" },
+  [LAB_GAMEBOY_SHAPE_ID]: { color: "#9ccc65", glowColor: "#7cb342" },
+  [LAB_FRUIT_ART_SHAPE_ID]: { color: "#ec407a", glowColor: "#f48fb1" },
 };
 
 /** Fallback tap count — live Lab models use voxel length (1 tap = 1 cube). */
@@ -210,6 +250,10 @@ function labMarketPathFromDisplayName(displayName: string | null | undefined): L
     || n.includes("honey") || n.includes("horsea") || n.includes("sushi")
     || n === "house" || n === "laptop" || n === "lab_laptop" || n.includes("laptop")
     || n === "evenano" || n === "evenano block" || n.includes("evenano")
+    || n === "marlboro" || n.includes("marlboro")
+    || n === "psp" || n.includes("psp")
+    || n === "space farm" || n.includes("space farm") || n.includes("spacefarm")
+    || n === "bob-omb" || n === "bob omb" || n.includes("bob-omb") || n.includes("bobomb")
   ) {
     return "zoom";
   }
@@ -222,6 +266,10 @@ function labMarketPathFromDisplayName(displayName: string | null | undefined): L
     || n.includes("asimov") || n.includes("ak-47")
     || n === "capybara" || n.includes("capybara")
     || n === "question block" || n.includes("question block") || n.includes("mario")
+    || n === "among us" || n.includes("among us") || n.includes("amongus")
+    || n === "avocado" || n.includes("avocado")
+    || n === "game boy" || n === "gameboy" || n.includes("game boy") || n.includes("gameboy")
+    || n === "fruit art" || n.includes("fruit art") || n.includes("fruitart")
   ) {
     return "stardust";
   }
@@ -312,6 +360,25 @@ const DISPLAY_NAME_TO_SHAPE: Record<string, string> = {
   "question block": LAB_QUESTION_BLOCK_SHAPE_ID,
   question_block: LAB_QUESTION_BLOCK_SHAPE_ID,
   "mario block": LAB_QUESTION_BLOCK_SHAPE_ID,
+  marlboro: LAB_MARLBORO_SHAPE_ID,
+  psp: LAB_PSP_SHAPE_ID,
+  "space farm": LAB_SPACE_FARM_SHAPE_ID,
+  space_farm: LAB_SPACE_FARM_SHAPE_ID,
+  spacefarm: LAB_SPACE_FARM_SHAPE_ID,
+  "bob-omb": LAB_BOB_OMB_SHAPE_ID,
+  "bob omb": LAB_BOB_OMB_SHAPE_ID,
+  bob_omb: LAB_BOB_OMB_SHAPE_ID,
+  bobomb: LAB_BOB_OMB_SHAPE_ID,
+  "among us": LAB_AMONG_US_SHAPE_ID,
+  among_us: LAB_AMONG_US_SHAPE_ID,
+  amongus: LAB_AMONG_US_SHAPE_ID,
+  avocado: LAB_AVOCADO_SHAPE_ID,
+  "avocado backpack": LAB_AVOCADO_SHAPE_ID,
+  "game boy": LAB_GAMEBOY_SHAPE_ID,
+  gameboy: LAB_GAMEBOY_SHAPE_ID,
+  "fruit art": LAB_FRUIT_ART_SHAPE_ID,
+  fruit_art: LAB_FRUIT_ART_SHAPE_ID,
+  fruitart: LAB_FRUIT_ART_SHAPE_ID,
 };
 
 /** Recover Lab shape id from listing/planet even if displayName was renamed later. */
@@ -347,6 +414,14 @@ export function resolveLabShapeIdFromPlanet(planet: {
   if (n.includes("evenano")) return LAB_EVENANO_SHAPE_ID;
   if (n.includes("capybara")) return LAB_CAPYBARA_SHAPE_ID;
   if (n.includes("question") || n.includes("mario")) return LAB_QUESTION_BLOCK_SHAPE_ID;
+  if (n.includes("marlboro")) return LAB_MARLBORO_SHAPE_ID;
+  if (n === "psp" || n.includes("psp")) return LAB_PSP_SHAPE_ID;
+  if (n.includes("space farm") || n.includes("spacefarm") || n === "space_farm") return LAB_SPACE_FARM_SHAPE_ID;
+  if (n.includes("bob-omb") || n.includes("bob omb") || n.includes("bobomb") || n === "bob_omb") return LAB_BOB_OMB_SHAPE_ID;
+  if (n.includes("among us") || n.includes("amongus") || n === "among_us") return LAB_AMONG_US_SHAPE_ID;
+  if (n.includes("avocado")) return LAB_AVOCADO_SHAPE_ID;
+  if (n.includes("game boy") || n.includes("gameboy")) return LAB_GAMEBOY_SHAPE_ID;
+  if (n.includes("fruit art") || n.includes("fruitart") || n === "fruit_art") return LAB_FRUIT_ART_SHAPE_ID;
   return null;
 }
 
@@ -435,6 +510,10 @@ export function pickRandomLabZoomShapeId(): LabZoomShapeId {
     { id: LAB_HOUSE_SHAPE_ID, weight: 10 },
     { id: LAB_EVENANO_SHAPE_ID, weight: 10 },
     { id: LAB_LAPTOP_SHAPE_ID, weight: 10 },
+    { id: LAB_MARLBORO_SHAPE_ID, weight: 10 },
+    { id: LAB_PSP_SHAPE_ID, weight: 10 },
+    { id: LAB_SPACE_FARM_SHAPE_ID, weight: 10 },
+    { id: LAB_BOB_OMB_SHAPE_ID, weight: 10 },
   ] as const);
 }
 
@@ -452,6 +531,10 @@ export function pickRandomLabStardustShapeId(): LabStardustShapeId {
     { id: LAB_AK47_SHAPE_ID, weight: 10 },
     { id: LAB_CAPYBARA_SHAPE_ID, weight: 10 },
     { id: LAB_QUESTION_BLOCK_SHAPE_ID, weight: 10 },
+    { id: LAB_AMONG_US_SHAPE_ID, weight: 10 },
+    { id: LAB_AVOCADO_SHAPE_ID, weight: 10 },
+    { id: LAB_GAMEBOY_SHAPE_ID, weight: 10 },
+    { id: LAB_FRUIT_ART_SHAPE_ID, weight: 10 },
   ] as const);
 }
 

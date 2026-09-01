@@ -407,6 +407,78 @@ function questionBlock(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
   ];
 }
 
+/** Clay-forge silhouette only — real look comes from marlboro.glb (untouched). */
+function marlboro(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const red = a || "#c62828";
+  return [
+    pt("pack", "box", 0, 0.22, 0, 0.22, 0.32, 0.12, red, { profile: "metal" }),
+    pt("lid", "box", 0, 0.36, 0, 0.22, 0.04, 0.12, "#fafafa", { rough: 0.3 }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from psp.glb (untouched). */
+function psp(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const body = a || "#90a4ae";
+  return [
+    pt("shell", "box", 0, 0.12, 0, 0.48, 0.08, 0.22, body, { profile: "metal" }),
+    pt("screen", "box", 0, 0.14, 0.01, 0.22, 0.02, 0.14, "#263238", { profile: "glass" }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from space_farm.glb (untouched). */
+function spaceFarm(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const body = a || "#26a69a";
+  return [
+    pt("base", "box", 0, 0.08, 0, 0.4, 0.08, 0.4, body, { profile: "metal" }),
+    pt("tower", "box", 0, 0.28, 0, 0.12, 0.32, 0.12, "#00695c", { profile: "metal" }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from bob_omb.glb (untouched). */
+function bobOmb(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const body = a || "#37474f";
+  return [
+    pt("ball", "sphere", 0, 0.2, 0, 0.22, 0.22, 0.22, body, { rough: 0.5 }),
+    pt("fuse", "cyl", 0, 0.36, 0, 0.04, 0.12, 0.04, "#ff5252", { rough: 0.4 }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from among_us.glb (untouched). */
+function amongUs(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const red = a || "#e53935";
+  return [
+    pt("body", "capsule", 0, 0.22, 0, 0.18, 0.28, 0.16, red, { profile: "metal" }),
+    pt("visor", "box", 0.08, 0.26, 0, 0.08, 0.08, 0.12, "#b3e5fc", { profile: "glass" }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from avocado.glb (untouched). */
+function avocado(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const green = a || "#7cb342";
+  return [
+    pt("body", "sphere", 0, 0.22, 0, 0.24, 0.28, 0.2, green, { rough: 0.6 }),
+    pt("pit", "sphere", 0, 0.22, 0.04, 0.08, 0.08, 0.08, "#8d6e63", { rough: 0.4 }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from gameboy.glb (untouched). */
+function gameboy(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const body = a || "#9ccc65";
+  return [
+    pt("shell", "box", 0, 0.22, 0, 0.24, 0.36, 0.08, body, { profile: "metal" }),
+    pt("screen", "box", 0, 0.3, 0.04, 0.16, 0.12, 0.02, "#33691e", { profile: "glass" }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from fruit_art.glb (untouched). */
+function fruitArt(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const pink = a || "#ec407a";
+  return [
+    pt("core", "sphere", 0, 0.22, 0, 0.22, 0.22, 0.22, pink, { profile: "food_glossy" }),
+    pt("leaf", "box", 0.12, 0.36, 0, 0.1, 0.04, 0.06, "#7cb342", { ry: 0.4 }),
+  ];
+}
+
 export const FOOD_DRINK_SHAPES: ShapeEntry[] = [
   { id: "banana", name: "Banana", category: "food", build: banana },
   { id: "apple", name: "Red Apple", category: "food", build: apple },
@@ -446,4 +518,12 @@ export const FOOD_DRINK_SHAPES: ShapeEntry[] = [
   { id: "evenano", name: "Evenano Block", category: "food", build: evenano },
   { id: "capybara", name: "Capybara", category: "food", build: capybara },
   { id: "question_block", name: "Question Block", category: "food", build: questionBlock },
+  { id: "marlboro", name: "Marlboro", category: "food", build: marlboro },
+  { id: "psp", name: "PSP", category: "food", build: psp },
+  { id: "space_farm", name: "Space Farm", category: "food", build: spaceFarm },
+  { id: "bob_omb", name: "Bob-omb", category: "food", build: bobOmb },
+  { id: "among_us", name: "Among Us", category: "food", build: amongUs },
+  { id: "avocado", name: "Avocado Backpack", category: "food", build: avocado },
+  { id: "gameboy", name: "Game Boy", category: "food", build: gameboy },
+  { id: "fruit_art", name: "Fruit Art", category: "food", build: fruitArt },
 ];
