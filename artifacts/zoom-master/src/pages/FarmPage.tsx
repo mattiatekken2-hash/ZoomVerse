@@ -13,6 +13,8 @@ import { getPlanetDisplayName } from "../utils/planetNames";
 import { isLabForgeGeneratorPlanet, isLabStardustFarmPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, resolveLabShapeIdFromPlanet, MARKET_PRICE_BOUNDS, suggestMarketPrice, isMarketPriceInRange } from "@workspace/game-models";
 import { preloadLabGlbBatch } from "../utils/labGlbCache";
 import { useZmcStatus } from "../hooks/useZmcStatus";
+import { FARM_HOLD_ZMC, hasFarmHold } from "../utils/farmHold";
+import { ZMC_STONFI_BUY, openExternalUrl } from "../utils/zmcToken";
 
 interface FarmPageProps {
   planets: Planet[];
@@ -271,6 +273,7 @@ export function FarmPage({
   const [tonConnectUI] = useTonConnectUI();
   const { zmcBalance, connected, vipProPassActive } = useZmcStatus(telegramId);
   const farmRepairVip = vipProPassActive ? "PRO" as const : "NONE" as const;
+  const farmHoldOk = hasFarmHold(zmcBalance);
   void _items;
   void _onSellItem;
   void _onUnlistItem;
@@ -375,14 +378,14 @@ export function FarmPage({
               color="#9EC5E8"
               glow="rgba(158,197,232,0.35)"
               icon={<ZoomCubeIcon size={14} />}
-              value={formatFarmHourRate(zoomRate, 1)}
+              value={formatFarmHourRate(farmHoldOk ? zoomRate : 0, 1)}
             />
             <FarmHourChip
               testId="total-farm-stardust-rate"
               color="#ffd740"
               glow="rgba(255,215,64,0.32)"
               icon={<WalletStarIcon variant="stardust" size={14} />}
-              value={formatFarmHourRate(stardustRate, 2)}
+              value={formatFarmHourRate(farmHoldOk ? stardustRate : 0, 2)}
             />
           </div>
         </div>
@@ -420,6 +423,28 @@ export function FarmPage({
             {t("farm.openStudio")}
           </button>
         </div>
+
+        {!farmHoldOk && (
+          <button
+            type="button"
+            onClick={() => openExternalUrl(ZMC_STONFI_BUY)}
+            className="mt-3 w-full text-left rounded-xl px-3 py-2.5"
+            style={{
+              background: "rgba(255,215,64,0.08)",
+              border: "1px solid rgba(255,215,64,0.28)",
+            }}
+          >
+            <div className="text-xs font-black tracking-wide" style={{ color: "#ffd740" }}>
+              {t("farm.holdTitle", { n: FARM_HOLD_ZMC.toLocaleString() })}
+            </div>
+            <div className="text-[10px] mt-0.5 font-bold" style={{ color: "rgba(255,255,255,0.45)" }}>
+              {t("farm.holdBody", { n: FARM_HOLD_ZMC.toLocaleString() })}
+            </div>
+            <div className="text-[10px] mt-1 font-black tracking-wider uppercase" style={{ color: "#ffd740" }}>
+              {connected ? t("farm.holdCta") : t("farm.holdConnect")}
+            </div>
+          </button>
+        )}
       </div>
 
       {/* Native-like scroll container.
