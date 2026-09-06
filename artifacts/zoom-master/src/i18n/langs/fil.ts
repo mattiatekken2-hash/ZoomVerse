@@ -665,7 +665,7 @@ export const fil: Record<string, string> = {
   "shop.payGram": "GRAM",
   "shop.payZmc": "ZMC",
   "shop.payStardust": "★ STARDUST",
-  "shop.zmcNote": "On-chain papunta sa treasury · 1 GRAM ≈ 100 ZMC",
+  "shop.zmcNote": "On-chain papunta sa treasury · bumili ng ZMC sa STON.fi (TON → ZMC)",
   "shop.connectWalletForZmc": "I-connect ang TON wallet sa Wallet para magbayad ng ZMC",
   "shop.needZmc": "Kailangan ng {n} ZMC sa connected wallet",
   "shop.zmcPending": "Naghihintay ng on-chain ZMC confirmation… subukan ulit saglit",

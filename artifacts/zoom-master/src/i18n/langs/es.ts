@@ -667,7 +667,7 @@ export const es: Record<string, string> = {
   "shop.payGram": "GRAM",
   "shop.payZmc": "ZMC",
   "shop.payStardust": "★ STARDUST",
-  "shop.zmcNote": "On-chain a tesorería · 1 GRAM ≈ 100 ZMC",
+  "shop.zmcNote": "On-chain a tesorería · compra ZMC en STON.fi (TON → ZMC)",
   "shop.connectWalletForZmc": "Conecta tu wallet TON en Wallet para pagar con ZMC",
   "shop.needZmc": "Necesitas {n} ZMC en el wallet conectado",
   "shop.zmcPending": "Esperando confirmación on-chain de ZMC… reintenta en un momento",

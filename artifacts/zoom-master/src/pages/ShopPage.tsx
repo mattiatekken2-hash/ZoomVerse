@@ -8,7 +8,7 @@ import { patchShopPrefetch, readShopPrefetch } from "../utils/shopPrefetch";
 import { useZmcStatus } from "../hooks/useZmcStatus";
 import { ZMC_STONFI_BUY, openExternalUrl } from "../utils/zmcToken";
 import { ZMC_STATUS_REFRESH_EVENT } from "../utils/api";
-import { VIP_BASE_THRESHOLD, VIP_PRO_PASS_ITEM_ID, VIP_PRO_PASS_ZMC } from "@workspace/game-models";
+import { VIP_BASE_THRESHOLD, VIP_PRO_PASS_ITEM_ID, VIP_PRO_PASS_ZMC, SHOP_GRAM_TO_ZMC } from "@workspace/game-models";
 
 const CYAN = "#9EC5E8";
 
@@ -25,7 +25,7 @@ interface ShopItem {
 }
 
 
-// Extra Slot — ZMC on-chain to treasury (0.25 GRAM peg × 100 = 25 ZMC).
+// Extra Slot — ZMC on-chain to treasury (0.25 GRAM × 10_000 = 2_500 ZMC).
 const EXTRA_SLOT_ITEM: ShopItem = {
   id: "extra_slot", title: "Extra Slot", desc: "Unlock 1 additional planet slot",
   starsPrice: 0, tonPrice: 0.25, color: "#ff3355", icon: "+", type: "slot",
@@ -42,19 +42,17 @@ const VIP_PRO_PASS_ITEM: ShopItem = {
   type: "vip_pro_pass",
 };
 
-// $ZOOM packs — Stars / ZMC (on-chain → treasury) / Stardust.
-// ZMC price = GRAM tonPrice × 100 (1 GRAM ≈ 100 ZMC).
-const GRAM_TO_ZMC = 100;
+// $ZOOM packs — on-chain ZMC only (→ treasury). Stars / Stardust disabled.
 const zmcPriceForItem = (item: ShopItem) =>
-  item.id === VIP_PRO_PASS_ITEM_ID ? VIP_PRO_PASS_ZMC : Math.round(item.tonPrice * GRAM_TO_ZMC);
+  item.id === VIP_PRO_PASS_ITEM_ID ? VIP_PRO_PASS_ZMC : Math.round(item.tonPrice * SHOP_GRAM_TO_ZMC);
 
 const ZOOM_PACKS: ShopItem[] = [
-  { id: "zoom_spark",  title: "ZOOM Spark",  desc: "Instant +200 $ZOOM",    starsPrice: 15,  tonPrice: 0.15, zoomAmount: 200,   color: "#9EC5E8", icon: "Z", type: "zoom_pack" },
-  { id: "zoom_boost",  title: "ZOOM Boost",  desc: "Instant +500 $ZOOM",    starsPrice: 25,  tonPrice: 0.25, zoomAmount: 500,   color: "#7dd3fc", icon: "Z", type: "zoom_pack" },
-  { id: "zoom_pulse",  title: "ZOOM Pulse",  desc: "Instant +1,400 $ZOOM",  starsPrice: 60,  tonPrice: 0.60, zoomAmount: 1400,  color: "#67e8f9", icon: "Z", type: "zoom_pack" },
-  { id: "zoom_core",   title: "ZOOM Core",   desc: "Instant +3,000 $ZOOM",  starsPrice: 120, tonPrice: 1.20, zoomAmount: 3000,  color: "#22d3ee", icon: "Z", type: "zoom_pack" },
-  { id: "zoom_nova",   title: "ZOOM Nova",   desc: "Instant +6,500 $ZOOM",  starsPrice: 250, tonPrice: 2.50, zoomAmount: 6500,  color: "#38bdf8", icon: "Z", type: "zoom_pack" },
-  { id: "zoom_galaxy", title: "ZOOM Galaxy", desc: "Instant +14,000 $ZOOM", starsPrice: 500, tonPrice: 5.00, zoomAmount: 14000, color: "#818cf8", icon: "Z", type: "zoom_pack" },
+  { id: "zoom_spark",  title: "ZOOM Spark",  desc: "Instant +200 $ZOOM",    starsPrice: 0,  tonPrice: 0.15, zoomAmount: 200,   color: "#9EC5E8", icon: "Z", type: "zoom_pack" },
+  { id: "zoom_boost",  title: "ZOOM Boost",  desc: "Instant +500 $ZOOM",    starsPrice: 0,  tonPrice: 0.25, zoomAmount: 500,   color: "#7dd3fc", icon: "Z", type: "zoom_pack" },
+  { id: "zoom_pulse",  title: "ZOOM Pulse",  desc: "Instant +1,400 $ZOOM",  starsPrice: 0,  tonPrice: 0.60, zoomAmount: 1400,  color: "#67e8f9", icon: "Z", type: "zoom_pack" },
+  { id: "zoom_core",   title: "ZOOM Core",   desc: "Instant +3,000 $ZOOM",  starsPrice: 0,  tonPrice: 1.20, zoomAmount: 3000,  color: "#22d3ee", icon: "Z", type: "zoom_pack" },
+  { id: "zoom_nova",   title: "ZOOM Nova",   desc: "Instant +6,500 $ZOOM",  starsPrice: 0,  tonPrice: 2.50, zoomAmount: 6500,  color: "#38bdf8", icon: "Z", type: "zoom_pack" },
+  { id: "zoom_galaxy", title: "ZOOM Galaxy", desc: "Instant +14,000 $ZOOM", starsPrice: 0,  tonPrice: 5.00, zoomAmount: 14000, color: "#818cf8", icon: "Z", type: "zoom_pack" },
 ];
 
 interface ShopPageProps {
@@ -127,7 +125,6 @@ export function ShopPage({
   const shopPrefetch = readShopPrefetch(telegramId);
   const [buying, setBuying] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [payMode, setPayMode] = useState<"stars" | "zmc" | "stardust">("stars");
   const [stardustIndex, setStardustIndex] = useState(shopPrefetch?.stardustIndex ?? 1);
   const [liveStardustBalance, setLiveStardustBalance] = useState(stardustBalanceProp);
   const [sunStock, setSunStock] = useState<SunStock | null>(shopPrefetch?.sunStock ?? null);
@@ -392,12 +389,7 @@ export function ShopPage({
   };
 
   const purchaseItem = async (item: ShopItem) => {
-    if (item.id === VIP_PRO_PASS_ITEM_ID || item.id === "extra_slot" || (item.type === "zoom_pack" && payMode === "zmc")) {
-      await handleZmcBuy(item);
-      return;
-    }
-    if (payMode === "stars") await handleStarsBuy(item);
-    else await handleStardustBuy(item);
+    await handleZmcBuy(item);
   };
 
   return (
@@ -441,57 +433,9 @@ export function ShopPage({
           </div>
         </div>
 
-        <div className="flex gap-2 p-1 rounded-xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(158,197,232,0.10)" }}>
-          <button
-            onClick={() => setPayMode("stars")}
-            className="flex-1 py-2.5 rounded-lg text-[10px] font-black tracking-wider transition-all active:scale-[0.98]"
-            style={{
-              background: payMode === "stars" ? "linear-gradient(135deg, rgba(255,215,0,0.22), rgba(255,179,71,0.12))" : "transparent",
-              color: payMode === "stars" ? "#ffd700" : "rgba(255,255,255,0.35)",
-              border: payMode === "stars" ? "1px solid rgba(255,215,0,0.30)" : "1px solid transparent",
-              boxShadow: payMode === "stars" ? "0 0 14px rgba(255,215,0,0.12)" : "none",
-            }}
-          >
-            {t("shop.payStars")}
-          </button>
-          <button
-            onClick={() => setPayMode("zmc")}
-            className="flex-1 py-2.5 rounded-lg text-[10px] font-black tracking-wider transition-all active:scale-[0.98]"
-            style={{
-              background: payMode === "zmc" ? "linear-gradient(135deg, rgba(158,197,232,0.22), rgba(56,189,248,0.10))" : "transparent",
-              color: payMode === "zmc" ? CYAN : "rgba(255,255,255,0.35)",
-              border: payMode === "zmc" ? "1px solid rgba(158,197,232,0.35)" : "1px solid transparent",
-              boxShadow: payMode === "zmc" ? "0 0 14px rgba(158,197,232,0.12)" : "none",
-            }}
-          >
-            <span className="inline-flex items-center justify-center gap-1">
-              <ZoomCubeIcon size={12} />
-              {t("shop.payZmc")}
-            </span>
-          </button>
-          <button
-            onClick={() => setPayMode("stardust")}
-            className="flex-1 py-2.5 rounded-lg text-[10px] font-black tracking-wider transition-all active:scale-[0.98]"
-            style={{
-              background: payMode === "stardust" ? "linear-gradient(135deg, rgba(255,215,64,0.20), rgba(158,197,232,0.08))" : "transparent",
-              color: payMode === "stardust" ? "#ffd740" : "rgba(255,255,255,0.35)",
-              border: payMode === "stardust" ? "1px solid rgba(255,215,64,0.28)" : "1px solid transparent",
-              boxShadow: payMode === "stardust" ? "0 0 14px rgba(255,215,64,0.10)" : "none",
-            }}
-          >
-            {t("shop.payStardust")}
-          </button>
+        <div className="mt-1 text-[10px] font-bold text-center" style={{ color: "rgba(158,197,232,0.55)" }}>
+          {t("shop.zmcNote")}
         </div>
-        {payMode === "stardust" && (
-          <div className="mt-2 text-[10px] font-bold text-center" style={{ color: "rgba(158,197,232,0.55)" }}>
-            {t("shop.stardustIndexNote", { n: stardustIndex.toFixed(3) })}
-          </div>
-        )}
-        {payMode === "zmc" && (
-          <div className="mt-2 text-[10px] font-bold text-center" style={{ color: "rgba(158,197,232,0.55)" }}>
-            {t("shop.zmcNote")}
-          </div>
-        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4">
@@ -595,15 +539,8 @@ export function ShopPage({
           </div>
 
           {ZOOM_PACKS.map((item) => {
-            const sdCost = stardustPriceForItem(item);
             const zmcCost = zmcPriceForItem(item);
-            const priceLabel = payMode === "stars"
-              ? `${item.starsPrice} ⭐`
-              : payMode === "zmc"
-                ? `${zmcCost.toLocaleString()} ZMC`
-                : `${sdCost.toLocaleString()} ★`;
-            const priceSub = payMode === "stars" ? "STARS" : payMode === "zmc" ? "ZMC" : "STARDUST";
-            const priceColor = payMode === "stars" ? "#ffd700" : payMode === "zmc" ? CYAN : "#ffd740";
+            const priceLabel = `${zmcCost.toLocaleString()} ZMC`;
             return (
               <div
                 key={item.id}
@@ -624,10 +561,10 @@ export function ShopPage({
                     </div>
                   </div>
                   <div className="flex-shrink-0 text-right">
-                    <div className="font-black text-base" style={{ color: priceColor }}>
+                    <div className="font-black text-base" style={{ color: CYAN }}>
                       {(item.zoomAmount ?? 0).toLocaleString()}
                     </div>
-                    <div className="text-xs opacity-70" style={{ color: priceColor }}>$ZOOM</div>
+                    <div className="text-xs opacity-70" style={{ color: CYAN }}>$ZOOM</div>
                   </div>
                 </div>
                 <div style={{ borderTop: `1px solid ${item.color}15` }}>
@@ -644,7 +581,7 @@ export function ShopPage({
                     {buying === item.id ? t("shop.processing") : `BUY — ${priceLabel}`}
                   </button>
                   <div className="text-[9px] font-bold text-center pb-2 tracking-wider" style={{ color: "rgba(255,255,255,0.28)" }}>
-                    {priceSub}
+                    ZMC
                   </div>
                 </div>
               </div>
@@ -654,7 +591,7 @@ export function ShopPage({
           {(() => {
             const item = EXTRA_SLOT_ITEM;
             const gramPrice = slotPrice?.nextPriceTon ?? item.tonPrice;
-            const zmcCost = Math.round(gramPrice * GRAM_TO_ZMC);
+            const zmcCost = Math.round(gramPrice * SHOP_GRAM_TO_ZMC);
             const owned = slotPrice?.bonusSlots ?? 0;
             return (
               <div

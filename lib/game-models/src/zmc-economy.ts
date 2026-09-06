@@ -59,6 +59,11 @@ export const VIP_PRO_THRESHOLD = 10_000;
 export const VIP_PRO_PASS_ITEM_ID = "vip_pro_pass";
 export const VIP_PRO_PASS_ZMC = 10_000;
 export const VIP_PRO_PASS_MS = 7 * 24 * 60 * 60 * 1000;
+/**
+ * Shop ZMC peg for $ZOOM packs and Extra Slot (on-chain → treasury).
+ * 1 GRAM ≈ 10_000 ZMC so Extra Slot (0.25 GRAM) = 2_500 ZMC.
+ */
+export const SHOP_GRAM_TO_ZMC = 10_000;
 /** app_settings key: eligibility window end (ms) for the launch gift. */
 export const VIP_PRO_PASS_GIFT_UNTIL_KEY = "vip_pro_pass_gift_until_ms";
 export const VIP_PRO_PASS_LAUNCH_GIFTED_KEY = "vip_pro_pass_launch_gifted";

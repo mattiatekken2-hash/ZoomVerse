@@ -8,6 +8,7 @@ import {
   VIP_PRO_PASS_ITEM_ID,
   VIP_PRO_PASS_ZMC,
   VIP_PRO_PASS_MS,
+  SHOP_GRAM_TO_ZMC,
 } from "@workspace/game-models";
 import { broadcastBoxOpen } from "../lib/activityBus";
 import { sendWithdrawalChannelMessage, notifyAdminWithdrawalRequest, sendBotMessage, notifyAdminGramDeposit } from "../lib/notify";
@@ -186,19 +187,19 @@ const STARS_CATALOG: StarsItem[] = [
   { id: "legend_pack", title: "Legend Pack", description: "25,000 $ZOOM + 1 Epic Planet", starsPrice: 400, tonPrice: 4.0, zoomAmount: 25000, itemType: "bundle" },
   { id: "the_sun", title: "THE SUN", description: "Exclusive limited-edition star — 1000 $ZOOM/hr", starsPrice: 1000, tonPrice: 10, itemType: "sun" },
   // Extra Slot is ZMC-only (on-chain → treasury). starsPrice 0 so Stars
-  // invoice/webhook cannot credit it. Price = getSlotPriceTon × 100.
+  // invoice/webhook cannot credit it. Price = getSlotPriceTon × 10_000 (= 2_500 ZMC).
   { id: "extra_slot", title: "Extra Slot", description: "Unlock 1 additional planet slot", starsPrice: 0, tonPrice: 0.25, itemType: "slot" },
   // VIP Pro / Whale — 7 days unlimited farm repairs. ZMC-only (10,000 → treasury).
   // Holding 10k ZMC still shows the rank badge; Shop Pro is this 7-day product.
   { id: VIP_PRO_PASS_ITEM_ID, title: "VIP Pro / Whale (7 Days)", description: "Unlimited farm repairs for 7 days", starsPrice: 0, tonPrice: 0, itemType: "vip_pro_pass" },
-  // $ZOOM packs — Stars / on-chain ZMC (→ treasury) / Stardust.
-  // ZMC price = GRAM tonPrice × 100 (1 GRAM ≈ 100 ZMC).
-  { id: "zoom_spark",  title: "ZOOM Spark",  description: "Instant +200 $ZOOM",    starsPrice: 15,  tonPrice: 0.15, zoomAmount: 200,   itemType: "zoom_pack" },
-  { id: "zoom_boost",  title: "ZOOM Boost",  description: "Instant +500 $ZOOM",    starsPrice: 25,  tonPrice: 0.25, zoomAmount: 500,   itemType: "zoom_pack" },
-  { id: "zoom_pulse",  title: "ZOOM Pulse",  description: "Instant +1,400 $ZOOM",  starsPrice: 60,  tonPrice: 0.60, zoomAmount: 1400,  itemType: "zoom_pack" },
-  { id: "zoom_core",   title: "ZOOM Core",   description: "Instant +3,000 $ZOOM",  starsPrice: 120, tonPrice: 1.20, zoomAmount: 3000,  itemType: "zoom_pack" },
-  { id: "zoom_nova",   title: "ZOOM Nova",   description: "Instant +6,500 $ZOOM",  starsPrice: 250, tonPrice: 2.50, zoomAmount: 6500,  itemType: "zoom_pack" },
-  { id: "zoom_galaxy", title: "ZOOM Galaxy", description: "Instant +14,000 $ZOOM", starsPrice: 500, tonPrice: 5.00, zoomAmount: 14000, itemType: "zoom_pack" },
+  // $ZOOM packs — on-chain ZMC only (→ treasury). starsPrice 0 blocks Stars invoices.
+  // ZMC price = GRAM tonPrice × 10_000 (1 GRAM ≈ 10_000 ZMC).
+  { id: "zoom_spark",  title: "ZOOM Spark",  description: "Instant +200 $ZOOM",    starsPrice: 0,  tonPrice: 0.15, zoomAmount: 200,   itemType: "zoom_pack" },
+  { id: "zoom_boost",  title: "ZOOM Boost",  description: "Instant +500 $ZOOM",    starsPrice: 0,  tonPrice: 0.25, zoomAmount: 500,   itemType: "zoom_pack" },
+  { id: "zoom_pulse",  title: "ZOOM Pulse",  description: "Instant +1,400 $ZOOM",  starsPrice: 0,  tonPrice: 0.60, zoomAmount: 1400,  itemType: "zoom_pack" },
+  { id: "zoom_core",   title: "ZOOM Core",   description: "Instant +3,000 $ZOOM",  starsPrice: 0,  tonPrice: 1.20, zoomAmount: 3000,  itemType: "zoom_pack" },
+  { id: "zoom_nova",   title: "ZOOM Nova",   description: "Instant +6,500 $ZOOM",  starsPrice: 0,  tonPrice: 2.50, zoomAmount: 6500,  itemType: "zoom_pack" },
+  { id: "zoom_galaxy", title: "ZOOM Galaxy", description: "Instant +14,000 $ZOOM", starsPrice: 0,  tonPrice: 5.00, zoomAmount: 14000, itemType: "zoom_pack" },
   { id: "wheel_spin_1",  title: "1 Wheel Spin",   description: "1 spin on the Fortune Wheel",   starsPrice: 50,  tonPrice: 0.5, zoomAmount: 1,  itemType: "wheel_spin" },
   { id: "wheel_spin_5",  title: "5 Wheel Spins",  description: "5 spins on the Fortune Wheel — 20% off",  starsPrice: 200, tonPrice: 2.0, zoomAmount: 5,  itemType: "wheel_spin" },
   { id: "wheel_spin_10", title: "10 Wheel Spins", description: "10 spins on the Fortune Wheel — 30% off", starsPrice: 350, tonPrice: 3.5, zoomAmount: 10, itemType: "wheel_spin" },
@@ -359,8 +360,7 @@ function findItem(itemId: string): StarsItem | undefined {
   return STARS_CATALOG.find((i) => i.id === itemId);
 }
 
-/** Peg used for shop ZMC items: 1 GRAM ≈ 100 ZMC. */
-const GRAM_TO_ZMC = 100;
+/** Peg used for shop ZMC items: 1 GRAM ≈ 10_000 ZMC (Extra Slot 0.25 GRAM = 2_500 ZMC). */
 
 function isZmcShopItem(item: StarsItem): boolean {
   return item.itemType === "zoom_pack" || item.id === "extra_slot" || item.id === VIP_PRO_PASS_ITEM_ID;
@@ -369,7 +369,7 @@ function isZmcShopItem(item: StarsItem): boolean {
 function zmcPriceForItem(item: StarsItem, bonusSlots = 0): number {
   if (item.id === VIP_PRO_PASS_ITEM_ID) return VIP_PRO_PASS_ZMC;
   const gram = item.id === "extra_slot" ? getSlotPriceTon(bonusSlots) : item.tonPrice;
-  return Math.round(gram * GRAM_TO_ZMC);
+  return Math.round(gram * SHOP_GRAM_TO_ZMC);
 }
 
 // `tx` is intentionally typed loosely (`any`) because Drizzle's PgTransaction
@@ -1016,8 +1016,9 @@ router.post("/stars/create-invoice", async (req, res) => {
     return;
   }
 
-  // Extra Slot is deposit-GRAM only. V1 NFT Platinum can be bought with Stars.
-  if (item.itemType === "slot" || item.starsPrice <= 0) {
+  // Extra Slot is ZMC-only. V1 NFT Platinum can be bought with Stars.
+  // ZOOM packs are ZMC-only (starsPrice 0).
+  if (item.itemType === "slot" || item.itemType === "zoom_pack" || item.starsPrice <= 0) {
     res.status(400).json({ error: "This item cannot be purchased with Stars" });
     return;
   }
@@ -1204,7 +1205,7 @@ router.post("/shop/buy-deposit", async (req, res) => {
   const item = findItem(itemId);
   if (!item) { res.status(404).json({ error: "Item not found" }); return; }
   if (item.itemType === "zoom_pack") {
-    res.status(400).json({ error: "ZOOM packs are paid in Stars, ZMC, or Stardust" });
+    res.status(400).json({ error: "ZOOM packs are paid in ZMC" });
     return;
   }
   if (item.id === "extra_slot") {
@@ -1380,6 +1381,10 @@ router.post("/shop/buy-stardust", async (req, res) => {
 
   if (item.itemType === "slot") {
     res.status(400).json({ error: "Extra Slot is paid in ZMC" });
+    return;
+  }
+  if (item.itemType === "zoom_pack") {
+    res.status(400).json({ error: "ZOOM packs are paid in ZMC" });
     return;
   }
   if (item.id === VIP_PRO_PASS_ITEM_ID) {
