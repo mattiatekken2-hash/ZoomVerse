@@ -14,6 +14,7 @@ import { generateRandomFloat } from "../utils/planetFloat";
 import { getBrowserDevTelegramId, DEV_TG_ID_STORAGE_KEY, persistTelegramId } from "../utils/telegram";
 import { commitStickyWalletBalance } from "./useStickyWalletBalance";
 import { toast } from "./use-toast";
+import { getLabForgeHoldOk } from "../utils/labForgeHold";
 
 // Server-authoritative clock: every farming/idle-income time check is computed
 // against this value, NOT the device clock. Calibrated against /api/server-time
@@ -4318,6 +4319,9 @@ export function useGameState() {
     }
     if (current.labForgePath) {
       return { ok: false, reason: "already_forging" };
+    }
+    if (!getLabForgeHoldOk()) {
+      return { ok: false, reason: "no_zmc_hold" };
     }
     labForgeCompletingRef.current = false;
 
