@@ -11,7 +11,7 @@ import {
   SHOP_GRAM_TO_ZMC,
 } from "@workspace/game-models";
 import { broadcastBoxOpen } from "../lib/activityBus";
-import { sendWithdrawalChannelMessage, notifyAdminWithdrawalRequest, sendBotMessage, notifyAdminGramDeposit } from "../lib/notify";
+import { sendWithdrawalChannelMessage, notifyAdminWithdrawalRequest, sendBotMessage, notifyAdminGramDeposit, notifyAdminZmcShopPurchase } from "../lib/notify";
 import { logger } from "../lib/logger";
 import { registerLottoTicketPurchase } from "./lottery";
 import { recordHistoryAsync } from "../lib/history";
@@ -1893,12 +1893,29 @@ router.post("/stars/webhook", async (req, res) => {
 
       const item = findItem(payloadData.itemId);
       if (item) {
-        // Defense-in-depth: items TON-only non devono mai essere accreditati via Stars,
-        // anche se per qualche motivo arriva un successful_payment per loro.
-        if (item.itemType === "slot" || item.starsPrice <= 0) {
-          console.error(`[stars/webhook] REJECTED Stars payment for TON-only item ${item.id} txn=${payloadData.txnId}`);
+        // New invoices for ZMC-only SKUs are blocked at create-invoice.
+        // Honor an in-flight XTR invoice created before the cutover so a
+        // player who already paid Stars still gets the item + admin notify.
+        const zmcOnlyNow =
+          item.itemType === "slot" || item.itemType === "zoom_pack" || item.starsPrice <= 0;
+        let honorStars = 0;
+        if (zmcOnlyNow) {
+          const [pending] = await db.select({
+            status: transactionsTable.status,
+            currency: transactionsTable.currency,
+            starsAmount: transactionsTable.starsAmount,
+          }).from(transactionsTable).where(eq(transactionsTable.id, payloadData.txnId)).limit(1);
+          honorStars = pending
+            && pending.status === "pending"
+            && pending.currency === "XTR"
+            ? (pending.starsAmount ?? 0)
+            : 0;
+        }
+        if (zmcOnlyNow && honorStars <= 0) {
+          console.error(`[stars/webhook] REJECTED Stars payment for ZMC-only item ${item.id} txn=${payloadData.txnId}`);
         } else {
-          await atomicCreditIfPending(payloadData.txnId, payment.telegram_payment_charge_id, item, payloadData.telegramId);
+          const creditItem = honorStars > 0 ? { ...item, starsPrice: honorStars } : item;
+          await atomicCreditIfPending(payloadData.txnId, payment.telegram_payment_charge_id, creditItem, payloadData.telegramId);
         }
       }
     } catch (err) {
@@ -2142,6 +2159,25 @@ async function applyVerifiedShopZmcCredit(opts: {
     await creditUserTx(tx, item, telegramId, txn.id);
     return { alreadyCredited: false as const, txnId: txn.id };
   });
+
+  if (!result.alreadyCredited && result.txnId) {
+    void (async () => {
+      try {
+        const [u] = await db.select({ uname: usersTable.username, first: usersTable.firstName })
+          .from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
+        await notifyAdminZmcShopPurchase({
+          txnId: result.txnId,
+          itemName: item.title,
+          zmcAmount: priceZmc,
+          telegramId,
+          username: u?.uname ?? null,
+          firstName: u?.first ?? null,
+        });
+      } catch (e) {
+        console.warn("[admin-notify] zmc shop notify failed:", e);
+      }
+    })();
+  }
 
   const bal = await readShopZmcBalances(telegramId);
   return { ...result, ...bal };
