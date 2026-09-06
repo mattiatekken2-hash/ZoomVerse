@@ -8,7 +8,6 @@ import {
   ZMC_WALLET_CLEARED_EVENT,
   type ZmcStatus,
 } from "../utils/api";
-import { FARM_HOLD_ZMC, setFarmHoldOk } from "../utils/farmHold";
 
 const EMPTY: ZmcStatus = {
   ok: true,
@@ -41,17 +40,11 @@ export function useZmcStatus(telegramId: string | null): ZmcStatus & {
     const run = async () => {
       if (address) {
         const synced = await syncZmcWallet(telegramId, address);
-        if (!cancelled && synced) {
-          setFarmHoldOk((synced.zmcBalance ?? 0) >= FARM_HOLD_ZMC);
-          setStatus(synced);
-        }
+        if (!cancelled && synced) setStatus(synced);
         return;
       }
       const cached = await fetchZmcStatus(telegramId);
-      if (!cancelled && cached) {
-        setFarmHoldOk((cached.zmcBalance ?? 0) >= FARM_HOLD_ZMC);
-        setStatus(cached);
-      }
+      if (!cancelled && cached) setStatus(cached);
     };
     void run();
     const id = window.setInterval(() => { void run(); }, 45_000);
@@ -67,12 +60,10 @@ export function useZmcStatus(telegramId: string | null): ZmcStatus & {
   useEffect(() => {
     const onCleared = () => {
       if (!telegramId) {
-        setFarmHoldOk(false);
         setStatus(EMPTY);
         return;
       }
       void fetchZmcStatus(telegramId).then((cached) => {
-        setFarmHoldOk((cached?.zmcBalance ?? 0) >= FARM_HOLD_ZMC);
         setStatus(cached ?? EMPTY);
       });
     };
