@@ -248,9 +248,6 @@ export async function settleOfflineFarming(params: {
   stardustBalance: number;
   balanceEpoch: number;
   settledAtMs: number;
-  farmHoldOk?: boolean;
-  farmHoldZmc?: number;
-  zmcHeld?: number;
 }> {
   const fallback = {
     ok: false,
@@ -283,9 +280,6 @@ export async function settleOfflineFarming(params: {
       stardustBalance: Math.max(0, Number(j["stardustBalance"] ?? 0)),
       balanceEpoch: Math.max(0, Number(j["balanceEpoch"] ?? 0)),
       settledAtMs: Math.max(0, Number(j["settledAtMs"] ?? Date.now())),
-      farmHoldOk: typeof j["farmHoldOk"] === "boolean" ? j["farmHoldOk"] : undefined,
-      farmHoldZmc: Number.isFinite(Number(j["farmHoldZmc"])) ? Number(j["farmHoldZmc"]) : undefined,
-      zmcHeld: Number.isFinite(Number(j["zmcHeld"])) ? Number(j["zmcHeld"]) : undefined,
     };
   } catch {
     return fallback;
