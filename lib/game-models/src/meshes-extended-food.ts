@@ -479,6 +479,91 @@ function fruitArt(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
   ];
 }
 
+/** Clay-forge silhouette only — real look comes from android_nanoblock.glb (untouched). */
+function androidNanoblock(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const green = a || "#3ddc84";
+  return [
+    pt("body", "box", 0, 0.2, 0, 0.22, 0.28, 0.12, green, { profile: "metal" }),
+    pt("head", "box", 0, 0.4, 0, 0.16, 0.12, 0.12, green, { profile: "metal" }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from pou.glb (untouched). */
+function pou(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const body = a || "#c4a574";
+  return [
+    pt("blob", "sphere", 0, 0.2, 0, 0.24, 0.24, 0.24, body, { rough: 0.55 }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from chicken_jockey.glb (untouched). */
+function chickenJockey(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const body = a || "#ff8a65";
+  return [
+    pt("body", "box", 0, 0.16, 0, 0.2, 0.16, 0.14, body, { rough: 0.5 }),
+    pt("head", "box", 0, 0.3, 0.04, 0.1, 0.1, 0.1, "#ffcc80", { rough: 0.5 }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from duff_beer.glb (untouched). */
+function duffBeer(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const gold = a || "#f9a825";
+  return [
+    pt("can", "cyl", 0, 0.22, 0, 0.12, 0.32, 0.12, gold, { profile: "metal" }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from jemma_plushie.glb (untouched). */
+function jemmaPlushie(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const pink = a || "#f48fb1";
+  return [
+    pt("body", "sphere", 0, 0.2, 0, 0.22, 0.26, 0.2, pink, { rough: 0.7 }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from rtx_3050.glb (untouched). */
+function rtx3050(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const purple = a || "#7c4dff";
+  return [
+    pt("card", "box", 0, 0.12, 0, 0.4, 0.08, 0.18, purple, { profile: "metal" }),
+    pt("fan", "cyl", 0.08, 0.16, 0, 0.1, 0.04, 0.1, "#00e5ff", { profile: "metal" }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from minecraft_pig.glb (untouched). */
+function minecraftPig(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const pink = a || "#f8bbd0";
+  return [
+    pt("body", "box", 0, 0.16, 0, 0.24, 0.16, 0.16, pink, { rough: 0.5 }),
+    pt("head", "box", 0.14, 0.2, 0, 0.12, 0.12, 0.12, pink, { rough: 0.5 }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from voxel_trading.glb (untouched). */
+function voxelTrading(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const cyan = a || "#26c6da";
+  return [
+    pt("booth", "box", 0, 0.2, 0, 0.28, 0.28, 0.2, cyan, { profile: "metal" }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from juggernog.glb (untouched). */
+function juggernog(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const red = a || "#c62828";
+  return [
+    pt("machine", "box", 0, 0.28, 0, 0.22, 0.4, 0.16, red, { profile: "metal" }),
+  ];
+}
+
+/** Clay-forge silhouette only — real look comes from voxel_fox.glb (untouched). */
+function voxelFox(_p: string, a: string): ReturnType<ShapeEntry["build"]> {
+  const orange = a || "#ff6f00";
+  return [
+    pt("body", "box", 0, 0.14, 0, 0.22, 0.14, 0.12, orange, { rough: 0.5 }),
+    pt("head", "box", 0.12, 0.22, 0, 0.1, 0.1, 0.1, orange, { rough: 0.5 }),
+  ];
+}
+
 export const FOOD_DRINK_SHAPES: ShapeEntry[] = [
   { id: "banana", name: "Banana", category: "food", build: banana },
   { id: "apple", name: "Red Apple", category: "food", build: apple },
@@ -526,4 +611,14 @@ export const FOOD_DRINK_SHAPES: ShapeEntry[] = [
   { id: "avocado", name: "Avocado Backpack", category: "food", build: avocado },
   { id: "gameboy", name: "Game Boy", category: "food", build: gameboy },
   { id: "fruit_art", name: "Fruit Art", category: "food", build: fruitArt },
+  { id: "android_nanoblock", name: "Android Nanoblock", category: "food", build: androidNanoblock },
+  { id: "pou", name: "Pou", category: "food", build: pou },
+  { id: "chicken_jockey", name: "Chicken Jockey", category: "food", build: chickenJockey },
+  { id: "duff_beer", name: "Duff Beer", category: "food", build: duffBeer },
+  { id: "jemma_plushie", name: "Jemma Plushie", category: "food", build: jemmaPlushie },
+  { id: "rtx_3050", name: "RTX 3050", category: "food", build: rtx3050 },
+  { id: "minecraft_pig", name: "Minecraft Pig", category: "food", build: minecraftPig },
+  { id: "voxel_trading", name: "Voxel Trading", category: "food", build: voxelTrading },
+  { id: "juggernog", name: "Juggernog", category: "food", build: juggernog },
+  { id: "voxel_fox", name: "Voxel Fox", category: "food", build: voxelFox },
 ];

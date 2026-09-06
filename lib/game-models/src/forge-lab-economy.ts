@@ -30,6 +30,16 @@ export const LAB_AMONG_US_SHAPE_ID = "among_us";
 export const LAB_AVOCADO_SHAPE_ID = "avocado";
 export const LAB_GAMEBOY_SHAPE_ID = "gameboy";
 export const LAB_FRUIT_ART_SHAPE_ID = "fruit_art";
+export const LAB_ANDROID_NANOBLOCK_SHAPE_ID = "android_nanoblock";
+export const LAB_POU_SHAPE_ID = "pou";
+export const LAB_CHICKEN_JOCKEY_SHAPE_ID = "chicken_jockey";
+export const LAB_DUFF_BEER_SHAPE_ID = "duff_beer";
+export const LAB_JEMMA_PLUSHIE_SHAPE_ID = "jemma_plushie";
+export const LAB_RTX_3050_SHAPE_ID = "rtx_3050";
+export const LAB_MINECRAFT_PIG_SHAPE_ID = "minecraft_pig";
+export const LAB_VOXEL_TRADING_SHAPE_ID = "voxel_trading";
+export const LAB_JUGGERNOG_SHAPE_ID = "juggernog";
+export const LAB_VOXEL_FOX_SHAPE_ID = "voxel_fox";
 
 export const LAB_ZOOM_SHAPE_IDS = [
   LAB_PIZZA_SHAPE_ID,
@@ -47,6 +57,11 @@ export const LAB_ZOOM_SHAPE_IDS = [
   LAB_PSP_SHAPE_ID,
   LAB_SPACE_FARM_SHAPE_ID,
   LAB_BOB_OMB_SHAPE_ID,
+  LAB_ANDROID_NANOBLOCK_SHAPE_ID,
+  LAB_POU_SHAPE_ID,
+  LAB_CHICKEN_JOCKEY_SHAPE_ID,
+  LAB_DUFF_BEER_SHAPE_ID,
+  LAB_JEMMA_PLUSHIE_SHAPE_ID,
 ] as const;
 
 export const LAB_STARDUST_SHAPE_IDS = [
@@ -65,6 +80,11 @@ export const LAB_STARDUST_SHAPE_IDS = [
   LAB_AVOCADO_SHAPE_ID,
   LAB_GAMEBOY_SHAPE_ID,
   LAB_FRUIT_ART_SHAPE_ID,
+  LAB_RTX_3050_SHAPE_ID,
+  LAB_MINECRAFT_PIG_SHAPE_ID,
+  LAB_VOXEL_TRADING_SHAPE_ID,
+  LAB_JUGGERNOG_SHAPE_ID,
+  LAB_VOXEL_FOX_SHAPE_ID,
 ] as const;
 
 export type LabZoomShapeId = (typeof LAB_ZOOM_SHAPE_IDS)[number];
@@ -88,6 +108,11 @@ export const LAB_ZOOM_FARM_RATE: Record<LabZoomShapeId, number> = {
   [LAB_PSP_SHAPE_ID]: 5.15,
   [LAB_SPACE_FARM_SHAPE_ID]: 5.35,
   [LAB_BOB_OMB_SHAPE_ID]: 4.95,
+  [LAB_ANDROID_NANOBLOCK_SHAPE_ID]: 4.75,
+  [LAB_POU_SHAPE_ID]: 5.05,
+  [LAB_CHICKEN_JOCKEY_SHAPE_ID]: 5.22,
+  [LAB_DUFF_BEER_SHAPE_ID]: 4.88,
+  [LAB_JEMMA_PLUSHIE_SHAPE_ID]: 5.42,
 };
 
 export const LAB_STARDUST_FARM_RATE: Record<LabStardustShapeId, number> = {
@@ -106,6 +131,11 @@ export const LAB_STARDUST_FARM_RATE: Record<LabStardustShapeId, number> = {
   [LAB_AVOCADO_SHAPE_ID]: 0.31,
   [LAB_GAMEBOY_SHAPE_ID]: 0.41,
   [LAB_FRUIT_ART_SHAPE_ID]: 0.32,
+  [LAB_RTX_3050_SHAPE_ID]: 0.365,
+  [LAB_MINECRAFT_PIG_SHAPE_ID]: 0.295,
+  [LAB_VOXEL_TRADING_SHAPE_ID]: 0.345,
+  [LAB_JUGGERNOG_SHAPE_ID]: 0.385,
+  [LAB_VOXEL_FOX_SHAPE_ID]: 0.315,
 };
 
 export const LAB_ZOOM_DISPLAY_NAME: Record<LabZoomShapeId, string> = {
@@ -124,6 +154,11 @@ export const LAB_ZOOM_DISPLAY_NAME: Record<LabZoomShapeId, string> = {
   [LAB_PSP_SHAPE_ID]: "PSP",
   [LAB_SPACE_FARM_SHAPE_ID]: "Space Farm",
   [LAB_BOB_OMB_SHAPE_ID]: "Bob-omb",
+  [LAB_ANDROID_NANOBLOCK_SHAPE_ID]: "Android Nanoblock",
+  [LAB_POU_SHAPE_ID]: "Pou",
+  [LAB_CHICKEN_JOCKEY_SHAPE_ID]: "Chicken Jockey",
+  [LAB_DUFF_BEER_SHAPE_ID]: "Duff Beer",
+  [LAB_JEMMA_PLUSHIE_SHAPE_ID]: "Jemma Plushie",
 };
 
 export const LAB_STARDUST_DISPLAY_NAME: Record<LabStardustShapeId, string> = {
@@ -142,6 +177,11 @@ export const LAB_STARDUST_DISPLAY_NAME: Record<LabStardustShapeId, string> = {
   [LAB_AVOCADO_SHAPE_ID]: "Avocado Backpack",
   [LAB_GAMEBOY_SHAPE_ID]: "Game Boy",
   [LAB_FRUIT_ART_SHAPE_ID]: "Fruit Art",
+  [LAB_RTX_3050_SHAPE_ID]: "RTX 3050",
+  [LAB_MINECRAFT_PIG_SHAPE_ID]: "Minecraft Pig",
+  [LAB_VOXEL_TRADING_SHAPE_ID]: "Voxel Trading",
+  [LAB_JUGGERNOG_SHAPE_ID]: "Juggernog",
+  [LAB_VOXEL_FOX_SHAPE_ID]: "Voxel Fox",
 };
 
 export const LAB_ZOOM_COLORS: Record<LabZoomShapeId, { color: string; glowColor: string }> = {
@@ -160,6 +200,11 @@ export const LAB_ZOOM_COLORS: Record<LabZoomShapeId, { color: string; glowColor:
   [LAB_PSP_SHAPE_ID]: { color: "#90a4ae", glowColor: "#546e7a" },
   [LAB_SPACE_FARM_SHAPE_ID]: { color: "#26a69a", glowColor: "#00695c" },
   [LAB_BOB_OMB_SHAPE_ID]: { color: "#37474f", glowColor: "#ff5252" },
+  [LAB_ANDROID_NANOBLOCK_SHAPE_ID]: { color: "#3ddc84", glowColor: "#00c853" },
+  [LAB_POU_SHAPE_ID]: { color: "#c4a574", glowColor: "#8d6e63" },
+  [LAB_CHICKEN_JOCKEY_SHAPE_ID]: { color: "#ff8a65", glowColor: "#ff6f00" },
+  [LAB_DUFF_BEER_SHAPE_ID]: { color: "#f9a825", glowColor: "#ef6c00" },
+  [LAB_JEMMA_PLUSHIE_SHAPE_ID]: { color: "#f48fb1", glowColor: "#ec407a" },
 };
 
 export const LAB_STARDUST_COLORS: Record<LabStardustShapeId, { color: string; glowColor: string }> = {
@@ -178,6 +223,11 @@ export const LAB_STARDUST_COLORS: Record<LabStardustShapeId, { color: string; gl
   [LAB_AVOCADO_SHAPE_ID]: { color: "#7cb342", glowColor: "#558b2f" },
   [LAB_GAMEBOY_SHAPE_ID]: { color: "#9ccc65", glowColor: "#7cb342" },
   [LAB_FRUIT_ART_SHAPE_ID]: { color: "#ec407a", glowColor: "#f48fb1" },
+  [LAB_RTX_3050_SHAPE_ID]: { color: "#7c4dff", glowColor: "#00e5ff" },
+  [LAB_MINECRAFT_PIG_SHAPE_ID]: { color: "#f8bbd0", glowColor: "#f48fb1" },
+  [LAB_VOXEL_TRADING_SHAPE_ID]: { color: "#26c6da", glowColor: "#00838f" },
+  [LAB_JUGGERNOG_SHAPE_ID]: { color: "#c62828", glowColor: "#ff5252" },
+  [LAB_VOXEL_FOX_SHAPE_ID]: { color: "#ff6f00", glowColor: "#ffab40" },
 };
 
 /** Fallback tap count — live Lab models use voxel length (1 tap = 1 cube). */
@@ -257,6 +307,11 @@ function labMarketPathFromDisplayName(displayName: string | null | undefined): L
     || n === "psp" || n.includes("psp")
     || n === "space farm" || n.includes("space farm") || n.includes("spacefarm")
     || n === "bob-omb" || n === "bob omb" || n.includes("bob-omb") || n.includes("bobomb")
+    || n === "android nanoblock" || n.includes("android") || n === "android_nanoblock"
+    || n === "pou"
+    || n === "chicken jockey" || n.includes("jockey") || n === "chicken_jockey"
+    || n === "duff beer" || n.includes("duff") || n === "duff_beer"
+    || n === "jemma plushie" || n.includes("jemma") || n === "jemma_plushie"
   ) {
     return "zoom";
   }
@@ -273,6 +328,11 @@ function labMarketPathFromDisplayName(displayName: string | null | undefined): L
     || n === "avocado" || n.includes("avocado")
     || n === "game boy" || n === "gameboy" || n.includes("game boy") || n.includes("gameboy")
     || n === "fruit art" || n.includes("fruit art") || n.includes("fruitart")
+    || n === "rtx 3050" || n.includes("rtx") || n === "rtx_3050"
+    || n === "minecraft pig" || n.includes("minecraft pig") || n === "minecraft_pig"
+    || n === "voxel trading" || n.includes("voxel trading") || n === "voxel_trading"
+    || n === "juggernog" || n.includes("juggernog")
+    || n === "voxel fox" || n.includes("voxel fox") || n === "voxel_fox"
   ) {
     return "stardust";
   }
@@ -382,6 +442,29 @@ const DISPLAY_NAME_TO_SHAPE: Record<string, string> = {
   "fruit art": LAB_FRUIT_ART_SHAPE_ID,
   fruit_art: LAB_FRUIT_ART_SHAPE_ID,
   fruitart: LAB_FRUIT_ART_SHAPE_ID,
+  "android nanoblock": LAB_ANDROID_NANOBLOCK_SHAPE_ID,
+  android_nanoblock: LAB_ANDROID_NANOBLOCK_SHAPE_ID,
+  android: LAB_ANDROID_NANOBLOCK_SHAPE_ID,
+  pou: LAB_POU_SHAPE_ID,
+  "chicken jockey": LAB_CHICKEN_JOCKEY_SHAPE_ID,
+  chicken_jockey: LAB_CHICKEN_JOCKEY_SHAPE_ID,
+  "duff beer": LAB_DUFF_BEER_SHAPE_ID,
+  duff_beer: LAB_DUFF_BEER_SHAPE_ID,
+  duff: LAB_DUFF_BEER_SHAPE_ID,
+  "jemma plushie": LAB_JEMMA_PLUSHIE_SHAPE_ID,
+  jemma_plushie: LAB_JEMMA_PLUSHIE_SHAPE_ID,
+  jemma: LAB_JEMMA_PLUSHIE_SHAPE_ID,
+  "rtx 3050": LAB_RTX_3050_SHAPE_ID,
+  rtx_3050: LAB_RTX_3050_SHAPE_ID,
+  rtx3050: LAB_RTX_3050_SHAPE_ID,
+  "minecraft pig": LAB_MINECRAFT_PIG_SHAPE_ID,
+  minecraft_pig: LAB_MINECRAFT_PIG_SHAPE_ID,
+  "voxel trading": LAB_VOXEL_TRADING_SHAPE_ID,
+  voxel_trading: LAB_VOXEL_TRADING_SHAPE_ID,
+  juggernog: LAB_JUGGERNOG_SHAPE_ID,
+  "juggernog perk": LAB_JUGGERNOG_SHAPE_ID,
+  "voxel fox": LAB_VOXEL_FOX_SHAPE_ID,
+  voxel_fox: LAB_VOXEL_FOX_SHAPE_ID,
 };
 
 /** Recover Lab shape id from listing/planet even if displayName was renamed later. */
@@ -408,6 +491,7 @@ export function resolveLabShapeIdFromPlanet(planet: {
   if (n.includes("island")) return LAB_ISLAND_HOME_SHAPE_ID;
   if (n.includes("stardust") && n.includes("pot")) return LAB_STARDUST_POT_SHAPE_ID;
   if (n.includes("steve")) return LAB_STEVE_SHAPE_ID;
+  if (n.includes("jockey") || n.includes("chicken jockey") || n === "chicken_jockey") return LAB_CHICKEN_JOCKEY_SHAPE_ID;
   if (n.includes("chicken")) return LAB_CHICKEN_SHAPE_ID;
   if (n.includes("slime")) return LAB_SLIME_SHAPE_ID;
   if (n.includes("pokeball") || n.includes("poke ball")) return LAB_POKEBALL_SHAPE_ID;
@@ -425,6 +509,15 @@ export function resolveLabShapeIdFromPlanet(planet: {
   if (n.includes("avocado")) return LAB_AVOCADO_SHAPE_ID;
   if (n.includes("game boy") || n.includes("gameboy")) return LAB_GAMEBOY_SHAPE_ID;
   if (n.includes("fruit art") || n.includes("fruitart") || n === "fruit_art") return LAB_FRUIT_ART_SHAPE_ID;
+  if (n.includes("android") || n === "android_nanoblock") return LAB_ANDROID_NANOBLOCK_SHAPE_ID;
+  if (n === "pou") return LAB_POU_SHAPE_ID;
+  if (n.includes("duff") || n === "duff_beer") return LAB_DUFF_BEER_SHAPE_ID;
+  if (n.includes("jemma") || n === "jemma_plushie") return LAB_JEMMA_PLUSHIE_SHAPE_ID;
+  if (n.includes("rtx") || n === "rtx_3050") return LAB_RTX_3050_SHAPE_ID;
+  if (n.includes("minecraft pig") || n === "minecraft_pig") return LAB_MINECRAFT_PIG_SHAPE_ID;
+  if (n.includes("voxel trading") || n === "voxel_trading") return LAB_VOXEL_TRADING_SHAPE_ID;
+  if (n.includes("juggernog")) return LAB_JUGGERNOG_SHAPE_ID;
+  if (n.includes("voxel fox") || n === "voxel_fox") return LAB_VOXEL_FOX_SHAPE_ID;
   return null;
 }
 
@@ -517,6 +610,11 @@ export function pickRandomLabZoomShapeId(): LabZoomShapeId {
     { id: LAB_PSP_SHAPE_ID, weight: 10 },
     { id: LAB_SPACE_FARM_SHAPE_ID, weight: 10 },
     { id: LAB_BOB_OMB_SHAPE_ID, weight: 10 },
+    { id: LAB_ANDROID_NANOBLOCK_SHAPE_ID, weight: 10 },
+    { id: LAB_POU_SHAPE_ID, weight: 10 },
+    { id: LAB_CHICKEN_JOCKEY_SHAPE_ID, weight: 10 },
+    { id: LAB_DUFF_BEER_SHAPE_ID, weight: 10 },
+    { id: LAB_JEMMA_PLUSHIE_SHAPE_ID, weight: 10 },
   ] as const);
 }
 
@@ -538,6 +636,11 @@ export function pickRandomLabStardustShapeId(): LabStardustShapeId {
     { id: LAB_AVOCADO_SHAPE_ID, weight: 10 },
     { id: LAB_GAMEBOY_SHAPE_ID, weight: 10 },
     { id: LAB_FRUIT_ART_SHAPE_ID, weight: 10 },
+    { id: LAB_RTX_3050_SHAPE_ID, weight: 10 },
+    { id: LAB_MINECRAFT_PIG_SHAPE_ID, weight: 10 },
+    { id: LAB_VOXEL_TRADING_SHAPE_ID, weight: 10 },
+    { id: LAB_JUGGERNOG_SHAPE_ID, weight: 10 },
+    { id: LAB_VOXEL_FOX_SHAPE_ID, weight: 10 },
   ] as const);
 }
 
