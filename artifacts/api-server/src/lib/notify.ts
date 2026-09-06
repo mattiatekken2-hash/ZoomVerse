@@ -139,6 +139,44 @@ export async function notifyAdminPurchase(params: {
   }
 }
 
+/**
+ * Same personal-bot chat as Stars webhook, for shop packs / Extra Slot / VIP
+ * pass paid in on-chain ZMC → treasury (those SKUs no longer go through Stars).
+ */
+export async function notifyAdminZmcShopPurchase(params: {
+  txnId: number;
+  itemName: string;
+  zmcAmount: number;
+  telegramId: string;
+  username?: string | null;
+  firstName?: string | null;
+}): Promise<void> {
+  if (!BOT_TOKEN) return;
+  const who = params.username
+    ? `@${params.username}`
+    : (params.firstName || params.telegramId);
+  const text =
+    `💠 ZMC SHOP\n` +
+    `Acquisto: ${params.itemName}\n` +
+    `ZMC ${params.zmcAmount.toLocaleString("en-US")}\n` +
+    `Da: ${who}\n` +
+    `ID: ${params.telegramId}\n` +
+    `Txn: #${params.txnId}`;
+  try {
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: ADMIN_NOTIFY_CHAT_ID,
+        text,
+        disable_web_page_preview: true,
+      }),
+    });
+  } catch (err) {
+    logger.warn({ err, txnId: params.txnId }, "[notify] admin ZMC shop notify failed");
+  }
+}
+
 export async function notifyAdminLabPayout(params: {
   roundId: number;
   sent: number;
