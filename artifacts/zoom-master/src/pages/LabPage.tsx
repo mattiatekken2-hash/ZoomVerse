@@ -12,7 +12,7 @@ import { ForgeUiErrorBoundary } from "../components/ForgeUiErrorBoundary";
 import { GramDiamondIcon } from "../components/GramDiamondIcon";
 import { LabRankWidget } from "../components/LabRankWidget";
 import { ZmcAirdropWidget } from "../components/ZmcAirdropWidget";
-import type { LabForgePath } from "@workspace/game-models";
+import { LAB_STARDUST_FORGE_ZOOM_COST, type LabForgePath } from "@workspace/game-models";
 import type { Planet } from "../hooks/useGameState";
 import { hapticLight } from "../utils/haptic";
 import { preloadLabForgePickerGlbs } from "../utils/labGlbPreload";
@@ -255,7 +255,7 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
     const result = onBeginLabForge(path);
     setForgePickerOpen(false);
     if (!result.ok && result.reason === "no_zoom") {
-      setFloats((prev) => [...prev, { id: ++floatIdRef.current, text: "Need 500 $ZOOM", color: "#ff6b6b" }]);
+      setFloats((prev) => [...prev, { id: ++floatIdRef.current, text: `Need ${LAB_STARDUST_FORGE_ZOOM_COST.toLocaleString()} $ZOOM`, color: "#ff6b6b" }]);
     } else if (!result.ok && result.reason === "no_stardust") {
       setFloats((prev) => [...prev, { id: ++floatIdRef.current, text: t("lab.noStardust"), color: "#ff6b6b" }]);
     } else if (!result.ok && result.reason === "slots_full") {

@@ -24,8 +24,8 @@ const router: IRouter = Router();
 //   1. Lab forge milestones — claimable when the user's craft counters
 //      reach the threshold (Lab pizza / stardust-pot forges count via
 //      /craft/record → totalPlanetsBuilt). Reward = $ZOOM helper only.
-//      Lab construction stays primary: pot costs 500 $ZOOM, pizza costs
-//      3 ★ — Earn must not flood free pots.
+//      Lab construction stays primary: pot costs 2,000 $ZOOM, pizza costs
+//      12 ★ — Earn must not flood free pots.
 //   2. Sponsor tasks — single-shot rewards for opening a partner channel
 //      or visiting a link. The 10s wait + link-open is enforced
 //      client-side; the server only guarantees "claimable exactly once"
@@ -71,7 +71,7 @@ interface SponsorTaskDef {
 type TaskDef = PlanetTaskDef | SponsorTaskDef;
 
 // Lab-era catalog (labv3 — lower ZOOM so Farm/Lab stay primary).
-// Pizza 3 ★ → 3.5 $ZOOM/h; pot 500 $ZOOM → 0.22 ★/h.
+// Pizza 12 ★ → 3.5 $ZOOM/h; pot 2,000 $ZOOM → 0.22 ★/h.
 // All six ≈ 155 $ZOOM after 500 forges — helper only, not free pots.
 const PLANET_TASKS: PlanetTaskDef[] = [
   { id: "labv3_5",   kind: "planets", threshold: 5,   rewardZoom: 5 },

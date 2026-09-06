@@ -184,11 +184,14 @@ export const LAB_STARDUST_COLORS: Record<LabStardustShapeId, { color: string; gl
 export const LAB_MODEL_FORGE_GOAL = 257;
 /** @deprecated Lab models no longer pack to a fixed voxel budget. */
 export const LAB_MODEL_FORGE_VOXEL_COUNT = 480;
-export const LAB_STARDUST_FORGE_ZOOM_COST = 500;
-export const LAB_ZOOM_FORGE_STARDUST_COST = 3;
+/** Stardust-path Lab build — $ZOOM S3 per roll. Rares ~1/20 → chase > market buy. */
+export const LAB_STARDUST_FORGE_ZOOM_COST = 2_000;
+/** ZOOM-path Lab build — ★ per roll. One forge = one daily-week is not enough. */
+export const LAB_ZOOM_FORGE_STARDUST_COST = 12;
 /** Brand-new accounts only. Existing rows are never backfilled. */
 export const NEW_PLAYER_ZOOM_GRANT = 700;
-export const NEW_PLAYER_STARDUST_GRANT = 5;
+/** Exactly one ZOOM-path forge. Stardust path waits on Farm / shop. */
+export const NEW_PLAYER_STARDUST_GRANT = 12;
 /** @deprecated Use LAB_MODEL_FORGE_GOAL */
 export const LAB_PIZZA_FORGE_GOAL = LAB_MODEL_FORGE_GOAL;
 

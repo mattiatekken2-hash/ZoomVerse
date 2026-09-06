@@ -20,8 +20,8 @@ function utcDayKey(now: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
-// Referral ZOOM milestones — tiny helper only. Pot costs 500 $ZOOM;
-// even all six milestones (~1.2k) never replace Lab farming.
+// Referral ZOOM milestones — tiny helper only. Stardust-path forge is
+// 2,000 $ZOOM; even all six milestones (~1.2k) never replace Lab farming.
 const MILESTONES = [
   { count: 5, reward: 40 },
   { count: 10, reward: 70 },

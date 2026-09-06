@@ -82,9 +82,9 @@ router.post("/balance/sync", async (req, res) => {
       .insert(usersTable)
       .values({
         telegramId,
-        // New accounts only (ON CONFLICT does not re-grant). One ZOOM forge
-        // (3 ★) plus a 2 ★ cushion, and one Stardust forge (500 $ZOOM) plus
-        // a 200 $ZOOM cushion. Never take the client's local default.
+        // New accounts only (ON CONFLICT does not re-grant). One ZOOM-path
+        // forge (12 ★). Stardust-path (2,000 $ZOOM) is Farm/shop, not starter.
+        // Never take the client's local default.
         zoomBalance: NEW_PLAYER_ZOOM_GRANT,
         seasonZoomStart: NEW_PLAYER_ZOOM_GRANT,
         tonBalance: 0,

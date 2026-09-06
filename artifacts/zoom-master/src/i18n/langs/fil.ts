@@ -407,7 +407,7 @@ export const fil: Record<string, string> = {
   "earn.stepLab": "3 · Lab forges",
   "earn.stepInvite": "4 · Invite",
   "earn.redStarHint": "Ang REDSTAR ay nagre-reactivate ng Farm models kapag tapos na ang cycle.",
-  "earn.dailyPizzaHint": "★ ang fuel para sa pizza forge sa Lab (3 ★ bawat isa).",
+  "earn.dailyPizzaHint": "★ ang fuel para sa pizza forge sa Lab (12 ★ bawat isa).",
   "earn.dailyStreak": "Araw-araw na Streak",
   "earn.streakLoop": "7-DAY LOOP · CYCLE {n} · +{pct}% BONUS",
   "earn.streakLoop7": "7-DAY LOOP · NAGRE-RESTART BAWAT LINGGO",

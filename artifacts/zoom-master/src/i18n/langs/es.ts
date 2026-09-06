@@ -409,7 +409,7 @@ export const es: Record<string, string> = {
   "earn.stepLab": "3 · Forjas Lab",
   "earn.stepInvite": "4 · Invitar",
   "earn.redStarHint": "REDSTAR reactiva los modelos Farm cuando termina un ciclo.",
-  "earn.dailyPizzaHint": "Las ★ alimentan las forjas pizza en Lab (3 ★ cada una).",
+  "earn.dailyPizzaHint": "Las ★ alimentan las forjas pizza en Lab (12 ★ cada una).",
   "earn.dailyStreak": "Racha Diaria",
   "earn.streakLoop": "CICLO DE 7 DÍAS · CICLO {n} · +{pct}% BONUS",
   "earn.streakLoop7": "CICLO DE 7 DÍAS · REINICIA CADA SEMANA",

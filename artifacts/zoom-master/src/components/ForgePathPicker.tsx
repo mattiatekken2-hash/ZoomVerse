@@ -166,7 +166,7 @@ function ForgePathPickerBase({
               shapeIds={LAB_ZOOM_SHAPE_IDS}
               badge="$ZOOM"
               name="Pizza · Creeper · Chest · Flower · Dollar"
-              costLabel={`${LAB_ZOOM_FORGE_STARDUST_COST} ★`}
+              costLabel={`${LAB_ZOOM_FORGE_STARDUST_COST.toLocaleString()} ★`}
               yieldLabel="2.6–5.6 /h"
               enabled={canZoom}
               accent="#7bed9f"
@@ -183,7 +183,7 @@ function ForgePathPickerBase({
               name="Pot · Steve · Chicken · Onigiri · Island"
               costLabel={
                 <span className="lab-forge-path-chip-zoom">
-                  {LAB_STARDUST_FORGE_ZOOM_COST}{" "}
+                  {LAB_STARDUST_FORGE_ZOOM_COST.toLocaleString()}{" "}
                   <ZoomMark size={11} />
                 </span>
               }

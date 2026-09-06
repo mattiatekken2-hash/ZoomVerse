@@ -16,8 +16,8 @@ const router: IRouter = Router();
 
 const ADMIN_ID = "8144744644";
 
-// Montepremi FISSO: 100 ★. Forge ZOOM = 3 ★, daily Earn = 1–7 ★, invite = 2 ★.
-// #1 vince 12 ★ = 4 forge extra dopo 60 giorni — premio, non jackpot.
+// Montepremi FISSO: 100 ★. Forge ZOOM = 12 ★, daily Earn = 1–7 ★, invite = 2 ★.
+// #1 vince 12 ★ = 1 forge extra dopo 60 giorni — premio, non jackpot.
 export const LAB_POOL_STARDUST = 100;
 /** @deprecated alias — values are stardust, kept so existing API field names stay stable. */
 export const LAB_POOL_TON = LAB_POOL_STARDUST;
