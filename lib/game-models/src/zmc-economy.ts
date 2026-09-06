@@ -56,14 +56,14 @@ export const VIP_BASE_THRESHOLD = 1_000;
 export const VIP_PRO_THRESHOLD = 10_000;
 
 /**
- * Linked-wallet $ZMC required to credit Farm yield ($ZOOM S3 + Lab stardust).
+ * Linked-wallet $ZMC required to start a Lab forge (ZOOM or Stardust GLB).
  * Fixed ZMC bag — not pegged to GRAM. Raise this number if ZMC pumps.
- * Does not mint ZMC; farm still pays off-chain $ZOOM / stardust.
+ * Does not mint ZMC and does not change Farm yield.
  */
-export const FARM_HOLD_ZMC = 1_000;
+export const LAB_FORGE_HOLD_ZMC = 1_000;
 
-export function hasFarmHold(zmcHuman: number): boolean {
-  return Number.isFinite(zmcHuman) && zmcHuman >= FARM_HOLD_ZMC;
+export function hasLabForgeHold(zmcHuman: number, hasWallet: boolean): boolean {
+  return hasWallet === true && Number.isFinite(zmcHuman) && zmcHuman >= LAB_FORGE_HOLD_ZMC;
 }
 
 /** Shop item: 7-day unlimited farm repairs. Paid in on-chain ZMC → treasury. */

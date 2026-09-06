@@ -19,6 +19,9 @@ import { preloadLabForgePickerGlbs } from "../utils/labGlbPreload";
 import { useT } from "../i18n/LanguageContext";
 import { formatZoomInt } from "../utils/formatNumber";
 import { loadVoxelStudio, type VoxelStudioProject } from "../utils/voxelStudioStore";
+import { useZmcStatus } from "../hooks/useZmcStatus";
+import { LAB_FORGE_HOLD_ZMC, hasLabForgeHold, setLabForgeHoldOk } from "../utils/labForgeHold";
+import { ZMC_STONFI_BUY, openExternalUrl } from "../utils/zmcToken";
 
 
 interface LabPageProps {
@@ -68,6 +71,8 @@ function openExternalUrl(url: string) {
 
 export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, labForgeShapeId = null, labForgePath = null, hasAutoTap, stardustBalance, telegramId, sunCount = 0, onCraft, onBeginLabForge, onClaim, onOpenShop, onOpenStudio, muted = false, setMuted, visible = true }: LabPageProps) {
   const { t } = useT();
+  const zmc = useZmcStatus(telegramId);
+  const forgeHoldOk = hasLabForgeHold(zmc.zmcBalance, zmc.connected || !!zmc.walletAddress);
   const [forgePickerOpen, setForgePickerOpen] = useState(false);
   const [floats, setFloats] = useState<FloatMsg[]>([]);
   const floatIdRef = useRef(0);
@@ -88,6 +93,10 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
   const [studioTitle, setStudioTitle] = useState("");
   const [studioSaves, setStudioSaves] = useState<VoxelStudioProject[]>([]);
   const FORGE_COMPLETE_MS = 1800;
+
+  useEffect(() => {
+    setLabForgeHoldOk(forgeHoldOk);
+  }, [forgeHoldOk]);
 
   useEffect(() => {
     if (pendingPlanet && forgePhase === "idle" && !pendingFloatRef.current) {
@@ -234,6 +243,15 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
   const handleSelectForgePath = useCallback((path: LabForgePath) => {
     if ((window as unknown as { __zoomOrientLock?: boolean }).__zoomOrientLock) return;
     hapticLight();
+    if (!forgeHoldOk) {
+      setFloats((prev) => [...prev, {
+        id: ++floatIdRef.current,
+        text: t("lab.forgeHoldNeed", { n: LAB_FORGE_HOLD_ZMC.toLocaleString() }),
+        color: "#ffd740",
+      }]);
+      return;
+    }
+    setLabForgeHoldOk(true);
     const result = onBeginLabForge(path);
     setForgePickerOpen(false);
     if (!result.ok && result.reason === "no_zoom") {
@@ -242,8 +260,14 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
       setFloats((prev) => [...prev, { id: ++floatIdRef.current, text: t("lab.noStardust"), color: "#ff6b6b" }]);
     } else if (!result.ok && result.reason === "slots_full") {
       setFloats((prev) => [...prev, { id: ++floatIdRef.current, text: t("common.slotsFull"), color: "#ff6b6b" }]);
+    } else if (!result.ok && result.reason === "no_zmc_hold") {
+      setFloats((prev) => [...prev, {
+        id: ++floatIdRef.current,
+        text: t("lab.forgeHoldNeed", { n: LAB_FORGE_HOLD_ZMC.toLocaleString() }),
+        color: "#ffd740",
+      }]);
     }
-  }, [onBeginLabForge, t]);
+  }, [onBeginLabForge, t, forgeHoldOk]);
 
   const handleClaim = useCallback(() => {
     onClaim();
@@ -547,6 +571,10 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
             <ForgePathPicker
               stardustBalance={stardustBalance}
               zoomBalance={balance}
+              holdOk={forgeHoldOk}
+              holdHint={t("lab.forgeHoldHint", { n: LAB_FORGE_HOLD_ZMC.toLocaleString() })}
+              holdCta={zmc.connected || zmc.walletAddress ? t("lab.forgeHoldCta") : t("lab.forgeHoldConnect")}
+              onHoldCta={() => openExternalUrl(ZMC_STONFI_BUY)}
               onSelect={handleSelectForgePath}
               onClose={() => setForgePickerOpen(false)}
             />

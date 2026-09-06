@@ -23,6 +23,10 @@ function ZoomMark({ size = 13 }: { size?: number }) {
 interface ForgePathPickerProps {
   stardustBalance: number;
   zoomBalance: number;
+  holdOk: boolean;
+  holdHint: string;
+  holdCta: string;
+  onHoldCta: () => void;
   onSelect: (path: LabForgePath) => void;
   onClose: () => void;
 }
@@ -97,11 +101,15 @@ function PathCard({
 function ForgePathPickerBase({
   stardustBalance,
   zoomBalance,
+  holdOk,
+  holdHint,
+  holdCta,
+  onHoldCta,
   onSelect,
   onClose,
 }: ForgePathPickerProps) {
-  const canZoom = stardustBalance >= LAB_ZOOM_FORGE_STARDUST_COST;
-  const canStardust = zoomBalance >= LAB_STARDUST_FORGE_ZOOM_COST;
+  const canZoom = holdOk && stardustBalance >= LAB_ZOOM_FORGE_STARDUST_COST;
+  const canStardust = holdOk && zoomBalance >= LAB_STARDUST_FORGE_ZOOM_COST;
 
   useEffect(() => {
     preloadLabForgePickerGlbs();
@@ -140,6 +148,16 @@ function ForgePathPickerBase({
               <span className="lab-forge-picker-dual__sep" />
               <span className="lab-forge-picker-dual__star">★ STARDUST</span>
             </div>
+            {!holdOk && (
+              <button
+                type="button"
+                className="lab-forge-picker-hold"
+                onClick={onHoldCta}
+              >
+                <span>{holdHint}</span>
+                <span className="lab-forge-picker-hold__cta">{holdCta}</span>
+              </button>
+            )}
           </div>
 
           <div className="lab-forge-picker-grid">
