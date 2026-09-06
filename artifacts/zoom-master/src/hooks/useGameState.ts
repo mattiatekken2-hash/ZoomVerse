@@ -14,6 +14,7 @@ import { generateRandomFloat } from "../utils/planetFloat";
 import { getBrowserDevTelegramId, DEV_TG_ID_STORAGE_KEY, persistTelegramId } from "../utils/telegram";
 import { commitStickyWalletBalance } from "./useStickyWalletBalance";
 import { toast } from "./use-toast";
+import { getFarmHoldOk, setFarmHoldOk } from "../utils/farmHold";
 
 // Server-authoritative clock: every farming/idle-income time check is computed
 // against this value, NOT the device clock. Calibrated against /api/server-time
@@ -2342,6 +2343,13 @@ function settleFarmingState(state: GameState, now: number): GameState {
   const from = state.lastFarmingSettledAt || now;
   if (now <= from) return state;
 
+  // Hold gate: burn the elapsed window without crediting $ZOOM / stardust.
+  // Server /farm/settle is the authority; local HUD must not tick a balance
+  // that Math.max(local, server) would keep after a zero-credit settle.
+  if (!getFarmHoldOk()) {
+    return { ...state, lastFarmingSettledAt: now };
+  }
+
   const speedMultiplier = 1 + (state.referralSpeedBonus || 0);
       let earned = 0;
       let nftStarEarned = 0;
@@ -2625,6 +2633,9 @@ export function useGameState() {
       const grantsOk = grantsResult !== null;
       const grants = grantsResult ?? { bonusSlots: 0, bonusSun: false, sunCount: 0, bonusBasic: 0, bonusRare: 0, bonusEpic: 0, bonusGold: 0, bonusMythic: 0, bonusNova: 0, bonusPlasma: 0, bonusV1: 0, bonusV1NftPlatinum: 0, hasAutoTap: false, whiteCollectionUnlocked: false, whiteCollectionBundles: 0, earthCollectionUnlocked: false, earthCollectionBundles: 0, blackCollectionUnlocked: false, blackCollectionBundles: 0, supernovaCollectionUnlocked: false, supernovaCollectionBundles: 0, stellaRossaCollectionUnlocked: false, stellaRossaCollectionBundles: 0, totalPlanetsBuilt: 0, tonBalance: 0, depositBalance: 0, sunFarmStartedAtMs: 0, sunLastCollectedAtMs: 0, sunCycleCount: 0 };
       const serverCollectionByKey = indexServerCollectionPlanets(serverCollectionPlanets);
+      if (typeof settleRes.farmHoldOk === "boolean") {
+        setFarmHoldOk(settleRes.farmHoldOk);
+      }
 
       // Prefer the post-credit balance returned by /farm/settle when the
       // user row exists; it always supersedes balanceRecord (which was
@@ -3699,6 +3710,10 @@ export function useGameState() {
         clientLastSettledAtMs: _doSyncClientFloor,
       });
 
+      if (typeof settleRes.farmHoldOk === "boolean") {
+        setFarmHoldOk(settleRes.farmHoldOk);
+      }
+
       if (settleRes.exists) {
         // Apply $ZOOM / ★ credit on stateRef FIRST (sync), then /balance/sync.
         // setState alone is async — sending the pre-credit persistable ★
@@ -4190,6 +4205,9 @@ export function useGameState() {
             telegramId,
             clientLastSettledAtMs: Math.floor(stateRef.current.lastFarmingSettledAt || 0),
           });
+          if (typeof settleRes.farmHoldOk === "boolean") {
+            setFarmHoldOk(settleRes.farmHoldOk);
+          }
           if (settleRes.exists) {
             const prevSnap = stateRef.current;
             const next = applyStardustFarmSettle({

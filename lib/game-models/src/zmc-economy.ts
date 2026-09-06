@@ -55,6 +55,17 @@ export function zmcTaskAirdropSplit(gross: number): { payout: number; fee: numbe
 export const VIP_BASE_THRESHOLD = 1_000;
 export const VIP_PRO_THRESHOLD = 10_000;
 
+/**
+ * Linked-wallet $ZMC required to credit Farm yield ($ZOOM S3 + Lab stardust).
+ * Fixed ZMC bag — not pegged to GRAM. Raise this number if ZMC pumps.
+ * Does not mint ZMC; farm still pays off-chain $ZOOM / stardust.
+ */
+export const FARM_HOLD_ZMC = 1_000;
+
+export function hasFarmHold(zmcHuman: number): boolean {
+  return Number.isFinite(zmcHuman) && zmcHuman >= FARM_HOLD_ZMC;
+}
+
 /** Shop item: 7-day unlimited farm repairs. Paid in on-chain ZMC → treasury. */
 export const VIP_PRO_PASS_ITEM_ID = "vip_pro_pass";
 export const VIP_PRO_PASS_ZMC = 10_000;

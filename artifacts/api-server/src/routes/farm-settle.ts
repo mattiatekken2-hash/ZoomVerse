@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { db } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
+import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { EQUIPMENT_RATE_SERVER } from "./equipment";
 import {
@@ -11,7 +11,12 @@ import {
   resolveLabShapeIdFromPlanet,
   resolveLabStardustShapeId,
   resumePlanetFarmAfterMarketPause,
+  FARM_HOLD_ZMC,
+  hasFarmHold,
+  parseJettonNano,
+  zmcNanoToHuman,
 } from "@workspace/game-models";
+import { readZmcHoldBalance } from "../lib/zmc";
 
 const router: IRouter = Router();
 
@@ -133,6 +138,11 @@ function stardustCardRate(p: PlanetRow, fallbackRate: number): number {
  *
  * No path in this endpoint ever decreases `zoom_balance` or any other
  * stored value. `earned` is clamped to >= 0 before the UPDATE.
+ *
+ * ZMC HOLD GATE — Farm credits $ZOOM / stardust only while the linked
+ * wallet holds ≥ FARM_HOLD_ZMC (1,000). Time without the hold is burned
+ * (watermark still advances) so buying ZMC later cannot backpay. Does
+ * not mint ZMC. TonAPI down → use cached `zmc_balance_nano` (fail-open).
  */
 router.post("/farm/settle", async (req, res) => {
   const parsed = SettleBody.safeParse(req.body);
@@ -143,6 +153,31 @@ router.post("/farm/settle", async (req, res) => {
   const { telegramId } = parsed.data;
   const clientFloor = Math.floor(parsed.data.clientLastSettledAtMs ?? 0);
   const now = Date.now();
+
+  let zmcHeld = 0;
+  try {
+    const [peek] = await db
+      .select({
+        wallet: usersTable.tonWalletAddress,
+        nano: usersTable.zmcBalanceNano,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, telegramId))
+      .limit(1);
+    if (peek?.wallet) {
+      const live = await readZmcHoldBalance(peek.wallet);
+      if (live.known) {
+        zmcHeld = live.human;
+      } else {
+        zmcHeld = zmcNanoToHuman(parseJettonNano(peek.nano));
+      }
+    }
+  } catch (err) {
+    console.warn("[farm/settle] ZMC hold read failed, treating as 0:", err);
+    zmcHeld = 0;
+  }
+  const farmHoldOk = hasFarmHold(zmcHeld);
+  const holdFields = { farmHoldOk, farmHoldZmc: FARM_HOLD_ZMC, zmcHeld };
 
   try {
     const out = await db.transaction(async (tx) => {
@@ -176,6 +211,7 @@ router.post("/farm/settle", async (req, res) => {
           stardustBalance: 0,
           balanceEpoch: 0,
           settledAtMs: now,
+          ...holdFields,
         };
       }
       const row = rows[0]!;
@@ -208,6 +244,27 @@ router.post("/farm/settle", async (req, res) => {
           stardustBalance,
           balanceEpoch,
           settledAtMs: serverLastSettled,
+          ...holdFields,
+        };
+      }
+
+      if (!farmHoldOk) {
+        const newWatermark = Math.max(serverLastSettled, now);
+        await tx.execute(sql`
+          UPDATE users
+             SET last_farming_settled_at_ms = GREATEST(last_farming_settled_at_ms, ${newWatermark})
+           WHERE telegram_id = ${telegramId}
+        `);
+        return {
+          ok: true,
+          exists: true,
+          credited: 0,
+          stardustCredited: 0,
+          balance: zoomBalance,
+          stardustBalance,
+          balanceEpoch,
+          settledAtMs: newWatermark,
+          ...holdFields,
         };
       }
 
@@ -374,6 +431,7 @@ router.post("/farm/settle", async (req, res) => {
         stardustBalance: stardustBalance + stardustCredited,
         balanceEpoch: balanceEpoch + epochBump,
         settledAtMs: newWatermark,
+        ...holdFields,
       };
     });
 
