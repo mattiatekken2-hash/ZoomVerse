@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, fetchMyMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, invalidateTasksCache, bumpTasksPlanetsBuilt, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
-import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, isLabStardustFarmPlanet, labForgeChromeForPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, resolveLabShapeIdFromPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, labModelDisplayName, resumePlanetFarmAfterMarketPause, LAB_GLB_FARM_HOURS, type LabForgePath } from "@workspace/game-models";
+import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, isLabStardustFarmPlanet, labForgeChromeForPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, resolveLabShapeIdFromPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, labModelDisplayName, resumePlanetFarmAfterMarketPause, LAB_GLB_FARM_HOURS, labFarmRateForPlanet, type LabForgePath } from "@workspace/game-models";
 import { normalizeLabForgeShapeId } from "../utils/labForgeShape";
 import { refreshMarketListings, upsertMarketListing, removeMarketListingByPlanetId } from "../store/globalStore";
 import { applyRemovedPlanetTombstones, markPlanetBurned, markPlanetDelisted, clearPlanetDelisted } from "../utils/removedPlanets";
@@ -2370,13 +2370,11 @@ function settleFarmingState(state: GameState, now: number): GameState {
             isLabStardustFarmPlanet(planet)
             || labMarketPathForPlanet(planet) === "stardust"
           ) {
-            const sid = resolveLabStardustShapeId(resolveLabShapeIdFromPlanet(planet));
-            const rate = sid && typeof LAB_STARDUST_FARM_RATE[sid] === "number"
-              ? LAB_STARDUST_FARM_RATE[sid]
-              : planet.rate;
+            const rate = labFarmRateForPlanet(planet);
             stardustEarned += (rate / 3_600_000) * (end - start) * speedMultiplier;
           } else {
-            earned += (planet.rate / 3_600_000) * (end - start) * speedMultiplier;
+            const rate = labFarmRateForPlanet(planet) || planet.rate;
+            earned += (rate / 3_600_000) * (end - start) * speedMultiplier;
           }
         }
       }

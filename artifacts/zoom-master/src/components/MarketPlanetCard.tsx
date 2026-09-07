@@ -12,6 +12,7 @@ import {
   labModelDisplayName,
   formatMarketListingPrice,
   parseMarketPriceCurrency,
+  labFarmRateForPlanet,
   type LabMarketPath,
 } from "@workspace/game-models";
 import { useGlThumbsPaused } from "../utils/glThumbGate";
@@ -76,6 +77,13 @@ function resolveTitle(listing: MarketPlanetListingView, path: LabMarketPath): st
 }
 
 function resolveRate(listing: MarketPlanetListingView, path: LabMarketPath): number {
+  const fromFloat = labFarmRateForPlanet({
+    shapeId: listing.shapeId,
+    displayName: listing.displayName,
+    rate: listing.rate,
+    float: listing.planetFloat,
+  });
+  if (fromFloat > 0) return fromFloat;
   if (listing.rate > 0) return listing.rate;
   if (isLabZoomShapeId(listing.shapeId)) return LAB_ZOOM_FARM_RATE[listing.shapeId];
   if (isLabStardustShapeId(listing.shapeId)) {
@@ -132,6 +140,7 @@ export function MarketPlanetCard({
     marketPrice: listing.price,
     displayName: title,
     shapeId,
+    float: typeof listing.planetFloat === "number" ? listing.planetFloat : undefined,
   };
 
   return (

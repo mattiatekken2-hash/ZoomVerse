@@ -171,6 +171,46 @@ export function addStudioAmbient(
   return [key, rim];
 }
 
+const LAB_FLOAT_LOOK_SKIP = 0.995;
+
+/**
+ * Grade a cloned Lab GLB from stored float. Does not mutate the cached
+ * template or the .glb file: desaturate/dim at low float, identity at ~1.
+ */
+export function applyLabGlbFloatLook(root: THREE.Object3D, floatValue: number): void {
+  if (!Number.isFinite(floatValue)) return;
+  const t = Math.min(1, Math.max(0, floatValue));
+  if (t >= LAB_FLOAT_LOOK_SKIP) return;
+  const sat = 0.22 + 0.78 * t;
+  const bright = 0.58 + 0.42 * t;
+  root.traverse((node) => {
+    const mesh = node as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.material) return;
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const mat of mats) {
+      if (!mat || (mat as THREE.Material).userData?.labFloatLook) continue;
+      const m = mat as THREE.MeshStandardMaterial;
+      m.userData = { ...m.userData, labFloatLook: true };
+      if (typeof m.envMapIntensity === "number") {
+        m.envMapIntensity *= 0.35 + 0.65 * t;
+      }
+      m.onBeforeCompile = (shader) => {
+        shader.uniforms.uLabSat = { value: sat };
+        shader.uniforms.uLabBright = { value: bright };
+        shader.fragmentShader = `uniform float uLabSat;\nuniform float uLabBright;\n${shader.fragmentShader}`
+          .replace(
+            "#include <color_fragment>",
+            `#include <color_fragment>
+     vec3 labGray = vec3(dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)));
+     diffuseColor.rgb = mix(labGray, diffuseColor.rgb, uLabSat) * uLabBright;`,
+          );
+      };
+      m.customProgramCacheKey = () => `labfloat-${sat.toFixed(3)}-${bright.toFixed(3)}`;
+      m.needsUpdate = true;
+    }
+  });
+}
+
 export function disposeSceneObject(obj: THREE.Object3D): void {
   obj.traverse((node) => {
     const line = node as THREE.LineSegments;

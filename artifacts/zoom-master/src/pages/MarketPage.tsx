@@ -265,6 +265,7 @@ export function MarketPage({
         priceCurrency: p.marketCurrency ?? "zmc",
         marketPath: classified.marketPath,
         planetId: p.id,
+        planetFloat: typeof p.float === "number" ? p.float : null,
       });
     };
 
@@ -313,6 +314,9 @@ export function MarketPage({
         priceCurrency: parseMarketPriceCurrency(l.priceCurrency),
         marketPath: classified.marketPath,
         planetId: l.planetId ?? local?.id ?? null,
+        planetFloat: typeof l.planetFloat === "number"
+          ? l.planetFloat
+          : (typeof local?.float === "number" ? local.float : null),
       });
     };
 

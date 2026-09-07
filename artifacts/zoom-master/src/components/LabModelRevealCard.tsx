@@ -1,6 +1,6 @@
 import type { Planet } from "../hooks/useGameState";
 import { getPlanetDisplayColors, getPlanetFarmDurationHours } from "../hooks/useGameState";
-import { labModelDisplayName, isLabStardustShapeId } from "@workspace/game-models";
+import { labModelDisplayName, isLabStardustShapeId, labFarmRateForPlanet } from "@workspace/game-models";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 
@@ -16,11 +16,12 @@ export function LabModelRevealCard({ planet, pathLabel }: LabModelRevealCardProp
   const title = labModelDisplayName(planet) || planet.displayName || pathLabel;
   const isStardust = isLabStardustShapeId(shapeId);
   const rateUnit = isStardust ? "★" : "$ZOOM";
-  const rateValue = planet.rate >= 1
-    ? planet.rate.toLocaleString()
-    : String(planet.rate);
+  const hourRate = labFarmRateForPlanet(planet) || planet.rate;
+  const rateValue = hourRate >= 1
+    ? hourRate.toLocaleString(undefined, { maximumFractionDigits: 2 })
+    : String(hourRate);
   const farmHours = getPlanetFarmDurationHours(planet);
-  const cycleTotal = Math.round(planet.rate * farmHours);
+  const cycleTotal = Math.round(hourRate * farmHours);
 
   return (
     <div

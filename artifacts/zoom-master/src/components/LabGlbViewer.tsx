@@ -12,6 +12,7 @@ import {
   addForgeSpaceGrid,
   disposeSceneObject,
   fitGlbToCenter,
+  applyLabGlbFloatLook,
 } from "../utils/labGlbScene";
 
 interface LabGlbViewerProps {
@@ -30,6 +31,8 @@ interface LabGlbViewerProps {
   interactive?: boolean;
   /** Rad/frame auto-spin speed (defaults to lab rate). */
   spinRate?: number;
+  /** Stored model float 0–1. Omit / 1 = original GLB colors (forge picker). */
+  lookFloat?: number;
   onGlFailed?: () => void;
 }
 
@@ -47,6 +50,7 @@ function LabGlbViewerBase({
   showGrid = false,
   interactive = false,
   spinRate = LAB_GLB_SPIN_RATE,
+  lookFloat = 1,
   onGlFailed,
 }: LabGlbViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -241,7 +245,9 @@ function LabGlbViewerBase({
       preloadLabGlb(shapeId)
         .then((template) => {
           if (disposed) return;
-          placeModel(cloneLabGlbTemplate(template));
+          const model = cloneLabGlbTemplate(template);
+          applyLabGlbFloatLook(model, lookFloat);
+          placeModel(model);
         })
         .catch(() => {
           if (disposed) return;
@@ -278,7 +284,7 @@ function LabGlbViewerBase({
         mount.removeChild(renderer.domElement);
       }
     };
-  }, [shapeId, size, autoSpin, chrome, showGrid, interactive, spinRate]);
+  }, [shapeId, size, autoSpin, chrome, showGrid, interactive, spinRate, lookFloat]);
 
   const wrapperStyle: CSSProperties = embeddedStyle(chrome, size);
 

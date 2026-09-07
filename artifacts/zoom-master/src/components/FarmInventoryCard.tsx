@@ -110,8 +110,8 @@ export function FarmInventoryCard({
   const glow = chrome?.glowColor ?? theme.glow;
   const reactivateColor = accent;
   const title = getPlanetDisplayName(planet);
-  const hourRate = planet.name === "MUSHROOM" ? 5 : planet.rate;
-  const cycleTotal = planet.name === "MUSHROOM" ? 5 : planet.rate * farmHours;
+  const hourRate = planet.name === "MUSHROOM" ? 5 : labFarmRateForPlanet(planet) || planet.rate;
+  const cycleTotal = planet.name === "MUSHROOM" ? 5 : hourRate * farmHours;
   const showCycle = farmHours >= 2 && planet.name !== "MUSHROOM";
   const orbSize = compact ? 112 : 132;
 

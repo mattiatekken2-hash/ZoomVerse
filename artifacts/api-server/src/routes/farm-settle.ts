@@ -11,6 +11,7 @@ import {
   resolveLabShapeIdFromPlanet,
   resolveLabStardustShapeId,
   resumePlanetFarmAfterMarketPause,
+  labFarmRateForPlanet,
 } from "@workspace/game-models";
 
 const router: IRouter = Router();
@@ -43,6 +44,7 @@ interface PlanetRow {
   rate?: unknown;
   shapeId?: unknown;
   displayName?: unknown;
+  float?: unknown;
   farmStartedAt?: unknown;
   lastCollectedAt?: unknown;
   isFarmingActive?: unknown;
@@ -242,9 +244,13 @@ router.post("/farm/settle", async (req, res) => {
         // Lab GLB models farm a fixed 24h cycle (duration upgrades retired).
         const planetFarmDurationMs = BASE_FARM_DURATION_MS;
         const stardustFarm = planetIsStardustFarm(p, jsonRate);
-        // Canonical ★ rate even when planets_json.rate is 0/stale — otherwise
-        // stardust models never credit the wallet.
-        const rate = stardustFarm ? stardustCardRate(p, jsonRate) : jsonRate;
+        const storedFloat = typeof p.float === "number" && Number.isFinite(p.float) ? p.float : null;
+        const rate = labFarmRateForPlanet({
+          shapeId: planetText(p.shapeId),
+          displayName: planetText(p.displayName),
+          rate: jsonRate,
+          float: storedFloat,
+        }) || (stardustFarm ? stardustCardRate(p, jsonRate) : jsonRate);
         if (rate <= 0) continue;
         const start = Math.max(stardustFarm ? stardustWatermark : zoomWatermark, effectiveStart);
         const end = Math.min(now, effectiveStart + planetFarmDurationMs);

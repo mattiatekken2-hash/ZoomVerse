@@ -38,7 +38,7 @@ import { useT } from "../i18n/LanguageContext";
 
 import { planetTypeLabel } from "../i18n/translations";
 
-import { labForgeShapeHasGlbReveal, isLabStardustShapeId } from "@workspace/game-models";
+import { labForgeShapeHasGlbReveal, isLabStardustShapeId, labFarmRateForPlanet } from "@workspace/game-models";
 
 
 
@@ -97,7 +97,7 @@ function yieldUnit(planet: Planet): string {
 
 function formatYieldPerHour(planet: Planet): string {
   if (planet.name === "MUSHROOM") return "5 ★";
-  return `${formatYieldAmount(planet.rate)} ${yieldUnit(planet)}`;
+  return `${formatYieldAmount(labFarmRateForPlanet(planet) || planet.rate)} ${yieldUnit(planet)}`;
 }
 
 
