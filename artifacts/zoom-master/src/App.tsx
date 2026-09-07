@@ -491,7 +491,7 @@ function AppShellWithState() {
     // "grainy / lo-fi" texture, even with a minimal source→gain chain.
     // Bypassing it lets the OS audio renderer play the 320 kbps MP3 at
     // native quality. Fades are done by animating `audio.volume`.
-    const audio = new Audio(`${import.meta.env.BASE_URL}bgm.mp3?v=21`);
+    const audio = new Audio(`${import.meta.env.BASE_URL}bgm.mp3?v=22`);
     audio.loop = true;
     audio.preload = "auto";
     audio.volume = mutedRef.current ? 0 : 0;
