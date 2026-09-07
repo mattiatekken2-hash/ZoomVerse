@@ -12,6 +12,7 @@ import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 import { useT } from "../i18n/LanguageContext";
 import { labForgeChromeForPlanet, labMarketPathForPlanet, type LabMarketPath } from "@workspace/game-models";
+import { labFarmRateForPlanet } from "../utils/labFloatFarm";
 
 export type FarmCardVariant = "grid" | "compact";
 

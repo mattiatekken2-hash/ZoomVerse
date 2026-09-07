@@ -11,8 +11,8 @@ import {
   resolveLabShapeIdFromPlanet,
   resolveLabStardustShapeId,
   resumePlanetFarmAfterMarketPause,
-  labFarmRateForPlanet,
 } from "@workspace/game-models";
+import { labFarmRateForPlanet } from "../lib/labFloatFarm";
 
 const router: IRouter = Router();
 

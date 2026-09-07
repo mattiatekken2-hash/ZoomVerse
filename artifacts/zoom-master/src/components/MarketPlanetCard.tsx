@@ -12,10 +12,10 @@ import {
   labModelDisplayName,
   formatMarketListingPrice,
   parseMarketPriceCurrency,
-  labFarmRateForPlanet,
   type LabMarketPath,
 } from "@workspace/game-models";
 import { useGlThumbsPaused } from "../utils/glThumbGate";
+import { labFarmRateForPlanet } from "../utils/labFloatFarm";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 

@@ -38,7 +38,8 @@ import { useT } from "../i18n/LanguageContext";
 
 import { planetTypeLabel } from "../i18n/translations";
 
-import { labForgeShapeHasGlbReveal, isLabStardustShapeId, labFarmRateForPlanet } from "@workspace/game-models";
+import { labForgeShapeHasGlbReveal, isLabStardustShapeId } from "@workspace/game-models";
+import { labFarmRateForPlanet } from "../utils/labFloatFarm";
 
 
 

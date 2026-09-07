@@ -1,6 +1,7 @@
 import type { Planet } from "../hooks/useGameState";
 import { getPlanetDisplayColors, getPlanetFarmDurationHours } from "../hooks/useGameState";
-import { labModelDisplayName, isLabStardustShapeId, labFarmRateForPlanet } from "@workspace/game-models";
+import { labModelDisplayName, isLabStardustShapeId } from "@workspace/game-models";
+import { labFarmRateForPlanet } from "../utils/labFloatFarm";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 
