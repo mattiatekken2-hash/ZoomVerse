@@ -326,11 +326,7 @@ export function PlanetVoxelThumb({
             showGrid={showLabForgeGrid}
             interactive={labGlbInteractive}
             spinRate={showLabForgeGrid ? LAB_GLB_SPIN_RATE : FARM_GLB_SPIN_RATE}
-            lookFloat={
-              typeof planet.float === "number" && planet.float >= 0 && planet.float <= 1
-                ? planet.float
-                : 1
-            }
+            lookFloat={displayFloat ?? 1}
             onGlFailed={handleGlError}
           />
         ) : (

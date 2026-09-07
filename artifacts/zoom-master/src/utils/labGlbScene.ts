@@ -174,40 +174,58 @@ export function addStudioAmbient(
 const LAB_FLOAT_LOOK_SKIP = 0.995;
 
 /**
- * Grade a cloned Lab GLB from stored float. Does not mutate the cached
- * template or the .glb file: desaturate/dim at low float, identity at ~1.
+ * Grade a cloned Lab GLB from float. Does not mutate the cached template
+ * or the .glb file. Float 1 = original colors; lower float = less color.
  */
 export function applyLabGlbFloatLook(root: THREE.Object3D, floatValue: number): void {
   if (!Number.isFinite(floatValue)) return;
   const t = Math.min(1, Math.max(0, floatValue));
   if (t >= LAB_FLOAT_LOOK_SKIP) return;
-  const sat = 0.22 + 0.78 * t;
-  const bright = 0.58 + 0.42 * t;
+  const sat = 0.06 + 0.94 * t;
+  const bright = 0.42 + 0.58 * t;
+
+  const patchMat = (mat: THREE.Material): THREE.Material => {
+    if (mat.userData?.labFloatLook) return mat;
+    const m = mat.clone();
+    m.userData = { ...m.userData, labFloatLook: true };
+    const std = m as THREE.MeshStandardMaterial;
+    if (typeof std.envMapIntensity === "number") {
+      std.envMapIntensity *= 0.2 + 0.8 * t;
+    }
+    const prevCompile = m.onBeforeCompile;
+    m.onBeforeCompile = (shader, renderer) => {
+      if (typeof prevCompile === "function") prevCompile(shader, renderer);
+      shader.uniforms.uLabSat = { value: sat };
+      shader.uniforms.uLabBright = { value: bright };
+      shader.fragmentShader = `uniform float uLabSat;\nuniform float uLabBright;\n${shader.fragmentShader}`;
+      const afterOpaque = `
+     vec3 labGray = vec3(dot(gl_FragColor.rgb, vec3(0.2126, 0.7152, 0.0722)));
+     gl_FragColor.rgb = mix(labGray, gl_FragColor.rgb, uLabSat) * uLabBright;`;
+      if (shader.fragmentShader.includes("#include <opaque_fragment>")) {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          "#include <opaque_fragment>",
+          `#include <opaque_fragment>${afterOpaque}`,
+        );
+      } else if (shader.fragmentShader.includes("#include <color_fragment>")) {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          "#include <color_fragment>",
+          `#include <color_fragment>
+     vec3 labGray = vec3(dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)));
+     diffuseColor.rgb = mix(labGray, diffuseColor.rgb, uLabSat) * uLabBright;`,
+        );
+      }
+    };
+    m.customProgramCacheKey = () => `labfloat-${sat.toFixed(3)}-${bright.toFixed(3)}`;
+    m.needsUpdate = true;
+    return m;
+  };
+
   root.traverse((node) => {
     const mesh = node as THREE.Mesh;
     if (!mesh.isMesh || !mesh.material) return;
-    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    for (const mat of mats) {
-      if (!mat || (mat as THREE.Material).userData?.labFloatLook) continue;
-      const m = mat as THREE.MeshStandardMaterial;
-      m.userData = { ...m.userData, labFloatLook: true };
-      if (typeof m.envMapIntensity === "number") {
-        m.envMapIntensity *= 0.35 + 0.65 * t;
-      }
-      m.onBeforeCompile = (shader) => {
-        shader.uniforms.uLabSat = { value: sat };
-        shader.uniforms.uLabBright = { value: bright };
-        shader.fragmentShader = `uniform float uLabSat;\nuniform float uLabBright;\n${shader.fragmentShader}`
-          .replace(
-            "#include <color_fragment>",
-            `#include <color_fragment>
-     vec3 labGray = vec3(dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722)));
-     diffuseColor.rgb = mix(labGray, diffuseColor.rgb, uLabSat) * uLabBright;`,
-          );
-      };
-      m.customProgramCacheKey = () => `labfloat-${sat.toFixed(3)}-${bright.toFixed(3)}`;
-      m.needsUpdate = true;
-    }
+    mesh.material = Array.isArray(mesh.material)
+      ? mesh.material.map((mat) => patchMat(mat))
+      : patchMat(mesh.material);
   });
 }
 
