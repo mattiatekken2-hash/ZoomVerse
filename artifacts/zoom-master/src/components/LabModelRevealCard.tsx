@@ -2,6 +2,7 @@ import type { Planet } from "../hooks/useGameState";
 import { getPlanetDisplayColors, getPlanetFarmDurationHours } from "../hooks/useGameState";
 import { labModelDisplayName, isLabStardustShapeId } from "@workspace/game-models";
 import { labFarmRateForPlanet } from "../utils/labFloatFarm";
+import { formatFloat, getDisplayFloat } from "../utils/planetFloat";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 
@@ -15,6 +16,7 @@ export function LabModelRevealCard({ planet, pathLabel }: LabModelRevealCardProp
   const colors = getPlanetDisplayColors(planet);
   const shapeId = planet.shapeId ?? "";
   const title = labModelDisplayName(planet) || planet.displayName || pathLabel;
+  const floatLabel = formatFloat(getDisplayFloat(planet));
   const isStardust = isLabStardustShapeId(shapeId);
   const rateUnit = isStardust ? "★" : "$ZOOM";
   const hourRate = labFarmRateForPlanet(planet) || planet.rate;
@@ -56,7 +58,10 @@ export function LabModelRevealCard({ planet, pathLabel }: LabModelRevealCardProp
       </div>
 
       <div className="lab-reveal-card__body">
-        <div className="lab-reveal-card__title">{title}</div>
+        <div className="lab-reveal-card__title">
+          <span>{title}</span>
+          <span className="lab-reveal-card__float">{floatLabel}</span>
+        </div>
         <div className="lab-reveal-card__stats">
           <div className="lab-reveal-card__stat">
             <div className="lab-reveal-card__stat-label">/H</div>

@@ -16,6 +16,7 @@ import {
 } from "@workspace/game-models";
 import { useGlThumbsPaused } from "../utils/glThumbGate";
 import { labFarmRateForPlanet } from "../utils/labFloatFarm";
+import { formatFloat, getListingDisplayFloat } from "../utils/planetFloat";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 
@@ -110,6 +111,7 @@ export function MarketPlanetCard({
 
   const theme = PATH_THEME[path] ?? PATH_THEME.zoom;
   const title = resolveTitle(listing, path);
+  const floatLabel = formatFloat(getListingDisplayFloat(listing));
   const rate = resolveRate(listing, path);
   const glPaused = useGlThumbsPaused();
   const hideGl = suspendGl || glPaused;
@@ -176,6 +178,7 @@ export function MarketPlanetCard({
       <div className="lab-market-card__body">
         <h3 className="lab-market-card__title">
           <span className="lab-market-card__name">{title}</span>
+          <span className="lab-market-card__float">{floatLabel}</span>
           {listing.serverId != null && listing.serverId > 0 && (
             <span className="lab-market-card__code">#{listing.serverId}</span>
           )}

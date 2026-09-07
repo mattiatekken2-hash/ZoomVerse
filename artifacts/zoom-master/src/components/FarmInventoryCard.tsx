@@ -8,6 +8,7 @@ import {
   isFarmExpired,
 } from "../hooks/useGameState";
 import { getPlanetDisplayName } from "../utils/planetNames";
+import { formatFloat, getDisplayFloat, isFloatablePlanet } from "../utils/planetFloat";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
 import { useT } from "../i18n/LanguageContext";
@@ -111,6 +112,7 @@ export function FarmInventoryCard({
   const glow = chrome?.glowColor ?? theme.glow;
   const reactivateColor = accent;
   const title = getPlanetDisplayName(planet);
+  const floatLabel = isFloatablePlanet(planet) ? formatFloat(getDisplayFloat(planet)) : null;
   const hourRate = planet.name === "MUSHROOM" ? 5 : labFarmRateForPlanet(planet) || planet.rate;
   const cycleTotal = planet.name === "MUSHROOM" ? 5 : hourRate * farmHours;
   const showCycle = farmHours >= 2 && planet.name !== "MUSHROOM";
@@ -167,7 +169,12 @@ export function FarmInventoryCard({
       </div>
 
       <div className="lab-market-card__body">
-        <h3 className="lab-market-card__title">{title}</h3>
+        <h3 className="lab-market-card__title">
+          <span className="lab-market-card__name">{title}</span>
+          {floatLabel ? (
+            <span className="lab-market-card__float">{floatLabel}</span>
+          ) : null}
+        </h3>
         <div className="lab-market-card__meta">
           <span className="lab-market-card__yield">
             {path === "zoom" && <ZoomCubeIcon size={14} />}

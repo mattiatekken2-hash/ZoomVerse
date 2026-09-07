@@ -1676,6 +1676,18 @@ body.animations-paused * {
   color: #fff;
   text-transform: uppercase;
   text-align: center;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+}
+.lab-reveal-card__float {
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: rgba(255, 255, 255, 0.62);
 }
 .lab-reveal-card__stats {
   display: flex;
@@ -3016,6 +3028,15 @@ body.animations-paused * {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.lab-market-card__float {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: rgba(255, 255, 255, 0.62);
 }
 .lab-market-card__code {
   flex-shrink: 0;
