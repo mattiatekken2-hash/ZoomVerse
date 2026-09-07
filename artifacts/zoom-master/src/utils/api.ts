@@ -3260,6 +3260,62 @@ export async function unlinkZmcWallet(telegramId: string): Promise<ZmcStatus | n
   }
 }
 
+export const BONUS_SLOTS_SNAP_EVENT = "zoom-bonus-slots-snap";
+
+const ZMC_PENDING_STORAGE = "zoom-zmc-pending-v1";
+const ZMC_PENDING_MAX_AGE_MS = 30 * 60 * 1000;
+
+type ZmcPendingShop = {
+  kind: "shop";
+  telegramId: string;
+  itemId: string;
+  walletAddress: string;
+  boc: string;
+  at: number;
+};
+type ZmcPendingMarket = {
+  kind: "market";
+  buyerTelegramId: string;
+  listingId: number;
+  walletAddress: string;
+  boc: string;
+  at: number;
+};
+export type ZmcPendingConfirm = ZmcPendingShop | ZmcPendingMarket;
+
+function readZmcPending(): ZmcPendingConfirm[] {
+  try {
+    const raw = sessionStorage.getItem(ZMC_PENDING_STORAGE);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    const cutoff = Date.now() - ZMC_PENDING_MAX_AGE_MS;
+    return parsed.filter((p: ZmcPendingConfirm) => p && typeof p.boc === "string" && p.at > cutoff);
+  } catch {
+    return [];
+  }
+}
+
+function writeZmcPending(rows: ZmcPendingConfirm[]) {
+  try {
+    sessionStorage.setItem(ZMC_PENDING_STORAGE, JSON.stringify(rows.slice(-8)));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function stashZmcPending(row: ZmcPendingConfirm) {
+  const rest = readZmcPending().filter((p) => p.boc !== row.boc);
+  writeZmcPending([...rest, { ...row, at: Date.now() }]);
+}
+
+export function clearZmcPending(boc: string) {
+  writeZmcPending(readZmcPending().filter((p) => p.boc !== boc));
+}
+
+export function listZmcPending(kind: "shop" | "market"): ZmcPendingConfirm[] {
+  return readZmcPending().filter((p) => p.kind === kind);
+}
+
 export async function fetchZmcBuyIntent(
   buyerTelegramId: string,
   listingId: number,
@@ -3287,6 +3343,7 @@ export async function confirmZmcMarketBuy(params: {
 }): Promise<{
   ok: boolean;
   pending?: boolean;
+  alreadyCredited?: boolean;
   kind?: "planet" | "equipment" | "item";
   planetType?: string | null;
   planetRate?: number | null;
@@ -3304,7 +3361,7 @@ export async function confirmZmcMarketBuy(params: {
       body: JSON.stringify(params),
     });
     const data = await res.json().catch(() => ({}));
-    return { ...data, ok: !!data?.ok && res.ok };
+    return { ...data, ok: !!data?.ok && (res.ok || data?.alreadyCredited) };
   } catch {
     return { ok: false, error: "Network error" };
   }
@@ -3388,13 +3445,21 @@ export async function payShopItemWithZmc(opts: {
     validUntil: Math.floor(Date.now() / 1000) + 300,
     messages: intent.messages,
   });
+  stashZmcPending({
+    kind: "shop",
+    telegramId: opts.telegramId,
+    itemId: opts.itemId,
+    walletAddress: opts.walletAddress,
+    boc: txResult.boc,
+    at: Date.now(),
+  });
   let result = await confirmShopZmcBuy({
     telegramId: opts.telegramId,
     itemId: opts.itemId,
     walletAddress: opts.walletAddress,
     boc: txResult.boc,
   });
-  for (let i = 0; i < 8 && result.pending; i++) {
+  for (let i = 0; i < 12 && result.pending; i++) {
     await new Promise((r) => setTimeout(r, 5000));
     result = await confirmShopZmcBuy({
       telegramId: opts.telegramId,
@@ -3403,6 +3468,7 @@ export async function payShopItemWithZmc(opts: {
       boc: txResult.boc,
     });
   }
+  if (result.ok) clearZmcPending(txResult.boc);
   return result;
 }
 

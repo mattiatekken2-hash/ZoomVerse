@@ -158,6 +158,171 @@ interface TonApiEvent {
   actions?: TonApiEventAction[];
 }
 
+interface TonApiOutMsg {
+  decoded_op_name?: string;
+  raw_body?: string;
+  decoded_body?: {
+    amount?: string | number;
+    destination?: string | { address?: string };
+  };
+}
+
+interface JettonOut {
+  destRaw: string;
+  amount: bigint;
+}
+
+function normalizeHex(h: string): string {
+  return h.replace(/^0x/i, "").toLowerCase();
+}
+
+function destFromDecoded(body: TonApiOutMsg["decoded_body"]): string | null {
+  if (!body) return null;
+  const d = body.destination;
+  if (typeof d === "string" && d) return d;
+  if (d && typeof d === "object" && typeof d.address === "string") return d.address;
+  return null;
+}
+
+function parseJettonTransferRaw(raw: string): JettonOut | null {
+  try {
+    const trimmed = raw.trim();
+    const cell = /^[0-9a-fA-F]+$/.test(trimmed)
+      ? Cell.fromBoc(Buffer.from(trimmed, "hex"))[0]
+      : Cell.fromBase64(trimmed);
+    if (!cell) return null;
+    const s = cell.beginParse();
+    if (s.loadUint(32) !== JETTON_TRANSFER_OPCODE) return null;
+    s.loadUintBig(64);
+    const amount = s.loadCoins();
+    const dest = s.loadAddress();
+    if (!dest) return null;
+    return { amount, destRaw: dest.toRawString().toLowerCase() };
+  } catch {
+    return null;
+  }
+}
+
+function transfersFromOutMsgs(tx: { out_msgs?: TonApiOutMsg[] }): JettonOut[] {
+  const out: JettonOut[] = [];
+  for (const msg of tx.out_msgs ?? []) {
+    const op = (msg.decoded_op_name || "").toLowerCase().replace(/_/g, "");
+    if (op === "jettontransfer") {
+      const dest = destFromDecoded(msg.decoded_body);
+      if (dest) {
+        try {
+          out.push({
+            destRaw: toRawAddress(dest),
+            amount: parseJettonNano(msg.decoded_body?.amount),
+          });
+          continue;
+        } catch {
+          /* fall through to raw_body */
+        }
+      }
+    }
+    if (typeof msg.raw_body === "string" && msg.raw_body) {
+      const parsed = parseJettonTransferRaw(msg.raw_body);
+      if (parsed) out.push(parsed);
+    }
+  }
+  return out;
+}
+
+function transfersFromEvents(events: TonApiEvent[], masterRaw: string): JettonOut[] {
+  const out: JettonOut[] = [];
+  for (const ev of events) {
+    for (const action of ev.actions ?? []) {
+      if (action.type !== "JettonTransfer") continue;
+      if (action.status && action.status !== "ok") continue;
+      const jt = action.JettonTransfer;
+      if (!jt) continue;
+      const jettonAddr = jt.jetton?.address;
+      if (jettonAddr) {
+        try {
+          if (toRawAddress(jettonAddr) !== masterRaw) continue;
+        } catch {
+          continue;
+        }
+      }
+      const dest = jt.recipient?.address;
+      if (!dest) continue;
+      try {
+        out.push({ destRaw: toRawAddress(dest), amount: parseJettonNano(jt.amount) });
+      } catch {
+        continue;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Prefer the wallet tx's own out_msgs (present as soon as the signed Boc
+ * lands) and the matching TonAPI event. Never mix jetton actions from
+ * unrelated older events of similar amounts.
+ */
+async function loadJettonTransfersForTx(opts: {
+  txHash: string;
+  buyerWallet: string;
+}): Promise<JettonOut[]> {
+  const found: JettonOut[] = [];
+  const ids = new Set<string>([opts.txHash]);
+  const chainTx = await tonapiGet(`/v2/blockchain/transactions/${encodeURIComponent(opts.txHash)}`);
+  if (chainTx.ok && chainTx.json && typeof chainTx.json === "object") {
+    const txJson = chainTx.json as {
+      in_msg?: { hash?: string };
+      trace_id?: string;
+      out_msgs?: TonApiOutMsg[];
+    };
+    found.push(...transfersFromOutMsgs(txJson));
+    if (txJson.in_msg?.hash) ids.add(txJson.in_msg.hash);
+    if (txJson.trace_id) ids.add(txJson.trace_id);
+    if (txJson.trace_id) {
+      const traceRes = await tonapiGet(`/v2/traces/${encodeURIComponent(txJson.trace_id)}`);
+      if (traceRes.ok && traceRes.json && typeof traceRes.json === "object") {
+        const trace = traceRes.json as { transactions?: Array<{ out_msgs?: TonApiOutMsg[] }> };
+        for (const t of trace.transactions ?? []) {
+          found.push(...transfersFromOutMsgs(t));
+        }
+      }
+    }
+  }
+
+  const events: TonApiEvent[] = [];
+  for (const id of ids) {
+    const eventRes = await tonapiGet(`/v2/events/${encodeURIComponent(id)}`);
+    if (eventRes.ok && eventRes.json && typeof eventRes.json === "object") {
+      const ev = eventRes.json as TonApiEvent & { events?: TonApiEvent[] };
+      if (Array.isArray(ev.events)) events.push(...ev.events);
+      else if (Array.isArray(ev.actions)) events.push(ev);
+    }
+  }
+
+  if (events.length === 0) {
+    const listRes = await tonapiGet(
+      `/v2/accounts/${encodeURIComponent(opts.buyerWallet)}/events?limit=50`,
+    );
+    if (listRes.ok && listRes.json && typeof listRes.json === "object") {
+      const payload = listRes.json as { events?: TonApiEvent[] };
+      const all = Array.isArray(payload.events) ? payload.events : [];
+      const want = [...ids].map(normalizeHex);
+      events.push(...all.filter((e) => {
+        const id = normalizeHex(e.event_id || "");
+        return want.some((h) => id === h || id.endsWith(h) || h.endsWith(id));
+      }));
+    }
+  }
+
+  const masterRaw = toRawAddress(zmcJettonMaster());
+  found.push(...transfersFromEvents(events, masterRaw));
+  return found;
+}
+
+function hasJettonOut(transfers: JettonOut[], destRaw: string, amount: bigint): boolean {
+  return transfers.some((t) => t.destRaw === destRaw && t.amount === amount);
+}
+
 export interface ZmcSplitVerifyOk {
   ok: true;
   txHash: string;
@@ -191,50 +356,11 @@ export async function verifyZmcSplitTransfer(opts: {
   const tx = txRes.json as { hash?: string; success?: boolean };
   if (tx.success === false) return { ok: false, reason: "Tx failed on-chain", retriable: false };
   const txHash = typeof tx.hash === "string" && tx.hash ? tx.hash : msgHash;
-
-  const eventsRes = await tonapiGet(
-    `/v2/accounts/${encodeURIComponent(opts.buyerWallet)}/events?limit=20`,
-  );
-  if (!eventsRes.ok || !eventsRes.json || typeof eventsRes.json !== "object") {
-    return { ok: false, reason: "Events not ready", retriable: true };
-  }
-  const payload = eventsRes.json as { events?: TonApiEvent[] };
-  const events = Array.isArray(payload.events) ? payload.events : [];
-  const masterRaw = toRawAddress(zmcJettonMaster());
   const sellerRaw = toRawAddress(opts.sellerWallet);
   const treasuryRaw = toRawAddress(treasuryWallet());
-
-  let sawSeller = false;
-  let sawTreasury = false;
-  for (const ev of events) {
-    for (const action of ev.actions ?? []) {
-      if (action.type !== "JettonTransfer") continue;
-      if (action.status && action.status !== "ok") continue;
-      const jt = action.JettonTransfer;
-      if (!jt) continue;
-      const jettonAddr = jt.jetton?.address;
-      if (jettonAddr) {
-        try {
-          if (toRawAddress(jettonAddr) !== masterRaw) continue;
-        } catch {
-          continue;
-        }
-      }
-      const amount = parseJettonNano(jt.amount);
-      const dest = jt.recipient?.address;
-      if (!dest) continue;
-      let destRaw: string;
-      try {
-        destRaw = toRawAddress(dest);
-      } catch {
-        continue;
-      }
-      if (destRaw === sellerRaw && amount === opts.sellerNano) sawSeller = true;
-      if (destRaw === treasuryRaw && amount === opts.feeNano) sawTreasury = true;
-    }
-    if (sawSeller && sawTreasury) break;
-  }
-
+  const transfers = await loadJettonTransfersForTx({ txHash, buyerWallet: opts.buyerWallet });
+  const sawSeller = hasJettonOut(transfers, sellerRaw, opts.sellerNano);
+  const sawTreasury = hasJettonOut(transfers, treasuryRaw, opts.feeNano);
   if (!sawSeller || !sawTreasury) {
     return { ok: false, reason: "Jetton split not found on-chain yet", retriable: true };
   }
@@ -261,51 +387,9 @@ export async function verifyZmcTreasuryTransfer(opts: {
   const tx = txRes.json as { hash?: string; success?: boolean };
   if (tx.success === false) return { ok: false, reason: "Tx failed on-chain", retriable: false };
   const txHash = typeof tx.hash === "string" && tx.hash ? tx.hash : msgHash;
-
-  const eventsRes = await tonapiGet(
-    `/v2/accounts/${encodeURIComponent(opts.buyerWallet)}/events?limit=20`,
-  );
-  if (!eventsRes.ok || !eventsRes.json || typeof eventsRes.json !== "object") {
-    return { ok: false, reason: "Events not ready", retriable: true };
-  }
-  const payload = eventsRes.json as { events?: TonApiEvent[] };
-  const events = Array.isArray(payload.events) ? payload.events : [];
-  const masterRaw = toRawAddress(zmcJettonMaster());
   const treasuryRaw = toRawAddress(treasuryWallet());
-
-  let sawTreasury = false;
-  for (const ev of events) {
-    for (const action of ev.actions ?? []) {
-      if (action.type !== "JettonTransfer") continue;
-      if (action.status && action.status !== "ok") continue;
-      const jt = action.JettonTransfer;
-      if (!jt) continue;
-      const jettonAddr = jt.jetton?.address;
-      if (jettonAddr) {
-        try {
-          if (toRawAddress(jettonAddr) !== masterRaw) continue;
-        } catch {
-          continue;
-        }
-      }
-      const amount = parseJettonNano(jt.amount);
-      const dest = jt.recipient?.address;
-      if (!dest) continue;
-      let destRaw: string;
-      try {
-        destRaw = toRawAddress(dest);
-      } catch {
-        continue;
-      }
-      if (destRaw === treasuryRaw && amount === opts.amountNano) {
-        sawTreasury = true;
-        break;
-      }
-    }
-    if (sawTreasury) break;
-  }
-
-  if (!sawTreasury) {
+  const transfers = await loadJettonTransfersForTx({ txHash, buyerWallet: opts.buyerWallet });
+  if (!hasJettonOut(transfers, treasuryRaw, opts.amountNano)) {
     return { ok: false, reason: "Treasury ZMC transfer not found on-chain yet", retriable: true };
   }
 

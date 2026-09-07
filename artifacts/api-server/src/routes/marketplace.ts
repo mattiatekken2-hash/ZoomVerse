@@ -1879,6 +1879,241 @@ async function applyMarketSaleInventory(
   return { buyerEquipmentId, isEquipmentListing, isItemListing };
 }
 
+function zmcMarketSalePayload(
+  listing: MarketListing,
+  extra?: { equipmentId?: string | null; txHash?: string; alreadyCredited?: boolean; kind?: "item" | "equipment" | "planet" },
+) {
+  const kind = extra?.kind
+    ?? (listing.kind === "item" ? "item" : listing.kind === "equipment" ? "equipment" : "planet");
+  return {
+    ok: true as const,
+    alreadyCredited: extra?.alreadyCredited ?? false,
+    listingId: listing.id,
+    kind,
+    planetType: listing.planetType,
+    planetRate: listing.planetRate,
+    pricePaid: listing.price,
+    modelId: listing.modelId,
+    shapeId: listing.shapeId,
+    modelName: listing.planetDisplayName,
+    planetFloat: listing.planetFloat,
+    equipmentId: extra?.equipmentId ?? null,
+    txHash: extra?.txHash,
+  };
+}
+
+async function broadcastZmcMarketSale(
+  listing: MarketListing,
+  buyerTelegramId: string,
+  inv: { isEquipmentListing: boolean; isItemListing: boolean; buyerEquipmentId: string | null },
+  txHash: string,
+): Promise<void> {
+  try {
+    const [sellerRow] = await db.select({ name: usersTable.firstName }).from(usersTable).where(eq(usersTable.telegramId, listing.sellerTelegramId)).limit(1);
+    const [buyerRow] = await db.select({ name: usersTable.firstName }).from(usersTable).where(eq(usersTable.telegramId, buyerTelegramId)).limit(1);
+    broadcastSale({
+      id: listing.id,
+      kind: inv.isEquipmentListing ? "equipment" : "planet",
+      planetType: listing.planetType,
+      planetRate: listing.planetRate,
+      equipmentCategory: listing.equipmentCategory,
+      equipmentRarity: listing.equipmentRarity,
+      equipmentRate: listing.equipmentRate,
+      price: listing.price,
+      priceCurrency: listing.priceCurrency ?? "zmc",
+      sellerName: sellerRow?.name || listing.sellerName || "Anon",
+      buyerName: buyerRow?.name || "Anon",
+      soldAt: Date.now(),
+      planetFloat: typeof listing.planetFloat === "number" ? listing.planetFloat : null,
+      shapeId: listing.shapeId ?? null,
+      planetDisplayName: listing.planetDisplayName ?? null,
+      modelId: listing.modelId ?? null,
+    });
+    const modelName = labModelDisplayName({
+      shapeId: listing.shapeId,
+      displayName: listing.planetDisplayName,
+    }) || listing.planetDisplayName || "Lab model";
+    void notifyMarketZmcSale({
+      modelName,
+      priceZmc: Number(listing.price),
+      buyerName: buyerRow?.name || "Anon",
+      sellerName: sellerRow?.name || listing.sellerName || "Anon",
+      txHash,
+    }).catch((e) => console.error("[market/zmc/confirm] channel notify failed:", e));
+  } catch (e) { console.error("[market/zmc/confirm] broadcast failed:", e); }
+
+  sendBotMessage(
+    listing.sellerTelegramId,
+    "💰 Great news! One of your models has been sold for ZMC.",
+  ).catch((e) => console.error("[market/zmc/confirm] seller notify failed:", e));
+
+  recordHistoryAsync({
+    telegramId: buyerTelegramId,
+    kind: "market_buy",
+    delta: -Number(listing.price),
+    currency: "zmc",
+    meta: { listingId: listing.id, planetType: listing.planetType, price: listing.price, txHash },
+  });
+  recordHistoryAsync({
+    telegramId: listing.sellerTelegramId,
+    kind: "market_sale",
+    delta: Number(listing.price) * 0.95,
+    currency: "zmc",
+    meta: { listingId: listing.id, planetType: listing.planetType, price: listing.price, txHash },
+  });
+}
+
+async function finalizeVerifiedZmcMarketBuy(opts: {
+  buyerTelegramId: string;
+  listingId: number;
+  listingPeek: MarketListing;
+  txHash: string;
+  feeHuman: number;
+}): Promise<{ status: number; body: Record<string, unknown> }> {
+  const { buyerTelegramId, listingId, listingPeek, txHash, feeHuman } = opts;
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const txDb = drizzle(client);
+
+    const [aId, bId] = buyerTelegramId < listingPeek.sellerTelegramId
+      ? [buyerTelegramId, listingPeek.sellerTelegramId]
+      : [listingPeek.sellerTelegramId, buyerTelegramId];
+    await client.query(
+      `SELECT telegram_id FROM users WHERE telegram_id IN ($1, $2) ORDER BY telegram_id FOR UPDATE`,
+      [aId, bId],
+    );
+
+    const [buyerInfo, sellerInfo] = await Promise.all([
+      txDb.select({
+        referredBy: usersTable.referredBy,
+        isDisabled: usersTable.isDisabled,
+      }).from(usersTable).where(eq(usersTable.telegramId, buyerTelegramId)).limit(1),
+      txDb.select({
+        referredBy: usersTable.referredBy,
+        isDisabled: usersTable.isDisabled,
+      }).from(usersTable).where(eq(usersTable.telegramId, listingPeek.sellerTelegramId)).limit(1),
+    ]);
+    if (buyerInfo[0]?.isDisabled || sellerInfo[0]?.isDisabled) {
+      await client.query("ROLLBACK");
+      return { status: 403, body: { error: "Account disabled" } };
+    }
+
+    const updated = await txDb.update(marketListingsTable)
+      .set({ status: "sold", buyerTelegramId, soldAt: new Date() })
+      .where(and(eq(marketListingsTable.id, listingId), eq(marketListingsTable.status, "active")))
+      .returning();
+    if (updated.length === 0) {
+      await client.query("ROLLBACK");
+      const [sold] = await db
+        .select()
+        .from(marketListingsTable)
+        .where(eq(marketListingsTable.id, listingId))
+        .limit(1);
+      if (sold?.status === "sold" && sold.buyerTelegramId === buyerTelegramId) {
+        return { status: 200, body: zmcMarketSalePayload(sold, { alreadyCredited: true, txHash }) };
+      }
+      return { status: 409, body: { error: "Listing already sold" } };
+    }
+    const listing = updated[0]!;
+
+    const inv = await applyMarketSaleInventory(client, listing, buyerTelegramId);
+
+    try {
+      await txDb.insert(treasuryLedgerTable).values({
+        txHash,
+        type: "market_fee",
+        amountZmc: feeHuman,
+        userId: buyerTelegramId,
+      });
+    } catch (err: unknown) {
+      const code = typeof err === "object" && err && "code" in err ? (err as { code: string }).code : "";
+      if (code !== "23505") throw err;
+      // Same chain tx already recorded (client retry). Never roll back the sale.
+    }
+
+    await client.query("COMMIT");
+    await broadcastZmcMarketSale(listing, buyerTelegramId, inv, txHash);
+    return {
+      status: 200,
+      body: zmcMarketSalePayload(listing, {
+        kind: inv.isItemListing ? "item" : inv.isEquipmentListing ? "equipment" : "planet",
+        equipmentId: inv.buyerEquipmentId,
+        txHash,
+      }),
+    };
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("[market/zmc/confirm] error:", err);
+    return { status: 500, body: { error: "Database error" } };
+  } finally {
+    client.release();
+  }
+}
+
+const marketZmcBgInFlight = new Set<string>();
+
+function backgroundVerifyMarketZmc(opts: {
+  buyerTelegramId: string;
+  listingId: number;
+  listingPeek: MarketListing;
+  walletAddress: string;
+  boc: string;
+  sellerNano: bigint;
+  feeNano: bigint;
+}): void {
+  const key = `${opts.buyerTelegramId}:${opts.listingId}:${opts.boc.slice(0, 48)}`;
+  if (marketZmcBgInFlight.has(key)) return;
+  marketZmcBgInFlight.add(key);
+  void (async () => {
+    try {
+      const attempts = [4_000, 6_000, 10_000, 15_000, 20_000, 30_000, 30_000, 45_000, 60_000, 60_000, 90_000, 90_000];
+      for (const wait of attempts) {
+        await new Promise((r) => setTimeout(r, wait));
+        const [live] = await db
+          .select()
+          .from(marketListingsTable)
+          .where(eq(marketListingsTable.id, opts.listingId))
+          .limit(1);
+        if (live?.status === "sold" && live.buyerTelegramId === opts.buyerTelegramId) return;
+        if (!live || live.status !== "active") return;
+        const verified = await verifyZmcSplitTransfer({
+          boc: opts.boc,
+          buyerWallet: opts.walletAddress,
+          sellerWallet: live.sellerWalletAddress || opts.listingPeek.sellerWalletAddress || "",
+          sellerNano: opts.sellerNano,
+          feeNano: opts.feeNano,
+        });
+        if (!verified.ok) {
+          if (!verified.retriable) {
+            console.warn(`[market/zmc-bg] not retriable for ${opts.buyerTelegramId} listing ${opts.listingId}: ${verified.reason}`);
+            return;
+          }
+          continue;
+        }
+        const result = await finalizeVerifiedZmcMarketBuy({
+          buyerTelegramId: opts.buyerTelegramId,
+          listingId: opts.listingId,
+          listingPeek: live,
+          txHash: verified.txHash,
+          feeHuman: verified.feeHuman,
+        });
+        if (result.status === 200) {
+          console.log(`[market/zmc-bg] credited listing ${opts.listingId} to ${opts.buyerTelegramId}`);
+        } else {
+          console.warn(`[market/zmc-bg] finalize ${result.status} listing ${opts.listingId}:`, result.body);
+        }
+        return;
+      }
+      console.warn(`[market/zmc-bg] timed out for ${opts.buyerTelegramId} listing ${opts.listingId}`);
+    } catch (err) {
+      console.error("[market/zmc-bg] error:", err);
+    } finally {
+      marketZmcBgInFlight.delete(key);
+    }
+  })();
+}
+
 const ZmcIntentBody = z.object({
   buyerTelegramId: z.string().min(1),
   listingId: z.number().int().positive(),
@@ -2062,147 +2297,34 @@ router.post("/market/zmc/confirm", async (req, res) => {
     if (!verified.retriable) break;
   }
   if (!verified || !verified.ok) {
+    const pending = !verified || verified.retriable;
+    if (pending) {
+      backgroundVerifyMarketZmc({
+        buyerTelegramId,
+        listingId,
+        listingPeek,
+        walletAddress,
+        boc,
+        sellerNano,
+        feeNano,
+      });
+    }
     res.status(verified && !verified.retriable ? 400 : 202).json({
       ok: false,
-      pending: !verified || verified.retriable,
+      pending,
       error: verified?.reason ?? "On-chain ZMC transfer not confirmed",
     });
     return;
   }
 
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const txDb = drizzle(client);
-
-    const [aId, bId] = buyerTelegramId < listingPeek.sellerTelegramId
-      ? [buyerTelegramId, listingPeek.sellerTelegramId]
-      : [listingPeek.sellerTelegramId, buyerTelegramId];
-    await client.query(
-      `SELECT telegram_id FROM users WHERE telegram_id IN ($1, $2) ORDER BY telegram_id FOR UPDATE`,
-      [aId, bId],
-    );
-
-    const [buyerInfo, sellerInfo] = await Promise.all([
-      txDb.select({
-        referredBy: usersTable.referredBy,
-        isDisabled: usersTable.isDisabled,
-      }).from(usersTable).where(eq(usersTable.telegramId, buyerTelegramId)).limit(1),
-      txDb.select({
-        referredBy: usersTable.referredBy,
-        isDisabled: usersTable.isDisabled,
-      }).from(usersTable).where(eq(usersTable.telegramId, listingPeek.sellerTelegramId)).limit(1),
-    ]);
-    if (buyerInfo[0]?.isDisabled || sellerInfo[0]?.isDisabled) {
-      await client.query("ROLLBACK");
-      res.status(403).json({ error: "Account disabled" });
-      return;
-    }
-
-    const updated = await txDb.update(marketListingsTable)
-      .set({ status: "sold", buyerTelegramId, soldAt: new Date() })
-      .where(and(eq(marketListingsTable.id, listingId), eq(marketListingsTable.status, "active")))
-      .returning();
-    if (updated.length === 0) {
-      await client.query("ROLLBACK");
-      res.status(409).json({ error: "Listing already sold" });
-      return;
-    }
-    const listing = updated[0]!;
-
-    const inv = await applyMarketSaleInventory(client, listing, buyerTelegramId);
-
-    try {
-      await txDb.insert(treasuryLedgerTable).values({
-        txHash: verified.txHash,
-        type: "market_fee",
-        amountZmc: verified.feeHuman,
-        userId: buyerTelegramId,
-      });
-    } catch (err: unknown) {
-      const code = typeof err === "object" && err && "code" in err ? (err as { code: string }).code : "";
-      if (code !== "23505") throw err;
-      await client.query("ROLLBACK");
-      res.json({ ok: true, alreadyCredited: true, listingId });
-      return;
-    }
-
-    await client.query("COMMIT");
-
-    try {
-      const [sellerRow] = await db.select({ name: usersTable.firstName }).from(usersTable).where(eq(usersTable.telegramId, listing.sellerTelegramId)).limit(1);
-      const [buyerRow] = await db.select({ name: usersTable.firstName }).from(usersTable).where(eq(usersTable.telegramId, buyerTelegramId)).limit(1);
-      broadcastSale({
-        id: listing.id,
-        kind: inv.isEquipmentListing ? "equipment" : "planet",
-        planetType: listing.planetType,
-        planetRate: listing.planetRate,
-        equipmentCategory: listing.equipmentCategory,
-        equipmentRarity: listing.equipmentRarity,
-        equipmentRate: listing.equipmentRate,
-        price: listing.price,
-        priceCurrency: listing.priceCurrency ?? "zmc",
-        sellerName: sellerRow?.name || listing.sellerName || "Anon",
-        buyerName: buyerRow?.name || "Anon",
-        soldAt: Date.now(),
-        planetFloat: typeof listing.planetFloat === "number" ? listing.planetFloat : null,
-        shapeId: listing.shapeId ?? null,
-        planetDisplayName: listing.planetDisplayName ?? null,
-        modelId: listing.modelId ?? null,
-      });
-      const modelName = labModelDisplayName({
-        shapeId: listing.shapeId,
-        displayName: listing.planetDisplayName,
-      }) || listing.planetDisplayName || "Lab model";
-      void notifyMarketZmcSale({
-        modelName,
-        priceZmc: Number(listing.price),
-        buyerName: buyerRow?.name || "Anon",
-        sellerName: sellerRow?.name || listing.sellerName || "Anon",
-        txHash: verified.txHash,
-      }).catch((e) => console.error("[market/zmc/confirm] channel notify failed:", e));
-    } catch (e) { console.error("[market/zmc/confirm] broadcast failed:", e); }
-
-    sendBotMessage(
-      listing.sellerTelegramId,
-      "💰 Great news! One of your models has been sold for ZMC.",
-    ).catch((e) => console.error("[market/zmc/confirm] seller notify failed:", e));
-
-    recordHistoryAsync({
-      telegramId: buyerTelegramId,
-      kind: "market_buy",
-      delta: -Number(listing.price),
-      currency: "zmc",
-      meta: { listingId: listing.id, planetType: listing.planetType, price: listing.price, txHash: verified.txHash },
-    });
-    recordHistoryAsync({
-      telegramId: listing.sellerTelegramId,
-      kind: "market_sale",
-      delta: Number(listing.price) * 0.95,
-      currency: "zmc",
-      meta: { listingId: listing.id, planetType: listing.planetType, price: listing.price, txHash: verified.txHash },
-    });
-
-    res.json({
-      ok: true,
-      kind: inv.isItemListing ? "item" : inv.isEquipmentListing ? "equipment" : "planet",
-      planetType: listing.planetType,
-      planetRate: listing.planetRate,
-      pricePaid: listing.price,
-      modelId: listing.modelId,
-      shapeId: listing.shapeId,
-      modelName: listing.planetDisplayName,
-      planetFloat: listing.planetFloat,
-      equipmentId: inv.buyerEquipmentId,
-      txHash: verified.txHash,
-    });
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-    console.error("[market/zmc/confirm] error:", err);
-    res.status(500).json({ error: "Database error" });
-  } finally {
-    client.release();
-  }
+  const result = await finalizeVerifiedZmcMarketBuy({
+    buyerTelegramId,
+    listingId,
+    listingPeek,
+    txHash: verified.txHash,
+    feeHuman: verified.feeHuman,
+  });
+  res.status(result.status).json(result.body);
 });
 
 export default router;

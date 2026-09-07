@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useTonAddress, useTonConnectUI } from "@tonconnect/ui-react";
-import { createStarsInvoice, confirmStarsPurchase, buyShopItemFromStardust, fetchSunStock, pollTxnUntilFinal, fetchHomeState, fetchSlotPrice, fetchStardustMarketPrice, payShopItemWithZmc, type SunStock, type HomeState, type SlotPriceInfo } from "../utils/api";
+import { createStarsInvoice, confirmStarsPurchase, buyShopItemFromStardust, fetchSunStock, pollTxnUntilFinal, fetchHomeState, fetchSlotPrice, fetchStardustMarketPrice, payShopItemWithZmc, listZmcPending, confirmShopZmcBuy, clearZmcPending, type SunStock, type HomeState, type SlotPriceInfo } from "../utils/api";
 import { stardustShopPrice } from "../utils/stardustMarket";
 import { useT } from "../i18n/LanguageContext";
 import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
 import { patchShopPrefetch, readShopPrefetch } from "../utils/shopPrefetch";
 import { useZmcStatus } from "../hooks/useZmcStatus";
 import { ZMC_STONFI_BUY, openExternalUrl } from "../utils/zmcToken";
-import { ZMC_STATUS_REFRESH_EVENT } from "../utils/api";
+import { ZMC_STATUS_REFRESH_EVENT, BONUS_SLOTS_SNAP_EVENT } from "../utils/api";
 import { VIP_BASE_THRESHOLD, VIP_PRO_PASS_ITEM_ID, VIP_PRO_PASS_ZMC, SHOP_GRAM_TO_ZMC } from "@workspace/game-models";
 
 const CYAN = "#9EC5E8";
@@ -259,6 +259,37 @@ export function ShopPage({
     scheduleRefresh(45_000);
   };
 
+  useEffect(() => {
+    if (!telegramId) return;
+    const pending = listZmcPending("shop").filter((p) => p.kind === "shop" && p.telegramId === telegramId);
+    if (pending.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      for (const row of pending) {
+        if (row.kind !== "shop") continue;
+        const result = await confirmShopZmcBuy({
+          telegramId: row.telegramId,
+          itemId: row.itemId,
+          walletAddress: row.walletAddress,
+          boc: row.boc,
+        });
+        if (cancelled) return;
+        if (result.ok) {
+          clearZmcPending(row.boc);
+          if (typeof result.bonusSlots === "number") {
+            window.dispatchEvent(new CustomEvent(BONUS_SLOTS_SNAP_EVENT, {
+              detail: { bonusSlots: result.bonusSlots },
+            }));
+          }
+          triggerDataRefresh();
+          window.dispatchEvent(new Event(ZMC_STATUS_REFRESH_EVENT));
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [telegramId]);
+
   const handleStarsBuy = async (item: ShopItem) => {
     if (!telegramId) { setMessage(t("shop.telegramIdMissing")); return; }
     setBuying(item.id);
@@ -366,6 +397,11 @@ export function ShopPage({
       }
       if (result.ok) {
         setMessage(`${item.title} purchased! (−${(result.priceZmc ?? price).toLocaleString()} ZMC)`);
+        if (typeof result.bonusSlots === "number") {
+          window.dispatchEvent(new CustomEvent(BONUS_SLOTS_SNAP_EVENT, {
+            detail: { bonusSlots: result.bonusSlots },
+          }));
+        }
         if (typeof result.zoomBalance === "number") {
           window.dispatchEvent(new CustomEvent("zoom-server-balance-snap", {
             detail: { balance: result.zoomBalance, epoch: result.balanceEpoch ?? 0 },

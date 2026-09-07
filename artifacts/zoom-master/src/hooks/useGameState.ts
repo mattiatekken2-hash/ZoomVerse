@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, fetchMyMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, invalidateTasksCache, bumpTasksPlanetsBuilt, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
+import { BONUS_SLOTS_SNAP_EVENT } from "../utils/api";
 import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, isLabStardustFarmPlanet, labForgeChromeForPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, resolveLabShapeIdFromPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, labModelDisplayName, resumePlanetFarmAfterMarketPause, LAB_GLB_FARM_HOURS, type LabForgePath } from "@workspace/game-models";
 import { normalizeLabForgeShapeId } from "../utils/labForgeShape";
 import { refreshMarketListings, upsertMarketListing, removeMarketListingByPlanetId } from "../store/globalStore";
@@ -2950,7 +2951,7 @@ export function useGameState() {
         const serverStellaBundles = Math.max(0, Number(grants.stellaRossaCollectionBundles ?? 0));
         updated = {
           ...updated,
-          maxSlots: Math.max(INITIAL_STATE.maxSlots, INITIAL_STATE.maxSlots + grants.bonusSlots),
+          maxSlots: Math.max(updated.maxSlots || INITIAL_STATE.maxSlots, INITIAL_STATE.maxSlots + grants.bonusSlots),
           hasAutoTap: !!grants.hasAutoTap,
           redStarBalance: Math.max(updated.redStarBalance ?? 0, Number(grants.redStarBalance ?? 0) || 0),
           whiteCollectionUnlocked: !!grants.whiteCollectionUnlocked || serverBundles > 0,
@@ -3471,7 +3472,7 @@ export function useGameState() {
         const serverEarthBundles2 = Math.max(0, Number(grants.earthCollectionBundles ?? 0));
         updated = {
           ...updated,
-          maxSlots: Math.max(INITIAL_STATE.maxSlots, INITIAL_STATE.maxSlots + grants.bonusSlots),
+          maxSlots: Math.max(updated.maxSlots || INITIAL_STATE.maxSlots, INITIAL_STATE.maxSlots + grants.bonusSlots),
           hasAutoTap: !!grants.hasAutoTap,
           redStarBalance: Math.max(updated.redStarBalance ?? 0, Number(grants.redStarBalance ?? 0) || 0),
           whiteCollectionUnlocked: !!grants.whiteCollectionUnlocked || serverBundles2 > 0,
@@ -3934,6 +3935,12 @@ export function useGameState() {
         redStarBalance: Math.max(prev.redStarBalance ?? 0, detail.redStarBalance),
       }));
     };
+    const handleBonusSlotsSnap = (e: Event) => {
+      const detail = (e as CustomEvent<{ bonusSlots: number }>).detail;
+      if (!detail || typeof detail.bonusSlots !== "number" || !Number.isFinite(detail.bonusSlots)) return;
+      const next = Math.max(INITIAL_STATE.maxSlots, INITIAL_STATE.maxSlots + Math.max(0, Math.floor(detail.bonusSlots)));
+      setState((prev) => ({ ...prev, maxSlots: Math.max(prev.maxSlots || INITIAL_STATE.maxSlots, next) }));
+    };
     // Admin self-remove: explicit local decrement that bypasses the
     // grow-only protections in applyGrants/handleAdminRefresh. This is
     // safe because it only fires when the admin button itself is the
@@ -4131,6 +4138,7 @@ export function useGameState() {
     window.addEventListener("zoom-gram-balance-snap", handleGramBalanceSnap as EventListener);
     window.addEventListener("zoom-server-stardust-snap", handleServerStardustSnap as EventListener);
     window.addEventListener("zoom-server-redstar-snap", handleServerRedstarSnap as EventListener);
+    window.addEventListener(BONUS_SLOTS_SNAP_EVENT, handleBonusSlotsSnap as EventListener);
 
     return () => {
       clearInterval(interval);
@@ -4144,6 +4152,7 @@ export function useGameState() {
       window.removeEventListener("zoom-gram-balance-snap", handleGramBalanceSnap as EventListener);
       window.removeEventListener("zoom-server-stardust-snap", handleServerStardustSnap as EventListener);
       window.removeEventListener("zoom-server-redstar-snap", handleServerRedstarSnap as EventListener);
+      window.removeEventListener(BONUS_SLOTS_SNAP_EVENT, handleBonusSlotsSnap as EventListener);
     };
   }, []);
 
