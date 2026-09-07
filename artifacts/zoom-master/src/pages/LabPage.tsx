@@ -52,23 +52,6 @@ interface FloatMsg { id: number; text: string; color: string }
 const GREY = "#8892b0";
 const TON_APP_VOTE_URL = "https://ton.app/games/zoom-bot?id=5847";
 
-function openExternalUrl(url: string) {
-  try {
-    const tg = (window as unknown as {
-      Telegram?: { WebApp?: { openTelegramLink?: (u: string) => void; openLink?: (u: string) => void } };
-    }).Telegram?.WebApp;
-    if (tg?.openTelegramLink && url.startsWith("https://t.me/")) {
-      tg.openTelegramLink(url);
-      return;
-    }
-    if (tg?.openLink) {
-      tg.openLink(url);
-      return;
-    }
-  } catch { /**/ }
-  window.open(url, "_blank", "noopener,noreferrer");
-}
-
 export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild = false, forgeRolling = false, labForgeShapeId = null, labForgePath = null, hasAutoTap, stardustBalance, telegramId, sunCount = 0, onCraft, onBeginLabForge, onClaim, onOpenShop, onOpenStudio, muted = false, setMuted, visible = true }: LabPageProps) {
   const { t } = useT();
   const zmc = useZmcStatus(telegramId);
