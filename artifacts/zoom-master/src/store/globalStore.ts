@@ -90,6 +90,7 @@ async function refreshAll(telegramId: string | null) {
         const pending = state.marketListings.filter((l) => {
           if (mineIds.has(l.id)) return false;
           if (l.planetId && minePlanets.has(l.planetId)) return false;
+          if (telegramId && l.sellerTelegramId && l.sellerTelegramId !== telegramId) return false;
           const t = l.lastActivatedAt ? new Date(l.lastActivatedAt).getTime() : 0;
           return Number.isFinite(t) && Date.now() - t < 180_000;
         });
@@ -223,6 +224,11 @@ export function removeMarketListingByPlanetId(planetId: string) {
   set({ marketListings: state.marketListings.filter((l) => l.planetId !== planetId) });
 }
 
+export function removeMarketListingById(listingId: number) {
+  if (!Number.isFinite(listingId) || listingId <= 0) return;
+  set({ marketListings: state.marketListings.filter((l) => Number(l.id) !== listingId) });
+}
+
 /** Force a market listings refresh (used after a buy/sell). */
 export async function refreshMarketListings(telegramId?: string | null) {
   const tid = (telegramId ?? currentTelegramId)?.trim() || null;
@@ -248,6 +254,7 @@ export async function refreshMarketListings(telegramId?: string | null) {
     const pending = state.marketListings.filter((l) => {
       if (serverIds.has(Number(l.id))) return false;
       if (l.planetId && serverPlanetIds.has(l.planetId)) return false;
+      if (tid && l.sellerTelegramId && l.sellerTelegramId !== tid) return false;
       const t = l.lastActivatedAt ? new Date(l.lastActivatedAt).getTime() : 0;
       return Number.isFinite(t) && Date.now() - t < 180_000;
     });

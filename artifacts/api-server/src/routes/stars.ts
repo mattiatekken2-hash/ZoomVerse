@@ -2105,6 +2105,7 @@ async function applyVerifiedShopZmcCredit(opts: {
   priceZmc: number;
 }): Promise<{ alreadyCredited: boolean; txnId: number } & ShopZmcBalances> {
   const { telegramId, item, txHash, amountHuman, priceZmc } = opts;
+  const paymentId = `zmc_shop_${txHash}`;
   const result = await db.transaction(async (tx) => {
     const [user] = await tx
       .select({ isDisabled: usersTable.isDisabled, bonusSlots: usersTable.bonusSlots })
@@ -2114,47 +2115,61 @@ async function applyVerifiedShopZmcCredit(opts: {
       .limit(1);
     if (!user) throw new Error("USER_NOT_FOUND");
     if (user.isDisabled) throw new Error("ACCOUNT_DISABLED");
-    if (zmcPriceForItem(item, user.bonusSlots ?? 0) !== priceZmc) {
-      throw new Error("PRICE_CHANGED");
+    // Price is already enforced by on-chain verify (amountNano). Do not
+    // refuse credit after the jetton has left the wallet — extra_slot
+    // used to 409 PRICE_CHANGED if bonusSlots moved during confirm wait.
+
+    const [existingTxn] = await tx
+      .select({ id: transactionsTable.id, status: transactionsTable.status })
+      .from(transactionsTable)
+      .where(eq(transactionsTable.telegramPaymentId, paymentId))
+      .limit(1);
+    if (existingTxn?.status === "completed") {
+      return { alreadyCredited: true as const, txnId: existingTxn.id };
     }
 
-    const [existing] = await tx
+    const [existingLedger] = await tx
       .select({ id: treasuryLedgerTable.id })
       .from(treasuryLedgerTable)
       .where(eq(treasuryLedgerTable.txHash, txHash))
       .limit(1);
-    if (existing) {
-      return { alreadyCredited: true as const, txnId: 0 };
+    if (!existingLedger) {
+      try {
+        await tx.insert(treasuryLedgerTable).values({
+          txHash,
+          type: item.id === VIP_PRO_PASS_ITEM_ID
+            ? "vip_pro_pass"
+            : item.id === "extra_slot"
+              ? "shop_extra_slot"
+              : "shop_zoom_pack",
+          amountZmc: amountHuman,
+          userId: telegramId,
+        });
+      } catch (err: unknown) {
+        const code = typeof err === "object" && err && "code" in err ? (err as { code: string }).code : "";
+        if (code !== "23505") throw err;
+      }
     }
 
+    let txn: { id: number };
     try {
-      await tx.insert(treasuryLedgerTable).values({
-        txHash,
-        type: item.id === VIP_PRO_PASS_ITEM_ID
-          ? "vip_pro_pass"
-          : item.id === "extra_slot"
-            ? "shop_extra_slot"
-            : "shop_zoom_pack",
-        amountZmc: amountHuman,
-        userId: telegramId,
-      });
+      const inserted = await tx.insert(transactionsTable).values({
+        telegramId,
+        type: item.itemType,
+        currency: "ZMC",
+        amount: item.zoomAmount || 0,
+        tonAmount: priceZmc,
+        itemId: item.id,
+        itemName: item.title,
+        status: "completed",
+        telegramPaymentId: paymentId,
+      }).returning();
+      txn = inserted[0]!;
     } catch (err: unknown) {
       const code = typeof err === "object" && err && "code" in err ? (err as { code: string }).code : "";
-      if (code === "23505") return { alreadyCredited: true as const, txnId: 0 };
+      if (code === "23505") return { alreadyCredited: true as const, txnId: existingTxn?.id ?? 0 };
       throw err;
     }
-
-    const [txn] = await tx.insert(transactionsTable).values({
-      telegramId,
-      type: item.itemType,
-      currency: "ZMC",
-      amount: item.zoomAmount || 0,
-      tonAmount: priceZmc,
-      itemId: item.id,
-      itemName: item.title,
-      status: "completed",
-      telegramPaymentId: `zmc_shop_${txHash}`,
-    }).returning();
 
     await creditUserTx(tx, item, telegramId, txn.id);
     return { alreadyCredited: false as const, txnId: txn.id };
@@ -2198,7 +2213,7 @@ function backgroundVerifyShopZmc(opts: {
   shopZmcBgInFlight.add(key);
   void (async () => {
     try {
-      const attempts = [5_000, 8_000, 12_000, 18_000, 25_000, 30_000, 30_000, 30_000];
+      const attempts = [4_000, 6_000, 10_000, 15_000, 20_000, 30_000, 30_000, 45_000, 60_000, 60_000, 90_000, 90_000];
       for (const wait of attempts) {
         await new Promise((r) => setTimeout(r, wait));
         const verified = await verifyZmcTreasuryTransfer({

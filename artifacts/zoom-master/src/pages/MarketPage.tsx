@@ -3,8 +3,8 @@ import { useTonAddress, useTonConnectUI } from "@tonconnect/ui-react";
 import { MarketPlanetCard, type MarketPlanetListingView } from "../components/MarketPlanetCard";
 import { MyMarketListingsWidget } from "../components/MyMarketListingsWidget";
 import type { PlanetType, Planet, MarketListing } from "../hooks/useGameState";
-import { buyFromMarket, openMarketActivityStream, fetchMyMarketListings, fetchZmcBuyIntent, confirmZmcMarketBuy, isMarketListingOnShelf, MARKET_LISTING_TTL_MS, type ServerMarketListing } from "../utils/api";
-import { useGlobalStore, pushMarketSale, refreshMarketListings, upsertMarketListing } from "../store/globalStore";
+import { buyFromMarket, openMarketActivityStream, fetchMyMarketListings, fetchZmcBuyIntent, confirmZmcMarketBuy, isMarketListingOnShelf, MARKET_LISTING_TTL_MS, stashZmcPending, clearZmcPending, listZmcPending, type ServerMarketListing } from "../utils/api";
+import { useGlobalStore, pushMarketSale, refreshMarketListings, upsertMarketListing, removeMarketListingById } from "../store/globalStore";
 import { isPlanetBurned, isPlanetDelisted } from "../utils/removedPlanets";
 import { getPlanetDisplayName } from "../utils/planetNames";
 import { useT } from "../i18n/LanguageContext";
@@ -221,6 +221,40 @@ export function MarketPage({
   }, [visible, telegramId, revealKey]);
 
   useEffect(() => {
+    if (!visible || !telegramId || !walletAddress) return;
+    const pending = listZmcPending("market").filter((p) => p.kind === "market" && p.buyerTelegramId === telegramId);
+    if (pending.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      for (const row of pending) {
+        if (row.kind !== "market") continue;
+        const result = await confirmZmcMarketBuy({
+          buyerTelegramId: row.buyerTelegramId,
+          listingId: row.listingId,
+          walletAddress: row.walletAddress,
+          boc: row.boc,
+        });
+        if (cancelled) return;
+        if (result.ok) {
+          clearZmcPending(row.boc);
+          removeMarketListingById(row.listingId);
+          const boughtType = (result.planetType as PlanetType) || "BASIC";
+          onServerBuyComplete(
+            boughtType,
+            typeof result.planetRate === "number" ? result.planetRate : 0,
+            result.pricePaid ?? 0,
+            result.planetFloat ?? null,
+            { modelId: result.modelId, shapeId: result.shapeId, modelName: result.modelName },
+            { currency: "zmc", listingId: row.listingId },
+          );
+          void refreshMarketListings(telegramId);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [visible, telegramId, walletAddress, onServerBuyComplete]);
+
+  useEffect(() => {
     if (!visible) return;
     void refreshMarketListings(telegramId);
     const close = openMarketActivityStream((sale) => {
@@ -400,13 +434,21 @@ export function MarketPage({
           validUntil: Math.floor(Date.now() / 1000) + 300,
           messages: intent.messages,
         });
+        stashZmcPending({
+          kind: "market",
+          buyerTelegramId: telegramId,
+          listingId: serverId,
+          walletAddress,
+          boc: txResult.boc,
+          at: Date.now(),
+        });
         result = await confirmZmcMarketBuy({
           buyerTelegramId: telegramId,
           listingId: serverId,
           walletAddress,
           boc: txResult.boc,
         });
-        for (let i = 0; i < 4 && result.pending; i++) {
+        for (let i = 0; i < 10 && result.pending; i++) {
           await new Promise((r) => setTimeout(r, 4000));
           result = await confirmZmcMarketBuy({
             buyerTelegramId: telegramId,
@@ -416,9 +458,10 @@ export function MarketPage({
           });
         }
         if (result.pending) {
-          showToast("Waiting for on-chain ZMC confirmation… retry from Market shortly", false);
+          showToast("Waiting for on-chain ZMC confirmation… the model will leave the market shortly", false);
           return;
         }
+        if (result.ok) clearZmcPending(txResult.boc);
       } catch (err) {
         showToast(err instanceof Error ? err.message : "TON Connect cancelled", false);
         return;
@@ -435,6 +478,7 @@ export function MarketPage({
       };
       const boughtType = (result.planetType as PlanetType) || planetType;
       const boughtRate = typeof result.planetRate === "number" ? result.planetRate : planetRate;
+      removeMarketListingById(serverId);
       onServerBuyComplete(boughtType, boughtRate, result.pricePaid ?? price, finalFloat, modelMeta, {
         currency,
         listingId: serverId,

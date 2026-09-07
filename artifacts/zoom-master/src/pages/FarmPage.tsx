@@ -7,10 +7,10 @@ import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
 import { WalletStarIcon } from "../components/WalletStarIcon";
 import type { Planet, SunState } from "../hooks/useGameState";
 import { getPlanetDisplayColors, isFarmActive, getPlanetFarmDurationHours } from "../hooks/useGameState";
-import { payShopItemWithZmc, syncActiveFarms } from "../utils/api";
+import { payShopItemWithZmc, syncActiveFarms, BONUS_SLOTS_SNAP_EVENT, listZmcPending, confirmShopZmcBuy, clearZmcPending } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 import { getPlanetDisplayName } from "../utils/planetNames";
-import { isLabForgeGeneratorPlanet, isLabStardustFarmPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, resolveLabShapeIdFromPlanet, MARKET_PRICE_BOUNDS, suggestMarketPrice, isMarketPriceInRange } from "@workspace/game-models";
+import { isLabForgeGeneratorPlanet, isLabStardustFarmPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, resolveLabShapeIdFromPlanet, MARKET_PRICE_BOUNDS, suggestMarketPrice, isMarketPriceInRange, SHOP_GRAM_TO_ZMC } from "@workspace/game-models";
 import { preloadLabGlbBatch } from "../utils/labGlbCache";
 import { useZmcStatus } from "../hooks/useZmcStatus";
 
@@ -134,6 +134,8 @@ function FarmHourChip({
 }
 
 
+const EXTRA_SLOT_ZMC = Math.round(0.25 * SHOP_GRAM_TO_ZMC);
+
 export function FarmPage({
   planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId,
   onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun,
@@ -234,6 +236,39 @@ export function FarmPage({
     )];
     if (ids.length > 0) void preloadLabGlbBatch(ids);
   }, [farmGlbKey]);
+
+  useEffect(() => {
+    if (!visible || !telegramId) return;
+    const pending = listZmcPending("shop").filter(
+      (p) => p.kind === "shop" && p.telegramId === telegramId && p.itemId === "extra_slot",
+    );
+    if (pending.length === 0) return;
+    let cancelled = false;
+    void (async () => {
+      for (const row of pending) {
+        if (row.kind !== "shop") continue;
+        const result = await confirmShopZmcBuy({
+          telegramId: row.telegramId,
+          itemId: row.itemId,
+          walletAddress: row.walletAddress,
+          boc: row.boc,
+        });
+        if (cancelled) return;
+        if (result.ok) {
+          clearZmcPending(row.boc);
+          if (typeof result.bonusSlots === "number") {
+            window.dispatchEvent(new CustomEvent(BONUS_SLOTS_SNAP_EVENT, {
+              detail: { bonusSlots: result.bonusSlots },
+            }));
+          } else {
+            onSlotUnlocked?.();
+          }
+          window.dispatchEvent(new Event("zoom-data-refresh"));
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [visible, telegramId, onSlotUnlocked]);
 
   useEffect(() => {
     if (!telegramId) return;
@@ -508,8 +543,8 @@ export function FarmPage({
                 setTimeout(() => setDefectMsg(null), 2500);
                 return;
               }
-              if (zmcBalance < 25) {
-                setDefectMsg("Need 25 ZMC");
+              if (zmcBalance < EXTRA_SLOT_ZMC) {
+                setDefectMsg(`Need ${EXTRA_SLOT_ZMC.toLocaleString()} ZMC`);
                 setTimeout(() => setDefectMsg(null), 2500);
                 return;
               }
@@ -523,11 +558,18 @@ export function FarmPage({
                 });
                 if (res.pending) {
                   setDefectMsg("Waiting for on-chain ZMC confirmation…");
+                  window.dispatchEvent(new Event("zoom-data-refresh"));
                   setTimeout(() => setDefectMsg(null), 4000);
                   return;
                 }
                 if (res.ok) {
-                  onSlotUnlocked?.();
+                  if (typeof res.bonusSlots === "number") {
+                    window.dispatchEvent(new CustomEvent(BONUS_SLOTS_SNAP_EVENT, {
+                      detail: { bonusSlots: res.bonusSlots },
+                    }));
+                  } else {
+                    onSlotUnlocked?.();
+                  }
                   window.dispatchEvent(new Event("zoom-data-refresh"));
                 } else {
                   setDefectMsg(res.error || "Unlock failed");
