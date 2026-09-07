@@ -2585,6 +2585,41 @@ export async function unstakeStardust(
 }
 
 
+export async function startLabForgePay(
+  telegramId: string,
+  path: "zoom" | "stardust",
+): Promise<{
+  ok: boolean;
+  reason?: string;
+  zoomBalance?: number;
+  stardustBalance?: number;
+  balanceEpoch?: number;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(`${API_BASE}/lab/forge-start`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(withInitData({ telegramId, path })),
+    });
+    const j = await res.json().catch(() => ({} as Record<string, unknown>));
+    if (!res.ok || j["ok"] === false) {
+      const err = String(j["error"] ?? "SERVER_ERROR");
+      if (err === "INSUFFICIENT_ZOOM") return { ok: false, reason: "no_zoom", error: err };
+      if (err === "INSUFFICIENT_STARDUST") return { ok: false, reason: "no_stardust", error: err };
+      return { ok: false, reason: "pay_failed", error: err };
+    }
+    return {
+      ok: true,
+      zoomBalance: typeof j["zoomBalance"] === "number" ? j["zoomBalance"] : undefined,
+      stardustBalance: typeof j["stardustBalance"] === "number" ? j["stardustBalance"] : undefined,
+      balanceEpoch: typeof j["balanceEpoch"] === "number" ? j["balanceEpoch"] : undefined,
+    };
+  } catch {
+    return { ok: false, reason: "pay_failed", error: "NETWORK" };
+  }
+}
+
 export async function deductCraftStardust(telegramId: string, amount: number): Promise<{ ok: boolean; newBalance?: number; error?: string }> {
   try {
     const res = await fetch(`${API_BASE}/stardust/deduct`, {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, fetchMyMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, invalidateTasksCache, bumpTasksPlanetsBuilt, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
+import { registerUser, fetchReferralData, fetchPendingReferral, debugTelegramContext, syncBalance, fetchGrants, fetchBalanceRecord, fetchServerTime, listOnMarket, delistFromMarket, buyFromMarket, recordCraft, recordObtained, fetchSeasonEpoch, openMarketActivityStream, fetchMarketListings, fetchMyMarketListings, notifyFarmStart, notifyFarmReactivate, notifyFarmCollect, notifyFarmStop, notifyPlanetBurn, fetchCollectionPlanets, upsertCollectionPlanet, bulkSeedCollectionPlanets, fetchRegularPlanets, saveRegularPlanets, syncSunCycle, settleOfflineFarming, fetchEquipment, saveEquipment, startEquipmentCycle, collectEquipmentItem as apiCollectEquipment, burnEquipmentItem as apiBurnEquipment, listEquipmentOnMarket, fetchItems, saveItems, craftItemApi, listItemOnMarket, apiHeaders, withInitData, deductCraftStardust, startLabForgePay, upgradeSunDuration, upgradeCollectionDuration, reactivateCollectionWithRedStar, fetchModels, forgeMysteryModel, claimModelApi, invalidateTasksCache, bumpTasksPlanetsBuilt, type Grants, type CollectionPlanetState, type ServerMarketListing, type ZoomModelApiShape } from "../utils/api";
 import { getModelById, forgeSphereTapGoal, FORGE_SPHERE_SHAPE_ID, getLabForgeShapeTapGoal, labForgeShapeForPath, LAB_STARDUST_FORGE_ZOOM_COST, LAB_ZOOM_FORGE_STARDUST_COST, NEW_PLAYER_ZOOM_GRANT, NEW_PLAYER_STARDUST_GRANT, LAB_ZOOM_FARM_RATE, LAB_ZOOM_DISPLAY_NAME, LAB_ZOOM_COLORS, LAB_STARDUST_FARM_RATE, LAB_STARDUST_DISPLAY_NAME, LAB_STARDUST_COLORS, clearLabForgeTestPizzaFlag, consumeLabDevFarmResetOnce, isLabDevWipeActive, isLabForgeGeneratorPlanet, isLabStardustFarmPlanet, labForgeChromeForPlanet, isLabStardustShapeId, isLabZoomShapeId, resolveLabStardustShapeId, resolveLabShapeIdFromPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, labModelDisplayName, resumePlanetFarmAfterMarketPause, LAB_GLB_FARM_HOURS, type LabForgePath } from "@workspace/game-models";
 import { normalizeLabForgeShapeId } from "../utils/labForgeShape";
 import { labFarmRateForPlanet } from "../utils/labFloatFarm";
@@ -2429,6 +2429,7 @@ export function useGameState() {
   const stateRef = useRef(state);
   /** Prevents double-complete when AutoTap fires before React re-renders. */
   const labForgeCompletingRef = useRef(false);
+  const labForgePayInFlightRef = useRef(false);
   // Expose stateRef to module-scope helpers (`reconcileFromSyncResponse`)
   // so they can perform the synchronous wheel/admin race-fix snap into
   // the same source-of-truth that the periodic doSync reads from. The
@@ -4307,8 +4308,11 @@ export function useGameState() {
     };
   }, []);
 
-  const beginLabForge = useCallback((path: LabForgePath): { ok: boolean; reason?: string } => {
+  const beginLabForge = useCallback(async (path: LabForgePath): Promise<{ ok: boolean; reason?: string }> => {
     const current = stateRef.current;
+    if (labForgePayInFlightRef.current) {
+      return { ok: false, reason: "busy" };
+    }
     if (current.pendingModel || current.pendingPlanet || current.forgeRolling) {
       return { ok: false, reason: "busy" };
     }
@@ -4322,43 +4326,46 @@ export function useGameState() {
     if (!getLabForgeHoldOk()) {
       return { ok: false, reason: "no_zmc_hold" };
     }
-    labForgeCompletingRef.current = false;
-
-    const shapeId = normalizeLabForgeShapeId(labForgeShapeForPath(path)) ?? labForgeShapeForPath(path);
-    const goal = getLabForgeShapeTapGoal(shapeId);
-
+    if (!current.telegramId) {
+      return { ok: false, reason: "pay_failed" };
+    }
     if (path === "zoom") {
       if ((current.stardustBalance ?? 0) < LAB_ZOOM_FORGE_STARDUST_COST) {
         return { ok: false, reason: "no_stardust" };
       }
-      setState((prev) => {
-        const next: GameState = {
-          ...prev,
-          stardustBalance: prev.stardustBalance - LAB_ZOOM_FORGE_STARDUST_COST,
-          currentCraftRarity: null,
-          goal,
-          taps: 0,
-          forgePlanetBuild: true,
-          labForgeShapeId: shapeId,
-          labForgePath: path,
-          forgingModel: null,
-        };
-        schedulePersist(next);
-        return next;
-      });
-      if (current.telegramId) {
-        void deductCraftStardust(current.telegramId, LAB_ZOOM_FORGE_STARDUST_COST);
-      }
-      return { ok: true };
-    }
-
-    if ((current.balance ?? 0) < LAB_STARDUST_FORGE_ZOOM_COST) {
+    } else if ((current.balance ?? 0) < LAB_STARDUST_FORGE_ZOOM_COST) {
       return { ok: false, reason: "no_zoom" };
     }
+
+    labForgeCompletingRef.current = false;
+    labForgePayInFlightRef.current = true;
+    const pay = await startLabForgePay(current.telegramId, path);
+    labForgePayInFlightRef.current = false;
+    if (!pay.ok) {
+      return { ok: false, reason: pay.reason ?? "pay_failed" };
+    }
+
+    const shapeId = normalizeLabForgeShapeId(labForgeShapeForPath(path)) ?? labForgeShapeForPath(path);
+    const goal = getLabForgeShapeTapGoal(shapeId);
+    const paidZoom = typeof pay.zoomBalance === "number" ? pay.zoomBalance : undefined;
+    const paidStardust = typeof pay.stardustBalance === "number" ? pay.stardustBalance : undefined;
+    if (typeof pay.balanceEpoch === "number") {
+      setCurrentBalanceEpoch(pay.balanceEpoch);
+    }
+    if (typeof paidZoom === "number") {
+      commitStickyWalletBalance("zoom", paidZoom);
+    }
+
     setState((prev) => {
       const next: GameState = {
         ...prev,
-        balance: prev.balance - LAB_STARDUST_FORGE_ZOOM_COST,
+        ...(typeof paidZoom === "number" ? { balance: paidZoom } : path === "stardust"
+          ? { balance: prev.balance - LAB_STARDUST_FORGE_ZOOM_COST }
+          : {}),
+        ...(typeof paidStardust === "number" ? { stardustBalance: paidStardust } : path === "zoom"
+          ? { stardustBalance: prev.stardustBalance - LAB_ZOOM_FORGE_STARDUST_COST }
+          : {}),
+        ...(typeof pay.balanceEpoch === "number" ? { lastBalanceEpoch: pay.balanceEpoch } : {}),
         currentCraftRarity: null,
         goal,
         taps: 0,
@@ -4367,6 +4374,7 @@ export function useGameState() {
         labForgePath: path,
         forgingModel: null,
       };
+      stateRef.current = next;
       schedulePersist(next);
       return next;
     });

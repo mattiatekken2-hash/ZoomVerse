@@ -38,7 +38,7 @@ interface LabPageProps {
   telegramId: string | null;
   sunCount?: number;
   onCraft: (availableStardust?: number) => { completed: boolean; tapsLeft?: number };
-  onBeginLabForge: (path: LabForgePath) => { ok: boolean; reason?: string };
+  onBeginLabForge: (path: LabForgePath) => { ok: boolean; reason?: string } | Promise<{ ok: boolean; reason?: string }>;
   onClaim: () => void;
   onOpenShop?: () => void;
   onOpenStudio?: (opts?: { title?: string; projectId?: string }) => void;
@@ -223,7 +223,7 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
     if (visible) preloadLabForgePickerGlbs();
   }, [visible]);
 
-  const handleSelectForgePath = useCallback((path: LabForgePath) => {
+  const handleSelectForgePath = useCallback(async (path: LabForgePath) => {
     if ((window as unknown as { __zoomOrientLock?: boolean }).__zoomOrientLock) return;
     hapticLight();
     if (!forgeHoldOk) {
@@ -235,21 +235,33 @@ export function LabPage({ balance, taps, goal, pendingPlanet, forgePlanetBuild =
       return;
     }
     setLabForgeHoldOk(true);
-    const result = onBeginLabForge(path);
-    setForgePickerOpen(false);
+    const result = await onBeginLabForge(path);
     if (!result.ok && result.reason === "no_zoom") {
       setFloats((prev) => [...prev, { id: ++floatIdRef.current, text: `Need ${LAB_STARDUST_FORGE_ZOOM_COST.toLocaleString()} $ZOOM`, color: "#ff6b6b" }]);
-    } else if (!result.ok && result.reason === "no_stardust") {
+      return;
+    }
+    if (!result.ok && result.reason === "no_stardust") {
       setFloats((prev) => [...prev, { id: ++floatIdRef.current, text: t("lab.noStardust"), color: "#ff6b6b" }]);
-    } else if (!result.ok && result.reason === "slots_full") {
+      return;
+    }
+    if (!result.ok && result.reason === "slots_full") {
       setFloats((prev) => [...prev, { id: ++floatIdRef.current, text: t("common.slotsFull"), color: "#ff6b6b" }]);
-    } else if (!result.ok && result.reason === "no_zmc_hold") {
+      return;
+    }
+    if (!result.ok && result.reason === "no_zmc_hold") {
       setFloats((prev) => [...prev, {
         id: ++floatIdRef.current,
         text: t("lab.forgeHoldNeed", { n: LAB_FORGE_HOLD_ZMC.toLocaleString() }),
         color: "#ffd740",
       }]);
+      return;
     }
+    if (!result.ok && result.reason === "pay_failed") {
+      setFloats((prev) => [...prev, { id: ++floatIdRef.current, text: "Pay failed — retry", color: "#ff6b6b" }]);
+      return;
+    }
+    if (!result.ok) return;
+    setForgePickerOpen(false);
   }, [onBeginLabForge, t, forgeHoldOk]);
 
   const handleClaim = useCallback(() => {
