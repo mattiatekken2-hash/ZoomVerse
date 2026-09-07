@@ -223,7 +223,7 @@ export function FarmPage({
   const { t } = useT();
   // Lab economy — only ZOOM / Stardust generators in Farm (no spheres, no SUN).
   const labPlanets = planets.filter(isLabForgeGeneratorPlanet);
-  const farmGenerators = labPlanets.filter((p) => !p.isListedInMarket);
+  const farmGenerators = labPlanets;
 
   const farmGlbKey = farmGenerators.map((p) => p.id).join(",");
   useEffect(() => {

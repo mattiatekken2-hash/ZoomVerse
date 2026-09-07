@@ -14,7 +14,6 @@ import { isPlanetBurned, isPlanetDelisted } from "../utils/removedPlanets";
 import { useGlobalStore, upsertMarketListing } from "../store/globalStore";
 import { FarmInventoryCard } from "./FarmInventoryCard";
 import type { Planet } from "../hooks/useGameState";
-import { farmSlotUsedCount } from "../hooks/useGameState";
 import { useT } from "../i18n/LanguageContext";
 import {
   labMarketPathForPlanet,
@@ -172,7 +171,7 @@ function planetFromListing(listing: ServerMarketListing, local: Planet | undefin
   };
 }
 
-export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visible = true, maxSlots = 2 }: Props) {
+export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visible = true, maxSlots: _maxSlots = 2 }: Props) {
   const { t } = useT();
   const [rows, setRows] = useState<ServerMarketListing[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -181,8 +180,6 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
   const [busyId, setBusyId] = useState<number | null>(null);
   const [holdUntil, setHoldUntil] = useState<Record<string, number>>({});
   const storeListings = useGlobalStore((s) => s.marketListings);
-
-  const slotsFull = farmSlotUsedCount(myPlanets) >= maxSlots;
 
   const reload = useCallback(async () => {
     if (!telegramId) {
@@ -240,11 +237,6 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
   const empty = loaded && displayRows.length === 0 && extraLocal.length === 0;
 
   const handleDelist = (listing: ServerMarketListing) => {
-    if (slotsFull) {
-      setMsg("Farm slots full — free a slot before removing from Market");
-      window.setTimeout(() => setMsg(null), 2800);
-      return;
-    }
     const lid = listingNumId(listing.id);
     const planetId =
       listing.planetId
@@ -358,9 +350,8 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
               variant="grid"
               suspendGl={!visible}
               eagerThumb={visible}
-              onUnlist={slotsFull ? undefined : () => onUnlist(planet.id)}
-              listedActionDisabled={slotsFull}
-              listedActionLabel={slotsFull ? "Slots full" : "Remove"}
+              onUnlist={() => onUnlist(planet.id)}
+              listedActionLabel="Remove"
               shelfRemainingMs={remaining}
               shelfExpired={expired}
               onRelist={expired ? relist : undefined}
@@ -392,9 +383,8 @@ export function MyMarketListingsWidget({ telegramId, myPlanets, onUnlist, visibl
               variant="grid"
               suspendGl={!visible}
               eagerThumb={visible}
-              onUnlist={slotsFull ? undefined : () => handleDelist(listing)}
-              listedActionDisabled={slotsFull}
-              listedActionLabel={slotsFull ? "Slots full" : "Remove"}
+              onUnlist={() => handleDelist(listing)}
+              listedActionLabel="Remove"
               shelfRemainingMs={remaining}
               shelfExpired={canRelist}
               onRelist={canRelist ? relist : undefined}

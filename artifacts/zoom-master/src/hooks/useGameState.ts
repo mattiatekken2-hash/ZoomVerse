@@ -1935,9 +1935,9 @@ function makeLabGeneratorPlanet(path: LabForgePath, shapeId: string): Planet {
   };
 }
 
-/** Farm occupancy: listed models sit in Market inventory, not Farm slots. */
+/** Farm occupancy: listed models still hold a Farm slot (blocks infinite forge). */
 export function farmSlotUsedCount(planets: Planet[]): number {
-  return planets.filter((p) => isLabForgeGeneratorPlanet(p) && !p.isListedInMarket).length;
+  return planets.filter((p) => isLabForgeGeneratorPlanet(p)).length;
 }
 
 const MODEL_RARITY_TO_PLANET: Record<string, PlanetType> = {
