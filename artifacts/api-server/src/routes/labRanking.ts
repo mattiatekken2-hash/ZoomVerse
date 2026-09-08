@@ -16,9 +16,9 @@ const router: IRouter = Router();
 
 const ADMIN_ID = "8144744644";
 
-// Montepremi FISSO: 100 ★. Forge ZOOM = 12 ★, daily Earn = 1–7 ★, invite = 2 ★.
-// #1 vince 12 ★ = 1 forge extra dopo 60 giorni — premio, non jackpot.
-export const LAB_POOL_STARDUST = 100;
+// Montepremi FISSO: 294 ★. Forge ZOOM = 12 ★, daily Earn = 1–7 ★, invite = 2 ★.
+// #1 vince 48 ★ = 4 forge extra dopo 60 giorni.
+export const LAB_POOL_STARDUST = 294;
 /** @deprecated alias — values are stardust, kept so existing API field names stay stable. */
 export const LAB_POOL_TON = LAB_POOL_STARDUST;
 export const LAB_POOL_ZMC = LAB_POOL_STARDUST;
@@ -31,16 +31,16 @@ export const LAB_ROUND_DURATION_MS = 60 * 24 * 60 * 60 * 1000;
 const LAB_SETTLE_LOCK = 7913042200;
 
 /**
- * Premio ★ per rango. Somma Top 50 = 100:
- *   #1=12, #2=8, #3=6, #4..10=2 (×7=14), #11..30=2 (×20=40), #31..50=1 (×20=20).
+ * Premio ★ per rango. Somma Top 50 = 294:
+ *   #1=48, #2=24, #3=18, #4..10=12 (×7=84), #11..30=4 (×20=80), #31..50=2 (×20=40).
  */
 function stardustPrizeForRank(rank: number): number {
-  if (rank === 1) return 12;
-  if (rank === 2) return 8;
-  if (rank === 3) return 6;
-  if (rank >= 4 && rank <= 10) return 2;
-  if (rank >= 11 && rank <= 30) return 2;
-  if (rank >= 31 && rank <= 50) return 1;
+  if (rank === 1) return 48;
+  if (rank === 2) return 24;
+  if (rank === 3) return 18;
+  if (rank >= 4 && rank <= 10) return 12;
+  if (rank >= 11 && rank <= 30) return 4;
+  if (rank >= 31 && rank <= 50) return 2;
   return 0;
 }
 
@@ -50,12 +50,12 @@ function tonPrizeForRank(rank: number): number {
 
 function labPrizeBreakdown(): Array<{ label: string; ton: number }> {
   return [
-    { label: "#1", ton: 12 },
-    { label: "#2", ton: 8 },
-    { label: "#3", ton: 6 },
-    { label: "#4–10", ton: 2 },
-    { label: "#11–30", ton: 2 },
-    { label: "#31–50", ton: 1 },
+    { label: "#1", ton: 48 },
+    { label: "#2", ton: 24 },
+    { label: "#3", ton: 18 },
+    { label: "#4–10", ton: 12 },
+    { label: "#11–30", ton: 4 },
+    { label: "#31–50", ton: 2 },
   ];
 }
 
@@ -315,7 +315,7 @@ export async function runScheduledLabSettlementTick(): Promise<void> {
 
 /**
  * GET /lab-rank/state?telegramId=
- * Stato pubblico del round attivo: pool fisso 100 ★, ripartizione premi
+ * Stato pubblico del round attivo: pool fisso 294 ★, ripartizione premi
  * Top 50, conto alla rovescia (ends_at), Top 100 live, punti e rank utente.
  */
 router.get("/lab-rank/state", async (req, res) => {

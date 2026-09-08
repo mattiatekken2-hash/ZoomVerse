@@ -2495,7 +2495,7 @@ function LabRankAdminSection({ adminId, onFeedback }: LabRankAdminSectionProps) 
     }
   };
 
-  const pool = dash?.poolTon ?? 100;
+  const pool = dash?.poolTon ?? 294;
   const prizes = dash?.prizes ?? [];
   const participants = dash?.round.participants ?? 0;
   const endsAt = dash?.round.endsAt ? new Date(dash.round.endsAt) : null;

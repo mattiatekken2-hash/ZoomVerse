@@ -6,14 +6,14 @@ import { TelegramAvatar } from "./TelegramAvatar";
 
 const CYAN = "#00d4ff";
 const ACCENT = "#4dd4ff";
-const LAB_PRIZE_POOL = 100;
+const LAB_PRIZE_POOL = 294;
 const LAB_PRIZE_BREAKDOWN = [
-  { label: "#1", ton: 12 },
-  { label: "#2", ton: 8 },
-  { label: "#3", ton: 6 },
-  { label: "#4–10", ton: 2 },
-  { label: "#11–30", ton: 2 },
-  { label: "#31–50", ton: 1 },
+  { label: "#1", ton: 48 },
+  { label: "#2", ton: 24 },
+  { label: "#3", ton: 18 },
+  { label: "#4–10", ton: 12 },
+  { label: "#11–30", ton: 4 },
+  { label: "#31–50", ton: 2 },
 ];
 
 interface Props {
@@ -39,12 +39,12 @@ function pad(n: number): string {
 }
 
 function starPrizeForRank(rank: number): number {
-  if (rank === 1) return 12;
-  if (rank === 2) return 8;
-  if (rank === 3) return 6;
-  if (rank >= 4 && rank <= 10) return 2;
-  if (rank >= 11 && rank <= 30) return 2;
-  if (rank >= 31 && rank <= 50) return 1;
+  if (rank === 1) return 48;
+  if (rank === 2) return 24;
+  if (rank === 3) return 18;
+  if (rank >= 4 && rank <= 10) return 12;
+  if (rank >= 11 && rank <= 30) return 4;
+  if (rank >= 31 && rank <= 50) return 2;
   return 0;
 }
 
