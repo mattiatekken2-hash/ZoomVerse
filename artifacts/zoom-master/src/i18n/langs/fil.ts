@@ -344,6 +344,7 @@ export const fil: Record<string, string> = {
   "home.err.failed": "Hindi maipadala ang invite.",
   "rank.season": "Season {n}",
   "rank.inProgress": "Isinasagawa",
+  "rank.seasonCompleted": "Season Completed",
   "rank.seasonOf": "Season {n} ng {tot}",
   "rank.exchangeAct": "Mag-a-activate ang Exchange kapag natapos ang Season 1",
   "rank.zoomSeason": "Zoom Season",

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useMemo } from "react";
 import type { FeedEvent, Planet } from "../hooks/useGameState";
 import { useGlobalStore } from "../store/globalStore";
 import { useT } from "../i18n/LanguageContext";
@@ -21,8 +21,11 @@ interface RankPageProps {
 const SEASON_DURATION_MS = 90 * 24 * 60 * 60 * 1000;
 const DEFAULT_SEASON_START = new Date("2026-08-24T00:00:00.000Z").getTime();
 const TOTAL_SEASONS = 6;
+const CURRENT_SEASON = 3;
+const SEASON_COMPLETED = true;
 
 function getSeasonProgress(now: number, seasonStart: number): number {
+  if (SEASON_COMPLETED) return 1;
   if (now <= seasonStart) return 0;
   return Math.min((now - seasonStart) / SEASON_DURATION_MS, 1);
 }
@@ -55,7 +58,6 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
   void activeFarmRate;
   void _totalTonSpent;
   void _feedEvents;
-  const [currentTime, setCurrentTime] = useState(Date.now());
   const { t, lang } = useT();
 
   // All shared data is pre-loaded centrally — no per-mount fetch, no pop-in
@@ -107,16 +109,9 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
     };
   }, [planets, profile?.crafted]);
 
-  const seasonProgress = getSeasonProgress(currentTime, seasonStart);
-  const currentSeason = 3;
+  const seasonProgress = getSeasonProgress(Date.now(), seasonStart);
+  const currentSeason = CURRENT_SEASON;
   const seasonProgressPercent = seasonProgress * 100;
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -126,8 +121,15 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
           <h2 className="font-black text-lg tracking-tight flex items-center gap-2">
             <TrophyIcon size={26} /> {t("rank.season", { n: currentSeason })}
           </h2>
-          <span className="text-xs font-bold px-3 py-1 rounded-full border" style={{ borderColor: "rgba(158,197,232,0.18)", color: "#9EC5E8" }}>
-            {t("rank.inProgress")}
+          <span
+            className="text-xs font-bold px-3 py-1 rounded-full border"
+            style={
+              SEASON_COMPLETED
+                ? { borderColor: "rgba(255,215,64,0.35)", color: "#ffd740", background: "rgba(255,215,64,0.08)" }
+                : { borderColor: "rgba(158,197,232,0.18)", color: "#9EC5E8" }
+            }
+          >
+            {SEASON_COMPLETED ? t("rank.seasonCompleted") : t("rank.inProgress")}
           </span>
         </div>
 
@@ -150,8 +152,8 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
           <div className="flex items-center justify-between">
             {Array.from({ length: TOTAL_SEASONS }, (_, i) => {
               const sNum = i + 1;
-              const isActive = sNum === currentSeason;
-              const isDone = sNum < currentSeason;
+              const isDone = sNum < currentSeason || (SEASON_COMPLETED && sNum === currentSeason);
+              const isActive = sNum === currentSeason && !SEASON_COMPLETED;
               return (
                 <div key={sNum} className="flex flex-col items-center gap-1">
                   <div
@@ -172,9 +174,11 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
               );
             })}
           </div>
-          <div className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.2)" }}>
-            {t("rank.exchangeActSeason", { n: currentSeason })}
-          </div>
+          {!SEASON_COMPLETED && (
+            <div className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.2)" }}>
+              {t("rank.exchangeActSeason", { n: currentSeason })}
+            </div>
+          )}
         </div>
       </div>
 

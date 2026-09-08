@@ -417,6 +417,7 @@ const en: Dict = {
   // rank page
   "rank.season": "Season {n}",
   "rank.inProgress": "In progress",
+  "rank.seasonCompleted": "Season Completed",
   "rank.seasonOf": "Season {n} of {tot}",
   "rank.exchangeAct": "Exchange activates when Season 1 concludes",
   "rank.zoomSeason": "Zoom Season",
@@ -994,6 +995,7 @@ const it: Dict = {
 
   "rank.season": "Stagione {n}",
   "rank.inProgress": "In corso",
+  "rank.seasonCompleted": "Season Completed",
   "rank.seasonOf": "Stagione {n} di {tot}",
   "rank.exchangeAct": "Lo scambio si attiva alla fine della Stagione 1",
   "rank.zoomSeason": "Stagione Zoom",
@@ -1542,6 +1544,7 @@ const ru: Dict = {
 
   "rank.season": "Сезон {n}",
   "rank.inProgress": "Идёт",
+  "rank.seasonCompleted": "Season Completed",
   "rank.seasonOf": "Сезон {n} из {tot}",
   "rank.exchangeAct": "Обмен откроется по окончании Сезона 1",
   "rank.zoomSeason": "Сезон Zoom",
@@ -2077,6 +2080,7 @@ const uk: Dict = {
 
   "rank.season": "Сезон {n}",
   "rank.inProgress": "Триває",
+  "rank.seasonCompleted": "Season Completed",
   "rank.seasonOf": "Сезон {n} з {tot}",
   "rank.exchangeAct": "Обмін відкриється після Сезону 1",
   "rank.zoomSeason": "Сезон Zoom",

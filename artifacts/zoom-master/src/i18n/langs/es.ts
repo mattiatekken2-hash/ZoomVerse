@@ -346,6 +346,7 @@ export const es: Record<string, string> = {
   "home.err.failed": "No se pudo enviar la invitación.",
   "rank.season": "Temporada {n}",
   "rank.inProgress": "En curso",
+  "rank.seasonCompleted": "Season Completed",
   "rank.seasonOf": "Temporada {n} de {tot}",
   "rank.exchangeAct": "El intercambio se activa cuando concluye la Temporada 1",
   "rank.zoomSeason": "Temporada Zoom",
