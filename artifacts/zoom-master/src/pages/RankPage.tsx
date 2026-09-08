@@ -152,7 +152,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
           <div className="flex items-center justify-between">
             {Array.from({ length: TOTAL_SEASONS }, (_, i) => {
               const sNum = i + 1;
-              const isDone = sNum < currentSeason || (SEASON_COMPLETED && sNum === currentSeason);
+              const isDone = SEASON_COMPLETED || sNum < currentSeason;
               const isActive = sNum === currentSeason && !SEASON_COMPLETED;
               return (
                 <div key={sNum} className="flex flex-col items-center gap-1">
@@ -167,7 +167,7 @@ export function RankPage({ balance, seasonPoolEarned, activeFarmRate, totalTonSp
                   >
                     {isDone ? "✓" : sNum}
                   </div>
-                  <div className="font-bold" style={{ color: isActive ? "#E8ECF4" : "rgba(255,255,255,0.2)", fontSize: 8 }}>
+                  <div className="font-bold" style={{ color: isActive ? "#E8ECF4" : isDone ? "#9EC5E8" : "rgba(255,255,255,0.2)", fontSize: 8 }}>
                     S{sNum}
                   </div>
                 </div>
