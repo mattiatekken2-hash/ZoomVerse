@@ -87,6 +87,39 @@ assert.equal(merged.some((p) => p.id === "b"), false);
 assert.equal(merged.some((p) => p.id === "pc-ghost-1"), false);
 assert.equal(merged.some((p) => p.id === "pc-ghost-2"), false);
 
+// Second FUSE in the same farm: overlay THIS trio's keeper, not the first Evo.
+const prevAfterFirst = [
+  { ...pou("a", { float: 0.9 }), evoTier: 1, evoFusedIds: ["b", "c"] },
+  pou("d", { float: 0.8, shapeId: "pizza", displayName: "Pizza" }),
+  pou("e", { shapeId: "pizza", displayName: "Pizza" }),
+  pou("f", { shapeId: "pizza", displayName: "Pizza" }),
+];
+const staleSecondSnapshot = [
+  { ...pou("a", { float: 0.9 }), evoTier: 1, evoFusedIds: ["b", "c"] },
+  pou("d", { float: 0.8, shapeId: "pizza", displayName: "Pizza" }),
+  pou("e", { shapeId: "pizza", displayName: "Pizza" }),
+  pou("f", { shapeId: "pizza", displayName: "Pizza" }),
+];
+const secondMerged = mergeLabFuseIntoPlanets(
+  prevAfterFirst,
+  staleSecondSnapshot,
+  ["e", "f"],
+  { keeperId: "d", toTier: 1 },
+);
+assert.equal(secondMerged.find((p) => p.id === "a")?.evoTier, 1);
+assert.equal(secondMerged.find((p) => p.id === "d")?.evoTier, 1);
+assert.deepEqual((secondMerged.find((p) => p.id === "d")?.evoFusedIds as string[]).sort(), ["e", "f"]);
+assert.equal(secondMerged.some((p) => p.id === "e"), false);
+assert.equal(secondMerged.some((p) => p.id === "f"), false);
+
+const wrongKeeperFallback = mergeLabFuseIntoPlanets(
+  prevAfterFirst,
+  staleSecondSnapshot,
+  ["e", "f"],
+);
+assert.equal(wrongKeeperFallback.find((p) => p.id === "d")?.evoTier || 0, 0, "without keeperId must not steal first Evo");
+assert.equal(wrongKeeperFallback.find((p) => p.id === "a")?.evoTier, 1);
+
 const staleServer = pou("a", { float: 0.9 });
 const localEvo = { ...pou("a", { float: 0.9 }), evoTier: 1 as const, evoFusedIds: ["b", "c"] };
 const pinnedClient = pinClientLabEvo(staleServer, localEvo);

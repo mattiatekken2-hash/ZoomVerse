@@ -4799,20 +4799,41 @@ export function useGameState() {
     });
   }, []);
 
-  const applyLabFuseResult = useCallback((nextPlanets: Planet[], burnedIds: string[] = []) => {
+  const applyLabFuseResult = useCallback((
+    nextPlanets: Planet[],
+    burnedIds: string[] = [],
+    meta?: { keeperId?: string; toTier?: 1 | 2 },
+  ) => {
     setState((prev) => {
       const burned = [...new Set(burnedIds.filter(Boolean))];
       for (const id of burned) markPlanetBurned(prev.telegramId, id);
-      const planets = mergeLabFuseIntoPlanets(prev.planets, nextPlanets, burned);
+      const planets = mergeLabFuseIntoPlanets(prev.planets, nextPlanets, burned, {
+        keeperId: meta?.keeperId,
+        toTier: meta?.toTier,
+      });
       for (const id of burned) {
         if (prev.telegramId) notifyFarmStop(prev.telegramId, id);
       }
       const updated = { ...prev, planets };
       stateRef.current = updated;
       saveState(updated);
-      // FUSE confirm already wrote planets_json. Do not save the merged
-      // client array here — it can include another device's local-only
-      // models and a newer clientWriteAtMs would overwrite the Evo.
+      if (updated.telegramId) {
+        void saveRegularPlanets(
+          updated.telegramId,
+          updated.planets as unknown as Array<Record<string, unknown>>,
+          {
+            basic: updated.claimedBonusBasic ?? 0,
+            rare:  updated.claimedBonusRare  ?? 0,
+            epic:  updated.claimedBonusEpic  ?? 0,
+            gold:  updated.claimedBonusGold  ?? 0,
+            mythic: updated.claimedBonusMythic ?? 0,
+            plasma: updated.claimedBonusPlasma ?? 0,
+            v1:    updated.claimedBonusV1    ?? 0,
+            v1NftPlatinum: updated.claimedBonusV1NftPlatinum ?? 0,
+          },
+          updated.craftsCompleted,
+        );
+      }
       return updated;
     });
   }, []);

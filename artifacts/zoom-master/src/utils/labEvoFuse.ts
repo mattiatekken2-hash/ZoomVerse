@@ -52,10 +52,25 @@ export function mergeLabFuseIntoPlanets<T extends { id: string; evoTier?: unknow
   prev: T[],
   nextPlanets: T[],
   burnedIds: string[],
+  opts?: { keeperId?: string; toTier?: 1 | 2 },
 ): T[] {
   const burned = new Set(burnedIds.filter(Boolean));
-  const keeper = nextPlanets.find((p) => readEvoFusedIds(p).some((id) => burned.has(id)))
-    ?? nextPlanets.find((p) => !burned.has(p.id) && readEvoTier(p) >= 1);
+  const keeperId = String(opts?.keeperId || "").trim();
+  const toTier = opts?.toTier === 2 ? 2 as const : opts?.toTier === 1 ? 1 as const : null;
+  let keeper =
+    (keeperId
+      ? nextPlanets.find((p) => p.id === keeperId) ?? prev.find((p) => p.id === keeperId)
+      : undefined)
+    ?? nextPlanets.find((p) => readEvoFusedIds(p).some((id) => burned.has(id)));
+  // Never fall back to "any Evo" — a prior FUSE in the same farm would steal
+  // the overlay and the new model would not appear.
+  if (keeper && toTier && readEvoTier(keeper) < toTier) {
+    keeper = {
+      ...keeper,
+      evoTier: toTier,
+      evoFusedIds: [...new Set([...readEvoFusedIds(keeper), ...[...burned]])],
+    };
+  }
   const merged: T[] = [];
   const seen = new Set<string>();
   for (const p of prev) {

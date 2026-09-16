@@ -190,6 +190,38 @@ async function applyVerifiedLabFuse(opts: {
       .limit(1);
     if (existing) {
       const planets = jsonPlanets(user.planetsJson) as Record<string, unknown>[];
+      const done = findCompletedLabFuse(planets, planetIds);
+      if (done) {
+        return {
+          alreadyCredited: true as const,
+          txnId: 0,
+          planets: done.planets,
+          keeperId: done.keeperId,
+          toTier: done.toTier,
+          priceZmc,
+        };
+      }
+      // Payment is already in the ledger but the Evo was not written
+      // (retry / confirm+background race). Deliver the model anyway.
+      const resolved = resolveLabFuseApply(planets, planetIds, { shapeId, fromTier, models });
+      if (resolved.ok) {
+        const fused = keepUnburnedPlanets(planets, resolved);
+        await tx
+          .update(usersTable)
+          .set({
+            planetsJson: sql`${JSON.stringify(fused.planets)}::jsonb`,
+            planetsUpdatedAtMs: Date.now(),
+          })
+          .where(eq(usersTable.telegramId, telegramId));
+        return {
+          alreadyCredited: true as const,
+          txnId: 0,
+          planets: fused.planets,
+          keeperId: fused.keeperId,
+          toTier: fused.toTier,
+          priceZmc,
+        };
+      }
       const keeperId = planetIds.find((id) => planets.some((p) => String(p.id ?? "") === id)) ?? "";
       const keeper = planets.find((p) => String(p.id ?? "") === keeperId);
       const toTier = (readEvoTier(keeper) || (fromTier + 1)) as 1 | 2;
@@ -247,7 +279,42 @@ async function applyVerifiedLabFuse(opts: {
     } catch (err: unknown) {
       const code = typeof err === "object" && err && "code" in err ? (err as { code: string }).code : "";
       if (code === "23505") {
-        const planets = jsonPlanets(user.planetsJson) as Record<string, unknown>[];
+        const [again] = await tx
+          .select({ planetsJson: usersTable.planetsJson })
+          .from(usersTable)
+          .where(eq(usersTable.telegramId, telegramId))
+          .limit(1);
+        const planets = jsonPlanets(again?.planetsJson) as Record<string, unknown>[];
+        const done = findCompletedLabFuse(planets, planetIds);
+        if (done) {
+          return {
+            alreadyCredited: true as const,
+            txnId: 0,
+            planets: done.planets,
+            keeperId: done.keeperId,
+            toTier: done.toTier,
+            priceZmc,
+          };
+        }
+        const retry = resolveLabFuseApply(planets, planetIds, { shapeId, fromTier, models });
+        if (retry.ok) {
+          const fusedRetry = keepUnburnedPlanets(planets, retry);
+          await tx
+            .update(usersTable)
+            .set({
+              planetsJson: sql`${JSON.stringify(fusedRetry.planets)}::jsonb`,
+              planetsUpdatedAtMs: Date.now(),
+            })
+            .where(eq(usersTable.telegramId, telegramId));
+          return {
+            alreadyCredited: true as const,
+            txnId: 0,
+            planets: fusedRetry.planets,
+            keeperId: fusedRetry.keeperId,
+            toTier: fusedRetry.toTier,
+            priceZmc,
+          };
+        }
         return {
           alreadyCredited: true as const,
           txnId: 0,

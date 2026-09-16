@@ -25,7 +25,7 @@ interface FarmPageProps {
   telegramId: string | null;
   onCollect: (id: string) => { defect: boolean };
   onBurn: (id: string) => void;
-  onLabFuseApplied?: (planets: Planet[], burnedIds: string[]) => void;
+  onLabFuseApplied?: (planets: Planet[], burnedIds: string[], meta?: { keeperId?: string; toTier?: 1 | 2 }) => void;
   onStartFarming: (id: string, vipLevel?: "NONE" | "BASE" | "PRO") => { ok: boolean; reason?: string };
   onStopFarming: (id: string) => void;
   onStartSunFarming: () => { ok: boolean; reason?: string };
@@ -405,8 +405,14 @@ export function FarmPage({
         }
       }
       if (planetsOut) {
-        const burnedIds = planetIds.filter((id) => id && id !== keeperId);
-        onLabFuseApplied(planetsOut as unknown as Planet[], burnedIds);
+        const kid = String(keeperId || "").trim()
+          || [...fuseTrio].sort((a, b) => (Number(b.float) || 0) - (Number(a.float) || 0))[0]!.id;
+        const burnedIds = planetIds.filter((id) => id && id !== kid);
+        const tier = toTier === 2 ? 2 as const : 1 as const;
+        onLabFuseApplied(planetsOut as unknown as Planet[], burnedIds, {
+          keeperId: kid,
+          toTier: tier,
+        });
         setDetailPlanet(null);
         window.dispatchEvent(new CustomEvent("zoom-toast", {
           detail: { text: toTier === 2 ? t("farm.fuseDone2") : t("farm.fuseDone"), ok: true },
