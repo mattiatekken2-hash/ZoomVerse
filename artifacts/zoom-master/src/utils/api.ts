@@ -3399,7 +3399,11 @@ export async function fetchLabFuseIntent(
   telegramId: string,
   walletAddress: string,
   planetIds: string[],
-  shapeId?: string,
+  extra?: {
+    shapeId?: string;
+    fromTier?: 0 | 1;
+    models?: Array<Record<string, unknown>>;
+  },
 ): Promise<{
   ok: boolean;
   alreadyFused?: boolean;
@@ -3421,7 +3425,9 @@ export async function fetchLabFuseIntent(
         telegramId,
         walletAddress,
         planetIds,
-        ...(shapeId ? { shapeId } : {}),
+        ...(extra?.shapeId ? { shapeId: extra.shapeId } : {}),
+        ...(extra?.fromTier === 0 || extra?.fromTier === 1 ? { fromTier: extra.fromTier } : {}),
+        ...(extra?.models?.length ? { models: extra.models } : {}),
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -3437,6 +3443,9 @@ export async function confirmLabFuse(params: {
   walletAddress: string;
   boc: string;
   planetIds: string[];
+  shapeId?: string;
+  fromTier?: 0 | 1;
+  models?: Array<Record<string, unknown>>;
 }): Promise<{
   ok: boolean;
   pending?: boolean;
@@ -3465,6 +3474,8 @@ export async function payLabFuseWithZmc(opts: {
   walletAddress: string;
   planetIds: string[];
   shapeId?: string;
+  fromTier?: 0 | 1;
+  models?: Array<Record<string, unknown>>;
   sendTransaction: (tx: {
     validUntil: number;
     messages: Array<{ address: string; amount: string; payload: string }>;
@@ -3480,7 +3491,12 @@ export async function payLabFuseWithZmc(opts: {
   planets?: Array<Record<string, unknown>>;
   error?: string;
 }> {
-  const intent = await fetchLabFuseIntent(opts.telegramId, opts.walletAddress, opts.planetIds, opts.shapeId);
+  const extra = {
+    shapeId: opts.shapeId,
+    fromTier: opts.fromTier,
+    models: opts.models,
+  };
+  const intent = await fetchLabFuseIntent(opts.telegramId, opts.walletAddress, opts.planetIds, extra);
   if (intent.ok && (intent.alreadyFused || intent.alreadyCredited) && Array.isArray(intent.planets)) {
     return {
       ok: true,
@@ -3500,20 +3516,19 @@ export async function payLabFuseWithZmc(opts: {
     validUntil: Math.floor(Date.now() / 1000) + 300,
     messages: intent.messages,
   });
-  let result = await confirmLabFuse({
+  const confirmBody = {
     telegramId: opts.telegramId,
     walletAddress: opts.walletAddress,
     boc: txResult.boc,
     planetIds,
-  });
+    shapeId: opts.shapeId,
+    fromTier: opts.fromTier,
+    models: opts.models,
+  };
+  let result = await confirmLabFuse(confirmBody);
   for (let i = 0; i < 8 && result.pending; i++) {
     await new Promise((r) => setTimeout(r, 5000));
-    result = await confirmLabFuse({
-      telegramId: opts.telegramId,
-      walletAddress: opts.walletAddress,
-      boc: txResult.boc,
-      planetIds,
-    });
+    result = await confirmLabFuse(confirmBody);
   }
   return result;
 }

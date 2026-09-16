@@ -118,26 +118,30 @@ export function findCompletedLabFuse(
 }
 
 /**
- * If some of the 3 client IDs are missing on the server, complete the trio
- * from remaining Lab models of the same shape + evo tier. Never invent a
- * trio when none of the requested IDs exist (avoids fusing the wrong Pou).
+ * Complete a FUSE trio from Lab models of the same shape + evo tier.
+ * Prefers the requested IDs; if they are missing, uses `shapeId` to pick
+ * three unlisted matches already on the server.
  */
 export function pickLabFuseTrioIds(
   planets: unknown,
   planetIds: string[],
+  shapeId?: string | null,
+  fromTier?: EvoTier | null,
 ): string[] | null {
   const ids = normalizeFuseIds(planetIds);
-  if (ids.length !== FUSE_INPUT_COUNT) return null;
   const rows = asPlanetRows(planets);
   const found = ids
     .map((id) => rows.find((p) => planetIdOf(p) === id))
     .filter((p): p is Record<string, unknown> => !!p);
-  if (found.length === FUSE_INPUT_COUNT) return ids;
-  if (found.length === 0) return null;
-  const seed = found[0]!;
-  if (seed.isListedInMarket === true) return null;
-  const shape = labShapeOf(seed);
-  const tier = readEvoTier(seed);
+  if (ids.length === FUSE_INPUT_COUNT && found.length === FUSE_INPUT_COUNT) return ids;
+  const seed = found[0];
+  const shape = (typeof shapeId === "string" && shapeId ? shapeId : null)
+    || (seed ? labShapeOf(seed) : null);
+  const tier: EvoTier = fromTier === 0 || fromTier === 1 || fromTier === 2
+    ? fromTier
+    : seed
+      ? readEvoTier(seed)
+      : 0;
   if (!shape || tier >= EVO_TIER_MAX) return null;
   const matches = rows.filter((p) => {
     if (p.isListedInMarket === true) return false;
@@ -151,6 +155,86 @@ export function pickLabFuseTrioIds(
     .filter((id) => id && !preferred.includes(id));
   const trio = [...preferred, ...rest].slice(0, FUSE_INPUT_COUNT);
   return trio.length === FUSE_INPUT_COUNT ? trio : null;
+}
+
+/** Append-only: add the 3 FUSE inputs if those IDs are missing. Never deletes. */
+export function mergeFuseInputModels(
+  planets: unknown,
+  models: unknown,
+  shapeId?: string | null,
+): Record<string, unknown>[] {
+  const rows = asPlanetRows(planets);
+  const seen = new Set(rows.map(planetIdOf).filter(Boolean));
+  const next = [...rows];
+  for (const raw of asPlanetRows(models)) {
+    const id = planetIdOf(raw);
+    if (!id || id.length > 128 || seen.has(id)) continue;
+    if (raw.isListedInMarket === true) continue;
+    const shape = labShapeOf(raw);
+    if (!shape) continue;
+    if (shapeId && shape !== shapeId) continue;
+    if (!isLabForgeGeneratorPlanet({
+      shapeId: shape,
+      displayName: typeof raw.displayName === "string" ? raw.displayName : null,
+    })) continue;
+    const rate = typeof raw.rate === "number" ? raw.rate : Number(raw.rate);
+    if (!Number.isFinite(rate) || rate < 0) continue;
+    const name = typeof raw.name === "string" && raw.name.length >= 1 && raw.name.length <= 16
+      ? raw.name
+      : "BASIC";
+    const tier = readEvoTier(raw);
+    next.push({
+      id,
+      name,
+      displayName: typeof raw.displayName === "string" ? raw.displayName.slice(0, 64) : undefined,
+      shapeId: shape,
+      rate,
+      color: typeof raw.color === "string" ? raw.color : undefined,
+      glowColor: typeof raw.glowColor === "string" ? raw.glowColor : undefined,
+      createdAt: typeof raw.createdAt === "number" ? raw.createdAt : Date.now(),
+      farmStartedAt: 0,
+      lastCollectedAt: 0,
+      isListedInMarket: false,
+      isFarmingActive: false,
+      marketPrice: null,
+      float: readFloat(raw),
+      farmDurationHours: typeof raw.farmDurationHours === "number" && raw.farmDurationHours > 0
+        ? raw.farmDurationHours
+        : 24,
+      ...(tier === 1 || tier === 2 ? { evoTier: tier } : {}),
+    });
+    seen.add(id);
+  }
+  return next;
+}
+
+export function resolveLabFuseApply(
+  planets: unknown,
+  planetIds: string[],
+  opts?: {
+    shapeId?: string | null;
+    fromTier?: EvoTier | null;
+    models?: unknown;
+  },
+): FuseApplyOk | FuseApplyFail {
+  let fused = applyLabFuseToPlanets(planets, planetIds);
+  if (fused.ok) return fused;
+  const picked = pickLabFuseTrioIds(planets, planetIds, opts?.shapeId, opts?.fromTier);
+  if (picked) {
+    fused = applyLabFuseToPlanets(planets, picked);
+    if (fused.ok) return fused;
+  }
+  if (opts?.models != null) {
+    const merged = mergeFuseInputModels(planets, opts.models, opts.shapeId);
+    fused = applyLabFuseToPlanets(merged, planetIds);
+    if (fused.ok) return fused;
+    const pickedMerged = pickLabFuseTrioIds(merged, planetIds, opts.shapeId, opts.fromTier);
+    if (pickedMerged) {
+      fused = applyLabFuseToPlanets(merged, pickedMerged);
+      if (fused.ok) return fused;
+    }
+  }
+  return fused;
 }
 
 export function applyLabFuseToPlanets(

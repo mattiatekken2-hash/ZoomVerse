@@ -140,7 +140,7 @@ export function FarmPage({
   planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId,
   onCollect, onBurn, onLabFuseApplied, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun,
   onSell, onUnlist, onRepair, stardustBalance = 0,
-  items: _items = [], onSellItem: _onSellItem, onUnlistItem: _onUnlistItem, onFlushPlanets, tonBalance = 0,
+  items: _items = [], onSellItem: _onSellItem, onUnlistItem: _onUnlistItem, onFlushPlanets: _onFlushPlanets, tonBalance = 0,
   onUpgradeSunDuration,
   depositBalance = 0,
   onSlotUnlocked,
@@ -277,6 +277,7 @@ export function FarmPage({
   void _items;
   void _onSellItem;
   void _onUnlistItem;
+  void _onFlushPlanets;
 
   // Daily-collect removed — planets now farm autonomously for the full 24h
   // cycle and then need a $ZOOM reactivation, with no manual collect step.
@@ -366,18 +367,29 @@ export function FarmPage({
       const shapeId = liveDetailPlanet
         ? resolveLabShapeIdFromPlanet(liveDetailPlanet) ?? undefined
         : undefined;
-      const pay = () => payLabFuseWithZmc({
+      const fromTier = fuseFromTier === 1 ? 1 as const : 0 as const;
+      const models = fuseTrio.map((p) => ({
+        id: p.id,
+        name: p.name,
+        shapeId: p.shapeId,
+        displayName: p.displayName,
+        rate: p.rate,
+        color: p.color,
+        glowColor: p.glowColor,
+        float: p.float,
+        evoTier: readEvoTier(p),
+        createdAt: p.createdAt,
+        farmDurationHours: p.farmDurationHours,
+      }));
+      const res = await payLabFuseWithZmc({
         telegramId,
         walletAddress: sellerWallet,
         planetIds,
         shapeId,
+        fromTier,
+        models,
         sendTransaction: (tx) => tonConnectUI.sendTransaction(tx),
       });
-      let res = await pay();
-      if (!res.ok && res.error === "Model not found" && onFlushPlanets) {
-        await onFlushPlanets();
-        res = await pay();
-      }
       let planetsOut = Array.isArray(res.planets) ? res.planets : null;
       let keeperId = res.keeperId;
       let toTier = res.toTier;

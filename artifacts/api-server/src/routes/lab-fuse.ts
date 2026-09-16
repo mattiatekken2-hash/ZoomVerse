@@ -16,22 +16,36 @@ import {
   verifyZmcTreasuryTransfer,
 } from "../lib/zmc";
 import {
-  applyLabFuseToPlanets,
   findCompletedLabFuse,
   fusePriceZmc,
-  pickLabFuseTrioIds,
   readEvoTier,
-  type FuseApplyOk,
+  resolveLabFuseApply,
   type EvoTier,
 } from "../lib/labEvoFuse";
 
 const router: IRouter = Router();
+
+const FuseModelRow = z.object({
+  id: z.string().min(1).max(128),
+  name: z.string().min(1).max(16).optional(),
+  shapeId: z.string().min(1).max(64).optional(),
+  displayName: z.string().max(64).optional().nullable(),
+  rate: z.number().finite().min(0).optional(),
+  color: z.string().max(64).optional(),
+  glowColor: z.string().max(64).optional(),
+  float: z.number().finite().min(0).max(1).optional(),
+  evoTier: z.number().int().min(0).max(2).optional(),
+  createdAt: z.number().finite().optional(),
+  farmDurationHours: z.number().finite().optional(),
+}).passthrough();
 
 const IntentBody = z.object({
   telegramId: z.string().min(1),
   walletAddress: z.string().min(10).max(128),
   planetIds: z.array(z.string().min(1).max(128)).length(3),
   shapeId: z.string().min(1).max(64).optional(),
+  fromTier: z.union([z.literal(0), z.literal(1)]).optional(),
+  models: z.array(FuseModelRow).max(3).optional(),
 });
 
 const ConfirmBody = IntentBody.extend({
@@ -42,21 +56,13 @@ function jsonPlanets(v: unknown): unknown[] {
   return Array.isArray(v) ? v : [];
 }
 
-function previewLabFuse(planets: unknown, planetIds: string[]): FuseApplyOk | { ok: false; error: string } {
-  let fused = applyLabFuseToPlanets(planets, planetIds);
-  if (fused.ok) return fused;
-  const picked = pickLabFuseTrioIds(planets, planetIds);
-  if (picked) fused = applyLabFuseToPlanets(planets, picked);
-  return fused;
-}
-
 router.post("/lab/fuse/intent", async (req, res) => {
   const parsed = IntentBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ ok: false, error: "Missing telegramId, wallet, or 3 models" });
     return;
   }
-  const { telegramId, walletAddress, planetIds } = parsed.data;
+  const { telegramId, walletAddress, planetIds, shapeId, fromTier: fromTierBody, models } = parsed.data;
   try {
     const [user] = await db
       .select({
@@ -91,24 +97,20 @@ router.post("/lab/fuse/intent", async (req, res) => {
       return;
     }
 
-    const fused = previewLabFuse(planetsNow, planetIds);
-    if (!fused.ok) {
-      res.status(400).json({ ok: false, error: fused.error });
-      return;
-    }
-    const fuseIds = [
-      fused.keeperId,
-      ...fused.burnedIds,
-    ].filter(Boolean);
-    const priceZmc = fusePriceZmc(fused.fromTier);
+    const fused = resolveLabFuseApply(planetsNow, planetIds, { shapeId, fromTier: fromTierBody, models });
+    const fromTier: EvoTier = fused.ok ? fused.fromTier : (fromTierBody ?? 0);
+    const priceZmc = fusePriceZmc(fromTier);
     if (priceZmc == null) {
       res.status(400).json({ ok: false, error: "EVO II cannot fuse" });
       return;
     }
+    const fuseIds = fused.ok
+      ? [fused.keeperId, ...fused.burnedIds].filter(Boolean)
+      : planetIds;
 
     const jettonWallet = await fetchZmcJettonWallet(walletAddress);
     if (!jettonWallet) {
-      res.status(400).json({ ok: false, error: "No ZMC in TON wallet. Buy on STON.fi, then FUSE again (opens wallet, not STON.fi)" });
+      res.status(400).json({ ok: false, error: "No ZMC wallet. Buy ZMC on STON.fi first." });
       return;
     }
     const amountNano = zmcHumanToNano(priceZmc);
@@ -122,9 +124,9 @@ router.post("/lab/fuse/intent", async (req, res) => {
       ok: true,
       alreadyFused: false,
       priceZmc,
-      fromTier: fused.fromTier,
-      toTier: fused.toTier,
-      keeperId: fused.keeperId,
+      fromTier,
+      toTier: fused.ok ? fused.toTier : ((fromTier + 1) as 1 | 2),
+      keeperId: fused.ok ? fused.keeperId : undefined,
       planetIds: fuseIds.length === 3 ? fuseIds : planetIds,
       amountNano: amountNano.toString(),
       treasuryWallet: treasuryDest,
@@ -163,8 +165,10 @@ async function applyVerifiedLabFuse(opts: {
   amountHuman: number;
   priceZmc: number;
   fromTier: EvoTier;
+  shapeId?: string;
+  models?: unknown;
 }): Promise<FuseCreditResult> {
-  const { telegramId, planetIds, txHash, amountHuman, priceZmc, fromTier } = opts;
+  const { telegramId, planetIds, txHash, amountHuman, priceZmc, fromTier, shapeId, models } = opts;
   return db.transaction(async (tx) => {
     const [user] = await tx
       .select({
@@ -198,30 +202,32 @@ async function applyVerifiedLabFuse(opts: {
       };
     }
 
-    const fused = applyLabFuseToPlanets(jsonPlanets(user.planetsJson), planetIds);
-    if (!fused.ok) {
-      const done = findCompletedLabFuse(jsonPlanets(user.planetsJson), planetIds);
-      if (done) {
-        try {
-          await tx.insert(treasuryLedgerTable).values({
-            txHash,
-            type: done.toTier === 2 ? "lab_fuse_evo_ii" : "lab_fuse_evo",
-            amountZmc: amountHuman,
-            userId: telegramId,
-          });
-        } catch (err: unknown) {
-          const code = typeof err === "object" && err && "code" in err ? (err as { code: string }).code : "";
-          if (code !== "23505") throw err;
-        }
-        return {
-          alreadyCredited: true as const,
-          txnId: 0,
-          planets: done.planets,
-          keeperId: done.keeperId,
-          toTier: done.toTier,
-          priceZmc,
-        };
+    const planetsNow = jsonPlanets(user.planetsJson);
+    const done = findCompletedLabFuse(planetsNow, planetIds);
+    if (done) {
+      try {
+        await tx.insert(treasuryLedgerTable).values({
+          txHash,
+          type: done.toTier === 2 ? "lab_fuse_evo_ii" : "lab_fuse_evo",
+          amountZmc: amountHuman,
+          userId: telegramId,
+        });
+      } catch (err: unknown) {
+        const code = typeof err === "object" && err && "code" in err ? (err as { code: string }).code : "";
+        if (code !== "23505") throw err;
       }
+      return {
+        alreadyCredited: true as const,
+        txnId: 0,
+        planets: done.planets,
+        keeperId: done.keeperId,
+        toTier: done.toTier,
+        priceZmc,
+      };
+    }
+
+    const fused = resolveLabFuseApply(planetsNow, planetIds, { shapeId, fromTier, models });
+    if (!fused.ok) {
       throw new Error(fused.error);
     }
     const expected = fusePriceZmc(fused.fromTier);
@@ -294,6 +300,8 @@ function backgroundVerifyLabFuse(opts: {
   amountNano: bigint;
   priceZmc: number;
   fromTier: EvoTier;
+  shapeId?: string;
+  models?: unknown;
 }): void {
   const key = `${opts.telegramId}:${opts.boc.slice(0, 48)}`;
   if (fuseBgInFlight.has(key)) return;
@@ -322,6 +330,8 @@ function backgroundVerifyLabFuse(opts: {
           amountHuman: verified.feeHuman,
           priceZmc: opts.priceZmc,
           fromTier: opts.fromTier,
+          shapeId: opts.shapeId,
+          models: opts.models,
         });
         if (!credited.alreadyCredited) {
           recordHistoryAsync({
@@ -356,7 +366,7 @@ router.post("/lab/fuse/confirm", async (req, res) => {
     res.status(400).json({ ok: false, error: "Missing telegramId, wallet, boc, or 3 models" });
     return;
   }
-  const { telegramId, walletAddress, boc, planetIds } = parsed.data;
+  const { telegramId, walletAddress, boc, planetIds, shapeId, fromTier: fromTierBody, models } = parsed.data;
 
   try {
     const [user] = await db
@@ -390,7 +400,7 @@ router.post("/lab/fuse/confirm", async (req, res) => {
       return;
     }
 
-    const preview = applyLabFuseToPlanets(planetsNow, planetIds);
+    const preview = resolveLabFuseApply(planetsNow, planetIds, { shapeId, fromTier: fromTierBody, models });
     if (!preview.ok) {
       res.status(400).json({ ok: false, error: preview.error });
       return;
@@ -425,6 +435,8 @@ router.post("/lab/fuse/confirm", async (req, res) => {
           amountNano,
           priceZmc,
           fromTier: preview.fromTier,
+          shapeId,
+          models,
         });
       }
       res.status(verified && !verified.retriable ? 400 : 202).json({
@@ -442,6 +454,8 @@ router.post("/lab/fuse/confirm", async (req, res) => {
       amountHuman: verified.feeHuman,
       priceZmc,
       fromTier: preview.fromTier,
+      shapeId,
+      models,
     });
 
     if (!result.alreadyCredited) {
