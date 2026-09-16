@@ -3038,6 +3038,8 @@ export interface ServerMarketListing {
   // Lab-forged 3D object. Present when the listed planet was crafted in the Lab.
   modelId?: string | null;
   shapeId?: string | null;
+  /** Lab FUSE: 1 = Evo, 2 = Evo II. */
+  evoTier?: number | null;
   /** Client/server Lab path so All / $ZOOM / ★ Stardust filters stay in sync. */
   marketPath?: "zoom" | "stardust" | null;
   price: number;
@@ -3083,6 +3085,10 @@ function normalizeMarketListing(raw: ServerMarketListing & Record<string, unknow
     expiresAt: typeof raw.expiresAt === "number" ? raw.expiresAt : (typeof raw.expires_at === "number" ? raw.expires_at : undefined),
     expired: raw.expired === true,
     remainingMs: typeof raw.remainingMs === "number" ? raw.remainingMs : (typeof raw.remaining_ms === "number" ? raw.remaining_ms : undefined),
+    evoTier: (() => {
+      const n = Number(raw.evoTier ?? raw.evo_tier);
+      return n === 1 || n === 2 ? n : null;
+    })(),
   };
 }
 

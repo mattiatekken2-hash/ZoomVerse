@@ -41,6 +41,48 @@ export function evoBadgeLabel(tier: number): "EVO" | "II" | null {
   return null;
 }
 
+export function labMarketEvoClass(tier: number): string {
+  if (tier === 2) return " lab-market-card--evo lab-market-card--evo2";
+  if (tier === 1) return " lab-market-card--evo";
+  return "";
+}
+
+/** Keep every farm model except the 2 FUSE inputs. Never replace the whole inventory. */
+export function mergeLabFuseIntoPlanets<T extends { id: string; evoTier?: unknown; evoFusedIds?: unknown }>(
+  prev: T[],
+  nextPlanets: T[],
+  burnedIds: string[],
+): T[] {
+  const burned = new Set(burnedIds.filter(Boolean));
+  const keeper = nextPlanets.find((p) => readEvoFusedIds(p).some((id) => burned.has(id)))
+    ?? nextPlanets.find((p) => !burned.has(p.id) && readEvoTier(p) >= 1);
+  const merged: T[] = [];
+  const seen = new Set<string>();
+  for (const p of prev) {
+    if (burned.has(p.id)) continue;
+    if (keeper && p.id === keeper.id) {
+      merged.push({
+        ...p,
+        ...keeper,
+        id: p.id,
+      });
+    } else {
+      merged.push(p);
+    }
+    seen.add(p.id);
+  }
+  if (keeper && !seen.has(keeper.id) && !burned.has(keeper.id)) {
+    merged.push(keeper);
+    seen.add(keeper.id);
+  }
+  for (const p of nextPlanets) {
+    if (burned.has(p.id) || seen.has(p.id)) continue;
+    merged.push(p);
+    seen.add(p.id);
+  }
+  return applyLabEvoFuseTombstones(merged);
+}
+
 export function findCompletedLabFuse<T extends {
   id: string;
   evoTier?: unknown;

@@ -332,3 +332,29 @@ export function applyLabFuseToPlanets(
     shapeId,
   };
 }
+
+/** After FUSE, keep every original model except the 2 burned inputs. */
+export function keepUnburnedPlanets(
+  original: unknown,
+  fused: FuseApplyOk,
+): FuseApplyOk {
+  const rows = asPlanetRows(original);
+  if (rows.length === 0) return fused;
+  const burned = new Set(fused.burnedIds);
+  const fusedById = new Map(fused.planets.map((p) => [planetIdOf(p), p]));
+  const next: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+  for (const p of rows) {
+    const id = planetIdOf(p);
+    if (!id || burned.has(id)) continue;
+    next.push(fusedById.get(id) ?? p);
+    seen.add(id);
+  }
+  for (const p of fused.planets) {
+    const id = planetIdOf(p);
+    if (!id || seen.has(id) || burned.has(id)) continue;
+    next.push(p);
+    seen.add(id);
+  }
+  return { ...fused, planets: next };
+}

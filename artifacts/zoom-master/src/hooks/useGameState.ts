@@ -12,7 +12,7 @@ import { getEquipmentTotalRate, getEquipmentReactivationFee, EQUIPMENT_CYCLE_MS 
 export type ZoomModel = ZoomModelApiShape;
 
 import { generateRandomFloat } from "../utils/planetFloat";
-import { applyLabEvoFuseTombstones, readEvoFusedIds } from "../utils/labEvoFuse";
+import { applyLabEvoFuseTombstones, mergeLabFuseIntoPlanets } from "../utils/labEvoFuse";
 import { getBrowserDevTelegramId, DEV_TG_ID_STORAGE_KEY, persistTelegramId } from "../utils/telegram";
 import { commitStickyWalletBalance } from "./useStickyWalletBalance";
 import { toast } from "./use-toast";
@@ -4801,12 +4801,10 @@ export function useGameState() {
 
   const applyLabFuseResult = useCallback((nextPlanets: Planet[], burnedIds: string[] = []) => {
     setState((prev) => {
-      for (const id of burnedIds) markPlanetBurned(prev.telegramId, id);
-      for (const p of nextPlanets) {
-        for (const id of readEvoFusedIds(p)) markPlanetBurned(prev.telegramId, id);
-      }
-      const planets = applyLabEvoFuseTombstones(nextPlanets);
-      for (const id of burnedIds) {
+      const burned = [...new Set(burnedIds.filter(Boolean))];
+      for (const id of burned) markPlanetBurned(prev.telegramId, id);
+      const planets = mergeLabFuseIntoPlanets(prev.planets, nextPlanets, burned);
+      for (const id of burned) {
         if (prev.telegramId) notifyFarmStop(prev.telegramId, id);
       }
       const updated = { ...prev, planets };

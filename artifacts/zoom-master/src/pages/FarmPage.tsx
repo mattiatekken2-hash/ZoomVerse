@@ -11,7 +11,7 @@ import { payShopItemWithZmc, payLabFuseWithZmc, fetchRegularPlanets, syncActiveF
 import { useT } from "../i18n/LanguageContext";
 import { getPlanetDisplayName } from "../utils/planetNames";
 import { isLabForgeGeneratorPlanet, isLabStardustFarmPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, resolveLabShapeIdFromPlanet, MARKET_PRICE_BOUNDS, suggestMarketPrice, isMarketPriceInRange } from "@workspace/game-models";
-import { findFuseTrio, findCompletedLabFuse, fusePriceZmc, readEvoFusedIds, readEvoTier } from "../utils/labEvoFuse";
+import { findFuseTrio, findCompletedLabFuse, fusePriceZmc, readEvoTier } from "../utils/labEvoFuse";
 import { preloadLabGlbBatch } from "../utils/labGlbCache";
 import { useZmcStatus } from "../hooks/useZmcStatus";
 
@@ -405,11 +405,8 @@ export function FarmPage({
         }
       }
       if (planetsOut) {
-        const burnedIds = planetIds.filter((id) => id !== keeperId);
-        for (const p of planetsOut) {
-          for (const id of readEvoFusedIds(p)) burnedIds.push(id);
-        }
-        onLabFuseApplied(planetsOut as unknown as Planet[], [...new Set(burnedIds)]);
+        const burnedIds = planetIds.filter((id) => id && id !== keeperId);
+        onLabFuseApplied(planetsOut as unknown as Planet[], burnedIds);
         setDetailPlanet(null);
         window.dispatchEvent(new CustomEvent("zoom-toast", {
           detail: { text: toTier === 2 ? t("farm.fuseDone2") : t("farm.fuseDone"), ok: true },

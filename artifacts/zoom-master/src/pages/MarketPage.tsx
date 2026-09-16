@@ -8,6 +8,7 @@ import { useGlobalStore, pushMarketSale, refreshMarketListings, upsertMarketList
 import { isPlanetBurned, isPlanetDelisted } from "../utils/removedPlanets";
 import { getPlanetDisplayName } from "../utils/planetNames";
 import { useT } from "../i18n/LanguageContext";
+import { readEvoTier } from "../utils/labEvoFuse";
 import {
   labMarketPathForPlanet,
   labModelDisplayName,
@@ -266,6 +267,7 @@ export function MarketPage({
         marketPath: classified.marketPath,
         planetId: p.id,
         planetFloat: typeof p.float === "number" ? p.float : null,
+        evoTier: readEvoTier(p) || null,
       });
     };
 
@@ -317,6 +319,9 @@ export function MarketPage({
         planetFloat: typeof l.planetFloat === "number"
           ? l.planetFloat
           : (typeof local?.float === "number" ? local.float : null),
+        evoTier: (typeof l.evoTier === "number" ? l.evoTier : null)
+          || (local ? readEvoTier(local) : null)
+          || null,
       });
     };
 

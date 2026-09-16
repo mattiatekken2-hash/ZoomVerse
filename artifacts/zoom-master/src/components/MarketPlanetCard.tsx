@@ -19,6 +19,7 @@ import { labFarmRateForPlanet } from "../utils/labFloatFarm";
 import { formatFloat, getListingDisplayFloat } from "../utils/planetFloat";
 import { PlanetVoxelThumb } from "./PlanetVoxelThumb";
 import { ZoomCubeIcon } from "./ZoomCubeIcon";
+import { evoBadgeLabel, labMarketEvoClass, readEvoTier } from "../utils/labEvoFuse";
 
 function rgba(hex: string, alpha: number): string {
   const h = hex.replace("#", "");
@@ -50,6 +51,7 @@ export interface MarketPlanetListingView {
   priceCurrency?: "zmc" | "gram" | "zoom" | "stardust" | null;
   marketPath?: LabMarketPath | null;
   planetId?: string | null;
+  evoTier?: number | null;
 }
 
 interface Props {
@@ -143,12 +145,15 @@ export function MarketPlanetCard({
     displayName: title,
     shapeId,
     float: typeof listing.planetFloat === "number" ? listing.planetFloat : undefined,
+    evoTier: readEvoTier({ evoTier: listing.evoTier }),
   };
+  const evoTier = readEvoTier(fakePlanet);
+  const evoLabel = evoBadgeLabel(evoTier);
 
   return (
     <article
       id={listing.serverId != null ? `listing-card-${listing.serverId}` : undefined}
-      className={`lab-market-card${highlighted ? " lab-market-card--focus" : ""}`}
+      className={`lab-market-card${highlighted ? " lab-market-card--focus" : ""}${labMarketEvoClass(evoTier)}`}
       style={{
         ["--mkt-accent" as string]: accent,
         ["--mkt-glow" as string]: glow,
@@ -173,6 +178,11 @@ export function MarketPlanetCard({
           )}
           {theme.label}
         </span>
+        {evoLabel ? (
+          <span className="lab-market-card__evo" aria-label={evoLabel}>
+            {evoLabel}
+          </span>
+        ) : null}
       </div>
 
       <div className="lab-market-card__body">

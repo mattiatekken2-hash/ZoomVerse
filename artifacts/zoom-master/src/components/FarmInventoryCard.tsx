@@ -14,7 +14,7 @@ import { ZoomCubeIcon } from "./ZoomCubeIcon";
 import { useT } from "../i18n/LanguageContext";
 import { labForgeChromeForPlanet, labMarketPathForPlanet, type LabMarketPath } from "@workspace/game-models";
 import { labFarmRateForPlanet } from "../utils/labFloatFarm";
-import { evoBadgeLabel, readEvoTier } from "../utils/labEvoFuse";
+import { evoBadgeLabel, labMarketEvoClass, readEvoTier } from "../utils/labEvoFuse";
 
 export type FarmCardVariant = "grid" | "compact";
 
@@ -123,7 +123,7 @@ export function FarmInventoryCard({
 
   return (
     <article
-      className={`lab-market-card farm-inventory-card${compact ? " lab-market-card--compact" : ""}${evoTier ? ` lab-market-card--evo${evoTier === 2 ? " lab-market-card--evo2" : ""}` : ""}${className ? ` ${className}` : ""}`}
+      className={`lab-market-card farm-inventory-card${compact ? " lab-market-card--compact" : ""}${labMarketEvoClass(evoTier)}${className ? ` ${className}` : ""}`}
       style={{
         ["--mkt-accent" as string]: accent,
         ["--mkt-glow" as string]: glow,

@@ -147,6 +147,7 @@ function planetFromListing(listing: ServerMarketListing, local: Planet | undefin
     marketPrice: listing.price,
     color: local.color || chrome.color,
     glowColor: local.glowColor || chrome.glowColor,
+    evoTier: local.evoTier || (listing.evoTier === 1 || listing.evoTier === 2 ? listing.evoTier : undefined),
   };
   return {
     id: listing.planetId || `listing-${listing.id}`,
@@ -168,6 +169,7 @@ function planetFromListing(listing: ServerMarketListing, local: Planet | undefin
     durabilityUpdatedAt: 0,
     farmDurationHours: LAB_GLB_FARM_HOURS,
     serverListingId: listing.id,
+    ...(listing.evoTier === 1 || listing.evoTier === 2 ? { evoTier: listing.evoTier as 1 | 2 } : {}),
   };
 }
 

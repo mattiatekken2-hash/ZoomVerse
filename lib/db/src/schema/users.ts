@@ -535,6 +535,8 @@ export const marketListingsTable = pgTable("market_listings", {
   // marketplace render ObjectThumb and the buyer inherit the same mesh.
   modelId: text("model_id"),
   shapeId: text("shape_id"),
+  // Lab FUSE snapshot for Market / My List cards (1 = Evo, 2 = Evo II).
+  evoTier: integer("evo_tier"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   soldAt: timestamp("sold_at"),
   // Shop shelf clock — set on list + each reactivate. Public shop hides

@@ -19,6 +19,7 @@ import {
   findCompletedLabFuse,
   fusePriceZmc,
   readEvoTier,
+  keepUnburnedPlanets,
   resolveLabFuseApply,
   type EvoTier,
 } from "../lib/labEvoFuse";
@@ -226,10 +227,11 @@ async function applyVerifiedLabFuse(opts: {
       };
     }
 
-    const fused = resolveLabFuseApply(planetsNow, planetIds, { shapeId, fromTier, models });
-    if (!fused.ok) {
-      throw new Error(fused.error);
+    const resolved = resolveLabFuseApply(planetsNow, planetIds, { shapeId, fromTier, models });
+    if (!resolved.ok) {
+      throw new Error(resolved.error);
     }
+    const fused = keepUnburnedPlanets(planetsNow, resolved);
     const expected = fusePriceZmc(fused.fromTier);
     if (expected !== priceZmc || fused.fromTier !== fromTier) {
       throw new Error("PRICE_CHANGED");

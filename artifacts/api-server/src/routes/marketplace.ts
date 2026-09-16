@@ -71,6 +71,7 @@ const router: IRouter = Router();
 
 void pool.query(`ALTER TABLE market_listings ADD COLUMN IF NOT EXISTS price_currency text NOT NULL DEFAULT 'zmc'`).catch(() => {});
 void pool.query(`ALTER TABLE market_listings ADD COLUMN IF NOT EXISTS seller_wallet_address text`).catch(() => {});
+void pool.query(`ALTER TABLE market_listings ADD COLUMN IF NOT EXISTS evo_tier integer`).catch(() => {});
 void pool.query(`DROP INDEX IF EXISTS uq_market_seller_planet_active_sold`).catch(() => {});
 void pool.query(`
   CREATE UNIQUE INDEX IF NOT EXISTS uq_market_seller_planet_active
@@ -479,6 +480,8 @@ router.post("/market/list", async (req, res) => {
         ? rawFarmDuration
         : null;
 
+    const evoTierSnapshot = evoTierFromPlanetRecord(planet);
+
     let listing;
     try {
       const [inserted] = await txDb
@@ -494,6 +497,7 @@ router.post("/market/list", async (req, res) => {
           planetFarmDurationHours: planetFarmDurationHoursSnapshot,
           modelId: modelIdSnapshot,
           shapeId: shapeIdSnapshot,
+          evoTier: evoTierSnapshot === 1 || evoTierSnapshot === 2 ? evoTierSnapshot : null,
           price,
           priceCurrency,
           sellerWalletAddress: sellerWallet,
