@@ -7,11 +7,11 @@ import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
 import { WalletStarIcon } from "../components/WalletStarIcon";
 import type { Planet, SunState } from "../hooks/useGameState";
 import { getPlanetDisplayColors, isFarmActive, getPlanetFarmDurationHours } from "../hooks/useGameState";
-import { payShopItemWithZmc, payLabFuseWithZmc, syncActiveFarms } from "../utils/api";
+import { payShopItemWithZmc, payLabFuseWithZmc, fetchRegularPlanets, syncActiveFarms } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 import { getPlanetDisplayName } from "../utils/planetNames";
 import { isLabForgeGeneratorPlanet, isLabStardustFarmPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, resolveLabShapeIdFromPlanet, MARKET_PRICE_BOUNDS, suggestMarketPrice, isMarketPriceInRange } from "@workspace/game-models";
-import { findFuseTrio, fusePriceZmc, readEvoFusedIds, readEvoTier } from "../utils/labEvoFuse";
+import { findFuseTrio, findCompletedLabFuse, fusePriceZmc, readEvoFusedIds, readEvoTier } from "../utils/labEvoFuse";
 import { preloadLabGlbBatch } from "../utils/labGlbCache";
 import { useZmcStatus } from "../hooks/useZmcStatus";
 
@@ -370,21 +370,33 @@ export function FarmPage({
         planetIds,
         sendTransaction: (tx) => tonConnectUI.sendTransaction(tx),
       });
-      if (res.pending) {
-        setDefectMsg(t("farm.fuseWait"));
-        setTimeout(() => setDefectMsg(null), 4000);
-        return;
+      let planetsOut = Array.isArray(res.planets) ? res.planets : null;
+      let keeperId = res.keeperId;
+      let toTier = res.toTier;
+      if (!(res.ok && planetsOut)) {
+        const snap = await fetchRegularPlanets(telegramId);
+        const done = snap.ok
+          ? findCompletedLabFuse(snap.planets as unknown as Planet[], planetIds)
+          : null;
+        if (done) {
+          planetsOut = done.planets as unknown as Array<Record<string, unknown>>;
+          keeperId = done.keeperId;
+          toTier = done.toTier;
+        }
       }
-      if (res.ok && Array.isArray(res.planets)) {
-        const burnedIds = planetIds.filter((id) => id !== res.keeperId);
-        for (const p of res.planets) {
+      if (planetsOut) {
+        const burnedIds = planetIds.filter((id) => id !== keeperId);
+        for (const p of planetsOut) {
           for (const id of readEvoFusedIds(p)) burnedIds.push(id);
         }
-        onLabFuseApplied(res.planets as unknown as Planet[], [...new Set(burnedIds)]);
+        onLabFuseApplied(planetsOut as unknown as Planet[], [...new Set(burnedIds)]);
         setDetailPlanet(null);
         window.dispatchEvent(new CustomEvent("zoom-toast", {
-          detail: { text: res.toTier === 2 ? t("farm.fuseDone2") : t("farm.fuseDone"), ok: true },
+          detail: { text: toTier === 2 ? t("farm.fuseDone2") : t("farm.fuseDone"), ok: true },
         }));
+      } else if (res.pending) {
+        setDefectMsg(t("farm.fuseWait"));
+        setTimeout(() => setDefectMsg(null), 4000);
       } else {
         setDefectMsg(res.error || t("farm.fuseFailed"));
         setTimeout(() => setDefectMsg(null), 2800);

@@ -17,6 +17,7 @@ import {
 } from "../lib/zmc";
 import {
   applyLabFuseToPlanets,
+  findCompletedLabFuse,
   fusePriceZmc,
   readEvoTier,
   type EvoTier,
@@ -165,7 +166,31 @@ async function applyVerifiedLabFuse(opts: {
     }
 
     const fused = applyLabFuseToPlanets(jsonPlanets(user.planetsJson), planetIds);
-    if (!fused.ok) throw new Error(fused.error);
+    if (!fused.ok) {
+      const done = findCompletedLabFuse(jsonPlanets(user.planetsJson), planetIds);
+      if (done) {
+        try {
+          await tx.insert(treasuryLedgerTable).values({
+            txHash,
+            type: done.toTier === 2 ? "lab_fuse_evo_ii" : "lab_fuse_evo",
+            amountZmc: amountHuman,
+            userId: telegramId,
+          });
+        } catch (err: unknown) {
+          const code = typeof err === "object" && err && "code" in err ? (err as { code: string }).code : "";
+          if (code !== "23505") throw err;
+        }
+        return {
+          alreadyCredited: true as const,
+          txnId: 0,
+          planets: done.planets,
+          keeperId: done.keeperId,
+          toTier: done.toTier,
+          priceZmc,
+        };
+      }
+      throw new Error(fused.error);
+    }
     const expected = fusePriceZmc(fused.fromTier);
     if (expected !== priceZmc || fused.fromTier !== fromTier) {
       throw new Error("PRICE_CHANGED");
@@ -318,7 +343,21 @@ router.post("/lab/fuse/confirm", async (req, res) => {
       return;
     }
 
-    const preview = applyLabFuseToPlanets(jsonPlanets(user.planetsJson), planetIds);
+    const planetsNow = jsonPlanets(user.planetsJson);
+    const already = findCompletedLabFuse(planetsNow, planetIds);
+    if (already) {
+      res.json({
+        ok: true,
+        alreadyCredited: true,
+        priceZmc: fusePriceZmc((already.toTier - 1) as EvoTier) ?? undefined,
+        toTier: already.toTier,
+        keeperId: already.keeperId,
+        planets: already.planets,
+      });
+      return;
+    }
+
+    const preview = applyLabFuseToPlanets(planetsNow, planetIds);
     if (!preview.ok) {
       res.status(400).json({ ok: false, error: preview.error });
       return;

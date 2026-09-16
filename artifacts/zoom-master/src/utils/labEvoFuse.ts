@@ -41,6 +41,28 @@ export function evoBadgeLabel(tier: number): "EVO" | "II" | null {
   return null;
 }
 
+export function findCompletedLabFuse<T extends {
+  id: string;
+  evoTier?: unknown;
+  evoFusedIds?: unknown;
+}>(
+  planets: T[],
+  planetIds: string[],
+): { keeperId: string; toTier: 1 | 2; planets: T[] } | null {
+  const ids = [...new Set(planetIds.map((id) => String(id || "").trim()).filter(Boolean))];
+  if (ids.length !== FUSE_INPUT_COUNT) return null;
+  const present = ids.filter((id) => planets.some((p) => p.id === id));
+  if (present.length !== 1) return null;
+  const keeperId = present[0]!;
+  const keeper = planets.find((p) => p.id === keeperId);
+  if (!keeper) return null;
+  const missing = ids.filter((id) => id !== keeperId);
+  const fused = readEvoFusedIds(keeper);
+  const tier = readEvoTier(keeper);
+  if (tier < 1 || !missing.every((id) => fused.includes(id))) return null;
+  return { keeperId, toTier: tier, planets };
+}
+
 export function applyLabEvoFuseTombstones<T extends { id: string; evoFusedIds?: unknown }>(
   planets: T[],
 ): T[] {

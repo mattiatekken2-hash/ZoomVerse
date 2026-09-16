@@ -62,6 +62,27 @@ export type FuseApplyOk = {
 
 export type FuseApplyFail = { ok: false; error: string };
 
+/** True when a prior confirm/background fuse already burned this trio. */
+export function findCompletedLabFuse(
+  planets: unknown,
+  planetIds: string[],
+): { keeperId: string; toTier: 1 | 2; planets: Record<string, unknown>[] } | null {
+  if (!Array.isArray(planets)) return null;
+  const ids = [...new Set(planetIds.map((id) => String(id || "").trim()).filter(Boolean))];
+  if (ids.length !== FUSE_INPUT_COUNT) return null;
+  const rows = planets.filter((p): p is Record<string, unknown> => !!p && typeof p === "object");
+  const present = ids.filter((id) => rows.some((p) => String(p.id ?? "") === id));
+  if (present.length !== 1) return null;
+  const keeperId = present[0]!;
+  const keeper = rows.find((p) => String(p.id ?? "") === keeperId);
+  if (!keeper) return null;
+  const missing = ids.filter((id) => id !== keeperId);
+  const fused = readEvoFusedIds(keeper);
+  const tier = readEvoTier(keeper);
+  if (tier < 1 || !missing.every((id) => fused.includes(id))) return null;
+  return { keeperId, toTier: tier, planets: rows };
+}
+
 export function applyLabFuseToPlanets(
   planets: unknown,
   planetIds: string[],
