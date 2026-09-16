@@ -12,7 +12,7 @@ import { getEquipmentTotalRate, getEquipmentReactivationFee, EQUIPMENT_CYCLE_MS 
 export type ZoomModel = ZoomModelApiShape;
 
 import { generateRandomFloat } from "../utils/planetFloat";
-import { applyLabEvoFuseTombstones, mergeLabFuseIntoPlanets } from "../utils/labEvoFuse";
+import { applyLabEvoFuseTombstones, mergeLabFuseIntoPlanets, pinClientLabEvo } from "../utils/labEvoFuse";
 import { getBrowserDevTelegramId, DEV_TG_ID_STORAGE_KEY, persistTelegramId } from "../utils/telegram";
 import { commitStickyWalletBalance } from "./useStickyWalletBalance";
 import { toast } from "./use-toast";
@@ -2125,10 +2125,10 @@ function migrateLegacyNeverStartedPlanet<T extends Planet>(p: T): T {
 /** Keep optimistic farm start / listing state when server sync is behind local save. */
 function keepClientGlbShape(merged: Planet, clientP: Planet | undefined): Planet {
   const clientShape = clientP?.shapeId;
-  if (clientShape && labForgeShapeHasGlbReveal(clientShape)) {
-    return { ...merged, shapeId: clientShape };
-  }
-  return merged;
+  const withShape = clientShape && labForgeShapeHasGlbReveal(clientShape)
+    ? { ...merged, shapeId: clientShape }
+    : merged;
+  return pinClientLabEvo(withShape, clientP);
 }
 
 function mergeServerPlanetWithClient(serverP: Planet, clientP: Planet | undefined): Planet {
@@ -4810,23 +4810,9 @@ export function useGameState() {
       const updated = { ...prev, planets };
       stateRef.current = updated;
       saveState(updated);
-      if (updated.telegramId) {
-        void saveRegularPlanets(
-          updated.telegramId,
-          updated.planets as unknown as Array<Record<string, unknown>>,
-          {
-            basic: updated.claimedBonusBasic ?? 0,
-            rare:  updated.claimedBonusRare  ?? 0,
-            epic:  updated.claimedBonusEpic  ?? 0,
-            gold:  updated.claimedBonusGold  ?? 0,
-            mythic: updated.claimedBonusMythic ?? 0,
-            plasma: updated.claimedBonusPlasma ?? 0,
-            v1:    updated.claimedBonusV1    ?? 0,
-            v1NftPlatinum: updated.claimedBonusV1NftPlatinum ?? 0,
-          },
-          updated.craftsCompleted,
-        );
-      }
+      // FUSE confirm already wrote planets_json. Do not save the merged
+      // client array here — it can include another device's local-only
+      // models and a newer clientWriteAtMs would overwrite the Evo.
       return updated;
     });
   }, []);

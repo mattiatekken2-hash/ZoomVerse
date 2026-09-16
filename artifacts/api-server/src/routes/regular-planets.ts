@@ -8,7 +8,7 @@ import {
   deterministicFloatFromId,
   sanitizeIncomingFloat,
 } from "../lib/planetFloat";
-import { readEvoFusedIds, readEvoTier } from "../lib/labEvoFuse";
+import { pinLabFuseOnSave, readEvoFusedIds, readEvoTier } from "../lib/labEvoFuse";
 
 const router: IRouter = Router();
 
@@ -341,7 +341,9 @@ router.post("/regular-planets/save", async (req, res) => {
         : 1;
       out.farmDurationHours = Math.max(1, storedHours, incomingHours);
       const storedEvo = storedEvoTierById.get(id) ?? 0;
-      if (storedEvo === 1 || storedEvo === 2) out.evoTier = storedEvo;
+      const incomingEvo = readEvoTier(incoming as { evoTier?: unknown });
+      const evo = storedEvo > incomingEvo ? storedEvo : incomingEvo;
+      if (evo === 1 || evo === 2) out.evoTier = evo;
       else delete out.evoTier;
       const fused = [...new Set([
         ...(storedEvoFusedById.get(id) ?? []),
@@ -378,10 +380,11 @@ router.post("/regular-planets/save", async (req, res) => {
       }
       return out;
     });
+      const fusedPlanets = pinLabFuseOnSave(existingPlanets, sanitizedPlanets);
       const updated = await tx
         .update(usersTable)
         .set({
-          planetsJson: sql`CASE WHEN ${usersTable.planetsUpdatedAtMs} < ${clientWriteAtMs} THEN ${JSON.stringify(sanitizedPlanets)}::jsonb ELSE ${usersTable.planetsJson} END`,
+          planetsJson: sql`CASE WHEN ${usersTable.planetsUpdatedAtMs} < ${clientWriteAtMs} THEN ${JSON.stringify(fusedPlanets)}::jsonb ELSE ${usersTable.planetsJson} END`,
           planetsUpdatedAtMs: sql`GREATEST(${usersTable.planetsUpdatedAtMs}, ${clientWriteAtMs})`,
           ...(claimedBonusBasic != null ? { claimedBonusBasic: sql`GREATEST(${usersTable.claimedBonusBasic}, ${claimedBonusBasic})` } : {}),
           ...(claimedBonusRare  != null ? { claimedBonusRare:  sql`GREATEST(${usersTable.claimedBonusRare},  ${claimedBonusRare})`  } : {}),
@@ -408,7 +411,7 @@ router.post("/regular-planets/save", async (req, res) => {
           updatedAt: usersTable.planetsUpdatedAtMs,
         });
       const accepted = updated[0]?.updatedAt === clientWriteAtMs;
-      return { kind: "ok" as const, accepted, count: sanitizedPlanets.length };
+      return { kind: "ok" as const, accepted, count: fusedPlanets.length };
     });
     if (txResult.kind === "not_found") {
       res.status(404).json({ error: "User not found" });

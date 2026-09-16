@@ -75,12 +75,28 @@ export function mergeLabFuseIntoPlanets<T extends { id: string; evoTier?: unknow
     merged.push(keeper);
     seen.add(keeper.id);
   }
-  for (const p of nextPlanets) {
-    if (burned.has(p.id) || seen.has(p.id)) continue;
-    merged.push(p);
-    seen.add(p.id);
-  }
+  // Do not append other nextPlanets rows. Those can be another device's
+  // inventory (PC localStorage / stale server snapshot) and would flash
+  // extra models the moment Evo arrives.
   return applyLabEvoFuseTombstones(merged);
+}
+
+/** Keep the higher Lab Evo tier when a stale server row races a local FUSE. */
+export function pinClientLabEvo<T extends { evoTier?: unknown; evoFusedIds?: unknown }>(
+  merged: T,
+  clientP: T | undefined,
+): T {
+  if (!clientP) return merged;
+  const clientEvo = readEvoTier(clientP);
+  const serverEvo = readEvoTier(merged);
+  const evo = clientEvo > serverEvo ? clientEvo : serverEvo;
+  if (evo !== 1 && evo !== 2) return merged;
+  const fused = [...new Set([...readEvoFusedIds(merged), ...readEvoFusedIds(clientP)])];
+  return {
+    ...merged,
+    evoTier: evo,
+    ...(fused.length > 0 ? { evoFusedIds: fused } : {}),
+  };
 }
 
 export function findCompletedLabFuse<T extends {

@@ -358,3 +358,55 @@ export function keepUnburnedPlanets(
   }
   return { ...fused, planets: next };
 }
+
+/**
+ * /regular-planets/save fence after Lab FUSE.
+ * A later phone/PC snapshot must not drop the Evo keeper, strip evoTier,
+ * or resurrect the 2 burned inputs. All other models are left as incoming.
+ */
+export function pinLabFuseOnSave(
+  stored: unknown,
+  incoming: Record<string, unknown>[],
+): Record<string, unknown>[] {
+  const storedRows = asPlanetRows(stored);
+  const burned = new Set<string>();
+  const storedKeepers = new Map<string, Record<string, unknown>>();
+  for (const p of storedRows) {
+    const id = planetIdOf(p);
+    if (!id) continue;
+    for (const bid of readEvoFusedIds(p)) burned.add(bid);
+    const tier = readEvoTier(p);
+    if (tier === 1 || tier === 2) storedKeepers.set(id, p);
+  }
+  for (const p of incoming) {
+    for (const bid of readEvoFusedIds(p)) burned.add(bid);
+  }
+
+  const next: Record<string, unknown>[] = [];
+  const seen = new Set<string>();
+  for (const p of incoming) {
+    const id = planetIdOf(p);
+    if (!id || burned.has(id) || seen.has(id)) continue;
+    const storedKeeper = storedKeepers.get(id);
+    const incomingEvo = readEvoTier(p);
+    const storedEvo = storedKeeper ? readEvoTier(storedKeeper) : 0;
+    const evo = storedEvo > incomingEvo ? storedEvo : incomingEvo;
+    const fused = [...new Set([
+      ...(storedKeeper ? readEvoFusedIds(storedKeeper) : []),
+      ...readEvoFusedIds(p),
+    ])];
+    const out: Record<string, unknown> = { ...p };
+    if (evo === 1 || evo === 2) out.evoTier = evo;
+    else delete out.evoTier;
+    if (fused.length > 0) out.evoFusedIds = fused;
+    else delete out.evoFusedIds;
+    next.push(out);
+    seen.add(id);
+  }
+  for (const [id, p] of storedKeepers) {
+    if (seen.has(id) || burned.has(id)) continue;
+    next.push(p);
+    seen.add(id);
+  }
+  return next;
+}
