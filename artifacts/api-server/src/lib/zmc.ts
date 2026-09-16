@@ -312,12 +312,33 @@ export async function verifyZmcTreasuryTransfer(opts: {
   return { ok: true, txHash, feeHuman: zmcNanoToHuman(opts.amountNano) };
 }
 
+function normalizeEnvKey(k: string): string {
+  return k.replace(/[\s-]+/g, "_").toUpperCase();
+}
+
+const TREASURY_MNEMONIC_KEYS = new Set([
+  "TREASURY_MNEMONIC",
+  "TON_TREASURY_MNEMONIC",
+  "TREASURY_SEED",
+  "TREASURYMNEMONIC",
+]);
+
 function readTreasuryMnemonicRaw(): string {
-  for (const key of ["TREASURY_MNEMONIC", "TON_TREASURY_MNEMONIC", "TREASURY_SEED"]) {
-    const v = (process.env[key] || "").trim();
-    if (v) return v;
+  for (const [k, v] of Object.entries(process.env)) {
+    if (!v) continue;
+    const n = normalizeEnvKey(k);
+    if (!TREASURY_MNEMONIC_KEYS.has(n)) continue;
+    const trimmed = v.trim();
+    if (trimmed) return trimmed;
   }
   return "";
+}
+
+/** Env key names that look related — never values / never the seed. */
+export function treasuryEnvKeyNames(): string[] {
+  return Object.keys(process.env)
+    .filter((k) => /treasury|mnemonic|seed/i.test(k))
+    .sort();
 }
 
 /** Parse 12/24-word seed. Render quotes/commas/newlines must not count as "not set". */
@@ -331,6 +352,7 @@ export function parseTreasuryMnemonic(rawInput: string): string[] | null {
     raw = raw.slice(1, -1).trim();
   }
   const words = raw
+    .replace(/[\u00a0\u2007\u202f]/g, " ")
     .replace(/[,;\n\r\t]+/g, " ")
     .split(/\s+/)
     .map((w) => w.replace(/^["']+|["']+$/g, ""))

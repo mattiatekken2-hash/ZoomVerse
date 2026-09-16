@@ -11,5 +11,6 @@ assert.deepEqual(parseTreasuryMnemonic(w24), w24.split(" "));
 assert.deepEqual(parseTreasuryMnemonic(`"${w24}"`), w24.split(" "));
 assert.deepEqual(parseTreasuryMnemonic(w24.replace(/ /g, ", ")), w24.split(" "));
 assert.deepEqual(parseTreasuryMnemonic(`  ${w12.replace(/ /g, "\n")}  `), w12.split(" "));
+assert.deepEqual(parseTreasuryMnemonic(w12.replace(/ /g, "\u00a0")), w12.split(" "));
 
 console.log("zmc mnemonic parse tests ok");
