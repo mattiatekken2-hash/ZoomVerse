@@ -12,6 +12,7 @@ import { getEquipmentTotalRate, getEquipmentReactivationFee, EQUIPMENT_CYCLE_MS 
 export type ZoomModel = ZoomModelApiShape;
 
 import { generateRandomFloat } from "../utils/planetFloat";
+import { applyLabEvoFuseTombstones, readEvoFusedIds } from "../utils/labEvoFuse";
 import { getBrowserDevTelegramId, DEV_TG_ID_STORAGE_KEY, persistTelegramId } from "../utils/telegram";
 import { commitStickyWalletBalance } from "./useStickyWalletBalance";
 import { toast } from "./use-toast";
@@ -149,6 +150,10 @@ export interface Planet {
   modelId?: string;
   modelName?: string;
   shapeId?: string;
+  /** Lab FUSE: 1 = Evo, 2 = Evo II. Absent/0 = base Lab model. */
+  evoTier?: 0 | 1 | 2;
+  /** Consumed planet ids from FUSE so a stale local snapshot cannot resurrect them. */
+  evoFusedIds?: string[];
 }
 
 export interface SunState {
@@ -2921,7 +2926,9 @@ export function useGameState() {
             );
             updated = {
               ...updated,
-              planets: applyRemovedPlanetTombstones(updated.telegramId, [...serverPlanets, ...localOnly]),
+              planets: applyLabEvoFuseTombstones(
+                applyRemovedPlanetTombstones(updated.telegramId, [...serverPlanets, ...localOnly]),
+              ),
             };
           } else {
             updated = {
@@ -4792,6 +4799,40 @@ export function useGameState() {
     });
   }, []);
 
+  const applyLabFuseResult = useCallback((nextPlanets: Planet[], burnedIds: string[] = []) => {
+    setState((prev) => {
+      for (const id of burnedIds) markPlanetBurned(prev.telegramId, id);
+      for (const p of nextPlanets) {
+        for (const id of readEvoFusedIds(p)) markPlanetBurned(prev.telegramId, id);
+      }
+      const planets = applyLabEvoFuseTombstones(nextPlanets);
+      for (const id of burnedIds) {
+        if (prev.telegramId) notifyFarmStop(prev.telegramId, id);
+      }
+      const updated = { ...prev, planets };
+      stateRef.current = updated;
+      saveState(updated);
+      if (updated.telegramId) {
+        void saveRegularPlanets(
+          updated.telegramId,
+          updated.planets as unknown as Array<Record<string, unknown>>,
+          {
+            basic: updated.claimedBonusBasic ?? 0,
+            rare:  updated.claimedBonusRare  ?? 0,
+            epic:  updated.claimedBonusEpic  ?? 0,
+            gold:  updated.claimedBonusGold  ?? 0,
+            mythic: updated.claimedBonusMythic ?? 0,
+            plasma: updated.claimedBonusPlasma ?? 0,
+            v1:    updated.claimedBonusV1    ?? 0,
+            v1NftPlatinum: updated.claimedBonusV1NftPlatinum ?? 0,
+          },
+          updated.craftsCompleted,
+        );
+      }
+      return updated;
+    });
+  }, []);
+
   const startFarming = useCallback((id: string, vipLevel: "NONE" | "BASE" | "PRO" = "NONE"): { ok: boolean; reason?: string } => {
     let outcome: { ok: boolean; reason?: string } = { ok: true };
     setState((prev) => {
@@ -6586,7 +6627,7 @@ export function useGameState() {
   return {
     state, setState, craft, beginLabForge, skipForge, claimCraft, redeemCode,
     pvpAddPlanet, pvpRemovePlanet,
-    collectPlanet, burnPlanet, renamePlanetLocal,
+    collectPlanet, burnPlanet, applyLabFuseResult, renamePlanetLocal,
     startFarming, stopFarming, repairPlanet,
     upgradePlanetFarmDuration, upgradeSunFarmDuration, upgradeCollectionFarmDuration,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,

@@ -7,10 +7,11 @@ import { ZoomCubeIcon } from "../components/ZoomCubeIcon";
 import { WalletStarIcon } from "../components/WalletStarIcon";
 import type { Planet, SunState } from "../hooks/useGameState";
 import { getPlanetDisplayColors, isFarmActive, getPlanetFarmDurationHours } from "../hooks/useGameState";
-import { payShopItemWithZmc, syncActiveFarms } from "../utils/api";
+import { payShopItemWithZmc, payLabFuseWithZmc, syncActiveFarms } from "../utils/api";
 import { useT } from "../i18n/LanguageContext";
 import { getPlanetDisplayName } from "../utils/planetNames";
 import { isLabForgeGeneratorPlanet, isLabStardustFarmPlanet, labForgeShapeHasGlbReveal, labMarketPathForPlanet, resolveLabShapeIdFromPlanet, MARKET_PRICE_BOUNDS, suggestMarketPrice, isMarketPriceInRange } from "@workspace/game-models";
+import { findFuseTrio, fusePriceZmc, readEvoFusedIds, readEvoTier } from "../utils/labEvoFuse";
 import { preloadLabGlbBatch } from "../utils/labGlbCache";
 import { useZmcStatus } from "../hooks/useZmcStatus";
 
@@ -24,6 +25,7 @@ interface FarmPageProps {
   telegramId: string | null;
   onCollect: (id: string) => { defect: boolean };
   onBurn: (id: string) => void;
+  onLabFuseApplied?: (planets: Planet[], burnedIds: string[]) => void;
   onStartFarming: (id: string, vipLevel?: "NONE" | "BASE" | "PRO") => { ok: boolean; reason?: string };
   onStopFarming: (id: string) => void;
   onStartSunFarming: () => { ok: boolean; reason?: string };
@@ -136,7 +138,7 @@ function FarmHourChip({
 
 export function FarmPage({
   planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId,
-  onCollect, onBurn, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun,
+  onCollect, onBurn, onLabFuseApplied, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun,
   onSell, onUnlist, onRepair, stardustBalance = 0,
   items: _items = [], onSellItem: _onSellItem, onUnlistItem: _onUnlistItem, onFlushPlanets: _onFlushPlanets, tonBalance = 0,
   onUpgradeSunDuration,
@@ -264,6 +266,7 @@ export function FarmPage({
   const [sellPopup, setSellPopup] = useState<SellPopup | null>(null);
   const [sellPrice, setSellPrice] = useState("");
   const [slotBuying, setSlotBuying] = useState(false);
+  const [fuseBusy, setFuseBusy] = useState(false);
   const [defectMsg, setDefectMsg] = useState<string | null>(null);
   const [detailPlanet, setDetailPlanet] = useState<Planet | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -343,6 +346,56 @@ export function FarmPage({
   const liveDetailPlanet = detailPlanet
     ? planets.find((p) => p.id === detailPlanet.id) ?? detailPlanet
     : null;
+
+  const fuseTrio = liveDetailPlanet
+    ? findFuseTrio(planets, liveDetailPlanet.id, (p) => resolveLabShapeIdFromPlanet(p))
+    : null;
+  const fuseFromTier = fuseTrio ? readEvoTier(fuseTrio[0]!) : 0;
+  const fuseCost = fuseTrio ? fusePriceZmc(fuseFromTier) : null;
+
+  const handleFuse = async () => {
+    if (!telegramId || !fuseTrio || fuseCost == null || !onLabFuseApplied) return;
+    if (!sellerWallet || !connected) {
+      setDefectMsg(t("farm.fuseConnect"));
+      setTimeout(() => setDefectMsg(null), 2800);
+      return;
+    }
+    if (fuseBusy) return;
+    setFuseBusy(true);
+    try {
+      const planetIds = fuseTrio.map((p) => p.id);
+      const res = await payLabFuseWithZmc({
+        telegramId,
+        walletAddress: sellerWallet,
+        planetIds,
+        sendTransaction: (tx) => tonConnectUI.sendTransaction(tx),
+      });
+      if (res.pending) {
+        setDefectMsg(t("farm.fuseWait"));
+        setTimeout(() => setDefectMsg(null), 4000);
+        return;
+      }
+      if (res.ok && Array.isArray(res.planets)) {
+        const burnedIds = planetIds.filter((id) => id !== res.keeperId);
+        for (const p of res.planets) {
+          for (const id of readEvoFusedIds(p)) burnedIds.push(id);
+        }
+        onLabFuseApplied(res.planets as unknown as Planet[], [...new Set(burnedIds)]);
+        setDetailPlanet(null);
+        window.dispatchEvent(new CustomEvent("zoom-toast", {
+          detail: { text: res.toTier === 2 ? t("farm.fuseDone2") : t("farm.fuseDone"), ok: true },
+        }));
+      } else {
+        setDefectMsg(res.error || t("farm.fuseFailed"));
+        setTimeout(() => setDefectMsg(null), 2800);
+      }
+    } catch (err) {
+      setDefectMsg(err instanceof Error ? err.message : "TON Connect cancelled");
+      setTimeout(() => setDefectMsg(null), 2800);
+    } finally {
+      setFuseBusy(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full relative">
@@ -637,6 +690,10 @@ export function FarmPage({
           onSell={(p) => { setDetailPlanet(null); openSellPopup(p); }}
           onBurn={onBurn}
           onUnlist={(id: string) => onUnlist(id)}
+          onFuse={fuseTrio && fuseCost != null && onLabFuseApplied ? handleFuse : undefined}
+          fuseBusy={fuseBusy}
+          fuseCostZmc={fuseCost}
+          fuseToTier={fuseTrio ? fuseFromTier + 1 : undefined}
           onRepair={onRepair
             ? (id: string) => {
                 const r = onRepair(id);

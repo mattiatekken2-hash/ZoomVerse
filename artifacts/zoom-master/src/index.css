@@ -2956,6 +2956,39 @@ body.animations-paused * {
 .lab-market-card:active {
   transform: scale(0.985);
 }
+.lab-market-card--evo {
+  border-color: color-mix(in srgb, #f5e6b8 52%, var(--mkt-accent));
+  box-shadow:
+    0 0 0 1px rgba(255, 230, 180, 0.2) inset,
+    0 14px 32px rgba(0, 0, 0, 0.42),
+    0 0 28px color-mix(in srgb, #c9a227 38%, var(--mkt-accent-a));
+}
+.lab-market-card--evo .lab-market-card__stage {
+  background:
+    radial-gradient(70% 80% at 50% 35%, color-mix(in srgb, #fff6c8 42%, var(--mkt-glow)), transparent 70%),
+    linear-gradient(125deg,
+      color-mix(in srgb, #9be7ff 50%, var(--mkt-accent)) 0%,
+      color-mix(in srgb, #f5c6ff 48%, var(--mkt-accent)) 38%,
+      color-mix(in srgb, #ffe08a 68%, var(--mkt-accent)) 72%,
+      rgba(8, 8, 12, 0.2) 100%);
+}
+.lab-market-card--evo2 {
+  border-color: color-mix(in srgb, #e8f6ff 58%, var(--mkt-accent));
+}
+.lab-market-card__evo {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #08080c;
+  background: linear-gradient(135deg, #f5e6b8 0%, #c9a227 45%, #9be7ff 100%);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
 .lab-market-card--focus {
   box-shadow: 0 0 0 2px rgba(0, 230, 255, 0.65), 0 0 28px rgba(0, 230, 255, 0.35);
 }

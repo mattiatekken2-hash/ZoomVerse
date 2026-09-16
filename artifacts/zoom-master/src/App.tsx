@@ -186,7 +186,7 @@ function AppShellWithState() {
   const {
     state, setState, craft, beginLabForge, skipForge, claimCraft, redeemCode,
     pvpAddPlanet, pvpRemovePlanet,
-    collectPlanet, burnPlanet,
+    collectPlanet, burnPlanet, applyLabFuseResult,
     startFarming, stopFarming, repairPlanet, upgradeSunFarmDuration, upgradeCollectionFarmDuration,
     listPlanet, unlistPlanet, buyPlanet, serverBuyComplete,
     claimDaily, startSunFarming, stopSunFarming, burnSun, unlockSlot,
@@ -869,6 +869,7 @@ function AppShellWithState() {
                   telegramId={state.telegramId}
                   onCollect={collectPlanet}
                   onBurn={burnPlanet}
+                  onLabFuseApplied={applyLabFuseResult}
                   onStartFarming={startFarming}
                   onStopFarming={stopFarming}
                   onStartSunFarming={startSunFarming}

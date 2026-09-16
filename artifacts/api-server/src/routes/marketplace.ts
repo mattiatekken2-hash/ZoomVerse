@@ -38,6 +38,28 @@ import {
   treasuryWallet,
   verifyZmcSplitTransfer,
 } from "../lib/zmc";
+import { evoTierFromPlanetRecord } from "../lib/labEvoFuse";
+
+async function peekSellerEvoTier(
+  client: PoolClient,
+  sellerId: string,
+  planetId: string,
+): Promise<number> {
+  try {
+    const snap = await client.query(
+      `SELECT planets_json FROM users WHERE telegram_id = $1`,
+      [sellerId],
+    );
+    const raw = snap.rows[0]?.planets_json;
+    const arr = Array.isArray(raw) ? raw : [];
+    const src = arr.find((p: unknown) => (
+      !!p && typeof p === "object" && String((p as { id?: unknown }).id ?? "") === planetId
+    ));
+    return evoTierFromPlanetRecord(src);
+  } catch {
+    return 0;
+  }
+}
 
 function canonicalLabFarmRate(shapeId: string | null | undefined): number | null {
   if (isLabZoomShapeId(shapeId)) return LAB_ZOOM_FARM_RATE[shapeId];
@@ -1293,6 +1315,7 @@ router.post("/market/buy", async (req, res) => {
       );
     } else if (listing.planetId) {
       const nowMs = Date.now();
+      const sellerEvoTier = await peekSellerEvoTier(client, listing.sellerTelegramId, listing.planetId);
       const planetTypeUpper = String(listing.planetType ?? "").toUpperCase();
       const obtainedCol =
         planetTypeUpper === "BASIC" ? "total_obtained_basic"
@@ -1336,6 +1359,7 @@ router.post("/market/buy", async (req, res) => {
         durability: 100,
         durabilityUpdatedAt: nowMs,
         farmDurationHours: listing.planetFarmDurationHours ?? 1,
+        ...(sellerEvoTier ? { evoTier: sellerEvoTier } : {}),
       };
       await client.query(
         `UPDATE users
@@ -1817,6 +1841,7 @@ async function applyMarketSaleInventory(
     );
   } else if (listing.planetId) {
     const nowMs = Date.now();
+    const sellerEvoTier = await peekSellerEvoTier(client, listing.sellerTelegramId, listing.planetId);
     const planetTypeUpper = String(listing.planetType ?? "").toUpperCase();
     const obtainedCol =
       planetTypeUpper === "BASIC" ? "total_obtained_basic"
@@ -1860,6 +1885,7 @@ async function applyMarketSaleInventory(
       durability: 100,
       durabilityUpdatedAt: nowMs,
       farmDurationHours: listing.planetFarmDurationHours ?? 1,
+      ...(sellerEvoTier ? { evoTier: sellerEvoTier } : {}),
     };
     await client.query(
       `UPDATE users
