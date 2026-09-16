@@ -312,12 +312,41 @@ export async function verifyZmcTreasuryTransfer(opts: {
   return { ok: true, txHash, feeHuman: zmcNanoToHuman(opts.amountNano) };
 }
 
-function treasuryMnemonicWords(): string[] | null {
-  const raw = (process.env["TREASURY_MNEMONIC"] || "").trim();
+function readTreasuryMnemonicRaw(): string {
+  for (const key of ["TREASURY_MNEMONIC", "TON_TREASURY_MNEMONIC", "TREASURY_SEED"]) {
+    const v = (process.env[key] || "").trim();
+    if (v) return v;
+  }
+  return "";
+}
+
+/** Parse 12/24-word seed. Render quotes/commas/newlines must not count as "not set". */
+export function parseTreasuryMnemonic(rawInput: string): string[] | null {
+  let raw = rawInput.trim();
   if (!raw) return null;
-  const words = raw.split(/\s+/);
+  if (
+    (raw.startsWith("\"") && raw.endsWith("\""))
+    || (raw.startsWith("'") && raw.endsWith("'"))
+  ) {
+    raw = raw.slice(1, -1).trim();
+  }
+  const words = raw
+    .replace(/[,;\n\r\t]+/g, " ")
+    .split(/\s+/)
+    .map((w) => w.replace(/^["']+|["']+$/g, ""))
+    .filter(Boolean);
   if (words.length !== 12 && words.length !== 24) return null;
   return words;
+}
+
+function treasuryMnemonicWords(): string[] | null {
+  return parseTreasuryMnemonic(readTreasuryMnemonicRaw());
+}
+
+export function treasuryMnemonicWordCount(): number {
+  const raw = readTreasuryMnemonicRaw();
+  if (!raw) return 0;
+  return raw.replace(/[,;\n\r\t]+/g, " ").split(/\s+/).filter(Boolean).length;
 }
 
 export function hasTreasurySigner(): boolean {
@@ -376,7 +405,15 @@ export async function sendZmcFromTreasury(
   opts?: { waitSeqno?: boolean },
 ): Promise<SendZmcResult> {
   const words = treasuryMnemonicWords();
-  if (!words) return { ok: false, reason: "TREASURY_MNEMONIC not set" };
+  if (!words) {
+    const n = treasuryMnemonicWordCount();
+    if (n === 0) {
+      logger.warn("[zmc] TREASURY_MNEMONIC missing on API host");
+      return { ok: false, reason: "TREASURY_MNEMONIC not set" };
+    }
+    logger.warn({ wordCount: n }, "[zmc] TREASURY_MNEMONIC must be 12 or 24 words");
+    return { ok: false, reason: "TREASURY_MNEMONIC must be 12 or 24 words" };
+  }
   const amountNano = zmcHumanToNano(amountHuman);
   if (amountNano <= 0n) return { ok: false, reason: "Invalid amount" };
   const waitSeqno = opts?.waitSeqno !== false;

@@ -9,7 +9,7 @@ import { purgeExpiredHistory } from "./lib/history";
 import { db, usersTable, pvpDailyPairsTable } from "@workspace/db";
 import { desc, eq, sql } from "drizzle-orm";
 import { readGlobal, readNotifiedExpiresAtMs, writeNotifiedExpiresAtMs, advanceGlobal } from "./routes/merchant";
-import { ensureDatabaseReady } from "./lib/ensure-db";
+import { hasTreasurySigner } from "./lib/zmc";
 
 const FARM_FULL_MESSAGE = "⚡ Your Farm is full! Collect your Models.";
 /** Max one farm-full Telegram DM per player per 12h (staggered Lab models). */
@@ -84,7 +84,7 @@ async function runBootMigrations() {
 }
 
 server.listen(port, () => {
-  logger.info({ port }, "Server listening");
+  logger.info({ port, treasurySigner: hasTreasurySigner() }, "Server listening");
   void ensureDatabaseReady().then(() => runBootMigrations());
   startKeepAlive();
   registerTelegramWebhook();

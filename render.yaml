@@ -18,3 +18,12 @@ services:
         sync: false
       - key: BOT_TOKEN
         sync: false
+      # Dashboard secret — 12 or 24 words of the treasury TON wallet.
+      # Must be listed here or a Blueprint deploy wipes it and airdrop claim
+      # fails with "TREASURY_MNEMONIC not set".
+      - key: TREASURY_MNEMONIC
+        sync: false
+      - key: TONAPI_TOKEN
+        sync: false
+      - key: TONCENTER_API_KEY
+        sync: false
