@@ -181,7 +181,8 @@ export function PlanetVoxelThumb({
   const lockedGlbShapeRef = useRef<string | null>(null);
 
   const displayColors = getPlanetDisplayColors(planet);
-  const displayFloat = isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined;
+  const evoChrome = typeof planet.evoTier === "number" && planet.evoTier >= 1;
+  const displayFloat = evoChrome ? 1 : (isFloatablePlanet(planet) ? getDisplayFloat(planet) : undefined);
 
   useEffect(() => {
     glbTriesRef.current = 0;

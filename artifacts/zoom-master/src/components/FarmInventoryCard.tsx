@@ -14,6 +14,7 @@ import { ZoomCubeIcon } from "./ZoomCubeIcon";
 import { useT } from "../i18n/LanguageContext";
 import { labForgeChromeForPlanet, labMarketPathForPlanet, type LabMarketPath } from "@workspace/game-models";
 import { labFarmRateForPlanet } from "../utils/labFloatFarm";
+import { evoBadgeLabel, readEvoTier } from "../utils/labEvoFuse";
 
 export type FarmCardVariant = "grid" | "compact";
 
@@ -112,6 +113,8 @@ export function FarmInventoryCard({
   const glow = chrome?.glowColor ?? theme.glow;
   const reactivateColor = accent;
   const title = getPlanetDisplayName(planet);
+  const evoTier = readEvoTier(planet);
+  const evoLabel = evoBadgeLabel(evoTier);
   const floatLabel = isFloatablePlanet(planet) ? formatFloat(getDisplayFloat(planet)) : null;
   const hourRate = planet.name === "MUSHROOM" ? 5 : labFarmRateForPlanet(planet) || planet.rate;
   const cycleTotal = planet.name === "MUSHROOM" ? 5 : hourRate * farmHours;
@@ -120,7 +123,7 @@ export function FarmInventoryCard({
 
   return (
     <article
-      className={`lab-market-card farm-inventory-card${compact ? " lab-market-card--compact" : ""}${className ? ` ${className}` : ""}`}
+      className={`lab-market-card farm-inventory-card${compact ? " lab-market-card--compact" : ""}${evoTier ? ` lab-market-card--evo${evoTier === 2 ? " lab-market-card--evo2" : ""}` : ""}${className ? ` ${className}` : ""}`}
       style={{
         ["--mkt-accent" as string]: accent,
         ["--mkt-glow" as string]: glow,
@@ -166,6 +169,11 @@ export function FarmInventoryCard({
           )}
           {theme.label}
         </span>
+        {evoLabel ? (
+          <span className="lab-market-card__evo" aria-label={evoLabel}>
+            {evoLabel}
+          </span>
+        ) : null}
       </div>
 
       <div className="lab-market-card__body">

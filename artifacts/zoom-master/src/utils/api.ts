@@ -3395,6 +3395,105 @@ export async function confirmShopZmcBuy(params: {
   }
 }
 
+export async function fetchLabFuseIntent(
+  telegramId: string,
+  walletAddress: string,
+  planetIds: string[],
+): Promise<{
+  ok: boolean;
+  messages?: Array<{ address: string; amount: string; payload: string }>;
+  priceZmc?: number;
+  fromTier?: number;
+  toTier?: number;
+  keeperId?: string;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(`${API_BASE}/lab/fuse/intent`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify({ telegramId, walletAddress, planetIds }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: typeof data?.error === "string" ? data.error : `HTTP ${res.status}` };
+    return data;
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function confirmLabFuse(params: {
+  telegramId: string;
+  walletAddress: string;
+  boc: string;
+  planetIds: string[];
+}): Promise<{
+  ok: boolean;
+  pending?: boolean;
+  alreadyCredited?: boolean;
+  priceZmc?: number;
+  toTier?: number;
+  keeperId?: string;
+  planets?: Array<Record<string, unknown>>;
+  error?: string;
+}> {
+  try {
+    const res = await fetch(`${API_BASE}/lab/fuse/confirm`, {
+      method: "POST",
+      headers: apiHeaders(),
+      body: JSON.stringify(params),
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ...data, ok: !!data?.ok && (res.ok || data?.alreadyCredited) };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}
+
+export async function payLabFuseWithZmc(opts: {
+  telegramId: string;
+  walletAddress: string;
+  planetIds: string[];
+  sendTransaction: (tx: {
+    validUntil: number;
+    messages: Array<{ address: string; amount: string; payload: string }>;
+  }) => Promise<{ boc: string }>;
+}): Promise<{
+  ok: boolean;
+  pending?: boolean;
+  alreadyCredited?: boolean;
+  priceZmc?: number;
+  toTier?: number;
+  keeperId?: string;
+  planets?: Array<Record<string, unknown>>;
+  error?: string;
+}> {
+  const intent = await fetchLabFuseIntent(opts.telegramId, opts.walletAddress, opts.planetIds);
+  if (!intent.ok || !intent.messages?.length) {
+    return { ok: false, error: intent.error ?? "Cannot build ZMC payment" };
+  }
+  const txResult = await opts.sendTransaction({
+    validUntil: Math.floor(Date.now() / 1000) + 300,
+    messages: intent.messages,
+  });
+  let result = await confirmLabFuse({
+    telegramId: opts.telegramId,
+    walletAddress: opts.walletAddress,
+    boc: txResult.boc,
+    planetIds: opts.planetIds,
+  });
+  for (let i = 0; i < 8 && result.pending; i++) {
+    await new Promise((r) => setTimeout(r, 5000));
+    result = await confirmLabFuse({
+      telegramId: opts.telegramId,
+      walletAddress: opts.walletAddress,
+      boc: txResult.boc,
+      planetIds: opts.planetIds,
+    });
+  }
+  return result;
+}
+
 export async function payShopItemWithZmc(opts: {
   telegramId: string;
   itemId: string;

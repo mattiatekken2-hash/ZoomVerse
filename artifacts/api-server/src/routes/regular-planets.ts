@@ -8,6 +8,7 @@ import {
   deterministicFloatFromId,
   sanitizeIncomingFloat,
 } from "../lib/planetFloat";
+import { readEvoFusedIds, readEvoTier } from "../lib/labEvoFuse";
 
 const router: IRouter = Router();
 
@@ -261,6 +262,8 @@ router.post("/regular-planets/save", async (req, res) => {
     const storedNamesById = new Map<string, string>();
     const storedFloatsById = new Map<string, number>();
     const storedDurationById = new Map<string, number>();
+    const storedEvoTierById = new Map<string, number>();
+    const storedEvoFusedById = new Map<string, string[]>();
     // Server-pinned marketplace + pause fields. /market/list,
     // /market/delist and /market/buy are the ONLY authoritative writers
     // for these. Without pinning, a stale or mid-air /save can flip
@@ -290,6 +293,10 @@ router.post("/regular-planets/save", async (req, res) => {
           ? Math.max(1, obj.farmDurationHours)
           : 0;
         if (storedHours > 0) storedDurationById.set(id, storedHours);
+        const storedEvo = readEvoTier(obj);
+        if (storedEvo > 0) storedEvoTierById.set(id, storedEvo);
+        const storedFused = readEvoFusedIds(obj);
+        if (storedFused.length > 0) storedEvoFusedById.set(id, storedFused);
         storedListingById.set(id, {
           isListedInMarket: obj.isListedInMarket === true,
           serverListingId: typeof obj.serverListingId === "number" ? obj.serverListingId : undefined,
@@ -333,6 +340,15 @@ router.post("/regular-planets/save", async (req, res) => {
         ? rest.farmDurationHours
         : 1;
       out.farmDurationHours = Math.max(1, storedHours, incomingHours);
+      const storedEvo = storedEvoTierById.get(id) ?? 0;
+      if (storedEvo === 1 || storedEvo === 2) out.evoTier = storedEvo;
+      else delete out.evoTier;
+      const fused = [...new Set([
+        ...(storedEvoFusedById.get(id) ?? []),
+        ...readEvoFusedIds(incoming as { evoFusedIds?: unknown }),
+      ])];
+      if (fused.length > 0) out.evoFusedIds = fused;
+      else delete out.evoFusedIds;
       // Marketplace + pause pinning. The server-stored values for
       // `isListedInMarket`, `serverListingId`, `marketPrice` and
       // `pausedAt` are authoritative — only /market/* endpoints may

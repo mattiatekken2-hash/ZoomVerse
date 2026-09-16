@@ -40,6 +40,7 @@ import { planetTypeLabel } from "../i18n/translations";
 
 import { labForgeShapeHasGlbReveal, isLabStardustShapeId } from "@workspace/game-models";
 import { labFarmRateForPlanet } from "../utils/labFloatFarm";
+import { evoBadgeLabel, readEvoTier } from "../utils/labEvoFuse";
 
 
 
@@ -66,6 +67,14 @@ interface Props {
   onUnlist?: (id: string) => void;
 
   onRepair?: (id: string) => { ok: boolean; reason?: string };
+
+  onFuse?: () => void | Promise<void>;
+
+  fuseBusy?: boolean;
+
+  fuseCostZmc?: number | null;
+
+  fuseToTier?: number;
 
 }
 
@@ -127,11 +136,21 @@ export function PlanetDetailModal({
 
   onRepair,
 
+  onFuse,
+
+  fuseBusy = false,
+
+  fuseCostZmc = null,
+
+  fuseToTier,
+
 }: Props) {
 
   const { t, lang } = useT();
 
   const [confirmBurn, setConfirmBurn] = useState(false);
+
+  const [confirmFuse, setConfirmFuse] = useState(false);
 
   const [defectMsg, setDefectMsg] = useState<string | null>(null);
 
@@ -349,6 +368,40 @@ export function PlanetDetailModal({
             <div className="font-black text-lg" style={{ color: accent }}>
 
               {getPlanetDisplayName(livePlanet)}
+
+              {evoBadgeLabel(readEvoTier(livePlanet)) ? (
+
+                <span
+
+                  style={{
+
+                    marginLeft: 8,
+
+                    fontSize: 10,
+
+                    fontWeight: 900,
+
+                    letterSpacing: "0.12em",
+
+                    padding: "3px 8px",
+
+                    borderRadius: 999,
+
+                    color: "#08080c",
+
+                    background: "linear-gradient(135deg, #f5e6b8 0%, #c9a227 45%, #9be7ff 100%)",
+
+                    verticalAlign: "middle",
+
+                  }}
+
+                >
+
+                  {evoBadgeLabel(readEvoTier(livePlanet))}
+
+                </span>
+
+              ) : null}
 
             </div>
 
@@ -604,7 +657,67 @@ export function PlanetDetailModal({
 
         {!isListed && (
 
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+
+            {onFuse && fuseCostZmc != null && (
+
+              <button
+
+                type="button"
+
+                disabled={fuseBusy}
+
+                onClick={() => {
+
+                  if (!confirmFuse) {
+
+                    setConfirmFuse(true);
+
+                    setTimeout(() => setConfirmFuse(false), 2500);
+
+                    return;
+
+                  }
+
+                  setConfirmFuse(false);
+
+                  void onFuse();
+
+                }}
+
+                style={{
+
+                  ...ghostBtn,
+
+                  flex: undefined,
+
+                  width: "100%",
+
+                  color: confirmFuse ? "#08080c" : "#f5e6b8",
+
+                  borderColor: confirmFuse ? "rgba(201,162,39,0.7)" : "rgba(245,230,184,0.35)",
+
+                  background: confirmFuse
+                    ? "linear-gradient(135deg, #f5e6b8 0%, #c9a227 55%, #9be7ff 100%)"
+                    : "rgba(245,230,184,0.08)",
+
+                  opacity: fuseBusy ? 0.55 : 1,
+
+                }}
+
+              >
+
+                {fuseBusy
+                  ? t("farm.fuseWait")
+                  : confirmFuse
+                    ? t("farm.fuseSure")
+                    : `${t("farm.fuse")}${fuseToTier === 2 ? " II" : ""} · ${fuseCostZmc.toLocaleString()} ZMC`}
+
+              </button>
+
+            )}
+
+            <div style={{ display: "flex", gap: 8 }}>
 
             <button
 
@@ -643,6 +756,8 @@ export function PlanetDetailModal({
               {confirmBurn ? t("planetDetail.sure") : t("planetDetail.burn")}
 
             </button>
+
+            </div>
 
           </div>
 

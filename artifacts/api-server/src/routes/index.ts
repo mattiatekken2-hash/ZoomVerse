@@ -40,6 +40,7 @@ import adsRouter from "./ads";
 import itemsRouter from "./items";
 import modelsRouter from "./models";
 import labForgeRouter from "./lab-forge";
+import labFuseRouter from "./lab-fuse";
 import voxelStudioRouter from "./voxel-studio";
 import studioGalleryRouter from "./studio-gallery";
 import zmcRouter from "./zmc";
@@ -122,6 +123,8 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
       "/stardust/collect",
       "/stardust/deduct",
       "/lab/forge-start",
+      "/lab/fuse/intent",
+      "/lab/fuse/confirm",
       "/stardust/stake",
       "/stardust/unstake",
       "/stella-rossa/claim-daily",
@@ -398,6 +401,7 @@ router.use(adsRouter);
 router.use(itemsRouter);
 router.use(modelsRouter);
 router.use(labForgeRouter);
+router.use(labFuseRouter);
 router.use(voxelStudioRouter);
 router.use(studioGalleryRouter);
 router.use(zmcRouter);
