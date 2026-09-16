@@ -50,6 +50,26 @@ function readFloat(planet: Record<string, unknown>): number {
   return Math.min(1, n);
 }
 
+function asPlanetRows(planets: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(planets)) return [];
+  return planets.filter((p): p is Record<string, unknown> => !!p && typeof p === "object");
+}
+
+function planetIdOf(planet: Record<string, unknown>): string {
+  return String(planet.id ?? "");
+}
+
+function labShapeOf(planet: Record<string, unknown>): string | null {
+  return resolveLabShapeIdFromPlanet({
+    shapeId: typeof planet.shapeId === "string" ? planet.shapeId : null,
+    displayName: typeof planet.displayName === "string" ? planet.displayName : null,
+  });
+}
+
+function normalizeFuseIds(planetIds: string[]): string[] {
+  return [...new Set(planetIds.map((id) => String(id || "").trim()).filter(Boolean))];
+}
+
 export type FuseApplyOk = {
   ok: true;
   planets: Record<string, unknown>[];
@@ -67,20 +87,70 @@ export function findCompletedLabFuse(
   planets: unknown,
   planetIds: string[],
 ): { keeperId: string; toTier: 1 | 2; planets: Record<string, unknown>[] } | null {
-  if (!Array.isArray(planets)) return null;
-  const ids = [...new Set(planetIds.map((id) => String(id || "").trim()).filter(Boolean))];
+  const ids = normalizeFuseIds(planetIds);
   if (ids.length !== FUSE_INPUT_COUNT) return null;
-  const rows = planets.filter((p): p is Record<string, unknown> => !!p && typeof p === "object");
-  const present = ids.filter((id) => rows.some((p) => String(p.id ?? "") === id));
-  if (present.length !== 1) return null;
-  const keeperId = present[0]!;
-  const keeper = rows.find((p) => String(p.id ?? "") === keeperId);
-  if (!keeper) return null;
-  const missing = ids.filter((id) => id !== keeperId);
-  const fused = readEvoFusedIds(keeper);
-  const tier = readEvoTier(keeper);
-  if (tier < 1 || !missing.every((id) => fused.includes(id))) return null;
-  return { keeperId, toTier: tier, planets: rows };
+  const rows = asPlanetRows(planets);
+  const idSet = new Set(ids);
+  const present = ids.filter((id) => rows.some((p) => planetIdOf(p) === id));
+  if (present.length === 1) {
+    const keeperId = present[0]!;
+    const keeper = rows.find((p) => planetIdOf(p) === keeperId);
+    if (keeper) {
+      const tier = readEvoTier(keeper);
+      if (tier === 1 || tier === 2) return { keeperId, toTier: tier, planets: rows };
+    }
+  }
+  for (const p of rows) {
+    const keeperId = planetIdOf(p);
+    if (!keeperId) continue;
+    const tier = readEvoTier(p);
+    if (tier !== 1 && tier !== 2) continue;
+    const fused = new Set(readEvoFusedIds(p));
+    if (fused.size === 0) continue;
+    const hits = ids.filter((id) => fused.has(id) || id === keeperId);
+    if (hits.length >= 2) return { keeperId, toTier: tier, planets: rows };
+    const burnedHits = ids.filter((id) => fused.has(id));
+    if (burnedHits.length >= 2 && idSet.has(keeperId)) {
+      return { keeperId, toTier: tier, planets: rows };
+    }
+  }
+  return null;
+}
+
+/**
+ * If some of the 3 client IDs are missing on the server, complete the trio
+ * from remaining Lab models of the same shape + evo tier. Never invent a
+ * trio when none of the requested IDs exist (avoids fusing the wrong Pou).
+ */
+export function pickLabFuseTrioIds(
+  planets: unknown,
+  planetIds: string[],
+): string[] | null {
+  const ids = normalizeFuseIds(planetIds);
+  if (ids.length !== FUSE_INPUT_COUNT) return null;
+  const rows = asPlanetRows(planets);
+  const found = ids
+    .map((id) => rows.find((p) => planetIdOf(p) === id))
+    .filter((p): p is Record<string, unknown> => !!p);
+  if (found.length === FUSE_INPUT_COUNT) return ids;
+  if (found.length === 0) return null;
+  const seed = found[0]!;
+  if (seed.isListedInMarket === true) return null;
+  const shape = labShapeOf(seed);
+  const tier = readEvoTier(seed);
+  if (!shape || tier >= EVO_TIER_MAX) return null;
+  const matches = rows.filter((p) => {
+    if (p.isListedInMarket === true) return false;
+    if (readEvoTier(p) !== tier) return false;
+    return labShapeOf(p) === shape && !!planetIdOf(p);
+  });
+  if (matches.length < FUSE_INPUT_COUNT) return null;
+  const preferred = ids.filter((id) => matches.some((p) => planetIdOf(p) === id));
+  const rest = matches
+    .map((p) => planetIdOf(p))
+    .filter((id) => id && !preferred.includes(id));
+  const trio = [...preferred, ...rest].slice(0, FUSE_INPUT_COUNT);
+  return trio.length === FUSE_INPUT_COUNT ? trio : null;
 }
 
 export function applyLabFuseToPlanets(

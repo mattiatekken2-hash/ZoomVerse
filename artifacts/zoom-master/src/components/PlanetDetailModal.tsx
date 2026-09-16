@@ -708,7 +708,7 @@ export function PlanetDetailModal({
               >
 
                 {fuseBusy
-                  ? t("farm.fuseWait")
+                  ? t("farm.fuseBusy")
                   : confirmFuse
                     ? t("farm.fuseSure")
                     : `${t("farm.fuse")}${fuseToTier === 2 ? " II" : ""} · ${fuseCostZmc.toLocaleString()} ZMC`}

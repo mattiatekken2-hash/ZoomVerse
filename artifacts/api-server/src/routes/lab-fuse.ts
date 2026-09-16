@@ -19,7 +19,9 @@ import {
   applyLabFuseToPlanets,
   findCompletedLabFuse,
   fusePriceZmc,
+  pickLabFuseTrioIds,
   readEvoTier,
+  type FuseApplyOk,
   type EvoTier,
 } from "../lib/labEvoFuse";
 
@@ -29,6 +31,7 @@ const IntentBody = z.object({
   telegramId: z.string().min(1),
   walletAddress: z.string().min(10).max(128),
   planetIds: z.array(z.string().min(1).max(128)).length(3),
+  shapeId: z.string().min(1).max(64).optional(),
 });
 
 const ConfirmBody = IntentBody.extend({
@@ -37,6 +40,14 @@ const ConfirmBody = IntentBody.extend({
 
 function jsonPlanets(v: unknown): unknown[] {
   return Array.isArray(v) ? v : [];
+}
+
+function previewLabFuse(planets: unknown, planetIds: string[]): FuseApplyOk | { ok: false; error: string } {
+  let fused = applyLabFuseToPlanets(planets, planetIds);
+  if (fused.ok) return fused;
+  const picked = pickLabFuseTrioIds(planets, planetIds);
+  if (picked) fused = applyLabFuseToPlanets(planets, picked);
+  return fused;
 }
 
 router.post("/lab/fuse/intent", async (req, res) => {
@@ -64,11 +75,31 @@ router.post("/lab/fuse/intent", async (req, res) => {
       return;
     }
 
-    const fused = applyLabFuseToPlanets(jsonPlanets(user.planetsJson), planetIds);
+    const planetsNow = jsonPlanets(user.planetsJson);
+    const already = findCompletedLabFuse(planetsNow, planetIds);
+    if (already) {
+      res.json({
+        ok: true,
+        alreadyFused: true,
+        alreadyCredited: true,
+        priceZmc: fusePriceZmc((already.toTier - 1) as EvoTier) ?? undefined,
+        toTier: already.toTier,
+        keeperId: already.keeperId,
+        planetIds,
+        planets: already.planets,
+      });
+      return;
+    }
+
+    const fused = previewLabFuse(planetsNow, planetIds);
     if (!fused.ok) {
       res.status(400).json({ ok: false, error: fused.error });
       return;
     }
+    const fuseIds = [
+      fused.keeperId,
+      ...fused.burnedIds,
+    ].filter(Boolean);
     const priceZmc = fusePriceZmc(fused.fromTier);
     if (priceZmc == null) {
       res.status(400).json({ ok: false, error: "EVO II cannot fuse" });
@@ -77,7 +108,7 @@ router.post("/lab/fuse/intent", async (req, res) => {
 
     const jettonWallet = await fetchZmcJettonWallet(walletAddress);
     if (!jettonWallet) {
-      res.status(400).json({ ok: false, error: "No ZMC wallet. Buy ZMC on STON.fi first." });
+      res.status(400).json({ ok: false, error: "No ZMC in TON wallet. Buy on STON.fi, then FUSE again (opens wallet, not STON.fi)" });
       return;
     }
     const amountNano = zmcHumanToNano(priceZmc);
@@ -89,10 +120,12 @@ router.post("/lab/fuse/intent", async (req, res) => {
     const treasuryDest = treasuryWallet();
     res.json({
       ok: true,
+      alreadyFused: false,
       priceZmc,
       fromTier: fused.fromTier,
       toTier: fused.toTier,
       keeperId: fused.keeperId,
+      planetIds: fuseIds.length === 3 ? fuseIds : planetIds,
       amountNano: amountNano.toString(),
       treasuryWallet: treasuryDest,
       messages: [

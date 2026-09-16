@@ -3399,20 +3399,30 @@ export async function fetchLabFuseIntent(
   telegramId: string,
   walletAddress: string,
   planetIds: string[],
+  shapeId?: string,
 ): Promise<{
   ok: boolean;
+  alreadyFused?: boolean;
+  alreadyCredited?: boolean;
   messages?: Array<{ address: string; amount: string; payload: string }>;
   priceZmc?: number;
   fromTier?: number;
   toTier?: number;
   keeperId?: string;
+  planetIds?: string[];
+  planets?: Array<Record<string, unknown>>;
   error?: string;
 }> {
   try {
     const res = await fetch(`${API_BASE}/lab/fuse/intent`, {
       method: "POST",
       headers: apiHeaders(),
-      body: JSON.stringify({ telegramId, walletAddress, planetIds }),
+      body: JSON.stringify({
+        telegramId,
+        walletAddress,
+        planetIds,
+        ...(shapeId ? { shapeId } : {}),
+      }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, error: typeof data?.error === "string" ? data.error : `HTTP ${res.status}` };
@@ -3454,6 +3464,7 @@ export async function payLabFuseWithZmc(opts: {
   telegramId: string;
   walletAddress: string;
   planetIds: string[];
+  shapeId?: string;
   sendTransaction: (tx: {
     validUntil: number;
     messages: Array<{ address: string; amount: string; payload: string }>;
@@ -3462,16 +3473,29 @@ export async function payLabFuseWithZmc(opts: {
   ok: boolean;
   pending?: boolean;
   alreadyCredited?: boolean;
+  alreadyFused?: boolean;
   priceZmc?: number;
   toTier?: number;
   keeperId?: string;
   planets?: Array<Record<string, unknown>>;
   error?: string;
 }> {
-  const intent = await fetchLabFuseIntent(opts.telegramId, opts.walletAddress, opts.planetIds);
+  const intent = await fetchLabFuseIntent(opts.telegramId, opts.walletAddress, opts.planetIds, opts.shapeId);
+  if (intent.ok && (intent.alreadyFused || intent.alreadyCredited) && Array.isArray(intent.planets)) {
+    return {
+      ok: true,
+      alreadyCredited: true,
+      alreadyFused: true,
+      priceZmc: intent.priceZmc,
+      toTier: intent.toTier,
+      keeperId: intent.keeperId,
+      planets: intent.planets,
+    };
+  }
   if (!intent.ok || !intent.messages?.length) {
     return { ok: false, error: intent.error ?? "Cannot build ZMC payment" };
   }
+  const planetIds = intent.planetIds?.length === 3 ? intent.planetIds : opts.planetIds;
   const txResult = await opts.sendTransaction({
     validUntil: Math.floor(Date.now() / 1000) + 300,
     messages: intent.messages,
@@ -3480,7 +3504,7 @@ export async function payLabFuseWithZmc(opts: {
     telegramId: opts.telegramId,
     walletAddress: opts.walletAddress,
     boc: txResult.boc,
-    planetIds: opts.planetIds,
+    planetIds,
   });
   for (let i = 0; i < 8 && result.pending; i++) {
     await new Promise((r) => setTimeout(r, 5000));
@@ -3488,7 +3512,7 @@ export async function payLabFuseWithZmc(opts: {
       telegramId: opts.telegramId,
       walletAddress: opts.walletAddress,
       boc: txResult.boc,
-      planetIds: opts.planetIds,
+      planetIds,
     });
   }
   return result;

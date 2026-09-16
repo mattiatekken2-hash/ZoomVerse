@@ -140,7 +140,7 @@ export function FarmPage({
   planets, sun, sunCount, balance, maxSlots, defectPlanets, telegramId,
   onCollect, onBurn, onLabFuseApplied, onStartFarming, onStopFarming, onStartSunFarming, onStopSunFarming, onBurnSun,
   onSell, onUnlist, onRepair, stardustBalance = 0,
-  items: _items = [], onSellItem: _onSellItem, onUnlistItem: _onUnlistItem, onFlushPlanets: _onFlushPlanets, tonBalance = 0,
+  items: _items = [], onSellItem: _onSellItem, onUnlistItem: _onUnlistItem, onFlushPlanets, tonBalance = 0,
   onUpgradeSunDuration,
   depositBalance = 0,
   onSlotUnlocked,
@@ -277,7 +277,6 @@ export function FarmPage({
   void _items;
   void _onSellItem;
   void _onUnlistItem;
-  void _onFlushPlanets;
 
   // Daily-collect removed — planets now farm autonomously for the full 24h
   // cycle and then need a $ZOOM reactivation, with no manual collect step.
@@ -364,12 +363,21 @@ export function FarmPage({
     setFuseBusy(true);
     try {
       const planetIds = fuseTrio.map((p) => p.id);
-      const res = await payLabFuseWithZmc({
+      const shapeId = liveDetailPlanet
+        ? resolveLabShapeIdFromPlanet(liveDetailPlanet) ?? undefined
+        : undefined;
+      const pay = () => payLabFuseWithZmc({
         telegramId,
         walletAddress: sellerWallet,
         planetIds,
+        shapeId,
         sendTransaction: (tx) => tonConnectUI.sendTransaction(tx),
       });
+      let res = await pay();
+      if (!res.ok && res.error === "Model not found" && onFlushPlanets) {
+        await onFlushPlanets();
+        res = await pay();
+      }
       let planetsOut = Array.isArray(res.planets) ? res.planets : null;
       let keeperId = res.keeperId;
       let toTier = res.toTier;

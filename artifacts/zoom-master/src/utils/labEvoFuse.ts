@@ -51,16 +51,29 @@ export function findCompletedLabFuse<T extends {
 ): { keeperId: string; toTier: 1 | 2; planets: T[] } | null {
   const ids = [...new Set(planetIds.map((id) => String(id || "").trim()).filter(Boolean))];
   if (ids.length !== FUSE_INPUT_COUNT) return null;
+  const idSet = new Set(ids);
   const present = ids.filter((id) => planets.some((p) => p.id === id));
-  if (present.length !== 1) return null;
-  const keeperId = present[0]!;
-  const keeper = planets.find((p) => p.id === keeperId);
-  if (!keeper) return null;
-  const missing = ids.filter((id) => id !== keeperId);
-  const fused = readEvoFusedIds(keeper);
-  const tier = readEvoTier(keeper);
-  if (tier < 1 || !missing.every((id) => fused.includes(id))) return null;
-  return { keeperId, toTier: tier, planets };
+  if (present.length === 1) {
+    const keeperId = present[0]!;
+    const keeper = planets.find((p) => p.id === keeperId);
+    if (keeper) {
+      const tier = readEvoTier(keeper);
+      if (tier === 1 || tier === 2) return { keeperId, toTier: tier, planets };
+    }
+  }
+  for (const p of planets) {
+    const tier = readEvoTier(p);
+    if (tier !== 1 && tier !== 2) continue;
+    const fused = new Set(readEvoFusedIds(p));
+    if (fused.size === 0) continue;
+    const hits = ids.filter((id) => fused.has(id) || id === p.id);
+    if (hits.length >= 2) return { keeperId: p.id, toTier: tier, planets };
+    const burnedHits = ids.filter((id) => fused.has(id));
+    if (burnedHits.length >= 2 && idSet.has(p.id)) {
+      return { keeperId: p.id, toTier: tier, planets };
+    }
+  }
+  return null;
 }
 
 export function applyLabEvoFuseTombstones<T extends { id: string; evoFusedIds?: unknown }>(
